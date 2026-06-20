@@ -1051,16 +1051,44 @@ describe('GET /media/:galleryId/:mediaId (item detail) + grid linking', () => {
     expect(res.text).toContain('rel="next"');
   });
 
-  it('omits Previous on the first item and Next on the last', async () => {
+  it('wraps prev/next around the ends of the ordered set', async () => {
+    // Order C, B, A. The first item's Previous wraps to the last item, and the
+    // last item's Next wraps to the first, so both ends keep a full pager.
     const first = await request(createApp()).get(`/media/${GID}/${ITEM_C}`);
     expect(first.status).toBe(200);
-    expect(first.text).not.toContain('rel="prev"');
+    expect(first.text).toContain('rel="prev"');
     expect(first.text).toContain('rel="next"');
+    expect(first.text).toContain(`href="/media/${GID}/${ITEM_A}"`); // prev wraps to last
+    expect(first.text).toContain(`href="/media/${GID}/${ITEM_B}"`); // next is the second item
 
     const last = await request(createApp()).get(`/media/${GID}/${ITEM_A}`);
     expect(last.status).toBe(200);
     expect(last.text).toContain('rel="prev"');
-    expect(last.text).not.toContain('rel="next"');
+    expect(last.text).toContain('rel="next"');
+    expect(last.text).toContain(`href="/media/${GID}/${ITEM_B}"`); // prev is the middle item
+    expect(last.text).toContain(`href="/media/${GID}/${ITEM_C}"`); // next wraps to first
+  });
+
+  it('shows a single item with no pager when the set has one item', async () => {
+    // A gallery whose criteria match exactly one item: the pager collapses
+    // because Previous and Next would both resolve to that same item.
+    const db = openDb();
+    const soloTagId = 'tag-test-soloset';
+    db.prepare(`
+      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, '#soloset', '#soloset', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run(soloTagId, TS, TS);
+    insertNamedGallery(db, { id: 'gallery_solo', ownerId: SYSTEM_ID, name: 'Solo Set' });
+    insertGalleryCriteria(db, 'gallery_solo', [soloTagId]);
+    const soloItem = insertPhoto(db, { caption: 'solo-item', uploaded_at: '2026-07-04T00:00:00.000Z' });
+    attachTag(db, soloItem, soloTagId, '#soloset');
+    db.close();
+
+    const res = await request(createApp()).get(`/media/gallery_solo/${soloItem}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('solo-item');
+    expect(res.text).not.toContain('rel="prev"');
+    expect(res.text).not.toContain('rel="next"');
   });
 
   it('shows uploader attribution as plain text for an anonymous viewer', async () => {

@@ -30,23 +30,7 @@
       <h2 class="section-heading">Recent from the community</h2>
       <ul class="gallery-grid">
         {{#each teaching.exampleItems}}
-          <li class="gallery-tile">
-            {{#if media}}
-              {{> video-facade media=media}}
-            {{else}}
-              <a href="{{displayHref}}" class="gallery-tile-media" target="_blank" rel="noopener noreferrer">
-                <img src="{{thumbnailUrl}}" alt="{{caption}}" loading="lazy" />
-              </a>
-            {{/if}}
-            {{#if caption}}<p class="gallery-tile-caption">{{caption}}</p>{{/if}}
-            {{#if tags.length}}
-              <ul class="gallery-tile-tags">
-                {{#each tags}}
-                  <li>{{#if href}}<a href="{{href}}" class="gallery-tile-tag">{{display}}</a>{{else}}<span class="gallery-tile-tag">{{display}}</span>{{/if}}</li>
-                {{/each}}
-              </ul>
-            {{/if}}
-          </li>
+          {{> _gallery-tile this}}
         {{/each}}
       </ul>
     </div>

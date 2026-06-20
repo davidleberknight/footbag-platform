@@ -524,19 +524,19 @@ th.sortable:hover { color: var(--primary); }
 }
 
 /* ── Member search ─────────────────────────────────────────── */
-.member-search-section {
+.search-box-section {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
-.member-search-form {
+.search-box-form {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-.member-search-input {
+.search-box-input {
   flex: 1;
   min-width: 0;
   max-width: 420px;
@@ -549,24 +549,24 @@ th.sortable:hover { color: var(--primary); }
   background: var(--bg);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.member-search-input:focus {
+.search-box-input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: var(--shadow-focus);
 }
-.member-search-results {
+.search-box-results {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.member-search-result {
+.search-box-result {
   display: flex;
   align-items: baseline;
   gap: 8px;
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
 }
-.member-search-result a {
+.search-box-result a {
   font-weight: 500;
 }
 .badge-honor {
@@ -616,15 +616,16 @@ th.sortable:hover { color: var(--primary); }
 .club-slug-group input { flex: 1; }
 
 /* ── Find Members card (member dashboard) ───────────────────── */
-.member-search-card { padding: 16px; scroll-margin-top: 80px; }
-.member-search-card .member-search-section { margin-bottom: 8px; }
-.member-search-card-results-head {
+.search-box-card { padding: 16px; scroll-margin-top: 80px; }
+#find-members { scroll-margin-top: 80px; }
+.search-box-section { margin-bottom: 8px; }
+.search-box-card-results-head {
   display: flex;
   align-items: baseline;
   gap: 12px;
   margin: 12px 0 8px;
 }
-.member-search-card .member-search-results {
+.search-box-results {
   max-height: 320px;
   overflow-y: auto;
 }
@@ -806,7 +807,7 @@ th.sortable:hover { color: var(--primary); }
 /* Single-item detail page (/media/:galleryId/:mediaId) */
 .gallery-item-detail {
   max-width: 800px;
-  margin: 0 auto;
+  margin: 24px auto 0;
 }
 .gallery-item-media {
   margin: 0 auto;
@@ -841,7 +842,7 @@ th.sortable:hover { color: var(--primary); }
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 24px;
+  margin-bottom: 20px;
 }
 
 .gallery-tile-caption {
@@ -872,8 +873,24 @@ th.sortable:hover { color: var(--primary); }
   font-size: 0.75rem;
 }
 
-.browse-standard-section { margin: 24px 0 0; }
-.browse-popular-section { margin: 24px 0 0; }
+.browse-search-section { margin: 16px 0 0; }
+.browse-standard-section { margin: 16px 0 0; }
+.browse-popular-section { margin: 16px 0 0; }
+.browse-search-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+}
+.browse-search-input {
+  width: 100%;
+  max-width: 480px;
+  padding: 8px 12px;
+  border: 1px solid var(--gray-400);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+}
 .browse-section-heading {
   font-size: 1rem;
   font-weight: 600;
@@ -883,8 +900,8 @@ th.sortable:hover { color: var(--primary); }
   margin: 0 0 10px;
 }
 .browse-tags-help {
-  margin: 24px 0 0;
-  padding: 20px;
+  margin: 16px 0 0;
+  padding: 16px 20px;
   background: var(--bg-light);
   border-radius: var(--radius-md);
 }
@@ -921,11 +938,13 @@ th.sortable:hover { color: var(--primary); }
   color: var(--gray-900);
   border: 1px solid var(--gray-400);
   border-radius: var(--radius-sm);
-  padding: 4px 10px;
+  padding: 6px 12px;
   font-size: 0.85rem;
+  font-weight: 500;
   text-decoration: none;
+  transition: border-color 0.15s, background 0.15s;
 }
-.tag-chip:hover { background: var(--hover-tint); }
+.tag-chip:hover { background: var(--hover-tint); border-color: var(--primary); }
 button.tag-suggestion {
   cursor: pointer;
   font-family: inherit;
@@ -2009,8 +2028,8 @@ section.home-media { padding-top: 0; }
 }
 
 .profile-section {
-  padding-bottom: 20px;
-  margin-bottom: 20px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 .profile-section:last-child {
@@ -2025,7 +2044,19 @@ section.home-media { padding-top: 0; }
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+}
+
+/* A shared section partial embedded in a profile section (e.g. player-results,
+   which also serves the history page where the site heading is correct) adopts
+   the profile's label heading here, so the profile reads as one heading system. */
+.profile-section .section-heading { margin-bottom: 12px; }
+.profile-section .section-heading h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .profile-link-grid {
@@ -2843,9 +2874,9 @@ section.home-media { padding-top: 0; }
   .profile-avatar-placeholder { width: 80px; height: 80px; font-size: 2rem; margin: 0; flex-shrink: 0; }
   .profile-edit-btn { width: auto; margin-top: 8px; }
   .dashboard-profile-link { flex-wrap: wrap; }
-  .member-search-section { flex-direction: column; align-items: stretch; }
-  .member-search-form { flex-direction: column; }
-  .member-search-input { max-width: none; }
+  .search-box-section { flex-direction: column; align-items: stretch; }
+  .search-box-form { flex-direction: column; }
+  .search-box-input { max-width: none; }
   .hero.hero-with-mascot { flex-direction: column; text-align: center; gap: 16px; }
   .hero.hero-with-mascot .hero-text { max-width: none; }
   .hero-mascot { width: 110px; height: 110px; }

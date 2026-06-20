@@ -159,7 +159,7 @@ export const memberGalleryController = {
       // Gallery materializes on first upload), so this is the no-media state:
       // attach the teaching content. Skipped entirely once any gallery exists.
       const teaching = summaries.length > 0 ? null : {
-        exampleItems: mediaService.listRecentCommunityMedia(TEACHING_EXAMPLE_LIMIT),
+        exampleItems: mediaService.listRecentCommunityMedia(TEACHING_EXAMPLE_LIMIT, listHref(memberKey)),
         popularTags: hashtagDiscoveryService.getPopularTagsWithSeeds(TEACHING_TAG_LIMIT),
         stats: hashtagDiscoveryService.getCommunityHashtagSummary(),
       };

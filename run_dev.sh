@@ -6,7 +6,7 @@
 # Usage:
 #   ./run_dev.sh                  # code only — just run dev (no DB work; bootstraps if DB missing)
 #   ./run_dev.sh --reset          # fast reset from committed seeds
-#   ./run_dev.sh --from-csv       # full enrichment rebuild (deploy-parity, no mirror)
+#   ./run_dev.sh --from-csv       # full enrichment rebuild + persona seed (deploy-parity, no mirror; --no-personas to opt out)
 #   ./run_dev.sh --soup-to-nuts   # everything on: mirror rebuild + media + personas + dev-admins (--no-* to opt out)
 
 set -euo pipefail
@@ -84,6 +84,8 @@ DB rebuild modes (mutually exclusive; opt-in only):
   --from-csv       Full clean rebuild from committed canonical CSVs (drops
                    the DB file, reapplies schema, runs all enrichment
                    phases). Matches what deploy_to_aws.sh ships locally.
+                   Also seeds the canonical persona catalog by default so a
+                   fresh DB is usable; opt out with --no-personas.
                    Calls scripts/deploy-local-data.sh --from-csv.
   --soup-to-nuts   "Everything on": full clean rebuild from the legacy mirror
                    (drops the DB file, regenerates canonical_input CSVs, runs
@@ -95,10 +97,12 @@ DB rebuild modes (mutually exclusive; opt-in only):
                    legacy_data/mirror_footbag_org/ to be present.
                    Calls scripts/deploy-local-data.sh --soup-to-nuts.
 
-Opt-outs (only valid with --soup-to-nuts):
+Opt-outs (valid only in the mode that turns the axis on by default):
   --no-media       Skip the curator media seed (exports CURATOR_SEED=no).
+                   --soup-to-nuts only.
   --no-personas    Skip the canonical persona-catalog seed.
-  --no-dev-admins  Skip the dev-admin account seed.
+                   Valid with --from-csv or --soup-to-nuts.
+  --no-dev-admins  Skip the dev-admin account seed. --soup-to-nuts only.
 
 Dev-admin seeding (CUTOVER-REMOVE; opt-in; combinable with any rebuild mode):
   --seed-dev-admins Reads .local/dev-admin-seed.json (JSONC-tolerant,
@@ -131,25 +135,36 @@ if (( RESET + FROM_CSV + SOUP_TO_NUTS > 1 )); then
   exit 1
 fi
 
-# The --no-* opt-outs only make sense with --soup-to-nuts (the only mode that
-# turns these axes on by default). Anywhere else they are already off, so a
-# stray --no-* is almost certainly a mistake — fail loud (mirrors
+# The --no-* opt-outs only make sense in a mode that turns the axis on by
+# default. --no-media / --no-dev-admins ride --soup-to-nuts; --no-personas rides
+# --from-csv and --soup-to-nuts (both seed personas by default). A stray --no-*
+# anywhere else is almost certainly a mistake, so fail loud (mirrors
 # scripts/deploy-to-aws.sh).
 if (( SOUP_TO_NUTS == 0 )); then
-  for _pair in "--no-media:$NO_MEDIA" "--no-personas:$NO_PERSONAS" "--no-dev-admins:$NO_DEV_ADMINS"; do
+  for _pair in "--no-media:$NO_MEDIA" "--no-dev-admins:$NO_DEV_ADMINS"; do
     if (( ${_pair#*:} == 1 )); then
       echo "ERROR: ${_pair%%:*} is only meaningful with --soup-to-nuts (these axes are off by default otherwise)." >&2
       exit 1
     fi
   done
+  if (( NO_PERSONAS == 1 && FROM_CSV == 0 )); then
+    echo "ERROR: --no-personas is only meaningful with --from-csv or --soup-to-nuts (personas are off by default otherwise)." >&2
+    exit 1
+  fi
 fi
 
-# --soup-to-nuts is "everything on": the DB rebuild below plus curated media,
-# persona seed, and dev-admin seed, each opt-out via --no-*. Curated media rides
-# the DB rebuild via the curator seed in scripts/reset-local-db.sh; --no-media
-# skips it by exporting CURATOR_SEED=no (inherited through deploy-local-data.sh).
-if (( SOUP_TO_NUTS == 1 )); then
+# Personas ride along with any explicit DB rebuild (--from-csv or --soup-to-nuts)
+# so a freshly rebuilt local DB is never left without the test catalog. Opt out
+# with --no-personas. The seed runner is idempotent (it skips existing slugs).
+if (( FROM_CSV == 1 || SOUP_TO_NUTS == 1 )); then
   (( NO_PERSONAS == 1 )) || SEED_TEST_PERSONAS=1
+fi
+
+# --soup-to-nuts is "everything on": the DB rebuild below plus curated media and
+# dev-admin seed, each opt-out via --no-*. Curated media rides the DB rebuild via
+# the curator seed in scripts/reset-local-db.sh; --no-media skips it by exporting
+# CURATOR_SEED=no (inherited through deploy-local-data.sh).
+if (( SOUP_TO_NUTS == 1 )); then
   # Dev-admin seed under --soup-to-nuts is best-effort: auto-enable it only when
   # .local/dev-admin-seed.json actually has entries. Explicit --seed-dev-admins
   # (already SEED_DEV_ADMINS=1 here) keeps its strict refuse-to-no-op behavior,

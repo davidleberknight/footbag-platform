@@ -45,6 +45,12 @@ year navigation, metadata / summary rows, empty state, and notice / coming-soon 
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
 
+The page hero carries only its own parts (eyebrow, title, subtitle, notice). Primary navigation, back
+links, and item pagers belong in the page body, never in the hero. Never render the same action's
+label twice on one page (for example a "Back to results" link in both the hero and the pager); one
+control reads cleaner. Keep visible spacing between the hero and the first content block, and between
+stacked sections, so adjacent blocks never butt together with a zero gap.
+
 ## CSS vocabulary
 
 `src/public/css/style.css` is the source of truth for class definitions; this rule names the
@@ -69,6 +75,16 @@ typography hierarchy, card and metadata treatment, empty-state and notice stylin
 behavior. No section introduces its own chrome system or a parallel design language; a new surface
 inherits the shared tokens and primitives. Consistency is a forward requirement, not a one-time
 state.
+
+A page uses one section pattern and one content-card pattern, never two. Do not mix the site
+`.section-heading` (the h2 type-scale system) with the `.profile-section` / `.profile-section-heading`
+label system on the same page; pick one and apply it to every section. Within a page, section headings
+are one size, one case, one weight, one color; content cards are one padding, one radius, one elevation;
+and stacked sections share one vertical-spacing rhythm so adjacent blocks read as one page rather than
+several pasted together. A block that needs a different visual weight is a justified exception, not a
+default. The member profile is the reference: it composes entirely from `.profile-section` +
+`.profile-section-heading`, and `tests/unit/profile-section-conformance.test.ts` enforces that no
+profile-owned markup reintroduces the competing system.
 
 The durable visual decisions live in DESIGN_DECISIONS §4 and are mechanically enforced by
 `scripts/ci/assert_conventions.sh`: one type system with body-font notation (§4.6), canonical

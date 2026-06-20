@@ -3,9 +3,11 @@
  *
  * Owns:
  *   - Tag stats rebuild (tag_stats upsert from media_tags + media_items)
- *   - Popular community tags (distinct_member_count >= 2)
- *   - Seed-padded teaching tags and the community hashtag summary (cold-start
- *     empty state, before real popular tags accrue)
+ *   - Popular public tags: the most-used tags that are public, meaning used by
+ *     2+ distinct members OR carried by curator/system-uploaded content. A single
+ *     non-system member's personal tags stay out so they never leak into discovery.
+ *   - Seed-padded teaching tags and the hashtag summary (cold-start empty state,
+ *     before real popular tags accrue)
  *   - Standard tags with media (club/event tags that have tagged content)
  *   - Tag prefix suggest (autocomplete)
  *   - Member-context tag suggestions (club affiliations, participated events)
@@ -121,7 +123,7 @@ export const hashtagDiscoveryService = {
 
   getPopularTags(limit: number = 30): TagChipShape[] {
     return runSqliteRead('hashtagDiscoveryService.getPopularTags', () => {
-      const rows = tagStats.listPopularCommunityTags.all(limit) as PopularTagRow[];
+      const rows = tagStats.listPopularPublicTags.all(limit) as PopularTagRow[];
       return rows.map(rowToChip);
     });
   },
@@ -166,7 +168,7 @@ export const hashtagDiscoveryService = {
     return runSqliteRead('hashtagDiscoveryService.suggestTags', () => {
       const normalized = prefix.toLowerCase().replace(/^#/, '');
       if (normalized.length === 0) {
-        const popular = tagStats.listPopularCommunityTags.all(limit) as PopularTagRow[];
+        const popular = tagStats.listPopularPublicTags.all(limit) as PopularTagRow[];
         return popular.map(r => ({
           normalized: r.tag_normalized,
           display: r.tag_display,
@@ -186,7 +188,7 @@ export const hashtagDiscoveryService = {
     return runSqliteRead('hashtagDiscoveryService.getTagSuggestionsForMember', () => {
       const clubRows = tagStats.listMemberClubTags.all(memberId) as MemberTagRow[];
       const eventRows = tagStats.listMemberParticipatedEventTags.all(memberId, 10) as MemberTagRow[];
-      const popularRows = tagStats.listPopularCommunityTags.all(5) as PopularTagRow[];
+      const popularRows = tagStats.listPopularPublicTags.all(5) as PopularTagRow[];
       return {
         clubTags: clubRows.map(rowToChip),
         participatedEventTags: eventRows.map(rowToChip),

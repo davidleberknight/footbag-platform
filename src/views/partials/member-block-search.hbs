@@ -1,13 +1,12 @@
-<section>
-  <div id="find-members" class="card member-search-card">
-    <div class="card-title">Find Members</div>
-    <div class="member-search-section">
-      <form method="GET" action="{{formAction}}#find-members" class="member-search-form">
+<div id="find-members" class="profile-section">
+  <h2 class="profile-section-heading">Find Members</h2>
+  <div class="search-box-section">
+      <form method="GET" action="{{formAction}}#find-members" class="search-box-form">
         <input type="text" name="q" minlength="2" maxlength="100"
                placeholder="Search by name..."
                value="{{query}}"
                aria-label="Search members by name"
-               class="member-search-input" />
+               class="search-box-input" />
         <button type="submit" class="btn btn-primary">Search</button>
       </form>
     </div>
@@ -18,16 +17,16 @@
       {{else if tooShort}}
         <p class="text-muted">Please enter at least 2 characters.</p>
       {{else if results.length}}
-        <div class="member-search-card-results-head">
+        <div class="search-box-card-results-head">
           <strong>Results</strong>
           <span class="section-count">{{results.length}}{{#if hasMore}}+{{/if}}</span>
         </div>
         {{#if hasMore}}
           <p class="text-muted">Too many results. Please refine your search.</p>
         {{/if}}
-        <div class="member-search-results">
+        <div class="search-box-results">
           {{#each results}}
-            <div class="member-search-result">
+            <div class="search-box-result">
               <a href="{{href}}">{{displayName}}</a>
               {{#if country}}<span class="text-muted">{{country}}</span>{{/if}}
               {{#if genderLabel}}<span class="text-muted">{{genderLabel}}</span>{{/if}}
@@ -42,5 +41,4 @@
         <p class="text-muted">No members found matching "{{query}}".</p>
       {{/if}}
     {{/if}}
-  </div>
-</section>
+</div>

@@ -127,13 +127,14 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     expect(res.text).not.toContain('No members found');
   });
 
-  it('search feature is wrapped in a card on the dashboard', async () => {
+  it('search feature renders as a profile section on the dashboard', async () => {
     const app = createApp();
     const res = await request(app)
       .get(`/members/${SEARCHER_SLUG}`)
       .set('Cookie', searcherCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('member-search-card');
+    expect(res.text).toContain('id="find-members"');
+    expect(res.text).toContain('search-box-form');
   });
 
   // Member search is authenticated members only.

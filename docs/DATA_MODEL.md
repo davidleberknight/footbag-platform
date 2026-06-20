@@ -1052,7 +1052,7 @@ Both tables use `ON DELETE CASCADE` on `media_id`: when media is hard-deleted, i
 
 Denormalized read cache for the tag browse page (US §1.1). `computed_at` tracks the last recomputation time. Note: `tag_id` is the primary key; `tag_stats` has no `id` or `version` column; it follows a cache/upsert pattern rather than a standard mutable entity pattern.
 
-This is recomputable data; the application owns recomputation cadence and may rebuild from source tables at any time. A background job upserts stats rows. `distinct_member_count` drives the "community tag" threshold: tags used by at least 2 distinct members appear on the public `/tags` browse page.
+This is recomputable data; the application owns recomputation cadence and may rebuild from source tables at any time. A background job upserts stats rows. `distinct_member_count` drives the "community tag" threshold: tags used by at least 2 distinct members appear on the public `/tags` browse page. Popular-tag discovery on the media browse surface treats a tag as public when it is a community tag or appears on curator/system-published content (so the single-uploader curated catalog surfaces), ranked by usage; a single ordinary member's personal tags stay excluded.
 
 ---
 

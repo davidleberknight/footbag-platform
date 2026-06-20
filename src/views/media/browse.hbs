@@ -17,26 +17,6 @@
   <p class="mt-4 mb-4"><a href="/media/browse" class="btn btn-outline">&larr; Browse all media</a></p>
   {{/if}}
 
-  {{#unless content.isResultsMode}}
-  <form method="GET" action="/media/browse" class="form-block">
-    <div class="form-field">
-      <label for="browse-include-tags">Include tags</label>
-      <input type="text" id="browse-include-tags" name="tag" value="{{content.formIncludeText}}" data-tag-chips>
-      <small class="form-hint">Show only media tagged with all of these. Separate tags with spaces; the leading <code>#</code> is optional.</small>
-    </div>
-
-    <div class="form-field">
-      <label for="browse-exclude-tags">Exclude tags</label>
-      <input type="text" id="browse-exclude-tags" name="exclude" value="{{content.formExcludeText}}" data-tag-chips>
-      <small class="form-hint">Hide media tagged with any of these. Optional.</small>
-    </div>
-
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Browse</button>
-    </div>
-  </form>
-  {{/unless}}
-
   {{#if content.unresolvedTokens.length}}
     <p class="empty-state">
       No media found for: {{#each content.unresolvedTokens}}<code>#{{this}}</code>{{#unless @last}} {{/unless}}{{/each}}
@@ -44,32 +24,18 @@
   {{/if}}
 
   {{#unless content.isResultsMode}}
-    {{#if content.standardGalleries}}
-      {{#if content.standardGalleries.clubs.length}}
-      <section class="browse-standard-section" aria-labelledby="browse-club-galleries-heading">
-        <h2 id="browse-club-galleries-heading" class="browse-section-heading">Club galleries</h2>
-        <ul class="tag-chip-row">
-          {{#each content.standardGalleries.clubs}}
-          <li><a href="{{href}}" class="tag-chip">{{display}}</a></li>
-          {{/each}}
-        </ul>
-      </section>
-      {{/if}}
-      {{#if content.standardGalleries.events.length}}
-      <section class="browse-standard-section" aria-labelledby="browse-event-galleries-heading">
-        <h2 id="browse-event-galleries-heading" class="browse-section-heading">Event galleries</h2>
-        <ul class="tag-chip-row">
-          {{#each content.standardGalleries.events}}
-          <li><a href="{{href}}" class="tag-chip">{{display}}</a></li>
-          {{/each}}
-        </ul>
-      </section>
-      {{/if}}
-    {{/if}}
+    <section class="browse-search-section" aria-labelledby="browse-search-heading">
+      <h2 id="browse-search-heading" class="browse-section-heading">Find media by hashtag</h2>
+      <form method="GET" action="/media/browse" class="browse-search-form">
+        <input type="text" name="tag" value="{{content.formIncludeText}}" data-tag-chips class="browse-search-input" placeholder="Include hashtags, e.g. tutorial passback_records" aria-label="Include hashtags">
+        <input type="text" name="exclude" value="{{content.formExcludeText}}" data-tag-chips class="browse-search-input" placeholder="Exclude hashtags (optional)" aria-label="Exclude hashtags">
+        <button type="submit" class="btn btn-primary">Browse</button>
+      </form>
+    </section>
 
     {{#if content.popularTags.length}}
     <section class="browse-popular-section" aria-labelledby="browse-popular-heading">
-      <h2 id="browse-popular-heading" class="browse-section-heading">Popular tags</h2>
+      <h2 id="browse-popular-heading" class="browse-section-heading">Suggested tags</h2>
       <ul class="tag-chip-row">
         {{#each content.popularTags}}
         <li><a href="{{href}}" class="tag-chip">{{display}}</a></li>
@@ -80,23 +46,7 @@
 
     <section class="browse-tags-help" aria-labelledby="browse-tags-help-heading">
       <h2 id="browse-tags-help-heading">About hashtags</h2>
-      <p>Hashtags label every photo and video. They group content into discoverable feeds without a centralized taxonomy.</p>
-      <ul class="browse-tags-help-list">
-        <li><strong><a href="/media/browse?tag=curated" class="tag-chip-link">#curated</a></strong> marks content vetted by IFPA: tutorials, records, and showcase galleries.</li>
-        <li><strong>Event and club tags</strong> follow fixed canonical patterns so each event or club has one hashtag. Events use <code>#event_&lt;year&gt;_&lt;event-slug&gt;</code>, for example <a href="/media/browse?tag=event_2026_worlds_japan" class="tag-chip-link">#event_2026_worlds_japan</a>. Clubs use <code>#club_&lt;location-slug&gt;</code>, for example <code>#club_tokyo</code>.</li>
-        <li><strong>Community tags</strong> are used by two or more members; they surface in the public hashtag directory.</li>
-        <li><strong>Popular tags</strong> are the most-used community tags across the site.</li>
-        <li><strong>Personal tags</strong> are used by a single member; they stay private to that member's gallery.</li>
-      </ul>
-      {{#unless content.popularTags.length}}
-      <p class="browse-tags-help-try">Try one:</p>
-      <ul class="tag-chip-row">
-        <li><a href="/media/browse?tag=curated" class="tag-chip">#curated</a></li>
-        <li><a href="/media/browse?tag=freestyle" class="tag-chip">#freestyle</a></li>
-        <li><a href="/media/browse?tag=trick" class="tag-chip">#trick</a></li>
-        <li><a href="/media/browse?tag=demo_net" class="tag-chip">#demo_net</a></li>
-      </ul>
-      {{/unless}}
+      <p>Hashtags label every photo and video and group them into discoverable feeds. Popular tags are the most-used public tags. Event and club tags follow fixed patterns (<code>#event_&lt;year&gt;_&lt;event-slug&gt;</code>, <code>#club_&lt;location-slug&gt;</code>). A tag used by a single member stays private to that member's gallery.</p>
     </section>
   {{/unless}}
 
@@ -104,24 +54,7 @@
     {{#if content.items.length}}
       <ul class="gallery-grid">
         {{#each content.items}}
-          <li class="gallery-tile">
-            {{#if media}}
-              {{> video-facade media=media}}
-            {{else}}
-              <a href="{{displayHref}}" class="gallery-tile-media" target="_blank" rel="noopener noreferrer">
-                <img src="{{thumbnailUrl}}" alt="{{caption}}" loading="lazy" />
-              </a>
-            {{/if}}
-            {{#if caption}}<p class="gallery-tile-caption">{{caption}}</p>{{/if}}
-            {{#if tags.length}}
-              <ul class="gallery-tile-tags">
-                {{#each tags}}
-                  <li>{{#if href}}<a href="{{href}}" class="gallery-tile-tag">{{display}}</a>{{else}}<span class="gallery-tile-tag">{{display}}</span>{{/if}}</li>
-                {{/each}}
-              </ul>
-            {{/if}}
-            <p class="gallery-tile-date"><time datetime="{{uploadedAtIso}}">{{uploadedAtDisplay}}</time></p>
-          </li>
+          {{> _gallery-tile this}}
         {{/each}}
       </ul>
 

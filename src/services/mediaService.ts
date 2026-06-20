@@ -10,11 +10,22 @@
  *     to the member-galleries list page)
  *   - /media/member-galleries list page read (member-owned named galleries,
  *     oldest first, excluding the auto-default Personal Gallery)
- *   - Member media preview for the profile media grid (listMemberMediaPreview,
- *     consumed by memberService)
+ *   - Profile Media section view-model (getMemberProfileMedia, consumed by
+ *     memberService): the member's named galleries as link cards plus a view-all
+ *     link, not an inline thumbnail grid
  *   - /media/:galleryId named-gallery page read (tag-AND membership)
  *   - /media/:galleryId/:mediaId named-gallery item-detail read (one item with
  *     prev/next over the gallery's ordered set and a back link to the gallery)
+ *   - /media/item/:mediaId standalone item-detail read: the same viewer reached
+ *     from any tag-query surface (browse, profile, teaching). The `?tag=` /
+ *     `?exclude=` / `?sort=` context rebuilds the ordered set so prev/next walk
+ *     it; with no resolvable context (or an item past the render cap) it renders
+ *     a single item with no pager and a `?back=` return link.
+ *   - Item-detail prev/next wrap modulo the ordered set (next past the end
+ *     returns to the first item, previous before the start to the last); a
+ *     one-item set hides the pager. Every list surface (named gallery, browse,
+ *     profile preview, teaching examples) emits an in-site `itemHref` so a tile
+ *     click opens the viewer rather than a raw media-store file.
  *   - /media/browse on-the-fly tag browse read (paginated results mode)
  *   - /media/freestyle-tutorials: permanent 301 redirect to /freestyle/media,
  *     where the freestyle media surface lives (registered before
@@ -51,6 +62,7 @@ import {
   CuratorGalleryRow,
   FhNamedGalleryTagRow,
   GALLERY_ITEMS_QUERY_CAP,
+  GallerySortOrder,
   countGalleryItemsByCriteria,
   media,
   queryCuratorMediaTags,
@@ -61,6 +73,7 @@ import {
   queryTagIdsByNormalized,
 } from '../db/db';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
+import { isSafePath } from '../lib/safePath';
 import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError } from './serviceErrors';
 import { UPLOADER_TAG_PREFIX } from './curatorMediaService';
@@ -70,10 +83,6 @@ import { hashtagDiscoveryService } from './hashtagDiscoveryService';
 import { FREESTYLE_MEDIA_STRUCTURE } from '../content/freestyleMedia';
 
 export const PAGE_SIZE = 24;
-
-// Cap for the member-profile media grid: the most-recent uploads shown as a
-// thumbnail preview, with a "view all" link to the member-scoped browse.
-export const PROFILE_MEDIA_PREVIEW_LIMIT = 12;
 
 // Chip-shape for tag rendering: each tag display string carries an
 // optional href. `#by_<slug>` chips render the member's display name
@@ -180,9 +189,11 @@ export interface GalleryItem {
   // Video tiles render a click-to-play facade via partials/video-facade.hbs
   // fed by this canonical shape. Null for photos.
   media: VideoMedia | null;
-  // Link to the in-site detail page for this item. Set only in the named-
-  // gallery context (which has a stable ordered item set for prev/next); null
-  // on browse and profile grids, where tiles keep their own link.
+  // Link to the in-site viewer page for this item. Every list surface sets it
+  // so a tile always opens the viewer rather than a raw media-store file: the
+  // named-gallery context uses `/media/{galleryId}/{mediaId}`; browse, profile,
+  // and teaching tiles use `/media/item/{mediaId}` carrying their tag-query (or
+  // `?back=`) context so the viewer rebuilds the same ordered set for prev/next.
   itemHref: string | null;
 }
 
@@ -230,6 +241,25 @@ export interface MediaHubContent {
 // gallery with its item count and owner attribution. `ownerHref` is the
 // owner's profile link, present only for authenticated viewers (member
 // profiles are not visitor-visible); the display name shows regardless.
+// One named-gallery link card in the profile Media section.
+export interface ProfileGalleryCard {
+  name: string;
+  description: string;
+  itemCount: number;
+  itemCountNoun: string;
+  href: string;
+}
+
+// The profile Media section: the member's named galleries as link cards plus a
+// single "view all media" link. No inline thumbnails. `hasContent` is false when
+// the member has neither a named gallery nor any upload, so the caller hides the
+// section; an anonymous viewer of a HoF/BAP profile receives this empty shape.
+export interface ProfileMediaView {
+  galleries: ProfileGalleryCard[];
+  allMediaHref: string | null;
+  hasContent: boolean;
+}
+
 export interface MemberGalleryListItem {
   id: string;
   name: string;
@@ -308,19 +338,35 @@ export interface NamedGalleryContent {
   popularTags?: BrowseTagChip[];
 }
 
-// /media/:galleryId/:mediaId single-item detail within a named gallery.
-// Prev/next walk the gallery's ordered item set; backHref returns to the
-// gallery. uploadedBy lifts the item's `#by_<slug>` tag to a viewer-gated
-// member chip; tags are the item's remaining hashtags.
-export interface NamedGalleryItemContent {
-  galleryId: string;
-  galleryName: string;
+// Single-item viewer rendered by both /media/:galleryId/:mediaId (named-gallery
+// context) and /media/item/:mediaId (tag-query / single context). `title` is the
+// hero h1 (the gallery name, or the item caption when there is no gallery).
+// `backHref`/`backLabel` return to wherever the item was opened from. Prev/next
+// walk the context's ordered set and wrap modulo; `showPager` is false for a
+// one-item set, hiding the pager. uploadedBy lifts the item's `#by_<slug>` tag
+// to a viewer-gated member chip; tags are the item's remaining hashtags.
+export interface MediaItemContent {
+  title: string;
   backHref: string;
+  backLabel: string;
   item: GalleryItem;
   uploadedBy: TagChip | null;
   tags: TagChip[];
+  showPager: boolean;
   prevHref: string | null;
   nextHref: string | null;
+}
+
+// Request inputs for the standalone /media/item/:mediaId viewer. `rawTags` /
+// `rawExcludes` are the normalized-on-the-way-in tag-query context; `rawSort`
+// selects the ordered-set order; `rawBack` is a no-context return path, used
+// only when no tag context resolves (validated as a safe in-site path).
+export interface MediaItemArgs {
+  mediaId: string;
+  rawTags: string[];
+  rawExcludes: string[];
+  rawSort: unknown;
+  rawBack: unknown;
 }
 
 // /media/browse: the on-the-fly tag browse + temp gallery surface. Not a
@@ -364,7 +410,6 @@ export interface MediaBrowseContent {
   items: GalleryItem[];
   totalItems: number;
   pagination: GalleryPagination | null;
-  standardGalleries?: { clubs: BrowseTagChip[]; events: BrowseTagChip[] };
   popularTags?: BrowseTagChip[];
 }
 
@@ -442,6 +487,201 @@ function shapeOwner(row: NamedGalleryWithOwnerRow): GalleryOwner {
     displayName: row.owner_display_name ?? 'Unknown',
     slug: row.owner_slug ?? '',
     isSystem: row.is_system === 1,
+  };
+}
+
+// Upper bound on resolved include/exclude tags carried into the standalone item
+// viewer. The viewer route is public and attacker-facing; each tag adds a query
+// placeholder, so an unbounded list is a mild query-size vector. Overflow is
+// dropped, matching how unresolved tokens are silently dropped on browse.
+const ITEM_CONTEXT_TAG_CAP = 12;
+
+// A gallery is a query over media items. The item viewer takes that query as a
+// context so it can rebuild the same ordered set the tile was clicked in:
+//   named  — a stored member_galleries row (criteria/exclude/sort from the DB)
+//   query  — an ad-hoc tag query carried in the URL (browse, profile)
+//   single — no rebuildable set: one item, no pager, a caller-supplied back link
+type GalleryContext =
+  | { kind: 'named'; galleryId: string }
+  | { kind: 'query'; includeNormalized: string[]; excludeNormalized: string[]; sort: GallerySortOrder }
+  | { kind: 'single'; backHref: string; backLabel: string };
+
+function sanitizeSort(raw: unknown): GallerySortOrder {
+  return raw === 'upload_asc' || raw === 'caption_asc' ? raw : 'upload_desc';
+}
+
+// The hero h1 for the standalone viewer, which has no gallery name to show.
+function titleFor(row: CuratorGalleryRow): string {
+  const caption = row.caption?.trim();
+  return caption && caption.length > 0 ? caption : 'Media';
+}
+
+// Re-encode a tag-query context onto the standalone viewer URL so the set the
+// user clicked into is byte-identical to the set the viewer rebuilds. The
+// default sort is omitted so the common browse link stays `?tag=…`.
+function buildItemContextQueryString(
+  includeNormalized: string[],
+  excludeNormalized: string[],
+  sort: GallerySortOrder,
+): string {
+  const base = buildBrowseQueryString(includeNormalized, excludeNormalized);
+  if (sort === 'upload_desc') return base;
+  const sortParam = `sort=${encodeURIComponent(sort)}`;
+  return base.length > 0 ? `${base}&${sortParam}` : sortParam;
+}
+
+interface ResolvedItemSet {
+  rows: CuratorGalleryRow[];          // ordered set the pager walks; length >= 1
+  index: number;                       // position of the requested item in rows
+  encodeItemHref: (id: string) => string;
+  backHref: string;
+  backLabel: string;
+  title: string;
+}
+
+// The one-item fallback: the item shows on its own with no pager. Used by the
+// single context, and when a query context cannot locate the item in its
+// rebuildable window (past the render cap, or no longer carrying the criteria).
+function singleItemSet(mediaId: string, backHref: string, backLabel: string): ResolvedItemSet {
+  const row = media.getPublicMediaItemById.get(mediaId) as CuratorGalleryRow | undefined;
+  if (!row) {
+    throw new NotFoundError(`media item ${mediaId} not found`);
+  }
+  return {
+    rows: [row],
+    index: 0,
+    encodeItemHref: (id) => `/media/item/${encodeURIComponent(id)}`,
+    backHref,
+    backLabel,
+    title: titleFor(row),
+  };
+}
+
+function resolveItemSet(ctx: GalleryContext, mediaId: string): ResolvedItemSet {
+  if (ctx.kind === 'single') {
+    return singleItemSet(mediaId, ctx.backHref, ctx.backLabel);
+  }
+
+  if (ctx.kind === 'named') {
+    const gallery = media.getNamedGalleryById.get(ctx.galleryId) as
+      | NamedGalleryWithOwnerRow
+      | undefined;
+    if (!gallery) {
+      throw new NotFoundError(`gallery ${ctx.galleryId} not found`);
+    }
+    const tagIds = (media.listFhNamedGalleryTags.all(ctx.galleryId) as FhNamedGalleryTagRow[]).map((t) => t.id);
+    const excludeTagIds = (media.listFhNamedGalleryExcludeTags.all(ctx.galleryId) as FhNamedGalleryTagRow[])
+      .map((t) => t.id);
+    // The same ordered, capped item set the gallery page renders, so prev/next
+    // follow the gallery's sort. A named-gallery item URL asserts membership, so
+    // an item not in the set (including one past the cap) is a genuine 404.
+    const fetched = queryGalleryItemsByCriteriaGrouped(
+      tagIds, gallery.sort_order, excludeTagIds, GALLERY_ITEMS_QUERY_CAP + 1,
+    );
+    const rows = fetched.length > GALLERY_ITEMS_QUERY_CAP ? fetched.slice(0, GALLERY_ITEMS_QUERY_CAP) : fetched;
+    const index = rows.findIndex((r) => r.id === mediaId);
+    if (index === -1) {
+      throw new NotFoundError(`item ${mediaId} not found in gallery ${ctx.galleryId}`);
+    }
+    const gid = encodeURIComponent(gallery.id);
+    return {
+      rows,
+      index,
+      encodeItemHref: (id) => `/media/${gid}/${encodeURIComponent(id)}`,
+      backHref: `/media/${gid}`,
+      backLabel: 'Back to gallery',
+      title: gallery.name,
+    };
+  }
+
+  // kind === 'query'
+  const browseBack = `/media/browse?${buildBrowseQueryString(ctx.includeNormalized, ctx.excludeNormalized)}`;
+  const allNormalized = [...ctx.includeNormalized, ...ctx.excludeNormalized];
+  const tagRows = allNormalized.length === 0 ? [] : queryTagIdsByNormalized(allNormalized);
+  const byNorm = new Map(tagRows.map((r) => [r.tag_normalized, r]));
+  const criteriaTagIds = ctx.includeNormalized
+    .map((n) => byNorm.get(n)?.id)
+    .filter((id): id is string => id != null);
+  const excludeTagIds = ctx.excludeNormalized
+    .map((n) => byNorm.get(n)?.id)
+    .filter((id): id is string => id != null);
+
+  // No criteria token resolved to a real tag: nothing to walk, so show the
+  // single item with a back link to the (empty) browse results.
+  if (criteriaTagIds.length === 0) {
+    return singleItemSet(mediaId, browseBack, 'Back to results');
+  }
+
+  const fetched = queryGalleryItemsByCriteriaGrouped(
+    criteriaTagIds, ctx.sort, excludeTagIds, GALLERY_ITEMS_QUERY_CAP + 1,
+  );
+  const rows = fetched.length > GALLERY_ITEMS_QUERY_CAP ? fetched.slice(0, GALLERY_ITEMS_QUERY_CAP) : fetched;
+  const index = rows.findIndex((r) => r.id === mediaId);
+  if (index === -1) {
+    // Past the render cap, or the item no longer carries the criteria: the tile
+    // was just rendered, so never dead-end — show it on its own, back to results.
+    return singleItemSet(mediaId, browseBack, 'Back to results');
+  }
+  const ctxQuery = buildItemContextQueryString(ctx.includeNormalized, ctx.excludeNormalized, ctx.sort);
+  return {
+    rows,
+    index,
+    encodeItemHref: (id) => `/media/item/${encodeURIComponent(id)}?${ctxQuery}`,
+    backHref: browseBack,
+    backLabel: 'Back to results',
+    title: titleFor(rows[index]),
+  };
+}
+
+// Shapes one item-viewer page for any context. Computes prev/next once, wrapping
+// modulo the ordered set, and lifts the item's `#by_<slug>` tag to a viewer-gated
+// uploader chip with the rest rendered as browseable hashtag chips.
+function buildItemPage(
+  ctx: GalleryContext,
+  mediaId: string,
+  viewer: ViewerContext,
+): PageViewModel<MediaItemContent> {
+  const set = resolveItemSet(ctx, mediaId);
+  const n = set.rows.length;
+  const row = set.rows[set.index];
+
+  const itemTagRows = queryCuratorMediaTags([mediaId]);
+  const memberNamesBySlug = collectMemberNamesForByTags(itemTagRows.map((r) => r.tag_display));
+
+  let uploadedBy: TagChip | null = null;
+  const tags: TagChip[] = [];
+  for (const tr of itemTagRows) {
+    if (tr.tag_display.startsWith(UPLOADER_TAG_PREFIX)) {
+      if (uploadedBy === null && memberNamesBySlug.has(tr.tag_display.slice(UPLOADER_TAG_PREFIX.length))) {
+        uploadedBy = shapeTagChip(tr.tag_display, viewer, memberNamesBySlug);
+      }
+    } else {
+      tags.push(shapeTagChip(tr.tag_display, viewer, memberNamesBySlug, () => browseTagHref(tr.tag_normalized)));
+    }
+  }
+
+  const adapter = getMediaStorageAdapter();
+  const item = shapeItem(row, [], (k) => adapter.constructURL(k));
+  const showPager = n > 1;
+
+  return {
+    seo: { title: set.title },
+    page: {
+      sectionKey: 'media',
+      pageKey: 'media_gallery_item',
+      title: set.title,
+    },
+    content: {
+      title: set.title,
+      backHref: set.backHref,
+      backLabel: set.backLabel,
+      item,
+      uploadedBy,
+      tags,
+      showPager,
+      prevHref: showPager ? set.encodeItemHref(set.rows[(set.index - 1 + n) % n].id) : null,
+      nextHref: showPager ? set.encodeItemHref(set.rows[(set.index + 1) % n].id) : null,
+    },
   };
 }
 
@@ -563,17 +803,41 @@ export const mediaService = {
     });
   },
 
-  // Member's own uploaded media, shaped as gallery tiles for the profile media
-  // grid. Reuses shapeItem so profile tiles render identically to gallery tiles;
-  // tags are omitted (the profile grid shows thumbnails only).
-  listMemberMediaPreview(
-    memberId: string,
-    limit: number = PROFILE_MEDIA_PREVIEW_LIMIT,
-  ): GalleryItem[] {
-    return runSqliteRead('mediaService.listMemberMediaPreview', () => {
-      const rows = media.listMemberUploadedMedia.all(memberId, limit) as CuratorGalleryRow[];
-      const adapter = getMediaStorageAdapter();
-      return rows.map((row) => shapeItem(row, [], (k) => adapter.constructURL(k)));
+  // The profile Media section: the member's named galleries shaped as link cards
+  // (name, description, item count, gallery URL), plus a "view all media" link.
+  // The profile points at the galleries the member deliberately created rather
+  // than embedding a thumbnail grid; the "view all" link covers every upload,
+  // including the auto Personal Gallery that the named-gallery list excludes.
+  // Item counts use the same tag-AND match the gallery page renders.
+  getMemberProfileMedia(memberId: string, ownerSlug: string): ProfileMediaView {
+    return runSqliteRead('mediaService.getMemberProfileMedia', () => {
+      const galleryRows = media.listMemberNamedGalleriesByOwner.all(memberId) as Array<{
+        id: string; name: string; description: string;
+      }>;
+      const galleries: ProfileGalleryCard[] = galleryRows.map((g) => {
+        const tagIds = (media.listFhNamedGalleryTags.all(g.id) as FhNamedGalleryTagRow[]).map((t) => t.id);
+        const excludeTagIds = (media.listFhNamedGalleryExcludeTags.all(g.id) as FhNamedGalleryTagRow[])
+          .map((t) => t.id);
+        const itemCount = countGalleryItemsByCriteria(tagIds, excludeTagIds);
+        return {
+          name: g.name,
+          description: g.description,
+          itemCount,
+          itemCountNoun: itemCount === 1 ? 'item' : 'items',
+          href: `/media/${encodeURIComponent(g.id)}`,
+        };
+      });
+
+      const hasUploads = (media.listMemberUploadedMedia.all(memberId, 1) as CuratorGalleryRow[]).length > 0;
+      const allMediaHref = hasUploads
+        ? `/media/browse?tag=by_${encodeURIComponent(ownerSlug)}`
+        : null;
+
+      return {
+        galleries,
+        allMediaHref,
+        hasContent: galleries.length > 0 || allMediaHref != null,
+      };
     });
   },
 
@@ -726,73 +990,38 @@ export const mediaService = {
     galleryId: string,
     mediaId: string,
     viewer: ViewerContext = { authenticated: false },
-  ): PageViewModel<NamedGalleryItemContent> {
-    return runSqliteRead('mediaService.getNamedGalleryItemPage', () => {
-      const gallery = media.getNamedGalleryById.get(galleryId) as
-        | NamedGalleryWithOwnerRow
-        | undefined;
-      if (!gallery) {
-        throw new NotFoundError(`gallery ${galleryId} not found`);
+  ): PageViewModel<MediaItemContent> {
+    return runSqliteRead('mediaService.getNamedGalleryItemPage', () =>
+      buildItemPage({ kind: 'named', galleryId }, mediaId, viewer));
+  },
+
+  // Standalone item viewer reached from any tag-query surface. The tag context
+  // rebuilds the ordered set so prev/next walk it; with no resolvable context
+  // the item shows on its own (no pager) with a validated `?back=` return link.
+  getMediaItemPage(
+    args: MediaItemArgs,
+    viewer: ViewerContext = { authenticated: false },
+  ): PageViewModel<MediaItemContent> {
+    return runSqliteRead('mediaService.getMediaItemPage', () => {
+      const include = uniqStrings(args.rawTags.map(normalizeTagToken).filter(notEmpty))
+        .slice(0, ITEM_CONTEXT_TAG_CAP);
+      // Include wins over exclude on the same token (an item cannot both carry
+      // and lack a tag); strip the conflict before capping, mirroring browse.
+      const exclude = uniqStrings(args.rawExcludes.map(normalizeTagToken).filter(notEmpty))
+        .filter((t) => !include.includes(t))
+        .slice(0, ITEM_CONTEXT_TAG_CAP);
+      const sort = sanitizeSort(args.rawSort);
+
+      if (include.length === 0) {
+        const back = isSafePath(args.rawBack) ? args.rawBack : '/media/browse';
+        const label = isSafePath(args.rawBack) ? 'Back' : 'Browse media';
+        return buildItemPage({ kind: 'single', backHref: back, backLabel: label }, args.mediaId, viewer);
       }
-
-      const tagRows = media.listFhNamedGalleryTags.all(galleryId) as FhNamedGalleryTagRow[];
-      const excludeTagRows = media.listFhNamedGalleryExcludeTags.all(galleryId) as FhNamedGalleryTagRow[];
-      const tagIds = tagRows.map((t) => t.id);
-      const excludeTagIds = excludeTagRows.map((t) => t.id);
-
-      // The same ordered, capped item set the gallery page renders, so prev/next
-      // follow the gallery's sort. An item beyond the render cap is treated as
-      // not present, mirroring the gallery page's own truncation.
-      const fetched = queryGalleryItemsByCriteriaGrouped(
-        tagIds, gallery.sort_order, excludeTagIds, GALLERY_ITEMS_QUERY_CAP + 1,
+      return buildItemPage(
+        { kind: 'query', includeNormalized: include, excludeNormalized: exclude, sort },
+        args.mediaId,
+        viewer,
       );
-      const rows = fetched.length > GALLERY_ITEMS_QUERY_CAP
-        ? fetched.slice(0, GALLERY_ITEMS_QUERY_CAP) : fetched;
-      const index = rows.findIndex((r) => r.id === mediaId);
-      if (index === -1) {
-        throw new NotFoundError(`item ${mediaId} not found in gallery ${galleryId}`);
-      }
-      const row = rows[index];
-
-      const itemTagRows = queryCuratorMediaTags([mediaId]);
-      const memberNamesBySlug = collectMemberNamesForByTags(itemTagRows.map((r) => r.tag_display));
-
-      // The item's `#by_<slug>` tag becomes the uploader attribution (viewer-
-      // gated profile link); the rest render as browseable hashtag chips.
-      let uploadedBy: TagChip | null = null;
-      const tags: TagChip[] = [];
-      for (const tr of itemTagRows) {
-        if (tr.tag_display.startsWith(UPLOADER_TAG_PREFIX)) {
-          if (uploadedBy === null && memberNamesBySlug.has(tr.tag_display.slice(UPLOADER_TAG_PREFIX.length))) {
-            uploadedBy = shapeTagChip(tr.tag_display, viewer, memberNamesBySlug);
-          }
-        } else {
-          tags.push(shapeTagChip(tr.tag_display, viewer, memberNamesBySlug, () => browseTagHref(tr.tag_normalized)));
-        }
-      }
-
-      const adapter = getMediaStorageAdapter();
-      const item = shapeItem(row, [], (k) => adapter.constructURL(k));
-      const gid = encodeURIComponent(gallery.id);
-
-      return {
-        seo: { title: gallery.name },
-        page: {
-          sectionKey: 'media',
-          pageKey: 'media_gallery_item',
-          title: gallery.name,
-        },
-        content: {
-          galleryId: gallery.id,
-          galleryName: gallery.name,
-          backHref: `/media/${gid}`,
-          item,
-          uploadedBy,
-          tags,
-          prevHref: index > 0 ? `/media/${gid}/${encodeURIComponent(rows[index - 1].id)}` : null,
-          nextHref: index < rows.length - 1 ? `/media/${gid}/${encodeURIComponent(rows[index + 1].id)}` : null,
-        },
-      };
     });
   },
 
@@ -841,8 +1070,10 @@ export const mediaService = {
       // Browse mode: no resolved criteria → no results pane. Hero echoes
       // submitted tokens via formInclude/ExcludeText only; chip lists empty.
       if (criteriaTagIds.length === 0) {
-        const standardGalleries = hashtagDiscoveryService.getStandardTagsWithMedia();
-        const popularTags = hashtagDiscoveryService.getPopularTags(30);
+        // A short suggested-tag list keeps the landing a discovery aid, not a wall
+        // of chips; club/event tags ride this same list when they rank, so the
+        // page stays one browse-by-tag surface rather than several parallel ones.
+        const popularTags = hashtagDiscoveryService.getPopularTags(12);
         return {
           seo: { title: 'Browse Media' },
           page: {
@@ -864,8 +1095,6 @@ export const mediaService = {
             items: [],
             totalItems: 0,
             pagination: null,
-            standardGalleries: (standardGalleries.clubs.length > 0 || standardGalleries.events.length > 0)
-              ? standardGalleries : undefined,
             popularTags: popularTags.length > 0 ? popularTags : undefined,
           },
         };
@@ -899,9 +1128,15 @@ export const mediaService = {
       }
 
       const adapter = getMediaStorageAdapter();
-      const items: GalleryItem[] = rows.map((row) =>
-        shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k)),
-      );
+      // Each tile opens the standalone viewer carrying this browse query, so the
+      // viewer rebuilds the same ordered set for wrapping prev/next. Browse has
+      // no sort control, so the set follows the default upload-desc order.
+      const itemContextQuery = buildItemContextQueryString(includeNormalized, excludeNormalized, 'upload_desc');
+      const items: GalleryItem[] = rows.map((row) => {
+        const item = shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k));
+        item.itemHref = `/media/item/${encodeURIComponent(item.mediaId)}?${itemContextQuery}`;
+        return item;
+      });
 
       const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
       const hasPrev = page > 1;
@@ -952,8 +1187,10 @@ export const mediaService = {
   // Recent member-authored community media for the teaching empty state shown
   // to a member who has not uploaded anything yet. Topical chips only; the
   // uploader marker is not surfaced. Returns an empty array when no member has
-  // shared media yet (the caller hides the example strip in that case).
-  listRecentCommunityMedia(limit: number): GalleryItem[] {
+  // shared media yet (the caller hides the example strip in that case). The
+  // recency set is not a tag query, so each tile opens the viewer as a single
+  // item (no prev/next) returning to `backHref` (the member's gallery page).
+  listRecentCommunityMedia(limit: number, backHref: string): GalleryItem[] {
     return runSqliteRead('mediaService.listRecentCommunityMedia', () => {
       const rows = queryRecentCommunityMedia(limit, ['photo', 'video']);
       if (rows.length === 0) return [];
@@ -972,9 +1209,13 @@ export const mediaService = {
         else tagsByMediaId.set(tr.media_id, [chip]);
       }
       const adapter = getMediaStorageAdapter();
-      return rows.map((row) =>
-        shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k)),
-      );
+      const safeBack = isSafePath(backHref) ? backHref : '/media/browse';
+      const backParam = `back=${encodeURIComponent(safeBack)}`;
+      return rows.map((row) => {
+        const item = shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k));
+        item.itemHref = `/media/item/${encodeURIComponent(item.mediaId)}?${backParam}`;
+        return item;
+      });
     });
   },
 };

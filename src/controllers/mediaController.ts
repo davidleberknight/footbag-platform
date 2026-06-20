@@ -47,6 +47,24 @@ export const mediaController = {
     }
   },
 
+  mediaItem(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = mediaService.getMediaItemPage(
+        {
+          mediaId: req.params.mediaId,
+          rawTags: collectQueryArg(req.query.tag),
+          rawExcludes: collectQueryArg(req.query.exclude),
+          rawSort: req.query.sort,
+          rawBack: req.query.back,
+        },
+        { authenticated: req.user != null },
+      );
+      res.render('media/gallery-item', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'media controller (media item)');
+    }
+  },
+
   browse(req: Request, res: Response, next: NextFunction): void {
     try {
       const vm = mediaService.getMediaBrowsePage(

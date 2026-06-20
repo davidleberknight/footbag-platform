@@ -5611,6 +5611,28 @@ export const media = {
       AND mi.moderation_status = 'active'
   `); },
 
+  // Single public media item by id for the standalone item viewer
+  // (/media/item/:mediaId). Applies the same public-visibility filter as the
+  // gallery queries (active, non-avatar, never #unavailable_embed) and returns
+  // the CuratorGalleryRow shape so the media service reuses its tile shaping.
+  // Any visible item resolves regardless of uploader, so a deep link or a
+  // browse tile past the gallery render cap still opens its own page.
+  get getPublicMediaItemById() { return db.prepare(`
+    SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
+           mi.s3_key_thumb, mi.s3_key_display,
+           mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
+           mi.width_px, mi.height_px
+    FROM media_items mi
+    WHERE mi.id = ?
+      AND mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+      AND NOT EXISTS (
+        SELECT 1 FROM media_tags mtu
+        JOIN tags tu ON tu.id = mtu.tag_id
+        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+      )
+  `); },
+
   // Member's own uploaded media, newest first, for the profile media grid.
   // Active, non-avatar, member-owned (is_system=0) rows only; the LIMIT caps
   // the profile preview. Returns the CuratorGalleryRow shape so the media
@@ -5886,6 +5908,17 @@ export const media = {
     FROM member_galleries g
     WHERE g.owner_member_id = ?
     ORDER BY g.name
+  `); },
+
+  // A member's named galleries for the profile Media section: the galleries the
+  // member deliberately created, excluding the auto-default Personal Gallery
+  // (whose content the profile's "View all media" link already covers). Oldest
+  // first, matching the public member-galleries list ordering.
+  get listMemberNamedGalleriesByOwner() { return db.prepare(`
+    SELECT g.id, g.name, g.description
+    FROM member_galleries g
+    WHERE g.owner_member_id = ? AND g.is_default = 0
+    ORDER BY g.created_at ASC, g.id ASC
   `); },
 
   // Existence probe for the per-member default Personal Gallery, keyed
@@ -6390,15 +6423,31 @@ export const tagStats = {
      WHERE tag_id = ?
   `); },
 
-  get listPopularCommunityTags() { return db.prepare(`
+  // Popular tags for media discovery: the most-used PUBLIC tags. A tag is public
+  // when 2+ distinct members use it (community adoption) OR it appears on
+  // curator/system-uploaded content (the published catalog is public even though
+  // a single account owns it). A single non-system member's personal tags match
+  // neither branch, so private personal tags never leak into discovery.
+  get listPopularPublicTags() { return db.prepare(`
     SELECT ts.tag_id, t.tag_normalized, t.tag_display,
            ts.usage_count, ts.distinct_member_count
     FROM tag_stats ts
     JOIN tags t ON t.id = ts.tag_id
-    WHERE ts.distinct_member_count >= 2
-      AND t.tag_normalized NOT LIKE '#by_%'
+    WHERE t.tag_normalized NOT LIKE '#by_%'
       AND t.tag_normalized <> '#unavailable_embed'
-    ORDER BY ts.distinct_member_count DESC, ts.usage_count DESC
+      AND (
+            ts.distinct_member_count >= 2
+            OR EXISTS (
+                 SELECT 1 FROM media_tags mt
+                 JOIN media_items mi ON mi.id = mt.media_id
+                 JOIN members m ON m.id = mi.uploader_member_id
+                 WHERE mt.tag_id = ts.tag_id
+                   AND mi.moderation_status = 'active'
+                   AND mi.is_avatar = 0
+                   AND m.is_system = 1
+               )
+          )
+    ORDER BY ts.usage_count DESC, ts.distinct_member_count DESC
     LIMIT ?
   `); },
 

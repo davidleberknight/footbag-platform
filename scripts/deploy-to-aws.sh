@@ -51,7 +51,9 @@ DATA SOURCE (opt-in DB rebuild; mutually exclusive)
                                file, reapplies schema, runs all
                                enrichment phases), then replaces the
                                staging DB. No mirror access. Opt-in: a
-                               bare deploy is code-only.
+                               bare deploy is code-only. Seeds the persona
+                               catalog by default on staging; opt out with
+                               --no-personas.
   --soup-to-nuts               Full clean rebuild from the legacy mirror
                                (legacy_data/mirror_footbag_org/). Drops
                                the DB file, regenerates canonical_input
@@ -66,7 +68,8 @@ DATA SOURCE (opt-in DB rebuild; mutually exclusive)
                                dev-admin seed (the seeds on staging only).
                                Opt out per axis with --no-media /
                                --no-personas / --no-dev-admins (and -W for
-                               additive S3 sync).
+                               additive S3 sync). --no-personas also applies
+                               to --from-csv, which seeds personas too.
 
 MODIFIERS
 ─────────────────────────────────────────────────────────────────────
@@ -240,27 +243,44 @@ if [[ "$SEED_DEV_ADMINS" == "yes" && "$NO_DEV_ADMINS_FLAG" == "yes" ]]; then
   exit 1
 fi
 
-# The --no-* opt-outs only make sense with --soup-to-nuts (the only mode that
-# turns these axes on by default). Anywhere else they are already off, so a
-# stray --no-* is almost certainly an operator mistake: fail loud.
+# The --no-* opt-outs only make sense in the mode that turns the axis on by
+# default. --no-media / --no-dev-admins ride --soup-to-nuts; --no-personas rides
+# --from-csv and --soup-to-nuts (both seed personas by default on staging). A
+# stray --no-* anywhere else is almost certainly an operator mistake: fail loud.
 if [[ "$SOUP_TO_NUTS" != "yes" ]]; then
-  for _f in "--no-media:$NO_MEDIA_FLAG" "--no-personas:$NO_PERSONAS_FLAG" "--no-dev-admins:$NO_DEV_ADMINS_FLAG"; do
+  for _f in "--no-media:$NO_MEDIA_FLAG" "--no-dev-admins:$NO_DEV_ADMINS_FLAG"; do
     if [[ "${_f#*:}" == "yes" ]]; then
       echo "ERROR: ${_f%%:*} is only meaningful with --soup-to-nuts (these axes are off by default otherwise)." >&2
       exit 1
     fi
   done
+  if [[ "$NO_PERSONAS_FLAG" == "yes" && "$FROM_CSV" != "yes" ]]; then
+    echo "ERROR: --no-personas is only meaningful with --from-csv or --soup-to-nuts (personas are off by default otherwise)." >&2
+    exit 1
+  fi
+fi
+
+# Personas ride along with any staging DB rebuild (--from-csv or --soup-to-nuts)
+# so a freshly rebuilt staging DB is never left without the test catalog. Opt out
+# with --no-personas. Staging-only (CUTOVER-REMOVE): auto-enable ONLY on staging,
+# re-enforcing the wrapper's allowlist (which scans literal --seed-* flags and
+# cannot see this implicit enable). The seed runner is idempotent.
+if [[ "$FROM_CSV" == "yes" || "$SOUP_TO_NUTS" == "yes" ]]; then
+  if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-staging" ]]; then
+    [[ "$NO_PERSONAS_FLAG" == "yes" ]] || SEED_TEST_PERSONAS="yes"
+  else
+    echo "NOTE: DB rebuild against non-staging target; persona seed skipped (staging-only)." >&2
+  fi
 fi
 
 # --soup-to-nuts is "everything on": turn on media sync (+ S3 clean wipe via the
-# existing WIPE_DEFAULT path), persona seed, and dev-admin seed, each opt-out via
-# --no-*. The seeds are staging-only (CUTOVER-REMOVE); auto-enable them ONLY on
-# staging, re-enforcing the wrapper's allowlist (which scans literal --seed-*
-# flags and cannot see these implicit enables).
+# existing WIPE_DEFAULT path) and the dev-admin seed, each opt-out via --no-*.
+# These are staging-only (CUTOVER-REMOVE); auto-enable them ONLY on staging,
+# re-enforcing the wrapper's allowlist (which scans literal --seed-* flags and
+# cannot see these implicit enables).
 if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
   [[ "$NO_MEDIA_FLAG" == "yes" ]] || SYNC_MEDIA_FLAG="yes"
   if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-staging" ]]; then
-    [[ "$NO_PERSONAS_FLAG"   == "yes" ]] || SEED_TEST_PERSONAS="yes"
     # Dev-admin seed under --soup-to-nuts is best-effort: auto-enable it only
     # when .local/staging-admin-seed.json actually has entries. Explicit
     # --seed-dev-admins (already SEED_DEV_ADMINS=yes here) keeps its strict
@@ -275,7 +295,7 @@ if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
       fi
     fi
   else
-    echo "NOTE: --soup-to-nuts against non-staging target; persona + dev-admin seeds skipped (staging-only)." >&2
+    echo "NOTE: --soup-to-nuts against non-staging target; dev-admin seed skipped (staging-only)." >&2
   fi
 fi
 

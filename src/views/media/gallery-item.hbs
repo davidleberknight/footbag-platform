@@ -1,12 +1,21 @@
 <div class="hero hero-sm">
   <div>
-    <h1>{{content.galleryName}}</h1>
-    <p class="hero-subtitle"><a href="{{content.backHref}}" class="tag-chip-link">Back to gallery</a></p>
+    <h1>{{content.title}}</h1>
   </div>
 </div>
 
 <div class="wrapper">
   <article class="gallery-item-detail">
+    <nav class="gallery-item-pager">
+      {{#if content.showPager}}
+        {{#if content.prevHref}}<a href="{{content.prevHref}}" class="btn btn-outline" rel="prev">Previous</a>{{/if}}
+        <a href="{{content.backHref}}" class="btn btn-outline">{{content.backLabel}}</a>
+        {{#if content.nextHref}}<a href="{{content.nextHref}}" class="btn btn-outline" rel="next">Next</a>{{/if}}
+      {{else}}
+        <a href="{{content.backHref}}" class="btn btn-outline">{{content.backLabel}}</a>
+      {{/if}}
+    </nav>
+
     <div class="gallery-item-media">
       {{#if content.item.media}}
         {{> video-facade media=content.item.media}}
@@ -32,11 +41,5 @@
     {{/if}}
 
     <p class="gallery-tile-date"><time datetime="{{content.item.uploadedAtIso}}">{{content.item.uploadedAtDisplay}}</time></p>
-
-    <nav class="gallery-item-pager">
-      {{#if content.prevHref}}<a href="{{content.prevHref}}" class="btn btn-outline" rel="prev">Previous</a>{{/if}}
-      <a href="{{content.backHref}}" class="btn btn-outline">Back to gallery</a>
-      {{#if content.nextHref}}<a href="{{content.nextHref}}" class="btn btn-outline" rel="next">Next</a>{{/if}}
-    </nav>
   </article>
 </div>

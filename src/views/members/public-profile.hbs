@@ -3,13 +3,13 @@
 <div class="wrapper">
   <section>
     {{#if content.avatarThumbUrl}}
-    <div class="text-center mb-6">
+    <div class="text-center mb-4">
       <img src="{{content.avatarThumbUrl}}" alt="{{content.displayName}}" class="profile-avatar-img" />
     </div>
     {{/if}}
 
     {{#if content.tierBadgeText}}
-    <div class="membership-badges mb-6">
+    <div class="membership-badges mb-4">
       <span class="badge badge-tier">{{content.tierBadgeText}}</span>
       {{#if content.isActivePlayer}}
         <span class="badge badge-honor">Active Player</span>
@@ -67,12 +67,14 @@
     </div>
     {{/if}}
 
-    {{#if content.media.items.length}}
+    {{#if content.media.hasContent}}
       {{> member-block-media content.media}}
     {{/if}}
 
     {{#if content.showCompetitiveResults}}
-    {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear showFirstCompetitionYear=content.showFirstCompetitionYear}}
+    <div class="profile-section">
+      {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear showFirstCompetitionYear=content.showFirstCompetitionYear}}
+    </div>
     {{/if}}
 
   </section>

@@ -1,8 +1,6 @@
 {{#if this.hasOutstanding}}
-<section class="onboarding-task-widget">
-  <div class="section-heading">
-    <h2>Onboarding</h2>
-  </div>
+<div class="profile-section onboarding-task-widget">
+  <h2 class="profile-section-heading">Onboarding</h2>
 
   {{#if this.pending.length}}
     <ul class="onboarding-task-list">
@@ -37,5 +35,5 @@
       {{/each}}
     </ul>
   {{/if}}
-</section>
+</div>
 {{/if}}

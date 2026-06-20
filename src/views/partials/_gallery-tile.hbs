@@ -1,0 +1,20 @@
+{{!-- Shared media gallery tile. Receives one GalleryItem. Every tile, photo or
+      video, links to that item's own in-site viewer page (itemHref); video tiles
+      add the play-overlay affordance and the viewer page hosts playback. The
+      service sets itemHref on every list surface, so a tile never links to a raw
+      media-store file. --}}
+<li class="gallery-tile">
+  <a href="{{itemHref}}" class="gallery-tile-media{{#if media}} gallery-tile-video{{/if}}">
+    <img src="{{thumbnailUrl}}" alt="{{caption}}" loading="lazy" />
+    {{#if media}}<span class="gallery-tile-play" aria-hidden="true"><svg viewBox="0 0 24 24" width="48" height="48" focusable="false"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></span>{{/if}}
+  </a>
+  {{#if caption}}<p class="gallery-tile-caption">{{caption}}</p>{{/if}}
+  {{#if tags.length}}
+    <ul class="gallery-tile-tags">
+      {{#each tags}}
+        <li>{{#if href}}<a href="{{href}}" class="gallery-tile-tag">{{display}}</a>{{else}}<span class="gallery-tile-tag">{{display}}</span>{{/if}}</li>
+      {{/each}}
+    </ul>
+  {{/if}}
+  {{#if uploadedAtDisplay}}<p class="gallery-tile-date"><time datetime="{{uploadedAtIso}}">{{uploadedAtDisplay}}</time></p>{{/if}}
+</li>

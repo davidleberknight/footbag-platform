@@ -70,7 +70,7 @@
  *
  * Service shape: singleton object. Avatar upload is delegated to the factory
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
- * The profile media-grid preview is delegated to `mediaService.listMemberMediaPreview`.
+ * The profile Media section is delegated to `mediaService.getMemberProfileMedia`.
  */
 import { randomUUID, createHash } from 'crypto';
 import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, declaredAnchors, erasureLog, legacyMembers, memberPurge, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow, LegacyMemberRow } from '../db/db';
@@ -88,7 +88,7 @@ import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { getTierStatus, type MemberTier, type UnderlyingTier } from './membershipTieringService';
 import { getStatus as getActivePlayerStatus } from './activePlayerService';
-import { mediaService, type GalleryItem } from './mediaService';
+import { mediaService, type ProfileMediaView } from './mediaService';
 import { formatDateDisplay } from './dateFormat';
 
 const MAX_BIO = 1000;
@@ -352,13 +352,6 @@ export interface ProfileEditContent extends OwnProfileContent {
 export interface ProfileClubView {
   name: string;
   href: string;
-}
-
-// Member-profile media grid: a capped thumbnail preview of the member's own
-// uploads plus a link to the full member-scoped browse (null when empty).
-export interface ProfileMediaView {
-  items: GalleryItem[];
-  viewAllHref: string | null;
 }
 
 export interface PublicProfileContent {
@@ -877,7 +870,7 @@ export const memberService = {
         clubs:          viewer.authenticated ? buildPublicProfileClubsView(row.id) : [],
         media:          viewer.authenticated
           ? buildMemberMediaView(row.id, slug)
-          : { items: [], viewAllHref: null },
+          : { galleries: [], allMediaHref: null, hasContent: false },
       },
     };
   },
@@ -1483,15 +1476,11 @@ function buildPublicProfileClubsView(memberId: string): ProfileClubView[] {
   }));
 }
 
-// Capped thumbnail preview of a member's own uploads plus a link to the full
-// member-scoped media browse. The browse link normalizes `by_<slug>` to the
-// `#by_<slug>` uploader tag, the same tag every member upload carries.
+// The profile Media section: the member's named galleries as link cards plus a
+// view-all link. mediaService owns the shaping; this stays a thin delegate so the
+// profile assembles its sections in one place.
 function buildMemberMediaView(memberId: string, slug: string): ProfileMediaView {
-  const items = mediaService.listMemberMediaPreview(memberId);
-  return {
-    items,
-    viewAllHref: items.length > 0 ? `/media/browse?tag=by_${encodeURIComponent(slug)}` : null,
-  };
+  return mediaService.getMemberProfileMedia(memberId, slug);
 }
 
 function buildMyClubsView(memberId: string): MyClubsView {
