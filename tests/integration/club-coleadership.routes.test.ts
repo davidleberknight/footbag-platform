@@ -191,6 +191,27 @@ describe('POST /clubs/:key/invite', () => {
     expect(audit.n).toBe(1);
   });
 
+  it('inviting the same member twice enqueues only one email (stable idempotency key)', async () => {
+    const { clubId, clubKey } = seedClub();
+    const leader = tier1Actor(`i-dup-leader-${_n}`, `i_dup_leader_${_n}`);
+    insertClubLeader(db, { club_id: clubId, member_id: leader });
+    insertMemberClubAffiliation(db, leader, clubId);
+    const invitee = insertMember(db, { id: `i-dup-invitee-${_n}`, slug: `i_dup_invitee_${_n}`, login_email: `i-dup-invitee-${_n}@example.com` });
+    insertMemberClubAffiliation(db, invitee, clubId);
+
+    for (let i = 0; i < 2; i++) {
+      const res = await request(createApp())
+        .post(`/clubs/${clubKey}/invite`)
+        .set('Cookie', cookieFor(leader))
+        .type('form')
+        .send({ member_key: invitee });
+      expect(res.status).toBe(303);
+    }
+    // The idempotency key is stable per club and invitee, so the re-send
+    // collapses onto the first outbox row rather than enqueuing a duplicate.
+    expect(emailCount(invitee)).toBe(1);
+  });
+
   it('a non-co-leader cannot invite', async () => {
     const { clubId, clubKey } = seedClub();
     const notLeader = tier1Actor(`i-notldr-${_n}`, `i_notldr_${_n}`);

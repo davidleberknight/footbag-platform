@@ -203,17 +203,22 @@ describe('Race conditions', () => {
   it('concurrent consumption of the same reset token → only one succeeds', async () => {
     const app = createApp();
 
-    // Mint a fresh reset token. Read the URL from the rendered HTML (which
-    // now includes the simulated-email card on dev) instead of from the
-    // DB-row body_text — the latter is NULLed by the post-render outbox
-    // drain in simulatedEmailService.getEmailPreview().
+    // Mint a fresh reset token. The forgot-sent page never renders the reset
+    // link, so read the token from the enqueued outbox email body.
     const forgot = await request(app)
       .post('/password/forgot')
       .type('form')
       .send({ email: MEMBER_EMAIL });
     expect(forgot.status).toBe(200);
-    const match = forgot.text.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
-    if (!match) throw new Error('no reset link in response HTML');
+    const tokenDb = new BetterSqlite3(dbPath, { readonly: true });
+    const tokenRow = tokenDb.prepare(
+      `SELECT body_text FROM outbox_emails
+       WHERE recipient_email = ? AND body_text LIKE '%/password/reset/%'
+       ORDER BY created_at DESC LIMIT 1`,
+    ).get(MEMBER_EMAIL) as { body_text: string | null } | undefined;
+    tokenDb.close();
+    const match = tokenRow?.body_text?.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
+    if (!match) throw new Error('no reset link in enqueued outbox email');
     const token = match[1];
 
     // Two concurrent requests with the same token — exactly one should redirect,

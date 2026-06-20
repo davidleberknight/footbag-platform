@@ -185,11 +185,17 @@ describe('audit_entries — password change', () => {
 describe('audit_entries — password reset', () => {
   it('successful POST /password/reset/:token → auth.password_reset, actor_type=system', async () => {
     const app = createApp();
-    // Read the token from the rendered HTML (which now includes the
-    // simulated-email card on dev). The DB-row body_text is NULLed by the
-    // post-render outbox drain in simulatedEmailService.getEmailPreview().
-    const forgot = await request(app).post('/password/forgot').type('form').send({ email: OWN_EMAIL });
-    const token = forgot.text.match(/\/password\/reset\/([A-Za-z0-9_-]+)/)![1];
+    // The forgot-sent page never renders the reset link, so read the token from
+    // the enqueued outbox email body instead of the response HTML.
+    await request(app).post('/password/forgot').type('form').send({ email: OWN_EMAIL });
+    const outboxDb = new BetterSqlite3(dbPath, { readonly: true });
+    const outboxRow = outboxDb.prepare(
+      `SELECT body_text FROM outbox_emails
+       WHERE recipient_email = ? AND body_text LIKE '%/password/reset/%'
+       ORDER BY created_at DESC LIMIT 1`,
+    ).get(OWN_EMAIL) as { body_text: string | null } | undefined;
+    outboxDb.close();
+    const token = outboxRow?.body_text?.match(/\/password\/reset\/([A-Za-z0-9_-]+)/)![1];
 
     const res = await request(app)
       .post(`/password/reset/${token}`)

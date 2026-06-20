@@ -48,22 +48,28 @@ beforeEach(async () => {
 });
 
 /**
- * Extracts the reset token from the password-forgot-sent response HTML
- * (which now includes the simulated-email card on dev). The DB-row
- * body_text is NULLed by the post-render outbox drain in
- * simulatedEmailService.getEmailPreview(), so the HTML response is the
- * authoritative source for the just-sent token URL.
+ * Extracts the just-sent reset token from the enqueued outbox email. The
+ * password-forgot-sent page never renders the reset link (it is unauthenticated
+ * and the submitted email is attacker-chosen), so the outbox row body is the
+ * authoritative source for the token URL.
  */
-function tokenFromForgotResponse(res: { text: string }): string {
-  const match = res.text.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
-  if (!match) throw new Error('no reset link in response HTML');
+function tokenFromOutbox(email: string): string {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const row = db.prepare(
+    `SELECT body_text FROM outbox_emails
+     WHERE recipient_email = ? AND body_text LIKE '%/password/reset/%'
+     ORDER BY created_at DESC LIMIT 1`,
+  ).get(email) as { body_text: string | null } | undefined;
+  db.close();
+  const match = row?.body_text?.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
+  if (!match) throw new Error('no reset link in enqueued outbox email');
   return match[1];
 }
 
 async function issueAndExtractResetToken(app: ReturnType<typeof createApp>, email: string): Promise<string> {
   const res = await request(app).post('/password/forgot').type('form').send({ email });
   expect(res.status).toBe(200);
-  return tokenFromForgotResponse(res);
+  return tokenFromOutbox(email);
 }
 
 function countOutboxFor(email: string): number {
@@ -85,6 +91,20 @@ describe('POST /password/forgot', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('If an account exists');
     expect(countOutboxFor(MEMBER_EMAIL)).toBe(1);
+  });
+
+  it('never renders the reset token in the response, even though one was enqueued', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/password/forgot')
+      .type('form')
+      .send({ email: MEMBER_EMAIL });
+    expect(res.status).toBe(200);
+    // A reset token was genuinely minted and enqueued for the submitted address.
+    expect(tokenFromOutbox(MEMBER_EMAIL)).toBeTruthy();
+    // But the unauthenticated, attacker-chosen-email page must never surface it,
+    // or submitting a victim's email would read back the victim's reset link.
+    expect(res.text).not.toMatch(/\/password\/reset\//);
   });
 
   it('unknown email → identical generic response, no outbox row', async () => {

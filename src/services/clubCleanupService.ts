@@ -279,6 +279,10 @@ export interface CleanupQueueItem {
   predicateLabel: string;
   detail: string;
   recommendedAction: string;
+  // Only a leaderless-active item offers the add-co-leader and contact-members
+  // controls; the service decides which rows show them so the template branches
+  // on a boolean rather than the predicate enum.
+  showLeaderlessControls: boolean;
   // Sort inputs, not rendered: negative-signal weight and the timestamp the
   // item has been open since (the club's last update stands in for predicate
   // items, which carry no dedicated opened-at of their own).
@@ -528,6 +532,7 @@ function assembleQueue(): AssembledQueue {
       predicateLabel: 'Crowdsource viability',
       detail: `${row.active_count} active, ${row.not_active_count} inactive, ${row.never_heard_count} never heard${reporterSuffix}`,
       recommendedAction,
+      showLeaderlessControls: false,
       flagCount: row.not_active_count + row.never_heard_count,
       openSince: row.club_updated_at,
       claimLabel: claimLabelFrom(claims, 'club', row.club_id),
@@ -548,6 +553,7 @@ function assembleQueue(): AssembledQueue {
       predicateLabel: 'Leaderless active club',
       detail: 'Active club with no co-leader',
       recommendedAction: 'Add a co-leader (recommended), contact members, or defer',
+      showLeaderlessControls: true,
       flagCount: 0,
       openSince: row.last_updated,
       claimLabel: claimLabelFrom(claims, 'club', row.club_id),
@@ -575,6 +581,7 @@ function assembleQueue(): AssembledQueue {
       predicateLabel: 'Stale provisional leader',
       detail: `${leaders.length} provisional leader(s) since ${first.provisional_since.slice(0, 10)}`,
       recommendedAction: 'Review or dismiss',
+      showLeaderlessControls: false,
       flagCount: leaders.length,
       openSince: first.provisional_since,
       claimLabel: claimLabelFrom(claims, 'club', clubId),
@@ -972,14 +979,13 @@ function contactMembersToVolunteer(
     id: string; display_name: string; login_email: string | null;
   }>;
 
-  const now = new Date().toISOString();
   let recipientCount = 0;
   try {
     const comms = getCommunicationService();
     for (const m of members) {
       if (!m.login_email) continue;
       comms.enqueueEmail({
-        idempotencyKey: `club-leaderless-contact:${clubId}:${m.id}:${now}`,
+        idempotencyKey: `club-leaderless-contact:${clubId}:${m.id}`,
         recipientEmail: m.login_email,
         recipientMemberId: m.id,
         subject: `${club.name} could use a co-leader`,

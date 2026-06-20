@@ -45,7 +45,6 @@ const WIZARD_COMPLETE_URL = '/register/wizard/complete';
 const EMPTY_FLASH = {
   submitted: false,
   hpPersonId: null,
-  sinceIndex: null,
   autoLinkDrift: false,
 } as const;
 
@@ -133,7 +132,6 @@ function writeWizardFlash(req: Request, res: Response, flash: WizardFlash): void
 interface WizardFlashState {
   submitted: boolean;
   hpPersonId: string | null;
-  sinceIndex: number | null;
   autoLinkDrift: boolean;
 }
 
@@ -143,19 +141,17 @@ function readWizardFlashState(req: Request, res: Response): WizardFlashState {
   if (flash.kind === FLASH_KIND.WIZARD_LEGACY_CLAIM_RESULT) {
     clearFlash(res, req);
     let hpPersonId: string | null = null;
-    let sinceIndex: number | null = null;
     try {
       const payload = JSON.parse(flash.payload ?? '{}');
       if (typeof payload.hpPersonId === 'string') hpPersonId = payload.hpPersonId;
-      if (typeof payload.sinceIndex === 'number') sinceIndex = payload.sinceIndex;
     } catch {
-      // Garbage payload: still treat as submitted; just no HP card or preview.
+      // Garbage payload: still treat as submitted; just no HP card.
     }
-    return { submitted: true, hpPersonId, sinceIndex, autoLinkDrift: false };
+    return { submitted: true, hpPersonId, autoLinkDrift: false };
   }
   if (flash.kind === FLASH_KIND.WIZARD_AUTO_LINK_DRIFT) {
     clearFlash(res, req);
-    return { submitted: false, hpPersonId: null, sinceIndex: null, autoLinkDrift: true };
+    return { submitted: false, hpPersonId: null, autoLinkDrift: true };
   }
   // Foreign flash kind (e.g., LOGOUT, AVATAR_UPLOADED): leave it intact for
   // whichever surface owns it.
@@ -173,7 +169,6 @@ async function renderLegacyClaim(
   const data = await identityAccessService.getLinkHistoryViewForWizard(memberId, {
     submitted: state.submitted,
     hpPersonId: state.hpPersonId,
-    sinceIndex: state.sinceIndex,
     autoLinkDrift: state.autoLinkDrift,
   });
   if (!data) {

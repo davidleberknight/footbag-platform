@@ -348,16 +348,14 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
       return;
     }
     await identityAccessService.requestPasswordReset(email ?? '');
-    // Simulated email card on dev and staging (stub adapter) so the operator can complete the
-    // reset flow without leaving the page; null in production. Filtered to
-    // password-reset URLs so a stale verify-email card from earlier in the
-    // session doesn't confuse the operator.
-    const emailPreview =
-      (await simulatedEmailService.getEmailPreview({ urlPathPrefix: '/password/reset/' })) ?? undefined;
+    // This page is unauthenticated and the submitted email is attacker-chosen,
+    // so it never renders the reset link: a dev-preview card here would hand the
+    // submitter a live reset token for whatever address they typed. Operators
+    // read dev/staging reset links from the internal outbox tooling instead.
     res.render('auth/password-forgot-sent', {
       seo: { title: 'Reset Your Password' },
       page: { sectionKey: '', pageKey: 'password_forgot_sent', title: 'Reset your password' },
-      content: { emailPreview },
+      content: {},
     } satisfies PageViewModel<PasswordForgotSentContent>);
   } catch (err) {
     next(err);

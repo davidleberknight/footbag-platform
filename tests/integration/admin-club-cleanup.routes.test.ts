@@ -66,6 +66,19 @@ describe('GET /admin/club-cleanup', () => {
     expect(res.text).toContain('Club Cleanup Queue');
   });
 
+  it('renders the add-co-leader and contact-members controls for a leaderless active club', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/admin/club-cleanup')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    // The service shapes a showLeaderlessControls boolean per item; a leaderless
+    // active club's row renders the add-co-leader link and the contact-members
+    // form, so the template branches on that boolean rather than the predicate.
+    expect(res.text).toContain(`/admin/clubs/${CLUB_ID}/leadership`);
+    expect(res.text).toContain(`/admin/club-cleanup/${CLUB_ID}/contact-members`);
+  });
+
   it('names the members whose latest answer was negative on the queue item', async () => {
     const app = createApp();
     const res = await request(app)

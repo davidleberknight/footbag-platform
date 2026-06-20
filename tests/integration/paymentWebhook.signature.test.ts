@@ -22,12 +22,14 @@ const M_CTRL_BAD = 'sig-ctrl-bad';
 const M_CTRL_REACH = 'sig-ctrl-reach';
 const M_REPLAY = 'sig-replay';
 const M_ATOMIC = 'sig-atomic';
+const M_XBIND_ROW = 'sig-xbind-row';
+const M_XBIND_META = 'sig-xbind-meta';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  for (const [i, id] of [M_HAPPY, M_PAYLOAD, M_SIG, M_EXPIRED, M_MISSING, M_CTRL_OK, M_CTRL_BAD, M_CTRL_REACH, M_REPLAY, M_ATOMIC].entries()) {
+  for (const [i, id] of [M_HAPPY, M_PAYLOAD, M_SIG, M_EXPIRED, M_MISSING, M_CTRL_OK, M_CTRL_BAD, M_CTRL_REACH, M_REPLAY, M_ATOMIC, M_XBIND_ROW, M_XBIND_META].entries()) {
     insertMember(db, { id, slug: `sig_${i}`, display_name: `Sig ${i}`, login_email: `sig${i}@example.com` });
   }
   db.close();
@@ -244,6 +246,51 @@ describe('POST /payments/webhook status mapping', () => {
     });
     const res = await postWebhook(body, signStripeWebhook(body, STUB_WEBHOOK_SECRET));
     expect(res.status).toBe(400);
+  });
+
+  it('deferred-intent fallback refuses to bind when the metadata names a different member', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+
+    // A deferred-intent pending row: Stripe created no PaymentIntent yet, so the
+    // row carries a NULL intent id and the event must be matched by metadata.
+    const started = await paymentService.startMembershipPurchase(M_XBIND_ROW, 'tier1', '/members/x');
+    const seedDb = openDb();
+    seedDb.prepare('UPDATE payments SET stripe_payment_intent_id = NULL WHERE id = ?').run(started.paymentId);
+    seedDb.close();
+
+    // The event points its metadata paymentId at the row but claims a different
+    // memberId. The row, not the metadata, owns the tier grant, so binding here
+    // would attach a stranger's intent to this member's payment.
+    const body = JSON.stringify({
+      id: 'evt_xbind_mismatch',
+      type: 'payment_intent.succeeded',
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: 'pi_xbind_new',
+          metadata: { paymentId: started.paymentId, memberId: M_XBIND_META, tier: 'tier1' },
+        },
+      },
+    });
+    const res = await postWebhook(body, signStripeWebhook(body, STUB_WEBHOOK_SECRET));
+    // No row matches (member mismatch), so this is recoverable: 400 -> Stripe retries.
+    expect(res.status).toBe(400);
+
+    const db = openDb();
+    try {
+      const row = db.prepare('SELECT status, stripe_payment_intent_id FROM payments WHERE id = ?')
+        .get(started.paymentId) as { status: string; stripe_payment_intent_id: string | null };
+      expect(row.status).toBe('pending');
+      expect(row.stripe_payment_intent_id).toBeNull();
+      const grants = db.prepare(
+        "SELECT COUNT(*) AS c FROM member_tier_grants WHERE member_id = ? AND reason_code = 'purchase.tier1'",
+      ).get(M_XBIND_ROW) as { c: number };
+      expect(grants.c).toBe(0);
+    } finally {
+      db.close();
+    }
   });
 
   it('malformed event (invariant) -> 500 and alarms', async () => {

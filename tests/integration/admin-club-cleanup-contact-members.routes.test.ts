@@ -61,6 +61,30 @@ describe('POST /admin/club-cleanup/:clubId/contact-members', () => {
     expect(leaders.n).toBe(0);
   });
 
+  it('contacting the same leaderless club twice enqueues no duplicate emails (stable idempotency key)', async () => {
+    const dupClubId = insertClub(db, { id: 'ccm-club-dup', name: 'Leaderless Dup Club' });
+    for (const i of [1, 2]) {
+      insertMember(db, { id: `ccm-dup-mem-${i}`, slug: `ccm_dup_mem_${i}`, login_email: `ccm-dup-mem-${i}@example.com` });
+      insertMemberClubAffiliation(db, `ccm-dup-mem-${i}`, dupClubId);
+    }
+
+    for (let i = 0; i < 2; i++) {
+      const res = await request(createApp())
+        .post(`/admin/club-cleanup/${dupClubId}/contact-members`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({});
+      expect(res.status).toBe(303);
+    }
+
+    // The idempotency key is stable per club and member, so the second send
+    // collapses onto the first outbox rows rather than enqueuing duplicates.
+    const emails = db.prepare(
+      `SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_member_id IN ('ccm-dup-mem-1','ccm-dup-mem-2')`,
+    ).get() as { n: number };
+    expect(emails.n).toBe(2);
+  });
+
   it('a non-admin cannot trigger the action', async () => {
     const memberId = insertMember(db, { id: 'ccm-nonadmin', slug: 'ccm_nonadmin' });
     const res = await request(createApp())

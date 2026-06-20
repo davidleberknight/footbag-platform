@@ -70,6 +70,23 @@ export function getMemberField(db: BetterSqlite3.Database, memberId: string, fie
   return row?.[field] ?? null;
 }
 
+/**
+ * Recovers the legacy-claim confirmation URL out-of-band from the captured
+ * outbox. The sent page never reflects this ownership-proof link (it is
+ * addressed to the legacy account's email, not the claiming member), so the
+ * outbox row, keyed by the claiming member, is the only path to it.
+ */
+export function legacyClaimConfirmUrl(db: BetterSqlite3.Database, memberId: string): string {
+  const row = db.prepare(
+    `SELECT body_text FROM outbox_emails
+     WHERE recipient_member_id = ? AND body_text LIKE '%/claim/confirm/%'
+     ORDER BY created_at DESC LIMIT 1`,
+  ).get(memberId) as { body_text: string | null } | undefined;
+  const m = row?.body_text?.match(/(\/register\/wizard\/legacy_claim\/claim\/confirm\/[A-Za-z0-9_-]+)/);
+  if (!m) throw new Error(`no claim confirm link in outbox for member ${memberId}`);
+  return m[1];
+}
+
 export function isLegacyClaimed(db: BetterSqlite3.Database, legacyMemberId: string): boolean {
   const row = db.prepare(
     'SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?',

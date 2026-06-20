@@ -46,22 +46,30 @@ function readLegacy(): Record<string, unknown> {
   return row;
 }
 
+// The confirm link is delivered to the legacy email's outbox, never rendered on
+// the page (the sent state must not reflect the ownership-proof token). The
+// outbox row's recipient_member_id is the claiming member, so concurrent claims
+// of the same legacy account stay distinguishable.
+function claimTokenFromOutbox(claimingMemberId: string): string {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const row = db.prepare(
+    `SELECT body_text FROM outbox_emails
+     WHERE recipient_member_id = ? AND body_text LIKE '%/claim/confirm/%'
+     ORDER BY created_at DESC LIMIT 1`,
+  ).get(claimingMemberId) as { body_text: string | null } | undefined;
+  db.close();
+  const m = row?.body_text?.match(/\/register\/wizard\/legacy_claim\/claim\/confirm\/([A-Za-z0-9_-]+)/);
+  if (!m) throw new Error(`no claim confirm link in outbox for member ${claimingMemberId}`);
+  return m[1];
+}
+
 async function issueClaimToken(memberId: string, identifier: string): Promise<string> {
-  // POST /find issues a 303 to /register/wizard/legacy_claim. The flash
-  // cookie carries the simulated-email-card state; the follow-up GET
-  // renders the email card with the claim URL. Use an agent to round-trip
-  // the cookie between POST and GET.
   const cookie = `footbag_session=${createTestSessionJwt({ memberId })}`;
-  const agent = request.agent(createApp());
-  const postRes = await agent
+  const postRes = await request(createApp())
     .post('/register/wizard/legacy_claim/find').set('Cookie', cookie).type('form')
     .send({ identifier });
   expect(postRes.status).toBe(303);
-  const getRes = await agent
-    .get('/register/wizard/legacy_claim').set('Cookie', cookie);
-  const m = getRes.text.match(/\/register\/wizard\/legacy_claim\/claim\/confirm\/([A-Za-z0-9_-]+)/);
-  if (!m) throw new Error(`No claim URL in GET response HTML for member ${memberId}`);
-  return m[1];
+  return claimTokenFromOutbox(memberId);
 }
 
 // Clear outbox between tests so token-extraction picks this iteration's row.
@@ -319,11 +327,17 @@ describe('completePasswordReset — atomicity', () => {
       .send({ email: MEMBER_EMAIL });
     expect(forgot.status).toBe(200);
 
-    // Extract the token from the rendered HTML (which now includes the
-    // simulated-email card on dev). The DB-row body_text is NULLed by the
-    // post-render outbox drain in simulatedEmailService.getEmailPreview().
-    const match = forgot.text.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
-    if (!match) throw new Error('no reset link in response HTML');
+    // The forgot-sent page never renders the reset link, so read the token from
+    // the enqueued outbox email body instead of the response HTML.
+    const tokenDb = new BetterSqlite3(dbPath, { readonly: true });
+    const tokenRow = tokenDb.prepare(
+      `SELECT body_text FROM outbox_emails
+       WHERE recipient_email = ? AND body_text LIKE '%/password/reset/%'
+       ORDER BY created_at DESC LIMIT 1`,
+    ).get(MEMBER_EMAIL) as { body_text: string | null } | undefined;
+    tokenDb.close();
+    const match = tokenRow?.body_text?.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
+    if (!match) throw new Error('no reset link in enqueued outbox email');
     const token = match[1];
 
     const before = readMember();
@@ -432,12 +446,7 @@ describe('claimHistoricalPersonInTx / consumeAndClaimLegacyInTx — outer-rollba
       .type('form')
       .send({ identifier: FRESH_LEGACY_ID });
     expect(postRes.status).toBe(303);
-    const getRes = await agentReq
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', freshCookie());
-    const m = getRes.text.match(/\/register\/wizard\/legacy_claim\/claim\/confirm\/([A-Za-z0-9_-]+)/);
-    if (!m) throw new Error('No claim URL in GET response HTML');
-    const token = m[1];
+    const token = claimTokenFromOutbox(FRESH_MEMBER_ID);
 
     expect(() => {
       dbMod.transaction(() => {
@@ -505,12 +514,7 @@ describe('consumeAndClaimLegacy — wrong-account guard', () => {
       .type('form')
       .send({ identifier: WA_LEGACY });
     expect(postRes.status).toBe(303);
-    const getRes = await agentReq
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', aCookie);
-    const m = getRes.text.match(/\/register\/wizard\/legacy_claim\/claim\/confirm\/([A-Za-z0-9_-]+)/);
-    if (!m) throw new Error('No claim URL in GET response HTML');
-    const tokenForA = m[1];
+    const tokenForA = claimTokenFromOutbox(A_MEMBER);
 
     // B uses A's token. Service must reject without touching state.
     expect(() => svc.consumeAndClaimLegacy(B_MEMBER, tokenForA))

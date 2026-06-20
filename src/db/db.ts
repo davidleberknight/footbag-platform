@@ -5171,6 +5171,7 @@ export const auth = {
     SELECT id, password_hash, password_version
     FROM members_active
     WHERE id = ?
+      AND is_deceased = 0
   `); },
 
   get updateMemberPassword() { return db.prepare(`

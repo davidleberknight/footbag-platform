@@ -6,7 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { insertLegacyMember, insertHistoricalPerson } from '../fixtures/factories';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
-import { seedBrandNewPlayer, seedMemberWithAutoLinkCandidate, seedMemberWithLegacyDiffEmail, seedMemberWithHpMatch, getMemberField, getTaskState, raiseClaimRateLimits } from './helpers/onboarding';
+import { seedBrandNewPlayer, seedMemberWithAutoLinkCandidate, seedMemberWithLegacyDiffEmail, seedMemberWithHpMatch, getMemberField, getTaskState, raiseClaimRateLimits, legacyClaimConfirmUrl } from './helpers/onboarding';
 
 test.beforeAll(() => {
   const db = openLiveDb();
@@ -58,7 +58,7 @@ test('auto-link confirm advances to next task', { tag: ['@migration'] }, async (
   await ctx.close();
 });
 
-test('manual search: enqueued path shows banner and simulated email card', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+test('manual search: enqueued path shows the banner but never the confirm link', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_enq_${Date.now()}` });
   db.close();
@@ -75,10 +75,16 @@ test('manual search: enqueued path shows banner and simulated email card', { tag
   const bannerText = await sentBanner.textContent();
   expect(bannerText).toMatch(/confirmation link has been sent/i);
 
-  const simCard = page.locator('.sec-card-dev');
-  await expect(simCard).toBeVisible();
-  const tokenLink = simCard.locator('a[href*="/claim/confirm/"]');
-  await expect(tokenLink).toBeVisible();
+  // The ownership-proof confirm link is addressed to the legacy account's email,
+  // not the claiming member, so the sent page must never reflect it.
+  await expect(page.locator('.sec-card-dev')).toHaveCount(0);
+  await expect(page.locator('a[href*="/claim/confirm/"]')).toHaveCount(0);
+
+  // The token was genuinely enqueued out-of-band to the legacy email's outbox.
+  const db2 = openLiveDb();
+  const confirmUrl = legacyClaimConfirmUrl(db2, persona.memberId);
+  db2.close();
+  expect(confirmUrl).toMatch(/\/claim\/confirm\//);
 
   await ctx.close();
 });
@@ -95,10 +101,11 @@ test('token confirm page shows record details and confirm button', { tag: ['@mig
   await wizard.goto('legacy_claim');
   await wizard.submitIdentifier(persona.legacyEmail);
 
-  const tokenHref = await page.locator('.sec-card-dev a[href*="/claim/confirm/"]').first().getAttribute('href');
-  expect(tokenHref).toBeTruthy();
+  const db2 = openLiveDb();
+  const tokenHref = legacyClaimConfirmUrl(db2, persona.memberId);
+  db2.close();
 
-  await page.goto(tokenHref!);
+  await page.goto(tokenHref);
 
   const body = await page.textContent('body');
   expect(body).toContain('Enqueued Claim');
@@ -121,8 +128,10 @@ test('token consume advances wizard and links member', { tag: ['@migration'] }, 
   await wizard.goto('legacy_claim');
   await wizard.submitIdentifier(persona.legacyEmail);
 
-  const tokenHref = await page.locator('.sec-card-dev a[href*="/claim/confirm/"]').first().getAttribute('href');
-  await page.goto(tokenHref!);
+  const tokenDb = openLiveDb();
+  const tokenHref = legacyClaimConfirmUrl(tokenDb, persona.memberId);
+  tokenDb.close();
+  await page.goto(tokenHref);
 
   const confirmButton = page.getByRole('button', { name: /confirm and link/i });
   await confirmButton.click();

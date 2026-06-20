@@ -39,8 +39,10 @@
  *     created the PaymentIntent eagerly, stripe_payment_intent_id. Stripe may
  *     defer intent creation until the buyer pays, so payment_intent.* handlers
  *     fall back to the paymentId stamped into the intent's metadata at session
- *     creation and backfill the intent id onto the row (IS NULL-guarded; a row
- *     bound to a different intent is never re-pointed). A partial unique index
+ *     creation and backfill the intent id onto the row (IS NULL-guarded, and
+ *     only when the row's member_id matches the event-metadata memberId; a row
+ *     bound to a different intent, or owned by a different member, is never
+ *     re-pointed). A partial unique index
  *     allows only one pending membership payment per member; a concurrent
  *     double-submit fails with ConflictError.
  *   - Tier grant applied ONLY in the webhook success branch. Membership tier
@@ -514,6 +516,12 @@ function findPaymentForIntentEvent(
   if (byId.stripe_payment_intent_id !== null) {
     // Metadata points at a row already bound to a different intent; do not
     // trust it (a crafted or stale event must not redirect transitions).
+    return undefined;
+  }
+  const metaMemberId = typeof meta?.memberId === 'string' ? meta.memberId : null;
+  if (byId.member_id !== metaMemberId) {
+    // Metadata names a different member than the row it points at; a crafted
+    // or stale event must not bind this intent onto another member's payment.
     return undefined;
   }
   const now = new Date().toISOString();

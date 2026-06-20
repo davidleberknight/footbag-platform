@@ -73,7 +73,6 @@ import {
   type ContextModifiers,
 } from './clubBootstrapClassificationService';
 import { identityAccessService, SurnameMismatchError } from './identityAccessService';
-import { getSesAdapter } from '../adapters/sesAdapter';
 import {
   ConflictError,
   NotFoundError,
@@ -1068,7 +1067,7 @@ function submitTaskResponse(memberId: string, taskType: string, response: unknow
 export type WizardFlash =
   | {
       kind: 'WIZARD_LEGACY_CLAIM_RESULT';
-      payload: { hpPersonId: string | null; sinceIndex: number | null };
+      payload: { hpPersonId: string | null };
     }
   | { kind: 'WIZARD_AUTO_LINK_DRIFT' }
   | {
@@ -1124,10 +1123,6 @@ function advanceAfter(
   return { kind: 'advance', nextTaskType: nextTaskAfter(memberId, currentTaskType) };
 }
 
-function captureSinceIndex(): number | null {
-  return getSesAdapter().captureCurrentMessageIndex();
-}
-
 async function processLegacyClaimSubmit(
   memberId: string,
   identifier: string,
@@ -1140,7 +1135,6 @@ async function processLegacyClaimSubmit(
       message: 'Enter an identifier to search.',
     };
   }
-  const sinceIndex = captureSinceIndex();
   try {
     const outcome = identityAccessService.initiateLegacyClaim(memberId, identifier, ip);
     if (outcome.kind === 'auto_linked') {
@@ -1153,7 +1147,7 @@ async function processLegacyClaimSubmit(
         kind: 'retry_same',
         flash: {
           kind: 'WIZARD_LEGACY_CLAIM_RESULT',
-          payload: { hpPersonId: null, sinceIndex },
+          payload: { hpPersonId: null },
         },
       };
     }
@@ -1162,7 +1156,7 @@ async function processLegacyClaimSubmit(
       kind: 'retry_same',
       flash: {
         kind: 'WIZARD_LEGACY_CLAIM_RESULT',
-        payload: { hpPersonId: hp ? hp.person_id : null, sinceIndex: null },
+        payload: { hpPersonId: hp ? hp.person_id : null },
       },
     };
   } catch (err) {

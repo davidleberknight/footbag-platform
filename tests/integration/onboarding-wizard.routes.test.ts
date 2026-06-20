@@ -270,7 +270,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
     expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
   });
 
-  it('enqueued outcome -> 303 same step; follow-up GET surfaces banner + sim-email card', async () => {
+  it('enqueued outcome -> 303 same step; follow-up GET shows the banner but never the confirm link', async () => {
     const stamp = Date.now();
     const targetEmail = `wiz-enq-${stamp}@oldsite.example`;
     insertLegacyMember(testDb, { legacy_member_id: `LM-WIZ-ENQ-${stamp}`, real_name: 'Wiz Enq', legacy_email: targetEmail });
@@ -289,8 +289,18 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
       .set('Cookie', cookieFor(memberId));
     expect(followUp.status).toBe(200);
     expect(followUp.text).toMatch(/confirmation link has been sent/);
-    expect(followUp.text).toContain('Simulated email (dev)');
-    expect(followUp.text).toMatch(/\/register\/wizard\/legacy_claim\/claim\/confirm\//);
+    // A token was genuinely enqueued to the legacy email's outbox.
+    const row = testDb.prepare(
+      `SELECT body_text FROM outbox_emails
+       WHERE recipient_member_id = ? AND body_text LIKE '%/claim/confirm/%'
+       ORDER BY created_at DESC LIMIT 1`,
+    ).get(memberId) as { body_text: string | null } | undefined;
+    expect(row?.body_text).toMatch(/\/register\/wizard\/legacy_claim\/claim\/confirm\//);
+    // But the sent page must never reflect that ownership-proof link: it is
+    // addressed to the legacy account's email, not the claiming member, so a
+    // claimant could otherwise read it and claim a stranger's legacy identity.
+    expect(followUp.text).not.toContain('Simulated email (dev)');
+    expect(followUp.text).not.toMatch(/\/register\/wizard\/legacy_claim\/claim\/confirm\//);
   });
 
   it('no-match identifier -> 303 same step; follow-up GET surfaces the anti-enum banner', async () => {
@@ -447,14 +457,19 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
 describe('POST /register/wizard/legacy_claim/claim/confirm — token confirmation', () => {
   async function issueTokenFor(memberId: string, legacyEmail: string): Promise<string> {
     const cookie = cookieFor(memberId);
-    const agent = request.agent(createApp());
-    const postRes = await agent
+    const postRes = await request(createApp())
       .post('/register/wizard/legacy_claim/find').set('Cookie', cookie).type('form')
       .send({ identifier: legacyEmail });
     expect(postRes.status).toBe(303);
-    const getRes = await agent.get('/register/wizard/legacy_claim').set('Cookie', cookie);
-    const m = getRes.text.match(/\/register\/wizard\/legacy_claim\/claim\/confirm\/([A-Za-z0-9_-]+)/);
-    if (!m) throw new Error('no claim URL in response');
+    // The confirm link is delivered to the legacy email's outbox, never rendered
+    // on the sent page; recipient_member_id is the claiming member.
+    const row = testDb.prepare(
+      `SELECT body_text FROM outbox_emails
+       WHERE recipient_member_id = ? AND body_text LIKE '%/claim/confirm/%'
+       ORDER BY created_at DESC LIMIT 1`,
+    ).get(memberId) as { body_text: string | null } | undefined;
+    const m = row?.body_text?.match(/\/register\/wizard\/legacy_claim\/claim\/confirm\/([A-Za-z0-9_-]+)/);
+    if (!m) throw new Error('no claim confirm link in outbox');
     return m[1];
   }
 

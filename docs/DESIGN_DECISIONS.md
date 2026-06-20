@@ -2768,11 +2768,14 @@ Impact:
 Decision:
 
 Email-gated landing pages render a conditional in-page preview card
-driven by the SES adapter. SES_ADAPTER=stub in dev and staging;
+driven by the email adapter. SES_ADAPTER=stub in dev and staging;
 SES_ADAPTER=live in production only. A shared service
 (simulatedEmailService.getEmailPreview()) and Handlebars partial
-(simulated-email-card) produce the preview so every email-gated page
-in the application uses the same pattern.
+(simulated-email-card) produce the preview. The card renders only on
+pages where the captured link may safely be shown to the requester
+(see Requirements); other email-gated pages render no card in any
+environment and the captured link is retrieved out-of-band from the
+outbox.
 
 | sesAdapter | Card | Purpose |
 |---|---|---|
@@ -2782,11 +2785,10 @@ in the application uses the same pattern.
 Rationale:
 
 - Paid testers and maintainers exercise email-gated flows
-  (registration verification, password reset, claim-token
-  confirmation, contact-admin acknowledgement, mailing-list
-  confirmation, future Stripe receipts) on both dev and staging. A
-  consistent in-app preview card across both environments lets
-  testers click the captured link without dependency on inbox
+  (registration verification, contact-admin acknowledgement,
+  mailing-list confirmation, future Stripe receipts) on both dev and
+  staging. A consistent in-app preview card across both environments
+  lets testers click the captured link without dependency on inbox
   delivery.
 - AWS SES sandbox restricts delivery to pre-verified recipient
   addresses. Engaging paid testers under sandbox requires per-tester
@@ -2813,6 +2815,15 @@ Requirements:
 - The partial is reusable across any email-gated page. Controllers
   pass the result as content.emailPreview on the PageViewModel; the
   template renders the partial when the value is truthy.
+- A controller passes content.emailPreview only when the captured
+  message's recipient is the acting session's own identity (the
+  address it just registered, for verification). It is never passed on
+  an anti-enumeration request page (password-reset request,
+  email-verify resend) or where the recipient is a third party the
+  session is merely asserting a claim over (legacy-claim confirmation):
+  there the captured link is a side-channel ownership proof, the
+  response must match production regardless of which adapter is active,
+  and the link is retrieved out-of-band from the outbox.
 - Dev and staging previews read from the StubSesAdapter in-memory
   buffer, not from outbox_emails. This preserves the §5.4 body-text
   scrub contract: the scrub operates on the DB row, while adapter

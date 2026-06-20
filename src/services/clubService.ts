@@ -2585,11 +2585,10 @@ export class ClubService {
       return { branch: 'no_email' };
     }
 
-    const now = new Date().toISOString();
     try {
       const comms = getCommunicationService();
       comms.enqueueEmail({
-        idempotencyKey: `club-coleader-invite:${clubId}:${invitee.id}:${now}`,
+        idempotencyKey: `club-coleader-invite:${clubId}:${invitee.id}`,
         recipientEmail: contact.login_email,
         recipientMemberId: invitee.id,
         subject: `You're invited to co-lead ${club.name}`,

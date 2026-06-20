@@ -120,7 +120,7 @@ import { recordOperationalError } from './operationalErrors';
 import { applyAutoLinkRevertGrantInTx, applyLegacyClaimGrantInTx } from './membershipTieringService';
 import { createHash } from 'crypto';
 import { logger } from '../config/logger';
-import { simulatedEmailService, type SimulatedEmailPreview } from './simulatedEmailService';
+import { type SimulatedEmailPreview } from './simulatedEmailService';
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 128;
@@ -198,13 +198,6 @@ export interface PasswordForgotContent {
 
 export interface PasswordForgotSentContent {
   email?: string;
-  /**
-   * Simulated-email card view-model. Populated only when SES_ADAPTER=stub
-   * (dev and staging); null in production. Mirrors the pattern in
-   * /register/check-email so developers can complete
-   * the password-reset flow without leaving the page.
-   */
-  emailPreview?: SimulatedEmailPreview;
 }
 
 export interface PasswordResetContent {
@@ -332,8 +325,8 @@ export interface LinkHistoryCandidate {
  * placeholder card. The wizard is the post-verify destination for every
  * classifier outcome and the dashboard task-widget resume target.
  *
- * Sent-state notice + simulated-email card render inline after a manual-id
- * submission (POST-render-next, no redirect) so the user stays on the wizard.
+ * Sent-state notice renders inline after a manual-id submission
+ * (POST-render-next, no redirect) so the user stays on the wizard.
  */
 export interface LinkHistoryContent {
   memberSlug: string;
@@ -350,15 +343,14 @@ export interface LinkHistoryContent {
   candidates: LinkHistoryCandidate[];
   /**
    * Sent-state notice for redirect-back-to-wizard after a manual legacy
-   * claim. Carries the simulated-email card (stub adapter; dev and staging) and an
-   * optional dev outcomeNote when the silent anti-enumeration paths fired.
+   * claim. Carries an optional dev outcomeNote when the silent
+   * anti-enumeration paths fired.
    */
   sentNotice: {
     /** "We sent a confirmation email…" banner gate. */
     show: boolean;
     /** Dev-mode operator note (no_match / target_rate_limited explainer). */
     outcomeNote?: string;
-    emailPreview?: SimulatedEmailPreview;
   };
   /** Anti-enumeration "identifier didn't match" inline notice. */
   noMatchNotice: boolean;
@@ -1115,7 +1107,6 @@ function getLinkHistoryView(
     fromRegister: boolean;
     reasonIsLowConfidence: boolean;
     sentOutcome: 'enqueued' | 'no_match' | 'target_rate_limited' | null;
-    sinceIndex: number | null;
     noMatchNotice: boolean;
     noMatchTried: string | null;
   },
@@ -1354,13 +1345,6 @@ function getLinkHistoryView(
     });
   }
 
-  // Sent-state composition (dev only). The simulated-email card scopes to
-  // `sinceIndex` so the operator only sees messages from this turn.
-  let emailPreview: SimulatedEmailPreview | undefined;
-  if (opts.sentOutcome && opts.sinceIndex != null) {
-    // The controller computes emailPreview when rendering the sent state;
-    // this view-model carries only the shape the template consumes.
-  }
   let outcomeNote: string | undefined;
   if (opts.sentOutcome === 'no_match' && config.sesAdapter === 'stub') {
     outcomeNote = "No confirmation email was sent for this attempt. The identifier may not match an eligible legacy record. (Production users see the same banner regardless, for anti-enumeration.)";
@@ -1376,7 +1360,6 @@ function getLinkHistoryView(
     sentNotice: {
       show: opts.sentOutcome !== null,
       outcomeNote,
-      emailPreview,
     },
     noMatchNotice: opts.noMatchNotice,
     noMatchTried: opts.noMatchTried,
@@ -2996,16 +2979,12 @@ function findHistoricalPersonForLinkSubmit(
   return hpByAlias ?? null;
 }
 
-const WIZARD_CLAIM_CONFIRM_URL_PREFIX = '/register/wizard/legacy_claim/claim/confirm/';
-
 /**
  * Wizard PRG composer for the legacy_claim GET render. Reads the flash
  * state the controller recovered, composes the view-model on top of
  * `getLinkHistoryView`, and post-processes:
  *   - Prepends an HP card when `hpPersonId` resolves (dedupe against
  *     candidates already present).
- *   - Attaches the simulated-email preview when `sinceIndex` is set and
- *     the SES adapter is stub.
  *   - Surfaces the drift banner when `autoLinkDrift` is true.
  *
  * `submitted` drives the anti-enumeration "If an eligible legacy record
@@ -3018,7 +2997,6 @@ async function getLinkHistoryViewForWizard(
   opts: {
     submitted: boolean;
     hpPersonId: string | null;
-    sinceIndex: number | null;
     autoLinkDrift: boolean;
   },
 ): Promise<LinkHistoryContent | null> {
@@ -3026,7 +3004,6 @@ async function getLinkHistoryViewForWizard(
     fromRegister: true,
     reasonIsLowConfidence: false,
     sentOutcome: opts.submitted && opts.hpPersonId === null ? 'enqueued' : null,
-    sinceIndex: opts.sinceIndex,
     noMatchNotice: false,
     noMatchTried: null,
   });
@@ -3127,14 +3104,6 @@ async function getLinkHistoryViewForWizard(
         // Non-revealing on lookup errors.
       }
     }
-  }
-
-  if (view.sentNotice.show && opts.sinceIndex != null) {
-    const preview = await simulatedEmailService.getEmailPreview({
-      urlPathPrefix: WIZARD_CLAIM_CONFIRM_URL_PREFIX,
-      sinceIndex: opts.sinceIndex,
-    });
-    if (preview) view.sentNotice.emailPreview = preview;
   }
 
   view.autoLinkDriftNotice = opts.autoLinkDrift;
