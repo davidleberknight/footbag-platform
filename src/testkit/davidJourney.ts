@@ -60,7 +60,11 @@ export const DAVID_EMAIL = `${DAVID_SLUG}@personas.test`;
 export const DAVID_PASSWORD = '88888888';
 export const DAVID_NAME = 'David Leberknight';
 
-const ASSET_DIR = path.join(process.cwd(), 'tests', 'fixtures', 'assets');
+// The journey's photo/avatar fixtures live with the testkit (not under tests/)
+// so they ship in the staging image, which copies src/testkit/assets but never
+// tests/. They are stripped from the production image with the rest of the
+// testkit, where build-switch is disabled anyway.
+const ASSET_DIR = path.join(process.cwd(), 'src', 'testkit', 'assets');
 
 interface PhotoFixture { file: string; caption: string; tags: string[]; }
 const FUNKY_GALLERY_NAME = 'Funky Footbags';

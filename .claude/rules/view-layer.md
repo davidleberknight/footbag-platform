@@ -67,6 +67,10 @@ discipline, not the enumeration.
 - Buttons: `.btn-primary`, `.btn-outline`, and `.btn-inverse` (white fill, teal text, for CTAs on
   dark gradient panels) are the only button variants. Secondary content uses the card pattern
   (`.card`, `.card-title`, `.card-meta`, `.card-description`); status chips use `.badge`.
+- Reference site CSS/JS only through the `asset` helper (`{{{asset 'css/style.css'}}}`), which emits a
+  content-hash version token (`/css/style.css?v=<hash>`, served immutable) so a deploy self-busts the
+  CDN. Never hardcode a `/css/*` or `/js/*` URL; `tests/unit/asset-helper-conformance.test.ts` fails
+  the build on a raw asset URL.
 
 ## Visual standard (look-and-feel consistency)
 

@@ -297,6 +297,16 @@ if [[ -n "$WEB_IMAGE_LAYERS" && -n "$WORKER_IMAGE_LAYERS" && -n "$IMAGE_IMAGE_LA
   echo "==> Image RootFS DiffIDs match host; skipping docker save | docker load."
 else
   echo "==> Transferring images to host (docker save | docker load)..."
+  # Reclaim host disk before the load. Each deploy loads a fresh :latest and
+  # leaves the previous image dangling; left unchecked these orphans and build
+  # cache fill the disk until `docker load` fails with "no space left on device".
+  # This runs, automatically, the same reclaim the failure hint used to ask the
+  # operator to perform by hand. The running stack's images are referenced and
+  # are kept. Best-effort: a reclaim failure must not abort the deploy.
+  echo "==> Reclaiming host disk (journal vacuum + docker prune)..."
+  printf '%s\n' "$SUDO_PASS" \
+    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" sh -c "journalctl --vacuum-time=7d; docker system prune -af"' \
+    || echo "    WARNING: host disk-reclaim step failed; continuing." >&2
   { printf '%s\n' "$SUDO_PASS"; docker save docker-web docker-worker docker-image; } \
     | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" docker load'
 fi

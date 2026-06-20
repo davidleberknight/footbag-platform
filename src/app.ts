@@ -22,6 +22,7 @@ import { publicRouter, STRIPE_WEBHOOK_PATH }   from './routes/publicRoutes';
 // export null, so the import is safe everywhere.
 import { devRouter }      from './testkit/devRoutes';
 import { redactTokenPaths } from './lib/redactTokenPaths';
+import { assetUrl } from './lib/assetVersion';
 import { countryFlag } from './services/countryUtils';
 import { externalLinkHelper } from './web/helpers/externalLink';
 import { formatDate } from './lib/handlebarsHelpers';
@@ -113,7 +114,18 @@ export function createApp(): express.Application {
 
   // Served from src/public/ so .hbs templates can reference /css/style.css etc.
   // process.cwd() resolves correctly from both tsx (dev) and dist/ (prod).
-  app.use(express.static(path.join(process.cwd(), 'src', 'public')));
+  // A request carrying a `?v=<hash>` version token (emitted by the `asset` helper)
+  // is immutable: the hash changes when the bytes change, so the URL is safe to
+  // cache forever. Unversioned fetches (/img, /fonts referenced from CSS) keep
+  // express defaults.
+  app.use(express.static(path.join(process.cwd(), 'src', 'public'), {
+    setHeaders(res) {
+      const query = res.req?.url?.split('?')[1] ?? '';
+      if (query && new URLSearchParams(query).has('v')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }));
 
   // ── Media storage (member photos, system-account video bytes and posters) ─
   // Local-adapter mode only: these mounts are the dev stand-in for the S3
@@ -183,6 +195,9 @@ export function createApp(): express.Application {
           return parts.join(', ');
         },
         yearFromDate: (iso: string) => String(iso).split('-')[0],
+        // Versioned static-asset URL: `{{{asset 'css/style.css'}}}` ->
+        // `/css/style.css?v=<content-hash>`, so a deploy self-cache-busts.
+        asset: (relPath: unknown) => assetUrl(typeof relPath === 'string' ? relPath : ''),
         externalLink: externalLinkHelper,
         // Splits curator-authored prose on blank lines into paragraph
         // strings. Used by trick-detail ontology partials (L2-L4) so

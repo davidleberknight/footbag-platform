@@ -65,6 +65,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [4.8 Stylesheet Convention Gates](#48-stylesheet-convention-gates)
   - [4.9 One Public Rendering Standard](#49-one-public-rendering-standard)
   - [4.10 Search-engine and Crawler Readiness](#410-search-engine-and-crawler-readiness)
+  - [4.11 Static-Asset Fingerprinting](#411-static-asset-fingerprinting)
 - [5. Back-End Services and Patterns](#5-back-end-services-and-patterns)
   - [5.1 Node.js with TypeScript](#51-nodejs-with-typescript)
   - [5.2 Express-based HTTP Controllers](#52-express-based-http-controllers)
@@ -2436,6 +2437,34 @@ Impact:
 - A new public page is indexable by default and sets noindex only when it exposes private data.
 - The shared layout and the page view-model carry the description and canonical fields.
 - A go-live gate verifies the production `robots.txt`, the sitemap, the per-page tags, the staging noindex, and the archive's exclusion from indexing.
+
+## 4.11 Static-Asset Fingerprinting
+
+Decision:
+
+Site CSS and JavaScript are referenced through a content-hash fingerprint helper that emits a version-token URL (`/css/style.css?v=<hash>`), the same URL-versioning pattern media uses (`?v={media_id}`); templates never hardcode a `/css/*` or `/js/*` URL. A content change yields a new token, so each deploy self-busts the CDN with no cache invalidation.
+
+Rationale:
+
+- One URL-versioning mechanism across the site: media and static assets both carry `?v=`, served with a CloudFront cache policy whose cache key includes the query string, so each version is a distinct edge entry.
+- Pairing a versioned URL with `Cache-Control: public, max-age=31536000, immutable` lets browsers and the edge cache the asset indefinitely while a new release is fetched fresh under its new token.
+- HTML is uncached at the edge, so it always references the current versions.
+
+Requirements:
+
+- Templates reference site CSS/JS only through the `asset` helper (`{{{asset 'css/style.css'}}}`); a hardcoded `/css/*` or `/js/*` URL is a conformance failure.
+- The version token is the content hash of the served file, computed at process start; a request carrying `?v` is served immutable.
+- The `/css/*` and `/js/*` CloudFront behaviors use a dedicated query-string cache policy (parallel to the media one), so `?v=` is part of the cache key rather than dropped.
+
+Trade-offs:
+
+- A query-string cache policy is required on the static-asset behaviors; CloudFront's default static policy excludes query strings from the cache key, so `?v=` without it would be ignored.
+- Fingerprinting is applied to CSS/JS; images and fonts referenced from CSS keep ordinary caching.
+
+Impact:
+
+- A normal deploy ships changed CSS/JS and the edge serves it immediately under a new `?v=` token, with no manual invalidation.
+- A new asset reference uses the helper; the conformance test fails a build that hardcodes an asset URL.
 
 # 5. Back-End Services and Patterns
 

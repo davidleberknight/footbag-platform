@@ -124,7 +124,7 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     expect(mosaic).toContain('loop');
     expect(mosaic).toContain('muted');
     expect(mosaic).toContain('playsinline');
-    // the click-to-play driver is loaded
-    expect(res.text).toContain('/js/freestyle-mosaic.js');
+    // the click-to-play driver is loaded (content-hash versioned asset URL)
+    expect(res.text).toMatch(/\/js\/freestyle-mosaic\.js\?v=[0-9a-f]{10}/);
   });
 });

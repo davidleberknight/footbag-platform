@@ -43,6 +43,33 @@ resource "aws_cloudfront_cache_policy" "media_assets" {
   }
 }
 
+# Edge cache for /css/* and /js/*. Mirrors media_assets: the query string is in the
+# cache key, so the `?v=<content-hash>` token the app emits makes each content
+# version a distinct, immutable edge entry and a deploy self-cache-busts with no
+# manual invalidation.
+resource "aws_cloudfront_cache_policy" "static_assets" {
+  name        = "${local.prefix}-static-assets"
+  comment     = "Edge cache for /css/* and /js/* with query string in cache key (?v=<content-hash> cache-bust)"
+  min_ttl     = 0
+  default_ttl = 604800   # 7 days
+  max_ttl     = 31536000 # 1 year ceiling
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_gzip   = true
+    enable_accept_encoding_brotli = true
+
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "none"
+    }
+    query_strings_config {
+      query_string_behavior = "all"
+    }
+  }
+}
+
 # =============================================================================
 # Origin Access Control for the maintenance bucket.
 # Lets the CloudFront distribution read the maintenance.html object via SigV4
@@ -173,7 +200,7 @@ resource "aws_cloudfront_distribution" "main" {
     cached_methods         = ["GET", "HEAD"]
     compress               = true
 
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_optimized.id
+    cache_policy_id          = aws_cloudfront_cache_policy.static_assets.id
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.cors_s3_origin.id
   }
 
@@ -186,7 +213,7 @@ resource "aws_cloudfront_distribution" "main" {
     cached_methods         = ["GET", "HEAD"]
     compress               = true
 
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_optimized.id
+    cache_policy_id          = aws_cloudfront_cache_policy.static_assets.id
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.cors_s3_origin.id
   }
 

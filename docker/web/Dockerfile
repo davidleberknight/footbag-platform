@@ -71,6 +71,14 @@ COPY src/views  ./src/views
 COPY src/public ./src/public
 COPY ifpa       ./ifpa
 
+# CUTOVER-REMOVE: the David Leberknight build-switch journey reads avatar/photo
+# fixtures from src/testkit/assets. tsc does not emit binary assets, so they are
+# copied explicitly. They ride the dev-shortcuts: present on staging, stripped
+# from the production image alongside the rest of the testkit (build-switch is
+# disabled on production regardless).
+COPY src/testkit/assets ./src/testkit/assets
+RUN if [ "$INCLUDE_DEV_SHORTCUTS" != "1" ]; then rm -rf src/testkit/assets; fi
+
 # Runtime environment — all sensitive values must be injected at deploy time,
 # not baked into the image.
 ENV NODE_ENV=production

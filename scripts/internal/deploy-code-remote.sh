@@ -421,9 +421,8 @@ if [[ -n "${FOOTBAG_DEV_ADMIN_SEED_JSON:-}" ]]; then
         -f "$LIVE_DIR/docker/docker-compose.prod.yml" \
         exec -T \
         web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-bootstrap/seed.js'; then
-    echo "    WARNING: dev-admin seed step exited non-zero." >&2
-    echo "    The deploy itself succeeded; the service is up. Re-run the seed" >&2
-    echo "    after resolving the failure, or use staging diagnostics to inspect." >&2
+    echo "    ERROR: dev-admin seed step exited non-zero; aborting the deploy." >&2
+    exit 1
   fi
 fi
 
@@ -445,8 +444,7 @@ if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then
       -f "$LIVE_DIR/docker/docker-compose.prod.yml" \
       exec -T \
       web node dist/testkit/personaSeedRunner.js; then
-    echo "    WARNING: persona-catalog seed step exited non-zero." >&2
-    echo "    The deploy itself succeeded; the service is up. Re-run the seed" >&2
-    echo "    after resolving the failure, or use staging diagnostics to inspect." >&2
+    echo "    ERROR: persona-catalog seed step exited non-zero; aborting the deploy." >&2
+    exit 1
   fi
 fi
