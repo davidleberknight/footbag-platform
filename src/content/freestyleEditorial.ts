@@ -261,7 +261,7 @@ export const INSIGHTS_NARRATIVES: string[] = [
 export const HISTORY_PIONEERS: FreestyleHistoryPioneer[] = [
   {
     name: 'Kenny Shults (The Enforcer)',
-    note: 'Early clipper-based vocabulary; helped establish whirl as a competition element. 11 freestyle singles wins across multiple eras.',
+    note: 'Early clipper-based vocabulary; helped establish whirl as a competition element. A dominant freestyle singles competitor across multiple eras.',
     profileHref: '/history/2a6a7c9e-1d8a-4f9a-a8f5-6f3a3c1e9b0f',
   },
   {
@@ -291,7 +291,7 @@ export const HISTORY_PIONEERS: FreestyleHistoryPioneer[] = [
   },
   {
     name: 'Peter Irish (The Executioner)',
-    note: '13 freestyle singles golds; dominant competitor from the late 1980s into the 1990s.',
+    note: 'A dominant freestyle singles competitor from the late 1980s into the 1990s.',
     profileHref: '/history/542be6a9-3b5a-5374-961b-9de19c0def7a',
   },
   {
@@ -316,7 +316,7 @@ export const HISTORY_PIONEERS: FreestyleHistoryPioneer[] = [
   },
   {
     name: 'Joey Schaeffer (Za Za)',
-    note: 'Originated the BAP\'s "Stand Clear of the Blades" branding at the 1992 Worlds; conceptualized the symposium modifier.',
+    note: 'Co-created the BAP\'s "Stand Clear of the Blades" branding with Rick Reese at the 1992 Worlds, and helped create the symposium modifier.',
     profileHref: '/history/50799219-0327-5a7e-9542-53c37b63ce66',
     // Joey's note explicitly attests BAP-era contribution at the 1992 Worlds.
     // Other entries in this list lack equivalently explicit attestation and
