@@ -9472,6 +9472,41 @@ export const freestyleService = {
     type FrontierCategory =
       | 'red' | 'governance' | 'identification' | 'notation'
       | 'authoring' | 'ready' | 'folk' | 'alias';
+    // A row flagged `unknown-modifier-token` is only genuinely notation-blocked
+    // when its name still contains an undefined operator. Many such flags are
+    // STALE: the token has since become a settled operator, a base atom, a
+    // directional, or a known notation abbreviation. This curated vocabulary
+    // (curator-extensible; add a token as its operator settles) detects those, so
+    // a row whose every token now resolves leaves the notation-blocked count.
+    const KNOWN_FRONTIER_TOKENS: ReadonlySet<string> = new Set([
+      // core atoms + surfaces
+      'toe','stall','clipper','clip','around','world','atw','orbit','legover','leg','over','pickup',
+      'mirage','illusion','butterfly','osis','whirl','swirl','sole',
+      // family bases + settled folk compounds
+      'blender','torque','drifter','dyno','barfly','eclipse','flail','guay','eggbeater','dada','curve','da',
+      'paradon','flurry','blur','fog','smoke','smog','haze','fury','nemesis','royale','mobius','bubba',
+      'witchdoctor','spyro','hatchet','smear','magellan','infinity','flapper','bar','rake','scoop','neutron',
+      // sets / operators
+      'pogo','terraging','terrage','blurry','blurrier','blurriest','furious','barraging','sailing','shooting',
+      'frantic','nuclear','atomic','quantum','illusioning','miraging','whirling','swirling','gyro','flailing',
+      'surfing','slicing','splicing','warping','railing','rooted','floating','tapping','backside','inspinning',
+      'spinning','stepping','ducking','diving','symposium','paradox','fairy','pixie','blistering',
+      // directionals / structurals
+      'far','near','op','os','reverse','rev','same','ss','double','triple','down','up','set','kick','side',
+      'front','back','inside','outside','cross','body','in','out',
+      // known notation abbreviations leaked into a name (not unknown operators)
+      'dex','xbd','bs','dod','ddd','plo','dlo','dso','pdx','bod','del','uns','xdex','symp','inward','outward','wo',
+    ]);
+    // Source-data spelling typos that resolve to a known operator (Pass 2): they
+    // are not new frontier operators, so normalize before the known-token check.
+    const TOKEN_TYPO_FIXES: ReadonlyMap<string, string> = new Map([
+      ['butterfy', 'butterfly'], ['baragging', 'barraging'], ['royall', 'royale'], ['eggbeating', 'eggbeater'],
+    ]);
+    const nameResolvesToKnownTokens = (name: string): boolean => {
+      const tokens = name.split('(')[0].toLowerCase().match(/[a-z]+/g) ?? [];
+      if (tokens.length === 0) return false;
+      return tokens.every(t => t.length <= 1 || KNOWN_FRONTIER_TOKENS.has(TOKEN_TYPO_FIXES.get(t) ?? t));
+    };
     const classifyFrontier = (r: ObservationalUniverseRow): FrontierCategory => {
       if (isAliasArchive(r)) return 'alias';
       if (r.section === 'doctrine') {
@@ -9482,7 +9517,14 @@ export const freestyleService = {
       }
       if (r.section === 'ready') return 'ready';
       if (r.section === 'frontier') return 'authoring';
-      if (r.failureClass === 'unknown-modifier-token') return 'notation';
+      if (r.failureClass === 'unknown-modifier-token') {
+        // Stale flag: every token now resolves -> not notation-blocked. Route to
+        // structurally-ready when a derived ADD exists, else needs-authoring.
+        if (nameResolvesToKnownTokens(r.name)) {
+          return (/^[0-9]+$/.test(r.provisionalAdd) || r.decomposition.trim().length > 0) ? 'ready' : 'authoring';
+        }
+        return 'notation';
+      }
       return 'folk';
     };
     const catCount = new Map<FrontierCategory, number>();

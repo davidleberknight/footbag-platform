@@ -86,6 +86,14 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(html).toContain('Structurally ready');
   });
 
+  it('reclassifies stale notation-blocked rows out of the bucket (not all unknown-token rows are blocked)', async () => {
+    const html = await page();
+    const m = html.match(/observed-stat-value">(\d+)<\/span>\s*<span class="observed-stat-label">Notation blocked/);
+    expect(m, 'Notation blocked stat not found').not.toBeNull();
+    // ~100 rows whose tokens are now all known move out of the bucket; was 236.
+    expect(Number(m![1])).toBeLessThan(200);
+  });
+
   it('makes Awaiting Ruling the first content section, above the metric strip', async () => {
     const html = await page();
     const readyIdx = html.indexOf('id="promotion-ready"');

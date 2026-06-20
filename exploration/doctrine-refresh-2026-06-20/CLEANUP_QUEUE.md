@@ -88,9 +88,12 @@ slot ownership. Everything else can proceed once that's set.
 
 ## Backlog
 
-- **Source-audit the "Notation blocked = 236" bucket before treating it as truly blocked.** Pogo,
-  Terraging, and Blurry all showed that a "notation-blocked" / "unknown" label can hide existing JOB
-  notation, operator structure, or derived ADD. The 236 are rows whose `failureClass` is
-  `unknown-modifier-token`; some likely already have a resolvable operator chassis or source notation.
-  Audit the underlying data (as was done for Pogo/the dex-count "Unknown" bucket) and reclassify the
-  ones that are actually authorable, rather than counting all 236 as blocked.
+- **Notation-blocked source-audit — DONE** (`emerging-vocab-taxonomy-2026-06-20/NOTATION_BLOCKED_AUDIT.md`).
+  103 of 246 rows were stale `unknown-modifier-token` flags (every token now resolves to a settled
+  operator / base / notation abbreviation) and are reclassified service-side out of notation-blocked
+  into Needs-authoring (Pass 1); source typos are normalized (Pass 2). Honest count ~133, not 236.
+  - **Remaining (curator):** define the 64 genuine undefined operators in
+    `emerging-vocab-taxonomy-2026-06-20/UNDEFINED_OPERATOR_INVENTORY.md` (ranked; zulu = 26 rows,
+    highest leverage). Each definition lets its rows leave notation-blocked, like Pogo/Terraging/Blurry.
+  - **Optional (durability):** fold the known-token reclassification into the universe generator so
+    `failureClass` is refreshed at generation time rather than re-derived in the service.
