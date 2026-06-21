@@ -217,7 +217,7 @@ describe('Foundational-vocabulary promotion — provenance is visible, not silen
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// Canonical browse-view regression (the surface Adrian will see).
+// Canonical browse-view regression — the public browse surface a viewer sees.
 //
 // Per curator pushback 2026-05-25: detail-route + content-overlay tests
 // are insufficient — the canonical browse view at /freestyle/tricks?view=add
