@@ -114,13 +114,11 @@
     <div class="tricks-mosaic">
       {{#each content.tricksMosaic}}
         <figure class="tricks-mosaic-cell">
-          {{#if mp4Url}}
-            <button type="button" class="tricks-mosaic-toggle" aria-label="Play {{label}}" aria-pressed="false" data-trick="{{label}}">
-              <video class="tricks-mosaic-media" loop muted playsinline preload="none" poster="{{posterUrl}}">
-                <source src="{{mp4Url}}" type="video/mp4">
-              </video>
+          {{#if href}}
+            <a href="{{href}}" class="tricks-mosaic-link" aria-label="Watch {{label}}">
+              <img class="tricks-mosaic-media" src="{{posterUrl}}" alt="{{label}}" loading="lazy">
               <span class="tricks-mosaic-playicon" aria-hidden="true"></span>
-            </button>
+            </a>
           {{else}}
             <div class="tricks-mosaic-media tricks-mosaic-empty" aria-hidden="true"></div>
           {{/if}}
@@ -128,6 +126,11 @@
         </figure>
       {{/each}}
     </div>
+    {{#if content.tricksMosaicHasClips}}
+      <div class="text-center mt-4">
+        <a href="/media/gallery_foundations_of_freestyle" class="btn btn-outline">See All Foundations &rarr;</a>
+      </div>
+    {{/if}}
   </section>
 
   {{! ── Freestyle by the Numbers: six live histogram cards ─────────────────── }}

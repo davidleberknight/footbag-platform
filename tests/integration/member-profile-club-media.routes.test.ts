@@ -105,8 +105,9 @@ describe('M_View_Profile — club + media on the public profile', () => {
     expect(res.text).toContain('Funky Footbags');
     expect(res.text).toContain('2 items');
     expect(res.text).toContain('href="/media/gallery-owner-faves"');
-    // View-all link (Handlebars HTML-escapes '=' in the href, so assert parts).
-    expect(res.text).toContain('/media/browse?tag');
+    // View-all link uses the locked ?context= convention (Handlebars HTML-escapes
+    // '=' in the href, so assert parts).
+    expect(res.text).toContain('/media/browse?context');
     expect(res.text).toContain(`by_${OWNER_SLUG}`);
     // No inline thumbnail grid: no gallery tiles, no upload captions on the profile.
     expect(res.text).not.toContain('gallery-grid');
@@ -125,7 +126,7 @@ describe('M_View_Profile — club + media on the public profile', () => {
     const res = await request(createApp()).get(`/members/${OWNER_SLUG}`).set('Cookie', cookieFor(OWNER_ID));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Funky Footbags');
-    expect(res.text).toContain('View all media');
+    expect(res.text).toContain('View All Media');
     expect(res.text).not.toContain('gallery-grid');
   });
 });

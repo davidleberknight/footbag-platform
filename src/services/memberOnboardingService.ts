@@ -488,13 +488,13 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
     let ctaLabel: string = '';
     let ctaHref:  string | null = null;
     if (state === 'in_progress_paused') {
-      ctaLabel = 'Resume onboarding';
+      ctaLabel = 'Resume Onboarding';
       ctaHref  = resumeUrl;
     } else if (state === 'pending') {
-      ctaLabel = 'Continue onboarding';
+      ctaLabel = 'Continue Onboarding';
       ctaHref  = `/register/wizard/${taskType}`;
     } else if (state === 'skipped') {
-      ctaLabel = 'Resume task';
+      ctaLabel = 'Resume Task';
       ctaHref  = `/register/wizard/${taskType}`;
     }
     const item: DashboardTaskItem = {

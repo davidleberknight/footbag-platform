@@ -14,26 +14,26 @@
             </div>
             <div class="my-clubs-actions">
               <form method="POST" action="{{this.leaveHref}}" class="inline-form">
-                <button type="submit" class="btn-link text-muted fs-sm">Leave club</button>
+                <button type="submit" class="btn-link text-muted fs-sm">Leave Club</button>
               </form>
               {{#if this.canMarkInactive}}
                 <form method="POST" action="{{this.clubHref}}/mark-inactive" class="inline-form">
-                  <button type="submit" class="btn-link text-muted fs-sm">Mark inactive</button>
+                  <button type="submit" class="btn-link text-muted fs-sm">Mark Inactive</button>
                 </form>
               {{/if}}
               {{#if this.canReactivate}}
                 <form method="POST" action="{{this.clubHref}}/reactivate" class="inline-form">
-                  <button type="submit" class="btn-link text-muted fs-sm">Reactivate club</button>
+                  <button type="submit" class="btn-link text-muted fs-sm">Reactivate Club</button>
                 </form>
               {{/if}}
               {{#if this.canStepDown}}
                 <form method="POST" action="{{this.clubHref}}/step-down" class="inline-form">
-                  <button type="submit" class="btn-link text-muted fs-sm">Step down as co-leader</button>
+                  <button type="submit" class="btn-link text-muted fs-sm">Step Down as Co-leader</button>
                 </form>
               {{/if}}
               {{#if this.canVolunteer}}
                 <form method="POST" action="{{this.volunteerHref}}" class="inline-form">
-                  <button type="submit" class="btn-link fs-sm">{{#if this.clubIsLeaderless}}This club has no co-leader yet; become its first{{else}}Volunteer to co-lead{{/if}}</button>
+                  <button type="submit" class="btn-link fs-sm">{{#if this.clubIsLeaderless}}This Club Has No Co-leader Yet; Become Its First{{else}}Volunteer to Co-lead{{/if}}</button>
                 </form>
               {{/if}}
             </div>
@@ -43,7 +43,7 @@
 
       {{#if canSwapPrimary}}
         <form method="POST" action="{{swapPrimaryHref}}" class="mt-4">
-          <button type="submit" class="btn btn-outline">Swap primary club</button>
+          <button type="submit" class="btn btn-outline">Swap Primary Club</button>
         </form>
       {{/if}}
     {{else}}
@@ -55,7 +55,7 @@
             <li class="candidate-card">
               <div class="candidate-card-name">{{this.clubName}}</div>
               {{#if this.city}}<div class="candidate-card-meta text-muted">{{this.city}}</div>{{/if}}
-              <a href="{{this.clubHref}}" class="btn btn-outline mt-2">View club</a>
+              <a href="{{this.clubHref}}" class="btn btn-outline mt-2">View Club</a>
             </li>
           {{/each}}
         </ul>
@@ -64,10 +64,10 @@
 
     <div class="my-clubs-ctas mt-4">
       {{#if canAddClub}}
-        <a href="{{browseClubsHref}}" class="btn btn-outline">Browse clubs</a>
+        <a href="{{browseClubsHref}}" class="btn btn-outline">Browse Clubs</a>
       {{/if}}
       {{#if createClubHref}}
-        <a href="{{createClubHref}}" class="btn btn-outline">Start a new club</a>
+        <a href="{{createClubHref}}" class="btn btn-outline">Start a New Club</a>
       {{/if}}
     </div>
     {{#if showCreateTierNote}}

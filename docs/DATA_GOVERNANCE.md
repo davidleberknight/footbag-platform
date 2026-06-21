@@ -47,6 +47,8 @@ Anything not in this taxonomy defaults to Sensitivity 4 (internal/admin only) un
 
 **Contact fields** (`login_email`, `phone`, `whatsapp`) default to not-visible. A member opts in per field, and an opted-in contact field is shown to authenticated members only (Sensitivity 2), never on public surfaces. The exception is an operational contact role: holding a club co-leader or event organizer role exposes that member's contact email to authenticated members (the role is the consent, and the email cannot be hidden while the role is held). A role-holder's WhatsApp stays opt-in like any member's.
 
+**Media attribution and curated provenance**: Media galleries and tag gallery pages are public (visitor-accessible). Provenance tags are system-applied and unforgeable: every member upload carries `#by_<member_slug>` and every curator upload carries `#curated`; the system applies them at upload time and rejects them when supplied in input. A member upload is publicly attributed by the uploader's display name, which links to that member's public per-uploader gallery (the `#by_<slug>` browse view); the uploader's contact fields and member profile remain member-only (Sensitivity 2). A curated item is attributed to the curated collection (the `#curated` view). Avatars are excluded from every gallery, browse, and tag-suggestion query.
+
 ---
 
 ## 4. Public historical record policy

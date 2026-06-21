@@ -2216,16 +2216,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       if (existing.is_system !== 1) {
         const uploaderTag = `${UPLOADER_TAG_PREFIX}${existing.owner_slug.toLowerCase()}`;
         validated.criteriaTags = [uploaderTag, ...validated.criteriaTags];
-      } else {
-        // FH-owned galleries auto-include `#curated` so the criteria query
-        // scopes to FH-uploaded items only (every FH upload carries the
-        // `#curated` tag via applyTagsForCurator). Idempotent: if the
-        // sidecar / caller already includes `#curated`, the dedupe below
-        // collapses to one occurrence.
-        if (!validated.criteriaTags.some((t) => t.toLowerCase() === CURATED_TAG)) {
-          validated.criteriaTags = [CURATED_TAG, ...validated.criteriaTags];
-        }
       }
+      // FH-owned galleries are topic-defined: `#curated` is not auto-added. A
+      // curated collection lists `#curated` in its own criteria; a topic gallery
+      // omits it and shows all matching content with `#curated` as the opt-in.
 
       if (validated.criteriaTags.length === 0) {
         throw new ValidationError(
@@ -2338,13 +2332,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         const uploaderTag = `${UPLOADER_TAG_PREFIX}${ownerSlug.toLowerCase()}`;
         validated.criteriaTags = [uploaderTag, ...validated.criteriaTags];
       }
-      // FH-owned galleries auto-include `#curated` so the criteria query
-      // scopes to FH-uploaded items only. Idempotent: re-create from a
-      // sidecar that already includes `#curated` collapses to one
-      // occurrence. See updateGallery for the matching edit-path branch.
-      if (isFhOwned && !validated.criteriaTags.some((t) => t.toLowerCase() === CURATED_TAG)) {
-        validated.criteriaTags = [CURATED_TAG, ...validated.criteriaTags];
-      }
+      // FH-owned galleries are topic-defined: their criteria are exactly what the
+      // author declares. `#curated` is not auto-added — a curated collection
+      // lists `#curated` in its own criteria, and a topic gallery omits it so it
+      // shows all matching content with `#curated` as the opt-in filter.
+      // `validateGalleryTag` allows `#curated` in caller input.
 
       if (validated.criteriaTags.length === 0) {
         throw new ValidationError(

@@ -1,11 +1,13 @@
 {{!--
-  Click-to-play video facade. Context: { media: VideoMedia }.
+  Click-to-play video facade. Context: { media: VideoMedia, eager?: boolean }.
   The video-facade.js handler binds to .video-facade and reads:
     data-platform        youtube | vimeo | s3
     data-embed-url       (youtube/vimeo only) iframe src to swap in
     data-video-src       (s3 only) playable URL for native <video>
   The anchor href provides the no-JS fallback (opens platform watch page,
-  or directly plays the s3 file).
+  or directly plays the s3 file). Pass eager=true when this facade is the
+  primary media of its page (the item viewer) so its thumbnail loads
+  immediately; gallery tiles omit it and lazy-load.
 --}}
 <a class="video-facade"
    href="{{media.videoUrl}}"
@@ -17,7 +19,7 @@
   <img class="video-facade-thumb"
        src="{{media.thumbnailUrl}}"
        alt="{{media.videoTitle}}"
-       loading="lazy" />
+       loading="{{#if eager}}eager{{else}}lazy{{/if}}" />
   <span class="video-facade-play" aria-hidden="true">
     <svg viewBox="0 0 24 24" width="48" height="48" focusable="false">
       <path d="M8 5v14l11-7z" fill="currentColor"/>

@@ -87,4 +87,42 @@ describe.skipIf(!INVOKED)('David persona media and onboarding journey', () => {
     // initials fallback.
     expect(res.text).toMatch(/<img[^>]+class="[^"]*avatar/i);
   });
+
+  it('media journey: his per-uploader view lists his media and links the uploader to his gallery', async () => {
+    const cookie = await buildSwitchCookie();
+    const res = await request(BASE).get(`/media/browse?tag=by_${DL}`).set('Cookie', cookie);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('David Leberknight');
+    // The uploader attribution links to his public per-uploader gallery, the
+    // counterpart of a curated item's link to the curated collection.
+    expect(res.text).toContain(`href="/media/browse?tag&#x3D;by_${DL}"`);
+  });
+
+  it('media journey: opening one of his items links the uploader to his gallery, never his profile', async () => {
+    const cookie = await buildSwitchCookie();
+    const browse = await request(BASE).get(`/media/browse?tag=by_${DL}`).set('Cookie', cookie);
+    const itemPath = (browse.text.match(/href="(\/media\/item\/[^"?&]+)/) || [])[1];
+    expect(itemPath, 'his uploader view links to an item viewer').toBeTruthy();
+    const item = await request(BASE).get(itemPath).set('Cookie', cookie);
+    expect(item.status).toBe(200);
+    // Region-scope to the uploader attribution so the signed-in header's own
+    // profile link cannot confound the assertion.
+    const start = item.text.indexOf('class="gallery-item-uploader"');
+    expect(start, 'the item viewer renders the uploader attribution').toBeGreaterThan(-1);
+    const attribution = item.text.slice(start, item.text.indexOf('</p>', start));
+    expect(attribution).toContain(`href="/media/browse?tag&#x3D;by_${DL}"`);
+    expect(attribution).not.toContain(`/members/${DL}`);
+  });
+
+  it('club journey: his profile links to the Wellington club he co-leads, whose page lists leaders', async () => {
+    const cookie = await buildSwitchCookie();
+    const profile = await request(BASE).get(`/members/${DL}`).set('Cookie', cookie);
+    expect(profile.status).toBe(200);
+    const clubPath = (profile.text.match(/href="([^"]+)" class="my-clubs-name"/) || [])[1];
+    expect(clubPath, 'his profile links to his club').toBeTruthy();
+    const club = await request(BASE).get(clubPath).set('Cookie', cookie);
+    expect(club.status).toBe(200);
+    expect(club.text).toContain('Wellington');
+    expect(club.text).toContain('Leaders');
+  });
 });

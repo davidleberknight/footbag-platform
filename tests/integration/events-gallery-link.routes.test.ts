@@ -3,7 +3,7 @@
  *
  * When an event's standard tag has at least one active, non-avatar media item
  * tagged with it, the detail page renders a "View gallery" link pointing to
- * /media/browse?tag=<event_key> (mirrors the club gallery link). When no media
+ * /media/browse?context=<event_key> (mirrors the club gallery link). When no media
  * exists, the link is absent. This delivers the M_Upload_Photo criterion that a
  * photo tagged with an event hashtag is reachable from that event.
  */
@@ -110,8 +110,8 @@ describe('GET /events/:eventKey -- gallery link', () => {
   it('renders "View gallery" when the event tag has media', async () => {
     const res = await request(createApp()).get('/events/event_2025_testopen');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('View gallery');
-    expect(res.text).toContain('/media/browse?tag');
+    expect(res.text).toContain('View Gallery');
+    expect(res.text).toContain('/media/browse?context');
     expect(res.text).toContain('event_2025_testopen');
   });
 

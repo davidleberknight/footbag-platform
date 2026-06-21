@@ -1,6 +1,6 @@
 import { PublicEventSummary } from './eventService';
 import { SeoMeta } from '../types/page';
-import { VideoMedia, expandYouTubeVideo } from './videoMedia';
+import { VideoMedia } from './videoMedia';
 
 interface HomeHero {
   heading: string;
@@ -57,11 +57,6 @@ export const homeService = {
       hero: {
         heading: 'Footbag Worldwide',
         subheading: 'The home of footbag sports and recreational "Hacky Sack."',
-        videoMedia: expandYouTubeVideo(
-          'euLrL1zCvVQ',
-          '43rd IFPA World Footbag Championships, Montréal 2024, official video',
-        ),
-        videoCaption: '43rd IFPA World Footbag Championships, Montréal 2024 (official video).',
       },
       primaryLinks: [
         {

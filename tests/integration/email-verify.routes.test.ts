@@ -243,7 +243,7 @@ describe('GET /verify/:token — session reissue failure', () => {
     expect(res.status).toBe(503);
     expect(res.text).toContain('email is verified');
     expect(res.text).toContain('could not sign you in');
-    expect(res.text).toContain('Sign in');
+    expect(res.text).toContain('Sign In');
 
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     const sessionCookieIssued = cookies?.some((c) =>

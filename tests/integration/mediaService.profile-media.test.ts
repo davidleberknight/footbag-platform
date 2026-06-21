@@ -72,14 +72,14 @@ describe('mediaService.getMemberProfileMedia', () => {
     const v = mediaService.getMemberProfileMedia('mem-a', 'mem_a');
     expect(v.galleries).toHaveLength(1);
     expect(v.galleries[0]).toMatchObject({ name: 'A Faves', itemCount: 2, itemCountNoun: 'items', href: '/media/gal-a-faves' });
-    expect(v.allMediaHref).toBe('/media/browse?tag=by_mem_a');
+    expect(v.allMediaHref).toBe('/media/browse?context=by_mem_a');
     expect(v.hasContent).toBe(true);
   });
 
   it('returns only the view-all link when the member has uploads but no named gallery', () => {
     const v = mediaService.getMemberProfileMedia('mem-b', 'mem_b');
     expect(v.galleries).toHaveLength(0);
-    expect(v.allMediaHref).toBe('/media/browse?tag=by_mem_b');
+    expect(v.allMediaHref).toBe('/media/browse?context=by_mem_b');
     expect(v.hasContent).toBe(true);
   });
 

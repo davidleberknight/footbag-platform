@@ -613,21 +613,19 @@ describe('GET /freestyle/tricks/:slug — pathways cross-link block', () => {
 // demo-only, and mixed.
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('GET /freestyle/tricks/:slug — Reference Media heading + pathway wording (Phase 3)', () => {
-  it('tutorial-only trick: Media section + Tutorials subheading; Learn pathway counts only tutorials', async () => {
+describe('GET /freestyle/tricks/:slug — Media section + Learn-pathway counts', () => {
+  it('tutorial-only trick: Media section links to the gallery; Learn pathway counts only tutorials', async () => {
     const app = createApp();
     // 'phase3-tutorial-only' has one tt_youtube curator-tagged clip and no
     // demo-tier coverage.
     const res = await request(app).get('/freestyle/tricks/phase3-tutorial-only');
     expect(res.status).toBe(200);
-    // UX3c-a unified shell: section h2 is always "Media"; per-tier presence
-    // surfaces via the inner h3 subheadings (Tutorials / Demonstrations).
+    // The Media section links to the trick gallery; clips are watched there, not
+    // embedded inline, so there are no per-tier subsections.
     expect(res.text).toMatch(/<h2>Media<\/h2>/);
-    expect(res.text).toMatch(/<h3 class="reference-media-subheading">Tutorials<\/h3>/);
-    expect(res.text).not.toMatch(/<h3 class="reference-media-subheading">Demonstrations<\/h3>/);
+    expect(res.text).toContain('href="/media/browse?context&#x3D;phase3-tutorial-only"');
     expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
-    // Demonstrations subsection absent.
-    expect(res.text).not.toContain('reference-media-subsection--demos');
+    expect(res.text).not.toContain('reference-media-subsection');
     // Learn pathway counts ONLY tutorials. Anchor on the pathway li.
     const learnIdx = res.text.indexOf('trick-pathway--learn');
     expect(learnIdx).toBeGreaterThan(0);
@@ -637,22 +635,18 @@ describe('GET /freestyle/tricks/:slug — Reference Media heading + pathway word
     expect(learnSlice).not.toMatch(/demonstrations? available/);
   });
 
-  it('demo-only trick: Media section + Demonstrations subheading; Learn pathway counts only demos', async () => {
+  it('demo-only trick: Media section links to the gallery; Learn pathway counts only demos', async () => {
     const app = createApp();
     // 'phase3-demo-only' has one footbag_finland curator-tagged clip and no
     // tutorial-tier coverage.
     const res = await request(app).get('/freestyle/tricks/phase3-demo-only');
     expect(res.status).toBe(200);
-    // UX3c-a unified shell: section h2 is always "Media"; per-tier presence
-    // surfaces via the inner h3 subheadings.
     expect(res.text).toMatch(/<h2>Media<\/h2>/);
-    expect(res.text).toMatch(/<h3 class="reference-media-subheading">Demonstrations<\/h3>/);
-    expect(res.text).not.toMatch(/<h3 class="reference-media-subheading">Tutorials<\/h3>/);
+    expect(res.text).toContain('href="/media/browse?context&#x3D;phase3-demo-only"');
     expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
-    // Tutorials subsection absent.
-    expect(res.text).not.toContain('reference-media-subsection--tutorials');
+    expect(res.text).not.toContain('reference-media-subsection');
     // Learn pathway counts ONLY demos. The legacy "X tutorials available"
-    // wording must NOT render here — that was the Phase 3 conflation bug.
+    // wording must NOT render here — that was the tutorial/demo conflation bug.
     const learnIdx = res.text.indexOf('trick-pathway--learn');
     expect(learnIdx).toBeGreaterThan(0);
     const learnEnd = res.text.indexOf('</li>', learnIdx);
@@ -662,21 +656,16 @@ describe('GET /freestyle/tricks/:slug — Reference Media heading + pathway word
     expect(learnSlice).not.toContain('No tutorials yet');
   });
 
-  it('mixed-tier trick: Media section + both subheadings; Learn pathway counts both separately', async () => {
+  it('mixed-tier trick: Media section links to the gallery; Learn pathway counts both separately', async () => {
     const app = createApp();
     // 'phase3-mixed-media' has BOTH a tt_youtube and a footbag_finland clip
     // in the curator-tagged channel.
     const res = await request(app).get('/freestyle/tricks/phase3-mixed-media');
     expect(res.status).toBe(200);
-    // UX3c-a unified shell: section h2 is always "Media"; per-tier subheadings
-    // surface internally.
     expect(res.text).toMatch(/<h2>Media<\/h2>/);
+    expect(res.text).toContain('href="/media/browse?context&#x3D;phase3-mixed-media"');
     expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
-    // Both subsections render.
-    expect(res.text).toContain('reference-media-subsection--tutorials');
-    expect(res.text).toContain('reference-media-subsection--demos');
-    expect(res.text).toMatch(/<h3 class="reference-media-subheading">Tutorials<\/h3>/);
-    expect(res.text).toMatch(/<h3 class="reference-media-subheading">Demonstrations<\/h3>/);
+    expect(res.text).not.toContain('reference-media-subsection');
     // Learn pathway carries BOTH counts in distinct fragments — no conflation.
     const learnIdx = res.text.indexOf('trick-pathway--learn');
     expect(learnIdx).toBeGreaterThan(0);

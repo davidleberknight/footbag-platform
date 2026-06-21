@@ -41,7 +41,7 @@
               <option value="defer_180">Defer all 180d</option>
             </select>
             <input type="text" name="reasonText" placeholder="Shared reason" class="cleanup-reason-input" />
-            <button type="submit" class="btn btn-outline btn-sm">Bulk defer group</button>
+            <button type="submit" class="btn btn-outline btn-sm">Bulk Defer Group</button>
           </form>
           <table class="cleanup-queue-table mt-2">
             <thead>
@@ -72,9 +72,9 @@
                   <td class="fs-sm">{{this.recommendedAction}}</td>
                   <td>
                     {{#if this.showLeaderlessControls}}
-                    <a href="/admin/clubs/{{this.clubId}}/leadership" class="btn btn-primary btn-sm">Add a co-leader</a>
+                    <a href="/admin/clubs/{{this.clubId}}/leadership" class="btn btn-primary btn-sm">Add a Co-leader</a>
                     <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/contact-members" class="cleanup-action-form mt-1">
-                      <button type="submit" class="btn btn-outline btn-sm">Contact members</button>
+                      <button type="submit" class="btn btn-outline btn-sm">Contact Members</button>
                     </form>
                     {{/if}}
                     <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/resolve" class="cleanup-action-form">
@@ -115,7 +115,7 @@
         <option value="defer_180">Defer all 180d</option>
       </select>
       <input type="text" name="reasonText" placeholder="Shared reason" class="cleanup-reason-input" />
-      <button type="submit" class="btn btn-outline btn-sm">Bulk defer group</button>
+      <button type="submit" class="btn btn-outline btn-sm">Bulk Defer Group</button>
     </form>
     <table class="cleanup-queue-table mt-2">
       <thead>
@@ -170,7 +170,7 @@
     <p class="text-muted fs-sm">Live clubs still showing legacy affiliations that no one has confirmed in onboarding. De-listing marks them as former-only so they stop rendering as possible members. The oldest-age column is an advisory grace signal; nothing is retired automatically.</p>
     <form method="POST" action="/admin/club-cleanup/bulk-delist-residue" class="cleanup-action-form mt-2">
       <input type="text" name="reasonText" placeholder="Shared reason" class="cleanup-reason-input" />
-      <button type="submit" class="btn btn-outline btn-sm">De-list all unconfirmed</button>
+      <button type="submit" class="btn btn-outline btn-sm">De-list All Unconfirmed</button>
     </form>
     <table class="cleanup-queue-table mt-2">
       <thead>
@@ -202,7 +202,7 @@
             <td>
               <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/delist-residue" class="cleanup-action-form">
                 <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
-                <button type="submit" class="btn btn-outline btn-sm">De-list unconfirmed</button>
+                <button type="submit" class="btn btn-outline btn-sm">De-list Unconfirmed</button>
               </form>
             </td>
           </tr>
@@ -244,7 +244,7 @@
             <td>
               <form method="POST" action="/admin/club-cleanup/candidates/{{this.candidateId}}/promote" class="cleanup-action-form">
                 <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
-                <button type="submit" class="btn btn-outline btn-sm">Promote to live club</button>
+                <button type="submit" class="btn btn-outline btn-sm">Promote to Live Club</button>
               </form>
               <form method="POST" action="/admin/club-cleanup/candidates/{{this.candidateId}}/resolve" class="cleanup-action-form mt-1">
                 <select name="action" class="cleanup-action-select">

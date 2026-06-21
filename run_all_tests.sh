@@ -46,10 +46,6 @@ FULL=0
 # instead of failing the whole run, so --full is usable without an AWS profile.
 SMOKE_OPTIONAL=0
 WITH_PERSONA_CRAWL=0
-# Like SMOKE_OPTIONAL: set when the persona crawl runs only because --full
-# implied it. Then a dev stack that is not up SKIPs the gate instead of failing
-# the whole run, so --full works without a running app.
-PERSONA_CRAWL_OPTIONAL=0
 FAIL_FAST=0
 for arg in "$@"; do
   case "$arg" in
@@ -86,10 +82,12 @@ Options:
                 the security-header walk, internal-route, and upload-abuse
                 probes plus the Docker-gated OWASP ZAP baseline. Opt-in because
                 it is slow and the ZAP leg needs Docker; CI does not run it.
-  --full        Everything: the full suite plus --pentest and the staging-AWS
-                smoke. Unlike --with-smoke, smoke SKIPs (rather than fails) when
-                RUN_STAGING_SMOKE / AWS creds are absent, so --full runs end to
-                end on a workstation without an AWS profile.
+  --full        Everything: the full suite plus --pentest, the staging-AWS smoke,
+                and the persona crawl. Unlike --with-smoke, smoke SKIPs (rather
+                than fails) when RUN_STAGING_SMOKE / AWS creds are absent, so
+                --full runs end to end without an AWS profile. The persona crawl
+                always runs under --full and requires a loaded dev DB (DL's HOF
+                record + the Wellington club; build with ./run_dev.sh --reset).
   --fail-fast   Stop at the first failing gate instead of running them all.
   -h, --help    Show this message.
 
@@ -114,14 +112,15 @@ done
 # --full is the kitchen sink: full mode plus every opt-in gate. Staging smoke is
 # included but degrades to a SKIP when staging credentials are absent (see
 # SMOKE_OPTIONAL), so --full runs end to end on a workstation without an AWS
-# profile while still exercising everything that can run there.
+# profile while still exercising everything that can run there. The persona crawl
+# is mandatory under --full (it boots its own dev stack but needs a loaded dev DB
+# carrying DL's data); it fails the run rather than skipping when the DB is absent.
 if (( FULL == 1 )); then
   QUICK=0
   WITH_SMOKE=1
   PENTEST=1
   SMOKE_OPTIONAL=1
   WITH_PERSONA_CRAWL=1
-  PERSONA_CRAWL_OPTIONAL=1
 fi
 
 # Preflight: required tooling. Match deploy_to_aws.sh's need_cmd shape.
@@ -197,6 +196,10 @@ summarize() {
     printf '  %-14s %s\n' "${GATE_NAMES[$i]}" "${GATE_RESULTS[$i]}"
   done
   echo "=============================================="
+  if (( ${#FAIL_LOGS[@]} > 0 )); then
+    echo " FAILED gates (${#FAIL_LOGS[@]}): ${FAIL_LOGS[*]}"
+    echo "=============================================="
+  fi
 }
 
 # Re-show the tail of every failed gate's captured output so the actual error
@@ -326,10 +329,6 @@ gate_persona_crawl() {
     [[ "${hof}" != "0" && "${wel}" != "0" ]] && have_db=1
   fi
   if (( have_db == 0 )); then
-    if (( PERSONA_CRAWL_OPTIONAL == 1 )); then
-      echo "  persona crawl needs a loaded dev DB (DL's HOF record + the Wellington club); build one with ./run_dev.sh --reset; skipping under --full."
-      return 77
-    fi
     echo "ERROR: persona crawl needs a loaded dev DB (DL's HOF record + the Wellington club)." >&2
     echo "Recommendation: bash scripts/reset-local-db.sh (or ./run_dev.sh --reset), then re-run." >&2
     return 1

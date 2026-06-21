@@ -1144,64 +1144,19 @@ describe('GET /history/:personId — freestyle records section', () => {
 // table (separate surface). Filter lives in freestyleService.getFreestyleTrickPage.
 
 describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
-  it('renders tutorial-tier media (source_id=tt_youtube) inside the Tutorials subsection', async () => {
+  it('renders a Media section that links to the trick gallery, not inline clips', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/ref-media-audit');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('REF_MEDIA_TUTORIAL_MARKER');
-    // The Tutorials subsection wrapper must surround the tutorial marker.
-    const tutSubIdx = res.text.indexOf('reference-media-subsection--tutorials');
-    expect(tutSubIdx).toBeGreaterThan(0);
-    const subsectionEnd = res.text.indexOf('</div>', tutSubIdx);
-    const tutSlice = res.text.slice(tutSubIdx, subsectionEnd + 6);
-    expect(tutSlice).toContain('REF_MEDIA_TUTORIAL_MARKER');
-  });
-
-  it('does NOT render record-tier media (source_id=passback_records) in Reference Media', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/ref-media-audit');
-    expect(res.status).toBe(200);
+    // Links to the trick's full video gallery (locked-context convention).
+    expect(res.text).toContain('href="/media/browse?context&#x3D;ref-media-audit"');
+    expect(res.text).toContain('See All Videos for');
+    // No reference media is embedded on the trick page anymore: neither
+    // tutorial- nor record-tier clips, and no Tutorials/Demonstrations subsections.
+    expect(res.text).not.toContain('REF_MEDIA_TUTORIAL_MARKER');
     expect(res.text).not.toContain('REF_MEDIA_RECORD_MARKER');
-  });
-
-  it('renders the "Tutorials" subheading when tutorial-tier media exists', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/ref-media-audit');
-    expect(res.text).toMatch(/<h3 class="reference-media-subheading">Tutorials<\/h3>/);
-  });
-
-  it('omits the "Demonstrations" subsection entirely when no demo-tier media exists for the trick', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/ref-media-audit');
-    // No demo-tier sources are seeded for ref-media-audit → no Demonstrations subheading.
-    expect(res.text).not.toContain('reference-media-subsection--demos');
-    expect(res.text).not.toMatch(/<h3 class="reference-media-subheading">Demonstrations<\/h3>/);
-    // The legacy "Demos" subheading wording was renamed to "Demonstrations"
-    // in Phase 3 to avoid conflating tutorials and demos in trick-detail
-    // language. Guard against regression.
-    expect(res.text).not.toMatch(/<h3 class="reference-media-subheading">Demos<\/h3>/);
-  });
-
-  it('F7 — reference-media tiles surface their hashtag chip strip', async () => {
-    // Visible hashtag layer on every curated media tile. The
-    // ref-media-audit fixture seeds tags
-    // [#ref-media-audit, #freestyle, #trick] on each item; the browse-surface
-    // suppression policy hides #freestyle (freestyle-only surface) and #trick
-    // (universal), leaving the trick-slug chip.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/ref-media-audit');
-    // Scope to the tutorial tile to avoid catching tags from elsewhere on the page.
-    const tutSubIdx = res.text.indexOf('reference-media-subsection--tutorials');
-    expect(tutSubIdx).toBeGreaterThan(0);
-    const subsectionEnd = res.text.indexOf('</div>', tutSubIdx);
-    const slice = res.text.slice(tutSubIdx, subsectionEnd + 6);
-    // The strip wrapper renders once per tile (one tile here).
-    expect((slice.match(/class="media-tag-strip"/g) ?? []).length).toBe(1);
-    // The trick-slug chip surfaces.
-    expect(slice).toMatch(/<li class="media-tag-chip media-tag-chip--trick">#ref-media-audit<\/li>/);
-    // The suppressed tags must NOT surface as chips.
-    expect(slice).not.toMatch(/<li class="media-tag-chip[^"]*">#freestyle<\/li>/);
-    expect(slice).not.toMatch(/<li class="media-tag-chip[^"]*">#trick<\/li>/);
+    expect(res.text).not.toContain('reference-media-subsection');
+    expect(res.text).not.toMatch(/<h3 class="reference-media-subheading">/);
   });
 
 });

@@ -621,6 +621,8 @@ This is a **separate, lower-priority sweep** run after the §4.4 security/correc
 
 Ground every §4.4B finding in the canonical pattern it violates: `.claude/rules/{controller-conventions,template-conventions,view-layer,service-layer,db-layer}.md`, service file-header JSDoc. Cite the rule.
 
+The drift direction is not always code-violates-rule. A path-scoped rule in `.claude/rules/*` or a `.claude/skills/*` procedure whose stated behavior, identifier, or contract the deployed code no longer matches is itself a divergence finding (rule/skill drift), the same as JSDoc or comment drift. For every behavior or identifier a change moved, grep the full `.claude/rules/*` and `.claude/skills/*` set for the superseded term and flag any stale clause: a sentence buried in an otherwise-current rule drifts silently because reading the rule for context does not surface it. Record it in the same design-divergence group, citing the stale file:line and the code that supersedes it.
+
 #### 4.4B.1 Controller-layer divergence
 
 Controllers are HTTP glue: parse request, call service, render/redirect. If a method exceeds ~10 lines without obvious cause, the missing pattern is probably a service method.

@@ -39,7 +39,7 @@
             <label for="disputeStatement">Which record is yours, and how can we verify that?</label>
             <textarea id="disputeStatement" name="statement" rows="3" maxlength="2000" required></textarea>
           </div>
-          <button type="submit" class="btn btn-outline btn-sm">One of these is me &mdash; ask an administrator</button>
+          <button type="submit" class="btn btn-outline btn-sm">One of These Is Me &mdash; Ask an Administrator</button>
         </form>
       </div>
     {{/if}}
@@ -90,22 +90,22 @@
             {{#if (eq this.claimMode 'auto_link_confirm')}}
               <form method="POST" action="/register/wizard/legacy_claim/auto-link/confirm" class="candidate-card-action">
                 <input type="hidden" name="personId" value="{{this.personId}}" />
-                <button type="submit" class="btn btn-primary">This is me, link my history</button>
+                <button type="submit" class="btn btn-primary">This Is Me, Link My History</button>
               </form>
               {{#if this.stagedCandidateId}}
               <form method="POST" action="/register/wizard/legacy_claim/auto-link/decline" class="candidate-card-action">
                 <input type="hidden" name="candidateId" value="{{this.stagedCandidateId}}" />
-                <button type="submit" class="btn btn-outline">This is not me</button>
+                <button type="submit" class="btn btn-outline">This Is Not Me</button>
               </form>
               {{/if}}
             {{else if (eq this.claimMode 'cross_source_legacy')}}
               <form method="POST" action="/register/wizard/legacy_claim/cross-source/confirm" class="candidate-card-action">
                 <input type="hidden" name="candidateId" value="{{this.stagedCandidateId}}" />
-                <button type="submit" class="btn btn-primary">Yes, this is also me</button>
+                <button type="submit" class="btn btn-primary">Yes, This Is Also Me</button>
               </form>
               <form method="POST" action="/register/wizard/legacy_claim/auto-link/decline" class="candidate-card-action">
                 <input type="hidden" name="candidateId" value="{{this.stagedCandidateId}}" />
-                <button type="submit" class="btn btn-outline">This is not me</button>
+                <button type="submit" class="btn btn-outline">This Is Not Me</button>
               </form>
             {{else if (eq this.claimMode 'legacy_claim')}}
               <form method="POST" action="/register/wizard/legacy_claim/find" class="candidate-card-action">
@@ -113,10 +113,10 @@
                 {{#if @root.content.turnstileSiteKey}}
                   <div class="cf-turnstile" data-sitekey="{{@root.content.turnstileSiteKey}}"></div>
                 {{/if}}
-                <button type="submit" class="btn btn-primary">This is me, link my history</button>
+                <button type="submit" class="btn btn-primary">This Is Me, Link My History</button>
               </form>
             {{else if (eq this.claimMode 'hp_review_page')}}
-              <p class="candidate-card-action"><a href="/history/{{this.personId}}/claim" class="btn btn-primary">Claim this record</a></p>
+              <p class="candidate-card-action"><a href="/history/{{this.personId}}/claim" class="btn btn-primary">Claim This Record</a></p>
             {{else if (eq this.claimMode 'already_linked')}}
               {{#if this.alreadyLinkedSinceDisplay}}
                 <p class="candidate-card-linked">Linked {{this.alreadyLinkedSinceDisplay}}.</p>
@@ -139,7 +139,7 @@
             {{#if this.canRequestVerification}}
             <form method="POST" action="/register/wizard/legacy_claim/anchors/send-verification" class="inline-form">
               <input type="hidden" name="anchorId" value="{{this.id}}" />
-              <button type="submit" class="btn-link fs-sm">Verify this mailbox</button>
+              <button type="submit" class="btn-link fs-sm">Verify This Mailbox</button>
             </form>
             {{/if}}
             <form method="POST" action="/register/wizard/legacy_claim/anchors/remove" class="inline-form">
@@ -158,7 +158,7 @@
         <input type="hidden" name="anchorType" value="old_email" />
         <small class="form-hint">If you used a different email on footbag.org, enter it here to help us find your account.</small>
       </div>
-      <button type="submit" class="btn btn-outline">Add old email</button>
+      <button type="submit" class="btn btn-outline">Add Old Email</button>
     </form>
 
     <form method="POST" action="/register/wizard/legacy_claim/anchors/add" class="card card-static mb-6">
@@ -168,7 +168,7 @@
         <input type="hidden" name="anchorType" value="former_surname" />
         <small class="form-hint">If you used a different surname on footbag.org, enter it here to help us find your account.</small>
       </div>
-      <button type="submit" class="btn btn-outline">Add former name</button>
+      <button type="submit" class="btn btn-outline">Add Former Name</button>
     </form>
 
     <h2 class="mt-6">Know your old footbag.org ID or username?</h2>
@@ -201,11 +201,11 @@
         <label for="helpVouchers">Community members who can vouch for you (optional)</label>
         <input type="text" id="helpVouchers" name="vouchers" maxlength="200" />
       </div>
-      <button type="submit" class="btn btn-outline">Send to an administrator</button>
+      <button type="submit" class="btn btn-outline">Send to an Administrator</button>
     </form>
 
     <form method="POST" action="/register/wizard/legacy_claim/skip" class="mt-6">
-      <button type="submit" class="btn-link text-muted">Skip for now</button>
+      <button type="submit" class="btn-link text-muted">Skip for Now</button>
     </form>
 
     <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>

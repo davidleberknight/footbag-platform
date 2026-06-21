@@ -204,6 +204,11 @@ service whose contract has drifted from its JSDoc. `.claude/rules/view-layer.md`
 controllers, `src/views/**`, public-route tests: route/path/page-key mismatch, missing view-model
 shape where required, template deriving domain logic, sensitive-page rendering rule missing from
 code/tests. Also `.claude/skills/*` procedures vs the current code and conventions they describe.
+For every behavior, identifier, boundary, or contract the deployed code establishes, grep the full
+`.claude/rules/*` and `.claude/skills/*` set for the matching term and report any clause that still
+states the superseded behavior as drift. A stale sentence buried in an otherwise-current rule or
+skill drifts silently: reading the file for context does not by itself surface it, so the grep is
+mandatory, not optional.
 
 ### Phase 7: Data model and data governance sync
 `DATA_MODEL.md` / `DATA_GOVERNANCE.md` vs `database/schema.sql`, `src/db/**`, sensitive

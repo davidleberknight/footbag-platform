@@ -66,9 +66,8 @@ export const freestyleController = {
   /** GET /freestyle/tricks/:slug */
   trick(req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = freestyleService.getTrickDetailPage(req.params['slug'] ?? '');
-      // One template renders every trick detail page. The ux2Pilot flag in
-      // content gates the legacy ordering branch inside the shell template.
+      const slug = req.params['slug'] ?? '';
+      const vm = freestyleService.getTrickDetailPage(slug);
       res.render('freestyle/trick-shell', vm);
     } catch (err) {
       if (err instanceof NotFoundError) {

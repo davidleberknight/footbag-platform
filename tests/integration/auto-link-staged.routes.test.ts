@@ -89,7 +89,7 @@ describe('wizard staged-candidate card', () => {
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(t.memberId));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('This is me, link my history');
+    expect(res.text).toContain('This Is Me, Link My History');
     expect(res.text).toContain('/register/wizard/legacy_claim/auto-link/decline');
     expect(res.text).toContain(t.candidateId);
   });

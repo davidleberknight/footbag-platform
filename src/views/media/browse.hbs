@@ -14,7 +14,11 @@
 <div class="wrapper">
 
   {{#if content.isResultsMode}}
-  <p class="mt-4 mb-4"><a href="/media/browse" class="btn btn-outline">&larr; Browse all media</a></p>
+  <p class="mt-4 mb-4"><a href="/media/browse" class="btn btn-outline">&larr; Browse All Media</a></p>
+  {{/if}}
+
+  {{#if content.filter}}
+    {{> _tag-filter-bar filter=content.filter}}
   {{/if}}
 
   {{#if content.unresolvedTokens.length}}

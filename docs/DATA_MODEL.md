@@ -929,7 +929,7 @@ Beyond the curator-specific columns, `media_items.external_url TEXT NULL` plus `
 
 **Table:** `media_sources`, provenance lookup. Columns: `source_id` (PK), `source_name`, `source_type` (e.g. `'dvd'`, `'website'`, `'youtube'`, `'vimeo'`), `url`, `creator`. `media_items.source_id ON DELETE NO ACTION` (sources are reference data, not deleted in normal flow).
 
-Entity association is hashtag-driven via `media_tags`. An asset tagged `#curated #freestyle #trick #ripwalk` is the canonical trick reference media for the ripwalk trick. The trick page renders a gallery of all matching curator-tagged videos.
+Entity association is hashtag-driven via `media_tags`. An asset tagged `#curated #freestyle #trick #ripwalk` is the canonical trick reference media for the ripwalk trick. The trick page renders a gallery of all videos tagged with the trick (curator-published and member-uploaded), with a content-gated editable filter to narrow (for example to `#curated` only).
 
 #### Named-gallery URL bookmarks (`member_gallery_tags`, `member_gallery_exclude_tags`)
 

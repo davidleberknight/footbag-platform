@@ -72,6 +72,12 @@ discipline, not the enumeration.
 - Buttons: `.btn-primary`, `.btn-outline`, and `.btn-inverse` (white fill, teal text, for CTAs on
   dark gradient panels) are the only button variants. Secondary content uses the card pattern
   (`.card`, `.card-title`, `.card-meta`, `.card-description`); status chips use `.badge`.
+- Button / CTA label casing is Title Case: capitalize the first letter of each word EXCEPT the
+  minor words `a an as the and or nor but to of in on at by for`, unless the minor word is the first or
+  last word ("Create a New Club", "Browse All Matching Media", "Log In", "Go to Home", "Apply Hashtag
+  Filters"). This applies to every `.btn` label and to service/controller-authored CTA strings;
+  curator/member-authored content (e.g. an external-link label) is left as entered. (A general design
+  skill may suggest sentence case for copy; for button/CTA labels this project rule governs.)
 - Reference site CSS/JS only through the `asset` helper (`{{{asset 'css/style.css'}}}`), which emits a
   content-hash version token (`/css/style.css?v=<hash>`, served immutable) so a deploy self-busts the
   CDN. Never hardcode a `/css/*` or `/js/*` URL; `tests/unit/asset-helper-conformance.test.ts` fails

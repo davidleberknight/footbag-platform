@@ -85,7 +85,7 @@ describe('leadership path 2', () => {
       .set('Cookie', cookieFor(memberId));
     expect(page.status).toBe(200);
     expect(page.text).toContain('has no listed contact');
-    expect(page.text).toContain('Yes, make me the contact');
+    expect(page.text).toContain('Yes, Make Me the Contact');
 
     const res = await request(createApp())
       .post('/register/wizard/club_affiliations/leadership-offer')

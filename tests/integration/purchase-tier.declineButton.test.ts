@@ -71,7 +71,7 @@ describe('checkout page renders the decline affordance', () => {
       .get(`/payments/checkout/${sessionId}`)
       .set('Cookie', memberCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Decline payment');
+    expect(res.text).toContain('Decline Payment');
     expect(res.text).toContain(`/payments/checkout/${sessionId}/decline`);
   });
 });

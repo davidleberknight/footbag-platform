@@ -125,7 +125,7 @@ describe('GET /history/:personId — conditional Claim CTA', () => {
       .get(`/history/${HP_HONOR}`)
       .set('Cookie', cookieFor(VIEWER_MATCH));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim this identity');
+    expect(res.text).toContain('Claim This Identity');
     expect(res.text).toContain(`href="/history/${HP_HONOR}/claim"`);
   });
 
@@ -157,7 +157,7 @@ describe('GET /history/:personId — conditional Claim CTA', () => {
       .get(`/history/${HP_HONOR}`)
       .set('Cookie', cookieFor('mem-viewer-former'));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim this identity');
+    expect(res.text).toContain('Claim This Identity');
   });
 
   it('authenticated viewer who already has historical_person_id set: no CTA', async () => {
@@ -179,7 +179,7 @@ describe('GET /history/:personId — conditional Claim CTA', () => {
       .get(`/history/${HP_NON_HONOR}`)
       .set('Cookie', cookieFor(VIEWER_MATCH));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim this identity');
+    expect(res.text).toContain('Claim This Identity');
   });
 
   it('authenticated viewer with surname match on a deceased HP: no CTA (deceased records are not self-claimable)', async () => {

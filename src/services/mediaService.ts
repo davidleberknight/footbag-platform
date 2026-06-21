@@ -13,7 +13,11 @@
  *   - Profile Media section view-model (getMemberProfileMedia, consumed by
  *     memberService): the member's named galleries as link cards plus a view-all
  *     link, not an inline thumbnail grid
- *   - /media/:galleryId named-gallery page read (tag-AND membership)
+ *   - /media/:galleryId named-gallery page read (tag-AND membership). Its editable
+ *     filter prefills the gallery's topic criteria as removable include chips and
+ *     submits to /media/browse, so refining or broadening the initial set (and
+ *     paging past the render cap) happens on the dynamic surface; the owner
+ *     `#by_*` criterion stays a locked context tag.
  *   - /media/:galleryId/:mediaId named-gallery item-detail read (one item with
  *     prev/next over the gallery's ordered set and a back link to the gallery)
  *   - /media/item/:mediaId standalone item-detail read: the same viewer reached
@@ -49,11 +53,21 @@
  *     `browse` (form pane only) when no token resolves, otherwise `results`
  *     (form + paginated tile grid); pagination prev/next reproduce the canonical
  *     repeated-arg form.
- *   - Hero `byMember` chip lifts from any `#by_<slug>` criterion (auth-gated profile
- *     link) so the template renders "by *Member Name*" attribution distinct from
- *     gallery ownership.
- *   - Viewer-aware shaping (`viewer: ViewerContext`): per-item member hrefs are
- *     nulled when the viewer cannot reach the linked profile.
+ *   - Results mode carries an editable tag filter (`content.filter`): one no-JS
+ *     GET form whose controls all defer to a single "Apply Hashtag Filters"
+ *     submit. Active include/exclude tags are checked checkboxes (uncheck + Apply
+ *     removes); co-occurring tags (minus active / `#by_*` / `#unavailable_embed`)
+ *     are unchecked add checkboxes; a locked context tag is read-only with a
+ *     hidden input; free-text fields add new tags. On submit the controller folds
+ *     the whole state into one canonical shareable URL via `canonicalFilterPath`
+ *     and redirects (PRG), so the service owns every URL and the controller stays
+ *     thin.
+ *   - Hero `byMember` chip lifts from any `#by_<slug>` criterion (linked to that
+ *     member's public gallery) so the template renders "by *Member Name*"
+ *     attribution distinct from gallery ownership.
+ *   - Viewer-aware shaping (`viewer: ViewerContext`): the member-galleries list
+ *     links an owner's display name to their member profile only for a signed-in
+ *     viewer (profiles are member-only); the name shows unlinked otherwise.
  *
  * Service shape: singleton object (storage adapter used only to construct
  * read URLs).
@@ -65,6 +79,7 @@ import {
   GallerySortOrder,
   countGalleryItemsByCriteria,
   media,
+  queryCooccurringTags,
   queryCuratorMediaTags,
   queryGalleryItemsByCriteria,
   queryGalleryItemsByCriteriaGrouped,
@@ -86,11 +101,10 @@ export const PAGE_SIZE = 24;
 
 // Chip-shape for tag rendering: each tag display string carries an
 // optional href. `#by_<slug>` chips render the member's display name
-// (e.g. "Jane Doe") instead of the raw tag, with an href to
-// `/members/<slug>` for authenticated viewers. Unauthenticated viewers
-// see the name as plain text (the route is auth-gated, so a clickable
-// link would dead-end). Slugs that don't resolve to an active,
-// non-purged member fall back to the raw `#by_<slug>` tag string.
+// (e.g. "Jane Doe") instead of the raw tag, linked to that member's
+// public gallery (the `#by_<slug>` browse view), the same for every
+// viewer. Slugs that don't resolve to an active, non-purged member
+// fall back to the raw `#by_<slug>` tag string.
 // Other tag namespaces have no destination page; they get null hrefs
 // and render plain with the raw tag string.
 export interface TagChip {
@@ -116,6 +130,12 @@ function collectMemberNamesForByTags(tagDisplays: string[]): Map<string, string>
 // tags. Hero criteria/exclude callers omit it so chips render as plain.
 // Item-tile callers pass `browseTagHref` so each chip links to the
 // on-the-fly /media/browse view for that tag.
+//
+// A `#by_<slug>` tag renders the member's display name linked to that member's
+// public per-uploader gallery (the `#by_<slug>` browse view), the same for every
+// viewer. Member galleries are public; the member profile (which is signed-in
+// only) is deliberately not the target here, so a logged-out visitor still has a
+// working "more from this uploader" link rather than a dead name.
 function shapeTagChip(
   display: string,
   viewer: ViewerContext,
@@ -128,7 +148,7 @@ function shapeTagChip(
     if (memberName) {
       return {
         display: memberName,
-        href: viewer.authenticated ? `/members/${slug}` : null,
+        href: browseTagHref(display),
       };
     }
   }
@@ -179,12 +199,20 @@ export interface GalleryItem {
   mediaId: string;
   mediaType: 'photo' | 'video';
   caption: string | null;
+  // Non-empty image alt text: the caption, or a generic fallback when blank, so
+  // a content image is never published with an empty alt.
+  alt: string;
   thumbnailUrl: string;     // photo thumb; video tiles read media.thumbnailUrl via the partial
   displayHref: string;      // photo full-size; videos use media.videoUrl via the partial
+  // Intrinsic pixel size of the photo, when known, so the viewer can reserve the
+  // image's aspect box before it loads and avoid layout shift. Null for videos
+  // (the facade carries its own fixed 16/9 box) and for photos with no stored size.
+  width: number | null;
+  height: number | null;
   uploadedAtIso: string;
   uploadedAtDisplay: string;
-  // Per-tile chips: non-`#by_*` link to /media/browse?tag=…; `#by_*` lifts
-  // to the member-profile chip-link convention (auth-gated).
+  // Per-tile chips: non-`#by_*` link to /media/browse?tag=…; `#by_*` lifts to
+  // the member's display name linked to that member's public gallery.
   tags: TagChip[];
   // Video tiles render a click-to-play facade via partials/video-facade.hbs
   // fed by this canonical shape. Null for photos.
@@ -336,23 +364,36 @@ export interface NamedGalleryContent {
   // Five site-wide popular tags, shown only when the gallery is empty so the
   // empty state is a teachable moment; absent otherwise.
   popularTags?: BrowseTagChip[];
+  // The editable tag filter (an on-the-view refinement that never mutates the
+  // saved gallery), or null when the gallery is not worth filtering.
+  filter: TagFilterView | null;
 }
 
 // Single-item viewer rendered by both /media/:galleryId/:mediaId (named-gallery
 // context) and /media/item/:mediaId (tag-query / single context). `title` is the
-// hero h1 (the gallery name, or the item caption when there is no gallery).
-// `backHref`/`backLabel` return to wherever the item was opened from. Prev/next
-// walk the context's ordered set and wrap modulo; `showPager` is false for a
-// one-item set, hiding the pager. uploadedBy lifts the item's `#by_<slug>` tag
-// to a viewer-gated member chip; tags are the item's remaining hashtags.
+// hero h1: the gallery name when viewed within a named gallery, otherwise the
+// item's own title. `itemTitle` is the item's own title rendered as a heading
+// directly above the media; it is set only when the hero shows the gallery name
+// (so the item title appears exactly once and is never duplicated above and in
+// the hero). `position` is the "current of total" marker, present only when the
+// pager shows. `backHref`/`backLabel` return to wherever the item was opened
+// from. Prev/next walk the context's ordered set and wrap modulo; `showPager` is
+// false for a one-item set, hiding the pager. uploadedBy lifts the item's
+// `#by_<slug>` tag to a member chip; tags are the item's remaining hashtags.
 export interface MediaItemContent {
   title: string;
+  itemTitle: string | null;
   backHref: string;
   backLabel: string;
   item: GalleryItem;
+  // Attribution: `uploadedBy` is the member uploader chip (display name linked
+  // to that member's public gallery); `curatedHref`, when set, marks a curated
+  // item and links to the full curated collection. They are mutually exclusive.
   uploadedBy: TagChip | null;
+  curatedHref: string | null;
   tags: TagChip[];
   showPager: boolean;
+  position: { current: number; total: number } | null;
   prevHref: string | null;
   nextHref: string | null;
 }
@@ -385,6 +426,7 @@ export interface MediaItemArgs {
 export interface MediaBrowseArgs {
   rawTags: string[];
   rawExcludes: string[];
+  rawContext?: string[];
   rawPage: unknown;
 }
 
@@ -411,6 +453,44 @@ export interface MediaBrowseContent {
   totalItems: number;
   pagination: GalleryPagination | null;
   popularTags?: BrowseTagChip[];
+  // The editable tag filter, present in results mode. The viewer removes an
+  // active tag (each chip's `removeHref`), adds a free-text tag via the add
+  // form, or clicks a co-occurring suggestion. Null in browse mode, where the
+  // search form is the entry point.
+  filter: TagFilterView | null;
+}
+
+// One locked (owner-scoping `#by_*`) tag in the filter bar, shown as a read-only
+// label the visitor cannot edit; preserved across a submit via `contextInputs`.
+export interface FilterChip {
+  display: string;
+}
+
+// One co-occurring tag offered beneath the filter as a clickable chip that adds
+// itself to the include field. `value` is the hash-stripped token; `count` is how
+// many items in the current set carry it.
+export interface SuggestionChip {
+  display: string;
+  count: number;
+  value: string;
+}
+
+// The editable tag filter shared by every dynamic gallery surface. The service
+// owns all filtering; the template renders one no-JS GET form whose controls all
+// defer to a single "Apply hashtag filters" submit. The active include/exclude
+// tags (a named gallery's topic criteria plus any visitor refinement) prefill two
+// chip-input fields (`includeText` / `excludeText`, space-separated hash-stripped
+// tokens) that progressively enhance into tokenizers with autocomplete and are
+// fully editable/removable; `suggestions` are context-aware co-occurring tags
+// offered as click-to-add chips; `contextChips` / `contextInputs` carry only the
+// locked owner-scoping `#by_*` tag. `addAction` is the form's GET target.
+export interface TagFilterView {
+  contextChips: FilterChip[];
+  contextInputs: { name: string; value: string }[];
+  includeText: string;
+  excludeText: string;
+  suggestions: SuggestionChip[];
+  addAction: string;
 }
 
 const MONTHS = [
@@ -457,12 +537,16 @@ function shapeItem(
     displayHref = row.s3_key_display ? constructURL(row.s3_key_display) : '';
   }
 
+  const caption = row.caption?.trim();
   return {
     mediaId: row.id,
     mediaType: row.media_type,
     caption: row.caption,
+    alt: caption && caption.length > 0 ? caption : 'Footbag media',
     thumbnailUrl,
     displayHref,
+    width: row.media_type === 'photo' ? row.width_px : null,
+    height: row.media_type === 'photo' ? row.height_px : null,
     uploadedAtIso: row.uploaded_at,
     uploadedAtDisplay: formatUploadedAt(row.uploaded_at),
     tags,
@@ -536,7 +620,12 @@ interface ResolvedItemSet {
   encodeItemHref: (id: string) => string;
   backHref: string;
   backLabel: string;
-  title: string;
+  // The collection the item is being viewed within: the named gallery's name,
+  // or null when there is no collection (a tag-query/single view). Drives the
+  // hero: when set, the hero shows the collection and the item's own title sits
+  // as a heading directly above the media; when null, the hero is the item's
+  // own title (and no separate heading, so the title is never shown twice).
+  collectionTitle: string | null;
 }
 
 // The one-item fallback: the item shows on its own with no pager. Used by the
@@ -553,7 +642,7 @@ function singleItemSet(mediaId: string, backHref: string, backLabel: string): Re
     encodeItemHref: (id) => `/media/item/${encodeURIComponent(id)}`,
     backHref,
     backLabel,
-    title: titleFor(row),
+    collectionTitle: null,
   };
 }
 
@@ -589,8 +678,8 @@ function resolveItemSet(ctx: GalleryContext, mediaId: string): ResolvedItemSet {
       index,
       encodeItemHref: (id) => `/media/${gid}/${encodeURIComponent(id)}`,
       backHref: `/media/${gid}`,
-      backLabel: 'Back to gallery',
-      title: gallery.name,
+      backLabel: 'Back to Gallery',
+      collectionTitle: gallery.name,
     };
   }
 
@@ -628,14 +717,15 @@ function resolveItemSet(ctx: GalleryContext, mediaId: string): ResolvedItemSet {
     index,
     encodeItemHref: (id) => `/media/item/${encodeURIComponent(id)}?${ctxQuery}`,
     backHref: browseBack,
-    backLabel: 'Back to results',
-    title: titleFor(rows[index]),
+    backLabel: 'Back to Results',
+    collectionTitle: null,
   };
 }
 
 // Shapes one item-viewer page for any context. Computes prev/next once, wrapping
-// modulo the ordered set, and lifts the item's `#by_<slug>` tag to a viewer-gated
-// uploader chip with the rest rendered as browseable hashtag chips.
+// modulo the ordered set; lifts the item's `#by_<slug>` tag to an uploader chip
+// linked to that member's gallery, lifts `#curated` to a curated-collection
+// attribution, and renders the remaining hashtags as browseable chips.
 function buildItemPage(
   ctx: GalleryContext,
   mediaId: string,
@@ -649,9 +739,15 @@ function buildItemPage(
   const memberNamesBySlug = collectMemberNamesForByTags(itemTagRows.map((r) => r.tag_display));
 
   let uploadedBy: TagChip | null = null;
+  let isCurated = false;
   const tags: TagChip[] = [];
   for (const tr of itemTagRows) {
-    if (tr.tag_display.startsWith(UPLOADER_TAG_PREFIX)) {
+    if (tr.tag_normalized === CURATED_TAG) {
+      // Curator provenance is surfaced as its own attribution linking to the
+      // full curated collection (the curated counterpart of a member's uploader
+      // attribution), so `#curated` is lifted out rather than also listed as a tag.
+      isCurated = true;
+    } else if (tr.tag_display.startsWith(UPLOADER_TAG_PREFIX)) {
       if (uploadedBy === null && memberNamesBySlug.has(tr.tag_display.slice(UPLOADER_TAG_PREFIX.length))) {
         uploadedBy = shapeTagChip(tr.tag_display, viewer, memberNamesBySlug);
       }
@@ -659,26 +755,37 @@ function buildItemPage(
       tags.push(shapeTagChip(tr.tag_display, viewer, memberNamesBySlug, () => browseTagHref(tr.tag_normalized)));
     }
   }
+  // A curated item links to all curated media; a member upload links to that
+  // member's gallery (via uploadedBy). The two are mutually exclusive in practice.
+  const curatedHref = isCurated ? browseTagHref(CURATED_TAG) : null;
 
   const adapter = getMediaStorageAdapter();
   const item = shapeItem(row, [], (k) => adapter.constructURL(k));
   const showPager = n > 1;
+  // The item's own title. When the item is viewed within a named gallery the
+  // hero shows the gallery name and this sits as a heading above the media;
+  // otherwise the hero is this title and no separate heading renders.
+  const itemTitle = titleFor(row);
+  const heroTitle = set.collectionTitle ?? itemTitle;
 
   return {
-    seo: { title: set.title },
+    seo: { title: itemTitle },
     page: {
       sectionKey: 'media',
       pageKey: 'media_gallery_item',
-      title: set.title,
+      title: heroTitle,
     },
     content: {
-      title: set.title,
+      title: heroTitle,
+      itemTitle: set.collectionTitle != null ? itemTitle : null,
       backHref: set.backHref,
       backLabel: set.backLabel,
       item,
       uploadedBy,
+      curatedHref,
       tags,
       showPager,
+      position: showPager ? { current: set.index + 1, total: n } : null,
       prevHref: showPager ? set.encodeItemHref(set.rows[(set.index - 1 + n) % n].id) : null,
       nextHref: showPager ? set.encodeItemHref(set.rows[(set.index + 1) % n].id) : null,
     },
@@ -711,7 +818,7 @@ export const mediaService = {
           title: 'Browse by hashtag',
           description: 'Find every photo and video matching a set of hashtags.',
           href: '/media/browse',
-          cta: 'Browse tags',
+          cta: 'Browse Tags',
           accent: true,
         },
         {
@@ -725,7 +832,7 @@ export const mediaService = {
           title: 'Freestyle',
           description: 'Tutorials and demos, records footage, and curated freestyle videos.',
           href: '/freestyle/media',
-          cta: 'Browse freestyle',
+          cta: 'Browse Freestyle',
         },
         {
           title: 'Net',
@@ -830,7 +937,7 @@ export const mediaService = {
 
       const hasUploads = (media.listMemberUploadedMedia.all(memberId, 1) as CuratorGalleryRow[]).length > 0;
       const allMediaHref = hasUploads
-        ? `/media/browse?tag=by_${encodeURIComponent(ownerSlug)}`
+        ? `/media/browse?context=by_${encodeURIComponent(ownerSlug)}`
         : null;
 
       return {
@@ -887,7 +994,7 @@ export const mediaService = {
 
   getNamedGalleryPage(
     galleryId: string,
-    _rawPage: unknown,
+    refine: { rawTags: string[]; rawExcludes: string[]; curated?: string } = { rawTags: [], rawExcludes: [] },
     viewer: ViewerContext = { authenticated: false },
   ): PageViewModel<NamedGalleryContent> {
     return runSqliteRead('mediaService.getNamedGalleryPage', () => {
@@ -903,17 +1010,79 @@ export const mediaService = {
       const tagIds = tagRows.map((t) => t.id);
       const excludeTagIds = excludeTagRows.map((t) => t.id);
 
+      // The saved gallery query is the locked context; a visitor may refine it
+      // transiently via ?tag=/?exclude= without mutating the saved row. The
+      // refinement layers onto the criteria/exclude sets at view time only.
+      // A refine tag that the gallery already requires (or excludes) is dropped:
+      // re-adding it would duplicate a tag id in the AND-of-N query, whose
+      // `HAVING COUNT(DISTINCT tag_id) = N` can then never match (so the gallery
+      // would render empty), and it would also show the tag twice in the chips.
+      const galleryCriteriaNorm = new Set(tagRows.map((t) => t.tag_display.toLowerCase()));
+      const galleryExcludeNorm = new Set(excludeTagRows.map((t) => t.tag_display.toLowerCase()));
+      const refineInclude = uniqStrings((refine.rawTags ?? []).map(normalizeTagToken).filter(notEmpty))
+        .filter((t) => !galleryCriteriaNorm.has(t));
+      const refineExclude = uniqStrings((refine.rawExcludes ?? []).map(normalizeTagToken).filter(notEmpty))
+        .filter((t) => !refineInclude.includes(t) && !galleryExcludeNorm.has(t) && !galleryCriteriaNorm.has(t));
+      const refineRows = (refineInclude.length + refineExclude.length) > 0
+        ? queryTagIdsByNormalized([...refineInclude, ...refineExclude]) : [];
+      const refineByNorm = new Map(refineRows.map((r) => [r.tag_normalized, r]));
+      const refineIncludeRows = refineInclude.map((n) => refineByNorm.get(n))
+        .filter((r): r is { id: string; tag_normalized: string; tag_display: string } => r != null);
+      const refineExcludeRows = refineExclude.map((n) => refineByNorm.get(n))
+        .filter((r): r is { id: string; tag_normalized: string; tag_display: string } => r != null);
+      // De-dupe the AND-of-N ids defensively: a duplicate tag id breaks the
+      // distinct-count HAVING clause.
+      const effectiveTagIds = [...new Set([...tagIds, ...refineIncludeRows.map((r) => r.id)])];
+      const effectiveExcludeTagIds = [...new Set([...excludeTagIds, ...refineExcludeRows.map((r) => r.id)])];
+
       // Fetch cap+1 to detect overflow: this is a public unauthenticated
       // route, so the render must stay bounded no matter how broad the
       // gallery criteria are.
       const fetched = queryGalleryItemsByCriteriaGrouped(
-        tagIds, gallery.sort_order, excludeTagIds, GALLERY_ITEMS_QUERY_CAP + 1,
+        effectiveTagIds, gallery.sort_order, effectiveExcludeTagIds, GALLERY_ITEMS_QUERY_CAP + 1,
       );
       const truncated = fetched.length > GALLERY_ITEMS_QUERY_CAP;
       const rows = truncated ? fetched.slice(0, GALLERY_ITEMS_QUERY_CAP) : fetched;
       const truncationNotice = truncated
-        ? `Showing the first ${GALLERY_ITEMS_QUERY_CAP} of ${countGalleryItemsByCriteria(tagIds, excludeTagIds)} items.`
+        ? `Showing the first ${GALLERY_ITEMS_QUERY_CAP} of ${countGalleryItemsByCriteria(effectiveTagIds, effectiveExcludeTagIds)} items.`
         : null;
+
+      // Editable, context-aware filter. The gallery's TOPIC criteria prefill the
+      // removable include chips so a visitor can refine or broaden the initial
+      // set; the owner-scoping `#by_*` criterion stays a locked context tag (it
+      // cannot be lifted by editing, per the member-gallery scoping invariant).
+      // The gallery's own exclude criteria prefill the (editable) exclude field.
+      // Apply submits to /media/browse with the edited set, so removing a
+      // criterion broadens on the dynamic surface. Suggestion candidates are
+      // co-occurring tags within the gallery's base set.
+      const toRef = (r: { tag_normalized: string; tag_display: string }): TagRef => ({
+        normalized: r.tag_normalized, display: r.tag_display,
+      });
+      const isUploaderTag = (display: string): boolean =>
+        display.toLowerCase().startsWith(UPLOADER_TAG_PREFIX);
+      const ownerContextTags: TagRef[] = tagRows
+        .filter((t) => isUploaderTag(t.tag_display))
+        .map((t) => ({ normalized: t.tag_display.toLowerCase(), display: t.tag_display }));
+      const topicCriteriaTags: TagRef[] = tagRows
+        .filter((t) => !isUploaderTag(t.tag_display))
+        .map((t) => ({ normalized: t.tag_display.toLowerCase(), display: t.tag_display }));
+      const galleryExcludeTagRefs: TagRef[] = excludeTagRows
+        .map((t) => ({ normalized: t.tag_display.toLowerCase(), display: t.tag_display }));
+      const baseSetSize = countGalleryItemsByCriteria(tagIds, excludeTagIds);
+      const suggRows = queryCooccurringTags(tagIds, excludeTagIds, FILTER_SUGGESTION_LIMIT);
+      const curatedTagRow = queryTagIdsByNormalized([CURATED_TAG])[0];
+      const curatedTagId = curatedTagRow?.id ?? null;
+      const curatedCount = countCuratedInSet(effectiveTagIds, effectiveExcludeTagIds, curatedTagId);
+      const filter = buildTagFilterView({
+        basePath: '/media/browse',
+        contextTags: ownerContextTags,
+        contextInUrl: true,
+        includeTags: [...topicCriteriaTags, ...refineIncludeRows.map(toRef)],
+        excludeTags: [...galleryExcludeTagRefs, ...refineExcludeRows.map(toRef)],
+        setSize: baseSetSize,
+        candidates: suggRows.map((r) => ({ normalized: r.tag_normalized, display: r.tag_display, count: r.n })),
+        curatedCount,
+      });
 
       // Per-item tag rows for tile-level chip rendering.
       const itemTagRows = rows.length > 0 ? queryCuratorMediaTags(rows.map((r) => r.id)) : [];
@@ -981,6 +1150,7 @@ export const mediaService = {
           excludeTagsNoun: chips.excludeTags.length === 1 ? 'tag' : 'tags',
           truncationNotice,
           popularTags: emptyResultSuggestions?.length ? emptyResultSuggestions : undefined,
+          filter,
         },
       };
     });
@@ -1032,39 +1202,45 @@ export const mediaService = {
     viewer: ViewerContext = { authenticated: false },
   ): PageViewModel<MediaBrowseContent> {
     return runSqliteRead('mediaService.getMediaBrowsePage', () => {
-      const includeNormalized = uniqStrings(args.rawTags.map(normalizeTagToken).filter(notEmpty));
+      // Context tokens (`?context=`, e.g. a club/event gallery) are locked
+      // includes; visitor `?tag=` are removable includes. Both join the AND set.
+      const contextNormalized = uniqStrings((args.rawContext ?? []).map(normalizeTagToken).filter(notEmpty));
+      const includeNormalized = uniqStrings(args.rawTags.map(normalizeTagToken).filter(notEmpty))
+        .filter((t) => !contextNormalized.includes(t));
       const excludeNormalizedRaw = uniqStrings(args.rawExcludes.map(normalizeTagToken).filter(notEmpty));
-      // Include wins over exclude when the same token appears in both
-      // (otherwise the gallery would be vacuously empty, which is a
-      // confusing UX). Strip the conflicting exclude entries.
-      const excludeNormalized = excludeNormalizedRaw.filter((t) => !includeNormalized.includes(t));
+      // A token can't be both required and excluded; context/include win over
+      // exclude, so the gallery is never vacuously empty.
+      const excludeNormalized = excludeNormalizedRaw
+        .filter((t) => !includeNormalized.includes(t) && !contextNormalized.includes(t));
 
       const formIncludeText = includeNormalized.map(stripHash).join(' ');
       const formExcludeText = excludeNormalized.map(stripHash).join(' ');
 
-      const allNormalized = [...includeNormalized, ...excludeNormalized];
+      const allNormalized = [...contextNormalized, ...includeNormalized, ...excludeNormalized];
       const tagRows = allNormalized.length === 0 ? [] : queryTagIdsByNormalized(allNormalized);
       const tagRowByNormalized = new Map(tagRows.map((r) => [r.tag_normalized, r]));
 
-      const includeRows = includeNormalized
+      const resolveRows = (ns: string[]) => ns
         .map((n) => tagRowByNormalized.get(n))
         .filter((r): r is { id: string; tag_normalized: string; tag_display: string } => r != null);
-      const excludeRows = excludeNormalized
-        .map((n) => tagRowByNormalized.get(n))
-        .filter((r): r is { id: string; tag_normalized: string; tag_display: string } => r != null);
+      const contextRows = resolveRows(contextNormalized);
+      const includeRows = resolveRows(includeNormalized);
+      const excludeRows = resolveRows(excludeNormalized);
 
-      const unresolvedTokens = includeNormalized
+      const unresolvedTokens = [...contextNormalized, ...includeNormalized]
         .filter((n) => !tagRowByNormalized.has(n))
         .map(stripHash);
 
       // Member-name lookup for `#by_*` lift across hero criteria/exclude
       // chips AND any per-item chips we surface in the results pane.
       const allCriteriaDisplays = [
+        ...contextRows.map((r) => r.tag_display),
         ...includeRows.map((r) => r.tag_display),
         ...excludeRows.map((r) => r.tag_display),
       ];
 
-      const criteriaTagIds = includeRows.map((r) => r.id);
+      // The AND set is context + visitor-include.
+      const criteriaTagIds = [...contextRows.map((r) => r.id), ...includeRows.map((r) => r.id)];
       const excludeTagIds = excludeRows.map((r) => r.id);
 
       // Browse mode: no resolved criteria → no results pane. Hero echoes
@@ -1097,6 +1273,7 @@ export const mediaService = {
             totalItems: 0,
             pagination: null,
             popularTags: popularTags.length > 0 ? popularTags : undefined,
+            filter: null,
           },
         };
       }
@@ -1132,7 +1309,7 @@ export const mediaService = {
       // Each tile opens the standalone viewer carrying this browse query, so the
       // viewer rebuilds the same ordered set for wrapping prev/next. Browse has
       // no sort control, so the set follows the default upload-desc order.
-      const itemContextQuery = buildItemContextQueryString(includeNormalized, excludeNormalized, 'upload_desc');
+      const itemContextQuery = buildItemContextQueryString([...contextNormalized, ...includeNormalized], excludeNormalized, 'upload_desc');
       const items: GalleryItem[] = rows.map((row) => {
         const item = shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k));
         item.itemHref = `/media/item/${encodeURIComponent(item.mediaId)}?${itemContextQuery}`;
@@ -1142,7 +1319,8 @@ export const mediaService = {
       const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
       const hasPrev = page > 1;
       const hasNext = page < totalPages;
-      const baseQuery = buildBrowseQueryString(includeNormalized, excludeNormalized);
+      const baseQuery = [buildContextQueryString(contextNormalized), buildBrowseQueryString(includeNormalized, excludeNormalized)]
+        .filter((s) => s.length > 0).join('&');
       const pageHref = (p: number): string =>
         p === 1 ? `/media/browse?${baseQuery}` : `/media/browse?${baseQuery}&page=${p}`;
       const pagination: GalleryPagination = {
@@ -1157,6 +1335,29 @@ export const mediaService = {
 
       const emptyResultSuggestions = total === 0
         ? hashtagDiscoveryService.getPopularTags(5) : undefined;
+
+      // Suggestion row drawn from tags that co-occur in the current result set,
+      // so the viewer narrows by tags actually present rather than a static
+      // popular list. Empty when the set yields nothing to co-occur with.
+      const suggestionRows = queryCooccurringTags(criteriaTagIds, excludeTagIds, FILTER_SUGGESTION_LIMIT);
+      // Curated opt-in: how many of the current results are curator-published,
+      // for the always-offered "Curated" suggestion (when curated is not already
+      // the active filter, offerCurated handles that downstream).
+      const curatedTagRow = tagRowByNormalized.get(CURATED_TAG)
+        ?? queryTagIdsByNormalized([CURATED_TAG])[0];
+      const curatedTagId = curatedTagRow?.id ?? null;
+      const curatedCount = countCuratedInSet(criteriaTagIds, excludeTagIds, curatedTagId);
+      const filter = shapeBrowseFilter({
+        contextNormalized,
+        includeNormalized,
+        excludeNormalized,
+        contextRows,
+        includeRows,
+        excludeRows,
+        suggestionRows,
+        setSize: total,
+        curatedCount,
+      });
 
       return {
         seo: { title: 'Browse Media' },
@@ -1180,10 +1381,12 @@ export const mediaService = {
           totalItems: total,
           pagination,
           popularTags: emptyResultSuggestions?.length ? emptyResultSuggestions : undefined,
+          filter,
         },
       };
     });
   },
+
 
   // Recent member-authored community media for the teaching empty state shown
   // to a member who has not uploaded anything yet. Topical chips only; the
@@ -1223,7 +1426,7 @@ export const mediaService = {
 
 // Lowercase + ensure leading '#' for an incoming tag token. Returns the
 // empty string for inputs that are nothing more than '#' or whitespace.
-function normalizeTagToken(raw: string): string {
+export function normalizeTagToken(raw: string): string {
   const trimmed = raw.trim().toLowerCase();
   if (trimmed.length === 0) return '';
   const withHash = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
@@ -1256,4 +1459,279 @@ function buildBrowseQueryString(includeNormalized: string[], excludeNormalized: 
   for (const t of includeNormalized) parts.push(`tag=${encodeURIComponent(stripHash(t))}`);
   for (const t of excludeNormalized) parts.push(`exclude=${encodeURIComponent(stripHash(t))}`);
   return parts.join('&');
+}
+
+// Locked-context tokens as repeated `?context=` params. Context tags are part
+// of the AND set but render non-removable; carrying them in every filter href
+// keeps a viewer inside the surface's gallery (e.g. a club's media) while they
+// refine within it.
+function buildContextQueryString(contextNormalized: string[]): string {
+  return contextNormalized.map((t) => `context=${encodeURIComponent(stripHash(t))}`).join('&');
+}
+
+// Canonical path for a tag set on a given surface: the bare basePath when
+// empty, otherwise the repeated-arg query form (`context=` first, then `tag=`,
+// then `exclude=`). Every editable-filter href (remove, add-suggestion,
+// add-form redirect) is built from this so the rendered URL is always
+// shareable. `contextNormalized` is empty for surfaces whose context is encoded
+// in the path itself (a trick slug, a named-gallery id); it is populated only
+// where the context rides in the query string (`/media/browse?context=`).
+function buildFilterPath(
+  basePath: string,
+  contextNormalized: string[],
+  includeNormalized: string[],
+  excludeNormalized: string[],
+): string {
+  const parts: string[] = [];
+  const ctx = buildContextQueryString(contextNormalized);
+  const tags = buildBrowseQueryString(includeNormalized, excludeNormalized);
+  if (ctx) parts.push(ctx);
+  if (tags) parts.push(tags);
+  const q = parts.join('&');
+  return q.length === 0 ? basePath : `${basePath}?${q}`;
+}
+
+// How many co-occurring tags to offer in the suggestion row.
+export const FILTER_SUGGESTION_LIMIT = 12;
+
+// The curator-content marker. Curator-vs-community is the primary filtering
+// axis, so it is surfaced as a dedicated always-on Source control rather than a
+// raw suggestion chip.
+const CURATED_TAG = '#curated';
+
+// Human-readable labels for known hashtags, so the filter reads as a product
+// surface rather than developer jargon. Unknown tags fall back to a title-cased
+// slug (`#some_thing` → "Some Thing"). The raw tag stays available for the URL
+// and for the active-chip text; this only friendlies discovery affordances.
+const TAG_LABELS: Record<string, string> = {
+  '#curated': 'Curated',
+  '#freestyle': 'Freestyle',
+  '#trick': 'Tricks',
+  '#tricks_of_the_trade': 'Tricks of the Trade',
+  '#passback_records': 'PassBack Records',
+  '#passback_tutorials': 'PassBack Tutorials',
+  '#passback_advanced': 'PassBack Advanced',
+  '#passback_beginner': 'PassBack Beginner',
+  '#bap': 'Big-Add Posse',
+  '#individual_shred_videos': 'Shred Clips',
+  '#shred_global': 'Shred Global',
+  '#anz_trikz': 'AnzTrikz',
+  '#footbag_finland': 'Footbag Finland',
+  '#footbag_org': 'footbag.org',
+  '#demo_mosaic': 'Demos',
+};
+
+function friendlyTagLabel(display: string): string {
+  const known = TAG_LABELS[display.toLowerCase()];
+  if (known) return known;
+  // Fallback: drop the leading '#', split on underscores, title-case each word.
+  return stripHash(display)
+    .split('_')
+    .filter((w) => w.length > 0)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+// Below this many items in the current set, a filter is pointless — you can see
+// everything at a glance — so the bar is suppressed unless a refinement is
+// already active. One tunable constant; the real gate is also that a tag exists
+// that actually splits the set (see buildTagFilterView).
+export const MIN_FILTERABLE_ITEMS = 5;
+
+// A tag in its normalized (#lowercase) and display forms: the input shape for
+// the shared filter-view builder.
+export interface TagRef {
+  normalized: string;
+  display: string;
+}
+
+// A co-occurring tag with how many items in the current set carry it. A tag is
+// a useful filter only when it splits the set (0 < count < setSize); a tag on
+// every item (or none) changes nothing and is never suggested.
+export interface SuggestionCandidate {
+  normalized: string;
+  display: string;
+  count: number;
+}
+
+// Builds the editable tag filter for any dynamic gallery surface — or returns
+// `null` when the filter would not help, so the surface renders no bar. This is
+// the one content-driven gate every surface (browse, trick, named gallery,
+// event/club) flows through:
+//
+//   - `setSize` is how many items the current set holds.
+//   - `candidates` are co-occurring tags with their per-set counts; only those
+//     that split the set (0 < count < setSize) are offered, so a tag on every
+//     item (universal noise like `#freestyle` on an all-curated trick) never
+//     appears and a single-item set has nothing to suggest.
+//   - The bar shows iff a refinement is already active OR the set is at least
+//     `minItems` AND a splitting tag exists. Otherwise → null.
+//
+// `basePath` is the surface URL; `contextTags` are the locked tags shown
+// without a remove control. When `contextInUrl` is true they ride in the query
+// string as `?context=` (so `/media/browse` can lock a club/event tag); when
+// false the path itself encodes them (a trick slug, a named-gallery id) and
+// they stay out of the query string. Include/exclude tags always come from the
+// query string: each chip gets a `removeHref` dropping just that tag.
+export function buildTagFilterView(args: {
+  basePath: string;
+  contextTags: TagRef[];
+  contextInUrl: boolean;
+  includeTags: TagRef[];
+  excludeTags: TagRef[];
+  setSize: number;
+  candidates: SuggestionCandidate[];
+  // How many items in the current set carry `#curated`. Drives the always-offered
+  // "Curated" opt-in suggestion (include = view the curated subset; ⊘ = exclude
+  // it for community-only). 0/omitted when the surface has no curator content.
+  curatedCount?: number;
+  minItems?: number;
+}): TagFilterView | null {
+  const includeNormalized = args.includeTags.map((t) => t.normalized);
+  const excludeNormalized = args.excludeTags.map((t) => t.normalized);
+  const contextNormalized = args.contextTags.map((t) => t.normalized);
+  // Context rides the query string only when it is not already encoded in the
+  // path; the owner-scoping `#by_*` tag rides as `?context=` so it survives a
+  // submit to /media/browse and cannot be lifted by editing.
+  const contextUrlTokens = args.contextInUrl ? contextNormalized : [];
+  const active = new Set([...contextNormalized, ...includeNormalized, ...excludeNormalized]);
+
+  // Context-aware suggestions: co-occurring tags that actually split the current
+  // set and are not already active. `#curated` is offered as an opt-in, pinned
+  // first, whenever the set has curator content and curated is not already active.
+  const partitioning = (args.candidates ?? [])
+    .filter((c) => c.normalized !== CURATED_TAG && c.count > 0 && c.count < args.setSize && !active.has(c.normalized))
+    .sort((a, b) => b.count - a.count || a.normalized.localeCompare(b.normalized))
+    .slice(0, FILTER_SUGGESTION_LIMIT);
+  const curatedCount = args.curatedCount ?? 0;
+  const offerCurated = curatedCount > 0 && !active.has(CURATED_TAG);
+  const suggestions: SuggestionChip[] = [
+    ...(offerCurated ? [{ display: friendlyTagLabel(CURATED_TAG), count: curatedCount, value: stripHash(CURATED_TAG) }] : []),
+    ...partitioning.map((c) => ({ display: friendlyTagLabel(c.display), count: c.count, value: stripHash(c.normalized) })),
+  ];
+
+  // Show the filter when there is anything to act on: an active tag (criteria or
+  // refinement), a set large enough to be worth filtering, or a suggestion.
+  const minItems = args.minItems ?? MIN_FILTERABLE_ITEMS;
+  if (active.size === 0 && args.setSize < minItems && suggestions.length === 0) return null;
+
+  const contextChips: FilterChip[] = args.contextTags.map((t) => ({ display: t.display }));
+  const contextInputs = contextUrlTokens.map((t) => ({ name: 'context', value: stripHash(t) }));
+  return {
+    contextChips,
+    contextInputs,
+    includeText: includeNormalized.map(stripHash).join(' '),
+    excludeText: excludeNormalized.map(stripHash).join(' '),
+    suggestions,
+    addAction: args.basePath,
+  };
+}
+
+// Folds a free-text add submission from an editable filter form into the
+// current tag set and returns the canonical path for `basePath` to redirect to,
+// or null when nothing was added (the caller then renders normally). `addMode`
+// chooses include vs exclude; a blank tag is a no-op. Include wins over exclude
+// on the same token, matching the read path.
+export function resolveTagFilterAdd(args: {
+  basePath: string;
+  rawContext?: string[];
+  rawTags: string[];
+  rawExcludes: string[];
+  newTag: unknown;
+  addMode: unknown;
+}): string | null {
+  const token = typeof args.newTag === 'string' ? normalizeTagToken(args.newTag) : '';
+  if (token.length === 0) return null;
+  const context = uniqStrings((args.rawContext ?? []).map(normalizeTagToken).filter(notEmpty));
+  const include = uniqStrings(args.rawTags.map(normalizeTagToken).filter(notEmpty));
+  const exclude = uniqStrings(args.rawExcludes.map(normalizeTagToken).filter(notEmpty));
+  // A token already locked as context is left as-is (can't be re-added).
+  if (!context.includes(token)) {
+    if (args.addMode === 'exclude') {
+      if (!exclude.includes(token) && !include.includes(token)) exclude.push(token);
+    } else if (!include.includes(token)) {
+      include.push(token);
+    }
+  }
+  return buildFilterPath(args.basePath, context, include, exclude);
+}
+
+// Canonical filter path for an "Apply Hashtag Filters" submit. The batch filter
+// form posts its full checkbox state plus any free-text additions and an `apply`
+// marker; the controller folds them here and redirects (PRG), so every applied
+// filter lands on one clean shareable URL (normalized, de-duped, empty and
+// raw-cased tokens dropped) no matter which boxes were checked. `curatedOff`
+// replays a broadened named-gallery view.
+export function canonicalFilterPath(args: {
+  basePath: string;
+  rawContext?: string[];
+  rawTags: string[];
+  rawExcludes: string[];
+  curatedOff?: boolean;
+}): string {
+  const context = uniqStrings((args.rawContext ?? []).map(normalizeTagToken).filter(notEmpty));
+  const include = uniqStrings(args.rawTags.map(normalizeTagToken).filter(notEmpty))
+    .filter((t) => !context.includes(t));
+  // Context and include win over exclude on the same token, matching the read path.
+  const exclude = uniqStrings(args.rawExcludes.map(normalizeTagToken).filter(notEmpty))
+    .filter((t) => !include.includes(t) && !context.includes(t));
+  const path = buildFilterPath(args.basePath, context, include, exclude);
+  if (!args.curatedOff) return path;
+  return `${path}${path.includes('?') ? '&' : '?'}curated=off`;
+}
+
+// The /media/browse case of buildTagFilterView. Context tags (from `?context=`,
+// e.g. a club/event gallery) lock and ride in the URL; include/exclude are the
+// visitor's removable refinements. `setSize` is the full result count and
+// `suggestionRows` carry per-tag counts, so the shared builder keeps only
+// splitting tags and suppresses the bar on thin context-only sets.
+// How many items in the given set carry `#curated`, for the always-offered
+// "Curated" opt-in. The set is `setTagIds`/`setExcludeIds`; adding the curated
+// id (deduped) and counting yields the curated subset size.
+function countCuratedInSet(
+  setTagIds: string[],
+  setExcludeIds: string[],
+  curatedTagId: string | null,
+): number {
+  if (!curatedTagId) return 0;
+  return countGalleryItemsByCriteria([...new Set([...setTagIds, curatedTagId])], setExcludeIds);
+}
+
+function shapeBrowseFilter(args: {
+  contextNormalized: string[];
+  includeNormalized: string[];
+  excludeNormalized: string[];
+  contextRows: { tag_normalized: string; tag_display: string }[];
+  includeRows: { tag_normalized: string; tag_display: string }[];
+  excludeRows: { tag_normalized: string; tag_display: string }[];
+  suggestionRows: { tag_normalized: string; tag_display: string; n: number }[];
+  setSize: number;
+  curatedCount?: number;
+}): TagFilterView | null {
+  const toRef = (r: { tag_normalized: string; tag_display: string }): TagRef => ({
+    normalized: r.tag_normalized,
+    display: r.tag_display,
+  });
+  // Reuse the resolved order from the normalized arrays so chip order matches
+  // the URL; map rows by normalized form.
+  const byNormalized = new Map(
+    [...args.contextRows, ...args.includeRows, ...args.excludeRows].map((r) => [r.tag_normalized, r]),
+  );
+  const pick = (ns: string[]): TagRef[] =>
+    ns.map((n) => byNormalized.get(n)).filter((r): r is { tag_normalized: string; tag_display: string } => r != null).map(toRef);
+  // Consistent with named galleries: only the owner-scoping `#by_` context stays
+  // locked; any other context tag (club / event / trick) is an editable include
+  // the visitor can remove to broaden.
+  const lockedContext = args.contextNormalized.filter((t) => t.startsWith(UPLOADER_TAG_PREFIX));
+  const editableContext = args.contextNormalized.filter((t) => !t.startsWith(UPLOADER_TAG_PREFIX));
+  return buildTagFilterView({
+    basePath: '/media/browse',
+    contextTags: pick(lockedContext),
+    contextInUrl: true,
+    includeTags: pick([...editableContext, ...args.includeNormalized]),
+    excludeTags: pick(args.excludeNormalized),
+    setSize: args.setSize,
+    candidates: args.suggestionRows.map((r) => ({ normalized: r.tag_normalized, display: r.tag_display, count: r.n })),
+    curatedCount: args.curatedCount,
+  });
 }

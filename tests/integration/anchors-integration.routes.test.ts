@@ -264,7 +264,7 @@ describe('cross-source offer after a one-source claim', () => {
     const page = await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
-    expect(page.text).toContain('Yes, this is also me');
+    expect(page.text).toContain('Yes, This Is Also Me');
 
     const confirm = await request(createApp())
       .post('/register/wizard/legacy_claim/cross-source/confirm')

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { mediaService } from '../services/mediaService';
+import { mediaService, canonicalFilterPath } from '../services/mediaService';
 import { handleControllerError } from '../lib/controllerErrors';
 
 export const mediaController = {
@@ -23,9 +23,26 @@ export const mediaController = {
 
   namedGallery(req: Request, res: Response, next: NextFunction): void {
     try {
+      const galleryId = req.params.galleryId;
+      // The batch filter form posts an `apply` marker; fold the submitted state
+      // into one canonical URL and redirect (PRG), so the rendered gallery never
+      // carries the form's transient or empty fields. The saved row is untouched.
+      if (req.query.apply !== undefined) {
+        res.redirect(302, canonicalFilterPath({
+          basePath: `/media/${galleryId}`,
+          rawTags: collectQueryArg(req.query.tag),
+          rawExcludes: collectQueryArg(req.query.exclude),
+          curatedOff: req.query.curated === 'off',
+        }));
+        return;
+      }
       const vm = mediaService.getNamedGalleryPage(
-        req.params.galleryId,
-        req.query.page,
+        galleryId,
+        {
+          rawTags: collectQueryArg(req.query.tag),
+          rawExcludes: collectQueryArg(req.query.exclude),
+          curated: typeof req.query.curated === 'string' ? req.query.curated : undefined,
+        },
         { authenticated: req.user != null },
       );
       res.render('media/gallery', vm);
@@ -67,10 +84,23 @@ export const mediaController = {
 
   browse(req: Request, res: Response, next: NextFunction): void {
     try {
+      // The batch filter form posts an `apply` marker; fold the submitted state
+      // into one canonical, shareable URL and redirect (PRG, GET-only, no JS) so
+      // the rendered page never carries the form's transient or empty fields.
+      if (req.query.apply !== undefined) {
+        res.redirect(302, canonicalFilterPath({
+          basePath: '/media/browse',
+          rawContext: collectQueryArg(req.query.context),
+          rawTags: collectQueryArg(req.query.tag),
+          rawExcludes: collectQueryArg(req.query.exclude),
+        }));
+        return;
+      }
       const vm = mediaService.getMediaBrowsePage(
         {
           rawTags: collectQueryArg(req.query.tag),
           rawExcludes: collectQueryArg(req.query.exclude),
+          rawContext: collectQueryArg(req.query.context),
           rawPage: req.query.page,
         },
         { authenticated: req.user != null },

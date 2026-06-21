@@ -362,6 +362,23 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     const vid = insertVideo(db, { id: 'media_video_pbb01', platform: 'youtube', caption: 'How to Learn a Footbag Trick' });
     attachTag(db, vid, CURATED_TAG_ID, '#curated');
     attachTag(db, vid, pbbTagId, '#passback_beginner');
+
+    // Seed the Foundations gallery with one item so its folder card links.
+    const demoTagId = 'tag-test-demo-mosaic';
+    db.prepare(`
+      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, '#demo_mosaic', '#demo_mosaic', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run(demoTagId, TS, TS);
+    insertNamedGallery(db, {
+      id: 'gallery_foundations_of_freestyle',
+      ownerId: SYSTEM_ID,
+      name: 'Foundations of Freestyle',
+      description: 'The twelve foundational freestyle moves.',
+    });
+    insertGalleryCriteria(db, 'gallery_foundations_of_freestyle', [CURATED_TAG_ID, demoTagId]);
+    const fvid = insertVideo(db, { id: 'media_video_found01', platform: 'youtube', caption: 'Toe Delay' });
+    attachTag(db, fvid, CURATED_TAG_ID, '#curated');
+    attachTag(db, fvid, demoTagId, '#demo_mosaic');
     db.close();
   });
 
@@ -372,6 +389,7 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     expect(res.text).toContain('Freestyle Media');
     expect(res.text).toContain('Tutorials &amp; Demos');
     for (const label of [
+      'Foundations of Freestyle',
       'How to Footbag Freestyle',
       'Beginner PassBack Tutorials',
       'Advanced PassBack Tutorials',
@@ -392,6 +410,7 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/media');
     expect(res.text).toContain('href="/media/gallery_passback_beginner"');
+    expect(res.text).toContain('href="/media/gallery_foundations_of_freestyle"');
     expect(res.text).toContain('Coming soon');
   });
 });
@@ -531,11 +550,12 @@ describe('GET /media/:galleryId (named gallery)', () => {
     // Prose form: "Showing N items by <Name>, tagged: #hashtag" — the
     // member name comes BEFORE "tagged:" with a comma separator, and the
     // hashtag list does NOT contain the name.
-    expect(heroBlock).toMatch(/items by Regular Member, tagged:\s*#footbags/);
+    expect(heroBlock).toMatch(/items by <a [^>]*>Regular Member<\/a>, tagged:\s*#footbags/);
     expect(heroBlock).not.toMatch(/tagged:[^<]*Regular Member/);
     expect(heroBlock).not.toContain('#by_media_regular');
-    // Unauthenticated viewer: plain text, no anchor (the gallery hero
-    // here is requested without a session; the link is auth-gated).
+    // The member name links to that member's public gallery (the same for every
+    // viewer), never to the member-only profile.
+    expect(heroBlock).toContain('href="/media/browse?tag&#x3D;by_media_regular"');
     expect(heroBlock).not.toMatch(/<a[^>]*href="\/members\/media_regular"/);
   });
 
@@ -569,6 +589,55 @@ describe('GET /media/:galleryId (named gallery)', () => {
 
     expect(heroBlock).toContain('#by_ghost_account');
     expect(heroBlock).not.toMatch(/<a[^>]*href="\/members\/ghost_account"/);
+  });
+});
+
+// Within a named gallery the hero carries the gallery name (the collection the
+// visitor is browsing, identical for every item), and the item's own title sits
+// as a heading directly above the media, shown exactly once.
+describe('GET /media/:galleryId/:mediaId (item detail) -- title placement', () => {
+  it('shows the gallery name in the hero and the item title above the media, with no caption below', async () => {
+    const db = openDb();
+    const id = insertPhoto(db, { caption: 'Toe Delay demo' });
+    tagAsCuratedFreestyleTrick(db, id);
+    db.close();
+
+    const res = await request(createApp()).get(`/media/${FH_GALLERY_ID}/${id}`);
+    expect(res.status).toBe(200);
+
+    // Hero h1 is the gallery name, not the item's caption.
+    const hero = res.text.slice(
+      res.text.search(/class="hero hero-sm[^"]*"/),
+      res.text.indexOf('class="gallery-item-detail'),
+    );
+    expect(hero).toContain('Curated Freestyle Tricks');
+    expect(hero).not.toContain('Toe Delay demo');
+
+    // The item title renders as a heading above the media (not as a caption below).
+    const titleIdx = res.text.indexOf('class="gallery-item-title"');
+    const mediaIdx = res.text.indexOf('class="gallery-item-media"');
+    expect(titleIdx).toBeGreaterThan(-1);
+    expect(titleIdx).toBeLessThan(mediaIdx);
+    expect(res.text.slice(titleIdx, mediaIdx)).toContain('Toe Delay demo');
+    expect(res.text).not.toContain('gallery-item-caption');
+
+    // The photo reserves its aspect box to avoid layout shift.
+    expect(res.text).toMatch(/<img[^>]*width="1000"[^>]*height="600"/);
+  });
+
+  it('shows a curated item as "Curated" linking to the full curated collection, not as a #curated tag', async () => {
+    const db = openDb();
+    const id = insertPhoto(db, { caption: 'curated-attribution-item' });
+    tagAsCuratedFreestyleTrick(db, id); // applies #curated, #freestyle, #trick
+    db.close();
+
+    const res = await request(createApp()).get(`/media/${FH_GALLERY_ID}/${id}`);
+    expect(res.status).toBe(200);
+    // Curated provenance is its own attribution link to all curated media.
+    expect(res.text).toContain('href="/media/browse?tag&#x3D;curated"');
+    expect(res.text).toMatch(/class="tag-chip-link">Curated<\/a>/);
+    // #curated is lifted into that attribution, not duplicated as a tag chip.
+    expect(res.text).not.toMatch(/class="gallery-tile-tag"[^>]*>#curated/);
   });
 });
 
@@ -1164,5 +1233,126 @@ describe('GET /media/:galleryId — #unavailable_embed always-on exclusion', () 
     // thumbnail nor its YouTube ID appears anywhere on the page.
     expect(res.text).not.toContain('unavailable-marker-should-not-appear');
     expect(res.text).not.toContain('UNAVAILABLE_FIXTURE_ID');
+  });
+});
+
+describe('GET /media/:galleryId — browse-all handoff', () => {
+  // Dedicated FH-owned galleries and tags so the handoff href is exact and
+  // immune to the FH-gallery state other tests in this file accumulate.
+  const insertFreeform = (db: BetterSqlite3.Database, id: string, display: string): void => {
+    db.prepare(`
+      INSERT OR IGNORE INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run(id, display, display, TS, TS);
+  };
+
+  beforeAll(() => {
+    const db = openDb();
+    insertFreeform(db, 'tag-h-topic', '#handoff_topic');
+    insertFreeform(db, 'tag-h-refine', '#handoff_refine');
+    insertFreeform(db, 'tag-h-excl', '#handoff_excl');
+    insertFreeform(db, 'tag-h-quiet', '#handoff_quiet');
+    insertFreeform(db, 'tag-h-big', '#handoff_big');
+
+    // Gallery with a topic criterion and an exclude criterion.
+    insertNamedGallery(db, { id: 'gallery_handoff_001', ownerId: SYSTEM_ID, name: 'Handoff One' });
+    insertGalleryCriteria(db, 'gallery_handoff_001', ['tag-h-topic']);
+    db.prepare(`
+      INSERT INTO member_gallery_exclude_tags (gallery_id, tag_id, created_at, created_by)
+      VALUES (?, ?, ?, 'admin-act-as')
+    `).run('gallery_handoff_001', 'tag-h-excl', TS);
+
+    // Small, single-criterion gallery with no splitting tag: not worth a filter.
+    insertNamedGallery(db, { id: 'gallery_handoff_quiet', ownerId: SYSTEM_ID, name: 'Handoff Quiet' });
+    insertGalleryCriteria(db, 'gallery_handoff_quiet', ['tag-h-quiet']);
+
+    // Single-criterion gallery sized past the render cap to exercise truncation.
+    insertNamedGallery(db, { id: 'gallery_handoff_big', ownerId: SYSTEM_ID, name: 'Handoff Big' });
+    insertGalleryCriteria(db, 'gallery_handoff_big', ['tag-h-big']);
+    db.close();
+  });
+
+  it("prefills the editable filter from the gallery's criteria + refinement and submits to /media/browse", async () => {
+    const db = openDb();
+    const id = insertVideo(db, {
+      id: 'media_handoff_present',
+      caption: 'handoff-present-marker',
+      platform: 'youtube',
+      video_id: 'HANDOFFP01',
+      uploaded_at: '2027-04-01T12:00:00.000Z',
+    });
+    attachTag(db, id, 'tag-h-topic', '#handoff_topic');
+    attachTag(db, id, 'tag-h-refine', '#handoff_refine');
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get('/media/gallery_handoff_001?tag=handoff_refine');
+    expect(res.status).toBe(200);
+    // No separate Browse-all button: the filter itself springs to the dynamic
+    // surface. The topic criterion + refinement prefill the editable include
+    // field; the gallery's exclude criterion prefills the editable exclude field.
+    expect(res.text).not.toContain('Browse all matching media');
+    expect(res.text).toContain('action="/media/browse"');
+    expect(res.text).toContain('name="tag" value="handoff_topic handoff_refine" data-tag-chips');
+    expect(res.text).toContain('name="exclude" value="handoff_excl" data-tag-chips');
+  });
+
+  it('the handoff target resolves to the same item in the paginated browse surface', async () => {
+    const db = openDb();
+    const id = insertVideo(db, {
+      id: 'media_handoff_reachable',
+      caption: 'handoff-reachable-marker',
+      platform: 'youtube',
+      video_id: 'HANDOFFR01',
+      uploaded_at: '2027-04-02T12:00:00.000Z',
+    });
+    attachTag(db, id, 'tag-h-topic', '#handoff_topic');
+    attachTag(db, id, 'tag-h-refine', '#handoff_refine');
+    db.close();
+
+    const app = createApp();
+    const res = await request(app)
+      .get('/media/browse?context=handoff_topic&tag=handoff_refine&exclude=handoff_excl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('handoff-reachable-marker');
+  });
+
+  it('omits the Browse-all button when the set is small, unfiltered, and not truncated', async () => {
+    const db = openDb();
+    for (const seq of ['a', 'b']) {
+      const id = insertPhoto(db, { id: `media_handoff_quiet_${seq}`, caption: `quiet-${seq}` });
+      attachTag(db, id, 'tag-h-quiet', '#handoff_quiet');
+    }
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get('/media/gallery_handoff_quiet');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('quiet-a');
+    expect(res.text).not.toContain('Browse all matching media');
+  });
+
+  it('shows the truncation notice and an editable filter springing to /media/browse when the set overflows the cap', async () => {
+    const db = openDb();
+    for (let i = 0; i < 101; i++) {
+      const seq = String(i).padStart(3, '0');
+      const id = insertPhoto(db, {
+        id: `media_handoff_big_${seq}`,
+        caption: `handoff-big-${seq}`,
+        uploaded_at: `2026-02-01T00:${String(Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}.000Z`,
+      });
+      attachTag(db, id, 'tag-h-big', '#handoff_big');
+    }
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get('/media/gallery_handoff_big');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Showing the first 100 of 101 items.');
+    // The full set is reached by editing/applying the filter (which submits to
+    // /media/browse, paginated), not a separate Browse-all button.
+    expect(res.text).not.toContain('Browse all matching media');
+    expect(res.text).toContain('action="/media/browse"');
+    expect(res.text).toContain('name="tag" value="handoff_big" data-tag-chips');
   });
 });

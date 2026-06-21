@@ -107,8 +107,9 @@ GALLERY_LINK_URL_MAX = 2048
 # All FH curator items are file-paired sidecars under
 # /curated/{category}/<stem>.meta.json (read by seed_file_paired_sidecars).
 # The avatar lives at /curated/avatars/<stem>.<ext> with no sidecar
-# (the avatars/ subdir is the avatar marker); demo loops live in
-# /curated/landing/, event photos in /curated/events/. This list is
+# (the avatars/ subdir is the avatar marker); fixed site content (the
+# demo loops, the foundations mosaic clips, the event promo image)
+# lives in /curated/site/. This list is
 # kept as an extension hook for future items that intentionally have
 # no source binary on disk (e.g. a placeholder slot wiring up a
 # surface ahead of asset delivery), but has none today.
@@ -393,9 +394,9 @@ def seed_video_item(
             rel_video, thumbnail_url,
             width_px, height_px,
             # Basename only: source_filename is the slot identity used by
-            # cleanup_prior_for_item and runtime callers like
-            # loadCuratorDemoVideo('demo-freestyle.mp4'); the subdir prefix
-            # is implementation detail of the on-disk layout.
+            # cleanup_prior_for_item and the runtime site-media loader that
+            # resolves a registry slot (e.g. 'demo-freestyle.mp4') to its row;
+            # the subdir prefix is implementation detail of the on-disk layout.
             Path(item["video_source"]).name,
             ts, ts,
         ),
@@ -962,14 +963,12 @@ def _load_named_gallery_sidecars(source_dir: Path) -> list[dict]:
                 "sort_order": sort_order_link,
             })
 
-        # FH-owned named galleries auto-include `#curated` so the criteria
-        # query scopes to FH-uploaded items only (every FH upload carries
-        # the `#curated` tag via applyTagsForCurator). Mirrors the
-        # auto-prepend in curatorMediaService.createGallery / updateGallery
-        # for the FH-owned branch. Idempotent: if the sidecar already lists
-        # `#curated` (existing convention), the seed leaves it in place.
-        if "#curated" not in criteria_tags:
-            criteria_tags = ["#curated", *criteria_tags]
+        # FH-owned named galleries are topic-defined: their criteria are exactly
+        # what the sidecar declares. `#curated` is NOT auto-added (mirrors
+        # curatorMediaService, which also stopped auto-prepending). A curated
+        # collection lists `#curated` in its own sidecar criteria; a topic
+        # gallery (e.g. chinlone) omits it so it shows all matching content with
+        # `#curated` as the opt-in filter.
 
         loaded.append({
             "id": gallery_id,

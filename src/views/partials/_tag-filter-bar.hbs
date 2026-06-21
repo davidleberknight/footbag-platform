@@ -1,0 +1,52 @@
+{{!-- Editable, context-aware tag filter. One no-JS GET form: the active tags
+      (a named gallery's topic criteria plus any refinement) prefill two chip
+      inputs (include / exclude) that tag-chips.js enhances into tokenizers with
+      autocomplete; every chip is removable, so a visitor can refine OR broaden
+      the initial set. Context-aware suggested tags (co-occurring in the current
+      results) are quick-add submit buttons. The owner-scoping `#by_*` tag rides
+      as a hidden `?context=` input so it survives a submit and cannot be lifted.
+      An `apply` marker drives the controller's canonical PRG redirect; without
+      JS the inputs are plain prefilled text fields and the form still filters.
+      All fields are service-shaped (mediaService TagFilterView). --}}
+<section class="tag-filter-bar" aria-label="Filter media">
+  <form method="GET" action="{{filter.addAction}}" class="tag-filter-form">
+    <input type="hidden" name="apply" value="1">
+    {{#each filter.contextInputs}}
+      <input type="hidden" name="{{name}}" value="{{value}}">
+    {{/each}}
+
+    {{#if filter.contextChips.length}}
+      <p class="tag-filter-context">
+        <span class="tag-filter-context-label">Filtering within:</span>
+        {{#each filter.contextChips}}<span class="tag-filter-chip tag-filter-chip--locked">{{display}}</span>{{/each}}
+      </p>
+    {{/if}}
+
+    <div class="tag-filter-field">
+      <label class="tag-filter-field-label" for="tag-filter-include">Show media with these hashtags</label>
+      <input type="text" id="tag-filter-include" name="tag" value="{{filter.includeText}}" data-tag-chips class="browse-search-input" placeholder="e.g. butterfly clipper" aria-describedby="tag-filter-include-hint">
+      <p id="tag-filter-include-hint" class="tag-filter-hint">Type a hashtag and press Enter, remove one with ✕, or pick a suggestion below.</p>
+    </div>
+
+    <div class="tag-filter-field tag-filter-field--exclude">
+      <label class="tag-filter-field-label" for="tag-filter-exclude">Hide media with these hashtags</label>
+      <input type="text" id="tag-filter-exclude" name="exclude" value="{{filter.excludeText}}" data-tag-chips class="browse-search-input" placeholder="e.g. tutorial">
+    </div>
+
+    {{#if filter.suggestions.length}}
+      <div class="tag-filter-suggest">
+        <span class="tag-filter-suggest-label">Suggested in these results</span>
+        <ul class="tag-filter-suggest-row">
+          {{#each filter.suggestions}}
+            <li><button type="submit" name="tag" value="{{value}}" class="tag-chip tag-filter-suggest-chip">{{display}} <span class="tag-filter-count">{{count}}</span></button></li>
+          {{/each}}
+        </ul>
+      </div>
+    {{/if}}
+
+    <div class="tag-filter-actions">
+      <button type="submit" class="btn btn-primary tag-filter-apply">Apply Hashtag Filters</button>
+      <span class="tag-filter-apply-hint">Nothing changes until you apply.</span>
+    </div>
+  </form>
+</section>

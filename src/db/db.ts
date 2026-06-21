@@ -5557,9 +5557,11 @@ export const media = {
   // `#unavailable_embed` are filtered out.
   get listMediaByTrickTag() { return db.prepare(`
     SELECT mi.id, mi.video_id, mi.video_url, mi.thumbnail_url, mi.caption,
-           mi.video_platform, mi.uploaded_at, mi.source_id
+           mi.video_platform, mi.uploaded_at, mi.source_id,
+           ms.source_name, ms.creator AS source_creator, ms.url AS source_url
     FROM media_items mi
     JOIN media_tags mt ON mt.media_id = mi.id
+    LEFT JOIN media_sources ms ON ms.source_id = mi.source_id
     WHERE mt.tag_display = ?
       AND mi.media_type = 'video'
       AND mi.moderation_status = 'active'
@@ -6249,6 +6251,67 @@ export function countGalleryItemsByCriteria(
     )
   `).get(...tagIds, ...excludeTagIds, tagIds.length) as { n: number };
   return row.n;
+}
+
+// Tags that co-occur on the items matching the current criteria/exclude set,
+// ranked by how many matching items carry them. Feeds the editable filter's
+// suggestion row so a viewer narrows by tags that actually appear in the
+// current result set rather than a static popular list. Drops tags already
+// active (criteria or exclude), uploader markers (#by_*), and the always-hidden
+// #unavailable_embed. Empty criteria → empty (the suggestion row only renders in
+// results mode, which has at least one criterion).
+export function queryCooccurringTags(
+  tagIds: string[],
+  excludeTagIds: string[],
+  limit: number,
+): { id: string; tag_normalized: string; tag_display: string; n: number }[] {
+  if (tagIds.length === 0) return [];
+  const placeholders = tagIds.map(() => '?').join(',');
+  const excludeClause = excludeTagIds.length === 0
+    ? ''
+    : `AND NOT EXISTS (
+         SELECT 1 FROM media_tags mtex
+         WHERE mtex.media_id = mi.id
+           AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')})
+       )`;
+  const activeIds = [...tagIds, ...excludeTagIds];
+  const activePlaceholders = activeIds.map(() => '?').join(',');
+  return db.prepare(`
+    WITH matching AS (
+      SELECT mi.id
+      FROM media_items mi
+      JOIN media_tags mt ON mt.media_id = mi.id
+      WHERE mi.moderation_status = 'active'
+        AND mi.is_avatar = 0
+        AND mt.tag_id IN (${placeholders})
+        ${excludeClause}
+        AND NOT EXISTS (
+          SELECT 1 FROM media_tags mtu
+          JOIN tags tu ON tu.id = mtu.tag_id
+          WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+        )
+      GROUP BY mi.id
+      HAVING COUNT(DISTINCT mt.tag_id) = ?
+    )
+    SELECT t.id, t.tag_normalized,
+           MAX(mt.tag_display) AS tag_display,
+           COUNT(DISTINCT mt.media_id) AS n
+    FROM matching m
+    JOIN media_tags mt ON mt.media_id = m.id
+    JOIN tags t ON t.id = mt.tag_id
+    WHERE t.id NOT IN (${activePlaceholders})
+      AND substr(t.tag_normalized, 1, 4) <> '#by_'
+      AND t.tag_normalized <> '#unavailable_embed'
+    GROUP BY t.id
+    -- Only tags that split the set are useful filters: drop any tag carried by
+    -- every matching item (it would change nothing).
+    HAVING COUNT(DISTINCT mt.media_id) < (SELECT COUNT(*) FROM matching)
+    ORDER BY n DESC, t.tag_normalized ASC
+    LIMIT ?
+  `).all(
+    ...tagIds, ...excludeTagIds, tagIds.length,
+    ...activeIds, limit,
+  ) as { id: string; tag_normalized: string; tag_display: string; n: number }[];
 }
 
 export function queryMemberDisplayNamesBySlugs(

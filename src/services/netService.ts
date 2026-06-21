@@ -26,13 +26,12 @@ import {
   netEvents,     NetEventSummaryRow,
   netHome,       NetHomeRecentEventRow,
                  NetNotablePlayerRow,
-  CuratorSlotMediaRow, media,
 } from '../db/db';
-import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { NotFoundError } from './serviceErrors';
 import { personHref } from './personLink';
 import { shapePartnershipPair } from './playerShaping';
 import { PageViewModel } from '../types/page';
+import { loadSiteVideo } from './siteMediaService';
 import { VideoMedia, expandYouTubeVideo } from './videoMedia';
 
 // ---------------------------------------------------------------------------
@@ -92,24 +91,6 @@ interface NetDemoVideo {
   mp4Url:    string;
   posterUrl: string;
   caption:   string;
-}
-
-/**
- * Load the system-account-owned demo loop by source filename.
- * Returns null if no FH-owned media with that filename exists (e.g., before
- * the curator seed has run).
- */
-function loadCuratorDemoVideo(sourceFilename: string): NetDemoVideo | null {
-  const row = media.getCuratorMediaByFilename.get(sourceFilename) as
-    | CuratorSlotMediaRow
-    | undefined;
-  if (!row || row.media_type !== 'video' || !row.video_id) return null;
-  const adapter = getMediaStorageAdapter();
-  return {
-    mp4Url: `${adapter.constructURL(row.video_id)}?v=${row.id}`,
-    posterUrl: row.thumbnail_url ?? '',
-    caption: row.caption ?? '',
-  };
 }
 
 interface NetExploreCard {
@@ -501,8 +482,8 @@ export const netService = {
     const hasEvents = recentEventRows.length > 0;
 
     const exploreCards: NetExploreCard[] = [
-      { slug: 'teams',  label: 'Teams',  href: '/net/teams',  paragraph: 'Doubles teams with full competition records: wins, podiums, and active span. Filter by division or search by player.', linkLabel: 'Browse teams',   comingSoon: !hasTeams },
-      { slug: 'events', label: 'Events', href: '/net/events', paragraph: 'Archive of net doubles competitions with per-event appearance counts.',                                                linkLabel: 'Event archive',  comingSoon: !hasEvents },
+      { slug: 'teams',  label: 'Teams',  href: '/net/teams',  paragraph: 'Doubles teams with full competition records: wins, podiums, and active span. Filter by division or search by player.', linkLabel: 'Browse Teams',   comingSoon: !hasTeams },
+      { slug: 'events', label: 'Events', href: '/net/events', paragraph: 'Archive of net doubles competitions with per-event appearance counts.',                                                linkLabel: 'Event Archive',  comingSoon: !hasEvents },
     ];
 
     return {
@@ -517,7 +498,7 @@ export const netService = {
         mascotSrc:           '/img/net-mascot.svg',
         mascotAlt:           'Footbag net icon',
         intro:               NET_LANDING_INTRO,
-        demoVideo:           loadCuratorDemoVideo('demo-net.mp4'),
+        demoVideo:           loadSiteVideo('net_demo'),
         competitionFormats:  NET_COMPETITION_FORMATS,
         exploreCards,
         recentEvents:        recentEventRows.map(shapeHomeRecentEvent),

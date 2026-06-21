@@ -49,14 +49,14 @@
           <label for="club_external_url">External URL (verified before it appears publicly; leave blank to remove)</label>
           <input id="club_external_url" name="external_url" maxlength="2048" value="{{content.club.externalUrl}}" />
         </div>
-        <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
+        <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
       </form>
     </section>
     {{/if}}
 
     {{#if content.club.viewGalleryHref}}
     <div class="club-gallery-link">
-      <a href="{{content.club.viewGalleryHref}}" class="btn btn-outline">View gallery</a>
+      <a href="{{content.club.viewGalleryHref}}" class="btn btn-outline">View Gallery</a>
     </div>
     {{/if}}
 
@@ -93,7 +93,7 @@
         <p class="badge">You are a member of this club</p>
       {{else if content.club.viewerCanJoin}}
         <form method="POST" action="{{content.club.joinHref}}">
-          <button type="submit" class="btn btn-primary">Join this club</button>
+          <button type="submit" class="btn btn-primary">Join This Club</button>
         </form>
       {{/if}}
     </div>
@@ -106,7 +106,7 @@
       {{/if}}
       {{#if content.club.viewerCanVolunteer}}
         <form method="POST" action="{{content.club.volunteerHref}}">
-          <button type="submit" class="btn btn-primary">Volunteer to co-lead this club</button>
+          <button type="submit" class="btn btn-primary">Volunteer to Co-lead This Club</button>
         </form>
       {{/if}}
       {{#if content.club.viewerIsLeader}}

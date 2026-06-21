@@ -201,7 +201,7 @@ describe('club routes: leave confirmation and reactivate', () => {
       .send({});
     expect(res.status).toBe(200);
     expect(res.text).toContain('only co-leader');
-    expect(res.text).toContain('Leave anyway');
+    expect(res.text).toContain('Leave Anyway');
     // The "Manage co-leaders" affordance points back at the club page.
     expect(res.text).toContain('/clubs/club_leave_confirm');
     // Still a current member: the warning did not leave the club.

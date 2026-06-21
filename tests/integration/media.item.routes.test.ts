@@ -152,6 +152,23 @@ describe('GET /media/item/:mediaId — tag-query context', () => {
     expect(res.text).not.toContain('rel="next"');
   });
 
+  it('shows the item title in the hero once (no duplicate heading or caption) and a position indicator', async () => {
+    const res = await request(createApp()).get(`/media/item/${ITEM_B}?tag=wrapset`);
+    expect(res.status).toBe(200);
+    // No collection here, so the hero IS the item's own title; it must not also
+    // repeat as an above-media heading or a below-media caption.
+    const hero = res.text.slice(
+      res.text.search(/class="hero hero-sm[^"]*"/),
+      res.text.indexOf('class="gallery-item-detail'),
+    );
+    expect(hero).toContain('wrap-item-b');
+    expect(res.text).not.toContain('class="gallery-item-title"');
+    expect(res.text).not.toContain('gallery-item-caption');
+    // The set walks C, B, A (upload-desc), so ITEM_B is the second of three.
+    expect(res.text).toContain('class="gallery-item-position"');
+    expect(res.text).toContain('2 of 3');
+  });
+
   it('resolves the item with the tag cap applied when over-many include tags are supplied', async () => {
     // Thirteen include tokens all carried by ITEM_C; the cap keeps twelve, and
     // the AND of those still matches the item, so it resolves without error.
@@ -169,13 +186,15 @@ describe('GET /media/item/:mediaId — tag-query context', () => {
     expect(res.text).toContain('wrap-item-c');
   });
 
-  it('gates uploader attribution for an anonymous viewer while keeping the pager links', async () => {
+  it('links the uploader attribution to the member gallery for an anonymous viewer, keeping the pager', async () => {
     const res = await request(createApp()).get(`/media/item/${ITEM_B}?tag=wrapset`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Uploaded by');
     expect(res.text).toContain('Item Regular');
+    // The name links to that member's public gallery, never the member-only profile.
+    expect(res.text).toContain('href="/media/browse?tag&#x3D;by_item_regular"');
     expect(res.text).not.toMatch(/href="\/members\/item_regular"/);
-    // Viewer gating nulls profile links, never the item pager links.
+    // The attribution-link change never touches the pager links.
     expect(res.text).toContain('rel="prev"');
     expect(res.text).toContain('rel="next"');
   });

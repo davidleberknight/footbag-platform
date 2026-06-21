@@ -146,12 +146,12 @@ describe('memberOnboardingService.getDashboardTaskWidget', () => {
     expect(paused.sourceCard).toBe('card_club_affiliations');
     expect(paused.resumeUrl).toBe('/register/wizard/club_affiliations');
     expect(paused.taskLabel).toBe('Club affiliation');
-    expect(paused.ctaLabel).toBe('Resume onboarding');
+    expect(paused.ctaLabel).toBe('Resume Onboarding');
     expect(paused.ctaHref).toBe('/register/wizard/club_affiliations');
 
     const pendingLegacy = widget.pending.find((t) => t.taskType === 'legacy_claim')!;
     expect(pendingLegacy.taskLabel).toBe('Find your past records');
-    expect(pendingLegacy.ctaLabel).toBe('Continue onboarding');
+    expect(pendingLegacy.ctaLabel).toBe('Continue Onboarding');
     expect(pendingLegacy.ctaHref).toBe('/register/wizard/legacy_claim');
 
     expect(widget.hasOutstanding).toBe(true);

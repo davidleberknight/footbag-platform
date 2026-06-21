@@ -3,7 +3,7 @@
  *
  * When a club's standard tag has at least one active, non-avatar media item
  * tagged with it, the detail page renders a "View gallery" link pointing to
- * /media/browse?tag=<club_key>. When no media exists, the link is absent.
+ * /media/browse?context=<club_key>. When no media exists, the link is absent.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -76,8 +76,8 @@ describe('GET /clubs/:key -- gallery link', () => {
     const app = createApp();
     const res = await request(app).get('/clubs/club_portland');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('View gallery');
-    expect(res.text).toContain('/media/browse?tag');
+    expect(res.text).toContain('View Gallery');
+    expect(res.text).toContain('/media/browse?context');
     expect(res.text).toContain('club_portland');
   });
 

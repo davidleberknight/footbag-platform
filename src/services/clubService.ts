@@ -1356,7 +1356,9 @@ export class ClubService {
       if (tagRow) {
         const mediaCount = countGalleryItemsByCriteria([tagRow.id]);
         if (mediaCount > 0) {
-          club.viewGalleryHref = `/media/browse?tag=${encodeURIComponent(club.clubKey)}`;
+          // `context=` locks the club hashtag as the gallery's context so a
+          // visitor stays inside the club's media while refining within it.
+          club.viewGalleryHref = `/media/browse?context=${encodeURIComponent(club.clubKey)}`;
         }
       }
 

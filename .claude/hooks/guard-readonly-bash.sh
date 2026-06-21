@@ -19,6 +19,35 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])find([[:space:]].*)?[[:s
   exit 0
 fi
 
+# sort writing its output to a file (-o / --output) — a write via a flag, not a
+# shell redirect, so the redirect guard below cannot see it. `sort` is on the
+# read-only allow-list (it reads in its common form), so without this it would
+# auto-approve a file truncate.
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])sort([[:space:]].*)?[[:space:]](-o[[:space:]]|-o$|--output)'; then
+  jq -n '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason: "sort -o / --output writes a file. Confirm before running."
+    }
+  }'
+  exit 0
+fi
+
+# find writing to a file via -fprint / -fprintf / -fls — write predicates that
+# can appear anywhere in the args (like -delete). `find` is on the read-only
+# allow-list, so these need an explicit ask.
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])find([[:space:]].*)?[[:space:]]-(fprint|fprintf|fls)([[:space:]]|$)'; then
+  jq -n '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason: "find with -fprint/-fprintf/-fls writes a file. Confirm before running."
+    }
+  }'
+  exit 0
+fi
+
 # curl with state-changing HTTP methods — -X POST/PUT/DELETE/PATCH can appear
 # anywhere in a long curl invocation, so again not expressible as a static rule.
 if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]].*)?[[:space:]](-X[[:space:]]+(POST|PUT|DELETE|PATCH)|--request[[:space:]]+(POST|PUT|DELETE|PATCH))([[:space:]]|$)'; then

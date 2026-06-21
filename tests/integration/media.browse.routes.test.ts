@@ -194,14 +194,17 @@ describe('GET /media/browse — results mode', () => {
     expect(res.text).not.toContain('photo-removed-marker');
   });
 
-  it('hides the filter form and shows a back-to-browse link in results mode', async () => {
+  it('replaces the browse-mode search form with the batch filter bar and a back-to-browse link in results mode', async () => {
     const app = createApp();
     const res = await request(app).get('/media/browse?tag=butterfly');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('class="form-block"');
-    expect(res.text).not.toContain('name="exclude"');
+    // The browse-mode search form is hidden in results mode...
+    expect(res.text).not.toContain('class="browse-search-form"');
+    // ...replaced by the chip-input filter bar and a back-to-browse link.
+    expect(res.text).toContain('class="tag-filter-bar"');
+    expect(res.text).toContain('Apply Hashtag Filters');
     expect(res.text).toContain('href="/media/browse"');
-    expect(res.text).toContain('Browse all media');
+    expect(res.text).toContain('Browse All Media');
   });
 
   it('AND-matches multiple ?tag= criteria (repeated arg form)', async () => {

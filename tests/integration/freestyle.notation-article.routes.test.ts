@@ -37,7 +37,7 @@ describe('Glossary Jobs-notation section — source-location prose removed', () 
   it('links to the article page and keeps only the historical citation', async () => {
     const html = await glossary();
     expect(html).toContain('href="/freestyle/notation-article"');
-    expect(html).toContain('To see the entire article, press here.');
+    expect(html).toContain('To See the Entire Article, Press Here.');
     expect(html).toContain('Source: Ben Job');
   });
 

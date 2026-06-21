@@ -1,0 +1,13 @@
+{
+  "id": "gallery_foundations_of_freestyle",
+  "name": "Foundations of Freestyle",
+  "description": "The twelve foundational freestyle footbag moves. Almost every trick is built from these core movements.",
+  "sortOrder": "caption_asc",
+  "criteriaTags": [
+    "#curated",
+    "#freestyle",
+    "#demo_mosaic"
+  ],
+  "excludeTags": [],
+  "externalLinks": []
+}

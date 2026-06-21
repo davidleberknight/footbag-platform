@@ -95,7 +95,7 @@ describe('freestyle landing foundational-tricks mosaic', () => {
 
   // Seeds one clip cell (runs last: the seeded clip would otherwise flip the
   // no-clips placeholder state the empty-state test above relies on).
-  it('does not autoplay; each clip cell is a click-to-play toggle with an accessible label', async () => {
+  it('renders each seeded clip cell as a link into the Foundations of Freestyle gallery (no inline play)', async () => {
     const seedDb = new BetterSqlite3(dbPath);
     try {
       const fhId = insertMember(seedDb, { is_system: 1, slug: 'fh-mosaic' });
@@ -113,18 +113,18 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     const start = res.text.indexOf('class="tricks-mosaic"');
     const mosaic = res.text.slice(start, res.text.indexOf('</section>', start));
 
-    // the seeded clip renders a <video> that does NOT autoplay
+    // The cell is a link into the named gallery's item viewer; playback happens
+    // there, like every other gallery video. No inline <video>, no autoplay.
+    expect(mosaic).toContain('class="tricks-mosaic-link"');
+    expect(mosaic).toContain('href="/media/gallery_foundations_of_freestyle/');
+    expect(mosaic).toContain('aria-label="Watch Toe Delay"');
     expect(mosaic).toContain('class="tricks-mosaic-media"');
+    expect(mosaic).not.toContain('<video');
     expect(mosaic).not.toContain('autoplay');
-    // click-to-play toggle button with a Play/Pause accessible label
-    expect(mosaic).toContain('class="tricks-mosaic-toggle"');
-    expect(mosaic).toContain('aria-label="Play Toe Delay"');
-    expect(mosaic).toContain('aria-pressed="false"');
-    // resting playback attributes preserved
-    expect(mosaic).toContain('loop');
-    expect(mosaic).toContain('muted');
-    expect(mosaic).toContain('playsinline');
-    // the click-to-play driver is loaded (content-hash versioned asset URL)
-    expect(res.text).toMatch(/\/js\/freestyle-mosaic\.js\?v=[0-9a-f]{10}/);
+    // A section-level link surfaces the full gallery beyond the twelve cells.
+    expect(mosaic).toContain('href="/media/gallery_foundations_of_freestyle"');
+    expect(mosaic).toContain('See All Foundations');
+    // No play-toggle driver is loaded anymore.
+    expect(res.text).not.toMatch(/freestyle-mosaic\.js/);
   });
 });

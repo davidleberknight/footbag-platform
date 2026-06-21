@@ -104,7 +104,7 @@ describe('stored-sample replay', () => {
     const res = await request(createApp()).get('/members/profile/LM-2002');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Unclaimed Person');
-    expect(res.text).toContain('Create an account');
+    expect(res.text).toContain('Create an Account');
   });
 
   it('the unclaimed soft landing shows the display name and claim CTA to signed-in visitors', async () => {
@@ -113,6 +113,6 @@ describe('stored-sample replay', () => {
       .set('Cookie', `footbag_session=${createTestSessionJwt({ memberId: 'mem-viewer' })}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Unclaimed Person');
-    expect(res.text).toContain('Claim your footbag.org history');
+    expect(res.text).toContain('Claim Your footbag.org History');
   });
 });

@@ -23,6 +23,10 @@
     </ul>
   {{/if}}
 
+  {{#if content.filter}}
+    {{> _tag-filter-bar filter=content.filter}}
+  {{/if}}
+
   {{#if content.truncationNotice}}
     <div class="notice notice-info">{{content.truncationNotice}}</div>
   {{/if}}
@@ -48,3 +52,4 @@
   {{/if}}
 
 </div>
+<script src="{{{asset 'js/tag-chips.js'}}}" defer></script>

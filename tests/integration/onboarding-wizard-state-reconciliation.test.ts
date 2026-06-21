@@ -201,7 +201,7 @@ describe('A6 + A7: skipped tasks land in the skipped bucket, not the in-sequence
     expect(widget.skipped.map((t) => t.taskType)).toContain('club_affiliations');
     expect(widget.pending.map((t) => t.taskType)).not.toContain('club_affiliations');
     const skipped = widget.skipped.find((t) => t.taskType === 'club_affiliations')!;
-    expect(skipped.ctaLabel).toBe('Resume task');
+    expect(skipped.ctaLabel).toBe('Resume Task');
   });
 });
 

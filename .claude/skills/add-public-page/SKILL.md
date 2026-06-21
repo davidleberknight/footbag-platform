@@ -82,6 +82,7 @@ Before finishing, review all new or changed templates and CSS for responsive cor
 - Common pitfalls: horizontal overflow from fixed-width elements, side-by-side rows that do not stack, text truncation, touch targets too small, identity/detail rows that need vertical stacking on narrow screens.
 - **Form structure:** the page's primary `<form>` is not nested inside another form, and its submit control sits inside it or is wired via `form="id"`; independent POST actions are sibling forms, never nested. A nested form closes the outer one early and silently orphans the submit button.
 - **Class vocabulary:** every CSS class in new or changed markup must have a rule in `src/public/css/style.css`; grep for each class you introduce before finishing. Shared button classes are `.btn-primary`, `.btn-outline`, and `.btn-inverse` (white fill with teal text, for CTAs on dark gradient panels) only; secondary content blocks use the standard card pattern (`.card`, `.card-title`, `.card-description`). An unknown class fails nothing and renders silently unstyled, so a plausible-looking name (`btn-secondary`) passes visual review while violating the CSS vocabulary. Never invent a class name by analogy; verify it exists or add it to `style.css` in the same change.
+- **Button label casing:** Title Case — capitalize each word except the minor words `a an as the and or nor but to of in on at by for` (unless first or last word). See `.claude/rules/view-layer.md`.
 
 If in doubt about a layout, flag it to the human rather than shipping something that looks broken on mobile.
 

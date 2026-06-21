@@ -65,6 +65,7 @@ Verification defaults: confirm what success looks like for the task, prefer rout
 - Make surgical changes scoped to the current slice: no speculative abstraction, flexibility, or scope creep; no refactoring unrelated code, unnecessary formatting or comment changes. 
 - Use the Explore sub-agent for broad codebase searches; use the Plan sub-agent for sequencing or architecture tasks. Both protect the main context window.
 - Single Bash commands over compound pipelines (`cmd1 && cmd2`); compounds trigger per-component permission prompts.
+- Edit files only through the Edit/Write tools; never `sed -i`, `perl -i`, in-place `awk`, `tee`, or shell redirection to write a file. Those bypass the diff preview and are permission-gated. Bash is for read-only inspection and running commands, not editing files.
 
 ## Skills
 

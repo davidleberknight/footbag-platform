@@ -8,7 +8,7 @@
   <section>
     {{#if content.isGranted}}
       <p class="form-success-banner" role="status">Administrator access granted. The bootstrap token has been consumed.</p>
-      <p><a href="/admin" class="btn btn-primary">Go to the admin dashboard</a></p>
+      <p><a href="/admin" class="btn btn-primary">Go to the Admin Dashboard</a></p>
     {{else}}
       {{#if content.isInvalid}}
         <p class="form-notice" role="alert">That token was not accepted.</p>
@@ -19,7 +19,7 @@
           <label for="token">Bootstrap token</label>
           <input type="password" id="token" name="token" required autocomplete="off" />
         </div>
-        <button type="submit" class="btn btn-primary">Claim administrator access</button>
+        <button type="submit" class="btn btn-primary">Claim Administrator Access</button>
       </form>
     {{/if}}
   </section>

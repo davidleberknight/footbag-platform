@@ -52,7 +52,6 @@ import {
   FreestyleMilestoneRow, FreestyleCareerRow, FreestyleNationRow,
   FreestyleWorldChampionRow, FreestyleDecadeNationRow, FreestyleFormatEventRow,
   FreestylePartnershipRow,
-  CuratorSlotMediaRow,
   freestyleRecords, freestyleTricks, freestyleTrickModifiers, freestyleTrickAliases,
   freestyleMediaLinks,
   freestyleCompetition, freestylePartnerships, media,
@@ -126,7 +125,8 @@ import {
 import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
-import { TRICKS_MOSAIC, mosaicClipFilename } from '../content/freestyleTricksMosaic';
+import { TRICKS_MOSAIC } from '../content/freestyleTricksMosaic';
+import { loadSiteVideo, loadMosaicVideo } from './siteMediaService';
 import {
   CORE_ATOM_EDUCATIONAL,
   isCoreAtom,
@@ -361,24 +361,6 @@ export function shapeMediaTagsForBrowse(
   return out;
 }
 
-/**
- * Load the system-account-owned demo loop by source filename.
- * Returns null if no FH-owned media with that filename exists (e.g., before
- * the curator seed has run).
- */
-function loadCuratorDemoVideo(sourceFilename: string): FreestyleDemoVideo | null {
-  const row = media.getCuratorMediaByFilename.get(sourceFilename) as
-    | CuratorSlotMediaRow
-    | undefined;
-  if (!row || row.media_type !== 'video' || !row.video_id) return null;
-  const adapter = getMediaStorageAdapter();
-  return {
-    mp4Url: `${adapter.constructURL(row.video_id)}?v=${row.id}`,
-    posterUrl: row.thumbnail_url ?? '',
-    caption: row.caption ?? '',
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Shaped types for templates
 // ---------------------------------------------------------------------------
@@ -518,7 +500,9 @@ export interface MediaTagDisplay {
 export interface FreestyleMosaicCell {
   slug: string;
   label: string;
-  href: string;
+  // Media view page for this clip in the Foundations of Freestyle gallery;
+  // null when the clip is not seeded (cell renders as an inert placeholder).
+  href: string | null;
   mp4Url: string | null;
   posterUrl: string | null;
 }
@@ -749,6 +733,10 @@ interface TrickRefMediaRow {
   video_platform: string | null;
   uploaded_at: string;
   source_id: string | null;
+  // Joined from media_sources (null for member uploads, which carry no source).
+  source_name: string | null;
+  source_creator: string | null;
+  source_url: string | null;
 }
 
 // ── Semantic-notation fallback ladder (NF-2B) ────────────────────────────
@@ -1030,7 +1018,11 @@ function shapeReferenceMedia(
     mediaId: row.id,
     media,
     caption: row.caption ?? null,
-    sourceLabel: row.source_id ? (SOURCE_LABELS[row.source_id] ?? row.source_id) : null,
+    sourceLabel: row.source_id ? (SOURCE_LABELS[row.source_id] ?? row.source_name ?? row.source_id) : null,
+    sourceCreator: row.source_creator && row.source_creator.trim() ? row.source_creator.trim() : null,
+    // Only surface a clickable source when the joined URL is an absolute
+    // http(s) link; a stored relative or empty value renders as no link.
+    sourceUrl: row.source_url && /^https?:\/\//i.test(row.source_url) ? row.source_url : null,
     tags: shapeMediaTagsForBrowse(rawTags, { surfaceContext: 'freestyle-only' }),
   };
 }
@@ -1443,13 +1435,10 @@ export interface FreestyleTrickContent {
   tutorialMedia: TrickReferenceMediaItem[];
   demoMedia: TrickReferenceMediaItem[];
   hasReferenceMedia: boolean;            // pre-shaped: tutorialMedia.length || demoMedia.length
-  // Section heading reflects what's actually inside the Reference Media block
-  // so wording cannot conflate tutorials with demos:
-  //   - 'Tutorials and demonstrations' when both are present
-  //   - 'Tutorials'                     when tutorial-tier only
-  //   - 'Demonstrations'                when demo-tier only
-  //   - null                            when neither (section omitted via hasReferenceMedia)
-  referenceMediaHeading: string | null;
+  // Link to the full gallery for this trick (the dynamic tag-set gallery at
+  // /media/browse?context=<slug>, the slug locked as context), shown when the
+  // trick has reference media so the viewer can open it. Null when none.
+  referenceGalleryHref: string | null;
   // Pathways block: pre-shaped summary of Learn / Watch / Family availability
   // for the new "What you can do with this trick" panel near the top of the
   // detail page. All anchor hrefs are pre-built so templates render only.
@@ -1769,6 +1758,11 @@ export interface TrickReferenceMediaItem {
   media: VideoMedia | null;
   caption: string | null;
   sourceLabel: string | null;         // human-friendly source label, e.g. 'Tricks of the Trade'
+  // Creator/source attribution joined from media_sources. Optional so the many
+  // editorial constructors (which carry no media-source row) need not set them.
+  // Null for member uploads and any source row missing the field.
+  sourceCreator?: string | null;      // e.g. 'Honza Weber'
+  sourceUrl?: string | null;          // absolute http(s) link to the source page, else null
   // Hashtag chips for the visible symbolic-navigation layer (F7). Shaped via
   // shapeMediaTagsForBrowse: noise (`#trick`, `#unavailable_embed`, `#freestyle`
   // on freestyle-only surfaces) suppressed; remainder sorted by kind precedence.
@@ -6449,7 +6443,9 @@ export const freestyleService = {
    * (`trick-notation`) reading Movement notation -> Execution notation -> ADD,
    * the same for bases and derivatives.
    */
-  getTrickDetailPage(rawSlug: string): PageViewModel<FreestyleTrickContent> {
+  getTrickDetailPage(
+    rawSlug: string,
+  ): PageViewModel<FreestyleTrickContent> {
     // A record or media link may address a trick by an alias slug; resolve it
     // to the canonical trick so the alias URL renders the canonical page.
     const aliasCanonical = runSqliteRead('freestyleTrickAliases.getCanonicalForAlias', () =>
@@ -6630,11 +6626,16 @@ export const freestyleService = {
           if (arr) arr.push(t.tag_display);
           else tagsByMediaId.set(t.media_id, [t.tag_display]);
         }
+        // Reference media tagged with the trick (curator clips + member uploads),
+        // split into tutorial and demonstration buckets by source tier. Records
+        // render in the Passback Records table below, not here.
         const tutorialMedia: TrickReferenceMediaItem[] = [];
         const demoMedia: TrickReferenceMediaItem[] = [];
+        let nonRecordRefCount = 0;
         for (const r of allRefMedia) {
           const tier = tierOf(r.source_id);
           if (tier === 'RECORD') continue;
+          nonRecordRefCount++;
           const shaped = shapeReferenceMedia(r, tagsByMediaId.get(r.id) ?? []);
           if (tier === 'TUTORIAL') {
             tutorialMedia.push(shaped);
@@ -6647,10 +6648,12 @@ export const freestyleService = {
           }
         }
         const hasReferenceMedia = tutorialMedia.length > 0 || demoMedia.length > 0;
-        const referenceMediaHeading: string | null =
-          tutorialMedia.length > 0 && demoMedia.length > 0 ? 'Tutorials and demonstrations'
-          : tutorialMedia.length > 0                       ? 'Tutorials'
-          : demoMedia.length > 0                           ? 'Demonstrations'
+        const hasAnyReferenceMedia = nonRecordRefCount > 0;
+        // The trick's full gallery is the dynamic tag-set gallery for its slug.
+        // The slug rides as a locked context token (matching club/event/member
+        // gallery links) so it renders non-removable in the gallery's filter bar.
+        const referenceGalleryHref = hasAnyReferenceMedia
+          ? `/media/browse?context=${encodeURIComponent(slug)}`
           : null;
 
         const familySlug = effectiveFamilySlug;
@@ -6881,7 +6884,7 @@ export const freestyleService = {
           tutorialMedia,
           demoMedia,
           hasReferenceMedia,
-          referenceMediaHeading,
+          referenceGalleryHref,
           pathways,
           notationGrammar: dictRow
             ? shapeNotationGrammar(
@@ -6967,7 +6970,7 @@ export const freestyleService = {
             hasUx2Prose: shapeUx2PilotFromRow(dictRow, currentRows.length) !== null,
           }),
           hasMediaBlock:
-            hasReferenceMedia ||
+            hasAnyReferenceMedia ||
             shapeUx2PilotFromRow(dictRow, currentRows.length) !== null,
           heroFormula: dictEntry
             ? buildHeroFormula(
@@ -10543,11 +10546,14 @@ export const freestyleService = {
     const totalRecords = typeCounts.reduce((sum, r) => sum + r.n, 0);
 
     const tricksMosaic = TRICKS_MOSAIC.map((atom) => {
-      const clip = loadCuratorDemoVideo(mosaicClipFilename(atom.slug));
+      const clip = loadMosaicVideo(atom.slug);
       return {
         slug: atom.slug,
         label: atom.label,
-        href: `/freestyle/tricks/${atom.slug}`,
+        // Each clip opens its media view page in the Foundations of Freestyle
+        // gallery (id must match curated/galleries/foundations_of_freestyle.json),
+        // so the mosaic behaves like every other video grid; null when unseeded.
+        href: clip ? `/media/gallery_foundations_of_freestyle/${clip.mediaId}` : null,
         mp4Url: clip?.mp4Url ?? null,
         posterUrl: clip?.posterUrl ?? null,
       };
@@ -10586,7 +10592,7 @@ export const freestyleService = {
             'The vocabulary builds from a small set of foundational moves that compose richly. Stalls (the bag at rest on the top of the foot, the side of the foot, or other body surfaces). Dexterities (circling motions of a leg around the bag). Body modifiers (spins, ducks, jumps, steps). Structural sets (the launching motion that opens the trick). Combinations are nearly endless, and the language of freestyle is what makes the combinations legible.',
           ],
         },
-        demoVideo: loadCuratorDemoVideo('demo-freestyle.mp4'),
+        demoVideo: loadSiteVideo('freestyle_demo'),
         // Merged Featured strip:
         // Competition Formats (4) + Demonstrations (2) rendered as one
         // compact curated grid. Formats lead because they're conceptual

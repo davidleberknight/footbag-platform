@@ -29,12 +29,12 @@
         <form method="POST" action="/register/wizard/club_affiliations/leadership-offer" class="candidate-card-action">
           <input type="hidden" name="clubId" value="{{this.clubId}}" />
           <input type="hidden" name="decision" value="accept" />
-          <button type="submit" class="btn btn-primary">Yes, make me the contact</button>
+          <button type="submit" class="btn btn-primary">Yes, Make Me the Contact</button>
         </form>
         <form method="POST" action="/register/wizard/club_affiliations/leadership-offer" class="candidate-card-action">
           <input type="hidden" name="clubId" value="{{this.clubId}}" />
           <input type="hidden" name="decision" value="decline" />
-          <button type="submit" class="btn btn-outline">No thanks</button>
+          <button type="submit" class="btn btn-outline">No Thanks</button>
         </form>
       </div>
     {{/each}}
@@ -101,13 +101,13 @@
             {{/each}}
           </ul>
 
-          <button type="submit" class="btn btn-primary mt-4">Confirm selection</button>
+          <button type="submit" class="btn btn-primary mt-4">Confirm Selection</button>
         </form>
 
         <p class="audit-notice text-muted fs-sm mt-4">This decision is recorded.</p>
 
         <form method="POST" action="{{content.skipHref}}" class="mt-6">
-          <button type="submit" class="btn-link text-muted">Skip remaining clubs for now</button>
+          <button type="submit" class="btn-link text-muted">Skip Remaining Clubs for Now</button>
         </form>
       {{/if}}
 
@@ -134,28 +134,28 @@
 
         <p class="audit-notice text-muted fs-sm mb-4">Both answers required. Your answers will be saved.</p>
 
-        <button type="submit" class="btn btn-primary">Save answers</button>
+        <button type="submit" class="btn btn-primary">Save Answers</button>
       </form>
 
       <p class="text-muted fs-sm mt-4">Not the right club? <a href="{{content.clubsBrowseHref}}">Browse all clubs</a> to find yours; you can come back to finish onboarding from your dashboard.</p>
 
       <form method="POST" action="{{content.skipHref}}" class="mt-6">
-        <button type="submit" class="btn-link text-muted">Skip remaining clubs for now</button>
+        <button type="submit" class="btn-link text-muted">Skip Remaining Clubs for Now</button>
       </form>
       {{/unless}}
     {{else}}
       <h2>Find or create your club</h2>
       <p>We didn't link a club to your account. You can find your local club on the clubs page and join it there, or create a new club if yours isn't listed.</p>
-      <p class="mt-4"><a href="/clubs" class="btn btn-outline">Browse clubs</a> {{#if content.memberCountry}}<a href="{{content.clubsBrowseHref}}" class="btn btn-outline">Clubs in {{content.memberCountry}}</a>{{/if}}</p>
+      <p class="mt-4"><a href="/clubs" class="btn btn-outline">Browse Clubs</a> {{#if content.memberCountry}}<a href="{{content.clubsBrowseHref}}" class="btn btn-outline">Clubs in {{content.memberCountry}}</a>{{/if}}</p>
       {{#if content.canCreateClub}}
-        <p class="mt-2"><a href="/clubs/create" class="btn btn-primary">Create a new club</a></p>
+        <p class="mt-2"><a href="/clubs/create" class="btn btn-primary">Create a New Club</a></p>
       {{else}}
         <div class="notice-card notice-card--warn mt-4">
           <p class="m-0">Creating a club requires IFPA Membership (Tier 1) because you become the club's first co-leader. You can upgrade from your profile page and come back any time.</p>
         </div>
       {{/if}}
       <form method="POST" action="{{content.skipHref}}" class="mt-6">
-        <button type="submit" class="btn-link text-muted">Skip for now</button>
+        <button type="submit" class="btn-link text-muted">Skip for Now</button>
       </form>
     {{/if}}
 

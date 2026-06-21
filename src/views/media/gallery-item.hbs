@@ -5,31 +5,36 @@
 </div>
 
 <div class="wrapper">
-  <article class="gallery-item-detail">
+  <article class="gallery-item-detail" data-back-href="{{content.backHref}}"{{#if content.prevHref}} data-prev-href="{{content.prevHref}}"{{/if}}{{#if content.nextHref}} data-next-href="{{content.nextHref}}"{{/if}}>
     <nav class="gallery-item-pager">
       {{#if content.showPager}}
         {{#if content.prevHref}}<a href="{{content.prevHref}}" class="btn btn-outline" rel="prev">Previous</a>{{/if}}
         <a href="{{content.backHref}}" class="btn btn-outline">{{content.backLabel}}</a>
         {{#if content.nextHref}}<a href="{{content.nextHref}}" class="btn btn-outline" rel="next">Next</a>{{/if}}
+        {{#if content.position}}<span class="gallery-item-position">{{content.position.current}} of {{content.position.total}}</span>{{/if}}
       {{else}}
         <a href="{{content.backHref}}" class="btn btn-outline">{{content.backLabel}}</a>
       {{/if}}
     </nav>
 
+    {{#if content.itemTitle}}
+      <h2 class="gallery-item-title">{{content.itemTitle}}</h2>
+    {{/if}}
+
     <div class="gallery-item-media">
       {{#if content.item.media}}
-        {{> video-facade media=content.item.media}}
+        {{> video-facade media=content.item.media eager=true}}
       {{else}}
-        <img src="{{content.item.displayHref}}" alt="{{content.item.caption}}" />
+        <img src="{{content.item.displayHref}}" alt="{{content.item.alt}}"{{#if content.item.width}} width="{{content.item.width}}"{{/if}}{{#if content.item.height}} height="{{content.item.height}}"{{/if}} decoding="async" />
       {{/if}}
     </div>
 
-    {{#if content.item.caption}}
-      <p class="gallery-item-caption">{{content.item.caption}}</p>
-    {{/if}}
-
     {{#if content.uploadedBy}}
       <p class="gallery-item-uploader">Uploaded by {{#if content.uploadedBy.href}}<a href="{{content.uploadedBy.href}}" class="tag-chip-link">{{content.uploadedBy.display}}</a>{{else}}{{content.uploadedBy.display}}{{/if}}</p>
+    {{/if}}
+
+    {{#if content.curatedHref}}
+      <p class="gallery-item-uploader"><a href="{{content.curatedHref}}" class="tag-chip-link">Curated</a></p>
     {{/if}}
 
     {{#if content.tags.length}}
@@ -43,3 +48,5 @@
     <p class="gallery-tile-date"><time datetime="{{content.item.uploadedAtIso}}">{{content.item.uploadedAtDisplay}}</time></p>
   </article>
 </div>
+
+<script src="{{{asset 'js/media-item-nav.js'}}}" defer></script>

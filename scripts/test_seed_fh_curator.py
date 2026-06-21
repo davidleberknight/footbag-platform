@@ -69,18 +69,21 @@ def test_seed_fh_curator_against_fresh_schema() -> None:
         # media_sources table from the committed CSV so the sidecar
         # `sourceId` FK resolves.
         source_dir.mkdir()
-        for subdir in ("avatars", "events", "galleries"):
+        for subdir in ("avatars", "galleries"):
             (source_dir / subdir).symlink_to(REPO_ROOT / "curated" / subdir)
-        # Controlled landing fixture: copy only the two demo loops so the seeder
-        # sees exactly two videos, independent of how many demo/mosaic loops the
-        # real curated/landing/ accumulates over time. Keeps the seeded input
-        # deterministic and avoids transcoding the full mosaic set every run.
-        landing = source_dir / "landing"
-        landing.mkdir()
-        real_landing = REPO_ROOT / "curated" / "landing"
+        # Controlled site fixture: copy only the two demo loops and the event
+        # promo photo so the seeder sees exactly two videos + one photo,
+        # independent of how many mosaic loops the real curated/site/ accumulates
+        # over time. Keeps the seeded input deterministic and avoids transcoding
+        # the full mosaic set every run.
+        site = source_dir / "site"
+        site.mkdir()
+        real_site = REPO_ROOT / "curated" / "site"
         for stem in ("demo-freestyle", "demo-net"):
             for suffix in (".meta.json", ".mp4", ".poster.jpg"):
-                shutil.copy2(real_landing / f"{stem}{suffix}", landing / f"{stem}{suffix}")
+                shutil.copy2(real_site / f"{stem}{suffix}", site / f"{stem}{suffix}")
+        for suffix in (".meta.json", ".jpg"):
+            shutil.copy2(real_site / f"japan-worlds-2026{suffix}", site / f"japan-worlds-2026{suffix}")
 
         # Apply current schema.sql to a fresh DB.
         subprocess.run(
@@ -931,13 +934,13 @@ def test_file_paired_orphan_cleanup() -> None:
         misc.mkdir()
         # Drop two file-paired entries.
         (misc / "alpha.jpg").write_bytes(
-            (REPO_ROOT / "curated" / "events" / "japan-worlds-2026.jpg").read_bytes()
+            (REPO_ROOT / "curated" / "site" / "japan-worlds-2026.jpg").read_bytes()
         )
         (misc / "alpha.meta.json").write_text(
             json.dumps({"caption": "alpha", "tags": ["#alpha"]})
         )
         (misc / "beta.jpg").write_bytes(
-            (REPO_ROOT / "curated" / "events" / "japan-worlds-2026.jpg").read_bytes()
+            (REPO_ROOT / "curated" / "site" / "japan-worlds-2026.jpg").read_bytes()
         )
         (misc / "beta.meta.json").write_text(
             json.dumps({"caption": "beta", "tags": ["#beta"]})
@@ -1086,18 +1089,21 @@ def test_fh_historical_person_link_converges_across_hp_reloads() -> None:
         media_dir = tmp_path / "media"
         source_dir = tmp_path / "curated"
         source_dir.mkdir()
-        for subdir in ("avatars", "events", "galleries"):
+        for subdir in ("avatars", "galleries"):
             (source_dir / subdir).symlink_to(REPO_ROOT / "curated" / subdir)
-        # Controlled landing fixture: copy only the two demo loops so the seeder
-        # sees exactly two videos, independent of how many demo/mosaic loops the
-        # real curated/landing/ accumulates over time. Keeps the seeded input
-        # deterministic and avoids transcoding the full mosaic set every run.
-        landing = source_dir / "landing"
-        landing.mkdir()
-        real_landing = REPO_ROOT / "curated" / "landing"
+        # Controlled site fixture: copy only the two demo loops and the event
+        # promo photo so the seeder sees exactly two videos + one photo,
+        # independent of how many mosaic loops the real curated/site/ accumulates
+        # over time. Keeps the seeded input deterministic and avoids transcoding
+        # the full mosaic set every run.
+        site = source_dir / "site"
+        site.mkdir()
+        real_site = REPO_ROOT / "curated" / "site"
         for stem in ("demo-freestyle", "demo-net"):
             for suffix in (".meta.json", ".mp4", ".poster.jpg"):
-                shutil.copy2(real_landing / f"{stem}{suffix}", landing / f"{stem}{suffix}")
+                shutil.copy2(real_site / f"{stem}{suffix}", site / f"{stem}{suffix}")
+        for suffix in (".meta.json", ".jpg"):
+            shutil.copy2(real_site / f"japan-worlds-2026{suffix}", site / f"japan-worlds-2026{suffix}")
         subprocess.run(
             ["sqlite3", str(db_path)],
             input=SCHEMA.read_text(),

@@ -17,10 +17,6 @@
 
   {{> trick-compressed-from}}
 
-  {{#if content.ux2Pilot}}
-  {{> trick-featured-preview}}
-  {{/if}}
-
   {{!--
     Trick-detail architecture: one universal shell with variable depth,
     movement-language-first → structure-second. Curated movement-language
@@ -101,36 +97,16 @@
 
   {{> symbolic-related-topology}}
 
-  {{#if content.hasMediaBlock}}
+  {{#if content.referenceGalleryHref}}
   <section id="media" class="content-section trick-media-block" aria-label="Media">
     <div class="section-heading">
       <h2>Media</h2>
-      {{#if content.hasReferenceMedia}}
-      <p class="section-intro">Curated videos referencing {{content.trickName}}.</p>
-      {{/if}}
+      <p class="section-intro">Videos referencing {{content.trickName}}.</p>
     </div>
 
-    {{#if content.ux2Pilot}}
-      {{#if content.ux2Pilot.featuredMedia}}
-        <div class="trick-featured-media-card">
-          {{#if content.ux2Pilot.featuredMedia.media}}
-            {{> video-facade media=content.ux2Pilot.featuredMedia.media}}
-          {{/if}}
-          {{#if content.ux2Pilot.featuredMedia.caption}}
-          <p class="reference-media-caption">{{content.ux2Pilot.featuredMedia.caption}}</p>
-          {{/if}}
-          {{#if content.ux2Pilot.featuredMedia.sourceLabel}}
-          <p class="reference-media-source"><span>{{content.ux2Pilot.featuredMedia.sourceLabel}}</span></p>
-          {{/if}}
-        </div>
-      {{else}}
-        <div class="trick-featured-media-empty">
-          <p>{{content.ux2Pilot.featuredMediaEmptyState}}</p>
-        </div>
-      {{/if}}
-    {{/if}}
-
-    {{> trick-media-grid}}
+    <p class="mt-4">
+      <a href="{{content.referenceGalleryHref}}" class="btn btn-outline">See All Videos for {{content.trickName}} &rarr;</a>
+    </p>
   </section>
   {{/if}}
 

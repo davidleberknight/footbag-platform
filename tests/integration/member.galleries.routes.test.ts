@@ -193,7 +193,7 @@ describe('GET /members/:memberKey/galleries', () => {
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('My Galleries');
-    expect(res.text).toContain('Create new gallery');
+    expect(res.text).toContain('Create New Gallery');
     // A member with no galleries (so no media) sees the teaching empty state:
     // a prompt, the upload CTA, and seed-padded popular-tag chips, in place of
     // the old bare "no galleries yet" message.
@@ -213,7 +213,7 @@ describe('GET /members/:memberKey/galleries', () => {
       .get(`/members/${OWNER_SLUG}/galleries`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Upload media');
+    expect(res.text).toContain('Upload Media');
     expect(res.text).toMatch(new RegExp(`href="/members/${OWNER_SLUG}/media/upload"`));
   });
 

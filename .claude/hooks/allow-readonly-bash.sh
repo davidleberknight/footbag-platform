@@ -26,10 +26,10 @@ case "$SCAN" in *'`'*) exit 0 ;; esac
 
 # Command heads that never write. Dangerous flags on these (sed -i, find
 # -delete) are handled by sibling ask/deny hooks, which win over allow.
-readonly_heads='ls cat head tail wc grep egrep fgrep rg find tree stat file echo printf pwd which type command dirname basename realpath readlink sort uniq cut comm tr nl tac fold column jq date env printenv id whoami hostname uname sed true false :'
+readonly_heads='ls cat head tail wc grep egrep fgrep rg find tree stat file echo printf pwd which type command dirname basename realpath readlink sort uniq cut comm tr nl tac fold column jq date env printenv id whoami hostname uname sed true false : diff cmp strings xxd od hexdump base64 base32 cksum md5sum sha1sum sha224sum sha256sum sha384sum sha512sum shasum b2sum sum rev fmt expand unexpand paste join pr look seq numfmt tsort ps pgrep pidof df du free uptime groups users who w tty nproc arch getconf locale lscpu lsblk lsmem getent lsof cd pushd popd dirs test'
 
 # Git subcommands that only read. Anything else under git falls through.
-readonly_git='status log diff show blame rev-parse describe shortlog ls-files ls-tree cat-file for-each-ref reflog'
+readonly_git='status log diff show blame rev-parse describe shortlog ls-files ls-tree cat-file for-each-ref reflog rev-list merge-base show-ref name-rev ls-remote var count-objects cherry whatchanged verify-commit verify-tag grep annotate range-diff show-branch'
 
 contains() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
 

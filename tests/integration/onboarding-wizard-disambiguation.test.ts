@@ -255,6 +255,6 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
       .set('Cookie', cookieFor(MEMBER_MIXED));
     expect(wrapUp.status).toBe(200);
     expect(wrapUp.text).toContain('Find or create your club');
-    expect(wrapUp.text).toContain('Skip for now');
+    expect(wrapUp.text).toContain('Skip for Now');
   });
 });

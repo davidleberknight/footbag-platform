@@ -25,6 +25,7 @@ export const FREESTYLE_MEDIA_STRUCTURE: FreestyleMediaSectionDef[] = [
   {
     heading: 'Tutorials & Demos',
     folders: [
+      { galleryId: 'gallery_foundations_of_freestyle', label: 'Foundations of Freestyle' },
       { galleryId: 'gallery_passback_how_to', label: 'How to Footbag Freestyle' },
       { galleryId: 'gallery_passback_beginner', label: 'Beginner PassBack Tutorials' },
       { galleryId: 'gallery_passback_advanced', label: 'Advanced PassBack Tutorials' },

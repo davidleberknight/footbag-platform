@@ -816,6 +816,10 @@ th.sortable:hover { color: var(--primary); }
   display: block;
   width: 100%;
   height: auto;
+  /* Cap an extreme portrait/panorama so it fits the viewport without cropping
+     or pushing the page; contain keeps the whole image visible undistorted. */
+  max-height: 80vh;
+  object-fit: contain;
   border-radius: var(--radius-md);
 }
 .gallery-item-media > .video-facade,
@@ -825,10 +829,11 @@ th.sortable:hover { color: var(--primary); }
   height: auto;
   border-radius: var(--radius-md);
 }
-.gallery-item-caption {
-  margin: 16px 0 0;
-  font-size: 1.05rem;
-  line-height: 1.5;
+.gallery-item-title {
+  margin: 0 0 12px;
+  font-size: 1.3rem;
+  line-height: 1.3;
+  font-weight: 600;
 }
 .gallery-item-uploader {
   margin: 8px 0 0;
@@ -841,8 +846,14 @@ th.sortable:hover { color: var(--primary); }
 .gallery-item-pager {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
   margin-bottom: 20px;
+}
+.gallery-item-position {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 .gallery-tile-caption {
@@ -945,9 +956,199 @@ th.sortable:hover { color: var(--primary); }
   transition: border-color 0.15s, background 0.15s;
 }
 .tag-chip:hover { background: var(--hover-tint); border-color: var(--primary); }
+
+/* Editable tag filter for unnamed (dynamic) galleries. */
+.tag-filter-bar {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--gray-400);
+  border-radius: var(--radius-md);
+  background: var(--bg-light);
+}
+.tag-filter-active {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.tag-filter-label,
+.tag-filter-suggestions-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tag-filter-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tag-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--white);
+  border: 1px solid var(--gray-400);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.tag-filter-chip--context {
+  background: var(--hover-tint);
+  border-color: var(--primary);
+  font-weight: 600;
+}
+.tag-filter-chip--exclude {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+.tag-filter-remove {
+  text-decoration: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+.tag-filter-remove:hover { color: var(--gray-900); }
+.tag-filter-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.tag-filter-input {
+  flex: 1 1 180px;
+  min-width: 140px;
+  padding: 6px 10px;
+  border: 1px solid var(--gray-400);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+.tag-filter-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.tag-filter-suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.tag-filter-suggestion-exclude {
+  text-decoration: none;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 2px;
+}
+.tag-filter-suggestion-exclude:hover { color: var(--gray-900); }
+
+.tag-filter-suggestion-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
 button.tag-suggestion {
   cursor: pointer;
   font-family: inherit;
+}
+
+/* Editable tag filter: two chip inputs (include / exclude) that defer to one
+   "Apply hashtag filters" submit. Reuses the chip-input + browse-search styles. */
+.tag-filter-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.tag-filter-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.tag-filter-context-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.tag-filter-chip--locked {
+  background: var(--hover-tint);
+  border-color: var(--primary);
+  font-weight: 600;
+}
+.tag-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tag-filter-field-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.tag-filter-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.tag-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.tag-filter-apply {
+  align-self: flex-start;
+}
+.tag-filter-apply-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+/* Exclude field: mark its chips with a minus glyph and a muted, dashed treatment
+   so include vs exclude never relies on color alone. */
+.tag-filter-field--exclude .tag-chip-input-chip {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+.tag-filter-field--exclude .tag-chip-input-chip::before {
+  content: "\2212";
+  margin-right: 2px;
+}
+/* Context-aware suggested tags: co-occurring chips that quick-add to the set. */
+.tag-filter-suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tag-filter-suggest-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.tag-filter-suggest-row {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tag-filter-suggest-chip {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+.tag-filter-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 /* Tag chip input (progressive enhancement) */
 .tag-chip-input-container {
@@ -1284,6 +1485,9 @@ section.home-media { padding-top: 0; }
   margin: 2px 0 0;
   font-size: 0.78rem;
   color: var(--text-muted);
+}
+.reference-media-grid .reference-media-creator {
+  margin-left: 4px;
 }
 
 /* ── Media tag strip ───────────
@@ -12156,16 +12360,12 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   object-fit: cover;
   background: var(--surface-dark);
 }
-.tricks-mosaic-toggle {
+.tricks-mosaic-link {
   display: block;
   position: relative;
   width: 100%;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
 }
-.tricks-mosaic-toggle:focus-visible {
+.tricks-mosaic-link:focus-visible {
   outline: 2px solid var(--secondary);
   outline-offset: 2px;
 }
@@ -12191,8 +12391,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   border-width: 9px 0 9px 15px;
   border-color: transparent transparent transparent var(--white);
 }
-.tricks-mosaic-toggle:hover .tricks-mosaic-playicon { background: rgba(0, 0, 0, 0.62); }
-.tricks-mosaic-toggle.is-playing .tricks-mosaic-playicon { display: none; }
+.tricks-mosaic-link:hover .tricks-mosaic-playicon { background: rgba(0, 0, 0, 0.62); }
 .tricks-mosaic-empty {
   background: linear-gradient(135deg, var(--surface-dark) 0%, var(--gray-900) 100%);
 }

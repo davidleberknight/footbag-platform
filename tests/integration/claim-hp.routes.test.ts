@@ -181,7 +181,7 @@ describe('GET /history/:personId/claim', () => {
     const res = await request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', claimerCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('David Mockingbird');
-    expect(res.text).toContain('link the record');
+    expect(res.text).toContain('Link the Record');
     expect(res.text).toContain('NZ'); // country surfaced
   });
 

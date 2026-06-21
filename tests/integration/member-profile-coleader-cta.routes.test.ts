@@ -59,7 +59,7 @@ describe('My Clubs volunteer-to-co-lead affordance', () => {
 
     const res = await request(createApp()).get(`/members/${m.slug}`).set('Cookie', cookieFor(m.id));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('This club has no co-leader yet; become its first');
+    expect(res.text).toContain('This Club Has No Co-leader Yet; Become Its First');
   });
 
   it('an eligible member of an already-led club sees the plain volunteer link', async () => {
@@ -71,7 +71,7 @@ describe('My Clubs volunteer-to-co-lead affordance', () => {
 
     const res = await request(createApp()).get(`/members/${m.slug}`).set('Cookie', cookieFor(m.id));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Volunteer to co-lead');
+    expect(res.text).toContain('Volunteer to Co-lead');
     expect(res.text).not.toContain('This club has no co-leader yet');
   });
 
@@ -83,7 +83,7 @@ describe('My Clubs volunteer-to-co-lead affordance', () => {
 
     const res = await request(createApp()).get(`/members/${m.slug}`).set('Cookie', cookieFor(m.id));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Step down as co-leader');
+    expect(res.text).toContain('Step Down as Co-leader');
     expect(res.text).not.toContain('Volunteer to co-lead');
   });
 });

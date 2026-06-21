@@ -70,6 +70,8 @@ Ignore cosmetic refactors unless they create real drift.
 ### 2) Find the matching documentation
 Locate the most relevant existing document or section for the affected topic.
 
+The matching documentation is not only prose docs. The path-scoped `.claude/rules/*` files whose glob covers the touched code, the `.claude/skills/*` procedures for that area, and the touched service's file-header JSDoc are all canonical and drift like any doc. For every changed behavior, identifier, boundary, or contract, grep these for the OLD behavior or identifier and drift-check each hit, the same as a prose doc: a change under `src/services/**` is drift in `service-layer.md` if that rule still states the old contract; a renamed identifier is drift wherever a rule or skill still names the old one. This grep is mandatory, not optional, because reading a rule for context does not by itself surface a stale clause buried in it; skipping it is how rule and skill drift survives a doc-sync pass.
+
 Prefer updating the current authoritative location rather than inventing a new place.
 
 Before proposing an edit, scan enough surrounding context to ensure:

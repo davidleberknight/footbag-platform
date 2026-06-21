@@ -50,8 +50,6 @@
  */
 import {
   countGalleryItemsByCriteria,
-  CuratorSlotMediaRow,
-  media,
   PublicCompletedEventSummaryRow,
   PublicEventDetailRow,
   PublicEventDisciplineRow,
@@ -60,19 +58,11 @@ import {
   publicEvents,
   queryTagIdsByNormalized,
 } from '../db/db';
-import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { personHref } from './personLink';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
-
-function loadCuratorPhotoUrl(sourceFilename: string): string | undefined {
-  const row = media.getCuratorMediaByFilename.get(sourceFilename) as
-    | CuratorSlotMediaRow
-    | undefined;
-  if (!row || row.media_type !== 'photo' || !row.s3_key_display) return undefined;
-  return `${getMediaStorageAdapter().constructURL(row.s3_key_display)}?v=${row.id}`;
-}
+import { loadSitePhotoUrl } from './siteMediaService';
 
 const PUBLIC_EVENT_KEY_PATTERN = /^event_\d{4}_[a-z0-9_]+$/;
 
@@ -531,7 +521,9 @@ export class EventService {
       const tagRows = queryTagIdsByNormalized([normalizedStoredTag]);
       const viewGalleryHref =
         tagRows.length > 0 && countGalleryItemsByCriteria([tagRows[0].id]) > 0
-          ? `/media/browse?tag=${encodeURIComponent(galleryToken)}`
+          // `context=` locks the event hashtag as the gallery's context so a
+          // visitor stays inside the event's media while refining within it.
+          ? `/media/browse?context=${encodeURIComponent(galleryToken)}`
           : null;
 
       return toPublicEventPage(eventRow, disciplineRows, resultRows, viewGalleryHref);
@@ -550,7 +542,7 @@ export class EventService {
       region: 'Ibaraki',
       country: 'Japan',
       external: true,
-      imageUrl: loadCuratorPhotoUrl('japan-worlds-2026.jpg'),
+      imageUrl: loadSitePhotoUrl('japan_worlds_promo'),
       imageAlt: '45th IFPA World Footbag Championships 2026, Tsukuba, Japan official poster',
     };
   }
