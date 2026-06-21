@@ -24,7 +24,7 @@ Person ID resolution:
   Falls back to display_name when no match found.
 
 Usage:
-  python event_results/scripts/10_load_freestyle_records_to_sqlite.py \\
+  python freestyle/loaders/10_load_freestyle_records_to_sqlite.py \\
     --db path/to/footbag.db \\
     --records-csv inputs/curated/records/records_master.csv
 """

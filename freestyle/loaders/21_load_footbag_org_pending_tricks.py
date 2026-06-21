@@ -41,8 +41,8 @@ Pipeline ordering:
                  →  22 (QC)
 
 Run from repo root with the venv active:
-  python legacy_data/event_results/scripts/21_load_footbag_org_pending_tricks.py
-  python legacy_data/event_results/scripts/21_load_footbag_org_pending_tricks.py --db /path/to/footbag.db
+  python freestyle/loaders/21_load_footbag_org_pending_tricks.py
+  python freestyle/loaders/21_load_footbag_org_pending_tricks.py --db /path/to/footbag.db
 """
 
 from __future__ import annotations
