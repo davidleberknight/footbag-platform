@@ -9,11 +9,6 @@ import { join } from 'node:path';
 // counting [XDEX] the same as any other flag.
 const APPROVED = [
   {
-    slug: 'atomic-miraging-butterfly',
-    adds: 6,
-    notation: 'TOE > OP OUT [DEX] > OP IN [DEX] [XDEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
-  },
-  {
     slug: 'atom-smasher',
     adds: 4,
     notation: 'TOE > OP OUT [DEX] > OP IN [DEX] [XDEX] > OP TOE [DEL]',
@@ -55,9 +50,17 @@ describe('X-Dex miraging-family derived operational notation', () => {
     });
   }
 
-  it('atomic-miraging-butterfly: red_additions ADD is 6', () => {
+  it('atomic-miraging-butterfly: non-receiver, no X-Dex, red_additions ADD is 5', () => {
     const line = additionsLines.find(l => l.startsWith('atomic-miraging-butterfly,'));
     expect(line, 'red_additions row for atomic-miraging-butterfly').toBeDefined();
-    expect(line!.split(',')[1]).toBe('6');
+    expect(line!.split(',')[1]).toBe('5');
+  });
+
+  it('atomic-miraging-butterfly: red_corrections notation carries no [XDEX]', () => {
+    const line = correctionsLines.find(l =>
+      l.startsWith('atomic-miraging-butterfly,operational_notation,,'),
+    );
+    expect(line, 'red_corrections row for atomic-miraging-butterfly').toBeDefined();
+    expect(line!.split(',')[3]).not.toContain('[XDEX]');
   });
 });
