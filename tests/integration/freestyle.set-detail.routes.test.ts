@@ -356,3 +356,23 @@ describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail s
 // Set Encyclopedia uses different class names (sets-encyclopedia-card-*)
 // at the new /freestyle/sets surface; its detail-link coverage lives in
 // freestyle.sets-encyclopedia.routes.test.ts.
+
+describe('Set detail — X-Dex receiver note (atomic / quantum / nuclear only)', () => {
+  for (const slug of ['atomic', 'quantum', 'nuclear']) {
+    it(`renders the X-Dex receiver note and glossary cross-link on ${slug}`, async () => {
+      const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('X-Dex behavior');
+      expect(res.text).toMatch(/far-form dex on an eligible base/);
+      // The five receivers are named, and the full rule lives in the glossary.
+      expect(res.text).toMatch(/mirage, illusion, whirl, torque, drifter/);
+      expect(res.text).toContain('href="/freestyle/glossary#term-x-dex"');
+    });
+  }
+
+  it('omits the X-Dex receiver note on a non-receiver set (pixie)', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('X-Dex behavior');
+  });
+});

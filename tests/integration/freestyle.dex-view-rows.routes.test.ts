@@ -64,6 +64,10 @@ beforeAll(async () => {
     // notation field is populated. One fixture per blocker reason:
     { slug: 'authoring-fixture', canonical_name: 'big apple sauce', adds: '4', base_trick: 'torque', trick_family: 'torque', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'blazing-fixture', canonical_name: 'blazing mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
+    // weaving is the only remaining Red-doctrine block: the operator itself is still unruled.
+    { slug: 'weaving-fixture', canonical_name: 'weaving mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
+    // atomic / quantum / nuclear on an X-Dex receiver is resolved by the receiver rule:
+    // it falls to needs-authoring (far/near notation pending), never to Red-doctrine.
     { slug: 'atomic-xdex-fixture', canonical_name: 'atomic torque', adds: '5', base_trick: 'torque', trick_family: 'torque', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'down-gov-fixture', canonical_name: 'down double down', adds: '4', base_trick: 'down', trick_family: 'down', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'stale-fixture', canonical_name: 'blurry whirl', adds: '5', base_trick: 'whirl', trick_family: 'whirl', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
@@ -124,7 +128,11 @@ describe('Dex view — two-line row contract', () => {
   it('classifies each no-op-notation trick by its real blocker; modifiers excluded', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(sectionFor(res.text, 'dex-undefined-operator')).toContain('data-trick-slug="blazing-fixture"');
-    expect(sectionFor(res.text, 'dex-red-doctrine')).toContain('data-trick-slug="atomic-xdex-fixture"');
+    // weaving is the only remaining Red-doctrine block; atomic/X-Dex no longer lands here.
+    expect(sectionFor(res.text, 'dex-red-doctrine')).toContain('data-trick-slug="weaving-fixture"');
+    expect(sectionFor(res.text, 'dex-red-doctrine')).not.toContain('data-trick-slug="atomic-xdex-fixture"');
+    // an atomic / X-Dex-receiver row is resolved: it needs notation authored, not a ruling.
+    expect(sectionFor(res.text, 'dex-needs-authoring')).toContain('data-trick-slug="atomic-xdex-fixture"');
     expect(sectionFor(res.text, 'dex-governance')).toContain('data-trick-slug="down-gov-fixture"');
     expect(sectionFor(res.text, 'dex-stale')).toContain('data-trick-slug="stale-fixture"');
     expect(sectionFor(res.text, 'dex-needs-authoring')).toContain('data-trick-slug="mystery-trick"');

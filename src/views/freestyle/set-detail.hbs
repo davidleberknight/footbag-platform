@@ -26,6 +26,13 @@
     <p class="set-detail-movement">{{content.movementExplanation}}</p>
   </section>
 
+  {{#if content.xDexReceiverNote}}
+  <section class="set-detail-section" aria-label="X-Dex receiver behavior">
+    <h2>X-Dex behavior</h2>
+    <p class="set-detail-component-note">{{content.xDexReceiverNote}} <a href="/freestyle/glossary#term-x-dex">See the X-Dex glossary entry.</a></p>
+  </section>
+  {{/if}}
+
   {{#if content.equivalentNames.length}}
   <section class="set-detail-section" aria-label="Equivalent names">
     <h2>Equivalent names</h2>

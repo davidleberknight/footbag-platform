@@ -531,3 +531,50 @@ describe('Glossary family cards — lineage position and tier as independent lab
     expect(html).not.toContain('glossary-family-card-type-chip');
   });
 });
+
+describe('Glossary X-Dex term — resolved receiver rule', () => {
+  it('defines X-Dex as a conditional far-form receiver dex, not a crossed-body position', async () => {
+    const html = await glossary();
+    const i = html.indexOf('id="term-x-dex"');
+    expect(i, 'X-Dex term present').toBeGreaterThanOrEqual(0);
+    const dd = html.slice(i, i + 1600);
+    // The vague pre-ruling definition is gone.
+    expect(dd).not.toMatch(/crossed-body position/);
+    // The trigger: a far-form dex after a non-paradox dex.
+    expect(dd).toMatch(/far form/);
+    expect(dd).toMatch(/not a paradox/);
+    // Eligible receivers and the non-receivers are both named.
+    expect(dd).toMatch(/mirage, illusion, whirl, torque, and drifter/);
+    expect(dd).toMatch(/Swirl, butterfly, barfly, and the down/);
+    // Other modifiers do not change eligibility.
+    expect(dd).toMatch(/ducking or gyro/);
+  });
+
+  it('carries the beginner examples with their ADD values', async () => {
+    const html = await glossary();
+    const i = html.indexOf('id="term-x-dex"');
+    const dd = html.slice(i, i + 1600);
+    expect(dd).toMatch(/Atomic Torque<\/a> \(Silo\) is 5/);
+    expect(dd).toMatch(/Atomic Far Torque is 6/);
+    expect(dd).toMatch(/Atomic Miraging Butterfly<\/a> is 5/);
+  });
+
+  it('rewrites the [XDEX] flag away from the full-circle-dex framing', async () => {
+    const html = await glossary();
+    const i = html.indexOf('id="op-flag-xdex"');
+    expect(i, 'XDEX flag entry present').toBeGreaterThanOrEqual(0);
+    const dd = html.slice(i, i + 400);
+    expect(dd).not.toMatch(/full-circle dex variant/);
+    expect(dd).toMatch(/far-form receiver dex/);
+  });
+
+  it('no longer claims X-Dex eligibility is an open per-base question anywhere on the page', async () => {
+    const html = await glossary();
+    expect(html).not.toMatch(/open per-base question/);
+  });
+
+  it('marks the atomic / quantum X-Dex trigger as ratified and links the term', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/atomic \/ quantum <a href="#term-x-dex">X-Dex<\/a> trigger/);
+  });
+});
