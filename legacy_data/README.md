@@ -212,9 +212,6 @@ Inside `run_pipeline.sh` phase G; standalone use for targeted reload.
 | Script | Purpose |
 |--------|---------|
 | `legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py` | Load historical_persons (PROVISIONAL), legacy_club_candidates, legacy_person_club_affiliations |
-| `legacy_data/event_results/scripts/17_load_trick_dictionary.py` | Load trick dictionary reference table |
-| `legacy_data/event_results/scripts/19_load_red_additions.py` | Load RED additions |
-| `legacy_data/event_results/scripts/20_link_footbag_org_sources.py` | Link footbag.org source URLs to events and results |
 
 ### Level 7, mirror extractors
 

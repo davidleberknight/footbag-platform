@@ -14,8 +14,8 @@ Tripwire for any ingestion path (curator seeder, sidecar promotion, member
 uploads). Run after a fresh DB reset.
 
 Usage:
-  python legacy_data/event_results/scripts/25_qc_media_tag_invariant.py
-  python legacy_data/event_results/scripts/25_qc_media_tag_invariant.py --db /path/to/footbag.db
+  python freestyle/loaders/25_qc_media_tag_invariant.py
+  python freestyle/loaders/25_qc_media_tag_invariant.py --db /path/to/footbag.db
 
 Exit 0 iff no violations; exit 1 on any violation; exit 2 on missing DB.
 """

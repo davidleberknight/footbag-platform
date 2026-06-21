@@ -428,7 +428,7 @@
       <dd>A dex's <em>fullness</em> is how far the leg circles the bag. A <em>full</em> dex circles the bag entirely &mdash; the leg starts on one side, circles, and returns to the same side. A <em>half</em> dex circles only partway, finishing on the opposite side.</dd>
 
       <dt id="term-x-dex">X-Dex</dt>
-      <dd>A dexterity performed in a crossed-body position. The <a href="/freestyle/tricks/atom-smasher">Atom Smasher</a>, for example, uses an X-dex.</dd>
+      <dd>An extra dexterity worth +1, available only in a specific structure. It fires when a following dex is the <em>far form</em> of an eligible base and the dex before it is not a paradox. Eligible bases (receivers) are mirage, illusion, whirl, torque, and drifter. Swirl, butterfly, barfly, and the down (double-over-down) family never carry it. A paradox dex does not trigger it, and modifiers such as ducking or gyro do not change which bases are eligible. The near (default) form of an eligible base scores no X-Dex; only the far form does. For example, <a href="/freestyle/tricks/atomic-torque">Atomic Torque</a> (Silo) is 5 with no X-Dex because it is the near form; an explicit Atomic Far Torque is 6 because the far form fires it; and <a href="/freestyle/tricks/atomic-miraging-butterfly">Atomic Miraging Butterfly</a> is 5 because butterfly is not a receiver. The <a href="/freestyle/tricks/atom-smasher">Atom Smasher</a> is the classic move that does fire it.</dd>
     </dl>
 
     <h3 class="section-heading">Direction</h3>
@@ -1291,7 +1291,7 @@
       <dt id="op-flag-pdx"><code>[PDX]</code></dt>
       <dd>Paradox component &mdash; flags a cross-body far dex requiring a hip-pivot repositioning to bring the leg under the bag. Operationally: <code>CLIP &gt; OP IN [DEX]</code> (clipper set, far in-out dex). Equivalent to the <code>paradox</code> body modifier in semantic notation.</dd>
       <dt id="op-flag-xdex"><code>[XDEX]</code></dt>
-      <dd>X-Dex component &mdash; a full-circle dex variant. In canonical usage, X-Dex applies only to specific named tricks; some external references use the flag more broadly.</dd>
+      <dd>X-Dex component. Marks the conditional +1 that an eligible far-form receiver dex earns after a set (see <a href="#term-x-dex">X-Dex</a>). Recorded only where the notation carries it; some external references use the flag more broadly.</dd>
     </dl>
 
     <h4>Sides</h4>
@@ -2174,7 +2174,7 @@
     </dl>
     <p class="detail-muted">
       <strong>The settled/pending boundary is now well-defined.</strong> The
-      modifier weights, the atomic / quantum X-Dex trigger, and the
+      modifier weights, the atomic / quantum <a href="#term-x-dex">X-Dex</a> trigger, and the
       named-compound decompositions are <strong>ratified</strong>; the pending
       set is small &mdash; chiefly the counting-frame doctrine (how the
       <code>[PDX]</code> flag is tallied) and a few source-divergence cases where

@@ -546,7 +546,6 @@ const NB_UNDEFINED_OPERATORS = new Set([
   'blazing','zulu','symple','slapping','fusing','phasing','slaying','sonic','twinspinning',
   'frootie','fyro','leaning','twisted','twisting','wonton','wrecking','snapping','zipper',
 ]);
-const NB_XDEX_RECEIVERS = new Set(['mirage','illusion','whirl','torque','drifter']);
 const NB_SETTLED_OPERATORS = new Set(['blurry','blurrier','blurriest','terraging','terrage','pogo']);
 function classifyNotationBlocker(
   r: { slug: string; canonical_name: string | null },
@@ -555,10 +554,11 @@ function classifyNotationBlocker(
   const toks: string[] = name.match(/[a-z]+/g) ?? [];
   // an undefined folk operator in the name is the blocker, whatever else is present
   if (toks.some(t => NB_UNDEFINED_OPERATORS.has(t))) return 'undefined-operator';
-  // atomic / quantum / nuclear on an X-Dex receiver base is the open atomic/X-Dex value-migration
-  if (name === 'witchdoctor'
-      || ((toks.includes('atomic') || toks.includes('quantum') || toks.includes('nuclear'))
-          && toks.some(t => NB_XDEX_RECEIVERS.has(t)))) return 'red-doctrine';
+  // weaving is an undefined folk operator still awaiting a doctrine ruling: the only
+  // remaining Red-doctrine block here. Atomic / quantum / nuclear on an eligible receiver
+  // is resolved (X-Dex rides only an eligible far-form receiver dex), so those rows just
+  // need their far/near notation authored; witchdoctor reads as atom-smasher plus
+  // symposium, a curator link, not a Red block. Both fall through to needs-authoring.
   if (toks.includes('weaving')) return 'red-doctrine';
   // down-family / DOD is a governance / verification call
   if (toks.includes('down') || toks.includes('dod') || toks.includes('ddd')) return 'governance';
@@ -2737,6 +2737,11 @@ export interface FreestyleSetDetailContent {
   auditStatus?:         CanonicalSetAuditKey;
   auditStatusLabel?:    string;
   componentMechanicsNote: string;
+  /** Receiver-rule pointer rendered only on the X-Dex-relevant sets
+   *  (atomic / quantum / nuclear). The full rule lives in the glossary
+   *  X-Dex entry; this one-liner keeps the set page from silently omitting
+   *  a rule its scoring depends on. Undefined on every other set. */
+  xDexReceiverNote?:    string;
   /** S5 subtype-internal sibling navigation: previous/next set within
    *  the same subtype, in CANONICAL_SETS declaration order (the same
    *  order the encyclopedia card grid uses). Null on the first/last
@@ -8189,7 +8194,7 @@ export const freestyleService = {
         ['needs-authoring',     'dex-needs-authoring',     'Needs authoring (structure resolved, notation not yet written)'],
         ['stale',               'dex-stale',               'Stale: settled operator, operational-notation backfill pending'],
         ['undefined-operator',  'dex-undefined-operator',  'Blocked: undefined operator'],
-        ['red-doctrine',        'dex-red-doctrine',        'Blocked: Red doctrine (atomic / X-Dex, weaving)'],
+        ['red-doctrine',        'dex-red-doctrine',        'Blocked: Red doctrine (weaving)'],
         ['governance',          'dex-governance',          'Blocked: curator / governance'],
         ['identification',      'dex-identification',       'Blocked: identification'],
       ];
@@ -9922,6 +9927,12 @@ export const freestyleService = {
         componentMechanicsNote:
           'Component mechanics (ducking, diving, bare spinning, bare inspinning, gyro) ' +
           'are body modifiers, not sets. See the Operators & Modifiers reference.',
+        xDexReceiverNote:
+          (set.slug === 'atomic' || set.slug === 'quantum' || set.slug === 'nuclear')
+            ? 'After this set, a following far-form dex on an eligible base ' +
+              '(mirage, illusion, whirl, torque, drifter) earns a separate +1 X-Dex. ' +
+              'Near forms, and bases such as swirl, butterfly, or down, do not.'
+            : undefined,
         previousSet,
         nextSet,
       },

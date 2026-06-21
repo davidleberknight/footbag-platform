@@ -53,9 +53,9 @@ python3 legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py \
   --affiliations-csv legacy_data/clubs/out/legacy_person_club_affiliations.csv
 
 # 5. Trick loaders
-python3 legacy_data/event_results/scripts/17_load_trick_dictionary.py --db database/footbag.db
-python3 legacy_data/event_results/scripts/19_load_red_additions.py --db database/footbag.db
-python3 legacy_data/event_results/scripts/20_link_footbag_org_sources.py --db database/footbag.db
+python3 freestyle/loaders/17_load_trick_dictionary.py --db database/footbag.db
+python3 freestyle/loaders/19_load_red_additions.py --db database/footbag.db
+python3 freestyle/loaders/20_link_footbag_org_sources.py --db database/footbag.db
 
 # 6. QC
 python3 legacy_data/pipeline/qc/check_alias_duplicate_persons.py

@@ -40,8 +40,8 @@ Validation (non-zero exit on any failure):
   (Non-resolving curated tags are surfaced in the Media-health section, not failed.)
 
 Run:
-  python legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py
-  python legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py --db /path/to/footbag.db
+  python freestyle/loaders/24_qc_freestyle_media_coverage.py
+  python freestyle/loaders/24_qc_freestyle_media_coverage.py --db /path/to/footbag.db
 """
 
 from __future__ import annotations
@@ -602,7 +602,7 @@ def main() -> None:
                 "media_items is empty in the temp build. Curated media is seeded by "
                 "scripts/reset-local-db.sh (seed_fh_curator), which this script does not run.\n"
                 "Run against a seeded DB:\n"
-                "  python legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py "
+                "  python freestyle/loaders/24_qc_freestyle_media_coverage.py "
                 "--db database/footbag.db\n"
             )
             sys.exit(2)

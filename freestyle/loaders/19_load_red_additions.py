@@ -25,8 +25,8 @@ CSV columns expected — additions:
 CSV columns expected — corrections:
   slug, field, old_value, new_value, source_note
 
-Run from legacy_data/ with the venv active:
-    python event_results/scripts/19_load_red_additions.py [--db <path>]
+Run from the repo root with the venv active:
+    python freestyle/loaders/19_load_red_additions.py [--db <path>]
 """
 
 import argparse

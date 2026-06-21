@@ -2,7 +2,7 @@
 Script 20: Overlay footbag.org provenance onto the trick dictionary.
 
 Reads:
-  legacy_data/out/scraped_footbag_moves.csv  (256 scraped rows)
+  freestyle/inputs/footbag_org_moves_snapshot.csv  (256 scraped rows)
 
 Writes: database/footbag.db
   - freestyle_trick_sources       (UPSERT 'footbag-org-2026-04')
@@ -26,8 +26,8 @@ Pipeline ordering: must run AFTER scripts 17 and 19 (canonical dictionary must
 exist). Re-running 17 or 19 wipes nothing in this loader's scope; re-run 20 only
 when the scraped CSV changes.
 
-Run from legacy_data/ with the venv active:
-    python event_results/scripts/20_link_footbag_org_sources.py [--db <path>]
+Run from the repo root with the venv active:
+    python freestyle/loaders/20_link_footbag_org_sources.py [--db <path>]
 """
 
 import argparse

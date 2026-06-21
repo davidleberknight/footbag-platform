@@ -136,7 +136,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   MIRAGING:  'Miraging, body modifier (+1 ADD; underlies Torque, Drifter, DLO)',
   BACKSIDE:  'Backside, body modifier (+1 ADD; Symposium-equivalent)',
   TERRAGING: 'Terraging, body modifier (+3 ADD)',
-  XDEX:      'X-Dex, narrow modifier (+1 ADD; specific constructions)',
+  XDEX:      'X-Dex, conditional +1 ADD on an eligible far-form receiver dex',
 
   // ── Rotation modifiers (rotation) ─────────────────────────────────────
   SPINNING:   'Spinning, rotation modifier (+1 ADD)',
@@ -197,7 +197,7 @@ const BODY_COMPONENT_LABELS: Record<string, string> = {
   '[BOD]':  'BOD, body-position component',
   '[XBD]':  'XBD, cross-body component',
   '[PDX]':  'PDX, paradox-direction marker',
-  '[XDEX]': 'XDEX, X-Dex component',
+  '[XDEX]': 'XDEX, X-Dex (conditional +1 on a far-form receiver dex)',
 };
 
 // ── Caller-supplied lookup context ────────────────────────────────────────

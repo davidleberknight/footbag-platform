@@ -68,7 +68,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     category:       'set',
     oneLineMeaning: 'A single outward uptime dex, +1: TOE > OP OUT [DEX] > (op-side component). An X-Dex, when present, is a separate conditional event on the following dex, not part of atomic.',
     decomposition:  null,
-    pendingNote:    'Atomic is +1 (final); the +2-rotational reading is retired. [XDEX] is a separate +1 conditional event on an eligible following dex (the atomic + X-Dex composite, "atomicX", reads +2), recorded only where the notation already carries it (e.g. Atom Smasher = atomicX Mirage = 4). Which following dexes earn the X-Dex is an open per-base question; never infer it from the operator name.',
+    pendingNote:    'Atomic is +1; the +2-rotational reading is retired. A separate +1 X-Dex can ride a following dex, but only when that dex is the far form of an eligible receiver (mirage, illusion, whirl, torque, drifter); never infer it from the operator name. Recorded only where the notation already carries [XDEX] (the atomic + X-Dex composite, "atomicX", reads +2, e.g. Atom Smasher = atomicX Mirage = 4).',
     workedExamples: ['Atom Smasher = Atomic Mirage'],
     lineageNote:    'Operational form from the historical moves reference.',
     curatorConfirmPending: false,

@@ -272,7 +272,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
     {
       heading: 'Paradox vs xdex',
       prose:
-        'Paradox and xdex describe the same hip-pivot motion idea. Paradox is the universal version (+1 ADD on any base); xdex is a narrow named-trick version reserved for specific toe-set compounds. As a rule, paradox lives on clipper-set tricks (the XBD category) and xdex on toe-set tricks. When in doubt, the modifier you want is paradox.',
+        'Paradox and X-Dex are not the same thing. Paradox is a body modifier worth +1 on any base. X-Dex is a separate conditional +1 that a following dex earns only when it is the far form of an eligible receiver (mirage, illusion, whirl, torque, drifter), and only when the dex before it is not a paradox. A paradox dex never triggers X-Dex. When you mean a universal +1 hip-pivot, the modifier is paradox.',
     },
     {
       heading: 'Paradox vs symposium',
@@ -358,7 +358,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
   relatedModifiers: [
     {
       name:  'xdex',
-      prose: 'The narrow sibling of paradox: same hip-pivot motion idea, but reserved for specific toe-set compounds instead of universal +1.',
+      prose: 'Not a paradox sibling: a conditional +1 a following dex earns only as the far form of an eligible receiver (mirage, illusion, whirl, torque, drifter), and only after a non-paradox dex.',
     },
     {
       name:  'symposium',

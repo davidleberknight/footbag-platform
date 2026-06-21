@@ -35,8 +35,8 @@ is_core rules (v2.1): only irreducible dex/body/set primitives, never modifiers.
 See IS_CORE_SLUGS below.
 
 Idempotent: all writes happen in a single transaction.
-Run from legacy_data/ with the venv active:
-    python event_results/scripts/17_load_trick_dictionary.py [--db <path>]
+Run from the repo root with the venv active:
+    python freestyle/loaders/17_load_trick_dictionary.py [--db <path>]
 """
 
 import argparse

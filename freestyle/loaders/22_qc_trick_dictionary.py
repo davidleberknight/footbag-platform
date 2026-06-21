@@ -11,7 +11,7 @@ Inputs:
       freestyle_trick_source_links
       freestyle_trick_modifier_links
       freestyle_trick_relations
-  - legacy_data/out/scraped_footbag_moves.csv  (produced by script 18)
+  - freestyle/inputs/footbag_org_moves_snapshot.csv  (produced by script 18)
 
 Outputs (legacy_data/out/):
   - trick_dictionary_comparison.csv  — concept-level matrix (one row per
@@ -41,8 +41,8 @@ Conflict types detected:
                                    compositional skill rule. Never hard-fails.
 
 Usage (from legacy_data/ with venv active, or from repo root):
-  python legacy_data/event_results/scripts/22_qc_trick_dictionary.py
-  python legacy_data/event_results/scripts/22_qc_trick_dictionary.py --db /path/to/footbag.db
+  python freestyle/loaders/22_qc_trick_dictionary.py
+  python freestyle/loaders/22_qc_trick_dictionary.py --db /path/to/footbag.db
 """
 
 from __future__ import annotations

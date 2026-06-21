@@ -7,8 +7,8 @@ Loads consecutive kicks records from the curated CSV into the SQLite database.
 Source: freestyle/inputs/curated/records/consecutives_records.csv
 Target table: consecutive_kicks_records
 
-Usage (from legacy_data/):
-    python event_results/scripts/11_load_consecutive_records_to_sqlite.py \
+Usage (from the repo root):
+    python freestyle/loaders/11_load_consecutive_records_to_sqlite.py \
         --db ~/projects/footbag-platform/database/footbag.db
 
 Or via run_pipeline.sh which resolves --db automatically.
