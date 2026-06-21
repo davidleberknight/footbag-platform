@@ -20,7 +20,7 @@ Read only the section relevant to this task. For large documents, locate the sec
 7. **Code, types, tests, and `database/schema.sql`**: authoritative for current shapes (method signatures, view-model TypeScript, return types, exact column names, nullable vs required, enum values, FK relationships, indices, triggers). When current shapes disagree with the target patterns in `.claude/rules/view-layer.md` or the owning service's JSDoc, that is a deviation tracked in `IMPLEMENTATION_PLAN.md`. Always follow existing code patterns and naming conventions if similar features have already been implemented; if no good pattern exists, ask the human before introducing a new one.
 8. **`docs/DATA_MODEL.md`**: understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and data invariants the view-layer change must preserve.
 
-If the requested page is not cataloged, first determine whether it is out of scope for the cataloged surface before proposing catalog expansion.
+If the requested page is not covered by a user story or the `IMPLEMENTATION_PLAN.md` active-slice scope, first determine whether it is out of scope before proposing it as new work.
 
 ## Step 2: Inspect current code
 

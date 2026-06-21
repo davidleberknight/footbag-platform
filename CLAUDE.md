@@ -51,7 +51,7 @@ Read the minimum the task requires. Default: active-slice block + code + path-sc
 4. If unclear, escalate to the human. Never guess or silently choose among materially different interpretations. If you can see two or more interpretations for a task, then name them clearly, stop and ask. Push back when you should.
 5. Never add schema, service methods, or behavioral code without grounding in a user story, design decision, or explicit human direction in the current task. If no acceptance criteria or human approval exist for the behavior, stop and ask. Think before coding; do not assume or add unscoped features, and strive for simplicity over complexity; this requires analysis before jumping in. Prefer surgical changes over sweeping edits.
 6. Code comments and human-readable text in code follow `.claude/rules/comments.md` (plain-words self-contained WHY; no sprint/slice/phase labels, dates, caller refs, or doc references; deviations use "Current:"/"Target:" and are recorded in `IMPLEMENTATION_PLAN.md`).
-7. Do not change public UI wording unless instructed explicitely (no silent editing).
+7. Do not change public UI wording unless instructed explicitly (no silent editing).
 8. **Pre-writing-code gate.** The skills and path-scoped rules that match the task MUST always be loaded before you write or edit code. In order: (a) invoke the matching skill as the first action; (b) enumerate every path the change will touch; (c) Read each path's `.claude/rules/*.md` and per-subtree `CLAUDE.md` yourself; (d) only then write. Do not rely on auto-attach: it fires only on Read/Edit of an in-glob file, not on grep/Bash or on reasoning about an unopened path. If you have only grepped a path, its rule is not loaded, so Read it.
 
 ## Workflow rules
@@ -59,7 +59,7 @@ Read the minimum the task requires. Default: active-slice block + code + path-sc
 - Long-term docs describe design intent, not implementation status. See doc-sync skill for governance details.
 - Plan Mode for sequencing / dependency / architecture work; otherwise the IP active-slice block is enough.
 
-Verification defaults: confirm what success looks like for the task, prefer route/integration verification first, and verify with `npm test` and `npm run build`.  If the user asks to "run all tests" consider  ./run_all_[tests.sh.](http://tests.sh)
+Verification defaults: confirm what success looks like for the task, prefer route/integration verification first, and verify with `npm test` and `npm run build`.  If the user asks to "run all tests" consider  ./run_all_tests.sh
 
 - Do not use browser automation or MCP tools unless the human explicitly asks.
 - Make surgical changes scoped to the current slice: no speculative abstraction, flexibility, or scope creep; no refactoring unrelated code, unnecessary formatting or comment changes. 
@@ -72,7 +72,7 @@ Verification defaults: confirm what success looks like for the task, prefer rout
 Skills auto-load: each `.claude/skills/<name>/SKILL.md` description is in context at session start, and Claude invokes a skill when a task matches it. This section does not re-list skills (that would drift from the SKILL.md files); it records only the rules a one-line description can't carry.
 
 - When a task matches a skill's trigger, invoke it as the **first action**, before reading files or exploring.
-- Skills do not replace the path-scoped `.claude/rules/*.md`. A skill tells you *what* to do; the rule whose `paths:` glob matches the file you are about to touch tells you *how*. Before editing any file, Read its governing rule yourself and comply with it; do not assume auto-attach has loaded it (grep/Bash and reasoning about an unopened path do not trigger it). When a skill's workflow will touch `src/controllers/`**, `src/views/**`, `src/public/css/**`, `tests/**`, `src/adapters/**`, `src/db/**`, or `src/services/**`, confirm the matching rule is in context before writing, not after.
+- Skills do not replace the path-scoped `.claude/rules/*.md`. A skill tells you *what* to do; the rule whose `paths:` glob matches the file you are about to touch tells you *how*. Before editing any file, Read its governing rule yourself and comply with it; do not assume auto-attach has loaded it (grep/Bash and reasoning about an unopened path do not trigger it). When a skill's workflow will touch `src/controllers/**`, `src/views/**`, `src/public/css/**`, `tests/**`, `src/adapters/**`, `src/db/**`, or `src/services/**`, confirm the matching rule is in context before writing, not after.
 - **Compose in this order** when skills stack: `extend-service-contract` → `add-public-page` → `write-tests` → `doc-sync`.
 - `doc-sync` is **mandatory** after any change of significance to design, behavior, or requirements, unless the human pre-approved the specific changes.
 - `browser-qa` runs **only** when the human names a specific page or check (heavy token use); never unsolicited, never as a broad suite.

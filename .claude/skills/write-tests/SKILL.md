@@ -21,7 +21,7 @@ Read the top active-slice/status block in `IMPLEMENTATION_PLAN.md`. Confirm the 
 ## Step 2: Determine test layer
 
 **Unit tests** (`tests/unit/`) for exported pure functions with no DB dependency:
-- `slugify()` from `identityAccessService.ts`
+- `slugify()` from `slugify.ts`
 - `personHref()` from `personLink.ts`
 - `groupPlayerResults()` from `playerShaping.ts`
 - `ServiceError` classes and `isServiceError()` from `serviceErrors.ts`
@@ -79,7 +79,7 @@ No DB setup needed. Import the function directly and assert.
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { slugify } from '../../src/services/identityAccessService';
+import { slugify } from '../../src/services/slugify';
 
 describe('slugify', () => {
   it('lowercases and replaces spaces with underscores', () => {

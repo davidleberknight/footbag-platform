@@ -252,7 +252,6 @@ Additional chassis patterns established by the 2026-05-27 W9 continuation wave (
 | `stepping-double-leg-over` | `haze` | 4 (W9 source-form skip) |
 | `stepping-drifter` | `tombstone` | 4 (W9 source-form skip) |
 | `whirling-osis` | `blender` | 4 (W9 source-form skip; folk canonical takes precedence) |
-| `pixie-illusion` | (set-system `sailing`, not a trick — listed above) | (already in registry) |
 
 **Self-reference semantic-suspect (W9):** `atomic-eggbeater` is semantically suspect: eggbeater IS `atomic-legover` per the registry, so "atomic atomic-legover" doesn't compose. Do NOT promote `atomic-eggbeater` as a separate row. Same applies to any "X-Y-Z" compound where Y-Z is already folk-aliased to a single-modifier-on-base form.
 

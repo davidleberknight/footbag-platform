@@ -92,7 +92,6 @@ Read:
 12. `docs/DEVOPS_GUIDE.md`
 13. `docs/MIGRATION_PLAN.md`
 14. `legacy_data/CLAUDE.md`
-15. `IMPLEMENTATION_PLAN.md`
 
 This full read-order applies to a comprehensive design audit. For a scoped ask, read only the subset that bears on the request (see Scaling and budget).
 

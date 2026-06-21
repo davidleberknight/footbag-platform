@@ -1,3 +1,8 @@
+---
+name: freestyle-dictionary-surface
+description: Use when building or changing public-facing freestyle dictionary surfaces — the trick list and trick-detail pages (/freestyle/tricks, /freestyle/tricks/:slug), family pages, alias rendering, decomposition/related-trick/record/media display, and Simple vs Deep-Dive disclosure controls. Covers user-facing rendering and pedagogical authoring of dictionary content.
+---
+
 # Skill: freestyle-dictionary-surface
 
 ## When to use

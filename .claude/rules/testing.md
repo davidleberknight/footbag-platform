@@ -100,7 +100,7 @@ If the story is unclear, escalate to the human before writing tests that encode 
 
 ## Dev↔staging adapter parity
 
-Adapters (full set canonical in `docs/TESTING.md` §7.2) are the only seam between dev and staging. Dev uses `local`/`stub` implementations against in-process fakes; staging uses `kms`/`live` implementations against real AWS. Production (when it exists) will reuse the staging adapters against the production AWS account.
+Adapters (full set canonical in `docs/TESTING.md` §7.2) are the only seam between dev and staging. Dev uses `local`/`stub` implementations against in-process fakes; staging uses `kms`/`live` implementations against real AWS. Production reuses the staging adapters against the production AWS account.
 
 Every new adapter, or change to an existing adapter's contract, requires three tests. These are long-term tests that describe a permanent contract, not one-shot verifications for the sprint that introduced them.
 
@@ -133,7 +133,7 @@ The only scripts permitted to write a real-data path are the CI loader-pipeline 
 
 ## /curated guardrail (pre-go-live; dev-only)
 
-In dev, curated-media writes mutate the persistent on-disk `/curated/` sidecar files, which are the committed source of truth, so a switchable test-persona admin must not author real curated content. The curator service refuses curated and FH-owned-gallery writes (`assertCuratorActorMayWriteCurated`) from seeded test personas (member ids carrying the `member_persona_` prefix). Real maintainer accounts and the David Leberknight persona register through the real flow and carry ordinary ids, so they pass; the coming freestyle sidecar curation reuses the same curator service and inherits the guard.
+In dev, curated-media writes mutate the persistent on-disk `/curated/` sidecar files, which are the committed source of truth, so a switchable test-persona admin must not author real curated content. The curator service refuses curated and FH-owned-gallery writes (`assertCuratorActorMayWriteCurated`) from seeded test personas (member ids carrying the `member_persona_` prefix). Real maintainer accounts and the primary maintainer's persona register through the real flow and carry ordinary ids, so they pass; the coming freestyle sidecar curation reuses the same curator service and inherits the guard.
 
 The guard is keyed on `config.allowCuratedSidecarWrites`: it fires only where the on-disk sidecar write is enabled (dev, and the integration-test fixture, which sets `ALLOW_CURATED_SIDECAR_WRITES=1`). Staging and production run with the flag off, write curated content to the DB and object store only, and let any admin curate; there the guard is a no-op. Testing is therefore env-coupled: `tests/integration/curatorMediaService.persona-guard.test.ts` runs with the flag on (persona refused, real admin allowed, member-owned writes unaffected), and `tests/integration/curatorMediaService.persona-guard.sidecars-off.test.ts` boots with the flag cleared to pin the staging/production no-op.
 

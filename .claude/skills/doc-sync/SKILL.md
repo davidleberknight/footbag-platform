@@ -1,6 +1,6 @@
 ---
 name: doc-sync
-description: Detect documentation drift against current code and confirmed decisions, then propose only the smallest accurate doc updates. Never edit docs without explicit human approval. Use when user asks whether docs need updating, code behavior has changed, interfaces or identifiers have changed, or suspected drift needs investigation.
+description: Detect documentation drift against current code and confirmed decisions, then propose only the smallest accurate doc updates. Never edit docs without explicit human approval. Use when user asks whether docs need updating, code behavior has changed, interfaces or identifiers have changed, or suspected drift needs investigation. For a full-surface audit across all canonical docs, use extended-doc-sync (explicit request only), not this skill.
 ---
 
 # Doc Sync
