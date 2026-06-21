@@ -38,7 +38,7 @@ Atomsmasher and the other ~50 historically-resolved items are listed below so fu
 | Trick | Canonical decomposition | ADD | Source |
 |---|---|---:|---|
 | Atom Smasher | atomicX mirage (atomic +1 + X-Dex; mirage is non-rotational) | 4 | pt1, pt2, pt10 |
-| Atomic Torque (Silo) | atomic + torque (atomic +1; no X-Dex, cf. atomic-drifter) | 5 | pt4 |
+| Atomic Torque (Silo) | atomic + torque (atomic +1; NEAR form, no X-Dex; cf. Atomic Far Torque = 6) | 5 | pt4 + xdex-2026-06-20 |
 | Barfly | nuclear ss butterfly | 5 (per pt11+pt12 SS) | pt10 + pt11 + pt12 |
 | Barrage | barraging set base | 3 | pt4 + 2026-04 followup |
 | Baroque (Barraging Osis) | barraging + osis (barraging = +2 two-dex set) | 5 | pt4 + 2026-05-20 |
@@ -106,7 +106,7 @@ Atomsmasher and the other ~50 historically-resolved items are listed below so fu
 
 - Pixie +1
 - Quantum +1 (pt10; was historically toe-blur)
-- Atomic +1 (FINAL): a single outward uptime dex (TOE > OP OUT [DEX]), +1 on every base. The +2-rotational reading is RETIRED. [XDEX] is a SEPARATE conditional count-bearing event on a following eligible dex (+1 when it fires); the atomic+X-Dex composite (atomicX) reads +2 and is recorded ONLY where the notation already carries [XDEX] (e.g. atom-smasher). Never inferred from the operator name. Which dexes earn the X-Dex = deferred (see E)
+- Atomic +1 (FINAL): a single outward uptime dex (TOE > OP OUT [DEX]), +1 on every base. The +2-rotational reading is RETIRED. [XDEX] is a SEPARATE conditional count-bearing event on a following eligible dex (+1 when it fires); the atomic+X-Dex composite (atomicX) reads +2 and is recorded ONLY where the notation already carries [XDEX] (e.g. atom-smasher). Never inferred from the operator name. X-Dex eligibility is RESOLVED (§D.5, Red 2026-06-20): far move after a non-paradox dex on an eligible receiver `{mirage, illusion, whirl, torque, drifter}`, near forms excluded
 - Nuclear +2 (pt10; = Paradox Atomic set)
 - Blurry +1 flat (pt11; Red 2026-05-20: "Blurry just implies stepping; it does not imply paradox anymore" -- prior "stepping paradox X" expansion retired; pt12 OPEN on rotational-base ADD still applies)
 
@@ -182,13 +182,23 @@ Atomsmasher and the other ~50 historically-resolved items are listed below so fu
 
 ## D -- Settled formula contracts
 
-1. **Atomic = +1 (final).** Atomic contributes a single outward uptime dex (TOE > OP OUT [DEX]), +1 on every base; it has NO rotational class. The earlier +1-non-rotational / +2-rotational model is RETIRED. Any count beyond +1 comes from a separate conditional X-Dex ([XDEX]) on a following eligible dex, never from atomic; the atomic+X-Dex composite (atomicX) reads +2 and is recorded only where the notation explicitly carries [XDEX] (e.g. atom-smasher = atomicX mirage = 4). X-Dex eligibility (which following dexes earn it) is deferred (E).
+1. **Atomic = +1 (final).** Atomic contributes a single outward uptime dex (TOE > OP OUT [DEX]), +1 on every base; it has NO rotational class. The earlier +1-non-rotational / +2-rotational model is RETIRED. Any count beyond +1 comes from a separate conditional X-Dex ([XDEX]) on a following eligible dex, never from atomic; the atomic+X-Dex composite (atomicX) reads +2 and is recorded only where the notation explicitly carries [XDEX] (e.g. atom-smasher = atomicX mirage = 4). X-Dex eligibility is RESOLVED (§D.5): a far move after a non-paradox dex on an eligible receiver.
 
 2. **Rotational-escalation retired** (pt10): spinning / whirling / swirling DO NOT escalate to +2 on rotational bases. Atomic no longer retains a rotational class either (D.1) — no operator escalates on rotational bases.
 
 3. **SS=+0 universal** (pt12 Red 2026-05-11): closes all `X ss Y` rows. FM federation_math_divergence for Nuclear-ss cohort is FM convention; do not adopt.
 
 4. **Self-atom convention**: tricks without a notated decomposition default to self-atom (`<slug>(N) = N`). Not a ruling; a parser fallback.
+
+5. **X-Dex eligibility (FINAL, Red 2026-06-20).** X-Dex occurs when a **far move follows a dexterity that is not Paradox**. The separate +1 X-Dex fires only when BOTH conditions hold:
+   - **Eligible receiver (necessary, NOT sufficient).** The dex base is one of `{mirage, illusion, whirl, torque, drifter}`. Non-receivers never fire under any condition: `{swirl, butterfly, barfly, down / DOD family}`. Do not assume receivers beyond these five.
+   - **Far-form trigger (the actual firing condition).** The compound actually performs a *far* move after that dexterity. The **near / default form of an eligible receiver does NOT fire.**
+
+   Paradox does not qualify as the triggering dexterity. Ducking, gyro, and all other modifiers do **not** alter eligibility: eligibility is a property of the dex base, never of an inserted modifier.
+
+   **Eligible receiver ≠ X-Dex trigger.** This is the load-bearing distinction. Worked from Red's own example: `Atomic Torque (Silo) = 5` (torque is eligible, but the near form carries no far move, so no X-Dex), whereas `Atomic Far Torque = 6` (the far form fires). The same template holds across every receiver: `Atomic Illusion (Omelette) = 3` (near, no fire) versus an explicit far-illusion form (fires); `Atom Smasher = atomic far mirage = 4` (far, fires). Membership in the receiver set authorises X-Dex; it does not trigger it.
+
+   This RESOLVES the former §E X-Dex deferral and dissolves the receiver-set "contradiction" (torque-as-receiver with `Silo = 5` is consistent once near ≠ far).
 
 ## E -- What is explicitly NOT in scope of resolved canon
 
@@ -197,7 +207,7 @@ Atomsmasher and the other ~50 historically-resolved items are listed below so fu
 - Recursive Sets (sailing, slaying, frantic, phasing, leaning, hyper, pogo, quasi, riffing, slicing): NF-2A scoring done; 5 advance candidates pending Red.
 - Positional operators ADD weight (far / near / op / os) beyond ss: by-analogy +0 currently; not formally adjudicated.
 - Reverse operator ADD weight: by-analogy +0; not formally adjudicated.
-- X-Dex eligibility: atomic = +1 is final, but WHICH following dexes structurally earn the separate conditional X-Dex ([XDEX]) is open. The corpus carries [XDEX] only on direct atomic far-mirage rows (atom-smasher) and a few explicit cases; embedded-miraging compounds (atomic-drifter) and non-miraging rotationals do not. Do not add [XDEX] without a per-base ruling. (Also gates the illusioning-vs-atomic normalization follow-up.)
+- X-Dex eligibility: **RESOLVED (Red 2026-06-20, see §D.5).** Far move after a non-paradox dex on an eligible receiver `{mirage, illusion, whirl, torque, drifter}`; near forms and non-receivers never fire. The earlier "do not add [XDEX] without a per-base ruling" caution is superseded by the structural far-form test. (The illusioning-vs-atomic normalization follow-up is no longer gated by this.)
 - Furious on non-rotational bases: pt6 derived +2 from rotational case; non-rotational reading TBD.
 - Frigidosis decomposition: pt11 deferred.
 - Cloud Stall ADD: pt8 deferred.
