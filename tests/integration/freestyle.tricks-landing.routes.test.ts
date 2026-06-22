@@ -140,11 +140,11 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.text).toContain('class="browse-view-intro"');
     // The intro carries a live count of unique documented tricks and the
-    // documented aliases separately, plus the first-class subset, in
+    // documented aliases separately, plus a count of documented tricks, in
     // beginner-facing wording (not the internal "canonical").
     expect(res.text).toMatch(/[\d,]+ unique officially documented tricks/);
     expect(res.text).toMatch(/[\d,]+ documented aliases/);
-    expect(res.text).toMatch(/\d+ first-class tricks are fully covered/);
+    expect(res.text).toMatch(/[\d,]+ tricks are documented in this dictionary/);
     expect(res.text).toContain('class="dictionary-intro-glossary-link"');
     expect(res.text).toContain('href="/freestyle/glossary"');
   });

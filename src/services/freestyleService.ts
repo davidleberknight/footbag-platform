@@ -4256,8 +4256,6 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'warp',                            // warping(3 = two-dex set, 2nd dex symposium) + mirage(2) = 5; FM lists 7
   // Stepping + base batch (leading-[DEX] chassis; stepping=+1; all bases canonical).
   'stepping-mirage',
-  'stepping-illusion',
-  'stepping-legover',
   'stepping-butterfly',
   'stepping-blender',
   'stepping-reaper',
@@ -4314,7 +4312,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'barraging-legover',
   'barraging-mirage',
   'barraging-pickup',
-  'barraging-whirl',
+  'genesis',
   // Symposium + base batch (no-plant first-dex chassis; symposium=+1; all bases canonical).
   'symposium-atomic-butterfly',
   'symposium-blur',
@@ -4347,7 +4345,6 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'paradox-fusion',
   'paradox-symposium-illusion',
   // Whirling-X (uptime-whirl operator; OP IN [DEX] prefix + leading-dex flip).
-  'whirling-mirage',
   'whirling-pickup',
   'whirling-whirl',
   'whirling-butterfly',
@@ -4362,15 +4359,13 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'pixie-mirage',
   'pixie-clipper',
   'pixie-double-pickup',
-  'pixie-diving-butterfly',
+  'darkwalk',
   'pixie-ducking-butterfly',
-  'pixie-ducking-mirage',
   'pixie-symposium-reverse-whirl',
   'fairy-ducking-mirage',
   'fairy-torque',
   'diving-clipper',
   'diving-toe-stall',
-  'stepping-barrage',
   'stepping-clipper',
   'gyro-clipper',
   'gyro-diving-butterfly',
@@ -8980,7 +8975,7 @@ export const freestyleService = {
         dictionaryIntro:
           `${fmtCount(uniqueDocumentedTrickCount)} unique officially documented tricks, plus ` +
           `${fmtCount(documentedAliasCount)} documented aliases. ` +
-          `${canonicalCount} first-class tricks are fully covered in this dictionary. ` +
+          `${canonicalCount} tricks are documented in this dictionary. ` +
           'The remaining documented names live in Emerging Vocabulary: observed, historical, alias, ' +
           'source-variant, or not-yet-promoted entries that are tracked but not yet treated as full ' +
           'dictionary pages. The dictionary lets you ' +
