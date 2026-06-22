@@ -68,9 +68,10 @@ run_full_mode_preflight() {
         missing+=("mirror_footbag_org/ (expected ${mirror_marker}; obtain crawl from operator handoff or rerun the mirror crawl)")
     fi
 
-    # Curated membership input (committed; expected present on a clean clone).
+    # Membership roster input: real member data, operator-provided and held
+    # locally only (gitignored, like the mirror). Not present on a fresh clone.
     [[ -f "membership/inputs/membership_input_normalized.csv" ]] \
-        || missing+=("membership/inputs/membership_input_normalized.csv (curated input; expected to be tracked)")
+        || missing+=("membership/inputs/membership_input_normalized.csv (operator-provided member roster; gitignored, obtain from operator handoff)")
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         echo "  ERROR: full-mode preflight failed; resolve before re-running ./run_pipeline.sh full" >&2
@@ -97,7 +98,7 @@ run_preflight_enrichment_only() {
     local missing=()
 
     [[ -f "event_results/canonical_input/persons.csv"          ]] || missing+=("event_results/canonical_input/persons.csv")
-    [[ -f "membership/inputs/membership_input_normalized.csv"  ]] || missing+=("membership/inputs/membership_input_normalized.csv")
+    [[ -f "membership/inputs/membership_input_normalized.csv"  ]] || missing+=("membership/inputs/membership_input_normalized.csv (operator-provided member roster; gitignored, obtain from operator handoff)")
     [[ -f "seed/clubs.csv"                                     ]] || missing+=("seed/clubs.csv")
     [[ -f "seed/club_members.csv"                              ]] || missing+=("seed/club_members.csv")
 
@@ -107,7 +108,14 @@ run_preflight_enrichment_only() {
             echo "    MISSING: $f" >&2
         done
         echo "" >&2
-        echo "  Run canonical_only first (and mirror extraction for clubs)." >&2
+        echo "  How to get each missing input:" >&2
+        echo "    - canonical_input/*.csv and seed/*.csv come from a canonical_only run:" >&2
+        echo "      ./run_pipeline.sh canonical_only (needs the legacy mirror)." >&2
+        echo "    - membership/inputs/membership_input_normalized.csv is the curated IFPA" >&2
+        echo "      membership roster (real member data), curated from the IFPA membership" >&2
+        echo "      export. It is gitignored and never committed, and cannot be regenerated" >&2
+        echo "      from the mirror or the dump; obtain it from the operator." >&2
+        echo "  To build without membership/club enrichment, run the default ./run_dev.sh." >&2
         exit 1
     fi
 
@@ -145,9 +153,10 @@ run_preflight_csv_only() {
     # The mvfp_full seed CSVs are not required here: run_db_load_canonical now
     # builds them from canonical_input via script 07 before loading.
 
-    # Membership input
+    # Membership roster input: real member data, operator-provided and held
+    # locally only (gitignored, like the mirror). Not present on a fresh clone.
     [[ -f "membership/inputs/membership_input_normalized.csv" ]] \
-        || missing+=("membership/inputs/membership_input_normalized.csv")
+        || missing+=("membership/inputs/membership_input_normalized.csv (operator-provided member roster; gitignored, obtain from operator handoff)")
 
     # Club seed inputs
     [[ -f "seed/clubs.csv"        ]] || missing+=("seed/clubs.csv")
@@ -159,9 +168,14 @@ run_preflight_csv_only() {
             echo "    MISSING: $f" >&2
         done
         echo "" >&2
-        echo "  These files are produced by a full canonical_only run." >&2
-        echo "  If you have mirror access, run:  ./run_pipeline.sh canonical_only" >&2
-        echo "  Otherwise, obtain these CSVs from a collaborator." >&2
+        echo "  How to get each missing input:" >&2
+        echo "    - event_results/canonical_input/*.csv come from a canonical_only run:" >&2
+        echo "      ./run_pipeline.sh canonical_only (needs the legacy mirror)." >&2
+        echo "    - membership/inputs/membership_input_normalized.csv is the curated IFPA" >&2
+        echo "      membership roster (real member data), curated from the IFPA membership" >&2
+        echo "      export. It is gitignored and never committed, and cannot be regenerated" >&2
+        echo "      from the mirror or the dump; obtain it from the operator." >&2
+        echo "  To build without membership/club enrichment, run the default ./run_dev.sh." >&2
         exit 1
     fi
 

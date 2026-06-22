@@ -94,7 +94,7 @@ export function createApp(): express.Application {
         styleSrc:       ["'self'"],
         imgSrc:         ["'self'", 'data:', 'https://i.ytimg.com', 'https://i.vimeocdn.com'],
         fontSrc:        ["'self'"],
-        connectSrc:     ["'self'", ...(s3MediaOrigin ? [s3MediaOrigin] : [])],
+        connectSrc:     ["'self'", 'https://challenges.cloudflare.com', ...(s3MediaOrigin ? [s3MediaOrigin] : [])],
         frameSrc:       ['https://www.youtube-nocookie.com', 'https://player.vimeo.com', 'https://challenges.cloudflare.com'],
         objectSrc:      ["'none'"],
         baseUri:        ["'self'"],

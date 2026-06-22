@@ -48,7 +48,7 @@ describe('Security headers (helmet defaults)', () => {
       "style-src 'self'",
       "img-src 'self' data: https://i.ytimg.com",
       "font-src 'self'",
-      "connect-src 'self'",
+      "connect-src 'self' https://challenges.cloudflare.com",
       'frame-src https://www.youtube-nocookie.com https://player.vimeo.com',
       "object-src 'none'",
       "base-uri 'self'",

@@ -311,6 +311,16 @@ def build_membership_only_persons(rollup: pd.DataFrame) -> pd.DataFrame:
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
+    if not MEMBERSHIP_INPUT.exists():
+        raise SystemExit(
+            f"ERROR: membership roster not found at {MEMBERSHIP_INPUT}\n"
+            "  This is the curated IFPA membership roster (real member data), curated\n"
+            "  from the IFPA membership export. It is gitignored and never committed, so\n"
+            "  a fresh clone will not have it, and it cannot be regenerated from the\n"
+            "  legacy mirror or the dump. Obtain it from the operator. Or run the default\n"
+            "  ./run_dev.sh, which skips membership enrichment and does not need this file."
+        )
+
     members = pd.read_csv(MEMBERSHIP_INPUT, dtype=str).fillna("")
     persons_raw = pd.read_csv(PERSONS_INPUT, dtype=str).fillna("")
 

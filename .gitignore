@@ -174,6 +174,11 @@ tfplan
 legacy_data/robots_cache.json
 legacy_data/event_results/canonical_input/
 
+# Real member data: a normalized extract of the private IFPA admin membership
+# report. Operator-provided and held locally only; never committed (same model
+# as the mirror and canonical_input above).
+legacy_data/membership/inputs/membership_input_normalized.csv
+
 # Identity lock: keep only the latest versioned snapshots
 legacy_data/inputs/identity_lock/Placements_ByPerson_v*.csv
 !legacy_data/inputs/identity_lock/Placements_ByPerson_v97.csv
