@@ -12,6 +12,11 @@ paths = [
   # Historical-pipeline identity CSVs: UUID columns trip the generic-api-key
   # rule. The tree holds no credentials by design (synthetic-only rule).
   '''legacy_data/.*''',
+  # Read-only legacy-site mirror (a gitignored symlink). The old footbag.org
+  # source legitimately holds the legacy site's clear-text credentials; it is
+  # never committed, so git-mode scans already skip it, and a working-tree or
+  # --no-git scan must skip it too rather than report the legacy secrets.
+  '''footbag\.org/.*''',
   # Scanner output from local runs must never feed back into the scan.
   '''\.gitleaks-report\.json''',
 ]

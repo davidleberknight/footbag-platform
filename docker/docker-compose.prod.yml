@@ -32,7 +32,13 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
+          # Memory limit is env-driven so the same compose overlay works for
+          # staging (nano_3_0, 512M host) and production (medium_3_0, 4GB host)
+          # without manual edits. Default 64M fits staging; the deploy seeds
+          # NGINX_MEMORY_LIMIT=128M for production from docker/env/production.env,
+          # giving headroom for the origin TLS, proxy-buffer, and gzip working
+          # set at 2048 max connections.
+          memory: ${NGINX_MEMORY_LIMIT:-64M}
 
   web:
     # CUTOVER-REMOVE: production must NOT bake the dev-shortcuts.

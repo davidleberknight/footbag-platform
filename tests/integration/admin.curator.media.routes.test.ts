@@ -61,7 +61,7 @@ function memberCookie(): string {
 }
 
 async function makeJpeg(): Promise<Buffer> {
-  return sharp({ create: { width: 50, height: 50, channels: 3, background: { r: 80, g: 120, b: 160 } } }).jpeg().toBuffer();
+  return sharp({ create: { width: 256, height: 256, channels: 3, background: { r: 80, g: 120, b: 160 } } }).jpeg().toBuffer();
 }
 
 beforeAll(async () => {

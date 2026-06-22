@@ -20,6 +20,54 @@ read_env() {
   awk -F= -v k="$1" '$1==k {sub(/^[^=]*=/,""); print}' "$ENV_PATH" | tail -1
 }
 
+# Seed the committed per-environment container sizing config (memory limits,
+# image concurrency, video tuning) into /srv/footbag/env so production sizing
+# is governed by version control instead of an operator remembering to set it.
+# The committed file docker/env/<FOOTBAG_ENV>.env is the source of truth: keys
+# it lists are set, keys it omits are cleared (so production's omitted video
+# knobs fall back to the canonical encoder defaults). Only an allowlist of
+# sizing keys is honored and every value is format-checked, so a tampered
+# config file cannot inject a secret or a malformed line into the runtime env.
+# Must run after the release tree is promoted into $LIVE_DIR.
+seed_container_sizing() {
+  local cfg="$LIVE_DIR/docker/env/${FOOTBAG_ENV}.env"
+  local key_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$|^IMAGE_MAX_CONCURRENT$|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)$'
+  local line_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT=|^IMAGE_MAX_CONCURRENT=|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)='
+  if [[ ! -f "$cfg" ]]; then
+    echo "ERROR: sizing config $cfg is missing; refusing to deploy with unmanaged container sizing." >&2
+    exit 1
+  fi
+  local adds key val line
+  adds=$(mktemp)
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
+    key="${line%%=*}"; val="${line#*=}"
+    key="${key//[[:space:]]/}"
+    if [[ ! "$key" =~ $key_re ]]; then
+      echo "    WARN: ignoring non-sizing key '$key' in $cfg" >&2
+      continue
+    fi
+    case "$key" in
+      *_MEMORY_LIMIT)
+        [[ "$val" =~ ^[0-9]+[MG]$ ]] || { echo "ERROR: $cfg: $key='$val' is not a valid memory limit (e.g. 512M)." >&2; rm -f "$adds"; exit 1; } ;;
+      IMAGE_MAX_CONCURRENT|VIDEO_X264_THREADS|VIDEO_X264_RC_LOOKAHEAD)
+        [[ "$val" =~ ^[0-9]+$ ]] || { echo "ERROR: $cfg: $key='$val' is not a non-negative integer." >&2; rm -f "$adds"; exit 1; } ;;
+      VIDEO_X264_PRESET)
+        [[ "$val" =~ ^[a-z]+$ ]] || { echo "ERROR: $cfg: $key='$val' is not a valid x264 preset." >&2; rm -f "$adds"; exit 1; } ;;
+    esac
+    printf '%s=%s\n' "$key" "$val" >> "$adds"
+  done < "$cfg"
+  local tmp
+  tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$tmp"; chown root:root "$tmp"
+  grep -vE "$line_re" "$ENV_PATH" > "$tmp" || true
+  cat "$adds" >> "$tmp"
+  rm -f "$adds"
+  mv "$tmp" "$ENV_PATH"
+  echo "==> Seeded container sizing for '$FOOTBAG_ENV' from $cfg"
+}
+
 # Disk-space preflight: rsync of release dir + docker layer churn can land
 # 200 MB at peak. Refuse to start if /srv/footbag has under 500 MB free.
 SRV_AVAIL_KB=$(df -k --output=avail /srv/footbag 2>/dev/null | tail -1 | tr -d ' ')
@@ -215,6 +263,10 @@ rsync -a --delete \
   --exclude=/env --exclude=/db --exclude=/media \
   "$RELEASE_DIR/" "$LIVE_DIR/"
 chown -R root:root "$LIVE_DIR"
+
+# Apply the committed per-environment container sizing now that the release
+# tree (and docker/env/<env>.env) is in place, before the service restart.
+seed_container_sizing
 
 # Sync X_ORIGIN_VERIFY_SECRET from SSM to /srv/footbag/env. Both the value
 # CloudFront injects (via data.aws_ssm_parameter.origin_verify_secret) and the

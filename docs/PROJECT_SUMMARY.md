@@ -508,7 +508,7 @@ Trade-offs: Database table views filter member deleted_at for transparent query 
 
 ## 4.8 Runtime Infrastructure and Cost
 
-Four Docker containers run on a single AWS Lightsail instance (4GB RAM): nginx (reverse proxy), web (Node.js application), worker (background tasks), and image (isolated image processor). Authoritative memory allocations are defined in Design Decisions. At initial allocations, total container memory is approximately 1,856MB (~45% of 4GB), leaving over 2GB headroom for OS and traffic spikes. Memory limits are enforced via docker-compose.yml mem_limit directives. Containers exceeding limits are killed (OOM) with automatic restart. CloudWatch monitors per-container memory with alerts at 80% (warning) and 90% (critical) utilisation. These are initial estimates based on typical workload patterns. Production monitoring will validate allocations and inform adjustments. 
+Four Docker containers run on a single AWS Lightsail instance (4GB RAM): nginx (reverse proxy), web (Node.js application), worker (background tasks), and image (isolated image processor). Authoritative memory allocations are defined in Design Decisions. At initial allocations, total container memory is approximately 1,920MB (~47% of 4GB), leaving over 2GB headroom for OS and traffic spikes. Memory limits are enforced via docker-compose.yml mem_limit directives. Containers exceeding limits are killed (OOM) with automatic restart. CloudWatch monitors per-container memory with alerts at 80% (warning) and 90% (critical) utilisation. These are initial estimates based on typical workload patterns. Production monitoring will validate allocations and inform adjustments. 
 
 **Operational Simplicity:**
 

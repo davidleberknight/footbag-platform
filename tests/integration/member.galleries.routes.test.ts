@@ -219,7 +219,7 @@ describe('GET /members/:memberKey/galleries', () => {
 
   it('renders an "Uploaded." flash banner after a POST upload via the agent round-trip', async () => {
     const jpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 50, g: 100, b: 150 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 50, g: 100, b: 150 } },
     }).jpeg().toBuffer();
     const app = createApp();
     const agent = request.agent(app);
@@ -902,7 +902,7 @@ describe('gallery edit current-items display + uploadTags', () => {
 
   it('multipart POST /galleries auto-stamps gallery criteria + merges uploadTags onto uploaded files', async () => {
     const jpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 50, g: 100, b: 150 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 50, g: 100, b: 150 } },
     }).jpeg().toBuffer();
 
     const res = await request(createApp())
@@ -932,7 +932,7 @@ describe('gallery edit current-items display + uploadTags', () => {
 
   it('multipart POST /galleries with empty uploadTags still auto-stamps the gallery criteria onto uploads', async () => {
     const jpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 50, g: 100, b: 150 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 50, g: 100, b: 150 } },
     }).jpeg().toBuffer();
 
     const res = await request(createApp())
@@ -962,7 +962,7 @@ describe('gallery edit current-items display + uploadTags', () => {
     const id = findGalleryIdByName('Edit-And-Upload')!;
 
     const jpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 50, g: 100, b: 150 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 50, g: 100, b: 150 } },
     }).jpeg().toBuffer();
 
     const res = await request(createApp())

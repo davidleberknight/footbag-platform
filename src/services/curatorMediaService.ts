@@ -105,6 +105,7 @@ import { detectVideoFormat, type TranscodedVideo } from '../lib/videoProcessing'
 import { Semaphore } from '../lib/semaphore';
 import { MediaStorageAdapter, getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { ImageProcessingAdapter, getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
+import { rejectImageAsValidation } from './imageRejection';
 import {
   getVideoTranscodingAdapter,
   type VideoTranscodingAdapter,
@@ -1177,7 +1178,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
 
       const systemMemberId = resolveSystemMemberIdOrThrow();
-      const processed = await imageProcessor.processPhoto(input.photoBuffer);
+      const processed = await rejectImageAsValidation(imageProcessor.processPhoto(input.photoBuffer));
 
       const mediaId = newMediaId();
       const thumbKey = `${systemMemberId}/detached/${mediaId}-thumb.jpg`;
@@ -1287,7 +1288,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       try {
         [transcoded, processed] = await Promise.all([
           videoTranscoder().transcode(input.videoBuffer),
-          imageProcessor.processPhoto(input.posterBuffer),
+          rejectImageAsValidation(imageProcessor.processPhoto(input.posterBuffer)),
         ]);
       } finally {
         transcodeBound.release();
@@ -1434,7 +1435,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       try {
         [, processed] = await Promise.all([
           videoTranscoder().transcodeFromStorage(job.source_video_key, videoKey),
-          imageProcessor.processPhoto(posterBuffer),
+          rejectImageAsValidation(imageProcessor.processPhoto(posterBuffer)),
         ]);
       } finally {
         transcodeBound.release();
@@ -2551,7 +2552,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         throw new ValidationError('Only JPEG and PNG photos are accepted.');
       }
 
-      const processed = await imageProcessor.processPhoto(input.photoBuffer);
+      const processed = await rejectImageAsValidation(imageProcessor.processPhoto(input.photoBuffer));
 
       const mediaId = newMediaId();
       const thumbKey = `${input.memberId}/detached/${mediaId}-thumb.jpg`;

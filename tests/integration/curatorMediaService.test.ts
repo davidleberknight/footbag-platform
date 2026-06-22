@@ -122,7 +122,7 @@ function makeStubImageProcessor(): ImageProcessingAdapter & { calls: { method: '
 
 async function makeJpegBuffer(): Promise<Buffer> {
   return sharp({
-    create: { width: 50, height: 50, channels: 3, background: { r: 80, g: 120, b: 160 } },
+    create: { width: 256, height: 256, channels: 3, background: { r: 80, g: 120, b: 160 } },
   }).jpeg().toBuffer();
 }
 

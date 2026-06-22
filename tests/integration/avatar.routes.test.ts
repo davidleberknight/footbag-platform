@@ -87,16 +87,28 @@ beforeAll(async () => {
   const fakeFetch: typeof fetch = async (_input, init) => {
     const body = init?.body as Buffer | Uint8Array;
     const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
-    const processed = await imgMod.processAvatar(buf);
-    return new Response(
-      JSON.stringify({
-        thumb: processed.thumb.toString('base64'),
-        display: processed.display.toString('base64'),
-        widthPx: processed.widthPx,
-        heightPx: processed.heightPx,
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    );
+    try {
+      const processed = await imgMod.processAvatar(buf);
+      return new Response(
+        JSON.stringify({
+          thumb: processed.thumb.toString('base64'),
+          display: processed.display.toString('base64'),
+          widthPx: processed.widthPx,
+          heightPx: processed.heightPx,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    } catch (err) {
+      // Mirror the worker: a client-fixable rejection is a 400 with a clear
+      // message, so the adapter -> service -> controller path renders 422.
+      if (err instanceof imgMod.ImageRejectedError) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      throw err;
+    }
   };
   adapterMod.setImageProcessingAdapterForTests(
     adapterMod.createHttpImageAdapter({ internalSecret: 'test-internal-event-secret', baseUrl: 'http://test-injected', fetchImpl: fakeFetch }),
@@ -117,7 +129,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
   it('unauthenticated -> 302 to /login with returnTo', async () => {
     const app = createApp();
     const validJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 0, b: 0 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 255, g: 0, b: 0 } },
     }).jpeg().toBuffer();
 
     const res = await request(app)
@@ -130,7 +142,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
   it('valid JPEG upload -> 303 redirect to profile', async () => {
     const app = createApp();
     const validJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 0, b: 0 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 255, g: 0, b: 0 } },
     }).jpeg().toBuffer();
 
     const res = await request(app)
@@ -144,7 +156,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
   it('valid upload writes an upload_member_media audit row with mediaType avatar', async () => {
     const app = createApp();
     const validJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 1, g: 2, b: 3 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 1, g: 2, b: 3 } },
     }).jpeg().toBuffer();
 
     const res = await request(app)
@@ -195,10 +207,38 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     expect(res.text).toContain('Please select an image file to upload');
   });
 
+  it('too-small avatar image -> 422 form re-render with a clear inline error (not 503)', async () => {
+    const app = createApp();
+    const tiny = await sharp({
+      create: { width: 100, height: 100, channels: 3, background: { r: 255, g: 0, b: 0 } },
+    }).jpeg().toBuffer();
+
+    const res = await request(app)
+      .post(`/members/${OWN_SLUG}/avatar`)
+      .set('Cookie', ownCookie())
+      .attach('avatar', tiny, 'tiny.jpg');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Image is too small');
+  });
+
+  it('extreme-aspect avatar image -> 422 form re-render with a clear inline error', async () => {
+    const app = createApp();
+    const wide = await sharp({
+      create: { width: 1000, height: 200, channels: 3, background: { r: 0, g: 0, b: 255 } },
+    }).jpeg().toBuffer();
+
+    const res = await request(app)
+      .post(`/members/${OWN_SLUG}/avatar`)
+      .set('Cookie', ownCookie())
+      .attach('avatar', wide, 'wide.jpg');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('too long and thin');
+  });
+
   it("another member's avatar upload -> 404", async () => {
     const app = createApp();
     const validJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 0, b: 0 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 255, g: 0, b: 0 } },
     }).jpeg().toBuffer();
 
     const res = await request(app)
@@ -213,7 +253,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
 
     // Upload a valid image first.
     const validJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 0, b: 0 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 255, g: 0, b: 0 } },
     }).jpeg().toBuffer();
 
     const uploadRes = await request(app)
@@ -234,7 +274,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     const app = createApp();
 
     const validJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 0, g: 128, b: 0 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 0, g: 128, b: 0 } },
     }).jpeg().toBuffer();
 
     const uploadRes = await request(app)
@@ -267,10 +307,10 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     const app = createApp();
 
     const redJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 0, b: 0 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 255, g: 0, b: 0 } },
     }).jpeg().toBuffer();
     const blueJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 0, g: 0, b: 255 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 0, g: 0, b: 255 } },
     }).jpeg().toBuffer();
 
     const extractVersion = (html: string): string | null => {
@@ -322,7 +362,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
   it('after upload, edit page shows success flash once and clears it', async () => {
     const app = createApp();
     const validJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 10, g: 10, b: 10 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 10, g: 10, b: 10 } },
     }).jpeg().toBuffer();
 
     // Upload sets the signed flash cookie on the redirect response.
@@ -361,7 +401,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
   it('upload POST sets a signed flash cookie carrying the filename from multipart info', async () => {
     const app = createApp();
     const validJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 5, g: 5, b: 5 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 5, g: 5, b: 5 } },
     }).jpeg().toBuffer();
 
     const uploadRes = await request(app)
@@ -404,7 +444,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
   it('tampered avatar flash cookie yields no banner', async () => {
     const app = createApp();
     const validJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 9, g: 9, b: 9 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 9, g: 9, b: 9 } },
     }).jpeg().toBuffer();
     const uploadRes = await request(app)
       .post(`/members/${OWN_SLUG}/avatar`)
@@ -485,7 +525,7 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
     s3Puts.length = 0;
     const app = createApp();
     const validJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 7, g: 7, b: 7 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 7, g: 7, b: 7 } },
     }).jpeg().toBuffer();
 
     const res = await request(app)
@@ -508,7 +548,7 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
   it('rendered avatar URL shape (/media-store/{key}?v=) matches the local-adapter contract', async () => {
     const app = createApp();
     const validJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 30, g: 60, b: 90 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 30, g: 60, b: 90 } },
     }).jpeg().toBuffer();
 
     const uploadRes = await request(app)
@@ -529,10 +569,10 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
   it('avatar URL version changes when a new avatar is uploaded (s3 path)', async () => {
     const app = createApp();
     const redJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 200, g: 0, b: 0 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 200, g: 0, b: 0 } },
     }).jpeg().toBuffer();
     const blueJpeg = await sharp({
-      create: { width: 10, height: 10, channels: 3, background: { r: 0, g: 0, b: 200 } },
+      create: { width: 256, height: 256, channels: 3, background: { r: 0, g: 0, b: 200 } },
     }).jpeg().toBuffer();
 
     const extractVersion = (html: string): string | null => {
@@ -587,7 +627,7 @@ describe('POST /members/:memberKey/avatar -- rate limit', () => {
     try {
       const app = createApp();
       const validJpeg = await sharp({
-        create: { width: 10, height: 10, channels: 3, background: { r: 0, g: 200, b: 0 } },
+        create: { width: 256, height: 256, channels: 3, background: { r: 0, g: 200, b: 0 } },
       }).jpeg().toBuffer();
       for (let i = 0; i < 2; i++) {
         const ok = await request(app)

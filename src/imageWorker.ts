@@ -15,7 +15,7 @@ import 'dotenv/config';
  * config (FOOTBAG_DB_PATH, SESSION_SECRET, etc.).
  */
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
-import { detectImageType, processAvatar, processPhoto, type ProcessedImage } from './lib/imageProcessing';
+import { detectImageType, ImageRejectedError, processAvatar, processPhoto, type ProcessedImage } from './lib/imageProcessing';
 import {
   detectVideoFormat,
   transcodeCuratorVideo,
@@ -191,7 +191,13 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
         heightPx: processed.heightPx,
       });
     } catch (err: unknown) {
-      next(err);
+      // Client-fixable rejections (too small / too large / extreme aspect) are
+      // a 400 with a clear message; everything else is a server failure.
+      if (err instanceof ImageRejectedError) {
+        res.status(400).json({ error: err.message });
+      } else {
+        next(err);
+      }
     } finally {
       semaphore.release();
     }

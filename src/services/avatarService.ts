@@ -38,6 +38,7 @@ import { detectImageType } from '../lib/imageProcessing';
 import { MediaStorageAdapter, getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { ImageProcessingAdapter, getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
 import { RateLimitedError, ValidationError } from './serviceErrors';
+import { rejectImageAsValidation } from './imageRejection';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { runSqliteRead } from './sqliteRetry';
@@ -101,7 +102,7 @@ export function createAvatarService(deps: AvatarServiceDeps) {
         throw new ValidationError('Only JPEG and PNG images are accepted.');
       }
 
-      const processed = await imageProcessor.processAvatar(fileBuffer);
+      const processed = await rejectImageAsValidation(imageProcessor.processAvatar(fileBuffer));
 
       const thumbKey = `avatars/${memberId}/thumb.jpg`;
       const displayKey = `avatars/${memberId}/display.jpg`;

@@ -62,7 +62,7 @@ function memberCookie(): string {
   return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, role: 'member' })}`;
 }
 
-async function makeJpeg(width = 50, height = 50): Promise<Buffer> {
+async function makeJpeg(width = 256, height = 256): Promise<Buffer> {
   return sharp({
     create: { width, height, channels: 3, background: { r: 80, g: 120, b: 160 } },
   }).jpeg().toBuffer();
@@ -228,7 +228,7 @@ describe('POST /admin/curator/upload — gates', () => {
 describe('POST /admin/curator/upload — photo', () => {
   it('happy path: redirects, inserts media_items + media_tags + audit_entries; writes /curated/{category}/ binary + sidecar', async () => {
     const app = createApp();
-    const jpeg = await makeJpeg(120, 90);
+    const jpeg = await makeJpeg(320, 240);
     const uniqueCaption = `photo-happy-${Date.now()}`;
     const uniqueTag = `#happy_${Date.now()}`;
     const uniqueFilename = `photo-happy-${Date.now()}.jpg`;
@@ -482,7 +482,7 @@ describe('POST /admin/curator/upload — video (local-adapter sync path)', () =>
   it('happy path: redirects, inserts media_items + tags + audit; writes /curated/{category}/ video + poster + sidecar', async () => {
     const app = createApp();
     const mp4 = makeFakeMp4();
-    const poster = await makeJpeg(120, 90);
+    const poster = await makeJpeg(320, 240);
     const uniqueCaption = `video-happy-${Date.now()}`;
     const uniqueTag = `#video_happy_${Date.now()}`;
     const uniqueFilename = `clip-${Date.now()}.mp4`;
@@ -573,7 +573,7 @@ describe('POST /admin/curator/upload — video (local-adapter sync path)', () =>
     // attaching an empty mediaFile before the real one.
     const app = createApp();
     const mp4 = makeFakeMp4();
-    const poster = await makeJpeg(120, 90);
+    const poster = await makeJpeg(320, 240);
     const uniqueCaption = `video-multifile-${Date.now()}`;
     const uniqueFilename = `clip-multifile-${Date.now()}.mp4`;
 

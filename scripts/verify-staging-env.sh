@@ -551,6 +551,44 @@ else
 fi
 
 # -----------------------------------------------------------------------------
+# Container sizing. The committed docker/env/<target>.env is the source of
+# truth; the deploy seeds it into /srv/footbag/env. Assert the host matches:
+# keys the file lists must equal it; managed keys it omits must be unset on the
+# host (the deploy clears omitted managed keys so they fall back to the
+# canonical compose defaults).
+# -----------------------------------------------------------------------------
+SIZING_CFG="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/docker/env/${TARGET}.env"
+SIZING_KEYS=(NGINX_MEMORY_LIMIT WEB_MEMORY_LIMIT WORKER_MEMORY_LIMIT IMAGE_MEMORY_LIMIT \
+             IMAGE_MAX_CONCURRENT VIDEO_X264_PRESET VIDEO_X264_THREADS VIDEO_X264_RC_LOOKAHEAD)
+if [[ -f "$SIZING_CFG" ]]; then
+  declare -A SIZING_EXPECTED=()
+  while IFS= read -r sline || [[ -n "$sline" ]]; do
+    sline="${sline%$'\r'}"
+    [[ "$sline" =~ ^[[:space:]]*(#|$) ]] && continue
+    skey="${sline%%=*}"; sval="${sline#*=}"
+    skey="${skey//[[:space:]]/}"
+    SIZING_EXPECTED[$skey]="$sval"
+  done < "$SIZING_CFG"
+  # Advisory: the deploy seeds these from docker/env/<target>.env (the hard
+  # guarantee), so a mismatch here is drift to flag, not a launch blocker.
+  for skey in "${SIZING_KEYS[@]}"; do
+    if [[ -n "${SIZING_EXPECTED[$skey]+x}" ]]; then
+      if [[ "${HOST_ENV[$skey]:-}" == "${SIZING_EXPECTED[$skey]}" ]]; then
+        check_pass "container sizing: $skey=${SIZING_EXPECTED[$skey]}"
+      else
+        check_warn "container sizing: $skey=${HOST_ENV[$skey]:-<unset>} (docker/env/${TARGET}.env expects '${SIZING_EXPECTED[$skey]}'; the deploy seeds it)"
+      fi
+    elif [[ -n "${HOST_ENV[$skey]:-}" ]]; then
+      check_warn "container sizing: $skey=${HOST_ENV[$skey]} set on host but docker/env/${TARGET}.env omits it (the deploy clears it)"
+    else
+      check_pass "container sizing: $skey unset (matches docker/env/${TARGET}.env)"
+    fi
+  done
+else
+  check_fail "container sizing: committed config $SIZING_CFG not found"
+fi
+
+# -----------------------------------------------------------------------------
 # Summary.
 # -----------------------------------------------------------------------------
 echo ""

@@ -1025,7 +1025,7 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
 });
 
 describe('adapter-parity: ImageProcessingAdapter contract', () => {
-  async function makeJpeg(width = 50, height = 50): Promise<Buffer> {
+  async function makeJpeg(width = 256, height = 256): Promise<Buffer> {
     return sharp({
       create: { width, height, channels: 3, background: { r: 100, g: 150, b: 200 } },
     })
@@ -1063,12 +1063,12 @@ describe('adapter-parity: ImageProcessingAdapter contract', () => {
   it('round-trips real JPEG bytes through the HTTP boundary', async () => {
     const { fetchImpl, calls } = makeProcessingFakeFetch();
     const adapter = createHttpImageAdapter({ internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
-    const jpeg = await makeJpeg(100, 80);
+    const jpeg = await makeJpeg(320, 240);
 
     const result = await adapter.processAvatar(jpeg);
 
-    expect(result.widthPx).toBe(100);
-    expect(result.heightPx).toBe(80);
+    expect(result.widthPx).toBe(320);
+    expect(result.heightPx).toBe(240);
     expect(Buffer.isBuffer(result.thumb)).toBe(true);
     expect(Buffer.isBuffer(result.display)).toBe(true);
     expect(result.thumb.length).toBeGreaterThan(0);

@@ -63,9 +63,9 @@ test('Tier-1 member uploads avatar end-to-end against real image worker', { tag:
   await page.goto(`/members/${persona.slug}/edit`);
   await expect(page.locator('text=Service Unavailable')).toHaveCount(0);
 
-  // 10x10 red JPEG, well under AVATAR_MAX_BYTES.
+  // 256x256 red JPEG: within the accepted dimension limits, well under AVATAR_MAX_BYTES.
   const jpegBytes = await sharp({
-    create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 0, b: 0 } },
+    create: { width: 256, height: 256, channels: 3, background: { r: 255, g: 0, b: 0 } },
   }).jpeg().toBuffer();
 
   await page.locator('input[type=file][name=avatar]').setInputFiles({
@@ -119,7 +119,7 @@ test('Tier-1 member uploads a photo into their named gallery end-to-end', { tag:
   // worker the same way the avatar test does.
   await page.goto(`/members/${slug}/media/upload`);
   const jpegBytes = await sharp({
-    create: { width: 12, height: 12, channels: 3, background: { r: 0, g: 128, b: 255 } },
+    create: { width: 256, height: 256, channels: 3, background: { r: 0, g: 128, b: 255 } },
   }).jpeg().toBuffer();
   await page.locator('input[type=file]#photoFile').setInputFiles({
     name: 'highlight.jpg',

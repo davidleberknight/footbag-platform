@@ -1918,7 +1918,7 @@ Requirements:
 - Schemas live alongside the route handler so the contract and the consumer stay in sync.
 - HTML form re-renders preserve the user's submitted values on validation failure so a single typo does not erase a long form.
 - The post-login redirect-path validator (`isSafePath` and equivalents) rejects any path containing a backslash character in addition to its existing scheme and prefix rules, closing the Windows-style path-confusion class that pure forward-slash checks miss.
-- Every `sharp(...)` constructor passes `limitInputPixels` bounded to a documented maximum (default 4000 x 4000) so a maliciously dimensioned image cannot allocate a multi-gigabyte pixel buffer before downstream validation runs.
+- Every `sharp(...)` constructor passes `limitInputPixels` bounded to a documented maximum (default 4096 x 4096) so a maliciously dimensioned image cannot allocate a multi-gigabyte pixel buffer before downstream validation runs.
 - nginx `client_max_body_size` is set to match the application-layer upload limits, so the perimeter never accepts a body larger than the application is willing to process.
 
 Trade-offs:
@@ -3293,7 +3293,7 @@ Security Pipeline:
 
 - Magic byte verification: File headers must match declared type
 
-- Size limits: Maximum 10MB file size, 4096×4096 pixels
+- Size limits: 5MB (avatar) / 25MB (photo) file size, 4096×4096 pixels
 
 - Re-encoding: Sharp converts to raw pixels and back, destroying malware
 
@@ -3331,11 +3331,11 @@ Upload controller validates format and size limits. Image processing occurs serv
 
 Malformed image protection: Attackers can upload crafted images with corrupted headers that cause image processing libraries to allocate excessive memory or enter infinite loops. Protection measures for synchronous image processing:
 
-Pre-processing validation: Reject uploads exceeding 10MB before processing begins. Validate magic bytes to ensure only JPEG and PNG formats are accepted, preventing processing of disguised executables.
+Pre-processing validation: Reject uploads exceeding the per-type byte cap (5MB avatar, 25MB photo) before processing begins. Validate magic bytes to ensure only JPEG and PNG formats are accepted, preventing processing of disguised executables. Reject images smaller than 200×200 pixels or with an aspect ratio more extreme than 4:1, with a clear validation error.
 
 Processing resource limits: Set processing timeout of 30 seconds per image via sharp's timeout option. Any processing exceeding this duration throws an exception, preventing infinite loops. Configure sharp library with limitInputPixels(16777216) preventing processing of images larger than 4096×4096 pixels (enforces the documented size policy limit).
 
-Concurrency control: Limit concurrent image processing to five simultaneous uploads using a semaphore. If the semaphore is full, the upload endpoint returns a 429 Too Many Requests with a clear message instructing the user to retry shortly. This prevents resource exhaustion when multiple users upload simultaneously during high-traffic events.
+Concurrency control: Limit concurrent image processing via a semaphore sized per host (one on the small staging instance, two in production). If the semaphore is full, the worker returns 503 with a Retry-After signal so the caller retries shortly. This prevents resource exhaustion when multiple users upload simultaneously during high-traffic events.
 
 Error handling: Processing failures return clear user-facing errors ('Image processing failed, please try a different image') without exposing implementation details or library error messages that could aid attackers.
 

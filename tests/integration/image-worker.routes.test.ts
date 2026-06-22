@@ -17,7 +17,7 @@ import { processAvatar, processPhoto } from '../../src/lib/imageProcessing';
 // override path used by some tests.
 const TEST_SECRET = 'test-internal-event-secret';
 
-async function makeJpeg(width = 50, height = 50): Promise<Buffer> {
+async function makeJpeg(width = 256, height = 256): Promise<Buffer> {
   return sharp({
     create: { width, height, channels: 3, background: { r: 80, g: 120, b: 160 } },
   })
@@ -37,7 +37,7 @@ describe('GET /health', () => {
 describe('POST /process/avatar', () => {
   it('returns processed thumb + display + dimensions for a valid JPEG', async () => {
     const app = createImageWorkerApp();
-    const jpeg = await makeJpeg(120, 90);
+    const jpeg = await makeJpeg(320, 240);
 
     const res = await request(app)
       .post('/process/avatar')
@@ -46,8 +46,8 @@ describe('POST /process/avatar', () => {
       .send(jpeg);
 
     expect(res.status).toBe(200);
-    expect(res.body.widthPx).toBe(120);
-    expect(res.body.heightPx).toBe(90);
+    expect(res.body.widthPx).toBe(320);
+    expect(res.body.heightPx).toBe(240);
     expect(typeof res.body.thumb).toBe('string');
     expect(typeof res.body.display).toBe('string');
 
@@ -335,7 +335,7 @@ describe('POST /process/avatar', () => {
 describe('POST /process/photo', () => {
   it('returns processed thumb + display + dimensions for a valid JPEG', async () => {
     const app = createImageWorkerApp();
-    const jpeg = await makeJpeg(120, 90);
+    const jpeg = await makeJpeg(320, 240);
 
     const res = await request(app)
       .post('/process/photo')
@@ -344,8 +344,8 @@ describe('POST /process/photo', () => {
       .send(jpeg);
 
     expect(res.status).toBe(200);
-    expect(res.body.widthPx).toBe(120);
-    expect(res.body.heightPx).toBe(90);
+    expect(res.body.widthPx).toBe(320);
+    expect(res.body.heightPx).toBe(240);
     expect(typeof res.body.thumb).toBe('string');
     expect(typeof res.body.display).toBe('string');
   });

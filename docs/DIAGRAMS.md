@@ -37,7 +37,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ║                                                                     ║
 ║  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────┐         ║
 ║  │    nginx    │ │     web     │ │   worker    │ │ image  │         ║
-║  │    64 MB    │→│   512 MB    │ │   384 MB    │ │ 896 MB │         ║
+║  │   128 MB    │→│   512 MB    │ │   384 MB    │ │ 896 MB │         ║
 ║  │Reverse proxy│ │ Controllers │ │Email outbox │ │ Sharp  │         ║
 ║  │TLS to origin│ │ Services    │ │Daily jobs   │ │ Photo  │         ║
 ║  │TLS terminus │ │ db.ts       │ │Transcode    │ │ proc.  │         ║
@@ -140,6 +140,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ║    SecretsAdapter  ·  JwtSigningAdapter  ·  SafeBrowsingAdapter     ║
 ║    CaptchaAdapter  ·  HttpReachabilityAdapter                       ║
 ║    ImageProcessingAdapter  ·  VideoTranscodingAdapter               ║
+║    BallotEncryptionAdapter                                          ║
 ╚═════════════════════════════════════════════════════════════════════╝
 
   ↕
@@ -449,6 +450,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  PaymentAdapter          Stripe live/test SDK       Configurable mock│
 │  SecretsAdapter          LiveSecretsAdapter (SSM)   LocalSecretsAdapter│
 │  JwtSigningAdapter       createKmsJwtAdapter (KMS RS256) createLocalJwtAdapter (RS256)│
+│  BallotEncryptionAdapter KMS envelope encryption     local-keyed (dev/test)│
 │  SafeBrowsingAdapter     LiveSafeBrowsingAdapter    StubSafeBrowsingAdapter│
 │  CaptchaAdapter          createLiveCaptchaAdapter (Turnstile) createStubCaptchaAdapter│
 │  HttpReachabilityAdapter LiveHttpReachabilityAdapter StubHttpReachabilityAdapter│

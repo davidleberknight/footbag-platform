@@ -71,7 +71,17 @@ export function createHttpImageAdapter(opts: {
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       if (res.status === 400) {
-        throw new ImageProcessingError(`image worker rejected image type: ${body}`, 400);
+        // The worker returns { error: <clear message> } for client-fixable
+        // rejections (unrecognized type, too small/large, extreme aspect);
+        // surface that message verbatim so the service can present it inline.
+        let message = body;
+        try {
+          const parsed = JSON.parse(body) as { error?: unknown };
+          if (typeof parsed.error === 'string' && parsed.error) message = parsed.error;
+        } catch {
+          // non-JSON body: fall back to the raw text
+        }
+        throw new ImageProcessingError(message, 400);
       }
       throw new ImageProcessingError(
         `image worker returned ${res.status}: ${body}`,

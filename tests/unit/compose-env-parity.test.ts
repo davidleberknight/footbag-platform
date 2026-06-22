@@ -458,13 +458,13 @@ describe('docker-compose.prod.yml structural invariants', () => {
 
   it('memory limits are env-var-driven with nano_3_0 defaults', () => {
     // Memory limits are env-driven so the same overlay sizes correctly for
-    // staging (nano_3_0, 512M host) and production (small_3_0, 2GB host).
-    // Defaults must match the nano_3_0 sizing so staging keeps working
-    // without env overrides. Production sets WEB_MEMORY_LIMIT=512M /
-    // WORKER_MEMORY_LIMIT=384M / IMAGE_MEMORY_LIMIT=896M in /srv/footbag/env.
-    // If defaults change, keep the operator deployment docs in sync.
+    // staging (nano_3_0, 512M host) and production (medium_3_0, 4GB host).
+    // Defaults match the staging sizing so staging keeps working without
+    // overrides; the deploy seeds the per-environment values from the committed
+    // docker/env/<environment>.env into /srv/footbag/env. If a default changes,
+    // keep docker/env/*.env and the operator deployment docs in sync.
     const overlay = loadCompose('docker/docker-compose.prod.yml');
-    expect(overlay.services.nginx.deploy?.resources?.limits?.memory).toBe('64M');
+    expect(overlay.services.nginx.deploy?.resources?.limits?.memory).toBe('${NGINX_MEMORY_LIMIT:-64M}');
     expect(overlay.services.web.deploy?.resources?.limits?.memory).toBe('${WEB_MEMORY_LIMIT:-192M}');
     expect(overlay.services.worker.deploy?.resources?.limits?.memory).toBe('${WORKER_MEMORY_LIMIT:-96M}');
     expect(overlay.services.image.deploy?.resources?.limits?.memory).toBe('${IMAGE_MEMORY_LIMIT:-256M}');

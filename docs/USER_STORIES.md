@@ -819,6 +819,7 @@ Story: As a member, I can view and edit my profile (bio, avatar, contact prefs, 
 Success Criteria:
 
 - Member profile creation and editing (photo, bio, contact preferences).
+- Avatar upload: JPEG or PNG up to 5 MB, with the same image dimension limits as M_Upload_Photo (at least 200×200, at most 16.8 megapixels (4096×4096 pixels), aspect within 4:1). A rejected image re-renders the profile-edit form with a clear inline error.
 - **Name display:** Display name is set at registration and cannot be changed. The surname constraint is enforced at registration: display name must share a surname with `real_name` (suffix-stripped: Jr, Sr, II, III, IV). Contact IFPA admin for corrections.
 - City, country, and email are mandatory fields; phone is optional.
 - **Contact fields and per-field visibility:** `phone` and `whatsapp` are optional, both editable here (`whatsapp` format-validated, rendered as a chat link). Each contact field (contact email, phone, WhatsApp) has its own visibility toggle, default off. When toggled on, the field is shown to authenticated members only (Sensitivity 2), never on public surfaces. Holding a club co-leader or event organizer role forces that member's contact email visible to authenticated members and locks its toggle on while the role is held (see DATA_GOVERNANCE §3). Changes are audit-logged.
@@ -1262,6 +1263,7 @@ Success Criteria:
 
 - Upload photos via named gallery interface. For each member, the initial, default photo gallery name is Personal Gallery. Member can rename this, and/or create multiple named galleries to organize photos.
 - JPEG and PNG only; GIF not supported. Animated content should be uploaded to YouTube or Vimeo and embedded via video links.
+- Accepted image dimensions: at least 200×200 pixels, at most 16.8 megapixels (4096×4096 pixels), and an aspect ratio no more extreme than 4:1 (longer side at most 4× the shorter). An image outside these bounds is rejected with a clear inline error naming the limit it missed (too small, too large, or too long and thin), and the form re-renders for retry.
 - Photo processing generates two variants only: Thumbnail (300×300 pixels) and Display (800px width maximum). Both stored as JPEG at 85% quality, sufficient quality for web viewing and sharing. Original uploaded file is discarded after processing,
 - Add caption to photo optionally (plain text, max 500 chars).
 - Optional external URL on each uploaded photo (for example a link to a source article or creator page), validated at the service boundary (see DD §3.17). The upload form works without JavaScript.
@@ -2264,7 +2266,7 @@ Story: As an admin, I can manage curated photos and videos that the platform att
 Success Criteria, Upload:
 
 - Admin upload UI is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
-- Admin can upload photos (JPEG, PNG; same format whitelist as M_Upload_Photo) and videos (formats per DD §6.8 Curator Media Processing). MP4 binary upload is admin-only; members cannot upload MP4. URL-only video references (YouTube, Vimeo) are also supported: admin pastes the video URL, the system extracts platform and video_id, and no binary upload is required. sourceId and clip ranges (startSeconds, endSeconds) are optional for URL-only references. Posters for video are provided as a companion image upload.
+- Admin can upload photos (JPEG, PNG; same format whitelist and image dimension limits as M_Upload_Photo) and videos (formats per DD §6.8 Curator Media Processing). MP4 binary upload is admin-only; members cannot upload MP4. URL-only video references (YouTube, Vimeo) are also supported: admin pastes the video URL, the system extracts platform and video_id, and no binary upload is required. sourceId and clip ranges (startSeconds, endSeconds) are optional for URL-only references. Posters for video are provided as a companion image upload.
 - Uploaded photos go through the standard Sharp pipeline (DD §6.8): re-encode, strip metadata, generate thumb + display variants.
 - Uploaded videos go through the curator video pipeline (DD §6.8): ffmpeg full transcode with explicit malware-stripping options, producing a single standardized output rendition. Companion poster goes through the Sharp pipeline.
 - The resulting media_items row has uploader_member_id set to the system member id (the row where is_system=1). Admin actor is not stored on the media_items row.

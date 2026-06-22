@@ -60,7 +60,7 @@ afterAll(() => {
 
 async function tinyJpeg(): Promise<Buffer> {
   return sharp({
-    create: { width: 10, height: 10, channels: 3, background: { r: 0, g: 0, b: 0 } },
+    create: { width: 256, height: 256, channels: 3, background: { r: 0, g: 0, b: 0 } },
   }).jpeg().toBuffer();
 }
 

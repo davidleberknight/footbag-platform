@@ -69,7 +69,7 @@ function adminCookie(): string {
 
 async function makeJpeg(): Promise<Buffer> {
   return sharp({
-    create: { width: 10, height: 10, channels: 3, background: { r: 200, g: 80, b: 80 } },
+    create: { width: 256, height: 256, channels: 3, background: { r: 200, g: 80, b: 80 } },
   }).jpeg().toBuffer();
 }
 

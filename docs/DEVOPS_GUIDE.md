@@ -1048,14 +1048,18 @@ At minimum, the host env file must define:
 - `PUBLIC_BASE_URL`
 - `SESSION_SECRET`
 
-Container memory limits are env-driven so the same `docker-compose.prod.yml` overlay sizes correctly for the host bundle. Per-environment values:
+Container memory limits and encoder tuning are env-driven so the same `docker-compose.prod.yml` overlay sizes correctly for the host bundle. These values are version-controlled, not hand-set: the deploy seeds them into `/srv/footbag/env` from the committed `docker/env/<environment>.env` (the source of truth), keyed on `FOOTBAG_ENV`, validated against a sizing-key allowlist, and `verify-staging-env.sh` asserts the host matches the committed file. Per-environment values:
 
-| Variable | Staging (nano_3_0, 512M host) | Production (medium_3_0, 4GB host) |
+| Variable | Staging (`docker/env/staging.env`, nano_3_0 512M host) | Production (`docker/env/production.env`, medium_3_0 4GB host) |
 |---|---|---|
-| `WEB_MEMORY_LIMIT` | unset (default 192M) | `512M` |
-| `WORKER_MEMORY_LIMIT` | unset (default 96M) | `384M` |
-| `IMAGE_MEMORY_LIMIT` | unset (default 256M) | `896M` |
-| `IMAGE_MAX_CONCURRENT` | unset (default 1) | `2` |
+| `NGINX_MEMORY_LIMIT` | `64M` | `128M` |
+| `WEB_MEMORY_LIMIT` | `192M` | `512M` |
+| `WORKER_MEMORY_LIMIT` | `96M` | `384M` |
+| `IMAGE_MEMORY_LIMIT` | `256M` | `896M` |
+| `IMAGE_MAX_CONCURRENT` | `1` | `2` |
+| `VIDEO_X264_PRESET` | `veryfast` | unset (canonical medium) |
+| `VIDEO_X264_THREADS` | `1` | unset (auto) |
+| `VIDEO_X264_RC_LOOKAHEAD` | `10` | unset (canonical 40) |
 
 The defaults in `docker-compose.prod.yml` are staging-sized; production hosts override via `/srv/footbag/env`. Leave the variables unset on staging unless the host bundle is upgraded.
 
