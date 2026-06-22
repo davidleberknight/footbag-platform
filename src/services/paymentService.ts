@@ -62,6 +62,13 @@
  *     (they are network calls in live mode).
  *   - Side effects (audit append, receipt-email enqueue) run AFTER the
  *     transaction commits, gated on the processed outcome.
+ *
+ * Persistence:
+ *   payments, payment_status_transitions, stripe_events, audit_entries.
+ *
+ * Side effects:
+ *   - audit_entries append (checkout, status transitions, refunds)
+ *   - outbox_emails enqueue (receipt email; best-effort after the success commit)
  */
 import { randomUUID } from 'node:crypto';
 import {

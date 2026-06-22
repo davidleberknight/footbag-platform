@@ -69,7 +69,9 @@
  * Side effects:
  *   - audit_entries append
  *   - outbox_emails enqueue (join/leave notifications to the member and
- *     current club leaders; best-effort after the affiliation commit)
+ *     current club leaders; co-leader invitations to a nominated member;
+ *     co-leader-volunteered notifications to existing leaders; best-effort
+ *     after the affiliation commit)
  *
  * Service shape: singleton object (no external adapters).
  */

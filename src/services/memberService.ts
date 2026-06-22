@@ -62,6 +62,7 @@
  *   legacy_members (claim-state columns cleared on PII purge),
  *   erasure_log (append-only; one row per applied erasure shape),
  *   audit_entries,
+ *   work_queue_items (member-authored contact-request free text redacted on PII purge and deceased scrub),
  *   historical_persons (read-only; surfaced in member search via the public-player
  *   name index, so search spans both live members and imported historical identities).
  *

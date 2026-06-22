@@ -617,7 +617,7 @@ Login and password-reset endpoints use application-level rate limiting keyed by 
 
 ## 6.2 Image Upload Strategy
 
-Members (Tier 1+) can upload photos in JPEG or PNG format, with maximum 10MB file size and 4096×4096 pixel dimensions. Images are processed synchronously during upload, users wait 2-5 seconds while the system generates two optimized variants: a 300×300 pixel thumbnail and an 800-pixel-width display version, both saved as JPEG at 85% quality.
+Members (Tier 1+) can upload photos in JPEG or PNG format, with maximum 25MB file size and 4096×4096 pixel dimensions. Images are processed synchronously during upload, users wait 2-5 seconds while the system generates two optimized variants: a 300×300 pixel thumbnail and an 800-pixel-width display version, both saved as JPEG at 85% quality.
 
 Processing eliminates malware through re-encoding that converts images to raw pixels and back, discarding everything except visual content. This approach removes the need for antivirus scanning infrastructure. All metadata (EXIF, GPS, camera information, ICC profiles) is stripped for privacy and security. Original uploaded files are discarded after processing, reducing storage requirements.
 
@@ -684,7 +684,7 @@ This design creates complete accountability trail. Disputes resolved definitivel
 
 AWS S3 default (SSE-S3) encrypts all data backup snapshots at rest. The local SQLite database file on Lightsail is stored unencrypted on the instance volume, which is an acceptable trade-off given that backups are encrypted, instance access is restricted via IAM, and the data is not financial or regulated.
 
-Ballot encryption uses AWS KMS envelope encryption with per-ballot data keys; store ciphertext plus encrypted data keys. Ballots are encrypted server-side before storage, providing strong cryptographic privacy protections independent of S3 encryption. This ensures ballot secrecy: even with S3 access, ballots remain encrypted without Parameter Store key access. Double-layer encryption (application-level ballot encryption plus S3-level storage encryption) provides defense in depth but absolute secrecy is not claimed under privileged-role compromise scenarios.
+Ballot encryption uses AWS KMS envelope encryption with per-ballot data keys; store ciphertext plus encrypted data keys. Ballots are encrypted server-side before storage, providing strong cryptographic privacy protections independent of S3 encryption. This ensures ballot secrecy: even with S3 access, ballots remain encrypted without KMS decrypt access to the dedicated ballot key. Double-layer encryption (application-level ballot encryption plus S3-level storage encryption) provides defense in depth but absolute secrecy is not claimed under privileged-role compromise scenarios.
 
 This approach is appropriate for the platform's threat model: Community membership data is not regulated (not HIPAA, not PCI, not financial records). Encryption at rest protects against physical disk theft and some insider threats. AWS handles key management, rotation, and security.
 
@@ -791,7 +791,7 @@ All AWS infrastructure for the platform is defined as code using Terraform confi
 - Lightsail instance configuration (size, OS image, networking, static IP).
 - S3 buckets with complete configuration (versioning, lifecycle policies, CORS rules, public access blocks, backup bucket for SQLite snapshots).
 - CloudFront distributions (origins, cache behaviors, TLS certificates, custom domain).
-- IAM roles and policies for human operators, Systems Manager managed-node registration/service-role resources, and application runtime assumed roles, plus the documented runtime credential mechanism for deployed hosts and operators.
+- IAM roles and policies for human operators, Lightsail firewall restrictions and any documented bootstrap inputs required by the SSH access model, and application runtime assumed roles, plus the documented runtime credential mechanism for deployed hosts and operators.
 - Parameter Store structure (paths, types, encryption configuration).
 - CloudWatch log groups and metric alarms.
 - Route53 DNS records.

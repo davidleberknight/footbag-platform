@@ -784,7 +784,7 @@ CREATE INDEX idx_work_queue_entity ON work_queue_items(entity_type, entity_id);
 -- value for a key is the row with the latest effective_start_at <= now.
 -- All rows are immutable once inserted; UPDATE and DELETE are blocked by triggers.
 -- Seeded with all required defaults at initialization (see Section 23).
--- Missing keys cause runtime errors; seed data must be complete.
+-- Keys with no seed row resolve to a built-in code default at read time (configReader); they do not error.
 --
 -- Actor attribution: changed_by_member_id is a typed FK to members (admins only).
 -- System-seeded rows at initialization use NULL with a documented reason_text

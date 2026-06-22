@@ -1390,7 +1390,7 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | WM6 | Data-quality metrics delivered (deliverability estimate, last-activity timestamps) | §19 item 13 | State 1 → State 2 |
 | WM7 | Final production export delivered post-write-freeze, same raw-dump format as the test export | §19 item 14 | State 3 → State 4 |
 | WM8 | Write-freeze / maintenance mode coordinated on legacy site (dependent on §28 phased feature scope) | §19 item 29 | State 3 → State 4 |
-| WM9 | Legacy database retention committed (minimum 30 days post-cutover) | §19 item 30 | State 3 → State 4 |
+| WM9 | Legacy database retention committed (minimum 30 days after the 48-hour rollback window) | §19 item 30 | State 3 → State 4 |
 | WM10 | Front-door flip coordination confirmed: T-7d notice, flip-day availability, and the §27 monitored-window coverage (no DNS TTL choreography applies to the flip) | §19 item 18; §29.12 | State 3 → State 4 |
 | WM11 | Legacy subdomain inventory enumerated and recorded; allocation between legacy host and new platform agreed (dependent on §28 phased feature scope) | §19 item 16 | State 3 → State 4 |
 | WM12 | Parallel-role end milestones agreed and recorded (stable operation, email transition complete, DNS handover executed, retained services resolved), with a review cadence | §19 item 31 | State 3 → State 4 |
@@ -1651,7 +1651,7 @@ Path B does not recover from systemic bugs in the candidate-staging step itself,
 - Retained-subdomain TLS health: per gate OR12, daily probe on every retained `*.footbag.org` subdomain; first probe runs at T+1h, not T+24h.
 - CloudFront cache-invalidation confirmation: verify `/*` invalidation completed within 60 seconds of T-0 (one-time check).
 
-**Legacy DB retention:** the legacy-site webmaster retains the legacy database for at least 30 days after cutover for reference and targeted manual recovery. This is sequential to and distinct from the 48-hour rollback window: retention enables one-off historical lookups by admin; rollback is the time-bounded path back to the legacy site as authority.
+**Legacy DB retention:** the legacy-site webmaster retains the legacy database for at least 30 days after the 48-hour rollback window ends for reference and targeted manual recovery. This is sequential to and distinct from the 48-hour rollback window: retention enables one-off historical lookups by admin; rollback is the time-bounded path back to the legacy site as authority.
 
 **Member writes lost on restore:** any claim, registration, or club-affiliation write that lands between snapshot capture and rollback is lost on restore. The 48-hour window plus the platform's traffic profile bound the affected count; affected members re-do the action after the platform stabilizes.
 

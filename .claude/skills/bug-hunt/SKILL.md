@@ -174,13 +174,13 @@ Read deployed controllers, services, middleware, adapters, templates, schema-fac
 Before scanning any source file, load these into context:
 
 1. This document (you are reading it). §1 is your scope filter, §3 is what NOT to re-flag, §4.4 is the bug-category framework.
-2. `/home/footbag/GITHUB/footbag-platform/CLAUDE.md` — project-wide rules + source-of-truth order.
-3. `/home/footbag/GITHUB/footbag-platform/docs/TESTING.md` §15.2 strategic anti-patterns.
-4. `/home/footbag/GITHUB/footbag-platform/IMPLEMENTATION_PLAN.md` — the accepted-deviation blocks. A behavior that looks like a bug may be an explicitly documented deviation; cross-check before flagging. The legacy-pipeline deviations recorded there are mandatory to check even though the `legacy_data/` pipeline itself is out of scope, because they can surface in deployed routes.
-5. **All path-scoped rules in `/home/footbag/GITHUB/footbag-platform/.claude/rules/*.md`** (the full set: `testing`, `service-layer`, `controller-conventions`, `template-conventions`, `view-layer`, `db-layer`, `db-write-safety`, `adapter-conventions`, `comments`, `doc-governance`, `memory`) and the relevant `.claude/skills/*` procedures — the operational rules and workflows every finding must respect (the layer-boundary rules are the canonical patterns the §4.4B design-divergence sweep checks against).
-6. `/home/footbag/GITHUB/footbag-platform/docs/DATA_GOVERNANCE.md` (mandatory before any finding that touches members, historical persons, search, contact fields, exports, stats, or privacy boundaries).
+2. `CLAUDE.md` — project-wide rules + source-of-truth order.
+3. `docs/TESTING.md` §15.2 strategic anti-patterns.
+4. `IMPLEMENTATION_PLAN.md` — the accepted-deviation blocks. A behavior that looks like a bug may be an explicitly documented deviation; cross-check before flagging. The legacy-pipeline deviations recorded there are mandatory to check even though the `legacy_data/` pipeline itself is out of scope, because they can surface in deployed routes.
+5. **All path-scoped rules in `.claude/rules/*.md`** (the full set: `testing`, `service-layer`, `controller-conventions`, `template-conventions`, `view-layer`, `db-layer`, `db-write-safety`, `adapter-conventions`, `comments`, `doc-governance`, `memory`) and the relevant `.claude/skills/*` procedures — the operational rules and workflows every finding must respect (the layer-boundary rules are the canonical patterns the §4.4B design-divergence sweep checks against).
+6. `docs/DATA_GOVERNANCE.md` (mandatory before any finding that touches members, historical persons, search, contact fields, exports, stats, or privacy boundaries).
 
-The user memory directory at `/home/footbag/.claude/projects/-home-footbag-GITHUB-footbag-platform/memory/MEMORY.md` autoloads. Respect every behavioral rule documented there.
+The user-scope project memory (`MEMORY.md`) autoloads. Respect every behavioral rule documented there.
 
 ### 4.3A External security calibration references
 

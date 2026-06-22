@@ -682,13 +682,13 @@ The project is AI-assisted. Every test-run output is tokens in the agent's conte
 | Inner loop | During edit, focused work | Single file, or tests that import the changed source | `npx vitest run path/to/file.test.ts` or `npx vitest run --related src/changed.ts` |
 | Pre-commit | Before commit | Tests touching files in the uncommitted diff, plus lint + typecheck | `npx vitest run --changed && npm run lint && npx tsc --noEmit` |
 | Pre-push | Before push to remote | Full unit + integration suite | `npm test` |
-| CI on push | Automated | Full suite + `npm audit --audit-level=high` + Playwright `@smoke` | CI workflow |
+| CI on push | Automated | Full suite + `audit-ci --moderate` + full Playwright e2e + CodeQL | CI workflow |
 | CI on main / nightly | Post-merge or scheduled | Full Playwright e2e, dependency audit, optional ZAP | Scheduled workflow |
 | Smoke post-deploy | After staging deploy | `RUN_STAGING_SMOKE=1 npm run test:smoke` | Operator-invoked |
 
 **Catastrophic-surface override.** When edits touch auth (`src/services/identityAccessService.ts`, `src/middleware/auth*`, session helpers), privacy boundaries (member-PII reads, anti-enumeration surfaces), or future payment code, run the full test files for those surfaces in the inner loop even if `--related` would skip them. Catastrophic surfaces never skip on inner-loop convenience.
 
-**Compact CI output.** CI logs (which AI agents may read) use `--reporter=dot` to keep output small. Local interactive runs can use the default reporter. The compact reporter prints one character per test (`.` pass, `F` fail) plus a summary; failures are still surfaced with full stack and assertion detail.
+**Compact output.** For runs whose output an AI agent will read, `--reporter=dot` keeps logs small. Default-reporter runs are fine for interactive use. The compact reporter prints one character per test (`.` pass, `F` fail) plus a summary; failures are still surfaced with full stack and assertion detail.
 
 ### 11.6 Secrets and CI
 

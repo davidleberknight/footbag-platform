@@ -26,7 +26,7 @@
 
 **CloudFront**: Amazon's content delivery network that serves Footbag.org from 400+ edge locations worldwide. CloudFront edge-caches static assets (CSS, JS, images, fonts) and user-uploaded media; HTML responses are routed to the Lightsail origin for rendering and not cached at the edge.
 
-**CloudTrail**: AWS logging service that records all API calls to AWS services for security analysis and compliance. Footbag.org enables CloudTrail for Parameter Store access (tracking who retrieved voting encryption keys and when) and for backup/audit bucket operations.
+**CloudTrail**: AWS logging service that records all API calls to AWS services for security analysis and compliance. Footbag.org enables CloudTrail for Parameter Store access (tracking who retrieved third-party API secrets such as Stripe keys and when) and for audit-log bucket operations.
 
 **CloudWatch Logs**: AWS log aggregation service collecting structured application logs from Docker containers. Provides search, filtering, and alerting capabilities. Footbag.org retains application logs 30 days, audit logs 7 years.
 

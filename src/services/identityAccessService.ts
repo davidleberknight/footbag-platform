@@ -87,8 +87,8 @@
  *     revert applied, help request submitted / approved / rejected,
  *     registration conflict prompted / disputed, mailbox link issued /
  *     consumed / expired, cross-source offered / confirmed / declined)
- *   - outbox_emails enqueue (verification, reset, claim email, resend,
- *     mailbox-control link to a declared old email)
+ *   - outbox_emails enqueue (verification, reset, password-change confirmation,
+ *     claim email, resend, mailbox-control link to a declared old email)
  *   - work_queue_items insert (member_link_help_request intake with
  *     admin-alerts fan-out)
  *
