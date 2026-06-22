@@ -6895,18 +6895,28 @@ export const freestyleService = {
             : null,
           sectionSubtitles: getSectionSubtitles(slug),
           aboutDerivatives: getAboutDerivatives(slug),
-          notationDisplay: dictRow
-            ? shapeNotationDisplay(
-                dictRow.notation,
-                buildNotationLookupContext(
-                  allDictRows,
-                  allModifierRows,
-                  runSqliteRead('freestyleTrickAliases.listAll', () =>
-                    freestyleTrickAliases.listAll.all() as FreestyleTrickAliasRow[],
-                  ),
+          notationDisplay: (() => {
+            if (!dictRow) return null;
+            // Rendering hygiene: when the Movement (JOB) string is byte-identical
+            // to the Execution (operational) string, the two notation blocks would
+            // render the same tokens. Suppress the Movement block; the Execution
+            // block carries the notation. The underlying data is left untouched.
+            const movementRaw = (dictRow.notation ?? '').trim();
+            const execRaw = (resolveOperationalNotationRaw(
+              slug, dictRow.operational_notation ?? null,
+            ) ?? '').trim();
+            if (movementRaw && execRaw && movementRaw === execRaw) return null;
+            return shapeNotationDisplay(
+              dictRow.notation,
+              buildNotationLookupContext(
+                allDictRows,
+                allModifierRows,
+                runSqliteRead('freestyleTrickAliases.listAll', () =>
+                  freestyleTrickAliases.listAll.all() as FreestyleTrickAliasRow[],
                 ),
-              )
-            : null,
+              ),
+            );
+          })(),
           semanticNotation: (() => {
             if (!dictRow) return null;
             const sn = shapeSemanticNotation(dictRow, new Map(allDictRows.map(r => [r.slug, r])));
