@@ -312,7 +312,7 @@ Impact:
 
 - CI/CD and deployment scripts are written around "build a Docker image, deploy to one Lightsail host."
 
-- CloudFront origin configuration points to this instance for dynamic content and to S3 buckets for static and archive content.
+- CloudFront origin configuration points to this instance for dynamic content and static assets, and to S3 buckets for media and archive content.
 
 - Production uses 4GB Lightsail instance with 2 vCPUs, 80GB SSD, 4TB transfer allowance. This will provide adequate headroom for container allocations: 4GB provides sufficient memory for four Docker containers.
 
@@ -2983,13 +2983,13 @@ Impact:
 
 - Webhook handler validates signatures and processes payment events.
 
-- Payment reconciliation and distribution handled outside automated system.
+- Payment reconciliation runs as a scheduled nightly job that compares platform records against Stripe and records mismatches; distribution is handled outside the automated system.
 
 ## 6.2 CloudFront CDN
 
 Decision:
 
-Single CloudFront distribution fronts all content with different cache behaviors. All HTML responses from the Lightsail origin (public, mixed-state, and authenticated) use the AWS managed `CachingDisabled` cache policy (TTL 0/0/0): server-rendered HTML in this app frequently shapes content by viewer state (auth, role, tier, ownership), and per-route classification of cacheability would be brittle as the route surface grows; routing all HTML to the origin keeps cache decisions out of CloudFront and lets the Express middleware at `src/app.ts` enforce `Cache-Control: private, no-store` on every authenticated response without coordination with edge config. Static assets (CSS, JS, images) use the AWS managed `CachingOptimized` policy with content-hash filenames for long-lived edge caching. Health probes use `CachingDisabled`. Archive content uses 1-year TTL with origin S3 archive bucket and members-only access controls. Cache behaviors targeting S3 origins must omit `origin_request_policy_id` (or use only a policy that excludes `Host`).
+Single CloudFront distribution fronts all content with different cache behaviors. All HTML responses from the Lightsail origin (public, mixed-state, and authenticated) use the AWS managed `CachingDisabled` cache policy (TTL 0/0/0): server-rendered HTML in this app frequently shapes content by viewer state (auth, role, tier, ownership), and per-route classification of cacheability would be brittle as the route surface grows; routing all HTML to the origin keeps cache decisions out of CloudFront and lets the Express middleware at `src/app.ts` enforce `Cache-Control: private, no-store` on every authenticated response without coordination with edge config. Static assets (CSS, JS, images, fonts) are served from the Lightsail origin and edge-cached under a custom cache policy that includes the `?v=` content-hash token in the cache key, for long-lived caching of immutable versioned URLs (see §6.7). Health probes use `CachingDisabled`. Archive content uses 1-year TTL with origin S3 archive bucket and members-only access controls. Cache behaviors targeting S3 origins must omit `origin_request_policy_id` (or use only a policy that excludes `Host`).
 
 Rationale:
 
@@ -3235,49 +3235,45 @@ Impact:
 
 Decision:
 
-Static assets (CSS, JS, images) use content-hash filenames (e.g., app.a3f8b2c.js) enabling aggressive CloudFront caching (1-year TTL). Build process generates hashed filenames, updates references in HTML templates.
+Static assets (CSS, JS, images, fonts) are served from the Lightsail origin under stable filenames and cache-busted by a content-hash version token in the query string (`/css/style.css?v=<hash>`). The token is computed at runtime from each file's bytes; no build step or bundler generates hashed filenames. CloudFront edge-caches every static-asset path under a cache policy that includes the version token in the cache key, so a changed file is a distinct edge entry and a deploy self-cache-busts with no manual invalidation.
 
 Rationale:
 
-- Content-hash filenames make assets immutable (hash changes when content changes).
+- A content-hash token makes each asset URL immutable (the token changes when the bytes change), giving the same cache-correctness as hashed filenames without a build pipeline.
 
-- Immutable assets enable long-lived caching without staleness concerns.
+- Runtime fingerprinting keeps the build to `tsc` only, matching the project's simplicity and volunteer-maintainability goals.
 
-- Eliminates cache invalidation complexity.
+- Serving from the Lightsail origin avoids a second static-asset origin (S3 sync, bucket policy, origin access control); with immutable assets edge-cached at a 1-year ceiling the origin is reached at most once per edge location per asset, so a dedicated S3 static origin would add operational complexity for no meaningful gain.
 
-- CloudFront edge caching dramatically reduces origin load.
+- Overwriting files in place on deploy means old versions never accumulate, so no asset-cleanup job is needed.
 
 Trade-offs:
 
-- Build process must generate hashed filenames and update references.
+- The version token must be present on every asset reference. References the app emits in templates get it via the `asset` helper; references embedded inside CSS (`url(...)` for fonts and background images) are fingerprinted when the CSS is served, so coverage is uniform.
 
-- Old asset versions accumulate in S3 (cleanup required periodically).
+- A query-string token cache-busts at CloudFront only when the cache policy includes the query string in the cache key; every static-asset cache behavior therefore uses that policy. The managed `CachingOptimized` policy, which strips query strings, is not used for these paths.
 
-- Deployment must be atomic (templates and assets must match).
+- Deployment is atomic: templates, CSS, and the assets they reference deploy together in one Docker image, so references and bytes always match.
 
 Impact:
 
-- Build pipeline includes asset hashing step.
+- No build-time asset step; the `asset` helper computes and appends `?v=<hash>` at render time, memoized per process.
 
-- Template rendering resolves asset references to hashed filenames.
+- CSS is served through a fingerprinting pass that rewrites embedded `url(...)` references to carry the same `?v=<hash>` token, so fonts and CSS-referenced images are versioned uniformly.
 
-- CloudFront serves assets from edge with near-zero origin requests.
+- CloudFront serves assets from the edge with near-zero origin requests; each distinct `?v=` token is its own immutable edge entry.
 
-- S3 cleanup job periodically removes old content-hash versions older than 90 days. Each deployment generates new hashed filenames; old versions accumulate in S3 but are never referenced after HTML updates. Cleanup prevents unbounded storage growth while maintaining 90-day rollback window.
-
-- Bundling Constraint: JavaScript is delivered as a single hashed bundle per page (or per feature area) to avoid partial-script-load failure modes. Code splitting is allowed only when it does not create broken intermediate states; a page must either be fully interactive (JS loaded) or clearly non-interactive with a \<noscript\> message.
+- JavaScript is delivered as per-page or per-feature script files (no bundler); a page is either fully interactive (its scripts load) or clearly non-interactive with a \<noscript\> message, never partially wired.
 
 Cache control header strategy:
 
-- Static assets (CSS, JavaScript, images with content hashes): Cache-Control: public, max-age=31536000, immutable.
+- Static assets carrying a `?v=` token (CSS, JavaScript, images, fonts): Cache-Control: public, max-age=31536000, immutable.
 
-- Public cacheable HTML / public GET content (for example, public event listings, public galleries, non-personalized pages): origin emits Cache-Control: public, max-age=300, must-revalidate as a hint for browser-side caching. CloudFront's default behavior uses the AWS managed `CachingDisabled` cache policy per §6.2, so the response is not edge-cached. A high-traffic public route that warrants edge caching may receive a dedicated `ordered_cache_behavior` with a cache policy that respects this header.
-
-- API endpoints, authenticated HTML, and any personalized/user-specific content: Cache-Control: private, no-store, set by Express middleware on every authenticated response. CloudFront's default cache behavior uses the AWS managed `CachingDisabled` cache policy for all HTML routes (public, mixed-state, and authenticated alike): the app frequently varies HTML by viewer state across many routes, and rather than per-route classification, all HTML is routed to origin so the middleware is the single mechanism for HTML cache control. Static assets (which never vary by viewer) continue to be edge-cached aggressively per the next bullet. Member-uploaded photos and system-account-owned media (`/media-store/*`) are edge-cached via a CloudFront cache policy that includes the query string in the cache key, supporting URL-versioned cache-bust (e.g. `?v={media_id}`).
+- API endpoints, authenticated HTML, and any personalized/user-specific content: Cache-Control: private, no-store, set by Express middleware on every authenticated response. CloudFront's default cache behavior uses the AWS managed `CachingDisabled` cache policy for all HTML routes (public, mixed-state, and authenticated alike): the app frequently varies HTML by viewer state across many routes, and rather than per-route classification, all HTML is routed to origin so the middleware is the single mechanism for HTML cache control. Static assets (which never vary by viewer) continue to be edge-cached aggressively per the static-asset bullet above. Member-uploaded photos and system-account-owned media (`/media-store/*`) are edge-cached via a CloudFront cache policy that includes the query string in the cache key, supporting URL-versioned cache-bust (e.g. `?v={media_id}`).
 
 - Public unauthenticated routes that render a single-use token in HTML (the password-reset form is the canonical example: it embeds the reset token in a hidden form field and in the form `action` URL) MUST also send `Cache-Control: no-store, no-cache, must-revalidate, private` and `Pragma: no-cache`. Without this, a shared HTTP proxy or browser back-button cache could capture an unconsumed token. The app middleware that sets `private, no-store` for authenticated responses does not apply here because the route is anonymous; controllers must set the headers explicitly on both the GET render and any 422 re-render that includes the token.
 
-- Cache invalidation: After publishing event results or vote tallies, the system programmatically invalidates CloudFront cache for affected URLs using the CloudFront invalidation API. Manual cache purge for emergency updates is a System Administrator / DevOps operational action (AWS tooling/runbooks), not an Application Administrator UI control. Invalidation requests are batched where possible and limited to 1000 per month to control costs.
+- Edge-cached content (static assets and media) is content-versioned by its `?v=` token, so a changed asset is a new URL and never needs invalidation; HTML is not edge-cached, so it has nothing to invalidate. Manual CloudFront purge remains a System Administrator / DevOps escape hatch for emergencies, not an Application Administrator control.
 
 ## 6.8 Image Processing
 
@@ -3343,7 +3339,7 @@ Concurrency control: Limit concurrent image processing to five simultaneous uplo
 
 Error handling: Processing failures return clear user-facing errors ('Image processing failed, please try a different image') without exposing implementation details or library error messages that could aid attackers.
 
-CloudFront cache rules differ by variant (thumbnails cache longer). Error responses: 400 for validation errors, 500 for processing errors, 504 for S3 timeout.
+Both processed variants are stored in S3 and edge-cached under the single immutable `/media-store/*` cache policy, versioned by the `?v={media_id}` token (§6.7). Error responses: 400 for validation errors, 500 for processing errors, 504 for S3 timeout.
 
 Curator Media Processing:
 
@@ -4206,7 +4202,7 @@ Trade-offs:
 
 Impact:
 
-BackupWorker service runs in worker container and executes backup sequence every five minutes. CloudWatch monitors backup success rate, backup age. Alerts trigger on backup failures (3 consecutive) or stale backups (\>15 minutes old). Health endpoint exposes last successful backup timestamp for external monitoring.
+A host-side systemd timer runs the backup script every five minutes. CloudWatch monitors backup success rate, backup age. Alerts trigger on backup failures (3 consecutive) or stale backups (\>15 minutes old). Health endpoint exposes last successful backup timestamp for external monitoring.
 
 DevOps runbooks document step-by-step recovery procedures with validation checklists. Quarterly drills validate recovery process works as documented and identify needed updates to procedures.
 

@@ -424,8 +424,8 @@ The active dictionary descriptions follow these templates. Apply the same templa
 
 The active dictionary descriptions live in two CSVs, both loaded into `freestyle_tricks.description`:
 
-- `legacy_data/inputs/noise/tricks.csv`: canonical baseline, loaded by `freestyle/loaders/17_load_trick_dictionary.py`. Holds most active tricks. Rows with notes containing commas must be CSV-quoted.
-- `legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv`: Red Husted overlays, loaded by `freestyle/loaders/19_load_red_additions.py`. Holds body primitives (`flying-inside`, `flying-outside`, `hop-over`, `walk-over`, `double-spin`, `spyro`), set primitives (`toe-stall`, `heel-stall`, `outside-stall`), and a handful of compounds (`sidewalk`, `tombstone`, `fury`, `vortex`, `surging`).
+- `freestyle/inputs/noise/tricks.csv`: canonical baseline, loaded by `freestyle/loaders/17_load_trick_dictionary.py`. Holds most active tricks. Rows with notes containing commas must be CSV-quoted.
+- `freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv`: Red Husted overlays, loaded by `freestyle/loaders/19_load_red_additions.py`. Holds body primitives (`flying-inside`, `flying-outside`, `hop-over`, `walk-over`, `double-spin`, `spyro`), set primitives (`toe-stall`, `heel-stall`, `outside-stall`), and a handful of compounds (`sidewalk`, `tombstone`, `fury`, `vortex`, `surging`).
 
 **Never write descriptions directly to `database/footbag.db`**: `scripts/reset-local-db.sh` wipes them on next reload. Edit the canonical CSV; verify by running script 17 (and 19 if applicable) against a fresh schema-only temp DB before claiming the change is durable.
 

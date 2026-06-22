@@ -731,17 +731,16 @@ def _seed_one_sidecar(
         thumbnail_url = sidecar_thumb
 
     media_id = _url_ref_media_id(url, platform)
-    # Per CMP §"Migration of James's existing 47 assets" item 3: title is
-    # the closest existing column for the legacy media_assets.title field.
-    # Sidecar.creator is preserved on disk for future re-import but is not
-    # written here (no equivalent column; per-asset creator info for record
-    # clips is currently dropped at seed time per CMP §"Column equivalences").
+    # The sidecar title maps to the legacy media_assets.title field (the closest
+    # existing column). Sidecar.creator is preserved on disk for future re-import
+    # but is not written here: there is no equivalent column, so per-asset creator
+    # info for record clips is dropped at seed time.
     caption = sidecar.get("title") or None
     source_id = sidecar.get("sourceId") or None
     start_seconds = sidecar.get("startSeconds")
     end_seconds   = sidecar.get("endSeconds")
 
-    # ── #curated auto-prepend at write time (CMP enforcement) ─────────────
+    # ── #curated auto-prepend at write time ─────────────
     raw_tags: list[str] = list(sidecar.get("tags", []))
     if any(t.lower() == "#curated" for t in raw_tags):
         raise ValueError(

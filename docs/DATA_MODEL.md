@@ -86,7 +86,7 @@
   - [APP-023 — Tally authorization (can-tally-votes equivalent)](#app-023--tally-authorization-can-tally-votes-equivalent)
   - [APP-024 — Standard tags must not be hard-deleted](#app-024--standard-tags-must-not-be-hard-deleted)
 - [7. Retained DB Triggers](#7-retained-db-triggers)
-  - [Append-only / immutability triggers (20)](#append-only--immutability-triggers-20)
+  - [Append-only / immutability triggers (22)](#append-only--immutability-triggers-22)
   - [Vote options lock triggers (3)](#vote-options-lock-triggers-3)
   - [State machine trigger (1)](#state-machine-trigger-1)
 - [8. SQLite Runtime Requirements](#8-sqlite-runtime-requirements)
@@ -1538,12 +1538,12 @@ The DB does not CHECK `reason_code` semantics; the application is the primary va
 **Schema initialization (`schema.sql`) includes all required seed rows.** Do not skip Section 23 of the schema file. The following tables must have seed rows before the application can function:
 
 - `mailing_lists`: `admin-alerts`, `all-members`, `newsletter`, `board-announcements`, `event-notifications`, `technical-updates`, `active-player-reminders` (verify by `slug`); admin notification and member subscription workflows depend on these slugs.
-- `system_config`: all keys in §4.23 (verify by `config_key`); application reads these at startup and during operations; missing keys will cause runtime errors.
+- `system_config`: the seeded keys listed in §4.23 (verify by `config_key`); the application reads these at startup and during operations. A key with no seed row resolves to its built-in code fallback (per §4.23), so it does not error.
 
 **To verify seed data is present after initialization:**
 ```sql
 SELECT count(*) FROM mailing_lists;     -- expect 7
-SELECT count(*) FROM system_config;     -- expect 44
+SELECT count(*) FROM system_config;     -- expect 46
 ```
 
 **Prefer semantic-key verification for publishable checks/examples:**

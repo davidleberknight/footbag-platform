@@ -183,7 +183,6 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [SYS_Handle_SES_Bounce_And_Complaint_Webhooks](#sys_handle_ses_bounce_and_complaint_webhooks)
     - [SYS_Nightly_Backup_Sync](#sys_nightly_backup_sync)
     - [SYS_Continuous_Database_Backup](#sys_continuous_database_backup)
-    - [SYS_Cleanup_Static_Asset_Versions](#sys_cleanup_static_asset_versions)
 - [9. System Administrator Stories](#9-system-administrator-stories)
 
 # 1. Global Behaviors
@@ -2941,16 +2940,6 @@ Success Criteria:
 - Cost remains minimal.
 - Backup does not interfere with application performance (WAL mode allows concurrent reads).
 - Container shutdown waits for in-flight backup to complete before final upload and exit.
-
-### SYS_Cleanup_Static_Asset_Versions
-
-Access: This process runs under the system role.
-
-Story: The system runs a daily (off-peak) cleanup of old static asset versions (or uses an equivalent S3 Lifecycle expiration rule) so storage does not grow without bound while preserving rollback safety.
-
-Success Criteria:
-
-The job deletes obsolete content-hash asset versions older than the configured retention window (default: 90 days) to preserve rollback capability while controlling storage growth and cost. All deletions are logged and failures raise alarms. Retention window (default: 90 days) is admin-configurable.
 
 # 9. System Administrator Stories
 

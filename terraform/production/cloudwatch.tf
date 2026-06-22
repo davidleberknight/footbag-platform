@@ -63,7 +63,7 @@ resource "aws_cloudwatch_metric_alarm" "app_errors" {
 # When a second environment publishes to namespace CWAgent, disambiguate via
 # per-environment namespace, not via dim.
 #
-# Reference: docs/DEVOPS_GUIDE.md §4.4
+# Reference: docs/DEVOPS_GUIDE.md §12.1
 #
 # Alarms are count-gated by enable_cwagent_alarms (default false): enable
 # only after the agent is installed and confirmed to be emitting the

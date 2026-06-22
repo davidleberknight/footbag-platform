@@ -228,7 +228,7 @@ jobs:
 
   ci-complete:
     name: Type-check and test
-    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, unit-tests, integration-tests, db-load-smoke, e2e, codeql]
+    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, unit-tests, integration-tests, db-load-smoke, e2e, codeql, terraform]
     runs-on: ubuntu-latest
     if: always()
 
@@ -244,7 +244,8 @@ jobs:
              [ "${{ needs.integration-tests.result }}" != "success" ] || \
              [ "${{ needs.db-load-smoke.result }}" != "success" ] || \
              [ "${{ needs.e2e.result }}" != "success" ] || \
-             [ "${{ needs.codeql.result }}" != "success" ]; then
+             [ "${{ needs.codeql.result }}" != "success" ] || \
+             [ "${{ needs.terraform.result }}" != "success" ]; then
             echo "One or more jobs failed:"
             echo "  typecheck: ${{ needs.typecheck.result }}"
             echo "  lint: ${{ needs.lint.result }}"
@@ -256,6 +257,7 @@ jobs:
             echo "  db-load-smoke: ${{ needs.db-load-smoke.result }}"
             echo "  e2e: ${{ needs.e2e.result }}"
             echo "  codeql: ${{ needs.codeql.result }}"
+            echo "  terraform: ${{ needs.terraform.result }}"
             exit 1
           fi
 

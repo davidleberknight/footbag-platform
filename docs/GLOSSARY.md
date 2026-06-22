@@ -156,15 +156,15 @@
 
 **Receipt Token**: UUID returned to voter after casting ballot, enabling verification that vote was recorded without revealing vote contents or linking voter identity to specific ballot. Voter can check that their receipt token appears in public election results.
 
-**Reconciliation Job**: Nightly background job (runs 2 AM UTC) matching Stripe payment records against platform transaction records, detecting discrepancies from webhook failures or timing issues. Generates alert report for treasurer review if mismatches exceed threshold.
+**Reconciliation Job**: A scheduled nightly job that matches Stripe payment records against platform transaction records, detecting discrepancies from webhook failures or timing issues (missing webhooks, amount or status mismatches, unexpected duplicates) and recording them as reconciliation issues for admin review.
 
-**Recovery Point Objective (RPO)**: The maximum acceptable amount of data that can be lost in a failure, measured in time. Footbag.org achieves an RPO of 5-10 minutes through a background worker that uploads a consistent SQLite database snapshot to S3 every 5 minutes. Cross-region disaster recovery sync runs nightly providing a 24-hour RPO for catastrophic regional failures.
+**Recovery Point Objective (RPO)**: The maximum acceptable amount of data that can be lost in a failure, measured in time. Footbag.org achieves an RPO of 5-10 minutes through a host-side systemd timer that uploads a consistent SQLite database snapshot to S3 every 5 minutes. Cross-region disaster recovery sync runs nightly providing a 24-hour RPO for catastrophic regional failures.
 
 **Recovery Time Objective (RTO)**: The maximum acceptable time to restore normal service after a failure. Footbag.org targets an RTO of approximately 5 minutes: download the latest S3 backup, run PRAGMA integrity_check to validate the snapshot, replace the local database file, restart application containers, and verify health endpoints return OK.
 
 **REST (Representational State Transfer)**: Architectural style for web APIs using HTTP methods and stateless communication. Footbag.org does not have a REST API but could add on in the future to support a phone app for example.
 
-**Route 53**: AWS DNS service providing domain name management and health-based routing. Footbag.org uses Route 53 for footbag.org DNS records, health checks on origin server, and automatic failover to static S3 site if origin fails.
+**Route 53**: AWS DNS service providing domain name management. Footbag.org uses Route 53 for footbag.org DNS records (alias to the CloudFront distribution). There is no Route 53 health check or automatic failover; when the origin is unavailable, CloudFront serves a static maintenance page from S3.
 
 **S3 (Simple Storage Service)**: AWS object storage service providing scalable, durable file storage. Footbag.org uses S3 to store uploaded photos (two processed variants per photo), SQLite database backup snapshots uploaded every 5 minutes, static assets (CSS, JavaScript, images), the legacy archive, and audit log archives. Application state (members, events, registrations, etc.) is stored in a SQLite database, not in S3.
 
@@ -178,7 +178,7 @@
 
 **Service Layer**: Business logic layer implementing domain rules and coordinating data operations. Footbag.org services contain all business logic (membership tier validation, event state transitions, payment processing workflows) isolated from controllers (HTTP concerns) and adapters (storage concerns). Services are pure TypeScript functions for easy testing.
 
-**SES (Simple Email Service)**: AWS managed email service handling sending, receiving, and reputation management. Footbag.org uses SES for transactional emails (password reset, event notifications, payment receipts) with DKIM/SPF/DMARC authentication. SES sandbox mode for development, production mode for live system.
+**SES (Simple Email Service)**: AWS managed email service handling sending, receiving, and reputation management. Footbag.org uses SES for transactional emails (password reset, event notifications, payment receipts) with DKIM/SPF/DMARC authentication. Development and staging use the stub SES adapter (no AWS calls); production uses live SES.
 
 **Session Manager**: AWS service providing IAM-authenticated shell access to managed instances. The project does not use it. Adopting it for Lightsail would require Systems Manager Hybrid Activations, installing the SSM Agent on each instance, and turning on the advanced-instances tier (approximately $5/month per Lightsail instance for non-EC2 Session Manager access). The added cost and operational surface conflict with the volunteer-maintainability and cost-ceiling principles in DD §1.6 and §9.2. Operator shell access uses hardened per-operator SSH instead; see DEVOPS_GUIDE §3.5.
 

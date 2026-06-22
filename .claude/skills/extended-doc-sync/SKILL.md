@@ -62,6 +62,19 @@ documented authority order; it does not refuse to.
   lives only in `IMPLEMENTATION_PLAN.md`.
 - **Code is authoritative for implemented behavior**, not for design intent (bootstrap
   stubs are not a design signal).
+- **Canonical docs depict the FINAL/TARGET design. Current code and infra (`terraform/**`,
+  `docker/**`, deploy scripts) are current-state evidence, NOT design authority.** When
+  implemented infra/code diverges from a canonical doc, do NOT default to "the doc is
+  drifted." Classify every such gap as exactly one of: (a) the doc is genuinely wrong —
+  internally inconsistent, or contradicts the actual final design (one canonical doc vs
+  another, a diagram vs `DESIGN_DECISIONS.md`); (b) the implementation has truly deviated
+  from the final design (a built thing works differently than designed) — a deviation that
+  belongs in `IMPLEMENTATION_PLAN.md`, never a reason to "fix" the canonical doc down to
+  current reality; or (c) the feature is simply not built yet — future work, not drift
+  (Hard constraint 8). Purely descriptive facts a derived doc mirrors from code (a renamed
+  identifier, a method signature, a schema column) still follow code and are ordinary
+  (a)-type drift. Report the (a)/(b)/(c) classification for every gap and let the
+  maintainer decide; the audit verifies and presents, it never silently picks.
 - Separate the two questions on every drift: is the FACT drifted, or is the DESIGN drifted?
   Report the fact-drift with its direction. Never assert a design change; where a design
   conflict is genuine, classify it and name it for the maintainer.
@@ -195,6 +208,12 @@ reconcile it against the authoritative decision doc (`DESIGN_DECISIONS.md`), the
 and `.claude/rules`, and infra (`terraform/**`, `docker/**`). When a control's existence is decided one way in a
 decision doc and drawn/defined the other way in a diagram or glossary, that is a finding,
 not a stylistic nicety. The same fact stated in five places means five places to drift.
+Critically, infra (`terraform/**`, `docker/**`) is current-state evidence, NOT design
+authority: a diagram that matches the decision doc's FINAL design but that current infra
+has not built yet is an implementation deviation (record in `IMPLEMENTATION_PLAN.md`) or
+future work, NEVER a diagram/glossary finding. Only when the diagram/glossary contradicts
+the decision doc's final design itself is it a doc finding. Do not "fix" a final-design
+diagram down to current infra.
 
 ### Phase 6: Service contract and view-layer sync
 Per-service file-header JSDoc vs `src/services/**`, `src/adapters/**`, controllers, `src/db/**`,

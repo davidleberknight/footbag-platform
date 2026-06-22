@@ -1,0 +1,11 @@
+{{! Conflict page for a state-changing action that cannot apply because the
+    target is already in its terminal state; the displayed code matches the
+    409 status, and the specific reason comes through page.title. }}
+<div class="wrapper">
+  <div class="error-page">
+    <div class="error-code">409</div>
+    <h2>{{page.title}}</h2>
+    <p>This action could not be applied because it conflicts with the current state.</p>
+    <a href="/" class="btn btn-primary">Go to Home</a>
+  </div>
+</div>

@@ -305,7 +305,7 @@ export const netQcController = {
         return;
       }
       if (err instanceof ConflictError) {
-        res.status(409).render('errors/not-found', {
+        res.status(409).render('errors/conflict', {
           seo:  { title: 'Already Curated' },
           page: { sectionKey: '', pageKey: 'error_409', title: 'Already Curated' },
         });
@@ -332,7 +332,7 @@ export const netQcController = {
         return;
       }
       if (err instanceof ConflictError) {
-        res.status(409).render('errors/not-found', {
+        res.status(409).render('errors/conflict', {
           seo:  { title: 'Already Curated' },
           page: { sectionKey: '', pageKey: 'error_409', title: 'Already Curated' },
         });

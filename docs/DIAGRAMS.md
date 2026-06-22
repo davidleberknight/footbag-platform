@@ -39,8 +39,8 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ║  │    nginx    │ │     web     │ │   worker    │ │ image  │         ║
 ║  │    64 MB    │→│   512 MB    │ │   384 MB    │ │ 896 MB │         ║
 ║  │Reverse proxy│ │ Controllers │ │Email outbox │ │ Sharp  │         ║
-║  │Rate limiting│ │ Services    │ │DB backup    │ │ Photo  │         ║
-║  │TLS terminus │ │ db.ts       │ │Nightly sync │ │ proc.  │         ║
+║  │Rate limiting│ │ Services    │ │Daily jobs   │ │ Photo  │         ║
+║  │TLS terminus │ │ db.ts       │ │Transcode    │ │ proc.  │         ║
 ║  └─────────────┘ └─────────────┘ └─────────────┘ └────────┘         ║
 ║                        │                │              │            ║
 ║                        └────────────────┘              │            ║
@@ -56,10 +56,12 @@ Visual aids for understanding the system design. Six diagrams cover production i
     SQLite snapshots (every 5 min)       photo variants (on upload)
              ↓                                      ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│  S3: footbag-production-snapshots   S3: footbag-production-media    │
-│  SQLite backup snapshots (30d)      Thumbnail + display JPEG        │
-│  WORM Object Lock protection        → auto-replicated to            │
-│                                     footbag-production-dr (other rgn)│
+│ S3 primary buckets (us-east-1):                                     │
+│    footbag-production-db-snapshots   SQLite snapshots, 30-day vers. │
+│    footbag-production-media          photo variants (thumb+display) │
+│ Cross-region DR (us-west-2):                                        │
+│    footbag-production-db-snapshots-dr WORM Object Lock (immutable)  │
+│    footbag-production-media-dr         replica (no lock, erasure)   │
 └─────────────────────────────────────────────────────────────────────┘
 
   AWS managed services (accessed via IAM role — no hardcoded secrets):

@@ -1031,7 +1031,7 @@ interface CountRow {
   n: number;
 }
 
-// Defense-in-depth (DD §2020) tier gate applied at every member-write
+// Defense-in-depth tier gate applied at every member-write
 // service entry point. Mirrors the requireTier1Benefits route middleware
 // so a programmatic call, an admin curator-route call, or any future
 // caller that bypasses the route layer still cannot mutate member-owned

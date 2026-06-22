@@ -229,6 +229,8 @@ Does not belong:
 
 The generated route-by-persona authorization matrix (§4.6) lives here: it crosses the deployed-route inventory with the derived persona suite and asserts the expected allow or deny outcome for every cell, so an unasserted route-by-persona combination is a visible candidate authorization gap.
 
+The operator-only QC routes under `/internal/*` (handlers in `src/internal-qc/`, admin-gated at the router level by `requireAuth` then `requireAdmin`) are integration-tested here. They serve in development and staging and are excluded from the production image (§7.1 owns the exclusion mechanism and the retirement lifecycle). Reaching a controller needs an admin session: seed a member with `is_admin` and attach a `createTestSessionJwt` cookie, because an unauthenticated request redirects to `/login` and an authenticated non-admin request gets 403. State-changing verbs (POST, PUT, PATCH, DELETE) are origin-pinned, so import the `tests/fixtures/supertestWithOrigin` wrapper instead of plain `supertest`; without a matching `Origin` header the request is rejected with 403 before the controller runs.
+
 ### 5.3 db-load smoke
 
 The CI job `db-load-smoke` (in `.github/workflows/ci.yml`) applies the schema and runs the legacy_data loader pipeline against fixed fixtures, asserting row counts and shape. The canonical regression gate for the historical-data pipeline.
