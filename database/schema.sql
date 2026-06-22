@@ -1724,7 +1724,7 @@ LEFT JOIN member_active_player_current ap ON ap.member_id = m.id;
 --   - Tier 0 members without current Active Player status
 --
 -- This view is not public. Service-layer access is restricted to admin and
--- admin and Tier 2/Tier 3 organizers only; all access and exports must be
+-- admin-provisioned Tier 2/Tier 3 organizers only; all access and exports must be
 -- audit-logged via audit_entries.
 
 CREATE VIEW official_ifpa_roster_current AS

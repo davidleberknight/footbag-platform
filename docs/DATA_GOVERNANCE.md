@@ -27,7 +27,7 @@
 - Anonymous surfaces expose approved non-PII fields only. No contact information, addresses, emails, or phone numbers.
 - A public page may carry an authenticated enhancement only where that boundary is documented (e.g. the club page: public shell, member-visible roster and contact).
 - Member-only content requires a genuine session-path authorization check.
-- Deceased members cannot authenticate regardless of credentials; the member lookup backing login excludes rows flagged deceased (`is_deceased = 0`), so a deceased account never reaches a credential match.
+- Deceased members cannot authenticate regardless of credentials; the member lookup backing login excludes rows flagged deceased (it matches only `is_deceased = 0` rows), so a deceased account never reaches a credential match.
 
 ---
 

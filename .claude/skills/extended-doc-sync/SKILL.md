@@ -105,6 +105,36 @@ documented authority order; it does not refuse to.
    candidate, re-read the cited location and confirm it verbatim, or drop it. A candidate
    whose evidence cannot be reproduced by direct inspection is not recorded.
 
+## Standing rule: research first, one finding at a time
+
+Standing rule for surfacing findings and for any remediation that follows. It overrides any
+impulse to batch, or to punt a decision the sources already settle.
+
+1. **Research first — check the repo, not just the docs.** Before raising or remediating a
+   finding, re-derive it by direct inspection of the artifacts that actually implement the
+   behavior — the running code, the deploy scripts, CI workflows, `terraform/**`, `docker/**`,
+   and config — alongside the cited `DESIGN_DECISIONS.md` / `USER_STORIES.md` / `DATA_MODEL.md` /
+   `DATA_GOVERNANCE.md` sections and the schema, and apply the documented source-of-truth order
+   to decide which side is authoritative. Exhaust the repo before asking: never pose a question
+   the code, scripts, schema, or config already answer (for example, read the deploy scripts
+   before asking how images ship).
+2. **One finding, one verified change at a time.** Surface findings and present remediation
+   changes one at a time, each already verified against the repo, and let the maintainer confirm
+   one before moving to the next. Never bundle two decisions into one turn, and never attach a
+   status recap or a list of other findings to a question.
+3. **Context plus a researched recommended answer.** Every question states the finding's sources
+   and what each says, the drift direction, and a single explicitly recommended answer the
+   research supports — grounded in whichever canonical source the documented source-of-truth order
+   makes authoritative for that question (`USER_STORIES.md` for functional behavior and acceptance
+   criteria, `DATA_MODEL.md` and the schema for persisted data, `DATA_GOVERNANCE.md` for privacy,
+   `DESIGN_DECISIONS.md` for rationale and architecture, the path-scoped rule or service JSDoc for
+   contracts, code for implemented behavior), not in current infra or guesswork. Resolve open
+   "which way?" questions yourself by following that authoritative source, then recommend; do not
+   ask the maintainer to wordsmith what the sources already determine.
+4. Reserve the question itself for decisions the sources genuinely leave open, or for edits to
+   canonical design docs. Where the authoritative source settles it, state the resolution and
+   proceed.
+
 ## Scaling and budget
 
 Scale depth to the request.
@@ -164,7 +194,10 @@ excluded unless the user included it; browser QA excluded; raw PII excluded.
 Do not trust existing lists. From `src/app.ts` and `src/routes/**`, derive mounted routes,
 controllers, service call paths, templates, auth/role gates, background workers, webhook
 routes, and feature/environment gates. Keep a scratch deployed-surface inventory in context
-(do not write it to the repo).
+(do not write it to the repo). Reconcile the sitemap (`src/services/siteMetaService.ts` —
+the hand-maintained `STATIC_PUBLIC_PATHS` plus the DB-derived collectors) against the public,
+indexable route surface: a public page missing from the sitemap is drift, because the static
+list does not auto-discover routes (only entity-detail pages are DB-derived).
 
 ### Phase 2: Classify every user story
 For each story in `docs/USER_STORIES.md` (and any deployed technical feature without a

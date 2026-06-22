@@ -9,11 +9,13 @@ Design and specification documents for the footbag-platform modernization projec
 - [`PROJECT_SUMMARY.md`](PROJECT_SUMMARY.md): big-picture product, architecture, and operating philosophy
 - [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md): rationale, constraints, and non-negotiable design commitments
 - [`DATA_MODEL.md`](DATA_MODEL.md): canonical entities, relationships, schema conventions, DB-vs-app boundaries
+- [`DATA_GOVERNANCE.md`](DATA_GOVERNANCE.md): privacy boundaries, sensitivity tiers, and data-handling rules (members, historical persons, search, exports, erasure)
 - [`USER_STORIES.md`](USER_STORIES.md): functional scope and acceptance criteria
 - [`DIAGRAMS.md`](DIAGRAMS.md): architecture and data-flow diagrams
 - [`GLOSSARY.md`](GLOSSARY.md): cross-document terminology
 - [`DEVOPS_GUIDE.md`](DEVOPS_GUIDE.md): build, deploy, operate, recover, and infrastructure procedures
 - [`DEV_ONBOARDING.md`](DEV_ONBOARDING.md): developer setup and local/staging iteration guidance
+- [`MIGRATION_PLAN.md`](MIGRATION_PLAN.md): legacy-data migration design, go-live readiness gates, and cutover sequencing
 
 ## Where to look
 

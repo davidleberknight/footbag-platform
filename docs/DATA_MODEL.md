@@ -1281,7 +1281,7 @@ May be dropped together with `club_bootstrap_leaders` once all bootstrap rows re
 
 Name-equivalence pairs that support auto-link matching across `legacy_members`, `historical_persons`, and `members` (see `M_Claim_Legacy_Account` auto-link candidate staging and declared-anchor flow). Seeded at State 1 from mirror-mined pairs (~290); remains live post-cutover so admins and members may record further equivalences as new name collisions surface.
 
-- **Columns**: `canonical_normalized` TEXT, `variant_normalized` TEXT, `source` TEXT with CHECK in (`mirror_mined`, `admin_added`, `member_submitted`), `created_at` TEXT default `datetime('now')`. Composite primary key on (`canonical_normalized`, `variant_normalized`).
+- **Columns**: `canonical_normalized` TEXT, `variant_normalized` TEXT, `source` TEXT with CHECK in (`mirror_mined`, `admin_added`, `member_submitted`), `created_at` TEXT default `strftime('%Y-%m-%dT%H:%M:%fZ','now')`. Composite primary key on (`canonical_normalized`, `variant_normalized`).
 - **Symmetric lookup**: storing `('robert', 'bob')` is equivalent to storing `('bob', 'robert')`. Lookups must check both columns. Never insert both directions; the self-pair CHECK and the PRIMARY KEY enforce uniqueness.
 - **Normalization is application-side**: every value is NFKC-normalized, lowercased, whitespace-collapsed, and trimmed before it reaches the table. The table stores only the normalized forms. Unicode logic lives in the application to keep SQLite free of UDF registration.
 - **No confidence column in v1**: seeded pairs are trusted (curator oversight), admin-added pairs are trusted (admin oversight), member-submitted pairs are distinguished via the `source` column. Per-pair scoring can be added later without breaking existing lookups.

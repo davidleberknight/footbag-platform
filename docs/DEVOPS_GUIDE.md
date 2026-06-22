@@ -1037,7 +1037,7 @@ The deploy is operator-driven from the maintainer workstation. CI lints, type-ch
 
 #### Pre-deploy: check the env file
 
-The host env file `/srv/footbag/env` is the runtime source of truth. The deploy remote-half writes two keys at every deploy: `X_ORIGIN_VERIFY_SECRET` (mirrored from SSM) and `FOOTBAG_ENV` (derived from the deploy target alias). Every other key is operator-managed and untouched by the deploy. Review the operator-managed keys before any deploy that introduces a new required environment variable or changes runtime behavior.
+The host env file `/srv/footbag/env` is the runtime source of truth. The deploy remote-half reconciles the deploy-managed keys at every deploy: `FOOTBAG_ENV` (the deploy target), the SSM-sourced secrets (`X_ORIGIN_VERIFY_SECRET` and `SESSION_SECRET`), the adapter-mode defaults, and the container-sizing values from `docker/env/<env>.env`. Operator-managed secrets (such as the Stripe keys) are left untouched by the deploy. Review the operator-managed keys before any deploy that introduces a new required environment variable or changes runtime behavior.
 
 At minimum, the host env file must define:
 

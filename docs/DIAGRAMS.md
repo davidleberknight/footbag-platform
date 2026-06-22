@@ -22,11 +22,11 @@ Visual aids for understanding the system design. Six diagrams cover production i
                              │ HTTPS (443)
                              ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│  AWS CloudFront  (single distribution, global edge network)         │
+│  AWS CloudFront  (main site + separate archive distribution)        │
 │                                                                     │
 │  footbag.org  Dynamic HTML    → CachingDisabled → Lightsail origin  │
 │  footbag.org  /media-store/*  → query-string cache key → S3 media   │
-│  footbag.org  Static assets   → 1yr TTL         → S3 static bucket  │
+│  footbag.org  Static assets   → token cache key → Lightsail origin  │
 │  archive.*    Archive HTML    → 1yr TTL         → S3 archive bucket │
 │                               (CloudFront signed-cookie auth)       │
 └─────────────────────────────────────────────────────────────────────┘
@@ -74,7 +74,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Caption:** A single AWS CloudFront distribution serves all traffic with different cache behaviors per path: dynamic HTML routes to Lightsail, static assets to S3, and the legacy archive to a separate S3 bucket protected by CloudFront signed cookies (DD §6.4). The Lightsail instance runs four Docker containers sharing a local SQLite database file. The worker and web containers both access `footbag.db` directly; the image container is isolated with no database access. Photos live in a dedicated S3 bucket and are never stored in SQLite. Runtime AWS service integrations use IAM roles with no hardcoded secrets. Operator shell access to the host uses hardened per-operator SSH to named host accounts.
+**Caption:** The main site is served by one CloudFront distribution with different cache behaviors per path: dynamic HTML and static assets both route to the Lightsail origin (static assets cache-busted by a content-hash version token in the query string); the legacy archive is served by a separate CloudFront distribution backed by its own S3 bucket and protected by signed cookies (DD §6.4). The Lightsail instance runs four Docker containers sharing a local SQLite database file. The worker and web containers both access `footbag.db` directly; the image container is isolated with no database access. Photos live in a dedicated S3 bucket and are never stored in SQLite. Runtime AWS service integrations use IAM roles with no hardcoded secrets. Operator shell access to the host uses hardened per-operator SSH to named host accounts.
 
 ---
 
@@ -457,6 +457,8 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  ImageProcessingAdapter  HttpImageAdapter           HttpImageAdapter│
 │  VideoTranscodingAdapter HttpVideoTranscodingAdapter HttpVideoTranscodingAdapter│
 └─────────────────────────────────────────────────────────────────────┘
+
+Staging uses the Production column for every adapter except `SesAdapter` and `CaptchaAdapter`, which use the stub on staging (DD §5.3, §5.6): staging runs in production mode but never sends real mail or calls live Turnstile.
 
 ═══════════════════════════  NOT SWITCHED  ════════════════════════════
 

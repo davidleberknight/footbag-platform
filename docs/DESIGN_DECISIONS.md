@@ -113,7 +113,7 @@ Current implementation status and accepted temporary deviations are tracked in `
 
 ## 1.1 SQLite Database
 
-All application state (except photos) are stored in a single SQLite database file (footbag.db). All data access occurs through single database module (db.ts) that exports database connection, prepared SQL statements, and transaction helper. Services call prepared statements directly with parameters (see below for the Data Access Pattern). All statements prepared once at startup for maximum performance. Unless explicitly noted for integrity or tamper-resistance reasons, the database enforces structural integrity while application services enforce workflow and business rules, the goal being to keep the database as simple as possible.
+All application state (except media objects) are stored in a single SQLite database file (footbag.db). All data access occurs through single database module (db.ts) that exports database connection, prepared SQL statements, and transaction helper. Services call prepared statements directly with parameters (see below for the Data Access Pattern). All statements prepared once at startup for maximum performance. Unless explicitly noted for integrity or tamper-resistance reasons, the database enforces structural integrity while application services enforce workflow and business rules, the goal being to keep the database as simple as possible.
 
 Configuration: the platform uses only 5 startup configuration PRAGMAs. Operational PRAGMAs like wal_checkpoint (used during backups) are executed at runtime and are separate from these 5 startup settings:
 
@@ -212,7 +212,7 @@ Container shutdown (SIGTERM): Stop accepting new requests, wait up to 30 seconds
 Requirements:
 
 - A host systemd backup timer writes the SQLite snapshot to the primary backup bucket on the documented cadence (default five minutes, per the backup-script description above). A dead timer or a failing upload stops the backup-age metric from refreshing, so the staleness alarm breaches and a silent backup gap cannot accrue.
-- The off-account DR replica bucket has S3 Object Lock enabled in compliance mode for the configured retention window, so a compromised production credential cannot delete or overwrite snapshots in the disaster-recovery target.
+- The off-account DR replica bucket has S3 Object Lock enabled in GOVERNANCE mode for the configured retention window, so a compromised production credential cannot delete or overwrite snapshots in the disaster-recovery target.
 - Retention windows are documented per artifact class (hot snapshot, DR replica, log archive). Each class has a single source of truth in `docs/DEVOPS_GUIDE.md` and matching S3 lifecycle rules; the lifecycle rules and the documented retention table cannot drift.
 - The interaction between erasure (GDPR Article 17) and backup is documented: an erased record's identifier is recorded in an erasure log, and any restore from backup re-applies the erasure log before the restored data is reachable, so erasure cannot be silently undone by routine recovery.
 
@@ -322,7 +322,7 @@ Impact:
 
 Decision:
 
-Application containers are stateless and immutable (except for the database file). All other durable state lives in S3 or AWS-managed services (Parameter Store, SES, Stripe, etc.). The Lightsail instance is treated as replaceable, except for the database file. The primary durable state is the SQLite database file on the Lightsail volume. S3 stores photo data and database snapshot backups (cross-region). The instance is recoverable by restoring SQLite from S3 snapshots.
+Application containers are stateless and immutable (except for the database file). All other durable state lives in S3 or AWS-managed services (Parameter Store, SES, Stripe, etc.). The Lightsail instance is treated as replaceable, except for the database file. The primary durable state is the SQLite database file on the Lightsail volume. S3 stores media objects and database snapshot backups (cross-region). The instance is recoverable by restoring SQLite from S3 snapshots.
 
 Rationale:
 
@@ -1016,7 +1016,7 @@ Trade-offs:
 
 - 7-year retention increases storage costs (acceptable for compliance).
 
-- Immutability is enforced at the application-code boundary: no service method issues UPDATE or DELETE against `audit_entries`. Database-level tampering by an actor with direct SQLite write access (for example a Lightsail host compromise) is a residual risk bounded by the SSH access posture (§7.2) and backup retention (§9.4). For tally audit records specifically, WORM storage in S3 Object Lock (§6.9) is the stronger commitment.
+- Immutability is enforced at the application-code boundary: no service method issues UPDATE or DELETE against `audit_entries`. Database-level tampering by an actor with direct SQLite write access (for example a Lightsail host compromise) is a residual risk bounded by the SSH access posture (§7.2) and backup retention (§9.4). Off-host, the audit log is preserved inside the encrypted database snapshot backups, which the cross-region DR bucket protects with S3 Object Lock (WORM).
 
 Impact:
 
@@ -2989,7 +2989,7 @@ Impact:
 
 Decision:
 
-Single CloudFront distribution fronts all content with different cache behaviors. All HTML responses from the Lightsail origin (public, mixed-state, and authenticated) use the AWS managed `CachingDisabled` cache policy (TTL 0/0/0): server-rendered HTML in this app frequently shapes content by viewer state (auth, role, tier, ownership), and per-route classification of cacheability would be brittle as the route surface grows; routing all HTML to the origin keeps cache decisions out of CloudFront and lets the Express middleware at `src/app.ts` enforce `Cache-Control: private, no-store` on every authenticated response without coordination with edge config. Static assets (CSS, JS, images, fonts) are served from the Lightsail origin and edge-cached under a custom cache policy that includes the `?v=` content-hash token in the cache key, for long-lived caching of immutable versioned URLs (see §6.7). Health probes use `CachingDisabled`. Archive content uses 1-year TTL with origin S3 archive bucket and members-only access controls. Cache behaviors targeting S3 origins must omit `origin_request_policy_id` (or use only a policy that excludes `Host`).
+A single CloudFront distribution fronts the main site with different cache behaviors; the legacy archive at archive.footbag.org is served by a separate CloudFront distribution (§6.4). All HTML responses from the Lightsail origin (public, mixed-state, and authenticated) use the AWS managed `CachingDisabled` cache policy (TTL 0/0/0): server-rendered HTML in this app frequently shapes content by viewer state (auth, role, tier, ownership), and per-route classification of cacheability would be brittle as the route surface grows; routing all HTML to the origin keeps cache decisions out of CloudFront and lets the Express middleware at `src/app.ts` enforce `Cache-Control: private, no-store` on every authenticated response without coordination with edge config. Static assets (CSS, JS, images, fonts) are served from the Lightsail origin and edge-cached under a custom cache policy that includes the `?v=` content-hash token in the cache key, for long-lived caching of immutable versioned URLs (see §6.7). Health probes use `CachingDisabled`. The separate archive distribution uses a 1-year TTL on its S3 archive-bucket origin with members-only (signed-cookie) access (§6.4). Cache behaviors targeting S3 origins must omit `origin_request_policy_id` (or use only a policy that excludes `Host`).
 
 Rationale:
 
@@ -3487,7 +3487,7 @@ Decryption pattern: Tally operations retrieve each ballot’s encrypted data key
 
 Ballot submission atomicity: Submission uses atomic validation within a write transaction. BEGIN IMMEDIATE acquires a write lock, then vote status and close_datetime are checked within the transaction before inserting the ballot. This ensures the vote cannot close between validation and insertion. Unique constraint on (vote_id, member_id) prevents duplicate ballot submissions under concurrent requests.
 
-Tally authorization and audit: Only administrators (users holding the admin role) may decrypt ballots. The `can_tally_votes` permission is implied by the admin role and is not a separately managed flag. Tallying is permitted only when vote.status equals 'closed' AND current timestamp exceeds vote.close_datetime. Audit events record TALLY_VOTE_START and TALLY_VOTE_COMPLETE with admin_id, vote_id, and timestamps. Individual decrypted ballots are never logged; the system aggregates totals in memory and discards ballot contents immediately. The canonical immutable audit log is stored in S3 with Object Lock (WORM), providing tamper-proof preservation.
+Tally authorization and audit: Only administrators (users holding the admin role) may decrypt ballots. The `can_tally_votes` permission is implied by the admin role and is not a separately managed flag. Tallying is permitted only when vote.status equals 'closed' AND current timestamp exceeds vote.close_datetime. Audit events record TALLY_VOTE_START and TALLY_VOTE_COMPLETE with admin_id, vote_id, and timestamps. Individual decrypted ballots are never logged; the system aggregates totals in memory and discards ballot contents immediately. These tally audit events are written to the append-only `audit_entries` table (the canonical audit log; immutability enforced in application code), and are preserved off-host inside the encrypted database snapshot backups that the cross-region DR bucket protects with S3 Object Lock (WORM).
 
 These authorization and timing checks are enforced in application services. The database schema provides the required vote state, timestamps, and immutable audit-supporting structures but does not implement the voting workflow state machine.
 
@@ -3725,19 +3725,19 @@ All containers configured with health checks (30-60s intervals, 3 retries) and r
 
 Decision:
 
-CI builds, tests, and publishes Docker images using GitHub Actions, targeting GitHub Container Registry (GHCR). We will make an open-source GitHub repository for all Footbag project code.
+CI runs the test and security checks using GitHub Actions, and the project code lives in an open-source GitHub repository. Images are not built or published by CI: they are built on the operator workstation and shipped to the Lightsail host via `docker save | docker load`. There is no image registry.
 
 Rationale:
 
 - Integrated with GitHub; no separate CI service required.
 
-- GHCR is free and adequate for this project's needs.
+- The Lightsail host is too small to build images, so they are built on the operator workstation and shipped directly; an image registry would add IAM and operational complexity for no gain at this scale.
 
 - GitHub is the standard place to store project code and track code changes.
 
 Requirements:
 
-- Every GitHub Actions workflow declares a top-level `permissions: { contents: read }` and elevates per-job only where required (e.g. `packages: write` for the GHCR publish step). Default-write tokens are not used.
+- Every GitHub Actions workflow declares a top-level `permissions: { contents: read }` and elevates per-job only where required (e.g. `security-events: write` for the CodeQL job). Default-write tokens are not used.
 - GitHub Actions are pinned by commit SHA (`actions/checkout@<sha>`), not by floating tag or major version. SHA bumps land via reviewed PRs; no action runs at a mutable reference.
 - No automated dependency-update bot runs against the repo; dependency versions are reviewed and bumped manually.
 - The `main` branch is protected with required reviews, required CI checks, and a force-push prohibition. Secret scanning and push protection are enabled at the repo level.
@@ -3754,9 +3754,9 @@ Trade-offs:
 
 Impact:
 
-- Merges to main branch trigger CI pipelines that validate tests and publish images with predictable tags.
+- Pushes and pull requests trigger CI pipelines that run the test and security checks.
 
-- Deployment runbooks describe pulling correct tagged images from GHCR into staging/production.
+- Deployment runbooks describe building images on the operator workstation and shipping them to the host via `docker save | docker load`.
 
 ## 7.5 Local Development
 
@@ -4208,7 +4208,7 @@ DevOps runbooks document step-by-step recovery procedures with validation checkl
 
 Integration tests validate S3 upload contract (retry logic, error handling, health timestamp updates). Daily verification job provides ongoing assurance that backups are complete and consistent.
 
-Backup retention windows support data deletion policy. The normative defaults for backup retention are defined in User Stories 6.7: `primary_snapshot_version_days` (default: 30 days) governs the primary bucket version-history window; `cross_region_backup_retention_days` (default: 90 days) governs the Object Lock retention on the cross-region disaster-recovery bucket. The normative default for audit log retention is adefined in (`audit_retention_days`, default 7 years / 2555 days). Lifecycle rules automatically transition audit logs older than 1 year to Glacier Deep Archive for cost optimization while maintaining compliance.
+Backup retention windows support data deletion policy. The normative defaults for backup retention are defined in User Stories 6.7: `primary_snapshot_version_days` (default: 30 days) governs the primary bucket version-history window; `cross_region_backup_retention_days` (default: 90 days) governs the Object Lock retention on the cross-region disaster-recovery bucket. The normative default for audit log retention is adefined in (`audit_retention_days`, default 7 years / 2555 days).
 
 WAL checkpoint failure handling: If a long-running transaction holds locks, the WAL checkpoint cannot complete. The backup worker attempts wal_checkpoint(TRUNCATE) with busy_timeout=10000 (10 seconds). If checkpoint fails, the worker logs a warning, skips that backup cycle, and retries in the next five-minute interval. After three consecutive checkpoint failures, an administrator alert is sent indicating potential database contention issues. Backups only proceed after successful WAL checkpoint to ensure consistency. The health check endpoint reports time_since_last_successful_backup enabling monitoring systems to detect extended backup failures.
 

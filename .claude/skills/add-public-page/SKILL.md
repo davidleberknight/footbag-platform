@@ -32,8 +32,8 @@ After reading docs, read:
 - nearby integration tests in `tests/integration/`
 
 If this task adds a **new top-level nav section**, also read:
-- `src/services/homeService.ts`: the home page composes `primaryLinks[]` here; a new section must be added to that array
-- the shared nav partial or layout template that renders the `navigation.items` array: confirm the new section key will render correctly.
+- `src/app.ts`: the site header/footer nav is the `NAV_SECTIONS` array (exposed as `res.locals.navLinks`, rendered by the `nav-links` partial); a new top-level section must be added there.
+- `src/services/homeService.ts`: `primaryLinks[]` is the home-page body's featured-section list (separate from the header nav); add the section there too only if it should be featured on the home page.
 
 ## Step 3: Architecture context
 

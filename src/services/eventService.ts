@@ -25,8 +25,8 @@
  *     canceled events HD immediately. Cannot delete an event with confirmed registrations.
  *   - Sanction approval requires organizer active Tier 2 at approval time.
  *   - Max 5 organizers per event; one `role='organizer'` per event; anti-self-removal.
- *   - Standard tag reserved at creation via `HashtagDiscoveryService.reserveStandardTag()`;
- *     permanent (not HD).
+ *   - Standard tag (`#event_{year}_{slug}`) persisted via `mediaTags.insertStandardTag` at
+ *     creation; permanent (not HD).
  *   - Public archive year derives from `events.start_date`; year archives are not paginated.
  *   - `participantHref` set via `personHref(participant_member_slug,
  *     participant_historical_person_id)`; templates render plain name when null.

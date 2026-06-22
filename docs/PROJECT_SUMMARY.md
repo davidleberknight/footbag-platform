@@ -373,7 +373,7 @@ Contains all domain logic and business rules (documented in each service's file-
 Provides abstractions for External Services making them look identical whether running locally (development) or in production. These are code-level abstraction layers in the back end which provide developer-production parity, and allow developers to build and test code without using AWS credentials or live links to the other systems.
 
 - JwtSigningAdapter: `createKmsJwtAdapter` signs JWTs via AWS KMS in production; `createLocalJwtAdapter` signs with a file-based RSA keypair in dev/test. Both use RS256.
-- SesAdapter: `LiveSesAdapter` sends via AWS SES in production; `StubSesAdapter` captures messages in memory for dev/test.
+- SesAdapter: `LiveSesAdapter` sends via AWS SES in production; `StubSesAdapter` captures messages in memory for dev, test, and staging.
 - MediaStorageAdapter: `S3MediaStorageAdapter` for staging/production; `LocalMediaStorageAdapter` for dev. Content-agnostic; handles photos, system-account video bytes, and posters identically.
 - SecretsAdapter: `LiveSecretsAdapter` reads SSM SecureString in staging/production with KMS decryption and lazy in-process cache; `LocalSecretsAdapter` reads a gitignored `.local/secrets.json` in dev; `StubSecretsAdapter` for tests. Distinct from env-var secrets (`SESSION_SECRET`, host runtime config) which load via dotenv.
 - SafeBrowsingAdapter: `LiveSafeBrowsingAdapter` calls the Google Safe Browsing v4 threatMatches:find endpoint in production; `StubSafeBrowsingAdapter` consults an in-memory deny list in dev/test.
@@ -381,6 +381,7 @@ Provides abstractions for External Services making them look identical whether r
 - ImageProcessingAdapter: `HttpImageAdapter` calls the in-cluster image worker container in all environments; tests inject test doubles.
 - VideoTranscodingAdapter: `HttpVideoTranscodingAdapter` calls the in-cluster image worker container in all environments; tests inject test doubles.
 - PaymentAdapter: Stripe SDK in production, configurable mock responses in development.
+- CaptchaAdapter: `createLiveCaptchaAdapter` verifies Cloudflare Turnstile in production; `createStubCaptchaAdapter` in dev, test, and staging.
 
 This layer is the translation service. Services call generic interfaces; infrastructure routes to appropriate implementation based on environment (dev, stage, prod).
 
@@ -508,7 +509,7 @@ Trade-offs: Database table views filter member deleted_at for transparent query 
 
 ## 4.8 Runtime Infrastructure and Cost
 
-Four Docker containers run on a single AWS Lightsail instance (4GB RAM): nginx (reverse proxy), web (Node.js application), worker (background tasks), and image (isolated image processor). Authoritative memory allocations are defined in Design Decisions. At initial allocations, total container memory is approximately 1,920MB (~47% of 4GB), leaving over 2GB headroom for OS and traffic spikes. Memory limits are enforced via docker-compose.yml mem_limit directives. Containers exceeding limits are killed (OOM) with automatic restart. CloudWatch monitors per-container memory with alerts at 80% (warning) and 90% (critical) utilisation. These are initial estimates based on typical workload patterns. Production monitoring will validate allocations and inform adjustments. 
+Four Docker containers run on a single AWS Lightsail instance (4GB RAM): nginx (reverse proxy), web (Node.js application), worker (background tasks), and image (isolated image/video media processor). Authoritative memory allocations are defined in Design Decisions. At initial allocations, total container memory is approximately 1,920MB (~47% of 4GB), leaving over 2GB headroom for OS and traffic spikes. Memory limits are enforced via docker-compose.yml mem_limit directives. Containers exceeding limits are killed (OOM) with automatic restart. CloudWatch monitors per-container memory with alerts at 80% (warning) and 90% (critical) utilisation. These are initial estimates based on typical workload patterns. Production monitoring will validate allocations and inform adjustments. 
 
 **Operational Simplicity:**
 
@@ -723,7 +724,7 @@ Photos are backed up via Amazon S3 cross-region replication separate from databa
 
 **Safe Application Restarts:** When the application needs to restart (for updates or maintenance), it follows a graceful shutdown process to prevent any data loss: stop accepting new web requests, wait for active operations to finish (up to 30 seconds), save all pending database changes, close the database cleanly, perform one final backup upload, then shut down. This ensures deployments never lose data.
 
-**Backup Protection and Retention:** Backup files are protected using AWS S3 Object Lock, which prevents anyone (including administrators) from accidentally or maliciously deleting or modifying retained backup objects. Retention windows are configurable: the primary S3 bucket uses a 30-day snapshot version-history window for point-in-time recovery (configurable via `primary_snapshot_version_days`); the cross-region backup bucket uses a 90-day Object Lock retention for disaster-recovery backup objects. Audit logs are retained for 7 years. Normative defaults for all configurable retention windows are defined in the User Stories Configurable Parameters section. After one year, old audit logs automatically move to cheaper long-term storage (Glacier Deep Archive) to reduce costs.
+**Backup Protection and Retention:** Backup files are protected using AWS S3 Object Lock, which prevents anyone (including administrators) from accidentally or maliciously deleting or modifying retained backup objects. Retention windows are configurable: the primary S3 bucket uses a 30-day snapshot version-history window for point-in-time recovery (configurable via `primary_snapshot_version_days`); the cross-region backup bucket uses a 90-day Object Lock retention for disaster-recovery backup objects. Audit logs are retained for 7 years. Normative defaults for all configurable retention windows are defined in the User Stories Configurable Parameters section.
 
 **Recovery Point Objectives (RPO)** include two recovery scenarios:
 
@@ -800,7 +801,7 @@ All AWS infrastructure for the platform is defined as code using Terraform confi
 
 **Operational Discipline:** Manual AWS console changes are prohibited except for emergency troubleshooting. Any permanent changes must be made via Terraform. This discipline ensures Terraform state remains accurate. If manual changes are made, they create drift between Terraform state and actual infrastructure, leading to confusing errors on next terraform apply. For emergency fixes, document the manual change and create a Terraform PR immediately after to bring configuration back in sync.
 
-Terraform Cloud free tier provides remote state storage with locking, preventing concurrent applies that could corrupt state. Team members authenticate via GitHub OAuth.
+Remote state uses an S3 backend with native S3 state locking (`use_lockfile`), preventing concurrent applies that could corrupt state.
 
 ## 7.5 Testing
 
@@ -814,7 +815,7 @@ Automated testing ensures reliability while enabling rapid volunteer development
 
 ## 7.6 Continuous Integration
 
-Every code commit triggers automated GitHub Actions workflow. Runs all tests (unit, integration, contract), performs security scanning, validates TypeScript types, checks code style, builds Docker images, publishes to container registry. Tests must pass before code can merge to main branch.
+Every code commit triggers automated GitHub Actions workflow. Runs all tests (unit, integration, contract), performs security scanning, validates TypeScript types, checks code style. Tests must pass before code can merge to main branch.
 
 Contract tests run against local stubs in CI (fast feedback, approximately 30 seconds total). Same contract tests run against real AWS services in pre-release validation (confirms production behavior matches stub expectations).
 
@@ -855,7 +856,7 @@ A custom Python-based crawler was developed to capture the complete Footbag.org 
 
 - Legacy Footbag.org URLs automatically redirect to archive equivalents at archive.footbag.org via 301 Permanent Redirect.
 - footbagworldwide.net redirects to footbag.org.
-- Redirect mapping stored in simple text file, easy to maintain.
+- Redirect mapping stored in a JSON file (`redirect_map.json`), easy to maintain.
 - 301 status tells search engines content moved permanently.
 
 **Access and Governance:**

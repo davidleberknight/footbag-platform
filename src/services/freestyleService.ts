@@ -5124,7 +5124,7 @@ export function assertFirstClassConvergence(
       status: 'convergence-ready',
       diagnostic: isAtomic
         ? 'no atomic flag-decomposition published; awaiting curator entry'
-        : 'no published derivation; awaiting Sprint promotion',
+        : 'no published derivation; awaiting promotion',
     };
   }
   // H5 + H6: three-way convergence (executable derivation == computed == official)

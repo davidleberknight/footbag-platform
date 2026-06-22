@@ -66,7 +66,6 @@ This guide helps contributors do different things: understand how the initial pu
   - [6.3 Deploy scripts and what they do](#63-deploy-scripts-and-what-they-do)
   - [6.4 Routine deploy workflow](#64-routine-deploy-workflow)
   - [6.5 If something goes wrong on staging](#65-if-something-goes-wrong-on-staging)
-  - [6.6 Future: ECR registry and automated image builds](#66-future-ecr-registry-and-automated-image-builds)
 - [7. Path G — Production-readiness hardening](#7-path-g--production-readiness-hardening)
   - [7.1 Why this section exists](#71-why-this-section-exists)
   - [7.2 Public edge and delivery hardening](#72-public-edge-and-delivery-hardening)
@@ -74,7 +73,6 @@ This guide helps contributors do different things: understand how the initial pu
   - [7.4 Reliability and recovery](#74-reliability-and-recovery)
   - [7.5 Runtime configuration maturity](#75-runtime-configuration-maturity)
   - [7.6 Monitoring maturity](#76-monitoring-maturity)
-  - [7.7 Delivery maturity — registry-backed images](#77-delivery-maturity--registry-backed-images)
 - [8. Path H — Runtime AWS identity and transactional email activation](#8-path-h--runtime-aws-identity-and-transactional-email-activation)
   - [8.1 Why this path exists](#81-why-this-path-exists)
   - [8.2 Scope](#82-scope)
@@ -2006,7 +2004,7 @@ In practical terms, the team can now do both of the following:
 The Path E staging baseline operates within these boundaries; each item is provisioned by the path or section noted.
 
 - `/srv/footbag/env` is operator-managed; the deploy remote-half reconciles `X_ORIGIN_VERIFY_SECRET` and `FOOTBAG_ENV` on every run (design state of staging)
-- images are built on the operator workstation and shipped via `docker save | docker load`; registry-backed delivery is provisioned in §6.6
+- images are built on the operator workstation and shipped via `docker save | docker load`
 - staging data is disposable through `scripts/deploy-rebuild.sh`; production schema migrations preserve live data per `docs/DEVOPS_GUIDE.md` §9.3
 - public-edge hardening (Path G §7.2), durable backup/restore (Path G §7.4), and CloudWatch monitoring (Path G §7.6) are provisioned by Path G
 
@@ -2099,7 +2097,7 @@ Use `scripts/deploy-migrate.sh` for non-destructive schema or data changes again
 
 Do not teach manual `scp` + `ssh cp` database replacement as the normal workflow. The destructive staging/dev DB-replacement path is handled by `scripts/deploy-rebuild.sh`.
 
-Why both code-deploy and rebuild scripts build on the operator workstation, not on the host: the host (nano_3_0, 512 MB) cannot fit a parallel `docker compose build`. Scripts build locally and transfer images via `docker save | docker load`. The future registry-based path (workstation → ECR → host pull) belongs in §6.6.
+Why both code-deploy and rebuild scripts build on the operator workstation, not on the host: the host (nano_3_0, 512 MB) cannot fit a parallel `docker compose build`. Scripts build locally and transfer images via `docker save | docker load`.
 
 #### What `scripts/deploy-code.sh` does, command by command, and why
 
@@ -2204,26 +2202,13 @@ Routine deploys are operational and live in `docs/DEVOPS_GUIDE.md` §7.3 (standa
 
 Deploy troubleshooting lives in `docs/DEVOPS_GUIDE.md`: §7.4 (rollback), §7.5 (restart), and §15.6 (standard log-collection commands).
 
-### 6.6 Future: ECR registry and automated image builds
-
-When you are ready to move image builds off the operator workstation and into CI:
-
-1. Create ECR repositories for `footbag-web` and `footbag-worker`.
-2. Create a GitHub Actions IAM user `github-actions-ecr` scoped to ECR push only. Add access keys as GitHub repository secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `ECR_REGISTRY`).
-3. Add a `build-push` job to `ci.yml` that runs after tests pass on `main`: builds images and pushes to ECR with `${{ github.sha }}` and `latest` tags.
-4. Update `docker/docker-compose.prod.yml` to reference ECR image URIs instead of build directives.
-5. Create a host IAM user `staging-ecr-pull` scoped to ECR read on those repositories only. Add its credentials to `/srv/footbag/env`.
-6. Update `deploy-code.sh` and `deploy-rebuild.sh` to run `docker compose pull` against ECR instead of the current `docker save | docker load` ship path (the workstation `docker compose build` step is also removed).
-
-After this, the deploy scripts become much faster. The remaining manual trigger (step 7 in §6.4) can only be eliminated by replacing Lightsail with EC2 and using SSM Session Manager (no IP restriction), or by running a self-hosted GitHub Actions runner on the same network as the host.
-
 ---
 
 ## 7. Path G — Production-readiness hardening
 
 ### 7.1 Why this section exists
 
-Path G covers the operational hardening that must complete before production cutover: public-edge security (§7.2), GitHub and operator access governance (§7.3), durable backup and restore (§7.4), runtime configuration maturity (§7.5), monitoring and alerting (§7.6), and registry-backed image delivery (§7.7). Each subsection is a pre-production blocker, not optional follow-up.
+Path G covers the operational hardening that must complete before production cutover: public-edge security (§7.2), GitHub and operator access governance (§7.3), durable backup and restore (§7.4), runtime configuration maturity (§7.5), monitoring and alerting (§7.6). Each subsection is a pre-production blocker, not optional follow-up.
 
 ### 7.2 Public edge and delivery hardening
 
@@ -3130,19 +3115,6 @@ CloudWatch alarms are only useful if the operator receives them. Confirm the pat
 
 Record the CloudWatch dashboard URL, the `/health/live` and `/health/ready` URLs through CloudFront, and the confirmed SNS subscription address in operator notes. These are the first-check locations when an alarm fires.
 
-### 7.7 Delivery maturity — registry-backed images
-
-The current deploy scripts build on the operator workstation and ship images via `docker save | docker load`. This works but couples deploys to the operator's machine.
-
-Remaining work:
-
-- move image builds into CI (GitHub Actions)
-- publish images to a registry such as ECR
-- change the deploy path from `docker save | docker load` to `docker compose pull` against ECR
-- keep the deploy scripts aligned with that registry-backed flow
-
-This is the natural handoff point from onboarding into the longer-lived operational guidance in `docs/DEVOPS_GUIDE.md`.
-
 ---
 
 ## 8. Path H — Runtime AWS identity and transactional email activation
@@ -3176,7 +3148,7 @@ Staging only. Four tasks, in order:
 
 This path assumes the staging baseline from Paths D through F is already in place: the `footbag-operator` human identity exists, Terraform state is bootstrapped, the Lightsail instance is running, and the routine deploy workflow is working. If any of that is not true, complete those paths first.
 
-Out of scope: custom domains, ACM, Route 53, new CloudFront work (§7.2); backups and monitoring (§7.4, §7.6); CI image publishing (§7.7); production (production KMS, SES production-access, and production IAM are a separate later activation); domain-identity verification (this path uses a sandbox email identity only); Terraform HCL reconciliation of the inline policy + trust edits made via Console in this path.
+Out of scope: custom domains, ACM, Route 53, new CloudFront work (§7.2); backups and monitoring (§7.4, §7.6); production (production KMS, SES production-access, and production IAM are a separate later activation); domain-identity verification (this path uses a sandbox email identity only); Terraform HCL reconciliation of the inline policy + trust edits made via Console in this path.
 
 ### 8.3 Preconditions
 
@@ -3587,7 +3559,6 @@ This path deliberately does not cover other outstanding AWS hardening. Those ite
 - Host-side SQLite backups and restore drill: §7.4.
 - `/srv/footbag/env` manual-edits fragility threshold: §7.5. Access-key rotation is the first recurring forcing function.
 - CWAgent activation, backup-freshness metrics, SNS delivery: §7.6.
-- CI-built images, ECR registry, `docker compose pull`: §7.7.
 
 Once all Path G items are complete, the durable operational content (including this path, condensed) migrates into `docs/DEVOPS_GUIDE.md`.
 
@@ -3975,7 +3946,7 @@ Procedure: follow the §8.16 steps replacing `staging` with `production` through
 - Docker parity skipped entirely before AWS work
 - nginx not fronting the web container correctly
 - DB mount path wrong
-- `docker compose pull` used on host instead of the `docker save | docker load` ship path; images are built on the workstation and shipped manually (registry-backed delivery is deferred to §6.6)
+- `docker compose pull` used on host instead of the `docker save | docker load` ship path; images are built on the workstation and shipped manually
 
 #### AWS/bootstrap mistakes
 

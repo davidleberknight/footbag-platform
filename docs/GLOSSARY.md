@@ -82,9 +82,7 @@
 
 **Git**: Distributed version control system tracking code changes over time. Developers use Git to collaborate, maintain history, and coordinate work. Footbag.org code lives in GitHub repository with branching strategy supporting parallel development.
 
-**GitHub Actions**: CI/CD automation platform integrated with GitHub repositories. Footbag.org uses GitHub Actions to automatically build, test, and publish Docker images on commits to main branch, eliminating manual deployment steps.
-
-**GHCR (GitHub Container Registry)**: GitHub's built-in Docker image registry. Footbag.org CI pipelines publish Docker images to GHCR on every merge to main; deployment runbooks pull tagged images from GHCR to the Lightsail instance for staging and production rollouts.
+**GitHub Actions**: CI/CD automation platform integrated with GitHub repositories. Footbag.org uses GitHub Actions to run the CI checks (tests, type-check, lint, security scanning, Terraform validate) on every push and pull request. Images are not built in CI and there is no image registry: images are built on the operator workstation and shipped to the Lightsail host via `docker save | ssh | docker load` (the host is too small to build them itself).
 
 **Grace Period**: Time window after soft delete where data remains recoverable before permanent removal. Footbag.org uses a configurable grace period (default 90 days, `member_cleanup_grace_days`) for deleted member accounts. Photo and video deletions are immediate and permanent (no grace).
 
@@ -126,8 +124,6 @@
 
 **KMS (Key Management Service)**: AWS service managing cryptographic keys using hardware security modules (HSMs) with full audit trails. Footbag.org uses KMS for two purposes: JWT signing uses an asymmetric RSA-2048 key pair (kms:Sign at login, kms:GetPublicKey cached at startup for fast in-process verification); ballot encryption uses envelope encryption where kms:GenerateDataKey produces a fresh per-ballot AES-256-GCM data key that is used immediately and never stored in plaintext, with the encrypted data key (CiphertextBlob) stored alongside the ballot ciphertext. The web runtime role has kms:Sign and kms:GenerateDataKey permissions but not kms:Decrypt, so even a compromised container cannot decrypt stored ballots. In code, JWT signing is accessed through the `JwtSigningAdapter` interface (DD §1.9); production uses `createKmsJwtAdapter`, dev/test uses `createLocalJwtAdapter`. Both produce RS256-signed tokens.
 
-**Legacy Username**: Product-facing term for the old footbag.org account identifier stored in `legacy_user_id`. All UI copy, error messages, and documentation say "legacy username" regardless of the column name (MIGRATION_PLAN §28 standing consistency note).
-
 **Lightsail**: AWS managed virtual private server service providing compute, storage, and networking in simple monthly pricing. Footbag.org runs on a single Lightsail 4GB instance ($40/month) hosting proxy, web app, and worker containers. Simpler and cheaper than EC2 for single-server deployments.
 
 **Magic Byte Verification**: Security check that reads the first bytes of an uploaded file and confirms they match the known binary signature (magic bytes) for the declared file type (e.g., JPEG starts with FF D8 FF). Footbag.org rejects uploads whose magic bytes don't match their declared MIME type, preventing disguised executables from being processed by the Sharp image library.
@@ -166,11 +162,11 @@
 
 **Route 53**: AWS DNS service providing domain name management. Footbag.org uses Route 53 for footbag.org DNS records (alias to the CloudFront distribution). There is no Route 53 health check or automatic failover; when the origin is unavailable, CloudFront serves a static maintenance page from S3.
 
-**S3 (Simple Storage Service)**: AWS object storage service providing scalable, durable file storage. Footbag.org uses S3 to store uploaded photos (two processed variants per photo), SQLite database backup snapshots uploaded every 5 minutes, static assets (CSS, JavaScript, images), the legacy archive, and audit log archives. Application state (members, events, registrations, etc.) is stored in a SQLite database, not in S3.
+**S3 (Simple Storage Service)**: AWS object storage service providing scalable, durable file storage. Footbag.org uses S3 to store uploaded photos (two processed variants per photo), SQLite database backup snapshots uploaded every 5 minutes, and the legacy archive. Application state (members, events, registrations, etc.) is stored in a SQLite database, not in S3.
 
-**S3 Lifecycle Rules**: Automated policies transitioning objects between storage classes or deleting after expiration. Footbag.org uses lifecycle rules to transition old audit logs from Standard to Glacier Deep Archive after one year for cost optimization, and to expire old content-hash static asset versions after 90 days to prevent unbounded storage growth.
+**S3 Lifecycle Rules**: Automated policies transitioning objects between storage classes or deleting after expiration. Footbag.org uses lifecycle rules to expire noncurrent object versions (30 days on the media buckets, 90 days on the snapshots bucket) and to expire routine database snapshots after 30 days, preventing unbounded storage growth.
 
-**S3 Object Lock (WORM)**: S3 feature preventing objects from being modified or deleted for a specified retention period, enforcing Write Once Read Many semantics. Footbag.org applies Object Lock to the cross-region disaster recovery backup bucket and to the audit log archive bucket, ensuring backups and audit records cannot be tampered with even by administrators.
+**S3 Object Lock (WORM)**: S3 feature preventing objects from being modified or deleted for a specified retention period, enforcing Write Once Read Many semantics. Footbag.org applies Object Lock (GOVERNANCE mode, 30-day retention) to the cross-region disaster-recovery database-snapshot bucket, so routine backups cannot be deleted before their retention window elapses, while a privileged operator can still honor a lawful erasure request.
 
 **S3 One Zone-IA**: S3 storage class storing data in a single availability zone at lower cost than standard S3, suitable for data that can be recreated if lost. Footbag.org uses One Zone-IA for the photo backup bucket (cross-region replication target) to reduce backup storage costs.
 
@@ -200,8 +196,6 @@
 
 **Standardized Hashtag**: Enforced-format hashtag with uniqueness validation for events (for example `#event_2025_beaver_open`) and clubs (for example `#club_wellington_hack_crew`). Members uploading media can tag with these hashtags for automatic gallery linking; the system validates uniqueness at event or club creation.
 
-Rationale
-
 **Stateless JWT**: Authentication approach using self-contained tokens that carry claims (member ID, roles, passwordVersion) without requiring server-side session storage. Note that Footbag.org's implementation is not purely stateless: every authenticated request verifies the JWT signature cryptographically and then reads the member record from the database to confirm passwordVersion matches, enabling immediate cross-device invalidation on password change. JWT claims serve as routing hints; the database read is authoritative for access control.
 
 **Stripe**: Payment processor handling credit card transactions, subscriptions, and payouts. Footbag.org uses Stripe Checkout for one-time payments (membership dues, event registrations, one-time donations), Stripe Subscriptions for recurring annual donations, and Stripe webhooks (HMAC SHA-256 validated) for payment status notifications. PCI compliance handled by Stripe's hosted forms.
@@ -210,7 +204,7 @@ Rationale
 
 **Stripe Subscriptions**: Recurring billing feature automatically charging members monthly or annually. Footbag.org uses subscriptions for recurring annual donations only (membership tiers are lifetime per DD §6.1 and do not renew). Member-initiated cancellation stops future charges; the webhook on `customer.subscription.deleted` transitions the local subscription record to canceled.
 
-**Stripe Webhook**: HTTP callback from Stripe notifying Footbag.org of payment events (payment succeeded, subscription canceled, payment failed). Footbag.org validates webhook signatures using HMAC-SHA256 and processes events asynchronously through outbox pattern.
+**Stripe Webhook**: HTTP callback from Stripe notifying Footbag.org of payment events (payment succeeded, subscription canceled, payment failed). Footbag.org validates webhook signatures using HMAC-SHA256 and processes each event synchronously and idempotently, deduplicated via the `stripe_events` table.
 
 **Terraform**: Open-source infrastructure-as-code tool using declarative configuration files (.tf) to provision and manage cloud resources. Footbag.org defines all AWS infrastructure in Terraform under the /terraform directory; running terraform plan shows a diff of planned changes and terraform apply creates or updates resources, enabling reproducible environment creation and infrastructure change review via pull requests.
 
@@ -226,7 +220,7 @@ Rationale
 
 **WAF (Web Application Firewall)**: AWS managed firewall service that can filter malicious web traffic at the CloudFront edge before requests reach the origin server. Footbag.org treats a WAFv2 web ACL as a deferred lever rather than a standing control: volumetric DDoS is handled by AWS Shield Standard, and application abuse by Turnstile plus in-process rate limiting on the Lightsail instance, with a WAF attached only if observed abuse warrants it.
 
-**Webhook**: HTTP callback allowing external services to notify applications of events. Footbag.org receives Stripe webhooks for payment events (payment succeeded, subscription canceled) validated using HMAC SHA-256 signatures. Webhook handlers process events asynchronously through outbox pattern ensuring reliable processing despite retries.
+**Webhook**: HTTP callback allowing external services to notify applications of events. Footbag.org receives Stripe webhooks for payment events (payment succeeded, subscription canceled) validated using HMAC SHA-256 signatures. Webhook handlers process each event synchronously and idempotently (deduplicated via the `stripe_events` table), so Stripe retries are safe.
 
 **WAL (Write-Ahead Logging):** SQLite journal mode where changes are written to a separate WAL file before being committed to the main database file, allowing unlimited concurrent readers while a writer is active. Footbag.org enables WAL mode via journal_mode=WAL PRAGMA; the background worker periodically runs wal_checkpoint(TRUNCATE) to merge WAL changes back into the main database file, and the final checkpoint runs during graceful shutdown to ensure no data is lost before a backup upload.
 

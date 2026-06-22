@@ -23,7 +23,7 @@
  *     co-leader acts only on themselves (edit own contact, step down, leave);
  *     removing another co-leader is admin-only. Zero co-leaders is a tolerated
  *     leaderless state: the club persists, stays joinable, and stays listed.
- *   - Standard hashtag reserved via `HashtagDiscoveryService.reserveStandardTag()` at
+ *   - Standard hashtag (`#club_{slug}`) persisted via `mediaTags.insertStandardTag` at
  *     creation; permanent (not HD).
  *   - Club display names are not required to be globally unique; the hashtag is the
  *     canonical identifier.
