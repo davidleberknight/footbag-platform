@@ -39,7 +39,7 @@ describe('Security headers: connect-src under MEDIA_STORAGE_ADAPTER=s3', () => {
     const csp = res.headers['content-security-policy'];
     expect(csp).toBeDefined();
     expect(csp).toContain(
-      "connect-src 'self' https://footbag-test-media.s3.us-east-1.amazonaws.com",
+      "connect-src 'self' https://challenges.cloudflare.com https://footbag-test-media.s3.us-east-1.amazonaws.com",
     );
   });
 });
