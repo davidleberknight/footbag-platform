@@ -91,6 +91,12 @@ const NEIGHBORHOOD_GROUPS: readonly (readonly string[])[] = [
   // this overlay connects them. Walk-over steps over the held delay, hop-over
   // jumps over it, and eclipse lifts the whole structure airborne.
   ['wrap', 'walk-over', 'hop-over', 'eclipse'],
+  // Directional ATW variants: each circles the leg fully around the bag,
+  // differing by entry / delay surface. Each is an independent 2-ADD atom in its
+  // own family (around-the-world is not the parent or compositional base of the
+  // inside / outside variants), so only this overlay connects the three as
+  // related directional peers.
+  ['around-the-world', 'inside-around-the-world', 'outside-around-the-world'],
 ];
 
 // Curated neighbors for a slug: its one-directional overlay entry plus the
