@@ -47,21 +47,22 @@ CREATE TABLE `members` (
   `MemberComment` text,
   `MemberAlias` varchar(80) NOT NULL DEFAULT '',
   `MemberSession` text,
-  `MemberIFPAJoined` int(11) NOT NULL DEFAULT '0'
+  `MemberIFPAJoined` int(11) NOT NULL DEFAULT '0',
+  `MemberIFPATier` varchar(20) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 INSERT INTO `members` VALUES """ + ",".join([
     # 1: ASCII member, both emails, full address, birth date, IFPA join epoch
     "(11983,1,'SECRET_HASH_DO_NOT_LEAK','Steve','','Blough','','','',"
     "'steve@example.com','steve2@example.com','','Boulder','','Colorado','',"
     "'80301','United States','','123 Main St','Apt 4',6,15,1985,"
-    "'O''Brien fan','sblough','SESSION_TOKEN_DO_NOT_LEAK',1268000000)",
+    "'O''Brien fan','sblough','SESSION_TOKEN_DO_NOT_LEAK',1268000000,'2')",
     # 2: Unicode name + city, only email3, no birth date, no IFPA join
     "(12000,1,'pw2','','José','','Núñez','','','','',"
     "'jose@example.com','','Düsseldorf','','','','','','','',0,0,0,"
-    "'','jose','sess2',0)",
+    "'','jose','sess2',0,'1')",
     # 3: invalid (MemberValid=0) with NULL birth parts — must still be emitted
     "(99999,0,'pw3','Junk','','User','','','','junk@example.com','','',"
-    "'','','','','','','','','',NULL,NULL,NULL,'','junkuser','sess3',0)",
+    "'','','','','','','','','',NULL,NULL,NULL,'','junkuser','sess3',0,NULL)",
 ]) + ";\n"
 
 
@@ -90,6 +91,8 @@ def test_column_field_map(tmp_path):
     assert r["street_address"] == "123 Main St, Apt 4"
     assert r["bio"] == "O'Brien fan"          # '' -> ' unescaping
     assert r["is_hof"] == "" and r["is_bap"] == "" and r["legacy_is_admin"] == ""
+    assert r["legacy_was_board_at_cutover"] == "0"
+    assert r["legacy_board_underlying_paid_tier"] == ""
 
 
 def test_credentials_never_emitted(tmp_path):
@@ -142,3 +145,27 @@ def test_dump_level_counts(tmp_path):
         "legacy_email2": 1,   # 11983
         "legacy_email3": 1,   # 12000
     }
+    # No board code is configured, so no row resolves to board at cutover.
+    assert stats["board_at_cutover"] == 0
+
+
+def test_board_at_cutover_inert_without_configured_code(tmp_path):
+    # The shipped board-code set is empty, so every row is non-board regardless
+    # of its IFPA tier value; nothing is guessed from the tier code.
+    _, rows, _, _ = _run(tmp_path)
+    for r in rows:
+        assert r["legacy_was_board_at_cutover"] == "0"
+        assert r["legacy_board_underlying_paid_tier"] == ""
+
+
+def test_derive_board_at_cutover_maps_configured_code():
+    # A board member resolves to ("1", "none") (the underlying paid tier the
+    # board status reverts to is not reconstructable from the tier code alone);
+    # any other or absent code is non-board. The codes here are synthetic, not
+    # the real encoding, which is supplied through BOARD_IFPA_TIER_CODES.
+    codes = frozenset({"DIRECTOR", "3"})
+    assert elm.derive_board_at_cutover("3", codes) == ("1", "none")
+    assert elm.derive_board_at_cutover("DIRECTOR", codes) == ("1", "none")
+    assert elm.derive_board_at_cutover("2", codes) == ("0", "")
+    assert elm.derive_board_at_cutover("", codes) == ("0", "")
+    assert elm.derive_board_at_cutover("3", frozenset()) == ("0", "")

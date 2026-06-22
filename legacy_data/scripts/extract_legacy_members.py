@@ -31,15 +31,28 @@ from pathlib import Path
 # Never mapped, retained, logged, emitted, or written.
 CREDENTIAL_COLUMNS = {"MemberPassword", "MemberSession"}
 
-# Canonical loader-input columns; this list is the output CSV header order and
-# matches load_legacy_export.py FIELD_ALIASES.
+# Output CSV header order. Most columns map by name into the legacy-member
+# importer; the two board-at-cutover columns are emitted ahead of their importer
+# and schema landing, so the importer reports and ignores them until then.
 OUTPUT_FIELDS = [
     "legacy_member_id", "member_valid", "legacy_user_id",
     "legacy_email", "legacy_email2", "legacy_email3",
     "real_name", "display_name", "city", "region", "country",
     "bio", "birth_date", "street_address", "postal_code", "ifpa_join_date",
     "is_hof", "is_bap", "legacy_is_admin",
+    "legacy_was_board_at_cutover", "legacy_board_underlying_paid_tier",
 ]
+
+# The IFPA-tier code(s) in the member dump that denote board / Tier 3 governance
+# status at cutover. The committee-membership tables are the authoritative board
+# signal, but their rows have not been delivered; until then the only available
+# signal is the member's IFPA tier code, and only if that code distinguishes a
+# board value.
+# Current: the code that denotes board is not yet confirmed against the delivered
+# dump, so this set is empty and no member is marked board (nothing is guessed).
+# Target: set to the confirmed code(s) once verified; board derivation then moves
+# to the committee tables once their rows are delivered.
+BOARD_IFPA_TIER_CODES: frozenset[str] = frozenset()
 
 _ESCAPES = {"0": "\0", "b": "\b", "n": "\n", "r": "\r", "t": "\t",
             "Z": "\x1a", "\\": "\\", "'": "'", '"': '"'}
@@ -155,6 +168,21 @@ def _street(rec: dict) -> str:
     return ", ".join(p for p in parts if p)
 
 
+def derive_board_at_cutover(ifpa_tier_code: str, board_codes: frozenset[str]) -> tuple[str, str]:
+    """Map a member's IFPA tier code to the two board-at-cutover fields:
+    (legacy_was_board_at_cutover, legacy_board_underlying_paid_tier).
+
+    A board member carries underlying 'none' because the paid tier the board
+    status reverts to cannot be reconstructed from the tier code alone; the
+    claim-time mapping reads 'none' as a Tier 1 underlying unless an honor
+    overrides it. A non-board member carries no underlying tier.
+    """
+    code = (ifpa_tier_code or "").strip()
+    if code and code in board_codes:
+        return "1", "none"
+    return "0", ""
+
+
 def map_record(rec: dict) -> dict:
     """Map a members row to the canonical loader-input fields."""
     first = _prefer_unicode(rec, "MemberFirstName", "MemberFirstNameUnicode")
@@ -162,6 +190,8 @@ def map_record(rec: dict) -> dict:
     last = _prefer_unicode(rec, "MemberLastName", "MemberLastNameUnicode")
     real_name = " ".join(p for p in (first, middle, last) if p)
     alias = _val(rec, "MemberAlias")
+    was_board, board_underlying = derive_board_at_cutover(
+        _val(rec, "MemberIFPATier"), BOARD_IFPA_TIER_CODES)
     return {
         "legacy_member_id": _val(rec, "MemberID"),
         "member_valid":     _val(rec, "MemberValid"),
@@ -183,6 +213,8 @@ def map_record(rec: dict) -> dict:
         "is_hof":           "",
         "is_bap":           "",
         "legacy_is_admin":  "",
+        "legacy_was_board_at_cutover":       was_board,
+        "legacy_board_underlying_paid_tier": board_underlying,
     }
 
 
@@ -191,6 +223,7 @@ def extract(members_sql: Path, out_csv: Path) -> dict:
     columns = parse_member_columns(sql)
 
     examined = 0
+    board_at_cutover = 0
     distinct_ids: set[str] = set()
     email_pop = {"legacy_email": 0, "legacy_email2": 0, "legacy_email3": 0}
 
@@ -201,6 +234,8 @@ def extract(members_sql: Path, out_csv: Path) -> dict:
         for rec in iter_member_rows(sql, columns):
             mapped = map_record(rec)
             examined += 1
+            if mapped["legacy_was_board_at_cutover"] == "1":
+                board_at_cutover += 1
             if mapped["legacy_member_id"]:
                 distinct_ids.add(mapped["legacy_member_id"])
             for col in email_pop:
@@ -213,6 +248,7 @@ def extract(members_sql: Path, out_csv: Path) -> dict:
         "rows_examined": examined,
         "distinct_member_id": len(distinct_ids),
         "email_population": email_pop,
+        "board_at_cutover": board_at_cutover,
     }
 
 
@@ -236,6 +272,8 @@ def main() -> None:
     print(f"  MemberEmail populated:  {ep['legacy_email']}")
     print(f"  MemberEmail2 populated: {ep['legacy_email2']}")
     print(f"  MemberEmail3 populated: {ep['legacy_email3']}")
+    board_note = "" if BOARD_IFPA_TIER_CODES else "  (derivation inert: no IFPA-tier board code configured)"
+    print(f"  board at cutover:       {stats['board_at_cutover']}{board_note}")
     print("  (no filtering applied; the loader filters + pulls back)")
 
 
