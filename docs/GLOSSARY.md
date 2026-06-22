@@ -6,7 +6,7 @@
 
 **ACID Transactions:** Database guarantee that operations are Atomic (all-or-nothing), Consistent (database rules always satisfied), Isolated (concurrent transactions don't interfere), and Durable (committed data survives failures). Footbag.org uses SQLite's ACID guarantees to replace the optimistic locking previously required by JSON-on-S3 file updates, simplifying write safety for operations like registration creation and tier changes.
 
-**Adapter Pattern**: Design pattern abstracting external dependencies behind interfaces. Footbag.org uses adapters to isolate infrastructure concerns per DD §1.9: `MediaStorageAdapter` (S3 in staging/production; `LocalMediaStorageAdapter` in dev), `SesAdapter` (`LiveSesAdapter` sends via AWS SES in production; `StubSesAdapter` captures messages in memory for dev/test), `PaymentAdapter` (Stripe), `JwtSigningAdapter` (`createKmsJwtAdapter` uses AWS KMS Sign/GetPublicKey in production with RS256; `createLocalJwtAdapter` uses a file-based RSA keypair in dev/test with the same RS256 algorithm), `SecretsAdapter` (`LiveSecretsAdapter` reads SSM SecureString parameters in staging and production; `LocalSecretsAdapter` reads a gitignored `.local/secrets.json` in dev; `StubSecretsAdapter` is the test variant), `SafeBrowsingAdapter`, `CaptchaAdapter` (Cloudflare Turnstile in production; stub on dev and staging), `HttpReachabilityAdapter`, `ImageProcessingAdapter`, and `VideoTranscodingAdapter`. Enables testing without external services and dev/prod parity by configuration swap.
+**Adapter Pattern**: Design pattern abstracting external dependencies behind interfaces. Footbag.org uses adapters to isolate infrastructure concerns per DD §1.9: `MediaStorageAdapter` (S3 in staging/production; `LocalMediaStorageAdapter` in dev), `SesAdapter` (`LiveSesAdapter` sends via AWS SES in production; `StubSesAdapter` captures messages in memory for dev, test, and staging), `PaymentAdapter` (Stripe), `JwtSigningAdapter` (`createKmsJwtAdapter` uses AWS KMS Sign/GetPublicKey in production with RS256; `createLocalJwtAdapter` uses a file-based RSA keypair in dev/test with the same RS256 algorithm), `SecretsAdapter` (`LiveSecretsAdapter` reads SSM SecureString parameters in staging and production; `LocalSecretsAdapter` reads a gitignored `.local/secrets.json` in dev; `StubSecretsAdapter` is the test variant), `SafeBrowsingAdapter`, `CaptchaAdapter` (Cloudflare Turnstile in production; stub on dev and staging), `HttpReachabilityAdapter`, `ImageProcessingAdapter`, and `VideoTranscodingAdapter`. Enables testing without external services and dev/prod parity by configuration swap.
 
 **AES-256-GCM**: Authenticated encryption algorithm providing both confidentiality and integrity through authentication tags. Used for voting ballot encryption with server-side envelope encryption: member submits vote over HTTPS, server requests a fresh data key from AWS KMS (GenerateDataKey), encrypts the ballot payload using AES-256-GCM, and stores only the ciphertext alongside the encrypted data key. The plaintext data key is never persisted. Admin tallying decrypts ballots using a separate privileged role after polls close.
 
@@ -56,7 +56,7 @@
 
 **DMARC (Domain-based Message Authentication, Reporting and Conformance)**: Email authentication policy framework building on SPF and DKIM. Footbag.org publishes DMARC policies instructing receiving servers to reject unauthenticated emails claiming to be from footbag.org.
 
-**DNS (Domain Name System)**: Internet system translating human-readable domain names (footbag.org) into IP addresses computers use to locate servers. Footbag.org uses AWS Route 53 for DNS management with health checks and automatic failover.
+**DNS (Domain Name System)**: Internet system translating human-readable domain names (footbag.org) into IP addresses computers use to locate servers. Footbag.org uses AWS Route 53 for DNS management (alias records to the CloudFront distribution); there is no Route 53 health check or automatic failover, and when the origin is unavailable CloudFront serves a static maintenance page from S3.
 
 **Docker**: Containerization platform that packages applications with their dependencies into isolated units that run consistently across different environments. Footbag.org uses Docker for local development, CI/CD builds, and production deployment.
 
@@ -134,7 +134,7 @@
 
 **Middleware**: Express function executing during request/response cycle before reaching route handlers. Footbag.org uses middleware for authentication (JWT validation), logging (request/response tracking), error handling (consistent error responses), and request parsing (JSON body parsing).
 
-**Nginx**: High-performance web server and reverse proxy. Footbag.org uses nginx container for TLS termination, static asset serving, rate limiting, and routing requests to Express application containers.
+**Nginx**: High-performance web server and reverse proxy. Footbag.org uses nginx container for TLS termination, static asset serving, and routing requests to Express application containers.
 
 **Node.js:** JavaScript runtime built on Chrome's V8 engine enabling server-side JavaScript execution. Footbag.org uses Node.js LTS (Long Term Support) version as the application runtime for both web server and background workers. Single language (TypeScript/JavaScript) across frontend and backend.
 

@@ -39,7 +39,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ║  │    nginx    │ │     web     │ │   worker    │ │ image  │         ║
 ║  │    64 MB    │→│   512 MB    │ │   384 MB    │ │ 896 MB │         ║
 ║  │Reverse proxy│ │ Controllers │ │Email outbox │ │ Sharp  │         ║
-║  │Rate limiting│ │ Services    │ │Daily jobs   │ │ Photo  │         ║
+║  │TLS to origin│ │ Services    │ │Daily jobs   │ │ Photo  │         ║
 ║  │TLS terminus │ │ db.ts       │ │Transcode    │ │ proc.  │         ║
 ║  └─────────────┘ └─────────────┘ └─────────────┘ └────────┘         ║
 ║                        │                │              │            ║
@@ -260,7 +260,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ┌─────────────────────────────────────────────────────────────────────┐
 │  nginx  (reverse proxy)                                             │
 │  CloudFront edge:    AWS Shield Standard DDoS protection            │
-│  App middleware:    per-account/per-IP rate limiting                │
+│  App service layer: per-account/per-IP rate limiting                │
 │  nginx:             CloudFront-to-origin TLS termination            │
 └─────────────────────────────────────────────────────────────────────┘
   ↓

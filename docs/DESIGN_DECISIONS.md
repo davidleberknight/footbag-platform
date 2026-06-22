@@ -381,7 +381,7 @@ Rationale:
 
 - **worker** is smaller due to asynchronous processing: Background jobs process sequentially or with limited concurrency. Email sending, nightly backups, do not require high memory. 384MB sufficient for runtime and job processing. 
 
-- **image** is largest due to Sharp library: Image processing library loads entire image into memory, performs transformations, and outputs new format. Processing 5MB uploaded image requires approximately 500MB buffer space. Multiple concurrent uploads require additional headroom. 896MB provides safety margin. 
+- **image** is largest due to Sharp library: Image processing library loads entire image into memory, performs transformations, and outputs new format. Sharp decodes the entire source image into an uncompressed raster before resizing. Uploads are capped at 25MB and PNG is accepted (PNG has no shrink-on-load, so a large PNG decodes in full), and each upload generates its thumbnail and display variants as two parallel Sharp pipelines, so one upload holds two simultaneous decodes. The production host runs two uploads concurrently, so up to four decodes can be in flight; 896MB provides the safety margin, and smaller hosts scale the memory limit and the concurrency cap down together. 
 
 Trade-offs:
 
