@@ -1719,12 +1719,19 @@ function claimLegacyAccountInTxInner(
     );
   }
 
-  // Single tier grant per legacy claim; grants never stack.
-  // Honors-only fallback: HoF or BAP (from either the legacy row or the
-  // transitive HP) → tier2; otherwise tier0. Same transaction as the merge.
+  // Single tier grant per legacy claim; grants never stack. Maps the legacy
+  // standing to a tier: honors (HoF or BAP, from the legacy row or the transitive
+  // HP) or ever-paid Tier 2 → tier2; bought Tier 1 Lifetime or active Tier 1
+  // Annual → tier1; otherwise tier0. Same transaction as the merge.
   const hasHof = Boolean(row.is_hof) || Boolean(hp?.hof_member);
   const hasBap = Boolean(row.is_bap) || Boolean(hp?.bap_member);
-  applyLegacyClaimGrantInTx(requestingMemberId, requestingMemberId, hasHof, hasBap, {
+  applyLegacyClaimGrantInTx(requestingMemberId, requestingMemberId, {
+    hasHof,
+    hasBap,
+    everPaidTier2:         Boolean(row.legacy_ever_paid_tier2),
+    everPaidTier1Lifetime: Boolean(row.legacy_ever_paid_tier1_lifetime),
+    tier1AnnualActive:     Boolean(row.legacy_tier1_annual_active_at_cutover),
+  }, {
     source:           'legacy_claim',
     legacy_member_id: row.legacy_member_id,
     legacy_user_id:   row.legacy_user_id,
@@ -2550,6 +2557,12 @@ function claimHistoricalPersonInTxInner(
 
   const now = new Date().toISOString();
 
+  // Paid-history standings come from the transitive legacy row when one exists;
+  // a direct HP claim with no legacy account grants on the HP honors alone.
+  let everPaidTier2 = false;
+  let everPaidTier1Lifetime = false;
+  let tier1AnnualActive = false;
+
   // Transitive legacy claim when the HP is back-linked to a legacy account.
   if (hp.legacy_member_id) {
     if (member.legacy_member_id && member.legacy_member_id !== hp.legacy_member_id) {
@@ -2558,6 +2571,11 @@ function claimHistoricalPersonInTxInner(
       );
     }
     const lm = legacyMembers.findByLegacyMemberId.get(hp.legacy_member_id) as LegacyMemberRow | undefined;
+    if (lm) {
+      everPaidTier2 = Boolean(lm.legacy_ever_paid_tier2);
+      everPaidTier1Lifetime = Boolean(lm.legacy_ever_paid_tier1_lifetime);
+      tier1AnnualActive = Boolean(lm.legacy_tier1_annual_active_at_cutover);
+    }
     if (lm && !lm.claimed_by_member_id) {
       const marked = legacyMembers.markClaimed.run(requestingMemberId, now, hp.legacy_member_id);
       if (marked.changes === 0) {
@@ -2606,15 +2624,21 @@ function claimHistoricalPersonInTxInner(
     requestingMemberId,
   );
 
-  // Single tier grant per legacy claim; grants never stack.
-  // Direct HP claim takes the same `legacy.claim_tier_grant` reason: honors
-  // (HoF or BAP, from the HP) → tier2; otherwise tier0. Same transaction
+  // Single tier grant per legacy claim; grants never stack. Direct HP claim
+  // takes the same `legacy.claim_tier_grant` reason and the same mapping: honors
+  // (HoF or BAP, from the HP) or a transitive legacy paid standing set above; a
+  // direct claim with no legacy account grants on honors alone. Same transaction
   // as the merge writes above.
   applyLegacyClaimGrantInTx(
     requestingMemberId,
     requestingMemberId,
-    Boolean(hp.hof_member),
-    Boolean(hp.bap_member),
+    {
+      hasHof:                Boolean(hp.hof_member),
+      hasBap:                Boolean(hp.bap_member),
+      everPaidTier2,
+      everPaidTier1Lifetime,
+      tier1AnnualActive,
+    },
     {
       source:               'direct_hp_claim',
       person_id:            hp.person_id,

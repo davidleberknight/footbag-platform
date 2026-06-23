@@ -67,6 +67,9 @@ interface ScenarioOpts {
   legacyCountry?: string | null;
   legacyIsHof?: 0 | 1;
   legacyIsBap?: 0 | 1;
+  legacyEverPaidTier2?: 0 | 1;
+  legacyEverPaidTier1Lifetime?: 0 | 1;
+  legacyTier1AnnualActive?: 0 | 1;
   hpCountry?: string | null;
   hpHofMember?: 0 | 1;
   hpBapMember?: 0 | 1;
@@ -108,12 +111,18 @@ function setupScenario(opts: ScenarioOpts): ScenarioFixture {
   // legacy_member_id; reset that row to the test's exact values.
   db.prepare(`
     UPDATE legacy_members
-    SET country = ?, is_hof = ?, is_bap = ?
+    SET country = ?, is_hof = ?, is_bap = ?,
+        legacy_ever_paid_tier2 = ?,
+        legacy_ever_paid_tier1_lifetime = ?,
+        legacy_tier1_annual_active_at_cutover = ?
     WHERE legacy_member_id = ?
   `).run(
     opts.legacyCountry === undefined ? null : opts.legacyCountry,
     opts.legacyIsHof ?? 0,
     opts.legacyIsBap ?? 0,
+    opts.legacyEverPaidTier2 ?? 0,
+    opts.legacyEverPaidTier1Lifetime ?? 0,
+    opts.legacyTier1AnnualActive ?? 0,
     legacyId,
   );
   db.close();
@@ -305,6 +314,42 @@ describe('claimLegacyAccount — single tier grant per claim', () => {
     expect(grant!.new_tier_status).toBe('tier0');
     expect(grant!.old_tier_status).toBe('tier0');
     expect(grant!.reason_code).toBe('legacy.claim_tier_grant');
+  });
+
+  it('ever-paid Tier 2 with no honors → tier2 grant', () => {
+    const { memberId, legacyId } = setupScenario({ legacyEverPaidTier2: 1 });
+    svc.claimLegacyAccount(memberId, legacyId);
+    const grant = readTierGrant(memberId);
+    expect(grant!.new_tier_status).toBe('tier2');
+    expect(grant!.reason_code).toBe('legacy.claim_tier_grant');
+  });
+
+  it('bought Tier 1 Lifetime (no honors, no Tier 2) → tier1 grant', () => {
+    const { memberId, legacyId } = setupScenario({ legacyEverPaidTier1Lifetime: 1 });
+    svc.claimLegacyAccount(memberId, legacyId);
+    const grant = readTierGrant(memberId);
+    expect(grant!.new_tier_status).toBe('tier1');
+  });
+
+  it('active Tier 1 Annual at cutover (no honors, no other paid) → tier1 grant', () => {
+    const { memberId, legacyId } = setupScenario({ legacyTier1AnnualActive: 1 });
+    svc.claimLegacyAccount(memberId, legacyId);
+    const grant = readTierGrant(memberId);
+    expect(grant!.new_tier_status).toBe('tier1');
+  });
+
+  it('honors beat paid history: HoF + Tier 1 Lifetime → tier2', () => {
+    const { memberId, legacyId } = setupScenario({ legacyIsHof: 1, legacyEverPaidTier1Lifetime: 1 });
+    svc.claimLegacyAccount(memberId, legacyId);
+    const grant = readTierGrant(memberId);
+    expect(grant!.new_tier_status).toBe('tier2');
+  });
+
+  it('ever-paid Tier 2 beats Tier 1 Lifetime → tier2', () => {
+    const { memberId, legacyId } = setupScenario({ legacyEverPaidTier2: 1, legacyEverPaidTier1Lifetime: 1 });
+    svc.claimLegacyAccount(memberId, legacyId);
+    const grant = readTierGrant(memberId);
+    expect(grant!.new_tier_status).toBe('tier2');
   });
 });
 

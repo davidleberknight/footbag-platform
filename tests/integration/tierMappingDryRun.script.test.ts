@@ -1,10 +1,9 @@
 /**
  * Tier-mapping dry-run script contract: read-only preview of
- * grants-if-all-claimed. Honors-only fallback when the five tier-state
- * columns are absent (legacy-flag and transitive-HP honors both map to
- * tier2); full precedence when all five exist (board beats honors beats
- * paid history, with the board-underlying derivation); claimed rows are
- * skipped; the database file is byte-identical after a run.
+ * grants-if-all-claimed under the honors + paid-history mapping. Honors
+ * (legacy-flag or transitive-HP) and ever-paid Tier 2 map to tier2; bought Tier 1
+ * Lifetime or active Tier 1 Annual map to tier1; everything else tier0. Claimed
+ * rows are skipped; the database file is byte-identical after a run.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -50,44 +49,28 @@ function fileHash(): string {
 }
 
 describe('tier-mapping dry-run script', () => {
-  it('honors-only fallback: legacy-flag and transitive-HP honors map to tier2; claimed rows skipped; DB untouched', () => {
+  it('honors map to tier2; a row with no paid history stays tier0; claimed rows skipped; DB untouched', () => {
     const before = fileHash();
     const r = run();
     expect(r.status, r.stdout).toBe(0);
-    expect(r.stdout).toContain('honors-only fallback');
+    expect(r.stdout).toContain('honors + paid-history');
     expect(r.stdout).toContain('unclaimed rows examined: 3');
     expect(r.stdout).toContain('already claimed (skipped; grants exist or existed): 1');
-    expect(r.stdout).toMatch(/tier2: 2/);
-    expect(r.stdout).toMatch(/tier0: 1/);
+    expect(r.stdout).toMatch(/tier2: 2/);   // legacy-flag HoF + transitive-HP BAP
+    expect(r.stdout).toMatch(/tier0: 1/);   // the plain row
     expect(fileHash()).toBe(before);
   });
 
-  it('full precedence applies when all five tier fields exist (board beats honors; underlying derived)', () => {
+  it('a paid Tier 1 Lifetime flag maps the otherwise-plain row to tier1', () => {
     const db = new BetterSqlite3(dbPath);
-    for (const col of [
-      `legacy_ever_paid_tier2 INTEGER NOT NULL DEFAULT 0`,
-      `legacy_ever_paid_tier1_lifetime INTEGER NOT NULL DEFAULT 0`,
-      `legacy_tier1_annual_active_at_cutover INTEGER NOT NULL DEFAULT 0`,
-      `legacy_was_board_at_cutover INTEGER NOT NULL DEFAULT 0`,
-      `legacy_board_underlying_paid_tier TEXT`,
-    ]) {
-      db.exec(`ALTER TABLE legacy_members ADD COLUMN ${col}`);
-    }
-    // The HoF row was also board at cutover: board wins, underlying tier2 via honors.
-    db.prepare(`UPDATE legacy_members SET legacy_was_board_at_cutover = 1 WHERE legacy_member_id = 'LM-dr-hof'`).run();
-    // The plain row paid Tier 1 Lifetime.
     db.prepare(`UPDATE legacy_members SET legacy_ever_paid_tier1_lifetime = 1 WHERE legacy_member_id = 'LM-dr-plain'`).run();
     db.close();
 
     const r = run();
     expect(r.status, r.stdout).toBe(0);
-    expect(r.stdout).toContain('full precedence (five tier fields present)');
-    expect(r.stdout).toMatch(/tier3: 1/);
-    expect(r.stdout).toMatch(/tier2: 1/);  // transitive-HP BAP row
-    expect(r.stdout).toMatch(/tier1: 1/);  // tier1-lifetime row
-    expect(r.stdout).toMatch(/p1_board: 1/);
-    expect(r.stdout).toMatch(/p4_tier1_lifetime: 1/);
-    expect(r.stdout).toContain('tier3 underlying derivation:');
-    expect(r.stdout).toMatch(/tier2: 1\s*$/m);
+    expect(r.stdout).toContain('honors + paid-history');
+    expect(r.stdout).toMatch(/tier2: 2/);   // the two honors rows
+    expect(r.stdout).toMatch(/tier1: 1/);   // the lifetime-paid row
+    expect(r.stdout).toMatch(/p_tier1_lifetime: 1/);
   });
 });

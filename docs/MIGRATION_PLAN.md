@@ -106,7 +106,7 @@ These decisions are settled. Each is final unless a noted open question revises 
 
 **7.** Old bans never block a claim; they are kept only as background notes. Subject to open question 17.
 
-**8.** Tiers are mapped in bulk at claim time, with an honors-only fallback if the data lacks tier history.
+**8.** Tiers are granted at claim time from each account's legacy standing (board, honors, paid history); an account with only honors is granted on that basis.
 
 **9.** Clubs are bootstrapped from the mirror using a fixed four-way classification; club leadership stays a candidate only until a member confirms it through the wizard.
 
@@ -341,38 +341,11 @@ Credentials, authentication state, mailing-list subscriptions, club-governance p
 
 ## 3. Tier handling at claim
 
-Under the three-table design, `member_tier_grants` is a ledger keyed by `member_id`; so no ledger row exists for an unclaimed legacy account (there is no member yet). The mapping below is applied at **claim time**: when `M_Claim_Legacy_Account` (or the direct-historical-person claim, or admin manual recovery) completes for a given `legacy_members` row, the claim transaction writes one `member_tier_grants` row with `reason_code = 'legacy.claim_tier_grant'` using the legacy state captured on `legacy_members`. No `active_player_grants` row is written at migration; Active Player is earned post-cutover via the new sources (IFPA-website event attendance, vouching, or first IFPA club join).
+Under the three-table design, `member_tier_grants` is a ledger keyed by `member_id`; so no ledger row exists for an unclaimed legacy account (there is no member yet). The tier-grant mapping is applied at **claim time**: when `M_Claim_Legacy_Account` (or the direct-historical-person claim, or admin manual recovery) completes for a given `legacy_members` row, the claim transaction writes one `member_tier_grants` row with `reason_code = 'legacy.claim_tier_grant'` using the legacy state captured on `legacy_members`. No `active_player_grants` row is written at migration; Active Player is earned post-cutover via the new sources (IFPA-website event attendance, vouching, or first IFPA club join).
 
-The mapping is a single blanket policy approved by IFPA: any legacy state that was active or paid at cutover maps to its lifetime equivalent under the 2026 rules (annual to lifetime); Tier 3 (Director / board governance status) takes precedence over honors and paid history and folds them into the underlying tier it reverts to; honors override paid history; default is `tier0`.
+The tier-grant mapping itself (the per-standing precedence and the Tier 3 underlying derivation) is the rule defined in the `M_Claim_Legacy_Account` user story and is not restated here. This section covers only the cutover sequencing.
 
-Tier mapping rules (apply in precedence order; first match wins):
-
-| Precedence | Legacy state at cutover | New `tier_status` | `underlying_tier_status` |
-|---:|---|---|---|
-| 1 | Was Tier 3 / board at cutover | `tier3` | derived (see below) |
-| 2 | HoF or BAP (regardless of paid history) | `tier2` | n/a |
-| 3 | Ever paid Tier 2 (annual or lifetime, any state) | `tier2` | n/a |
-| 4 | Paid Tier 1 Lifetime (no Tier 2 history) | `tier1` | n/a |
-| 5 | Tier 1 Annual currently active at cutover (last attendance or vouch ≤ 365 days before cutover) | `tier1` | n/a |
-| 6 | All other legacy states (including expired Tier 1 Annual and members with no IFPA history) | `tier0` | n/a |
-
-Tier 3 underlying derivation (precedence 1 only): reads `legacy_board_underlying_paid_tier` (the member's paid-tier state before the board promotion that elevated them to Tier 3 at cutover) together with the honors flags `is_hof` / `is_bap`, because `legacy_board_underlying_paid_tier` carries only `'none'` / `'tier1'` / `'tier2'` and cannot itself express honors. Evaluate in order; first match wins:
-
-- `is_hof` or `is_bap` set → `underlying_tier_status = 'tier2'` (a HoF/BAP Director reverts to Tier 2 per the IFPA rules in `ifpa/`), regardless of `legacy_board_underlying_paid_tier`.
-- Pre-board paid tier was Tier 2 (any kind) → `underlying_tier_status = 'tier2'`.
-- Pre-board paid tier was Tier 1 (any kind), undefined, or Tier 0 → `underlying_tier_status = 'tier1'`. (A Tier 0 to Tier 3 upgrade earns `tier1` underlying per the IFPA rules in `ifpa/`.)
-
-Required inputs on `legacy_members` (or a migration-only staging table joined to it):
-
-| Field | Type | Purpose |
-|---|---|---|
-| `legacy_ever_paid_tier2` | INTEGER 0/1 | True if member ever paid any Tier 2 dues. Drives precedence 3. |
-| `legacy_ever_paid_tier1_lifetime` | INTEGER 0/1 | True if member explicitly bought Tier 1 Lifetime. Drives precedence 4. |
-| `legacy_tier1_annual_active_at_cutover` | INTEGER 0/1 | True if free-earned Tier 1 Annual was active at cutover. Drives precedence 5. |
-| `legacy_was_board_at_cutover` | INTEGER 0/1 | True if Tier 3 / board at cutover. Drives precedence 1. |
-| `legacy_board_underlying_paid_tier` | TEXT NULL | For board members only: `'none'`, `'tier1'`, or `'tier2'`. Drives underlying derivation. |
-
-These fields are a deferred schema extension on `legacy_members` (or staging), gated on test-load validation of the legacy export per §15.16 and §25 gate G6. If the extension does not land, the mapping falls back to the **honors-only path** using `legacy_members.is_hof` and `legacy_members.is_bap` (which already exist): HoF/BAP grants `tier2`; everything else grants `tier0`. The honors-only fallback degrades gracefully and remains correct under the 2026 rules; the fallback decision, when chosen, is recorded in §28.
+The five `legacy_*` tier-state fields the mapping reads (see DATA_MODEL §4.14b) are a deferred schema extension on `legacy_members` (or staging), populated by the loader and gated on test-load validation per §15.16 and §25 gate G6; the board-at-cutover input depends on the committee table. A field that is not loaded (data undelivered, or held back at validation) simply does not fire, so the affected claims grant on whatever standings are present; an account with only honors is granted on that basis. Held-back fields are recorded in §28.
 
 ---
 
@@ -601,7 +574,7 @@ The active modern account always survives. The `legacy_members` row is MARKED CL
 | `historical_persons`-sourced fields | Whenever `members.historical_person_id` is being set, the same transaction also runs the HP merge: `country` fill-if-empty from `historical_persons.country`; `is_hof` / `is_bap` OR semantics from `hof_member` / `bap_member`; `hof_inducted_year` fill-if-empty from `hof_induction_year`; `first_competition_year` COALESCE from `first_year`. This ensures honors and country propagate onto the member row from whichever archival table carries the authoritative value. |
 | `announce_opt_in` | Not carried forward as active consent; recorded as legacy metadata only. Members establish subscription preferences fresh after claim (`M_Manage_Email_Subscriptions`); unclaimed `legacy_members` rows are never active mail recipients |
 | Legacy admin metadata (`legacy_is_admin`) | Copied to `members.legacy_is_admin` as audit/history context only; never auto-promotes live admin role |
-| Tier | Write a single `member_tier_grants` row with `reason_code = 'legacy.claim_tier_grant'` applying the blanket mapping defined in §3 "Tier handling at claim". The mapping uses legacy state fields on `legacy_members` (deferred schema extension per §15.16, gated on §25 G6); honors-only fallback applies if the extension is absent. No conditional "exceeds current" logic. |
+| Tier | Write a single `member_tier_grants` row (`reason_code = 'legacy.claim_tier_grant'`) per the tier-grant mapping in USER_STORIES `M_Claim_Legacy_Account`, from the legacy standings on `legacy_members`. |
 | Confirmed club affiliations | Write/update `member_club_affiliations` |
 | Confirmed bootstrap leadership | May promote to `club_leaders` if safe; otherwise remains provisional |
 | Discarded conflicting imported values | Preserved in audit metadata |
@@ -985,19 +958,11 @@ On `members` table.
 
 ### 15.16 Tier-mapping fields on `legacy_members`
 
-Five fields capture legacy tier state for the §3 precedence rules:
+The five `legacy_*` tier-state fields read by the claim-time tier grant are specified in DATA_MODEL §4.14b (their meaning) and USER_STORIES `M_Claim_Legacy_Account` (the mapping that reads them). This section covers only their cutover handling.
 
-- `legacy_ever_paid_tier2` INTEGER 0/1: ever paid any Tier 2 dues; drives precedence 3.
-- `legacy_ever_paid_tier1_lifetime` INTEGER 0/1: explicitly bought Tier 1 Lifetime; drives precedence 4.
-- `legacy_tier1_annual_active_at_cutover` INTEGER 0/1: free-earned Tier 1 Annual active at cutover; drives precedence 5.
-- `legacy_was_board_at_cutover` INTEGER 0/1: Tier 3 / board at cutover; drives precedence 1.
-- `legacy_board_underlying_paid_tier` TEXT NULL: board members only: `'none'`, `'tier1'`, `'tier2'`; drives underlying derivation.
+Schema authority: `database/schema.sql`. The cutover database is built fresh from `schema.sql` plus loaders; `deploy-migrate.sh` remains a stub until post-launch. The loader populates the five fields.
 
-Schema authority: `database/schema.sql`. The columns land on `legacy_members` before §25 gate G6 PASSes for State 2 → State 3. Landing path is fresh-build: when G6 PASSes, the five columns are added to `database/schema.sql` and the cutover database is built fresh from `schema.sql` plus loaders; `deploy-migrate.sh` remains a stub until post-launch.
-
-Before G6 PASSes with the schema extension landed, each of the five fields is spot-checked at test load against a sample of known reference cases: HoF members with documented payment history, board members at cutover, and known lifetime-tier1 payers. If a field's values do not match the references (administrative corrections, refunded payments, test records, or other contamination), that field is excluded from the §3 mapping and the corresponding precedence row is dropped; G6 PASSes via partial fallback (the affected precedence row is removed, the others retain).
-
-If test-load validation confirms the legacy export's tier fields are insufficient overall (multiple fields absent, semantically wrong, or quality too low to map deterministically), G6 PASSes via the honors-only fallback. The three paid-tier precedence rows from §3 (ever-paid-Tier-2, paid-Tier-1-Lifetime, and currently-active-Tier-1-Annual) are removed and the tier mapping reduces to "HoF or BAP grants `tier2`; everything else grants `tier0`." The fallback decision, when chosen (full or partial), is recorded in §28.
+At test load (gate G6, §25), each field is spot-checked against known reference cases: HoF members with documented payment history, board members at cutover, and known lifetime-tier1 payers. A field whose values do not match the references (administrative corrections, refunded payments, test records, or other contamination) is left unpopulated; its basis then does not fire for any claim, and the other standings still apply. If the tier inputs are insufficient overall, the paid and board fields are left unpopulated and claims grant on honors alone. Whatever is held back is recorded in §28.
 
 ### 15.17 Declared identity anchors (former surnames and old emails)
 
@@ -1582,7 +1547,7 @@ The following must be confirmed at the test load before go-live. These are not o
 | G3 | Live export contains a trustworthy `banned` field. **PASS**: the field is present and its semantics are confirmed reliable. **FAIL fallback**: omit the `legacy_banned` column entirely; route claims on unverifiable rows through admin review per §8 claim ineligibility. Whether the final export carries a banned field is pending the webmaster (front-matter item 17); until confirmed the FAIL fallback stands and the gate script verifies import-source provenance in its place. | Fallback path applies as described in §15.5 |
 | G4 | Shape and null quality of profile/contact fields | Adjust import logic and field mapping |
 | G5 | Legacy member ID quality: every `legacy_member_id` integer-format-validated and comprehensively (100%) overlap-reconciled against the mirror profile-URL ids and `historical_persons.legacy_member_id`, not a 10% sample | Resolve before final export |
-| G6 | Tier-state mapping inputs sufficient AND the §15.16 schema extension on `legacy_members` (the five `legacy_*` tier-state fields) landed in `database/schema.sql` and applied to the staging DB at test load. **PASS**: inputs present and columns landed; full §3 precedence table applies. **FAIL fallback**: PASS via honors-only fallback (HoF/BAP → `tier2`; everything else → `tier0`); §3 precedence rows 3-5 are dropped; the fallback decision is recorded in §28. | Fallback path applies as described |
+| G6 | Tier-state inputs validated at test load: each of the five `legacy_*` tier-state fields (DATA_MODEL §4.14b) is spot-checked against reference cases. **PASS**: validated fields are populated and the claim-time mapping reads them; any field that fails validation is left unpopulated, so its basis does not fire (if the paid and board fields all fail, claims grant on honors alone). Held-back fields are recorded in §28. | Unvalidated fields left unpopulated; honors basis always applies |
 | G7 | Mirror-derived club normalization quality. **Requires G12 PASS** so the classifier's `listed_contact` and `member_active` signals (§10.1 "Required order" step 1) run against the fully-populated `historical_persons` set including club-only members; running G7 against a partial `historical_persons` set silently under-classifies clubs whose people never competed | Block until G12 PASSes; increase manual review threshold for any remaining quality gaps after both gates clear |
 | G8 | Sufficient high-confidence club-leader bootstrap candidates | Adjust bootstrap threshold or expand manual review scope |
 | G9 | Bootstrapped clubs produce valid, non-broken club pages | Fix UI before go-live |
@@ -1671,7 +1636,7 @@ Decisions gated on what validation of the delivered legacy data reveals.
 
 1. **`announce_opt_in`**: Test load confirms the field is present (`MemberAnnounceOptIn`, plus `MemberEmailOptIn`). Resolved: legacy mailing opt-in is not imported as active consent and no `members` column is added. The legacy flags are recorded as legacy metadata only; members set their subscription preferences fresh after claim via `M_Manage_Email_Subscriptions`, and unclaimed `legacy_members` rows are never active mail recipients. The legacy `members` table also carries per-field visibility flags (`MemberPublish`, `MemberPublishEmail`, `MemberPublishAddress`, `MemberPublishCity`, `MemberPublishPhone`); these follow the same rule, recorded as legacy metadata only and not imported as active visibility consent, since the new platform's privacy defaults and member-set visibility govern instead.
 2. **`legacy_banned`**: Both the test load and the legacy `members` table schema show no banned/blocked/suspended/inactive column exists; the only status signals are `MemberValid` and `MemberEmailInvalid`. Gate G3 takes its FAIL fallback: the column does not land; questionable rows route through admin review (§8). Available negative signals are `MemberValid=0` and `MemberEmailInvalid`. See section 15.5.
-3. **Tier-mapping fields on `legacy_members` (§15.16)**: test load confirms the tier/payment source inputs are present (`MemberIFPATier`, `MemberIFPAExpiration`, `MemberIFPAPrevExp`, `MemberIFPAPaid`, `MemberIFPAPaymentDate`, `MemberIFPAJoined`, `ifpa_memberpayments`); the five `legacy_*` columns are derived, not copied. Board-at-cutover data (precedence 1) was not in the delivered dump: the `groups/` committee-table backup (`ifpa_committees`, `ifpa_committee_members`) was held back for size and the webmaster will supply it, so the committee data exists and is pending delivery rather than unpopulated. The committee-table schema itself is in hand from the legacy `groups/` app: `ifpa_committee_members` links a `CommitteeID` to a member `CommitteeMemberID` with title, admin, and voting flags, and `ifpa_committees` carries a `CommitteeType` and `CommitteeIsOfficial` (groups and committees share this one table). The board-at-cutover derivation scaffold is therefore implemented and tested against the known structure: `extract_legacy_members.py` emits `legacy_was_board_at_cutover` and `legacy_board_underlying_paid_tier`, with all board logic behind the single constant `BOARD_IFPA_TIER_CODES`. It ships inert: the constant is empty, so the extractor makes no positive board determinations (it does not distinguish "unknown" from "not board"), and no schema or loader change has landed. Setting the constant requires confirming whether `MemberIFPATier` encodes Tier 3 and which code(s); once the committee rows are delivered, precedence 1 derives from the committee tables instead. The G6 `legacy_members` columns and loader wiring remain the integration step after the board signal is confirmed. The honors-only fallback applies only if the board derivation proves insufficient after delivery (§3 precedence rows 3–5 removed; tier mapping reduces to HoF/BAP → `tier2`, everything else → `tier0`). The fallback decision, when chosen, is recorded here with the test-load evidence that drove it.
+3. **Tier-mapping fields on `legacy_members` (§15.16)**: test load confirms the tier/payment source inputs are present (`MemberIFPATier`, `MemberIFPAExpiration`, `MemberIFPAPrevExp`, `MemberIFPAPaid`, `MemberIFPAPaymentDate`, `MemberIFPAJoined`, `ifpa_memberpayments`); the five `legacy_*` columns are derived, not copied. Board-at-cutover data (precedence 1) was not in the delivered dump: the `groups/` committee-table backup (`ifpa_committees`, `ifpa_committee_members`) was held back for size and the webmaster will supply it, so the committee data exists and is pending delivery rather than unpopulated. The committee-table schema itself is in hand from the legacy `groups/` app: `ifpa_committee_members` links a `CommitteeID` to a member `CommitteeMemberID` with title, admin, and voting flags, and `ifpa_committees` carries a `CommitteeType` and `CommitteeIsOfficial` (groups and committees share this one table). The board-at-cutover derivation scaffold is therefore implemented and tested against the known structure: `extract_legacy_members.py` emits `legacy_was_board_at_cutover` and `legacy_board_underlying_paid_tier`, with all board logic behind the single constant `BOARD_IFPA_TIER_CODES`. It ships inert: the constant is empty, so the extractor makes no positive board determinations (it does not distinguish "unknown" from "not board"), and no schema or loader change has landed. Setting the constant requires confirming whether `MemberIFPATier` encodes Tier 3 and which code(s); once the committee rows are delivered, precedence 1 derives from the committee tables instead. The G6 `legacy_members` columns and loader wiring remain the integration step after the board signal is confirmed. If the board or paid-history derivation proves insufficient after delivery, those fields are left unpopulated and their standings do not fire, so affected claims grant on honors alone. Whatever is held back is recorded here with the test-load evidence that drove it.
 
 ### For the legacy-site webmaster's community knowledge
 

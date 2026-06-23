@@ -71,6 +71,15 @@ export interface TierStatus {
   underlying_tier_status: UnderlyingTier | null;
 }
 
+/** Legacy standings a claim grants from. Board / Tier 3 is a separate concern. */
+export interface LegacyClaimStandings {
+  hasHof: boolean;
+  hasBap: boolean;
+  everPaidTier2: boolean;
+  everPaidTier1Lifetime: boolean;
+  tier1AnnualActive: boolean;
+}
+
 // UUIDv7-suffixed ID so back-to-back grants (same wall-clock ms) sort in
 // insertion order under the view's (created_at, id) tiebreaker. The view
 // definition in member_tier_current relies on id-string comparison when
@@ -441,11 +450,12 @@ export function applyHonorGrant(
  * logic: every claim produces a marker row even when the resulting tier does
  * not change.
  *
- * Current fallback (honors-only, all that is wired today):
- *   - HoF or BAP → `tier2`
- *   - else        → `tier0`
- * Target precedence table: needs deferred legacy-state columns on
- * `legacy_members` before it can be expanded.
+ * Maps the legacy standing to a tier by precedence (first match wins):
+ *   - HoF or BAP, or ever paid Tier 2 → `tier2`
+ *   - bought Tier 1 Lifetime, or Tier 1 Annual active at cutover → `tier1`
+ *   - none of these → `tier0`
+ * An account with only honors grants on honors alone, one outcome of the same
+ * mapping. Board / Tier 3 is a separate concern and is not granted here.
  *
  * Caller owns the transaction so the grant is atomic with the merge writes.
  * Tier 0 grants are written even when current is already Tier 0, so the
@@ -455,13 +465,16 @@ export function applyHonorGrant(
 export function applyLegacyClaimGrantInTx(
   actorMemberId: string,
   memberId: string,
-  hasHof: boolean,
-  hasBap: boolean,
+  standings: LegacyClaimStandings,
   metadata: Record<string, unknown>,
 ): void {
   const now = new Date().toISOString();
   const current = getCurrent(memberId);
-  const targetTier: MemberTier = (hasHof || hasBap) ? 'tier2' : 'tier0';
+  const { hasHof, hasBap, everPaidTier2, everPaidTier1Lifetime, tier1AnnualActive } = standings;
+  const targetTier: MemberTier =
+    (hasHof || hasBap || everPaidTier2) ? 'tier2'
+      : (everPaidTier1Lifetime || tier1AnnualActive) ? 'tier1'
+        : 'tier0';
 
   if (current.tier_status === 'tier0' && targetTier !== 'tier0') {
     endOnTierUpgrade(memberId, now);
@@ -490,10 +503,13 @@ export function applyLegacyClaimGrantInTx(
     reasonText: null,
     metadata: {
       ...metadata,
-      from:    current.tier_status,
-      to:      targetTier,
-      has_hof: hasHof,
-      has_bap: hasBap,
+      from:                     current.tier_status,
+      to:                       targetTier,
+      has_hof:                  hasHof,
+      has_bap:                  hasBap,
+      ever_paid_tier2:          everPaidTier2,
+      ever_paid_tier1_lifetime: everPaidTier1Lifetime,
+      tier1_annual_active:      tier1AnnualActive,
     },
   });
 }

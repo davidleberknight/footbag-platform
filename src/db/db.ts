@@ -7029,6 +7029,9 @@ export interface LegacyMemberRow {
   is_hof: number;
   is_bap: number;
   legacy_is_admin: number;
+  legacy_ever_paid_tier2: number;
+  legacy_ever_paid_tier1_lifetime: number;
+  legacy_tier1_annual_active_at_cutover: number;
   import_source: string | null;
   imported_at: string;
   version: number;
@@ -7099,6 +7102,7 @@ export const legacyMembers = {
       city, region, country,
       ifpa_join_date, first_competition_year,
       is_hof, is_bap, legacy_is_admin,
+      legacy_ever_paid_tier2, legacy_ever_paid_tier1_lifetime, legacy_tier1_annual_active_at_cutover,
       claimed_by_member_id, claimed_at
     FROM legacy_members
     WHERE legacy_member_id = ?

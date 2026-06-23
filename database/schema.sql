@@ -3457,6 +3457,13 @@ CREATE TABLE legacy_members (
   is_bap          INTEGER NOT NULL DEFAULT 0 CHECK (is_bap IN (0,1)),
   legacy_is_admin INTEGER NOT NULL DEFAULT 0 CHECK (legacy_is_admin IN (0,1)),
 
+  -- Paid-history evidence from the legacy IFPA membership/payment record, read by
+  -- the claim-time tier grant. The loader populates them; default 0 means the
+  -- account holds no such paid standing (one with only honors grants on honors).
+  legacy_ever_paid_tier2 INTEGER NOT NULL DEFAULT 0 CHECK (legacy_ever_paid_tier2 IN (0,1)),
+  legacy_ever_paid_tier1_lifetime INTEGER NOT NULL DEFAULT 0 CHECK (legacy_ever_paid_tier1_lifetime IN (0,1)),
+  legacy_tier1_annual_active_at_cutover INTEGER NOT NULL DEFAULT 0 CHECK (legacy_tier1_annual_active_at_cutover IN (0,1)),
+
   -- Import audit
   import_source TEXT,                 -- 'mirror' | 'legacy_site_data' | null pre-integration
   imported_at   TEXT NOT NULL,

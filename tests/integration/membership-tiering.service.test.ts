@@ -398,7 +398,7 @@ describe('applyAutoLinkRevertGrantInTx', () => {
     const id = freshMember();
     // Paid Tier 1, then a legacy-claim grant (HoF honors) that lifted to Tier 2.
     mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier1'), 'tier1');
-    mts.applyLegacyClaimGrantInTx(id, id, true, false, {});
+    mts.applyLegacyClaimGrantInTx(id, id, { hasHof: true, hasBap: false, everPaidTier2: false, everPaidTier1Lifetime: false, tier1AnnualActive: false }, {});
     expect(mts.getTierStatus(id).tier_status).toBe('tier2');
 
     mts.applyAutoLinkRevertGrantInTx(id, id, {});
@@ -418,7 +418,7 @@ describe('applyAutoLinkRevertGrantInTx', () => {
 
   it('falls back to tier0 when the member held no non-legacy upgrade', () => {
     const id = freshMember();
-    mts.applyLegacyClaimGrantInTx(id, id, true, false, {}); // tier0 -> tier2 via honors
+    mts.applyLegacyClaimGrantInTx(id, id, { hasHof: true, hasBap: false, everPaidTier2: false, everPaidTier1Lifetime: false, tier1AnnualActive: false }, {}); // tier0 -> tier2 via honors
     expect(mts.getTierStatus(id).tier_status).toBe('tier2');
 
     mts.applyAutoLinkRevertGrantInTx(id, id, {});
@@ -434,7 +434,7 @@ describe('applyAutoLinkRevertGrantInTx', () => {
     const id = freshMember();
     mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier2'), 'tier2');
     mts.setGovernanceTier3(ADMIN_ID, id); // tier3, underlying tier2
-    mts.applyLegacyClaimGrantInTx(id, id, true, false, {});
+    mts.applyLegacyClaimGrantInTx(id, id, { hasHof: true, hasBap: false, everPaidTier2: false, everPaidTier1Lifetime: false, tier1AnnualActive: false }, {});
 
     mts.applyAutoLinkRevertGrantInTx(id, id, {});
 

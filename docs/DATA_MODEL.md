@@ -799,7 +799,8 @@ Permanent archival table: one row per imported legacy account from the old footb
 - `legacy_is_admin`; old-site admin flag. Retained for audit; never grants live admin privilege.
 - Import audit; `import_source` ('mirror' | 'legacy_site_data' | NULL pre-integration), `imported_at`, `version`.
 - Claim state; `claimed_by_member_id` (nullable FK to `members(id)` with `ON DELETE NO ACTION`), `claimed_at`. A CHECK constraint enforces the two-column invariant: both NULL (unclaimed) or both set (claimed).
-- Gate-conditional columns, not present until their MIGRATION_PLAN §25 gates PASS at test load: `legacy_banned` (lands only if G3 PASSes; audit metadata only, never gates the claim card; MIGRATION_PLAN §15.5) and the five `legacy_*` tier-state fields (`legacy_ever_paid_tier2`, `legacy_ever_paid_tier1_lifetime`, `legacy_tier1_annual_active_at_cutover`, `legacy_was_board_at_cutover`, `legacy_board_underlying_paid_tier`; land only if G6 PASSes; MIGRATION_PLAN §15.16).
+- Legacy tier-state evidence; five derived fields recording the account's standing at cutover, read by the claim-time tier grant (USER_STORIES `M_Claim_Legacy_Account`): `legacy_ever_paid_tier2`, `legacy_ever_paid_tier1_lifetime`, `legacy_tier1_annual_active_at_cutover` (INTEGER 0/1, paid history); `legacy_was_board_at_cutover` (INTEGER 0/1, Tier 3 / board at cutover); and `legacy_board_underlying_paid_tier` (`'none'` / `'tier1'` / `'tier2'`, NULL for non-board) supplying the pre-board paid tier for the Tier 3 underlying derivation. The board flag and the underlying tier are set together: the underlying tier is non-NULL exactly when the board flag is set. The loader populates these fields.
+- `legacy_banned`: gate-conditional audit metadata, present only if MIGRATION_PLAN §25 gate G3 PASSes at test load; never gates the claim card (MIGRATION_PLAN §15.5).
 
 #### Indexes
 

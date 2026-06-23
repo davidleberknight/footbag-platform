@@ -717,11 +717,24 @@ Card-at-login confirmation:
 
 - The wizard's universal claim task surfaces any candidates the platform staged for this member (via batch auto-link at cutover) or matched at sign-in. Each candidate appears as a card showing the legacy display name, country, year of first competition (if available), and the evidence anchor(s) the platform used to find it. The card never echoes the matched email or other anchor inputs.
 - The member can Confirm, Decline, or Defer each card.
-- Confirmation applies effects atomically: writes `members.legacy_member_id` and / or `members.historical_person_id`; marks the legacy row claimed (`claimed_by_member_id` + `claimed_at`); merges allowed profile fields (import fills only if active value is empty); applies `first_competition_year` via COALESCE; writes a single tier grant applying the blanket annual-to-lifetime mapping (honors-only fallback if the legacy tier-state fields are unavailable); writes confirmed club affiliations; may promote confirmed leadership; preserves the `legacy_members` row as the permanent archival record. The audit row records the evidence-strength tag.
+- Confirmation applies effects atomically: writes `members.legacy_member_id` and / or `members.historical_person_id`; marks the legacy row claimed (`claimed_by_member_id` + `claimed_at`); merges allowed profile fields (import fills only if active value is empty); applies `first_competition_year` via COALESCE; writes a single tier grant per the tier-grant mapping in this story; writes confirmed club affiliations; may promote confirmed leadership; preserves the `legacy_members` row as the permanent archival record. The audit row records the evidence-strength tag.
 - Confirmation is race-safe: when two members confirm the same legacy account or the same historical person concurrently, exactly one claim lands; the other member sees the same "already claimed by another member" response the synchronous already-claimed check renders, and no partial effects (tier grant included) persist.
 - Decline discards the candidate; nothing applies. The audit row records the declined candidate. The candidate may resurface later if newly-declared anchors produce it again, but the platform tracks declines to avoid re-prompting for the same candidate without new signal.
 - Defer keeps the card on the dashboard task widget for later action.
 - Staged candidates expire after an administrator-configurable window (default 365 days, keyed by `auto_link_staged_expiry_days`). Expiry resolves the card without member action; if the anchors still match when staging next runs, the candidate is staged again. Re-running the staging pass never duplicates an open candidate for the same member/target pair, and a declined candidate is not re-staged without new signal.
+
+Tier grant on claim:
+
+- A confirmed claim writes one `member_tier_grants` row (`reason_code = 'legacy.claim_tier_grant'`) for the standing the legacy account held at cutover, under the IFPA-approved blanket policy that maps each legacy standing to its 2026 equivalent (annual maps to lifetime). The bases are evaluated together in precedence order; the first match sets the tier:
+  1. On the IFPA board at cutover (Tier 3 / Director) → `tier3`, underlying derived below.
+  2. Hall of Fame or Big Add Posse → `tier2`.
+  3. Ever paid Tier 2 (annual or lifetime, any state) → `tier2`.
+  4. Paid Tier 1 Lifetime → `tier1`.
+  5. Tier 1 Annual active at cutover (attendance or vouch within 365 days) → `tier1`.
+  6. Anything else, including expired Tier 1 Annual and no IFPA history → `tier0`.
+- Tier 3 underlying derivation (board only): Hall of Fame or Big Add Posse → underlying `tier2`; otherwise pre-board paid Tier 2 → `tier2`; pre-board Tier 1, Tier 0, or unknown → `tier1`, per the IFPA rules.
+- A member is granted on whatever standings their legacy record carries; a record showing only honors is granted on that basis. This is one outcome of the single mapping, not a separate mode. Honors are validated against the public rosters before go-live, so an honor-driven grant never rests on a wrong flag.
+- The grant is written once, inside the claim transaction; concurrent claims resolve to exactly one grant, with no partial tier grant persisting.
 
 Declared-anchor entry:
 
