@@ -65,6 +65,15 @@ It fires only when the far/`OP` dex lands on an eligible rotating receiver
 This is consistent with Red's confirmation that Atomic Mirage / Illusion / Torque /
 Drifter each differ from their Far forms because the far form is more work.
 
+## PDX is a separate concept that can coexist with OP and X-Dex
+
+`[PDX]` (the paradox-direction marker) is a third member of the per-dex side
+relationship, distinct from `SAME`/`OP` and from `[XDEX]`, and it can coexist with
+both on one trick: `sumo` carries a `[PDX]` dex and a separate `OP IN [DEX] [XDEX]`
+dex. Paradox is not a value of the near/far axis; it is the case where the side
+relationship switches, scored on its own terms, independent of the same/opposite
+distinction and of X-Dex.
+
 ## The identity layer currently contradicts the notation layer
 
 The notation distinguishes `SAME` from `OP`, but the name / identity layer strips
