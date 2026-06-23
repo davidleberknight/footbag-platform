@@ -2392,3 +2392,19 @@ inside-around-the-world,notation,,INSIDE AROUND THE WORLD,JOB form (mechanical n
 inside-around-the-world,operational_notation,,INSIDE > SAME IN [DEX] > SAME INSIDE [DEL],"Operational (Execution) notation per directed spec; bracket-count==ADD (dex 1 + delay 1 = 2)"
 outside-around-the-world,notation,,OUTSIDE AROUND THE WORLD,JOB form (mechanical name uppercase) for the Movement notation block
 outside-around-the-world,operational_notation,,OUTSIDE > SAME OUT [DEX] > SAME OUTSIDE [DEL],"Operational (Execution) notation per directed spec; bracket-count==ADD (dex 1 + delay 1 = 2)"
+blender-same-side,notation,,BLENDER SAME SIDE,JOB form for the Movement notation block
+blender-same-side,operational_notation,,SET > SAME IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],"Same-side execution: blender with the dex set SAME; bracket-count==ADD (4)"
+blender-same-side,trick_family,,osis,"Family mirrors the base trick blender (osis family); not the loader transitive default"
+butterfly-same-side,notation,,BUTTERFLY SAME SIDE,JOB form for the Movement notation block
+butterfly-same-side,operational_notation,,SET > SAME OUT [DEX] > OP CLIP [XBD] [DEL],"Same-side execution: butterfly dex pinned SAME; bracket-count==ADD (3)"
+far-butterfly,notation,,FAR BUTTERFLY,JOB form for the Movement notation block
+far-butterfly,operational_notation,,SET > OP OUT [DEX] > OP CLIP [XBD] [DEL],"Far execution: butterfly dex pinned OP; bracket-count==ADD (3); non-receiver, no X-Dex"
+stepping-clipper-same-side,notation,,STEPPING CLIPPER SAME SIDE,JOB form for the Movement notation block
+stepping-clipper-same-side,operational_notation,,CLIP > SAME IN [DEX] > SAME CLIP [XBD] [DEL],"Same-side execution: dex set SAME; bracket-count==ADD (3)"
+stepping-clipper-same-side,trick_family,,clipper,"Family mirrors the base stepping-clipper (clipper family)"
+stepping-osis-same-side,notation,,STEPPING OSIS SAME SIDE,JOB form for the Movement notation block
+stepping-osis-same-side,operational_notation,,CLIP > SAME IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],"Same-side execution: dex set SAME; bracket-count==ADD (4)"
+stepping-osis-same-side,trick_family,,osis,"Family mirrors the base stepping-osis (osis family)"
+surging-same-side-osis,notation,,SURGING SAME SIDE OSIS,JOB form for the Movement notation block
+surging-same-side-osis,operational_notation,,CLIP > SAME IN [DEX] >> (back) SPIN [BOD] > (front) SPIN [BOD] > SAME CLIP [XBD] [DEL],"Same-side execution: dex set SAME; bracket-count==ADD (5)"
+surging-same-side-osis,trick_family,,osis,"Family mirrors the base surging-osis (osis family)"

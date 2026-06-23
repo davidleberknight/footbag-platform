@@ -64,6 +64,27 @@ whether the collapse loses a distinct same-side/far form:
 `splicing-ss-blender`→`liquifier`, `surfing-ss-blender`→`big-papa-smurf`,
 `flailing-ss-symposium-eggbeater`→`bill-ted-s-excellent-adventure`, `toe-near-barrage`→`barrage`.
 
+## First authoring batch — 6 of the 128 needs-authoring (G) entries
+
+Authored (staged via `red_additions` + `red_corrections`): `blender-same-side` (4),
+`butterfly-same-side` (3), `far-butterfly` (3), `stepping-clipper-same-side` (3),
+`stepping-osis-same-side` (4), `surging-same-side-osis` (5, with `surging ss osis` alias).
+Each is a side-pinned variant of an active, single-dex, non-receiver base; notation = base
+with the dex set `SAME`/`OP`; ADD = base ADD (bracket-count verified); no X-Dex.
+
+**Why only 6, not the full 128** — the rest are blocked by, in order of size:
+
+| Blocker | Count | Why it is excluded |
+|---|---:|---|
+| Inactive base | 56 | the qualifier-stripped base is not an active canonical, so notation can't be derived without authoring the base first |
+| Multi-dex target ambiguity | 46 | the base has more than one dex, so which dex the side qualifier pins is ambiguous |
+| Alias-to-base | 10 | the qualifier equals the base's default side, so the entry is the base under a positional name (an alias, not a new trick) |
+| Receiver / X-Dex ambiguity | 7 | the base is an X-Dex receiver (mirage/illusion/whirl/torque/drifter/dyno/swirl); scoring would depend on the unresolved receiver-gated X-Dex doctrine |
+| Unclear direction | 3 | no single same-side/far direction is determinable from the name |
+
+Future batches must clear one of these blockers (author the missing base, resolve the
+multi-dex target, or await the X-Dex ruling) — not relax the filter.
+
 ## Recommendations (no scoring, no mass alias changes)
 
 - **Docs (done)**: `RELATIVE_SIDE_RELATIONSHIPS.md` records the doctrine; this report + the
