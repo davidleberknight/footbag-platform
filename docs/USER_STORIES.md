@@ -444,6 +444,8 @@ Success Criteria:
 - When the trick has no tagged videos at all, the Media section is omitted (no gallery link).
 - The page browser-tab title follows the convention `Footbag Trick #{slug}` (e.g. `Footbag Trick #ripwalk`), parallel to the event-page title convention.
 - The trick's Media section links to its full video gallery at `/media/browse?context=<slug>`, with the trick slug as a locked context tag; member-uploaded videos tagged with the trick appear there by default alongside curator-published clips, and all narrowing happens in that gallery.
+- Navigation from a trick hashtag and from the trick name are distinct and unambiguous. A trick's media hashtag (for example `#ripwalk`) is a clickable link that opens that trick's media gallery at `/media/browse?context=<slug>`, consistent with the platform-wide rule that any hashtag opens its tag gallery; it does not open the trick detail page. The trick detail page at `/freestyle/tricks/{slug}` is reached from the trick name and from a separate "Trick help" link shown beside it, so the gallery path and the help path never have to be guessed from one control.
+- On the trick dictionary at `/freestyle/tricks`, the family filter and the by-family, by-ADD, by-movement-system, movement-neighborhoods, by-dex, and by-modifier views open the filtered dictionary, and the search box opens search results. Each hashtag, filter, and trick-name control is a real link the visitor can follow directly or deep-link to.
 
 ### V_Browse_Hashtags
 

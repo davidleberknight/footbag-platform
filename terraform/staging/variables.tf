@@ -108,7 +108,7 @@ variable "lightsail_origin_dns" {
     publicDnsName field in the Lightsail API always returns None.
     For staging: construct from the static IP Terraform output using nip.io:
       lightsail_origin_dns = "<static_ip>.nip.io"
-      e.g. lightsail_origin_dns = "34.192.250.246.nip.io"
+      e.g. lightsail_origin_dns = "203.0.113.20.nip.io"   (203.0.113.x is a placeholder per RFC 5737; substitute your real static IP)
     For production: use a real DNS A record pointing to the static IP,
     e.g. origin.staging.footbag.org. Do not use nip.io in production.
     Set this value and enable_cloudfront = true for the second apply pass.

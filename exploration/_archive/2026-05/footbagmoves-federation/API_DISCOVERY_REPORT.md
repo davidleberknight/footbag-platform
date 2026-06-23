@@ -305,5 +305,5 @@ No further probes until you decide. Total probes used: Round 1 = 8, Round 2 = 3,
 - ✓ No parser integration
 - ✓ Federation-not-adoption preserved (no canonical-layer write proposed; FM cited as external evidence source only)
 - ✓ Polite spacing (≥ 2 seconds between requests)
-- ✓ User-Agent identifies project + contact email (`IFPA-footbag-platform-recon/1.0 (+contact: jeleberknight@gmail.com)`)
+- ✓ User-Agent identifies project + contact email (`IFPA-footbag-platform-recon/1.0 (+contact: redacted)`)
 - ✓ Report file remains uncommitted per user instruction

@@ -1038,6 +1038,8 @@ Hashtag-driven coupling extends to freestyle tricks and persons in addition to e
 
 Alias hashtags for tricks canonicalize to the parent trick's slug at write time on every curator path (admin UI, seeder, migration script); `tags` and `media_tags` therefore carry canonical slugs only. Read-side surfaces that expose alias slugs (e.g. `/tags/{alias}`) 301-redirect to the canonical slug. `freestyle_trick_aliases` is the single source of truth for the alias-to-canonical mapping.
 
+A trick hashtag and the trick detail page are separate read-side destinations. Clicking a trick hashtag opens its media gallery (the tag-set gallery for the bare slug), the same as any other hashtag; the trick detail page at `/freestyle/tricks/{slug}` is reached from the trick name and from a distinct "Trick help" link beside it. This keeps the gallery path and the help path from collapsing onto one ambiguous control.
+
 Rationale:
 
 - Unique hashtags provide unambiguous linking between media and entities.
@@ -1592,7 +1594,7 @@ Parameter Store contains:
 - Stripe webhook secret (HMAC verification).
 - Email delivery configuration (if any), admin bootstrap tokens, and other exportable credentials and configuration that must not be committed to source control.
 
-Per-host application secrets that are environment-unique and rotation-on-restart-acceptable may live directly in the host env file `/srv/footbag/env` (root:root 0600) rather than in Parameter Store. `SESSION_SECRET` is the canonical example: it is generated fresh per environment, never reused across staging and production, and rotated by editing the host env file and restarting the service. The application and the deploy script both reject any value containing the literal placeholder substring `changeme` or shorter than 32 characters. Rotation runbook: DEVOPS_GUIDE §5.8.
+Per-host application secrets that are environment-unique and rotation-on-restart-acceptable may live directly in the host env file `/srv/footbag/env` (root:root 0600) rather than in Parameter Store. `SESSION_SECRET` is the canonical example: it is generated fresh per environment, never reused across staging and production, and rotated by editing the host env file and restarting the service. The application and the deploy script both reject any value containing the literal placeholder substring `changeme` or shorter than 32 characters. Rotation runbook: DEVOPS_GUIDE §10.8.
 
 KMS is used for:
 
@@ -1817,12 +1819,12 @@ Requirements:
 Trade-offs:
 
 - A leaked secret bypasses the gate until rotated. Mitigation: the secret is one of three perimeter layers; the Lightsail port-80 CloudFront-prefix-list firewall and the trust-proxy named-range trust set are the others. Belt-and-suspenders, not single-point-of-failure.
-- A 30-to-90-second window exists during rotation where CloudFront sends the new secret and nginx still expects the old (every CloudFront request returns 444). Acceptable for an infrequent per-environment rotation; the rotation runbook in DEVOPS_GUIDE §5.9 sequences the two commands adjacent.
+- A 30-to-90-second window exists during rotation where CloudFront sends the new secret and nginx still expects the old (every CloudFront request returns 444). Acceptable for an infrequent per-environment rotation; the rotation runbook in DEVOPS_GUIDE §10.9 sequences the two commands adjacent.
 
 Impact:
 
 - nginx is the enforcement point; Express is unaware of `X-Origin-Verify`.
-- DEVOPS_GUIDE §5.9 holds the rotation runbook.
+- DEVOPS_GUIDE §10.9 holds the rotation runbook.
 - The secret never appears as a literal string in committed code or docs.
 
 ## 3.12 Security header layering
@@ -4314,7 +4316,7 @@ Impact:
 - Terraform must remain the authority for IAM roles, policies, Parameter Store structure (per §3.6), KMS resources, CloudWatch resources, Lightsail instance configuration, Lightsail firewall rules, and any infrastructure-side inputs required by the SSH operator-access posture and the runtime-credential model in §7.2.
 - Deployment/bootstrap documentation must clearly separate one-time bootstrap actions from steady-state Terraform-managed infrastructure.
 - Workspace layout: `terraform/shared/` for one-time bootstrap (state bucket, account baseline); `terraform/staging/` and `terraform/production/` for per-environment resources, each with its own remote state.
-- Drift reconciliation procedure (`terraform import` flow, plan-clean verification, PR review) lives in DEVOPS_GUIDE §6.5. The design rule above is enforced by the requirement that `terraform plan` returns "No changes" before any further apply.
+- Drift reconciliation procedure (`terraform import` flow, plan-clean verification, PR review) lives in DEVOPS_GUIDE §11.5. The design rule above is enforced by the requirement that `terraform plan` returns "No changes" before any further apply.
 - Any agent or daemon needing host-level access (e.g. CloudWatch Agent reading host CPU/memory/disk) is bootstrapped through an idempotent script under `scripts/`, not through Terraform provisioners or AWS Console clicks.
 
 

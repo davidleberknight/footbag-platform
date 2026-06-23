@@ -90,6 +90,7 @@ This guide helps contributors do different things: understand how the platform i
   - [8.1 Why this path exists](#81-why-this-path-exists)
   - [8.2 Scope](#82-scope)
   - [8.3 Preconditions](#83-preconditions)
+  - [8.3.1 Console sign-in for the operator identity](#831-console-sign-in-for-the-operator-identity)
   - [8.4 Naming convention](#84-naming-convention)
   - [8.5 Supersedes an earlier assumption](#85-supersedes-an-earlier-assumption)
   - [8.6 Step 1 — Create the KMS asymmetric signing key](#86-step-1--create-the-kms-asymmetric-signing-key)
@@ -649,7 +650,7 @@ Admin in dev confers the curator role, which authors real `/curated/` content (t
 
 For reference, the mechanism: the dev site auto-promotes a registrant whose normalized email is listed in the gitignored `.local/initial-admins.txt` allowlist (one email per line; `#` comments and blank lines allowed). A member whose email is not listed registers normally as a non-admin. The `.local/` directory is gitignored; never commit a file containing email addresses.
 
-Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's `.local/initial-admins.txt` into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9 and operationally documented in DEVOPS_GUIDE §17.8.
+Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's `.local/initial-admins.txt` into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9 and operationally documented in DEVOPS_GUIDE §20.8.
 
 #### 1.14.2 Pre-seeding maintainer admin accounts (maintainers)
 
@@ -695,7 +696,7 @@ Maintainers can also pre-seed admin accounts directly into the local database, n
 
 Exit codes: 0 success (one or more entries seeded, or already-marked idempotent no-op rows), 1 fatal (DB missing, JSON malformed, no seed input found, empty seed array), 2 one or more entries collide with a non-seed member already owning the email. Re-running with the same JSON is a no-op when the dev-admin-seed marker is already present. Conflicts are reported and not modified.
 
-Removal: rebuild the DB (`./run_dev.sh --reset`) clears all seeded rows. To audit leftover rows, run `./scripts/audit-dev-shortcuts.sh` (queries `reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'grant_admin_dev_%'`, `created_by LIKE 'dev-shortcuts/%'`, and `action_type = 'dev_admin_invariant_repair'`). All four counts must be zero before any production deploy. The seed refuses to load under `FOOTBAG_ENV=production`; staging uses a separate seed surface documented in DEVOPS_GUIDE §17.
+Removal: rebuild the DB (`./run_dev.sh --reset`) clears all seeded rows. To audit leftover rows, run `./scripts/audit-dev-shortcuts.sh` (queries `reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'grant_admin_dev_%'`, `created_by LIKE 'dev-shortcuts/%'`, and `action_type = 'dev_admin_invariant_repair'`). All four counts must be zero before any production deploy. The seed refuses to load under `FOOTBAG_ENV=production`; staging uses a separate seed surface documented in DEVOPS_GUIDE §20.
 
 #### 1.14.3 Dev-only shortcuts
 
@@ -743,7 +744,7 @@ Optional admin Tier 2 invariant repair; set `FOOTBAG_DEV_ADMIN_GRANT_TIER2=1` to
 export FOOTBAG_DEV_ADMIN_GRANT_TIER2=1
 ```
 
-The two marker columns (`reason_code = 'dev_admin_invariant_repair'` and `action_type = 'dev_admin_invariant_repair'`) are part of the pre-deploy grep checklist in `docs/DEVOPS_GUIDE.md` §17.7; both must return zero rows from any production database.
+The two marker columns (`reason_code = 'dev_admin_invariant_repair'` and `action_type = 'dev_admin_invariant_repair'`) are part of the pre-deploy grep checklist in `docs/DEVOPS_GUIDE.md` §20.7; both must return zero rows from any production database.
 
 ### 1.15 Filing a bug
 
@@ -1395,7 +1396,7 @@ cd terraform/shared
 
 cat > terraform.tfvars <<EOF
 aws_account_id      = "123456789012"
-state_bucket_suffix = "a1b2c3d4e5"
+state_bucket_suffix = "YOUR_UNIQUE_SUFFIX"
 EOF
 
 terraform init
@@ -1461,7 +1462,7 @@ Remember: the running app reads /srv/footbag/env, not SSM.
 Three identities, distinct scopes, per DD §3.5 and §7.2:
 
 - **`footbag-operator`** is the env-agnostic human AWS/Terraform identity. Used from operator terminals for Terraform plans/applies and AWS CLI work. Do not mount this profile into containers.
-- **`footbag-staging-source-profile`** is a staging-scoped IAM user with a single permission: `sts:AssumeRole` on the runtime role below. Its long-lived access keys live on the host at `/root/.aws/credentials` (root-owned, mode 0600), not in `/srv/footbag/env`. This is the "source profile" in DD §7.2. Rotation: at least every 90 days (CIS Benchmark); runbook in `docs/DEVOPS_GUIDE.md` §5.7.
+- **`footbag-staging-source-profile`** is a staging-scoped IAM user with a single permission: `sts:AssumeRole` on the runtime role below. Its long-lived access keys live on the host at `/root/.aws/credentials` (root-owned, mode 0600), not in `/srv/footbag/env`. This is the "source profile" in DD §7.2. Rotation: at least every 90 days (CIS Benchmark); runbook in `docs/DEVOPS_GUIDE.md` §10.7.
 - **`aws_iam_role.app_runtime`** (Terraform resource; IAM role name `footbag-staging-app-runtime`) is the staging-scoped IAM role the running app acts as. It holds the KMS Sign/GetPublicKey, SES SendEmail, SSM read, and S3 snapshot permissions. The app never handles this role's credentials directly. The AWS SDK default chain reads `AWS_PROFILE=footbag-staging-runtime` from `/srv/footbag/env`, looks up `role_arn` + `source_profile` in `/root/.aws/config`, calls `sts:AssumeRole`, and hands the process temporary credentials. This is the assumed runtime role and, per DD §7.2, is the authoritative runtime principal.
 
 Earlier iterations of the public slice served pages from `process.env` plus SQLite only and did not require any runtime AWS API calls. That changed when KMS-backed JWT sessions and SES-backed transactional email were introduced; the assumed-role chain above is how those calls authenticate.
@@ -1517,7 +1518,7 @@ aws_account_id         = "123456789012"
 state_bucket_suffix    = "<same suffix as shared>"
 ssh_public_key         = "<contents of ~/.ssh/id_ed25519.pub>"
 alarm_email            = "you@example.com"
-operator_cidrs         = ["<your-ip>/32"]  # see §4.4 correction 2 for multi-operator format
+operator_cidrs         = ["<your-ip>/32"]  # see §4.4 for multi-operator format
 # domain_name and route53_zone_id remain empty for test deployment
 
 # Two-pass CloudFront bootstrap — critical for first apply pass:
@@ -1621,10 +1622,10 @@ terraform output alarm_topic_arn
 
 #### 8. Confirm the alarm subscription (and CloudFront status optionally)
 
-- confirm the SNS email subscription, just open the footbag aws root's @gmail.com and click the confirmation link AWS sent. 
+- confirm the SNS email subscription: open the inbox configured as `alarm_email` in `terraform.tfvars` and click the confirmation link AWS sent.
 
 CloudFront status check: N/A; CloudFront doesn't exist yet (enable_cloudfront = false). 
-But if it does exist wehen you are reading this doc, then:
+But if it does exist when you are reading this doc, then:
 - wait for the CloudFront distribution status to show `Deployed` before you test through the edge; CloudFront takes **15–30 minutes** to propagate globally after apply; the `*.cloudfront.net` URL is assigned immediately but returns errors during propagation
 
 ```bash
@@ -1651,7 +1652,7 @@ First login:
 > If port 2222 times out on first attempt, sshd has not yet been configured to listen
 > on it. Use the Lightsail browser SSH console (AWS Console → Lightsail →
 > footbag-staging-web → Connect) to log in as `ec2-user`, then run:
-> `sudo sed -i 's/^#Port 22/Port 22\nPort 2222/' /etc/ssh/sshd_config && sudo systemctl reload sshd`
+> `printf 'Port 22\nPort 2222\n' | sudo tee -a /etc/ssh/sshd_config >/dev/null && sudo systemctl reload sshd`
 > Then retry the SSH command below.
 
 ec2-user is only used on first login, from then on, the user name will be footbag.
@@ -1735,6 +1736,7 @@ All three must return version strings.
 ```bash
 sudo mkdir -p /srv/footbag
 SESSION_SECRET_VAL=$(openssl rand -hex 32)
+INTERNAL_EVENT_SECRET_VAL=$(openssl rand -hex 32)
 sudo tee /srv/footbag/env > /dev/null <<EOF
 NODE_ENV=production
 LOG_LEVEL=info
@@ -1742,13 +1744,14 @@ FOOTBAG_DB_PATH=/srv/footbag/db/footbag.db
 FOOTBAG_DB_DIR=/srv/footbag/db
 PUBLIC_BASE_URL=https://<cloudfront_domain from terraform output>
 SESSION_SECRET=${SESSION_SECRET_VAL}
+INTERNAL_EVENT_SECRET=${INTERNAL_EVENT_SECRET_VAL}
 EOF
-unset SESSION_SECRET_VAL
+unset SESSION_SECRET_VAL INTERNAL_EVENT_SECRET_VAL
 sudo chown root:root /srv/footbag/env
 sudo chmod 600 /srv/footbag/env
 ```
 
-`SESSION_SECRET` must be generated fresh per environment. The deploy script and the application both reject values shorter than 32 characters or containing the literal placeholder substring `changeme`. Never reuse the value across staging and production.
+`INTERNAL_EVENT_SECRET` (web↔worker IPC auth) is required at every boot; the deploy also auto-seeds it into `/srv/footbag/env` when absent, so a deploy-first flow does not need it set by hand, but a manual `systemctl start` before the first deploy does. `SESSION_SECRET` must be generated fresh per environment. The deploy script and the application both reject values shorter than 32 characters or containing the literal placeholder substring `changeme`. Never reuse the value across staging and production.
 
 Required values in this minimum deployment:
 
@@ -1758,6 +1761,7 @@ Required values in this minimum deployment:
 - `FOOTBAG_DB_DIR`
 - `PUBLIC_BASE_URL`
 - `SESSION_SECRET`
+- `INTERNAL_EVENT_SECRET`
 
 Do not add runtime AWS credentials here. They are provisioned separately via Path H (§8) and live under `/root/.aws` on the host, not in `/srv/footbag/env`.
 
@@ -1951,7 +1955,7 @@ If CloudFront returns 403 or 502:
 
 ### 4.10 Optional: enable Safe Browsing live mode
 
-Deploys land with `SAFE_BROWSING_ADAPTER=stub` by default; submitted external URLs pass scheme + SSRF + reachability checks but no Google call is made. Enabling live mode requires a Google Cloud project with the Safe Browsing v4 API and an operator-provisioned API key. The runbook below covers a one-time bootstrap; rotation lives in DEVOPS_GUIDE §5.10.
+Deploys land with `SAFE_BROWSING_ADAPTER=stub` by default; submitted external URLs pass scheme + SSRF + reachability checks but no Google call is made. Enabling live mode requires a Google Cloud project with the Safe Browsing v4 API and an operator-provisioned API key. The runbook below covers a one-time bootstrap; rotation lives in DEVOPS_GUIDE §10.10.
 
 #### Prerequisites
 
@@ -1970,7 +1974,7 @@ Deploys land with `SAFE_BROWSING_ADAPTER=stub` by default; submitted external UR
    printf %s '<paste-key>' > /tmp/sb-key && chmod 600 /tmp/sb-key
    ```
 4. (Optional) Restrict the key. API restrictions: select "Safe Browsing API" only. Application restrictions: leave "None" at first; the smoke test runs from the operator workstation, so any IP allowlist must include both the staging Lightsail IP and the operator workstation IP.
-5. Put the value into SSM with shell-history-safe hygiene per DEVOPS_GUIDE §5.4:
+5. Put the value into SSM with shell-history-safe hygiene per DEVOPS_GUIDE §10.4:
    ```
    AWS_PROFILE=footbag-staging-runtime aws ssm put-parameter \
      --name /footbag/staging/secrets/safe_browsing_api_key \
@@ -2028,7 +2032,7 @@ The Path E staging baseline operates within these boundaries; each item is provi
 
 - `/srv/footbag/env` is operator-managed; the deploy remote-half reconciles `X_ORIGIN_VERIFY_SECRET` and `FOOTBAG_ENV` on every run (design state of staging)
 - images are built on the operator workstation and shipped via `docker save | docker load`
-- staging data is disposable through `scripts/deploy-rebuild.sh`; production schema migrations preserve live data per `docs/DEVOPS_GUIDE.md` §9.3
+- staging data is disposable through `scripts/deploy-rebuild.sh`; production schema migrations preserve live data per `docs/DEVOPS_GUIDE.md` §15.3
 - public-edge hardening (Path G §7.2), durable backup/restore (Path G §7.4), and CloudWatch monitoring (Path G §7.6) are provisioned by Path G
 
 ### 5.4 Where the remaining work moved
@@ -2219,11 +2223,11 @@ The point of this section is not to duplicate shell source. The point is to expl
 
 ### 6.4 Routine deploy workflow
 
-Routine deploys are operational and live in `docs/DEVOPS_GUIDE.md` §7.3 (standard deployment runbook). Schema migrations against non-disposable data live in §9.3.
+Routine deploys are operational and live in `docs/DEVOPS_GUIDE.md` §13.3 (standard deployment runbook). Schema migrations against non-disposable data live in §15.3.
 
 ### 6.5 If something goes wrong on staging
 
-Deploy troubleshooting lives in `docs/DEVOPS_GUIDE.md`: §7.4 (rollback), §7.5 (restart), and §15.6 (standard log-collection commands).
+Deploy troubleshooting lives in `docs/DEVOPS_GUIDE.md`: §13.4 (rollback), §13.5 (restart), and §5.6 (standard log-collection commands).
 
 ---
 
@@ -2506,7 +2510,7 @@ curl -I "https://${CF_DOMAIN}/health/ready"
 curl -I "http://${STATIC_IP}/health/ready"
 ```
 
-Production cutover follows the same sequence in `terraform/production/`. Rotation procedure: see DEVOPS_GUIDE.md §5.9.
+Production cutover follows the same sequence in `terraform/production/`. Rotation procedure: see DEVOPS_GUIDE.md §10.9.
 
 ##### Provision the maintenance page (S3 + OAC)
 
@@ -2760,7 +2764,7 @@ Rollback: `usermod -s /bin/bash ec2-user` and restore the authorized_keys file f
 
 #### Additional governance notes
 
-- Long-lived IAM access keys on `footbag-operator` remain in place until the project selects a short-lived-credential path (IAM Identity Center, workload identity federation, or equivalent). Until that decision lands, rotate keys on the 90-day cadence per `docs/DEVOPS_GUIDE.md` §5.7.
+- Long-lived IAM access keys on `footbag-operator` remain in place until the project selects a short-lived-credential path (IAM Identity Center, workload identity federation, or equivalent). Until that decision lands, rotate keys on the 90-day cadence per `docs/DEVOPS_GUIDE.md` §10.7.
 - Lightsail browser SSH can be disabled once named-operator SSH is fully reliable. Browser SSH has no per-IP allowlist and expands the attack surface; disable it from the Lightsail console under the instance's Networking tab once an alternative recovery path is confirmed.
 
 ### 7.4 Reliability and recovery
@@ -2814,15 +2818,17 @@ The backup producer must not use the operator's credentials or the app-runtime r
    # Record AccessKeyId and SecretAccessKey in the operator vault.
 
    ssh footbag-staging
+   set +o history   # keep the pasted key values out of the host ~/.bash_history
    sudo bash -c 'cat > /root/.aws/credentials-backup <<EOF
    [backup]
    aws_access_key_id = <AccessKeyId>
    aws_secret_access_key = <SecretAccessKey>
    EOF'
    sudo chmod 600 /root/.aws/credentials-backup
+   set -o history
    ```
 
-   Rotate this key on the same 90-day cadence as other access keys per `docs/DEVOPS_GUIDE.md` §5.7.
+   Rotate this key on the same 90-day cadence as other access keys per `docs/DEVOPS_GUIDE.md` §10.7.
 
 #### Deploy the backup producer (systemd timer)
 
@@ -2935,7 +2941,7 @@ Without a freshness alarm, a silent backup failure can go unnoticed until the ne
 
 #### Rehearse a full restore
 
-Rehearse this before any migration-related work. Completing the drill is a gate for §28.1.
+Rehearse this before any migration-related work. Completing the drill is a gate for MIGRATION_PLAN.md §29.1.
 
 1. Capture baseline state so you can compare after restore:
 
@@ -2988,7 +2994,7 @@ Rehearse this before any migration-related work. Completing the drill is a gate 
 
 8. Time the sequence end-to-end. Target: under 5 minutes RTO from "stop service" to "smoke passes."
 
-9. Record the timing in operator notes and confirm it meets the `docs/DEVOPS_GUIDE.md` §10.1 target.
+9. Record the timing in operator notes and confirm it meets the `docs/DEVOPS_GUIDE.md` §16.1 target.
 
 ### 7.5 Runtime configuration maturity
 
@@ -3158,7 +3164,7 @@ Record the CloudWatch dashboard URL, the `/health/live` and `/health/ready` URLs
 
 Earlier paths assume the running app uses only `process.env` and SQLite and makes no AWS API calls at runtime. That assumption held until KMS-backed JWT session signing and SES-backed transactional email were introduced. Those two capabilities require the app to call AWS at request time. Per DD §3.5 and §7.2, the authoritative runtime principal on Lightsail is an assumed IAM role reached through a source-profile credential chain on a root-owned host AWS config; Lightsail has no EC2 instance profile, so this chain is the supported substitute. Path H is the one-time activation runbook that extends the existing deferred runtime role (`aws_iam_role.app_runtime`), creates the source-profile IAM user, stands up the KMS signing key and the SES sender, and wires the chain on the staging host (host config files, `/srv/footbag/env`, and the production compose file).
 
-Path H is parallel to Path D in feel: executed once per environment, not part of the routine deploy workflow. Access-key rotation is stewardship, not activation; it lives in `docs/DEVOPS_GUIDE.md` §5.7 (see §8.12 below for the pointer).
+Path H is parallel to Path D in feel: executed once per environment, not part of the routine deploy workflow. Access-key rotation is stewardship, not activation; it lives in `docs/DEVOPS_GUIDE.md` §10.7 (see §8.12 below for the pointer).
 
 ### 8.2 Scope
 
@@ -3186,18 +3192,18 @@ Have your local operator-specifics notes open so you can record identifiers as y
 
 ### 8.3.1 Console sign-in for the operator identity
 
-Path H is Console-driven in §8.6 through §8.9. Before starting, sign in to the AWS Console as the operator IAM user (`footbag-operator`, not root) per `docs/DEVOPS_GUIDE.md` §3.3 "Operator console sign-in". That section covers the account ID, password, and MFA TOTP mechanics, and notes where the required credentials are held.
+Path H is Console-driven in §8.6 through §8.9. Before starting, sign in to the AWS Console as the operator IAM user (`footbag-operator`, not root) per `docs/DEVOPS_GUIDE.md` §8.3 "Operator console sign-in". That section covers the account ID, password, and MFA TOTP mechanics, and notes where the required credentials are held.
 
 After sign-in, confirm the Console region selector (top-right) is **US East (N. Virginia) us-east-1**. This check is repeated at the start of §8.6 because a misregioned KMS key is the most common expensive mistake in this path.
 
-For a new volunteer taking over this runbook: you need vault access before you can execute Path H. Arrange handoff with the outgoing maintainer per DEVOPS_GUIDE §3.3 and §4.5 of this guide before proceeding.
+For a new volunteer taking over this runbook: you need vault access before you can execute Path H. Arrange handoff with the outgoing maintainer per DEVOPS_GUIDE §8.3 and §4.5 of this guide before proceeding.
 
 ### 8.4 Naming convention
 
 Follows the existing project pattern `footbag-<env>-<component>[-<qualifier>]` seen in `footbag-staging-web` (Lightsail instance), `footbag-staging-web-ip` (static IP), and `alias/footbag-staging` (existing SSM KMS key).
 
 - KMS alias: `alias/footbag-staging-jwt`.
-- Existing runtime IAM role (reuse, do not create): Terraform name `aws_iam_role.app_runtime`, IAM role name `footbag-staging-app-runtime`. Already declared in `terraform/staging/iam.tf:16-85` as deferred groundwork for exactly this chain.
+- Existing runtime IAM role (reuse, do not create): Terraform name `aws_iam_role.app_runtime`, IAM role name `footbag-staging-app-runtime`, declared in `terraform/staging/iam.tf`.
 - New source-profile IAM user: `footbag-staging-source-profile`. Holds only `sts:AssumeRole` on the runtime role; its long-lived access keys are delivered to the host.
 - New inline-policy statements on the runtime role: `JwtSigning` (`kms:Sign` + `kms:GetPublicKey`) and `OutboundEmail` (`ses:SendEmail`).
 - Source-profile user inline policy: `footbag-staging-source-profile-assume-role` (single `sts:AssumeRole` statement).
@@ -3251,7 +3257,7 @@ Record locally:
 
 - Source-profile IAM user ARN.
 - Access key ID.
-- Date of access-key issuance (tracked for rotation cadence in `docs/DEVOPS_GUIDE.md` §5.7).
+- Date of access-key issuance (tracked for rotation cadence in `docs/DEVOPS_GUIDE.md` §10.7).
 
 Treat the secret access key with the same custody you use for `footbag-operator` credentials. Do not paste it into checked-in files, chat logs, or shared screens. The source-profile user holds only `sts:AssumeRole` (attached in step 4): a leaked key lets an attacker only attempt to assume the runtime role, and revoking the role's trust of this user severs access instantly.
 
@@ -3284,12 +3290,11 @@ The IAM policy in the next step uses v1 SES actions (`ses:SendEmail`, `ses:SendR
 
 ### 8.9 Step 4 — Attach policies and amend the runtime role's trust
 
-Three Console actions. These IAM edits are applied via the AWS Console; Terraform HCL reconciliation for them is out of scope for this path.
+These three IAM resources — the source-profile user's `sts:AssumeRole` policy, the runtime role's KMS-Sign + SES-Send inline policy (`app_jwt_ses`), and the runtime role's trust policy — are Terraform-managed in `terraform/staging/iam.tf`; `terraform apply` is the canonical path and source of truth (per the project's Terraform-only rule). The JSON below documents what each resource contains, for review and for inspecting the live policy in the Console. Do not hand-create these in the Console as a parallel source — that drifts from Terraform.
 
 **4a. Source-profile user → `sts:AssumeRole` only.**
 
-1. IAM → Users → `footbag-staging-source-profile` → **Add permissions** → **Create inline policy** → JSON.
-2. Look up the runtime role ARN (IAM → Roles → `footbag-staging-app-runtime` → copy ARN) and paste it into the policy below.
+Terraform resource `aws_iam_user_policy.source_profile_assume_role` (`iam.tf`), applied by `terraform apply`. It grants the source-profile user only `sts:AssumeRole` on the runtime role (the `Resource` resolves to the runtime role ARN):
 
 ```json
 {
@@ -3305,14 +3310,11 @@ Three Console actions. These IAM edits are applied via the AWS Console; Terrafor
 }
 ```
 
-3. Name the policy `footbag-staging-source-profile-assume-role` and save.
+To inspect the live policy: IAM → Users → `footbag-staging-source-profile` → Permissions. Do not hand-create a second inline policy — that drifts from Terraform.
 
 **4b. Runtime role → add KMS Sign + SES Send inline statements.**
 
-The role `footbag-staging-app-runtime` already exists in Terraform with pre-existing statements for SSM read and S3 snapshots. This step adds two new statements via Console.
-
-1. IAM → Roles → `footbag-staging-app-runtime` → **Add permissions** → **Create inline policy** → JSON.
-2. Paste the policy below, substituting the KMS key ARN from step 1 and your AWS account ID. The `JwtSigning` Resource is pinned to the single KMS key; the `OutboundEmail` Resource uses an identity wildcard within the account; see note below.
+Terraform resource `aws_iam_role_policy.app_jwt_ses` (`iam.tf`), alongside the role's pre-existing SSM-read and S3-snapshots policies. The `JwtSigning` Resource is pinned to the single KMS key; the `OutboundEmail` Resource uses an identity wildcard within the account (see note below):
 
 ```json
 {
@@ -3337,7 +3339,7 @@ The role `footbag-staging-app-runtime` already exists in Terraform with pre-exis
 }
 ```
 
-3. Name the policy `footbag-staging-app-runtime-jwt-ses` and save.
+To inspect: IAM → Roles → `footbag-staging-app-runtime` → Permissions.
 
 **Why the identity wildcard for `OutboundEmail`.** In SES sandbox mode, AWS performs an IAM permission check against BOTH the sender identity AND every recipient identity on each `ses:SendEmail` call. A policy that pins `Resource` to the sender identity alone will refuse sends to a verified sandbox recipient with `User ... is not authorized to perform ses:SendEmail on resource arn:aws:ses:...:identity/<RECIPIENT>`. The recipient still must be verified in SES per §8.8; the wildcard does not bypass SES's sandbox check, it only allows the role to reach SES for identities within this account. Each new tester requires only an §8.8 SES verification step; no IAM edit per tester. SES production access (out of scope for this path) removes the recipient-identity permission check; at that point the Resource can be tightened back to the single sender identity ARN.
 
@@ -3345,10 +3347,7 @@ The role `footbag-staging-app-runtime` already exists in Terraform with pre-exis
 
 **4c. Runtime role → amend trust policy to trust the source-profile user.**
 
-Current trust policy trusts only `ec2.amazonaws.com` (a Terraform stub from when the role was scaffolded for instance-profile use, unreachable on Lightsail). Replace it so the source-profile user can assume the role.
-
-1. IAM → Roles → `footbag-staging-app-runtime` → **Trust relationships** → **Edit trust policy**.
-2. Replace the existing JSON with:
+Terraform sets `aws_iam_role.app_runtime.assume_role_policy` (`iam.tf`) so the source-profile user can assume the role, replacing the original `ec2.amazonaws.com` stub (scaffolded for instance-profile use, which Lightsail cannot assume). The trust policy:
 
 ```json
 {
@@ -3366,9 +3365,9 @@ Current trust policy trusts only `ec2.amazonaws.com` (a Terraform stub from when
 }
 ```
 
-3. Save. The old `ec2.amazonaws.com` statement is dropped; Lightsail cannot assume EC2-trust roles. Terraform reconciliation will remove or replace that statement in the HCL.
+AWS resolves the `Principal` ARN to the source-profile user's internal unique ID at save time; never delete and recreate that user as a rotation strategy (a recreated user with the same name has a different unique ID and the trust silently refuses `AssumeRole`). Rotation is always "second key under the existing user" (`docs/DEVOPS_GUIDE.md` §10.7).
 
-Do not delete and recreate the source-profile user to rotate credentials. AWS resolves the principal ARN to the user's internal unique ID at save time, so a recreated user with the same name produces a trust that looks correct in JSON but silently refuses `AssumeRole` until the trust policy is re-edited. Rotate by issuing a second access key under the same user (see `docs/DEVOPS_GUIDE.md` §5.7).
+Do not delete and recreate the source-profile user to rotate credentials. AWS resolves the principal ARN to the user's internal unique ID at save time, so a recreated user with the same name produces a trust that looks correct in JSON but silently refuses `AssumeRole` until the trust policy is re-edited. Rotate by issuing a second access key under the same user (see `docs/DEVOPS_GUIDE.md` §10.7).
 
 ### 8.10 Step 5 — Wire credentials, env, and the compose file
 
@@ -3383,12 +3382,14 @@ ssh footbag-staging
 
 sudo install -d -m 0700 -o root -g root /root/.aws
 
+set +o history   # keep the pasted key values out of the host ~/.bash_history (they would persist there even after rotation)
 sudo tee /root/.aws/credentials > /dev/null <<'EOF'
 [footbag-staging-source-profile]
 aws_access_key_id = <ACCESS_KEY_ID_FROM_STEP_2>
 aws_secret_access_key = <SECRET_ACCESS_KEY_FROM_STEP_2>
 EOF
 sudo chmod 0600 /root/.aws/credentials
+set -o history
 
 sudo tee /root/.aws/config > /dev/null <<'EOF'
 [profile footbag-staging-runtime]
@@ -3557,11 +3558,11 @@ The latest row should show `status=sent` and a non-null `sent_at`. If it shows `
 
 Finally, confirm the verified test recipient received the reset email.
 
-For routine post-change verification of the staging runtime identity wiring (after IAM, KMS, SES, or trust-policy changes; after access-key rotation; after a host rebuild), the operator-workstation path via `npm run test:smoke` is the canonical runbook. See `docs/DEVOPS_GUIDE.md` §13.8.
+For routine post-change verification of the staging runtime identity wiring (after IAM, KMS, SES, or trust-policy changes; after access-key rotation; after a host rebuild), the operator-workstation path via `npm run test:smoke` is the canonical runbook. See `docs/DEVOPS_GUIDE.md` §18.8.
 
 ### 8.12 Where rotation lives
 
-The access keys issued in §8.7 belong to the source-profile user `footbag-staging-source-profile`. They are long-lived credentials. CIS Benchmarks call for rotation at least every 90 days; current AWS IAM best-practices guidance prefers short-lived credentials overall and flags unused keys via last-accessed information. The rotation runbook (target file on the host: `/root/.aws/credentials`; target profile: `footbag-staging-source-profile`) is stewardship rather than first-time activation and lives in `docs/DEVOPS_GUIDE.md` §5.7. Rotate by issuing a second access key under the same user; do not delete and recreate the user (see §8.9 step 4c for the principal-ARN pitfall). The runtime role's permissions and trust policy are untouched by rotation. Record the access-key issuance date in your local operator notes so the rotation schedule can be tracked against it.
+The access keys issued in §8.7 belong to the source-profile user `footbag-staging-source-profile`. They are long-lived credentials. CIS Benchmarks call for rotation at least every 90 days; current AWS IAM best-practices guidance prefers short-lived credentials overall and flags unused keys via last-accessed information. The rotation runbook (target file on the host: `/root/.aws/credentials`; target profile: `footbag-staging-source-profile`) is stewardship rather than first-time activation and lives in `docs/DEVOPS_GUIDE.md` §10.7. Rotate by issuing a second access key under the same user; do not delete and recreate the user (see §8.9 step 4c for the principal-ARN pitfall). The runtime role's permissions and trust policy are untouched by rotation. Record the access-key issuance date in your local operator notes so the rotation schedule can be tracked against it.
 
 ### 8.13 AWS SDK version pinning
 
@@ -3601,22 +3602,30 @@ Procedure:
 2. Store the test secret key in Parameter Store:
 
    ```bash
+   # <test-secret-key> is a placeholder — paste your real Stripe test secret key in its place.
+   # Write it to a 0600 temp file and pass it by file:// so the key never appears in the
+   # `aws` process arguments (visible to any `ps` reader); shred the file afterward.
+   printf %s '<test-secret-key>' > /tmp/ssm-val && chmod 600 /tmp/ssm-val
    aws ssm put-parameter \
      --name /footbag/staging/stripe/api_key \
-     --value <test-secret-key> \
+     --value file:///tmp/ssm-val \
      --type SecureString \
      --overwrite
+   shred -u /tmp/ssm-val
    ```
 
 3. In the Stripe Dashboard, go to **Developers > Webhooks > Add endpoint**. Set the endpoint URL to the staging webhook route (e.g. `https://<staging-cloudfront-domain>/webhooks/stripe`). Subscribe to the event types listed in DD §6.1 (one-time payment events, subscription lifecycle events, refund events).
 4. Copy the signing secret from the new webhook endpoint and store it:
 
    ```bash
+   # <signing-secret> is a placeholder — paste the real webhook signing secret in its place.
+   printf %s '<signing-secret>' > /tmp/ssm-val && chmod 600 /tmp/ssm-val
    aws ssm put-parameter \
      --name /footbag/staging/stripe/webhook_secret \
-     --value <signing-secret> \
+     --value file:///tmp/ssm-val \
      --type SecureString \
      --overwrite
+   shred -u /tmp/ssm-val
    ```
 
 5. Restart the staging app so the new Parameter Store values are loaded at boot:
@@ -3653,11 +3662,15 @@ Procedure:
      --type String \
      --overwrite
 
+   # <secret-key> is a placeholder — paste the real Turnstile secret key in its place.
+   # (The site_key above is public and stays inline; only the secret key needs file:// handling.)
+   printf %s '<secret-key>' > /tmp/ssm-val && chmod 600 /tmp/ssm-val
    aws ssm put-parameter \
      --name /footbag/staging/turnstile/secret_key \
-     --value <secret-key> \
+     --value file:///tmp/ssm-val \
      --type SecureString \
      --overwrite
+   shred -u /tmp/ssm-val
    ```
 
 4. Restart the staging app so the new values are loaded at boot:
@@ -3840,17 +3853,9 @@ Bounce and complaint rates determine SES sender reputation. Uncontrolled bounces
    - Include original headers: enabled.
    - Disable email feedback forwarding. With SNS enabled, SES will not also send bounce emails to the From address.
 
-3. Choose a consumer pattern:
-   - **Inline HTTPS subscription to the app** (simpler): expose `POST /internal/ses-feedback` with SigV4 signature validation and an SNS HTTPS subscription through CloudFront.
-   - **Staged consumer via SQS** (more durable): an SQS queue subscribed to the SNS topic; a worker process drains the queue and updates the suppression list. Survives app restarts without losing events.
+3. Provision the webhook auth secret and wire the subscription with the shipped mechanism (not a hand-rolled handler): run `scripts/activate-ses-feedback.sh --target production` (`docs/DEVOPS_GUIDE.md` §10.11). It generates the dedicated `SES_FEEDBACK_WEBHOOK_KEY`, installs it into `/srv/footbag/env`, and prints the `ses_feedback_webhook_url` (the public `/webhooks/ses-feedback` route plus `?key=…`). Set that URL as the `ses_feedback` topic's subscription. This key must exist before `SES_ADAPTER=live` — the production process refuses to boot without it.
 
-   Pick one and record the choice in operator notes.
-
-4. Application handler (regardless of pattern):
-   - Parse the SNS message payload per AWS's SES notification format.
-   - For `Bounce` with `bounceType=Permanent`: mark the recipient as hard-bounced (`members.email_bounced_at` or equivalent suppression column); future sends are skipped.
-   - For `Complaint`: mark the recipient as complained; suppress all future sends and surface to admin review.
-   - Append an audit event for each action.
+4. SNS posts a subscription-confirmation message. The app does not auto-fetch the SubscribeURL (that would fetch an attacker-suppliable URL); it records it in an `email.sns_subscription_pending` audit row. Read `subscribe_url` from that row and confirm it once. The handler then marks hard-bounce (`bounceType=Permanent`) and complaint suppression on the recipient and appends an audit event per delivery.
 
 5. Validate end-to-end by sending to AWS's bounce simulator:
 
@@ -3872,7 +3877,7 @@ Mirror Path H §8.10 against the production host.
 2. Update `/srv/footbag/env` on production with:
    - `JWT_SIGNER=kms`
    - `JWT_KMS_KEY_ID=alias/footbag-production-jwt`
-   - `SES_ADAPTER=live`
+   - `SES_ADAPTER=live`   (requires `SES_FEEDBACK_WEBHOOK_KEY` provisioned in §9.10, or the production process refuses to boot)
    - `SES_FROM_IDENTITY=noreply@footbag.org`
    - `AWS_REGION=us-east-1`
    - `AWS_PROFILE=footbag-production-runtime`
@@ -3919,7 +3924,7 @@ Production-specific differences from §8.15:
 - live subscription products configured separately from test-mode products; Stripe does not auto-copy them
 - live payout schedule, dunning rules, and bank account configured in the Stripe Dashboard production view per DD §6.1
 
-Procedure: follow the §8.15 steps replacing `staging` with `production` and `test` with `live` throughout. The validation gate is EX5 in §21.
+Procedure: follow the §8.15 steps replacing `staging` with `production` and `test` with `live` throughout. The validation gate is MIGRATION_PLAN.md gate EX5.
 
 ### 9.14 Turnstile activation (production)
 
@@ -3979,7 +3984,7 @@ Procedure: follow the §8.16 steps replacing `staging` with `production` through
 - `export AWS_PROFILE=footbag-operator` not re-run after opening a new terminal; all Terraform and AWS CLI commands will use wrong credentials
 - assuming runtime AWS credentials are optional; they are now required for KMS (JWT signing) and SES (transactional email); see Path H for activation and §4.5 "Lightsail runtime identity model" for the rationale
 - assuming Lightsail gives you an EC2 instance-profile story identical to EC2; it does not
-- leaving SSH broadly exposed; verify `operator_cidrs` is set to real CIDRs before first apply (see §4.4 correction 2)
+- leaving SSH broadly exposed; verify `operator_cidrs` is set to real CIDRs before first apply (see §4.4)
 - forgetting to install `rsync` on the Lightsail host before running the rsync deployment step in §4.7
 - updating Parameter Store and expecting the running app to change without also updating `/srv/footbag/env`
 - copying files directly into the root-owned `/srv/footbag` without using a staging path and sudo promotion
