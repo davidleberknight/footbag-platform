@@ -154,6 +154,24 @@ describe('GET /freestyle/glossary — fragment anchors render', () => {
     expect(res.text).toContain('href="#glossary-panel-spinning"');
     expect(res.text).toContain('href="#glossary-panel-ducking"');
   });
+
+  it('relative-side subsection explains SAME / OP / paradox coexistence and that OP is not X-Dex', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    // The consolidated relative-side explainer is present with anchored terms.
+    expect(res.text).toContain('Relative-side relationships');
+    expect(res.text).toContain('id="term-same-side"');
+    expect(res.text).toContain('id="term-opposite-side"');
+    expect(res.text).toContain('id="term-op-not-xdex"');
+    // Side is encoded as near / same-side vs far / opposite.
+    expect(res.text).toContain('near / same-side');
+    expect(res.text).toContain('far / opposite');
+    // Paradox coexists with the side qualifier rather than replacing it.
+    expect(res.text).toContain('coexists with');
+    // Far / opposite is distinct from the receiver-gated X-Dex bonus, and the
+    // explainer deep-links to the X-Dex term rather than restating it.
+    expect(res.text).toContain('is not X-Dex');
+    expect(res.text).toContain('href="#term-x-dex"');
+  });
 });
 
 describe('walking-progression page — glossary links deep-link via fragments', () => {
