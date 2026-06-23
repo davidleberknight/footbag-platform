@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { FreestyleTrickRow } from '../../src/db/db';
-import { buildRelatedTricks, buildNextTricks, buildPreviousTricks } from '../../src/services/freestyleRelatedTricks';
+import { buildRelatedTricks, buildNextTricks, buildPreviousTricks, buildRelativeSideVariants } from '../../src/services/freestyleRelatedTricks';
 
 function row(
   slug: string,
@@ -518,3 +518,66 @@ describe('buildPreviousTricks — Option (b) sampling, DESC flatten, family-base
     expect(first.detailHref).toBe('/freestyle/tricks/paradox-mirage');
   });
 });
+
+describe('buildRelativeSideVariants', () => {
+  // base + same-side + far trio, plus an unrelated trick that must not be pulled in.
+  const TRIO: FreestyleTrickRow[] = [
+    row('butterfly', '3', 'compound', 'butterfly', 'butterfly'),
+    row('butterfly-same-side', '3', 'compound', 'butterfly', 'butterfly'),
+    row('far-butterfly', '3', 'compound', 'butterfly', 'butterfly'),
+    row('clipper', '2', 'compound', 'clipper', 'clipper'),
+  ];
+
+  it('groups base / same-side / far siblings sharing a stem, ordered base → same-side → far', () => {
+    const result = buildRelativeSideVariants(pick2('butterfly', TRIO), TRIO);
+    expect(result).not.toBeNull();
+    expect(result!.variants.map(v => v.slug)).toEqual([
+      'butterfly', 'butterfly-same-side', 'far-butterfly',
+    ]);
+    expect(result!.variants.map(v => v.side)).toEqual(['base', 'same-side', 'far']);
+    expect(result!.variants.map(v => v.sideLabel)).toEqual([
+      'Base', 'Same-side (near)', 'Far (opposite)',
+    ]);
+    expect(result!.glossaryHref).toBe('/freestyle/glossary#term-same-side');
+  });
+
+  it('marks the current trick and never pulls in an unrelated stem', () => {
+    const result = buildRelativeSideVariants(pick2('far-butterfly', TRIO), TRIO);
+    expect(result!.variants.find(v => v.slug === 'far-butterfly')!.isCurrent).toBe(true);
+    expect(result!.variants.find(v => v.slug === 'butterfly')!.isCurrent).toBe(false);
+    expect(result!.variants.some(v => v.slug === 'clipper')).toBe(false);
+  });
+
+  it('handles the infix same-side form (surging-same-side-osis ↔ surging-osis)', () => {
+    const rows: FreestyleTrickRow[] = [
+      row('surging-osis', '4', 'compound', 'osis', 'osis'),
+      row('surging-same-side-osis', '5', 'compound', 'osis', 'osis'),
+    ];
+    const result = buildRelativeSideVariants(pick2('surging-same-side-osis', rows), rows);
+    expect(result!.variants.map(v => v.slug)).toEqual(['surging-osis', 'surging-same-side-osis']);
+    expect(result!.variants.map(v => v.side)).toEqual(['base', 'same-side']);
+  });
+
+  it('returns null for a trick with no relative-side sibling', () => {
+    expect(buildRelativeSideVariants(pick2('clipper', TRIO), TRIO)).toBeNull();
+  });
+
+  it('returns null when a lone qualified slug has no base or contrasting sibling', () => {
+    const rows: FreestyleTrickRow[] = [row('far-dyno', '3', 'compound', 'dyno', 'dyno')];
+    expect(buildRelativeSideVariants(rows[0]!, rows)).toBeNull();
+  });
+
+  it('excludes modifier-category rows from the group', () => {
+    const rows: FreestyleTrickRow[] = [
+      row('butterfly', '3', 'compound', 'butterfly', 'butterfly'),
+      row('far-butterfly', '3', 'modifier', 'butterfly', 'butterfly'),
+    ];
+    expect(buildRelativeSideVariants(rows[0]!, rows)).toBeNull();
+  });
+});
+
+function pick2(slug: string, rows: FreestyleTrickRow[]): FreestyleTrickRow {
+  const r = rows.find(x => x.slug === slug);
+  if (!r) throw new Error(`fixture missing ${slug}`);
+  return r;
+}

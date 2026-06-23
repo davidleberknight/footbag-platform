@@ -54,7 +54,7 @@ DB = REPO / "database/footbag.db"
 # policy ruling, not on the movement reading) — promotion-frontier eligible. The
 # remaining clusters are undefined-operator / structural-reading questions →
 # lexical archive. (Curator-set; reversible — edit this set to retune the frontier.)
-COHERENT_DOCTRINE_CLUSTERS = {"blurry", "dod-ddd"}
+COHERENT_DOCTRINE_CLUSTERS = {"dod-ddd"}
 # Three-layer ontology: frontier buckets are promotable candidate structures; archive
 # buckets are lexical history (never counted as candidate tricks).
 FRONTIER_BUCKETS = {"promotion_ready", "doctrine_pending", "unresolved_candidate"}
@@ -66,9 +66,7 @@ INTAKE_BUCKETS = [
 # Public-facing (renders on /freestyle/observational): no individual names, no
 # internal ruling identifiers (per the no-individual-names-on-freestyle-views rule).
 BLOCKING_QUESTION = {
-    "blurry":   "Does blurry carry +2 on rotational bases, or read as flat stepping-paradox? (open ruling)",
     "dod-ddd":  "How do Double-Down and Double-Over-Down terminals score? (policy unruled)",
-    "pogo":     "How does the zero-ADD pogo set compose onto a base? (unruled)",
     "weaving":  "Weaving is an undefined folk operator; movement structure unruled.",
     "shooting": "Shooting is an undefined folk operator; structural reading unruled.",
     "other":    "Operator weight or definition pending (fairy / pixie weight; folk operators).",
@@ -78,17 +76,18 @@ BLOCKING_QUESTION = {
 # Unresolved doctrine blocker for a row name, highest-priority first. The shipped
 # operators (illusioning / furious / nuclear / quantum / symposium / paradox /
 # barraging, plus miraging / spinning / ducking / stepping / tapping / whirling /
-# swirling / gyro / diving) are resolved and never block on their own. Returns a
-# cluster key, or None when the row carries only resolved operators — those route
-# out of doctrine into the needs-authoring frontier.
+# swirling / gyro / diving) are resolved and never block on their own. Blurry and
+# Pogo are likewise settled: blurry reads as stepping with a paradox, and pogo is
+# a zero-ADD set whose composition is understood, so both route out of doctrine
+# into the needs-authoring frontier rather than holding as doctrine questions.
+# Side qualifiers (near / same-side / far / opposite) never block: the notation
+# already encodes the side, so a positional name is needs-authoring, not doctrine.
+# Returns a cluster key, or None when the row carries only resolved operators —
+# those route out of doctrine into the needs-authoring frontier.
 def doctrine_blocker(name: str) -> str | None:
     n = " " + name.lower() + " "
     if re.search(r"double (over )?down|double-down|\bdod\b|\bddd\b", n):
         return "dod-ddd"
-    if "blurr" in n or "blizzard" in n:
-        return "blurry"
-    if "pogo" in n:
-        return "pogo"
     if "weaving" in n:
         return "weaving"
     if re.search(r"\bfairy\b|\bpixie\b", n):

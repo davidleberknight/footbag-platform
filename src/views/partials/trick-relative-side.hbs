@@ -1,0 +1,31 @@
+{{!--
+  Relative-side variants callout. Lists the same trick performed with a
+  different side relationship (base / same-side / far) and links to the glossary
+  explainer for SAME vs OP. Rendered only when the service found a group
+  spanning at least two distinct sides; the current trick is marked.
+--}}
+{{#if content.relativeSideVariants}}
+<section class="content-section" data-section="relative-side-variants">
+  <div class="section-heading">
+    <h2>Relative-side variants</h2>
+    <p class="section-intro">
+      The same trick on a different side relationship. Same-side (near) and far (opposite) are
+      genuinely different executions even when they score the same. See
+      <a href="{{content.relativeSideVariants.glossaryHref}}">relative-side relationships</a> in the glossary.
+    </p>
+  </div>
+  <ul class="related-tricks-list">
+    {{#each content.relativeSideVariants.variants}}
+    <li>
+      <span class="badge">{{sideLabel}}</span>
+      {{#if isCurrent}}
+        <strong>{{canonicalName}}</strong> <span class="text-muted fs-sm">(this trick)</span>
+      {{else}}
+        <a href="{{detailHref}}">{{canonicalName}}</a>
+      {{/if}}
+      {{#if adds}} <span class="text-muted fs-sm">({{adds}} ADD)</span>{{/if}}
+    </li>
+    {{/each}}
+  </ul>
+</section>
+{{/if}}

@@ -278,6 +278,117 @@ export function buildRelatedTricks(
 }
 
 // ---------------------------------------------------------------------------
+// Relative-side variants — same base trick, different relative-side qualifier
+// ---------------------------------------------------------------------------
+//
+// A relative-side variant set is the same underlying trick performed with a
+// different side relationship between a dex and its reference: the unqualified
+// base, its same-side (near) form, and its far (opposite) form. The glossary
+// explains the relationship (SAME / OP); this surfaces the actual sibling rows
+// so a reader on one variant can see and reach the others.
+//
+// Membership is derived by stripping a recognized side qualifier from the slug
+// to a stem, then grouping active rows that share that stem. This is a display
+// projection only: it reads slugs as-is and does not change slug normalization
+// or identity. The callout renders only when the group has at least two members
+// spanning at least two distinct sides, so a lone qualified slug never produces
+// a one-item callout and an accidental token match (no sibling) is suppressed.
+
+export type RelativeSide = 'base' | 'same-side' | 'far';
+
+export interface FreestyleRelativeSideVariant {
+  slug:          string;
+  canonicalName: string;
+  hashtag:       string;
+  adds:          string | null;
+  detailHref:    string;
+  side:          RelativeSide;
+  sideLabel:     string;
+  isCurrent:     boolean;
+}
+
+export interface FreestyleRelativeSideVariants {
+  // Deep-link to the relative-side glossary explainer (SAME / OP / not X-Dex).
+  glossaryHref: string;
+  variants:     FreestyleRelativeSideVariant[];
+}
+
+const RELATIVE_SIDE_LABELS: Record<RelativeSide, string> = {
+  'base':      'Base',
+  'same-side': 'Same-side (near)',
+  'far':       'Far (opposite)',
+};
+
+const RELATIVE_SIDE_RANK: Record<RelativeSide, number> = {
+  'base': 0, 'same-side': 1, 'far': 2,
+};
+
+const RELATIVE_SIDE_GLOSSARY_HREF = '/freestyle/glossary#term-same-side';
+
+// Strip whole-segment side qualifiers (prefix, suffix, or infix) from a slug,
+// returning the stem and the side the qualifier denoted. `same` / `near` / `ss`
+// read as same-side; `far` / `op` / `opp` / `opposite` read as far. The
+// two-segment `same-side` / `opposite-side` forms are consumed as a unit.
+function stripRelativeSide(slug: string): { stem: string; side: RelativeSide } {
+  const segs = slug.split('-');
+  const out: string[] = [];
+  let side: RelativeSide = 'base';
+  for (let i = 0; i < segs.length; i++) {
+    const s = segs[i];
+    if (s === 'same') { side = 'same-side'; if (segs[i + 1] === 'side') i++; continue; }
+    if (s === 'opposite') { side = 'far'; if (segs[i + 1] === 'side') i++; continue; }
+    if (s === 'ss' || s === 'near') { side = 'same-side'; continue; }
+    if (s === 'op' || s === 'opp') { side = 'far'; continue; }
+    if (s === 'far') { side = 'far'; continue; }
+    out.push(s!);
+  }
+  return { stem: out.join('-'), side };
+}
+
+/**
+ * Build the relative-side variant callout for a given trick row, or null when
+ * the trick is not part of a multi-side group. Members are the active,
+ * non-modifier rows whose side-stripped stem matches the current trick's stem;
+ * the callout renders only when at least two members span at least two distinct
+ * sides (base / same-side / far). Display order is base → same-side → far, then
+ * slug.
+ */
+export function buildRelativeSideVariants(
+  current: FreestyleTrickRow,
+  allRows: readonly FreestyleTrickRow[],
+): FreestyleRelativeSideVariants | null {
+  const { stem } = stripRelativeSide(current.slug);
+  if (!stem) return null;
+
+  const members = allRows
+    .filter(r => r.category !== 'modifier')
+    .map(r => ({ row: r, ...stripRelativeSide(r.slug) }))
+    .filter(m => m.stem === stem);
+
+  if (members.length < 2) return null;
+  const distinctSides = new Set(members.map(m => m.side));
+  if (distinctSides.size < 2) return null;
+
+  const variants = members
+    .sort((a, b) =>
+      RELATIVE_SIDE_RANK[a.side] - RELATIVE_SIDE_RANK[b.side] ||
+      a.row.slug.localeCompare(b.row.slug),
+    )
+    .map(m => ({
+      slug:          m.row.slug,
+      canonicalName: m.row.canonical_name,
+      hashtag:       slugToHashtag(m.row.slug),
+      adds:          m.row.adds,
+      detailHref:    `/freestyle/tricks/${m.row.slug}`,
+      side:          m.side,
+      sideLabel:     RELATIVE_SIDE_LABELS[m.side],
+      isCurrent:     m.row.slug === current.slug,
+    }));
+
+  return { glossaryHref: RELATIVE_SIDE_GLOSSARY_HREF, variants };
+}
+
+// ---------------------------------------------------------------------------
 // Next Tricks — family-scoped progression by ADD
 // ---------------------------------------------------------------------------
 //

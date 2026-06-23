@@ -89,9 +89,11 @@ import {
   FreestyleRelatedTrick,
   FreestyleNextTrick,
   FreestylePreviousTrick,
+  FreestyleRelativeSideVariants,
   buildRelatedTricks,
   buildNextTricks,
   buildPreviousTricks,
+  buildRelativeSideVariants,
 } from './freestyleRelatedTricks';
 import { StructuralNeighbors, buildStructuralNeighbors } from './freestyleAdjacency';
 import {
@@ -1378,6 +1380,11 @@ export interface FreestyleTrickContent {
   // optional one-line rationale; the movement-neighbour group is re-labeled
   // "Swing elements" for the pendulum/rake pair. Empty groups are dropped.
   relatedGroups: FreestyleRelatedGroup[];
+  // Relative-side variants callout: the same base performed with a different
+  // side relationship (base / same-side / far). Null unless the trick is part
+  // of a group spanning at least two distinct sides. Carries a glossary
+  // deep-link to the SAME / OP explainer. Display projection, not a family.
+  relativeSideVariants: FreestyleRelativeSideVariants | null;
   // Structural Neighbors (Layer 1 operator-adjacency): the ±1-operator relation
   // built from this trick's base_trick + modifier-link multiset (built on /
   // swap the operator / extend / same operator other base / same structure).
@@ -6864,6 +6871,7 @@ export const freestyleService = {
           additionalFamilies,
           relatedTricks:    relatedList,
           relatedGroups,
+          relativeSideVariants: dictRow ? buildRelativeSideVariants(dictRow, allDictRows) : null,
           // Structural Neighbors owns ONLY cross-base compositional relationships:
           // the same modifier multiset applied to a different base (operator_kin)
           // and other names for the same structure (twins). The same-base buckets
@@ -9485,20 +9493,21 @@ export const freestyleService = {
     const frontierCards = frontierRows.map(shape);
     const frontierGroups = groupByAdd(frontierRows);
 
-    // Section C — historically doctrine-flagged clusters, with each cluster's
-    // current status. Most no longer wait on Red: the generated blocking-question
-    // text predates the rulings, so it is overridden here (reversible) to state
-    // what each cluster is actually waiting on now.
+    // Section C — doctrine-flagged clusters, each with what it is actually
+    // waiting on. The generated blocking-question text is overridden here
+    // (reversible) to state the current status. Side qualifiers do not appear as
+    // a cluster: the notation already encodes the side, so positional names are
+    // needs-authoring, not doctrine. A positional name lands here only when it
+    // also carries a genuine doctrine question (a Double-Down terminal under
+    // DOD / DDD, or an undefined operator).
     const CLUSTER_STATUS: Record<string, string> = {
       weaving:   'Genuinely open: awaiting a Red ruling on the weaving operator (status and ADD). Resolve it and the cluster unblocks.',
-      blurry:    'Settled: Blurry is Stepping with a Paradox. These are structurally ready for curation, not doctrine-blocked.',
-      pogo:      'Settled: Pogo is a +0 set; a first batch has already promoted. The rest are structurally ready for curation.',
       'dod-ddd': 'Governance and verification: the down-family structure is understood; each row needs a per-trick decomposition check, not a Red ruling.',
-      other:     'Identification: structure or identity not yet confirmed (dragon, refraction).',
+      other:     'Definition pending: undefined folk operators and operator-weight questions (zulu, alpine, rooting, pixie weight); structure not yet settled.',
     };
     const doctrineRows = inSection('doctrine');
     const doctrineClusters: ObservationalDoctrineCluster[] =
-      ['weaving', 'dod-ddd', 'blurry', 'pogo', 'shooting', 'other']
+      ['weaving', 'dod-ddd', 'shooting', 'other']
         .map(key => {
           const rows = doctrineRows.filter(r => r.cluster === key);
           return {
@@ -9558,11 +9567,12 @@ export const freestyleService = {
     // doctrine) is documented vocabulary, never counted as candidate tricks.
     // Frontier-health metrics, classified by what each name is actually waiting
     // on. Each row maps to exactly one of eight current categories, derived from
-    // the universe's existing fields (no regeneration; reversible). The stale
-    // doctrineConfidence flag predates the settled rulings, so Blurry and Pogo
-    // are NOT doctrine-blocked here: they are structurally ready. Only Weaving
-    // genuinely awaits Red on this frontier; the other open Red question (the
-    // atomic / X-Dex receiver rule) is a value-migration on the canonical band,
+    // the universe's existing fields (no regeneration; reversible). Blurry and
+    // Pogo are settled and no longer carried as doctrine: the generator routes
+    // them to the needs-authoring frontier (structure understood, notation not
+    // yet authored). Only Weaving genuinely awaits Red on this frontier; the
+    // other open Red question (the atomic / X-Dex receiver rule) is a
+    // value-migration on the canonical band,
     // not part of this emerging-vocabulary frontier.
     type FrontierCategory =
       | 'red' | 'governance' | 'identification' | 'notation'
@@ -9606,9 +9616,8 @@ export const freestyleService = {
       if (isAliasArchive(r)) return 'alias';
       if (r.section === 'doctrine') {
         if (r.cluster === 'weaving') return 'red';
-        if (r.cluster === 'blurry' || r.cluster === 'pogo') return 'ready';  // settled rulings
         if (r.cluster === 'dod-ddd') return 'governance';                    // verification / governance
-        return 'identification';                                            // dragon / refraction
+        return 'identification';                                            // undefined folk operators / operator weight
       }
       if (r.section === 'ready') return 'ready';
       if (r.section === 'frontier') return 'authoring';
@@ -9636,7 +9645,7 @@ export const freestyleService = {
       { label: 'Identification',       value: String(cc('identification')), hint: 'structure or identity not yet confirmed' },
       { label: 'Notation blocked',     value: String(cc('notation')),       hint: 'a name with an unresolved modifier token; no canonical notation authored yet' },
       { label: 'Needs authoring',      value: String(cc('authoring')),      hint: 'structure understood; notation or decomposition not yet authored' },
-      { label: 'Structurally ready',   value: String(cc('ready')),          hint: 'settled doctrine with a clean derived ADD (Blurry, Pogo); ready for curation, not auto-published' },
+      { label: 'Structurally ready',   value: String(cc('ready')),          hint: 'every token resolves to a known operator with a clean derived ADD; ready for curation, not auto-published' },
       { label: 'Folk / unresolved',    value: String(cc('folk')),           hint: 'documented names whose structure is not yet understood' },
       { label: 'Alias / duplicate',    value: String(cc('alias')),          hint: 'resolve to an existing trick; archived, not part of the frontier' },
     ];

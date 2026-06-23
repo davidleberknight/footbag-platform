@@ -82,7 +82,7 @@ describe('GET /freestyle/observational — governance surface', () => {
     const html = await page();
     // Red-doctrine is now a small slice (Weaving), reported as such in the note.
     expect(html).toMatch(/Only \d+ await a Red ruling/);
-    // Settled doctrine (Blurry, Pogo) is its own structurally-ready category.
+    // Structurally-ready remains a distinct frontier-health category.
     expect(html).toContain('Structurally ready');
   });
 
@@ -132,10 +132,15 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(html).toContain('id="doctrine-blocked"');
     expect(html).toContain('observed-cluster');
     expect(html).toContain('Doctrine &amp; governance clusters');
-    // Only Weaving genuinely awaits Red; settled clusters say so in their status line.
+    // Only Weaving genuinely awaits Red; the down-family is a verification pass.
     expect(html).toMatch(/Only the Weaving cluster genuinely awaits a\s+Red ruling/);
-    expect(html).toMatch(/Blurry is Stepping with a Paradox/);
-    expect(html).toMatch(/Pogo is a \+0 set/);
+    expect(html).toMatch(/per-trick verification pass/);
+    // Side / direction variants are explicitly not doctrine: the notation encodes the side.
+    expect(html).toMatch(/Side and direction variants are not here/);
+    // The settled clusters (Blurry, Pogo) are declassified at the generator and no
+    // longer render as doctrine clusters at all.
+    expect(html).not.toMatch(/Blurry is Stepping with a Paradox/);
+    expect(html).not.toMatch(/Pogo is a \+0 set/);
   });
 
   it('surfaces the Alias / Duplicate archive collapsed, with the ecosystem matrix demoted to a disclosure', async () => {
