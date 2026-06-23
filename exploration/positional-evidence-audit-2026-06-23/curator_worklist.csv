@@ -1,0 +1,15 @@
+record,base_canonical,qualifier,component_count,fixed_relationship,resolver_status,note
+Assassin (ss),assassin,same,3,False,DISTINCT_VARIANT_CANDIDATE,unique target; new config `TOE > SAME IN [DEX] >> DUCK [BOD] >> SAME IN [DEX] > OP TOE [DEL]`
+Double Leg Over (ss),double-leg-over,same,3,False,AMBIGUOUS_MULTI_COMPONENT,2 candidate targets for 'same'
+Eclipse (ss),eclipse,same,2,False,DISTINCT_VARIANT_CANDIDATE,unique target; new config `SET > JUMP [BOD] > SAME INSIDE [DEL] > OP OUT [DEX] > (land)`
+Eggbeater (ss),eggbeater,same,3,False,AMBIGUOUS_MULTI_COMPONENT,2 candidate targets for 'same'
+Fairy Double Leg Over (ss),fairy-double-leg-over,same,4,False,AMBIGUOUS_MULTI_COMPONENT,2 candidate targets for 'same'
+Fairy Legover (ss),fairy-legover,same,3,False,RESOLVED,already wired: alias `fairy-legover-ss` -> `double-orbit`
+Fairy Pickup (ss),fairy-pickup,same,3,False,DISTINCT_VARIANT_CANDIDATE,unique target; new config `TOE > SAME OUT [DEX] > SAME IN [DEX] > SAME TOE [DEL]`
+Paste (ss),paste,same,3,False,DISTINCT_VARIANT_CANDIDATE,unique target; new config `TOE > SAME IN [DEX] >> SAME IN [DEX] > SAME TOE [DEL]`
+Pigbeater (ss),pigbeater,same,4,False,AMBIGUOUS_MULTI_COMPONENT,2 candidate targets for 'same'
+Pixie DSO (ss),pixie-dso,same,0,,NO_NOTATION,base has no operational notation
+Pixie Double Pickup (ss),pixie-double-pickup,same,4,False,DISTINCT_VARIANT_CANDIDATE,unique target; new config `TOE > SAME IN [DEX] >> SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]`
+Smear (ss),smear,same,3,False,DISTINCT_VARIANT_CANDIDATE,unique target; new config `TOE > SAME IN [DEX] >> SAME IN [DEX] > OP TOE [DEL]`
+Smog (ss),smog,same,4,False,AMBIGUOUS_MULTI_COMPONENT,2 candidate targets for 'same'
+Smudge (ss),smudge,same,3,False,DISTINCT_VARIANT_CANDIDATE,unique target; new config `TOE > SAME IN [DEX] > SAME OUT [DEX] > OP TOE [DEL]`
