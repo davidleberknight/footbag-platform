@@ -1469,6 +1469,13 @@ export interface FreestyleTrickContent {
   // palette); the token classification lives in
   // operationalNotationRendering.ts.
   operationalNotation: OperationalNotation | null;
+  // Heading + caption for the Execution notation block. Bag-launch sets and
+  // explicitly-compositional standalone tricks show one illustrative execution
+  // (the entry surface varies), so the heading reads "Example execution" with a
+  // clarifying caption; every other trick keeps the canonical "Execution
+  // notation" heading and a null caption.
+  executionNotationLabel: string;
+  executionNotationCaption: string | null;
   // Fully spelled-out operational chain for named-set-shorthand entries,
   // rendered below the Execution notation tokens. Null when absent.
   executionExpanded: string | null;
@@ -4625,6 +4632,17 @@ export function isFirstClass(slug: string): boolean {
 // slug (resolveDisplayFamily maps a roster slug to itself) or a curator-named
 // major-compound anchor. No data or doctrine semantics — display gating only.
 const HERO_NOTATION_MAJOR_COMPOUND_ANCHORS: ReadonlySet<string> = new Set(['mobius']);
+
+// Entries whose Execution notation is one illustrative pattern, not a required
+// form: the bag-launch sets and the explicitly-compositional standalone tricks,
+// which accept varied entry surfaces. For these the Execution heading reads
+// "Example execution" with a clarifying caption. Concrete bases (squeeze,
+// pendulum, rake) and ordinary compounds carry a canonical execution and keep
+// the default "Execution notation" heading.
+const EXAMPLE_EXECUTION_SLUGS: ReadonlySet<string> = new Set([
+  'pixie', 'fairy', 'atomic',   // bag-launch sets
+  'barrage', 'terrage',         // standalone tricks also used compositionally
+]);
 function isFamilyDisplayAnchor(slug: string): boolean {
   return resolveDisplayFamily(slug) === slug || HERO_NOTATION_MAJOR_COMPOUND_ANCHORS.has(slug);
 }
@@ -6955,6 +6973,12 @@ export const freestyleService = {
             const sourceNote = rawSource && rawSource.trim() ? rawSource.trim() : null;
             return { raw: display.raw, tokens: display.tokens, sourceNote };
           })(),
+          executionNotationLabel: EXAMPLE_EXECUTION_SLUGS.has(slug)
+            ? 'Example execution'
+            : 'Execution notation',
+          executionNotationCaption: EXAMPLE_EXECUTION_SLUGS.has(slug)
+            ? 'One common execution; the entry surface can vary.'
+            : null,
           // Fully spelled-out operational chain for entries whose Execution
           // notation uses a named-set shorthand (e.g. '(railing set)'). Shown on
           // the trick page below the shorthand tokens; null when absent or

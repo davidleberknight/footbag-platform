@@ -23,8 +23,9 @@
 {{#if content.operationalNotation}}
 <section class="content-section operational-notation-display" aria-label="Execution notation">
   <div class="section-heading">
-    <h2>Execution notation</h2>
+    <h2>{{content.executionNotationLabel}}</h2>
     {{#if content.sectionSubtitles.executionNotation}}<p class="section-intro">{{content.sectionSubtitles.executionNotation}}</p>{{/if}}
+    {{#if content.executionNotationCaption}}<p class="section-intro">{{content.executionNotationCaption}}</p>{{/if}}
   </div>
   <code class="operational-notation-tokens">{{#each content.operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
   {{#if content.executionExpanded}}
