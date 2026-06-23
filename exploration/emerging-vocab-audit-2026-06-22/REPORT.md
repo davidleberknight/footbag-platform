@@ -18,10 +18,12 @@ Per-slug detail: `per_slug_classification.csv` · prior snapshot: `per_slug_prev
   encode +1. Only `freestyle_trick_modifiers.pogo.add_bonus = 0` disagrees. Pogo
   compounds are now **RESOLVABLE NOW**; the registry value is a curator-review item, not
   a public doctrine question. **See "Registry conflict" below.**
-- **Positional variants are held, not collapsed.** same-side / far / near / opposite /
-  ss / op variants are no longer auto-aliased or auto-resolved. They move to the held
-  (doctrine-blocked) set "under review" pending Red, because the structural distinction
-  (Atomic Mirage vs Atomic Far Mirage; Pixie Mirage vs Pixie Same-Side Mirage) is open.
+- **Positional variants are NOT doctrine-blocked** (superseded by the Relative-Side
+  reconciliation, 2026-06-22). They are no longer auto-aliased or auto-collapsed, but
+  `SAME`/`OP` already encode the same-side/far distinction in the notation layer, so the
+  distinction is not a Red question. Of the 131 once held in E: **128 → G NEEDS-AUTHORING**
+  (missing operational notation; mechanical once authored) and **3 → E review** (name vs
+  notation conflict). See `exploration/relative-side-reconciliation-2026-06-22/`.
 
 ## 1. Updated category counts
 
@@ -31,20 +33,24 @@ Per-slug detail: `per_slug_classification.csv` · prior snapshot: `per_slug_prev
 | B | ALIAS | 192 | 0 |
 | C | PROMOTED ALREADY | 614 | 0 |
 | D | RESOLVABLE NOW | 111 | −64 |
-| E | DOCTRINE BLOCKED / under review | 187 | +97 |
+| E | DOCTRINE BLOCKED / review | 59 | −128 (relative-side reconciliation) |
 | F | UNKNOWN | 564 | −33 |
+| G | NEEDS-AUTHORING (positional, missing notation) | 128 | new (split out of E) |
 
 ## 2. Updated summary statistics
 
 - Unique frontier slugs: **1,680**
 - Already promoted (C): **614** — never truly frontier; corpus-mislabeled
 - Removed / aliased / resolvable (A+B+D): **315**
-- **Genuine remaining frontier (E + F): 751**
+- **Doctrine-blocked / unknown (E + F): 623**
+- **Needs-authoring (G — positional, not doctrine-blocked): 128**
 
-This refresh trades raw shrinkage for accuracy: pogo correctly leaves the blocked set
-(→ resolvable), but the explicit instruction to stop collapsing positional variants moves
-~112 of them into the held set, so E+F rises from 687 to 751. The frontier is now an
-honest picture — nothing is collapsed that Red has not yet ruled on.
+The Relative-Side reconciliation (2026-06-22) corrected the prior over-block: `SAME`/`OP`
+already encode the same-side/far distinction in the notation layer, so positional variants
+are not doctrine-blocked. Of the 131 previously held in E, **3** are genuine name/notation
+conflicts (kept in E for review) and **128** simply lack authored operational notation
+(moved to **G NEEDS-AUTHORING** — mechanical once notation is written, not a Red question).
+E falls 187 → 59.
 
 ## 4. Entries moved between buckets (vs prior run) — 127 total
 
@@ -55,14 +61,16 @@ honest picture — nothing is collapsed that Red has not yet ruled on.
 | 11 | DOCTRINE BLOCKED → RESOLVABLE NOW | `pogo-butterfly`, `pogo-clipper`, `pogo-legover`, `pogo-illusion`, `pogo-mirage`, `pogo-barrage` |
 | 4 | DOCTRINE BLOCKED → UNKNOWN | `pogo` (standalone), `pogo-dlo`, `pogo-da-da-curve`, `pogo-motion` (base not resolvable) |
 
-## 6. What remains genuinely blocked by Red (E = 187)
+## 6. What remains genuinely blocked by Red (E = 59)
 
 | Question | Count | The doctrine question |
 |---|---:|---|
 | A1 DOD / DDD | 14 | Is Double-Over-Down the same structure as Down-Double-Down, or two distinct bases? |
 | A2 Weaving | 28 | Is `weaving` a productive operator (+N), a movement family (+0), or a naming layer? No weaving notation authored. |
 | A5 atomic-rotational X-Dex | 14 | Does atomic/quantum/nuclear/sailing on a rotational receiver carry a hidden X-Dex, and does it survive an inserted operator? (HELD) |
-| A5 positional-variant | 131 | Is a same-side / far / near / opposite variant a distinct trick or a notational qualifier? Held out of auto-alias until clarified. |
+| positional name/notation conflict | 3 | `inspinning-same-side-{illusion,mirage}`, `whirl-same-side` — name asserts same-side but operational notation shows `OP` only. |
+
+The former "A5 positional-variant (131)" row is retired: per the Relative-Side reconciliation, `SAME`/`OP` already encode the distinction, so positional variants are **not** a Red question — 128 are NEEDS-AUTHORING (bucket G) and 3 are the conflicts above.
 
 **Pogo is deliberately absent from this list** — it is resolvable, pending a registry cleanup, not a Red ruling.
 
@@ -94,9 +102,10 @@ value as stale.
 >
 > The remaining frontier is the genuinely unsettled vocabulary: a few operator-weight and
 > movement-distinction questions awaiting expert review, plus names whose structure cannot
-> yet be inferred from current sources. Side and direction variants (same-side, far, near,
-> opposite) are kept distinct rather than merged until the underlying distinction is
-> settled.
+> yet be inferred from current sources. Side and direction variants (same-side, near, far,
+> opposite) are kept distinct rather than merged — the notation already records which side
+> each move uses — and most are simply waiting on their movement notation to be written,
+> not on any unresolved ruling.
 
 (Public-prose hygiene applied: no reviewer names, no pt## tags, outside sources generalized.
 Draft only — not yet wired into a template; confirm the target surface to apply.)

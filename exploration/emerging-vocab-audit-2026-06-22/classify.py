@@ -35,6 +35,7 @@ for r in rows:
 con = sqlite3.connect(DB)
 active = {x[0] for x in con.execute("SELECT slug FROM freestyle_tricks WHERE is_active=1")}
 base_add = {s: a for s, a in con.execute("SELECT slug, adds FROM freestyle_tricks WHERE is_active=1")}
+op_notn = {s: (o or "") for s, o in con.execute("SELECT slug, operational_notation FROM freestyle_tricks")}
 alias_slugs = {x[0]: x[1] for x in con.execute("SELECT alias_slug, trick_slug FROM freestyle_trick_aliases")}
 alias_texts = {}
 for txt, trick in con.execute("SELECT alias_text, trick_slug FROM freestyle_trick_aliases"):
@@ -83,10 +84,27 @@ def is_noise(slug, names):
         return "dexterity terminology, not a trick"
     return None
 
-# Positional / side qualifiers whose structural meaning is under Red review; their
-# variants must NOT be auto-aliased or auto-collapsed (Atomic Mirage vs Atomic Far
-# Mirage, Pixie Mirage vs Pixie Same-Side Mirage, ...). Held in E until clarified.
+# Positional / side qualifiers. Per the Relative-Side reconciliation (2026-06-22),
+# these are NO LONGER blanket doctrine-blocked: SAME/OP already encode the
+# distinction in the notation layer. A positional variant is mechanically
+# classifiable when its operational notation carries SAME/OP markers, needs only
+# notation authoring when it does not, and is doctrine-review ONLY for the few
+# rows whose notation contradicts the name. (Atomic-rotational X-Dex stays blocked
+# separately below — that is the X-Dex scoring question, not the side question.)
 POSITIONAL_QUAL = {"ss", "op", "same", "side", "near", "far", "opposite", "crossbody"}
+
+# The only positional rows whose operational notation contradicts the name (name
+# asserts same-side; notation shows OP only). Genuine review items.
+POSITIONAL_CONFLICTS = {
+    "inspinning-same-side-illusion", "inspinning-same-side-mirage", "whirl-same-side",
+}
+
+def is_positional(slug):
+    return any(seg in POSITIONAL_QUAL for seg in slug.split("-"))
+
+def has_op_markers(slug):
+    n = op_notn.get(slug, "")
+    return ("SAME" in n) or bool(re.search(r"\bOP\b", n))
 
 def doctrine_block(slug):
     # Pogo is intentionally NOT blocked: evidence (official ADDs + footbag.org + FM +
@@ -101,8 +119,6 @@ def doctrine_block(slug):
     xdex_set = segs and segs[0] in ("atomic", "quantum", "nuclear", "sailing")
     if xdex_set and (segset & ROTATIONAL):
         return "A5 atomic-rotational X-Dex: hidden-carry weight on rotational receiver unresolved (HELD)"
-    if segset & POSITIONAL_QUAL:
-        return "A5 positional-variant: same-side/far/near/opposite distinction under review; do not auto-alias, pending Red"
     return None
 
 def decompose(slug):
@@ -137,6 +153,12 @@ def classify(slug, recs):
     if n: return "A", n, add
     blk = doctrine_block(slug)
     if blk: return "E", blk, add
+    if is_positional(slug):
+        if slug in POSITIONAL_CONFLICTS:
+            return "E", "positional name/notation conflict: name asserts same-side, notation shows OP only; review", add
+        if has_op_markers(slug):
+            return "D", "positional variant: SAME/OP notation present, mechanically classifiable from existing notation", add
+        return "G", "positional variant: notation not yet authored (needs-authoring; not doctrine-blocked)", add
     dec = decompose(slug)
     if dec:
         base, prefix = dec
@@ -168,22 +190,25 @@ with open(OUTDIR/"per_slug_classification.csv", "w", newline="", encoding="utf-8
     for s in sorted(by_slug):
         b, reason, add = result[s]; w.writerow([s, b, reason, add, current_cat(by_slug[s])])
 
-NB = {"A":"REMOVE","B":"ALIAS","C":"PROMOTED ALREADY","D":"RESOLVABLE NOW","E":"DOCTRINE BLOCKED","F":"UNKNOWN"}
+NB = {"A":"REMOVE","B":"ALIAS","C":"PROMOTED ALREADY","D":"RESOLVABLE NOW",
+      "E":"DOCTRINE BLOCKED","F":"UNKNOWN","G":"NEEDS-AUTHORING"}
 print("UNIQUE FRONTIER SLUGS:", len(by_slug))
 print("\n== 1. CURRENT counts by category (deduped per slug) ==")
 for k, v in curcat.most_common(): print(f"  {v:5d}  {k}")
 print("\n== 2. NEW counts by bucket ==")
-for k in "ABCDEF": print(f"  {k} {NB[k]:18s} {newcat.get(k,0):5d}")
+for k in "ABCDEFG": print(f"  {k} {NB[k]:18s} {newcat.get(k,0):5d}")
 non_promoted = len(by_slug) - newcat.get("C",0)
-frontier_after = newcat.get("E",0) + newcat.get("F",0)
-print(f"\n== 7. ESTIMATED final frontier == E+F = {frontier_after}  (from {non_promoted} non-promoted; {len(by_slug)} total)")
-print(f"   leaving frontier: A {newcat.get('A',0)} + B {newcat.get('B',0)} + C {newcat.get('C',0)} + D {newcat.get('D',0)} = {newcat.get('A',0)+newcat.get('B',0)+newcat.get('C',0)+newcat.get('D',0)} resolved/removed")
+doctrine_frontier = newcat.get("E",0) + newcat.get("F",0)
+print(f"\n== 7. ESTIMATED final frontier ==")
+print(f"   doctrine-blocked/unknown (E+F) = {doctrine_frontier}  (from {non_promoted} non-promoted; {len(by_slug)} total)")
+print(f"   needs-authoring (G, positional, NOT doctrine-blocked) = {newcat.get('G',0)}")
+print(f"   resolved/removed (A+B+C+D) = {newcat.get('A',0)+newcat.get('B',0)+newcat.get('C',0)+newcat.get('D',0)}")
 print("\n== 3. MIGRATION matrix (current -> new : count) ==")
 for (cur, new), c in migration.most_common(30):
     print(f"  {c:5d}  {cur:36s} -> {NB[new]}")
 
 def bucket(b): return [(s, result[s][1], result[s][2]) for s in sorted(by_slug) if result[s][0]==b]
-A, D, E, F = bucket("A"), bucket("D"), bucket("E"), bucket("F")
+A, D, E, F, G = bucket("A"), bucket("D"), bucket("E"), bucket("F"), bucket("G")
 print(f"\n== 4. REMOVALS ({len(A)}) ==")
 for s, r, a in A: print(f"  {s:42s} {r}")
 print(f"\n== 5. RESOLUTIONS (showing 40 of {len(D)}) ==")
@@ -191,6 +216,8 @@ for s, r, a in D[:40]: print(f"  {s:38s} {r}")
 print(f"\n== 6. DOCTRINE BLOCKERS ({len(E)}) by question ==")
 byq = collections.Counter(r.split(":")[0] for s, r, a in E)
 for q, c in sorted(byq.items()): print(f"  {c:4d}  {q}")
+print(f"\n== NEEDS-AUTHORING ({len(G)}) — positional, missing operational notation, NOT doctrine-blocked ==")
+for s, r, a in G[:30]: print(f"  {s}")
 print(f"\n== F UNKNOWN ({len(F)}) sample ==")
 for s, r, a in F[:30]: print(f"  {s}")
 
