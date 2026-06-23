@@ -164,12 +164,14 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
     'Compounds: SURGE + WHIRL, SURGE + OSIS.',
   ],
   ['atomic',
-    'ATOMIC + base: a set that packs two dexterities into one set before the base; ' +
-    'carries an extra hidden dex on rotational bases. ' +
+    'ATOMIC + base: a launch set adding one outward dexterity before the base, +1. ' +
+    'Any X-Dex is a separate, receiver-gated +1 on the following far-form dex ' +
+    '(mirage, illusion, whirl, torque, drifter); not part of atomic, never automatic. ' +
     'Compounds: ATOMIC + TORQUE, ATOMIC + MIRAGE.',
   ],
   ['quantum',
-    'QUANTUM + base: a compressed atomic set, one extra dex packed into the set before the base. ' +
+    'QUANTUM + base: a compressed atomic launch, one inward dexterity before the base, +1. ' +
+    'Any X-Dex is a separate, receiver-gated +1 on the following far-form dex, not part of quantum. ' +
     'Compounds: QUANTUM + MIRAGE, QUANTUM + OSIS.',
   ],
   ['nuclear',

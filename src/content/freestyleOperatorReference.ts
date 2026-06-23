@@ -70,7 +70,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     decomposition:  null,
     pendingNote:    'Atomic is +1; the +2-rotational reading is retired. A separate +1 X-Dex can ride a following dex, but only when that dex is the far form of an eligible receiver (mirage, illusion, whirl, torque, drifter); never infer it from the operator name. Recorded only where the notation already carries [XDEX] (the atomic + X-Dex composite, "atomicX", reads +2, e.g. Atom Smasher = atomicX Mirage = 4).',
     workedExamples: ['Atom Smasher = Atomic Mirage'],
-    lineageNote:    'Operational form from the historical moves reference.',
+    lineageNote:    'Operational form from the historical moves reference. Also called Illusioning, its descriptive reading (REV(0) miraging); the two name the same operator.',
     curatorConfirmPending: false,
   },
   {

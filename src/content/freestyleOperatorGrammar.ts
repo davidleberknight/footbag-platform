@@ -310,7 +310,7 @@ export const OPERATOR_GRAMMAR_ENTRIES: readonly OperatorGrammarEntry[] = [
     variations: [],
     confidence: 'medium',
     notes:
-      "Atomic also acts as a set primitive (standalone 2 ADD); as a modifier, it carries the X-Dex character. Compound-of-canonicals atomic (e.g., atomic-torque, atomic double-over-down) require curator review per the audit Bucket C.",
+      "Atomic also acts as a set primitive (standalone 2 ADD). As a modifier it adds +1; an X-Dex, when it fires, is the separate conditional event noted above, not part of atomic. Compound-of-canonicals atomic (e.g., atomic-torque, atomic double-over-down) require curator review.",
   },
 
   // ── symposium ──────────────────────────────────────────────────────
@@ -436,7 +436,7 @@ export const OPERATOR_GRAMMAR_ENTRIES: readonly OperatorGrammarEntry[] = [
     slug: 'furious',
     signature:
       "Adds an extended multi-dex sequence; structurally similar to a stepping-paradox stack but operates as a single named operator. Resolved precedents combine forward/backward dex direction in a doubled-then-doubled pattern.",
-    addContribution: '+1 non-rotational / +2 rotational base',
+    addContribution: '+2 (two-dex set; the barraging pattern)',
     precedents: [
       {
         baseSlug:     'barfly',
