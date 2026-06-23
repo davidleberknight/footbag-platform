@@ -5,8 +5,9 @@
  *   - a record named with a lexical variant ("2-Bag Juggle") whose slug is an
  *     alias of the canonical trick ("2-bag-juggling") must still list on the
  *     canonical page, and the alias URL must render the canonical page;
- *   - a record named with a side qualifier ("Clipper Stall (ss)") must list on
- *     its base trick page.
+ *   - a record named with a side qualifier ("Clipper Stall (ss)") keeps the
+ *     qualifier in its slug (clipper-stall-ss) and lists on its base trick page
+ *     through an alias, not through a lexical strip.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -32,8 +33,11 @@ beforeAll(async () => {
     video_url:    'https://youtu.be/XeJHACfaU2Q?t=103',
   });
 
-  // Qualifier case (resolver-only, no alias): the slugifier strips "(ss)".
+  // Qualifier case: the slugifier preserves "(ss)" -> clipper-stall-ss, which is
+  // wired as an alias of clipper-stall, so the record resolves to its base through
+  // the alias (the new identity model), not through a lexical strip.
   insertFreestyleTrick(db, { slug: 'clipper-stall', canonical_name: 'clipper-stall', category: 'compound', adds: '1' });
+  insertFreestyleTrickAlias(db, 'clipper-stall-ss', 'clipper-stall', 'clipper stall (ss)');
   insertFreestyleRecord(db, {
     trick_name:   'Clipper Stall (ss)',
     record_type:  'trick_consecutive',
@@ -60,7 +64,7 @@ describe('Record-to-trick linkage', () => {
     expect(res.text).toContain('Juggle Holder');
   });
 
-  it('a record named with an (ss) qualifier lists on its base trick page', async () => {
+  it('a record named with an (ss) qualifier lists on its base trick page via an alias', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/clipper-stall');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Qualifier Holder');

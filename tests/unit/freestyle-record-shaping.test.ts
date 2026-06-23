@@ -1,16 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { trickNameToSlug } from '../../src/services/freestyleRecordShaping';
 
-// Records link to tricks by name through this slugifier. A trailing side
-// qualifier must not change the slug, or a record named "Clipper Stall (ss)"
-// points at a non-existent clipper-stall-ss page in both directions.
+// Records link to tricks by name through this slugifier. A positional qualifier
+// is structural, not lexical, so the slugifier preserves it (it is NOT stripped),
+// matching the loader's slug derivation. Whether a positional name resolves to the
+// base, to another canonical, or to a new trick is decided by configuration, not
+// by this lexical step.
 describe('trickNameToSlug', () => {
-  it('strips a trailing side qualifier so a record resolves to its base trick', () => {
-    expect(trickNameToSlug('Clipper Stall (ss)')).toBe('clipper-stall');
-    expect(trickNameToSlug('Dyno (op)')).toBe('dyno');
-    expect(trickNameToSlug('Double Leg Over (ss)')).toBe('double-leg-over');
-    expect(trickNameToSlug('Rev Whirl (op)')).toBe('rev-whirl');
-    expect(trickNameToSlug('Symposium Swirl (op)')).toBe('symposium-swirl');
+  it('preserves a positional qualifier so app resolution agrees with the loader', () => {
+    expect(trickNameToSlug('Clipper Stall (ss)')).toBe('clipper-stall-ss');
+    expect(trickNameToSlug('Dyno (op)')).toBe('dyno-op');
+    expect(trickNameToSlug('Double Leg Over (ss)')).toBe('double-leg-over-ss');
+    expect(trickNameToSlug('Rev Whirl (op)')).toBe('rev-whirl-op');
+    expect(trickNameToSlug('Symposium Swirl (op)')).toBe('symposium-swirl-op');
   });
 
   it('leaves a bare trick name unchanged', () => {
