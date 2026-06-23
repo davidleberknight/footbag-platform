@@ -112,6 +112,28 @@ stylesheet / template convention gates (§4.8) — colors from `:root` tokens (n
 bodies), `--radius*` tokens for corners, `--font-body` / `--font-mono` only, no inline `style` or
 `script`, no nested `<form>`, and template-class-to-`style.css` correspondence.
 
+## Content and copy standard
+
+Public page copy (the hero intro, every section intro, and every filtered-state header) is
+service-shaped and rendered verbatim by templates, so this standard binds the page-shaping service
+author as much as the template. It applies without exception to the freestyle dictionary surfaces,
+where it is most often violated.
+
+- Lead with orientation, never a metric. The first sentence of a page or a filtered state tells the
+  visitor where they are and what they can do here, in plain language. No body intro opens with a raw
+  count or inventory statistic (for example a trick total); counts are supporting metadata placed
+  lower on the page, not the lede.
+- Plain words over internal vocabulary. Orientation copy a newcomer reads uses everyday language.
+  Internal or taxonomic terms ("officially documented", "not-yet-promoted", "source-variant", "lens",
+  "Emerging Vocabulary") are avoided in primary orientation copy, or introduced with a plain-language
+  gloss and a glossary link; never assumed.
+- Short, one idea per sentence. An intro is a few short sentences, not one dense paragraph stacking
+  definitions and parentheticals. A concept that needs explaining links to the glossary instead of
+  inlining a taxonomy.
+- Every filtered or deep-linked state self-orients. Each dictionary filter and view state says where
+  the visitor is, what the subset means, how to clear or change it, and how to reach beginner help; no
+  state leads with the full-dictionary count.
+
 ## Where the rest lives
 
 - Template mechanics (what templates MAY / MUST NOT do, registered helpers, pre-shaped-boolean

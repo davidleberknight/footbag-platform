@@ -224,16 +224,16 @@ services:
       IMAGE_PORT: "4000"
       # Scaled to 1 for nano_3_0; production target is 2.
       IMAGE_MAX_CONCURRENT: ${IMAGE_MAX_CONCURRENT:-1}
-      # libx264 tuning. Defaults (unset) use the canonical preset=medium,
-      # auto-thread, rc-lookahead=40 and require ~150-200M of working set on
-      # top of the Node + libav baseline. On the 256M nano_3_0 image
-      # container that combination cgroup-OOMs at frame 0; staging therefore
-      # overrides to preset=veryfast, threads=1, rc-lookahead=10 (~50-80M
-      # working set). Production hosts leave these unset to keep the
-      # canonical encode quality.
-      VIDEO_X264_PRESET: ${VIDEO_X264_PRESET:-veryfast}
-      VIDEO_X264_THREADS: ${VIDEO_X264_THREADS:-1}
-      VIDEO_X264_RC_LOOKAHEAD: ${VIDEO_X264_RC_LOOKAHEAD:-10}
+      # libx264 tuning. Unset uses the canonical preset=medium, auto-thread,
+      # rc-lookahead=40 and requires ~150-200M of working set on top of the
+      # Node + libav baseline. On the 256M nano_3_0 image container that
+      # combination cgroup-OOMs at frame 0; the staging env file overrides to
+      # preset=veryfast, threads=1, rc-lookahead=10 (~50-80M working set).
+      # Production sets none of these, so the empty fallback passes through and
+      # the worker uses the canonical encode quality.
+      VIDEO_X264_PRESET: ${VIDEO_X264_PRESET:-}
+      VIDEO_X264_THREADS: ${VIDEO_X264_THREADS:-}
+      VIDEO_X264_RC_LOOKAHEAD: ${VIDEO_X264_RC_LOOKAHEAD:-}
       # Shared secret used by the image worker to authenticate /process/*
       # callers. Same value as the web<->worker channel; web's adapters set
       # it on the x-internal-secret header.

@@ -208,14 +208,14 @@ the host-env verification runbook (§10.13).
 | `WORKER_MEMORY_LIMIT` | `96M` | `384M` |
 | `IMAGE_MEMORY_LIMIT` | `256M` | `896M` |
 | `IMAGE_MAX_CONCURRENT` | `1` | `2` |
-| `VIDEO_X264_PRESET` | `veryfast` | `veryfast` (compose-overlay default; `production.env` sets no override) |
-| `VIDEO_X264_THREADS` | `1` | `1` (compose-overlay default) |
-| `VIDEO_X264_RC_LOOKAHEAD` | `10` | `10` (compose-overlay default) |
+| `VIDEO_X264_PRESET` | `veryfast` | `medium` (x264 default; `production.env` sets no override) |
+| `VIDEO_X264_THREADS` | `1` | auto (x264 default) |
+| `VIDEO_X264_RC_LOOKAHEAD` | `10` | `40` (x264 default) |
 
 Video-encoder tuning is env-driven: `docker/env/staging.env` sets `VIDEO_X264_PRESET` / `_THREADS` /
-`_RC_LOOKAHEAD` explicitly, and where `/srv/footbag/env` sets none, the `docker-compose.prod.yml` overlay
-defaults (`veryfast` / `1` / `10`) apply. `docker/env/production.env` sets no override, so production
-inherits those overlay defaults.
+`_RC_LOOKAHEAD` explicitly to fit the small staging host. `docker/env/production.env` sets no override,
+and the `docker-compose.prod.yml` overlay passes an empty value through when none is set, so production
+transcodes at x264's canonical defaults (`medium` preset, auto threads, rc-lookahead 40).
 
 ### 3.3 Single-instance property
 

@@ -3081,6 +3081,7 @@ section.home-media { padding-top: 0; }
   .search-box-section { flex-direction: column; align-items: stretch; }
   .search-box-form { flex-direction: column; }
   .search-box-input { max-width: none; }
+  .search-box-form .btn { width: 100%; }
   .hero.hero-with-mascot { flex-direction: column; text-align: center; gap: 16px; }
   .hero.hero-with-mascot .hero-text { max-width: none; }
   .hero-mascot { width: 110px; height: 110px; }
