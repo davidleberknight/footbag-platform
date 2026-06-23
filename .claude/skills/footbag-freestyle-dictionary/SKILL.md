@@ -433,6 +433,16 @@ The active dictionary descriptions live in two CSVs, both loaded into `freestyle
 
 ## 2. Modifier Layer
 
+**Single-authority rule (operator / modifier doctrine).** `src/content/freestyleOperatorReference.ts`
+is the CANONICAL source for every operator / modifier's ADD value, structure, and X-Dex behavior.
+All other operator/modifier-describing surfaces are SECONDARY and must stay consistent with it:
+`freestyleMovementSystems.ts` (composition glosses), `freestyleStructuralFactNotes.ts`,
+`freestyleOperatorGrammar.ts`, the DB `freestyle_trick_modifiers` registry, and the public glossary
+operator/modifier text. When operator doctrine changes, edit `operatorReference.ts` first, then bring
+the secondary surfaces into line; never let a secondary surface assert a value or behavior that
+contradicts it. Drift between them is a bug (this is what produced the retired "+2 rotational" /
+"hidden dex" / X-Dex-conflation text on the atomic detail pages).
+
 Use the modifier system for structural components that alter tricks.
 
 Examples:
