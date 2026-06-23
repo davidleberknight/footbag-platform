@@ -641,7 +641,7 @@ docker compose \
 
 ### 1.14 Dev and tester shortcuts (advanced)
 
-> These are advanced shortcuts for maintainers and testers. None of them are needed to reach hello world (§1.1-§1.10); a new developer can skip this section. The tester journey is the developer journey above plus the persona switching in §1.14.3.
+> These are advanced shortcuts for maintainers and testers. None of them are needed to reach hello world or run the default test suite; a new developer can skip this section. The tester journey is the developer journey above plus the persona switching in §1.14.3.
 
 #### 1.14.1 Dev admin allowlist (maintainers)
 

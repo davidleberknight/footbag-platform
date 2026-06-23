@@ -31,6 +31,14 @@ variable "route53_zone_id" {
   description = "Route 53 hosted zone ID for domain_name"
   type        = string
   # TODO: Import or create the hosted zone, then fill in
+
+  # The production ACM certificate (acm.tf) validates via a Route53 DNS record
+  # with no count gate, so an empty or wrong zone id makes the first apply hang
+  # ~15 minutes on certificate validation before failing. Fail fast instead.
+  validation {
+    condition     = var.route53_zone_id != ""
+    error_message = "route53_zone_id is required: a delegated Route 53 hosted zone must exist before the first production apply, or ACM certificate validation hangs."
+  }
 }
 
 variable "lightsail_bundle_id" {
@@ -66,11 +74,21 @@ variable "state_bucket_suffix" {
 variable "operator_cidrs" {
   description = "CIDR ranges permitted to SSH into the Lightsail instance. Set in tfvars; do not leave empty."
   type        = list(string)
+
+  validation {
+    condition     = length(var.operator_cidrs) > 0 && alltrue([for c in var.operator_cidrs : c != ""])
+    error_message = "operator_cidrs must list at least one non-empty CIDR; an empty entry produces an invalid Lightsail firewall rule that fails at apply."
+  }
 }
 
 variable "lightsail_origin_dns" {
   description = "Resolvable DNS hostname used as the CloudFront custom origin. Production must use a real A record (e.g. origin.footbag.org); CloudFront does not accept raw IPs."
   type        = string
+
+  validation {
+    condition     = var.lightsail_origin_dns != "" && !startswith(var.lightsail_origin_dns, "TODO")
+    error_message = "lightsail_origin_dns must be a real resolvable hostname for the CloudFront custom origin; the terraform.tfvars.example placeholder (TODO-...) is rejected."
+  }
 }
 
 # ── Phased-apply feature gates ───────────────────────────────────────────────

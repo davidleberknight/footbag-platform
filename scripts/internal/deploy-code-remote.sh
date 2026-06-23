@@ -219,6 +219,20 @@ if ! grep -q '^SAFE_BROWSING_ADAPTER=' "$ENV_PATH"; then
   mv "$env_tmp" "$ENV_PATH"
 fi
 
+# One-shot migration: FOOTBAG_DB_DIR seed. Mirrors deploy-rebuild-remote.sh so a
+# code-only deploy onto a host whose env predates the directory-mount layout
+# still points at the right DB directory instead of the docker-compose default
+# fallback. Operator-set values are preserved.
+if ! grep -q '^FOOTBAG_DB_DIR=' "$ENV_PATH"; then
+  echo "==> Seeding FOOTBAG_DB_DIR=/srv/footbag/db into $ENV_PATH..."
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  cp "$ENV_PATH" "$env_tmp"
+  printf 'FOOTBAG_DB_DIR=%s\n' '/srv/footbag/db' >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+fi
+
 # Reconcile SES_ADAPTER for non-production hosts. src/config/env.ts forces the
 # stub adapter on staging and development (so no real mail leaves a
 # non-production environment) and refuses any other value at boot, so the

@@ -100,6 +100,14 @@ services:
       # Unused in stub mode (stub adapter uses its own whsec_stub secret);
       # required by env.ts boot only when PAYMENT_ADAPTER=live.
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # CaptchaAdapter for the claim/registration surface. Stub default in every
+      # tier; an operator opts into live Cloudflare Turnstile by setting
+      # CAPTCHA_ADAPTER=live and the public TURNSTILE_SITE_KEY in /srv/footbag/env
+      # (the private secret lives in SSM as turnstile_secret_key). env.ts requires
+      # the site key only when CAPTCHA_ADAPTER=live. Without this passthrough the
+      # vars never reach the container and live captcha cannot be enabled.
+      CAPTCHA_ADAPTER: ${CAPTCHA_ADAPTER:-stub}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       FOOTBAG_DEV_INITIAL_ADMIN_EMAILS: ${FOOTBAG_DEV_INITIAL_ADMIN_EMAILS:-}
       # Shared secret for web<->image auth (and web<->worker, in s3 mode).
       # No default literal: a known fallback would let anything that reaches

@@ -144,8 +144,9 @@ export interface AppConfig {
   // unrelated boot hooks). env.ts refuses to enable it outside the Vitest
   // runner, so it is unreachable in development/staging/production.
   useCheapPasswordHash: boolean;
-  // PaymentAdapter selector. 'live' wraps the Stripe SDK (currently a
-  // placeholder; the live factory throws until the Stripe-SDK slice ships);
+  // PaymentAdapter selector. 'live' wraps the Stripe SDK; the live factory is
+  // implemented and resolves the API key lazily from SSM, so activation pends a
+  // real Stripe key in SSM plus STRIPE_WEBHOOK_SECRET, not further code.
   // 'stub' is a programmable in-memory simulation that exercises the same
   // Stripe-shaped webhook plumbing end-to-end. Required to be explicit in
   // production; production rejects 'stub'.
@@ -514,7 +515,7 @@ function loadConfig(): AppConfig {
   // forbids the stub.
   if (paymentAdapter === 'stub' && footbagEnv === 'production') {
     throw new Error(
-      "PAYMENT_ADAPTER='stub' is forbidden in production; use PAYMENT_ADAPTER=live (currently fails fast until the Stripe-SDK slice ships)",
+      "PAYMENT_ADAPTER='stub' is forbidden in production; use PAYMENT_ADAPTER=live (requires the real Stripe key in SSM plus STRIPE_WEBHOOK_SECRET)",
     );
   }
 

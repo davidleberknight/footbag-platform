@@ -114,6 +114,38 @@ resource "aws_route53_record" "ses_dkim" {
   records = ["${aws_ses_domain_dkim.main[0].dkim_tokens[count.index]}.dkim.amazonses.com"]
 }
 
+# ── Custom MAIL FROM domain ──────────────────────────────────────────────────
+# Without a custom MAIL FROM, SES uses <region>.amazonses.com as the envelope
+# Return-Path, so SPF can never DMARC-align with the From: domain and
+# deliverability leans solely on DKIM. A MAIL FROM subdomain (mail.<domain>)
+# gives a Return-Path under the org domain that aligns under relaxed SPF (see
+# the DMARC aspf=r below) and improves sender reputation at major receivers. It
+# needs its own MX (to the SES feedback endpoint) and SPF TXT record.
+
+resource "aws_ses_domain_mail_from" "main" {
+  count            = var.ses_enable_domain_auth ? 1 : 0
+  domain           = aws_ses_domain_identity.main[0].domain
+  mail_from_domain = "mail.${var.domain_name}"
+}
+
+resource "aws_route53_record" "ses_mail_from_mx" {
+  count   = var.ses_enable_domain_auth ? 1 : 0
+  zone_id = var.route53_zone_id
+  name    = aws_ses_domain_mail_from.main[0].mail_from_domain
+  type    = "MX"
+  ttl     = 600
+  records = ["10 feedback-smtp.${var.aws_region}.amazonses.com"]
+}
+
+resource "aws_route53_record" "ses_mail_from_spf" {
+  count   = var.ses_enable_domain_auth ? 1 : 0
+  zone_id = var.route53_zone_id
+  name    = aws_ses_domain_mail_from.main[0].mail_from_domain
+  type    = "TXT"
+  ttl     = 600
+  records = ["v=spf1 include:amazonses.com ~all"]
+}
+
 # ── SPF ──────────────────────────────────────────────────────────────────────
 # Single TXT record at the apex listing every authorised sender. SES
 # requires `include:amazonses.com`. ~all (softfail) is the conservative
@@ -132,7 +164,9 @@ resource "aws_route53_record" "spf" {
 # ── DMARC ────────────────────────────────────────────────────────────────────
 # Starts at p=quarantine with aggregate reports enabled so the platform
 # learns about failures without instantly dropping legitimate mail.
-# Tighten to p=reject after a week of clean reports.
+# Tighten to p=reject after a week of clean reports. aspf=r (relaxed) so the
+# custom MAIL FROM subdomain (mail.<domain>) Return-Path aligns; adkim=s stays
+# strict because the domain DKIM signs d=<domain>, matching the From: domain.
 
 resource "aws_route53_record" "dmarc" {
   count   = var.ses_enable_domain_auth ? 1 : 0
@@ -142,8 +176,8 @@ resource "aws_route53_record" "dmarc" {
   ttl     = 600
   records = [
     var.ses_dmarc_rua_email != ""
-    ? "v=DMARC1; p=quarantine; rua=mailto:${var.ses_dmarc_rua_email}; adkim=s; aspf=s; pct=100"
-    : "v=DMARC1; p=quarantine; adkim=s; aspf=s; pct=100"
+    ? "v=DMARC1; p=quarantine; rua=mailto:${var.ses_dmarc_rua_email}; adkim=s; aspf=r; pct=100"
+    : "v=DMARC1; p=quarantine; adkim=s; aspf=r; pct=100"
   ]
 }
 

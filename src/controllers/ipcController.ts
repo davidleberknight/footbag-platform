@@ -40,7 +40,8 @@ export const ipcController = {
     try {
       const secret = config.sesFeedbackWebhookKey;
       if (!secret) {
-        res.status(503).json({ error: 'SES_FEEDBACK_WEBHOOK_KEY not configured' });
+        logger.error('ses_feedback.webhook_key_unconfigured');
+        res.status(500).json({ error: 'SES_FEEDBACK_WEBHOOK_KEY not configured' });
         return;
       }
       const provided = Buffer.from(typeof req.query.key === 'string' ? req.query.key : '');

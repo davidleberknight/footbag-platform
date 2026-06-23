@@ -316,7 +316,7 @@ case "${P[TF_SES_SUBSCRIPTION]}" in
     ;;
   absent)
     row 5 "SES feedback" PENDING "no SNS webhook subscription in terraform state"
-    next_cmd "set tfvar ses_feedback_webhook_url (includes ?key=<INTERNAL_EVENT_SECRET>), apply, confirm the SubscribeURL from the audit row, then scripts/verify-prod-email.sh --profile <profile> --confirm-production --bounce-probe"
+    next_cmd "run scripts/activate-ses-feedback.sh to generate SES_FEEDBACK_WEBHOOK_KEY (must differ from INTERNAL_EVENT_SECRET; it travels in the SNS subscription URL and lands in access logs), set tfvar ses_feedback_webhook_url (includes ?key=<SES_FEEDBACK_WEBHOOK_KEY>), apply, confirm the SubscribeURL from the audit row, then scripts/verify-prod-email.sh --profile <profile> --confirm-production --bounce-probe"
     ;;
   *)
     row 5 "SES feedback" UNKNOWN "terraform state unavailable"
