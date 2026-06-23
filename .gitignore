@@ -147,6 +147,9 @@ CLAUDE.local.md
 .playwright-mcp/
 # Playwright test runner output (per-run results, traces, screenshots)
 tests/test-results/
+# A Playwright run invoked with no -c config defaults its outputDir to the repo
+# root instead of tests/test-results/; ignore that stray location too.
+/test-results/
 # Defensive: stray screenshots / page snapshots that escape into the repo root
 /*.png
 /page-*.yml
@@ -187,20 +190,8 @@ legacy_data/inputs/identity_lock/Persons_Truth_Final_v*.csv
 legacy_data/out/
 legacy_data/event_results/seed/
 database/footbag.db
-legacy_data/out/
-legacy_data/event_results/seed/
-database/footbag.db
-legacy_data/out/
-legacy_data/event_results/seed/
 legacy_data/Footbag_Results_Canonical.xlsx
 legacy_data/mirror_footbag_org
-database/footbag.db
-legacy_data/out/
-legacy_data/event_results/seed/
-legacy_data/Footbag_Results_Canonical.xlsx
-legacy_data/mirror_footbag_org
-database/footbag.db
-legacy_data/event_results/seed/
 *.zip
 *.lnk
 *BAK

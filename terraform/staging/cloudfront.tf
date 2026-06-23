@@ -231,7 +231,7 @@ resource "aws_cloudfront_distribution" "main" {
     cached_methods         = ["GET", "HEAD"]
     compress               = true
 
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_optimized.id
+    cache_policy_id          = aws_cloudfront_cache_policy.static_assets.id
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.cors_s3_origin.id
   }
 
@@ -244,7 +244,7 @@ resource "aws_cloudfront_distribution" "main" {
     cached_methods         = ["GET", "HEAD"]
     compress               = true
 
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_optimized.id
+    cache_policy_id          = aws_cloudfront_cache_policy.static_assets.id
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.cors_s3_origin.id
   }
 

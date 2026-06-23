@@ -3,7 +3,7 @@
     <h1>{{page.title}}</h1>
     {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
   </div>
-  <img class="hero-mascot" src="{{content.mascotSrc}}" alt="{{content.mascotAlt}}" width="150" height="150">
+  <img class="hero-mascot" src="{{{asset content.mascotSrc}}}" alt="{{content.mascotAlt}}" width="150" height="150">
 </div>
 
 <div class="wrapper sideline-landing">
@@ -19,7 +19,7 @@
   <section class="content-section sideline-game" id="{{slug}}">
     <div class="sideline-game-header">
       {{#if iconSrc}}
-      <img class="sideline-game-icon" src="{{iconSrc}}" alt="{{iconAlt}}" width="120" height="120">
+      <img class="sideline-game-icon" src="{{{asset iconSrc}}}" alt="{{iconAlt}}" width="120" height="120">
       {{/if}}
       <h2>{{title}}</h2>
     </div>

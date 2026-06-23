@@ -5,7 +5,7 @@
 # =============================================================================
 
 environment    = "production"
-aws_region     = "us-east-2"                  # TODO: Confirm production region
+aws_region     = "us-east-1"                  # SES sender identity and the CloudFront ACM cert are region-bound here; DR replicates to us-west-2
 aws_account_id = "TODO-12-digit-account-id"
 
 domain_name     = "footbag.org"               # TODO: Confirm apex domain
@@ -43,9 +43,12 @@ lightsail_origin_dns = "TODO-origin.footbag.org"
 # Pass 1 (first apply): both false. Pass 2: enable_cwagent_alarms = true
 # AFTER scripts/install-cwagent-remote.sh has run and CWAgent is confirmed
 # emitting metrics. Pass 3: enable_backup_alarm = true AFTER the snapshot
-# job emits BackupAgeMinutes. ses_enable_domain_auth stays true (default)
-# once route53_zone_id is populated; set to false only if applying without
-# a hosted zone.
-enable_cwagent_alarms  = false
-enable_backup_alarm    = false
-ses_enable_domain_auth = true
+# job emits BackupAgeMinutes. ses_enable_domain_auth: keep false until
+# route53_zone_id names a zone Route 53 actually serves (the webmaster holds
+# the authoritative zone until the DNS-handover milestone), else its records
+# will not resolve; flip to true at handover. enable_cutover_login_alarm:
+# true for the cutover monitoring window only, back to false after.
+enable_cwagent_alarms      = false
+enable_backup_alarm        = false
+ses_enable_domain_auth     = false
+enable_cutover_login_alarm = false

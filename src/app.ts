@@ -23,7 +23,7 @@ import { publicRouter, STRIPE_WEBHOOK_PATH }   from './routes/publicRoutes';
 // export null, so the import is safe everywhere.
 import { devRouter }      from './testkit/devRoutes';
 import { redactTokenPaths } from './lib/redactTokenPaths';
-import { assetUrl } from './lib/assetVersion';
+import { assetUrl, renderStylesheet } from './lib/assetVersion';
 import { countryFlag } from './services/countryUtils';
 import { externalLinkHelper } from './web/helpers/externalLink';
 import { formatDate } from './lib/handlebarsHelpers';
@@ -125,12 +125,25 @@ export function createApp(): express.Application {
     });
   }
 
+  // The stylesheet pulls in fonts via `url(...)`, which cannot call the `asset`
+  // helper, so it is served from a copy whose font URLs are rewritten once to
+  // carry the same `?v=<hash>` token. Registered ahead of express.static so the
+  // rewritten copy wins; a versioned request is immutable like any other asset.
+  app.get('/css/style.css', (req, res) => {
+    const { css } = renderStylesheet();
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    if (new URLSearchParams(req.url.split('?')[1] ?? '').has('v')) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+    res.send(css);
+  });
+
   // Served from src/public/ so .hbs templates can reference /css/style.css etc.
   // process.cwd() resolves correctly from both tsx (dev) and dist/ (prod).
-  // A request carrying a `?v=<hash>` version token (emitted by the `asset` helper)
-  // is immutable: the hash changes when the bytes change, so the URL is safe to
-  // cache forever. Unversioned fetches (/img, /fonts referenced from CSS) keep
-  // express defaults.
+  // A request carrying a `?v=<hash>` version token (emitted by the `asset` helper,
+  // or by the rewritten stylesheet for its fonts) is immutable: the hash changes
+  // when the bytes change, so the URL is safe to cache forever. A direct
+  // unversioned fetch keeps express defaults.
   app.use(express.static(path.join(process.cwd(), 'src', 'public'), {
     setHeaders(res) {
       const query = res.req?.url?.split('?')[1] ?? '';

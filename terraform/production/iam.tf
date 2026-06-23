@@ -51,6 +51,15 @@ resource "aws_iam_role_policy" "app_ssm_read" {
         Resource = "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter${local.ssm_prefix}/*"
       },
       {
+        # The first-admin bootstrap token is single-use: the app deletes it the
+        # moment the claim is consumed, so the claim endpoint cannot be reused.
+        # Without delete permission the token survives and the endpoint stays open.
+        Sid      = "DeleteBootstrapAdminToken"
+        Effect   = "Allow"
+        Action   = ["ssm:DeleteParameter"]
+        Resource = "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter${local.ssm_prefix}/app/bootstrap/admin_token"
+      },
+      {
         Sid    = "DecryptSSMParameters"
         Effect = "Allow"
         Action = [

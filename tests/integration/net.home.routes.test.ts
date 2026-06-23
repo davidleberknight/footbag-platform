@@ -198,7 +198,7 @@ describe('GET /net — portal landing sections', () => {
   it('renders the net mascot image', async () => {
     const app = createApp();
     const res = await request(app).get('/net');
-    expect(res.text).toContain('src="/img/net-mascot.svg"');
+    expect(res.text).toMatch(/src="\/img\/net-mascot\.svg\?v=[0-9a-f]{10}"/);
     expect(res.text).toContain('hero-with-mascot');
   });
 

@@ -22,7 +22,9 @@
 #   4. project-root: test-initial-admins-*.txt   legacy register-test allowlist files
 #   5. dist/                       TypeScript compile output (npm run build)
 #   6. tests/coverage/             vitest v8 coverage reports
-#   7. tests/test-results/         Playwright trace / screenshot / video on failure
+#   7. tests/test-results/ (+ stray repo-root test-results/)  Playwright run artifacts; also
+#                                  sweeps a stray ./test-results/ left by a bare `playwright
+#                                  test` run without `-c tests/playwright.config.ts`
 #   8. .pytest_cache/              legacy Python tool cache
 #   9. database/footbag-ci.db*     local db-load-smoke artifacts
 #
@@ -139,7 +141,7 @@ sweep "project-root test-*.db*"            "test-*.db" "test-*.db-wal" "test-*.d
 sweep "project-root test-initial-admins-*" "test-initial-admins-*.txt"
 sweep "dist/"                              "dist"
 sweep "tests/coverage/"                    "tests/coverage"
-sweep "tests/test-results/"                "tests/test-results"
+sweep "tests/test-results/"                "tests/test-results" "test-results"
 sweep ".pytest_cache/"                     ".pytest_cache"
 sweep "database/footbag-ci.db*"            "database/footbag-ci.db" "database/footbag-ci.db-wal" "database/footbag-ci.db-shm"
 

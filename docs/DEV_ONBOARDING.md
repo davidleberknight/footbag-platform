@@ -2,17 +2,28 @@
 
 ## Local Quickstart, Architecture Orientation, and AWS Staging Deployment
 
-This guide helps contributors do different things: understand how the initial public slice is structured and how it was originally assembled, get that slice to run locally (view a working page in your browser), deploy the slice to AWS in a bootstrap scenario, and then close the bootstrap shortcuts.
+This guide helps contributors do different things: understand how the platform is structured and how it was originally assembled, get it running locally (view working pages in your browser), deploy to AWS in a bootstrap scenario, and then close the bootstrap shortcuts.
+
+> **Who you are (pick your lane).** This guide serves four kinds of contributor:
+>
+> - **New developer** — run it locally, learn the architecture, and deploy to **staging**. You never touch production. Lanes: Path A, then B, then C (history), then D/E/F.
+> - **New tester** — run it locally and/or exercise **staging**; switch between seeded personas (`/dev/switch`) and read captured dev/staging mail without a real inbox. You never touch production. Lanes: Path A, the persona/tester harness (see `docs/TESTING.md` §16), then D/F.
+> - **Initial operator / AWS maintainer** — the one who owns AWS, applies Terraform, performs production activation, and claims the first admin. The only lane that touches production. Lanes: everything above, plus Paths G, H, and I, plus the production Terraform spec.
+> - **Other actors** — the historical-data and freestyle pipeline maintainer and docs/design contributors work mostly outside this guide; start at Path B for orientation, then their domain (`legacy_data/` and `freestyle/` for the pipeline; `docs/` and `src/views/` for design and content).
+>
+> Production (Paths G, H, I) is operator-only. New developers and testers stop at staging.
 
 > **Choose your path**
 >
-> - **Path A**; I am a brand-new contributor on Windows + WSL. I need to install the tools, clone the repo with HTTPS, run the tests, start the dev server, and load the public Events + Results pages locally.
+> - **Path A**; I am a brand-new contributor on Windows + WSL. I need to install the tools, clone the repo with HTTPS, run the tests, start the dev server, and load the public pages locally.
 > - **Path B**; I need the architecture mental model, scope boundaries, and workflow rules.
 > - **Path C**; I need the original blank-slate build order, and detailed historical implementation logic, how to get that initial v0,1 setup to work.
 > - **Path D**; I already have the app working locally, and I am continuing the AWS bootstrap deployment.
 > - **Path E**; The first deployment works. I need the transition mental model: the Path E baseline boundaries, and where pre-production hardening lives.
 > - **Path F**; The initial deployment is working. I want the complete repeatable staging deploy workflow, including routine code-only deploys and destructive schema/dev deploys that rebuild and replace the host DB from scratch.
-> - **Path G**; The deploy workflow is established. I need the production-readiness hardening checklist before cutover.
+> - **Path G**; (operator) The deploy workflow is established. I need the production-readiness hardening checklist before cutover.
+> - **Path H**; (operator) Staging runs. I need to activate runtime AWS identity and transactional email on staging (KMS signing, SES, Stripe, Turnstile).
+> - **Path I**; (operator) Staging is fully activated. I am performing production activation (domain, DNS, SES production access, production KMS, host credentials).
 
 ---
 
@@ -26,13 +37,14 @@ This guide helps contributors do different things: understand how the initial pu
   - [1.5 Clone and install the project GitHub repository](#15-clone-and-install-the-project-github-repository)
   - [1.6 Local env file](#16-local-env-file)
   - [1.7 Reset the local database](#17-reset-the-local-database)
-  - [1.8 Run the test suite](#18-run-the-test-suite)
-  - [1.9 Run the dev server](#19-run-the-dev-server)
-  - [1.10 Browser verification](#110-browser-verification)
-  - [1.10A Optional: exercise Safe Browsing in dev](#110a-optional-exercise-safe-browsing-in-dev)
-  - [1.11 Optional deterministic checks](#111-optional-deterministic-checks)
-  - [1.12 Docker parity check](#112-docker-parity-check)
-  - [1.13 Filing a bug](#113-filing-a-bug)
+  - [1.8 Run the dev server](#18-run-the-dev-server)
+  - [1.9 Browser verification (hello world)](#19-browser-verification-hello-world)
+  - [1.10 Run the test suite](#110-run-the-test-suite)
+  - [1.11 Optional: exercise Safe Browsing in dev](#111-optional-exercise-safe-browsing-in-dev)
+  - [1.12 Optional deterministic checks](#112-optional-deterministic-checks)
+  - [1.13 Docker parity check](#113-docker-parity-check)
+  - [1.14 Dev and tester shortcuts (advanced)](#114-dev-and-tester-shortcuts-advanced)
+  - [1.15 Filing a bug](#115-filing-a-bug)
 - [2. Path B — Orientation: what this project is and how to think about it](#2-path-b--orientation-what-this-project-is-and-how-to-think-about-it)
   - [2.1 Project purpose and philosophy](#21-project-purpose-and-philosophy)
   - [2.2 Document relationships](#22-document-relationships)
@@ -54,6 +66,7 @@ This guide helps contributors do different things: understand how the initial pu
   - [4.7 Host bootstrap](#47-host-bootstrap)
   - [4.8 Deploy and start application](#48-deploy-and-start-application)
   - [4.9 Verification](#49-verification)
+  - [4.10 Optional: enable Safe Browsing live mode](#410-optional-enable-safe-browsing-live-mode)
 - [5. Path E — From first success to the repeatable staging baseline](#5-path-e--from-first-success-to-the-repeatable-staging-baseline)
   - [5.1 Why this section exists](#51-why-this-section-exists)
   - [5.2 What is complete now](#52-what-is-complete-now)
@@ -125,9 +138,9 @@ Success for this path means you can:
 - install dependencies
 - create `.env` - local environment variables file
 - reset the local DB
-- run tests
 - launch the dev server
-- verify `/events`, `/events/year/2025`, `/events/event_2025_beaver_open`, `/health/live`, and `/health/ready` in a browser
+- verify `/events`, `/events/year/2020`, an event detail page, `/health/live`, and `/health/ready` in a browser (hello world)
+- run the test suite
 - optionally run the Docker parity stack and local smoke script
 
 ### 1.2 Supported machine setup
@@ -136,15 +149,9 @@ This guide is written **WSL-first** for the newcomer path (Windows Subsystem for
 
 For Windows contributors, use this working model:
 
-1. If WSL is not already installed, open **PowerShell as Administrator** and run:
-  ```powershell
-   wsl --install
-  ```
-2. Restart Windows when prompted.
-3. Open **Ubuntu** from the Start menu and complete the first-time Linux username/password setup.
-4. From that point on, do the rest of this guide from the **Ubuntu shell**, not from `cmd.exe` or PowerShell.
-5. Keep the repo **inside the Linux filesystem** (for example `~/GIT/footbag-platform`), not under `/mnt/c/...`.
-6. Use your normal Windows browser to open forwarded `localhost` ports, and the Cursor IDE.
+- Install WSL Ubuntu once at the start of §1.4 (the commands live there), then run everything in this guide from the **Ubuntu shell**, not from `cmd.exe` or PowerShell.
+- Keep the repo **inside the Linux filesystem** (for example `~/GIT/footbag-platform`), not under `/mnt/c/...`.
+- Use your normal Windows browser to open forwarded `localhost` ports, and the Cursor IDE on Windows.
 
 Recommended Windows + WSL working model:
 
@@ -162,12 +169,14 @@ For the **minimum newcomer local path**, install these first:
 - Node.js via `nvm`
 - `npm`
 - `build-essential`
+- `python3` (with `python3-venv` and `python3-pip`)
 - `sqlite3`
 - `curl`
 - `unzip`
 - `ca-certificates`
 - `openssh-client`
 - `rsync`
+- Claude Code (`@anthropic-ai/claude-code`); required for all contributors
 
 If you know you will continue into **Path D** or **Path E**, also install or verify these:
 
@@ -175,20 +184,14 @@ If you know you will continue into **Path D** or **Path E**, also install or ver
 - `docker compose` support
 - AWS CLI v2
 - Terraform CLI
-- Claude Code
 - Cursor on Windows
 
 **Use Node 22 as the project baseline.**
 
 Notes:
 
-- this repo's Dockerfiles use `FROM node:22-alpine` in both the web and worker images, so Node 22 is the documented baseline to keep local and container behavior aligned
-- `package.json` declares `"engines": {"node": ">=18.0.0"}` but Node 22 is what this guide teaches
-- Node 24 became Active LTS in October 2025 and can work since `better-sqlite3` is already at `^12.6.2`, but it is not the documented baseline for this guide
-- this project uses `better-sqlite3`, which compiles a native addon during install
-- there is no Python-style virtual environment here; `node_modules/` is the per-clone dependency boundary
-- if you ever switch Node versions, run `npm rebuild`; `better-sqlite3` must be recompiled for the active Node version
-- `npm` is the intended package-manager baseline because it keeps blank-machine setup small and boring
+- the repo's Dockerfiles use `node:22-alpine` and `package.json` requires `"engines": {"node": ">=22.0.0"}`, so Node 22 keeps local and container behavior aligned
+- `better-sqlite3` compiles a native addon during install, which is why `build-essential` is required; if you switch Node versions afterward, run `npm rebuild`
 
 ### 1.4 First-time machine install steps
 
@@ -216,6 +219,9 @@ In the Ubuntu Linux terminal shell (Run all the following commands one at a time
 sudo apt update
 sudo apt install -y \
   build-essential \
+  python3 \
+  python3-venv \
+  python3-pip \
   sqlite3 \
   git \
   unzip \
@@ -232,6 +238,7 @@ Verify the basics:
 
 ```bash
 sqlite3 --version
+python3 --version
 git --version
 ssh -V
 rsync --version
@@ -264,6 +271,8 @@ git config --global user.name "Your Name"
 git config --global user.email "you@example.com"
 git config --global init.defaultBranch main
 ```
+
+> **Steps 5-7 are optional.** Docker, the AWS CLI, and Terraform are needed only for the Docker parity check (§1.13) and for Path D/E (AWS deployment), not to reach hello world. A new developer can skip to step 8. Claude Code (step 8) is required for all contributors.
 
 #### 5. Verify Docker from WSL if you will use Docker parity or any AWS path (you can skip this just to run a local server)
 
@@ -308,17 +317,15 @@ Verify the version is >= 1.11 (required by this project's `providers.tf`).
 
 #### 8. Install Claude Code in WSL (before you get into development work)
 
-Note that for this you will need a Pro plan from Anthropic, purchased through the web page.
-To get Claude Code to do any real work, you must complete the /login steps and authenticate.
-Ask your Claude AI about this in the chats to get precise steps.
+You need an Anthropic plan (Pro or above). Install it, then authenticate:
 
 ```bash
 npm install -g @anthropic-ai/claude-code
 claude --version
+claude        # then run /login and complete the browser OAuth sign-in
 ```
 
-The Cursor IDE runs in Windows, and connects to Linux.
-Claude Code runs inside WSL Linux.
+Claude Code runs inside WSL Linux; the Cursor IDE runs on Windows and connects to it.
 
 #### 9. Line-ending sanity check (Windows versus Linux incompatability)
 
@@ -383,140 +390,63 @@ Do not commit `.env` (make sure it is in your .gitignore)
 
 ### 1.7 Reset the local database
 
-> **Recommended one-shot:** `./run_dev.sh` at repo root installs npm deps + Python venv if missing, bootstraps the DB only when `database/footbag.db` is missing (pass `--reset` for a fast committed-seed reset, `--from-csv` for the deploy-parity rebuild, or `--soup-to-nuts` for the legacy-mirror rebuild plus the full seed set), and launches the dev web server + image worker together with clean Ctrl+C teardown. The rest of §1.7-1.9 is the manual breakdown for diagnostics.
-
-> **Minimal first-boot check (optional).** To confirm that `npm install` and `.env` are healthy before running the full seed pipeline, apply the schema only:
->
-> ```bash
-> rm -f ./database/footbag.db ./database/footbag.db-wal ./database/footbag.db-shm
-> sqlite3 ./database/footbag.db < ./database/schema.sql
-> ```
->
-> With only the schema applied, `npm run dev` (§1.9) boots and the following render: `http://localhost:3000/`, `http://localhost:3000/health/live`, `http://localhost:3000/health/ready`. Every other public route needs the full seed below. Run the full reset before browser verification in §1.10.
-
-Bootstrap the local database from schema plus seed data:
+On a fresh clone the database does not exist yet, and the event seed inputs it loads from (`legacy_data/event_results/canonical_input/`) are gitignored. Stage the committed, PII-free synthetic fixtures into those paths, then build the database from them:
 
 ```bash
+bash scripts/ci/stage_loader_smoke_fixtures.sh
 bash scripts/reset-local-db.sh
 ```
 
-This step requires the `sqlite3` CLI.
+The first command copies the synthetic event fixtures (`legacy_data/tests/fixtures/`) into the paths the loader reads; the second applies the schema and loads them. Both require the `sqlite3` CLI and `python3` (installed in §1.4); `reset-local-db.sh` creates a Python virtualenv under `scripts/.venv` on first run. The full IFPA dataset, including the member roster, is a separate maintainer handoff and is not needed to run the site locally.
 
 Expected result:
 
-- the script completes without error
-- the local DB file is rebuilt
-- the app has deterministic baseline data for local testing and optional smoke checks
+- both scripts complete without error
+- `database/footbag.db` is built
+- the app has deterministic fixture data for local browsing
 
-### 1.7.1 Dev admin allowlist (maintainers)
+After this first build, `./run_dev.sh` (§1.8) reuses the existing database. Re-run `bash scripts/reset-local-db.sh` whenever you want a clean rebuild.
 
-Admin in dev confers the curator role, which authors real `/curated/` content (the committed source of truth), so it is restricted to the project maintainers and is not a default setup step. Normal local development needs no admin, and a new developer does not self-grant it. If you need admin for a specific task, coordinate with a maintainer rather than adding yourself.
-
-For reference, the mechanism: the dev site auto-promotes a registrant whose normalized email is listed in the gitignored `.local/initial-admins.txt` allowlist (one email per line; `#` comments and blank lines allowed). A member whose email is not listed registers normally as a non-admin. The `.local/` directory is gitignored; never commit a file containing email addresses.
-
-Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's `.local/initial-admins.txt` into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9 and operationally documented in DEVOPS_GUIDE §17.8.
-
-### 1.7.2 Pre-seeding maintainer admin accounts (maintainers)
-
-Maintainers can also pre-seed admin accounts directly into the local database, no register or verify flow needed, so a maintainer admin login is available immediately after a DB reset. Like the allowlist above, this is maintainer tooling for authoring real curated content, not a step a new developer runs to grant themselves admin; the two mechanisms are documented here for reference.
-
-1. Create `.local/dev-admin-seed.json` at the repo root. The `.local/` directory is gitignored. Required fields per entry: `loginEmail`, `displayName`, `realName` (all non-empty strings). Optional `tier`: `'tier2'` or `'tier3'` (defaults to `'tier2'` since admin requires Tier 2+).
-
-   ```json
-   [
-     {
-       "loginEmail": "you@example.com",
-       "displayName": "Your Display Name",
-       "realName": "Your Real Name"
-     }
-   ]
-   ```
-
-2. Run the seed (combined with a fresh reset, or any time after the DB is bootstrapped):
-
-   ```bash
-   ./run_dev.sh --reset --seed-dev-admins
-   ```
-
-   Or, when the dev stack is already running, in a second shell:
-
-   ```bash
-   ./scripts/manage-dev-admin-seed.sh --seed-dev-admins
-   ```
-
-3. Verify each seeded admin lands with the dev-admin-seed marker:
-
-   ```bash
-   sqlite3 database/footbag.db "
-     SELECT m.login_email, m.is_admin, mtg.reason_code, mtg.new_tier_status
-     FROM members m
-     JOIN member_tier_grants mtg ON mtg.member_id = m.id
-     WHERE mtg.reason_code = 'dev_admin_seed.admin_tier2'
-     ORDER BY mtg.created_at DESC;
-   "
-   ```
-
-4. Log in with the seeded email plus the fixed dev-only password (see `src/dev-bootstrap/seedConfig.ts`). The password is identical for every seeded admin and is never echoed by the seed script.
-
-Exit codes: 0 success (one or more entries seeded, or already-marked idempotent no-op rows), 1 fatal (DB missing, JSON malformed, no seed input found, empty seed array), 2 one or more entries collide with a non-seed member already owning the email. Re-running with the same JSON is a no-op when the dev-admin-seed marker is already present. Conflicts are reported and not modified.
-
-Removal: rebuild the DB (`./run_dev.sh --reset`) clears all seeded rows. To audit leftover rows, run `./scripts/audit-dev-shortcuts.sh` (queries `reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'grant_admin_dev_%'`, `created_by LIKE 'dev-shortcuts/%'`, and `action_type = 'dev_admin_invariant_repair'`). All four counts must be zero before any production deploy. The seed refuses to load under `FOOTBAG_ENV=production`; staging uses a separate seed surface documented in DEVOPS_GUIDE §17.
-
-### 1.7.3 Dev-only shortcuts
-
-Several shortcuts exist to reduce friction during local manual testing. The runtime catalog of all dev shortcuts lives in `src/dev-bootstrap/runtime.ts`; the boot orchestrator there prints a consolidated banner showing which shortcuts are active on each `./run_dev.sh` start. The env-var-gated entries refuse to start in non-permitted environments via fail-fast guards in `src/config/env.ts`. The operator script entry runs in dev or staging via the deploy pipeline; production is hard-blocked by `src/dev-bootstrap/seedConfig.ts`.
-
-| Shortcut | Type | Allowed envs | What it does |
-|---|---|---|---|
-| `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` | env var | development AND staging | Email allowlist matched at registration; matching registrants get `is_admin=1` plus a Tier 2 grant plus audit rows in one transaction. The deploy pipeline parses `.local/initial-admins.txt` into this env var; the workstation file is the dev source. Production refused at boot and at deploy time. |
-| `GET /dev/switch?as=<slug>` | dev route | development and staging | Issues a real session cookie for a seeded persona via the production JWT primitive, so you act as any persona without a login chain. Audit-marked `dev_switch_persona`. |
-| `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog. Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by `seedConfig.ts`. |
-| `FOOTBAG_DEV_ADMIN_GRANT_TIER2` | env var | development only | At boot, every `is_admin=1` member whose ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant, enforcing the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role`. |
-| `./scripts/manage-dev-admin-seed.sh --seed-dev-admins` | operator script | development AND staging | Reads `.local/dev-admin-seed.json` (JSONC; or `FOOTBAG_DEV_ADMIN_SEED_JSON` on staging) and inserts admin member rows with `is_admin=1` plus a Tier 2 grant. Production blocked by `seedConfig.ts`. |
-
-Production has none of these shortcuts. Production admins requiring legacy-claim recovery use `manualLegacyClaimRecovery` (DD §3.9).
-
-#### Switch between personas in the browser (/dev/switch)
-
-Removes login friction during local manual testing of tier-gated and member-only flows. Seed the persona catalog once, then visit the switch route to act as any persona without a login chain:
+### 1.8 Run the dev server
 
 ```bash
-export FOOTBAG_ENV=development
-./run_dev.sh --seed-test-personas
-# then in a browser:
-#   http://localhost:3000/dev/switch?as=t0_fresh   (tier0)
-#   http://localhost:3000/dev/switch?as=admin_t2    (admin)
+./run_dev.sh
 ```
 
-The `/dev` router mounts under `FOOTBAG_ENV ∈ {development, staging}`, so the switch surface exists in development and staging but never in production. It issues a real session cookie via the same primitive the production login path uses (`createSessionJwt`), verified by the same auth middleware, then redirects to `/`. The canonical persona catalog lives in `src/testkit/canonicalPersonas.ts`.
+This launches both the web server (port 3000) and the image worker (port 4001). Avatar, photo, and curator video uploads route through the image worker over HTTP per DD §1.7's four-container topology; `npm run dev` alone fails uploads because no worker is listening. `./run_dev.sh` keeps both alive and tears both down on Ctrl+C; see also `npm run dev` and `npm run dev:image` if you want to run them individually for debugging.
 
-For the full tester workflow built on this harness (purchase flow from a fresh persona, the stub-checkout decline button, onboarding/legacy/clubs walk-throughs, and the captured-email card on dev and staging), see the tester runbook in `docs/TESTING.md` §16.
+On WSL2, the port is forwarded automatically, so you can use your normal browser on Windows.
 
-A maintainer who has seeded a `.local/dev-admin-seed.json` entry (see §1.7.2) can act as that admin: run the dev-admin seed so it lands as a Tier 2 admin member, then switch to its slug:
+### 1.9 Browser verification (hello world)
 
-```bash
-./scripts/manage-dev-admin-seed.sh --seed-dev-admins
-```
+This is the primary local success path.
 
-Without a tier grant, the dashboard membership block shows Tier 0 because there is no legacy data dump in dev. The dev-admin seed (`src/dev-bootstrap/seed.ts`) inserts a `member_tier_grants` row with `reason_code = 'dev_admin_seed.admin_tier2'` and an `is_admin=1` member row keyed on the JSON entry's email.
+Open these in a browser:
 
-A stub `legacy_members` row with no `legacy_email` (for example before the legacy data dump is loaded) is claimable from the onboarding wizard's `legacy_claim` task via the historical-person card-confirm path, which needs no email roundtrip; the mailbox-control round-trip is optional and only upgrades the audit evidence tier. Admins requiring manual recovery use the `manualLegacyClaimRecovery` flow.
+| URL                                                                              | Expected outcome                                     |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| [http://localhost:3000/events](http://localhost:3000/events)                     | events landing page renders, listing fixture events  |
+| [http://localhost:3000/events/year/2020](http://localhost:3000/events/year/2020) | 2020 archive renders the synthetic CI fixture events |
+| [http://localhost:3000/health/live](http://localhost:3000/health/live)           | `{"ok":true,"check":"live"}`                         |
+| [http://localhost:3000/health/ready](http://localhost:3000/health/ready)         | `{"ok":true,"check":"ready"}`                        |
 
-Optional admin Tier 2 invariant repair; set `FOOTBAG_DEV_ADMIN_GRANT_TIER2=1` to enforce the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role` on the data side. At boot, the orchestrator finds every `is_admin=1` member whose tier ledger reads below Tier 2 and inserts a `member_tier_grants` row with `reason_code = 'dev_admin_invariant_repair'` plus an `audit_entries` row with `action_type = 'dev_admin_invariant_repair'`. Idempotent (already-Tier-2+ admins skipped). Useful when the dev-admin-seed conflict exit code (2) reports a member that exists outside the seed flow without the matching tier grant. Same fail-fast guard as the other dev vars: rejected at boot in any non-development environment.
+What matters here:
 
-```bash
-export FOOTBAG_DEV_ADMIN_GRANT_TIER2=1
-```
+- the Events landing page renders cleanly
+- the 2020 year archive lists the synthetic fixture events
+- opening any event from the archive renders its detail/results page cleanly
+- the health endpoints return clean liveness/readiness responses
+- you can click around the public slice locally without stack traces or route confusion
 
-The two marker columns (`reason_code = 'dev_admin_invariant_repair'` and `action_type = 'dev_admin_invariant_repair'`) are part of the pre-deploy grep checklist in `docs/DEVOPS_GUIDE.md` §17.7; both must return zero rows from any production database.
+These are the committed CI fixtures (synthetic, no real or member data). With a full operator data handoff loaded, the real archive (for example `/events/year/2025`) and event pages appear instead.
 
-### 1.8 Run the test suite
+### 1.10 Run the test suite
 
 ```bash
 npm test
 ```
 
-This is the first proof that your local environment is healthy. Tests should pass before you spend time debugging browser behavior.
+With the site running, run the suite to confirm your environment is healthy end to end.
 
 The suite is split:
 
@@ -531,6 +461,21 @@ The suite is split:
 - `npm run build`; `tsc -p tsconfig.json` typecheck. Must pass before any PR.
 
 The suite includes a migration-testing cluster under `tests/integration/` that exercises the legacy-data import path (legacy-claim merge, two-step emailed-token claim flow, batch auto-link SYS job, HP-detail Claim CTA, transaction atomicity) plus the dev-admin-seed schema-coupling canary and password-leak regression.
+
+#### The full local suite (`run_all_tests.sh`)
+
+`npm test` is the inner loop. Before a PR, run the comprehensive local gate. The e2e gate drives Playwright, whose browsers are a one-time install:
+
+```bash
+npx playwright install        # one-time: Playwright e2e browsers
+./run_all_tests.sh --full     # the complete suite
+```
+
+Developers and testers should run the complete suite with `--full`, and it is meant to pass for them on a plain workstation. The default `./run_all_tests.sh` runs every gate that is safe on a workstation: build, lint, dependency audit, conventions, secret-scan, unit, integration, e2e, and terraform fmt/validate (`--quick` skips e2e and terraform for a fast loop). `--full` adds the heavyweight pentest, the staging-AWS smoke, and the persona-crawl; on a fixture-seeded clone (no operator data handoff, no AWS profile) the staging-smoke and persona-crawl SKIP with a warning while every other gate still runs, so the run completes green instead of failing on data or credentials you are not expected to have.
+
+> **The persona-crawl gate, for developers and testers.** `--full` includes a persona-crawl that drives the build-switch persona journey (`/dev/build-switch?as=...`) and checks a fully onboarded profile: the Hall-of-Fame identity, the co-led `Wellington Hack Crew` club, and the media and onboarding pages. That data comes from the full operator load, not the synthetic fixtures, so the gate SKIPs on a fixture clone. To run it, do the full data load (below), start `./run_dev.sh`, then `./run_all_tests.sh --with-persona-crawl`.
+>
+> **Final note — the full data load needs operator data kept out of GitHub, including a PII file.** The full load (`./run_dev.sh --from-csv`) requires the operator dataset, which a fresh clone does not have. Part of it is the IFPA member roster, `legacy_data/membership/inputs/membership_input_normalized.csv`, which is deliberately kept out of GitHub because it contains member PII (email addresses and personal data). Request the dataset from the project maintainer if you need the full load. The hello-world journey above and the default `./run_all_tests.sh` need none of it; they run entirely on the committed synthetic fixtures.
 
 #### Writing new tests
 
@@ -607,39 +552,7 @@ docker pull owasp/zap2docker-stable
 
 Per `docs/TESTING.md` §9.3. Operator-invoked; never runs unattended against production.
 
-### 1.9 Run the dev server
-
-```bash
-./run_dev.sh
-```
-
-This launches both the web server (port 3000) and the image worker (port 4001). Avatar, photo, and curator video uploads route through the image worker over HTTP per DD §1.7's four-container topology; `npm run dev` alone fails uploads because no worker is listening. `./run_dev.sh` keeps both alive and tears both down on Ctrl+C; see also `npm run dev` and `npm run dev:image` if you want to run them individually for debugging.
-
-On WSL2, the port is forwarded automatically, so you can use your normal browser on Windows.
-
-### 1.10 Browser verification
-
-This is the primary local success path.
-
-Open these in a browser:
-
-| URL                                                                                                        | Expected outcome                                 |
-| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| [http://localhost:3000/events](http://localhost:3000/events)                                               | events landing page renders                      |
-| [http://localhost:3000/events/year/2025](http://localhost:3000/events/year/2025)                           | 2025 archive renders                             |
-| [http://localhost:3000/events/event_2025_beaver_open](http://localhost:3000/events/event_2025_beaver_open) | canonical event detail page renders with results |
-| [http://localhost:3000/health/live](http://localhost:3000/health/live)                                     | `{"ok":true,"check":"live"}`                     |
-| [http://localhost:3000/health/ready](http://localhost:3000/health/ready)                                   | `{"ok":true,"check":"ready"}`                    |
-
-What matters here:
-
-- the Events landing page renders cleanly
-- the year archive page renders cleanly
-- the canonical event detail/results page renders cleanly
-- the health endpoints return clean liveness/readiness responses
-- you can click around the public slice locally without stack traces or route confusion
-
-### 1.10A Optional: exercise Safe Browsing in dev
+### 1.11 Optional: exercise Safe Browsing in dev
 
 Default dev behavior: stub `SafeBrowsingAdapter` with the canonical Google
 malware test URL pre-seeded. Submitting `http://malware.testing.google.test/testing/malware/`
@@ -668,11 +581,9 @@ SAFE_BROWSING_API_KEY="<your-key>" RUN_STAGING_SMOKE=1 \
 
 Expects 3/3 pass.
 
-### 1.11 Optional deterministic checks
+### 1.12 Optional deterministic checks
 
-The primary local proof already includes `/events/event_2025_beaver_open`, because that is the canonical event detail/results page. It is not optional.
-
-The routes below are **optional additional deterministic checks**:
+The browser checks in §1.9 are the required proof. The routes below are **optional additional deterministic checks** (the 404 cases hold regardless of which dataset is loaded):
 
 - `/events/event_2026_draft_event`; should not be public; expected 404
 - `/events/event_9999_does_not_exist`; expected 404
@@ -685,7 +596,7 @@ Use these when:
 - comparing behavior to the smoke scripts
 - debugging route and visibility edge cases
 
-### 1.12 Docker parity check
+### 1.13 Docker parity check
 
 Docker is part of the required workflow because the deployed origin is containerized.
 
@@ -704,8 +615,6 @@ docker compose \
   -f docker/docker-compose.yml \
   up --build --detach
 ```
-
-Then run the smoke checks:
 
 Then run the smoke checks against the containerized local app:
 
@@ -730,7 +639,113 @@ docker compose \
   down
 ```
 
-### 1.13 Filing a bug
+### 1.14 Dev and tester shortcuts (advanced)
+
+> These are advanced shortcuts for maintainers and testers. None of them are needed to reach hello world (§1.1-§1.10); a new developer can skip this section. The tester journey is the developer journey above plus the persona switching in §1.14.3.
+
+#### 1.14.1 Dev admin allowlist (maintainers)
+
+Admin in dev confers the curator role, which authors real `/curated/` content (the committed source of truth), so it is restricted to the project maintainers and is not a default setup step. Normal local development needs no admin, and a new developer does not self-grant it. If you need admin for a specific task, coordinate with a maintainer rather than adding yourself.
+
+For reference, the mechanism: the dev site auto-promotes a registrant whose normalized email is listed in the gitignored `.local/initial-admins.txt` allowlist (one email per line; `#` comments and blank lines allowed). A member whose email is not listed registers normally as a non-admin. The `.local/` directory is gitignored; never commit a file containing email addresses.
+
+Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's `.local/initial-admins.txt` into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9 and operationally documented in DEVOPS_GUIDE §17.8.
+
+#### 1.14.2 Pre-seeding maintainer admin accounts (maintainers)
+
+Maintainers can also pre-seed admin accounts directly into the local database, no register or verify flow needed, so a maintainer admin login is available immediately after a DB reset. Like the allowlist above, this is maintainer tooling for authoring real curated content, not a step a new developer runs to grant themselves admin; the two mechanisms are documented here for reference.
+
+1. Create `.local/dev-admin-seed.json` at the repo root. The `.local/` directory is gitignored. Required fields per entry: `loginEmail`, `displayName`, `realName` (all non-empty strings). Optional `tier`: `'tier2'` or `'tier3'` (defaults to `'tier2'` since admin requires Tier 2+).
+
+   ```json
+   [
+     {
+       "loginEmail": "you@example.com",
+       "displayName": "Your Display Name",
+       "realName": "Your Real Name"
+     }
+   ]
+   ```
+
+2. Run the seed (combined with a fresh reset, or any time after the DB is bootstrapped):
+
+   ```bash
+   ./run_dev.sh --reset --seed-dev-admins
+   ```
+
+   Or, when the dev stack is already running, in a second shell:
+
+   ```bash
+   ./scripts/manage-dev-admin-seed.sh --seed-dev-admins
+   ```
+
+3. Verify each seeded admin lands with the dev-admin-seed marker:
+
+   ```bash
+   sqlite3 database/footbag.db "
+     SELECT m.login_email, m.is_admin, mtg.reason_code, mtg.new_tier_status
+     FROM members m
+     JOIN member_tier_grants mtg ON mtg.member_id = m.id
+     WHERE mtg.reason_code = 'dev_admin_seed.admin_tier2'
+     ORDER BY mtg.created_at DESC;
+   "
+   ```
+
+4. Log in with the seeded email plus the fixed dev-only password (see `src/dev-bootstrap/seedConfig.ts`). The password is identical for every seeded admin and is never echoed by the seed script.
+
+Exit codes: 0 success (one or more entries seeded, or already-marked idempotent no-op rows), 1 fatal (DB missing, JSON malformed, no seed input found, empty seed array), 2 one or more entries collide with a non-seed member already owning the email. Re-running with the same JSON is a no-op when the dev-admin-seed marker is already present. Conflicts are reported and not modified.
+
+Removal: rebuild the DB (`./run_dev.sh --reset`) clears all seeded rows. To audit leftover rows, run `./scripts/audit-dev-shortcuts.sh` (queries `reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'grant_admin_dev_%'`, `created_by LIKE 'dev-shortcuts/%'`, and `action_type = 'dev_admin_invariant_repair'`). All four counts must be zero before any production deploy. The seed refuses to load under `FOOTBAG_ENV=production`; staging uses a separate seed surface documented in DEVOPS_GUIDE §17.
+
+#### 1.14.3 Dev-only shortcuts
+
+Several shortcuts exist to reduce friction during local manual testing. The runtime catalog of all dev shortcuts lives in `src/dev-bootstrap/runtime.ts`; the boot orchestrator there prints a consolidated banner showing which shortcuts are active on each `./run_dev.sh` start. The env-var-gated entries refuse to start in non-permitted environments via fail-fast guards in `src/config/env.ts`. The operator script entry runs in dev or staging via the deploy pipeline; production is hard-blocked by `src/dev-bootstrap/seedConfig.ts`.
+
+| Shortcut | Type | Allowed envs | What it does |
+|---|---|---|---|
+| `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` | env var | development AND staging | Email allowlist matched at registration; matching registrants get `is_admin=1` plus a Tier 2 grant plus audit rows in one transaction. The deploy pipeline parses `.local/initial-admins.txt` into this env var; the workstation file is the dev source. Production refused at boot and at deploy time. |
+| `GET /dev/switch?as=<slug>` | dev route | development and staging | Issues a real session cookie for a seeded persona via the production JWT primitive, so you act as any persona without a login chain. Audit-marked `dev_switch_persona`. |
+| `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog. Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by `seedConfig.ts`. |
+| `FOOTBAG_DEV_ADMIN_GRANT_TIER2` | env var | development only | At boot, every `is_admin=1` member whose ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant, enforcing the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role`. |
+| `./scripts/manage-dev-admin-seed.sh --seed-dev-admins` | operator script | development AND staging | Reads `.local/dev-admin-seed.json` (JSONC; or `FOOTBAG_DEV_ADMIN_SEED_JSON` on staging) and inserts admin member rows with `is_admin=1` plus a Tier 2 grant. Production blocked by `seedConfig.ts`. |
+
+Production has none of these shortcuts. Production admins requiring legacy-claim recovery use `manualLegacyClaimRecovery` (DD §3.9).
+
+##### Switch between personas in the browser (/dev/switch)
+
+Removes login friction during local manual testing of tier-gated and member-only flows. Seed the persona catalog once, then visit the switch route to act as any persona without a login chain:
+
+```bash
+export FOOTBAG_ENV=development
+./run_dev.sh --seed-test-personas
+# then in a browser:
+#   http://localhost:3000/dev/switch?as=t0_fresh   (tier0)
+#   http://localhost:3000/dev/switch?as=admin_t2    (admin)
+```
+
+The `/dev` router mounts under `FOOTBAG_ENV ∈ {development, staging}`, so the switch surface exists in development and staging but never in production. It issues a real session cookie via the same primitive the production login path uses (`createSessionJwt`), verified by the same auth middleware, then redirects to `/`. The canonical persona catalog lives in `src/testkit/canonicalPersonas.ts`.
+
+For the full tester workflow built on this harness (purchase flow from a fresh persona, the stub-checkout decline button, onboarding/legacy/clubs walk-throughs, and the captured-email card on dev and staging), see the tester runbook in `docs/TESTING.md` §16.
+
+A maintainer who has seeded a `.local/dev-admin-seed.json` entry (see §1.14.2) can act as that admin: run the dev-admin seed so it lands as a Tier 2 admin member, then switch to its slug:
+
+```bash
+./scripts/manage-dev-admin-seed.sh --seed-dev-admins
+```
+
+Without a tier grant, the dashboard membership block shows Tier 0 because there is no legacy data dump in dev. The dev-admin seed (`src/dev-bootstrap/seed.ts`) inserts a `member_tier_grants` row with `reason_code = 'dev_admin_seed.admin_tier2'` and an `is_admin=1` member row keyed on the JSON entry's email.
+
+A stub `legacy_members` row with no `legacy_email` (for example before the legacy data dump is loaded) is claimable from the onboarding wizard's `legacy_claim` task via the historical-person card-confirm path, which needs no email roundtrip; the mailbox-control round-trip is optional and only upgrades the audit evidence tier. Admins requiring manual recovery use the `manualLegacyClaimRecovery` flow.
+
+Optional admin Tier 2 invariant repair; set `FOOTBAG_DEV_ADMIN_GRANT_TIER2=1` to enforce the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role` on the data side. At boot, the orchestrator finds every `is_admin=1` member whose tier ledger reads below Tier 2 and inserts a `member_tier_grants` row with `reason_code = 'dev_admin_invariant_repair'` plus an `audit_entries` row with `action_type = 'dev_admin_invariant_repair'`. Idempotent (already-Tier-2+ admins skipped). Useful when the dev-admin-seed conflict exit code (2) reports a member that exists outside the seed flow without the matching tier grant. Same fail-fast guard as the other dev vars: rejected at boot in any non-development environment.
+
+```bash
+export FOOTBAG_DEV_ADMIN_GRANT_TIER2=1
+```
+
+The two marker columns (`reason_code = 'dev_admin_invariant_repair'` and `action_type = 'dev_admin_invariant_repair'`) are part of the pre-deploy grep checklist in `docs/DEVOPS_GUIDE.md` §17.7; both must return zero rows from any production database.
+
+### 1.15 Filing a bug
 
 Defects route through GitHub Issues using the templates in `.github/ISSUE_TEMPLATE/`:
 
@@ -781,17 +796,17 @@ How they relate:
 
 ### 2.3 Current scope
 
-This guide is about the first public, useful slice of the platform.
+The events + health slice below was the original proof-of-stack; the platform now serves the full public site. The routers mounted in `src/app.ts` are:
 
-Routes in scope:
+- `/health` — liveness and readiness (`/health/live`, `/health/ready`)
+- `/` (public) — the public site: events, clubs, freestyle, net, sideline, records, hof, bap, media, rules, ifpa, history, legal, plus member auth and onboarding (login, register, verify, password, members, payments, tags)
+- `/admin` — admin and curator workflows (authentication + admin gated)
+- `/ipc` — internal worker channel (shared-secret auth)
+- `/internal` and `/dev` — development and staging only (QC tooling and the persona-switch harness); never mounted in production
 
-- `GET /events`
-- `GET /events/year/:year`
-- `GET /events/:eventKey`
-- `GET /health/live`
-- `GET /health/ready`
+The original events routes (`GET /events`, `GET /events/year/:year`, `GET /events/:eventKey`) remain the canonical example of the route-to-service-to-view shape; their contract is §2.4.
 
-What the slice accomplishes:
+What the events section does:
 
 A visitor can:
 
@@ -801,7 +816,7 @@ A visitor can:
 - read public results where result rows exist
 - still see historical events even when result rows do not exist yet
 
-What the slice proves:
+What the original slice proved (still true of every section):
 
 - the stack works
 - public routing works
@@ -811,6 +826,8 @@ What the slice proves:
 - the first AWS deployment path is tractable
 
 ### 2.4 Route contract and UI contract
+
+The events and health contracts below are the reference example; every public section follows the same route-to-service-to-view shape with service-shaped view models.
 
 #### Event identity
 
@@ -890,9 +907,15 @@ DB / infrastructure layer
 - no ORM
 - no repository layer
 
+Adapters
+- the only seam to external services (`src/adapters/*`)
+- AWS SES, KMS-backed JWT signing, S3 media storage, image/video processing, Stripe, Safe Browsing, SSM secrets, CAPTCHA
+- swapped between stub/local in development and live/AWS in staging and production
+- no AWS or Stripe SDK import lives outside this layer
+
 ### 2.6 Repo map
 
-The repository shape remains the right mental map:
+The layered shape is the right mental map. The tree below shows the original events slice; the current `src/` keeps the same layout at much larger scale (about 35 controllers, 76 services, and 11 adapters under `src/adapters/`, plus the admin, member, media, freestyle, clubs, net, and other sections).
 
 .
 ├─ src/
@@ -1549,7 +1572,7 @@ echo "${STATIC_IP}.nip.io"
 Set the output value as `lightsail_origin_dns` in `terraform.tfvars`:
 
 ```hcl
-lightsail_origin_dns = "34.192.250.246"   # 34.192.250.246.nip.io maps to 34.192.250.246 for DNS (use temp IP lightsail is handing out)
+lightsail_origin_dns = "203.0.113.20"   # 203.0.113.20.nip.io maps to 203.0.113.20 for DNS (use temp IP lightsail is handing out)
 enable_cloudfront    = true
 ```
 
@@ -1742,8 +1765,8 @@ If you mirror values into Parameter Store for reference, keep the same values un
 
 #### 4. Copy application files
 
-From your local machine: use footbag@34.192.250.246 
-Note that 34.192.250.246.nip.io maps to 34.192.250.246 for DNS (use temp IP lightsail is handing out)
+From your local machine: use footbag@203.0.113.20 
+Note that 203.0.113.20.nip.io maps to 203.0.113.20 for DNS (use temp IP lightsail is handing out)
 
 ```bash
 rsync -av --delete -e "ssh -p 2222" \
@@ -1763,7 +1786,7 @@ rsync -av --delete -e "ssh -p 2222" \
   --exclude='*.db' \
   --exclude='*.db-shm' \
   --exclude='*.db-wal' \
-  ./ footbag@34.192.250.246:~/footbag-release/
+  ./ footbag@203.0.113.20:~/footbag-release/
 ```
 
 > Adjust `-p 2222` to match your configured SSH port if different.
@@ -1866,7 +1889,7 @@ sudo systemctl restart footbag
 
 #### 1. Verify the origin directly
 
-In a browser: http://34.192.250.246/events (or whatever temp IP lightsail is handing out)
+In a browser: http://203.0.113.20/events (or whatever temp IP lightsail is handing out)
 
 ALso: Use the local smoke script against the Lightsail host on port 80:
 
@@ -2068,7 +2091,7 @@ The `~/.ssh/config` entry for `footbag-staging` was created during bootstrap wit
 
 ```
 Host footbag-staging
-  Hostname 34.192.250.246
+  Hostname 203.0.113.20
   Port 2222
   User footbag
   IdentityFile ~/.ssh/id_ed25519
@@ -2231,8 +2254,8 @@ bash deploy_to_aws.sh -k
 Verify the site still works via direct IP:
 
 ```bash
-curl -I http://34.192.250.246/
-curl -I http://34.192.250.246/health/ready
+curl -I http://203.0.113.20/
+curl -I http://203.0.113.20/health/ready
 ```
 
 Both should return 200.
@@ -2240,7 +2263,7 @@ Both should return 200.
 #### Phase B: Enable CloudFront on staging
 
 1. In `terraform/staging/terraform.tfvars`, set:
-   - `lightsail_origin_dns = "34.192.250.246.nip.io"`
+   - `lightsail_origin_dns = "203.0.113.20.nip.io"`
    - `enable_cloudfront = true`
 
 2. Plan and review:
@@ -2339,7 +2362,7 @@ Open `https://<cf>/` in a browser.
 **D5. Verify direct IP still works:**
 
 ```bash
-curl -I http://34.192.250.246/
+curl -I http://203.0.113.20/
 ```
 
 Should still return 200. Direct access is not blocked until 1-F (X-Origin-Verify).
@@ -2369,7 +2392,7 @@ Then revert PUBLIC_BASE_URL on the host:
 
 ```bash
 ssh footbag-staging
-sudo sed -i 's|PUBLIC_BASE_URL=.*|PUBLIC_BASE_URL=http://34.192.250.246|' /srv/footbag/env
+sudo sed -i 's|PUBLIC_BASE_URL=.*|PUBLIC_BASE_URL=http://203.0.113.20|' /srv/footbag/env
 sudo systemctl restart footbag
 ```
 
@@ -3785,7 +3808,7 @@ A domain identity (distinct from the email identity verified in Path H §8.8) al
 
 Mirror Path H §8.6 through §8.9 with production-scoped names. Execute each Path H step against the production AWS account, substituting per the table in §9.2.
 
-Terraform: create a `terraform/production/` directory structurally mirroring `terraform/staging/` if one does not yet exist. Reuse all modules and resource shapes; change the `prefix` local and account/region as appropriate.
+Terraform: `terraform/production/` already exists, mirroring `terraform/staging/` and adding the ACM certificate, Route 53 records, SES domain identity, DR replication, and the maintenance bucket. Before the first plan, copy `terraform/production/terraform.tfvars.example` to `terraform.tfvars` and fill in the values that have no default (`aws_account_id`, `operator_cidrs`, `lightsail_origin_dns`, `route53_zone_id`, `ssh_public_key`, `alarm_email`), then run `terraform -chdir=terraform/production init` with AWS credentials that can reach the shared state bucket's `production/` key. The CloudFront and ACM resources require a real `domain_name` and a `route53_zone_id` whose zone Route 53 actually serves, so the first apply blocks on ACM DNS validation until the domain is delegated.
 
 Exercise the source-profile → runtime-role chain locally with `aws sts get-caller-identity` before proceeding to §9.9.
 

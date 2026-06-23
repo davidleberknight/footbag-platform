@@ -14,7 +14,7 @@
   {{#if canonicalUrl}}<meta property="og:url" content="{{canonicalUrl}}" />{{/if}}
   <meta property="og:image" content="{{ogImageUrl}}" />
   <meta name="twitter:card" content="summary" />
-  <link rel="icon" href="/img/ifpa-logo.png" />
+  <link rel="icon" href="{{{asset 'img/ifpa-logo.png'}}}" />
   <link rel="stylesheet" href="{{{asset 'css/style.css'}}}" />
 </head>
 <body>
@@ -56,7 +56,7 @@
   <footer class="site-footer">
     <div class="wrapper">
       <div class="footer-brand-block">
-        <img src="/img/ifpa-logo.png" alt="IFPA" class="footer-logo" width="175" height="68" />
+        <img src="{{{asset 'img/ifpa-logo.png'}}}" alt="IFPA" class="footer-logo" width="175" height="68" />
         <div class="footer-tagline">International Footbag Players Association</div>
       </div>
       <div class="footer-links">

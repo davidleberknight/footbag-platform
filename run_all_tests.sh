@@ -45,6 +45,11 @@ FULL=0
 # --with-smoke). In that case missing staging credentials SKIP the smoke gate
 # instead of failing the whole run, so --full is usable without an AWS profile.
 SMOKE_OPTIONAL=0
+# Set when the persona crawl runs only because --full implied it (not an explicit
+# --with-persona-crawl). In that case an absent dev DB (a fixture-seeded clone with
+# no operator dataset) SKIPs the gate instead of failing the run, so --full is
+# usable by a developer or tester without the operator data handoff.
+PERSONA_CRAWL_OPTIONAL=0
 WITH_PERSONA_CRAWL=0
 FAIL_FAST=0
 for arg in "$@"; do
@@ -86,8 +91,9 @@ Options:
                 and the persona crawl. Unlike --with-smoke, smoke SKIPs (rather
                 than fails) when RUN_STAGING_SMOKE / AWS creds are absent, so
                 --full runs end to end without an AWS profile. The persona crawl
-                always runs under --full and requires a loaded dev DB (DL's HOF
-                record + the Wellington club; build with ./run_dev.sh --reset).
+                likewise SKIPs (with a warning) when the dev DB lacks the operator
+                dataset (DL's HOF record + the Wellington club), so --full also
+                completes for a developer or tester without the data handoff.
   --fail-fast   Stop at the first failing gate instead of running them all.
   -h, --help    Show this message.
 
@@ -113,14 +119,15 @@ done
 # included but degrades to a SKIP when staging credentials are absent (see
 # SMOKE_OPTIONAL), so --full runs end to end on a workstation without an AWS
 # profile while still exercising everything that can run there. The persona crawl
-# is mandatory under --full (it boots its own dev stack but needs a loaded dev DB
-# carrying DL's data); it fails the run rather than skipping when the DB is absent.
+# likewise degrades to a SKIP under --full (see PERSONA_CRAWL_OPTIONAL) when the dev
+# DB lacks the operator dataset, so --full completes on a fixture-seeded clone too.
 if (( FULL == 1 )); then
   QUICK=0
   WITH_SMOKE=1
   PENTEST=1
   SMOKE_OPTIONAL=1
   WITH_PERSONA_CRAWL=1
+  PERSONA_CRAWL_OPTIONAL=1
 fi
 
 # Preflight: required tooling. Match deploy_to_aws.sh's need_cmd shape.
@@ -139,6 +146,13 @@ if [[ ! -d node_modules ]]; then
   echo "Recommendation: run 'npm ci' first." >&2
   exit 1
 fi
+
+# Start from a clean slate: sweep the previous run's transient test/build
+# artifacts before this run begins. Deliberately at the START, not the end, so
+# this run's Playwright retain-on-failure traces survive for post-run debugging.
+# clean_up_rubbish.sh touches no real-data tree, so it runs before the
+# fingerprint snapshot below.
+bash scripts/clean_up_rubbish.sh
 
 # -----------------------------------------------------------------------------
 # No-real-data guard. Fingerprint the trees that hold irreplaceable local data.
@@ -329,6 +343,12 @@ gate_persona_crawl() {
     [[ "${hof}" != "0" && "${wel}" != "0" ]] && have_db=1
   fi
   if (( have_db == 0 )); then
+    if (( PERSONA_CRAWL_OPTIONAL == 1 )); then
+      echo "  WARNING: persona crawl needs a loaded dev DB (DL's HOF record + the Wellington club);" >&2
+      echo "  a fixture-seeded clone has neither, so this gate is SKIPPED. Every other gate still runs." >&2
+      echo "  To exercise it, load the operator data handoff, then run with --with-persona-crawl." >&2
+      return 77
+    fi
     echo "ERROR: persona crawl needs a loaded dev DB (DL's HOF record + the Wellington club)." >&2
     echo "Recommendation: bash scripts/reset-local-db.sh (or ./run_dev.sh --reset), then re-run." >&2
     return 1

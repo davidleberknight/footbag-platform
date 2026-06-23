@@ -11,11 +11,17 @@ JWT_KMS_KEY_ID="$(terraform -chdir=terraform/staging output -raw jwt_signing_key
 SES_FROM_IDENTITY="$(terraform -chdir=terraform/staging output -raw ses_sender_identity)"
 MEDIA_STORAGE_S3_BUCKET="$(terraform -chdir=terraform/staging output -raw media_bucket_name)"
 
+# Tolerate a null/absent value (CloudFront disabled or not yet applied): the
+# static-asset smoke's first test fails with a clear "operator: terraform apply"
+# message rather than the script dying under set -e on `output -raw` of null.
+STAGING_CLOUDFRONT_DOMAIN="$(terraform -chdir=terraform/staging output -raw cloudfront_domain 2>/dev/null || true)"
+
 export AWS_PROFILE=footbag-staging-runtime
 export AWS_REGION=us-east-1
 export JWT_KMS_KEY_ID
 export SES_FROM_IDENTITY
 export MEDIA_STORAGE_S3_BUCKET
+export STAGING_CLOUDFRONT_DOMAIN
 export RUN_STAGING_SMOKE=1
 
 # Fetch operator-supplied SSM secrets via the assumed-role chain. The
