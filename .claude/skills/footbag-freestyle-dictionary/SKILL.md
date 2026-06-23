@@ -486,6 +486,42 @@ Rules:
 - Descriptive names can be aliases for named tricks.
 - Do not merge identities silently when terminology is ambiguous.
 
+### 3a. Positional identity by configuration (resolver contract + invariant)
+
+Positional qualifiers (`same-side` / `near` / `far` / `opposite` / `ss` / `op`)
+are STRUCTURAL, not lexical. They are never stripped from the slug. A positional
+name's identity is its resolved side-configuration (the SAME/OP markers across its
+side-bearing components), not the qualifier-stripped name. App-side slug
+resolution preserves the qualifier, matching the loaders. Full doctrine:
+`CANONICALIZATION_POLICY.md` companion note `POSITIONAL_IDENTITY_BY_CONFIGURATION.md`.
+
+**Core rule:** a fixed relationship in notation is INSUFFICIENT evidence for
+multi-component identity collapse. Multi-component positional aliases require an
+explicit curated equivalence row; the resolver may not infer them autonomously.
+
+A component is a side-bearing DEX or the CATCH; "independently variable" means
+there are >= 2 dexes, or a marker is ambiguous (SAME/OP). The configuration
+resolver classifies a positional name into exactly one status:
+
+- **SAFE_ALIAS** — resolves to the base. Autonomous only for single-component
+  identities (component_count <= 1); multi-component requires a curated equivalence.
+- **DISTINCT_VARIANT_CANDIDATE** — multi-component, unique target, new config not
+  matching any existing canonical.
+- **AMBIGUOUS_MULTI_COMPONENT** — multi-component with >= 2 candidate targets.
+- **COLLISION** — derived config equals an existing different canonical (alias to
+  that canonical, not the base) or the positional slug is already taken.
+- **NO_NOTATION** — base has no operational notation; cannot resolve.
+- **NEEDS_CURATED_EQUIVALENCE** — fixed/redundant-looking multi-component config
+  with no curated equivalence row; held until a curator asserts the equivalence.
+
+**Invariant (regression guard for future contributors):** the resolver MUST NEVER
+emit SAFE_ALIAS when `component_count > 1` unless an explicit curated equivalence
+exists (a `freestyle_trick_aliases` row mapping the positional slug to the base).
+The resolver READS curated equivalences from the materialized
+`freestyle_trick_aliases` (sourced from `trick_aliases.csv` + `red_additions`); it
+never writes them, and is authoritative for classification only, never for
+automatic multi-component collapsing.
+
 ---
 
 ## 4. Glossary / Terminology Layer
