@@ -30,20 +30,28 @@ Per-slug detail: `per_slug_classification.csv` · prior snapshot: `per_slug_prev
 | Bucket | Meaning | Count | Δ vs prior |
 |---|---|---:|---:|
 | A | REMOVE (not a trick) | 12 | 0 |
-| B | ALIAS | 192 | 0 |
+| B | ALIAS | 199 | +7 (positional aliases) |
 | C | PROMOTED ALREADY | 614 | 0 |
-| D | RESOLVABLE NOW | 111 | −64 |
-| E | DOCTRINE BLOCKED / review | 59 | −128 (relative-side reconciliation) |
-| F | UNKNOWN | 564 | −33 |
-| G | NEEDS-AUTHORING (positional, missing notation) | 128 | new (split out of E) |
+| D | RESOLVABLE NOW | 165 | +54 (targeting rule) |
+| E | DOCTRINE BLOCKED / review | 59 | 0 |
+| F | UNKNOWN | 564 | 0 |
+| G | NEEDS-AUTHORING (positional, no resolvable notation) | 67 | −61 (targeting rule) |
 
 ## 2. Updated summary statistics
 
 - Unique frontier slugs: **1,680**
 - Already promoted (C): **614** — never truly frontier; corpus-mislabeled
-- Removed / aliased / resolvable (A+B+D): **315**
+- Removed / aliased / resolvable (A+B+D): **376**
 - **Doctrine-blocked / unknown (E + F): 623**
-- **Needs-authoring (G — positional, not doctrine-blocked): 128**
+- **Needs-authoring (G — positional, no resolvable notation): 67** = 56 base-not-active + 11 multi-off-side ambiguous
+
+Applying the **Relative-Side Targeting Rule** (`RELATIVE_SIDE_TARGETING_RULE.md`: the
+qualifier modifies the unique off-side element — the off-side dex, else the catch) moved
+**54** positional entries from needs-authoring to RESOLVABLE NOW (39 by Rule A, 15 by Rule
+B; this includes the 34 multi-dex the rule was derived on, plus single-dex/catch-only
+positional entries the same rule resolves). 7 all-at-target positional entries resolve to
+aliases. G falls 128 → 67: the residue is 56 entries whose base is not yet active (author
+the base first) and the 11 multi-off-side cases the rule explicitly does not resolve.
 
 The Relative-Side reconciliation (2026-06-22) corrected the prior over-block: `SAME`/`OP`
 already encode the same-side/far distinction in the notation layer, so positional variants

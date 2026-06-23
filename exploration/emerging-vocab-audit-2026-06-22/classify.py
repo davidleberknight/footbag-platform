@@ -106,6 +106,37 @@ def has_op_markers(slug):
     n = op_notn.get(slug, "")
     return ("SAME" in n) or bool(re.search(r"\bOP\b", n))
 
+def targeting_verdict(slug):
+    """Relative-Side Targeting Rule: the qualifier modifies the unique off-side
+    element of the BASE notation (Rule A = the one off-side dex; Rule B = the
+    catch when no dex is off-side). X-Dex stays receiver-gated. Returns
+    (bucket, reason)."""
+    segs = slug.split("-")
+    far = any(s in ("far", "op", "opp", "opposite") for s in segs)
+    target = "OP" if far else "SAME"
+    base = "-".join(x for x in segs if x not in POSITIONAL_QUAL)
+    if base not in active:
+        return "G", "positional: base not active (author the base first)"
+    bn = op_notn.get(base, "")
+    if not bn.strip():
+        return "G", "positional: base has no operational notation"
+    def side(seg):
+        m = re.match(r".*?\b(SAME/OP|OP/SAME|SAME|OP)\b", seg.strip())
+        return m.group(1) if m else None
+    parts = re.split(r">+", bn)
+    dexes = [side(s) for s in parts if "[DEX]" in s and side(s)]
+    off_dex = [d for d in dexes if d != target]
+    if len(off_dex) == 1:
+        if far and (set(base.split("-")) & ROTATIONAL):
+            return "E", "positional far variant of a rotational receiver: targeting fixed (Rule A) but X-Dex scoring pending (held)"
+        return "D", "targeting Rule A: qualifier modifies the unique off-side dex; mechanically derivable from the base"
+    if len(off_dex) == 0:
+        catch = [side(s) for s in parts if ("[XBD]" in s or "[DEL]" in s) and "[DEX]" not in s and side(s)]
+        if any(c != target for c in catch):
+            return "D", "targeting Rule B: qualifier modifies the catch; mechanically derivable from the base"
+        return "B", "positional alias: every element already on the qualifier side"
+    return "G", "positional multi-off-side: targeting rule does not resolve (>=2 off-side dexes)"
+
 def doctrine_block(slug):
     # Pogo is intentionally NOT blocked: evidence (official ADDs + footbag.org + FM +
     # an extra scored [DEX] in notation) all give +1; only the registry says +0. Pogo
@@ -158,7 +189,8 @@ def classify(slug, recs):
             return "E", "positional name/notation conflict: name asserts same-side, notation shows OP only; review", add
         if has_op_markers(slug):
             return "D", "positional variant: SAME/OP notation present, mechanically classifiable from existing notation", add
-        return "G", "positional variant: notation not yet authored (needs-authoring; not doctrine-blocked)", add
+        b, reason = targeting_verdict(slug)
+        return b, reason, add
     dec = decompose(slug)
     if dec:
         base, prefix = dec
