@@ -124,7 +124,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   SWIRL:     'Swirl, base trick family (3 ADD)',
 
   // ── Body modifiers (modifier) ─────────────────────────────────────────
-  PARADOX:   'Paradox, body modifier (+1 ADD)',
+  PARADOX:   'Paradox, entry topology (+1 ADD)',
   SYMPOSIUM: 'Symposium, body modifier (+1 ADD)',
   DUCKING:   'Ducking, body modifier (+1 ADD)',
   STEPPING:  'Stepping, body modifier (+1 ADD)',

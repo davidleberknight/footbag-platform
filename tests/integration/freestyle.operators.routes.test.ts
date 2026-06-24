@@ -97,7 +97,7 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     const pixie = rowSlice(res.text, 'pixie');
     expect(pixie).toContain('dict-trick-row-notation');
     expect(pixie).toContain('SAME IN [DEX]');
-    // paradox is a body modifier -> no notation line.
+    // paradox is an entry topology (not a set) -> no notation line.
     expect(rowSlice(res.text, 'paradox')).not.toContain('dict-trick-row-notation');
   });
 

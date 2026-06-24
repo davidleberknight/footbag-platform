@@ -79,7 +79,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'drifter',
     prose:
-      "Drifter anchors the shred lineage: a deep family of compounds built directly on the drifter chassis. The mirage-dex-into-clipper-terminal structural signature composes naturally with body modifiers (paradox-drifter), with rotational variants (vortex), with naming-driven extensions (smoke, lotus, tombstone, fume, quantum-drifter), and with surface-and-stepping siblings (high-plains-drifter on the same clipper-stall chassis). The drifter family is one of the dictionary's broader trees at the 4-ADD layer, and drifter's productivity derives from how cleanly the chassis tolerates further modifier layering while preserving the mirage-dex-into-clipper signature.",
+      "Drifter anchors the shred lineage: a deep family of compounds built directly on the drifter chassis. The mirage-dex-into-clipper-terminal structural signature composes naturally with paradox topology (paradox-drifter), with rotational variants (vortex), with naming-driven extensions (smoke, lotus, tombstone, fume, quantum-drifter), and with surface-and-stepping siblings (high-plains-drifter on the same clipper-stall chassis). The drifter family is one of the dictionary's broader trees at the 4-ADD layer, and drifter's productivity derives from how cleanly the chassis tolerates further modifier layering while preserving the mirage-dex-into-clipper signature.",
     productiveDescendants: [
       { slug: 'paradox-drifter', label: 'paradox-drifter', note: 'Paradox topology layered on the drifter chassis; 4 ADD.' },
       { slug: 'vortex',          label: 'vortex',          note: 'Rotational variant on the drifter chassis; 4 ADD.' },
@@ -109,7 +109,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'blender',
     prose:
-      "Blender anchors a deep family of 5-6 ADD compounds. The whirl-into-osis structural signature composes naturally with body modifiers (paradox-blender), with stepping-and-ducking stacks (stepping-ducking-paradox-blender), with rotational layering (spinning-paradox-blender), and with naming-driven extensions (fender, fender-bender, mind-bender, spender, food-processor). The blender family is one of the dictionary's broader trees at the 5-6 ADD layer, and the chassis's productivity demonstrates that compound-of-canonicals readings can themselves anchor further compositional layering rather than functioning as leaf compounds.",
+      "Blender anchors a deep family of 5-6 ADD compounds. The whirl-into-osis structural signature composes naturally with paradox topology (paradox-blender), with stepping-and-ducking stacks (stepping-ducking-paradox-blender), with rotational layering (spinning-paradox-blender), and with naming-driven extensions (fender, fender-bender, mind-bender, spender, food-processor). The blender family is one of the dictionary's broader trees at the 5-6 ADD layer, and the chassis's productivity demonstrates that compound-of-canonicals readings can themselves anchor further compositional layering rather than functioning as leaf compounds.",
     productiveDescendants: [
       { slug: 'paradox-blender',          label: 'paradox-blender',          note: 'Paradox layered on the whirl-osis chassis; 5 ADD.' },
       { slug: 'fender',                   label: 'fender',                   note: 'Named extension on the blender chassis; 5 ADD.' },
@@ -156,7 +156,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'torque',
     prose:
-      "Torque is one of the dictionary's most productive intermediate-base anchors. The miraging-osis structural signature composes naturally with body modifiers (paradox-torque, spinning-torque, atomic-torque, symposium-torque), with gyro rotation (mobius = gyro-torque), with stepping-paradox layering (blurry-torque), and with naming-driven extensions (forque, grave-digger, spinal-tap, big-apple). The 5-ADD bucket on the torque chassis is dense, and the family extends into 6 and 7 ADD via deeper modifier stacks (gauntlet = highest-ADD torque compound).",
+      "Torque is one of the dictionary's most productive intermediate-base anchors. The miraging-osis structural signature composes naturally with body modifiers (spinning-torque, atomic-torque, symposium-torque), with paradox topology (paradox-torque), with gyro rotation (mobius = gyro-torque), with stepping-paradox layering (blurry-torque), and with naming-driven extensions (forque, grave-digger, spinal-tap, big-apple). The 5-ADD bucket on the torque chassis is dense, and the family extends into 6 and 7 ADD via deeper modifier stacks (gauntlet = highest-ADD torque compound).",
     productiveDescendants: [
       { slug: 'mobius',          label: 'mobius',          note: 'Gyro torque; 5 ADD compound at the top of the gyro-on-compound branch.' },
       { slug: 'paradox-torque',  label: 'paradox-torque',  note: 'Paradox topology on torque chassis; 5 ADD.' },

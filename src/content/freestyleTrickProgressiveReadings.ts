@@ -395,7 +395,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Modifier-axis productivity',
-        reading: "Body modifiers (ducking, spinning, atomic, paradox), set treatments (pixie), and multi-dex extensions (stepping, barraging) all compose naturally with osis.",
+        reading: "Body modifiers (ducking, spinning, atomic), the paradox entry topology, set treatments (pixie), and multi-dex extensions (stepping, barraging) all compose naturally with osis.",
       },
       {
         stage:   'Family-language summary',

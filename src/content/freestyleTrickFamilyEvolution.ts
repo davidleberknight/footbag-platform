@@ -241,7 +241,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Body-modifier branch',
         prose:
-          "Ducking-osis, spinning-osis, atomic-osis, paradox-osis: each layers a body modifier on the spin-clipper chassis at the 4-ADD layer.",
+          "Ducking-osis, spinning-osis, atomic-osis, paradox-osis: each layers a modifier on the spin-clipper chassis at the 4-ADD layer.",
         exemplarSlugs: ['ducking-osis', 'spinning-osis'],
       },
       {

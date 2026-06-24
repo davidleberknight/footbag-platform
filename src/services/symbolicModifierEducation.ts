@@ -272,12 +272,12 @@ const PARADOX_CONTENT: ModifierEducationInput = {
     {
       heading: 'Paradox vs xdex',
       prose:
-        'Paradox and X-Dex are not the same thing. Paradox is a body modifier worth +1 on any base. X-Dex is a separate conditional +1 that a following dex earns only when it is the far form of an eligible receiver (mirage, illusion, whirl, torque, drifter), and only when the dex before it is not a paradox. A paradox dex never triggers X-Dex. When you mean a universal +1 hip-pivot, the modifier is paradox.',
+        'Paradox and X-Dex are not the same thing. Paradox is an entry / side topology (a hip pivot) worth +1 on any base. X-Dex is a separate conditional +1 that a following dex earns only when it is the far form of an eligible receiver (mirage, illusion, whirl, torque, drifter), and only when the dex before it is not a paradox. A paradox dex never triggers X-Dex. When you mean a universal +1 hip-pivot, the modifier is paradox.',
     },
     {
       heading: 'Paradox vs symposium',
       prose:
-        'Both are +1 body modifiers and they often stack ("PS X" = Paradox Symposium X: PS Whirl, PS Mirage). The body region differs: paradox is a hip pivot between dexes; symposium is a no-plant discipline that keeps the support leg in the air. They run simultaneously without interfering; the foot still pivots through the paradox while the support leg stays off the ground for the symposium.',
+        'Both are +1 modifiers and they often stack ("PS X" = Paradox Symposium X: PS Whirl, PS Mirage). The body region differs: paradox is a hip pivot between dexes; symposium is a no-plant discipline that keeps the support leg in the air. They run simultaneously without interfering; the foot still pivots through the paradox while the support leg stays off the ground for the symposium.',
     },
     {
       heading: 'Paradox vs spinning',
