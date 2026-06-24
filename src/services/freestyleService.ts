@@ -3327,7 +3327,7 @@ export interface FreestyleSetModifierEntry {
 // form on the left, plain-language meaning on the right.
 export interface FreestyleGlossaryAbbreviationEntry {
   short:   string;                           // 'PDX', 'SS', 'DATW'
-  meaning: string;                           // 'Paradox (entry topology).'
+  meaning: string;                           // 'Paradox (dex relationship).'
 }
 
 // One §6 "Common Advanced Modifiers" feel card. Player-facing pedagogical
@@ -3447,17 +3447,20 @@ const SET_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   },
 ];
 
-// Curator-authored. Paradox is an entry / side topology (a cross-body framing
-// of how the trick enters), not a body movement, so it stands in its own cluster
-// separate from the midtime body operators, alongside the other side
-// relationships and X-Dex eligibility in the Dexterities section.
+// Curator-authored. Paradox is a dex relationship (a cross-body side-switch
+// between dexes), not a body movement, so it stands in its own cluster separate
+// from the midtime body operators, alongside the other dex relationships
+// (same / opposite, near / far) and X-Dex eligibility in the Dexterities section.
+// "Dex relationship" is a deliberately broad temporary label: paradox is not
+// always an entry topology, and the eventual section is Entry / Side / Dex
+// Relationships.
 const ENTRY_TOPOLOGY_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'paradox',
     name:        'Paradox',
     glyph:       null,
     feel:        'Paradox pivots the hips between two dexes on the same set; the body changes sides mid-trick.',
-    intuition:   'An entry / side topology, not a body movement: the body changes sides between dex events without changing the set foot.',
+    intuition:   'A dex relationship, not a body movement: the body changes sides between dex events without changing the set foot.',
     example:     'Paradox Whirl; Paradox Mirage.',
     familyHint:  'Paradox pairs naturally with symposium and stacks inside nuclear.',
     midtimeBody: false,
@@ -3530,7 +3533,7 @@ export interface FreestyleGlossaryAbbreviations {
 // Curator-authored. Order is rendered as-is.
 const GLOSSARY_ABBREVIATIONS: FreestyleGlossaryAbbreviations = {
   trickNames: [
-    { short: 'PDX',      meaning: 'Paradox (entry topology).' },
+    { short: 'PDX',      meaning: 'Paradox (dex relationship).' },
     { short: 'SS',       meaning: 'Same side / near. Component on the plant-foot side.' },
     { short: 'OP',       meaning: 'Opposite / far. Component on the non-plant-foot side.' },
     { short: 'SYMP',     meaning: 'Symposium, or symple; context decides.' },
@@ -8433,13 +8436,13 @@ export const freestyleService = {
     // group, cards sort ADD ascending, then trick name alphabetical.
     // Empty groups are hidden.
 
-    // Paradox is an entry / side topology, not a body movement (D6); it renders
-    // in its own component-view axis below. Its DB modifier_type stays 'body', so
-    // this split is presentation-only and lives here, not in the data.
+    // Paradox is a dex relationship, not a body movement (D6); it renders in its
+    // own component-view axis below. Its DB modifier_type stays 'body', so this
+    // split is presentation-only and lives here, not in the data.
     const ENTRY_TOPOLOGY_SLUGS = new Set(['paradox']);
     const ENTRY_PRIORITY = ['paradox'];
-    const BODY_PRIORITY = ['symposium', 'spinning', 'ducking', 'diving', 'weaving', 'gyro', 'stepping'];
-    const SET_PRIORITY  = ['pixie', 'atomic', 'quantum', 'nuclear', 'fairy', 'furious'];
+    const BODY_PRIORITY = ['symposium', 'spinning', 'ducking', 'diving', 'weaving', 'gyro'];
+    const SET_PRIORITY  = ['pixie', 'atomic', 'quantum', 'nuclear', 'fairy', 'furious', 'stepping'];
 
     // One-line body-mechanics definitions for the priority modifiers. Curator-authored;
     // a future slice may expand this map to additional modifiers.
@@ -8605,7 +8608,7 @@ export const freestyleService = {
         },
         {
           axisKey:   'entry-topology',
-          axisLabel: 'Entry / side topology',
+          axisLabel: 'Dex relationships',
           anchorId:  'axis-entry-topology',
           groups:    orderByPriorityThenAlpha(entryBuckets, ENTRY_PRIORITY),
         },

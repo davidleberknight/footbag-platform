@@ -4,13 +4,14 @@
  * Scope verified:
  *   - /freestyle/tricks?view=component returns 200
  *   - /freestyle/tricks?view=sets is a server-side alias and renders the same view
- *   - Three axes render in the documented order (Body modifiers, Entry / side topology, Set modifiers)
+ *   - Three axes render in the documented order (Body modifiers, Dex relationships, Set modifiers)
  *   - Topology and movement-archetype axes are NOT rendered (deferred)
  *   - Axis-jump nav anchors at top of page
- *   - Body-modifier groups appear in priority order (paradox, symposium,
- *     spinning, ducking, diving, weaving, gyro, stepping)
+ *   - Body-modifier groups appear in priority order (symposium, spinning,
+ *     ducking, diving, weaving, gyro)
+ *   - Dex relationships groups (paradox) render in their own axis
  *   - Set-modifier groups appear in priority order (pixie, atomic, quantum,
- *     nuclear, fairy, furious)
+ *     nuclear, fairy, furious, stepping)
  *   - Empty groups are hidden
  *   - Cards within a group sort ADD ascending then name
  *   - Intentional duplication: a trick with multiple modifier links appears in multiple groups
@@ -45,7 +46,7 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'symposium', modifier_name: 'symposium', modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
   insertFreestyleTrickModifier(db, { slug: 'spinning',  modifier_name: 'spinning',  modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
   insertFreestyleTrickModifier(db, { slug: 'ducking',   modifier_name: 'ducking',   modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
-  insertFreestyleTrickModifier(db, { slug: 'stepping',  modifier_name: 'stepping',  modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
+  insertFreestyleTrickModifier(db, { slug: 'stepping',  modifier_name: 'stepping',  modifier_type: 'set',  add_bonus: 1, add_bonus_rotational: 1 });
   insertFreestyleTrickModifier(db, { slug: 'pixie',     modifier_name: 'pixie',     modifier_type: 'set',  add_bonus: 1, add_bonus_rotational: 1 });
   insertFreestyleTrickModifier(db, { slug: 'atomic',    modifier_name: 'atomic',    modifier_type: 'set',  add_bonus: 1, add_bonus_rotational: 1 });
 
@@ -146,11 +147,11 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('component view — axes + axis-jump nav', () => {
-  it('renders the axis-jump nav with Body modifiers, Entry / side topology, and Set modifiers', async () => {
+  it('renders the axis-jump nav with Body modifiers, Dex relationships, and Set modifiers', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
     expect(res.text).toContain('class="component-axis-jump"');
     expect(res.text).toMatch(/<a href="#axis-body">Body modifiers<\/a>/);
-    expect(res.text).toMatch(/<a href="#axis-entry-topology">Entry \/ side topology<\/a>/);
+    expect(res.text).toMatch(/<a href="#axis-entry-topology">Dex relationships<\/a>/);
     expect(res.text).toMatch(/<a href="#axis-set">Set modifiers<\/a>/);
   });
 
@@ -188,24 +189,22 @@ describe('component view — axes + axis-jump nav', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('component view — group ordering', () => {
-  it('Body modifier groups appear in priority order: symposium, spinning, ducking, stepping', async () => {
+  it('Body modifier groups appear in priority order: symposium, spinning, ducking', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
     const symposiumIdx = res.text.indexOf('id="component-symposium"');
     const spinningIdx  = res.text.indexOf('id="component-spinning"');
     const duckingIdx   = res.text.indexOf('id="component-ducking"');
-    const steppingIdx  = res.text.indexOf('id="component-stepping"');
-    // Priority order, with paradox no longer in the body axis (it moved to its
-    // own entry / side topology axis). Diving / weaving / gyro are not in the
-    // fixture; their absence is expected and the priority positions still hold.
+    // Priority order. Paradox moved to the dex relationships axis, and
+    // stepping to the set axis (it is a set / uptime modifier, not a body move).
+    // Diving / weaving / gyro are not in the fixture; their absence is expected.
     expect(symposiumIdx).toBeGreaterThan(-1);
     expect(spinningIdx).toBeGreaterThan(symposiumIdx);
     expect(duckingIdx).toBeGreaterThan(spinningIdx);
-    expect(steppingIdx).toBeGreaterThan(duckingIdx);
   });
 
-  it('paradox renders in its own Entry / side topology axis, after the body axis, not within it', async () => {
+  it('paradox renders in its own Dex relationships axis, after the body axis, not within it', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
-    expect(res.text).toContain('Entry / side topology');
+    expect(res.text).toContain('Dex relationships');
     const entryAxisIdx = res.text.indexOf('id="axis-entry-topology"');
     const paradoxIdx   = res.text.indexOf('id="component-paradox"');
     const symposiumIdx = res.text.indexOf('id="component-symposium"');
@@ -216,12 +215,16 @@ describe('component view — group ordering', () => {
     expect(paradoxIdx).toBeGreaterThan(symposiumIdx);
   });
 
-  it('Set modifier groups appear in priority order: pixie, atomic', async () => {
+  it('Set modifier groups appear in priority order: pixie, atomic, stepping', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
-    const pixieIdx  = res.text.indexOf('id="component-pixie"');
-    const atomicIdx = res.text.indexOf('id="component-atomic"');
+    const pixieIdx    = res.text.indexOf('id="component-pixie"');
+    const atomicIdx   = res.text.indexOf('id="component-atomic"');
+    const steppingIdx = res.text.indexOf('id="component-stepping"');
+    // Stepping is a set modifier (set / uptime foot relocation), so it renders
+    // in the set axis after the higher-priority sets.
     expect(pixieIdx).toBeGreaterThan(-1);
     expect(atomicIdx).toBeGreaterThan(pixieIdx);
+    expect(steppingIdx).toBeGreaterThan(atomicIdx);
   });
 });
 

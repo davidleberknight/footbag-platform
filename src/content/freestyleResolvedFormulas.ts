@@ -188,7 +188,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'paradox(+1) + mirage(2) = 3 ADD',
-    provenance:  'paradox = +1 entry topology (canonical inventory); mirage = 2 ADD core atom',
+    provenance:  'paradox = +1 dex relationship (canonical inventory); mirage = 2 ADD core atom',
   },
   {
     slug:        'symposium-mirage',
@@ -312,7 +312,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    5,
     derivation:  'paradox(+1) + blender(4) = 5 ADD',
     operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',  // Sibling-derivation; paradox-whirl direction-flip precedent + blender base; not Red-confirmed.
-    provenance:  'paradox = +1 entry topology; blender = 4 ADD compound (whirling osis)',
+    provenance:  'paradox = +1 dex relationship; blender = 4 ADD compound (whirling osis)',
   },
   {
     slug:        'paradox-torque',
@@ -323,7 +323,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    5,
     derivation:  'paradox(+1) + torque(4) = 5 ADD',
     operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // Sibling-derivation; paradox-whirl direction-flip precedent + torque (miraging osis) base; not Red-confirmed.
-    provenance:  'paradox = +1 entry topology; torque = 4 ADD compound (miraging osis, pt11)',
+    provenance:  'paradox = +1 dex relationship; torque = 4 ADD compound (miraging osis, pt11)',
   },
   {
     slug:        'spinning-torque',
@@ -401,7 +401,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    5,
     derivation:  'paradox(+1) + symposium(+1) + whirl(3) = 5 ADD',
-    provenance:  'paradox = +1 entry topology; symposium = +1 no-plant body modifier (the "PS X" shorthand per glossary §6); whirl = 3 ADD core atom. First multi-operator chain in the resolved set',
+    provenance:  'paradox = +1 dex relationship; symposium = +1 no-plant body modifier (the "PS X" shorthand per glossary §6); whirl = 3 ADD core atom. First multi-operator chain in the resolved set',
   },
   {
     slug:        'dimwalk',
@@ -610,7 +610,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    4,
     derivation:  'paradox(+1) + drifter(3) = 4 ADD',
     operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > SAME CLIP [XBD] [DEL]',  // Sibling-derivation; paradox-whirl direction-flip precedent + drifter base; not Red-confirmed.
-    provenance:  'paradox = +1 entry topology; drifter = 3 ADD rotational compound base. Audit derivation.',
+    provenance:  'paradox = +1 dex relationship; drifter = 3 ADD rotational compound base. Audit derivation.',
   },
   {
     slug:        'spinning-pickup',
@@ -708,7 +708,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    4,
     derivation:  'stepping(+1) + paradox(+1) + mirage(2) = 4 ADD',
-    provenance:  'Folk-name resolution (≡ stepping paradox mirage). stepping = +1 set modifier; paradox = +1 entry topology; mirage = 2 ADD core atom.',
+    provenance:  'Folk-name resolution (≡ stepping paradox mirage). stepping = +1 set modifier; paradox = +1 dex relationship; mirage = 2 ADD core atom.',
   },
   {
     slug:        'hatchet',
@@ -728,7 +728,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'paradox(+1) + whirl(3) = 4 ADD',
-    provenance:  'paradox = +1 entry topology; whirl = 3 ADD rotational core atom.',
+    provenance:  'paradox = +1 dex relationship; whirl = 3 ADD rotational core atom.',
   },
   {
     slug:        'pigbeater',
@@ -821,7 +821,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    6,
     derivation:  'ducking(+1) + paradox(+1) + blender(4) = 6 ADD',
-    provenance:  'ducking = +1 body modifier; paradox = +1 entry topology; blender = 4 ADD rotational compound. Folk-name resolution.',
+    provenance:  'ducking = +1 body modifier; paradox = +1 dex relationship; blender = 4 ADD rotational compound. Folk-name resolution.',
   },
   {
     slug:        'mullet',
@@ -831,7 +831,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    6,
     derivation:  'ducking(+1) + paradox(+1) + symposium(+1) + whirl(3) = 6 ADD',
-    provenance:  'ducking = +1 body modifier; paradox = +1 entry topology; symposium = +1 no-plant body modifier; whirl = 3 ADD rotational core atom. Folk-name resolution.',
+    provenance:  'ducking = +1 body modifier; paradox = +1 dex relationship; symposium = +1 no-plant body modifier; whirl = 3 ADD rotational core atom. Folk-name resolution.',
   },
   {
     slug:        'spender',
@@ -841,7 +841,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    6,
     derivation:  'spinning(+1) + paradox(+1) + blender(4) = 6 ADD',
-    provenance:  'spinning = +1 body modifier; paradox = +1 entry topology; blender = 4 ADD rotational compound. Folk-name resolution (≡ spinning paradox blender).',
+    provenance:  'spinning = +1 body modifier; paradox = +1 dex relationship; blender = 4 ADD rotational compound. Folk-name resolution (≡ spinning paradox blender).',
   },
   {
     slug:        'gauntlet',
@@ -1138,7 +1138,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'paradox(+1) + reverse-drifter(3) = 4 ADD',
-    provenance:  'paradox = +1 entry topology; reverse-drifter = 3 ADD compound. DB description "Paradox-modified reverse drifter."',
+    provenance:  'paradox = +1 dex relationship; reverse-drifter = 3 ADD compound. DB description "Paradox-modified reverse drifter."',
   },
   {
     slug:        'smog',
@@ -1276,7 +1276,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    4,
     derivation:  'spinning(+1) + paradox(+1) + mirage(2) = 4 ADD',
-    provenance:  'spinning = +1 body modifier; paradox = +1 entry topology; mirage = 2 ADD core atom. FB.org /newmoves Paradox Moves listing (2003).',
+    provenance:  'spinning = +1 body modifier; paradox = +1 dex relationship; mirage = 2 ADD core atom. FB.org /newmoves Paradox Moves listing (2003).',
   },
   {
     slug:        'spinning-paradox-illusion',
@@ -1286,7 +1286,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    4,
     derivation:  'spinning(+1) + paradox(+1) + illusion(2) = 4 ADD',
-    provenance:  'spinning = +1 body modifier; paradox = +1 entry topology; illusion = 2 ADD core atom. FB.org /newmoves Paradox Moves listing (2003).',
+    provenance:  'spinning = +1 body modifier; paradox = +1 dex relationship; illusion = 2 ADD core atom. FB.org /newmoves Paradox Moves listing (2003).',
   },
   {
     slug:        'spinning-paradox-whirl',
@@ -1296,7 +1296,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    5,
     derivation:  'spinning(+1) + paradox(+1) + whirl(3) = 5 ADD',
-    provenance:  'spinning = +1 body modifier; paradox = +1 entry topology; whirl = 3 ADD core atom (rotational). FB.org /newmoves (2003).',
+    provenance:  'spinning = +1 body modifier; paradox = +1 dex relationship; whirl = 3 ADD core atom (rotational). FB.org /newmoves (2003).',
   },
   {
     slug:        'paradox-double-leg-over',
@@ -1306,7 +1306,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'paradox(+1) + dlo(3) = 4 ADD',
-    provenance:  'paradox = +1 entry topology; double-leg-over (dlo) = 3 ADD compound base. FB.org /newmoves description: "A paradox mirage with an extra leg over at the end."',
+    provenance:  'paradox = +1 dex relationship; double-leg-over (dlo) = 3 ADD compound base. FB.org /newmoves description: "A paradox mirage with an extra leg over at the end."',
   },
   {
     slug:        'paradox-barrage',
@@ -1316,7 +1316,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'paradox(+1) + barrage(3) = 4 ADD',
-    provenance:  'paradox = +1 entry topology; barrage = 3 ADD compound (SS=+0 per pt12 ruling). FB.org /newmoves (2003).',
+    provenance:  'paradox = +1 dex relationship; barrage = 3 ADD compound (SS=+0 per pt12 ruling). FB.org /newmoves (2003).',
   },
   {
     slug:        'paradox-symposium-mirage',
@@ -1326,7 +1326,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    4,
     derivation:  'paradox(+1) + symposium(+1) + mirage(2) = 4 ADD',
-    provenance:  'paradox = +1 entry topology; symposium = +1 no-plant body modifier; mirage = 2 ADD core atom. FB.org /newmoves (2003).',
+    provenance:  'paradox = +1 dex relationship; symposium = +1 no-plant body modifier; mirage = 2 ADD core atom. FB.org /newmoves (2003).',
   },
   {
     slug:        'paradox-high-plains-drifter',
@@ -1336,7 +1336,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'paradox(+1) + high-plains-drifter(4) = 5 ADD',
-    provenance:  'paradox = +1 entry topology; high-plains-drifter = 4 ADD compound (pt11 = miraging clipper). FB.org /newmoves; alias Paradox Double Drifter.',
+    provenance:  'paradox = +1 dex relationship; high-plains-drifter = 4 ADD compound (pt11 = miraging clipper). FB.org /newmoves; alias Paradox Double Drifter.',
   },
   {
     slug:        'spinning-paradox-blender',
@@ -1346,7 +1346,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    6,
     derivation:  'spinning(+1) + paradox(+1) + blender(4) = 6 ADD',
-    provenance:  'spinning = +1 body modifier; paradox = +1 entry topology; blender = 4 ADD compound (rotational; pt11 = whirling osis). FB.org /newmoves (2003).',
+    provenance:  'spinning = +1 body modifier; paradox = +1 dex relationship; blender = 4 ADD compound (rotational; pt11 = whirling osis). FB.org /newmoves (2003).',
   },
   {
     slug:        'stepping-ducking-paradox-blender',
@@ -1366,7 +1366,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'paradox(+1) + blizzard(3) = 4 ADD',
-    provenance:  'paradox = +1 entry topology; blizzard = 3 ADD compound (canonicalized; was stepping illusion). Stepwise dependency resolved. FB.org /newmoves (2003).',
+    provenance:  'paradox = +1 dex relationship; blizzard = 3 ADD compound (canonicalized; was stepping illusion). Stepwise dependency resolved. FB.org /newmoves (2003).',
   },
 
   // ── Doctrine-divergence pilot batch. Three rows promoted from the
@@ -1959,7 +1959,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    8,
     derivation:  'surging(2) + ducking(1) + paradox(1) + torque(4) = 8 ADD ([BOD] + [PDX] + [DEX] + [BOD] + [DEX] + [BOD] + [XBD] + [DEL])',
     operationalNotation: 'CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // sibling-composed from stepping-ducking-torque + a spinning prefix + paradox on the stepping dex; bracket count 8 matches ADD; not curator-confirmed.
-    provenance:  'FootbagMoves single-source 8-ADD promotion. surging decomposes to spinning + stepping; ducking is a settled +1 body modifier and paradox a settled +1 entry topology; torque is a 4-ADD canonical (miraging osis). All operators defined, ADD closes at 8, torque family. FootbagMoves is the only source, so the structure is uncorroborated; promoted under the arithmetic-closes policy with honest single-source provenance. Notation sibling-composed; not curator-confirmed.',
+    provenance:  'FootbagMoves single-source 8-ADD promotion. surging decomposes to spinning + stepping; ducking is a settled +1 body modifier and paradox a settled +1 dex relationship; torque is a 4-ADD canonical (miraging osis). All operators defined, ADD closes at 8, torque family. FootbagMoves is the only source, so the structure is uncorroborated; promoted under the arithmetic-closes policy with honest single-source provenance. Notation sibling-composed; not curator-confirmed.',
   },
   {
     slug:        'big-apple-sauce',

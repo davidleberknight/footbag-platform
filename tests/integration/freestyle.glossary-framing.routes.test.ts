@@ -133,19 +133,19 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
     expect(card![0]).not.toContain('double-dexterity');
   });
 
-  it('groups paradox under Entry / Side Topology, separate from the body operators', async () => {
+  it('groups paradox under Dex Relationships, separate from the body operators', async () => {
     const html = await glossary();
-    expect(html).toContain('Entry / Side Topology');
-    // The paradox card sits in the entry-topology cluster (after its heading,
-    // before the Body Modifiers cluster) and is framed as a topology, not a body
-    // movement.
-    const entryIdx   = html.indexOf('Entry / Side Topology');
+    expect(html).toContain('Dex Relationships');
+    // The paradox card sits in the Dex Relationships cluster (after its heading,
+    // before the Body Modifiers cluster) and is framed as a relationship, not a
+    // body movement.
+    const dexRelIdx  = html.indexOf('Dex Relationships');
     const bodyIdx     = html.indexOf('Body Modifiers <span class="glossary-modifier-cluster-axes">');
     const paradoxIdx = html.indexOf('id="modifier-paradox"');
-    expect(entryIdx).toBeGreaterThan(0);
-    expect(paradoxIdx).toBeGreaterThan(entryIdx);
+    expect(dexRelIdx).toBeGreaterThan(0);
+    expect(paradoxIdx).toBeGreaterThan(dexRelIdx);
     expect(paradoxIdx).toBeLessThan(bodyIdx);
-    expect(html).toMatch(/entry \/ side topology, not a body movement/i);
+    expect(html).toMatch(/dex relationship, not a body movement/i);
   });
 
   it('the modifier weights table lists the full +1 body family (head-movement + spin siblings)', async () => {
@@ -155,16 +155,16 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
     }
   });
 
-  it('the modifier weights table classes paradox as entry topology, whirling and stepping as sets', async () => {
+  it('the modifier weights table classes paradox as a dex relationship, whirling and stepping as sets', async () => {
     const html = await glossary();
-    expect(html).toContain('<tr><td>paradox</td><td>+1</td><td>entry topology</td></tr>');
+    expect(html).toContain('<tr><td>paradox</td><td>+1</td><td>dex relationship</td></tr>');
     expect(html).toContain('<tr><td>whirling</td><td>+1</td><td>set</td></tr>');
     expect(html).toContain('<tr><td>stepping</td><td>+1</td><td>set</td></tr>');
   });
 
-  it('does not call paradox a body modifier on the glossary (it is an entry topology)', async () => {
+  it('does not call paradox a body modifier on the glossary (it is a dex relationship)', async () => {
     const html = await glossary();
-    expect(html).toContain('Paradox (entry topology)');          // PDX abbreviation
+    expect(html).toContain('Paradox (dex relationship)');          // PDX abbreviation
     expect(html).not.toContain('Paradox (body modifier)');
     expect(html).not.toMatch(/<code>paradox<\/code> body modifier/); // notation-flag prose
   });

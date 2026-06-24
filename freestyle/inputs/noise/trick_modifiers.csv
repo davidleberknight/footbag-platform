@@ -5,7 +5,7 @@ inspinning,1,1,body,"Inspinning contributes +1 ADD: any spin is +1 (per Red pt14
 ducking,1,1,body,"+1 universally. Confirmed: ducking clipper=3, ducking butterfly=4, ducking whirl=4, ducking osis=4."
 symposium,1,1,body,"+1 universally. Confirmed: symposium whirl=4, symposium dlo=4, symposium torque=5 (torque 4+1)."
 gyro,1,1,body,"+1 universally. Confirmed: gyro torque=mobius=5 (torque 4+1), gyro whirl=4 (whirl 3+1), gyro butterfly=4 (butterfly 3+1)."
-stepping,1,1,body,"+1 universally. Confirmed: stepping whirl=4, stepping osis=4, stepping butterfly=4, stepping drifter=4."
+stepping,1,1,set,"+1 universally; a set / uptime foot relocation (not a body movement), so classified as a set modifier. Confirmed: stepping whirl=4, stepping osis=4, stepping butterfly=4, stepping drifter=4."
 tapping,1,1,body,"+1 universally. Confirmed: tapping whirl=4, tapping clipper=3 (clipper 2+1)."
 blazing,1,1,body,+1 universally. Confirmed: blazing legover=3 (legover 2+1).
 barraging,2,2,set,"Barraging contributes +2 ADD as a two-dex set per Red 2026-05-20 (two-dex set adjudication). Structurally count-bearing: two dex steps inside the set. Worked examples: barraging + osis = baroque = 5 (osis 3 + 2); barraging + legover = flurry = 4 (legover 2 + 2). Reclassified from body to set modifier_type to match the two-dex set semantics."

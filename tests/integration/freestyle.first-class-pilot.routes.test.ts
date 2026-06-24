@@ -53,7 +53,7 @@ beforeAll(async () => {
     slug: 'atomic', add_bonus: 1, add_bonus_rotational: 2, modifier_type: 'set',
   });
   insertFreestyleTrickModifier(db, {
-    slug: 'stepping', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body',
+    slug: 'stepping', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set',
   });
   insertFreestyleTrickModifier(db, {
     slug: 'gyro', add_bonus: 2, add_bonus_rotational: 2, modifier_type: 'body',

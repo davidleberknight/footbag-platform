@@ -233,7 +233,7 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'paradox',  modifier_name: 'paradox',  modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
   insertFreestyleTrickModifier(db, { slug: 'blurry',   modifier_name: 'blurry',   modifier_type: 'set',  add_bonus: 1, add_bonus_rotational: 2 });
   insertFreestyleTrickModifier(db, { slug: 'ducking',  modifier_name: 'ducking',  modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
-  insertFreestyleTrickModifier(db, { slug: 'stepping', modifier_name: 'stepping', modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
+  insertFreestyleTrickModifier(db, { slug: 'stepping', modifier_name: 'stepping', modifier_type: 'set', add_bonus: 1, add_bonus_rotational: 1 });
 
   // Supporting base-family trick rows the renderer's slug lookup needs to
   // resolve tokens like MIRAGE, BUTTERFLY, TORQUE, AROUND-THE-WORLD as
@@ -1193,7 +1193,7 @@ describe('GET /freestyle/tricks/:slug — Phase 6 notation display', () => {
   it('classifies PARADOX WHIRL as modifier + core_family in left-to-right order', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/paradox-whirl');
-    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Paradox, entry topology \(\+1 ADD\)">PARADOX<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Paradox, dex relationship \(\+1 ADD\)">PARADOX<\/span>/);
     expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Whirl, base trick family \(3 ADD\)">WHIRL<\/span>/);
     const idxParadox = res.text.indexOf('>PARADOX<');
     const idxWhirl   = res.text.indexOf('>WHIRL<');
@@ -1228,9 +1228,9 @@ describe('GET /freestyle/tricks/:slug — Phase 6 notation display', () => {
   it('classifies STEPPING DUCKING PARADOX TORQUE (gauntlet) as 3 modifiers + core_family in order', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/gauntlet');
-    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Stepping, set modifier \(\+1 ADD\)">STEPPING<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-set" data-role="set" title="Stepping, set modifier \(\+1 ADD\)">STEPPING<\/span>/);
     expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Ducking, body modifier \(\+1 ADD\)">DUCKING<\/span>/);
-    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Paradox, entry topology \(\+1 ADD\)">PARADOX<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Paradox, dex relationship \(\+1 ADD\)">PARADOX<\/span>/);
     expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Torque, base trick family \(4 ADD; miraging osis\)">TORQUE<\/span>/);
     const indices = ['STEPPING', 'DUCKING', 'PARADOX', 'TORQUE'].map(t => res.text.indexOf(`>${t}<`));
     expect(indices.every(i => i > -1)).toBe(true);
