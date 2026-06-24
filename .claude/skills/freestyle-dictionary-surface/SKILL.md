@@ -261,6 +261,7 @@ Each phase is independently shippable. None blocks the others. The dictionary's 
 - **Fragmenting depth across multiple URLs.** One trick = one URL; one family = one URL. Disclosure controls layered content, not routing.
 - **Coupling status enums to template-rendered text.** Single mapping site at the service layer (per `club-leadership-surface` pattern).
 - **Rendering broken links.** "Modifier association" text without a destination is acceptable; a link to a non-existent page is not.
+- **Linking a trick hashtag with no media, or making the name a link.** On a trick page the hashtag links to its gallery only when the trick has media, else a plain token (a clickable hashtag is the sole media signal); the name is never a link; a separate "Trick Detail" link opens the detail page. Rule: `.claude/rules/view-layer.md`.
 
 ---
 

@@ -642,16 +642,18 @@ The trick detail page (`/freestyle/tricks/:slug`) ships three navigation section
 
 Helpers live in `src/services/freestyleRelatedTricks.ts`. All three exclude `category='modifier'` and the current trick. Display order on the page: **Related Tricks → Previous Tricks → Next Tricks → Trick Family ladder.**
 
-### Hashtag identity vs. family navigation (load-bearing UX rule)
+### Hashtag, trick name, and family navigation (load-bearing UX rule)
 
-Two visually-similar surfaces have **different semantics**. Do not collapse them:
+These surfaces have **different semantics**. Do not collapse them:
 
-- **Hashtag** = identity link. `#spinningwhirl` always links to `/freestyle/tricks/spinning-whirl` (its own detail page). Each trick has a unique hashtag derived from its slug via `slugToHashtag(slug)` in `freestyleRecordShaping.ts` (`'#' + slug.replace(/-/g, '')`).
+- **Trick name** = display text only, never a link.
+- **Hashtag** = media-gallery link. `#spinning_whirl` (the slug `spinning_whirl` with a leading `#`) links to the trick's media gallery at `/media/browse?context=<slug>` when the trick has at least one media item, and renders as a plain non-clickable token otherwise; a clickable hashtag is the sole signal that media exists. The token is derived from the slug via `slugToHashtag(slug)` in `freestyleRecordShaping.ts`.
+- **Trick Detail** = detail-page link. A distinct "Trick Detail" link beside the name opens `/freestyle/tricks/<slug>`, so name, hashtag, and Trick Detail are three explicit controls and a click's destination is never guessed.
 - **Family navigation** = separate UI element. A small `family-badge` in the trick-detail hero links to `/freestyle/tricks?family={trick_family}`. Family-card titles on the dictionary index also link there. The filter pill at the top of a filtered index includes a clear-filter link.
 
 Forbidden:
 - Hashtags must NOT trigger family filtering.
-- Slug-prefix matching for filtering (e.g. "tricks starting with `paradox-`") is NOT used. Filter narrows on `trick_family` only.
+- Slug-prefix matching for filtering (e.g. a `paradox` slug prefix) is NOT used. Filter narrows on `trick_family` only.
 - Family selection must NOT be derived from a hashtag.
 
 ### `buildRelatedTricks`: broad navigation, cap = 8
