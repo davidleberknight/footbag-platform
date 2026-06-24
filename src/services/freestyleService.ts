@@ -71,6 +71,8 @@ import {
   slugToHashtag,
   stripDisplaySideQualifier,
   trickNameToSlug,
+  trickSurfaceHashtag,
+  modifierSurfaceHashtag,
 } from './freestyleRecordShaping';
 import { getResolvableTrickSlugs } from './freestyleResolvableSlugs';
 import {
@@ -1169,7 +1171,7 @@ function buildOperatorIndexAxes(
       return {
         slug,
         name:       row?.modifier_name ?? operatorFeelCard(slug)?.name ?? operatorTitleCase(slug),
-        hashtag:    `#${slug}`,
+        hashtag:    modifierSurfaceHashtag(slug, row?.modifier_type),
         typeLabel:  axis.typeLabel,
         addLabel:   operatorAddLabel(row),
         notation:   operatorNotation(slug),
@@ -5581,7 +5583,7 @@ function shapeTrickIndexRow(
   return {
     slug:            row.slug,
     canonicalName:   row.canonical_name,
-    hashtag:         slugToHashtag(row.slug),
+    hashtag:         trickSurfaceHashtag(row.slug, row.category),
     trickFamily:     row.trick_family,
     adds:            row.adds,
     category:        row.category,
@@ -6601,7 +6603,7 @@ export const freestyleService = {
 
     const hasDictEntry     = dictEntry !== null;
     const hasRecords       = currentRows.length > 0;
-    const trickTag         = slugToHashtag(slug);
+    const trickTag         = trickSurfaceHashtag(slug, dictEntry?.category ?? null);
     const seoTitle         = `Trick ${trickTag}`;
     const seoDescription   = hasRecords
       ? `Freestyle footbag passback records for ${trickName}. Current record: ${topValue} kicks.`
@@ -9806,6 +9808,20 @@ export const freestyleService = {
     return { kind: 'stub', vm: this.getModifierStubPage(slug) };
   },
 
+  // Modifier and operator rows live in freestyle_tricks for decomposition and
+  // ADD math, but they are not tricks: the trick-detail route redirects them to
+  // their operator / modifier page so they never render as a trick-detail entry.
+  // Sets are deliberately not redirected — pixie and fairy are dual-role tricks.
+  trickRouteRedirectTarget(slug: string): string | null {
+    const row = runSqliteRead('freestyleTricks.categoryBySlug', () =>
+      freestyleTricks.categoryBySlug.get(slug) as { category: string | null } | undefined,
+    );
+    if (row && (row.category === 'modifier' || row.category === 'operator')) {
+      return `/freestyle/modifier/${slug}`;
+    }
+    return null;
+  },
+
   getModifierStubPage(slug: string): PageViewModel<ModifierStubContent> {
     const row = runSqliteRead('freestyleTrickModifiers.getBySlug', () =>
       freestyleTrickModifiers.getBySlug.get(slug) as FreestyleTrickModifierRow | undefined,
@@ -9851,7 +9867,7 @@ export const freestyleService = {
       content: {
         slug,
         displayName,
-        hashtag:     `#${slug}`,
+        hashtag:     modifierSurfaceHashtag(slug, row?.modifier_type),
         typeLabel,
         addLabel:    operatorAddLabel(row),
         notation:    operatorNotation(slug),

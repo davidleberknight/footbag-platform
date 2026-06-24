@@ -14,6 +14,8 @@ import {
   getDeclaredRoles,
   declaresRole,
   declaresTrickRole,
+  MODIFIER_ROLE_OVERRIDES,
+  modifierHashtagRole,
   type HashtagRole,
 } from '../../src/content/freestyleHashtagRoles';
 
@@ -70,5 +72,31 @@ describe('freestyleHashtagRoles — accessors', () => {
     expect(declaresTrickRole('atomic')).toBe(false);
     expect(declaresTrickRole('quantum')).toBe(false);
     expect(declaresTrickRole('whirl')).toBe(false);
+  });
+});
+
+describe('freestyleHashtagRoles — modifier role resolution', () => {
+  it('lists only the curator role overrides that diverge from modifier_type', () => {
+    // Conservative: only concepts whose stored modifier_type contradicts the
+    // doctrine are pinned. whirling is stored body but is a set.
+    expect(Object.keys(MODIFIER_ROLE_OVERRIDES)).toEqual(['whirling']);
+    expect(MODIFIER_ROLE_OVERRIDES.whirling).toBe('set');
+  });
+
+  it('lets a curator override win over the stored modifier_type', () => {
+    // whirling's DB modifier_type is 'body', but the registry pins it a set.
+    expect(modifierHashtagRole('whirling', 'body')).toBe('set');
+  });
+
+  it('falls back to modifier_type when there is no override', () => {
+    expect(modifierHashtagRole('pixie', 'set')).toBe('set');
+    expect(modifierHashtagRole('atomic', 'set')).toBe('set');
+    expect(modifierHashtagRole('spinning', 'body')).toBe('operator');
+    expect(modifierHashtagRole('paradox', 'body')).toBe('operator');
+  });
+
+  it('treats an unknown / missing modifier_type as an operator', () => {
+    expect(modifierHashtagRole('zulu', undefined)).toBe('operator');
+    expect(modifierHashtagRole('slapping', null)).toBe('operator');
   });
 });

@@ -67,6 +67,11 @@ export const freestyleController = {
   trick(req: Request, res: Response, next: NextFunction): void {
     try {
       const slug = req.params['slug'] ?? '';
+      const redirectTo = freestyleService.trickRouteRedirectTarget(slug);
+      if (redirectTo) {
+        res.redirect(301, redirectTo);
+        return;
+      }
       const vm = freestyleService.getTrickDetailPage(slug);
       res.render('freestyle/trick-shell', vm);
     } catch (err) {

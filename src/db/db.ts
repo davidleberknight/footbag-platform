@@ -2242,6 +2242,12 @@ export const freestyleTricks = {
     FROM freestyle_tricks
     WHERE slug = ?
   `); },
+
+  // Category for a slug regardless of is_active, so the trick-detail route can
+  // redirect modifier / operator rows to their operator page before rendering.
+  get categoryBySlug() { return db.prepare(`
+    SELECT category FROM freestyle_tricks WHERE slug = ?
+  `); },
 };
 
 export interface FreestyleTrickSearchRow {
@@ -2266,13 +2272,15 @@ export function searchFreestyleTricksByText(query: string, limit: number): Frees
            NULL AS matched_alias, sort_order, 0 AS match_rank
       FROM freestyle_tricks
      WHERE is_active = 1
+       AND (category IS NULL OR category NOT IN ('modifier', 'operator'))
        AND (canonical_name LIKE ? ESCAPE '\\' OR REPLACE(slug, '-', ' ') LIKE ? ESCAPE '\\')
     UNION ALL
     SELECT t.slug, t.canonical_name, t.adds, t.category, t.aliases_json,
            a.alias_text AS matched_alias, t.sort_order, 1 AS match_rank
       FROM freestyle_trick_aliases a
       JOIN freestyle_tricks t ON t.slug = a.trick_slug AND t.is_active = 1
-     WHERE a.alias_text LIKE ? ESCAPE '\\'
+     WHERE (t.category IS NULL OR t.category NOT IN ('modifier', 'operator'))
+       AND a.alias_text LIKE ? ESCAPE '\\'
      ORDER BY match_rank ASC, sort_order ASC
      LIMIT ?
   `).all(like, like, like, limit) as FreestyleTrickSearchRow[];

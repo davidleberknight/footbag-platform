@@ -1015,12 +1015,11 @@ describe('GET /freestyle/tricks/:slug — with dictionary entry', () => {
     expect(res.text).not.toContain('Consecutive Records');
   });
 
-  it('shows modifier type for a modifier trick', async () => {
+  it('redirects a modifier row to its operator page instead of rendering it as a trick', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/ducking');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Modifier');
-    expect(res.text).toContain('no fixed ADD value');
+    expect(res.status).toBe(301);
+    expect(res.headers['location']).toBe('/freestyle/modifier/ducking');
   });
 
   it('returns 404 for a slug not in records OR dictionary', async () => {

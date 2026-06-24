@@ -67,3 +67,30 @@ export function declaresRole(slug: string, role: HashtagRole): boolean {
 export function declaresTrickRole(slug: string): boolean {
   return declaresRole(slug, 'trick');
 }
+
+/**
+ * Curator-pinned hashtag role for a modifier / set concept whose role diverges
+ * from the raw `freestyle_trick_modifiers.modifier_type`. The registry is
+ * authoritative; modifier_type is only the fallback signal. `whirling` is stored
+ * with modifier_type 'body' but is a set, so it must render the set hashtag —
+ * the stored type lags the curator doctrine and must not decide the hashtag.
+ */
+export const MODIFIER_ROLE_OVERRIDES: Readonly<Record<string, HashtagRole>> =
+  Object.freeze({
+    whirling: 'set',
+  });
+
+/**
+ * Resolve the hashtag role of a modifier / set concept. A curator override wins;
+ * otherwise modifier_type 'set' is a set role and anything else is an operator
+ * role. Use this instead of reading modifier_type directly, so a stored type
+ * that lags the curator doctrine never decides the hashtag form.
+ */
+export function modifierHashtagRole(
+  slug: string,
+  modifierType: string | null | undefined,
+): HashtagRole {
+  const override = MODIFIER_ROLE_OVERRIDES[slug];
+  if (override) return override;
+  return modifierType === 'set' ? 'set' : 'operator';
+}
