@@ -223,6 +223,10 @@ export interface GalleryItem {
   // and teaching tiles use `/media/item/{mediaId}` carrying their tag-query (or
   // `?back=`) context so the viewer rebuilds the same ordered set for prev/next.
   itemHref: string | null;
+  // True for tiles whose poster carries a burnt-in lower-left caption (the
+  // demo-mosaic source clips): the tile masks that corner with a clean
+  // trick-name label overlay instead of showing the caption below the image.
+  captionMask?: boolean;
 }
 
 export interface GalleryPagination {
@@ -1112,9 +1116,13 @@ export const mediaService = {
 
       const adapter = getMediaStorageAdapter();
       const galleryIdToken = encodeURIComponent(gallery.id);
+      // A gallery built from the demo-mosaic clips inherits their burnt-in
+      // lower-left poster caption; mask it per tile with a clean label overlay.
+      const isMosaicGallery = tagRows.some((t) => t.tag_display.toLowerCase() === MOSAIC_CAPTION_TAG);
       const items: GalleryItem[] = rows.map((row) => {
         const item = shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k));
         item.itemHref = `/media/${galleryIdToken}/${encodeURIComponent(item.mediaId)}`;
+        if (isMosaicGallery) item.captionMask = true;
         return item;
       });
 
@@ -1498,6 +1506,10 @@ export const FILTER_SUGGESTION_LIMIT = 12;
 // axis, so it is surfaced as a dedicated always-on Source control rather than a
 // raw suggestion chip.
 const CURATED_TAG = '#curated';
+// Galleries built from the demo-mosaic source clips, whose posters carry a
+// burnt-in lower-left caption. Tiles in such a gallery mask that corner with a
+// clean trick-name label overlay instead of exposing the burnt-in text.
+const MOSAIC_CAPTION_TAG = '#demo_mosaic';
 
 // Human-readable labels for known hashtags, so the filter reads as a product
 // surface rather than developer jargon. Unknown tags fall back to a title-cased

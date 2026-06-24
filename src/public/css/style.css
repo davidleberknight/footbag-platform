@@ -866,6 +866,27 @@ th.sortable:hover { color: var(--primary); }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.gallery-tile-caption-mask {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 30%;
+  height: 28%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 6px;
+  font-weight: 600;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  color: var(--white);
+  text-align: left;
+  /* Solid opaque box over the lower-left corner only: it masks the source
+     clip's burnt-in caption that sits there with our own clean label, the same
+     treatment the landing mosaic uses. Sized as a share of the square tile so
+     the cover scales with it. */
+  background: rgba(0, 0, 0, 1);
+}
 
 .gallery-tile-tags {
   list-style: none;

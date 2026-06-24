@@ -440,6 +440,24 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(heroBlock).not.toContain('Reference videos for freestyle footbag tricks');
   });
 
+  it('masks the burnt-in poster caption on a demo-mosaic gallery with a clean label overlay, suppressing the duplicate below-image caption', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/gallery_foundations_of_freestyle');
+    expect(res.status).toBe(200);
+    // Demo-mosaic clips carry a burnt-in lower-left caption; the tile masks that
+    // corner with an opaque label overlay carrying the clean trick name.
+    expect(res.text).toMatch(/class="gallery-tile-caption-mask"[^>]*>Toe Delay</);
+    // The redundant below-image caption is suppressed when the mask is shown.
+    expect(res.text).not.toContain('class="gallery-tile-caption"');
+  });
+
+  it('does not mask captions on a named gallery built from non-mosaic clips', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('gallery-tile-caption-mask');
+  });
+
   it('renders the tag-aware empty-state copy when the gallery matches no media', async () => {
     const db = openDb();
     const emptyTagId = 'tag-empty-state-001';
