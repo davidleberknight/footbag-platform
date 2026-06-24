@@ -121,6 +121,17 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
     expect(html).toMatch(/An ecosystem is\s+<strong>not a family<\/strong>/);
     expect(html).toMatch(/pixie appears across\s+pixie-illusion/);
   });
+
+  it('the atomic modifier feel card states the +1 single-dex doctrine, not the retired double-dexterity reading', async () => {
+    const html = await glossary();
+    const card = html.match(/id="modifier-atomic"[\s\S]*?<\/article>/);
+    expect(card, 'atomic modifier card').not.toBeNull();
+    // Settled doctrine: a single outward dex, +1, with any X-Dex as a separate
+    // event; not the retired "double-dexterity" (+2-conflation) framing.
+    expect(card![0]).toMatch(/single outward/i);
+    expect(card![0]).toMatch(/\+1 launch primitive/i);
+    expect(card![0]).not.toContain('double-dexterity');
+  });
 });
 
 describe('Glossary framing — sidebar + non-regression', () => {
