@@ -136,17 +136,22 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(res.text).not.toContain('data-card-slug=');
   });
 
-  it('opens with the plain movement-first dictionary intro + glossary link', async () => {
+  it('opens with the orientation-first dictionary intro + glossary link, search box after it, and the corpus counts demoted lower', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.text).toContain('class="browse-view-intro"');
-    // The intro carries a live count of unique documented tricks and the
-    // documented aliases separately, plus a count of documented tricks, in
-    // beginner-facing wording (not the internal "canonical").
-    expect(res.text).toMatch(/[\d,]+ unique officially documented tricks/);
-    expect(res.text).toMatch(/[\d,]+ documented aliases/);
-    expect(res.text).toMatch(/[\d,]+ tricks are documented in this dictionary/);
+    // The intro leads with beginner orientation, not a raw count.
+    expect(res.text).toContain('dictionary of named freestyle footbag tricks');
     expect(res.text).toContain('class="dictionary-intro-glossary-link"');
     expect(res.text).toContain('href="/freestyle/glossary"');
+    // The search box follows the orientation intro rather than preceding it.
+    const introIdx = res.text.indexOf('browse-view-intro');
+    const searchIdx = res.text.indexOf('search-box-card');
+    expect(introIdx).toBeGreaterThan(-1);
+    expect(searchIdx).toBeGreaterThan(introIdx);
+    // The corpus counts are supporting metadata lower on the page, in
+    // beginner-facing wording (not the internal "canonical").
+    expect(res.text).toMatch(/Full pages cover [\d,]+ of [\d,]+ documented trick names/);
+    expect(res.text).toMatch(/plus [\d,]+ aliases/);
   });
 
   it('renders ADD jump-nav chips that link to the in-page ADD section anchors', async () => {

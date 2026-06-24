@@ -3027,6 +3027,10 @@ export interface FreestyleTricksIndexContent {
   // advanced family browse view. Absence = silence (template branches on
   // truthy string).
   dictionaryIntro: string | null;
+  // dictionaryStats: the corpus counts (full pages / documented names / aliases),
+  // shown as supporting metadata lower on the default landing rather than as the
+  // page lede, so beginner orientation comes first.
+  dictionaryStats: string | null;
   familyViewIntro: string | null;
   // Per-view scale sentences (browse-shell cleanup). Each is computed from the
   // same group arrays the template renders, so the counts always match the
@@ -3036,6 +3040,11 @@ export interface FreestyleTricksIndexContent {
   movementSystemScale: string | null;
   setsScale: string | null;
   topologyScale: string | null;
+  // Per-view section intros, service-shaped like familyViewIntro so the copy
+  // standard holds (no hardcoded section copy in the template). The dex-count
+  // and modifier views carried theirs inline before.
+  dexCountIntro: string | null;
+  setsIntro: string | null;
   /** Landing-surface 3-band conceptual grid
    *  rendered above the inline view-toggle when on the default landing view.
    *  Bands = Difficulty / Structure / Tracking & Expansion. Each card carries
@@ -8922,6 +8931,13 @@ export const freestyleService = {
       `${dexCountGroups.length} dex ${plural(dexCountGroups.length, 'bucket', 'buckets')} · ` +
       `${dexRows} canonical trick ${plural(dexRows, 'row', 'rows')} represented.`;
 
+    // Per-view section intros (service-shaped; the static cross-link affordances
+    // stay in the template). These were inline template copy before.
+    const dexCountIntro =
+      'Tricks grouped by how many dexterity moves they involve, where you circle a leg around the bag.';
+    const setsIntro =
+      'Tricks grouped by the set or body modifier they use. Each section answers: which tricks use this set or modifier?';
+
     const movementMemberships = movementSystemView.axes.reduce(
       (n, a) => n + a.cards.length, 0);
     const movementSystemScale =
@@ -9015,15 +9031,14 @@ export const freestyleService = {
           ],
         },
         dictionaryIntro:
-          `${fmtCount(uniqueDocumentedTrickCount)} unique officially documented tricks, plus ` +
-          `${fmtCount(documentedAliasCount)} documented aliases. ` +
-          `${canonicalCount} tricks are documented in this dictionary. ` +
-          'The remaining documented names live in Emerging Vocabulary: observed, historical, alias, ' +
-          'source-variant, or not-yet-promoted entries that are tracked but not yet treated as full ' +
-          'dictionary pages. The dictionary lets you ' +
-          'understand freestyle through three lenses: difficulty (how layered is a trick), ' +
-          'structure (what kind of trick is it), and tracking & expansion (what\'s tracked ' +
-          'beyond the documented set). Pick a lens below.',
+          'This is the dictionary of named freestyle footbag tricks. Search for a trick by ' +
+          'name, or browse by difficulty, by family, or by the modifiers a trick layers on. ' +
+          'Open any trick for its full detail page, or follow its hashtag to the media gallery. ' +
+          'Pick a lens below to start.',
+        dictionaryStats:
+          `Full pages cover ${canonicalCount} of ${fmtCount(uniqueDocumentedTrickCount)} ` +
+          `documented trick names, plus ${fmtCount(documentedAliasCount)} aliases. The rest are ` +
+          'tracked in Emerging Vocabulary: observed or historical names that do not yet have full pages.',
         // Per-view context note for the advanced family browse view.
         familyViewIntro:
           'Family groupings cluster tricks that preserve a conserved terminal mechanic. ' +
@@ -9038,6 +9053,8 @@ export const freestyleService = {
         movementSystemScale,
         setsScale,
         topologyScale,
+        dexCountIntro,
+        setsIntro,
       },
     };
   },

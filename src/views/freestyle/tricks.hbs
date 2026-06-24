@@ -16,8 +16,15 @@
 
 <div class="wrapper">
 
+  {{! ── Page intro — plain, orientation-first. Shown on every browse view. ── }}
+  {{#if content.dictionaryIntro}}
+  <p class="browse-view-intro">{{content.dictionaryIntro}}
+    <a class="dictionary-intro-glossary-link" href="/freestyle/glossary">New to the words? Open the glossary &rarr;</a></p>
+  {{/if}}
+
   {{! ── Trick search: name/alias lookup. Submits to the dedicated search page
-      (typeahead lives there); works without JS. ── }}
+      (typeahead lives there); works without JS. Placed after the orientation
+      intro so beginner context leads the page. ── }}
   <div class="card search-box-card">
     <div class="search-box-section">
       <form method="GET" action="/freestyle/search" class="search-box-form" role="search">
@@ -30,12 +37,6 @@
       </form>
     </div>
   </div>
-
-  {{! ── Page intro — plain, movement-first. Shown on every browse view. ── }}
-  {{#if content.dictionaryIntro}}
-  <p class="browse-view-intro">{{content.dictionaryIntro}}
-    <a class="dictionary-intro-glossary-link" href="/freestyle/glossary">New to the words? Open the glossary &rarr;</a></p>
-  {{/if}}
 
   {{! ── Landing grid: 3-band conceptual map of the
       dictionary's browse axes. Renders ONLY on the default landing view
@@ -155,6 +156,13 @@
       <a href="/freestyle/tricks?view=sets">By modifier</a>
     {{/if}}
   </nav>
+  {{! ── Corpus counts as supporting metadata, below the orientation and the
+      browse lenses rather than as the page lede. Default landing only. ── }}
+  {{#if (eq content.activeView "add")}}
+    {{#if content.dictionaryStats}}
+    <p class="browse-view-scale">{{content.dictionaryStats}}</p>
+    {{/if}}
+  {{/if}}
   {{#unless (eq content.activeView "add")}}
   {{! Secondary-view reachability for cross-link surfaces. On the default
       landing view, the dict-landing-grid above carries Operators / Set
@@ -228,7 +236,7 @@
       notation. Same generalized dictionary-trick-row partial as the ADD and
       Family views; only the bucketing axis differs. }}
   {{#if (eq content.activeView "dex-count")}}
-  <p class="browse-view-intro">Tricks grouped by how many dexterity moves they involve, where you circle a leg around the bag.</p>
+  {{#if content.dexCountIntro}}<p class="browse-view-intro">{{content.dexCountIntro}}</p>{{/if}}
   {{#if content.dexCountScale}}<p class="browse-view-scale">{{content.dexCountScale}}</p>{{/if}}
   {{! In-view jump nav (mirrors By ADD). Static hash anchors into each dex bucket. }}
   {{#if content.dexCountGroups.length}}
@@ -276,7 +284,7 @@
        trick-grouping projection); content.setsBrowseView (the encyclopedia
        projection) is reserved for /freestyle/sets. }}
   {{#if (eq content.activeView "sets")}}
-  <p class="browse-view-intro">Tricks grouped by the set or body modifier they use. Each section answers: which tricks use this set or modifier? For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
+  {{#if content.setsIntro}}<p class="browse-view-intro">{{content.setsIntro}} For what a set system actually is, see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>{{/if}}
   <p class="browse-view-lens-note detail-muted">These cluster totals count tricks by the modifier they use, so they will not match the grouping totals in <a href="/freestyle/tricks?view=movement-system">By movement system</a>, which sorts some of the same modifiers into different groups. The two are different lenses on the same tricks, not the same tally.</p>
   {{#if content.setsScale}}<p class="browse-view-scale">{{content.setsScale}}</p>{{/if}}
   {{#if content.setsClusterView.length}}

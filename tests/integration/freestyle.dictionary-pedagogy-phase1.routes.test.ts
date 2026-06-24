@@ -105,11 +105,10 @@ describe('Dictionary — plain-language intro paragraph', () => {
   it('the intro explains the dictionary in plain, movement-first language', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/movement vocabulary/i);
-    // DL-1+2+5 2026-05-26: intro reframed to the 3-lens model
-    // (difficulty / structure / tracking & expansion); per-lens framing
-    // moved to the landing-grid cards' lens-questions. Plain-language
-    // beginner-friendly framing preserved.
-    expect(res.text).toMatch(/three lenses/i);
+    // The intro is orientation-first and points the reader to the lenses; the
+    // three-lens model itself lives in the landing-grid bands (difficulty /
+    // structure / tracking & expansion), each with its own lens-question.
+    expect(res.text).toMatch(/Pick a lens/i);
     expect(res.text).toMatch(/difficulty/i);
     expect(res.text).toMatch(/structure/i);
     expect(res.text).toMatch(/How layered is the trick/);

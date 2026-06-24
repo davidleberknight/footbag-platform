@@ -108,6 +108,13 @@ function sectionFor(html: string, bucketId: string): string {
 }
 
 describe('Dex view — two-line row contract', () => {
+  it('renders the service-shaped dex-count intro (section copy not hardcoded in the template)', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="browse-view-intro"');
+    expect(res.text).toMatch(/grouped by how many dexterity moves they involve/i);
+  });
+
   it('200 + dex buckets, with no-op-notation rows grouped by real blocker (not notation field)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
