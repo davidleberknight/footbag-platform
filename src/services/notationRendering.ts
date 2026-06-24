@@ -127,7 +127,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   PARADOX:   'Paradox, entry topology (+1 ADD)',
   SYMPOSIUM: 'Symposium, body modifier (+1 ADD)',
   DUCKING:   'Ducking, body modifier (+1 ADD)',
-  STEPPING:  'Stepping, body modifier (+1 ADD)',
+  STEPPING:  'Stepping, set modifier (+1 ADD)',
   TAPPING:   'Tapping, body modifier (+1 ADD; distinct from Stepping)',
   DIVING:    'Diving, body modifier (+1 ADD)',
   BLAZING:   'Blazing, body modifier (+1 ADD)',

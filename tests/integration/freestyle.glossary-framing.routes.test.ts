@@ -155,10 +155,11 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
     }
   });
 
-  it('the modifier weights table classes paradox as entry topology and whirling as a set', async () => {
+  it('the modifier weights table classes paradox as entry topology, whirling and stepping as sets', async () => {
     const html = await glossary();
     expect(html).toContain('<tr><td>paradox</td><td>+1</td><td>entry topology</td></tr>');
     expect(html).toContain('<tr><td>whirling</td><td>+1</td><td>set</td></tr>');
+    expect(html).toContain('<tr><td>stepping</td><td>+1</td><td>set</td></tr>');
   });
 
   it('does not call paradox a body modifier on the glossary (it is an entry topology)', async () => {

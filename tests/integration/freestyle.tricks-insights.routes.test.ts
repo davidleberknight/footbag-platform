@@ -1228,7 +1228,7 @@ describe('GET /freestyle/tricks/:slug — Phase 6 notation display', () => {
   it('classifies STEPPING DUCKING PARADOX TORQUE (gauntlet) as 3 modifiers + core_family in order', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/gauntlet');
-    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Stepping, body modifier \(\+1 ADD\)">STEPPING<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Stepping, set modifier \(\+1 ADD\)">STEPPING<\/span>/);
     expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Ducking, body modifier \(\+1 ADD\)">DUCKING<\/span>/);
     expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Paradox, entry topology \(\+1 ADD\)">PARADOX<\/span>/);
     expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Torque, base trick family \(4 ADD; miraging osis\)">TORQUE<\/span>/);

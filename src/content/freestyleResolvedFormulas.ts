@@ -708,7 +708,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    4,
     derivation:  'stepping(+1) + paradox(+1) + mirage(2) = 4 ADD',
-    provenance:  'Folk-name resolution (≡ stepping paradox mirage). stepping = +1 body modifier; paradox = +1 entry topology; mirage = 2 ADD core atom.',
+    provenance:  'Folk-name resolution (≡ stepping paradox mirage). stepping = +1 set modifier; paradox = +1 entry topology; mirage = 2 ADD core atom.',
   },
   {
     slug:        'hatchet',
@@ -1098,7 +1098,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    4,
     derivation:  'stepping(+1) + dlo(3) = 4 ADD',
     operationalNotation: 'CLIP > OP IN [DEX] >> SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // Sibling-derivation; tombstone (stepping drifter) stepping pattern + double-leg-over base; not Red-confirmed.
-    provenance:  'stepping = +1 body modifier; double-leg-over (dlo) = 3 ADD compound base. DB description "Stepping-modified double leg over." Folk-name resolution.',
+    provenance:  'stepping = +1 set modifier; double-leg-over (dlo) = 3 ADD compound base. DB description "Stepping-modified double leg over." Folk-name resolution.',
   },
   {
     slug:        'mantis',
@@ -1178,7 +1178,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'stepping(+1) + drifter(3) = 4 ADD',
-    provenance:  'stepping = +1 body modifier; drifter = 3 ADD rotational compound base. DB description "Stepping-modified drifter."',
+    provenance:  'stepping = +1 set modifier; drifter = 3 ADD rotational compound base. DB description "Stepping-modified drifter."',
   },
   {
     slug:        'blurriest',
@@ -1198,7 +1198,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'stepping(+1) + torque(4) = 5 ADD',
-    provenance:  'stepping = +1 body modifier; torque = 4 ADD rotational compound base. DB description "Stepping-modified same-side torque." Folk-name resolution.',
+    provenance:  'stepping = +1 set modifier; torque = 4 ADD rotational compound base. DB description "Stepping-modified same-side torque." Folk-name resolution.',
   },
   {
     slug:        'tomahawk',
@@ -1235,7 +1235,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'stepping(+1) + illusion(2) = 3 ADD',
-    provenance:  'stepping = +1 body modifier; illusion = 2 ADD core atom. PassBack folk-name resolution (Stepping far Illusion). Observational→canonical promotion.',
+    provenance:  'stepping = +1 set modifier; illusion = 2 ADD core atom. PassBack folk-name resolution (Stepping far Illusion). Observational→canonical promotion.',
   },
   {
     slug:        'blaze',
@@ -1255,7 +1255,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'stepping(+1) + eggbeater(3) = 4 ADD',
-    provenance:  'stepping = +1 body modifier; eggbeater = 3 ADD compound (≡ atomic legover per pt4). PassBack folk-name resolution.',
+    provenance:  'stepping = +1 set modifier; eggbeater = 3 ADD compound (≡ atomic legover per pt4). PassBack folk-name resolution.',
   },
   {
     slug:        'sole-survivor',
@@ -1385,7 +1385,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    4,
     derivation:  'stepping(+1) + barrage(3) = 4 ADD',
     operationalNotation: 'CLIP > SAME IN [DEX] >> OP IN [DEX] > SAME IN [DEX] > OP TOE [DEL]',  // Sibling-derivation; tombstone (stepping drifter) stepping pattern + barrage doubled-dex base; medium confidence (stepping-on-barrage stack pattern is unprecedented); not Red-confirmed.
-    provenance:  'stepping = +1 body modifier; barrage = 3 ADD compound (promotion via ATAM bracket-flag count). PassBack source claims 3 ADD; the +1 gap is documented as historical-divergence under Red Q7 (doctrine-divergence pilot).',
+    provenance:  'stepping = +1 set modifier; barrage = 3 ADD compound (promotion via ATAM bracket-flag count). PassBack source claims 3 ADD; the +1 gap is documented as historical-divergence under Red Q7 (doctrine-divergence pilot).',
   },
   {
     slug:        'predator',
@@ -1405,7 +1405,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'stepping(+1) + legover(2) = 3 ADD',
-    provenance:  'stepping = +1 body modifier; legover = 2 ADD core atom. PassBack source claims 2 ADD (reading: Stepping near Legover); the +1 gap is the same systemic pattern as blurrage. Doctrine-divergence pilot, Red Q7.',
+    provenance:  'stepping = +1 set modifier; legover = 2 ADD core atom. PassBack source claims 2 ADD (reading: Stepping near Legover); the +1 gap is the same systemic pattern as blurrage. Doctrine-divergence pilot, Red Q7.',
   },
 
   // ── Productive-multiplicity base entries (DATW + DLO) ────────────────
