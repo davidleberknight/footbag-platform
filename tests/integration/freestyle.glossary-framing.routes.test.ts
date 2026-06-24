@@ -154,6 +154,12 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
       expect(html, `weights row ${slug}`).toContain(`<tr><td>${slug}</td><td>+1</td>`);
     }
   });
+
+  it('the modifier weights table classes paradox as entry topology and whirling as a set', async () => {
+    const html = await glossary();
+    expect(html).toContain('<tr><td>paradox</td><td>+1</td><td>entry topology</td></tr>');
+    expect(html).toContain('<tr><td>whirling</td><td>+1</td><td>set</td></tr>');
+  });
 });
 
 describe('Glossary framing — sidebar + non-regression', () => {
