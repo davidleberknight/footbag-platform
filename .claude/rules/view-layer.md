@@ -133,6 +133,10 @@ where it is most often violated.
 - Every filtered or deep-linked state self-orients. Each dictionary filter and view state says where
   the visitor is, what the subset means, how to clear or change it, and how to reach beginner help; no
   state leads with the full-dictionary count.
+- **Em dashes** are restricted in the user-facing text a site visitor reads: rendered template text,
+  editorial and content strings, UI labels and notices, and notification email bodies (the email
+  bodies are authored in the service layer). Use commas, parentheses, or restructure instead. This
+  restriction applies only to that user-facing text; this rule is its sole home.
 
 ## Where the rest lives
 

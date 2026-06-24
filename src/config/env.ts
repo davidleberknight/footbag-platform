@@ -60,6 +60,11 @@ export interface AppConfig {
   // staging/prod admin edits mutate the DB but skip the file write
   // because the deployed /curated/ tree is part of the build artifact.
   allowCuratedSidecarWrites: boolean;
+  // Absolute path overriding the curated-media root directory. Lets a
+  // non-test process (the e2e stack) redirect curated reads and writes to
+  // a throwaway directory so they never touch the committed /curated/
+  // tree. Null when unset; production falls through to <repo-root>/curated.
+  curatedRootDirOverride: string | null;
   // Maximum number of external URLs that can be attached to a single
   // gallery. Distinct from the DD §3.17 per-profile cap (3) — galleries
   // and items have their own caps, tunable by the operator. Service
@@ -433,6 +438,12 @@ function loadConfig(): AppConfig {
     );
   }
 
+  const rawCuratedRootDir = process.env.CURATED_ROOT_DIR;
+  const curatedRootDirOverride =
+    rawCuratedRootDir === undefined || rawCuratedRootDir.trim() === ''
+      ? null
+      : rawCuratedRootDir.trim();
+
   const rawGalleryMaxLinks = process.env.GALLERY_MAX_EXTERNAL_LINKS;
   let galleryMaxExternalLinks: number;
   if (rawGalleryMaxLinks === undefined || rawGalleryMaxLinks === '') {
@@ -692,6 +703,7 @@ function loadConfig(): AppConfig {
     ssmPrefix,
     httpReachabilityAdapter,
     allowCuratedSidecarWrites,
+    curatedRootDirOverride,
     galleryMaxExternalLinks,
     imageProcessorUrl,
     imageMaxConcurrent,

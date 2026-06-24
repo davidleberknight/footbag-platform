@@ -1101,6 +1101,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
   function getCuratedRootDir(): string {
     if (deps.curatedRootDir) return deps.curatedRootDir;
     if (curatedRootDirOverrideForTests) return curatedRootDirOverrideForTests;
+    // A non-test process (the e2e stack) redirects the curated root to a
+    // throwaway directory via CURATED_ROOT_DIR so its writes never touch
+    // the committed /curated/ tree.
+    if (config.curatedRootDirOverride) return config.curatedRootDirOverride;
     if (config.nodeEnv === 'test') {
       throw new Error(
         'curatorMediaService: in test mode, either deps.curatedRootDir or ' +

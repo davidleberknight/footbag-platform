@@ -21,6 +21,9 @@ sqlite3 "${TEST_DB}" < database/schema.sql
 E2E_DB_PATH_FILE="${TMPDIR:-/tmp}/footbag-e2e-db-path"
 echo "${TEST_DB}" > "${E2E_DB_PATH_FILE}"
 
+CURATED_ROOT="$(mktemp -d -t footbag-e2e-curated-XXXXXX)"
+echo "→ E2E ephemeral curated root: ${CURATED_ROOT}"
+
 export FOOTBAG_DB_PATH="${TEST_DB}"
 export FOOTBAG_ENV="development"
 export NODE_ENV="development"
@@ -38,6 +41,10 @@ export AWS_REGION="${AWS_REGION:-us-east-1}"
 export SECRETS_ADAPTER="${SECRETS_ADAPTER:-stub}"
 export IMAGE_PROCESSOR_URL="http://127.0.0.1:4001"
 export ALLOW_CURATED_SIDECAR_WRITES="1"
+# Redirect curated reads/writes off the committed /curated/ tree (read by
+# getCuratedRootDir via config.curatedRootDirOverride) so an e2e curator
+# write lands in a throwaway dir, removed by the cleanup trap.
+export CURATED_ROOT_DIR="${CURATED_ROOT}"
 
 WEB_PID=""
 IMAGE_PID=""
@@ -54,6 +61,7 @@ cleanup() {
   done
   [[ -n "${WEB_PID}"   ]] && kill -KILL "${WEB_PID}"   2>/dev/null || true
   [[ -n "${IMAGE_PID}" ]] && kill -KILL "${IMAGE_PID}" 2>/dev/null || true
+  [[ -n "${CURATED_ROOT:-}" ]] && rm -rf "${CURATED_ROOT}" || true
 }
 trap cleanup INT TERM EXIT
 

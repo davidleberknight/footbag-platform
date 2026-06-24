@@ -54,6 +54,7 @@ function clearAwsWiring(): void {
   delete process.env.FOOTBAG_ENV;
   delete process.env.HTTP_REACHABILITY_ADAPTER;
   delete process.env.ALLOW_CURATED_SIDECAR_WRITES;
+  delete process.env.CURATED_ROOT_DIR;
   delete process.env.GALLERY_MAX_EXTERNAL_LINKS;
   delete process.env.AWS_REGION;
   delete process.env.IMAGE_PROCESSOR_URL;
@@ -1727,6 +1728,42 @@ describe('env config: ALLOW_CURATED_SIDECAR_WRITES', () => {
     await expect(import('../../src/config/env')).rejects.toThrow(
       /ALLOW_CURATED_SIDECAR_WRITES must be '1', '0', 'true', or 'false', got: bogus/,
     );
+  });
+});
+
+describe('env config: CURATED_ROOT_DIR', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('defaults to null when unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    delete process.env.CURATED_ROOT_DIR;
+    const { config } = await import('../../src/config/env');
+    expect(config.curatedRootDirOverride).toBeNull();
+  });
+
+  it('is null when set to a whitespace-only value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.CURATED_ROOT_DIR = '   ';
+    const { config } = await import('../../src/config/env');
+    expect(config.curatedRootDirOverride).toBeNull();
+  });
+
+  it('carries the trimmed path when set', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.CURATED_ROOT_DIR = '  /tmp/footbag-e2e-curated-abc  ';
+    const { config } = await import('../../src/config/env');
+    expect(config.curatedRootDirOverride).toBe('/tmp/footbag-e2e-curated-abc');
   });
 });
 

@@ -52,7 +52,6 @@ Rule of thumb: if deferral points to another section/path/doc as the home for th
 
 ## Style
 
-- **Em dashes:** restricted only in public-facing site text a visitor reads (rendered template text, editorial/content strings, UI labels and notices, notification email bodies); use commas, parentheses, or restructure there. Not restricted in docs (titles or prose) or in code.
 - **No "Last updated: <date>"** in any canonical doc header; git log is the authoritative source. Strip existing ones on audit passes. IP included.
 
 ## DD-specific rules (`docs/DESIGN_DECISIONS.md`)
