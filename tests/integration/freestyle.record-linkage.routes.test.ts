@@ -70,6 +70,16 @@ describe('Record-to-trick linkage', () => {
     expect(res.text).toContain('Qualifier Holder');
   });
 
+  it('the hero title and breadcrumb strip the side qualifier, showing the plain trick name', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/clipper-stall');
+    expect(res.status).toBe(200);
+    // The matched record name "Clipper Stall (ss)" supplies the page title; the
+    // hero h1 shows the plain name, not the structural side qualifier (the slug
+    // and record lookups still keep it).
+    expect(res.text).toContain('<h1>Clipper Stall</h1>');
+    expect(res.text).not.toContain('<h1>Clipper Stall (ss)</h1>');
+  });
+
   it('the dictionary badges a record-only-video trick as "Record video", resolving the alias to canonical', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);

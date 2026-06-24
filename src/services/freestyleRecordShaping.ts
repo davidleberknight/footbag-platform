@@ -17,6 +17,17 @@ export function slugToHashtag(slug: string): string {
   return '#' + slug.toLowerCase().replace(/-/g, '_');
 }
 
+// Display-only: strip a trailing positional side qualifier from a trick name so
+// a heading or breadcrumb reads as the plain trick name ("Mirage (op)" becomes
+// "Mirage"). Identity is unaffected: the slug and every record lookup keep the
+// qualifier (positional identity is by configuration), so this is never used to
+// derive a slug or a lookup key, only a display string.
+export function stripDisplaySideQualifier(name: string): string {
+  return name
+    .replace(/\s*\((?:ss|op|opp|opposite|near|far|same[\s-]?side)\)\s*$/i, '')
+    .trim();
+}
+
 /**
  * A "Unique <descriptor>" record name (Unique 3-Dex, Unique Beastly, Unique
  * Fearless) is a one-off competition entry — a "unique" trick performed in a

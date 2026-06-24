@@ -69,6 +69,7 @@ import {
   FreestyleRecordViewModel,
   shapeFreestyleRecord,
   slugToHashtag,
+  stripDisplaySideQualifier,
   trickNameToSlug,
 } from './freestyleRecordShaping';
 import { getResolvableTrickSlugs } from './freestyleResolvableSlugs';
@@ -6515,6 +6516,12 @@ export const freestyleService = {
       throw new NotFoundError(`No freestyle trick found for slug: ${slug}`);
     }
 
+    // The hero title and breadcrumb show the plain trick name. A trailing side
+    // qualifier ("(op)", "(ss)", ...) is structural identity kept on the slug and
+    // on `trickName` (the record-lookup key below), but it reads as jargon in a
+    // heading, so it is stripped for display only.
+    const displayTrickName = stripDisplaySideQualifier(trickName);
+
     // All records for this trick (current + superseded), ordered by value DESC
     const allTrickRows = runSqliteRead('freestyleRecords.listAllByTrickName', () =>
       freestyleRecords.listAllByTrickName.all(trickName) as FreestyleRecordRow[],
@@ -6596,14 +6603,14 @@ export const freestyleService = {
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_trick_detail',
-        title:      trickName,
+        title:      displayTrickName,
         eyebrow:    hasDictEntry ? (dictEntry!.isModifier ? 'Modifier' : `${dictEntry!.adds ?? '?'} ADD`) : 'Trick Record',
       },
       navigation: {
         breadcrumbs: [
           { label: 'Freestyle', href: '/freestyle' },
           { label: 'Trick Dictionary', href: '/freestyle/tricks' },
-          { label: trickName },
+          { label: displayTrickName },
         ],
       },
       content: (() => {
