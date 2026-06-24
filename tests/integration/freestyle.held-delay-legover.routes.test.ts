@@ -16,11 +16,11 @@ const { dbPath } = setTestEnv('3534');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const t = (slug: string, adds: string, category: 'dex' | 'compound' = 'compound') =>
-  ({ slug, canonical_name: slug.replace(/-/g, ' '), adds, base_trick: slug, trick_family: slug, category, is_active: 1 as const });
+  ({ slug, canonical_name: slug.replace(/_/g, ' '), adds, base_trick: slug, trick_family: slug, category, is_active: 1 as const });
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  for (const r of [t('wrap', '2', 'dex'), t('walk-over', '2', 'dex'), t('hop-over', '2', 'dex'), t('eclipse', '3')]) {
+  for (const r of [t('wrap', '2', 'dex'), t('walk_over', '2', 'dex'), t('hop_over', '2', 'dex'), t('eclipse', '3')]) {
     insertFreestyleTrick(db, r);
   }
   db.close();
@@ -37,7 +37,7 @@ async function page(slug: string): Promise<string> {
 const RATIONALE = 'Continuous-control held-delay leg-over lineage. Walk-over is the stepping variant, Hop-over the jumping variant, and Eclipse the airborne extension.';
 
 describe('Held-delay leg-over Movement neighbours overlay', () => {
-  const all = ['wrap', 'walk-over', 'hop-over', 'eclipse'];
+  const all = ['wrap', 'walk_over', 'hop_over', 'eclipse'];
   for (const slug of all) {
     it(`${slug} lists the other three under Movement neighbours with the lineage rationale`, async () => {
       const html = await page(slug);

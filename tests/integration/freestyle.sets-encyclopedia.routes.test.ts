@@ -47,10 +47,10 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'pixie' });
   insertFreestyleTrick(db, { slug: 'dimwalk',        canonical_name: 'dimwalk',        adds: '4' });
   insertFreestyleTrick(db, { slug: 'smear',          canonical_name: 'smear',          adds: '3' });
-  insertFreestyleTrick(db, { slug: 'pixie-illusion', canonical_name: 'pixie illusion', adds: '3' });
+  insertFreestyleTrick(db, { slug: 'pixie_illusion', canonical_name: 'pixie illusion', adds: '3' });
   insertFreestyleTrickModifierLink(db, 'dimwalk',        'pixie');
   insertFreestyleTrickModifierLink(db, 'smear',          'pixie');
-  insertFreestyleTrickModifierLink(db, 'pixie-illusion', 'pixie');
+  insertFreestyleTrickModifierLink(db, 'pixie_illusion', 'pixie');
   db.close();
   createApp = await importApp();
 });
@@ -87,8 +87,8 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
       expect(res.text).toContain(`id="enc-set-${slug}"`);
       // Detail link points at the per-set detail page (not in-page anchor)
       expect(res.text).toMatch(new RegExp(`<a class="sets-encyclopedia-card-detail-link" href="/freestyle/sets/${slug}">View details &rarr;</a>`));
-      // Hashtag follows the set ontology pattern (#<slug>-set)
-      expect(res.text).toContain(`#${slug}-set`);
+      // Hashtag follows the set ontology role-prefix pattern (#set_<slug>)
+      expect(res.text).toContain(`#set_${slug}`);
     },
   );
 

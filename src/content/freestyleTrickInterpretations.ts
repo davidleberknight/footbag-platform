@@ -141,7 +141,7 @@ export const TRICK_INTERPRETATION_ENTRIES: readonly TrickInterpretationEntry[] =
     ],
   },
   {
-    slug: 'butterfly-kick',
+    slug: 'butterfly_kick',
     canonicalReading: 'dex-kick with no terminal stall',
     historicalReadings: [],
     structuralNotes: [

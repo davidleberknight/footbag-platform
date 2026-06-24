@@ -28,7 +28,7 @@ export interface EmbeddedCoverageEdge {
 
 export const EMBEDDED_COVERAGE: readonly EmbeddedCoverageEdge[] = [
   { embeddedSlug: 'illusion', hostSlug: 'mirage', hostSourceId: 'tt_youtube', note: 'Illusion is taught inside the TT Mirage tutorial.' },
-  { embeddedSlug: 'orbit', hostSlug: 'around-the-world', hostSourceId: 'tt_youtube', note: 'Orbit is taught inside the TT Around The World tutorial.' },
+  { embeddedSlug: 'orbit', hostSlug: 'around_the_world', hostSourceId: 'tt_youtube', note: 'Orbit is taught inside the TT Around The World tutorial.' },
 ];
 
 /**

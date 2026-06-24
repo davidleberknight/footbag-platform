@@ -43,39 +43,39 @@ beforeAll(async () => {
   const rows = [
     // ── Osis family: native osis rows ──
     trick('osis', 'osis', 'dex'),
-    trick('spinning-osis', 'osis'),
+    trick('spinning_osis', 'osis'),
 
     // ── Torque family: renders as its own family (derived branch) ──
     trick('torque', 'torque', 'dex'),
-    trick('spinning-torque', 'torque'),
+    trick('spinning_torque', 'torque'),
 
     // ── Whirl family: native whirl rows ──
     trick('whirl', 'whirl', 'dex'),
-    trick('paradox-whirl', 'whirl'),
+    trick('paradox_whirl', 'whirl'),
 
     // ── Swirl family: renders as its own family (separate from whirl) ──
     trick('swirl', 'swirl', 'dex'),
-    trick('paradox-swirl', 'swirl'),
+    trick('paradox_swirl', 'swirl'),
 
     // ── twirl: route-out (sparse lineage), ≥2 rows so the singleton
     //    filter is not the reason it hides ──
-    trick('twirl', 'twirl'), trick('big-twirl', 'twirl'),
+    trick('twirl', 'twirl'), trick('big_twirl', 'twirl'),
 
     // ── Route-outs: modifier ecosystems (≥2 rows each) ──
-    trick('big-pixie', 'pixie'), trick('lil-pixie', 'pixie'),
-    trick('big-fairy', 'fairy'), trick('lil-fairy', 'fairy'),
-    trick('big-atomic', 'atomic'), trick('lil-atomic', 'atomic'),
-    trick('big-quantum', 'quantum'), trick('lil-quantum', 'quantum'),
+    trick('big_pixie', 'pixie'), trick('lil_pixie', 'pixie'),
+    trick('big_fairy', 'fairy'), trick('lil_fairy', 'fairy'),
+    trick('big_atomic', 'atomic'), trick('lil_atomic', 'atomic'),
+    trick('big_quantum', 'quantum'), trick('lil_quantum', 'quantum'),
 
     // ── Route-outs: alternative + foundational surfaces (≥2 rows each) ──
-    trick('xbss-one', 'cross-body-sole-stall'), trick('xbss-two', 'cross-body-sole-stall'),
-    trick('toe-one', 'toe-stall'), trick('toe-two', 'toe-stall'),
-    trick('clip-stall-one', 'clipper-stall'), trick('clip-stall-two', 'clipper-stall'),
+    trick('xbss_one', 'cross_body_sole_stall'), trick('xbss_two', 'cross_body_sole_stall'),
+    trick('toe_one', 'toe_stall'), trick('toe_two', 'toe_stall'),
+    trick('clip_stall_one', 'clipper_stall'), trick('clip_stall_two', 'clipper_stall'),
 
     // ── Other public families render as their own sections (≥2 rows) ──
-    trick('eclipse', 'eclipse', 'dex'), trick('lunar-eclipse', 'eclipse'),
-    trick('drifter', 'drifter', 'dex'), trick('day-drifter', 'drifter'),
-    trick('inside-stall', 'inside-stall', 'dex'), trick('guay', 'guay'),
+    trick('eclipse', 'eclipse', 'dex'), trick('lunar_eclipse', 'eclipse'),
+    trick('drifter', 'drifter', 'dex'), trick('day_drifter', 'drifter'),
+    trick('inside_stall', 'inside_stall', 'dex'), trick('guay', 'guay'),
   ];
   for (const r of rows) insertFreestyleTrick(db, r);
 
@@ -113,7 +113,7 @@ describe('Family skeleton — sub-labels fold in, sparse lineages route out', ()
   it('renders the guay sub-label rows nested under the inside-stall family', async () => {
     const html = await familyView();
     // guay folds into inside-stall; it has no top-level section of its own.
-    expect(html).toContain('id="family-inside-stall"');
+    expect(html).toContain('id="family-inside_stall"');
     expect(html).not.toContain('id="family-guay"');
     expect(html).toContain('data-trick-slug="guay"');
   });
@@ -121,7 +121,7 @@ describe('Family skeleton — sub-labels fold in, sparse lineages route out', ()
   it('does NOT render twirl as a family and skips its rows entirely', async () => {
     const html = await familyView();
     expect(html, 'twirl must not be a top-level family').not.toContain('id="family-twirl"');
-    for (const slug of ['twirl', 'big-twirl']) {
+    for (const slug of ['twirl', 'big_twirl']) {
       expect(html, `${slug} must not appear in family view`).not.toContain(`data-trick-slug="${slug}"`);
     }
   });
@@ -137,14 +137,14 @@ describe('Family skeleton — route-outs do not render as families', () => {
 
   it('does NOT render alternative/foundational surface families (cross-body-sole-stall / toe-stall / clipper-stall)', async () => {
     const html = await familyView();
-    for (const surf of ['cross-body-sole-stall', 'toe-stall', 'clipper-stall']) {
+    for (const surf of ['cross_body_sole_stall', 'toe_stall', 'clipper_stall']) {
       expect(html, `${surf} must not be a family`).not.toContain(`id="family-${surf}"`);
     }
   });
 
   it('route-out rows are absent from the family view entirely (skipped at bucketing)', async () => {
     const html = await familyView();
-    for (const slug of ['big-pixie', 'toe-one', 'xbss-one', 'big-atomic', 'big-quantum', 'clip-stall-one']) {
+    for (const slug of ['big_pixie', 'toe_one', 'xbss_one', 'big_atomic', 'big_quantum', 'clip_stall_one']) {
       expect(html, `${slug} must not appear in family view`).not.toContain(`data-trick-slug="${slug}"`);
     }
   });
@@ -155,7 +155,7 @@ describe('Family skeleton — other public families render safely', () => {
     const html = await familyView();
     // drifter (above the current first-class threshold) is a full section.
     expect(html).toContain('id="family-drifter"');
-    expect(html).toContain('data-trick-slug="day-drifter"');
+    expect(html).toContain('data-trick-slug="day_drifter"');
     // eclipse (below the threshold) is demoted to the compact Minor Lineages
     // band rather than a full section; its ?family= route is untouched.
     expect(html).not.toContain('id="family-eclipse"');
@@ -170,8 +170,8 @@ describe('Family skeleton — old ?family= filter URLs stay usable (data untouch
   it.each([
     ['swirl', 'swirl'],                            // public family label
     ['twirl', 'twirl'],                            // route-out label
-    ['clipper-stall', 'clip-stall-one'],           // route-out surface label
-    ['pixie', 'big-pixie'],                        // route-out ecosystem label
+    ['clipper_stall', 'clip_stall_one'],           // route-out surface label
+    ['pixie', 'big_pixie'],                        // route-out ecosystem label
   ])('?family=%s returns 200 and still lists its rows', async (family, sampleSlug) => {
     const res = await request(await createApp()).get(`/freestyle/tricks?family=${family}`);
     expect(res.status).toBe(200);

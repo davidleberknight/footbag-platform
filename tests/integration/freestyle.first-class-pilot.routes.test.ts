@@ -88,25 +88,25 @@ beforeAll(async () => {
 
   // ── Pilot compounds (Sprint 1 + Sprint 3 published derivations) ──
   insertFreestyleTrick(db, {
-    slug: 'paradox-mirage', canonical_name: 'paradox mirage', base_trick: 'mirage',
+    slug: 'paradox_mirage', canonical_name: 'paradox mirage', base_trick: 'mirage',
     trick_family: 'mirage', category: 'compound', adds: '3', is_active: 1,
     notation: 'PARADOX MIRAGE',
   });
-  insertFreestyleTrickModifierLink(db, 'paradox-mirage', 'paradox', 1);
+  insertFreestyleTrickModifierLink(db, 'paradox_mirage', 'paradox', 1);
 
   insertFreestyleTrick(db, {
-    slug: 'symposium-mirage', canonical_name: 'symposium mirage', base_trick: 'mirage',
+    slug: 'symposium_mirage', canonical_name: 'symposium mirage', base_trick: 'mirage',
     trick_family: 'mirage', category: 'compound', adds: '3', is_active: 1,
     notation: 'SYMPOSIUM MIRAGE',
   });
-  insertFreestyleTrickModifierLink(db, 'symposium-mirage', 'symposium', 1);
+  insertFreestyleTrickModifierLink(db, 'symposium_mirage', 'symposium', 1);
 
   insertFreestyleTrick(db, {
-    slug: 'atomic-butterfly', canonical_name: 'atomic butterfly', base_trick: 'butterfly',
+    slug: 'atomic_butterfly', canonical_name: 'atomic butterfly', base_trick: 'butterfly',
     trick_family: 'butterfly', category: 'compound', adds: '4', is_active: 1,
     notation: 'ATOMIC BUTTERFLY',
   });
-  insertFreestyleTrickModifierLink(db, 'atomic-butterfly', 'atomic', 1);
+  insertFreestyleTrickModifierLink(db, 'atomic_butterfly', 'atomic', 1);
 
   insertFreestyleTrick(db, {
     slug: 'ripwalk', canonical_name: 'ripwalk', base_trick: 'butterfly',
@@ -139,7 +139,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 const PILOT_SLUGS = [
-  'osis', 'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk',
+  'osis', 'paradox_mirage', 'symposium_mirage', 'atomic_butterfly', 'ripwalk',
 ] as const;
 
 // Slice out a single <section> by a class on its opening tag, so an
@@ -207,7 +207,7 @@ describe('First-class trick pilot — universal notation card', () => {
   });
 
   it('paradox-mirage ADD breakdown shows the +1-stack derivation', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     expect(res.text).toContain('paradox(+1) + mirage(2)');
   });
 
@@ -220,7 +220,7 @@ describe('First-class trick pilot — universal notation card', () => {
     // The hero's ADD chip is the single source of truth for the numeric
     // total; the notation card carries the structural derivation, not a
     // duplicate total row.
-    const res = await request(createApp()).get('/freestyle/tricks/atomic-butterfly');
+    const res = await request(createApp()).get('/freestyle/tricks/atomic_butterfly');
     expect(res.text).toMatch(/class="trick-hero-meta-chip trick-hero-meta-chip-adds"[^>]*>4 ADD</);
   });
 
@@ -228,7 +228,7 @@ describe('First-class trick pilot — universal notation card', () => {
     // paradox-mirage has no curator-authored operational notation, so
     // the Execution notation section does not render; the ADD derivation
     // section still carries the structural breakdown.
-    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     expect(res.text).not.toMatch(/operational-notation-display/);
     const region = sectionByClass(res.text, 'trick-add-analysis');
     expect(region).not.toBeNull();
@@ -266,7 +266,7 @@ describe('First-class trick pilot — notation card is universal', () => {
   it('first-class slugs DO render the ADD derivation section (the card is universal)', async () => {
     // The ADD derivation is now rendered for first-class tricks too; it
     // is the structural row of the one universal notation card.
-    const paradoxMirage = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    const paradoxMirage = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     const region = sectionByClass(paradoxMirage.text, 'trick-add-analysis');
     expect(region).not.toBeNull();
     expect(region!).toMatch(/<dt>ADD<\/dt>/);

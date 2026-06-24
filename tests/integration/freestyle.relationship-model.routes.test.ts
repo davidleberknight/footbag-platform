@@ -2,13 +2,13 @@
  * GET /freestyle/tricks/:slug — structured relationship model.
  *
  * Pins these additive surfaces:
- *   1. Quantity ladder (spin -> double-spin -> triple-spin): a cross-family
+ *   1. Quantity ladder (spin -> double_spin -> triple_spin): a cross-family
  *      progression rendered with a current-rung marker + rationale, NOT a family.
  *   2. Swing elements: the pendulum/rake movement-neighbour pair re-labeled
  *      "Swing elements" with the open-terminal rationale.
  *   3. Related tricks split into labeled relationship groups (group label, not
  *      per-row reason).
- *   4. Orphan-neighbour overlays: double-kick / miraging-kick / toe-clipper
+ *   4. Orphan-neighbour overlays: double_kick / miraging_kick / toe_clipper
  *      surface their curated movement neighbours, and modifier composition
  *      glosses render inline.
  */
@@ -26,32 +26,32 @@ const { dbPath } = setTestEnv('3571');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const t = (slug: string, fam: string, adds: string, cat: 'body' | 'dex' | 'compound' = 'compound') =>
-  ({ slug, canonical_name: slug.replace(/-/g, ' '), trick_family: fam, base_trick: fam, category: cat, adds, is_active: 1 as const });
+  ({ slug, canonical_name: slug.replace(/_/g, ' '), trick_family: fam, base_trick: fam, category: cat, adds, is_active: 1 as const });
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   for (const r of [
     // Spin ladder spans three different trick_family values.
     t('spin', 'spin', '1', 'body'),
-    t('double-spin', 'double-spin', '2', 'body'),
-    t('triple-spin', 'spin', '3'),
+    t('double_spin', 'double_spin', '2', 'body'),
+    t('triple_spin', 'spin', '3'),
     // Swing-element pair.
     t('pendulum', 'pendulum', '2'),
     t('rake', 'rake', '2'),
     // Orphan body primitives + their curated neighbour targets.
-    t('double-kick', 'double-kick', '1', 'body'),
-    t('double-knee', 'double-knee', '1', 'body'),
-    t('miraging-kick', 'miraging-kick', '1', 'dex'),
-    t('toe-clipper', 'toe-clipper', '2'),
-    t('flying-inside', 'clipper', '2'),
-    t('flying-outside', 'clipper', '2'),
-    t('flying-clipper', 'clipper', '2'),
+    t('double_kick', 'double_kick', '1', 'body'),
+    t('double_knee', 'double_knee', '1', 'body'),
+    t('miraging_kick', 'miraging_kick', '1', 'dex'),
+    t('toe_clipper', 'toe_clipper', '2'),
+    t('flying_inside', 'clipper', '2'),
+    t('flying_outside', 'clipper', '2'),
+    t('flying_clipper', 'clipper', '2'),
     t('mirage', 'mirage', '2', 'dex'),
     // A trick carrying the gyro modifier, to exercise the composition gloss.
-    t('gyro-clipper', 'clipper-stall', '2'),
+    t('gyro_clipper', 'clipper_stall', '2'),
   ]) insertFreestyleTrick(db, r);
   insertFreestyleTrickModifier(db, { slug: 'gyro', modifier_name: 'Gyro', modifier_type: 'body' });
-  insertFreestyleTrickModifierLink(db, 'gyro-clipper', 'gyro');
+  insertFreestyleTrickModifierLink(db, 'gyro_clipper', 'gyro');
   db.close();
   createApp = await importApp();
 });
@@ -66,7 +66,7 @@ async function page(slug: string): Promise<string> {
 
 describe('Quantity ladder (cross-family, not a family)', () => {
   it('renders the Spin ladder with all three rungs + rationale on each member', async () => {
-    for (const slug of ['spin', 'double-spin', 'triple-spin']) {
+    for (const slug of ['spin', 'double_spin', 'triple_spin']) {
       const html = await page(slug);
       expect(html).toContain('trick-quantity-ladder');
       expect(html).toContain('Spin ladder');
@@ -74,12 +74,12 @@ describe('Quantity ladder (cross-family, not a family)', () => {
       expect(html).toContain('ladder-step-current');   // the current rung is marked
     }
   });
-  it('marks the current rung and keeps double-spin in its own family', async () => {
-    const html = await page('double-spin');
+  it('marks the current rung and keeps double_spin in its own family', async () => {
+    const html = await page('double_spin');
     expect(html).toContain('ladder-step-current');
-    // double-spin links the other two rungs (cross-family), not re-homed.
+    // double_spin links the other two rungs (cross-family), not re-homed.
     expect(html).toContain('/freestyle/tricks/spin');
-    expect(html).toContain('/freestyle/tricks/triple-spin');
+    expect(html).toContain('/freestyle/tricks/triple_spin');
   });
 });
 
@@ -106,18 +106,18 @@ describe('Related groups + regressions', () => {
 });
 
 describe('Orphan-neighbour overlays + modifier glosses', () => {
-  it('double-kick surfaces its flying-contact set and the double-knee sibling', async () => {
-    const html = await page('double-kick');
+  it('double_kick surfaces its flying-contact set and the double_knee sibling', async () => {
+    const html = await page('double_kick');
     expect(html).toContain('Movement neighbours');
-    expect(html).toContain('/freestyle/tricks/flying-clipper');
-    expect(html).toContain('/freestyle/tricks/double-knee');   // mutual sibling pair
+    expect(html).toContain('/freestyle/tricks/flying_clipper');
+    expect(html).toContain('/freestyle/tricks/double_knee');   // mutual sibling pair
   });
-  it('miraging-kick relates to mirage; toe-clipper to flying-clipper', async () => {
-    expect(await page('miraging-kick')).toContain('/freestyle/tricks/mirage');
-    expect(await page('toe-clipper')).toContain('/freestyle/tricks/flying-clipper');
+  it('miraging_kick relates to mirage; toe_clipper to flying_clipper', async () => {
+    expect(await page('miraging_kick')).toContain('/freestyle/tricks/mirage');
+    expect(await page('toe_clipper')).toContain('/freestyle/tricks/flying_clipper');
   });
   it('renders the gyro modifier composition gloss inline', async () => {
-    const html = await page('gyro-clipper');
+    const html = await page('gyro_clipper');
     expect(html).toContain('GYRO + base');
   });
 });

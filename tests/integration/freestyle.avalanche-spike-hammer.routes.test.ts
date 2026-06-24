@@ -39,7 +39,7 @@ beforeAll(async () => {
     aliases_json: '["stepping ducking paradox illusion"]',
   });
   insertFreestyleTrick(db, {
-    slug: 'spike-hammer',
+    slug: 'spike_hammer',
     canonical_name: 'spike hammer',
     adds: '5', base_trick: 'paradox-mirage', trick_family: 'paradox-mirage',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
@@ -65,7 +65,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — avalanche + spike-hammer entries', () =
   });
 
   it('spike-hammer carries FB.org-confirmed JOB with OP IN [PDX] [DEX] (mirage base)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'spike-hammer');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'spike_hammer');
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.base).toBe('paradox-mirage');
     expect(entry?.operationalNotation).toBe('CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]');
@@ -74,7 +74,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — avalanche + spike-hammer entries', () =
 
   it('both entries share an identical modifier stack and differ only in the dex direction', () => {
     const av = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'avalanche');
-    const sh = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'spike-hammer');
+    const sh = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'spike_hammer');
     expect(av?.totalAdd).toBe(sh?.totalAdd);
     // Both share "OP IN [DEX] > DUCK [BOD]" prefix and "OP TOE [DEL]" tail.
     expect(av?.operationalNotation ?? '').toContain('OP IN [DEX] > DUCK [BOD]');
@@ -102,7 +102,7 @@ describe('Avalanche + spike-hammer detail pages — first-class JOB + ADD', () =
   });
 
   it('/freestyle/tricks/spike-hammer renders 5 ADD + same tokens (different dex direction) + folk-name alias', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/spike-hammer');
+    const res = await request(await createApp()).get('/freestyle/tricks/spike_hammer');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
     for (const token of ['CLIP', 'OP', 'IN', '[DEX]', 'DUCK', '[BOD]', '[PDX]', 'TOE', '[DEL]']) {
@@ -119,7 +119,7 @@ describe('Avalanche + spike-hammer browse rendering — FIRST_CLASS_TIER_2', () 
   it('both browse cards render JOB + ADD inline (not "canonical decomposition pending")', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    for (const slug of ['avalanche', 'spike-hammer']) {
+    for (const slug of ['avalanche', 'spike_hammer']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx).toBeGreaterThan(-1);
       const articleOpen = res.text.lastIndexOf('<article', idx);

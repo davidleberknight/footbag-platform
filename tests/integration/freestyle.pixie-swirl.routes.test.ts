@@ -24,7 +24,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertFreestyleTrick(db, {
-    slug: 'pixie-swirl',
+    slug: 'pixie_swirl',
     canonical_name: 'pixie swirl',
     adds: '4', base_trick: 'swirl', trick_family: 'swirl',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
@@ -36,9 +36,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — pixie-swirl entry', () => {
+describe('RESOLVED_FORMULAS_SPRINT_1 — pixie_swirl entry', () => {
   it('overlay carries FB.org-confirmed JOB + 4 ADD + pixie/swirl derivation', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie-swirl');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie_swirl');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.baseAdd).toBe(3);
@@ -50,9 +50,9 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — pixie-swirl entry', () => {
   });
 });
 
-describe('pixie-swirl detail page — first-class JOB + ADD', () => {
-  it('/freestyle/tricks/pixie-swirl renders 4 ADD + SAME IN [DEX] prefix + BACK SWIRL rotation-variant', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/pixie-swirl');
+describe('pixie_swirl detail page — first-class JOB + ADD', () => {
+  it('/freestyle/tricks/pixie_swirl renders 4 ADD + SAME IN [DEX] prefix + BACK SWIRL rotation-variant', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/pixie_swirl');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -65,10 +65,10 @@ describe('pixie-swirl detail page — first-class JOB + ADD', () => {
     }
   });
 
-  it('pixie-swirl browse card renders JOB + ADD inline (not "canonical decomposition pending")', async () => {
+  it('pixie_swirl browse card renders JOB + ADD inline (not "canonical decomposition pending")', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    const idx = res.text.indexOf('data-trick-slug="pixie-swirl"');
+    const idx = res.text.indexOf('data-trick-slug="pixie_swirl"');
     expect(idx).toBeGreaterThan(-1);
     const articleOpen = res.text.lastIndexOf('<article', idx);
     const articleClose = res.text.indexOf('</article>', idx);

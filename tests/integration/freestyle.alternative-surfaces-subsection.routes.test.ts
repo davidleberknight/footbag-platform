@@ -38,24 +38,24 @@ beforeAll(async () => {
   // member per group. Each row uses [set]-prefixed compact notation
   // because that's the canonical form for surface-stall primitives.
   const seeds = [
-    ['sole-stall',           'sole stall',           '2', 'sole-stall',           'sole-stall',           '[set] > sole'],
-    ['heel-stall',           'heel stall',           '1', 'heel-stall',           'heel-stall',           '[set] > heel'],
-    ['inside-stall',         'inside stall',         '1', 'inside-stall',         'inside-stall',         '[set] > inside'],
-    ['outside-stall',        'outside stall',        '1', 'outside-stall',        'outside-stall',        '[set] > outside'],
-    ['head-stall',           'head stall',           '1', 'head-stall',           'head-stall',           '[set] > head'],
-    ['neck-stall',           'neck stall',           '1', 'neck-stall',           'neck-stall',           '[set] > neck'],
-    ['shoulder-stall',       'shoulder stall',       '1', 'shoulder-stall',       'shoulder-stall',       '[set] > shoulder'],
-    ['forehead-stall',       'forehead stall',       '1', 'forehead-stall',       'forehead-stall',       '[set] > forehead'],
-    ['cloud-stall',          'cloud stall',          '2', 'cloud-stall',          'cloud-stall',          '[set] > cloud'],
-    ['cloud-kick',           'cloud kick',           '1', 'cloud-kick',           'cloud-kick',           '[set] > cloud kick'],
-    ['knee-stall',           'knee stall',           '1', 'knee-stall',           'knee-stall',           '[set] > knee'],
-    ['flying-clipper',       'flying clipper',       '2', 'clipper-stall',        'clipper',              'flying > clipper'],
-    ['flying-inside',        'flying inside',        '1', 'flying-inside',        'flying-inside',        'flying > inside'],
-    ['flying-outside',       'flying outside',       '1', 'flying-outside',       'flying-outside',       'flying > outside'],
-    ['dragonfly-kick',       'dragonfly kick',       '2', 'dragonfly-kick',       'dragonfly-kick',       'flying > dragonfly'],
-    ['butterfly-kick',       'butterfly kick',       '3', 'butterfly',            'butterfly',            'SET > JUMP [BOD] > SAME or OP OUT [DEX] > OP CLIP [XBD]'],
-    ['sole-kick',            'sole kick',            '1', 'sole-kick',            'sole-kick',            '[set] > sole kick'],
-    ['cross-body-sole-stall','cross-body sole stall','3', 'cross-body-sole-stall','cross-body-sole-stall','[set] > sole [xbd]'],
+    ['sole_stall',           'sole stall',           '2', 'sole_stall',           'sole_stall',           '[set] > sole'],
+    ['heel_stall',           'heel stall',           '1', 'heel_stall',           'heel_stall',           '[set] > heel'],
+    ['inside_stall',         'inside stall',         '1', 'inside_stall',         'inside_stall',         '[set] > inside'],
+    ['outside_stall',        'outside stall',        '1', 'outside_stall',        'outside_stall',        '[set] > outside'],
+    ['head_stall',           'head stall',           '1', 'head_stall',           'head_stall',           '[set] > head'],
+    ['neck_stall',           'neck stall',           '1', 'neck_stall',           'neck_stall',           '[set] > neck'],
+    ['shoulder_stall',       'shoulder stall',       '1', 'shoulder_stall',       'shoulder_stall',       '[set] > shoulder'],
+    ['forehead_stall',       'forehead stall',       '1', 'forehead_stall',       'forehead_stall',       '[set] > forehead'],
+    ['cloud_stall',          'cloud stall',          '2', 'cloud_stall',          'cloud_stall',          '[set] > cloud'],
+    ['cloud_kick',           'cloud kick',           '1', 'cloud_kick',           'cloud_kick',           '[set] > cloud kick'],
+    ['knee_stall',           'knee stall',           '1', 'knee_stall',           'knee_stall',           '[set] > knee'],
+    ['flying_clipper',       'flying clipper',       '2', 'clipper_stall',        'clipper',              'flying > clipper'],
+    ['flying_inside',        'flying inside',        '1', 'flying_inside',        'flying_inside',        'flying > inside'],
+    ['flying_outside',       'flying outside',       '1', 'flying_outside',       'flying_outside',       'flying > outside'],
+    ['dragonfly_kick',       'dragonfly kick',       '2', 'dragonfly_kick',       'dragonfly_kick',       'flying > dragonfly'],
+    ['butterfly_kick',       'butterfly kick',       '3', 'butterfly',            'butterfly',            'SET > JUMP [BOD] > SAME or OP OUT [DEX] > OP CLIP [XBD]'],
+    ['sole_kick',            'sole kick',            '1', 'sole_kick',            'sole_kick',            '[set] > sole kick'],
+    ['cross_body_sole_stall','cross-body sole stall','3', 'cross_body_sole_stall','cross_body_sole_stall','[set] > sole [xbd]'],
   ];
   for (const [slug, name, adds, base, fam, op] of seeds) {
     insertFreestyleTrick(db, {
@@ -91,9 +91,9 @@ describe('Movement System view: alternative-surfaces subsection', () => {
   it('renders trick links and ADD values inline (not as dictionary-trick-cards)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
     // Compact-list rendering: anchor + (N ADD) inline, no dict-card surface
-    expect(res.text).toMatch(/<li class="alt-surface-trick">\s*<a href="\/freestyle\/tricks\/sole-stall">sole stall<\/a>\s*<span class="alt-surface-add">\(2 ADD\)<\/span>/);
-    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/head-stall">head stall<\/a>/);
-    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/flying-clipper">flying clipper<\/a>/);
+    expect(res.text).toMatch(/<li class="alt-surface-trick">\s*<a href="\/freestyle\/tricks\/sole_stall">sole stall<\/a>\s*<span class="alt-surface-add">\(2 ADD\)<\/span>/);
+    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/head_stall">head stall<\/a>/);
+    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/flying_clipper">flying clipper<\/a>/);
   });
 
   it('does NOT use registry-density dictionary-trick-card in the subsection', async () => {

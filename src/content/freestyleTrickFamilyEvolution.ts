@@ -40,7 +40,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
         branchAxis: 'Topology intensification',
         prose:
           "Layering paradox onto mirage adds a hip-pivot cross-body transition during the dex cycle. The resulting trick (paradox-mirage) anchors much of modern shred vocabulary.",
-        exemplarSlugs: ['paradox-mirage'],
+        exemplarSlugs: ['paradox_mirage'],
       },
       {
         branchAxis: 'Multi-dex extension',
@@ -65,7 +65,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
 
   // ── Editorial exemplar #2: paradox-mirage ───────────────────────────
   {
-    slug: 'paradox-mirage',
+    slug: 'paradox_mirage',
     narrativeSteps: [
       {
         branchAxis: 'Multi-dex extension',
@@ -130,7 +130,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
         branchAxis: 'Topology intensification',
         prose:
           "Layering paradox onto drifter produces paradox-drifter, the hip-pivot cross-body transition threaded into the mirage-dex with clipper terminal.",
-        exemplarSlugs: ['paradox-drifter'],
+        exemplarSlugs: ['paradox_drifter'],
       },
       {
         branchAxis: 'Rotational variant',
@@ -154,7 +154,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
         branchAxis: 'Clipper-stall sibling branch',
         prose:
           "High-plains-drifter sits on the same clipper-stall chassis as drifter with an additional modifier, sibling-of-drifter rather than descendant.",
-        exemplarSlugs: ['high-plains-drifter'],
+        exemplarSlugs: ['high_plains_drifter'],
       },
     ],
   },
@@ -166,7 +166,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
         branchAxis: 'Topology intensification',
         prose:
           "Layering paradox onto the doubled-dex chassis produces paradox-barrage, paradox hip-pivot threaded through the second dex.",
-        exemplarSlugs: ['paradox-barrage'],
+        exemplarSlugs: ['paradox_barrage'],
       },
       {
         branchAxis: 'Stepping-paradox extension',
@@ -195,25 +195,25 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
         branchAxis: 'Topology intensification',
         prose:
           "Layering paradox onto the blender chassis produces paradox-blender, paradox hip-pivot threaded into the whirl-osis compound.",
-        exemplarSlugs: ['paradox-blender'],
+        exemplarSlugs: ['paradox_blender'],
       },
       {
         branchAxis: 'Naming-driven extensions',
         prose:
           "Several 5-6 ADD compounds carry their own folk names while sharing the blender chassis: fender, fender-bender, mind-bender, spender. Each names a specific compositional reading on the chassis without escalating to a new family.",
-        exemplarSlugs: ['fender', 'mind-bender'],
+        exemplarSlugs: ['fender', 'mind_bender'],
       },
       {
         branchAxis: 'Multi-modifier extension',
         prose:
           "Deeper modifier stacks layer onto the chassis to produce 6-7 ADD compounds: spinning-paradox-blender and stepping-ducking-paradox-blender are the deepest extensions in the family.",
-        exemplarSlugs: ['spinning-paradox-blender'],
+        exemplarSlugs: ['spinning_paradox_blender'],
       },
       {
         branchAxis: 'Operator-path productivity',
         prose:
           "The blurry operator extended onto the compound-of-canonicals chassis produces food-processor, blurry-modified blender at 6 ADD.",
-        exemplarSlugs: ['food-processor'],
+        exemplarSlugs: ['food_processor'],
       },
     ],
   },
@@ -242,25 +242,25 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
         branchAxis: 'Body-modifier branch',
         prose:
           "Ducking-osis, spinning-osis, atomic-osis, paradox-osis: each layers a modifier on the spin-clipper chassis at the 4-ADD layer.",
-        exemplarSlugs: ['ducking-osis', 'spinning-osis'],
+        exemplarSlugs: ['ducking_osis', 'spinning_osis'],
       },
       {
         branchAxis: 'Set-treatment branch',
         prose:
           "Pixie-osis at 4 ADD layers a set-treatment modifier compressing the opening, anchoring the set-axis productivity on the chassis.",
-        exemplarSlugs: ['pixie-osis'],
+        exemplarSlugs: ['pixie_osis'],
       },
       {
         branchAxis: 'Multi-dex extension',
         prose:
           "Stepping-osis at 4 ADD and barraging-osis at 5 ADD layer multi-dex extensions onto the spin-clipper chassis.",
-        exemplarSlugs: ['stepping-osis', 'barraging-osis'],
+        exemplarSlugs: ['stepping_osis', 'barraging_osis'],
       },
       {
         branchAxis: 'Naming-driven extensions',
         prose:
           "Twirl at 4 ADD and aeon-flux at 5 ADD carry their own folk names while sharing the osis chassis.",
-        exemplarSlugs: ['twirl', 'aeon-flux'],
+        exemplarSlugs: ['twirl', 'aeon_flux'],
       },
     ],
   },
@@ -290,7 +290,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
         branchAxis: 'Body-modifier branch',
         prose:
           "Atomic-butterfly, ducking-butterfly, gyro-butterfly, spinning-butterfly: each layers a single body modifier on the chassis at 4 ADD.",
-        exemplarSlugs: ['atomic-butterfly', 'ducking-butterfly'],
+        exemplarSlugs: ['atomic_butterfly', 'ducking_butterfly'],
       },
       {
         branchAxis: 'Multi-modifier extension',
@@ -314,7 +314,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
         branchAxis: 'Body-modifier branch',
         prose:
           "Paradox-torque, spinning-torque, symposium-torque layer body modifiers on the torque chassis at the 5-ADD layer.",
-        exemplarSlugs: ['paradox-torque', 'spinning-torque'],
+        exemplarSlugs: ['paradox_torque', 'spinning_torque'],
       },
       {
         branchAxis: 'Gyro layering',
@@ -326,13 +326,13 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
         branchAxis: 'Atomic / nuclear extension',
         prose:
           "Atomic-torque at 6 ADD layers the atomic modifier onto the chassis; the deeper modifier-stack branch.",
-        exemplarSlugs: ['atomic-torque'],
+        exemplarSlugs: ['atomic_torque'],
       },
       {
         branchAxis: 'Naming-driven extensions',
         prose:
           "Forque, grave-digger, spinal-tap, and big-apple are folk-named compounds on the torque chassis at 5-6 ADD.",
-        exemplarSlugs: ['forque', 'grave-digger'],
+        exemplarSlugs: ['forque', 'grave_digger'],
       },
       {
         branchAxis: 'Highest-ADD reach',

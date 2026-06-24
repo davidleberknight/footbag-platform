@@ -39,8 +39,8 @@ export const FAMILY_PARENT_MIN_DESCENDANTS = 10;
  * descendant count.
  */
 export const FOUNDATIONAL_TERMINAL_SURFACES: ReadonlySet<string> = new Set([
-  'toe-stall',
-  'clipper-stall',
+  'toe_stall',
+  'clipper_stall',
 ]);
 
 export const FAMILY_TIER_LABEL: Readonly<Record<FamilyTier, string>> = {
@@ -70,10 +70,10 @@ export function classifyFamilyTier(slug: string, descendantCount: number): Famil
 export const FAMILY_DESCENDANT_COUNTS: ReadonlyMap<string, number> = new Map([
   ['osis', 84], ['whirl', 74], ['legover', 71], ['mirage', 69], ['butterfly', 48],
   ['illusion', 34], ['swirl', 29], ['pickup', 27], ['blender', 22], ['torque', 22],
-  ['double-leg-over', 16], ['drifter', 14], ['barfly', 13], ['eggbeater', 13],
-  ['double-over-down', 12], ['inside-stall', 11],
+  ['double_leg_over', 16], ['drifter', 14], ['barfly', 13], ['eggbeater', 13],
+  ['double_over_down', 12], ['inside_stall', 11],
   ['eclipse', 9], ['flail', 9], ['barrage', 8], ['paradon', 6], ['dyno', 5],
-  ['butterfly-swirl', 5], ['dada-curve', 4], ['flurry', 3],
+  ['butterfly_swirl', 5], ['dada_curve', 4], ['flurry', 3],
 ]);
 
 /**

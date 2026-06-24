@@ -46,7 +46,7 @@ beforeAll(async () => {
 
   // Toe Stall — sparse base trick; minimal notation; no aliases
   insertFreestyleTrick(db, {
-    slug:                 'toe-stall',
+    slug:                 'toe_stall',
     canonical_name:       'toe stall',
     adds:                 '1',
     base_trick:           'toe-stall',
@@ -87,8 +87,8 @@ beforeAll(async () => {
     category:             'compound',
     operational_notation: '[clip] > op in dex > butterfly wing > ss clipper',
   });
-  insertFreestyleTrickAlias(db, 'stepping-butterfly', 'ripwalk', 'stepping butterfly');
-  insertFreestyleTrickAlias(db, 'blurry-butterfly', 'ripwalk', 'blurry butterfly');
+  insertFreestyleTrickAlias(db, 'stepping_butterfly', 'ripwalk', 'stepping butterfly');
+  insertFreestyleTrickAlias(db, 'blurry_butterfly', 'ripwalk', 'blurry butterfly');
 
   // Mobius — folk-name alias is the trick's semantic compressed form
   insertFreestyleTrick(db, {
@@ -100,7 +100,7 @@ beforeAll(async () => {
     category:             'compound',
     operational_notation: '[clip] > spinning > ss miraging op osis',
   });
-  insertFreestyleTrickAlias(db, 'gyro-torque', 'mobius', 'gyro torque');
+  insertFreestyleTrickAlias(db, 'gyro_torque', 'mobius', 'gyro torque');
 
   // Montage — flagship deep compound; no alias
   insertFreestyleTrick(db, {
@@ -219,7 +219,7 @@ describe('dictionary-trick-card — required slots', () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     // Atoms (toe-stall, mirage, etc.) are first-class — their op-notation
     // chip is suppressed on browse cards.
-    const toeStallCard = res.text.match(/data-trick-slug="toe-stall"[\s\S]*?<\/article>/);
+    const toeStallCard = res.text.match(/data-trick-slug="toe_stall"[\s\S]*?<\/article>/);
     expect(toeStallCard).not.toBeNull();
     expect(toeStallCard![0]).not.toMatch(/<code class="dict-card-notation/);
     // First-class secondary row still carries the JOB line.
@@ -276,49 +276,49 @@ describe('dictionary-trick-card — required slots', () => {
     // cohort changes.
     const FIRST_CLASS_COHORT_SLUGS = [
       // Tier 1 — 12 elite (11 atoms + pendulum)
-      'osis', 'toe-stall', 'clipper-stall', 'mirage', 'whirl', 'butterfly',
-      'swirl', 'legover', 'pickup', 'illusion', 'around-the-world', 'pendulum',
+      'osis', 'toe_stall', 'clipper_stall', 'mirage', 'whirl', 'butterfly',
+      'swirl', 'legover', 'pickup', 'illusion', 'around_the_world', 'pendulum',
       // Tier 1 — foundational 1-ADD primitives (2026-05-22 widening)
-      'heel-stall', 'inside-stall', 'outside-stall', 'head-stall',
-      'forehead-stall', 'neck-stall', 'knee-stall', 'shoulder-stall',
-      'sole-kick', 'cloud-kick', 'peak-delay',
-      'flying-inside', 'flying-outside', 'double-knee',
+      'heel_stall', 'inside_stall', 'outside_stall', 'head_stall',
+      'forehead_stall', 'neck_stall', 'knee_stall', 'shoulder_stall',
+      'sole_kick', 'cloud_kick', 'peak_delay',
+      'flying_inside', 'flying_outside', 'double_knee',
       // Tier 1 — foundational 2-ADD primitives (2026-05-22 + knee-clipper + guay)
-      'cloud-stall', 'dragonfly-kick', 'flying-clipper', 'knee-clipper', 'guay',
+      'cloud_stall', 'dragonfly_kick', 'flying_clipper', 'knee_clipper', 'guay',
       // Tier 2 — original (9)
-      'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk',
-      'ducking-butterfly', 'spinning-butterfly', 'stepping-osis',
-      'eggbeater', 'paradox-symposium-whirl',
+      'paradox_mirage', 'symposium_mirage', 'atomic_butterfly', 'ripwalk',
+      'ducking_butterfly', 'spinning_butterfly', 'stepping_osis',
+      'eggbeater', 'paradox_symposium_whirl',
       // Tier 2 — Wave 1 audit-derived (5; 2026-05-22)
-      'atomic-torque', 'ducking-mirage', 'paradox-drifter',
-      'spinning-pickup', 'tapping-whirl',
+      'atomic_torque', 'ducking_mirage', 'paradox_drifter',
+      'spinning_pickup', 'tapping_whirl',
       // Tier 2 — Wave 2 RESOLVED_FORMULAS promotions (19; 2026-05-22)
-      'atom-smasher', 'dimwalk', 'ducking-clipper', 'ducking-osis',
-      'ducking-whirl', 'fog', 'orbit', 'paradox-blender', 'paradox-torque',
-      'rake', 'rev-up', 'rev-whirl', 'smear', 'spinning-clipper',
-      'spinning-osis', 'spinning-torque', 'stepping-whirl',
-      'symposium-whirl', 'whirling-swirl',
+      'atom_smasher', 'dimwalk', 'ducking_clipper', 'ducking_osis',
+      'ducking_whirl', 'fog', 'orbit', 'paradox_blender', 'paradox_torque',
+      'rake', 'rev_up', 'rev_whirl', 'smear', 'spinning_clipper',
+      'spinning_osis', 'spinning_torque', 'stepping_whirl',
+      'symposium_whirl', 'whirling_swirl',
       // Tier 2 — Wave 3 audit-validated promotions (28; 2026-05-22)
-      'squeeze', 'barrage', 'barfly', 'high-plains-drifter', 'paradon',
-      'barraging-osis',
-      'cross-body-sole-stall', 'legeater', 'paste', 'reverse-drifter',
-      'scrambled-eggbeater', 'tap', 'blur', 'hatchet', 'paradox-whirl',
-      'pigbeater', 'spinning-whirl', 'tripwalk', 'matador', 'phoenix',
-      'spinal-tap', 'spinning-symposium-whirl', 'witchdoctor',
-      'mind-bender', 'mullet', 'spender', 'gauntlet', 'montage',
+      'squeeze', 'barrage', 'barfly', 'high_plains_drifter', 'paradon',
+      'barraging_osis',
+      'cross_body_sole_stall', 'legeater', 'paste', 'reverse_drifter',
+      'scrambled_eggbeater', 'tap', 'blur', 'hatchet', 'paradox_whirl',
+      'pigbeater', 'spinning_whirl', 'tripwalk', 'matador', 'phoenix',
+      'spinal_tap', 'spinning_symposium_whirl', 'witchdoctor',
+      'mind_bender', 'mullet', 'spender', 'gauntlet', 'montage',
       // Tier 2 — Wave 4-B mechanical notation back-fill (19; 2026-05-22)
       'flail', 'magellan', 'merkon', 'smudge',
       'assassin', 'haze', 'mantis', 'nova', 'parkwalk', 'royale',
       'smog', 'smoke', 'tapdown', 'tombstone',
-      'blurriest', 'grave-digger', 'tomahawk', 'big-apple',
-      'sole-stall',
+      'blurriest', 'grave_digger', 'tomahawk', 'big_apple',
+      'sole_stall',
       // Tier 2 — Wave 5 observational→canonical promotions (14; 2026-05-22)
-      'blizzard', 'blaze', 'bedwetter', 'sole-survivor',
-      'spinning-paradox-mirage', 'spinning-paradox-illusion',
-      'spinning-paradox-whirl', 'paradox-double-leg-over',
-      'paradox-barrage', 'paradox-symposium-mirage',
-      'paradox-high-plains-drifter', 'spinning-paradox-blender',
-      'stepping-ducking-paradox-blender', 'paradox-blizzard',
+      'blizzard', 'blaze', 'bedwetter', 'sole_survivor',
+      'spinning_paradox_mirage', 'spinning_paradox_illusion',
+      'spinning_paradox_whirl', 'paradox_double_leg_over',
+      'paradox_barrage', 'paradox_symposium_mirage',
+      'paradox_high_plains_drifter', 'spinning_paradox_blender',
+      'stepping_ducking_paradox_blender', 'paradox_blizzard',
       // Tier 2 — Wave 7 doctrine-divergence pilot (3; 2026-05-23)
       'blurrage', 'predator', 'schmoe',
     ];
@@ -402,8 +402,8 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     // class, so its op-notation now surfaces via the first-class
     // secondary row's labeled "JOB:" line instead.
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
-    expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/toe-stall">toe stall<\/a>/);
-    const toeStallCard = res.text.match(/data-trick-slug="toe-stall"[\s\S]*?<\/article>/);
+    expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/toe_stall">toe stall<\/a>/);
+    const toeStallCard = res.text.match(/data-trick-slug="toe_stall"[\s\S]*?<\/article>/);
     expect(toeStallCard).not.toBeNull();
     // No op-notation chip between hashtag and ADD chip.
     expect(toeStallCard![0]).not.toMatch(/<code class="dict-card-notation/);

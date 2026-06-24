@@ -586,7 +586,7 @@ function buildFreestyleByNumbers(
   // Bar width AND percent are both a share of the dictionary total N (not of the
   // largest row), so every card is directly comparable.
   const bar = (label: string, count: number): FreestyleByNumbersBar => ({
-    label: label.replace(/-/g, ' '),
+    label: label.replace(/[-_]/g, ' '),
     count,
     percent: Math.round((count / N) * 100),
     widthBucket: Math.min(100, Math.max(5, Math.round(((count / N) * 100) / 5) * 5)),
@@ -932,19 +932,19 @@ export interface FreestyleCompositionalSetsContent {
   };
 }
 
-// Kebab-case slug derivation for /freestyle/sets labels. Distinct from the
-// underscore-style slugify in src/services/slugify.ts because trick slugs in
-// the dictionary are kebab-case. Anchor ids on this page derive from this
-// function regardless of whether the label matches a trick — every row gets
-// a stable id for future backlinking.
+// Underscore slug derivation for /freestyle/sets labels, matching the dictionary
+// trick slug form (one lowercase underscore token equal to the hashtag body and
+// URL segment). Anchor ids on this page derive from this function regardless of
+// whether the label matches a trick — every row gets a stable id for future
+// backlinking.
 function movesAnchorSlug(label: string): string {
   return label
     .toLowerCase()
-    .replace(/\s*\/\s*/g, '-')
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
+    .replace(/\s*\/\s*/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -1083,7 +1083,7 @@ function shapeSetModifiers(board: OperatorBoardData): FreestyleSetModifierEntry[
   ]);
   return (setTier?.operators ?? [])
     .map(op => ({
-      slug:           op.name.toLowerCase().replace(/\s+/g, '-'),
+      slug:           op.name.toLowerCase().replace(/\s+/g, '_'),
       name:           op.name,
       glyph:          op.glyph,
       oneLineMeaning: op.action,
@@ -1100,7 +1100,7 @@ function shapeSetModifiers(board: OperatorBoardData): FreestyleSetModifierEntry[
 // line appears only when the modifier exists as a canonical set, so body
 // modifiers never carry a fabricated notation.
 const operatorTitleCase = (slug: string): string =>
-  slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  slug.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
 function operatorFeelCard(slug: string): ModifierFeelCard | undefined {
   return SET_MODIFIER_FEEL_CARDS.find(c => c.slug === slug)
@@ -4207,8 +4207,8 @@ const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   // compound). Promote in a future slice when the classification is
   // reconciled.
   'osis',                // golden reference; double-pass rotational dex
-  'toe-stall',           // foundational stall — surface anchor
-  'clipper-stall',       // inside-shoe stall; clipper family root
+  'toe_stall',           // foundational stall — surface anchor
+  'clipper_stall',       // inside-shoe stall; clipper family root
   'mirage',              // mirage family root; cross-body rotational dex
   'whirl',               // whirl family root; rotational dex
   'butterfly',           // butterfly family root; rotational dex on a different beat
@@ -4216,7 +4216,7 @@ const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   'legover',             // legover family root; dex over supporting leg
   'pickup',              // pickup family root; dex catching from below
   'illusion',            // dex with mid-flight rotation; mirror of mirage
-  'around-the-world',    // orbit-class atom (ATW)
+  'around_the_world',    // orbit-class atom (ATW)
   // Compound with full curator data (op-notation + resolved formula).
   'pendulum',            // swing-class compound; only first-class compound at full parity
   // ── Foundational 1-ADD surface vocabulary (atomic; passes convergence;
@@ -4224,35 +4224,35 @@ const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   //    "foundational + publication-quality"). Each entry introduces a
   //    distinct learning dimension. JOB sourced from curator DB
   //    op-notation; ADD from ATOMIC_FLAG_DECOMPOSITIONS below.
-  'inside-stall',        // anatomical surface stall (inside-of-foot); base for clipper family
-  'outside-stall',       // anatomical surface stall (outside-of-foot)
-  'head-stall',          // anatomical surface stall (head)
-  'forehead-stall',      // anatomical surface stall (forehead)
-  'neck-stall',          // anatomical surface stall (neck)
-  'knee-stall',          // anatomical surface stall (knee)
-  'shoulder-stall',      // anatomical surface stall (shoulder)
-  'sole-kick',           // unusual-surface kick; introduces the unusual-surface ADD bucket
-  'cloud-kick',          // unusual-surface kick (cloud = back of calf/shin); same bucket as sole-kick + cloud-stall exception
-  'peak-delay',          // folk-name surface stall (peak = rim of ballcap); universal stall=1 applies to folk surfaces
+  'inside_stall',        // anatomical surface stall (inside-of-foot); base for clipper family
+  'outside_stall',       // anatomical surface stall (outside-of-foot)
+  'head_stall',          // anatomical surface stall (head)
+  'forehead_stall',      // anatomical surface stall (forehead)
+  'neck_stall',          // anatomical surface stall (neck)
+  'knee_stall',          // anatomical surface stall (knee)
+  'shoulder_stall',      // anatomical surface stall (shoulder)
+  'sole_kick',           // unusual-surface kick; introduces the unusual-surface ADD bucket
+  'cloud_kick',          // unusual-surface kick (cloud = back of calf/shin); same bucket as sole-kick + cloud-stall exception
+  'peak_delay',          // folk-name surface stall (peak = rim of ballcap); universal stall=1 applies to folk surfaces
   // ── Foundational 1-ADD flying-operator primitives. Introduce the
   //    operator-first chain decomposition at the 1-ADD level.
   //    flying(1) = 1 ADD; the operator owns the ADD slot, the surface
   //    is the terminal. See [[feedback_flying_operator_and_folk_surfaces]].
-  'flying-inside',       // flying-operator primitive; chain 'flying > inside'
-  'flying-outside',      // flying-operator primitive; chain 'flying > outside'
-  'double-knee',         // sui-generis self-token JOB ('double knee'); flying-derived ADD
+  'flying_inside',       // flying-operator primitive; chain 'flying > inside'
+  'flying_outside',      // flying-operator primitive; chain 'flying > outside'
+  'double_knee',         // sui-generis self-token JOB ('double knee'); flying-derived ADD
   // ── Foundational 2-ADD primitives (pedagogical ADD-bucket
   //    normalization). Extend the foundational band
   //    upward; each exposes a core ADD bucket explicitly.
-  'cloud-stall',         // 2-ADD unusual-surface stall; teaches the unusual-surface(shin) + stall buckets
-  'heel-stall',          // 2-ADD unusual-surface stall (heel); the heel is an unusual surface, so delay + UNS
-  'dragonfly-kick',      // 2-ADD flying primitive with dex; teaches bod + dex buckets
-  'flying-clipper',      // 2-ADD flying primitive with xbody; teaches bod + xbody buckets
+  'cloud_stall',         // 2-ADD unusual-surface stall; teaches the unusual-surface(shin) + stall buckets
+  'heel_stall',          // 2-ADD unusual-surface stall (heel); the heel is an unusual surface, so delay + UNS
+  'dragonfly_kick',      // 2-ADD flying primitive with dex; teaches bod + dex buckets
+  'flying_clipper',      // 2-ADD flying primitive with xbody; teaches bod + xbody buckets
   // ── knee-clipper: folk name, not a literal clipper-surface stall;
   //    it reads as a flying knee kick (a jump-kick contacting the bag
   //    cross-body with the knee): bod + xbody = 2 ADD. The knee-surface
   //    sibling of flying-clipper (inside) and toe-clipper (toe).
-  'knee-clipper',        // 2-ADD flying knee kick (the knee-surface flying clipper)
+  'knee_clipper',        // 2-ADD flying knee kick (the knee-surface flying clipper)
   // ── guay: 2-ADD pickup-pattern dex primitive ending in inside-stall
   //    (sibling structure to pickup / legover / illusion / mirage).
   //    Released from DOCTRINE_BLOCKED_SLUGS curator_hold.
@@ -4264,189 +4264,189 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   // operational notation. Card renders the ADD breakdown + honest
   // "JOB: notation pending" incomplete-state line. Cohort selected for
   // distinct educational dimensions; no redundant siblings.
-  'paradox-mirage',          // paradox operator on mirage
-  'symposium-mirage',        // symposium operator on mirage
-  'atomic-butterfly',        // atomic operator on rotational base
+  'paradox_mirage',          // paradox operator on mirage
+  'symposium_mirage',        // symposium operator on mirage
+  'atomic_butterfly',        // atomic operator on rotational base
   'ripwalk',                 // folk-name resolution (≡ stepping butterfly)
-  'ducking-butterfly',       // ducking operator on rotational base
-  'spinning-butterfly',      // spinning operator on rotational base
-  'stepping-osis',           // stepping operator on osis (set-modifier showcase)
+  'ducking_butterfly',       // ducking operator on rotational base
+  'spinning_butterfly',      // spinning operator on rotational base
+  'stepping_osis',           // stepping operator on osis (set-modifier showcase)
   'eggbeater',               // folk-name resolution (≡ atomic legover)
-  'paradox-symposium-whirl', // multi-operator chain showcase
+  'paradox_symposium_whirl', // multi-operator chain showcase
   // FootbagMoves single-source 8-ADD torque compounds. Sibling-composed
   // notation (not curator-confirmed); promoted under the arithmetic-closes
   // policy with honest single-source provenance.
-  'surging-ducking-paradox-torque', // surging + ducking + paradox on torque(4) = 8
-  'big-apple-sauce',                 // spinning + paradox + miraging + symposium on torque(4) = 8; FM lists 9
+  'surging_ducking_paradox_torque', // surging + ducking + paradox on torque(4) = 8
+  'big_apple_sauce',                 // spinning + paradox + miraging + symposium on torque(4) = 8; FM lists 9
   // FootbagMoves single-source 7-ADD ready-now batch (same provenance posture).
   'margaritaville',                  // surging + paradox on blender(4) = 7
   'swirlwind',                       // spinning + paradox + symposium + whirling on swirl(3) = 7
   'genuphobia',                      // fairy + spyro + symposium on torque(4) = 7
   'redwetter',                       // shooting on eggbeater(3) = 6; FM lists 7
-  'big-papa-smurf',                  // surfing on blender(4) = 7 (clean, no divergence)
+  'big_papa_smurf',                  // surfing on blender(4) = 7 (clean, no divergence)
   'liquifier',                       // splicing on blender(4) = 6; FM lists 7
   // FootbagMoves railing cohort, published at structural value with the
   // FM-7 over-count recorded as a railing-cohort divergence (railing = rooted + sailing = 2).
   'dorshanatrix',                    // railing + symposium on mirage(2) = 5; FM lists 7
-  'flying-fish',                     // railing + ducking on mirage(2) = 5; FM lists 7
-  'rail-warrior',                    // railing + ducking on butterfly(3) = 6; FM lists 7
+  'flying_fish',                     // railing + ducking on mirage(2) = 5; FM lists 7
+  'rail_warrior',                    // railing + ducking on butterfly(3) = 6; FM lists 7
   'floatation',                      // floating(3 = quantum+symposium+quantum) + butterfly(3) = 6; FM lists 7
   'warp',                            // warping(3 = two-dex set, 2nd dex symposium) + mirage(2) = 5; FM lists 7
   // Stepping + base batch (leading-[DEX] chassis; stepping=+1; all bases canonical).
-  'stepping-mirage',
-  'stepping-butterfly',
-  'stepping-blender',
-  'stepping-reaper',
-  'stepping-rev-whirl',
-  'stepping-paradox-torque',
-  'stepping-diving-mirage',
-  'stepping-diving-butterfly',
-  'stepping-ducking-drifter',
-  'stepping-ducking-paradox-illusion',
-  'stepping-ducking-symposium-eggbeater',
+  'stepping_mirage',
+  'stepping_butterfly',
+  'stepping_blender',
+  'stepping_reaper',
+  'stepping_rev_whirl',
+  'stepping_paradox_torque',
+  'stepping_diving_mirage',
+  'stepping_diving_butterfly',
+  'stepping_ducking_drifter',
+  'stepping_ducking_paradox_illusion',
+  'stepping_ducking_symposium_eggbeater',
   // Spinning + base batch (back-spin chassis; spinning=+1; all bases canonical).
-  'spinning-eggbeater',
-  'spinning-rev-whirl',
-  'spinning-tomahawk',
-  'spinning-symposium-torque',
-  'spinning-whirling-swirl',
-  'spinning-ducking-drifter',
-  'spinning-diving-symposium-whirl',
-  'spinning-ducking-symposium-whirl',
-  'spinning-ducking-superfly',
-  'spinning-symposium-flux',
-  'spinning-symposium-whirling-swirl',
-  'spinning-miraging-symposium-torque',
+  'spinning_eggbeater',
+  'spinning_rev_whirl',
+  'spinning_tomahawk',
+  'spinning_symposium_torque',
+  'spinning_whirling_swirl',
+  'spinning_ducking_drifter',
+  'spinning_diving_symposium_whirl',
+  'spinning_ducking_symposium_whirl',
+  'spinning_ducking_superfly',
+  'spinning_symposium_flux',
+  'spinning_symposium_whirling_swirl',
+  'spinning_miraging_symposium_torque',
   // Diving + base batch (DIVE [BOD] chassis; diving=+1; all bases canonical).
-  'diving-mirage',
-  'diving-illusion',
-  'diving-legover',
-  'diving-pickup',
-  'diving-butterfly',
-  'diving-whirl',
-  'diving-drifter',
-  'diving-osis',
-  'diving-swirl',
-  'diving-eclipse',
-  'diving-smudge',
-  'diving-symposium-mirage',
+  'diving_mirage',
+  'diving_illusion',
+  'diving_legover',
+  'diving_pickup',
+  'diving_butterfly',
+  'diving_whirl',
+  'diving_drifter',
+  'diving_osis',
+  'diving_swirl',
+  'diving_eclipse',
+  'diving_smudge',
+  'diving_symposium_mirage',
   // Fairy + base batch (TOE > SAME OUT [DEX] entry set; fairy=+1; all bases canonical).
-  'fairy-butterfly',
-  'fairy-drifter',
-  'fairy-gyro-drifter',
-  'fairy-gyro-torque',
-  'fairy-illusion',
-  'fairy-merkon',
-  'fairy-rev-whirl',
-  'fairy-ripstein',
-  'fairy-spinning-ducking-osis',
-  'fairy-swirling-swirl',
-  'fairy-whirl',
+  'fairy_butterfly',
+  'fairy_drifter',
+  'fairy_gyro_drifter',
+  'fairy_gyro_torque',
+  'fairy_illusion',
+  'fairy_merkon',
+  'fairy_rev_whirl',
+  'fairy_ripstein',
+  'fairy_spinning_ducking_osis',
+  'fairy_swirling_swirl',
+  'fairy_whirl',
   // Barraging + base batch (two-dex +2 chassis; barraging=+2; all bases canonical).
-  'barraging-barfly',
-  'barraging-butterfly',
-  'barraging-eggbeater',
-  'barraging-illusion',
-  'barraging-legover',
-  'barraging-mirage',
-  'barraging-pickup',
+  'barraging_barfly',
+  'barraging_butterfly',
+  'barraging_eggbeater',
+  'barraging_illusion',
+  'barraging_legover',
+  'barraging_mirage',
+  'barraging_pickup',
   'genesis',
   // Symposium + base batch (no-plant first-dex chassis; symposium=+1; all bases canonical).
-  'symposium-atomic-butterfly',
-  'symposium-blur',
-  'symposium-bubba',
-  'symposium-mobius',
-  'symposium-swirl',
-  'symposium-tomahawk',
-  'symposium-whirling-swirl',
-  'symposium-miraging-mirage',
+  'symposium_atomic_butterfly',
+  'symposium_blur',
+  'symposium_bubba',
+  'symposium_mobius',
+  'symposium_swirl',
+  'symposium_tomahawk',
+  'symposium_whirling_swirl',
+  'symposium_miraging_mirage',
   // Swirling + base batch (OP BACK SWIRL [DEX] prefix chassis; swirling=+1; all bases canonical).
-  'swirling-butterfly',
-  'swirling-mirage',
-  'swirling-paradox-mirage',
-  'swirling-swirl',
-  'swirling-symposium-whirl',
-  'swirling-whirl',
-  'swirling-whirling-swirl',
+  'swirling_butterfly',
+  'swirling_mirage',
+  'swirling_paradox_mirage',
+  'swirling_swirl',
+  'swirling_symposium_whirl',
+  'swirling_whirl',
+  'swirling_whirling_swirl',
   // Pixie + base batch (TOE > SAME IN [DEX] entry set; pixie=+1; all bases canonical; alias-scrubbed).
-  'pixie-dolomite',
-  'pixie-rev-whirl',
-  'pixie-spinning-paradox-blender',
-  'pixie-spinning-paradox-symposium-whirl',
-  'pixie-spinning-paradox-whirl',
-  'pixie-symposium-rev-whirl',
-  'pixie-symposium-whirling-swirl',
+  'pixie_dolomite',
+  'pixie_rev_whirl',
+  'pixie_spinning_paradox_blender',
+  'pixie_spinning_paradox_symposium_whirl',
+  'pixie_spinning_paradox_whirl',
+  'pixie_symposium_rev_whirl',
+  'pixie_symposium_whirling_swirl',
   // Small remnants (tapping / miraging / paradox; each +1; all bases canonical).
-  'tapping-legover',
-  'miraging-symposium-butterfly',
-  'miraging-symposium-whirl',
-  'paradox-fusion',
-  'paradox-symposium-illusion',
+  'tapping_legover',
+  'miraging_symposium_butterfly',
+  'miraging_symposium_whirl',
+  'paradox_fusion',
+  'paradox_symposium_illusion',
   // Whirling-X (uptime-whirl operator; OP IN [DEX] prefix + leading-dex flip).
-  'whirling-pickup',
-  'whirling-whirl',
-  'whirling-butterfly',
-  'whirling-rake',
+  'whirling_pickup',
+  'whirling_whirl',
+  'whirling_butterfly',
+  'whirling_rake',
   // Clean Tier-1 sweep (settled operators on canonical bases).
-  'stepping-guay',
-  'diving-guay',
-  'tapping-guay',
-  'fairy-guay',
-  'inspinning-guay',
-  'pixie-guay',
-  'pixie-mirage',
-  'pixie-clipper',
-  'pixie-double-pickup',
+  'stepping_guay',
+  'diving_guay',
+  'tapping_guay',
+  'fairy_guay',
+  'inspinning_guay',
+  'pixie_guay',
+  'pixie_mirage',
+  'pixie_clipper',
+  'pixie_double_pickup',
   'darkwalk',
-  'pixie-ducking-butterfly',
-  'pixie-symposium-reverse-whirl',
-  'fairy-ducking-mirage',
-  'fairy-torque',
-  'diving-clipper',
-  'diving-toe-stall',
-  'stepping-clipper',
-  'gyro-clipper',
-  'gyro-diving-butterfly',
-  'symposium-whirling-mirage',
-  'spinning-butterfly-kick',
-  'barraging-barfly-swirl',
-  'ducking-symposium-reverse-whirl',
-  'tapping-double-over-down',
-  'gyro-diving-clipper',
+  'pixie_ducking_butterfly',
+  'pixie_symposium_reverse_whirl',
+  'fairy_ducking_mirage',
+  'fairy_torque',
+  'diving_clipper',
+  'diving_toe_stall',
+  'stepping_clipper',
+  'gyro_clipper',
+  'gyro_diving_butterfly',
+  'symposium_whirling_mirage',
+  'spinning_butterfly_kick',
+  'barraging_barfly_swirl',
+  'ducking_symposium_reverse_whirl',
+  'tapping_double_over_down',
+  'gyro_diving_clipper',
   // ── Audit-derived promotions. Each fully
   //    converges with official ADD via mechanical modifier × base
   //    derivation; no composite-modifier expansion, no doctrine block.
-  'atomic-torque',           // atomic(+1) + torque(4) = 5 ADD
-  'ducking-mirage',          // ducking(+1) + mirage(2) = 3 ADD
-  'paradox-drifter',         // paradox(+1) + drifter(3) = 4 ADD
-  'spinning-pickup',         // spinning(+1) + pickup(2) = 3 ADD
-  'tapping-whirl',           // tapping(+1) + whirl(3) = 4 ADD
+  'atomic_torque',           // atomic(+1) + torque(4) = 5 ADD
+  'ducking_mirage',          // ducking(+1) + mirage(2) = 3 ADD
+  'paradox_drifter',         // paradox(+1) + drifter(3) = 4 ADD
+  'spinning_pickup',         // spinning(+1) + pickup(2) = 3 ADD
+  'tapping_whirl',           // tapping(+1) + whirl(3) = 4 ADD
   // ── Promotions: 19 slugs already carrying
   //    curator-published derivations in RESOLVED_FORMULAS_SPRINT_1
   //    but never explicitly added to a tier set. Each row's derivation
   //    is settled; promotion is mechanical (set membership only).
-  'atom-smasher',            // atomic(+1) + mirage(2) + symposium(+1) = 4 ADD (composite via base-mirage)
+  'atom_smasher',            // atomic(+1) + mirage(2) + symposium(+1) = 4 ADD (composite via base-mirage)
   'dimwalk',                 // stepping(+1) + butterfly(3) = 4 ADD
-  'ducking-clipper',         // ducking(+1) + clipper-stall(2) = 3 ADD
-  'ducking-osis',            // ducking(+1) + osis(3) = 4 ADD
-  'ducking-whirl',           // ducking(+1) + whirl(3) = 4 ADD
+  'ducking_clipper',         // ducking(+1) + clipper-stall(2) = 3 ADD
+  'ducking_osis',            // ducking(+1) + osis(3) = 4 ADD
+  'ducking_whirl',           // ducking(+1) + whirl(3) = 4 ADD
   'fog',                     // stepping(+1) + paradox(+1) + dlo(3) = 5 ADD
   'orbit',                   // orbit-class atom
-  'paradox-blender',         // paradox(+1) + blender(4) = 5 ADD
-  'paradox-torque',          // paradox(+1) + torque(4) = 5 ADD
+  'paradox_blender',         // paradox(+1) + blender(4) = 5 ADD
+  'paradox_torque',          // paradox(+1) + torque(4) = 5 ADD
   'rake',                    // 2-ADD primitive
   // 'rev-up' excluded from FIRST_CLASS_TIER_2: structurally
   // distinct from rev-whirl (per curator clarification) but no
   // structural decomposition authored; demoted via is_active=0 in
   // red_corrections.
-  'rev-whirl',               // 3-ADD whirl-family primitive
+  'rev_whirl',               // 3-ADD whirl-family primitive
   'smear',                   // pixie(+1) + mirage(2) = 3 ADD
-  'spinning-clipper',        // spinning(+1) + clipper-stall(2) = 3 ADD
-  'spinning-osis',           // spinning(+1) + osis(3) = 4 ADD
-  'spinning-torque',         // spinning(+1) + torque(4) = 5 ADD
-  'stepping-whirl',          // stepping(+1) + whirl(3) = 4 ADD
-  'symposium-whirl',         // symposium(+1) + whirl(3) = 4 ADD
-  'whirling-swirl',          // whirling(+1) + swirl(3) = 4 ADD
+  'spinning_clipper',        // spinning(+1) + clipper-stall(2) = 3 ADD
+  'spinning_osis',           // spinning(+1) + osis(3) = 4 ADD
+  'spinning_torque',         // spinning(+1) + torque(4) = 5 ADD
+  'stepping_whirl',          // stepping(+1) + whirl(3) = 4 ADD
+  'symposium_whirl',         // symposium(+1) + whirl(3) = 4 ADD
+  'whirling_swirl',          // whirling(+1) + swirl(3) = 4 ADD
   // ── Promotions: 28 slugs covering the remaining
   //    audit-validated promotion candidates. 6 via ATAM bracket-flag
   //    decomposition (squeeze through barraging-osis); 22 via parser-
@@ -4459,28 +4459,28 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'squeeze',                 // UNS(1) + stall(1) = 2 ADD
   'barrage',                 // dex(1) + dex(1) + stall(1) = 3 ADD
   'barfly',                  // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
-  'high-plains-drifter',     // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
+  'high_plains_drifter',     // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
   'paradon',                 // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
-  'barraging-osis',          // dex(1) + dex(1) + BOD(1) + xbody(1) + stall(1) = 5 ADD
+  'barraging_osis',          // dex(1) + dex(1) + BOD(1) + xbody(1) + stall(1) = 5 ADD
   // Parser-derived modifier × base (21) + composite witchdoctor (1):
-  'cross-body-sole-stall',   // xbody(+1) + sole-stall(2) = 3 ADD
+  'cross_body_sole_stall',   // xbody(+1) + sole-stall(2) = 3 ADD
   'legeater',                // quantum(+1) + pickup(2) = 3 ADD
   'paste',                   // pixie(+1) + pickup(2) = 3 ADD
-  'reverse-drifter',         // [directional: rev] + drifter(3) = 3 ADD
-  'scrambled-eggbeater',     // atomic(+1) + pickup(2) = 3 ADD
+  'reverse_drifter',         // [directional: rev] + drifter(3) = 3 ADD
+  'scrambled_eggbeater',     // atomic(+1) + pickup(2) = 3 ADD
   'tap',                     // tapping(+1) + mirage(2) = 3 ADD
   'blur',                    // stepping(+1) + paradox(+1) + mirage(2) = 4 ADD
   'hatchet',                 // diving(+1) + whirl(3) = 4 ADD
-  'paradox-whirl',           // paradox(+1) + whirl(3) = 4 ADD
+  'paradox_whirl',           // paradox(+1) + whirl(3) = 4 ADD
   'pigbeater',               // pixie(+1) + eggbeater(3) = 4 ADD
-  'spinning-whirl',          // spinning(+1) + whirl(3) = 4 ADD
+  'spinning_whirl',          // spinning(+1) + whirl(3) = 4 ADD
   'tripwalk',                // quantum(+1) + butterfly(3) = 4 ADD
   'matador',                 // nuclear(+2) + butterfly(3) = 5 ADD
   'phoenix',                 // pixie(+1) + ducking(+1) + butterfly(3) = 5 ADD
-  'spinal-tap',              // tapping(+1) + torque(4) = 5 ADD
-  'spinning-symposium-whirl',// spinning(+1) + symposium(+1) + whirl(3) = 5 ADD
+  'spinal_tap',              // tapping(+1) + torque(4) = 5 ADD
+  'spinning_symposium_whirl',// spinning(+1) + symposium(+1) + whirl(3) = 5 ADD
   'witchdoctor',             // atom-smasher(4) + symposium(+1) = 5 ADD (composite)
-  'mind-bender',             // ducking(+1) + paradox(+1) + blender(4) = 6 ADD
+  'mind_bender',             // ducking(+1) + paradox(+1) + blender(4) = 6 ADD
   'mullet',                  // ducking(+1) + paradox(+1) + symposium(+1) + whirl(3) = 6 ADD
   'spender',                 // spinning(+1) + paradox(+1) + blender(4) = 6 ADD
   'gauntlet',                // stepping(+1) + ducking(+1) + paradox(+1) + torque(4) = 7 ADD
@@ -4505,18 +4505,18 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'tapdown',                 // tapping(+1) + butterfly(3) = 4 ADD
   'tombstone',               // stepping(+1) + drifter(3) = 4 ADD
   'blurriest',               // blurry(+1 flat) + barfly(4) = 5 ADD (NOT composite carve-out)
-  'grave-digger',            // stepping(+1) + torque(4) = 5 ADD
+  'grave_digger',            // stepping(+1) + torque(4) = 5 ADD
   'tomahawk',                // ducking(+1) + paradox-whirl(4) = 5 ADD
-  'big-apple',               // gyro(+1) + symposium(+1) + torque(4) = 6 ADD
+  'big_apple',               // gyro(+1) + symposium(+1) + torque(4) = 6 ADD
   // Foundational 2-ADD primitive parallel to cloud-stall:
-  'sole-stall',              // UNS(1) + stall(1) = 2 ADD via ATOMIC
+  'sole_stall',              // UNS(1) + stall(1) = 2 ADD via ATOMIC
   // ── DATW + DLO promoted from the productive-multiplicity
   //    exception list to FIRST_CLASS_TIER_2. Both have notation +
   //    operational_notation backfilled via red_corrections; base_trick
   //    set to self via correction so isAtomic gate fires; ATOMIC_FLAG_
   //    DECOMPOSITIONS entry carries the bracket-counted structural form.
-  'double-around-the-world',
-  'double-leg-over',
+  'double_around_the_world',
+  'double_leg_over',
   //    moved from OBSERVATIONAL_TRICKS module into canonical via
   //    audit-validated derivations. 9 FB.org + 4 PassBack + 1 stepwise
   //    FB.org (paradox-blizzard depends on blizzard, both promoted
@@ -4525,17 +4525,17 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'blizzard',                // stepping(+1) + illusion(2) = 3 ADD (PB)
   'blaze',                   // whirling(+1) + mirage(2) = 3 ADD (PB)
   'bedwetter',               // stepping(+1) + eggbeater(3) = 4 ADD (PB)
-  'sole-survivor',           // spinning(+1) + symposium(+1) + whirl(3) = 5 ADD (PB)
-  'spinning-paradox-mirage', // spinning(+1) + paradox(+1) + mirage(2) = 4 ADD (FB.org)
-  'spinning-paradox-illusion', // spinning(+1) + paradox(+1) + illusion(2) = 4 ADD (FB.org)
-  'spinning-paradox-whirl',  // spinning(+1) + paradox(+1) + whirl(3) = 5 ADD (FB.org)
-  'paradox-double-leg-over', // paradox(+1) + dlo(3) = 4 ADD (FB.org)
-  'paradox-barrage',         // paradox(+1) + barrage(3) = 4 ADD (FB.org)
-  'paradox-symposium-mirage', // paradox(+1) + symposium(+1) + mirage(2) = 4 ADD (FB.org)
-  'paradox-high-plains-drifter', // paradox(+1) + HPD(4) = 5 ADD (FB.org)
-  'spinning-paradox-blender', // spinning(+1) + paradox(+1) + blender(4) = 6 ADD (FB.org)
-  'stepping-ducking-paradox-blender', // stepping(+1) + ducking(+1) + paradox(+1) + blender(4) = 7 ADD (FB.org)
-  'paradox-blizzard',        // paradox(+1) + blizzard(3) = 4 ADD (FB.org; stepwise via blizzard)
+  'sole_survivor',           // spinning(+1) + symposium(+1) + whirl(3) = 5 ADD (PB)
+  'spinning_paradox_mirage', // spinning(+1) + paradox(+1) + mirage(2) = 4 ADD (FB.org)
+  'spinning_paradox_illusion', // spinning(+1) + paradox(+1) + illusion(2) = 4 ADD (FB.org)
+  'spinning_paradox_whirl',  // spinning(+1) + paradox(+1) + whirl(3) = 5 ADD (FB.org)
+  'paradox_double_leg_over', // paradox(+1) + dlo(3) = 4 ADD (FB.org)
+  'paradox_barrage',         // paradox(+1) + barrage(3) = 4 ADD (FB.org)
+  'paradox_symposium_mirage', // paradox(+1) + symposium(+1) + mirage(2) = 4 ADD (FB.org)
+  'paradox_high_plains_drifter', // paradox(+1) + HPD(4) = 5 ADD (FB.org)
+  'spinning_paradox_blender', // spinning(+1) + paradox(+1) + blender(4) = 6 ADD (FB.org)
+  'stepping_ducking_paradox_blender', // stepping(+1) + ducking(+1) + paradox(+1) + blender(4) = 7 ADD (FB.org)
+  'paradox_blizzard',        // paradox(+1) + blizzard(3) = 4 ADD (FB.org; stepwise via blizzard)
   // ── Doctrine-divergence pilot batch. First
   //    registered rows of DOCTRINE_DIVERGENCE_REGISTRY. Each carries a
   //    +1 gap between IFPA-grammar derivation (canonical) and PassBack
@@ -4550,49 +4550,49 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   //    RESOLVED_FORMULAS overlay; promotion to FIRST_CLASS_TIER_2 here
   //    surfaces the JOB+ADD browse-card row (was: bare op-notation
   //    display only on trick-detail pages).
-  'around-the-world-kick',       // around-the-world chain without the terminal (ss toe) stall = 1 ADD
-  'triple-around-the-world',     // dex(3) + stall(1) = 4 ADD
-  'double-around-the-world-heel', // dex(2) + unusual-surface(1) + heel-stall(1) = 4 ADD
-  'hop-over',                    // inside-delay(1) + bod(1) = 2 ADD
-  'walk-over',                   // inside-delay(1) + dex(1) = 2 ADD
+  'around_the_world_kick',       // around-the-world chain without the terminal (ss toe) stall = 1 ADD
+  'triple_around_the_world',     // dex(3) + stall(1) = 4 ADD
+  'double_around_the_world_heel', // dex(2) + unusual-surface(1) + heel-stall(1) = 4 ADD
+  'hop_over',                    // inside-delay(1) + bod(1) = 2 ADD
+  'walk_over',                   // inside-delay(1) + dex(1) = 2 ADD
   'wrap',                        // inside-delay(1) + dex(1) = 2 ADD
-  'butterfly-kick',              // bod(1) + dex(1) = 2 ADD (corrected; was 3 ADD with extra [XBD])
+  'butterfly_kick',              // bod(1) + dex(1) = 2 ADD (corrected; was 3 ADD with extra [XBD])
   'eclipse',                     // bod(1) + del(1) + dex(1) = 3 ADD (airborne hop-over topology; curator-supplied JOB)
   // ── Deferred-candidate promotions (pixie family + toe-blizzard alias):
   //    pixie-opposite-clipper / pixie-same-clipper = pixie(+1) + clipper-stall(2) = 3 ADD;
   //    toe-blizzard is an alias of quantum-illusion (not a new canonical row).
-  'pixie-opposite-clipper',      // [DEX] + [XBD] + [DEL] = 3 ADD (sibling JOB from drifter / fairy-clipper)
-  'pixie-same-clipper',          // [DEX] + [XBD] + [DEL] = 3 ADD (sibling JOB from drifter / fairy-clipper)
+  'pixie_opposite_clipper',      // [DEX] + [XBD] + [DEL] = 3 ADD (sibling JOB from drifter / fairy-clipper)
+  'pixie_same_clipper',          // [DEX] + [XBD] + [DEL] = 3 ADD (sibling JOB from drifter / fairy-clipper)
   // ── Inspinning family promotions (settled: inspinning = +1 modifier):
-  'inspinning-butterfly',        // (front) SPIN [BOD] + butterfly base = 4 ADD (sibling JOB from spinning-butterfly)
-  'inspinning-paradox-illusion', // (front) SPIN [BOD] + paradox-illusion base = 4 ADD (sibling JOB from spinning-paradox-illusion)
-  'inspinning-paradox-mirage',   // (front) SPIN [BOD] + paradox-mirage base = 4 ADD (sibling JOB from spinning-paradox-mirage)
+  'inspinning_butterfly',        // (front) SPIN [BOD] + butterfly base = 4 ADD (sibling JOB from spinning-butterfly)
+  'inspinning_paradox_illusion', // (front) SPIN [BOD] + paradox-illusion base = 4 ADD (sibling JOB from spinning-paradox-illusion)
+  'inspinning_paradox_mirage',   // (front) SPIN [BOD] + paradox-mirage base = 4 ADD (sibling JOB from spinning-paradox-mirage)
   // ── Down-family promotions (settled: down-pattern tricks are distinct):
-  'double-over-down',            // [DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (TOE-set chassis; FB.org-confirmed JOB)
-  'down-double-down',            // [DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (CLIP-set chassis; FB.org-confirmed JOB)
-  'down-diver',                  // diving(+1) + double-over-down(4) = 5 ADD ([BOD] + 4 base tokens; FB.org-confirmed JOB)
+  'double_over_down',            // [DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (TOE-set chassis; FB.org-confirmed JOB)
+  'down_double_down',            // [DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (CLIP-set chassis; FB.org-confirmed JOB)
+  'down_diver',                  // diving(+1) + double-over-down(4) = 5 ADD ([BOD] + 4 base tokens; FB.org-confirmed JOB)
   // ── Paradox-family promotions (settled +1 PDX modifier; FB.org-confirmed JOBs):
-  'paradox-da-da-curve',         // paradox(+1) + dada-curve(4) = 5 ADD ([PDX] + 4 base tokens)
-  'paradox-whirling-swirl',      // paradox(+1) + whirling-swirl(4) = 5 ADD ([PDX] + 4 base tokens)
+  'paradox_da_da_curve',         // paradox(+1) + dada-curve(4) = 5 ADD ([PDX] + 4 base tokens)
+  'paradox_whirling_swirl',      // paradox(+1) + whirling-swirl(4) = 5 ADD ([PDX] + 4 base tokens)
   // ── Symposium-pixie promotion (symposium = +1 no-plant body modifier; sibling-derived JOB):
-  'symposium-pixie',             // symposium(+1) + pixie(2) = 3 ADD ([BOD] + [DEX] + [DEL])
+  'symposium_pixie',             // symposium(+1) + pixie(2) = 3 ADD ([BOD] + [DEX] + [DEL])
   // ── Ricochet promotion (cross-body sole/flapper terminator; FB.org-confirmed JOB):
   'ricochet',                    // [DEX] + [DEX] + [XBD] + [UNS] + [DEL] = 5 ADD (flapper-stall base)
   // ── Flurricane promotion (gyro(+1) + flurry(4); FB.org-confirmed JOB):
   'flurricane',                  // gyro(+1) + flurry(4) = 5 ADD ([BOD] + 3*[DEX] + [DEL])
   // ── Pixie-swirl promotion (pixie(+1) + swirl(3); FB.org-confirmed JOB):
-  'pixie-swirl',                 // pixie(+1) + swirl(3) = 4 ADD ([DEX] + [DEX] + [XBD] + [DEL])
+  'pixie_swirl',                 // pixie(+1) + swirl(3) = 4 ADD ([DEX] + [DEX] + [XBD] + [DEL])
   // ── Down-family follow-ons + flux (FB.org-confirmed JOBs):
-  'pixie-double-over-down',      // pixie(+1) + double-over-down(4) = 5 ADD
-  'scorpions-tail',              // spinning(+1) + down-double-down(4) = 5 ADD (alias: Spinning Down Double-Down)
+  'pixie_double_over_down',      // pixie(+1) + double-over-down(4) = 5 ADD
+  'scorpions_tail',              // spinning(+1) + down-double-down(4) = 5 ADD (alias: Spinning Down Double-Down)
   'flux',                        // atomic(+1) + osis(3) = 4 ADD (alias: Atomic Osis)
   // ── Avalanche + spike-hammer (structural twins; 3-operator-stack compressions):
   'avalanche',                   // stepping(+1) + ducking(+1) + paradox-illusion(3) = 5 ADD (alias: Stepping Ducking Paradox Illusion)
-  'spike-hammer',                // stepping(+1) + ducking(+1) + paradox-mirage(3) = 5 ADD (alias: Stepping Ducking Paradox Mirage)
+  'spike_hammer',                // stepping(+1) + ducking(+1) + paradox-mirage(3) = 5 ADD (alias: Stepping Ducking Paradox Mirage)
   // ── Double-over-down-swirl (extends double-over-down chassis; FB.org-confirmed JOB):
-  'double-over-down-swirl',      // [DEX] + [DEX] + [DEX] + [XBD] + [DEL] = 5 ADD (double-over-down + OP BACK SWIRL third dex)
+  'double_over_down_swirl',      // [DEX] + [DEX] + [DEX] + [XBD] + [DEL] = 5 ADD (double-over-down + OP BACK SWIRL third dex)
   // ── Quantum-symposium-mirage ('toe X → quantum X' retirement; FB.org-confirmed JOB):
-  'quantum-symposium-mirage',    // quantum(+1) + symposium-mirage(3) = 4 ADD ([DEX] + [BOD] + [DEX] + [DEL]); folk-name alias "Backside Symposium Toe Blur"
+  'quantum_symposium_mirage',    // quantum(+1) + symposium-mirage(3) = 4 ADD ([DEX] + [BOD] + [DEX] + [DEL]); folk-name alias "Backside Symposium Toe Blur"
 ]);
 
 // "Compressed from" detail-page surface.
@@ -4622,7 +4622,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
 const FAMOUS_COMPRESSION_SLUGS: ReadonlyMap<string, 'Compressed from' | 'Compressed reading'> = new Map([
   ['smear',        'Compressed from'   as const],
   ['ripwalk',      'Compressed from'   as const],
-  ['atom-smasher', 'Compressed from'   as const],
+  ['atom_smasher', 'Compressed from'   as const],
   ['eggbeater',    'Compressed from'   as const],
   ['mobius',       'Compressed reading' as const],
 ]);
@@ -4742,12 +4742,12 @@ interface AtomicFlagDecomposition {
   operationalChain?: string;
 }
 const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> = new Map([
-  ['toe-stall', {
+  ['toe_stall', {
     decomposition:    'stall(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: 'SET > SAME TOE [DEL]',
   }],
-  ['clipper-stall', {
+  ['clipper_stall', {
     decomposition:    'xbody(1) + stall(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: 'SET > OP CLIP [XBD] [DEL]',
@@ -4792,7 +4792,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     totalAdd:         3,
     operationalChain: 'SET > SPIN [BOD] > OP CLIP [XBD] [DEL]',
   }],
-  ['around-the-world', {
+  ['around_the_world', {
     // Pedagogical normalization: foundational tricks teach the
     // core ADD buckets directly. Prior 'full-orbit dex(1)' was
     // unnecessarily specialized for a foundational entry; ATW is now read
@@ -4808,57 +4808,57 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   //    stall=1 rule for stalls; via the unusual-surface bucket for the two
   //    kicks. operationalChain mirrors the DB op-notation; ChainSource
   //    falls back to atomic when DB is somehow stripped.
-  ['heel-stall', {
+  ['heel_stall', {
     decomposition:    'stall(1) + unusual-surface(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: 'SET > SAME HEEL [UNS] [DEL]',
   }],
-  ['inside-stall', {
+  ['inside_stall', {
     decomposition:    'stall(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: '[set] > inside',
   }],
-  ['outside-stall', {
+  ['outside_stall', {
     decomposition:    'stall(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: '[set] > outside',
   }],
-  ['head-stall', {
+  ['head_stall', {
     decomposition:    'stall(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: '[set] > head',
   }],
-  ['forehead-stall', {
+  ['forehead_stall', {
     decomposition:    'stall(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: '[set] > forehead',
   }],
-  ['neck-stall', {
+  ['neck_stall', {
     decomposition:    'stall(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: '[set] > neck',
   }],
-  ['knee-stall', {
+  ['knee_stall', {
     decomposition:    'stall(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: '[set] > knee',
   }],
-  ['shoulder-stall', {
+  ['shoulder_stall', {
     decomposition:    'stall(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: '[set] > shoulder',
   }],
-  ['sole-kick', {
+  ['sole_kick', {
     decomposition:    'UNS(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: '[set] > sole kick',
   }],
-  ['cloud-kick', {
+  ['cloud_kick', {
     decomposition:    'UNS(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: '[set] > cloud kick',
   }],
-  ['peak-delay', {
+  ['peak_delay', {
     decomposition:    'stall(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: '[set] > peak',
@@ -4870,17 +4870,17 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   //    "flying" still names the JOB chain). double-knee is sui-generis
   //    self-token (no [set] > prefix; exempt from the tautological-JOB
   //    guard via SUI_GENERIS_SELF_TOKEN_SLUGS).
-  ['flying-inside', {
+  ['flying_inside', {
     decomposition:    'BOD(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: 'flying > inside',
   }],
-  ['flying-outside', {
+  ['flying_outside', {
     decomposition:    'BOD(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: 'flying > outside',
   }],
-  ['double-knee', {
+  ['double_knee', {
     decomposition:    'BOD(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: 'double knee',
@@ -4894,17 +4894,17 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   //    (dex, xbody). flying-clipper's base_trick='clipper' (not self) so
   //    the convergence-rule isAtomic gate doesn't fire; the card path
   //    looks up by slug and renders correctly regardless.
-  ['cloud-stall', {
+  ['cloud_stall', {
     decomposition:    'UNS(1) + stall(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: '[set] > cloud',
   }],
-  ['dragonfly-kick', {
+  ['dragonfly_kick', {
     decomposition:    'BOD(1) + dex(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: 'flying > dragonfly',
   }],
-  ['flying-clipper', {
+  ['flying_clipper', {
     decomposition:    'BOD(1) + xbody(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: 'flying > clipper',
@@ -4915,7 +4915,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   //    op_notation '[set] > knee-clipper' for now; the flying-family
   //    operator-first form ('flying > knee-clipper') would be a
   //    follow-up alignment.
-  ['knee-clipper', {
+  ['knee_clipper', {
     decomposition:    'BOD(1) + xbody(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: '[set] > knee-clipper',
@@ -4957,7 +4957,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     totalAdd:         4,
     operationalChain: 'CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]',
   }],
-  ['high-plains-drifter', {
+  ['high_plains_drifter', {
     decomposition:    'dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD',
     totalAdd:         4,
     operationalChain: 'CLIP > SAME IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]',
@@ -4967,7 +4967,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     totalAdd:         4,
     operationalChain: 'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
   }],
-  ['barraging-osis', {
+  ['barraging_osis', {
     decomposition:    'dex(1) + dex(1) + BOD(1) + xbody(1) + stall(1) = 5 ADD',
     totalAdd:         5,
     operationalChain: 'CLIP > OP IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',
@@ -4976,7 +4976,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   //    Parallel to cloud-stall (which was promoted with curator-locked
   //    decomposition in the foundational-band slice). sole-stall is the
   //    sole-of-foot stall — counts under the unusual-surface bucket.
-  ['sole-stall', {
+  ['sole_stall', {
     decomposition:    'UNS(1) + stall(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: '[set] > sole',
@@ -4987,17 +4987,17 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   //    red_corrections) so the convergence-rule isAtomic gate fires;
   //    decomposition is the bracket-counted structural form;
   //    operationalChain is the canonical footbag.org notation.
-  ['double-around-the-world', {
+  ['double_around_the_world', {
     decomposition:    'dex(1) + dex(1) + stall(1) = 3 ADD',
     totalAdd:         3,
     operationalChain: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]',
   }],
-  ['double-leg-over', {
+  ['double_leg_over', {
     decomposition:    'dex(1) + dex(1) + stall(1) = 3 ADD',
     totalAdd:         3,
     operationalChain: 'SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
   }],
-  ['rev-whirl', {
+  ['rev_whirl', {
     decomposition:    'xbody(1) + dex(1) + stall(1) = 3 ADD',
     totalAdd:         3,
     operationalChain: 'CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
@@ -5019,7 +5019,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
 // Remove an entry when the composite is retracted.
 interface CompositeDerivation {
   /** Slug of the curator-canonical composite-base trick whose ADD
-   *  carries through (e.g. 'atom-smasher' for witchdoctor). */
+   *  carries through (e.g. 'atom_smasher' for witchdoctor). */
   compositeBaseSlug: string;
   /** ADD of the composite-base trick (curator-locked; redundant with
    *  freestyle_tricks.adds but stated here so the rule does not need
@@ -5039,7 +5039,7 @@ interface CompositeDerivation {
 }
 const COMPOSITE_DERIVATIONS: ReadonlyMap<string, CompositeDerivation> = new Map([
   ['witchdoctor', {
-    compositeBaseSlug:   'atom-smasher',
+    compositeBaseSlug:   'atom_smasher',
     compositeBaseAdd:    4,
     additionalModifiers: ['symposium'],
     totalAdd:            5,
@@ -6715,7 +6715,7 @@ export const freestyleService = {
         const familyName = familySlug
           ? (PUBLIC_FAMILY_LABEL.get(familySlug)
              ?? resolveFamilyDisplayName(familySlug)
-             ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1).replace(/-/g, ' ')))
+             ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1).replace(/[-_]/g, ' ')))
           : null;
         // Pathway "Learn this trick" surfaces tutorial- and demo-tier counts
         // separately — wording must not conflate them.
@@ -6774,7 +6774,7 @@ export const freestyleService = {
           return [...extras].map(fam => {
             const label = PUBLIC_FAMILY_LABEL.get(fam)
               ?? resolveFamilyDisplayName(fam)
-              ?? (fam.charAt(0).toUpperCase() + fam.slice(1).replace(/-/g, ' '));
+              ?? (fam.charAt(0).toUpperCase() + fam.slice(1).replace(/[-_]/g, ' '));
             return { label: `${label} family`, slug: fam, isMinorLineage: familyIsMinorLineage(fam) };
           });
         })();
@@ -6789,7 +6789,7 @@ export const freestyleService = {
         const relatedList: FreestyleRelatedTrick[] = dictRow ? buildRelatedTricks(dictRow, allDictRows) : [];
         const isSwingElement = slug === 'pendulum' || slug === 'rake';
         const isHeldDelayLegover =
-          slug === 'wrap' || slug === 'walk-over' || slug === 'hop-over' || slug === 'eclipse';
+          slug === 'wrap' || slug === 'walk_over' || slug === 'hop_over' || slug === 'eclipse';
         const relatedGroups: FreestyleRelatedGroup[] = ([
           { key: 'neighborhood',    label: isSwingElement ? 'Swing elements' : 'Movement neighbours',
             rationale: isSwingElement
@@ -6814,7 +6814,7 @@ export const freestyleService = {
             steps: lad.members.map(m => {
               const row = allDictRows.find(r => r.slug === m);
               return {
-                label:      row ? row.canonical_name : m.replace(/-/g, ' '),
+                label:      row ? row.canonical_name : m.replace(/[-_]/g, ' '),
                 slug:       row ? m : null,
                 detailHref: row ? `/freestyle/tricks/${m}` : null,
                 adds:       row ? (row.adds ?? '') : '',
@@ -6841,7 +6841,7 @@ export const freestyleService = {
             arr.push(l.modifier_slug);
             modsBySlug.set(l.trick_slug, arr);
           }
-          const nameOf = (s: string): string => rowBySlug.get(s)?.canonical_name ?? s.replace(/-/g, ' ');
+          const nameOf = (s: string): string => rowBySlug.get(s)?.canonical_name ?? s.replace(/[-_]/g, ' ');
           const cap = (n: string): string => (n ? n.replace(/\b\w/g, c => c.toUpperCase()) : n);
           const thisMods = modsBySlug.get(dictRow.slug) ?? [];
           const parentMods = [...(modsBySlug.get(dictRow.base_trick) ?? [])];
@@ -6863,7 +6863,7 @@ export const freestyleService = {
           }
           const thisName = dictRow.canonical_name;
           const hasBuildPath = !!(thisMods.length && ancestors.length);
-          const tokenize = (s: string): string[] => s.toLowerCase().split(/[\s-]+/).filter(Boolean);
+          const tokenize = (s: string): string[] => s.toLowerCase().split(/[\s_-]+/).filter(Boolean);
           return {
             derivedDelta: addedMods.length
               ? `Compared with ${nameOf(dictRow.base_trick)}, ${thisName} adds ${addedMods.join(' and ')}.`
@@ -6983,7 +6983,7 @@ export const freestyleService = {
             if (sn && sn.isEquivalenceLayer && sn.readings.length === 1 && derivedBuildPathTokens.length) {
               const pathTokens = new Set(derivedBuildPathTokens);
               const readingTokens = sn.readings[0]!.tokens
-                .flatMap(t => t.text.toLowerCase().split(/[\s-]+/))
+                .flatMap(t => t.text.toLowerCase().split(/[\s_-]+/))
                 .filter(Boolean);
               if (readingTokens.length && readingTokens.every(tk => pathTokens.has(tk))) {
                 return { ...sn, isEquivalenceLayer: false };
@@ -7247,7 +7247,7 @@ export const freestyleService = {
             return {
               parentLinks: entry.parentSlugs.map(s => ({
                 slug:  s,
-                label: s.replace(/-/g, ' '),
+                label: s.replace(/[-_]/g, ' '),
                 href:  `/freestyle/tricks/${s}`,
               })),
               prose:                     entry.prose,
@@ -7294,7 +7294,7 @@ export const freestyleService = {
                 prose:      s.prose,
                 exemplarLinks: s.exemplarSlugs.map(es => ({
                   slug:  es,
-                  label: es.replace(/-/g, ' '),
+                  label: es.replace(/[-_]/g, ' '),
                   href:  `/freestyle/tricks/${es}`,
                 })),
               })),
@@ -7365,7 +7365,7 @@ export const freestyleService = {
             const familyName = PUBLIC_FAMILY_LABEL.get(effectiveFamilySlug)
               ?? resolveFamilyDisplayName(effectiveFamilySlug)
               ?? (effectiveFamilySlug.charAt(0).toUpperCase()
-                  + effectiveFamilySlug.slice(1).replace(/-/g, ' '));
+                  + effectiveFamilySlug.slice(1).replace(/[-_]/g, ' '));
             return {
               invariant,
               familyName,

@@ -49,7 +49,7 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
-    slug: 'paradox-mirage', canonical_name: 'paradox mirage', adds: '3',
+    slug: 'paradox_mirage', canonical_name: 'paradox mirage', adds: '3',
     base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
     description: 'Paradox-modified mirage.',
     operational_notation: 'CLIP > SAME OUT [PDX] [DEX] > OP TOE [DEL]',
@@ -64,8 +64,8 @@ beforeAll(async () => {
   });
   // Tier C trick — no L1-L6 sections expected
   insertFreestyleTrick(db, {
-    slug: 'plain-tier-c-trick', canonical_name: 'plain tier c trick', adds: '4',
-    base_trick: 'plain-tier-c-trick', trick_family: null, category: 'compound',
+    slug: 'plain_tier_c_trick', canonical_name: 'plain tier c trick', adds: '4',
+    base_trick: 'plain_tier_c_trick', trick_family: null, category: 'compound',
     description: 'A descriptive trick description that is not a placeholder.',
     operational_notation: 'CLIP > OP IN [DEX] > OP TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
@@ -97,13 +97,13 @@ beforeAll(async () => {
   // ── Phase C C1 second batch (2026-05-25) ──────────────────────────
   insertFreestyleTrick(db, {
     slug: 'drifter', canonical_name: 'drifter', adds: '3',
-    base_trick: 'clipper-stall', trick_family: 'drifter', category: 'compound',
+    base_trick: 'clipper_stall', trick_family: 'drifter', category: 'compound',
     description: 'Mirage-modified clipper stall.',
     operational_notation: 'SET > OP IN [DEX] > SAME CLIP [XBD] [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
-    slug: 'atom-smasher', canonical_name: 'atom smasher', adds: '4',
+    slug: 'atom_smasher', canonical_name: 'atom smasher', adds: '4',
     base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
     description: "Atomic mirage: outside-then-inside dex sequence, recaught on the opposite toe.",
     operational_notation: null,
@@ -184,7 +184,7 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
-    slug: 'food-processor', canonical_name: 'food processor', adds: '6',
+    slug: 'food_processor', canonical_name: 'food processor', adds: '6',
     base_trick: 'blender', trick_family: 'blender', category: 'compound',
     description: 'Blurry-modified blender.',
     operational_notation: 'CLIP > OP IN [DEX] >> OP FRONT WHIRL [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',
@@ -234,7 +234,7 @@ describe('Tier A flagship pages — productivity + family-evolution deleted', ()
 
 describe('Placeholder-description suppressor', () => {
   it('paradox-mirage (DB description: "Paradox-modified mirage.") suppresses the literal description', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/paradox-mirage');
+    const res = await request(await createApp()).get('/freestyle/tricks/paradox_mirage');
     // The literal placeholder is NOT rendered as a description paragraph
     expect(res.text).not.toMatch(/<p class="trick-description">Paradox-modified mirage\.<\/p>/);
   });
@@ -245,7 +245,7 @@ describe('Placeholder-description suppressor', () => {
   });
 
   it('plain-tier-c-trick (non-placeholder description) DOES render the literal description', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/plain-tier-c-trick');
+    const res = await request(await createApp()).get('/freestyle/tricks/plain_tier_c_trick');
     expect(res.text).toContain('A descriptive trick description that is not a placeholder.');
   });
 });
@@ -255,7 +255,7 @@ describe('Placeholder-description suppressor', () => {
 // remains an authoring priority signal, NOT a structural gate.
 describe('Pages with no curated L1-L6 content suppress those sections', () => {
   it('plain-tier-c-trick (no curated L1-L6 entries) does NOT render mechanical-delta / ontology-role / productivity / family-evolution / progressive-readings sections', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/plain-tier-c-trick');
+    const res = await request(await createApp()).get('/freestyle/tricks/plain_tier_c_trick');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="content-section trick-mechanical-delta"');
     expect(res.text).not.toContain('class="content-section trick-ontology-role"');
@@ -318,7 +318,7 @@ describe('Relocated delta + build-path', () => {
 // The standalone Mechanical Delta, Ontology Role, and Progressive Readings
 // sections, plus the interpretive-traditions block, are retired everywhere.
 describe('Retired ontology sections are absent on every trick page', () => {
-  for (const slug of ['mirage', 'paradox-mirage', 'whirl', 'blur', 'fury', 'sumo', 'torque', 'ripstein']) {
+  for (const slug of ['mirage', 'paradox_mirage', 'whirl', 'blur', 'fury', 'sumo', 'torque', 'ripstein']) {
     it(`${slug} renders no mechanical-delta / ontology-role / progressive-readings / interpretive-traditions section`, async () => {
       const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
       expect(res.status).toBe(200);
@@ -407,14 +407,14 @@ describe('drifter renders intuition (productivity + family-evolution deleted)', 
 
 describe('atom-smasher renders intuition only (productivity + family-evolution suppress)', () => {
   it('atom-smasher renders L1 intuition with the X-Dex reversal prose', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/atom-smasher');
+    const res = await request(await createApp()).get('/freestyle/tricks/atom_smasher');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/dex direction reversed/);
   });
 
   it('atom-smasher SUPPRESSES L4 productivity and L5 family-evolution (leaf-class compound)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/atom-smasher');
+    const res = await request(await createApp()).get('/freestyle/tricks/atom_smasher');
     expect(res.text).not.toContain('class="content-section trick-productivity"');
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
@@ -574,14 +574,14 @@ describe('ripwalk renders intuition only (productivity + family-evolution suppre
 
 describe('food-processor renders intuition only (productivity + family-evolution suppress)', () => {
   it('food-processor renders L1 intuition with the blurry-blender prose', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/food-processor');
+    const res = await request(await createApp()).get('/freestyle/tricks/food_processor');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/Food-processor stitches a blurry-stepping pattern/);
   });
 
   it('food-processor SUPPRESSES L4 productivity and L5 family-evolution (leaf compound)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/food-processor');
+    const res = await request(await createApp()).get('/freestyle/tricks/food_processor');
     expect(res.text).not.toContain('class="content-section trick-productivity"');
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
@@ -625,7 +625,7 @@ describe('Family-lineage heading is "Family" only for official Family Parents', 
   });
 
   it('a non-parent trick (paradox-mirage) labels its lineage section "Related", never "Family"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/paradox-mirage');
+    const res = await request(await createApp()).get('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-family-lineage"');
     expect(res.text).toMatch(/<h2>[^<]*\bRelated<\/h2>/);

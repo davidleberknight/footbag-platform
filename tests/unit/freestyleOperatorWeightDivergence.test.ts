@@ -27,14 +27,14 @@ describe('operator-weight divergence policy — furious / railing', () => {
     expect(p?.structuralWeight).toBe(2);
     expect(p?.sourceSystem).toBe('FootbagMoves');
     expect(p?.status).toBe('published');
-    expect(p?.affectedSlugs).toEqual(['clown-face', 'genesis', 'rage', 'nebula']);
+    expect(p?.affectedSlugs).toEqual(['clown_face', 'genesis', 'rage', 'nebula']);
   });
 
   it('registers railing anchored at structural weight 2 (rooted + sailing)', () => {
     const p = getOperatorWeightDivergence('railing');
     expect(p).not.toBeNull();
     expect(p?.structuralWeight).toBe(2);
-    expect(p?.affectedSlugs).toEqual(['dorshanatrix', 'flying-fish', 'rail-warrior']);
+    expect(p?.affectedSlugs).toEqual(['dorshanatrix', 'flying_fish', 'rail_warrior']);
   });
 
   it('records the source over-count as a 1-to-2 ADD range for both cohorts', () => {

@@ -29,7 +29,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertFreestyleTrick(db, {
-    slug: 'quantum-symposium-mirage',
+    slug: 'quantum_symposium_mirage',
     canonical_name: 'quantum symposium mirage',
     adds: '4', base_trick: 'mirage', trick_family: 'mirage',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
@@ -42,7 +42,7 @@ beforeAll(async () => {
       (alias_slug, alias_text, trick_slug, alias_type, created_at)
     VALUES (?, ?, ?, ?, ?)
   `);
-  insertAlias.run('backside-symposium-toe-blur', 'backside symposium toe blur', 'quantum-symposium-mirage', 'common', new Date().toISOString());
+  insertAlias.run('backside_symposium_toe_blur', 'backside symposium toe blur', 'quantum_symposium_mirage', 'common', new Date().toISOString());
   db.close();
   createApp = await importApp();
 });
@@ -51,7 +51,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('RESOLVED_FORMULAS_SPRINT_1 — quantum-symposium-mirage entry', () => {
   it('overlay carries FB.org-confirmed JOB + 4 ADD + quantum-symposium derivation', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'quantum-symposium-mirage');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'quantum_symposium_mirage');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.baseAdd).toBe(2);
@@ -64,8 +64,8 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — quantum-symposium-mirage entry', () => 
 });
 
 describe('quantum-symposium-mirage detail page — first-class JOB + ADD', () => {
-  it('/freestyle/tricks/quantum-symposium-mirage renders 4 ADD + (no plant while) pre-state + symposium body fusion', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/quantum-symposium-mirage');
+  it('/freestyle/tricks/quantum_symposium_mirage renders 4 ADD + (no plant while) pre-state + symposium body fusion', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/quantum_symposium_mirage');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -78,7 +78,7 @@ describe('quantum-symposium-mirage detail page — first-class JOB + ADD', () =>
   });
 
   it('detail page surfaces "backside symposium toe blur" as folk-name alias in S3 "Also known as"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/quantum-symposium-mirage');
+    const res = await request(await createApp()).get('/freestyle/tricks/quantum_symposium_mirage');
     expect(res.text).toContain('Also known as');
     expect(res.text).toMatch(/backside symposium toe blur/i);
   });
@@ -86,7 +86,7 @@ describe('quantum-symposium-mirage detail page — first-class JOB + ADD', () =>
   it('browse card renders JOB + ADD inline (not "canonical decomposition pending")', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    const idx = res.text.indexOf('data-trick-slug="quantum-symposium-mirage"');
+    const idx = res.text.indexOf('data-trick-slug="quantum_symposium_mirage"');
     expect(idx).toBeGreaterThan(-1);
     const articleOpen = res.text.lastIndexOf('<article', idx);
     const articleClose = res.text.indexOf('</article>', idx);

@@ -23,8 +23,8 @@
  *
  * Forever-rules:
  *
- * - Set hashtags use the pattern `#<slug>-set` to distinguish set
- *   ontology from trick ontology (`#pixie-set` ≠ `#pixie-mirage`).
+ * - Set hashtags use the role-prefix pattern `#set_<slug>` to distinguish
+ *   set ontology from trick ontology (`#set_pixie` ≠ `#pixie_mirage`).
  * - Surface mechanics (sole, cloud, head, etc.) are NOT sets and do
  *   NOT appear in this module.
  * - Component mechanics (ducking, diving, bare spinning/inspinning,
@@ -75,9 +75,9 @@ export interface SlugReference {
 }
 
 export interface CanonicalSet {
-  /** Stable kebab-case slug; matches the modifier registry slug where applicable. */
+  /** Stable lowercase underscore slug; matches the modifier registry slug where applicable. */
   slug: string;
-  /** Set ontology hashtag, pattern `#<slug>-set`. */
+  /** Set ontology hashtag, role-prefix pattern `#set_<slug>`. */
   hashtag: string;
   /** Display name (Title Case). */
   displayName: string;
@@ -184,7 +184,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
 
   // ── True core sets (10) ────────────────────────────────────────────
   {
-    slug: 'toe', hashtag: '#toe-set', displayName: 'Toe Set', subtype: 'true-core',
+    slug: 'toe', hashtag: '#set_toe', displayName: 'Toe Set', subtype: 'true-core',
     formula: 'TOE >',
     movementExplanation:
       'The foundational entry surface: the bag is set up from a toe delay with no added ' +
@@ -198,7 +198,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     sourceCitation: 'Platform entry-surface reference.',
   },
   {
-    slug: 'clipper', hashtag: '#clipper-set', displayName: 'Clipper Set', subtype: 'true-core',
+    slug: 'clipper', hashtag: '#set_clipper', displayName: 'Clipper Set', subtype: 'true-core',
     formula: 'CLIP >',
     movementExplanation:
       'The other foundational entry surface: the bag is set from a clipper (cross-body ' +
@@ -212,7 +212,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     sourceCitation: 'Platform entry-surface reference.',
   },
   {
-    slug: 'pixie', hashtag: '#pixie-set', displayName: 'Pixie', subtype: 'true-core',
+    slug: 'pixie', hashtag: '#set_pixie', displayName: 'Pixie', subtype: 'true-core',
     formula: 'TOE > SAME IN [DEX] >',
     movementExplanation:
       'A toe set with a same-side inward dex; the basic uptime ATW-style entry and the ' +
@@ -222,8 +222,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'terraging', label: 'Terraging' },
       { slug: 'sailing',   label: 'Sailing' },
       { slug: 'frantic',   label: 'Frantic' },
-      { slug: 'pixie-inspinning', label: 'Pixie Inspinning' },
-      { slug: 'pixie-pinching',   label: 'Pixie Pinching' },
+      { slug: 'pixie_inspinning', label: 'Pixie Inspinning' },
+      { slug: 'pixie_pinching',   label: 'Pixie Pinching' },
       { slug: 'arctic',    label: 'Arctic' },
     ],
     relatedSystems: [
@@ -235,15 +235,15 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'literal-primitive',
   },
   {
-    slug: 'fairy', hashtag: '#fairy-set', displayName: 'Fairy', subtype: 'true-core',
+    slug: 'fairy', hashtag: '#set_fairy', displayName: 'Fairy', subtype: 'true-core',
     formula: 'TOE > SAME OUT [DEX] >',
     movementExplanation:
       'A toe set with a same-side outward dex; the basic uptime orbit-style entry and the ' +
       'directional mirror of pixie.',
     equivalenceNotes: [],
     derivedSystems: [
-      { slug: 'fairy-atomic',   label: 'Fairy Atomic' },
-      { slug: 'fairy-spinning', label: 'Fairy Spinning' },
+      { slug: 'fairy_atomic',   label: 'Fairy Atomic' },
+      { slug: 'fairy_spinning', label: 'Fairy Spinning' },
       { slug: 'finchy',         label: 'Finchy' },
     ],
     relatedSystems: [
@@ -255,7 +255,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'literal-primitive',
   },
   {
-    slug: 'stepping', hashtag: '#stepping-set', displayName: 'Stepping', subtype: 'true-core',
+    slug: 'stepping', hashtag: '#set_stepping', displayName: 'Stepping', subtype: 'true-core',
     formula: 'CLIP > OP IN [DEX] >',
     movementExplanation:
       'A clipper set with an opposite-side inward dex; the set foot relocates as it opens ' +
@@ -265,7 +265,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'barraging',  label: 'Barraging' },
       { slug: 'blurry',     label: 'Blurry' },
       { slug: 'leaning',    label: 'Leaning' },
-      { slug: 'go-go',      label: 'Go-Go' },
+      { slug: 'go_go',      label: 'Go-Go' },
       { slug: 'shooting',   label: 'Shooting' },
     ],
     relatedSystems: [
@@ -277,7 +277,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'literal-primitive',
   },
   {
-    slug: 'quantum', hashtag: '#quantum-set', displayName: 'Quantum', subtype: 'true-core',
+    slug: 'quantum', hashtag: '#set_quantum', displayName: 'Quantum', subtype: 'true-core',
     formula: 'TOE > OP IN [DEX] > (op side component)',
     movementExplanation:
       'Toe set, then an opposite-side inward dex resolving to an op-side terminal. The ' +
@@ -299,7 +299,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'literal-primitive',
   },
   {
-    slug: 'atomic', hashtag: '#atomic-set', displayName: 'Atomic', subtype: 'true-core',
+    slug: 'atomic', hashtag: '#set_atomic', displayName: 'Atomic', subtype: 'true-core',
     formula: 'TOE > OP OUT [DEX] > (op side component)',
     movementExplanation:
       'A toe set with an opposite-side outward dex landing on the far side; the uptime ' +
@@ -311,7 +311,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { name: 'Illusioning', structuralReading: 'REV(0) Miraging', note: 'Alternate, historic set-operator name; the descriptive reading of the atomic operator.' },
     ],
     derivedSystems: [
-      { slug: 'fairy-atomic', label: 'Fairy Atomic' },
+      { slug: 'fairy_atomic', label: 'Fairy Atomic' },
       { slug: 'neutron',      label: 'Neutron' },
       { slug: 'tapping',      label: 'Tapping' },
     ],
@@ -325,7 +325,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'literal-primitive',
   },
   {
-    slug: 'bubba', hashtag: '#bubba-set', displayName: 'Bubba', subtype: 'true-core',
+    slug: 'bubba', hashtag: '#set_bubba', displayName: 'Bubba', subtype: 'true-core',
     formula: 'CLIP > OP OUT [DEX] >',
     movementExplanation:
       'A clipper set with an opposite-side outward dex; the reverse-direction mirror of ' +
@@ -341,7 +341,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'literal-primitive',
   },
   {
-    slug: 'slapping', hashtag: '#slapping-set', displayName: 'Slapping', subtype: 'true-core',
+    slug: 'slapping', hashtag: '#set_slapping', displayName: 'Slapping', subtype: 'true-core',
     formula: 'TOE > OP IN [DEX] > (same side component)',
     movementExplanation:
       'Toe set, then an opposite-side inward dex resolving to a same-side terminal, the ' +
@@ -357,7 +357,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'literal-primitive',
   },
   {
-    slug: 'tapping', hashtag: '#tapping-set', displayName: 'Tapping', subtype: 'true-core',
+    slug: 'tapping', hashtag: '#set_tapping', displayName: 'Tapping', subtype: 'true-core',
     formula: 'TOE > OP OUT [DEX] (plant) > (same side component)',
     movementExplanation:
       'Toe set, then an opposite-side outward dex with a plant, resolving to a same-side ' +
@@ -377,7 +377,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
 
   // ── Composite / derived sets (12) ──────────────────────────────────
   {
-    slug: 'illusioning', hashtag: '#illusioning-set', displayName: 'Illusioning', subtype: 'composite-derived',
+    slug: 'illusioning', hashtag: '#set_illusioning', displayName: 'Illusioning', subtype: 'composite-derived',
     formula: 'SET > OP OUT [DEX] >',
     movementExplanation:
       'A derived entry topology readable as the uptime illusion shape: structurally the ' +
@@ -400,7 +400,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     sourceCitation: 'Structural pattern; not in the Holden compilation.',
   },
   {
-    slug: 'miraging', hashtag: '#miraging-set', displayName: 'Miraging', subtype: 'composite-derived',
+    slug: 'miraging', hashtag: '#set_miraging', displayName: 'Miraging', subtype: 'composite-derived',
     formula: 'SET > OP IN [DEX] >',
     movementExplanation:
       'A derived entry topology readable as the mirage shape compressed into an uptime ' +
@@ -420,7 +420,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'terraging', hashtag: '#terraging-set', displayName: 'Terraging', subtype: 'composite-derived',
+    slug: 'terraging', hashtag: '#set_terraging', displayName: 'Terraging', subtype: 'composite-derived',
     formula: 'TOE > SAME IN [DEX] > SAME IN [DEX] >',
     movementExplanation:
       'Pixie doubled (folk name Double Pixie): two same-side inward dexes layered over a ' +
@@ -438,7 +438,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'barraging', hashtag: '#barraging-set', displayName: 'Barraging', subtype: 'composite-derived',
+    slug: 'barraging', hashtag: '#set_barraging', displayName: 'Barraging', subtype: 'composite-derived',
     formula: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',
     movementExplanation:
       'Stepping extended with a second inward dex (folk name High Stepping): stepping\'s ' +
@@ -460,7 +460,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'sailing', hashtag: '#sailing-set', displayName: 'Sailing', subtype: 'composite-derived',
+    slug: 'sailing', hashtag: '#set_sailing', displayName: 'Sailing', subtype: 'composite-derived',
     formula: 'TOE > SAME IN [DEX] > OP OUT [DEX] >',
     movementExplanation:
       'Pixie extended with an illusion-style dex (folk name Pixie Illusion). Holden-cited; ' +
@@ -480,7 +480,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'blurry', hashtag: '#blurry-set', displayName: 'Blurry', subtype: 'composite-derived',
+    slug: 'blurry', hashtag: '#set_blurry', displayName: 'Blurry', subtype: 'composite-derived',
     formula: 'CLIP > OP IN [DEX] > OP OUT [DEX] >',
     movementExplanation:
       'Stepping combined with a paradox-style orientation change.',
@@ -497,7 +497,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'furious', hashtag: '#furious-set', displayName: 'Furious', subtype: 'composite-derived',
+    slug: 'furious', hashtag: '#set_furious', displayName: 'Furious', subtype: 'composite-derived',
     formula: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',
     movementExplanation:
       'Furious is the same two-dex set as Barraging, with Barraging the more explanative term. ' +
@@ -519,7 +519,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'frantic', hashtag: '#frantic-set', displayName: 'Frantic', subtype: 'composite-derived',
+    slug: 'frantic', hashtag: '#set_frantic', displayName: 'Frantic', subtype: 'composite-derived',
     formula: 'TOE > SAME IN [DEX] > OP IN [DEX] >',
     movementExplanation:
       'Pixie into quantum\'s direction: pixie\'s opening dex followed by an opposite-side ' +
@@ -538,7 +538,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'fairy-atomic', hashtag: '#fairy-atomic-set', displayName: 'Fairy Atomic', subtype: 'composite-derived',
+    slug: 'fairy_atomic', hashtag: '#set_fairy_atomic', displayName: 'Fairy Atomic', subtype: 'composite-derived',
     formula: 'TOE > SAME OUT [DEX] > OP OUT [DEX] >',
     movementExplanation:
       'Two-dex chain combining fairy\'s opening with atomic\'s direction. Holden-cited; ' +
@@ -555,7 +555,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'shooting', hashtag: '#shooting-set', displayName: 'Shooting', subtype: 'composite-derived',
+    slug: 'shooting', hashtag: '#set_shooting', displayName: 'Shooting', subtype: 'composite-derived',
     formula: 'CLIP > OP IN [DEX] > OP OUT [PDX][DEX] >',
     movementExplanation:
       'Stepping with a paradox-style orientation change, extended by an illusion-style dex ' +
@@ -574,7 +574,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'flailing', hashtag: '#flailing-set', displayName: 'Flailing', subtype: 'composite-derived',
+    slug: 'flailing', hashtag: '#set_flailing', displayName: 'Flailing', subtype: 'composite-derived',
     formula: 'SET > (no plant while) OP OUT [BOD] [DEX] >',
     movementExplanation:
       'Miraging reversed and performed off the ground (folk name Symposium Reverse ' +
@@ -593,7 +593,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'nuclear', hashtag: '#nuclear-set', displayName: 'Nuclear', subtype: 'composite-derived',
+    slug: 'nuclear', hashtag: '#set_nuclear', displayName: 'Nuclear', subtype: 'composite-derived',
     formula: 'CLIP > SAME OUT [DEX] >',
     movementExplanation:
       'A clipper-based compound entry combining a paradox hip shift with an illusion-style ' +
@@ -617,7 +617,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
 
   // ── Rotational set systems (9) ─────────────────────────────────────
   {
-    slug: 'surging', hashtag: '#surging-set', displayName: 'Surging', subtype: 'rotational',
+    slug: 'surging', hashtag: '#set_surging', displayName: 'Surging', subtype: 'rotational',
     formula: 'SET > (BACK/FRONT) SPIN [BOD] > OP IN [DEX] >',
     movementExplanation:
       'Spin-anchored set system. Holden reads it as spinning miraging; later platform ' +
@@ -638,7 +638,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'sonic', hashtag: '#sonic-set', displayName: 'Sonic', subtype: 'rotational',
+    slug: 'sonic', hashtag: '#set_sonic', displayName: 'Sonic', subtype: 'rotational',
     formula: 'CLIP > (BACK) SPIN [BOD] > (BACK) SPIN [BOD] >',
     movementExplanation:
       'Double spinning over a clipper set, two back-spin tokens in sequence. Holden-cited; ' +
@@ -656,7 +656,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'peeking', hashtag: '#peeking-set', displayName: 'Peeking', subtype: 'rotational',
+    slug: 'peeking', hashtag: '#set_peeking', displayName: 'Peeking', subtype: 'rotational',
     formula: 'SET > (BACK) SPIN [BOD] > (BACK) SPIN [BOD] >',
     movementExplanation:
       'Double spinning, SET-led variant. The directional sibling of sonic with a SET ' +
@@ -674,7 +674,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'leaning', hashtag: '#leaning-set', displayName: 'Leaning', subtype: 'rotational',
+    slug: 'leaning', hashtag: '#set_leaning', displayName: 'Leaning', subtype: 'rotational',
     formula: 'CLIP > OP IN [DEX] > (FRONT) SPIN [BOD] >',
     movementExplanation:
       'Stepping with a forward spin (folk name Stepping inspinning). Holden-cited; no ' +
@@ -685,7 +685,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     derivedSystems: [],
     relatedSystems: [
       { slug: 'stepping', label: 'Stepping (set base)' },
-      { slug: 'go-go',    label: 'Go-Go (back-spin sibling)' },
+      { slug: 'go_go',    label: 'Go-Go (back-spin sibling)' },
     ],
     source: 'holden-only',
     sourceCitation: 'Holden compilation (2003); no current platform canonical.',
@@ -693,7 +693,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'go-go', hashtag: '#go-go-set', displayName: 'Go-Go', subtype: 'rotational',
+    slug: 'go_go', hashtag: '#set_go_go', displayName: 'Go-Go', subtype: 'rotational',
     formula: 'CLIP > OP IN [DEX] > (BACK) SPIN [BOD] >',
     movementExplanation:
       'Stepping backspinning. The directional sibling of leaning with a back-spin token. ' +
@@ -712,7 +712,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'twinspinning', hashtag: '#twinspinning-set', displayName: 'Twinspinning', subtype: 'rotational',
+    slug: 'twinspinning', hashtag: '#set_twinspinning', displayName: 'Twinspinning', subtype: 'rotational',
     formula: 'CLIP > SAME OUT [DEX] > (FRONT) SPIN [BOD] >',
     movementExplanation:
       'Nuclear inspinning. Nuclear\'s opening dex followed by a front-spin body token. ' +
@@ -730,7 +730,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'neutron', hashtag: '#neutron-set', displayName: 'Neutron', subtype: 'rotational',
+    slug: 'neutron', hashtag: '#set_neutron', displayName: 'Neutron', subtype: 'rotational',
     formula: 'TOE > OP OUT [DEX] > (BACK) SPIN [BOD] > (op side component)',
     movementExplanation:
       'Atomic with an added back spin (folk name Atomic spin). Holden-cited; no current ' +
@@ -748,7 +748,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'fairy-spinning', hashtag: '#fairy-spinning-set', displayName: 'Fairy Spinning', subtype: 'rotational',
+    slug: 'fairy_spinning', hashtag: '#set_fairy_spinning', displayName: 'Fairy Spinning', subtype: 'rotational',
     formula: 'TOE > SAME OUT [DEX] > (BACK) SPIN [BOD] >',
     movementExplanation:
       'Fairy\'s opening dex followed by a back-spin body token. Holden-cited; no current ' +
@@ -757,7 +757,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     derivedSystems: [],
     relatedSystems: [
       { slug: 'fairy', label: 'Fairy (set base)' },
-      { slug: 'pixie-inspinning', label: 'Pixie Inspinning (directional sibling)' },
+      { slug: 'pixie_inspinning', label: 'Pixie Inspinning (directional sibling)' },
     ],
     source: 'holden-only',
     sourceCitation: 'Holden compilation (2003); no current platform canonical.',
@@ -765,7 +765,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'pixie-inspinning', hashtag: '#pixie-inspinning-set', displayName: 'Pixie Inspinning', subtype: 'rotational',
+    slug: 'pixie_inspinning', hashtag: '#set_pixie_inspinning', displayName: 'Pixie Inspinning', subtype: 'rotational',
     formula: 'TOE > SAME IN [DEX] > (FRONT) SPIN [BOD] >',
     movementExplanation:
       'Pixie\'s opening dex followed by a front-spin body token. Holden-cited; no current ' +
@@ -774,7 +774,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     derivedSystems: [],
     relatedSystems: [
       { slug: 'pixie', label: 'Pixie (set base)' },
-      { slug: 'fairy-spinning', label: 'Fairy Spinning (directional sibling)' },
+      { slug: 'fairy_spinning', label: 'Fairy Spinning (directional sibling)' },
     ],
     source: 'holden-only',
     sourceCitation: 'Holden compilation (2003); no current platform canonical.',
@@ -784,7 +784,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
 
   // ── Whirl / swirl-derived systems (8) ──────────────────────────────
   {
-    slug: 'swirling', hashtag: '#swirling-set', displayName: 'Swirling', subtype: 'whirl-swirl',
+    slug: 'swirling', hashtag: '#set_swirling', displayName: 'Swirling', subtype: 'whirl-swirl',
     formula: 'CLIP > SAME BACK/FRONT SWIRL [DEX] >',
     movementExplanation:
       'Clipper-anchored cross-body rotational set with an explicit SWIRL dex token. The ' +
@@ -803,7 +803,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'whirling', hashtag: '#whirling-set', displayName: 'Whirling', subtype: 'whirl-swirl',
+    slug: 'whirling', hashtag: '#set_whirling', displayName: 'Whirling', subtype: 'whirl-swirl',
     formula: 'CLIP > OP IN [DEX] > (same side component)',
     movementExplanation:
       'Whirl-family base: clipper-anchored opposite-side inward dex with a same-side ' +
@@ -823,7 +823,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'blazing', hashtag: '#blazing-set', displayName: 'Blazing', subtype: 'whirl-swirl',
+    slug: 'blazing', hashtag: '#set_blazing', displayName: 'Blazing', subtype: 'whirl-swirl',
     formula: 'CLIP > OP IN [DEX] > (op side component)',
     movementExplanation:
       'Whirling with the opposite-side terminal component. Holden distinguishes blazing ' +
@@ -841,7 +841,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'scattered', hashtag: '#scattered-set', displayName: 'Scattered', subtype: 'whirl-swirl',
+    slug: 'scattered', hashtag: '#set_scattered', displayName: 'Scattered', subtype: 'whirl-swirl',
     formula: 'CLIP > OP OUT [DEX] > (same side component)',
     movementExplanation:
       'Reverse Whirling (same-side terminal). The opposite-direction sibling of whirling. ' +
@@ -860,7 +860,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'shattered', hashtag: '#shattered-set', displayName: 'Shattered', subtype: 'whirl-swirl',
+    slug: 'shattered', hashtag: '#set_shattered', displayName: 'Shattered', subtype: 'whirl-swirl',
     formula: 'CLIP > OP OUT [DEX] > (op side component)',
     movementExplanation:
       'Reverse Whirling (op-side terminal). The terminal-side mirror of scattered. ' +
@@ -878,7 +878,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'pogo', hashtag: '#pogo-set', displayName: 'Pogo', subtype: 'whirl-swirl',
+    slug: 'pogo', hashtag: '#set_pogo', displayName: 'Pogo', subtype: 'whirl-swirl',
     formula: 'CLIP > (no plant while) OP IN [DEX] >',
     movementExplanation:
       'Whirling performed off the ground (folk name Symposium Whirling): the whirl shape ' +
@@ -896,7 +896,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'blistering', hashtag: '#blistering-set', displayName: 'Blistering', subtype: 'whirl-swirl',
+    slug: 'blistering', hashtag: '#set_blistering', displayName: 'Blistering', subtype: 'whirl-swirl',
     formula: 'CLIP > OP IN [DEX] > (BACK) SPIN [BOD] >',
     movementExplanation:
       'Whirling with an added back spin (folk name Whirling Gyro); the gyro-lineage ' +
@@ -914,7 +914,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'broken', hashtag: '#broken-set', displayName: 'Broken', subtype: 'whirl-swirl',
+    slug: 'broken', hashtag: '#set_broken', displayName: 'Broken', subtype: 'whirl-swirl',
     formula: 'CLIP > OP OUT [DEX] > (SAME)',
     movementExplanation:
       'Clipper reverse whirl. The reverse-direction sibling of the whirl shape; folk-named ' +
@@ -936,7 +936,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
 
   // ── UNS sets (5) ────────────────────────────────────────────────────
   {
-    slug: 'finchy', hashtag: '#finchy-set', displayName: 'Finchy', subtype: 'uns',
+    slug: 'finchy', hashtag: '#set_finchy', displayName: 'Finchy', subtype: 'uns',
     formula: 'PINCH > SAME OUT [DEX] >',
     movementExplanation:
       'Fairy off a pinch entry (folk name Pinching Fairy): fairy\'s outward dex over a ' +
@@ -954,7 +954,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'pixie-pinching', hashtag: '#pixie-pinching-set', displayName: 'Pixie Pinching', subtype: 'uns',
+    slug: 'pixie_pinching', hashtag: '#set_pixie_pinching', displayName: 'Pixie Pinching', subtype: 'uns',
     formula: 'PINCH > SAME IN [DEX] >',
     movementExplanation:
       'Pixie\'s dex direction over a pinch entry surface. Holden-cited; no current ' +
@@ -971,7 +971,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'twisted', hashtag: '#twisted-set', displayName: 'Twisted', subtype: 'uns',
+    slug: 'twisted', hashtag: '#set_twisted', displayName: 'Twisted', subtype: 'uns',
     formula: 'DRAGON > SAME FRONT SWIRL [DEX] > SAME IN/OUT [PDX][DEX] >',
     movementExplanation:
       'Dragon-set Swirling Paradox. A SWIRL token over a dragon entry, then a paradox-token ' +
@@ -989,7 +989,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'snapping', hashtag: '#snapping-set', displayName: 'Snapping', subtype: 'uns',
+    slug: 'snapping', hashtag: '#set_snapping', displayName: 'Snapping', subtype: 'uns',
     formula: 'DRAGON > SAME FRONT SWIRL [DEX] >',
     movementExplanation:
       'Dragon-set Swirling. A SWIRL token over a dragon entry surface. Holden-cited; no ' +
@@ -1008,7 +1008,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'arctic', hashtag: '#arctic-set', displayName: 'Arctic', subtype: 'uns',
+    slug: 'arctic', hashtag: '#set_arctic', displayName: 'Arctic', subtype: 'uns',
     formula: 'FRIGIDOSIS > SAME IN [DEX] >',
     movementExplanation:
       'Pixie off a frigidosis entry (folk name Frigidosis Pixie): pixie\'s inward dex over ' +
@@ -1019,7 +1019,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     derivedSystems: [],
     relatedSystems: [
       { slug: 'pixie',          label: 'Pixie (toe-entry sibling)' },
-      { slug: 'pixie-pinching', label: 'Pixie Pinching (pinch-entry sibling)' },
+      { slug: 'pixie_pinching', label: 'Pixie Pinching (pinch-entry sibling)' },
     ],
     source: 'holden-only',
     sourceCitation: 'Holden compilation (2003); no current platform canonical.',
@@ -1029,7 +1029,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
 
   // ── Rooted / antisymposium systems (2) ─────────────────────────────
   {
-    slug: 'rooting', hashtag: '#rooting-set', displayName: 'Rooting / Rooted', subtype: 'rooted-antisymposium',
+    slug: 'rooting', hashtag: '#set_rooting', displayName: 'Rooting / Rooted', subtype: 'rooted-antisymposium',
     formula: 'Support-foot set, then dex (antisymposium); 0 ADD',
     movementExplanation:
       'Rooted is a set in its own right and an antisymposium discipline: the footbag is set ' +
@@ -1050,7 +1050,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'zoid', hashtag: '#zoid-set', displayName: 'Zoid', subtype: 'rooted-antisymposium',
+    slug: 'zoid', hashtag: '#set_zoid', displayName: 'Zoid', subtype: 'rooted-antisymposium',
     formula: 'Rooted toe-clipper set',
     movementExplanation:
       'Specific named pattern for an antisymposium toe-clipper set. The setting foot stays ' +
@@ -1066,7 +1066,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'railing', hashtag: '#railing-set', displayName: 'Railing', subtype: 'rooted-antisymposium',
+    slug: 'railing', hashtag: '#set_railing', displayName: 'Railing', subtype: 'rooted-antisymposium',
     formula: 'TOE > SAME IN [DEX] > OP OUT [DEX] (rooted) >',
     movementExplanation:
       'Rooted Sailing: the Sailing set (a Pixie Illusion, a toe set then a same-side inward ' +
@@ -1088,7 +1088,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'surfing', hashtag: '#surfing-set', displayName: 'Surfing', subtype: 'composite-derived',
+    slug: 'surfing', hashtag: '#set_surfing', displayName: 'Surfing', subtype: 'composite-derived',
     formula: 'TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP BACK SWIRL [DEX] >',
     movementExplanation:
       'Surfing is a composite set reading Fairy Symposium Swirling: a fairy toe-set outward ' +
@@ -1109,7 +1109,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'floating', hashtag: '#floating-set', displayName: 'Floating', subtype: 'composite-derived',
+    slug: 'floating', hashtag: '#set_floating', displayName: 'Floating', subtype: 'composite-derived',
     formula: 'Quantum Symposium Quantum',
     movementExplanation:
       'Floating is a composite set reading Quantum Symposium Quantum: a quantum entry, a ' +
@@ -1129,7 +1129,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'warping', hashtag: '#warping-set', displayName: 'Warping', subtype: 'composite-derived',
+    slug: 'warping', hashtag: '#set_warping', displayName: 'Warping', subtype: 'composite-derived',
     formula: 'TOE > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX]',
     movementExplanation:
       'Warping is a two-dex set contributing 3 ADD: a first dex, then a second dex carried as a ' +

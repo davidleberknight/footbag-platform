@@ -55,19 +55,19 @@ export interface TrickIntuitionEntry {
 
 export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
-    slug: 'toe-stall',
+    slug: 'toe_stall',
     prose:
       'The foundational delay surface for upright freestyle. The bag rests on top of the foot just behind the toes, with the foot dorsiflexed (top of foot lifted, toes raised) so the bag sits in the small cup formed where the laces meet the ankle. Balance comes from the supporting leg with a slight forward lean; the catching foot holds the bag still for a beat before the next move. Most upright tricks open from a toe set or terminate on a toe delay.',
     attribution: '',
   },
   {
-    slug: 'illusioning-flail',
+    slug: 'illusioning_flail',
     prose:
       'Set the bag and circle an outward leg-swing under and then over it while the bag is on its way down rather than on its rise, so the swing rides the bag\'s downtime. Without replanting the support foot, immediately take a second outward swing with the body suspended in the air, and catch on a toe delay. It reads as two low, flowing outward circles, the second one stolen mid-float.',
     attribution: '',
   },
   {
-    slug: 'illusioning-osis',
+    slug: 'illusioning_osis',
     prose:
       'Open with a downtime outward leg-circle: swing under and over the bag as it falls. Flow straight out of it into a full body spin, carrying the bag wide of the body, and finish by catching it cross-body on a clipper delay. The feel is one continuous move, a downtime outward circle that unwinds directly into the rotation.',
     attribution: '',
@@ -109,7 +109,7 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
     attribution: '',
   },
   {
-    slug: 'paradox-mirage',
+    slug: 'paradox_mirage',
     prose:
       'Paradox-mirage feels mechanically heavier than ordinary mirage. The setting foot stays planted longer; the hip pivots cross-body during the dex; the bag tracks across more of the body width before recatching. The rhythm is one beat longer than plain mirage: the body must complete a directional shift before the catching foot arrives.',
     attribution: '',
@@ -139,7 +139,7 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
     attribution: '',
   },
   {
-    slug: 'atom-smasher',
+    slug: 'atom_smasher',
     prose:
       "Atom-smasher feels like a mirage with the dex direction reversed and stretched. The support leg swings outside-then-inside rather than inside-then-outside: the X-Dex character. The body works through a wider arc during the dex, and the catch arrives on the opposite toe after the bag passes through a broader cross-body trajectory than ordinary mirage. The rhythm holds the mirage cadence but feels weightier through the wider dex.",
     attribution: '',
@@ -187,7 +187,7 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
     attribution: '',
   },
   {
-    slug: 'food-processor',
+    slug: 'food_processor',
     prose:
       "Food-processor stitches a blurry-stepping pattern onto a blender: the compound-of-canonicals chassis already combining whirl and osis. The body works through a first stepping dex, threads paradox topology into a whirl-style second dex, settles through an osis back-spin, then catches on the cross-body clipper. The rhythm is among the longest in the dictionary: four distinct movement events stacked into one transition, with rotational character carrying through almost the entire sequence.",
     attribution: '',

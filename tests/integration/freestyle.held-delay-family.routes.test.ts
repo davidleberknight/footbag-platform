@@ -46,19 +46,19 @@ beforeAll(async () => {
   // promotions. None of these need operational_notation in the DB
   // (overlay supplies the JOB); butterfly-kick is seeded with its
   // CORRECTED 2-ADD shape post-loader-19.
-  insertFreestyleTrick(db, { slug: 'hop-over',  canonical_name: 'hop over',  adds: '2', base_trick: 'hop-over',  trick_family: 'hop-over',  category: 'body',     review_status: 'expert_reviewed', is_active: 1 });
-  insertFreestyleTrick(db, { slug: 'walk-over', canonical_name: 'walk over', adds: '2', base_trick: 'walk-over', trick_family: 'walk-over', category: 'body',     review_status: 'expert_reviewed', is_active: 1 });
+  insertFreestyleTrick(db, { slug: 'hop_over',  canonical_name: 'hop over',  adds: '2', base_trick: 'hop-over',  trick_family: 'hop-over',  category: 'body',     review_status: 'expert_reviewed', is_active: 1 });
+  insertFreestyleTrick(db, { slug: 'walk_over', canonical_name: 'walk over', adds: '2', base_trick: 'walk-over', trick_family: 'walk-over', category: 'body',     review_status: 'expert_reviewed', is_active: 1 });
   insertFreestyleTrick(db, { slug: 'wrap',      canonical_name: 'wrap',      adds: '2', base_trick: 'wrap',      trick_family: 'wrap',      category: 'compound', review_status: 'expert_reviewed', is_active: 1 });
-  insertFreestyleTrick(db, { slug: 'butterfly-kick',     canonical_name: 'butterfly-kick',     adds: '2', base_trick: 'butterfly',     trick_family: 'butterfly',     category: 'body',     review_status: 'expert_reviewed', is_active: 1, operational_notation: 'SET > JUMP [BOD] > SAME or OP OUT [DEX]' });
+  insertFreestyleTrick(db, { slug: 'butterfly_kick',     canonical_name: 'butterfly-kick',     adds: '2', base_trick: 'butterfly',     trick_family: 'butterfly',     category: 'body',     review_status: 'expert_reviewed', is_active: 1, operational_notation: 'SET > JUMP [BOD] > SAME or OP OUT [DEX]' });
 
   // ATW-family promotions — DB op_notation empty; overlay supplies JOB.
-  insertFreestyleTrick(db, { slug: 'around-the-world-kick',        canonical_name: 'around the world kick',        adds: '1', base_trick: 'around-the-world',        trick_family: 'around-the-world',        category: 'dex',      review_status: 'expert_reviewed', is_active: 1 });
-  insertFreestyleTrick(db, { slug: 'triple-around-the-world',      canonical_name: 'triple around the world',      adds: '4', base_trick: 'around-the-world',        trick_family: 'around-the-world',        category: 'compound', review_status: 'expert_reviewed', is_active: 1 });
-  insertFreestyleTrick(db, { slug: 'double-around-the-world-heel', canonical_name: 'double around the world heel', adds: '3', base_trick: 'double-around-the-world', trick_family: 'double-around-the-world', category: 'compound', review_status: 'expert_reviewed', is_active: 1 });
+  insertFreestyleTrick(db, { slug: 'around_the_world_kick',        canonical_name: 'around the world kick',        adds: '1', base_trick: 'around-the-world',        trick_family: 'around-the-world',        category: 'dex',      review_status: 'expert_reviewed', is_active: 1 });
+  insertFreestyleTrick(db, { slug: 'triple_around_the_world',      canonical_name: 'triple around the world',      adds: '4', base_trick: 'around-the-world',        trick_family: 'around-the-world',        category: 'compound', review_status: 'expert_reviewed', is_active: 1 });
+  insertFreestyleTrick(db, { slug: 'double_around_the_world_heel', canonical_name: 'double around the world heel', adds: '3', base_trick: 'double-around-the-world', trick_family: 'double-around-the-world', category: 'compound', review_status: 'expert_reviewed', is_active: 1 });
 
   // Parent bases.
-  insertFreestyleTrick(db, { slug: 'around-the-world',        canonical_name: 'around the world',        adds: '2', base_trick: 'around-the-world',        trick_family: 'around-the-world',        category: 'dex' });
-  insertFreestyleTrick(db, { slug: 'double-around-the-world', canonical_name: 'double around the world', adds: '3', base_trick: 'double-around-the-world', trick_family: 'double-around-the-world', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'around_the_world',        canonical_name: 'around the world',        adds: '2', base_trick: 'around-the-world',        trick_family: 'around-the-world',        category: 'dex' });
+  insertFreestyleTrick(db, { slug: 'double_around_the_world', canonical_name: 'double around the world', adds: '3', base_trick: 'double-around-the-world', trick_family: 'double-around-the-world', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'butterfly',               canonical_name: 'butterfly',               adds: '3', base_trick: 'butterfly',               trick_family: 'butterfly',               category: 'dex' });
 
   db.close();
@@ -77,7 +77,7 @@ function cardFor(slug: string, html: string): string {
 }
 
 describe('Held-delay leg-over family — RESOLVED_FORMULAS overlay carries each slug', () => {
-  it.each([['hop-over'], ['walk-over'], ['wrap']] as const)(
+  it.each([['hop_over'], ['walk_over'], ['wrap']] as const)(
     '%s has a curator-overlay operationalNotation in RESOLVED_FORMULAS_SPRINT_1',
     (slug) => {
       const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === slug);
@@ -90,13 +90,13 @@ describe('Held-delay leg-over family — RESOLVED_FORMULAS overlay carries each 
   );
 
   it('hop-over JOB carries [BOD] + [DEL] tags (fb.org body-over-delay signature)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'hop-over');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'hop_over');
     expect(entry?.operationalNotation).toMatch(/\[DEL\]/);
     expect(entry?.operationalNotation).toMatch(/\[BOD\]/);
   });
 
   it('walk-over JOB carries [DEL] + [DEX] tags (fb.org step-over signature)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'walk-over');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'walk_over');
     expect(entry?.operationalNotation).toMatch(/\[DEL\]/);
     expect(entry?.operationalNotation).toMatch(/\[DEX\]/);
   });
@@ -110,7 +110,7 @@ describe('Held-delay leg-over family — RESOLVED_FORMULAS overlay carries each 
 
 describe('Butterfly-kick correction — 2 ADD with [dex] [bod] reading', () => {
   it('RESOLVED_FORMULAS entry for butterfly-kick is 2 ADD with no terminal [XBD]', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'butterfly-kick');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'butterfly_kick');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(2);
     expect(entry?.operationalNotation).toMatch(/\[BOD\]/);
@@ -122,7 +122,7 @@ describe('Butterfly-kick correction — 2 ADD with [dex] [bod] reading', () => {
   });
 
   it('trick-detail page for butterfly-kick renders 2 ADD (not 3)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/butterfly-kick');
+    const res = await request(await createApp()).get('/freestyle/tricks/butterfly_kick');
     expect(res.status).toBe(200);
     // The hero meta-ribbon ADD chip is the canonical ADD value for the
     // trick. Verify it reads "2 ADD" — the parent butterfly (3 ADD)
@@ -135,13 +135,13 @@ describe('Butterfly-kick correction — 2 ADD with [dex] [bod] reading', () => {
 
 describe('First-class browse-card rendering — JOB+ADD card renders for promoted rows', () => {
   it.each([
-    ['around-the-world-kick'],
-    ['triple-around-the-world'],
-    ['double-around-the-world-heel'],
-    ['hop-over'],
-    ['walk-over'],
+    ['around_the_world_kick'],
+    ['triple_around_the_world'],
+    ['double_around_the_world_heel'],
+    ['hop_over'],
+    ['walk_over'],
     ['wrap'],
-    ['butterfly-kick'],
+    ['butterfly_kick'],
   ] as const)(
     '%s renders a resolved JOB on its two-line dex-count row (no "canonical decomposition pending")',
     async (slug) => {

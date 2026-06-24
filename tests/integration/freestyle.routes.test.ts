@@ -248,8 +248,8 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'torque',   canonical_name: 'torque',   adds: '4', notation: 'TORQUE'   });
   insertFreestyleTrick(db, { slug: 'blender',  canonical_name: 'blender',  adds: '4', notation: 'BLENDER'  });
   insertFreestyleTrick(db, { slug: 'drifter',  canonical_name: 'drifter',  adds: '3', notation: 'DRIFTER'  });
-  insertFreestyleTrick(db, { slug: 'around-the-world', canonical_name: 'around the world', adds: '2', notation: 'ATW' });
-  insertFreestyleTrickAlias(db, 'atw', 'around-the-world', 'atw');
+  insertFreestyleTrick(db, { slug: 'around_the_world', canonical_name: 'around the world', adds: '2', notation: 'ATW' });
+  insertFreestyleTrickAlias(db, 'atw', 'around_the_world', 'atw');
 
   db.close();
   createApp = await importApp();
@@ -450,7 +450,7 @@ describe('GET /freestyle/sets/reference (flat Holden table, moved from /freestyl
     const app = createApp();
     const res = await request(app).get('/freestyle/sets/reference');
     expect(res.text).toContain('Terraging (Double Pixie)');
-    expect(res.text).not.toContain('/freestyle/tricks/terraging-double-pixie');
+    expect(res.text).not.toContain('/freestyle/tricks/terraging_double_pixie');
     expect(res.text).not.toMatch(/<a[^>]+href="\/freestyle\/tricks\/terraging"[^>]*>Terraging \(Double Pixie\)/);
   });
 
@@ -488,10 +488,10 @@ describe('GET /freestyle/sets/reference (flat Holden table, moved from /freestyl
     // links anywhere; this gives future trick-detail backlinking a stable
     // target without requiring a re-author pass on the moves page.
     expect(res.text).toContain('id="move-pixie"');
-    expect(res.text).toContain('id="move-terraging-double-pixie"');
-    expect(res.text).toContain('id="move-rooting-rooted"');
-    expect(res.text).toContain('id="move-fairy-atomic"');
-    expect(res.text).toContain('id="move-go-go"');
+    expect(res.text).toContain('id="move-terraging_double_pixie"');
+    expect(res.text).toContain('id="move-rooting_rooted"');
+    expect(res.text).toContain('id="move-fairy_atomic"');
+    expect(res.text).toContain('id="move-gogo"');
   });
 });
 
@@ -1891,7 +1891,7 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(setModSection).toBeGreaterThan(sec5Heading);
     const gridSlice = res.text.slice(sec5Heading, setModSection);
     // All 11 foundational atoms render as registry tiles with `#term-{slug}` anchors.
-    for (const slug of ['clipper-stall', 'mirage', 'legover', 'pickup', 'illusion', 'whirl', 'butterfly', 'swirl', 'osis', 'around-the-world', 'orbit']) {
+    for (const slug of ['clipper_stall', 'mirage', 'legover', 'pickup', 'illusion', 'whirl', 'butterfly', 'swirl', 'osis', 'around_the_world', 'orbit']) {
       expect(gridSlice).toContain(`id="term-${slug}"`);
     }
     // Grid uses the symbolic-object pattern.
@@ -2473,7 +2473,7 @@ describe('Freestyle dictionary — S3: alias-governance allow-list filtering', (
     // two-line row (dict-trick-row-job-value), sourced from firstClassChainValue,
     // including the (midtime) marker. No shared-card op-notation chip.
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    const atwIdx = res.text.indexOf('data-trick-slug="around-the-world"');
+    const atwIdx = res.text.indexOf('data-trick-slug="around_the_world"');
     expect(atwIdx).toBeGreaterThan(0);
     const atwCardEnd = res.text.indexOf('</article>', atwIdx);
     const atwCard = res.text.slice(atwIdx, atwCardEnd);

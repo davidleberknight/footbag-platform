@@ -94,7 +94,7 @@ describe('shapeFreestyleRecord', () => {
       expect(vm.trickHref, name).toBeNull();
     }
     const normal = shapeFreestyleRecord(makeRow({ trick_name: 'Gyro Symposium Swirl' }));
-    expect(normal.trickHref).toBe('/freestyle/tricks/gyro-symposium-swirl');
+    expect(normal.trickHref).toBe('/freestyle/tricks/gyro_symposium_swirl');
   });
 
   // With a resolvable set, a record whose trick is not in the dictionary must not

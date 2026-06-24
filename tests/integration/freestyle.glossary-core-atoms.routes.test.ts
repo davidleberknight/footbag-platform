@@ -42,7 +42,7 @@ describe('Glossary §1 — core trick atoms band', () => {
   it('renders the core trick atoms band with atom cards', async () => {
     const html = await glossary();
     expect(html).toContain('id="core-trick-atoms"');
-    expect(html).toContain('id="atom-toe-stall"');
+    expect(html).toContain('id="atom-toe_stall"');
     expect(html).toContain('id="atom-osis"');
   });
 

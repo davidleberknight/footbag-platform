@@ -4,14 +4,14 @@
 Rules:
   1. Every media item MUST carry at least one semantic tag.
   2. Semantic tag domains:
-     - TRICK  — kebab-case body matching a trick freestyle_tricks.slug (active or
+     - TRICK  — underscore body matching a trick freestyle_tricks.slug (active or
                 pending). A set/operator/modifier slug must use its role prefix;
                 bare tags are reserved for trick-role media (pixie/fairy are
                 dual-role and may stay bare).
      - EVENT  — body starting with 'event_'
      - SYSTEM — body starting with 'demo_' or 'fh_'
      - LINKAGE — body starting with 'set_', 'operator_', 'family_', 'player_', or 'club_'
-  3. Trick-shaped tags (kebab-case, non-utility, non-domain-prefix) MUST
+  3. Trick-shaped tags (underscore, non-utility, non-domain-prefix) MUST
      resolve to an active or pending slug; alias-only or unknown bodies fail.
   4. Utility tags (freestyle, trick, curated, tricks_of_the_trade) pass
      through but do NOT count toward the semantic-tag requirement.
@@ -33,7 +33,7 @@ import sqlite3
 from pathlib import Path
 from typing import Iterable
 
-_SLUG_SHAPE_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+_SLUG_SHAPE_RE = re.compile(r"^[a-z0-9]+(_[a-z0-9]+)*$")
 
 UTILITY_EXACT: frozenset[str] = frozenset({
     "freestyle", "trick", "curated", "tricks_of_the_trade",
@@ -79,7 +79,7 @@ class MediaTagInvariantError(ValueError):
 
 
 def is_trick_shaped(tag: str) -> bool:
-    """Return True if a tag (with or without leading '#') is a kebab-case
+    """Return True if a tag (with or without leading '#') is an underscore
     slug-form tag — neither a utility tag nor a recognized domain prefix.
     """
     if not tag:
@@ -141,7 +141,7 @@ def validate_media_tags(
             raise MediaTagInvariantError(
                 f"{label}: tag {raw_tag!r} is neither a utility tag, a "
                 f"recognized domain prefix ({', '.join(SEMANTIC_PREFIXES)}), "
-                f"nor a kebab-case slug"
+                f"nor an underscore slug"
             )
         if body in active_slugs or body in pending_slugs:
             if body in nontrick_slugs and body not in DUAL_ROLE_TRICK_SLUGS:
@@ -204,7 +204,7 @@ def load_slug_sets_from_csvs(
     aliases_csv    = repo_root / "freestyle" / "inputs" / "noise"   / "trick_aliases.csv"
 
     def name_to_slug(name: str) -> str:
-        return re.sub(r"\s+", "-", name.strip().lower())
+        return re.sub(r"\s+", "_", name.strip().lower())
 
     active: set[str] = set()
     pending: set[str] = set()

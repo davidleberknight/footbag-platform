@@ -15,15 +15,15 @@
  *     The two registries have legitimately different scopes and may diverge.
  *   - orbit is a canonical dictionary slug; reverse-around-the-world and
  *     reverse-atw are aliases.
- *     The `clipper-stall` slug carries the foundational atom (community
+ *     The `clipper_stall` slug carries the foundational atom (community
  *     shorthand `#clipper`); the `clipper` slug is the ADD-1 Clipper Kick,
  *     NOT a core atom.
  */
 
 export const CORE_TRICKS: ReadonlySet<string> = new Set([
-  'toe-stall',
-  'clipper-stall',
-  'around-the-world',
+  'toe_stall',
+  'clipper_stall',
+  'around_the_world',
   'orbit',
   'legover',
   'pickup',

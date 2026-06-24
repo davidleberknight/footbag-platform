@@ -60,12 +60,12 @@ beforeAll(async () => {
   // Representative tricks across the user's flagged set
   const tricks: Array<Parameters<typeof insertFreestyleTrick>[1]> = [
     { slug: 'mirage', canonical_name: 'mirage', adds: '2', base_trick: 'mirage', trick_family: 'mirage', category: 'dex', notation: 'MIRAGE', operational_notation: 'SET > OP IN [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
-    { slug: 'fairy-mirage', canonical_name: 'fairy mirage', adds: '3', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'FAIRY MIRAGE', operational_notation: 'TOE > SAME OUT [DEX] > OP IN [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
-    { slug: 'quantum-mirage', canonical_name: 'quantum mirage', adds: '3', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'QUANTUM MIRAGE', operational_notation: 'TOE > OP IN [DEX] > OP IN [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
-    { slug: 'fairy-legover', canonical_name: 'fairy legover', adds: '3', base_trick: 'legover', trick_family: 'legover', category: 'compound', notation: 'FAIRY LEGOVER', operational_notation: 'TOE > SAME OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
-    { slug: 'ducking-toe-stall', canonical_name: 'ducking toe stall', adds: '2', base_trick: 'toe-stall', trick_family: 'toe-stall', category: 'compound', notation: 'DUCKING TOE STALL', operational_notation: 'TOE > DUCK [BOD] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
-    { slug: 'atomic-illusion', canonical_name: 'atomic illusion', adds: '3', base_trick: 'illusion', trick_family: 'illusion', category: 'compound', notation: 'ATOMIC ILLUSION', operational_notation: 'TOE > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
-    { slug: 'spinning-paradox-mirage', canonical_name: 'spinning paradox mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'SPINNING PARADOX MIRAGE', operational_notation: 'CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'fairy_mirage', canonical_name: 'fairy mirage', adds: '3', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'FAIRY MIRAGE', operational_notation: 'TOE > SAME OUT [DEX] > OP IN [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'quantum_mirage', canonical_name: 'quantum mirage', adds: '3', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'QUANTUM MIRAGE', operational_notation: 'TOE > OP IN [DEX] > OP IN [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'fairy_legover', canonical_name: 'fairy legover', adds: '3', base_trick: 'legover', trick_family: 'legover', category: 'compound', notation: 'FAIRY LEGOVER', operational_notation: 'TOE > SAME OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'ducking_toe_stall', canonical_name: 'ducking toe stall', adds: '2', base_trick: 'toe-stall', trick_family: 'toe-stall', category: 'compound', notation: 'DUCKING TOE STALL', operational_notation: 'TOE > DUCK [BOD] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'atomic_illusion', canonical_name: 'atomic illusion', adds: '3', base_trick: 'illusion', trick_family: 'illusion', category: 'compound', notation: 'ATOMIC ILLUSION', operational_notation: 'TOE > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'spinning_paradox_mirage', canonical_name: 'spinning paradox mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'SPINNING PARADOX MIRAGE', operational_notation: 'CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     // mobius is in freestyleSymbolicEquivalences.ts → gets a tokenizedEquivalence
     // (≡) reading AND has operational notation. The normalization contract
     // requires BOTH to render (not either/or).
@@ -77,12 +77,12 @@ beforeAll(async () => {
   db.prepare(`
     INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
     VALUES
-      ('fairy-mirage', 'fairy', 1),
-      ('quantum-mirage', 'quantum', 1),
-      ('fairy-legover', 'fairy', 1),
-      ('ducking-toe-stall', 'ducking', 1),
-      ('spinning-paradox-mirage', 'spinning', 1),
-      ('spinning-paradox-mirage', 'paradox', 2)
+      ('fairy_mirage', 'fairy', 1),
+      ('quantum_mirage', 'quantum', 1),
+      ('fairy_legover', 'fairy', 1),
+      ('ducking_toe_stall', 'ducking', 1),
+      ('spinning_paradox_mirage', 'spinning', 1),
+      ('spinning_paradox_mirage', 'paradox', 2)
   `).run();
 
   db.close();
@@ -130,31 +130,31 @@ describe('JOB-block rendering across browse views (no raw operational notation o
     // Family migrated to the two-line dict-trick-row contract (2026-05-27).
     const res = await request(await createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    expectTwoLineJob(res.text, 'fairy-mirage');
-    expectTwoLineJob(res.text, 'quantum-mirage');
+    expectTwoLineJob(res.text, 'fairy_mirage');
+    expectTwoLineJob(res.text, 'quantum_mirage');
   });
 
   it('By dex-count (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
     // Dex migrated to the two-line dict-trick-row contract (2026-05-27).
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    expectTwoLineJob(res.text, 'atomic-illusion');
-    expectTwoLineJob(res.text, 'ducking-toe-stall');
+    expectTwoLineJob(res.text, 'atomic_illusion');
+    expectTwoLineJob(res.text, 'ducking_toe_stall');
   });
 
   it('By movement system (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
     // Movement System migrated to the two-line dict-trick-row contract (2026-05-27).
     const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.status).toBe(200);
-    expectTwoLineJob(res.text, 'fairy-mirage');
-    expectTwoLineJob(res.text, 'quantum-mirage');
+    expectTwoLineJob(res.text, 'fairy_mirage');
+    expectTwoLineJob(res.text, 'quantum_mirage');
   });
 
   it('By set: cards with operational notation render the JOB-block label', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
-    expectJobBlockRender(res.text, 'fairy-mirage');
-    expectJobBlockRender(res.text, 'spinning-paradox-mirage');
+    expectJobBlockRender(res.text, 'fairy_mirage');
+    expectJobBlockRender(res.text, 'spinning_paradox_mirage');
   });
 
   it('a row with BOTH an equivalence reading AND operational notation renders BOTH (no either/or)', async () => {
@@ -194,14 +194,14 @@ describe('/freestyle/tricks?view=sets — two-line rows (not bare hashtags)', ()
     // By Modifier migrated to the two-line dict-trick-row contract (2026-05-27).
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
     // Fairy section must surface the fairy-mirage row with a linked title.
-    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/fairy-mirage">/);
+    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/fairy_mirage">/);
     // Spinning section must surface the spinning-paradox-mirage row with a linked title.
-    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/spinning-paradox-mirage">/);
+    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/spinning_paradox_mirage">/);
   });
 
   it('renders the line-2 ADD slot + hashtag per row (no green chip; DictionaryTrickCard shape flows through)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    const slugIdx = res.text.indexOf('data-trick-slug="spinning-paradox-mirage"');
+    const slugIdx = res.text.indexOf('data-trick-slug="spinning_paradox_mirage"');
     expect(slugIdx).toBeGreaterThan(-1);
     const window = res.text.substring(slugIdx, slugIdx + 2000);
     // Line 2 carries the ADD value (derived formula), not a green chip.
@@ -214,7 +214,7 @@ describe('/freestyle/tricks?view=sets — two-line rows (not bare hashtags)', ()
   it('does NOT render hashtags as the primary UI — every card has a linked title before the hashtag', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
     // The fairy-mirage card title-anchor must appear before its hashtag in the DOM order.
-    const titleIdx = res.text.indexOf('href="/freestyle/tricks/fairy-mirage"');
+    const titleIdx = res.text.indexOf('href="/freestyle/tricks/fairy_mirage"');
     const hashtagIdx = res.text.indexOf('>#fairy_mirage<');
     expect(titleIdx).toBeGreaterThan(-1);
     expect(hashtagIdx).toBeGreaterThan(-1);

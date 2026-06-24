@@ -27,11 +27,11 @@ const MAX_RESULTS  = 8;
 const R3_GATE_SIZE = 6;
 
 function modifierPrefix(slug: string): string | null {
-  const i = slug.indexOf('-');
+  const i = slug.indexOf('_');
   return i > 0 ? slug.slice(0, i) : null;
 }
 
-// Modifier / set-operator prefixes that legitimately form `{modifier}-{base}`
+// Modifier / set-operator prefixes that legitimately form `{modifier}_{base}`
 // trick names. R2 ("same modifier-prefix, different family") fires only when a
 // slug's first segment is one of these. Multipliers (double, triple), catch
 // surfaces (sole, knee, cloud, heel), base atoms (butterfly, around), and
@@ -53,8 +53,8 @@ const MODIFIER_PREFIXES: ReadonlySet<string> = new Set([
 // contact variants are added (e.g. double-inside, double-toe).
 const EXPLICIT_NEIGHBORS: Readonly<Record<string, readonly string[]>> = {
   // Both-feet / both-knees airborne primitives share the flying-contact set.
-  'double-knee': ['flying-inside', 'flying-outside', 'flying-clipper'],
-  'double-kick': ['flying-inside', 'flying-outside', 'flying-clipper'],
+  'double_knee': ['flying_inside', 'flying_outside', 'flying_clipper'],
+  'double_kick': ['flying_inside', 'flying_outside', 'flying_clipper'],
 };
 
 // Mutual movement neighborhoods: every member relates to the others. Surface
@@ -62,41 +62,41 @@ const EXPLICIT_NEIGHBORS: Readonly<Record<string, readonly string[]>> = {
 // the foot-stall set or the body-stall set; this overlay groups them by where
 // the bag is caught (a movement neighborhood, not a taxonomy change).
 const NEIGHBORHOOD_GROUPS: readonly (readonly string[])[] = [
-  ['toe-stall', 'inside-stall', 'outside-stall', 'clipper-stall', 'heel-stall', 'sole-stall', 'cross-body-sole-stall'],
-  ['head-stall', 'forehead-stall', 'neck-stall', 'shoulder-stall', 'knee-stall', 'cloud-stall'],
+  ['toe_stall', 'inside_stall', 'outside_stall', 'clipper_stall', 'heel_stall', 'sole_stall', 'cross_body_sole_stall'],
+  ['head_stall', 'forehead_stall', 'neck_stall', 'shoulder_stall', 'knee_stall', 'cloud_stall'],
   // The three flying clipper moves: a jump-kick contacting the bag cross-body
   // with the kicking leg tucked behind the jumping leg, varying by contact
   // surface (inside = flying-clipper, toe = toe-clipper, knee = knee-clipper).
   // Each sits in its own family, so only this overlay connects them.
-  ['flying-clipper', 'toe-clipper', 'knee-clipper'],
+  ['flying_clipper', 'toe_clipper', 'knee_clipper'],
   // Swing elements: completed by the swing action itself, with an open terminal
   // (stall / kick / catch / follow-on). A movement neighbourhood, not a family.
   ['pendulum', 'rake'],
   // Sibling body primitives: contact the bag with both limbs in the air.
-  ['double-kick', 'double-knee'],
+  ['double_kick', 'double_knee'],
   // 1-ADD dex-kicks: a dexterity finished with a kick instead of a terminal
   // stall. Each sits in its own family/base, so only this overlay connects them
   // to one another.
-  ['around-the-world-kick', 'pixie-kick', 'fairy-kick', 'orbit-kick', 'legover-kick', 'miraging-kick', 'atomic-kick'],
+  ['around_the_world_kick', 'pixie_kick', 'fairy_kick', 'orbit_kick', 'legover_kick', 'miraging_kick', 'atomic_kick'],
   // Trick and its kick/stall counterpart: the stalled trick and its drop-the-
   // stall kick (or a surface and its stall) sit in different families, so
   // neither surfaces the other without this overlay. Legover and its kick
   // already share a family; Toe has no kick row, so neither is listed here.
-  ['clipper', 'clipper-stall'],
-  ['around-the-world', 'around-the-world-kick'],
-  ['mirage', 'miraging-kick'],
-  ['butterfly', 'butterfly-kick'],
+  ['clipper', 'clipper_stall'],
+  ['around_the_world', 'around_the_world_kick'],
+  ['mirage', 'miraging_kick'],
+  ['butterfly', 'butterfly_kick'],
   // Continuous-control held-delay leg-over lineage: an inside delay held while
   // the body crosses over it. Each sits in its own singleton family, so only
   // this overlay connects them. Walk-over steps over the held delay, hop-over
   // jumps over it, and eclipse lifts the whole structure airborne.
-  ['wrap', 'walk-over', 'hop-over', 'eclipse'],
+  ['wrap', 'walk_over', 'hop_over', 'eclipse'],
   // Directional ATW variants: each circles the leg fully around the bag,
   // differing by entry / delay surface. Each is an independent 2-ADD atom in its
   // own family (around-the-world is not the parent or compositional base of the
   // inside / outside variants), so only this overlay connects the three as
   // related directional peers.
-  ['around-the-world', 'inside-around-the-world', 'outside-around-the-world'],
+  ['around_the_world', 'inside_around_the_world', 'outside_around_the_world'],
 ];
 
 // Curated neighbors for a slug: its one-directional overlay entry plus the
@@ -201,7 +201,7 @@ export function buildRelatedTricks(
   const prefix = modifierPrefix(current.slug);
   const r2 = prefix && MODIFIER_PREFIXES.has(prefix)
     ? eligible.filter(
-        r => r.trick_family !== current.trick_family && r.slug.startsWith(`${prefix}-`),
+        r => r.trick_family !== current.trick_family && r.slug.startsWith(`${prefix}_`),
       )
     : [];
 
@@ -330,7 +330,7 @@ const RELATIVE_SIDE_GLOSSARY_HREF = '/freestyle/glossary#term-same-side';
 // read as same-side; `far` / `op` / `opp` / `opposite` read as far. The
 // two-segment `same-side` / `opposite-side` forms are consumed as a unit.
 function stripRelativeSide(slug: string): { stem: string; side: RelativeSide } {
-  const segs = slug.split('-');
+  const segs = slug.split('_');
   const out: string[] = [];
   let side: RelativeSide = 'base';
   for (let i = 0; i < segs.length; i++) {
@@ -342,7 +342,7 @@ function stripRelativeSide(slug: string): { stem: string; side: RelativeSide } {
     if (s === 'far') { side = 'far'; continue; }
     out.push(s!);
   }
-  return { stem: out.join('-'), side };
+  return { stem: out.join('_'), side };
 }
 
 /**

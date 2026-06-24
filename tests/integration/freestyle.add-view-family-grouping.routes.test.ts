@@ -31,13 +31,13 @@ beforeAll(async () => {
     });
   t('torque', 'osis');                       // FAMILY_OVERRIDES -> torque
   t('blender', 'osis');                      // FAMILY_OVERRIDES -> blender
-  t('double-leg-over', 'legover');           // FAMILY_OVERRIDES -> double-leg-over
+  t('double_leg_over', 'legover');           // FAMILY_OVERRIDES -> double-leg-over
   t('eggbeater', 'legover');                 // FAMILY_OVERRIDES -> eggbeater
   t('drifter', 'drifter');                   // public family
-  t('high-plains-drifter', 'clipper-stall'); // FAMILY_OVERRIDES -> drifter (NOT clipper-stall)
-  t('dada-curve', 'dada-curve', 'Dada Curve');// public family
+  t('high_plains_drifter', 'clipper_stall'); // FAMILY_OVERRIDES -> drifter (NOT clipper-stall)
+  t('dada_curve', 'dada_curve', 'Dada Curve');// public family
   t('whirl', 'whirl');                       // ordinary public family
-  t('stepping-reaper', 'clipper-stall');     // no override -> Other / standalone
+  t('stepping_reaper', 'clipper_stall');     // no override -> Other / standalone
   db.close();
   createApp = await importApp();
 });
@@ -70,13 +70,13 @@ describe('ADD view — By family (default)', () => {
     const html = await addView();
     expect(html).toContain(header('Drifter'));
     // both the drifter anchor and the clipper-stall-tagged member are reachable
-    expect(html).toContain('href="/freestyle/tricks/high-plains-drifter"');
+    expect(html).toContain('href="/freestyle/tricks/high_plains_drifter"');
   });
 
   it('non-public-family tricks collect in "Other / standalone tricks"', async () => {
     const html = await addView();
     expect(html).toContain(header('Other / standalone tricks'));
-    expect(html).toContain('href="/freestyle/tricks/stepping-reaper"');
+    expect(html).toContain('href="/freestyle/tricks/stepping_reaper"');
   });
 
   it('Dada Curve appears in its own Dada-Curve family band', async () => {
@@ -93,7 +93,7 @@ describe('ADD view — Alphabetical (?sort=alpha)', () => {
 
   it('Dada Curve is findable in the flat A-Z list', async () => {
     const html = await addView('alpha');
-    expect(html).toContain('href="/freestyle/tricks/dada-curve"');
+    expect(html).toContain('href="/freestyle/tricks/dada_curve"');
   });
 });
 

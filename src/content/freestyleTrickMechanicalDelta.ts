@@ -65,7 +65,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
 
   // ── Editorial exemplar #2: paradox-mirage ───────────────────────────
   {
-    slug:        'paradox-mirage',
+    slug:        'paradox_mirage',
     parentSlugs: ['mirage'],
     prose:
       "Relative to ordinary mirage, paradox-mirage carries an additional directional transition during the dex cycle. The structural difference is not merely a different starting surface or reversed dex direction: the hip and torso pivot cross-body mid-dex, producing a topology change rather than a directional inversion.\n\n" +
@@ -91,7 +91,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
 
   {
     slug:        'blur',
-    parentSlugs: ['paradox-mirage'],
+    parentSlugs: ['paradox_mirage'],
     prose:
       "Relative to paradox-mirage, blur extends the dex pattern into a stepping multi-dex sequence. Where paradox-mirage carries a single dex cycle with the paradox hip-pivot threaded through, blur splits the pattern into two dex moments: a first stepping dex displacing the bag laterally, then a second dex with the paradox hip-pivot completing the catch.\n\n" +
       "The stepping operator adds +1 ADD on top of paradox-mirage's 3-ADD chassis, yielding 4 ADD: stepping(+1) + paradox(+1) + mirage(2). The paradox topology persists across both dex moments; the descendants extending this multi-dex axis (fury, blurriest-class compounds) inherit the same threaded hip-pivot signature.\n\n" +
@@ -101,7 +101,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
 
   {
     slug:        'fury',
-    parentSlugs: ['paradox-mirage'],
+    parentSlugs: ['paradox_mirage'],
     prose:
       "Relative to paradox-mirage, fury layers a furious multi-dex stack that extends the pattern across additional dex moments. Where blur adds a single stepping dex onto the paradox-mirage chassis, fury layers a furious modifier whose mechanical signature is a deeper multi-dex sequence with the paradox hip-pivot threaded through the catch end.\n\n" +
       "The furious operator carries +2 on the mirage chassis (a doctrine-internal scaling rule for bases with rotational character; +1 elsewhere), yielding 5 ADD: furious(+2) + paradox(+1) + mirage(2). The chain reading replaces an earlier paradox + barraging + mirage decomposition that arrived at the same 5 ADD via a different operator stack.",
@@ -119,7 +119,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
 
   {
     slug:        'drifter',
-    parentSlugs: ['mirage', 'clipper-stall'],
+    parentSlugs: ['mirage', 'clipper_stall'],
     prose:
       "Drifter combines mirage's in-to-out dex pattern with a clipper-stall terminal. Where mirage returns to a toe delay (same-surface termination), drifter shifts the terminal to a cross-body clipper: the support leg swings under-and-over inside-then-outside, but the catch arrives on the inside surface of the opposite foot rather than the toes.\n\n" +
       "The 3-ADD count reads as either mirage(2) + cross-body-terminal-shift(+1) or clipper-stall(2) + mirage-operator(+1); both decompositions arrive at the same total. The structural signature (mirage's directional dex paired with a clipper-anchored cross-body terminal) anchors the shred lineage of compounds that build on the drifter chassis.",
@@ -127,7 +127,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
   },
 
   {
-    slug:        'atom-smasher',
+    slug:        'atom_smasher',
     parentSlugs: ['mirage'],
     prose:
       "Relative to mirage, atom-smasher reverses and stretches the dex direction into an outside-then-inside sequence: the canonical X-Dex character. Where mirage swings the support leg under-and-over inside-then-outside, atom-smasher swings it in the opposite direction, producing a wider cross-body arc during the dex and recatching on the opposite toe.\n\n" +
@@ -166,7 +166,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
 
   {
     slug:        'surreal',
-    parentSlugs: ['paradox-whirl', 'whirl'],
+    parentSlugs: ['paradox_whirl', 'whirl'],
     prose:
       "Relative to paradox-whirl, surreal layers a surging rotational system that adds a back-spin entry and an additional dex moment onto the chassis. Where paradox-whirl carries a single dex with paradox hip-pivot threaded through, surreal stacks a back-spin body modifier before the dex sequence and continues into a paradox-whirl-style dex to close.\n\n" +
       "The 6-ADD count comes from surging(+2 on rotational character) + paradox(+1) + whirl(3). Surreal sits at the top of the rotational-topology ladder: the deepest commonly-named compound on the whirl chassis with multiple modifier layers stacked. The structural signature combines rotational character at three points: whirl's rotational dex, paradox's cross-body hip-pivot, and surging's back-spin entry.",
@@ -230,7 +230,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
   },
 
   {
-    slug:        'food-processor',
+    slug:        'food_processor',
     parentSlugs: ['blender'],
     prose:
       "Relative to blender (a 4-ADD whirl-osis compound), food-processor layers a blurry-stepping operator that adds a multi-dex extension onto the chassis. Where blender threads a single rotational dex into an osis spin-terminal, food-processor opens with a stepping dex before the rotational moment, then closes through the osis spin-terminal.\n\n" +

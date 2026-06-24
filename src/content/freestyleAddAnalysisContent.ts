@@ -248,7 +248,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
   // ── 1 ADD foundational atoms ──────────────────────────────────────────
   {
     trickName:  'Toe-stall',
-    trickSlug:  'toe-stall',
+    trickSlug:  'toe_stall',
     addLabel:   '1 ADD',
     components: 'One stall on the top of the toe.',
     derivation: 'stall(1) = 1 ADD',
@@ -266,7 +266,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
   // ── 2 ADD foundational atoms (stall + one other primitive) ────────────
   {
     trickName:  'Clipper-stall',
-    trickSlug:  'clipper-stall',
+    trickSlug:  'clipper_stall',
     addLabel:   '2 ADD',
     components: 'Cross-body kick + stall.',
     derivation: 'xbody(1) + stall(1) = 2 ADD',
@@ -306,7 +306,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
   },
   {
     trickName:  'Around-the-world (ATW)',
-    trickSlug:  'around-the-world',
+    trickSlug:  'around_the_world',
     addLabel:   '2 ADD',
     components: 'Operational chain: toe > ss in dex > ss toe. One dexterity event that travels fully around the bag, finishing on a toe stall.',
     derivation: 'dex(1) + stall(1) = 2 ADD',
@@ -350,7 +350,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
   // ── Operator visibility: paradox stacked on a base ───────────────────
   {
     trickName:  'Paradox Mirage',
-    trickSlug:  'paradox-mirage',
+    trickSlug:  'paradox_mirage',
     addLabel:   '3 ADD',
     components: 'Paradox operator (+1) on mirage (2).',
     derivation: 'paradox(+1) + mirage(2) = 3 ADD',
@@ -368,7 +368,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
   },
   {
     trickName:  'Atom Smasher',
-    trickSlug:  'atom-smasher',
+    trickSlug:  'atom_smasher',
     addLabel:   '4 ADD',
     components: 'Atomic operator (+1) + mirage (2) + implicit X-dex carry (+1).',
     derivation: 'atomic(+1) + mirage(2) + xdex(+1) = 4 ADD',
@@ -376,7 +376,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
   },
   {
     trickName:  'Blurry Whirl',
-    trickSlug:  'blurry-whirl',
+    trickSlug:  'blurry_whirl',
     addLabel:   '5 ADD',
     components: 'Stepping (+1) + paradox (+1) + whirl (3).',
     derivation: 'stepping(+1) + paradox(+1) + whirl(3) = 5 ADD',
@@ -460,7 +460,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
   {
     caseId:                  'DC-04',
     trickName:               'Blurry Whirl ≡ Stepping Paradox Whirl',
-    trickSlug:               'blurry-whirl',
+    trickSlug:               'blurry_whirl',
     ifpaAdd:                 '5',
     externalSourceLabel:     'IFPA (compressed vs expanded)',
     externalAdd:             '5',
@@ -472,7 +472,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
   {
     caseId:                  'DC-05',
     trickName:               'Blurry Torque ≡ Stepping Paradox Torque',
-    trickSlug:               'blurry-torque',
+    trickSlug:               'blurry_torque',
     ifpaAdd:                 '6',
     externalSourceLabel:     'IFPA (compressed vs expanded)',
     externalAdd:             '6',
@@ -484,7 +484,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
   {
     caseId:                  'DC-06',
     trickName:               'Food Processor ≡ Stepping Paradox Blender',
-    trickSlug:               'food-processor',
+    trickSlug:               'food_processor',
     ifpaAdd:                 '6',
     externalSourceLabel:     'IFPA (compressed vs expanded)',
     externalAdd:             '6',
@@ -508,7 +508,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
   {
     caseId:                  'DC-08',
     trickName:               'Atom Smasher ≡ Atomic Mirage',
-    trickSlug:               'atom-smasher',
+    trickSlug:               'atom_smasher',
     ifpaAdd:                 '4',
     externalSourceLabel:     'IFPA (hidden mechanism)',
     externalAdd:             '4',
@@ -520,7 +520,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
   {
     caseId:                  'DC-09',
     trickName:               'Baroque (Barraging Osis)',
-    trickSlug:               'barraging-osis',
+    trickSlug:               'barraging_osis',
     ifpaAdd:                 '5',
     externalSourceLabel:     'IFPA (operator class)',
     externalAdd:             '5',

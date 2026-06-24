@@ -52,10 +52,10 @@ export const ALTERNATIVE_SURFACES: AlternativeSurfacesContent = {
         'Foot-edge surfaces. The bag rests on the sole (bottom) or heel (back) of ' +
         'the foot instead of the top. Cross-body sole stall adds an [XBD] inversion.',
       tricks: [
-        'sole-stall',
-        'sole-kick',
-        'cross-body-sole-stall',
-        'heel-stall',
+        'sole_stall',
+        'sole_kick',
+        'cross_body_sole_stall',
+        'heel_stall',
       ],
     },
     {
@@ -65,8 +65,8 @@ export const ALTERNATIVE_SURFACES: AlternativeSurfacesContent = {
         'Side-of-foot stall surfaces. Foundational beyond toe and clipper; ' +
         'most compound tricks visit these surfaces in transit but rarely terminate on them.',
       tricks: [
-        'inside-stall',
-        'outside-stall',
+        'inside_stall',
+        'outside_stall',
       ],
     },
     {
@@ -76,10 +76,10 @@ export const ALTERNATIVE_SURFACES: AlternativeSurfacesContent = {
         'Upper-body stalls. The bag rests on a non-foot surface; balance shifts ' +
         'from leg control to torso and head control.',
       tricks: [
-        'head-stall',
-        'neck-stall',
-        'shoulder-stall',
-        'forehead-stall',
+        'head_stall',
+        'neck_stall',
+        'shoulder_stall',
+        'forehead_stall',
       ],
     },
     {
@@ -89,9 +89,9 @@ export const ALTERNATIVE_SURFACES: AlternativeSurfacesContent = {
         'Leg-surface stalls beyond the foot. Cloud is the back of the calf; ' +
         'knee is exactly what it sounds like. Both demand precise leg-angle control.',
       tricks: [
-        'cloud-stall',
-        'cloud-kick',
-        'knee-stall',
+        'cloud_stall',
+        'cloud_kick',
+        'knee_stall',
       ],
     },
     {
@@ -102,11 +102,11 @@ export const ALTERNATIVE_SURFACES: AlternativeSurfacesContent = {
         'leaving the ground during the trick. The bag traces a longer path while ' +
         'the body cycles around it.',
       tricks: [
-        'flying-clipper',
-        'flying-inside',
-        'flying-outside',
-        'dragonfly-kick',
-        'butterfly-kick',
+        'flying_clipper',
+        'flying_inside',
+        'flying_outside',
+        'dragonfly_kick',
+        'butterfly_kick',
       ],
     },
   ],

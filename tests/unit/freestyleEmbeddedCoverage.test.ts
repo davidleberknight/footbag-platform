@@ -49,10 +49,10 @@ describe('freestyleEmbeddedCoverage — drift guard vs CSV', () => {
 });
 
 describe('freestyleEmbeddedCoverage — shape invariants', () => {
-  it('slugs are lowercase kebab, source + note non-empty', () => {
+  it('slugs are lowercase underscore, source + note non-empty', () => {
     for (const e of EMBEDDED_COVERAGE) {
-      expect(e.embeddedSlug).toMatch(/^[a-z0-9-]+$/);
-      expect(e.hostSlug).toMatch(/^[a-z0-9-]+$/);
+      expect(e.embeddedSlug).toMatch(/^[a-z0-9]+(_[a-z0-9]+)*$/);
+      expect(e.hostSlug).toMatch(/^[a-z0-9]+(_[a-z0-9]+)*$/);
       expect(e.hostSourceId.length).toBeGreaterThan(0);
       expect(e.note.length).toBeGreaterThan(0);
     }
@@ -64,7 +64,7 @@ describe('freestyleEmbeddedCoverage — shape invariants', () => {
   });
 
   it('grouping indexes by embedded slug', () => {
-    expect(EMBEDDED_COVERAGE_BY_SLUG['orbit']?.[0]?.hostSlug).toBe('around-the-world');
+    expect(EMBEDDED_COVERAGE_BY_SLUG['orbit']?.[0]?.hostSlug).toBe('around_the_world');
     expect(EMBEDDED_COVERAGE_BY_SLUG['illusion']?.[0]?.hostSlug).toBe('mirage');
   });
 });

@@ -28,19 +28,19 @@ export const QUANTITY_LADDERS: readonly QuantityLadder[] = [
   {
     ladder:    'spin',
     label:     'Spin ladder',
-    members:   ['spin', 'double-spin', 'triple-spin'],
+    members:   ['spin', 'double_spin', 'triple_spin'],
     rationale: 'Each rung adds one more full 360-degree body rotation between contacts.',
   },
   {
-    ladder:    'around-the-world',
+    ladder:    'around_the_world',
     label:     'Around-the-world ladder',
-    members:   ['around-the-world', 'double-around-the-world', 'triple-around-the-world'],
+    members:   ['around_the_world', 'double_around_the_world', 'triple_around_the_world'],
     rationale: 'Each rung adds one more full circle of the foot around the bag between toe delays.',
   },
   {
     ladder:    'orbit',
     label:     'Orbit ladder',
-    members:   ['orbit', 'double-orbit', 'triple-orbit'],
+    members:   ['orbit', 'double_orbit', 'triple_orbit'],
     rationale: 'Each rung adds one more orbit of the leg around the bag.',
   },
 ];

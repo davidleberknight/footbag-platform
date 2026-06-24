@@ -101,7 +101,7 @@ describe('freestyle landing foundational-tricks mosaic', () => {
       const fhId = insertMember(seedDb, { is_system: 1, slug: 'fh-mosaic' });
       insertCuratorVideo(seedDb, {
         uploaderMemberId: fhId,
-        sourceFilename: 'mosaic-toe-stall.mp4',
+        sourceFilename: 'mosaic-toe_stall.mp4',
         slotTag: '#freestyle',
         caption: 'Toe delay',
       });

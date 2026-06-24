@@ -19,13 +19,13 @@ import {
 
 describe('FAMILY_OVERRIDES (Slice J + Slice M one-way redirects)', () => {
   it('Slice J entries promote whirl-family rows to rev-whirl-family', () => {
-    expect(resolveFamilyOverride('rev-whirl')).toBe('rev-whirl');
-    expect(resolveFamilyOverride('hatchet')).toBe('rev-whirl');
-    expect(resolveFamilyOverride('mullet')).toBe('rev-whirl');
+    expect(resolveFamilyOverride('rev_whirl')).toBe('rev_whirl');
+    expect(resolveFamilyOverride('hatchet')).toBe('rev_whirl');
+    expect(resolveFamilyOverride('mullet')).toBe('rev_whirl');
   });
 
   it('Slice M entry redirects high-plains-drifter to drifter-family', () => {
-    expect(resolveFamilyOverride('high-plains-drifter')).toBe('drifter');
+    expect(resolveFamilyOverride('high_plains_drifter')).toBe('drifter');
   });
 
   it('promotes the nearest-anchor branch families (torque / flurry / flail / butterfly-swirl / drifter)', () => {
@@ -34,13 +34,13 @@ describe('FAMILY_OVERRIDES (Slice J + Slice M one-way redirects)', () => {
     expect(resolveFamilyOverride('torque')).toBe('torque');
     expect(resolveFamilyOverride('flurry')).toBe('flurry');
     expect(resolveFamilyOverride('flail')).toBe('flail');
-    expect(resolveFamilyOverride('butterfly-swirl')).toBe('butterfly-swirl');
+    expect(resolveFamilyOverride('butterfly_swirl')).toBe('butterfly_swirl');
     expect(resolveFamilyOverride('drifter')).toBe('drifter');
     // toe-flurry is a flurry-family member that carried the legover root.
-    expect(resolveFamilyOverride('toe-flurry')).toBe('flurry');
+    expect(resolveFamilyOverride('toe_flurry')).toBe('flurry');
     // drifter members that carried the retired clipper-stall root.
     expect(resolveFamilyOverride('fume')).toBe('drifter');
-    expect(resolveFamilyOverride('stepping-ducking-drifter')).toBe('drifter');
+    expect(resolveFamilyOverride('stepping_ducking_drifter')).toBe('drifter');
   });
 
   it('returns null for slugs that have no override', () => {
@@ -68,7 +68,7 @@ describe('FAMILY_DUAL_MEMBERSHIPS (Slice M additive memberships)', () => {
 
   it('returns an empty array for rows without a dual-membership entry', () => {
     expect(resolveFamilyDualMemberships('whirl')).toEqual([]);
-    expect(resolveFamilyDualMemberships('rev-whirl')).toEqual([]);
+    expect(resolveFamilyDualMemberships('rev_whirl')).toEqual([]);
     expect(resolveFamilyDualMemberships('osis')).toEqual([]);
     expect(resolveFamilyDualMemberships('nonexistent')).toEqual([]);
   });
@@ -86,16 +86,16 @@ describe('FAMILY_DUAL_MEMBERSHIPS (Slice M additive memberships)', () => {
 
 describe('RETIRED_FAMILIES (Family-view route-outs)', () => {
   it('retires the foundational surfaces (clipper-stall, clipper, toe-stall)', () => {
-    expect(isRetiredFamily('clipper-stall')).toBe(true);
+    expect(isRetiredFamily('clipper_stall')).toBe(true);
     expect(isRetiredFamily('clipper')).toBe(true);
-    expect(isRetiredFamily('toe-stall')).toBe(true);
+    expect(isRetiredFamily('toe_stall')).toBe(true);
   });
 
   it('retires representative modifier-ecosystem + alternative-surface route-outs', () => {
     // Spot-check representative route-out kinds.
     expect(isRetiredFamily('pixie')).toBe(true);                  // modifier ecosystem
-    expect(isRetiredFamily('cross-body-sole-stall')).toBe(true);  // alternative surface
-    expect(isRetiredFamily('2-bag-juggling')).toBe(true);         // multi-bag primitive
+    expect(isRetiredFamily('cross_body_sole_stall')).toBe(true);  // alternative surface
+    expect(isRetiredFamily('2_bag_juggling')).toBe(true);         // multi-bag primitive
   });
 
   it('does NOT retire parent families or labels that fold/defer into the view', () => {
@@ -112,7 +112,7 @@ describe('RETIRED_FAMILIES (Family-view route-outs)', () => {
 
 describe('FAMILY_DISPLAY_NAMES', () => {
   it('resolves rev-whirl to "Rev Whirl"', () => {
-    expect(resolveFamilyDisplayName('rev-whirl')).toBe('Rev Whirl');
+    expect(resolveFamilyDisplayName('rev_whirl')).toBe('Rev Whirl');
   });
 
   it('returns null for families that use default capitalization', () => {

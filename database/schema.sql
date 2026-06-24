@@ -4161,11 +4161,11 @@ CREATE INDEX idx_net_curated_status    ON net_curated_match(curated_status);
 -- FREESTYLE TRICK DICTIONARY
 -- Loaded by legacy_data/event_results/scripts/17_load_trick_dictionary.py
 -- Source: legacy_data/inputs/noise/tricks.csv (74 tricks)
--- Keyed on slug (lowercase-hyphenated canonical name); separate from freestyle_records.
+-- Keyed on slug (lowercase-underscore canonical name); separate from freestyle_records.
 -- =============================================================================
 
 CREATE TABLE freestyle_tricks (
-  slug            TEXT PRIMARY KEY,                -- e.g. 'blurry-whirl'
+  slug            TEXT PRIMARY KEY,                -- e.g. 'blurry_whirl'
   canonical_name  TEXT NOT NULL,                   -- e.g. 'blurry whirl'
   adds            TEXT,                            -- numeric ADD value or 'modifier'
   base_trick      TEXT,                            -- immediate base trick name (may equal canonical_name)

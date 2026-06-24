@@ -23,8 +23,8 @@ beforeAll(async () => {
 
   // Juggle case: canonical trick + the digit-juggle alias + a record spelled
   // with that variant.
-  insertFreestyleTrick(db, { slug: '2-bag-juggling', canonical_name: '2-bag-juggling', category: 'multi-bag', adds: '2' });
-  insertFreestyleTrickAlias(db, '2-bag-juggle', '2-bag-juggling', '2 bag juggle');
+  insertFreestyleTrick(db, { slug: '2_bag_juggling', canonical_name: '2-bag-juggling', category: 'multi-bag', adds: '2' });
+  insertFreestyleTrickAlias(db, '2_bag_juggle', '2_bag_juggling', '2 bag juggle');
   insertFreestyleRecord(db, {
     trick_name:   '2-Bag Juggle',
     record_type:  'trick_consecutive_juggle',
@@ -36,8 +36,8 @@ beforeAll(async () => {
   // Qualifier case: the slugifier preserves "(ss)" -> clipper-stall-ss, which is
   // wired as an alias of clipper-stall, so the record resolves to its base through
   // the alias (the new identity model), not through a lexical strip.
-  insertFreestyleTrick(db, { slug: 'clipper-stall', canonical_name: 'clipper-stall', category: 'compound', adds: '1' });
-  insertFreestyleTrickAlias(db, 'clipper-stall-ss', 'clipper-stall', 'clipper stall (ss)');
+  insertFreestyleTrick(db, { slug: 'clipper_stall', canonical_name: 'clipper-stall', category: 'compound', adds: '1' });
+  insertFreestyleTrickAlias(db, 'clipper_stall_ss', 'clipper_stall', 'clipper stall (ss)');
   insertFreestyleRecord(db, {
     trick_name:   'Clipper Stall (ss)',
     record_type:  'trick_consecutive',
@@ -53,25 +53,25 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Record-to-trick linkage', () => {
   it('the canonical 2-bag-juggling page lists its 2-Bag Juggle record', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/2-bag-juggling');
+    const res = await request(await createApp()).get('/freestyle/tricks/2_bag_juggling');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Juggle Holder');
   });
 
   it('the alias URL 2-bag-juggle resolves to the canonical trick page', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/2-bag-juggle');
+    const res = await request(await createApp()).get('/freestyle/tricks/2_bag_juggle');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Juggle Holder');
   });
 
   it('a record named with an (ss) qualifier lists on its base trick page via an alias', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/clipper-stall');
+    const res = await request(await createApp()).get('/freestyle/tricks/clipper_stall');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Qualifier Holder');
   });
 
   it('the hero title and breadcrumb strip the side qualifier, showing the plain trick name', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/clipper-stall');
+    const res = await request(await createApp()).get('/freestyle/tricks/clipper_stall');
     expect(res.status).toBe(200);
     // The matched record name "Clipper Stall (ss)" supplies the page title; the
     // hero h1 shows the plain name, not the structural side qualifier (the slug

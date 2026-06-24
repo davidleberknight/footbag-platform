@@ -25,7 +25,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertFreestyleTrick(db, {
-    slug: 'symposium-pixie',
+    slug: 'symposium_pixie',
     canonical_name: 'symposium pixie',
     adds: '3', base_trick: 'pixie', trick_family: 'pixie',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
@@ -37,9 +37,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — symposium-pixie entry', () => {
+describe('RESOLVED_FORMULAS_SPRINT_1 — symposium_pixie entry', () => {
   it('overlay carries sibling-derived JOB + 3 ADD + symposium-prefix derivation provenance', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'symposium-pixie');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'symposium_pixie');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(3);
     expect(entry?.baseAdd).toBe(2);
@@ -52,9 +52,9 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — symposium-pixie entry', () => {
   });
 });
 
-describe('symposium-pixie detail page — first-class JOB + ADD', () => {
-  it('/freestyle/tricks/symposium-pixie renders 3 ADD + (no plant while) pre-state + [BOD] fusion', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/symposium-pixie');
+describe('symposium_pixie detail page — first-class JOB + ADD', () => {
+  it('/freestyle/tricks/symposium_pixie renders 3 ADD + (no plant while) pre-state + [BOD] fusion', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/symposium_pixie');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">3 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -67,10 +67,10 @@ describe('symposium-pixie detail page — first-class JOB + ADD', () => {
     }
   });
 
-  it('symposium-pixie browse card renders JOB + ADD inline (not "canonical decomposition pending")', async () => {
+  it('symposium_pixie browse card renders JOB + ADD inline (not "canonical decomposition pending")', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    const idx = res.text.indexOf('data-trick-slug="symposium-pixie"');
+    const idx = res.text.indexOf('data-trick-slug="symposium_pixie"');
     expect(idx).toBeGreaterThan(-1);
     const articleOpen = res.text.lastIndexOf('<article', idx);
     const articleClose = res.text.indexOf('</article>', idx);

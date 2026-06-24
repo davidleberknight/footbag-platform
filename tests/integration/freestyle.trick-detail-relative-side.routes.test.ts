@@ -30,7 +30,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const t = (slug: string) => ({
   slug,
-  canonical_name: slug.replace(/-/g, ' '),
+  canonical_name: slug.replace(/_/g, ' '),
   trick_family: 'butterfly',
   base_trick: 'butterfly',
   category: 'compound' as const,
@@ -42,8 +42,8 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   // butterfly trio (base / same-side / far) + an unrelated trick.
   insertFreestyleTrick(db, t('butterfly'));
-  insertFreestyleTrick(db, t('butterfly-same-side'));
-  insertFreestyleTrick(db, t('far-butterfly'));
+  insertFreestyleTrick(db, t('butterfly_same_side'));
+  insertFreestyleTrick(db, t('far_butterfly'));
   insertFreestyleTrick(db, { ...t('clipper'), trick_family: 'clipper', base_trick: 'clipper' });
   db.close();
   createApp = await importApp();
@@ -58,8 +58,8 @@ describe('GET /freestyle/tricks/:slug — relative-side variants', () => {
     expect(res.text).toContain('data-section="relative-side-variants"');
     expect(res.text).toContain('Relative-side variants');
     // All three siblings reachable.
-    expect(res.text).toContain('/freestyle/tricks/butterfly-same-side');
-    expect(res.text).toContain('/freestyle/tricks/far-butterfly');
+    expect(res.text).toContain('/freestyle/tricks/butterfly_same_side');
+    expect(res.text).toContain('/freestyle/tricks/far_butterfly');
     // Side labels present.
     expect(res.text).toContain('Same-side (near)');
     expect(res.text).toContain('Far (opposite)');
@@ -70,11 +70,11 @@ describe('GET /freestyle/tricks/:slug — relative-side variants', () => {
   });
 
   it('renders the callout from a far-side member and marks it current', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/far-butterfly');
+    const res = await request(createApp()).get('/freestyle/tricks/far_butterfly');
     expect(res.status).toBe(200);
     expect(res.text).toContain('data-section="relative-side-variants"');
-    expect(res.text).toContain('/freestyle/tricks/butterfly-same-side');
-    // far-butterfly is the current page, so it appears as the marked entry.
+    expect(res.text).toContain('/freestyle/tricks/butterfly_same_side');
+    // far_butterfly is the current page, so it appears as the marked entry.
     expect(res.text).toContain('(this trick)');
   });
 

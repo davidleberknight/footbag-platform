@@ -73,7 +73,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     canonicalFormula:  'CLIP > OP IN [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  3,
     commonDescendants: ['blurry whirl', 'paradox whirl', 'gyro whirl', 'spinning whirl', 'symposium whirl'],
-    siblingFamilies:   ['butterfly', 'osis', 'swirl', 'rev-whirl'],
+    siblingFamilies:   ['butterfly', 'osis', 'swirl', 'rev_whirl'],
     notableCompounds:  ['mobius', 'blur', 'stepping paradox whirl'],
     observationalNotes: [
       {
@@ -189,7 +189,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [],
   },
   {
-    slug:              'rev-whirl',
+    slug:              'rev_whirl',
     displayName:       'Rev Whirl',
     kind:              'branch',
     canonicalFormula:  'CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
@@ -297,7 +297,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     canonicalFormula:  'SET > JUMP [BOD] > SAME/OP INSIDE [DEL] > OP OUT [DEX] > (land)',
     familyAnchorAdds:  3,
     commonDescendants: ['atomic eclipse', 'ducking eclipse', 'gyro eclipse', 'miraging eclipse'],
-    siblingFamilies:   ['butterfly-swirl'],
+    siblingFamilies:   ['butterfly_swirl'],
     notableCompounds:  [],
     observationalNotes: [
       {
@@ -307,7 +307,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     ],
   },
   {
-    slug:              'dada-curve',
+    slug:              'dada_curve',
     displayName:       'Dada-Curve',
     kind:              'branch',
     canonicalFormula:  'SET >> OP IN [DEX] > (no plant while) OP OUT [DEX] > OP CLIP [XBD] [DEL]',
@@ -329,7 +329,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     canonicalFormula:  'CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]',
     familyAnchorAdds:  4,
     commonDescendants: ['gyro barfly', 'pixie barfly', 'spinning barfly', 'stepping barfly'],
-    siblingFamilies:   ['butterfly', 'dada-curve'],
+    siblingFamilies:   ['butterfly', 'dada_curve'],
     notableCompounds:  ['blurriest', 'superfly'],
     observationalNotes: [
       {
@@ -345,7 +345,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     canonicalFormula:  'SET > OP OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',
     familyAnchorAdds:  4,
     commonDescendants: ['fairy dyno', 'miraging dyno', 'pixie dyno', 'stepping dyno'],
-    siblingFamilies:   ['osis', 'butterfly-swirl'],
+    siblingFamilies:   ['osis', 'butterfly_swirl'],
     notableCompounds:  [],
     observationalNotes: [
       {
@@ -361,7 +361,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     canonicalFormula:  'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  4,
     commonDescendants: ['fairy paradon', 'pixie paradon', 'symposium paradon'],
-    siblingFamilies:   ['double-over-down', 'dada-curve'],
+    siblingFamilies:   ['double_over_down', 'dada_curve'],
     notableCompounds:  ['dolomite'],
     observationalNotes: [
       {
@@ -371,7 +371,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     ],
   },
   {
-    slug:              'double-over-down',
+    slug:              'double_over_down',
     displayName:       'Double-Over-Down',
     kind:              'branch',
     canonicalFormula:  'TOE > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
@@ -393,7 +393,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     canonicalFormula:  'CLIP > OP IN [DEX] > SAME IN [DEX] >> OP OUT [DEX] > SAME TOE [DEL]',
     familyAnchorAdds:  4,
     commonDescendants: ['flurricane', 'gyro flurry', 'paradox flurry'],
-    siblingFamilies:   ['legover', 'eggbeater', 'double-leg-over'],
+    siblingFamilies:   ['legover', 'eggbeater', 'double_leg_over'],
     notableCompounds:  ['flurricane'],
     observationalNotes: [
       {
@@ -419,7 +419,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     ],
   },
   {
-    slug:              'butterfly-swirl',
+    slug:              'butterfly_swirl',
     displayName:       'Butterfly-Swirl',
     kind:              'branch',
     canonicalFormula:  'SET > SAME/OP OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',
@@ -435,7 +435,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     ],
   },
   {
-    slug:              'double-leg-over',
+    slug:              'double_leg_over',
     displayName:       'Double Legover',
     kind:              'branch',
     canonicalFormula:  'SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
@@ -457,7 +457,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     canonicalFormula:  'TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
     familyAnchorAdds:  3,
     commonDescendants: ['paradox eggbeater', 'gyro eggbeater', 'quantum eggbeater'],
-    siblingFamilies:   ['double-leg-over', 'legover'],
+    siblingFamilies:   ['double_leg_over', 'legover'],
     notableCompounds:  ['bedwetter'],
     observationalNotes: [
       {
@@ -467,7 +467,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     ],
   },
   {
-    slug:              'inside-stall',
+    slug:              'inside_stall',
     displayName:       'Inside Stall',
     kind:              'branch',
     canonicalFormula:  'SET > OP IN [DEX] > SAME INSIDE [DEL]',

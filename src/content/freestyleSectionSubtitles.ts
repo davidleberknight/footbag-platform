@@ -23,7 +23,7 @@ const SECTION_SUBTITLES: Readonly<Record<DetailSectionKey, Readonly<Record<strin
   },
   executionNotation: {
     spin:            'Standalone body turn ending in a kick action.',
-    'miraging-kick': 'Mirage dex pattern that resolves to a kick instead of a delay.',
+    'miraging_kick': 'Mirage dex pattern that resolves to a kick instead of a delay.',
   },
   equivalentReadings: {
     torque: 'Canonical and historical ways this move has been analyzed.',

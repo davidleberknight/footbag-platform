@@ -97,7 +97,7 @@ describe('GET /freestyle/glossary — fragment anchors render', () => {
     // from `term-clipper` to `term-clipper-stall`.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('id="term-clipper-stall"');
+    expect(res.text).toContain('id="term-clipper_stall"');
     expect(res.text).toContain('id="term-mirage"');
     expect(res.text).toContain('id="term-legover"');
     expect(res.text).toContain('id="term-pickup"');
@@ -106,7 +106,7 @@ describe('GET /freestyle/glossary — fragment anchors render', () => {
     expect(res.text).toContain('id="term-butterfly"');
     expect(res.text).toContain('id="term-swirl"');
     expect(res.text).toContain('id="term-osis"');
-    expect(res.text).toContain('id="term-around-the-world"');
+    expect(res.text).toContain('id="term-around_the_world"');
     expect(res.text).toContain('id="term-orbit"');
   });
 

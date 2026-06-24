@@ -136,8 +136,8 @@ export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
   // blocked on unresolved doctrine); its numeric ADD value displays as
   // em-dash via the addPending path until the canonical row lands, while
   // the formula provides the structural reading.
-  { slug: 'toe-stall',        equivalences: ['core atom: foundational single-stall primitive', 'stall(1) = 1 ADD'], operationalNotation: 'SET > SAME TOE [DEL]' },
-  { slug: 'clipper-stall',    displaySlug: 'clipper', equivalences: ['core atom: inside-shoe stall',           'xbody(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP CLIP [XBD] [DEL]' },
+  { slug: 'toe_stall',        equivalences: ['core atom: foundational single-stall primitive', 'stall(1) = 1 ADD'], operationalNotation: 'SET > SAME TOE [DEL]' },
+  { slug: 'clipper_stall',    displaySlug: 'clipper', equivalences: ['core atom: inside-shoe stall',           'xbody(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP CLIP [XBD] [DEL]' },
   { slug: 'mirage',           equivalences: ['core atom: cross-body rotational dex',           'dex(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP IN [DEX] > OP TOE [DEL]' },
   { slug: 'legover',          equivalences: ['core atom: dex over the supporting leg',         'dex(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP OUT [DEX] > SAME TOE [DEL]' },
   { slug: 'pickup',           equivalences: ['core atom: dex catching from below',             'dex(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP IN [DEX] > SAME TOE [DEL]' },
@@ -146,7 +146,7 @@ export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
   { slug: 'butterfly',        equivalences: ['core atom: rotational dex on a different beat',  'dex(1) + xbody(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'swirl',            equivalences: ['core atom: reverse-direction rotational dex',    'xbody(1) + dex(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'osis',             equivalences: ['core atom: double-pass rotational dex',          'spin(1) + xbody(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > SPIN [BOD] > OP CLIP [XBD] [DEL]' },
-  { slug: 'around-the-world', equivalences: ['core atom: dex with full bag orbit',             'full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'TOE > SAME IN [DEX] > SAME TOE [DEL]' },
+  { slug: 'around_the_world', equivalences: ['core atom: dex with full bag orbit',             'full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'TOE > SAME IN [DEX] > SAME TOE [DEL]' },
   { slug: 'orbit',            equivalences: ['core atom: alias of reverse around-the-world',   'reverse full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'TOE > SAME OUT [DEX] > SAME TOE [DEL]' },
 ];
 

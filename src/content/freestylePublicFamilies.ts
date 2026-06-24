@@ -60,24 +60,24 @@ export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
   { slug: 'eclipse',           label: 'Eclipse' },
   { slug: 'drifter',           label: 'Drifter' },
   { slug: 'barrage',           label: 'Barrage' },
-  { slug: 'dada-curve',        label: 'Dada-Curve' },
+  { slug: 'dada_curve',        label: 'Dada-Curve' },
   { slug: 'barfly',            label: 'Barfly' },
   { slug: 'dyno',              label: 'Dyno' },
   { slug: 'paradon',           label: 'Paradon' },
-  { slug: 'double-over-down',  label: 'Double-Over-Down' },
+  { slug: 'double_over_down',  label: 'Double-Over-Down' },
   { slug: 'flurry',            label: 'Flurry' },
   { slug: 'flail',             label: 'Flail' },
-  { slug: 'butterfly-swirl',   label: 'Butterfly-Swirl' },
+  { slug: 'butterfly_swirl',   label: 'Butterfly-Swirl' },
   // Family Parents (current first-class standard: conserved terminal identity plus more than 10
   // documented descendants; tier lives in freestyleFamilyTiers.ts). swirl and inside-stall are roots
   // (swirl's movement differs from
   // whirl; inside-stall is the surface identity the guay lineage lands into); the others are derived
   // branches that inherit a root's terminal identity, recorded via the parent field.
   { slug: 'swirl',             label: 'Swirl' },
-  { slug: 'inside-stall',      label: 'Inside Stall' },
+  { slug: 'inside_stall',      label: 'Inside Stall' },
   { slug: 'torque',            label: 'Torque',          parent: 'osis' },
   { slug: 'blender',           label: 'Blender',         parent: 'osis' },
-  { slug: 'double-leg-over',   label: 'Double Legover',  parent: 'legover' },
+  { slug: 'double_leg_over',   label: 'Double Legover',  parent: 'legover' },
   { slug: 'eggbeater',         label: 'Eggbeater',       parent: 'legover' },
 ];
 
@@ -94,14 +94,14 @@ export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
  * the slug and come from curator doctrine.
  */
 export const SUBLABEL_FAMILY_OF: ReadonlyMap<string, string> = new Map<string, string>([
-  ['whirling-swirl',      'swirl'],
+  ['whirling_swirl',      'swirl'],
   ['mobius',              'torque'],        // curator: a mobius is a torque-family member
-  ['guay',                'inside-stall'],  // curator: a guay lands into an inside stall
-  ['double-pickup',       'pickup'],
-  ['paradox-mirage',      'mirage'],
-  ['paradox-illusion',    'illusion'],
-  ['reverse-drifter',     'drifter'],
-  ['high-plains-drifter', 'drifter'],
+  ['guay',                'inside_stall'],  // curator: a guay lands into an inside stall
+  ['double_pickup',       'pickup'],
+  ['paradox_mirage',      'mirage'],
+  ['paradox_illusion',    'illusion'],
+  ['reverse_drifter',     'drifter'],
+  ['high_plains_drifter', 'drifter'],
 ]);
 
 const FAMILY_SLUG_SET: ReadonlySet<string> = new Set(PUBLIC_DISPLAY_FAMILIES.map(f => f.slug));

@@ -182,20 +182,20 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
     // xbody primitive illustration with trickSlug: null, not a
     // canonical-trick claim.
     const expectedLinks = [
-      'href="/freestyle/tricks/toe-stall"',
-      'href="/freestyle/tricks/clipper-stall"',
+      'href="/freestyle/tricks/toe_stall"',
+      'href="/freestyle/tricks/clipper_stall"',
       'href="/freestyle/tricks/mirage"',
       'href="/freestyle/tricks/legover"',
       'href="/freestyle/tricks/pickup"',
       'href="/freestyle/tricks/illusion"',
-      'href="/freestyle/tricks/around-the-world"',
+      'href="/freestyle/tricks/around_the_world"',
       'href="/freestyle/tricks/whirl"',
       'href="/freestyle/tricks/swirl"',
       'href="/freestyle/tricks/butterfly"',
       'href="/freestyle/tricks/osis"',
       'href="/freestyle/tricks/torque"',
-      'href="/freestyle/tricks/atom-smasher"',
-      'href="/freestyle/tricks/blurry-whirl"',
+      'href="/freestyle/tricks/atom_smasher"',
+      'href="/freestyle/tricks/blurry_whirl"',
       'href="/freestyle/tricks/mobius"',
     ];
     for (const link of expectedLinks) {
@@ -281,7 +281,7 @@ describe('GET /freestyle/add-analysis — Phase 1 refactor (2026-05-21)', () => 
     expect(res.text).toMatch(/not an official named trick/i);
     // The xbody insight remains: clipper-stall still exists below as a
     // canonical trick + xbody is still a recognized accounting primitive.
-    expect(res.text).toContain('href="/freestyle/tricks/clipper-stall"');
+    expect(res.text).toContain('href="/freestyle/tricks/clipper_stall"');
   });
 
   it('ATW worked-example surfaces its operational chain and reads as dex + stall', async () => {
@@ -471,15 +471,15 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const expectedSlugs = [
       // Sprint 1 (15 rows — pure +1 stacks)
-      'paradox-mirage', 'symposium-mirage',
-      'atomic-butterfly', 'ducking-butterfly', 'ducking-osis', 'ducking-whirl',
-      'spinning-butterfly', 'spinning-osis',
-      'stepping-osis', 'stepping-whirl', 'symposium-whirl', 'whirling-swirl',
-      'paradox-blender', 'paradox-torque', 'spinning-torque',
+      'paradox_mirage', 'symposium_mirage',
+      'atomic_butterfly', 'ducking_butterfly', 'ducking_osis', 'ducking_whirl',
+      'spinning_butterfly', 'spinning_osis',
+      'stepping_osis', 'stepping_whirl', 'symposium_whirl', 'whirling_swirl',
+      'paradox_blender', 'paradox_torque', 'spinning_torque',
       // Sprint 2 (7 rows — pt-ruled / positional / multi-op / folk-name)
-      'eggbeater', 'ducking-clipper', 'spinning-clipper',
-      'rev-whirl', 'orbit',
-      'paradox-symposium-whirl', 'dimwalk',
+      'eggbeater', 'ducking_clipper', 'spinning_clipper',
+      'rev_whirl', 'orbit',
+      'paradox_symposium_whirl', 'dimwalk',
       // Sprint 3 (2 rows after rev-up demote — targeted folk-name resolutions)
       'smear', 'ripwalk',
     ];
@@ -591,7 +591,7 @@ describe('GET /freestyle/add-analysis — outside-source ADD framing subsection'
     expect(tableMatch).not.toBeNull();
     const table = tableMatch![0];
     // Every row carries an <a> linking to /freestyle/tricks/{slug}
-    const rowLinks = table.match(/<a href="\/freestyle\/tricks\/[a-z-]+"/g) ?? [];
+    const rowLinks = table.match(/<a href="\/freestyle\/tricks\/[a-z_]+"/g) ?? [];
     expect(rowLinks.length).toBeGreaterThanOrEqual(60); // 68 rows × 1 link each (allow some tolerance)
     // Every row carries a PB-claim cell
     const claimCells = table.match(/class="passback-add-claim-cell"/g) ?? [];

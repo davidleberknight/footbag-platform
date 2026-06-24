@@ -32,22 +32,22 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   // Two new pixie-family canonical rows (post-loader-19 state).
   insertFreestyleTrick(db, {
-    slug:                'pixie-opposite-clipper',
+    slug:                'pixie_opposite_clipper',
     canonical_name:      'pixie opposite clipper',
     adds:                '3',
-    base_trick:          'clipper-stall',
-    trick_family:        'clipper-stall',
+    base_trick:          'clipper_stall',
+    trick_family:        'clipper_stall',
     category:            'compound',
     review_status:       'expert_reviewed',
     is_active:           1,
     operational_notation: null,  // overlay provides the JOB at shape time
   });
   insertFreestyleTrick(db, {
-    slug:                'pixie-same-clipper',
+    slug:                'pixie_same_clipper',
     canonical_name:      'pixie same clipper',
     adds:                '3',
-    base_trick:          'clipper-stall',
-    trick_family:        'clipper-stall',
+    base_trick:          'clipper_stall',
+    trick_family:        'clipper_stall',
     category:            'compound',
     review_status:       'expert_reviewed',
     is_active:           1,
@@ -57,7 +57,7 @@ beforeAll(async () => {
   // matching loader 19's post-state (aliases column on csv → aliases_json
   // populated; table row inserted separately below).
   insertFreestyleTrick(db, {
-    slug:                'quantum-illusion',
+    slug:                'quantum_illusion',
     canonical_name:      'quantum illusion',
     adds:                '3',
     base_trick:          'illusion',
@@ -66,7 +66,7 @@ beforeAll(async () => {
     review_status:       'expert_reviewed',
     is_active:           1,
     operational_notation: 'TOE > OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]',
-    aliases_json:        '["toe-blizzard"]',
+    aliases_json:        '["toe_blizzard"]',
   });
   // toe-blizzard alias of quantum-illusion in the aliases table (loader 19
   // inserts both aliases_json AND a freestyle_trick_aliases row).
@@ -76,9 +76,9 @@ beforeAll(async () => {
     VALUES (?, ?, ?, ?, ?)
   `);
   insertAlias.run(
+    'toe_blizzard',
     'toe-blizzard',
-    'toe-blizzard',
-    'quantum-illusion',
+    'quantum_illusion',
     'common',
     new Date().toISOString(),
   );
@@ -90,7 +90,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('RESOLVED_FORMULAS_SPRINT_1 — pixie-clipper entries', () => {
   it('pixie-opposite-clipper overlay carries JOB + 3 ADD + sibling-derivation provenance', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie-opposite-clipper');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie_opposite_clipper');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(3);
     expect(entry?.baseAdd).toBe(2);
@@ -103,7 +103,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — pixie-clipper entries', () => {
   });
 
   it('pixie-same-clipper overlay carries JOB + 3 ADD + sibling-derivation provenance', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie-same-clipper');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie_same_clipper');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(3);
     expect(entry?.operationalNotation).toBe('TOE > SAME IN [DEX] > SAME CLIP [XBD] [DEL]');
@@ -111,8 +111,8 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — pixie-clipper entries', () => {
   });
 
   it('pixie-opposite-clipper and pixie-same-clipper differ only in clipper side label (OP vs SAME)', () => {
-    const opp  = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie-opposite-clipper');
-    const same = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie-same-clipper');
+    const opp  = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie_opposite_clipper');
+    const same = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie_same_clipper');
     expect(opp?.totalAdd).toBe(same?.totalAdd);
     expect(opp?.operationalNotation).toMatch(/OP CLIP/);
     expect(same?.operationalNotation).toMatch(/SAME CLIP/);
@@ -120,8 +120,8 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — pixie-clipper entries', () => {
 });
 
 describe('Pixie-clipper detail pages — first-class JOB + ADD', () => {
-  it('/freestyle/tricks/pixie-opposite-clipper renders 3 ADD hero chip + JOB tokens', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/pixie-opposite-clipper');
+  it('/freestyle/tricks/pixie_opposite_clipper renders 3 ADD hero chip + JOB tokens', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/pixie_opposite_clipper');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">3 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -134,8 +134,8 @@ describe('Pixie-clipper detail pages — first-class JOB + ADD', () => {
     }
   });
 
-  it('/freestyle/tricks/pixie-same-clipper renders 3 ADD hero chip + JOB tokens', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/pixie-same-clipper');
+  it('/freestyle/tricks/pixie_same_clipper renders 3 ADD hero chip + JOB tokens', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/pixie_same_clipper');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">3 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -152,7 +152,7 @@ describe('Pixie-clipper browse rendering — FIRST_CLASS_TIER_2 cohort', () => {
   it('pixie-opposite-clipper card on /freestyle/tricks?view=dex-count renders JOB + ADD inline', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    const idx = res.text.indexOf('data-trick-slug="pixie-opposite-clipper"');
+    const idx = res.text.indexOf('data-trick-slug="pixie_opposite_clipper"');
     expect(idx).toBeGreaterThan(-1);
     const articleOpen  = res.text.lastIndexOf('<article', idx);
     const articleClose = res.text.indexOf('</article>', idx);
@@ -165,7 +165,7 @@ describe('Pixie-clipper browse rendering — FIRST_CLASS_TIER_2 cohort', () => {
   it('pixie-same-clipper card renders JOB + ADD inline', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    const idx = res.text.indexOf('data-trick-slug="pixie-same-clipper"');
+    const idx = res.text.indexOf('data-trick-slug="pixie_same_clipper"');
     expect(idx).toBeGreaterThan(-1);
     const articleOpen  = res.text.lastIndexOf('<article', idx);
     const articleClose = res.text.indexOf('</article>', idx);
@@ -184,10 +184,10 @@ describe('toe-blizzard alias of quantum-illusion (Red pt2 EQUIVALENCE)', () => {
   // attachment). Future detail-route alias redirect is deferred.
 
   it('quantum-illusion detail page surfaces toe-blizzard as an alternate name', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/quantum-illusion');
+    const res = await request(await createApp()).get('/freestyle/tricks/quantum_illusion');
     expect(res.status).toBe(200);
     // shapeDictEntry reads aliases from aliases_json (deprecated path but
     // still active); the rendered page surfaces alternate names.
-    expect(res.text).toMatch(/toe-blizzard/i);
+    expect(res.text).toMatch(/toe_blizzard/i);
   });
 });

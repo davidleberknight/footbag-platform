@@ -13,7 +13,7 @@ import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedF
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|XDEX|UNS)\]/g;
 
 describe('atomic-torque execution notation (RESOLVED_FORMULAS overlay)', () => {
-  const entry = RESOLVED_FORMULAS_SPRINT_1.find(f => f.slug === 'atomic-torque');
+  const entry = RESOLVED_FORMULAS_SPRINT_1.find(f => f.slug === 'atomic_torque');
 
   it('has an entry with the atomic chassis operationalNotation', () => {
     expect(entry).toBeDefined();

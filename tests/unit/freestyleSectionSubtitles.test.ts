@@ -7,7 +7,7 @@ describe('section subtitles — per-(section, trick) detail-page gloss', () => {
   it('returns the curator gloss for seeded (section, trick) pairs', () => {
     expect(getSectionSubtitles('bubba').movementNotation).toBe('Clipper-set illusion.');
     expect(getSectionSubtitles('spin').executionNotation).toBe('Standalone body turn ending in a kick action.');
-    expect(getSectionSubtitles('miraging-kick').executionNotation).toBe('Mirage dex pattern that resolves to a kick instead of a delay.');
+    expect(getSectionSubtitles('miraging_kick').executionNotation).toBe('Mirage dex pattern that resolves to a kick instead of a delay.');
     expect(getSectionSubtitles('torque').equivalentReadings).toBe('Canonical and historical ways this move has been analyzed.');
     expect(getSectionSubtitles('mobius').equivalentReadings).toBe('Compressed gyro-torque reading, then expanded source-style readings.');
   });
@@ -25,7 +25,7 @@ describe('section subtitles — per-(section, trick) detail-page gloss', () => {
   });
 
   it('every gloss is a non-empty trick-specific string', () => {
-    for (const slug of ['bubba', 'spin', 'miraging-kick', 'torque', 'mobius']) {
+    for (const slug of ['bubba', 'spin', 'miraging_kick', 'torque', 'mobius']) {
       const vals = DETAIL_SECTION_KEYS
         .map(k => getSectionSubtitles(slug)[k])
         .filter((v): v is string => v !== null);

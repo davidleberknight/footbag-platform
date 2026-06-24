@@ -115,7 +115,7 @@ export const RESOLVED_FORMULAS_FRAMING_PROSE =
 // composition is mechanically derivable.
 export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   {
-    slug:        'quantum-guay',
+    slug:        'quantum_guay',
     name:        'quantum guay',
     operator:    'quantum',
     base:        'guay',
@@ -126,7 +126,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'quantum = +1 set modifier; guay = 2 ADD base (pickup into inside-stall)',
   },
   {
-    slug:        'nuclear-guay',
+    slug:        'nuclear_guay',
     name:        'nuclear guay',
     operator:    'nuclear',
     base:        'guay',
@@ -137,7 +137,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'nuclear = +2 set modifier (paradox + downtime illusion); guay = 2 ADD base',
   },
   {
-    slug:        'nuclear-drifter',
+    slug:        'nuclear_drifter',
     name:        'nuclear drifter',
     operator:    'nuclear',
     base:        'drifter',
@@ -148,7 +148,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'nuclear = +2 set modifier; drifter = 3 ADD base',
   },
   {
-    slug:        'nuclear-double-leg-over',
+    slug:        'nuclear_double_leg_over',
     name:        'nuclear double leg over',
     operator:    'nuclear',
     base:        'double-leg-over',
@@ -159,7 +159,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'nuclear = +2 set modifier; double-leg-over = 3 ADD base',
   },
   {
-    slug:        'nuclear-dyno',
+    slug:        'nuclear_dyno',
     name:        'nuclear dyno',
     operator:    'nuclear',
     base:        'dyno',
@@ -170,7 +170,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'nuclear = +2 set modifier; dyno = 4 ADD base',
   },
   {
-    slug:        'nuclear-torque',
+    slug:        'nuclear_torque',
     name:        'nuclear torque',
     operator:    'nuclear',
     base:        'torque',
@@ -181,7 +181,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'nuclear = +2 set modifier; torque = 4 ADD base (osis branch)',
   },
   {
-    slug:        'paradox-mirage',
+    slug:        'paradox_mirage',
     name:        'paradox mirage',
     operator:    'paradox',
     base:        'mirage',
@@ -191,7 +191,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'paradox = +1 dex relationship (canonical inventory); mirage = 2 ADD core atom',
   },
   {
-    slug:        'symposium-mirage',
+    slug:        'symposium_mirage',
     name:        'symposium mirage',
     operator:    'symposium',
     base:        'mirage',
@@ -202,7 +202,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'symposium = +1 no-plant body modifier; mirage = 2 ADD core atom',
   },
   {
-    slug:        'atomic-butterfly',
+    slug:        'atomic_butterfly',
     name:        'atomic butterfly',
     operator:    'atomic',
     base:        'butterfly',
@@ -212,7 +212,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'atomic = +1 on non-rotational bases; butterfly = 3 ADD core atom',
   },
   {
-    slug:        'ducking-butterfly',
+    slug:        'ducking_butterfly',
     name:        'ducking butterfly',
     operator:    'ducking',
     base:        'butterfly',
@@ -222,7 +222,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'ducking = +1 midtime body modifier; butterfly = 3 ADD core atom',
   },
   {
-    slug:        'ducking-osis',
+    slug:        'ducking_osis',
     name:        'ducking osis',
     operator:    'ducking',
     base:        'osis',
@@ -232,7 +232,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'ducking = +1 midtime body modifier; osis = 3 ADD core atom',
   },
   {
-    slug:        'ducking-whirl',
+    slug:        'ducking_whirl',
     name:        'ducking whirl',
     operator:    'ducking',
     base:        'whirl',
@@ -243,7 +243,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'ducking = +1 midtime body modifier; whirl = 3 ADD core atom',
   },
   {
-    slug:        'spinning-butterfly',
+    slug:        'spinning_butterfly',
     name:        'spinning butterfly',
     operator:    'spinning',
     base:        'butterfly',
@@ -253,7 +253,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'spinning = +1 midtime body modifier; butterfly = 3 ADD core atom',
   },
   {
-    slug:        'spinning-osis',
+    slug:        'spinning_osis',
     name:        'spinning osis',
     operator:    'spinning',
     base:        'osis',
@@ -263,7 +263,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'spinning = +1 midtime body modifier; osis = 3 ADD core atom',
   },
   {
-    slug:        'stepping-osis',
+    slug:        'stepping_osis',
     name:        'stepping osis',
     operator:    'stepping',
     base:        'osis',
@@ -273,7 +273,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'stepping = +1 set modifier (foot relocation); osis = 3 ADD core atom',
   },
   {
-    slug:        'stepping-whirl',
+    slug:        'stepping_whirl',
     name:        'stepping whirl',
     operator:    'stepping',
     base:        'whirl',
@@ -284,7 +284,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'stepping = +1 set modifier; whirl = 3 ADD core atom',
   },
   {
-    slug:        'symposium-whirl',
+    slug:        'symposium_whirl',
     name:        'symposium whirl',
     operator:    'symposium',
     base:        'whirl',
@@ -294,7 +294,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'symposium = +1 no-plant body modifier; whirl = 3 ADD core atom',
   },
   {
-    slug:        'whirling-swirl',
+    slug:        'whirling_swirl',
     name:        'whirling swirl',
     operator:    'whirling',
     base:        'swirl',
@@ -304,7 +304,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'whirling = +1 midtime body modifier (Movement System inheritance); swirl = 3 ADD core atom',
   },
   {
-    slug:        'paradox-blender',
+    slug:        'paradox_blender',
     name:        'paradox blender',
     operator:    'paradox',
     base:        'blender',
@@ -315,7 +315,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'paradox = +1 dex relationship; blender = 4 ADD compound (whirling osis)',
   },
   {
-    slug:        'paradox-torque',
+    slug:        'paradox_torque',
     name:        'paradox torque',
     operator:    'paradox',
     base:        'torque',
@@ -326,7 +326,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'paradox = +1 dex relationship; torque = 4 ADD compound (miraging osis, pt11)',
   },
   {
-    slug:        'spinning-torque',
+    slug:        'spinning_torque',
     name:        'spinning torque',
     operator:    'spinning',
     base:        'torque',
@@ -353,7 +353,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'pt4 settled: eggbeater = atomic legover. atomic = +1 on non-rotational; legover = 2 ADD core atom',
   },
   {
-    slug:        'ducking-clipper',
+    slug:        'ducking_clipper',
     name:        'ducking clipper',
     operator:    'ducking',
     base:        'clipper-stall',
@@ -363,7 +363,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'ducking = +1 midtime body modifier; clipper-stall = 2 ADD core atom (xbody + stall)',
   },
   {
-    slug:        'spinning-clipper',
+    slug:        'spinning_clipper',
     name:        'spinning clipper',
     operator:    'spinning',
     base:        'clipper-stall',
@@ -373,7 +373,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'spinning = +1 midtime body modifier; clipper-stall = 2 ADD core atom',
   },
   {
-    slug:        'rev-whirl',
+    slug:        'rev_whirl',
     name:        'rev whirl',
     operator:    'reverse',
     base:        'whirl',
@@ -394,7 +394,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'reverse = positional direction marker (+0 per Red); ATW = 2 ADD core atom (full-orbit dex + stall). orbit is the canonical slug; reverse-around-the-world and reverse-atw are aliases. Slug aligned to canonical `orbit` alongside DB row activation (red_additions + loader 19).',
   },
   {
-    slug:        'paradox-symposium-whirl',
+    slug:        'paradox_symposium_whirl',
     name:        'paradox symposium whirl',
     operator:    'paradox + symposium',
     base:        'whirl',
@@ -458,7 +458,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   // its own +1 AND brings the x-dex/paradox-like contribution from toe.
 
   {
-    slug:        'atom-smasher',
+    slug:        'atom_smasher',
     name:        'atom smasher',
     operator:    'atomic + x-dex',
     base:        'mirage',
@@ -510,7 +510,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Curator-locked swing-element doctrine: pendulum is a toe-swing that completes on an arbitrary terminal contact. It is the only trick with an arbitrary final surface, so the terminal renders as an open (contact) rather than a fixed stall, for ADD = swing(1) + contact(1) = 2. The "swing" component is a structural movement element (not a named operator modifier) contributing +1 ADD. Companion trick rake reads the swing-element arithmetic with a fixed toe-stall terminal (swing > toe); rake awaits canonical row before its resolved-formula entry lands.',
   },
   {
-    slug:        'flying-clipper',
+    slug:        'flying_clipper',
     name:        'flying clipper',
     operator:    'flying',
     base:        'clipper',
@@ -581,7 +581,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //    ambiguity. Promoted into FIRST_CLASS_TIER_2 (JOB chain pending;
   //    ADD curator-locked).
   {
-    slug:        'atomic-torque',
+    slug:        'atomic_torque',
     name:        'atomic torque',
     operator:    'atomic',
     base:        'torque',
@@ -592,7 +592,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'atomic = +1 (single outward uptime dex); the +2-rotational reading is retired. torque = 4 ADD compound base; no X-Dex (cf. atomic-drifter, the published atomic-miraging sibling at base+1).',
   },
   {
-    slug:        'ducking-mirage',
+    slug:        'ducking_mirage',
     name:        'ducking mirage',
     operator:    'ducking',
     base:        'mirage',
@@ -602,7 +602,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'ducking = +1 midtime body modifier; mirage = 2 ADD core atom (rotational). Audit derivation.',
   },
   {
-    slug:        'paradox-drifter',
+    slug:        'paradox_drifter',
     name:        'paradox drifter',
     operator:    'paradox',
     base:        'drifter',
@@ -613,7 +613,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'paradox = +1 dex relationship; drifter = 3 ADD rotational compound base. Audit derivation.',
   },
   {
-    slug:        'spinning-pickup',
+    slug:        'spinning_pickup',
     name:        'spinning pickup',
     operator:    'spinning',
     base:        'pickup',
@@ -623,7 +623,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'spinning = +1 midtime body modifier; pickup = 2 ADD core atom (non-rotational). Audit derivation.',
   },
   {
-    slug:        'tapping-whirl',
+    slug:        'tapping_whirl',
     name:        'tapping whirl',
     operator:    'tapping',
     base:        'whirl',
@@ -641,7 +641,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //    mantis / nova compounds remain non-first-class until their
   //    composite-derivation entries are curator-authored.
   {
-    slug:        'cross-body-sole-stall',
+    slug:        'cross_body_sole_stall',
     name:        'cross-body sole stall',
     operator:    'xbody',
     base:        'sole-stall',
@@ -671,7 +671,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'pixie = +1 set modifier; pickup = 2 ADD core atom. Folk-name resolution.',
   },
   {
-    slug:        'reverse-drifter',
+    slug:        'reverse_drifter',
     name:        'reverse-drifter',
     operator:    'reverse (directional)',
     base:        'drifter',
@@ -681,7 +681,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'rev/reverse is directional notation (zero-ADD); drifter = 3 ADD core compound. Curator: rev/reverse is alternate directional notation, not an ADD operator.',
   },
   {
-    slug:        'scrambled-eggbeater',
+    slug:        'scrambled_eggbeater',
     name:        'scrambled eggbeater',
     operator:    'atomic',
     base:        'pickup',
@@ -721,7 +721,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'diving = +1 body modifier; whirl = 3 ADD rotational core atom. Folk-name resolution (≡ diving whirl).',
   },
   {
-    slug:        'paradox-whirl',
+    slug:        'paradox_whirl',
     name:        'paradox whirl',
     operator:    'paradox',
     base:        'whirl',
@@ -741,7 +741,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'pixie = +1 set modifier; eggbeater = 3 ADD compound (≡ atomic legover). Folk-name resolution.',
   },
   {
-    slug:        'spinning-whirl',
+    slug:        'spinning_whirl',
     name:        'spinning whirl',
     operator:    'spinning',
     base:        'whirl',
@@ -782,7 +782,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'pixie = +1 set modifier; ducking = +1 body modifier; butterfly = 3 ADD core atom. Folk-name resolution.',
   },
   {
-    slug:        'spinal-tap',
+    slug:        'spinal_tap',
     name:        'spinal tap',
     operator:    'tapping',
     base:        'torque',
@@ -792,7 +792,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'tapping = +1 body modifier; torque = 4 ADD rotational compound base. Folk-name resolution (≡ tapping torque).',
   },
   {
-    slug:        'spinning-symposium-whirl',
+    slug:        'spinning_symposium_whirl',
     name:        'spinning symposium whirl',
     operator:    'spinning + symposium',
     base:        'whirl',
@@ -814,7 +814,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Red adjudication: Atomic Mirage already 4 (Atom Smasher canonical); witchdoctor = Atomic Mirage + Symposium = 5 ADD. Composite reading (COMPOSITE_DERIVATIONS) — atom-smasher as the curator-canonical 4-ADD composite base.',
   },
   {
-    slug:        'mind-bender',
+    slug:        'mind_bender',
     name:        'mind bender',
     operator:    'ducking + paradox',
     base:        'blender',
@@ -915,7 +915,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'pixie = +1 set modifier; illusion = 2 ADD core atom. DB description "Pixie-modified illusion."',
   },
   {
-    slug:        'pixie-same-side-illusion',
+    slug:        'pixie_same_side_illusion',
     name:        'pixie same side illusion',
     operator:    'pixie',
     base:        'illusion',
@@ -926,7 +926,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > SAME IN [DEX] >> SAME OUT [DEX] > OP TOE [DEL]',
   },
   {
-    slug:        'backside-magellan',
+    slug:        'backside_magellan',
     name:        'backside magellan',
     operator:    'backside',
     base:        'magellan',
@@ -937,7 +937,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > BS [DEX] > SAME IN [DEX] >> SAME OUT [DEX] > SAME TOE [DEL]',
   },
   {
-    slug:        'backside-paste',
+    slug:        'backside_paste',
     name:        'backside paste',
     operator:    'backside',
     base:        'paste',
@@ -948,7 +948,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > BS [DEX] > SAME IN [DEX] >> OP IN [DEX] > SAME TOE [DEL]',
   },
   {
-    slug:        'stepping-double-switch-over',
+    slug:        'stepping_double_switch_over',
     name:        'stepping double switch-over',
     operator:    'stepping',
     base:        'double-switch-over',
@@ -959,7 +959,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]',
   },
   {
-    slug:        'pixie-double-switch-over',
+    slug:        'pixie_double_switch_over',
     name:        'pixie double switch-over',
     operator:    'pixie',
     base:        'double-switch-over',
@@ -970,7 +970,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]',
   },
   {
-    slug:        'fairy-same-side-whirl',
+    slug:        'fairy_same_side_whirl',
     name:        'fairy same side whirl',
     operator:    'fairy',
     base:        'whirl',
@@ -981,7 +981,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > SAME OUT [DEX] (plant) > SAME IN [DEX] > OP CLIP [XBD] [DEL]',
   },
   {
-    slug:        'fairy-same-side-mirage',
+    slug:        'fairy_same_side_mirage',
     name:        'fairy same side mirage',
     operator:    'fairy',
     base:        'mirage',
@@ -992,7 +992,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > SAME OUT [DEX] (plant) > SAME IN [DEX] > OP TOE [DEL]',
   },
   {
-    slug:        'shooting-mirage',
+    slug:        'shooting_mirage',
     name:        'shooting mirage',
     operator:    'shooting',
     base:        'mirage',
@@ -1003,7 +1003,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > OP TOE [DEL]',
   },
   {
-    slug:        'shooting-butterfly',
+    slug:        'shooting_butterfly',
     name:        'shooting butterfly',
     operator:    'shooting',
     base:        'butterfly',
@@ -1014,7 +1014,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
   },
   {
-    slug:        'shooting-star',
+    slug:        'shooting_star',
     name:        'shooting star',
     operator:    'shooting',
     base:        'double-over-down',
@@ -1025,7 +1025,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
   },
   {
-    slug:        'shooting-torque',
+    slug:        'shooting_torque',
     name:        'shooting torque',
     operator:    'shooting',
     base:        'torque',
@@ -1036,7 +1036,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',
   },
   {
-    slug:        'shooting-clipper',
+    slug:        'shooting_clipper',
     name:        'shooting clipper',
     operator:    'shooting',
     base:        'clipper-stall',
@@ -1047,7 +1047,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP CLIP [XBD] [DEL]',
   },
   {
-    slug:        'shooting-barfly',
+    slug:        'shooting_barfly',
     name:        'shooting barfly',
     operator:    'shooting',
     base:        'barfly',
@@ -1058,7 +1058,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]',
   },
   {
-    slug:        'shooting-da-da-curve',
+    slug:        'shooting_da_da_curve',
     name:        'shooting da da curve',
     operator:    'shooting',
     base:        'dada-curve',
@@ -1069,7 +1069,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > (no plant while) OP OUT [DEX] > OP CLIP [XBD] [DEL]',
   },
   {
-    slug:        'shooting-double-leg-over',
+    slug:        'shooting_double_leg_over',
     name:        'shooting double leg over',
     operator:    'shooting',
     base:        'double-leg-over',
@@ -1191,7 +1191,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'blurry = +1 flat (post Red retraction; "blurry just implies stepping"); barfly = 4 ADD compound (ATAM-derived). Per build_trick_reconciliation_workbook.py MODIFIER_COMPOSITIONS allowlist comment: blurriest specifically uses blurry as +1 flat, NOT as the stepping+paradox carve-out applied to blur/blurry-whirl/blurry-torque/food-processor.',
   },
   {
-    slug:        'grave-digger',
+    slug:        'grave_digger',
     name:        'grave digger',
     operator:    'stepping',
     base:        'torque',
@@ -1211,7 +1211,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'ducking = +1 midtime body modifier; paradox-whirl = 4 ADD compound. DB description "Ducking-modified paradox whirl." Folk-name resolution. Shallow-readable derivation per composite-modifier framework §6.1: treats paradox-whirl as the published 4-ADD base rather than recursively expanding to ducking(+1)+paradox(+1)+whirl(3).',
   },
   {
-    slug:        'big-apple',
+    slug:        'big_apple',
     name:        'big apple',
     operator:    'gyro + symposium',
     base:        'torque',
@@ -1258,7 +1258,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'stepping = +1 set modifier; eggbeater = 3 ADD compound (≡ atomic legover per pt4). PassBack folk-name resolution.',
   },
   {
-    slug:        'sole-survivor',
+    slug:        'sole_survivor',
     name:        'sole survivor',
     operator:    'spinning + symposium',
     base:        'whirl',
@@ -1269,7 +1269,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'spinning = +1 midtime body modifier; symposium = +1 no-plant body modifier; whirl = 3 ADD core atom (rotational). PassBack folk-name resolution; "sole survivor" is a pun name, not a sole-surface catch.',
   },
   {
-    slug:        'spinning-paradox-mirage',
+    slug:        'spinning_paradox_mirage',
     name:        'spinning paradox mirage',
     operator:    'spinning + paradox',
     base:        'mirage',
@@ -1279,7 +1279,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'spinning = +1 body modifier; paradox = +1 dex relationship; mirage = 2 ADD core atom. FB.org /newmoves Paradox Moves listing (2003).',
   },
   {
-    slug:        'spinning-paradox-illusion',
+    slug:        'spinning_paradox_illusion',
     name:        'spinning paradox illusion',
     operator:    'spinning + paradox',
     base:        'illusion',
@@ -1289,7 +1289,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'spinning = +1 body modifier; paradox = +1 dex relationship; illusion = 2 ADD core atom. FB.org /newmoves Paradox Moves listing (2003).',
   },
   {
-    slug:        'spinning-paradox-whirl',
+    slug:        'spinning_paradox_whirl',
     name:        'spinning paradox whirl',
     operator:    'spinning + paradox',
     base:        'whirl',
@@ -1299,7 +1299,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'spinning = +1 body modifier; paradox = +1 dex relationship; whirl = 3 ADD core atom (rotational). FB.org /newmoves (2003).',
   },
   {
-    slug:        'paradox-double-leg-over',
+    slug:        'paradox_double_leg_over',
     name:        'paradox double leg over',
     operator:    'paradox',
     base:        'double-leg-over',
@@ -1309,7 +1309,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'paradox = +1 dex relationship; double-leg-over (dlo) = 3 ADD compound base. FB.org /newmoves description: "A paradox mirage with an extra leg over at the end."',
   },
   {
-    slug:        'paradox-barrage',
+    slug:        'paradox_barrage',
     name:        'paradox barrage',
     operator:    'paradox',
     base:        'barrage',
@@ -1319,7 +1319,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'paradox = +1 dex relationship; barrage = 3 ADD compound (SS=+0 per pt12 ruling). FB.org /newmoves (2003).',
   },
   {
-    slug:        'paradox-symposium-mirage',
+    slug:        'paradox_symposium_mirage',
     name:        'paradox symposium mirage',
     operator:    'paradox + symposium',
     base:        'mirage',
@@ -1329,7 +1329,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'paradox = +1 dex relationship; symposium = +1 no-plant body modifier; mirage = 2 ADD core atom. FB.org /newmoves (2003).',
   },
   {
-    slug:        'paradox-high-plains-drifter',
+    slug:        'paradox_high_plains_drifter',
     name:        'paradox high-plains-drifter',
     operator:    'paradox',
     base:        'high-plains-drifter',
@@ -1339,7 +1339,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'paradox = +1 dex relationship; high-plains-drifter = 4 ADD compound (pt11 = miraging clipper). FB.org /newmoves; alias Paradox Double Drifter.',
   },
   {
-    slug:        'spinning-paradox-blender',
+    slug:        'spinning_paradox_blender',
     name:        'spinning paradox blender',
     operator:    'spinning + paradox',
     base:        'blender',
@@ -1349,7 +1349,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'spinning = +1 body modifier; paradox = +1 dex relationship; blender = 4 ADD compound (rotational; pt11 = whirling osis). FB.org /newmoves (2003).',
   },
   {
-    slug:        'stepping-ducking-paradox-blender',
+    slug:        'stepping_ducking_paradox_blender',
     name:        'stepping ducking paradox blender',
     operator:    'stepping + ducking + paradox',
     base:        'blender',
@@ -1359,7 +1359,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Three-modifier stack on blender. All modifiers = +1 body modifiers; blender = 4 ADD rotational compound base. FB.org /newmoves (2003). Highest-ADD compound in the FB.org corpus that decomposes cleanly via +1 arithmetic.',
   },
   {
-    slug:        'paradox-blizzard',
+    slug:        'paradox_blizzard',
     name:        'paradox blizzard',
     operator:    'paradox',
     base:        'blizzard',
@@ -1415,7 +1415,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   // come from the footbag.org corpus; ADD breakdown decomposes through
   // dex events and stall delay.
   {
-    slug:        'double-around-the-world',
+    slug:        'double_around_the_world',
     name:        'double around the world',
     operator:    'double',
     base:        'around-the-world',
@@ -1426,7 +1426,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'footbag.org corpus base operational form. Two same-side inside dex events into a same-side toe stall. ADD decomposes as two dex events (1 each) plus the terminal stall (1).',
   },
   {
-    slug:        'double-leg-over',
+    slug:        'double_leg_over',
     name:        'double leg over',
     operator:    'double',
     base:        'legover',
@@ -1486,7 +1486,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   // Red questions K-1..K-3 + B-1.
 
   {
-    slug:        'around-the-world-kick',
+    slug:        'around_the_world_kick',
     name:        'around the world kick',
     operator:    'kick (terminal stall removed)',
     base:        'around-the-world',
@@ -1508,7 +1508,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Foundational-vocabulary polish. The existing clipper row (1-ADD body kick into clipper position) lacked operational notation; OP CLIP [XBD] derived per user spec (cross-body event without terminal stall). Curator-published; not Red-confirmed.',
   },
   {
-    slug:        'triple-around-the-world',
+    slug:        'triple_around_the_world',
     name:        'triple around the world',
     operator:    'triple (3-dex extension)',
     base:        'around-the-world',
@@ -1519,7 +1519,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Foundational-vocabulary promotion. Sibling-derivation from around-the-world(2) + double-around-the-world(3): three consecutive full leg circles ending in a same-side toe delay. fb.org-derived ("Triple Around The World"); not Red-confirmed. Math: dex(3) + stall(1) = 4. Surfaces Red Q B-1 (canonical promotion).',
   },
   {
-    slug:        'double-around-the-world-heel',
+    slug:        'double_around_the_world_heel',
     name:        'double around the world heel',
     operator:    'heel terminal (toe→heel surface swap)',
     base:        'double-around-the-world',
@@ -1548,7 +1548,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   // walk-over = leg step over; wrap = bag pulled around the leg).
 
   {
-    slug:        'hop-over',
+    slug:        'hop_over',
     name:        'hop over',
     operator:    'body-jump primitive',
     base:        'hop-over',
@@ -1559,7 +1559,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Held-delay leg-over family. fb.org-derived: "Hold an inside delay close to the ground and hop over it with the support leg." Component tags [bod] [del] = 2 ADD. Sibling-not-merge to walk-over and wrap; distinct event signature (body jump over a held delay). Not Red-confirmed.',
   },
   {
-    slug:        'walk-over',
+    slug:        'walk_over',
     name:        'walk over',
     operator:    'leg-step primitive',
     base:        'walk-over',
@@ -1581,7 +1581,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Held-delay leg-over family. fb.org-derived: "Inside delay the footbag and pull the footbag around your support leg into a cross body position." Component tags [del] [dex] = 2 ADD. New canonical row promoted via red_additions. Sibling-not-merge to hop-over and walk-over; distinct event signature (bag pulled around the support leg). Not Red-confirmed.',
   },
   {
-    slug:        'butterfly-kick',
+    slug:        'butterfly_kick',
     name:        'butterfly kick',
     operator:    'kick (terminal stall removed)',
     base:        'butterfly',
@@ -1622,7 +1622,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //     family inventory (pixie = +1 PDX modifier) IS Red-settled (pt12).
 
   {
-    slug:        'pixie-opposite-clipper',
+    slug:        'pixie_opposite_clipper',
     name:        'pixie opposite clipper',
     operator:    'pixie',
     base:        'clipper-stall',
@@ -1633,7 +1633,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Deferred-candidate promotion. pixie = +1 PDX modifier (Red-settled inventory, pt12); clipper-stall = 2 ADD core atom. Opposite-side clipper terminator. Sibling JOB derivation from drifter (SET > OP IN [DEX] > SAME CLIP [XBD] [DEL]) / fairy-clipper / spinning-clipper. fb.org-derived. Not Red-confirmed for this specific compound.',
   },
   {
-    slug:        'pixie-same-clipper',
+    slug:        'pixie_same_clipper',
     name:        'pixie same clipper',
     operator:    'pixie',
     base:        'clipper-stall',
@@ -1654,7 +1654,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //     illusion / paradox-mirage as compound bases already in DB).
 
   {
-    slug:        'inspinning-butterfly',
+    slug:        'inspinning_butterfly',
     name:        'inspinning butterfly',
     operator:    'inspinning',
     base:        'butterfly',
@@ -1665,7 +1665,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Deferred-candidate promotion. inspinning = +1 modifier (Red pt7: "Modifier stacking" on PassBack Inspinning group); butterfly = 3 ADD core atom. JOB form is FB.org-confirmed via RECONCILIATION (jobs=CLIP > (front) SPIN [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]). Establishes the inspinning direction-flip rule: spin (back→front), dex side (OP→SAME), dex direction + terminal stall unchanged.',
   },
   {
-    slug:        'inspinning-paradox-illusion',
+    slug:        'inspinning_paradox_illusion',
     name:        'inspinning paradox illusion',
     operator:    'inspinning',
     base:        'paradox-illusion',
@@ -1676,7 +1676,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Deferred-candidate promotion. inspinning = +1 modifier (Red pt7); paradox-illusion = 3 ADD canonical compound in DB. Sibling JOB derivation from spinning-paradox-illusion (CLIP > (back) SPIN [BOD] > OP OUT [PDX] [DEX] > OP TOE [DEL]) applying the inspinning direction-flip rule (spin back→front, dex side OP→SAME) established by FB.org-confirmed inspinning-butterfly. fb.org-derived. Not Red-confirmed for this specific compound.',
   },
   {
-    slug:        'inspinning-paradox-mirage',
+    slug:        'inspinning_paradox_mirage',
     name:        'inspinning paradox mirage',
     operator:    'inspinning',
     base:        'paradox-mirage',
@@ -1697,7 +1697,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //     ducking/diving/weaving/zulu family).
 
   {
-    slug:        'double-over-down',
+    slug:        'double_over_down',
     name:        'double-over down',
     operator:    'doubled-dex chassis',
     base:        'double-over-down',
@@ -1708,7 +1708,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Deferred-candidate promotion. Red pt7 ruled "Down pattern" tricks (double-over down / down double-down / down diver) as Different tricks. JOB FB.org-confirmed verbatim ("TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]"). 4 ADD by canonical bracket convention.',
   },
   {
-    slug:        'down-double-down',
+    slug:        'down_double_down',
     name:        'down double-down',
     operator:    'doubled-dex chassis',
     base:        'down-double-down',
@@ -1719,7 +1719,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Deferred-candidate promotion. Red pt7 ruled "Down pattern" tricks as Different tricks. JOB FB.org-confirmed verbatim ("CLIP > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]"). Distinct chassis from double-over-down (clipper-set entry vs toe-set entry, OP/SAME alternation vs SAME/SAME). 4 ADD by canonical bracket convention.',
   },
   {
-    slug:        'down-diver',
+    slug:        'down_diver',
     name:        'down diver',
     operator:    'diving',
     base:        'double-over-down',
@@ -1738,7 +1738,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //     remaining promotable candidates from the audit.
 
   {
-    slug:        'paradox-da-da-curve',
+    slug:        'paradox_da_da_curve',
     name:        'paradox da-da curve',
     operator:    'paradox',
     base:        'dada-curve',
@@ -1749,7 +1749,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Deferred-candidate promotion. paradox = +1 PDX modifier (Red-settled canonical inventory); dada-curve = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. Standard paradox-prefix pattern: SAME IN [PDX] [DEX] replaces the base\'s leading OP IN [DEX].',
   },
   {
-    slug:        'paradox-whirling-swirl',
+    slug:        'paradox_whirling_swirl',
     name:        'paradox whirling swirl',
     operator:    'paradox',
     base:        'whirling-swirl',
@@ -1769,7 +1769,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //     symposium [BOD]+[DEX] fusion pattern).
 
   {
-    slug:        'symposium-pixie',
+    slug:        'symposium_pixie',
     name:        'symposium pixie',
     operator:    'symposium',
     base:        'pixie',
@@ -1828,7 +1828,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //     BACK SWIRL second dex (player choice).
 
   {
-    slug:        'pixie-swirl',
+    slug:        'pixie_swirl',
     name:        'pixie swirl',
     operator:    'pixie',
     base:        'swirl',
@@ -1845,7 +1845,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //     All three JOBs FB.org-confirmed verbatim.
 
   {
-    slug:        'pixie-double-over-down',
+    slug:        'pixie_double_over_down',
     name:        'pixie double-over down',
     operator:    'pixie',
     base:        'double-over-down',
@@ -1856,7 +1856,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Deferred-candidate promotion. pixie = +1 PDX modifier (Red pt12 settled); double-over-down = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. The (plant) pre-state flag between the pixie dex and the doubled-out dex pair is curator-locked per fb.org source.',
   },
   {
-    slug:        'scorpions-tail',
+    slug:        'scorpions_tail',
     name:        "Scorpion's Tail",
     operator:    'spinning',
     base:        'down-double-down',
@@ -1883,7 +1883,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //     JOB. Atom-level: 3 [DEX] tokens + cross-body clipper terminator.
 
   {
-    slug:        'double-over-down-swirl',
+    slug:        'double_over_down_swirl',
     name:        'double-over down swirl',
     operator:    'tripled-dex chassis',
     base:        'double-over-down',
@@ -1901,7 +1901,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //     The folk-name 'backside symposium toe blur' is wired as a pure S3 alias.
 
   {
-    slug:        'quantum-symposium-mirage',
+    slug:        'quantum_symposium_mirage',
     name:        'quantum symposium mirage',
     operator:    'quantum + symposium',
     base:        'mirage',
@@ -1934,7 +1934,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Deferred-candidate promotion. Folk-name compression of stepping + ducking + paradox-illusion (a 3-operator-stack reading). stepping = +1 dex-prepending modifier; ducking = +1 midtime body modifier; paradox-illusion = 3 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. FB.org alias "Stepping Ducking Paradox Illusion" wired. Structural twin of spike-hammer: same modifier stack, mirage base instead of illusion (dex direction OP OUT vs OP IN).',
   },
   {
-    slug:        'spike-hammer',
+    slug:        'spike_hammer',
     name:        'spike hammer',
     operator:    'stepping + ducking',
     base:        'paradox-mirage',
@@ -1951,7 +1951,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //    sibling-composed (not curator-confirmed); promoted under the
   //    arithmetic-closes policy with honest single-source provenance.
   {
-    slug:        'surging-ducking-paradox-torque',
+    slug:        'surging_ducking_paradox_torque',
     name:        'surging ducking paradox torque',
     operator:    'surging + ducking + paradox',
     base:        'torque',
@@ -1962,7 +1962,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'FootbagMoves single-source 8-ADD promotion. surging decomposes to spinning + stepping; ducking is a settled +1 body modifier and paradox a settled +1 dex relationship; torque is a 4-ADD canonical (miraging osis). All operators defined, ADD closes at 8, torque family. FootbagMoves is the only source, so the structure is uncorroborated; promoted under the arithmetic-closes policy with honest single-source provenance. Notation sibling-composed; not curator-confirmed.',
   },
   {
-    slug:        'big-apple-sauce',
+    slug:        'big_apple_sauce',
     name:        'big apple sauce',
     operator:    'spinning + paradox + miraging + symposium',
     base:        'torque',
@@ -2031,7 +2031,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //    Set-prefix JOB tokenization (surfing/furious/railing) is pending; the
   //    structural decomposition and ADD are confirmed.
   {
-    slug:        'big-papa-smurf',
+    slug:        'big_papa_smurf',
     name:        'big papa smurf',
     operator:    'surfing',
     base:        'blender',
@@ -2042,7 +2042,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'FootbagMoves single-source 7-ADD promotion. surfing resolves to fairy + symposium + swirling (a +3 set); blender is a 4-ADD canonical. ADD closes at 7, blender family, no divergence. FootbagMoves is the only source; notation sibling-composed; not curator-confirmed.',
   },
   {
-    slug:        'clown-face',
+    slug:        'clown_face',
     name:        'clown face',
     operator:    'furious',
     base:        'eggbeater',
@@ -2098,7 +2098,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'FootbagMoves promotion at structural ADD 5 (railing +2 set + symposium on a 2-ADD mirage). railing = rooted(0) + sailing(2). FootbagMoves lists 7; published at 5 with FM-7 as a documented railing-cohort divergence (the railing twin of the furious operator-weight divergence). mirage family. The railing set prefix resolves to the documented Railing Set Encyclopedia entry (rooted + sailing).',
   },
   {
-    slug:        'flying-fish',
+    slug:        'flying_fish',
     name:        'flying fish',
     operator:    'railing + ducking',
     base:        'mirage',
@@ -2110,7 +2110,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'FootbagMoves promotion at structural ADD 5 (railing +2 set + ducking on a 2-ADD mirage). FootbagMoves lists 7; published at 5 with FM-7 as a documented railing-cohort divergence. mirage family. The railing set prefix resolves to the documented Railing Set Encyclopedia entry (rooted + sailing).',
   },
   {
-    slug:        'rail-warrior',
+    slug:        'rail_warrior',
     name:        'rail warrior',
     operator:    'railing + ducking',
     base:        'butterfly',
@@ -2160,7 +2160,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'FootbagMoves promotion at structural ADD 5 (warping +3 set on a 2-ADD downtime mirage). warping is a two-dex set whose second dex is a symposium, curator-ruled at 3 ADD. FootbagMoves lists 7; published at 5 with the FM-7 over-count recorded as a single-source divergence. mirage family. Notation sibling-composed; not curator-confirmed.',
   },
   {
-    slug:        'stepping-mirage',
+    slug:        'stepping_mirage',
     name:        'stepping mirage',
     operator:    'stepping',
     base:        'mirage',
@@ -2171,7 +2171,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 3 matches ADD. Observational (FM/PB).',
   },
   {
-    slug:        'stepping-illusion',
+    slug:        'stepping_illusion',
     name:        'stepping illusion',
     operator:    'stepping',
     base:        'illusion',
@@ -2182,7 +2182,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 3 matches ADD. Observational (FM/PB).',
   },
   {
-    slug:        'stepping-legover',
+    slug:        'stepping_legover',
     name:        'stepping legover',
     operator:    'stepping',
     base:        'legover',
@@ -2193,7 +2193,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 3 matches ADD. Observational (FM/PB).',
   },
   {
-    slug:        'stepping-butterfly',
+    slug:        'stepping_butterfly',
     name:        'stepping butterfly',
     operator:    'stepping',
     base:        'butterfly',
@@ -2204,7 +2204,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 4 matches ADD. Observational (FM/PB).',
   },
   {
-    slug:        'stepping-blender',
+    slug:        'stepping_blender',
     name:        'stepping blender',
     operator:    'stepping',
     base:        'blender',
@@ -2215,7 +2215,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 5 matches ADD. Observational (FM/PB).',
   },
   {
-    slug:        'stepping-reaper',
+    slug:        'stepping_reaper',
     name:        'stepping reaper',
     operator:    'stepping',
     base:        'reaper',
@@ -2226,7 +2226,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 4 matches ADD. Observational (FB).',
   },
   {
-    slug:        'stepping-rev-whirl',
+    slug:        'stepping_rev_whirl',
     name:        'stepping rev whirl',
     operator:    'stepping',
     base:        'rev-whirl',
@@ -2237,7 +2237,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 4 matches ADD. Observational (FB).',
   },
   {
-    slug:        'stepping-paradox-torque',
+    slug:        'stepping_paradox_torque',
     name:        'stepping paradox torque',
     operator:    'stepping + paradox',
     base:        'torque',
@@ -2248,7 +2248,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 6 matches ADD. Observational (FM).',
   },
   {
-    slug:        'stepping-diving-mirage',
+    slug:        'stepping_diving_mirage',
     name:        'stepping diving mirage',
     operator:    'stepping + diving',
     base:        'mirage',
@@ -2259,7 +2259,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'stepping-diving-butterfly',
+    slug:        'stepping_diving_butterfly',
     name:        'stepping diving butterfly',
     operator:    'stepping + diving',
     base:        'butterfly',
@@ -2270,7 +2270,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 5 matches ADD. Observational (FM/PB).',
   },
   {
-    slug:        'stepping-ducking-drifter',
+    slug:        'stepping_ducking_drifter',
     name:        'stepping ducking drifter',
     operator:    'stepping + ducking',
     base:        'drifter',
@@ -2281,7 +2281,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 5 matches ADD. Observational (PB).',
   },
   {
-    slug:        'stepping-ducking-paradox-illusion',
+    slug:        'stepping_ducking_paradox_illusion',
     name:        'stepping ducking paradox illusion',
     operator:    'stepping + ducking + paradox',
     base:        'illusion',
@@ -2292,7 +2292,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 5 matches ADD. Observational (FM).',
   },
   {
-    slug:        'stepping-ducking-symposium-eggbeater',
+    slug:        'stepping_ducking_symposium_eggbeater',
     name:        'stepping ducking symposium eggbeater',
     operator:    'stepping + ducking + symposium',
     base:        'eggbeater',
@@ -2303,7 +2303,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 6 matches ADD. Observational (PB).',
   },
   {
-    slug:        'spinning-eggbeater',
+    slug:        'spinning_eggbeater',
     name:        'spinning eggbeater',
     operator:    'spinning',
     base:        'eggbeater',
@@ -2314,7 +2314,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 4 matches ADD. Observational (PB).',
   },
   {
-    slug:        'spinning-rev-whirl',
+    slug:        'spinning_rev_whirl',
     name:        'spinning rev whirl',
     operator:    'spinning',
     base:        'rev-whirl',
@@ -2325,7 +2325,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'spinning-tomahawk',
+    slug:        'spinning_tomahawk',
     name:        'spinning tomahawk',
     operator:    'spinning',
     base:        'tomahawk',
@@ -2336,7 +2336,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 6 matches ADD. Observational (PB).',
   },
   {
-    slug:        'spinning-symposium-torque',
+    slug:        'spinning_symposium_torque',
     name:        'spinning symposium torque',
     operator:    'spinning',
     base:        'symposium-torque',
@@ -2347,7 +2347,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 6 matches ADD. Observational (PB).',
   },
   {
-    slug:        'spinning-whirling-swirl',
+    slug:        'spinning_whirling_swirl',
     name:        'spinning whirling swirl',
     operator:    'spinning',
     base:        'whirling-swirl',
@@ -2358,7 +2358,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 5 matches ADD. Observational (SG).',
   },
   {
-    slug:        'spinning-ducking-drifter',
+    slug:        'spinning_ducking_drifter',
     name:        'spinning ducking drifter',
     operator:    'spinning',
     base:        'ducking-drifter',
@@ -2369,7 +2369,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 5 matches ADD. Observational (PB).',
   },
   {
-    slug:        'spinning-diving-symposium-whirl',
+    slug:        'spinning_diving_symposium_whirl',
     name:        'spinning diving symposium whirl',
     operator:    'spinning + diving',
     base:        'symposium-whirl',
@@ -2380,7 +2380,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 6 matches ADD. Observational (PB).',
   },
   {
-    slug:        'spinning-ducking-symposium-whirl',
+    slug:        'spinning_ducking_symposium_whirl',
     name:        'spinning ducking symposium whirl',
     operator:    'spinning + ducking',
     base:        'symposium-whirl',
@@ -2391,7 +2391,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 6 matches ADD. Observational (PB).',
   },
   {
-    slug:        'spinning-ducking-superfly',
+    slug:        'spinning_ducking_superfly',
     name:        'spinning ducking superfly',
     operator:    'spinning + ducking',
     base:        'superfly',
@@ -2402,7 +2402,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 7 matches ADD. Observational (PB).',
   },
   {
-    slug:        'spinning-symposium-flux',
+    slug:        'spinning_symposium_flux',
     name:        'spinning symposium flux',
     operator:    'spinning + symposium',
     base:        'flux',
@@ -2413,7 +2413,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 6 matches ADD. Observational (PB).',
   },
   {
-    slug:        'spinning-symposium-whirling-swirl',
+    slug:        'spinning_symposium_whirling_swirl',
     name:        'spinning symposium whirling swirl',
     operator:    'spinning + symposium',
     base:        'whirling-swirl',
@@ -2424,7 +2424,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 6 matches ADD. Observational (PB).',
   },
   {
-    slug:        'spinning-miraging-symposium-torque',
+    slug:        'spinning_miraging_symposium_torque',
     name:        'spinning miraging symposium torque',
     operator:    'spinning + miraging',
     base:        'symposium-torque',
@@ -2435,7 +2435,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 7 matches ADD. Observational (PB).',
   },
   {
-    slug:        'diving-mirage',
+    slug:        'diving_mirage',
     name:        'diving mirage',
     operator:    'diving',
     base:        'mirage',
@@ -2446,7 +2446,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 3 matches ADD. Observational (PB).',
   },
   {
-    slug:        'diving-illusion',
+    slug:        'diving_illusion',
     name:        'diving illusion',
     operator:    'diving',
     base:        'illusion',
@@ -2457,7 +2457,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'diving-legover',
+    slug:        'diving_legover',
     name:        'diving legover',
     operator:    'diving',
     base:        'legover',
@@ -2468,7 +2468,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'diving-pickup',
+    slug:        'diving_pickup',
     name:        'diving pickup',
     operator:    'diving',
     base:        'pickup',
@@ -2479,7 +2479,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'diving-butterfly',
+    slug:        'diving_butterfly',
     name:        'diving butterfly',
     operator:    'diving',
     base:        'butterfly',
@@ -2490,7 +2490,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 4 matches ADD. Observational (FM).',
   },
   {
-    slug:        'diving-whirl',
+    slug:        'diving_whirl',
     name:        'diving whirl',
     operator:    'diving',
     base:        'whirl',
@@ -2501,7 +2501,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 4 matches ADD. Observational (FM).',
   },
   {
-    slug:        'diving-drifter',
+    slug:        'diving_drifter',
     name:        'diving drifter',
     operator:    'diving',
     base:        'drifter',
@@ -2512,7 +2512,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'diving-osis',
+    slug:        'diving_osis',
     name:        'diving osis',
     operator:    'diving',
     base:        'osis',
@@ -2523,7 +2523,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 4 matches ADD. Observational (MULTI).',
   },
   {
-    slug:        'diving-swirl',
+    slug:        'diving_swirl',
     name:        'diving swirl',
     operator:    'diving',
     base:        'swirl',
@@ -2534,7 +2534,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'diving-eclipse',
+    slug:        'diving_eclipse',
     name:        'diving eclipse',
     operator:    'diving',
     base:        'eclipse',
@@ -2545,7 +2545,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'diving-smudge',
+    slug:        'diving_smudge',
     name:        'diving smudge',
     operator:    'diving',
     base:        'smudge',
@@ -2556,7 +2556,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 4 matches ADD. Observational (PB).',
   },
   {
-    slug:        'diving-symposium-mirage',
+    slug:        'diving_symposium_mirage',
     name:        'diving symposium mirage',
     operator:    'diving',
     base:        'symposium-mirage',
@@ -2567,7 +2567,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'fairy-butterfly',
+    slug:        'fairy_butterfly',
     name:        'fairy butterfly',
     operator:    'fairy',
     base:        'butterfly',
@@ -2578,7 +2578,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 4 matches ADD. Observational (FB/FM/PB).',
   },
   {
-    slug:        'fairy-drifter',
+    slug:        'fairy_drifter',
     name:        'fairy drifter',
     operator:    'fairy',
     base:        'drifter',
@@ -2589,7 +2589,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 4 matches ADD. Observational (FB/FM).',
   },
   {
-    slug:        'fairy-gyro-drifter',
+    slug:        'fairy_gyro_drifter',
     name:        'fairy gyro drifter',
     operator:    'fairy',
     base:        'gyro-drifter',
@@ -2600,7 +2600,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 5 matches ADD. Observational (SG).',
   },
   {
-    slug:        'fairy-gyro-torque',
+    slug:        'fairy_gyro_torque',
     name:        'fairy gyro torque',
     operator:    'fairy + gyro',
     base:        'torque',
@@ -2611,7 +2611,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 6 matches ADD. Observational (PB).',
   },
   {
-    slug:        'fairy-illusion',
+    slug:        'fairy_illusion',
     name:        'fairy illusion',
     operator:    'fairy',
     base:        'illusion',
@@ -2622,7 +2622,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 3 matches ADD. Observational (FM/PB/SG).',
   },
   {
-    slug:        'fairy-merkon',
+    slug:        'fairy_merkon',
     name:        'fairy merkon',
     operator:    'fairy',
     base:        'merkon',
@@ -2633,7 +2633,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 4 matches ADD. Observational (FB).',
   },
   {
-    slug:        'fairy-rev-whirl',
+    slug:        'fairy_rev_whirl',
     name:        'fairy rev whirl',
     operator:    'fairy',
     base:        'rev-whirl',
@@ -2644,7 +2644,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'fairy-ripstein',
+    slug:        'fairy_ripstein',
     name:        'fairy ripstein',
     operator:    'fairy',
     base:        'ripstein',
@@ -2655,7 +2655,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 5 matches ADD. Observational (PB).',
   },
   {
-    slug:        'fairy-spinning-ducking-osis',
+    slug:        'fairy_spinning_ducking_osis',
     name:        'fairy spinning ducking osis',
     operator:    'fairy',
     base:        'spinning-ducking-osis',
@@ -2666,7 +2666,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 6 matches ADD. Observational (SG).',
   },
   {
-    slug:        'fairy-swirling-swirl',
+    slug:        'fairy_swirling_swirl',
     name:        'fairy swirling swirl',
     operator:    'fairy + swirling',
     base:        'swirl',
@@ -2677,7 +2677,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 5 matches ADD. Observational (PB).',
   },
   {
-    slug:        'fairy-whirl',
+    slug:        'fairy_whirl',
     name:        'fairy whirl',
     operator:    'fairy',
     base:        'whirl',
@@ -2688,7 +2688,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 4 matches ADD. Observational (FB/FM/MULTI/SG).',
   },
   {
-    slug:        'barraging-barfly',
+    slug:        'barraging_barfly',
     name:        'barraging barfly',
     operator:    'barraging',
     base:        'barfly',
@@ -2699,7 +2699,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 6 matches ADD. Observational (FM).',
   },
   {
-    slug:        'barraging-butterfly',
+    slug:        'barraging_butterfly',
     name:        'barraging butterfly',
     operator:    'barraging',
     base:        'butterfly',
@@ -2710,7 +2710,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 5 matches ADD. Observational (FM/PB).',
   },
   {
-    slug:        'barraging-eggbeater',
+    slug:        'barraging_eggbeater',
     name:        'barraging eggbeater',
     operator:    'barraging',
     base:        'eggbeater',
@@ -2721,7 +2721,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 5 matches ADD. Observational (PB).',
   },
   {
-    slug:        'barraging-illusion',
+    slug:        'barraging_illusion',
     name:        'barraging illusion',
     operator:    'barraging',
     base:        'illusion',
@@ -2732,7 +2732,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 4 matches ADD. Observational (PB).',
   },
   {
-    slug:        'barraging-legover',
+    slug:        'barraging_legover',
     name:        'barraging legover',
     operator:    'barraging',
     base:        'legover',
@@ -2743,7 +2743,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 4 matches ADD. Observational (FM/PB).',
   },
   {
-    slug:        'barraging-mirage',
+    slug:        'barraging_mirage',
     name:        'barraging mirage',
     operator:    'barraging',
     base:        'mirage',
@@ -2754,7 +2754,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 4 matches ADD. Observational (PB).',
   },
   {
-    slug:        'barraging-pickup',
+    slug:        'barraging_pickup',
     name:        'barraging pickup',
     operator:    'barraging',
     base:        'pickup',
@@ -2765,7 +2765,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'barraging-whirl',
+    slug:        'barraging_whirl',
     name:        'barraging whirl',
     operator:    'barraging',
     base:        'whirl',
@@ -2776,7 +2776,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 5 matches ADD. Observational (PB).',
   },
   {
-    slug:        'symposium-atomic-butterfly',
+    slug:        'symposium_atomic_butterfly',
     name:        'symposium atomic butterfly',
     operator:    'symposium',
     base:        'atomic-butterfly',
@@ -2787,7 +2787,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Symposium-chassis promotion. symposium(+1) no-plant on the first dex; bracket count 5 matches ADD. Observational (PB).',
   },
   {
-    slug:        'symposium-blur',
+    slug:        'symposium_blur',
     name:        'symposium blur',
     operator:    'symposium',
     base:        'blur',
@@ -2798,7 +2798,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Symposium-chassis promotion. symposium(+1) no-plant on the first dex; bracket count 5 matches ADD. Observational (FB).',
   },
   {
-    slug:        'symposium-bubba',
+    slug:        'symposium_bubba',
     name:        'symposium bubba',
     operator:    'symposium',
     base:        'bubba',
@@ -2809,7 +2809,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Symposium-chassis promotion. symposium(+1) no-plant on the first dex; bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'symposium-mobius',
+    slug:        'symposium_mobius',
     name:        'symposium mobius',
     operator:    'symposium',
     base:        'mobius',
@@ -2820,7 +2820,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Symposium-chassis promotion. symposium(+1) no-plant on the first dex; bracket count 6 matches ADD. Observational (PB).',
   },
   {
-    slug:        'symposium-swirl',
+    slug:        'symposium_swirl',
     name:        'symposium swirl',
     operator:    'symposium',
     base:        'swirl',
@@ -2831,7 +2831,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Symposium-chassis promotion. symposium(+1) no-plant on the first dex; bracket count 4 matches ADD. Observational (PB).',
   },
   {
-    slug:        'symposium-tomahawk',
+    slug:        'symposium_tomahawk',
     name:        'symposium tomahawk',
     operator:    'symposium',
     base:        'tomahawk',
@@ -2842,7 +2842,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Symposium-chassis promotion. symposium(+1) no-plant on the first dex; bracket count 6 matches ADD. Observational (FB).',
   },
   {
-    slug:        'symposium-whirling-swirl',
+    slug:        'symposium_whirling_swirl',
     name:        'symposium whirling swirl',
     operator:    'symposium',
     base:        'whirling-swirl',
@@ -2853,7 +2853,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Symposium-chassis promotion. symposium(+1) no-plant on the first dex; bracket count 5 matches ADD. Observational (FB/PB).',
   },
   {
-    slug:        'symposium-miraging-mirage',
+    slug:        'symposium_miraging_mirage',
     name:        'symposium miraging mirage',
     operator:    'symposium + miraging',
     base:        'mirage',
@@ -2864,7 +2864,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Symposium-chassis promotion. symposium(+1) no-plant on the first dex; bracket count 4 matches ADD. Observational (PB).',
   },
   {
-    slug:        'swirling-butterfly',
+    slug:        'swirling_butterfly',
     name:        'swirling butterfly',
     operator:    'swirling',
     base:        'butterfly',
@@ -2875,7 +2875,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'swirling-mirage',
+    slug:        'swirling_mirage',
     name:        'swirling mirage',
     operator:    'swirling',
     base:        'mirage',
@@ -2886,7 +2886,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'swirling-paradox-mirage',
+    slug:        'swirling_paradox_mirage',
     name:        'swirling paradox mirage',
     operator:    'swirling',
     base:        'paradox-mirage',
@@ -2897,7 +2897,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'swirling-swirl',
+    slug:        'swirling_swirl',
     name:        'swirling swirl',
     operator:    'swirling',
     base:        'swirl',
@@ -2908,7 +2908,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 4 matches ADD. Observational (PB).',
   },
   {
-    slug:        'swirling-symposium-whirl',
+    slug:        'swirling_symposium_whirl',
     name:        'swirling symposium whirl',
     operator:    'swirling',
     base:        'symposium-whirl',
@@ -2919,7 +2919,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 5 matches ADD. Observational (SG).',
   },
   {
-    slug:        'swirling-whirl',
+    slug:        'swirling_whirl',
     name:        'swirling whirl',
     operator:    'swirling',
     base:        'whirl',
@@ -2930,7 +2930,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'swirling-whirling-swirl',
+    slug:        'swirling_whirling_swirl',
     name:        'swirling whirling swirl',
     operator:    'swirling',
     base:        'whirling-swirl',
@@ -2941,7 +2941,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 5 matches ADD. Observational (SG).',
   },
   {
-    slug:        'pixie-dolomite',
+    slug:        'pixie_dolomite',
     name:        'pixie dolomite',
     operator:    'pixie',
     base:        'dolomite',
@@ -2952,7 +2952,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Pixie-chassis promotion. pixie(+1) entry set; bracket count 6 matches ADD. Observational (SG).',
   },
   {
-    slug:        'pixie-rev-whirl',
+    slug:        'pixie_rev_whirl',
     name:        'pixie rev whirl',
     operator:    'pixie',
     base:        'rev-whirl',
@@ -2963,7 +2963,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Pixie-chassis promotion. pixie(+1) entry set; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'pixie-spinning-paradox-blender',
+    slug:        'pixie_spinning_paradox_blender',
     name:        'pixie spinning paradox blender',
     operator:    'pixie',
     base:        'spinning-paradox-blender',
@@ -2974,7 +2974,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Pixie-chassis promotion. pixie(+1) entry set; bracket count 7 matches ADD. Observational (FM).',
   },
   {
-    slug:        'pixie-spinning-paradox-symposium-whirl',
+    slug:        'pixie_spinning_paradox_symposium_whirl',
     name:        'pixie spinning paradox symposium whirl',
     operator:    'pixie',
     base:        'spinning-paradox-symposium-whirl',
@@ -2985,7 +2985,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Pixie-chassis promotion. pixie(+1) entry set; bracket count 7 matches ADD. Observational (FM).',
   },
   {
-    slug:        'pixie-spinning-paradox-whirl',
+    slug:        'pixie_spinning_paradox_whirl',
     name:        'pixie spinning paradox whirl',
     operator:    'pixie',
     base:        'spinning-paradox-whirl',
@@ -2996,7 +2996,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Pixie-chassis promotion. pixie(+1) entry set; bracket count 6 matches ADD. Observational (FM).',
   },
   {
-    slug:        'pixie-symposium-rev-whirl',
+    slug:        'pixie_symposium_rev_whirl',
     name:        'pixie symposium rev whirl',
     operator:    'pixie + symposium',
     base:        'rev-whirl',
@@ -3007,7 +3007,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Pixie-chassis promotion. pixie(+1) entry set; bracket count 5 matches ADD. Observational (SG).',
   },
   {
-    slug:        'pixie-symposium-whirling-swirl',
+    slug:        'pixie_symposium_whirling_swirl',
     name:        'pixie symposium whirling swirl',
     operator:    'pixie + symposium',
     base:        'whirling-swirl',
@@ -3018,7 +3018,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Pixie-chassis promotion. pixie(+1) entry set; bracket count 6 matches ADD. Observational (FM).',
   },
   {
-    slug:        'tapping-legover',
+    slug:        'tapping_legover',
     name:        'tapping legover',
     operator:    'tapping',
     base:        'legover',
@@ -3029,7 +3029,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Tapping-chassis promotion. tapping(+1); bracket count 3 matches ADD. Observational (PB).',
   },
   {
-    slug:        'miraging-symposium-butterfly',
+    slug:        'miraging_symposium_butterfly',
     name:        'miraging symposium butterfly',
     operator:    'miraging',
     base:        'symposium-butterfly',
@@ -3040,7 +3040,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Miraging-chassis promotion. miraging(+1); bracket count 5 matches ADD. Observational (PB).',
   },
   {
-    slug:        'miraging-symposium-whirl',
+    slug:        'miraging_symposium_whirl',
     name:        'miraging symposium whirl',
     operator:    'miraging',
     base:        'symposium-whirl',
@@ -3051,7 +3051,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Miraging-chassis promotion. miraging(+1); bracket count 5 matches ADD. Observational (PB).',
   },
   {
-    slug:        'paradox-fusion',
+    slug:        'paradox_fusion',
     name:        'paradox fusion',
     operator:    'paradox',
     base:        'fusion',
@@ -3062,7 +3062,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Paradox-chassis promotion. paradox(+1); bracket count 6 matches ADD. Observational (PB).',
   },
   {
-    slug:        'paradox-symposium-illusion',
+    slug:        'paradox_symposium_illusion',
     name:        'paradox symposium illusion',
     operator:    'paradox',
     base:        'symposium-illusion',
@@ -3073,7 +3073,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Paradox-chassis promotion. paradox(+1); bracket count 4 matches ADD. Observational (FM).',
   },
   {
-    slug:        'whirling-mirage',
+    slug:        'whirling_mirage',
     name:        'whirling mirage',
     operator:    'whirling',
     base:        'mirage',
@@ -3084,7 +3084,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Whirling-chassis promotion. whirling(+1) OP IN [DEX] prefix; bracket count 3 matches ADD. Observational (PB).',
   },
   {
-    slug:        'whirling-pickup',
+    slug:        'whirling_pickup',
     name:        'whirling pickup',
     operator:    'whirling',
     base:        'pickup',
@@ -3095,7 +3095,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Whirling-chassis promotion. whirling(+1) OP IN [DEX] prefix; bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'whirling-whirl',
+    slug:        'whirling_whirl',
     name:        'whirling whirl',
     operator:    'whirling',
     base:        'whirl',
@@ -3106,7 +3106,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Whirling-chassis promotion. whirling(+1) OP IN [DEX] prefix; bracket count 4 matches ADD. Observational (PB).',
   },
   {
-    slug:        'whirling-butterfly',
+    slug:        'whirling_butterfly',
     name:        'whirling butterfly',
     operator:    'whirling',
     base:        'butterfly',
@@ -3117,7 +3117,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Whirling-chassis promotion. whirling(+1) OP IN [DEX] prefix; bracket count 4 matches ADD. Observational (FM).',
   },
   {
-    slug:        'whirling-rake',
+    slug:        'whirling_rake',
     name:        'whirling rake',
     operator:    'whirling',
     base:        'rake',
@@ -3128,7 +3128,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Whirling-chassis promotion. whirling(+1) OP IN [DEX] prefix; two brackets plus the unbracketed swing element equal 3 ADD. Observational (FM).',
   },
   {
-    slug:        'stepping-guay',
+    slug:        'stepping_guay',
     name:        'stepping guay',
     operator:    'stepping',
     base:        'guay',
@@ -3139,7 +3139,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. stepping on canonical guay; bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'diving-guay',
+    slug:        'diving_guay',
     name:        'diving guay',
     operator:    'diving',
     base:        'guay',
@@ -3150,7 +3150,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. diving on canonical guay; bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'tapping-guay',
+    slug:        'tapping_guay',
     name:        'tapping guay',
     operator:    'tapping',
     base:        'guay',
@@ -3161,7 +3161,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. tapping on canonical guay; bracket count 3 matches ADD. Observational (PB).',
   },
   {
-    slug:        'fairy-guay',
+    slug:        'fairy_guay',
     name:        'fairy guay',
     operator:    'fairy',
     base:        'guay',
@@ -3172,7 +3172,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. fairy on canonical guay; bracket count 3 matches ADD. Observational (FM).',
   },
   {
-    slug:        'inspinning-guay',
+    slug:        'inspinning_guay',
     name:        'inspinning guay',
     operator:    'inspinning',
     base:        'guay',
@@ -3183,7 +3183,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. inspinning on canonical guay; bracket count 3 matches ADD. Observational (FM).',
   },
   {
-    slug:        'pixie-guay',
+    slug:        'pixie_guay',
     name:        'pixie guay',
     operator:    'pixie',
     base:        'guay',
@@ -3194,7 +3194,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. pixie on canonical guay; bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'pixie-mirage',
+    slug:        'pixie_mirage',
     name:        'pixie mirage',
     operator:    'pixie',
     base:        'mirage',
@@ -3205,7 +3205,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. pixie on canonical mirage; bracket count 3 matches ADD. Observational (FM).',
   },
   {
-    slug:        'pixie-clipper',
+    slug:        'pixie_clipper',
     name:        'pixie clipper',
     operator:    'pixie',
     base:        'clipper-stall',
@@ -3216,7 +3216,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'pixie on the clipper stall; the clipper terminal is the 2-ADD cross-body stall, so bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'pixie-double-pickup',
+    slug:        'pixie_double_pickup',
     name:        'pixie double pickup',
     operator:    'pixie',
     base:        'double-pickup',
@@ -3227,7 +3227,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. pixie on canonical double-pickup; bracket count 4 matches ADD. Observational (FM).',
   },
   {
-    slug:        'pixie-diving-butterfly',
+    slug:        'pixie_diving_butterfly',
     name:        'pixie diving butterfly',
     operator:    'pixie',
     base:        'diving-butterfly',
@@ -3238,7 +3238,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. pixie on canonical diving-butterfly; bracket count 5 matches ADD. Observational (SG).',
   },
   {
-    slug:        'pixie-ducking-butterfly',
+    slug:        'pixie_ducking_butterfly',
     name:        'pixie ducking butterfly',
     operator:    'pixie',
     base:        'ducking-butterfly',
@@ -3249,7 +3249,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. pixie on canonical ducking-butterfly; bracket count 5 matches ADD. Observational (SG).',
   },
   {
-    slug:        'pixie-ducking-mirage',
+    slug:        'pixie_ducking_mirage',
     name:        'pixie ducking mirage',
     operator:    'pixie',
     base:        'ducking-mirage',
@@ -3260,7 +3260,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. pixie on canonical ducking-mirage; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'pixie-symposium-reverse-whirl',
+    slug:        'pixie_symposium_reverse_whirl',
     name:        'pixie symposium reverse whirl',
     operator:    'pixie',
     base:        'symposium-reverse-whirl',
@@ -3271,7 +3271,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. pixie on canonical symposium-reverse-whirl; bracket count 5 matches ADD. Observational (SG).',
   },
   {
-    slug:        'fairy-ducking-mirage',
+    slug:        'fairy_ducking_mirage',
     name:        'fairy ducking mirage',
     operator:    'fairy',
     base:        'ducking-mirage',
@@ -3282,7 +3282,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. fairy on canonical ducking-mirage; bracket count 4 matches ADD. Observational (FM).',
   },
   {
-    slug:        'fairy-torque',
+    slug:        'fairy_torque',
     name:        'fairy torque',
     operator:    'fairy',
     base:        'torque',
@@ -3293,7 +3293,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. fairy on canonical torque; bracket count 5 matches ADD. Observational (FM).',
   },
   {
-    slug:        'diving-clipper',
+    slug:        'diving_clipper',
     name:        'diving clipper',
     operator:    'diving',
     base:        'clipper-stall',
@@ -3304,7 +3304,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'diving on the clipper stall; the clipper terminal is the 2-ADD cross-body stall, so bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'diving-toe-stall',
+    slug:        'diving_toe_stall',
     name:        'diving toe stall',
     operator:    'diving',
     base:        'toe-stall',
@@ -3315,7 +3315,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. diving on canonical toe-stall; bracket count 2 matches ADD. Observational (SG).',
   },
   {
-    slug:        'stepping-barrage',
+    slug:        'stepping_barrage',
     name:        'stepping barrage',
     operator:    'stepping',
     base:        'barrage',
@@ -3326,7 +3326,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. stepping on canonical barrage; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'stepping-clipper',
+    slug:        'stepping_clipper',
     name:        'stepping clipper',
     operator:    'stepping',
     base:        'clipper-stall',
@@ -3337,7 +3337,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'stepping on the clipper stall; the clipper terminal is the 2-ADD cross-body stall, so bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'gyro-clipper',
+    slug:        'gyro_clipper',
     name:        'gyro clipper',
     operator:    'gyro',
     base:        'clipper-stall',
@@ -3348,7 +3348,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'gyro on the clipper stall; the clipper terminal is the 2-ADD cross-body stall, so bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'gyro-diving-butterfly',
+    slug:        'gyro_diving_butterfly',
     name:        'gyro diving butterfly',
     operator:    'gyro',
     base:        'diving-butterfly',
@@ -3359,7 +3359,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. gyro on canonical diving-butterfly; bracket count 5 matches ADD. Observational (SG).',
   },
   {
-    slug:        'symposium-whirling-mirage',
+    slug:        'symposium_whirling_mirage',
     name:        'symposium whirling mirage',
     operator:    'symposium',
     base:        'whirling-mirage',
@@ -3370,7 +3370,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. symposium on canonical whirling-mirage; bracket count 4 matches ADD. Observational (FM).',
   },
   {
-    slug:        'spinning-butterfly-kick',
+    slug:        'spinning_butterfly_kick',
     name:        'spinning butterfly kick',
     operator:    'spinning',
     base:        'butterfly-kick',
@@ -3381,7 +3381,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. spinning on canonical butterfly-kick; bracket count 3 matches ADD. Observational (FM).',
   },
   {
-    slug:        'barraging-barfly-swirl',
+    slug:        'barraging_barfly_swirl',
     name:        'barraging barfly swirl',
     operator:    'barraging',
     base:        'barfly-swirl',
@@ -3392,7 +3392,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. barraging on canonical barfly-swirl; bracket count 7 matches ADD. Observational (SG).',
   },
   {
-    slug:        'ducking-symposium-reverse-whirl',
+    slug:        'ducking_symposium_reverse_whirl',
     name:        'ducking symposium reverse whirl',
     operator:    'ducking',
     base:        'symposium-reverse-whirl',
@@ -3403,7 +3403,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. ducking on canonical symposium-reverse-whirl; bracket count 5 matches ADD. Observational (SG).',
   },
   {
-    slug:        'tapping-double-over-down',
+    slug:        'tapping_double_over_down',
     name:        'tapping double over down',
     operator:    'tapping',
     base:        'double-over-down',
@@ -3414,7 +3414,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. tapping on canonical double-over-down; bracket count 5 matches ADD. Observational (FM).',
   },
   {
-    slug:        'gyro-diving-clipper',
+    slug:        'gyro_diving_clipper',
     name:        'gyro diving clipper',
     operator:    'gyro',
     base:        'diving-clipper',
@@ -3425,7 +3425,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. gyro on canonical diving-clipper; bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'bill-ted-s-excellent-adventure',
+    slug:        'bill_ted_s_excellent_adventure',
     name:        'bill ted s excellent adventure',
     operator:    'flailing',
     base:        'eggbeater',
@@ -3436,7 +3436,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'FootbagMoves promotion at structural ADD 5. flailing = symposium illusioning (+2); the explicit Symposium in the FootbagMoves name is the same symposium (redundant, deduped to a single symposium). flailing(2) + eggbeater(3) = 5. FootbagMoves lists 7; published at 5 with FM-7 as a documented operator-weight divergence. eggbeater family. Flailing set-prefix JOB pending; not curator-confirmed.',
   },
   {
-    slug:        'oh-wheely',
+    slug:        'oh_wheely',
     name:        'oh wheely',
     operator:    'nuclear',
     base:        'nova',
