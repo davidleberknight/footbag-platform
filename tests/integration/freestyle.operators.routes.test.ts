@@ -33,10 +33,11 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Modifier inventory: a set modifier (canonical-set formula), a rotational
-  // set modifier (split ADD), and a body modifier (no notation).
+  // Modifier inventory: two set modifiers (canonical-set formula) and a body
+  // modifier (no notation). All flat +1 - atomic is +1 on every base, with no
+  // rotational class.
   insertFreestyleTrickModifier(db, { slug: 'pixie',   modifier_name: 'Pixie',   add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set' });
-  insertFreestyleTrickModifier(db, { slug: 'atomic',  modifier_name: 'Atomic',  add_bonus: 1, add_bonus_rotational: 2, modifier_type: 'set' });
+  insertFreestyleTrickModifier(db, { slug: 'atomic',  modifier_name: 'Atomic',  add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set' });
   insertFreestyleTrickModifier(db, { slug: 'paradox', modifier_name: 'Paradox', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body' });
 
   // Tricks that use pixie, for the stub "common tricks" list.
@@ -81,10 +82,13 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(res.text).toContain('href="/freestyle/tricks?view=movement-system#movement-pixie"');
   });
 
-  it('shows the ADD weight from the table (split weight for rotational)', async () => {
+  it('shows the flat ADD weight from the table for each modifier', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
     expect(rowSlice(res.text, 'paradox')).toContain('+1');
-    expect(rowSlice(res.text, 'atomic')).toContain('+1 / +2 rot');
+    expect(rowSlice(res.text, 'atomic')).toContain('+1');
+    // Atomic is +1 on every base (no rotational class); the retired split
+    // "+1 / +2 rot" rendering must not reappear on its row.
+    expect(rowSlice(res.text, 'atomic')).not.toContain('rot');
   });
 
   it('shows notation only for set modifiers, never for body modifiers', async () => {
