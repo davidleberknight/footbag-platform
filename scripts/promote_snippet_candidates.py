@@ -238,6 +238,7 @@ def emit_sidecar(
     active_slugs: set[str],
     pending_slugs: set[str],
     alias_slugs: dict[str, str],
+    nontrick_slugs: set[str],
 ) -> Path | None:
     slug = (row.get("trick_slug") or "").strip()
     if not slug:
@@ -285,6 +286,7 @@ def emit_sidecar(
         active_slugs=active_slugs,
         pending_slugs=pending_slugs,
         alias_slugs=alias_slugs,
+        nontrick_slugs=nontrick_slugs,
     )
 
     if dry_run:
@@ -304,7 +306,7 @@ def main() -> int:
         print(f"ERROR: {SNIPPETS_CSV} not found", file=sys.stderr)
         return 2
 
-    active_slugs, pending_slugs, alias_slugs = load_slug_sets_from_csvs(REPO_ROOT)
+    active_slugs, pending_slugs, alias_slugs, nontrick_slugs = load_slug_sets_from_csvs(REPO_ROOT)
 
     already_emitted = existing_video_ids()
     print(f"Existing sidecars on disk: {len(already_emitted)} unique (platform, video_id) pairs")
@@ -344,6 +346,7 @@ def main() -> int:
                     active_slugs=active_slugs,
                     pending_slugs=pending_slugs,
                     alias_slugs=alias_slugs,
+                    nontrick_slugs=nontrick_slugs,
                 )
             except MediaTagInvariantError as e:
                 print(f"ERROR: media-tag invariant violation: {e}", file=sys.stderr)

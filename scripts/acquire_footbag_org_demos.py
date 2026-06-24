@@ -124,7 +124,7 @@ def build_plan(rows: list[dict]) -> list[dict]:
 def validate(plan: list[dict]) -> list[str]:
     """Return a list of error strings; empty means clean."""
     errors: list[str] = []
-    active, pending, alias = load_slug_sets_from_csvs(REPO_ROOT)
+    active, pending, alias, nontrick = load_slug_sets_from_csvs(REPO_ROOT)
     contributors = {p["contributor"] for p in plan if p["contributor"]}
 
     stems_seen: set[str] = set()
@@ -134,6 +134,7 @@ def validate(plan: list[dict]) -> list[str]:
             validate_media_tags(
                 p["sidecar_path"].name, p["tags"],
                 active_slugs=active, pending_slugs=pending, alias_slugs=alias,
+                nontrick_slugs=nontrick,
             )
         except MediaTagInvariantError as e:
             errors.append(f"tag invariant: {e}")

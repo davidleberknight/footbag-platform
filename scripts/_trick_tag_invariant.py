@@ -4,7 +4,10 @@
 Rules:
   1. Every media item MUST carry at least one semantic tag.
   2. Semantic tag domains:
-     - TRICK  — kebab-case body matching freestyle_tricks.slug (active or pending)
+     - TRICK  — kebab-case body matching a trick freestyle_tricks.slug (active or
+                pending). A set/operator/modifier slug must use its role prefix;
+                bare tags are reserved for trick-role media (pixie/fairy are
+                dual-role and may stay bare).
      - EVENT  — body starting with 'event_'
      - SYSTEM — body starting with 'demo_' or 'fh_'
      - LINKAGE — body starting with 'set_', 'operator_', 'family_', 'player_', or 'club_'
@@ -60,6 +63,16 @@ SEMANTIC_PREFIXES: tuple[str, ...] = (
     "concept_", "discipline_",
 )
 
+# Slugs that carry a trick role in addition to their set/operator role, so a bare
+# hashtag stays valid for them. Mirrors the dual-role registry in
+# src/content/freestyleHashtagRoles.ts; keep the two in lockstep.
+DUAL_ROLE_TRICK_SLUGS: frozenset[str] = frozenset({"pixie", "fairy"})
+
+# freestyle_tricks.category values that are not tricks. A bare hashtag whose slug
+# has one of these categories is rejected (use the role-prefixed tag) unless the
+# slug is dual-role above.
+NONTRICK_CATEGORIES: frozenset[str] = frozenset({"set", "modifier", "operator"})
+
 
 class MediaTagInvariantError(ValueError):
     """Raised when a media item violates the media-tag invariant."""
@@ -86,15 +99,19 @@ def validate_media_tags(
     active_slugs: set[str],
     pending_slugs: set[str],
     alias_slugs: dict[str, str],
+    nontrick_slugs: frozenset[str] | set[str] = frozenset(),
 ) -> None:
     """Validate a media item's tag list. Raise MediaTagInvariantError on the
     first per-tag violation, or after the loop if no semantic tag is found.
 
-    label:         human-readable identifier surfaced in the error message.
-    tags:          iterable of tag strings; each MUST start with '#'.
-    active_slugs:  freestyle_tricks.slug values where is_active=1.
-    pending_slugs: freestyle_tricks.slug values where is_active=0.
-    alias_slugs:   alias_slug -> canonical trick_slug map (for error clarity).
+    label:          human-readable identifier surfaced in the error message.
+    tags:           iterable of tag strings; each MUST start with '#'.
+    active_slugs:   freestyle_tricks.slug values where is_active=1.
+    pending_slugs:  freestyle_tricks.slug values where is_active=0.
+    alias_slugs:    alias_slug -> canonical trick_slug map (for error clarity).
+    nontrick_slugs: slugs whose freestyle_tricks.category is set/modifier/operator;
+                    a bare hashtag for one of these is rejected unless the slug is
+                    a dual-role trick (DUAL_ROLE_TRICK_SLUGS).
     """
     has_semantic = False
     for raw_tag in tags:
@@ -127,6 +144,13 @@ def validate_media_tags(
                 f"nor a kebab-case slug"
             )
         if body in active_slugs or body in pending_slugs:
+            if body in nontrick_slugs and body not in DUAL_ROLE_TRICK_SLUGS:
+                raise MediaTagInvariantError(
+                    f"{label}: bare tag {raw_tag!r} names a non-trick concept "
+                    f"(a set or operator); the bare-tag namespace is reserved for "
+                    f"trick-role media — use its role-prefixed tag "
+                    f"(e.g. #set_{body} or #operator_{body})"
+                )
             has_semantic = True
             continue
         if body in alias_slugs:
@@ -148,9 +172,9 @@ def validate_media_tags(
 
 def load_slug_sets_from_db(
     con: sqlite3.Connection,
-) -> tuple[set[str], set[str], dict[str, str]]:
-    """Return (active_slugs, pending_slugs, alias_slugs) from an open
-    connection. Caller must ensure the freestyle_tricks +
+) -> tuple[set[str], set[str], dict[str, str], set[str]]:
+    """Return (active_slugs, pending_slugs, alias_slugs, nontrick_slugs) from an
+    open connection. Caller must ensure the freestyle_tricks +
     freestyle_trick_aliases tables are loaded.
     """
     active = {r[0] for r in con.execute(
@@ -162,14 +186,18 @@ def load_slug_sets_from_db(
     aliases = {r[0]: r[1] for r in con.execute(
         "SELECT alias_slug, trick_slug FROM freestyle_trick_aliases"
     )}
-    return active, pending, aliases
+    nontrick = {r[0] for r in con.execute(
+        "SELECT slug FROM freestyle_tricks "
+        "WHERE category IN ('set', 'modifier', 'operator')"
+    )}
+    return active, pending, aliases, nontrick
 
 
 def load_slug_sets_from_csvs(
     repo_root: Path,
-) -> tuple[set[str], set[str], dict[str, str]]:
-    """Return (active_slugs, pending_slugs, alias_slugs) read directly from
-    the curated CSVs. Useful for tools that run before a DB reset.
+) -> tuple[set[str], set[str], dict[str, str], set[str]]:
+    """Return (active_slugs, pending_slugs, alias_slugs, nontrick_slugs) read
+    directly from the curated CSVs. Useful for tools that run before a DB reset.
     """
     tricks_csv     = repo_root / "freestyle" / "inputs" / "noise"   / "tricks.csv"
     red_additions  = repo_root / "freestyle" / "inputs" / "curated" / "tricks" / "red_additions_2026_04_20.csv"
@@ -181,12 +209,16 @@ def load_slug_sets_from_csvs(
     active: set[str] = set()
     pending: set[str] = set()
     aliases: dict[str, str] = {}
+    nontrick: set[str] = set()
 
     with tricks_csv.open(newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             name = (row.get("trick_canon") or "").strip()
             if name:
-                active.add(name_to_slug(name))
+                slug = name_to_slug(name)
+                active.add(slug)
+                if (row.get("category") or "").strip() in NONTRICK_CATEGORIES:
+                    nontrick.add(slug)
 
     with red_additions.open(newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
@@ -198,6 +230,8 @@ def load_slug_sets_from_csvs(
                 active.add(slug)
             else:
                 pending.add(slug)
+            if (row.get("category") or "").strip() in NONTRICK_CATEGORIES:
+                nontrick.add(slug)
             inline_aliases = (row.get("aliases") or "").strip()
             if inline_aliases:
                 for a in inline_aliases.split("|"):
@@ -212,4 +246,4 @@ def load_slug_sets_from_csvs(
             if alias and target:
                 aliases[name_to_slug(alias)] = name_to_slug(target)
 
-    return active, pending, aliases
+    return active, pending, aliases, nontrick

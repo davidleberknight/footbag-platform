@@ -58,7 +58,7 @@ def main() -> int:
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
     try:
-        active, pending, aliases = load_slug_sets_from_db(con)
+        active, pending, aliases, nontrick = load_slug_sets_from_db(con)
         items = list(con.execute(
             "SELECT id, source_filename, video_id "
             "FROM media_items "
@@ -80,6 +80,7 @@ def main() -> int:
                 active_slugs=active,
                 pending_slugs=pending,
                 alias_slugs=aliases,
+                nontrick_slugs=nontrick,
             )
         except MediaTagInvariantError as e:
             failures.append(str(e))
