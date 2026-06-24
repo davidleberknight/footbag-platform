@@ -1102,7 +1102,8 @@ const operatorTitleCase = (slug: string): string =>
 
 function operatorFeelCard(slug: string): ModifierFeelCard | undefined {
   return SET_MODIFIER_FEEL_CARDS.find(c => c.slug === slug)
-    ?? BODY_MODIFIER_FEEL_CARDS.find(c => c.slug === slug);
+    ?? BODY_MODIFIER_FEEL_CARDS.find(c => c.slug === slug)
+    ?? ENTRY_TOPOLOGY_FEEL_CARDS.find(c => c.slug === slug);
 }
 
 // Set-only notation: a modifier carries a notation line only when it exists as a
@@ -3446,19 +3447,26 @@ const SET_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   },
 ];
 
-// Curator-authored. 4 body-cluster cards, rendered top-to-bottom in the
-// order below.
-const BODY_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
+// Curator-authored. Paradox is an entry / side topology (a cross-body framing
+// of how the trick enters), not a body movement, so it stands in its own cluster
+// separate from the midtime body operators, alongside the other side
+// relationships and X-Dex eligibility in the Dexterities section.
+const ENTRY_TOPOLOGY_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'paradox',
     name:        'Paradox',
     glyph:       null,
     feel:        'Paradox pivots the hips between two dexes on the same set; the body changes sides mid-trick.',
-    intuition:   'A body modifier that flips cross-body orientation between dex moments.',
+    intuition:   'An entry / side topology, not a body movement: the body changes sides between dex events without changing the set foot.',
     example:     'Paradox Whirl; Paradox Mirage.',
     familyHint:  'Paradox pairs naturally with symposium and stacks inside nuclear.',
     midtimeBody: false,
   },
+];
+
+// Curator-authored. 3 body-cluster cards, rendered top-to-bottom in the
+// order below.
+const BODY_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'spinning',
     name:        'Spinning',
@@ -3671,8 +3679,9 @@ export interface FreestyleGlossaryContent {
   // Level-2 / Level-3 phrasing (movement-first). Partitioned at the service
   // layer so the template renders each cluster without status-field
   // branching: 9 set cards, 4 body cards.
-  setModifierFeelCards:  readonly ModifierFeelCard[];
-  bodyModifierFeelCards: readonly ModifierFeelCard[];
+  setModifierFeelCards:   readonly ModifierFeelCard[];
+  entryTopologyFeelCards: readonly ModifierFeelCard[];
+  bodyModifierFeelCards:  readonly ModifierFeelCard[];
   // §5 family cards, grouped primarily by display tier (Family Parents, then
   // Minor Lineages) and within each by lineage position (root lineages, then
   // branches grouped under their parent). Each card preserves its #term-{slug}
@@ -9394,8 +9403,9 @@ export const freestyleService = {
         connectivePanels: buildGlossaryConnectivePanels(allDictRows),
         abbreviations:   GLOSSARY_ABBREVIATIONS,
         familyTrees:     shapeFamilyTrees(allDictRows),
-        setModifierFeelCards:  SET_MODIFIER_FEEL_CARDS,
-        bodyModifierFeelCards: BODY_MODIFIER_FEEL_CARDS,
+        setModifierFeelCards:   SET_MODIFIER_FEEL_CARDS,
+        entryTopologyFeelCards: ENTRY_TOPOLOGY_FEEL_CARDS,
+        bodyModifierFeelCards:  BODY_MODIFIER_FEEL_CARDS,
         familyCardGroups: buildFamilyCardTierGroups(),
         otherFoundationalAtoms: coreTricks.filter(t => {
           const familySlugs = new Set([

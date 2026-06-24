@@ -132,6 +132,21 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
     expect(card![0]).toMatch(/\+1 launch primitive/i);
     expect(card![0]).not.toContain('double-dexterity');
   });
+
+  it('groups paradox under Entry / Side Topology, separate from the body operators', async () => {
+    const html = await glossary();
+    expect(html).toContain('Entry / Side Topology');
+    // The paradox card sits in the entry-topology cluster (after its heading,
+    // before the Body Modifiers cluster) and is framed as a topology, not a body
+    // movement.
+    const entryIdx   = html.indexOf('Entry / Side Topology');
+    const bodyIdx     = html.indexOf('Body Modifiers <span class="glossary-modifier-cluster-axes">');
+    const paradoxIdx = html.indexOf('id="modifier-paradox"');
+    expect(entryIdx).toBeGreaterThan(0);
+    expect(paradoxIdx).toBeGreaterThan(entryIdx);
+    expect(paradoxIdx).toBeLessThan(bodyIdx);
+    expect(html).toMatch(/entry \/ side topology, not a body movement/i);
+  });
 });
 
 describe('Glossary framing — sidebar + non-regression', () => {

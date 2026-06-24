@@ -103,7 +103,30 @@
 </div>
 
 <div class="glossary-modifier-cluster">
-  <h4 class="glossary-modifier-cluster-heading">Body Modifiers <span class="glossary-modifier-cluster-axes">(midtime &middot; entry &middot; suspension)</span></h4>
+  <h4 class="glossary-modifier-cluster-heading">Entry / Side Topology</h4>
+  <div class="glossary-modifier-cards">
+    {{#each content.entryTopologyFeelCards}}
+    <article class="glossary-modifier-card" id="modifier-{{slug}}">
+      <p class="glossary-modifier-card-head">
+        <span class="glossary-modifier-card-name">{{name}}</span>
+      </p>
+      <p class="glossary-modifier-card-feel">{{feel}}</p>
+      <p class="glossary-modifier-card-intuition">{{intuition}}</p>
+      <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
+      {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
+      <p class="glossary-modifier-card-tricks-link"><a class="glossary-outward-link" href="/freestyle/tricks?view=movement-system#movement-{{slug}}">Browse {{name}} tricks &rarr;</a></p>
+    </article>
+    {{/each}}
+  </div>
+  <p class="glossary-modifier-cluster-note">
+    A cross-body framing of how the trick enters, not a movement operator. It sits
+    with the other side relationships (same / opposite, near / far) and X-Dex
+    eligibility in the <a href="#section-dexterities">Dexterities</a> section.
+  </p>
+</div>
+
+<div class="glossary-modifier-cluster">
+  <h4 class="glossary-modifier-cluster-heading">Body Modifiers <span class="glossary-modifier-cluster-axes">(midtime &middot; suspension)</span></h4>
   <div class="glossary-modifier-cards">
     {{#each content.bodyModifierFeelCards}}
     <article class="glossary-modifier-card" id="modifier-{{slug}}">
@@ -120,10 +143,9 @@
     {{/each}}
   </div>
   <p class="glossary-modifier-cluster-note">
-    Cards above span three movement-system axes:
+    Cards above span two movement-system axes:
     <strong>spinning</strong> and <strong>ducking</strong> are
     midtime body modifiers (apex timing slot);
-    <strong>paradox</strong> is an entry topology (cross-body framing);
     <strong>symposium</strong> is a no-plant / suspension mechanic.
     The dictionary&apos;s
     <a href="/freestyle/tricks?view=movement-system">By Movement System</a>
