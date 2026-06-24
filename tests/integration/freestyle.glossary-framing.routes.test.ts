@@ -160,6 +160,13 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
     expect(html).toContain('<tr><td>paradox</td><td>+1</td><td>entry topology</td></tr>');
     expect(html).toContain('<tr><td>whirling</td><td>+1</td><td>set</td></tr>');
   });
+
+  it('does not call paradox a body modifier on the glossary (it is an entry topology)', async () => {
+    const html = await glossary();
+    expect(html).toContain('Paradox (entry topology)');          // PDX abbreviation
+    expect(html).not.toContain('Paradox (body modifier)');
+    expect(html).not.toMatch(/<code>paradox<\/code> body modifier/); // notation-flag prose
+  });
 });
 
 describe('Glossary framing — sidebar + non-regression', () => {

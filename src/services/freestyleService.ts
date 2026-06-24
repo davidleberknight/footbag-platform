@@ -3327,7 +3327,7 @@ export interface FreestyleSetModifierEntry {
 // form on the left, plain-language meaning on the right.
 export interface FreestyleGlossaryAbbreviationEntry {
   short:   string;                           // 'PDX', 'SS', 'DATW'
-  meaning: string;                           // 'Paradox (body modifier).'
+  meaning: string;                           // 'Paradox (entry topology).'
 }
 
 // One §6 "Common Advanced Modifiers" feel card. Player-facing pedagogical
@@ -3530,7 +3530,7 @@ export interface FreestyleGlossaryAbbreviations {
 // Curator-authored. Order is rendered as-is.
 const GLOSSARY_ABBREVIATIONS: FreestyleGlossaryAbbreviations = {
   trickNames: [
-    { short: 'PDX',      meaning: 'Paradox (body modifier).' },
+    { short: 'PDX',      meaning: 'Paradox (entry topology).' },
     { short: 'SS',       meaning: 'Same side / near. Component on the plant-foot side.' },
     { short: 'OP',       meaning: 'Opposite / far. Component on the non-plant-foot side.' },
     { short: 'SYMP',     meaning: 'Symposium, or symple; context decides.' },
