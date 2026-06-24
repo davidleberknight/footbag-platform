@@ -34,7 +34,7 @@ export const MODIFIER_BEGINNER_NOTES: ReadonlyMap<string, string> = new Map([
 
   // ── Well-defined operators with no curator feel card (NEEDS-CURATOR review) ──
   ['gyro',       'A half body turn carried into the dexterity moment.'],
-  ['diving',     'A forward body dive over the bag during the trick.'],
+  ['diving',     'The upper body dives over the bag and back during the trick.'],
   ['swirling',   'A body turn run through the trick, following the swirl direction.'],
   ['inspinning', 'An inward body turn carried into the dexterity moment.'],
   ['miraging',   'Adds a mirage-style downtime dexterity move onto the base.'],

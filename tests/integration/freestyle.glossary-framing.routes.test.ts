@@ -147,6 +147,13 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
     expect(paradoxIdx).toBeLessThan(bodyIdx);
     expect(html).toMatch(/entry \/ side topology, not a body movement/i);
   });
+
+  it('the modifier weights table lists the full +1 body family (head-movement + spin siblings)', async () => {
+    const html = await glossary();
+    for (const slug of ['ducking', 'weaving', 'diving', 'zulu', 'spinning', 'gyro', 'inspinning']) {
+      expect(html, `weights row ${slug}`).toContain(`<tr><td>${slug}</td><td>+1</td>`);
+    }
+  });
 });
 
 describe('Glossary framing — sidebar + non-regression', () => {

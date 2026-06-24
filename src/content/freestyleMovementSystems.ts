@@ -185,7 +185,7 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
     'Compounds: GYRO + MIRAGE, GYRO + CLIPPER.',
   ],
   ['diving',
-    'DIVE + base: a forward dive of the upper body over the bag during the dex. ' +
+    'DIVE + base: the upper body dives over the bag and back during the dex; the bag falls to the same side. ' +
     'Compounds: DIVE + CLIPPER, DIVE + MIRAGE.',
   ],
   ['miraging',
