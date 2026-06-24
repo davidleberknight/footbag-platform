@@ -53,7 +53,7 @@ For record-categories that have no canonical `freestyle_tricks.slug`, see §4: t
 Every trick-media sidecar **must** have, at minimum:
 
 ```
-"#<canonical-trick-slug>"   ← matches freestyle_tricks.slug; e.g. "#double-leg-over"
+"#<canonical-trick-slug>"   ← matches freestyle_tricks.slug; e.g. "#double_leg_over"
 "#freestyle"                ← utility marker
 "#trick"                    ← utility marker
 ```
@@ -65,12 +65,12 @@ Source/gallery tags **may** be added to mark the curated source the sidecar came
 "#passback_records"         ← PassBack record clips
 ```
 
-A future source (`shred_global`, `anz_trikz`, `footbag_finland`, `flipsider_footbag`, etc.) may want its own gallery: when introducing that, add the source tag to the **whitelist** in `scripts/_trick_tag_invariant.py` (`UTILITY_EXACT` frozenset, alongside `tricks_of_the_trade` and `passback_records`). The validator otherwise rejects snake_case tags that aren't kebab-case slugs.
+A future source (`shred_global`, `anz_trikz`, `footbag_finland`, `flipsider_footbag`, etc.) may want its own gallery: when introducing that, add the source tag to the **whitelist** in `scripts/_trick_tag_invariant.py` (`UTILITY_EXACT` frozenset, alongside `tricks_of_the_trade` and `passback_records`). The validator otherwise rejects tags that aren't a whitelisted utility tag, a recognized domain prefix, or an underscore-form `freestyle_tricks.slug`.
 
 Tag-shape rules (enforced by `scripts/_trick_tag_invariant.py:validate_media_tags`):
 
 - All tags must start with `#` and be lowercase.
-- Trick-shaped tags (kebab-case alphanumeric, not in `UTILITY_EXACT`, not a recognized domain prefix) MUST resolve to an active or pending `freestyle_tricks.slug`. Alias-only matches fail.
+- Trick-shaped tags (underscore-form alphanumeric, not in `UTILITY_EXACT`, not a recognized domain prefix) MUST resolve to an active or pending `freestyle_tricks.slug`. Alias-only matches fail.
 - Items with zero semantic tags (only utility tags, no trick or domain-prefix tag) fail.
 - Recognized domain prefixes (snake_case): `event_`, `demo_`, `fh_`, `player_`, `club_`, `set_`. Anything else needs to be in `UTILITY_EXACT`.
 
@@ -181,11 +181,11 @@ When in doubt about whether a change crosses Dave's boundary, ask. The cost of p
   "creator":       "Kenny Shults",
   "sourceId":      "tt_youtube",
   "tier":          "CANONICAL_TUTORIAL",
-  "tags":          ["#forehead-stall", "#freestyle", "#trick", "#tricks_of_the_trade"]
+  "tags":          ["#forehead_stall", "#freestyle", "#trick", "#tricks_of_the_trade"]
 }
 ```
 
-Filename: `curated/freestyle_tricks/forehead-stall_<sha1[:8]>.meta.json`. Promoted via reviewer marking on a `tt_youtube` snippet-candidate row.
+Filename: `curated/freestyle_tricks/forehead_stall_<sha1[:8]>.meta.json`. Promoted via reviewer marking on a `tt_youtube` snippet-candidate row.
 
 ### PassBack record example
 
@@ -197,11 +197,11 @@ Filename: `curated/freestyle_tricks/forehead-stall_<sha1[:8]>.meta.json`. Promot
   "creator":       "Norek",
   "sourceId":      "passback_records",
   "tier":          "RECORD",
-  "tags":          ["#blurry-whirl", "#freestyle", "#trick", "#passback_records"]
+  "tags":          ["#blurry_whirl", "#freestyle", "#trick", "#passback_records"]
 }
 ```
 
-Filename: `curated/freestyle_tricks/blurry-whirl_<sha1[:8]>.meta.json`.
+Filename: `curated/freestyle_tricks/blurry_whirl_<sha1[:8]>.meta.json`.
 
 ### Same trick, distinct media (NOT a duplicate)
 
@@ -210,14 +210,14 @@ The two sidecars below coexist legitimately:
 ```jsonc
 // TT tutorial: how to do DLO
 { "sourceId": "tt_youtube", "tier": "CANONICAL_TUTORIAL",
-  "tags": ["#double-leg-over", "#freestyle", "#trick", "#tricks_of_the_trade"], ... }
+  "tags": ["#double_leg_over", "#freestyle", "#trick", "#tricks_of_the_trade"], ... }
 
 // PassBack record: proof of N consecutive DLO reps
 { "sourceId": "passback_records", "tier": "RECORD",
-  "tags": ["#double-leg-over", "#freestyle", "#trick", "#passback_records"], ... }
+  "tags": ["#double_leg_over", "#freestyle", "#trick", "#passback_records"], ... }
 ```
 
-Same `trick_slug` (`double-leg-over`), distinct `(source_id, video_url)` → distinct sidecars → not a duplicate. Both render in the trick-detail page's reference media; each renders in its own source-specific gallery.
+Same `trick_slug` (`double_leg_over`), distinct `(source_id, video_url)` → distinct sidecars → not a duplicate. Both render in the trick-detail page's reference media; each renders in its own source-specific gallery.
 
 ### Record-category example (no canonical trick slug)
 

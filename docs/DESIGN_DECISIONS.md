@@ -1034,11 +1034,11 @@ Decision:
 
 Events and clubs must define unique, standardized hashtags. These are validated at creation to prevent collisions. Member-uploaded media tagged with a standard hashtag auto-links to corresponding event/club galleries on page load, leveraging this convention. Users may also invent new hashtags, and these may be discoverable by other members. Also, the \#tutorial hashtag will receive special attention for member-created educational media. The User Stories document provides the rest of the detail for these use cases.
 
-Hashtag-driven coupling extends to freestyle tricks and persons in addition to events and clubs. Trick slugs (e.g. `#ripwalk`) are stored as freeform tags (`tags.is_standard=0`); uniqueness is inherited from `freestyle_tricks.slug PRIMARY KEY` and the no-rename commitment makes the slug a stable canonical identity for life. Person hashtags reuse the member slug. Records have no separate hashtag namespace; record-attributed media is reachable through its parent trick's gallery. No foreign key exists from `media_items` to domain tables; domain coupling is purely tag-based. `tags.standard_type` remains scoped to events and clubs.
+Hashtag-driven coupling extends to freestyle tricks and persons in addition to events and clubs. Trick slugs (e.g. `#ripwalk`) are stored as freeform tags (`tags.is_standard=0`); uniqueness is inherited from `freestyle_tricks.slug PRIMARY KEY` and the no-rename commitment makes the slug a stable canonical identity for life. A trick's slug, its hashtag body (the text after `#`), and its detail-page URL segment are one identical lowercase token of letters, digits, and underscores, with the underscore as the only word separator (the trick *double leg over* is slug `double_leg_over`, hashtag `#double_leg_over`, page `/freestyle/tricks/double_leg_over`). The same rule applies to canonical-set tags (`#toe_set`) and every slug-derived hashtag. There is exactly one such token per trick with no exceptions, so the tag a member types, the tag stored on curated media, and the gallery link are the same string. Person hashtags reuse the member slug. Records have no separate hashtag namespace; record-attributed media is reachable through its parent trick's gallery. No foreign key exists from `media_items` to domain tables; domain coupling is purely tag-based. `tags.standard_type` remains scoped to events and clubs.
 
 Alias hashtags for tricks canonicalize to the parent trick's slug at write time on every curator path (admin UI, seeder, migration script); `tags` and `media_tags` therefore carry canonical slugs only. Read-side surfaces that expose alias slugs (e.g. `/tags/{alias}`) 301-redirect to the canonical slug. `freestyle_trick_aliases` is the single source of truth for the alias-to-canonical mapping.
 
-A trick hashtag and the trick detail page are separate read-side destinations. Clicking a trick hashtag opens its media gallery (the tag-set gallery for the bare slug), the same as any other hashtag; the trick detail page at `/freestyle/tricks/{slug}` is reached from the trick name and from a distinct "Trick help" link beside it. This keeps the gallery path and the help path from collapsing onto one ambiguous control.
+A trick hashtag and the trick detail page are separate read-side destinations. The plain-English trick name (e.g. *Double Leg Over*) is display text only and is never a link. Two clickable controls sit beside it, each rendering the canonical underscore token: the hashtag (`#double_leg_over`) opens the trick's media gallery, the same as any other hashtag, and a distinct "Trick Detail" link opens the detail page at `/freestyle/tricks/double_leg_over`. This keeps the gallery path and the detail path as two explicit controls that never collapse onto the name or onto one ambiguous control.
 
 Rationale:
 
@@ -1048,6 +1048,8 @@ Rationale:
 
 - Suggested hashtags at creation time guide correct tagging (it is possible to build an auto-fill feature using AJAX as an optional extra usability detail).
 
+- A hashtag token ends at the first non-word character, so a hyphen would split `#double-leg-over` into `#double`; the underscore keeps a multi-word trick one searchable token. Members find media by typing the hashtag, so the slug, the stored media tag, and the hashtag must be the identical underscore token for that search to be uniform.
+
 Trade-offs:
 
 - Hashtag uniqueness validation enforced by database.
@@ -1055,6 +1057,8 @@ Trade-offs:
 - Auto-linking query on every page load adds latency.
 
 - Mis-tagged media won't appear in correct galleries (user education required).
+
+- Underscore URL segments are not the SEO-standard word separator (search engines read a hyphen as a word break and an underscore as a joiner); accepted so the URL segment, the slug, and the searchable hashtag remain one identical token.
 
 Impact:
 

@@ -58,7 +58,7 @@ stacked sections, so adjacent blocks never butt together with a zero gap.
 
 ## Hashtag and dictionary-filter links
 
-Freestyle dictionary surfaces follow the href rule above with no exceptions. Every media hashtag, family chip, and view filter (by-ADD, by-family, by-movement-system, movement-neighborhoods, by-dex, by-modifier) is a service-provided display-and-href pair: the service fixes the destination (a hashtag links to its media gallery `/media/browse?context=<slug>`; a family or view filter links to the filtered dictionary `/freestyle/tricks?...`; the trick name and a separate "Trick help" link both resolve to the trick detail page) and the template only renders the pair. Templates never assemble a `?family=` or `?context=` URL from a slug, and a hashtag renders as a link to its gallery, not as a bare identity span.
+Freestyle dictionary surfaces follow the href rule above with no exceptions. Every media hashtag, family chip, and view filter (by-ADD, by-family, by-movement-system, movement-neighborhoods, by-dex, by-modifier) is a service-provided display-and-href pair: the service fixes the destination (a hashtag links to its media gallery `/media/browse?context=<slug>`; a family or view filter links to the filtered dictionary `/freestyle/tricks?...`; the plain-English trick name is display text only, and a separate "Trick Detail" link resolves to the trick detail page) and the template only renders the pair. Templates never assemble a `?family=` or `?context=` URL from a slug, and a hashtag renders as a link to its gallery, not as a bare identity span.
 
 ## CSS vocabulary
 
