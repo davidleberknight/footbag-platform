@@ -23,11 +23,61 @@ backbone, the net enrichment layer, and all enrichment phases in one invocation.
 Prefer it over ad-hoc mode sequencing unless you specifically need a partial
 rerun.
 
+**A full run needs two gitignored, maintainer-only inputs** that a fresh clone does
+not have (obtain them from the historical-pipeline maintainer's handoff): the
+footbag.org mirror `legacy_data/mirror_footbag_org/`, and the IFPA membership roster
+`legacy_data/membership/inputs/membership_input_normalized.csv`. The mirror is
+required by `canonical_only` / `full` / `--soup-to-nuts`; the roster is required by
+the membership-enrichment modes (`full` / `csv_only` / `enrichment_only`). Every
+other input a full run reads is committed — the curated inputs under
+`inputs/curated/`, the `overrides/`, the latest identity-lock snapshots, and the
+`seed/` CSVs — so the mirror and the roster are the only two you must supply.
+
 Run from `legacy_data/`. The venv is detected automatically; set `VENV_DIR` to
 override.
 
 For exact stage order, script paths, and arguments, read `run_pipeline.sh` — it
 is the source of truth.
+
+Refer to docs/DEV_ONBOARDING.md for runnning hello world without these files. 
+
+---
+
+## Data tiers and PII
+
+What is committed vs maintainer-only, and when each is used:
+
+**Tier 1 — committed, runs the site (hello-world).** The synthetic fixtures
+(`legacy_data/tests/fixtures/`) plus the committed mirror-derived seed CSVs
+(`seed/clubs.csv` = club names/locations, `contact_email` empty;
+`seed/club_members.csv` = member display names/aliases). These hold real member and
+club **names** — treated as public for practical purposes pre-go-live — with no
+emails, contact details, or membership status. `bash scripts/reset-local-db.sh`
+builds entirely from these (auto-staging the fixtures on a fresh clone); no real-data
+archive is needed.
+
+**Tier 2 — gitignored, maintainer-only, full data path.**
+- the **mirror** (`mirror_footbag_org/`) — footbag.org HTML crawl; used by
+  `run_pipeline.sh full` / `canonical_only` to regenerate canonical data.
+- the **footbag.org member dump** (the legacy-site export) — richer than the mirror
+  (full member/payment/admin/committee records); the authoritative member data.
+- the **IFPA membership roster** (`membership/inputs/membership_input_normalized.csv`)
+  — a normalized extract of the IFPA "Show Members" export (member PII; operator
+  handoff; not regenerable from the mirror). Read only by membership enrichment
+  Phase C, i.e. `run_pipeline.sh full` / `csv_only` / `enrichment_only` (and
+  `deploy-local-data.sh --soup-to-nuts` / `--from-csv`); the default
+  `reset-local-db.sh` / `./run_dev.sh` skip it.
+
+**Never commit member emails or pipeline-output snapshots.** Member contact emails
+and membership status stay out of the repo. The `out/` dirs are gitignored, and so
+are `clubs/snapshots/` and `legacy_data/snapshots/` — do not re-add point-in-time
+pipeline snapshots (they have carried member emails). The operational pre-cutover DB
+snapshot lives under `database/snapshots/` instead.
+
+**Testing.** CI's `db-load-smoke` gate and `npm test` run against committed Tier-1
+data only. A small set of tests needs Tier-2 data — the persona-crawl gate needs the
+roster and skips on a fixture clone; a tester who must run those gets the gitignored
+roster from the maintainer who owns the legacy-data handoff.
 
 ---
 
@@ -116,35 +166,38 @@ Modes (see `scripts/deploy-local-data.sh --help` for full detail):
 
 #### `scripts/deploy-to-aws.sh`
 AWS staging deploy orchestrator. Composes `deploy-local-data.sh`,
-`deploy-code.sh`, and `deploy-rebuild.sh`. Default with no flags rebuilds
-the local DB from committed CSVs, replaces the staging DB, syncs code +
-media, runs tests, runs smoke. Each destructive step prompts before
+`deploy-code.sh`, and `deploy-rebuild.sh`. Default with no flags is
+code-only: it ships code and leaves the staging DB untouched (`-k` is the
+explicit equivalent). A DB rebuild + staging replace is opt-in via
+`--from-csv` / `--soup-to-nuts`. Each destructive step prompts before
 acting (rebuild local DB, replace staging DB, wipe S3).
 
-Modes (mutually exclusive; default = no flag = rebuild + replace):
+Modes (mutually exclusive; default = no flag = code-only):
 - `-r, --reuse-local-db` ships current `database/footbag.db` as-is
 - `-k, --keep-staging-db` doesn't touch the staging DB; code + media still ship
-
-Default-mode rebuild variant:
-- `-f, --fast` skips enrichment phases (uses `reset-local-db.sh`)
 
 Modifiers:
 - `-y, --yes` accepts every destructive prompt as default-yes (CI)
 - `-W, --no-s3-wipe` skips the S3 wipe; still rsync new media bytes
+- `-m, --sync-media` builds and pushes curated media to S3 (default off)
 - `-n, --dry-run` prints planned actions; runs nothing
 - `-h, --help` shows full usage
 
 Combinations work: `-ryW` = reuse local DB, accept defaults, skip wipe.
 
 #### `scripts/reset-local-db.sh`
-Fastest path to a fresh `database/footbag.db` from existing canonical
-CSVs plus mirror-derived club data. Underlies `deploy-local-data.sh
+Fastest path to a fresh `database/footbag.db`. Mirror-free: loads clubs
+and members from the committed seed CSVs, and on a fresh clone (when
+`canonical_input/` is absent) auto-stages the committed synthetic
+canonical-input fixtures first. Underlies `deploy-local-data.sh
 --db-only` and the default path of `deploy-rebuild.sh`.
-- Mirror required: yes (for club extractors)
+- Mirror required: no — reads the committed `seed/clubs.csv` /
+  `seed/club_members.csv` via `load_clubs_seed.py` and
+  `load_club_members_seed.py` (the mirror extractors run from
+  `run_pipeline.sh`, not here)
 - Mutates DB: yes; fully destructive each run
 - Does NOT run the phase C/D/E/F/G enrichment pipeline. Clubs and club
-  members are seeded from mirror-derived CSVs via `load_clubs_seed.py`
-  and `load_club_members_seed.py`, which populate
+  members are seeded from the committed seed CSVs, which populate
   `legacy_club_candidates` and `legacy_person_club_affiliations`
   directly. Phase NET (scripts 12, 13, 14) and phase V
   (`load_name_variants_seed.py --apply`) DO run. Provisional
@@ -215,8 +268,8 @@ Inside `run_pipeline.sh` phase G; standalone use for targeted reload.
 
 ### Level 7, mirror extractors
 
-Invoked by `scripts/reset-local-db.sh`; standalone use after a mirror
-refresh.
+Invoked by `legacy_data/run_pipeline.sh` (`full` / `canonical_only`);
+standalone use after a mirror refresh.
 
 | Script | Output | Rerun behavior |
 |--------|--------|----------------|
@@ -309,10 +362,10 @@ See `skills/rebuild-identity-pipeline.md`.
 
 ### AWS staging deploy
 ```
-bash deploy_to_aws.sh                               # default: rebuild from committed CSVs, replace staging, sync media (prompts)
-bash deploy_to_aws.sh -k                            # code + media only; staging DB untouched
+bash deploy_to_aws.sh                               # default: code-only; staging DB untouched (prompts on schema drift)
+bash deploy_to_aws.sh -k                            # explicit code-only; staging DB untouched
 bash deploy_to_aws.sh -r                            # ship current local DB as-is
-bash deploy_to_aws.sh --from-csv                    # explicit alias for the default rebuild path
+bash deploy_to_aws.sh --from-csv                    # rebuild local DB from committed CSVs (+ operator roster), replace staging
 bash deploy_to_aws.sh --soup-to-nuts                # regenerate from legacy mirror, then ship
 bash deploy_to_aws.sh -y                            # accept defaults non-interactively (CI)
 bash deploy_to_aws.sh -n                            # dry run
@@ -320,8 +373,9 @@ bash deploy_to_aws.sh -ryW                          # combined: reuse, yes, no S
 ```
 The root `deploy_to_aws.sh` wrapper handles preflight (tools, SSH alias,
 disk, DB lock, schema drift, credential file) and forwards args to
-`scripts/deploy-to-aws.sh`. With no flags the orchestrator runs the
-default mode (rebuild + replace), prompting before each destructive step.
+`scripts/deploy-to-aws.sh`. With no flags the deploy is code-only (the
+staging DB is untouched); `--from-csv` / `--soup-to-nuts` opt into a DB
+rebuild + staging replace, prompting before each destructive step.
 The mirror-driven `--soup-to-nuts` path regenerates committed
 `canonical_input/`, `name_variants.csv`, and `seed/` files; review with
 `git status` before pushing.

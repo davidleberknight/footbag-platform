@@ -39,11 +39,12 @@ Modes (exactly one required):
                             and legacy_data/event_results/seed/mvfp_full/*.csv
                             present.
 
-  --db-only       Fast platform DB rebuild from canonical CSVs plus mirror-
-                  derived club extraction. Skips enrichment phases
-                  C, D, E, F, G. Clubs and members are seeded directly from
-                  the mirror. Delegates to scripts/reset-local-db.sh.
-                  Requires: mirror present (for club extractors).
+  --db-only       Fast platform DB rebuild, equivalent to running
+                  scripts/reset-local-db.sh directly. Mirror-free: loads the
+                  committed seed CSVs and the staged/committed canonical_input,
+                  then freestyle, net, clubs, curator, and tag_stats. Skips the
+                  run_pipeline.sh mirror regeneration and the phase C/D/E/F/G
+                  enrichment. Delegates to scripts/reset-local-db.sh.
                   Use --from-csv if you need phase C/D/E/F/G populated.
 
   --help, -h      Show this message.

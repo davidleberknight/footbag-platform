@@ -1750,7 +1750,7 @@ Use this when the change requires rebuilding and replacing the host DB from scra
 ./deploy_to_aws.sh --from-csv
 ```
 
-This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB. `--from-csv` rebuilds from the committed canonical CSVs (no mirror access). Pass `--soup-to-nuts` instead to rebuild from the legacy mirror and turn on the full seed set (curated media, personas, dev-admins; opt out per axis with `--no-media` / `--no-personas` / `--no-dev-admins`); that path regenerates committed canonical_input, name_variants, and seed files as a side effect, so the working tree may show diffs after the run.
+This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB. `--from-csv` rebuilds from the canonical CSVs without mirror access, but it still requires the operator's gitignored membership roster (it runs the full enrichment pipeline) — it is not a committed-data-only path. Pass `--soup-to-nuts` instead to rebuild from the legacy mirror and turn on the full seed set (curated media, personas, dev-admins; opt out per axis with `--no-media` / `--no-personas` / `--no-dev-admins`); that path regenerates committed canonical_input, name_variants, and seed files as a side effect, so the working tree may show diffs after the run.
 
 For schema changes against a target with non-disposable data (production), follow the migration runbook in §15.3 instead of Option B.
 

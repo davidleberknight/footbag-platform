@@ -291,11 +291,13 @@ describe('deploy_to_aws.sh wrapper', () => {
 
 // ── reset-local-db.sh preflight ───────────────────────────────────────────────
 
-describe('scripts/reset-local-db.sh preflight', () => {
-  it('exits 1 with "MISSING:" + "Recommendation:" when canonical_input is absent', () => {
+describe('scripts/reset-local-db.sh preflight + fixture auto-stage', () => {
+  it('exits 1 with "MISSING:" + "Recommendation:" when canonical_input is absent and no fixture stager is present', () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'reset-local-db-'));
     try {
-      // Minimal scaffold: copy only the script + schema; leave canonical_input empty.
+      // Minimal scaffold: copy only the script + schema, and provide no fixture
+      // stager. With canonical_input absent and nothing to auto-stage from, the
+      // script falls through to the preflight error path.
       fs.mkdirSync(path.join(tmpRoot, 'scripts'), { recursive: true });
       fs.mkdirSync(path.join(tmpRoot, 'database'), { recursive: true });
       fs.copyFileSync(
@@ -310,6 +312,34 @@ describe('scripts/reset-local-db.sh preflight', () => {
       expect(combined).toMatch(/MISSING:/);
       expect(combined).toMatch(/Recommendation:/);
       expect(combined).toMatch(/soup-to-nuts|from-csv/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('auto-invokes the fixture stager when canonical_input is absent but the stager is present', () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'reset-local-db-stage-'));
+    try {
+      // Scaffold the script plus a stub stager. The stub announces itself and
+      // exits non-zero, so the script aborts right after invoking it — enough to
+      // prove the auto-stage wiring fires when canonical_input is absent, without
+      // running the full multi-loader build.
+      fs.mkdirSync(path.join(tmpRoot, 'scripts/ci'), { recursive: true });
+      fs.mkdirSync(path.join(tmpRoot, 'database'), { recursive: true });
+      fs.copyFileSync(
+        path.join(REPO_ROOT, 'scripts/reset-local-db.sh'),
+        path.join(tmpRoot, 'scripts/reset-local-db.sh'),
+      );
+      fs.writeFileSync(path.join(tmpRoot, 'database/schema.sql'), '-- empty\n');
+      fs.writeFileSync(
+        path.join(tmpRoot, 'scripts/ci/stage_loader_smoke_fixtures.sh'),
+        '#!/usr/bin/env bash\necho STUB_STAGER_INVOKED\nexit 1\n',
+      );
+
+      const r = run('bash', ['scripts/reset-local-db.sh'], { cwd: tmpRoot });
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      expect(combined).toMatch(/STUB_STAGER_INVOKED/);
+      expect(r.status).not.toBe(0);
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }

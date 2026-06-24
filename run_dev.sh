@@ -6,7 +6,7 @@
 # Usage:
 #   ./run_dev.sh                  # code only — just run dev (no DB work; bootstraps if DB missing)
 #   ./run_dev.sh --reset          # fast reset from committed seeds
-#   ./run_dev.sh --from-csv       # full enrichment rebuild + persona seed (deploy-parity, no mirror; --no-personas to opt out)
+#   ./run_dev.sh --from-csv       # full enrichment rebuild (no mirror, but needs the gitignored operator roster — not committed-data-only) + persona seed; --no-personas to opt out
 #   ./run_dev.sh --soup-to-nuts   # everything on: mirror rebuild + media + personas + dev-admins (--no-* to opt out)
 
 set -euo pipefail
@@ -81,11 +81,13 @@ reseed. If database/footbag.db is missing, bootstrap with --reset first.
 DB rebuild modes (mutually exclusive; opt-in only):
   --reset          Fast reset from committed seeds.
                    Calls scripts/reset-local-db.sh.
-  --from-csv       Full clean rebuild from committed canonical CSVs (drops
-                   the DB file, reapplies schema, runs all enrichment
-                   phases). Matches what deploy_to_aws.sh ships locally.
-                   Also seeds the canonical persona catalog by default so a
-                   fresh DB is usable; opt out with --no-personas.
+  --from-csv       Full enrichment rebuild (drops the DB file, reapplies
+                   schema, runs all enrichment phases). Needs no mirror, but
+                   requires the gitignored operator membership roster — it is
+                   NOT a committed-data-only path; the committed-data /
+                   hello-world path is --reset. Matches what deploy_to_aws.sh
+                   ships locally. Also seeds the canonical persona catalog by
+                   default so a fresh DB is usable; opt out with --no-personas.
                    Calls scripts/deploy-local-data.sh --from-csv.
   --soup-to-nuts   "Everything on": full clean rebuild from the legacy mirror
                    (drops the DB file, regenerates canonical_input CSVs, runs

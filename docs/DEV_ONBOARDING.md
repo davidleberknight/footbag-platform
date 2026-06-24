@@ -391,22 +391,28 @@ Do not commit `.env` (make sure it is in your .gitignore)
 
 ### 1.7 Reset the local database
 
-On a fresh clone the database does not exist yet, and the event seed inputs it loads from (`legacy_data/event_results/canonical_input/`) are gitignored. Stage the committed, PII-free synthetic fixtures into those paths, then build the database from them:
+A fresh clone has no database yet, and the event inputs the loader reads (`legacy_data/event_results/canonical_input/`) are gitignored. You do not stage anything by hand: `reset-local-db.sh` detects the absent canonical input and auto-stages the committed, PII-free synthetic fixtures (`legacy_data/tests/fixtures/`), then applies the schema and loads them. Build it with one command:
 
 ```bash
-bash scripts/ci/stage_loader_smoke_fixtures.sh
 bash scripts/reset-local-db.sh
 ```
 
-The first command copies the synthetic event fixtures (`legacy_data/tests/fixtures/`) into the paths the loader reads; the second applies the schema and loads them. Both require the `sqlite3` CLI and `python3` (installed in §1.4); `reset-local-db.sh` creates a Python virtualenv under `scripts/.venv` on first run. The full IFPA dataset, including the member roster, is a separate maintainer handoff and is not needed to run the site locally.
+It needs the `sqlite3` CLI and `python3` (installed in §1.4) and creates a Python virtualenv under `scripts/.venv` on first run. `./run_dev.sh` (§1.8) runs this automatically when `database/footbag.db` is missing, so on a fresh clone `./run_dev.sh` alone reaches a seeded, browsable site.
+
+Two real-data inputs power the full dataset, and a hello-world clone needs neither:
+
+- the footbag.org **mirror** (`legacy_data/mirror_footbag_org/`), gitignored, used to regenerate canonical event data from source (the `--soup-to-nuts` / `run_pipeline.sh full` path);
+- the **IFPA member roster** (`legacy_data/membership/inputs/membership_input_normalized.csv`), gitignored because it holds member PII (emails and personal data), used for the full member load.
+
+Both are separate maintainer handoffs; request them only when you need the full data load. The synthetic fixtures are enough to run and browse the site locally.
 
 Expected result:
 
-- both scripts complete without error
+- `reset-local-db.sh` completes without error
 - `database/footbag.db` is built
 - the app has deterministic fixture data for local browsing
 
-After this first build, `./run_dev.sh` (§1.8) reuses the existing database. Re-run `bash scripts/reset-local-db.sh` whenever you want a clean rebuild.
+Re-run `bash scripts/reset-local-db.sh` whenever you want a clean rebuild.
 
 ### 1.8 Run the dev server
 
@@ -439,7 +445,7 @@ What matters here:
 - the health endpoints return clean liveness/readiness responses
 - you can click around the public slice locally without stack traces or route confusion
 
-These are the committed CI fixtures (synthetic, no real or member data). With a full operator data handoff loaded, the real archive (for example `/events/year/2025`) and event pages appear instead.
+These event pages are the committed synthetic CI fixtures, so the events themselves carry no real data; the local DB also loads real, public member and club names from the committed seed CSVs, which is what populates clubs and affiliations. With a full operator data handoff loaded, the real event archive (for example `/events/year/2025`) and event pages appear instead.
 
 ### 1.10 Run the test suite
 
@@ -476,7 +482,7 @@ Developers and testers should run the complete suite with `--full`, and it is me
 
 > **The persona-crawl gate, for developers and testers.** `--full` includes a persona-crawl that drives the build-switch persona journey (`/dev/build-switch?as=...`) and checks a fully onboarded profile: the Hall-of-Fame identity, the co-led `Wellington Hack Crew` club, and the media and onboarding pages. That data comes from the full operator load, not the synthetic fixtures, so the gate SKIPs on a fixture clone. To run it, do the full data load (below), start `./run_dev.sh`, then `./run_all_tests.sh --with-persona-crawl`.
 >
-> **Final note — the full data load needs operator data kept out of GitHub, including a PII file.** The full load (`./run_dev.sh --from-csv`) requires the operator dataset, which a fresh clone does not have. Part of it is the IFPA member roster, `legacy_data/membership/inputs/membership_input_normalized.csv`, which is deliberately kept out of GitHub because it contains member PII (email addresses and personal data). Request the dataset from the project maintainer if you need the full load. The hello-world journey above and the default `./run_all_tests.sh` need none of it; they run entirely on the committed synthetic fixtures.
+> **Final note — the full data load needs operator data kept out of GitHub, including a PII file.** The full load (`./run_dev.sh --from-csv`) requires the operator dataset, which a fresh clone does not have. Part of it is the IFPA member roster, `legacy_data/membership/inputs/membership_input_normalized.csv`, which is deliberately kept out of GitHub because it contains member PII (email addresses and personal data). Request the dataset from the project maintainer if you need the full load. The hello-world journey above and the default `./run_all_tests.sh` need none of it; they run entirely on committed data (the synthetic fixtures plus the committed seed CSVs).
 
 #### Writing new tests
 

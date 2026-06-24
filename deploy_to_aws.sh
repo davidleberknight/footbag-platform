@@ -21,7 +21,8 @@ done
 # Mode classification (drives mode-aware preflight skips below).
 # -----------------------------------------------------------------------------
 # Short combined flags (e.g. -rW) expand into their parts so the case below
-# matches each independently.
+# matches each independently. Duplicated by design in scripts/deploy-to-aws.sh:
+# each deploy entry point stays standalone with no sourced dependencies.
 EXPANDED_ARGS=()
 for arg in "$@"; do
   if [[ "$arg" =~ ^-[a-zA-Z]{2,}$ && "$arg" != --* ]]; then

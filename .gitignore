@@ -202,8 +202,11 @@ legacy_data/clubs/out/
 legacy_data/persons/out/
 legacy_data/persons/provisional/out/
 
-# Keep snapshots (these ARE committed)
-!legacy_data/clubs/snapshots/
+# Pipeline-output snapshots: never commit. They are point-in-time copies of the
+# gitignored out/ data and have carried member contact emails. The operational
+# pre-cutover DB snapshot lives under database/snapshots/ instead.
+legacy_data/clubs/snapshots/
+legacy_data/snapshots/
 
 # Local design mockups (never commit)
 mockups/

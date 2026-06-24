@@ -168,7 +168,8 @@ SEED_DEV_ADMINS="no"
 SEED_TEST_PERSONAS="no"
 
 # Expand combined short flags (e.g. -ryW → -r -y -W) so the case below can
-# handle each independently.
+# handle each independently. Duplicated by design in deploy_to_aws.sh: each
+# deploy entry point stays standalone with no sourced dependencies.
 EXPANDED_ARGS=()
 for arg in "$@"; do
   if [[ "$arg" =~ ^-[a-zA-Z]{2,}$ && "$arg" != --* ]]; then
@@ -524,7 +525,6 @@ fi
 #   1. -k: code only (no DB, no media).           → deploy-code.sh
 #   2. -r or no rebuild: ship current local DB.   → deploy-rebuild.sh (SKIP_DB_REBUILD=yes)
 #   3. Default rebuild + replace.                 → deploy-local-data.sh + deploy-rebuild.sh
-#   3a. -f fast variant: deploy-rebuild.sh runs reset-local-db.sh internally.
 # -----------------------------------------------------------------------------
 if [[ "$REPLACE_STAGING" == "no" ]]; then
   echo "==> Step: scripts/deploy-code.sh (code only; staging DB + media untouched)"
