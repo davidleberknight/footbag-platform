@@ -77,9 +77,12 @@ describe('freestyleMediaTaxonomy — linkage namespaces', () => {
     }
   });
 
-  it('exactly one prefix is validator-recognized today, and it is set_', () => {
+  it('the validator-recognized linkage prefixes are set_, operator_, and family_', () => {
+    // Drift guard: must stay in lockstep with the entity-linkage prefixes the
+    // media-tag invariant accepts. operator_ is the canonical operator/modifier
+    // form; there is no modifier_ prefix.
     const recognized = LINKAGE_NAMESPACES.filter((n) => n.validatorRecognized);
-    expect(recognized.map((n) => n.prefix)).toEqual(['set_']);
+    expect(recognized.map((n) => n.prefix).sort()).toEqual(['family_', 'operator_', 'set_']);
   });
 });
 

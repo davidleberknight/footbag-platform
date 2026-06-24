@@ -7,7 +7,7 @@ Rules:
      - TRICK  — kebab-case body matching freestyle_tricks.slug (active or pending)
      - EVENT  — body starting with 'event_'
      - SYSTEM — body starting with 'demo_' or 'fh_'
-     - FUTURE — body starting with 'player_', 'club_', or 'set_'
+     - LINKAGE — body starting with 'set_', 'operator_', 'family_', 'player_', or 'club_'
   3. Trick-shaped tags (kebab-case, non-utility, non-domain-prefix) MUST
      resolve to an active or pending slug; alias-only or unknown bodies fail.
   4. Utility tags (freestyle, trick, curated, tricks_of_the_trade) pass
@@ -50,6 +50,11 @@ UTILITY_EXACT: frozenset[str] = frozenset({
 SEMANTIC_PREFIXES: tuple[str, ...] = (
     "event_", "demo_", "fh_",
     "player_", "club_", "set_", "by_",
+    # Role-typed entity-linkage prefixes: a media item pointing at a set (set_),
+    # an operator / modifier (operator_), or a trick family (family_), as opposed
+    # to a bare trick slug. The operator / modifier role uses operator_, matching
+    # the /freestyle/operators surface and the hashtag role vocabulary.
+    "operator_", "family_",
     # concept_ = educational/meta media not about a single trick;
     # discipline_ = non-freestyle discipline media (chinlone, net, sideline).
     "concept_", "discipline_",

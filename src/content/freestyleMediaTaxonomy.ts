@@ -18,9 +18,10 @@
  * Tag shape (mirrors the live media-tag invariant): utility tags are exact
  * lowercase words ('curated', 'freestyle'); a linkage tag is a lowercase
  * snake_case prefix over an existing entity slug ('family_whirl', 'set_pixie');
- * a bare kebab-case tag is a trick slug ('double-leg-over'). 'set_' is already
- * an accepted prefix; the other linkage prefixes declared here are the spec a
- * future validator/service change adopts (each carries `validatorRecognized`).
+ * a bare kebab-case tag is a trick slug ('double-leg-over'). 'set_', 'operator_',
+ * and 'family_' are accepted prefixes (the media-tag invariant recognizes them);
+ * the remaining linkage prefixes declared here are the spec a future
+ * validator/service change adopts (each carries `validatorRecognized`).
  */
 
 /* ── Utility tags ──────────────────────────────────────────────────────────
@@ -87,9 +88,9 @@ export interface LinkageNamespace {
 }
 
 export const LINKAGE_NAMESPACES: readonly LinkageNamespace[] = [
-  { prefix: 'family_',      entity: 'public family slug',     description: 'Media representative of, or touring, a trick family.',     validatorRecognized: false },
-  { prefix: 'modifier_',    entity: 'modifier / operator slug', description: 'Media demonstrating a modifier / operator across bases.', validatorRecognized: false },
-  { prefix: 'set_',         entity: 'set slug',               description: 'Media for a set / uptime system.',                        validatorRecognized: true },
+  { prefix: 'family_',      entity: 'public family slug',       description: 'Media representative of, or touring, a trick family.',     validatorRecognized: true  },
+  { prefix: 'operator_',    entity: 'operator / modifier slug', description: 'Media demonstrating an operator / modifier across bases.', validatorRecognized: true  },
+  { prefix: 'set_',         entity: 'set slug',                 description: 'Media for a set / uptime system.',                        validatorRecognized: true  },
   { prefix: 'series_',      entity: 'tutorial-series key',     description: 'Membership in a grouped instructional series.',          validatorRecognized: false },
   { prefix: 'progression_', entity: 'progression ladder id',   description: 'Membership in an ordered learning ladder.',              validatorRecognized: false },
   { prefix: 'combo_',       entity: 'combo id',               description: 'Membership in a combo / run showcase.',                   validatorRecognized: false },
