@@ -4,7 +4,7 @@
  * Scope verified:
  *   - /freestyle/tricks?view=component returns 200
  *   - /freestyle/tricks?view=sets is a server-side alias and renders the same view
- *   - Two axes render in the documented order (Body modifiers, Set modifiers)
+ *   - Three axes render in the documented order (Body modifiers, Entry / side topology, Set modifiers)
  *   - Topology and movement-archetype axes are NOT rendered (deferred)
  *   - Axis-jump nav anchors at top of page
  *   - Body-modifier groups appear in priority order (paradox, symposium,
@@ -146,16 +146,18 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('component view — axes + axis-jump nav', () => {
-  it('renders the axis-jump nav with Body modifiers + Set modifiers', async () => {
+  it('renders the axis-jump nav with Body modifiers, Entry / side topology, and Set modifiers', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
     expect(res.text).toContain('class="component-axis-jump"');
     expect(res.text).toMatch(/<a href="#axis-body">Body modifiers<\/a>/);
+    expect(res.text).toMatch(/<a href="#axis-entry-topology">Entry \/ side topology<\/a>/);
     expect(res.text).toMatch(/<a href="#axis-set">Set modifiers<\/a>/);
   });
 
-  it('renders two axis sections with stable anchor IDs', async () => {
+  it('renders the three axis sections with stable anchor IDs', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
     expect(res.text).toContain('id="axis-body"');
+    expect(res.text).toContain('id="axis-entry-topology"');
     expect(res.text).toContain('id="axis-set"');
   });
 
@@ -186,21 +188,32 @@ describe('component view — axes + axis-jump nav', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('component view — group ordering', () => {
-  it('Body modifier groups appear in priority order: paradox, symposium, spinning, ducking, stepping', async () => {
+  it('Body modifier groups appear in priority order: symposium, spinning, ducking, stepping', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
-    const paradoxIdx   = res.text.indexOf('id="component-paradox"');
     const symposiumIdx = res.text.indexOf('id="component-symposium"');
     const spinningIdx  = res.text.indexOf('id="component-spinning"');
     const duckingIdx   = res.text.indexOf('id="component-ducking"');
     const steppingIdx  = res.text.indexOf('id="component-stepping"');
-    // Each is rendered, and they're rendered in the priority order documented
-    // in the service. (Diving / weaving / gyro are not in the fixture; their
-    // absence is expected and the priority positions still hold.)
-    expect(paradoxIdx).toBeGreaterThan(-1);
-    expect(symposiumIdx).toBeGreaterThan(paradoxIdx);
+    // Priority order, with paradox no longer in the body axis (it moved to its
+    // own entry / side topology axis). Diving / weaving / gyro are not in the
+    // fixture; their absence is expected and the priority positions still hold.
+    expect(symposiumIdx).toBeGreaterThan(-1);
     expect(spinningIdx).toBeGreaterThan(symposiumIdx);
     expect(duckingIdx).toBeGreaterThan(spinningIdx);
     expect(steppingIdx).toBeGreaterThan(duckingIdx);
+  });
+
+  it('paradox renders in its own Entry / side topology axis, after the body axis, not within it', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    expect(res.text).toContain('Entry / side topology');
+    const entryAxisIdx = res.text.indexOf('id="axis-entry-topology"');
+    const paradoxIdx   = res.text.indexOf('id="component-paradox"');
+    const symposiumIdx = res.text.indexOf('id="component-symposium"');
+    expect(entryAxisIdx).toBeGreaterThan(-1);
+    // The paradox group sits inside the entry axis (after its heading) and after
+    // the body-axis groups, since the entry axis renders after the body axis.
+    expect(paradoxIdx).toBeGreaterThan(entryAxisIdx);
+    expect(paradoxIdx).toBeGreaterThan(symposiumIdx);
   });
 
   it('Set modifier groups appear in priority order: pixie, atomic', async () => {

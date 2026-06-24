@@ -471,13 +471,15 @@
 
   {{#unless content.componentView.axes.0.groups.length}}
   {{#unless content.componentView.axes.1.groups.length}}
+  {{#unless content.componentView.axes.2.groups.length}}
   <section class="content-section">
     <p class="detail-muted">
-      <em>No tricks currently link to a registered body or set modifier. As the
-      dictionary expands, this view will populate from
+      <em>No tricks currently link to a registered body, entry-topology, or set
+      modifier. As the dictionary expands, this view will populate from
       <code>freestyle_trick_modifier_links</code>.</em>
     </p>
   </section>
+  {{/unless}}
   {{/unless}}
   {{/unless}}
   {{/if}}

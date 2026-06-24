@@ -2872,9 +2872,9 @@ export interface ComponentGroup {
 }
 
 export interface ComponentAxis {
-  axisKey:    'body' | 'set';
+  axisKey:    'body' | 'entry-topology' | 'set';
   axisLabel:  string;
-  anchorId:   string;                // `axis-body` / `axis-set`
+  anchorId:   string;                // `axis-body` / `axis-entry-topology` / `axis-set`
   groups:     ComponentGroup[];      // priority-ordered, then alphabetical
 }
 
@@ -8433,7 +8433,12 @@ export const freestyleService = {
     // group, cards sort ADD ascending, then trick name alphabetical.
     // Empty groups are hidden.
 
-    const BODY_PRIORITY = ['paradox', 'symposium', 'spinning', 'ducking', 'diving', 'weaving', 'gyro', 'stepping'];
+    // Paradox is an entry / side topology, not a body movement (D6); it renders
+    // in its own component-view axis below. Its DB modifier_type stays 'body', so
+    // this split is presentation-only and lives here, not in the data.
+    const ENTRY_TOPOLOGY_SLUGS = new Set(['paradox']);
+    const ENTRY_PRIORITY = ['paradox'];
+    const BODY_PRIORITY = ['symposium', 'spinning', 'ducking', 'diving', 'weaving', 'gyro', 'stepping'];
     const SET_PRIORITY  = ['pixie', 'atomic', 'quantum', 'nuclear', 'fairy', 'furious'];
 
     // One-line body-mechanics definitions for the priority modifiers. Curator-authored;
@@ -8535,8 +8540,10 @@ export const freestyleService = {
       return ordered;
     };
 
-    const bodyBuckets = [...componentAccumulator.values()].filter(b => b.modifierType === 'body');
-    const setBuckets  = [...componentAccumulator.values()].filter(b => b.modifierType === 'set');
+    const allBodyTypeBuckets = [...componentAccumulator.values()].filter(b => b.modifierType === 'body');
+    const entryBuckets = allBodyTypeBuckets.filter(b => ENTRY_TOPOLOGY_SLUGS.has(b.modifierSlug));
+    const bodyBuckets  = allBodyTypeBuckets.filter(b => !ENTRY_TOPOLOGY_SLUGS.has(b.modifierSlug));
+    const setBuckets   = [...componentAccumulator.values()].filter(b => b.modifierType === 'set');
 
     // ---- Topology view (?view=topology projection) ----------------------
     // Six pedagogically-grounded educational groups. TOPOLOGY_GROUPS +
@@ -8595,6 +8602,12 @@ export const freestyleService = {
           axisLabel: 'Body modifiers',
           anchorId:  'axis-body',
           groups:    orderByPriorityThenAlpha(bodyBuckets, BODY_PRIORITY),
+        },
+        {
+          axisKey:   'entry-topology',
+          axisLabel: 'Entry / side topology',
+          anchorId:  'axis-entry-topology',
+          groups:    orderByPriorityThenAlpha(entryBuckets, ENTRY_PRIORITY),
         },
         {
           axisKey:   'set',
