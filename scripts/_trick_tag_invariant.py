@@ -36,7 +36,11 @@ UTILITY_EXACT: frozenset[str] = frozenset({
     "freestyle", "trick", "curated", "tricks_of_the_trade",
     "passback_records", "footbag_org",
     "shred_global", "anz_trikz", "footbag_finland",
-    "passback_tutorials", "chinlone",
+    "passback_tutorials", "passback_advanced", "passback_beginner",
+    "passback_how_to", "chinlone",
+    # Big Add Posse: the invite-only elite-shredder roster; a collection tag on
+    # the individual-shred clips, parallel to the source-collection tags above.
+    "bap",
     # Curator-applied status marker, NOT a source: db.ts filters items tagged
     # #unavailable_embed out of all media surfaces (always-on exclusion).
     "unavailable_embed",
