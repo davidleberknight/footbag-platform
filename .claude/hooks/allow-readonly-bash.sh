@@ -33,8 +33,15 @@ readonly_git='status log diff show blame rev-parse describe shortlog ls-files ls
 
 contains() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
 
+# Neutralize shell separators that appear INSIDE quotes (e.g. a quoted regex in
+# grep -E "a|b|c"), so the split below does not manufacture phantom segments from
+# argument text. Command/process substitution and real redirects were already
+# rejected above, so quoted content remaining here is inert literal text, safe to
+# rewrite for splitting purposes only.
+NEUTRAL="$(printf '%s' "$SCAN" | awk 'BEGIN{dq=sprintf("%c",34); sq=sprintf("%c",39)} {out="";q=""; n=length($0); for(i=1;i<=n;i++){c=substr($0,i,1); if(q==""){ if(c==dq||c==sq){q=c} out=out c } else { if(c==q){q="";out=out c} else if(c==";"||c=="|"||c=="&"){out=out "_"} else {out=out c} }} print out}')"
+
 # Break into segments on shell separators, then vet the head word of each.
-segments="$(printf '%s' "$SCAN" | tr '\n' ';' | sed -E 's/\|\||&&|[;|&]/\n/g')"
+segments="$(printf '%s' "$NEUTRAL" | tr '\n' ';' | sed -E 's/\|\||&&|[;|&]/\n/g')"
 
 while IFS= read -r seg; do
   seg="${seg#"${seg%%[![:space:]]*}"}"   # trim leading whitespace

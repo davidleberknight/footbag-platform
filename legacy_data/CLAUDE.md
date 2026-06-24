@@ -7,7 +7,7 @@ This subtree prepares canonical historical data and loads it into the platform D
 Stay in this lane:
 - Do not modify repo-root code, repo-root docs (except the shared `IMPLEMENTATION_PLAN.md`, which both maintainers own), `.claude/skills/`, or `.claude/rules/`.
 - For repo-root/platform tasks, use repo-root `CLAUDE.md` and `IMPLEMENTATION_PLAN.md`.
-- `legacy_data` is James's track. Cross-track changes require explicit coordination.
+- `legacy_data` is primarily the data and freestyle maintainer's area, but task ownership is not siloed: any maintainer may pick up work here, and the data/freestyle maintainer may pull other board tasks. Coordinate on overlapping in-flight changes.
 - Never run `git commit`, `git push`, or `git pull`. Stage-only changes are allowed; the human owns commits.
 
 ## Source of truth

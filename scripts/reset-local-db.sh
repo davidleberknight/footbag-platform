@@ -51,8 +51,12 @@ REQUIREMENTS="scripts/requirements.txt"
 # inputs or extract from the mirror; it loads existing artifacts. The seed
 # CSVs (clubs.csv, club_members.csv) are produced by
 # legacy_data/scripts/extract_*.py and committed under legacy_data/seed/.
-# On a fresh clone, run `bash scripts/deploy-local-data.sh --from-csv` first
-# (or `--soup-to-nuts` if you have the legacy mirror and want to refresh CSVs).
+# On a fresh clone without the legacy mirror or member roster, stage the
+# committed synthetic fixtures first with
+# `CI=true bash scripts/ci/stage_loader_smoke_fixtures.sh` (it refuses to touch
+# a real legacy_data tree). Maintainers with the mirror and roster can instead
+# run `bash scripts/deploy-local-data.sh --from-csv` (or `--soup-to-nuts` to
+# refresh CSVs from the mirror).
 _missing=()
 for _f in "${CANONICAL_INPUT_DIR}/events.csv" \
           "${CANONICAL_INPUT_DIR}/event_disciplines.csv" \
@@ -68,7 +72,9 @@ if [[ ${#_missing[@]} -gt 0 ]]; then
   echo "ERROR: required local file(s) not present:" >&2
   for _f in "${_missing[@]}"; do echo "  MISSING: ${_f}" >&2; done
   echo "" >&2
-  echo "Recommendation: bash scripts/deploy-local-data.sh --from-csv   (or --soup-to-nuts if mirror is available and you want fresh CSVs)." >&2
+  echo "Recommendation:" >&2
+  echo "  - Fresh clone without the legacy mirror or member roster: stage the committed synthetic fixtures with 'CI=true bash scripts/ci/stage_loader_smoke_fixtures.sh' (it refuses to touch a real legacy_data tree), then re-run this script." >&2
+  echo "  - Maintainers with the mirror and roster: 'bash scripts/deploy-local-data.sh --from-csv' (or --soup-to-nuts to refresh CSVs from the mirror)." >&2
   exit 1
 fi
 
