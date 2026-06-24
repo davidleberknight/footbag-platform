@@ -37,6 +37,7 @@ import {
 import { applyExpiry } from './activePlayerService';
 import { getTierStatus } from './membershipTieringService';
 import { getCommunicationService } from './communicationService';
+import { activePlayerExpiryReminderEmail } from './emailContent';
 import { readIntConfig } from './configReader';
 import { logger } from '../config/logger';
 import { formatDateDisplay } from './dateFormat';
@@ -124,22 +125,10 @@ function buildReminderEmail(expiresAtIso: string, offsetLabel: OffsetLabel): {
   subject: string;
   bodyText: string;
 } {
-  const displayDate = formatExpiryDate(expiresAtIso);
-  const subject = offsetLabel === 'day_of'
-    ? 'Your IFPA Active Player status expires today'
-    : 'Your IFPA Active Player status is about to expire';
-  const bodyText =
-    `Hello,\n\n` +
-    `Your Active Player status expires on ${displayDate}. Active Player ` +
-    `status grants Tier 1 benefits (including inclusion on the Official IFPA ` +
-    `Roster) to Tier 0 Registered Members. Your membership tier itself is ` +
-    `for life and does not expire.\n\n` +
-    `You can regain or extend Active Player status by any of the following:\n` +
-    `  - Attending a qualifying IFPA-sanctioned event.\n` +
-    `  - Being vouched for by a Tier 2 IFPA Organizer Member or Tier 3 Director.\n` +
-    `  - Joining your first club, if you have not previously used this one-time grant.\n\n` +
-    `--\nInternational Footbag Players Association\n`;
-  return { subject, bodyText };
+  return activePlayerExpiryReminderEmail({
+    displayDate: formatExpiryDate(expiresAtIso),
+    isDayOf: offsetLabel === 'day_of',
+  });
 }
 
 function isSubscribed(memberId: string): boolean {

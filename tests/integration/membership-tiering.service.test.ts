@@ -18,6 +18,7 @@ import {
   insertActivePlayerGrant,
   insertPayment,
 } from '../fixtures/factories';
+import { honorCongratulationEmail, tierChangeNoticeEmail } from '../../src/services/emailContent';
 
 const { dbPath } = setTestEnv('3091');
 
@@ -128,6 +129,30 @@ function seedActivePlayer(memberId: string, expiresAt = FUTURE_AP): void {
     reason_code: 'official_event_attendance',
   });
   db.close();
+}
+
+function outboxFor(memberId: string): Array<{
+  recipient_email: string | null;
+  subject: string;
+  body_text: string | null;
+  idempotency_key: string | null;
+}> {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const rows = db
+    .prepare(
+      `SELECT recipient_email, subject, body_text, idempotency_key
+       FROM outbox_emails
+       WHERE recipient_member_id = ?
+       ORDER BY created_at, id`,
+    )
+    .all(memberId) as Array<{
+      recipient_email: string | null;
+      subject: string;
+      body_text: string | null;
+      idempotency_key: string | null;
+    }>;
+  db.close();
+  return rows;
 }
 
 describe('getTierStatus', () => {
@@ -267,6 +292,62 @@ describe('applyHonorGrant', () => {
       new_underlying_tier_status: 'tier2',
       reason_code: 'honor.hof_tier2_grant',
     });
+  });
+
+  it('HoF grant enqueues a congratulatory email to the member', () => {
+    const id = freshMember({ login_email: 'hof-winner@example.com' });
+
+    mts.applyHonorGrant(ADMIN_ID, id, 'hof');
+
+    const expected = honorCongratulationEmail({ honor: 'hof', staysTier3: false });
+    const mail = outboxFor(id);
+    expect(mail).toHaveLength(1);
+    expect(mail[0].recipient_email).toBe('hof-winner@example.com');
+    expect(mail[0].subject).toBe(expected.subject);
+    expect(mail[0].body_text).toBe(expected.bodyText);
+    expect(mail[0].idempotency_key).toMatch(/^honor_congrats:/);
+  });
+
+  it('BAP grant enqueues a congratulatory email naming the Big Add Posse', () => {
+    const id = freshMember();
+
+    mts.applyHonorGrant(ADMIN_ID, id, 'bap');
+
+    const expected = honorCongratulationEmail({ honor: 'bap', staysTier3: false });
+    expect(outboxFor(id)[0].body_text).toBe(expected.bodyText);
+  });
+
+  it('HoF grant on a Tier 3 member words the honor as setting the underlying tier', () => {
+    const id = freshMember();
+    mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier1'), 'tier1');
+    mts.setGovernanceTier3(ADMIN_ID, id);
+
+    mts.applyHonorGrant(ADMIN_ID, id, 'hof');
+
+    const expected = honorCongratulationEmail({ honor: 'hof', staysTier3: true });
+    const mail = outboxFor(id);
+    expect(mail).toHaveLength(1);
+    expect(mail[0].body_text).toBe(expected.bodyText);
+    // The Tier 3 variant must not claim Tier 2 is the member's current tier.
+    expect(mail[0].body_text).toContain('underlying');
+  });
+
+  it('honor grant for a member with no deliverable email still grants and enqueues nothing', () => {
+    const id = freshMember({ personal_data_purged_at: '2025-01-01T00:00:00.000Z' });
+
+    mts.applyHonorGrant(ADMIN_ID, id, 'hof');
+
+    expect(mts.getTierStatus(id).tier_status).toBe('tier2');
+    expect(outboxFor(id)).toHaveLength(0);
+  });
+
+  it('posthumous honor grant for a deceased member enqueues no email', () => {
+    const id = freshMember({ is_deceased: 1, deceased_at: '2025-01-01T00:00:00.000Z' });
+
+    mts.applyHonorGrant(ADMIN_ID, id, 'hof');
+
+    expect(mts.getTierStatus(id).tier_status).toBe('tier2');
+    expect(outboxFor(id)).toHaveLength(0);
   });
 });
 
@@ -527,6 +608,31 @@ describe('adminOverride', () => {
 
     const latest = tierGrants(id).at(-1)!;
     expect(latest.reason_text).toBe(sneaky);
+  });
+
+  it('enqueues a status-change email to the member with the new tier and reason', () => {
+    const id = freshMember({ login_email: 'overridden@example.com' });
+
+    mts.adminOverride(ADMIN_ID, id, 'tier2', 'complimentary access');
+
+    const expected = tierChangeNoticeEmail({ newTier: 'tier2', reasonText: 'complimentary access' });
+    const mail = outboxFor(id);
+    expect(mail).toHaveLength(1);
+    expect(mail[0].recipient_email).toBe('overridden@example.com');
+    expect(mail[0].subject).toBe(expected.subject);
+    expect(mail[0].body_text).toBe(expected.bodyText);
+    expect(mail[0].idempotency_key).toMatch(/^tier_change_notice:/);
+  });
+
+  it('a same-tier correction records the grant but sends no status-change email', () => {
+    const id = freshMember();
+    mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier1'), 'tier1');
+
+    // Re-record the current tier with a reason; the tier does not change.
+    mts.adminOverride(ADMIN_ID, id, 'tier1', 'note: confirmed by phone');
+
+    expect(tierGrants(id).at(-1)).toMatchObject({ change_type: 'correct', new_tier_status: 'tier1' });
+    expect(outboxFor(id)).toHaveLength(0);
   });
 });
 

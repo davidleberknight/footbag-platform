@@ -4817,6 +4817,16 @@ export const account = {
     WHERE id = ? AND personal_data_purged_at IS NULL
   `); },
 
+  // Recipient lookup for automated member notifications (tier change, honor
+  // congratulation, vouch confirmation). Excludes the deceased so a posthumous
+  // honor or an admin correction on a deceased member's record sends no mail to
+  // an address no one reads, alongside the purged exclusion.
+  get findNotificationContactById() { return db.prepare(`
+    SELECT id, slug, display_name, login_email
+    FROM members_active
+    WHERE id = ? AND personal_data_purged_at IS NULL AND is_deceased = 0
+  `); },
+
   get listAdminMemberIds() { return db.prepare(`
     SELECT id FROM members_active
     WHERE is_admin = 1
@@ -7900,14 +7910,18 @@ export const mailingListSubscriptions = {
   // overwritten. Keyed on login_email_normalized to match the SES feedback path.
   get markBouncedForEmail() { return db.prepare(`
     UPDATE mailing_list_subscriptions
-    SET status = 'bounced', status_updated_at = ?, bounce_detail = ?
+    SET status = 'bounced', status_updated_at = ?,
+        updated_at = ?, updated_by = 'ses_feedback', version = version + 1,
+        bounce_detail = ?
     WHERE status = 'subscribed'
       AND member_id IN (SELECT id FROM members WHERE login_email_normalized = ? AND deleted_at IS NULL)
   `); },
 
   get markComplainedForEmail() { return db.prepare(`
     UPDATE mailing_list_subscriptions
-    SET status = 'complained', status_updated_at = ?, complaint_detail = ?
+    SET status = 'complained', status_updated_at = ?,
+        updated_at = ?, updated_by = 'ses_feedback', version = version + 1,
+        complaint_detail = ?
     WHERE status = 'subscribed'
       AND member_id IN (SELECT id FROM members WHERE login_email_normalized = ? AND deleted_at IS NULL)
   `); },
@@ -8351,6 +8365,18 @@ export const stripeEvents = {
 
   get findByEventId() { return db.prepare(`
     SELECT * FROM stripe_events WHERE event_id = ?
+  `); },
+};
+
+export const sesEvents = {
+  // Idempotency primitive: PRIMARY KEY (message_id) makes INSERT OR IGNORE a
+  // no-op on SNS redelivery. The feedback service inserts first inside its
+  // transaction and short-circuits on changes=0, so a redelivered bounce or
+  // complaint does not re-flip status or append duplicate audit rows.
+  get insertEventOrIgnore() { return db.prepare(`
+    INSERT OR IGNORE INTO ses_events
+      (message_id, created_at, event_type, processed_at)
+    VALUES (?, ?, ?, ?)
   `); },
 };
 

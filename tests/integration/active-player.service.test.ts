@@ -23,6 +23,7 @@ import {
   insertActivePlayerGrant,
   insertMemberTierGrant,
 } from '../fixtures/factories';
+import { vouchConfirmationEmail } from '../../src/services/emailContent';
 
 const { dbPath } = setTestEnv('3092');
 
@@ -153,6 +154,30 @@ function auditCount(entityId: string, actionType: string): number {
     .get(entityId, actionType) as { n: number };
   db.close();
   return row.n;
+}
+
+function outboxFor(memberId: string): Array<{
+  recipient_email: string | null;
+  subject: string;
+  body_text: string | null;
+  idempotency_key: string | null;
+}> {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const rows = db
+    .prepare(
+      `SELECT recipient_email, subject, body_text, idempotency_key
+       FROM outbox_emails
+       WHERE recipient_member_id = ?
+       ORDER BY created_at, id`,
+    )
+    .all(memberId) as Array<{
+      recipient_email: string | null;
+      subject: string;
+      body_text: string | null;
+      idempotency_key: string | null;
+    }>;
+  db.close();
+  return rows;
 }
 
 function buildEvent(): { eventId: string } {
@@ -438,6 +463,78 @@ describe('applyVouch', () => {
     const realTarget = freshMember();
     const result = aps.applyVouch(voucher, realTarget, 'real');
     expect(result.status).toBe('granted');
+  });
+
+  it('granted vouch enqueues a confirmation email to the vouched member naming the voucher and expiry', () => {
+    const db = new BetterSqlite3(dbPath);
+    memberCounter += 1;
+    const voucher = insertMember(db, { slug: `vmail_voucher_${memberCounter}`, display_name: 'Jane Voucher' });
+    const target = insertMember(db, {
+      slug: `vmail_target_${memberCounter}`,
+      login_email: 'vmail-target@example.com',
+      display_name: 'Bob Target',
+    });
+    db.close();
+    setMemberTier(voucher, 'tier2');
+
+    const result = aps.applyVouch(voucher, target, 'great player');
+    expect(result.status).toBe('granted');
+    if (result.status !== 'granted') throw new Error('expected granted');
+
+    const expected = vouchConfirmationEmail({
+      voucherName: 'Jane Voucher',
+      expiryDate: result.expiresAt.slice(0, 10),
+    });
+    const mail = outboxFor(target);
+    expect(mail).toHaveLength(1);
+    expect(mail[0].recipient_email).toBe('vmail-target@example.com');
+    expect(mail[0].subject).toBe(expected.subject);
+    expect(mail[0].body_text).toBe(expected.bodyText);
+    // Keyed on the AP grant id (apg_...), so a same-millisecond second vouch
+    // cannot collide with this confirmation.
+    expect(mail[0].idempotency_key).toMatch(/^vouch_confirmation:apg_/);
+  });
+
+  it('no-op vouch against a Tier 1+ target enqueues no confirmation email', () => {
+    const voucher = buildVoucher('tier2');
+    const target = freshMember();
+    setMemberTier(target, 'tier1');
+
+    const result = aps.applyVouch(voucher, target, 'nope');
+    expect(result.status).toBe('noop');
+    expect(outboxFor(target)).toHaveLength(0);
+  });
+
+  it('vouch for a member with no deliverable email still grants and enqueues nothing without throwing', () => {
+    const db = new BetterSqlite3(dbPath);
+    memberCounter += 1;
+    const target = insertMember(db, {
+      slug: `vmail_nomail_${memberCounter}`,
+      personal_data_purged_at: '2025-01-01T00:00:00.000Z',
+    });
+    db.close();
+    const voucher = buildVoucher('tier2');
+
+    const result = aps.applyVouch(voucher, target, 'ok');
+    expect(result.status).toBe('granted');
+    expect(apGrants(target)).toHaveLength(1);
+    expect(outboxFor(target)).toHaveLength(0);
+  });
+
+  it('vouch for a deceased member grants but enqueues no confirmation email', () => {
+    const db = new BetterSqlite3(dbPath);
+    memberCounter += 1;
+    const target = insertMember(db, {
+      slug: `vmail_deceased_${memberCounter}`,
+      is_deceased: 1,
+      deceased_at: '2025-01-01T00:00:00.000Z',
+    });
+    db.close();
+    const voucher = buildVoucher('tier2');
+
+    const result = aps.applyVouch(voucher, target, 'ok');
+    expect(result.status).toBe('granted');
+    expect(outboxFor(target)).toHaveLength(0);
   });
 });
 

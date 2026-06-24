@@ -96,6 +96,12 @@ import {
   type LegacyPersonClubAffiliationRow,
 } from '../db/db';
 import { getCommunicationService } from './communicationService';
+import {
+  clubMembershipMemberEmail,
+  clubMembershipLeaderEmail,
+  clubVolunteerLeadershipEmail,
+  clubCoLeaderInviteEmail,
+} from './emailContent';
 import { logger } from '../config/logger';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
@@ -967,19 +973,17 @@ function enqueueClubMembershipEmails(opts: {
     const leaders = clubLeaders.listCurrentLeadersForClubPage.all(opts.clubId) as Array<{
       member_id: string; display_name: string; login_email: string | null;
     }>;
-    const verb = opts.kind === 'join' ? 'joined' : 'left';
 
     if (member?.login_email) {
       comms.enqueueEmail({
         idempotencyKey: `club-${opts.kind}:${opts.notificationKey}:member`,
         recipientEmail: member.login_email,
         recipientMemberId: member.id,
-        subject: `You ${verb} ${opts.clubName}`,
-        bodyText:
-          `Hi ${member.display_name},\n\n` +
-          `This confirms you ${verb} the club "${opts.clubName}".\n\n` +
-          `You can review your club memberships on your profile page.\n\n` +
-          `-- IFPA platform`,
+        ...clubMembershipMemberEmail({
+          kind: opts.kind,
+          memberName: member.display_name,
+          clubName: opts.clubName,
+        }),
       });
     }
 
@@ -989,12 +993,12 @@ function enqueueClubMembershipEmails(opts: {
         idempotencyKey: `club-${opts.kind}:${opts.notificationKey}:leader:${leader.member_id}`,
         recipientEmail: leader.login_email,
         recipientMemberId: leader.member_id,
-        subject: `${member?.display_name ?? 'A member'} ${verb} ${opts.clubName}`,
-        bodyText:
-          `Hi ${leader.display_name},\n\n` +
-          `${member?.display_name ?? 'A member'} ${verb} your club "${opts.clubName}".\n\n` +
-          `You can review the roster on the club page.\n\n` +
-          `-- IFPA platform`,
+        ...clubMembershipLeaderEmail({
+          kind: opts.kind,
+          leaderName: leader.display_name,
+          memberName: member?.display_name ?? 'A member',
+          clubName: opts.clubName,
+        }),
       });
     }
   } catch (err) {
@@ -1030,12 +1034,11 @@ function enqueueVolunteerLeadershipEmails(opts: {
         idempotencyKey: `club-coleader-volunteered:${opts.clubLeaderId}:leader:${leader.member_id}`,
         recipientEmail: leader.login_email,
         recipientMemberId: leader.member_id,
-        subject: `${joinerName} is now a co-leader of ${opts.clubName}`,
-        bodyText:
-          `Hi ${leader.display_name},\n\n` +
-          `${joinerName} volunteered to co-lead your club "${opts.clubName}" and is now part of the leadership team.\n\n` +
-          `You can review the co-leaders on the club page.\n\n` +
-          `-- IFPA platform`,
+        ...clubVolunteerLeadershipEmail({
+          leaderName: leader.display_name,
+          joinerName,
+          clubName: opts.clubName,
+        }),
       });
     }
   } catch (err) {
@@ -2595,13 +2598,10 @@ export class ClubService {
         idempotencyKey: `club-coleader-invite:${clubId}:${invitee.id}`,
         recipientEmail: contact.login_email,
         recipientMemberId: invitee.id,
-        subject: `You're invited to co-lead ${club.name}`,
-        bodyText:
-          `Hi ${invitee.display_name},\n\n` +
-          `A co-leader of the footbag club "${club.name}" invited you to join its leadership as a co-leader.\n\n` +
-          `Co-leaders share their contact email with other logged-in members and help keep the club's page up to date.\n\n` +
-          `To accept, log in to your account, open Clubs, find "${club.name}", and choose "Volunteer to co-lead". You must be a current member of the club with Tier 1 benefits, and a member can co-lead one club at a time.\n\n` +
-          `-- IFPA platform`,
+        ...clubCoLeaderInviteEmail({
+          inviteeName: invitee.display_name,
+          clubName: club.name,
+        }),
       });
     } catch (err) {
       logger.warn('club co-leader invite enqueue failed', {

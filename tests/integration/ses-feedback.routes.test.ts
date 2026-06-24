@@ -48,22 +48,35 @@ afterAll(() => {
   cleanupTestDb(dbPath);
 });
 
-function snsEnvelope(message: Record<string, unknown>): string {
-  return JSON.stringify({ Type: 'Notification', TopicArn: 'arn:aws:sns:us-east-1:000:t', Message: JSON.stringify(message) });
+function snsEnvelope(message: Record<string, unknown>, messageId?: string): string {
+  const envelope: Record<string, unknown> = {
+    Type: 'Notification',
+    TopicArn: 'arn:aws:sns:us-east-1:000:t',
+    Message: JSON.stringify(message),
+  };
+  if (messageId !== undefined) envelope.MessageId = messageId;
+  return JSON.stringify(envelope);
 }
 
-function bounceBody(emails: string[], bounceType = 'Permanent'): string {
+function bounceBody(emails: string[], bounceType = 'Permanent', messageId?: string): string {
   return snsEnvelope({
     notificationType: 'Bounce',
     bounce: { bounceType, bouncedRecipients: emails.map((e) => ({ emailAddress: e })) },
-  });
+  }, messageId);
 }
 
-function complaintBody(emails: string[]): string {
+function complaintBody(emails: string[], messageId?: string): string {
   return snsEnvelope({
     notificationType: 'Complaint',
     complaint: { complainedRecipients: emails.map((e) => ({ emailAddress: e })) },
-  });
+  }, messageId);
+}
+
+function bounceAuditsFor(maskedEmail: string): number {
+  const rows = db.prepare(
+    `SELECT metadata_json FROM audit_entries WHERE action_type = 'email.bounce_recorded'`,
+  ).all() as Array<{ metadata_json: string }>;
+  return rows.filter((r) => (JSON.parse(r.metadata_json) as { masked_email?: string }).masked_email === maskedEmail).length;
 }
 
 function statusOf(id: string): string {
@@ -119,6 +132,9 @@ describe('SES feedback webhook', () => {
     const meta = JSON.parse(audits[audits.length - 1].metadata_json) as Record<string, unknown>;
     expect(meta.masked_email).toBe('b***@example.com');
     expect(meta.member_matched).toBe(true);
+    // Exactly one permanent bounce was sent for this address, so exactly one
+    // bounce-recorded audit row should exist for it.
+    expect(bounceAuditsFor('b***@example.com')).toBe(1);
   });
 
   it("a permanent bounce flips the member's subscribed mailing-list rows to bounced", async () => {
@@ -176,6 +192,62 @@ describe('SES feedback webhook', () => {
       .type('text/plain')
       .send(complaintBody(['suppressed@example.com']));
     expect(statusOf('sf-3')).toBe('suppressed');
+  });
+
+  it("a complaint flips the member's subscribed mailing-list rows to complained", async () => {
+    insertMember(db, { id: 'sf-csub', slug: 'sf_csub', login_email: 'csub@example.com' });
+    db.prepare(`
+      INSERT INTO mailing_list_subscriptions (
+        id, created_at, created_by, updated_at, updated_by, version,
+        mailing_list_id, member_id, status, status_updated_at
+      ) VALUES ('mls-sf-csub', '2026-01-01T00:00:00.000Z', 'system', '2026-01-01T00:00:00.000Z', 'system', 1,
+                'newsletter', 'sf-csub', 'subscribed', '2026-01-01T00:00:00.000Z')
+    `).run();
+
+    await request(createApp())
+      .post(PATH_WITH_KEY())
+      .type('text/plain')
+      .send(complaintBody(['csub@example.com']));
+
+    const sub = db.prepare(
+      `SELECT status, updated_by, version FROM mailing_list_subscriptions WHERE id = 'mls-sf-csub'`,
+    ).get() as { status: string; updated_by: string; version: number };
+    expect(sub.status).toBe('complained');
+    // The feedback write must bump the schema-metadata columns, not leave them stale.
+    expect(sub.updated_by).toBe('ses_feedback');
+    expect(sub.version).toBe(2);
+  });
+
+  it('a later bounce never downgrades an already-complained member', async () => {
+    // sf-1 was escalated to complained above. A subsequent permanent bounce
+    // for the same address must not pull it back to bounced.
+    expect(statusOf('sf-1')).toBe('complained');
+    await request(createApp())
+      .post(PATH_WITH_KEY())
+      .type('text/plain')
+      .send(bounceBody(['bouncer@example.com']));
+    expect(statusOf('sf-1')).toBe('complained');
+  });
+
+  it('a redelivered notification with the same SNS MessageId is processed exactly once', async () => {
+    insertMember(db, { id: 'sf-dup', slug: 'sf_dup', login_email: 'dup@example.com' });
+    const body = bounceBody(['dup@example.com'], 'Permanent', 'sns-msg-dup-1');
+
+    const first = await request(createApp()).post(PATH_WITH_KEY()).type('text/plain').send(body);
+    expect(first.status).toBe(200);
+    expect(statusOf('sf-dup')).toBe('bounced');
+    expect(bounceAuditsFor('d***@example.com')).toBe(1);
+
+    // Redelivery of the identical message: status already bounced, and the
+    // dedupe must prevent a second audit row.
+    const second = await request(createApp()).post(PATH_WITH_KEY()).type('text/plain').send(body);
+    expect(second.status).toBe(200);
+    expect(statusOf('sf-dup')).toBe('bounced');
+    expect(bounceAuditsFor('d***@example.com')).toBe(1);
+
+    const events = db.prepare(`SELECT COUNT(*) AS n FROM ses_events WHERE message_id = 'sns-msg-dup-1'`)
+      .get() as { n: number };
+    expect(events.n).toBe(1);
   });
 
   it('a subscription confirmation is recorded for the operator, never auto-fetched', async () => {

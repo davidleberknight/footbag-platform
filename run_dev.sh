@@ -245,7 +245,12 @@ else
       echo "         There is no in-place migration; a reset reapplies the schema." >&2
       if [[ "${FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT:-}" == "1" ]]; then
         echo "  FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT=1 → proceeding without reset." >&2
-      elif [[ -r /dev/tty ]]; then
+      elif [[ -t 2 ]]; then
+        # Prompt only when stderr is an interactive terminal someone can answer.
+        # A backgrounded or automated caller (CI, the run_all_tests persona-crawl
+        # gate) redirects stderr to a log, so it falls through to the
+        # non-interactive branch and proceeds instead of blocking on an
+        # unanswerable read.
         printf "  Reset the local DB now (reapply schema)? [Y/n] " >&2
         read -r _ans </dev/tty || _ans=""
         if [[ -z "$_ans" || "$_ans" =~ ^[Yy] ]]; then

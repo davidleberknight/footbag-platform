@@ -102,6 +102,15 @@ import { auth, registration, legacyClaim, legacyMembers, account, workQueue, aut
 import { transaction } from '../db/db';
 import { accountTokenService } from './accountTokenService';
 import { getCommunicationService } from './communicationService';
+import {
+  accountVerifyEmail,
+  legacyClaimConfirmEmail,
+  passwordChangedEmail,
+  passwordResetRequestEmail,
+  passwordResetConfirmEmail,
+  mailboxLinkConfirmEmail,
+  adminQueueAlertEmail,
+} from './emailContent';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
@@ -810,12 +819,7 @@ async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: stri
       idempotencyKey: `verify:${issued.tokenRowId}`,
       recipientEmail,
       recipientMemberId: memberId,
-      subject: 'Verify your IFPA Footbag account',
-      bodyText:
-        'Welcome to IFPA Footbag.\n\n' +
-        `Please confirm your email address by opening the link below. The link expires in ${ttlHours} hour${ttlHours === 1 ? '' : 's'}.\n\n` +
-        `${verifyUrl}\n\n` +
-        'If you did not request this account, you can ignore this message.',
+      ...accountVerifyEmail({ verifyUrl, ttlHours }),
     });
   } catch (err) {
     // Member row (or, for resend, the existing unverified member) committed
@@ -2220,14 +2224,7 @@ function initiateLegacyClaim(
       idempotencyKey:    `claim:${tokenRowId}`,
       recipientEmail:    row.legacy_email,
       recipientMemberId: requestingMemberId,
-      subject:           'Confirm your IFPA legacy account claim',
-      bodyText:
-        'Hello,\n\n' +
-        'A claim request was submitted on your legacy IFPA account. ' +
-        'Open the link below to review and confirm the link to your current account. ' +
-        `The link expires in ${claimTokenTtlHours()} hours.\n\n` +
-        `${confirmUrl}\n\n` +
-        'If you did not initiate this claim, you can ignore this message; the link will expire unused.',
+      ...legacyClaimConfirmEmail({ confirmUrl, ttlHours: claimTokenTtlHours() }),
     });
   } catch (err) {
     // The account_claim token is already committed by issueToken but no
@@ -2770,10 +2767,7 @@ async function changePassword(
         idempotencyKey: `pwchange:${memberId}:${row.password_version + 1}`,
         recipientEmail: member.login_email,
         recipientMemberId: memberId,
-        subject: 'Your IFPA Footbag password was changed',
-        bodyText:
-          'This is a confirmation that the password for your IFPA Footbag account was just changed.\n\n' +
-          'If this was not you, please reset your password immediately and contact admin@footbag.org.',
+        ...passwordChangedEmail(),
       });
     } catch (err) {
       // High-priority audit row: the password change committed but the
@@ -2838,12 +2832,7 @@ async function requestPasswordReset(email: string): Promise<PasswordResetRequest
       idempotencyKey: `pwreset:${tokenRowId}`,
       recipientEmail: email.trim(),
       recipientMemberId: row.id,
-      subject: 'Reset your IFPA Footbag password',
-      bodyText:
-        'A password reset was requested for your IFPA Footbag account.\n\n' +
-        `Open the link below within ${ttlHours} hour${ttlHours === 1 ? '' : 's'} to set a new password:\n\n` +
-        `${resetUrl}\n\n` +
-        'If you did not request this, you can ignore this message. Your current password remains in effect.',
+      ...passwordResetRequestEmail({ resetUrl, ttlHours }),
     });
   } catch (err) {
     // Swallow (do not re-throw) to preserve the anti-enumeration contract:
@@ -2947,10 +2936,7 @@ async function completePasswordReset(
         idempotencyKey: `pwresetconfirm:${consumed.tokenRowId}`,
         recipientEmail: member.login_email,
         recipientMemberId: consumed.memberId,
-        subject: 'Your IFPA Footbag password was changed',
-        bodyText:
-          'Your IFPA Footbag password was reset via the password-reset link.\n\n' +
-          'If this was not you, contact admin@footbag.org immediately.',
+        ...passwordResetConfirmEmail(),
       });
     } catch (err) {
       recordOperationalError({
@@ -3669,14 +3655,10 @@ function requestAnchorMailboxVerification(
       idempotencyKey:    `mailbox_link:${tokenRowId}`,
       recipientEmail:    anchor.anchor_value,
       recipientMemberId: memberId,
-      subject:           'IFPA: confirm this was your footbag.org email address',
-      bodyText:
-        'You (or someone signed in to an IFPA Footbag account) told us this email ' +
-        'address was used on the old footbag.org site.\n\n' +
-        'If that was you, open the link below WHILE SIGNED IN to your IFPA account ' +
-        `to confirm you still control this mailbox. The link expires in ${ttlHours} hour${ttlHours === 1 ? '' : 's'}.\n\n` +
-        `${baseUrl}/register/wizard/legacy_claim/anchors/verify/${rawToken}\n\n` +
-        'If this was not you, you can ignore this message.',
+      ...mailboxLinkConfirmEmail({
+        verifyUrl: `${baseUrl}/register/wizard/legacy_claim/anchors/verify/${rawToken}`,
+        ttlHours,
+      }),
     });
   } catch (err) {
     // The token row committed above; a lost enqueue would otherwise orphan
@@ -3907,8 +3889,7 @@ function submitLinkHelpRequest(
     }
     getCommunicationService().enqueueMailingListEmail({
       mailingListSlug:      'admin-alerts',
-      subject:              'New admin queue item: member_link_help_request',
-      bodyText:             `Task type: member_link_help_request\nEntity ID: ${memberId}`,
+      ...adminQueueAlertEmail({ taskType: 'member_link_help_request', entityId: memberId }),
       idempotencyKeyPrefix: `admin-alerts:member_link_help_request:${id}`,
     });
   });

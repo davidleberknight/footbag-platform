@@ -51,6 +51,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import {
+  account,
   activePlayer,
   activePlayerVouches,
   memberTier,
@@ -59,7 +60,10 @@ import {
   type ActivePlayerGrantLatestRow,
   type MemberTierCurrentRow,
 } from '../db/db';
+import { logger } from '../config/logger';
 import { appendAuditEntry, type AuditActorType } from './auditService';
+import { getCommunicationService } from './communicationService';
+import { vouchConfirmationEmail } from './emailContent';
 import { readIntConfig } from './configReader';
 import { RateLimitedError, ValidationError } from './serviceErrors';
 import { uuidv7Hex } from './uuidv7';
@@ -380,6 +384,49 @@ export function applyAttendance(
 }
 
 /**
+ * Tell the vouched member they now hold Active Player status. Runs after the
+ * vouch transaction commits, so a failed enqueue is logged and never unwinds
+ * the committed grant. The voucher's public display name personalizes the
+ * notice; a missing recipient login email is skipped rather than raised.
+ */
+function enqueueVouchConfirmation(
+  voucherId: string,
+  targetId: string,
+  expiresAt: string,
+  grantId: string,
+): void {
+  const target = account.findNotificationContactById.get(targetId) as
+    | { login_email: string | null }
+    | undefined;
+  if (!target?.login_email) {
+    logger.warn('vouch confirmation skipped: no deliverable recipient', { targetId });
+    return;
+  }
+  const voucher = account.findNotificationContactById.get(voucherId) as
+    | { display_name: string }
+    | undefined;
+  const { subject, bodyText } = vouchConfirmationEmail({
+    voucherName: voucher?.display_name ?? 'another member',
+    expiryDate: expiresAt.slice(0, 10),
+  });
+
+  try {
+    getCommunicationService().enqueueEmail({
+      recipientEmail: target.login_email,
+      recipientMemberId: targetId,
+      subject,
+      bodyText,
+      idempotencyKey: `vouch_confirmation:${grantId}`,
+    });
+  } catch (err) {
+    logger.warn('vouch confirmation email enqueue failed', {
+      err: err instanceof Error ? err.message : String(err),
+      targetId,
+    });
+  }
+}
+
+/**
  * Tier 2 / Tier 3 member vouches for a Tier 0 target to grant or extend AP.
  *
  * - Self-vouch is rejected (ValidationError; DB CHECK is the backstop).
@@ -456,7 +503,8 @@ export function applyVouch(
   const now = new Date();
   const newExpiresAt = isoFromDateAddDays(now, durationDays());
 
-  return transaction(() => {
+  let grantIdForEmail = '';
+  const result = transaction(() => {
     const nowIso = now.toISOString();
     // Defensive re-check inside the transaction: the target's tier may have
     // upgraded between the pre-tx read at line 382 and now (concurrent
@@ -515,6 +563,7 @@ export function applyVouch(
 
     const isExtend = !!latest;
     const grantId = newGrantId();
+    grantIdForEmail = grantId;
     activePlayer.insertGrant.run(
       grantId,
       nowIso,
@@ -548,6 +597,11 @@ export function applyVouch(
       ? { status: 'extended' as const, expiresAt: newExpiresAt }
       : { status: 'granted' as const, expiresAt: newExpiresAt };
   });
+
+  if (result.status === 'granted' || result.status === 'extended') {
+    enqueueVouchConfirmation(voucherId, targetId, result.expiresAt, grantIdForEmail);
+  }
+  return result;
 }
 
 /**

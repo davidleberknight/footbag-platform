@@ -100,6 +100,7 @@ import {
   type StripeWebhookEvent,
 } from '../adapters/paymentAdapter';
 import { getCommunicationService } from './communicationService';
+import { paymentReceiptEmail } from './emailContent';
 import { isSafePath } from '../lib/safePath';
 import type { PageViewModel } from '../types/page';
 
@@ -780,37 +781,24 @@ function enqueueReceiptEmail(payment: PaymentRow, outcome: 'succeeded' | 'failed
     return;
   }
 
-  const isMembership = payment.payment_type === 'membership';
-  const amountDisplay = `$${(payment.amount_cents / 100).toFixed(2)} ${payment.currency}`;
-  const subject = outcome === 'succeeded'
-    ? `Payment received: ${payment.descriptor}`
-    : `Payment failed: ${payment.descriptor}`;
-
-  const bodyLines: string[] = [];
-  bodyLines.push(outcome === 'succeeded' ? 'Thank you for your payment.' : 'Your payment could not be completed.');
-  bodyLines.push('');
-  bodyLines.push(`Item:    ${payment.descriptor}`);
-  bodyLines.push(`Amount:  ${amountDisplay}`);
-  if (outcome === 'succeeded' && isMembership && payment.purchased_tier_status === 'tier1') {
-    bodyLines.push('');
-    bodyLines.push('Your Tier 1 IFPA Member status is now active.');
-  } else if (outcome === 'succeeded' && isMembership && payment.purchased_tier_status === 'tier2') {
-    bodyLines.push('');
-    bodyLines.push('Your Tier 2 IFPA Organizer Member status is now active.');
-  } else if (outcome === 'failed') {
-    bodyLines.push('');
-    bodyLines.push('No charge was applied and your membership tier was not changed.');
-    bodyLines.push('You can try again from your dashboard.');
-  }
-  bodyLines.push('');
-  bodyLines.push('Reference: ' + payment.id);
+  const { subject, bodyText } = paymentReceiptEmail({
+    descriptor: payment.descriptor,
+    amountDisplay: `$${(payment.amount_cents / 100).toFixed(2)} ${payment.currency}`,
+    outcome,
+    isMembership: payment.payment_type === 'membership',
+    purchasedTier:
+      payment.purchased_tier_status === 'tier1' || payment.purchased_tier_status === 'tier2'
+        ? payment.purchased_tier_status
+        : null,
+    referenceId: payment.id,
+  });
 
   try {
     getCommunicationService().enqueueEmail({
       recipientEmail: contact.loginEmail,
       recipientMemberId: payment.member_id,
       subject,
-      bodyText: bodyLines.join('\n'),
+      bodyText,
       idempotencyKey: `payment_receipt:${payment.id}:${outcome}`,
     });
   } catch (err) {

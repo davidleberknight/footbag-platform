@@ -28,6 +28,7 @@ import {
 import { getMediaStorageAdapter } from './adapters/mediaStorageAdapter';
 import { getImageProcessingAdapter } from './adapters/imageProcessingAdapter';
 import { getVideoTranscodingAdapter } from './adapters/videoTranscodingAdapter';
+import { getSesAdapter, getStubSesAdapterForTests } from './adapters/sesAdapter';
 import { createCuratorMediaService } from './services/curatorMediaService';
 import type { MediaJobRow } from './db/db';
 
@@ -281,6 +282,29 @@ export function createTranscodeWorker(opts: TranscodeWorkerOptions = {}): Transc
       next(err);
     }
   });
+
+  // Dev/staging only: the email-outbox loop runs in this worker process, so its
+  // StubSesAdapter captures every worker-drained message in memory. The web
+  // container's /dev/outbox viewer reads its own (separate) buffer, so it fetches
+  // this endpoint to merge in the worker-captured messages a tester would
+  // otherwise never see. Registered only under SES_ADAPTER=stub; shared-secret
+  // authed like /transcode/dispatch. Never present in production (live adapter).
+  if (config.sesAdapter === 'stub') {
+    app.get('/dev/outbox-capture', (req: Request, res: Response) => {
+      if (!internalSecret) {
+        res.status(503).json({ error: 'INTERNAL_EVENT_SECRET not configured' });
+        return;
+      }
+      if (req.header(SECRET_HEADER) !== internalSecret) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+      }
+      // Force adapter init so the buffer exists even before the first drain.
+      getSesAdapter();
+      const stub = getStubSesAdapterForTests();
+      res.status(200).json({ messages: stub ? [...stub.sentMessages] : [] });
+    });
+  }
 
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     logger.error('transcodeWorker: unhandled error', { error: err.message });

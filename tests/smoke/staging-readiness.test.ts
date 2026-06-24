@@ -132,5 +132,35 @@ describe.skipIf(!RUN)(
       expect(res.messageId).toBeDefined();
       expect(res.messageId.length).toBeGreaterThan(0);
     }, 20_000);
+
+    // The SES mailbox simulator drives the bounce and complaint feedback path
+    // without touching sender reputation or quota. These probes confirm the
+    // live send to those simulator addresses is accepted; the webhook's
+    // recording of the resulting notification (email_status transitions,
+    // suppression precedence, audit row) is verified deterministically by the
+    // SES feedback webhook integration test against synthetic SNS payloads.
+    it('ses:SendEmail is accepted to bounce@simulator.amazonses.com', async () => {
+      const adapter = createLiveSesAdapter({ region, fromIdentity });
+      const res = await adapter.sendEmail({
+        to: 'bounce@simulator.amazonses.com',
+        subject: 'Footbag staging readiness probe (bounce simulator)',
+        bodyText:
+          'Automated readiness probe addressed to the SES bounce simulator. Safe to ignore.',
+      });
+      expect(res.messageId).toBeDefined();
+      expect(res.messageId.length).toBeGreaterThan(0);
+    }, 20_000);
+
+    it('ses:SendEmail is accepted to complaint@simulator.amazonses.com', async () => {
+      const adapter = createLiveSesAdapter({ region, fromIdentity });
+      const res = await adapter.sendEmail({
+        to: 'complaint@simulator.amazonses.com',
+        subject: 'Footbag staging readiness probe (complaint simulator)',
+        bodyText:
+          'Automated readiness probe addressed to the SES complaint simulator. Safe to ignore.',
+      });
+      expect(res.messageId).toBeDefined();
+      expect(res.messageId.length).toBeGreaterThan(0);
+    }, 20_000);
   },
 );

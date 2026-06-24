@@ -1004,6 +1004,20 @@ CREATE TABLE stripe_events (
 
 CREATE INDEX idx_stripe_events_created ON stripe_events(stripe_created);
 
+-- SES bounce/complaint webhook idempotency store, parallel to stripe_events.
+-- One row per inbound SNS messageId, preventing duplicate processing on SNS
+-- redelivery. The handler claims the messageId (INSERT OR IGNORE) inside the
+-- feedback transaction and short-circuits when the row already exists, so a
+-- redelivered bounce/complaint does not re-flip status or append duplicate
+-- audit rows. Append-only idempotency record; not a substitute for the
+-- audit_entries ledger that records each processed notification.
+CREATE TABLE ses_events (
+  message_id   TEXT PRIMARY KEY,
+  created_at   TEXT NOT NULL,
+  event_type   TEXT NOT NULL,
+  processed_at TEXT NOT NULL
+);
+
 -- ---------------------------------------------------------------------------
 -- RECURRING DONATION SUBSCRIPTIONS
 -- Current-state mirror of a member's recurring donation subscription in Stripe.
@@ -2863,6 +2877,15 @@ VALUES
    'outbox_poll_interval_seconds', '30',
    '2000-01-01T00:00:00.000Z',
    'Outbox worker polling interval in seconds (default: 30).',
+   NULL
+  ),
+
+  (
+   'seed-outbox-sending-lease-seconds',
+   '2000-01-01T00:00:00.000Z',
+   'outbox_sending_lease_seconds', '600',
+   '2000-01-01T00:00:00.000Z',
+   'Lease (seconds) before a stranded sending row is reaped back to pending (default: 600).',
    NULL
   ),
 

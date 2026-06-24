@@ -17,6 +17,7 @@ import { getDevBuildSwitch } from './personaBuildSwitchRoute';
 import { getDevLogin } from './personaLoginRoute';
 import { getDevPersonas } from './personaListingRoute';
 import { postDevPersonasRefresh } from './personaRefreshRoute';
+import { getDevOutbox } from './devOutboxRoute';
 
 export const devRouter = Router();
 
@@ -26,3 +27,4 @@ devRouter.get('/build-switch', getDevBuildSwitch);
 devRouter.get('/login', getDevLogin);
 devRouter.get('/personas', getDevPersonas);
 devRouter.post('/personas/refresh', postDevPersonasRefresh);
+devRouter.get('/outbox', getDevOutbox);

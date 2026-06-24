@@ -88,6 +88,7 @@ import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { clubService } from './clubService';
 import { getCommunicationService } from './communicationService';
+import { clubLeaderlessContactEmail } from './emailContent';
 import { logger } from '../config/logger';
 import { PageViewModel } from '../types/page';
 
@@ -988,12 +989,10 @@ function contactMembersToVolunteer(
         idempotencyKey: `club-leaderless-contact:${clubId}:${m.id}`,
         recipientEmail: m.login_email,
         recipientMemberId: m.id,
-        subject: `${club.name} could use a co-leader`,
-        bodyText:
-          `Hi ${m.display_name},\n\n` +
-          `Your footbag club "${club.name}" currently has no co-leader. A co-leader keeps the club's page up to date and is the club's point of contact for other members.\n\n` +
-          `If you would like to step up, log in to your account, open Clubs, find "${club.name}", and choose "Volunteer to co-lead". You need Tier 1 benefits, and a member can co-lead one club at a time.\n\n` +
-          `-- IFPA platform`,
+        ...clubLeaderlessContactEmail({
+          memberName: m.display_name,
+          clubName: club.name,
+        }),
       });
       recipientCount++;
     }

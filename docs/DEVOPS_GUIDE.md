@@ -917,7 +917,7 @@ Inbound `@footbag.org` mail is handled by Google Managed Services, not SES or an
 
 #### SES sandbox behavior
 
-New AWS accounts start in SES sandbox mode. In sandbox, **both the sender identity and every recipient address must be explicitly verified in SES before `SendEmail` will succeed.** An unverified recipient returns `MessageRejected: Email address is not verified` from SES; the outbox row transitions to `failed` with that message in `last_error` and retries up to `outbox_max_retry_attempts` before dead-lettering. Sandbox is per-region; check the SES console in the app's primary region. Request production access only once the sending domain is verified end-to-end and bounce/complaint handling is wired.
+New AWS accounts start in SES sandbox mode. In sandbox, **both the sender identity and every recipient address must be explicitly verified in SES before `SendEmail` will succeed.** An unverified recipient returns `MessageRejected: Email address is not verified` from SES; the outbox row returns to `pending` with that message in `last_error` and an incremented `retry_count`, retrying up to `outbox_max_retry_attempts` before dead-lettering. Sandbox is per-region; check the SES console in the app's primary region. Request production access only once the sending domain is verified end-to-end and bounce/complaint handling is wired.
 
 For staging-mode testing without enumerating every tester, AWS provides `success@simulator.amazonses.com` as an always-verified destination that accepts any send from any verified sender.
 
@@ -943,15 +943,15 @@ Transactional mail flows through four stages. Each stage fails differently; diag
 | Stage | Actor | Observable |
 |---|---|---|
 | 1. Enqueue | `web` container (`CommunicationService.enqueueEmail`) | new row in `outbox_emails` with `status='pending'` |
-| 2. Poll | `worker` container (polls every `outbox_poll_interval_seconds`) | row flips to `status='sending'` with `claimed_at` timestamp |
-| 3. Send | `worker` container (`LiveSesAdapter.sendEmail` → AWS SES) | on success: `status='sent'`; on failure: `status='failed'` or `dead_letter` with `last_error` populated |
+| 2. Poll | `worker` container (polls every `outbox_poll_interval_seconds`) | row flips to `status='sending'` with a `last_attempt_at` timestamp |
+| 3. Send | `worker` container (`LiveSesAdapter.sendEmail` → AWS SES) | on success: `status='sent'`; on failure: `status` returns to `pending` with `retry_count` incremented and `last_error` populated, reaching `dead_letter` only after `outbox_max_retry_attempts` is exhausted |
 | 4. Deliver | AWS SES → recipient mailbox | outside the app; observable in SES CloudWatch metrics and recipient inbox |
 
 Diagnosis for "no email arrived":
 
 - **No outbox row at all** → enqueue never ran. Either the triggering request (registration, password-reset, password-change) never reached the app, was rejected by validation, or hit an anti-enumeration silent branch (e.g., password-reset for an unknown email deliberately no-ops to prevent account enumeration).
-- **Row stuck at `pending`** → worker not draining. Check the `worker` container is running (`docker ps`), check worker logs for startup errors, check the admin `email_outbox_paused` config flag, check the worker's AWS credential chain via `aws sts get-caller-identity` on the host.
-- **Row at `failed` / `dead_letter`** → `last_error` column names the SES rejection (unverified recipient, IAM missing `ses:SendEmail`, suppression-list hit, rate limit). Read the column; do not guess.
+- **Row stuck at `pending` with no `last_error`** → worker not draining. Check the `worker` container is running (`docker ps`), check worker logs for startup errors, check the admin `email_outbox_paused` config flag, check the worker's AWS credential chain via `aws sts get-caller-identity` on the host.
+- **Row at `dead_letter`, or at `pending` with `last_error` set and a rising `retry_count`** → the send is failing; the `last_error` column names the SES rejection (unverified recipient, IAM missing `ses:SendEmail`, suppression-list hit, rate limit). Read the column; do not guess.
 - **Row at `sent`** → SES accepted the send. Check recipient spam folder and SES account suppression list (a prior hard bounce to that address silently suppresses future sends).
 
 Do not mock the DB to reproduce these states locally; the outbox schema constraints are load-bearing and must be exercised against a real SQLite file.

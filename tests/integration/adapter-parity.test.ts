@@ -310,6 +310,23 @@ describe('adapter-parity: SesAdapter (Stub vs. Live interface)', () => {
     expect(stub.sentMessages[0].from).toBeUndefined();
     expect(fakeSes.captured[0].input.Source).toBe('default@footbag.org');
   });
+
+  it('captureCurrentMessageIndex: stub returns its buffer length, live returns null', async () => {
+    const stub = createStubSesAdapter();
+    const fakeSes = makeFakeSesClient();
+    const live = createLiveSesAdapter({
+      fromIdentity: 'default@footbag.org',
+      sesClient: fakeSes.client,
+    });
+
+    // The simulated-email card relies on this asymmetry: the stub exposes a
+    // monotonic index so a caller can scope the preview to "messages this turn",
+    // while the live adapter has no in-memory buffer and returns null.
+    expect(stub.captureCurrentMessageIndex()).toBe(0);
+    await stub.sendEmail({ to: 'u@example.com', subject: 'S', bodyText: 'B' });
+    expect(stub.captureCurrentMessageIndex()).toBe(1);
+    expect(live.captureCurrentMessageIndex()).toBeNull();
+  });
 });
 
 describe('adapter-parity: SecretsAdapter (Stub vs. Live vs. Local interface)', () => {

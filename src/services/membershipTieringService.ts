@@ -6,7 +6,7 @@
  *   - HoF/BAP Tier 2 grants
  *   - Tier 3 governance set/remove
  *   - Admin tier corrections
- *   - Admin-role grants
+ *   - Admin-role grants (Target, not yet built -- see Required patterns)
  *   - `getTierStatus(memberId)` -- the sole authoritative membership-tier read path
  *
  * Does not own:
@@ -33,16 +33,23 @@
  *   - HoF/BAP grant on a Tier 3 member writes `governance_set` updating
  *     `new_underlying_tier_status = tier2`; otherwise writes a plain Tier 2 grant.
  *   - Refund does not write a `revoke` row.
- *   - Admin-role prerequisites: target must be Tier 2 or Tier 3; anti-lockout (last
- *     admin cannot be revoked); `admin-alerts` mailing-list subscription updated
- *     atomically with the `is_admin` change.
+ *   - Admin-role grant and revoke (Target, not current behavior).
+ *     Current: no admin-role grant or revoke action exists; the only writes to
+ *       `members.is_admin` are the first-admin bootstrap and the dev-only
+ *       register allowlist, neither performed by this service.
+ *     Target: an admin grants or revokes the admin role here (story
+ *       A_Manage_Admin_Role), requiring the target hold Tier 2 or Tier 3,
+ *       enforcing the last-admin anti-lockout, updating the `admin-alerts`
+ *       mailing-list subscription, and enqueueing the affected-member
+ *       notification, all in the same transaction as the `is_admin` write.
  *   - Tier 0 Active Player ending on purchase or Tier 3 grant runs in the same
  *     transaction as the tier write (calls `ActivePlayerService.endOnTierUpgrade`
  *     or `endOnTier3Grant`).
  *
  * Persistence:
  *   member_tier_grants, member_tier_current, members (flag and role fields),
- *   mailing_list_subscriptions, audit_entries, outbox_emails.
+ *   audit_entries, outbox_emails; mailing_list_subscriptions (Target, with the
+ *   admin-role grant/revoke action).
  *
  * Side effects:
  *   - audit_entries append
@@ -51,12 +58,20 @@
  * Service shape: singleton object (no external adapters).
  */
 import {
+  account,
   memberTier,
   transaction,
   type MemberTierCurrentRow,
   type MemberTierGrantLatestRow,
 } from '../db/db';
+import { logger } from '../config/logger';
 import { appendAuditEntry, type AuditActorType } from './auditService';
+import { getCommunicationService } from './communicationService';
+import {
+  honorCongratulationEmail,
+  tierChangeNoticeEmail,
+  type EmailContent,
+} from './emailContent';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { endOnTier3Grant, endOnTierUpgrade } from './activePlayerService';
 import { uuidv7Hex } from './uuidv7';
@@ -174,6 +189,70 @@ function audit(opts: {
     entityId: opts.memberId,
     reasonText: opts.reasonText,
     metadata: opts.metadata,
+  });
+}
+
+// Member notifications enqueue AFTER the tier transaction commits, so a failed
+// or skipped enqueue never unwinds the committed grant. A member with no
+// deliverable recipient (no login email, deceased, or purged) is skipped rather
+// than raised. The grant id keys idempotency, so re-enqueuing the same committed
+// grant collapses to one row.
+function enqueueMemberEmail(opts: {
+  memberId: string;
+  content: EmailContent;
+  idempotencyKey: string;
+  context: string;
+}): void {
+  const row = account.findNotificationContactById.get(opts.memberId) as
+    | { login_email: string | null }
+    | undefined;
+  if (!row?.login_email) {
+    logger.warn(`${opts.context} skipped: no deliverable recipient`, {
+      memberId: opts.memberId,
+    });
+    return;
+  }
+  try {
+    getCommunicationService().enqueueEmail({
+      recipientEmail: row.login_email,
+      recipientMemberId: opts.memberId,
+      subject: opts.content.subject,
+      bodyText: opts.content.bodyText,
+      idempotencyKey: opts.idempotencyKey,
+    });
+  } catch (err) {
+    logger.warn(`${opts.context} email enqueue failed`, {
+      err: err instanceof Error ? err.message : String(err),
+      memberId: opts.memberId,
+    });
+  }
+}
+
+function enqueueHonorCongrats(
+  memberId: string,
+  honor: 'hof' | 'bap',
+  staysTier3: boolean,
+  grantId: string,
+): void {
+  enqueueMemberEmail({
+    memberId,
+    content: honorCongratulationEmail({ honor, staysTier3 }),
+    idempotencyKey: `honor_congrats:${grantId}`,
+    context: 'honor congratulation',
+  });
+}
+
+function enqueueTierChangeNotice(
+  memberId: string,
+  newTier: MemberTier,
+  reasonText: string,
+  grantId: string,
+): void {
+  enqueueMemberEmail({
+    memberId,
+    content: tierChangeNoticeEmail({ newTier, reasonText }),
+    idempotencyKey: `tier_change_notice:${grantId}`,
+    context: 'tier change notice',
   });
 }
 
@@ -386,12 +465,13 @@ export function applyHonorGrant(
 ): { ok: true } {
   const reasonCode = honor === 'hof' ? 'honor.hof_tier2_grant' : 'honor.bap_tier2_grant';
 
-  return transaction(() => {
+  const result = transaction(() => {
     const now = new Date().toISOString();
     const current = getCurrent(memberId);
 
+    let newGrantRowId: string;
     if (current.tier_status === 'tier3') {
-      insertGrant({
+      newGrantRowId = insertGrant({
         actorId,
         memberId,
         changeType: 'governance_set',
@@ -409,7 +489,7 @@ export function applyHonorGrant(
       if (current.tier_status === 'tier0') {
         endOnTierUpgrade(memberId, now);
       }
-      insertGrant({
+      newGrantRowId = insertGrant({
         actorId,
         memberId,
         changeType: 'grant',
@@ -438,8 +518,11 @@ export function applyHonorGrant(
       },
     });
 
-    return { ok: true as const };
+    return { grantId: newGrantRowId, staysTier3: current.tier_status === 'tier3' };
   });
+
+  enqueueHonorCongrats(memberId, honor, result.staysTier3, result.grantId);
+  return { ok: true as const };
 }
 
 /**
@@ -720,11 +803,12 @@ export function adminOverride(
   }
   const validatedReason = validateReasonText(reasonText);
 
-  return transaction(() => {
+  const result = transaction(() => {
     const now = new Date().toISOString();
     const current = getCurrent(memberId);
+    const tierChanged = current.tier_status !== newTier;
 
-    insertGrant({
+    const newGrantRowId = insertGrant({
       actorId,
       memberId,
       changeType: 'correct',
@@ -751,7 +835,14 @@ export function adminOverride(
       },
     });
 
-    return { ok: true as const };
+    return { grantId: newGrantRowId, tierChanged };
   });
+
+  // A same-tier correction (an admin re-recording the current tier with a new
+  // reason) is not a status change, so it sends no notification.
+  if (result.tierChanged) {
+    enqueueTierChangeNotice(memberId, newTier, reasonText, result.grantId);
+  }
+  return { ok: true as const };
 }
 

@@ -12,15 +12,24 @@
  * SubscribeURL is never auto-fetched: auto-confirm would fetch an
  * attacker-supplied URL).
  *
+ * Idempotency: the inbound SNS MessageId is claimed in ses_events (INSERT OR
+ * IGNORE) inside the same transaction as the status writes; a redelivery whose
+ * id is already present short-circuits, so status flips and audit rows happen
+ * exactly once. Parallel to the stripe_events webhook idempotency.
+ *
+ * Persistence: writes members.email_status and mailing_list_subscriptions
+ * status; claims ses_events; appends audit_entries.
+ *
  * Transport auth (the shared-secret query key plus SNS signature verification
  * on the webhook request) is the IPC controller's concern, not this service's.
  */
-import { sesFeedback, mailingListSubscriptions, transaction } from '../db/db';
+import { sesFeedback, mailingListSubscriptions, sesEvents, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { logger } from '../config/logger';
 
 export type SesFeedbackResult =
   | { status: 'processed'; kind: 'bounce' | 'complaint'; recipients: number; membersUpdated: number }
+  | { status: 'duplicate'; kind: 'bounce' | 'complaint' }
   | { status: 'subscription_pending' }
   | { status: 'ignored'; reason: 'transient_bounce' | 'unknown_type' | 'malformed' };
 
@@ -64,6 +73,10 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
     return { status: 'ignored', reason: 'unknown_type' };
   }
 
+  // SNS assigns one MessageId per message and reuses it across delivery retries,
+  // so it is the idempotency key for redelivered bounce/complaint notifications.
+  const messageId = typeof envelope.MessageId === 'string' ? envelope.MessageId : null;
+
   let message: Record<string, unknown>;
   try {
     message = JSON.parse(envelope.Message) as Record<string, unknown>;
@@ -81,7 +94,7 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
     const recipients = (Array.isArray(bounce.bouncedRecipients) ? bounce.bouncedRecipients : [])
       .map((r) => (r as Record<string, unknown>).emailAddress)
       .filter((v): v is string => typeof v === 'string');
-    return applyStatus('bounce', recipients);
+    return applyStatus('bounce', recipients, messageId);
   }
 
   if (message.notificationType === 'Complaint') {
@@ -89,16 +102,32 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
     const recipients = (Array.isArray(complaint.complainedRecipients) ? complaint.complainedRecipients : [])
       .map((r) => (r as Record<string, unknown>).emailAddress)
       .filter((v): v is string => typeof v === 'string');
-    return applyStatus('complaint', recipients);
+    return applyStatus('complaint', recipients, messageId);
   }
 
   return { status: 'ignored', reason: 'unknown_type' };
 }
 
-function applyStatus(kind: 'bounce' | 'complaint', recipients: string[]): SesFeedbackResult {
+function applyStatus(
+  kind: 'bounce' | 'complaint',
+  recipients: string[],
+  messageId: string | null,
+): SesFeedbackResult {
   const now = new Date().toISOString();
   let membersUpdated = 0;
+  let duplicate = false;
   transaction(() => {
+    // Claim the SNS MessageId first. A redelivery whose id is already recorded
+    // returns changes=0; short-circuit so the status flips and audit rows are
+    // written exactly once. A notification without a MessageId cannot be deduped
+    // and is processed (dropping real feedback over a missing key is worse).
+    if (messageId) {
+      const claim = sesEvents.insertEventOrIgnore.run(messageId, now, kind, now);
+      if (claim.changes === 0) {
+        duplicate = true;
+        return;
+      }
+    }
     for (const email of recipients) {
       const normalized = normalizeEmail(email);
       const res = kind === 'bounce'
@@ -106,9 +135,9 @@ function applyStatus(kind: 'bounce' | 'complaint', recipients: string[]): SesFee
         : sesFeedback.markComplained.run(now, normalized);
       membersUpdated += res.changes;
       if (kind === 'bounce') {
-        mailingListSubscriptions.markBouncedForEmail.run(now, 'SES hard bounce', normalized);
+        mailingListSubscriptions.markBouncedForEmail.run(now, now, 'SES hard bounce', normalized);
       } else {
-        mailingListSubscriptions.markComplainedForEmail.run(now, 'SES complaint', normalized);
+        mailingListSubscriptions.markComplainedForEmail.run(now, now, 'SES complaint', normalized);
       }
       appendAuditEntry({
         actionType:    kind === 'bounce' ? 'email.bounce_recorded' : 'email.complaint_recorded',
@@ -125,6 +154,9 @@ function applyStatus(kind: 'bounce' | 'complaint', recipients: string[]): SesFee
       });
     }
   });
+  if (duplicate) {
+    return { status: 'duplicate', kind };
+  }
   return { status: 'processed', kind, recipients: recipients.length, membersUpdated };
 }
 

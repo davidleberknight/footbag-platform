@@ -145,12 +145,13 @@ describe('enqueueEmail', () => {
     expect(a.id).not.toBe(b.id);
   });
 
-  it('requires recipientEmail, subject, bodyText', () => {
+  it('requires recipientEmail, subject, bodyText (ValidationError, not a bare Error)', async () => {
+    const { ValidationError } = await import('../../src/services/serviceErrors');
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
-    expect(() => svc.enqueueEmail({ recipientEmail: '', subject: 's', bodyText: 'b' })).toThrow();
-    expect(() => svc.enqueueEmail({ recipientEmail: 'a@b.c', subject: '', bodyText: 'b' })).toThrow();
-    expect(() => svc.enqueueEmail({ recipientEmail: 'a@b.c', subject: 's', bodyText: '' })).toThrow();
+    expect(() => svc.enqueueEmail({ recipientEmail: '', subject: 's', bodyText: 'b' })).toThrow(ValidationError);
+    expect(() => svc.enqueueEmail({ recipientEmail: 'a@b.c', subject: '', bodyText: 'b' })).toThrow(ValidationError);
+    expect(() => svc.enqueueEmail({ recipientEmail: 'a@b.c', subject: 's', bodyText: '' })).toThrow(ValidationError);
   });
 });
 
@@ -309,6 +310,10 @@ describe('processSendQueue', () => {
     const row = readRow(id);
     expect(row.status).toBe('dead_letter');
     expect(row.retry_count).toBe(5);
+    // Dead-lettered rows RETAIN body_text for manual recovery; only a
+    // successful send scrubs it. A copy of the markSent scrub into
+    // markDeadLetter would silently destroy the recovery payload.
+    expect(row.body_text).toBe('b');
   });
 
   it('respects admin pause (email_outbox_paused=1)', async () => {
@@ -346,6 +351,45 @@ describe('processSendQueue', () => {
       '2026-04-17T00:00:01.000Z',
     );
     db2.close();
+  });
+
+  it('does not reap stranded sending rows while paused; reaps them on unpause', async () => {
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const { id } = svc.enqueueEmail({
+      recipientEmail: 'paused@example.com', subject: 'Hi', bodyText: 'b',
+    });
+    // Strand the row in 'sending' with a reap-eligible (stale) attempt time,
+    // then pause the queue with a config row effective after any prior one.
+    let db = new BetterSqlite3(dbPath);
+    db.prepare(`
+      UPDATE outbox_emails SET status = 'sending', last_attempt_at = '2020-01-01T00:00:00.000Z' WHERE id = ?
+    `).run(id);
+    db.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES ('t13-pause', '2026-04-17T00:00:10.000Z', 'email_outbox_paused', '1', '2026-04-17T00:00:10.000Z', 'pause', NULL)
+    `).run();
+    db.close();
+
+    const paused = await svc.processSendQueue();
+    expect(paused.paused).toBe(true);
+    // The pause check returns before the stale-sending reap, so the stranded
+    // row keeps its (now invisible) 'sending' state instead of being lost.
+    expect(readRow(id).status).toBe('sending');
+
+    // Unpause: the next drain reaps the stranded row and delivers it.
+    db = new BetterSqlite3(dbPath);
+    db.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES ('t13-unpause', '2026-04-17T00:00:11.000Z', 'email_outbox_paused', '0', '2026-04-17T00:00:11.000Z', 'unpause', NULL)
+    `).run();
+    db.close();
+
+    const drained = await svc.processSendQueue();
+    expect(drained.sent).toBe(1);
+    expect(readRow(id).status).toBe('sent');
   });
 
   it('respects scheduled_for (future rows not claimed)', async () => {
@@ -543,20 +587,21 @@ describe('enqueueMailingListEmail', () => {
     expect(count.n).toBe(2);
   });
 
-  it('rejects empty input fields with a thrown error', () => {
+  it('rejects empty input fields with a ValidationError', async () => {
+    const { ValidationError } = await import('../../src/services/serviceErrors');
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     expect(() => svc.enqueueMailingListEmail({
       mailingListSlug: '', subject: 'A', bodyText: 'B', idempotencyKeyPrefix: 'x',
-    })).toThrow();
+    })).toThrow(ValidationError);
     expect(() => svc.enqueueMailingListEmail({
       mailingListSlug: 'admin-alerts', subject: '', bodyText: 'B', idempotencyKeyPrefix: 'x',
-    })).toThrow();
+    })).toThrow(ValidationError);
     expect(() => svc.enqueueMailingListEmail({
       mailingListSlug: 'admin-alerts', subject: 'A', bodyText: '', idempotencyKeyPrefix: 'x',
-    })).toThrow();
+    })).toThrow(ValidationError);
     expect(() => svc.enqueueMailingListEmail({
       mailingListSlug: 'admin-alerts', subject: 'A', bodyText: 'B', idempotencyKeyPrefix: '',
-    })).toThrow();
+    })).toThrow(ValidationError);
   });
 });

@@ -1115,6 +1115,7 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `vouch_rate_limit_window_minutes` | `60` | Sliding window (minutes) for counting vouch submissions per voucher |
 | `outbox_max_retry_attempts` | `5` | Max email retry attempts before moving to dead-letter queue |
 | `outbox_poll_interval_seconds` | `30` | Outbox worker polling interval (seconds) |
+| `outbox_sending_lease_seconds` | `600` | Lease before a stranded `sending` outbox row is reaped back to `pending` (seconds) |
 | `token_cleanup_threshold_days` | `7` | Age threshold (days) for cleanup of expired/consumed account tokens |
 | `deceased_cleanup_grace_days` | `30` | Grace period (days) before PII removal after member marked deceased |
 | `data_export_link_expiry_hours` | `72` | Hours before a personal data export download link expires |
@@ -1753,6 +1754,8 @@ The schema contains a few patterns that may look inconsistent at first glance bu
 - **`tag_stats`**; Follows a cache/recomputed-statistics pattern. `tag_id` is the primary key; no `id`, `version`, or mutable metadata columns. Always upserted by background job.
 
 - **`stripe_events`**; External-event ingestion table. Uses `event_id TEXT PRIMARY KEY` (Stripe's event ID) rather than a surrogate UUID. Follows ingestion-oriented semantics that differ from the most common entity-table pattern.
+
+- **`ses_events`**; SES bounce/complaint webhook idempotency store, parallel to `stripe_events`. Uses `message_id TEXT PRIMARY KEY` (the inbound SNS MessageId) rather than a surrogate UUID; the feedback handler claims it (INSERT OR IGNORE) inside the feedback transaction so a redelivered notification is processed exactly once.
 
 - **`mailing_lists`**; Uses `slug TEXT PRIMARY KEY` (the natural key), not a UUID. Intentionally has no `id` column; slug is the stable semantic reference used by all foreign keys into this table.
 

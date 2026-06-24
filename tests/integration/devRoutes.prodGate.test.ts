@@ -89,6 +89,12 @@ describe('GET /dev/* — production mount gate', () => {
     expect(res.status).toBe(404);
   });
 
+  it('returns 404 for /dev/outbox (router not mounted in production)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/dev/outbox');
+    expect(res.status).toBe(404);
+  });
+
   it('returns 404 for POST /payments/checkout/:id/decline (stub-only route unregistered in live mode)', async () => {
     const app = createApp();
     // Send a matching Origin so requireOriginPin passes; the request then falls

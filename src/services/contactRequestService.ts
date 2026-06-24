@@ -46,6 +46,7 @@ import { workQueue, account, transaction } from '../db/db';
 import { enforceWorkQueueResolveLimit } from './identityAccessService';
 import { appendAuditEntry } from './auditService';
 import { getCommunicationService } from './communicationService';
+import { adminQueueAlertEmail, contactRequestResolutionEmail } from './emailContent';
 import { recordOperationalError } from './operationalErrors';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
@@ -314,8 +315,7 @@ export const contactRequestService = {
       });
       getCommunicationService().enqueueMailingListEmail({
         mailingListSlug:      'admin-alerts',
-        subject:              `New admin queue item: ${TASK_TYPE}`,
-        bodyText:             `Task type: ${TASK_TYPE}\nEntity ID: ${id}`,
+        ...adminQueueAlertEmail({ taskType: TASK_TYPE, entityId: id }),
         idempotencyKeyPrefix: `admin-alerts:${TASK_TYPE}:${id}`,
       });
     });
@@ -394,19 +394,11 @@ export const contactRequestService = {
       | undefined;
     if (member && member.login_email) {
       const displayDecision = DECISION_LABEL_DISPLAY[decisionLabel];
-      const subject = `Your IFPA contact request: ${displayDecision}`;
-      const bodyText = [
-        `Hi ${member.display_name},`,
-        '',
-        `An IFPA administrator has resolved your contact request with decision: ${displayDecision}.`,
-        '',
-        'Admin note:',
+      const { subject, bodyText } = contactRequestResolutionEmail({
+        memberName: member.display_name,
+        displayDecision,
         note,
-        '',
-        'If you need further assistance, you can submit a new contact request from your profile edit page.',
-        '',
-        'International Footbag Players Association',
-      ].join('\n');
+      });
 
       // Strict enqueue (R4 pattern): an outbox failure after the resolve
       // committed must surface to the admin as a 503 rather than silently
