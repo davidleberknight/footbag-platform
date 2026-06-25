@@ -12567,3 +12567,16 @@ a.banner-tile:hover { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12); transform: tra
 @media (max-width: 480px) {
   .banner-grid { grid-template-columns: 1fr; }
 }
+
+/* Dev outbox: the captured-email body block on the development/staging tester
+   tool. Monospace and pre-wrapped so a plain-text email reads as it was sent. */
+.dev-outbox-body {
+  margin: 8px 0 0;
+  padding: 12px;
+  background: var(--bg-light);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

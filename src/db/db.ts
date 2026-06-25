@@ -4841,6 +4841,21 @@ export const account = {
       AND personal_data_purged_at IS NULL
   `); },
 
+  // Current admins for the admin-roles management page: id plus the fields the
+  // page renders (display name and the profile slug), ordered for a stable list.
+  get listAdminsForDisplay() { return db.prepare(`
+    SELECT id, slug, display_name FROM members_active
+    WHERE is_admin = 1
+      AND personal_data_purged_at IS NULL
+    ORDER BY display_name COLLATE NOCASE
+  `); },
+
+  // Resolve an admin-entered member key (slug or id) to an active member, for
+  // admin tooling that names a target by either handle.
+  get findActiveMemberByKey() { return db.prepare(`
+    SELECT id, slug, display_name FROM members_active WHERE slug = ? OR id = ?
+  `); },
+
   get findIdentityLinks() { return db.prepare(`
     SELECT
       m.legacy_member_id,
@@ -7932,6 +7947,51 @@ export const mailingListSubscriptions = {
         complaint_detail = ?
     WHERE status = 'subscribed'
       AND member_id IN (SELECT id FROM members WHERE login_email_normalized = ? AND deleted_at IS NULL)
+  `); },
+
+  // Idempotent subscribe used when a member is provisioned or granted the admin
+  // role: a member with no prior row is inserted as subscribed; a member who was
+  // previously unsubscribed, bounced, or complained is flipped back to
+  // subscribed. The unique (mailing_list_id, member_id) pair drives the upsert.
+  get upsertSubscribed() { return db.prepare(`
+    INSERT INTO mailing_list_subscriptions (
+      id, created_at, created_by, updated_at, updated_by, version,
+      mailing_list_id, member_id, status, status_updated_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'subscribed', ?)
+    ON CONFLICT(mailing_list_id, member_id) DO UPDATE SET
+      status = 'subscribed',
+      status_updated_at = excluded.status_updated_at,
+      updated_at = excluded.updated_at,
+      updated_by = excluded.updated_by,
+      version = version + 1
+  `); },
+
+  // Explicit unsubscribe from one list, leaving every other list this member is
+  // on untouched (one row per list). A member with no row for this list is a
+  // no-op (zero changes), so revoking a role whose subscription never existed is
+  // safe. Distinct from the SES bounce/complaint flips, which the feedback path
+  // keys on email.
+  get setUnsubscribed() { return db.prepare(`
+    UPDATE mailing_list_subscriptions
+    SET status = 'unsubscribed', status_updated_at = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE mailing_list_id = ? AND member_id = ?
+  `); },
+};
+
+// Steady-state admin-role flag write for the in-app grant/revoke action: an
+// admin toggles another member's is_admin. The one-time bootstrap path has its
+// own guarded single-shot write; this statement is the ongoing per-member toggle
+// the membership-tiering service performs inside the grant/revoke transaction.
+export const adminRole = {
+  get setAdminFlag() { return db.prepare(`
+    UPDATE members
+    SET is_admin = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
+  get getIsAdmin() { return db.prepare(`
+    SELECT is_admin FROM members_active WHERE id = ?
   `); },
 };
 

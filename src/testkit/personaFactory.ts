@@ -613,6 +613,23 @@ export function seedPersona(
     });
   }
 
+  // Holding the admin role carries an admin-alerts subscription: that is the
+  // steady state every provisioned or granted admin reaches, so a seeded admin
+  // matches the invariant and the admin-alerts fan-out has a target to capture.
+  // An explicit admin-alerts entry in the spec (a bounced-subscription edge
+  // case, say) wins, so seed the default only when none is declared.
+  const declaresAdminAlerts = mailingLists.some(
+    (ml) => (ml.listSlug ?? 'announce') === 'admin-alerts',
+  );
+  if (isAdmin === 1 && !declaresAdminAlerts) {
+    insertMailingListSubscription(db, {
+      member_id: memberId,
+      list_slug: 'admin-alerts',
+      list_name: 'Admin Alerts',
+      status: 'subscribed',
+    });
+  }
+
   insertAuditEntry(db, {
     created_by: PERSONA_SEED_CREATED_BY,
     actor_type: 'system',

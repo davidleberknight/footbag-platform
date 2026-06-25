@@ -80,6 +80,29 @@ export function tierChangeNoticeEmail(input: {
   };
 }
 
+/**
+ * Tells a member an administrator granted or revoked their platform
+ * administrator role. The internal reason the administrator recorded is not
+ * echoed to the member; the notice states only that the role changed.
+ */
+export function adminRoleChangeEmail(input: {
+  action: 'granted' | 'revoked';
+}): EmailContent {
+  const lines = input.action === 'granted'
+    ? [
+        'An administrator granted you the IFPA platform administrator role.',
+        'You now have administrative access to the platform.',
+      ]
+    : [
+        'An administrator revoked your IFPA platform administrator role.',
+        'Your administrative access has been removed.',
+      ];
+  return {
+    subject: 'Your IFPA administrator role was updated',
+    bodyText: lines.join('\n'),
+  };
+}
+
 const SIGNOFF = '-- IFPA platform';
 
 /** Confirms to a member that they joined or left a club. */

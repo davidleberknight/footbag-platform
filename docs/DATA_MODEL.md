@@ -422,6 +422,7 @@ Emitted values, grouped by namespace:
 - **`support.*`**: `contact_request_submitted`, `contact_request_resolved`, `contact_request_resolve_notification_failed`.
 - **`roster.*`**: `list`, `summary`, `export`.
 - **`member.*`**: `profile_updated`, `search`, `search_rate_limited`, `pii_purged`, `deceased_pii_scrubbed`, `pii_erasure_failed`.
+- **`admin.*`**: `role_granted`, `role_revoked` (steady-state admin-role grant and revoke via A_Manage_Admin_Role).
 - **`admin.club_cleanup.*`**: parameterized by the cleanup action taken.
 - **Grandfathered (no namespace)**: `onboarding_task_started`, `onboarding_task_skipped`, `onboarding_task_completed`, `onboarding_task_not_applicable`, `upload_member_media`, `upload_curated_media`, `edit_member_media`, `upload_curated_url_reference`, `grant_admin_bootstrap`, `grant_admin_dev_seed`, `grant_admin_dev_register_allowlist`, `dev_admin_invariant_repair`, `dev_persona_seed`, `dev_switch_persona`.
 

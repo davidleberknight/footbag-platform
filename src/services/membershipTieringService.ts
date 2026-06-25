@@ -6,7 +6,7 @@
  *   - HoF/BAP Tier 2 grants
  *   - Tier 3 governance set/remove
  *   - Admin tier corrections
- *   - Admin-role grants (Target, not yet built -- see Required patterns)
+ *   - Admin-role grant and revoke (story A_Manage_Admin_Role)
  *   - `getTierStatus(memberId)` -- the sole authoritative membership-tier read path
  *
  * Does not own:
@@ -33,32 +33,39 @@
  *   - HoF/BAP grant on a Tier 3 member writes `governance_set` updating
  *     `new_underlying_tier_status = tier2`; otherwise writes a plain Tier 2 grant.
  *   - Refund does not write a `revoke` row.
- *   - Admin-role grant and revoke (Target, not current behavior).
- *     Current: no admin-role grant or revoke action exists; the only writes to
- *       `members.is_admin` are the first-admin bootstrap and the dev-only
- *       register allowlist, neither performed by this service.
- *     Target: an admin grants or revokes the admin role here (story
- *       A_Manage_Admin_Role), requiring the target hold Tier 2 or Tier 3,
- *       enforcing the last-admin anti-lockout, updating the `admin-alerts`
- *       mailing-list subscription, and enqueueing the affected-member
- *       notification, all in the same transaction as the `is_admin` write.
+ *   - Admin-role grant requires the target currently hold Tier 2 or Tier 3
+ *     (checked at request time); it sets `is_admin=1`, appends an admin-actor
+ *     audit row, and subscribes the member to `admin-alerts`, all in one
+ *     transaction. No `member_tier_grants` row is written: the target already
+ *     satisfies the admin Tier 2 prerequisite and tier predicates short-circuit
+ *     on `is_admin`. Revoke is self-revoke-guarded (an admin cannot revoke their
+ *     own role, so at least one admin always remains); it sets `is_admin=0`,
+ *     audits, and unsubscribes the member from `admin-alerts` only, leaving
+ *     other list subscriptions untouched. Both enqueue the affected-member
+ *     notification after the transaction commits.
+ *   - Every admin-provisioning path (steady-state grant plus the bootstrap and
+ *     dev-repair callers of the Tier 2 invariant grant) subscribes the member to
+ *     `admin-alerts`, so the work-queue fan-out reaches every admin.
  *   - Tier 0 Active Player ending on purchase or Tier 3 grant runs in the same
  *     transaction as the tier write (calls `ActivePlayerService.endOnTierUpgrade`
  *     or `endOnTier3Grant`).
  *
  * Persistence:
  *   member_tier_grants, member_tier_current, members (flag and role fields),
- *   audit_entries, outbox_emails; mailing_list_subscriptions (Target, with the
- *   admin-role grant/revoke action).
+ *   audit_entries, outbox_emails, mailing_list_subscriptions.
  *
  * Side effects:
  *   - audit_entries append
- *   - outbox_emails enqueue (tier change, congratulatory HoF/BAP)
+ *   - outbox_emails enqueue (tier change, congratulatory HoF/BAP, admin-role change)
+ *   - mailing_list_subscriptions upsert (admin-alerts subscribe on admin
+ *     provisioning/grant; unsubscribe on revoke)
  *
  * Service shape: singleton object (no external adapters).
  */
 import {
   account,
+  adminRole,
+  mailingListSubscriptions,
   memberTier,
   transaction,
   type MemberTierCurrentRow,
@@ -68,6 +75,7 @@ import { logger } from '../config/logger';
 import { appendAuditEntry, type AuditActorType } from './auditService';
 import { getCommunicationService } from './communicationService';
 import {
+  adminRoleChangeEmail,
   honorCongratulationEmail,
   tierChangeNoticeEmail,
   type EmailContent,
@@ -77,6 +85,12 @@ import { endOnTier3Grant, endOnTierUpgrade } from './activePlayerService';
 import { uuidv7Hex } from './uuidv7';
 
 const REASON_TEXT_MAX_LENGTH = 4000;
+
+// The admin-only notification list every admin is subscribed to. Holding the
+// admin role is the consent: the work-queue fan-out targets this list, so an
+// admin who is not subscribed receives none of those operational alerts.
+const ADMIN_ALERTS_LIST_SLUG = 'admin-alerts';
+const ADMIN_ROLE_REASON_MAX = 500;
 
 export type MemberTier = 'tier0' | 'tier1' | 'tier2' | 'tier3';
 export type UnderlyingTier = 'tier1' | 'tier2';
@@ -256,6 +270,37 @@ function enqueueTierChangeNotice(
   });
 }
 
+// Idempotent admin-alerts subscribe, run inside the admin-provisioning or grant
+// transaction. A member with no row is inserted as subscribed; a previously
+// unsubscribed/bounced row is flipped back. `source` records who/what drove the
+// write on the subscription row.
+function subscribeAdminAlertsInTx(memberId: string, now: string, source: string): void {
+  mailingListSubscriptions.upsertSubscribed.run(
+    `mls_${uuidv7Hex()}`, now, source, now, source,
+    ADMIN_ALERTS_LIST_SLUG, memberId, now,
+  );
+}
+
+// Unsubscribe from admin-alerts only, run inside the revoke transaction. Touches
+// just this list's row, so the member's other subscriptions are unchanged; a
+// member with no row is a harmless no-op.
+function unsubscribeAdminAlertsInTx(memberId: string, now: string, source: string): void {
+  mailingListSubscriptions.setUnsubscribed.run(
+    now, now, source, ADMIN_ALERTS_LIST_SLUG, memberId,
+  );
+}
+
+function requireAdminRoleReason(reason: string): string {
+  const trimmed = (reason ?? '').trim();
+  if (trimmed.length === 0) {
+    throw new ValidationError('A reason is required.');
+  }
+  if (trimmed.length > ADMIN_ROLE_REASON_MAX) {
+    throw new ValidationError(`Reason must be ${ADMIN_ROLE_REASON_MAX} characters or fewer.`);
+  }
+  return trimmed;
+}
+
 /**
  * Read the member's current lifetime tier and underlying tier (Tier 3 only).
  * Throws NotFoundError if the member id is not in the members table.
@@ -395,11 +440,17 @@ export function applyAdminTier2InvariantGrantInTx(
   reasonCode: string,
   auditMetadata: Record<string, unknown>,
 ): { applied: boolean } {
+  const now = new Date().toISOString();
+  // Provisioning or repairing an admin subscribes them to admin-alerts, so the
+  // work-queue fan-out reaches every admin. Runs regardless of the tier-invariant
+  // branch below: an admin who already holds Tier 2/3 returns early from the tier
+  // grant but still needs the subscription ensured.
+  subscribeAdminAlertsInTx(memberId, now, reasonCode);
+
   const current = getCurrent(memberId);
   if (current.tier_status === 'tier2' || current.tier_status === 'tier3') {
     return { applied: false };
   }
-  const now = new Date().toISOString();
   if (current.tier_status === 'tier0') {
     endOnTierUpgrade(memberId, now);
   }
@@ -447,6 +498,112 @@ export function applyAdminTier2InvariantGrantInTx(
     metadata: { from: current.tier_status, to: 'tier2', ...auditMetadata },
   });
   return { applied: true };
+}
+
+/**
+ * Grant the platform admin role to a member (story A_Manage_Admin_Role). The
+ * target must currently hold Tier 2 or Tier 3 (checked here at request time) and
+ * not already be an admin. In one transaction this sets `is_admin=1`, appends an
+ * admin-actor audit row carrying the mandatory reason, and subscribes the member
+ * to admin-alerts. No `member_tier_grants` row is written: the target already
+ * satisfies the admin Tier 2 prerequisite and tier predicates short-circuit on
+ * `is_admin`. The affected-member email enqueues after commit.
+ */
+export function grantAdminRole(
+  adminMemberId: string,
+  targetMemberId: string,
+  reason: string,
+): { ok: true } {
+  const trimmedReason = requireAdminRoleReason(reason);
+  const current = getCurrent(targetMemberId); // NotFoundError when no such member
+  if (current.tier_status !== 'tier2' && current.tier_status !== 'tier3') {
+    throw new ValidationError(
+      'The member must hold Tier 2 or Tier 3 status before being granted the admin role.',
+    );
+  }
+  const roleRow = adminRole.getIsAdmin.get(targetMemberId) as { is_admin: number } | undefined;
+  if (!roleRow) {
+    throw new NotFoundError(`member ${targetMemberId} not found`);
+  }
+  if (roleRow.is_admin === 1) {
+    throw new ConflictError('That member is already an administrator.');
+  }
+
+  const now = new Date().toISOString();
+  const eventId = `evt_${uuidv7Hex()}`;
+  transaction(() => {
+    adminRole.setAdminFlag.run(1, now, 'admin_role_grant', targetMemberId);
+    subscribeAdminAlertsInTx(targetMemberId, now, 'admin_role_grant');
+    audit({
+      actionType: 'admin.role_granted',
+      category: 'admin',
+      actorType: 'admin',
+      actorId: adminMemberId,
+      memberId: targetMemberId,
+      reasonText: trimmedReason,
+      metadata: { event_id: eventId },
+    });
+  });
+
+  enqueueMemberEmail({
+    memberId: targetMemberId,
+    content: adminRoleChangeEmail({ action: 'granted' }),
+    idempotencyKey: `admin_role_grant:${eventId}`,
+    context: 'admin role grant notice',
+  });
+
+  return { ok: true };
+}
+
+/**
+ * Revoke the platform admin role from a member (story A_Manage_Admin_Role). An
+ * admin cannot revoke their own role, so at least one admin always remains. In
+ * one transaction this sets `is_admin=0`, appends an admin-actor audit row with
+ * the mandatory reason, and unsubscribes the member from admin-alerts only,
+ * leaving their other list subscriptions untouched. The affected-member email
+ * enqueues after commit.
+ */
+export function revokeAdminRole(
+  adminMemberId: string,
+  targetMemberId: string,
+  reason: string,
+): { ok: true } {
+  const trimmedReason = requireAdminRoleReason(reason);
+  if (targetMemberId === adminMemberId) {
+    throw new ValidationError('You cannot revoke your own admin role.');
+  }
+  const roleRow = adminRole.getIsAdmin.get(targetMemberId) as { is_admin: number } | undefined;
+  if (!roleRow) {
+    throw new NotFoundError(`member ${targetMemberId} not found`);
+  }
+  if (roleRow.is_admin !== 1) {
+    throw new ConflictError('That member is not an administrator.');
+  }
+
+  const now = new Date().toISOString();
+  const eventId = `evt_${uuidv7Hex()}`;
+  transaction(() => {
+    adminRole.setAdminFlag.run(0, now, 'admin_role_revoke', targetMemberId);
+    unsubscribeAdminAlertsInTx(targetMemberId, now, 'admin_role_revoke');
+    audit({
+      actionType: 'admin.role_revoked',
+      category: 'admin',
+      actorType: 'admin',
+      actorId: adminMemberId,
+      memberId: targetMemberId,
+      reasonText: trimmedReason,
+      metadata: { event_id: eventId },
+    });
+  });
+
+  enqueueMemberEmail({
+    memberId: targetMemberId,
+    content: adminRoleChangeEmail({ action: 'revoked' }),
+    idempotencyKey: `admin_role_revoke:${eventId}`,
+    context: 'admin role revoke notice',
+  });
+
+  return { ok: true };
 }
 
 /**

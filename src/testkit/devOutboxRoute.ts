@@ -26,36 +26,43 @@ import { Request, Response } from 'express';
 import { config } from '../config/env';
 import { getSesAdapter, getStubSesAdapterForTests } from '../adapters/sesAdapter';
 import { getDevOutboxCaptureClient, type CapturedEmail } from './devOutboxCaptureClient';
+import type { PageViewModel } from '../types/page';
 
-function esc(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+interface DevOutboxRow {
+  subject: string;
+  to: string;
+  fromDisplay: string;
+  bodyText: string;
+  deliveredAt: string;
+  messageId: string;
 }
 
-function render(res: Response, note: string, messages: CapturedEmail[]): void {
-  const rows = messages
-    .map(
-      (m) => `
-    <article class="msg">
-      <header><strong>${esc(m.subject)}</strong> &middot; to ${esc(m.to)}</header>
-      <pre>${esc(m.bodyText)}</pre>
-      <footer>from ${esc(m.from ?? '(default sender)')} &middot; ${esc(m.deliveredAt)} &middot; ${esc(m.messageId)}</footer>
-    </article>`,
-    )
-    .join('\n');
+interface DevOutboxContent {
+  note: string;
+  messages: DevOutboxRow[];
+}
 
-  res.type('html').send(`<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Dev outbox</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
-  .msg { border: 1px solid #ccc; border-radius: 6px; padding: 1rem; margin: 1rem 0; }
-  pre { white-space: pre-wrap; background: #f6f6f6; padding: .5rem; border-radius: 4px; }
-  footer { color: #666; font-size: .85em; margin-top: .5rem; }
-</style></head>
-<body><h1>Dev outbox</h1><p>${esc(note)}</p>${rows}</body></html>`);
+// Render through the shared site layout and design vocabulary (no inline styles,
+// so the page carries the site look and feel and does not trip the style-src
+// CSP). Handlebars auto-escapes every interpolated field, so a crafted subject
+// or body cannot inject markup.
+function render(res: Response, note: string, messages: CapturedEmail[]): void {
+  const vm: PageViewModel<DevOutboxContent> = {
+    seo:  { title: 'Dev outbox', noindex: true },
+    page: { sectionKey: '', pageKey: 'dev_outbox', title: 'Dev outbox' },
+    content: {
+      note,
+      messages: messages.map((m) => ({
+        subject:     m.subject,
+        to:          m.to,
+        fromDisplay: m.from ?? '(default sender)',
+        bodyText:    m.bodyText,
+        deliveredAt: m.deliveredAt,
+        messageId:   m.messageId,
+      })),
+    },
+  };
+  res.render('dev/outbox', vm);
 }
 
 export async function getDevOutbox(_req: Request, res: Response): Promise<void> {

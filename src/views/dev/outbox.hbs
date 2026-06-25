@@ -1,0 +1,21 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <p class="text-muted">{{content.note}}</p>
+
+  {{#unless content.messages.length}}
+    <p class="text-muted">No captured messages.</p>
+  {{/unless}}
+  {{#each content.messages}}
+    <div class="card">
+      <div class="card-title">{{subject}}</div>
+      <p class="card-meta">To {{to}} &middot; from {{fromDisplay}}</p>
+      <pre class="dev-outbox-body">{{bodyText}}</pre>
+      <p class="card-meta">{{deliveredAt}} &middot; {{messageId}}</p>
+    </div>
+  {{/each}}
+</div>

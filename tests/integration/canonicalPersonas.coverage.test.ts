@@ -226,8 +226,14 @@ describe('canonical persona catalog', () => {
       if (spec.payments?.length) {
         expect(countN(payN, id), `${spec.slug} payment rows`).toBe(spec.payments.length);
       }
-      if (spec.mailingList) {
-        const want = Array.isArray(spec.mailingList) ? spec.mailingList.length : 1;
+      if (spec.mailingList || spec.isAdmin) {
+        const declared = spec.mailingList
+          ? (Array.isArray(spec.mailingList) ? spec.mailingList : [spec.mailingList])
+          : [];
+        const declaresAdminAlerts = declared.some((ml) => (ml.listSlug ?? 'announce') === 'admin-alerts');
+        // An admin carries an automatic admin-alerts subscription on top of any
+        // declared lists, unless the spec already declares admin-alerts itself.
+        const want = declared.length + (spec.isAdmin && !declaresAdminAlerts ? 1 : 0);
         expect(countN(mlN, id), `${spec.slug} mailing-list rows`).toBe(want);
       }
       if (spec.clubs?.length) {
@@ -237,6 +243,30 @@ describe('canonical persona catalog', () => {
       }
       if (spec.onboardingTasks || spec.onboardingComplete) {
         expect(countN(onbN, id), `${spec.slug} onboarding rows`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('admin personas carry the admin-alerts subscription; non-admins do not', () => {
+    // Holding the admin role subscribes a member to admin-alerts (the steady
+    // state a grant or bootstrap reaches), so the seeded admin matches that
+    // invariant and the work-queue fan-out has a target on /dev/outbox.
+    const sub = db.prepare(
+      `SELECT status FROM mailing_list_subscriptions WHERE member_id = ? AND mailing_list_id = 'admin-alerts'`,
+    );
+    for (const spec of BACKED) {
+      const id = `member_persona_${spec.slug}`;
+      const row = sub.get(id) as { status: string } | undefined;
+      if (spec.isAdmin) {
+        expect(row?.status, `${spec.slug} admin-alerts subscription`).toBe('subscribed');
+      } else {
+        const declared = spec.mailingList
+          ? (Array.isArray(spec.mailingList) ? spec.mailingList : [spec.mailingList])
+          : [];
+        const declaresAdminAlerts = declared.some((ml) => (ml.listSlug ?? 'announce') === 'admin-alerts');
+        if (!declaresAdminAlerts) {
+          expect(row, `${spec.slug} has no admin-alerts row`).toBeUndefined();
+        }
       }
     }
   });

@@ -5,6 +5,7 @@ import { adminWorkQueueController } from '../controllers/adminWorkQueueControlle
 import { adminClubCleanupController } from '../controllers/adminClubCleanupController';
 import { adminBootstrapController } from '../controllers/adminBootstrapController';
 import { adminClubLeadershipController } from '../controllers/adminClubLeadershipController';
+import { adminAdminRolesController } from '../controllers/adminAdminRolesController';
 import { requireAuth } from '../middleware/auth';
 import { requireAdmin } from '../middleware/requireAdmin';
 
@@ -18,6 +19,9 @@ adminRouter.post('/bootstrap-claim', requireAuth, adminBootstrapController.postC
 adminRouter.use(requireAuth, requireAdmin);
 
 adminRouter.get('/', adminController.index);
+adminRouter.get('/admin-roles',               adminAdminRolesController.index);
+adminRouter.post('/admin-roles/grant',        adminAdminRolesController.grant);
+adminRouter.post('/admin-roles/:memberId/revoke', adminAdminRolesController.revoke);
 adminRouter.get('/work-queue',                adminWorkQueueController.index);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);
 adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.linkHelpApprove);

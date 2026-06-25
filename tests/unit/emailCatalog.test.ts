@@ -21,6 +21,7 @@ import {
   vouchConfirmationEmail,
   honorCongratulationEmail,
   tierChangeNoticeEmail,
+  adminRoleChangeEmail,
   type EmailContent,
 } from '../../src/services/emailContent';
 
@@ -61,6 +62,7 @@ const CATALOG: CatalogEntry[] = [
   { builder: vouchConfirmationEmail as never, sample: { voucherName: 'V', expiryDate: '2030-01-01' }, services: ['activePlayerService'] },
   { builder: honorCongratulationEmail as never, sample: { honor: 'hof', staysTier3: false }, services: ['membershipTieringService'] },
   { builder: tierChangeNoticeEmail as never, sample: { newTier: 'tier1', reasonText: 'r' }, services: ['membershipTieringService'] },
+  { builder: adminRoleChangeEmail as never, sample: { action: 'granted' }, services: ['membershipTieringService'] },
 ];
 
 function serviceSource(name: string): string {
