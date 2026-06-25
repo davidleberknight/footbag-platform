@@ -720,7 +720,7 @@ After sign-in, confirm the Console region selector (top-right) is `US East (N. V
 
 The workload AWS principal must be a narrow and explicit runtime assumed role. Do not describe it as an EC2-style role attached to the Lightsail host. Operator SSH access to the host is a separate mechanism and must not be confused with the runtime principal.
 
-Lightsail does not support EC2 instance profiles. The runtime AWS principal is a source-profile IAM user plus an AssumeRole chain to `app-runtime`: the source-profile access keys live at `/root/.aws/credentials` on the host (root-owned, 0600) and the app runs under `AWS_PROFILE=<env>-runtime` which resolves via `sts:AssumeRole`. Do not add `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or any AWS credential to `/srv/footbag/env`. Do not mount the human operator CLI credentials into containers.
+Lightsail does not support EC2 instance profiles. The runtime AWS principal is a source-profile IAM user plus an AssumeRole chain to `app-runtime`: the source-profile access keys live at `/root/.aws/credentials` on the host (root-owned, 0600) and the app runs under `AWS_PROFILE=<env>-runtime` which resolves via `sts:AssumeRole`. Do not add `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or any AWS credential to `/srv/footbag/env`. Do not mount the human operator CLI credentials into containers. The source-profile is a machine service account: it has no console access and no MFA; MFA is enforced for human operator IAM users and the root account. Its long-lived keys are rotated per §10.7.
 
 | AWS service | Runtime access | Notes |
 |---|---|---|
@@ -1324,7 +1324,7 @@ The production platform launches with zero admins; the single-shot bootstrap tok
 - `JWT KMS key ARN matches terraform: FAIL`: the host env file references a different KMS key than the latest terraform state. Either terraform has been re-applied with a new key (update `/srv/footbag/env` to match) or the env file was hand-edited (compare against §10.6).
 - `SESSION_SECRET contains 'changeme'` or `is N chars (need >= 32)`: the host env file still carries the bootstrap placeholder. Generate with `openssl rand -hex 32` per §10.4 / §10.8 and overwrite the value on the host.
 - `INTERNAL_EVENT_SECRET is the dev-default literal`: the operator copied a dev `.env` to the host. Generate a fresh value with `openssl rand -hex 32` and update `/srv/footbag/env`.
-- `IMAGE_PROCESSOR_URL references localhost`: the host env still carries the dev fallback. Set to the docker-compose service name (e.g. `http://image-worker:4000`).
+- `IMAGE_PROCESSOR_URL references localhost`: the host env still carries the dev fallback. Set to the docker-compose service name (e.g. `http://image:4000`). Staging and production require it explicitly (the app refuses to boot without it); only local development defaults to `http://localhost:4001`.
 - `FOOTBAG_DEV_ADMIN_GRANT_TIER2`, `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS`, or a similar dev-bootstrap var present on a production host env: remove the line. The env-config boot guard refuses to start the container with these set on production, so the deploy would also fail at container boot; the script catches the misconfiguration earlier.
 - `BACKUP_S3_BUCKET unset` (WARN): the app boots without it, but `footbag-backup.timer` cannot upload snapshots. Set it to the environment's db-snapshots bucket name (terraform output) before installing the timer per §16.
 
@@ -1844,7 +1844,7 @@ Cutover rollback decisions follow a hard time boundary.
 
 **Within T+4 hours of the DNS swap:** rollback is the operator's call. Procedure:
 
-1. Enable maintenance mode per §14.3 HTTP 503 layer.
+1. Enable maintenance mode per §14.3.
 2. Restore the pre-cutover snapshot per §16.5 Snapshot restore.
 3. Disable maintenance mode.
 4. Run smoke tests against the origin per §18.8.
@@ -1899,13 +1899,11 @@ Operational rule: if readiness fails persistently, treat the origin as not safe 
 
 ### 14.3 Maintenance mode
 
-Maintenance mode operates in two layers.
+Maintenance mode is the binary working-versus-maintenance model served at the CloudFront edge: CloudFront custom error responses for an origin returning `500/502/503/504` (or being unreachable) serve the branded maintenance page asset from S3, with a short error-cache TTL so recovery becomes visible quickly. Browsing requests (GET/HEAD) see either the live application or the maintenance page; state-changing requests may fail with connection errors during an origin outage.
 
-**HTTP 503 layer (planned maintenance and cutover):** an in-app maintenance mode that returns 503 with a small response body for user-facing routes while internal routes (`/health/live`, `/health/ready`, and internal-only batch endpoints) keep serving, so the cutover auto-link batch, schema migrations that touch live tables, and any task needing SQLite access continue while user traffic is paused.
+For **planned** maintenance the operator induces that state deliberately by taking the origin out of rotation (stop the app container so the origin is unreachable), then performs the change directly against the host: the DB file under `/srv/footbag/db/` stays accessible for migrations and host-side batch work while public traffic sees the maintenance page. Restoring the origin (start the container, readiness green) ends maintenance.
 
-**CloudFront fallback layer (unplanned origin loss):** CloudFront custom error responses for origin 500/502/503/504 or origin unreachability serve the maintenance page asset stored in S3. Short error cache TTL so recovery becomes visible quickly. This layer handles outages where the origin is unreachable or returning 5xx without an explicit maintenance-mode signal.
-
-For planned maintenance the HTTP 503 layer returns a graceful response immediately and lets internal work continue; the CloudFront layer is the safety net for unplanned origin failure.
+For **unplanned** origin loss the same CloudFront layer is the automatic safety net.
 
 ### 14.4 Planned maintenance
 
@@ -1964,7 +1962,7 @@ Operational implications:
 2. Put the site into the planned maintenance state.
 3. Stop or drain write traffic.
 4. Apply migrations in order.
-5. Run integrity and smoke checks: `PRAGMA integrity_check` on the migrated DB, then `BASE_URL=http://<origin> bash scripts/smoke-local.sh`.
+5. Run integrity and smoke checks: `PRAGMA integrity_check` against the migrated DB on the host (`ssh footbag-<env> "sqlite3 /srv/footbag/db/footbag.db 'PRAGMA integrity_check;'"`, expect `ok`), then `BASE_URL=http://<origin> bash scripts/smoke-local.sh`.
 6. Restart services if required.
 7. Verify `/health/live` and `/health/ready`.
 8. Remove maintenance state.
@@ -2128,9 +2126,9 @@ For ad-hoc lifecycle work that does not require a deploy (e.g., fixing a caption
 Use this for corruption, bad deploy with data damage, or accidental destructive bug.
 
 1. Put the site in maintenance mode.
-2. Identify the restore point.
-3. Download or mount the selected snapshot.
-4. Run `PRAGMA integrity_check`.
+2. Identify the restore point: routine snapshots live in the primary `BACKUP_S3_BUCKET` (the `<prefix>-db-snapshots` bucket) under `routine/YYYY/MM/DD/footbag-<timestamp>.db.gz`; list with `aws s3 ls s3://<bucket>/routine/`.
+3. Download the selected snapshot to the host and decompress it: `aws s3 cp s3://<bucket>/routine/YYYY/MM/DD/footbag-<timestamp>.db.gz /srv/footbag/db/restore.db.gz && gunzip /srv/footbag/db/restore.db.gz`.
+4. Run `PRAGMA integrity_check` on the decompressed file: `sqlite3 /srv/footbag/db/restore.db 'PRAGMA integrity_check;'` (expect `ok`).
 5. Replace the live DB file with the validated snapshot.
 6. Restart affected containers.
 7. Verify `/health/live` and `/health/ready`.
@@ -2196,7 +2194,7 @@ Minimum drill expectations:
 | `SYS_Cleanup_Soft_Deleted_Records` | daily | PII purge and retention cleanup | retention correctness and audit trail |
 | `SYS_Cleanup_Expired_Tokens` | daily | remove expired tokens | table growth, auth cleanup health |
 | `SYS_Rebuild_Hashtag_Stats` | daily | rebuild tag stats | stale discovery stats |
-| `SYS_Continuous_Database_Backup` | every 5 minutes by default | create SQLite snapshots | backup age and failure alarms |
+| `SYS_Continuous_Database_Backup` (host-side; see §17.1) | every 5 minutes by default | create SQLite snapshots via the `scripts/backup-db.sh` systemd one-shot, not an `OperationsPlatformService` job | backup age and failure alarms (surfaced via the `BackupAgeMinutes` metric, not `system_job_runs`) |
 | `SYS_Nightly_Backup_Sync` | nightly | sync to cross-region DR bucket | DR freshness and validation |
 | `SYS_Cleanup_Static_Asset_Versions` | daily off-peak | remove obsolete versioned assets | rollback window preservation vs storage growth |
 | webhook processors | event-driven | Stripe / SES durable inbound processing | idempotency failures, signature failures |
@@ -2552,7 +2550,7 @@ Dev-admin shortcut data must not reach production, and seed content must not lea
 - **JSON validation gate.** `--seed-dev-admins` strips JSONC `//` line comments and runs `jq -e .` against the workstation-side seed file; malformed JSON aborts before SSH.
 - **Container env source.** The staging remote scripts no longer override `FOOTBAG_ENV` for the seed exec; the container reads the value from its `/srv/footbag/env` file (set per host). `seedConfig.ts` then throws on import when the host says `FOOTBAG_ENV=production`, even if the operator misconfigured the deploy chain.
 - **IAM/SSM namespace isolation.** The staging deploy role is bound to `/footbag/staging/*` SSM and cannot reach `/footbag/production/*`.
-- **argv-leak hardening.** Seed content travels stdin only at every boundary: workstation→ssh, ssh→bash, bash→docker compose exec→in-container shell. `-e VAR=value` is never used for seed content. The principle is documented at `scripts/staging_diagnostics.sh` and enforced by code review.
+- **argv-leak hardening.** Seed content travels stdin only at every boundary: workstation→ssh, ssh→bash, bash→docker compose exec→in-container shell. `-e VAR=value` is never used for seed content. The principle is the hard rule in `.claude/rules/script-secret-safety.md` (operator rationale in §20.3) and is enforced by code review.
 - **Image-content gate (production only).** Production images are built with `INCLUDE_DEV_SHORTCUTS=0`, set by `scripts/deploy-rebuild.sh` when `FOOTBAG_ENV=production` and reinforced by per-service `build.args.INCLUDE_DEV_SHORTCUTS: 0` in `docker/docker-compose.prod.yml`. The compiled `dist/testkit/` and `dist/dev-bootstrap/` subtrees are absent from the production image; an operator who execs into a production container cannot run the seed even with a misconfigured env.
 
 ### 20.6 Password-leak protections

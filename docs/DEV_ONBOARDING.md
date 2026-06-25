@@ -7,9 +7,9 @@ This guide helps contributors do different things: understand how the platform i
 > **Who you are (pick your lane).** This guide serves four kinds of contributor:
 >
 > - **New developer** — run it locally, learn the architecture, and deploy to **staging**. You never touch production. Lanes: Path A, then B, then C (history), then D/E/F.
-> - **New tester** — run it locally and/or exercise **staging**; switch between seeded personas (`/dev/switch`) and read captured dev/staging mail without a real inbox. You never touch production. Lanes: Path A, the persona/tester harness (see `docs/TESTING.md` §16), then D/F.
+> - **New tester** — run it locally and/or exercise **staging**; browse and switch between seeded personas at `/dev/personas` and read captured dev/staging mail without a real inbox. You never touch production. Lanes: Path A, the persona/tester harness (see `docs/TESTING.md` §16), then D/F.
 > - **Initial operator / AWS maintainer** — the one who owns AWS, applies Terraform, performs production activation, and claims the first admin. The only lane that touches production. Lanes: everything above, plus Paths G, H, and I, plus the production Terraform spec.
-> - **Other actors** — the historical-data and freestyle pipeline maintainer and docs/design contributors work mostly outside this guide; start at Path B for orientation, then their domain (`legacy_data/` and `freestyle/` for the pipeline; `docs/` and `src/views/` for design and content).
+> - **Other actors** — the historical-data and freestyle pipeline maintainer and docs/design contributors work mostly outside this guide; start at Path B for orientation, then their domain: the pipeline maintainer runs `legacy_data/run_pipeline.sh` and `freestyle/run_freestyle.sh` (and loads the gitignored operator dataset per §1.10A), while design and content contributors work in `docs/` and `src/views/`.
 >
 > Production (Paths G, H, I) is operator-only. New developers and testers stop at staging.
 
@@ -362,7 +362,7 @@ Re-run `bash scripts/reset-local-db.sh` whenever you want a clean rebuild.
 ./run_dev.sh
 ```
 
-This launches both the web server (port 3000) and the image worker (port 4001). Avatar, photo, and curator video uploads route through the image worker over HTTP per DD §1.7's four-container topology; `npm run dev` alone fails uploads because no worker is listening. `./run_dev.sh` keeps both alive and tears both down on Ctrl+C; see also `npm run dev` and `npm run dev:image` if you want to run them individually for debugging.
+This launches both the web server (port 3000) and the image worker (port 4001). Avatar, photo, and curator video uploads route through the image worker over HTTP in the four-container topology (nginx + web + worker + image; see `docs/DEVOPS_GUIDE.md`); `npm run dev` alone fails uploads because no worker is listening. `./run_dev.sh` keeps both alive and tears both down on Ctrl+C; see also `npm run dev` and `npm run dev:image` if you want to run them individually for debugging.
 
 Open the running site in your browser. Pick the block for your machine; all paths reach the same `http://localhost:3000`.
 
@@ -451,7 +451,7 @@ The suite is split:
 - `npm test`; unit + integration suites only; the default everyday verification. Excludes smoke, e2e, and dev-only crawls via `vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**'`.
 - `npm run test:unit`; pure-function tests under `tests/unit/`; no DB.
 - `npm run test:integration`; HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`.
-- `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when the user explicitly asks "run ALL tests" or when verifying staging AWS wiring. Requires the `footbag-staging-runtime` AWS profile and accessible Terraform staging state.
+- `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when the user explicitly asks "run ALL tests" or when verifying staging AWS wiring. Requires the `footbag-staging-runtime` AWS profile and accessible Terraform staging state; a developer granted AWS access configures that workstation profile per `docs/DEVOPS_GUIDE.md` §18.8.
 - `npm run test:strong-hash`; re-runs the password-hash and anti-enumeration login-timing tests at full production argon2 cost (the default suite uses a cheap test-only hash profile for speed). Run on demand to validate the real hashing path.
 - `npm run test:pre-pr`; pre-PR gate; build + conventions check + unit + integration; sub-2-minute target per `docs/TESTING.md` §11.1. Run before pushing.
 - `npm run test:e2e`; Playwright browser tests under `tests/e2e/`; spins up the full stack locally with an ephemeral DB.
@@ -754,16 +754,17 @@ Several shortcuts exist to reduce friction during local manual testing. The runt
 
 Production has none of these shortcuts. Production admins requiring legacy-claim recovery use `manualLegacyClaimRecovery` (DD §3.9).
 
-##### Switch between personas in the browser (/dev/switch)
+##### Switch between personas in the browser (/dev/personas)
 
-Removes login friction during local manual testing of tier-gated and member-only flows. Seed the persona catalog once, then visit the switch route to act as any persona without a login chain:
+Removes login friction during local manual testing of tier-gated and member-only flows. Seed the persona catalog once, then open `/dev/personas` to browse every loadable persona and click its Switch link to act as that persona without a login chain (or, if you already know the slug, hit `/dev/switch?as=<slug>` directly):
 
 ```bash
 export FOOTBAG_ENV=development
 ./run_dev.sh --seed-test-personas
 # then in a browser:
-#   http://localhost:3000/dev/switch?as=t0_fresh   (tier0)
-#   http://localhost:3000/dev/switch?as=admin_t2    (admin)
+#   http://localhost:3000/dev/personas             (the persona catalog: browse and click Switch)
+#   http://localhost:3000/dev/switch?as=t0_fresh   (direct by slug: tier0)
+#   http://localhost:3000/dev/switch?as=admin_t2   (direct by slug: admin)
 ```
 
 The `/dev` router mounts under `FOOTBAG_ENV ∈ {development, staging}`, so the switch surface exists in development and staging but never in production. It issues a real session cookie via the same primitive the production login path uses (`createSessionJwt`), verified by the same auth middleware, then redirects to `/`. The canonical persona catalog lives in `src/testkit/canonicalPersonas.ts`.
@@ -817,7 +818,7 @@ With hello world running and the tests green, here is where to go next:
 - **Architecture orientation:** Path B (§2) for the mental model, scope boundaries, and repo map. Read it before doing code work.
 - **More tests:** `./run_all_tests.sh` runs the fuller suite; `--full` adds the pentest, the staging-AWS smoke, and the persona-crawl. On a fixture-only clone (no operator data, no AWS profile) the staging-smoke and persona-crawl skip with a warning, so the run still completes green.
 - **The full dataset:** load the optional operator dataset and footbag.org mirror (§1.10A) when you need the real event archive and member roster; both are gitignored maintainer handoffs.
-- **Testers:** switch between seeded personas in the browser (`/dev/switch`) and read captured dev/staging mail without a real inbox; the full tester runbook is `docs/TESTING.md` §16.
+- **Testers:** browse and switch between seeded personas at `/dev/personas` and read captured dev/staging mail without a real inbox; the full tester runbook is `docs/TESTING.md` §16.
 - **AWS staging deploy:** Path D (§4) when you continue toward deployment. Production hardening and activation (Paths G through I) are operator-only.
 
 ## 2. Path B — Orientation: what this project is and how to think about it
@@ -1490,7 +1491,7 @@ After the shared apply:
 
 - terraform output -raw terraform_state_bucket_name
 - record the real state-bucket name from the Terraform output (format: `footbag-terraform-state-<suffix>`)
-- paste that bucket name into `terraform/staging/backend.tf`, replacing the `TODO-set-unique-suffix` placeholder
+- paste that bucket name into `terraform/staging/backend.tf`, replacing the example `footbag-terraform-state-a1b2c3d4e5` bucket value
 - back up `terraform/shared/terraform.tfstate` immediately: cp terraform.tfstate ~/footbag-shared-tfstate-backup.json
 
 #### What becomes Terraform-managed after handoff
@@ -1655,7 +1656,7 @@ echo "${STATIC_IP}.nip.io"
 Set the output value as `lightsail_origin_dns` in `terraform.tfvars`:
 
 ```hcl
-lightsail_origin_dns = "203.0.113.20"   # 203.0.113.20.nip.io maps to 203.0.113.20 for DNS (use temp IP lightsail is handing out)
+lightsail_origin_dns = "203.0.113.20.nip.io"   # <static-ip>.nip.io resolves to that IP; use the temporary IP Lightsail is handing out
 enable_cloudfront    = true
 ```
 
@@ -3141,20 +3142,21 @@ Some monitoring exists in concept. Close the full loop with three one-time opera
 
    The `InstanceId` value is a literal string, not the `${aws:InstanceId}` IMDS template. Lightsail's IMDS instance-id format is undocumented in AWS sources, and `aws_lightsail_instance.web.id` in Terraform is the Lightsail instance name; pinning the literal name here keeps the CWAgent-emitted dim and the alarm-side dim aligned.
 
-3. CWAgent publishes via the host's default AWS profile, which under Path H is the assumed runtime-role chain. Verify:
+3. CWAgent publishes with its own dedicated `cwagent-publisher` IAM user, not the app's runtime role. The installer writes that user's static keys to `/etc/amazon-cloudwatch-agent.aws/credentials` (profile `footbag-staging-cwagent`) and points the agent at them via `/opt/aws/amazon-cloudwatch-agent/etc/common-config.toml`. Verify the keys resolve to that user:
 
    ```bash
-   sudo -u root aws sts get-caller-identity
+   sudo AWS_SHARED_CREDENTIALS_FILE=/etc/amazon-cloudwatch-agent.aws/credentials \
+     AWS_PROFILE=footbag-staging-cwagent aws sts get-caller-identity
    ```
 
-   Expect the assumed runtime role ARN. If the chain is not in place, CWAgent will fail to publish and its log at `/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log` will show the credential error.
+   Expect the `footbag-staging-cwagent-publisher` user ARN. If the keys are missing or wrong, CWAgent fails to publish and its log at `/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log` shows the credential error.
 
-4. Confirm the runtime role's `cloudwatch:PutMetricData` grant is in place. The `aws_iam_role_policy.app_cw_metrics` inline policy ships in `terraform/staging/iam.tf`; a current `terraform apply` is sufficient.
+4. Confirm the publisher user's `cloudwatch:PutMetricData` grant (scoped to the `CWAgent` namespace) is in place. The `aws_iam_user_policy.cwagent_publisher_putmetric` policy ships in `terraform/staging/iam.tf`; a current `terraform apply` is sufficient.
 
    ```bash
-   aws iam get-role-policy \
-     --role-name footbag-staging-app-runtime \
-     --policy-name footbag-staging-app-runtime-cw-metrics
+   aws iam get-user-policy \
+     --user-name footbag-staging-cwagent-publisher \
+     --policy-name footbag-staging-cwagent-publisher-putmetric
    ```
 
 5. Start the agent and confirm metrics arrive:
