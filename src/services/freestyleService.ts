@@ -68,7 +68,6 @@ import { shapePartnershipPair } from './playerShaping';
 import {
   FreestyleRecordViewModel,
   shapeFreestyleRecord,
-  slugToHashtag,
   stripDisplaySideQualifier,
   trickNameToSlug,
   trickSurfaceHashtag,
