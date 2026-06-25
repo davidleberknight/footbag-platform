@@ -41,11 +41,13 @@ This guide helps contributors do different things: understand how the platform i
   - [1.9 Browser verification (hello world)](#19-browser-verification-hello-world)
   - [1.10 Run the test suite](#110-run-the-test-suite)
   - [1.10A Optional: load the full operator dataset](#110a-optional-load-the-full-operator-dataset)
+  - [1.10B Set up your developer tooling](#110b-set-up-your-developer-tooling-after-your-first-green-run)
   - [1.11 Optional: exercise Safe Browsing in dev](#111-optional-exercise-safe-browsing-in-dev)
   - [1.12 Optional deterministic checks](#112-optional-deterministic-checks)
   - [1.13 Docker parity check](#113-docker-parity-check)
   - [1.14 Dev and tester shortcuts (advanced)](#114-dev-and-tester-shortcuts-advanced)
   - [1.15 Filing a bug](#115-filing-a-bug)
+  - [1.16 What's next](#116-whats-next)
 - [2. Path B — Orientation: what this project is and how to think about it](#2-path-b--orientation-what-this-project-is-and-how-to-think-about-it)
   - [2.1 Project purpose and philosophy](#21-project-purpose-and-philosophy)
   - [2.2 Document relationships](#22-document-relationships)
@@ -143,6 +145,7 @@ Success for this path means you can:
 - launch the dev server
 - verify `/events`, `/events/year/2020`, an event detail page, `/health/live`, and `/health/ready` in a browser (hello world)
 - run the test suite
+- set up your developer tooling (Git, Claude Code)
 - optionally run the Docker parity stack and local smoke script
 
 ### 1.2 Supported machine setup
@@ -161,7 +164,7 @@ Recommended Windows + WSL working model:
 - enable the WSL 2 backend and WSL integration for your Ubuntu distro (essential).
 - run Node, npm, sqlite3, Git, SSH, and Claude Code from the WSL Ubuntu shell.
 
-macOS and native-Linux contributors are fully supported. The simplest Mac path is an Ubuntu VM (for example UTM), where every step below works unchanged; alternatively, adapt the §1.4 install commands to your native terminal (Homebrew for the tools, `nvm` for Node 22) and continue from §1.5. Only §1.4 step 1 (WSL) is Windows-specific; on any non-Windows Ubuntu, start at §1.4 step 2.
+macOS and native-Linux contributors are fully supported. The simplest Mac path is an Ubuntu VM (for example UTM); every step works the same except reaching the running site in your browser, which uses an SSH tunnel into the VM (see §1.8). Alternatively, adapt the §1.4 install commands to your native terminal (Homebrew for the tools, `nvm` for Node 22) and continue from §1.5. Only §1.4 step 1 (WSL) is Windows-specific; on any non-Windows Ubuntu, start at §1.4 step 2.
 
 ### 1.3 Required tools
 
@@ -178,11 +181,12 @@ For the **minimum newcomer local path**, install these first:
 - `ca-certificates`
 - `openssh-client`
 - `rsync`
-- Claude Code (`@anthropic-ai/claude-code`); required for all contributors
+
+Claude Code (`@anthropic-ai/claude-code`) is required for all contributors, but it is not needed to run the site or the tests; set it up after your first hello-world success (§1.10B).
 
 If you know you will continue into **Path D** or **Path E**, also install or verify these:
 
-- Docker Desktop with WSL integration
+- Docker Desktop with WSL integration (install and verify steps are in §1.13)
 - `docker compose` support
 - Cursor on Windows
 
@@ -268,48 +272,7 @@ which node
 
 `which node` should resolve to a path under `/home/...` or `/usr/...`, not `/mnt/c/...`.
 
-#### 4. Configure Git (optional for now, you can clone the repo without doing this)
-
-```bash
-git config --global user.name "Your Name"
-git config --global user.email "you@example.com"
-git config --global init.defaultBranch main
-```
-
-> **Step 5 is optional.** Docker is needed only for the Docker parity check (§1.13) and for Path D/E (AWS deployment), not to reach hello world. A new developer can skip to step 6. Claude Code (step 6) is required for all contributors. The AWS CLI and Terraform install as part of the AWS deployment path (§4.2).
-
-#### 5. Verify Docker from WSL if you will use Docker parity or any AWS path (you can skip this just to run a local server)
-
-Install Docker Desktop on Windows, enable the **WSL 2 based engine**, and enable WSL integration for your Ubuntu distro.
-
-Then verify from the Ubuntu shell:
-
-```bash
-docker --version
-docker compose version
-```
-
-#### 6. Install Claude Code (before you get into development work)
-
-You need an Anthropic plan (Pro or above). Install it, then authenticate:
-
-```bash
-npm install -g @anthropic-ai/claude-code
-claude --version
-claude        # then run /login and complete the browser OAuth sign-in
-```
-
-Claude Code runs inside WSL Linux; the Cursor IDE runs on Windows and connects to it.
-
-#### 7. Line-ending sanity check (Windows versus Linux incompatability)
-
-This repo includes `.gitattributes` rules so shell scripts stay LF-terminated in normal use.
-
-If you ever see `bash: ...^M` errors:
-
-- make sure the repo was cloned from **inside WSL**
-- make sure the repo is not under `/mnt/c/...`
-- prefer re-cloning in WSL over trying to repair a broken checkout by hand
+These three steps are everything required to reach hello world. Git configuration and Claude Code are set up after your first green run (§1.10B); Docker is only for the parity check and AWS paths (§1.13).
 
 ### 1.5 Clone and Install the Project GitHub Repository
 
@@ -322,6 +285,8 @@ git clone https://github.com/davidleberknight/footbag-platform.git
 cd footbag-platform
 ```
 
+> **Clone from inside WSL (Windows).** Keep the repo in the Linux filesystem (for example `~/GIT/footbag-platform`), not under `/mnt/c/...`. The repo's `.gitattributes` keeps shell scripts LF-terminated, but if you ever see `bash: ...^M` errors the checkout picked up Windows CRLF line endings; re-clone from inside WSL rather than repairing it by hand.
+
 ```bash
 npm install
 ```
@@ -332,8 +297,6 @@ If `npm install` fails while compiling `better-sqlite3`:
 - confirm `build-essential` is installed
 - confirm `which node` points to the WSL/Linux binary
 - then rerun `npm install`
-
-> **Run Claude Code from the project root.** Always start `claude` from the repository root (`~/GIT/footbag-platform`), not from a subdirectory or your home directory. Claude Code loads the project's `CLAUDE.md` and the path-scoped rules under `.claude/` from the working directory; starting it elsewhere runs it without the project's instructions.
 
 ### 1.6 Local env file
 
@@ -401,7 +364,56 @@ Re-run `bash scripts/reset-local-db.sh` whenever you want a clean rebuild.
 
 This launches both the web server (port 3000) and the image worker (port 4001). Avatar, photo, and curator video uploads route through the image worker over HTTP per DD §1.7's four-container topology; `npm run dev` alone fails uploads because no worker is listening. `./run_dev.sh` keeps both alive and tears both down on Ctrl+C; see also `npm run dev` and `npm run dev:image` if you want to run them individually for debugging.
 
-Open `http://localhost:3000` in your browser. On WSL2 the port is forwarded to Windows automatically; on native Ubuntu or macOS it is already local. If you run Ubuntu in a VM, browse to the VM's IP (for example `http://192.168.64.2:3000`) because the host's `localhost` does not reach the guest.
+Open the running site in your browser. Pick the block for your machine; all paths reach the same `http://localhost:3000`.
+
+**Windows + WSL2.** WSL2 forwards the guest's `localhost` ports to Windows automatically, so open `http://localhost:3000` in your Windows browser. Nothing else to configure.
+
+**Native Ubuntu or native macOS (no VM).** The server runs on the same machine as the browser; open `http://localhost:3000` directly.
+
+**macOS with Ubuntu in a VM (for example UTM).** The Mac host and the Ubuntu guest do not share `localhost`, so the Mac browser cannot reach the guest's `localhost:3000` on its own. Keep the browser on `http://localhost:3000` and forward that port into the VM over an SSH tunnel. This is required, not just tidier: the app rejects form POSTs whose `Origin` does not match `http://localhost:3000`, so browsing to the VM's IP would make every form submission fail with `403 Forbidden`.
+
+How the tunnel works: the app listens on `127.0.0.1:3000` *inside the guest*, which is a separate machine from the Mac, so the Mac's own `localhost` does not reach it. In `ssh -L localhost:3000:127.0.0.1:3000`, the first `localhost:3000` is the port SSH opens on the Mac and the second `127.0.0.1:3000` is where SSH delivers that traffic on the guest, so the Mac browser reaches the app while its address bar (and `Origin`) stays `http://localhost:3000`.
+
+1. In the Ubuntu guest, install and start the SSH server (the baseline packages include only the client). If the guest firewall is on, also allow SSH:
+
+   ```bash
+   sudo apt install -y openssh-server
+   sudo systemctl enable --now ssh
+   sudo ufw allow OpenSSH   # only if ufw is enabled
+   ```
+
+2. In the Ubuntu guest, read the VM's actual IPv4 address (do not guess it):
+
+   ```bash
+   ip -4 route get 1.1.1.1 | awk '{for (i=1; i<=NF; i++) if ($i=="src") {print $(i+1); exit}}'
+   ```
+
+3. From macOS Terminal, open one SSH session that doubles as your working shell and the port tunnel. Replace `<ubuntu-user>` with the Linux username you created when you first set up the Ubuntu VM, and `<vm-ip>` with the address that step 2 printed. `ExitOnForwardFailure=yes` makes SSH abort rather than connect without the tunnel if port 3000 is already taken on the Mac (so you do not get a shell that looks fine but a browser that cannot connect):
+
+   ```bash
+   ssh -o ExitOnForwardFailure=yes \
+     -L localhost:3000:127.0.0.1:3000 \
+     <ubuntu-user>@<vm-ip>
+   ```
+
+4. Inside that SSH session, start the dev stack and leave the session open (the tunnel lives only while SSH is connected):
+
+   ```bash
+   cd ~/GIT/footbag-platform
+   ./run_dev.sh
+   ```
+
+5. On the Mac, browse to `http://localhost:3000`. The browser hits its own forwarded port and SSH carries the traffic to `127.0.0.1:3000` inside the VM. Only port 3000 needs forwarding; the image worker on 4001 is called server-to-server inside the VM, so the browser never contacts it.
+
+If direct SSH to the VM IP is not reachable (depending on the UTM network mode), add a VM port forward for SSH (Mac `localhost:2222` to guest port 22) and connect through it, keeping the same app-port tunnel. This `2222` is local to UTM and unrelated to the `2222` used later for AWS Lightsail:
+
+```bash
+ssh -p 2222 -o ExitOnForwardFailure=yes \
+  -L localhost:3000:127.0.0.1:3000 \
+  <ubuntu-user>@localhost
+```
+
+The browser URL stays `http://localhost:3000`.
 
 ### 1.9 Browser verification (hello world)
 
@@ -432,14 +444,14 @@ These event pages are the committed synthetic CI fixtures, so the events themsel
 npm test
 ```
 
-With the site running, run the suite to confirm your environment is healthy end to end.
+Run the suite to confirm your environment is healthy end to end; it is self-contained (integration tests use their own ephemeral SQLite databases) and does not need the dev server running.
 
 The suite is split:
 
-- `npm test`; unit + integration suites only; the default everyday verification. Excludes smoke and e2e via `vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**'`.
+- `npm test`; unit + integration suites only; the default everyday verification. Excludes smoke, e2e, and dev-only crawls via `vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**'`.
 - `npm run test:unit`; pure-function tests under `tests/unit/`; no DB.
 - `npm run test:integration`; HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`.
-- `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when the user explicitly asks "run ALL tests" or when verifying staging AWS wiring. Requires assumed-role credentials on the workstation.
+- `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when the user explicitly asks "run ALL tests" or when verifying staging AWS wiring. Requires the `footbag-staging-runtime` AWS profile and accessible Terraform staging state.
 - `npm run test:strong-hash`; re-runs the password-hash and anti-enumeration login-timing tests at full production argon2 cost (the default suite uses a cheap test-only hash profile for speed). Run on demand to validate the real hashing path.
 - `npm run test:pre-pr`; pre-PR gate; build + conventions check + unit + integration; sub-2-minute target per `docs/TESTING.md` §11.1. Run before pushing.
 - `npm run test:e2e`; Playwright browser tests under `tests/e2e/`; spins up the full stack locally with an ephemeral DB.
@@ -554,6 +566,28 @@ Request whichever you need from the maintainer, then load:
 
 The **freestyle** tables are not part of this handoff: they build entirely from committed inputs via `freestyle/run_freestyle.sh` (which `reset-local-db.sh` runs automatically), so freestyle content is already complete on a fresh hello-world clone.
 
+### 1.10B Set up your developer tooling (after your first green run)
+
+With hello world working and the tests passing, set up the tooling you need to start contributing.
+
+Configure Git so your commits carry your identity:
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+git config --global init.defaultBranch main
+```
+
+Install Claude Code (required for all contributors). You need an Anthropic plan (Pro or above):
+
+```bash
+npm install -g @anthropic-ai/claude-code
+claude --version
+claude        # then run /login and complete the browser OAuth sign-in
+```
+
+Always start `claude` from the repository root (`~/GIT/footbag-platform`), not a subdirectory or your home directory, so it loads the project's `CLAUDE.md` and the path-scoped rules under `.claude/`. On Windows, Claude Code runs inside WSL Linux; the Cursor IDE runs on Windows and connects to it.
+
 ### 1.11 Optional: exercise Safe Browsing in dev
 
 Default dev behavior: stub `SafeBrowsingAdapter` with the canonical Google
@@ -603,6 +637,13 @@ Use these when:
 Docker is part of the required workflow because the deployed origin is containerized.
 
 Do this before anyone touches AWS.
+
+**Install Docker first (if you have not already).** Install Docker Desktop on Windows, enable the **WSL 2 based engine**, and enable WSL integration for your Ubuntu distro. Then verify from the Ubuntu shell:
+
+```bash
+docker --version
+docker compose version
+```
 
 > **Note on `COMPOSE_FILE`:** The `.env` file sets `COMPOSE_FILE=docker/docker-compose.yml`. This only applies when running bare `docker compose` without `-f` flags. The parity commands below use explicit `-f` flags that override `COMPOSE_FILE`. Always use the explicit `-f` form shown here.
 
@@ -768,6 +809,16 @@ Lifecycle workflows on the board automate Status transitions: opening an issue a
 Per `docs/TESTING.md` §9.6, every closed bug lands with a regression test at the cheapest appropriate layer. A bug without a regression test is not closed.
 
 To re-provision the board (e.g. recovering after deletion or onto a fork), run `scripts/setup-bug-tracker-project.sh`. The script is idempotent and derives owner/repo from `gh repo view`. Five lifecycle workflows remain a one-time GH UI step per the script's trailing instructions.
+
+### 1.16 What's next
+
+With hello world running and the tests green, here is where to go next:
+
+- **Architecture orientation:** Path B (§2) for the mental model, scope boundaries, and repo map. Read it before doing code work.
+- **More tests:** `./run_all_tests.sh` runs the fuller suite; `--full` adds the pentest, the staging-AWS smoke, and the persona-crawl. On a fixture-only clone (no operator data, no AWS profile) the staging-smoke and persona-crawl skip with a warning, so the run still completes green.
+- **The full dataset:** load the optional operator dataset and footbag.org mirror (§1.10A) when you need the real event archive and member roster; both are gitignored maintainer handoffs.
+- **Testers:** switch between seeded personas in the browser (`/dev/switch`) and read captured dev/staging mail without a real inbox; the full tester runbook is `docs/TESTING.md` §16.
+- **AWS staging deploy:** Path D (§4) when you continue toward deployment. Production hardening and activation (Paths G through I) are operator-only.
 
 ## 2. Path B — Orientation: what this project is and how to think about it
 
