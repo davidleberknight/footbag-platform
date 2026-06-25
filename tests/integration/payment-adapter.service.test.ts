@@ -289,6 +289,36 @@ describe('webhook correlation fallback (deferred PaymentIntent creation)', () =>
     }
   });
 
+  it('a succeeded payment enqueues a receipt email to the member', async () => {
+    const M_RECEIPT = 'pay-svc-fb-receipt';
+    const setupDb = new BetterSqlite3(dbPath);
+    insertMember(setupDb, { id: M_RECEIPT, slug: 'fb_receipt', display_name: 'FB Receipt', login_email: 'fb-receipt@example.com' });
+    setupDb.close();
+
+    const { paymentService } = await import('../../src/services/paymentService');
+    const paymentId = await startWithNullIntent(M_RECEIPT, 'fb_receipt');
+    const { rawBody, signature } = await signedIntentEvent(
+      'payment_intent.succeeded', 'pi_receipt_ok_1', { paymentId, memberId: M_RECEIPT }, 'evt_receipt_ok_1',
+    );
+    expect(paymentService.handleWebhook(rawBody, signature).outcome).toBe('processed');
+
+    const db = new BetterSqlite3(dbPath);
+    try {
+      const receipt = db
+        .prepare(`SELECT recipient_email, recipient_member_id, subject, body_text FROM outbox_emails WHERE idempotency_key = ?`)
+        .get(`payment_receipt:${paymentId}:succeeded`) as
+          | { recipient_email: string; recipient_member_id: string; subject: string; body_text: string }
+          | undefined;
+      expect(receipt).toBeDefined();
+      expect(receipt!.recipient_email).toBe('fb-receipt@example.com');
+      expect(receipt!.recipient_member_id).toBe(M_RECEIPT);
+      expect(receipt!.subject).toContain('Payment received');
+      expect(receipt!.body_text).toContain('Thank you for your payment.');
+    } finally {
+      db.close();
+    }
+  });
+
   it('payment_failed event with unknown intent id resolves via metadata.paymentId and backfills', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
     const paymentId = await startWithNullIntent(M_FB_FAIL, 'fb_fail');

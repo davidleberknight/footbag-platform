@@ -49,6 +49,7 @@ kill_port() {
 }
 kill_port 3000
 kill_port 4001
+kill_port 3100
 
 RESET=0
 FROM_CSV=0
@@ -299,5 +300,6 @@ if (( SEED_TEST_PERSONAS == 1 )); then
   bash scripts/manage-test-personas.sh --seed-test-personas
 fi
 
-# 5. Launch web + image together; trap-based cleanup is in scripts/dev.sh.
+# 5. Launch web + image worker + outbox/jobs worker together; trap-based
+#    cleanup is in scripts/dev.sh.
 exec bash scripts/dev.sh

@@ -105,6 +105,14 @@ rm -f "${DB_FILE}" "${DB_FILE}-wal" "${DB_FILE}-shm"
 echo "  → Applying schema..."
 sqlite3 "${DB_FILE}" < "${SCHEMA}"
 
+# Local dev only: poll the email outbox every 2s instead of the 30s production
+# default, so a stub-captured email appears at /dev/outbox within a refresh or
+# two rather than a half-minute. system_config is append-only; this layers a
+# later-effective override row that system_config_current resolves ahead of the
+# schema's epoch-seeded default, leaving the production seed untouched.
+echo "  → Setting fast local outbox poll interval..."
+sqlite3 "${DB_FILE}" "INSERT INTO system_config (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id) VALUES ('cfg_dev_outbox_poll', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'outbox_poll_interval_seconds', '2', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'Local dev fast outbox poll so the captured-email viewer updates promptly', NULL);"
+
 # TEMP-DEVIATION: legacy_members seed source.
 # Current: legacy_members is seeded from the mirror-derived extract before
 #   historical_persons loads, so the FK historical_persons.legacy_member_id

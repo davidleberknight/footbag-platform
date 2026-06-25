@@ -882,6 +882,15 @@ All seeded personas share one fixed test password, defined once in `src/testkit/
 
 When `SES_ADAPTER=stub` (the development default and the staging setting), outbound mail is captured in memory instead of sent. The registration check-email page renders a "Simulated email" card listing the captured messages with their subject, body, and the actionable verification link, scoped to the address the session just registered; follow the link to continue without a real inbox. The password-reset request and legacy-claim sent pages render no card: those links are side-channel ownership proofs whose recipient is caller-controlled or a third party, so they are retrieved out-of-band from the outbox instead. The buffer clears on server restart. This works on both development and staging. Notifications without a host page (membership, club, payment, Active Player) carry no card; read them on `GET /dev/outbox`, which lists the full captured buffer newest first.
 
+The development stack runs the outbox worker beside the web and image-worker processes, so an enqueued message drains through the stub adapter and reaches `/dev/outbox` within the outbox poll interval (short in development); reload if a just-triggered message has not yet landed. To read any host-page-less notification, act as the persona that triggers it and then open `/dev/outbox`:
+
+- Contact IFPA admin: as a member, submit the Contact IFPA admin form; the admin-alerts notification to subscribed admins appears. As an admin, resolve the item from the work queue; the resolution reply to the member appears.
+- Club membership: as a member, join or leave a club; the joining or leaving member and every co-leader are notified.
+- Membership tier and payment: drive the stub purchase flow (§16.5); the payment receipt and the tier-change notice appear.
+- Active Player: as a Tier 2 or Tier 3 persona, vouch for a Tier 0 member; the vouch confirmation appears. Expiry reminders are produced by the worker's daily pass rather than by a tester action.
+
+Honors congratulations, club-cleanup contact, and the other notification stories surface the same way: trigger the owning action as the appropriate persona and read the captured message on `/dev/outbox`.
+
 ### 16.5 Exercising the purchase flow
 
 The stub payment adapter registers the checkout pass-through when `PAYMENT_ADAPTER=stub`, the development default and the staging setting. As a seeded persona:
