@@ -54,21 +54,21 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 // 15 first-class Bucket A slugs. Browse card renders the JOB row from
 // the RESOLVED_FORMULAS overlay; "canonical decomposition pending" line disappears.
 const FIRST_CLASS_BACKFILL = [
-  { slug: 'ducking-whirl',            adds: '4', base: 'whirl',           expectedJob: 'TOE &gt; DUCK [BOD] &gt; OP IN [DEX] &gt; OP CLIP [XBD] [DEL]' },
-  { slug: 'spinning-whirl',           adds: '4', base: 'whirl',           expectedJob: 'CLIP &gt; (back) SPIN [BOD] &gt; OP IN [DEX] &gt; OP CLIP [XBD] [DEL]' },
-  { slug: 'stepping-whirl',           adds: '4', base: 'whirl',           expectedJob: 'CLIP &gt; OP IN [DEX] &gt;&gt; SAME IN [DEX] &gt; OP CLIP [XBD] [DEL]' },
-  { slug: 'paradox-drifter',          adds: '4', base: 'drifter',         expectedJob: 'CLIP &gt; SAME IN [PDX] [DEX] &gt; SAME CLIP [XBD] [DEL]' },
-  { slug: 'paradox-torque',           adds: '5', base: 'torque',          expectedJob: 'CLIP &gt; SAME IN [PDX] [DEX] &gt; (back) SPIN [BOD] &gt; OP CLIP [XBD] [DEL]' },
-  { slug: 'spinning-torque',          adds: '5', base: 'torque',          expectedJob: 'CLIP &gt; (back) SPIN [BOD] &gt; OP IN [DEX] &gt; (back) SPIN [BOD] &gt; OP CLIP [XBD] [DEL]' },
-  { slug: 'paradox-blender',          adds: '5', base: 'blender',         expectedJob: 'CLIP &gt; SAME IN [PDX] [DEX] &gt; (back) SPIN [BOD] &gt; SAME CLIP [XBD] [DEL]' },
-  { slug: 'symposium-mirage',         adds: '3', base: 'mirage',          expectedJob: 'SET &gt; (no plant while) OP IN [BOD] [DEX] &gt; OP TOE [DEL]' },
+  { slug: 'ducking_whirl',            adds: '4', base: 'whirl',           expectedJob: 'TOE &gt; DUCK [BOD] &gt; OP IN [DEX] &gt; OP CLIP [XBD] [DEL]' },
+  { slug: 'spinning_whirl',           adds: '4', base: 'whirl',           expectedJob: 'CLIP &gt; (back) SPIN [BOD] &gt; OP IN [DEX] &gt; OP CLIP [XBD] [DEL]' },
+  { slug: 'stepping_whirl',           adds: '4', base: 'whirl',           expectedJob: 'CLIP &gt; OP IN [DEX] &gt;&gt; SAME IN [DEX] &gt; OP CLIP [XBD] [DEL]' },
+  { slug: 'paradox_drifter',          adds: '4', base: 'drifter',         expectedJob: 'CLIP &gt; SAME IN [PDX] [DEX] &gt; SAME CLIP [XBD] [DEL]' },
+  { slug: 'paradox_torque',           adds: '5', base: 'torque',          expectedJob: 'CLIP &gt; SAME IN [PDX] [DEX] &gt; (back) SPIN [BOD] &gt; OP CLIP [XBD] [DEL]' },
+  { slug: 'spinning_torque',          adds: '5', base: 'torque',          expectedJob: 'CLIP &gt; (back) SPIN [BOD] &gt; OP IN [DEX] &gt; (back) SPIN [BOD] &gt; OP CLIP [XBD] [DEL]' },
+  { slug: 'paradox_blender',          adds: '5', base: 'blender',         expectedJob: 'CLIP &gt; SAME IN [PDX] [DEX] &gt; (back) SPIN [BOD] &gt; SAME CLIP [XBD] [DEL]' },
+  { slug: 'symposium_mirage',         adds: '3', base: 'mirage',          expectedJob: 'SET &gt; (no plant while) OP IN [BOD] [DEX] &gt; OP TOE [DEL]' },
   { slug: 'flail',                    adds: '3', base: 'illusion',        expectedJob: 'SET &gt; (no plant while) OP OUT [BOD] [DEX] &gt; OP TOE [DEL]' },
   { slug: 'blurrage',                 adds: '4', base: 'barrage',         expectedJob: 'CLIP &gt; SAME IN [DEX] &gt;&gt; OP IN [DEX] &gt; SAME IN [DEX] &gt; OP TOE [DEL]' },
   { slug: 'ripwalk',                  adds: '4', base: 'butterfly',       expectedJob: 'CLIP &gt; SAME IN [DEX] &gt;&gt; OP OUT [DEX] &gt; OP CLIP [XBD] [DEL]' },
   { slug: 'haze',                     adds: '4', base: 'double-leg-over', expectedJob: 'CLIP &gt; OP IN [DEX] &gt;&gt; SAME IN [DEX] &gt; OP OUT [DEX] &gt; SAME TOE [DEL]' },
-  { slug: 'atom-smasher',             adds: '4', base: 'mirage',          expectedJob: 'TOE &gt; SAME OUT [DEX] &gt;&gt; OP IN [DEX] &gt; OP TOE [DEL]' },
+  { slug: 'atom_smasher',             adds: '4', base: 'mirage',          expectedJob: 'TOE &gt; SAME OUT [DEX] &gt;&gt; OP IN [DEX] &gt; OP TOE [DEL]' },
   { slug: 'witchdoctor',              adds: '5', base: 'mirage',          expectedJob: 'CLIP &gt; (no plant while) SAME OUT [BOD] [DEX] &gt;&gt; OP IN [DEX] &gt; OP TOE [DEL]' },
-  { slug: 'spinning-symposium-whirl', adds: '5', base: 'whirl',           expectedJob: 'CLIP &gt; (back) SPIN [BOD] &gt; (no plant while) OP IN [BOD] [DEX] &gt; OP CLIP [XBD] [DEL]' },
+  { slug: 'spinning_symposium_whirl', adds: '5', base: 'whirl',           expectedJob: 'CLIP &gt; (back) SPIN [BOD] &gt; (no plant while) OP IN [BOD] [DEX] &gt; OP CLIP [XBD] [DEL]' },
 ] as const;
 
 // 4 non-first-class Bucket A slugs. JOB renders on the trick-detail
@@ -91,7 +91,7 @@ const ALL_BUCKET_A_SLUGS = [
 // Negative-cohort seeds: a sample of Bucket B/C/D slugs that must STILL
 // render "canonical decomposition pending" after the Bucket A backfill. Verifies scope.
 const NEGATIVE_COHORT = [
-  { slug: 'tapping-whirl', adds: '4', base: 'whirl',  bucket: 'B (tapping grammar inconsistent)' },
+  { slug: 'tapping_whirl', adds: '4', base: 'whirl',  bucket: 'B (tapping grammar inconsistent)' },
 ] as const;
 
 beforeAll(async () => {
@@ -102,7 +102,7 @@ beforeAll(async () => {
   for (const row of [...FIRST_CLASS_BACKFILL, ...NON_FIRST_CLASS_BACKFILL]) {
     insertFreestyleTrick(db, {
       slug:           row.slug,
-      canonical_name: row.slug.replace(/-/g, ' '),
+      canonical_name: row.slug.replace(/_/g, ' '),
       adds:           row.adds,
       base_trick:     row.base,
       trick_family:   row.base,
@@ -123,13 +123,13 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'drifter',         canonical_name: 'drifter',         adds: '3', base_trick: 'clipper-stall',   trick_family: 'drifter',         category: 'compound' });
   insertFreestyleTrick(db, { slug: 'barrage',         canonical_name: 'barrage',         adds: '3', base_trick: 'barrage',         trick_family: 'barrage',         category: 'compound' });
   insertFreestyleTrick(db, { slug: 'blender',         canonical_name: 'blender',         adds: '4', base_trick: 'osis',            trick_family: 'blender',         category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'double-leg-over', canonical_name: 'double leg over', adds: '3', base_trick: 'double-leg-over', trick_family: 'double-leg-over', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'double_leg_over', canonical_name: 'double leg over', adds: '3', base_trick: 'double-leg-over', trick_family: 'double-leg-over', category: 'compound' });
 
   // Negative cohort.
   for (const row of NEGATIVE_COHORT) {
     insertFreestyleTrick(db, {
       slug:           row.slug,
-      canonical_name: row.slug.replace(/-/g, ' '),
+      canonical_name: row.slug.replace(/_/g, ' '),
       adds:           row.adds,
       base_trick:     row.base,
       trick_family:   row.base,
@@ -268,7 +268,7 @@ describe('Bucket A backfill — Bucket B/C/D rows untouched', () => {
     // Bucket B examples: tapping-whirl (tapping grammar inconsistent)
     // Bucket C examples: blurry-torque
     // None of these should have been touched by the Bucket A backfill.
-    const bucketB_C_slugs = ['tapping-whirl', 'blurry-torque', 'predator', 'bedwetter', 'schmoe'];
+    const bucketB_C_slugs = ['tapping_whirl', 'blurry_torque', 'predator', 'bedwetter', 'schmoe'];
     for (const slug of bucketB_C_slugs) {
       const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === slug);
       if (entry) {

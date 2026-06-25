@@ -49,30 +49,30 @@
 export const COMPOUND_SEMANTIC_DESCRIPTIONS: ReadonlyMap<string, string> = new Map([
   // Curator-locked initial set.
   // Wording is plain compositional prose; not notation, not ADD math.
-  ['double-legover', 'mirage + legover chain: two consecutive in-direction dex steps from a single set.'],
+  ['double_legover', 'mirage + legover chain: two consecutive in-direction dex steps from a single set.'],
   ['blurry',         'stepping paradox-whirl structure: two-dex set with a paradox second component.'],
   ['furious',        'barraging extended with a third dex: three-dex chain layering on the high-stepping pattern.'],
-  ['atom-smasher',   'atomic mirage composition: atomic set primitive followed by a mirage-class terminal.'],
+  ['atom_smasher',   'atomic mirage composition: atomic set primitive followed by a mirage-class terminal.'],
   // Alternate canonical slug for atom smasher (some seeds use atomsmasher); both render the same description.
   ['atomsmasher',    'atomic mirage composition: atomic set primitive followed by a mirage-class terminal.'],
   // Foundational atoms and operators: identity plus the uptime/delay relationship pairs
   // (Around the World / Pixie and Orbit / Fairy). Worded as "an uptime X", never "X equals Y".
-  ['around-the-world', 'Circle the bag with the foot, the leg tracing a full loop around the hanging bag before a toe stall. Around the World completes the dexterity around a delayed bag; its reverse-direction version is Orbit. Pixie can be understood as an uptime Around the World: both involve a leg circling the bag, but Around the World completes the dexterity around a delayed bag, while Pixie performs the circling motion as part of the set itself, before the bag reaches its peak.'],
+  ['around_the_world', 'Circle the bag with the foot, the leg tracing a full loop around the hanging bag before a toe stall. Around the World completes the dexterity around a delayed bag; its reverse-direction version is Orbit. Pixie can be understood as an uptime Around the World: both involve a leg circling the bag, but Around the World completes the dexterity around a delayed bag, while Pixie performs the circling motion as part of the set itself, before the bag reaches its peak.'],
   ['pixie', 'A set primitive that circles the leg around the bag during the set, acting as a +1 set modifier. Pixie can be understood as an uptime Around the World: both involve a leg circling the bag, but Pixie performs the circling motion as part of the set itself, before the bag reaches its peak, while Around the World completes that dexterity around a delayed bag.'],
   ['orbit', 'The reverse-direction full orbit: the leg circles the bag the opposite way around a delayed bag before the catch, making Orbit the reverse-direction counterpart of Around the World. Fairy can be understood as an uptime Orbit: Orbit performs the reverse-direction circling motion around a delayed bag, while Fairy performs that same reverse-direction dexterity during the set.'],
   ['fairy', 'A set primitive, the opposite-direction counterpart of pixie, acting as a +1 set modifier. Fairy can be understood as an uptime Orbit: it performs the reverse-direction circling dexterity during the set, before the bag reaches its peak, while Orbit completes that same reverse-direction dexterity around a delayed bag.'],
-  ['around-the-world-kick', 'Circle the bag with the foot, then kick it instead of stalling it. Most dexterity tricks finish by catching the bag in a stall; a dex-kick finishes the same circling motion with a kick, so the loop scores a single ADD because no terminal stall is added. Around the World Kick is the most common trick of this kind, and it is no longer the only one: the same drop-the-stall pattern produces a small group of 1-ADD dex-kick tricks, including Pixie Kick, Orbit Kick, Fairy Kick, Legover Kick, Miraging Kick, and Atomic Kick. Around the World Kick is the one commonly practiced; the others follow naturally from the notation but are rarely performed as named tricks.'],
+  ['around_the_world_kick', 'Circle the bag with the foot, then kick it instead of stalling it. Most dexterity tricks finish by catching the bag in a stall; a dex-kick finishes the same circling motion with a kick, so the loop scores a single ADD because no terminal stall is added. Around the World Kick is the most common trick of this kind, and it is no longer the only one: the same drop-the-stall pattern produces a small group of 1-ADD dex-kick tricks, including Pixie Kick, Orbit Kick, Fairy Kick, Legover Kick, Miraging Kick, and Atomic Kick. Around the World Kick is the one commonly practiced; the others follow naturally from the notation but are rarely performed as named tricks.'],
   // Pixie Kick and Around the World Kick share notation; only the footwork differs,
   // which the symbol cannot express, so the distinction is stated in prose.
-  ['pixie-kick', 'Pixie Kick shares its notation with Around the World Kick but differs in footwork: Around the World Kick finishes with a kick from the same foot that circled the bag, while Pixie Kick finishes with a kick from the opposite foot. Both are 1-ADD dex-kicks: two ways to perform a dexterity without ending in a stall.'],
+  ['pixie_kick', 'Pixie Kick shares its notation with Around the World Kick but differs in footwork: Around the World Kick finishes with a kick from the same foot that circled the bag, while Pixie Kick finishes with a kick from the opposite foot. Both are 1-ADD dex-kicks: two ways to perform a dexterity without ending in a stall.'],
   // Atomic Kick is a logically-derived dex-kick (the Illusion dexterity without its
   // stall), rarely practiced as a named trick.
-  ['atomic-kick', 'Atomic Kick uses the same dexterity pattern as Illusion but replaces the terminal stall with a kick. Atomic Kick is a logically derived member of the dex-kick family. Like Miraging Kick, Pixie Kick, Orbit Kick, and other dex-kick variants, it follows naturally from the notation system by replacing the final stall with a kick. Unlike Illusion itself, Atomic Kick is rarely encountered as a named or commonly practiced freestyle trick.'],
+  ['atomic_kick', 'Atomic Kick uses the same dexterity pattern as Illusion but replaces the terminal stall with a kick. Atomic Kick is a logically derived member of the dex-kick family. Like Miraging Kick, Pixie Kick, Orbit Kick, and other dex-kick variants, it follows naturally from the notation system by replacing the final stall with a kick. Unlike Illusion itself, Atomic Kick is rarely encountered as a named or commonly practiced freestyle trick.'],
   // Double Switch-Over vs Double Around the World: same ADD and dex count, different
   // movement; deliberately not framed as a same-vs-opposite-foot mirror.
-  ['double-switch-over', 'Double Switch-Over (DSO) and Double Around the World are both 3-ADD two-dex tricks, but they reach their two dexterities through very different movement patterns.'],
-  ['2-bag-juggling', 'Controlling two bags with a single foot, keeping both in play through alternating delays on the same surface. The foundational multi-bag primitive: where standard freestyle works one bag, two-bag juggling adds a second object the foot must track and re-stall without dropping either.'],
-  ['3-bag-juggling', 'Controlling three bags with two feet, keeping all three in play through coordinated delays across both feet. A higher-order multi-bag primitive: where two-bag juggling works two bags on a single foot, three-bag juggling distributes three bags across both feet, each foot tracking and re-stalling its share without dropping any.'],
+  ['double_switch_over', 'Double Switch-Over (DSO) and Double Around the World are both 3-ADD two-dex tricks, but they reach their two dexterities through very different movement patterns.'],
+  ['2_bag_juggling', 'Controlling two bags with a single foot, keeping both in play through alternating delays on the same surface. The foundational multi-bag primitive: where standard freestyle works one bag, two-bag juggling adds a second object the foot must track and re-stall without dropping either.'],
+  ['3_bag_juggling', 'Controlling three bags with two feet, keeping all three in play through coordinated delays across both feet. A higher-order multi-bag primitive: where two-bag juggling works two bags on a single foot, three-bag juggling distributes three bags across both feet, each foot tracking and re-stalling its share without dropping any.'],
 ]);
 
 /** Lookup helper. Returns null when no curator override is authored. */
@@ -142,9 +142,9 @@ export interface ReversePairTransform {
 export const REVERSE_PAIR_TRANSFORMS: ReadonlyMap<string, ReversePairTransform> = new Map([
   ['illusion',  { expression: 'rev(0) + mirage',           baseSlug: 'mirage',           baseName: 'mirage',           baseAdd: 2 }],
   ['pickup',    { expression: 'rev(0) + legover',          baseSlug: 'legover',          baseName: 'legover',          baseAdd: 2 }],
-  ['rev-whirl', { expression: 'rev(0) + whirl',            baseSlug: 'whirl',            baseName: 'whirl',            baseAdd: 3 }],
-  ['rev-swirl', { expression: 'rev(0) + swirl',            baseSlug: 'swirl',            baseName: 'swirl',            baseAdd: 3 }],
-  ['orbit',     { expression: 'rev(0) + around-the-world', baseSlug: 'around-the-world', baseName: 'around-the-world', baseAdd: 2 }],
+  ['rev_whirl', { expression: 'rev(0) + whirl',            baseSlug: 'whirl',            baseName: 'whirl',            baseAdd: 3 }],
+  ['rev_swirl', { expression: 'rev(0) + swirl',            baseSlug: 'swirl',            baseName: 'swirl',            baseAdd: 3 }],
+  ['orbit',     { expression: 'rev(0) + around-the-world', baseSlug: 'around_the_world', baseName: 'around-the-world', baseAdd: 2 }],
 ]);
 
 /**

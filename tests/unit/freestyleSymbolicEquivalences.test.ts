@@ -33,9 +33,9 @@ describe('freestyleSymbolicEquivalences — registry hygiene', () => {
     }
   });
 
-  it('slugs are kebab-case (DB-canonical form)', () => {
+  it('slugs are underscore (DB-canonical form)', () => {
     for (const chain of SYMBOLIC_EQUIVALENCE_CHAINS) {
-      expect(chain.slug).toMatch(/^[a-z0-9-]+$/);
+      expect(chain.slug).toMatch(/^[a-z0-9]+(_[a-z0-9]+)*$/);
     }
   });
 
@@ -73,7 +73,7 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
 
   it('NR-1 royale + dlo (flurry SE chain removed 2026-05-26 per S3/S5 governance migration)', () => {
     expect(getSymbolicEquivalenceChain('royale')?.readings).toEqual(['paradox reverse drifter']);
-    expect(getSymbolicEquivalenceChain('double-leg-over')?.readings).toEqual(['miraging legover']);
+    expect(getSymbolicEquivalenceChain('double_leg_over')?.readings).toEqual(['miraging legover']);
     // flurry's chain was removed as part of the 2026-05-26 S3/S5 slot
     // governance migration. flurry is an equivalent-derivation case
     // (two valid paths converge on 4 ADD) owned exclusively by S9
@@ -96,17 +96,17 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
   });
 
   it('NR-1 torque-family: grave-digger / nemesis / atomic-torque', () => {
-    expect(getSymbolicEquivalenceChain('grave-digger')?.readings).toEqual(['stepping ss torque']);
+    expect(getSymbolicEquivalenceChain('grave_digger')?.readings).toEqual(['stepping ss torque']);
     expect(getSymbolicEquivalenceChain('nemesis')?.readings).toEqual(['furious barfly']);
-    expect(getSymbolicEquivalenceChain('atomic-torque')?.readings).toEqual(['atomic torque']);
+    expect(getSymbolicEquivalenceChain('atomic_torque')?.readings).toEqual(['atomic torque']);
   });
 
   it('all NR-1 entries are flagged curator-confirmed (not pending)', () => {
     // flurry removed 2026-05-26 (S3/S5 governance migration; S9 sole owner)
     const nr1Slugs = [
-      'flail', 'smudge', 'smoke', 'smog', 'royale', 'double-leg-over',
+      'flail', 'smudge', 'smoke', 'smog', 'royale', 'double_leg_over',
       'surge', 'surreal', 'surgery', 'venom', 'bigwalk',
-      'plasma', 'fusion', 'grave-digger', 'nemesis', 'atomic-torque',
+      'plasma', 'fusion', 'grave_digger', 'nemesis', 'atomic_torque',
     ];
     for (const slug of nr1Slugs) {
       const chain = getSymbolicEquivalenceChain(slug);
@@ -162,7 +162,7 @@ describe('freestyleSymbolicEquivalences — Pre-Red completion sweep chain addit
   });
 
   it('mind-bender resolves to ducking paradox blender (FM+PB agree)', () => {
-    const chain = getSymbolicEquivalenceChain('mind-bender');
+    const chain = getSymbolicEquivalenceChain('mind_bender');
     expect(chain).not.toBeNull();
     expect(chain?.readings).toEqual(['ducking paradox blender']);
     expect(chain?.curatorConfirmPending).toBe(false);
@@ -186,14 +186,14 @@ describe('freestyleSymbolicEquivalences — Pre-Red completion sweep chain addit
 
 describe('freestyleSymbolicEquivalences — Slice N branch-family chain additions', () => {
   it('paradox-blender resolves to a two-stop chain', () => {
-    const chain = getSymbolicEquivalenceChain('paradox-blender');
+    const chain = getSymbolicEquivalenceChain('paradox_blender');
     expect(chain).not.toBeNull();
     expect(chain?.readings).toEqual(['paradox blender', 'paradox whirling op osis']);
     expect(chain?.curatorConfirmPending).toBe(false);
   });
 
   it('food-processor surfaces the Red-locked Blurry-Blender reading', () => {
-    const chain = getSymbolicEquivalenceChain('food-processor');
+    const chain = getSymbolicEquivalenceChain('food_processor');
     expect(chain).not.toBeNull();
     expect(chain?.readings).toEqual(['blurry blender', 'stepping paradox blender']);
     expect(chain?.curatorConfirmPending).toBe(false);
@@ -207,7 +207,7 @@ describe('freestyleSymbolicEquivalences — Slice N branch-family chain addition
   });
 
   it('paradox-drifter resolves to a two-stop chain (parallel to paradox-blender)', () => {
-    const chain = getSymbolicEquivalenceChain('paradox-drifter');
+    const chain = getSymbolicEquivalenceChain('paradox_drifter');
     expect(chain).not.toBeNull();
     expect(chain?.readings).toEqual(['paradox drifter', 'paradox miraging clipper']);
     expect(chain?.curatorConfirmPending).toBe(false);
@@ -241,14 +241,14 @@ describe('freestyleSymbolicEquivalences — Path A chain additions (2026-05-17, 
   });
 
   it('scrambled-eggbeater resolves to atomic pickup (FM only, curatorConfirmPending=true)', () => {
-    const chain = getSymbolicEquivalenceChain('scrambled-eggbeater');
+    const chain = getSymbolicEquivalenceChain('scrambled_eggbeater');
     expect(chain).not.toBeNull();
     expect(chain?.readings).toEqual(['atomic pickup']);
     expect(chain?.curatorConfirmPending).toBe(true);
   });
 
   it('spinal-tap resolves to tapping torque (FM only, curatorConfirmPending=true)', () => {
-    const chain = getSymbolicEquivalenceChain('spinal-tap');
+    const chain = getSymbolicEquivalenceChain('spinal_tap');
     expect(chain).not.toBeNull();
     expect(chain?.readings).toEqual(['tapping torque']);
     expect(chain?.curatorConfirmPending).toBe(true);
@@ -291,7 +291,7 @@ describe('freestyleSymbolicEquivalences — Path B canonical promotions (2026-05
   });
 
   it('big-apple resolves to gyro symposium torque (FM+PB agree via Symp. Mobius unfolding)', () => {
-    const chain = getSymbolicEquivalenceChain('big-apple');
+    const chain = getSymbolicEquivalenceChain('big_apple');
     expect(chain).not.toBeNull();
     expect(chain?.readings).toEqual(['gyro symposium torque']);
     expect(chain?.curatorConfirmPending).toBe(false);
@@ -303,7 +303,7 @@ describe('freestyleSymbolicEquivalences — composed-set folk-name dispositions'
   // operators (no new primitives). shooting-star is dispositioned as an alias
   // on its decomposition rather than a standalone row (no competition record).
   it('shooting-star resolves to its symposium-stepping-paradox-illusioning decomposition', () => {
-    const chain = getSymbolicEquivalenceChain('shooting-star');
+    const chain = getSymbolicEquivalenceChain('shooting_star');
     expect(chain).not.toBeNull();
     expect(chain?.readings).toEqual(['symposium stepping paradox illusioning']);
     expect(chain?.curatorConfirmPending).toBe(false);
@@ -317,7 +317,7 @@ describe('freestyleSymbolicEquivalences — composed-set folk-name dispositions'
   });
 
   it('all five composed-set dispositions are curator-confirmed (not pending)', () => {
-    for (const slug of ['shooting-star', 'flailing', 'surfing', 'slicing', 'splicing']) {
+    for (const slug of ['shooting_star', 'flailing', 'surfing', 'slicing', 'splicing']) {
       expect(getSymbolicEquivalenceChain(slug)?.curatorConfirmPending).toBe(false);
     }
   });

@@ -36,7 +36,7 @@
 export const UNRESOLVED_COMPOUNDS: ReadonlySet<string> = new Set<string>([
   // Folk-named direction-variant whose canonical structural role is
   // unconfirmed (no op-notation; explicitly deferred).
-  'rev-up',
+  'rev_up',
   // Folk-derived; no modifier links; the orphan after the
   // clipper-stall family retirement.
   'reaper',

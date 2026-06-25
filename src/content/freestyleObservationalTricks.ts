@@ -156,7 +156,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   },
   // 'cold-fusion' is kept observational pending a canonical-bracket reading.
   {
-    folkSlug:           'cold-fusion',
+    folkSlug:           'cold_fusion',
     displayName:        'Cold Fusion',
     proposedReadings:   [
       'Nuclear far Double Down',
@@ -199,7 +199,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   // 'flurricane' is omitted: now canonical in freestyle_tricks.
   // 'goliath' is omitted: now canonical in freestyle_tricks.
   {
-    folkSlug:           'green-eggs-and-ham',
+    folkSlug:           'green_eggs_and_ham',
     displayName:        'Green Eggs and Ham',
     proposedReadings:   ['Stepping Ducking far Swivel'],
     proposedAddFormula: null,
@@ -226,7 +226,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     unresolvedBlockers: [],
   },
   {
-    folkSlug:           'irish-cream',
+    folkSlug:           'irish_cream',
     displayName:        'Irish Cream',
     proposedReadings:   [
       'Atomic Gyro Torque',
@@ -256,7 +256,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     unresolvedBlockers: [],
   },
   {
-    folkSlug:           'king-koopa',
+    folkSlug:           'king_koopa',
     displayName:        'King Koopa',
     proposedReadings:   [
       'Spinning Ducking far Symp.Torque',
@@ -326,7 +326,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   // base_trick='eggbeater', trick_family='legover'). Source PB reading
   // 'Spinning near Eggbeater' is cited in the canonical row.
   {
-    folkSlug:           'moby-dick',
+    folkSlug:           'moby_dick',
     displayName:        'Moby Dick',
     proposedReadings:   [
       'Mobiusscrew',
@@ -353,7 +353,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     unresolvedBlockers: [],
   },
   {
-    folkSlug:           'mortal-kombat',
+    folkSlug:           'mortal_kombat',
     displayName:        'Mortal Kombat',
     proposedReadings:   ['Stepping Ducking far Grifter'],
     proposedAddFormula: null,
@@ -366,7 +366,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   },
   // 'motion-sickness' + 'pandemonium' are kept observational pending a canonical-bracket reading.
   {
-    folkSlug:           'motion-sickness',
+    folkSlug:           'motion_sickness',
     displayName:        'Motion Sickness',
     proposedReadings:   ['Spinning far Motion'],
     proposedAddFormula: null,
@@ -400,7 +400,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   // pilot. IFPA-derived ADD 3 (stepping + legover); the PB-source claim of
   // 2 is documented as historical-divergence.
   {
-    folkSlug:           'scorpion-s-tail',
+    folkSlug:           'scorpion_s_tail',
     displayName:        'Scorpion\'s Tail',
     proposedReadings:   ['Spinning far Double Down'],
     proposedAddFormula: null,
@@ -412,7 +412,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     unresolvedBlockers: [],
   },
   {
-    folkSlug:           'shooting-star',
+    folkSlug:           'shooting_star',
     displayName:        'Shooting Star',
     proposedReadings:   [
       'Shooting far Double Down',
@@ -470,7 +470,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     unresolvedBlockers: [],
   },
   {
-    folkSlug:           'torch-r-rack',
+    folkSlug:           'torch_r_rack',
     displayName:        'Torch-R-Rack',
     proposedReadings:   [
       'Stepping far Symp. Double Down',
@@ -498,7 +498,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     unresolvedBlockers: [],
   },
   {
-    folkSlug:           'your-mom',
+    folkSlug:           'your_mom',
     displayName:        'Your Mom',
     proposedReadings:   [
       'Atomic far Symp. Double Down',

@@ -91,7 +91,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: true,
   },
   {
-    slug:     'atom-smasher',
+    slug:     'atom_smasher',
     readings: ['atomic mirage'],
     curatorConfirmPending: true,
   },
@@ -101,7 +101,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: true,    // Red pt10 locks the deeper reading; pending wider review
   },
   {
-    slug:     'paradox-symposium-whirl',
+    slug:     'paradox_symposium_whirl',
     readings: ['ps whirl'],
     curatorConfirmPending: true,
   },
@@ -111,22 +111,22 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: true,
   },
   {
-    slug:     'double-fairy',
+    slug:     'double_fairy',
     readings: ['double illusion'],
     curatorConfirmPending: true,    // Red pt3 (pending status in red_corrections_consolidated.csv)
   },
   {
-    slug:     'double-blender',
+    slug:     'double_blender',
     readings: ['whirling blender'],
     curatorConfirmPending: true,    // Red pt3 (pending)
   },
   {
-    slug:     'double-spinning-osis',
+    slug:     'double_spinning_osis',
     readings: ['two spins to osis'],
     curatorConfirmPending: true,    // Red pt3 (pending)
   },
   {
-    slug:     'spyro-gyro',
+    slug:     'spyro_gyro',
     readings: ['gyro butterfly swirl'],
     curatorConfirmPending: true,    // Red pt2 (pending; treated as flat compositional reading per curator direction)
   },
@@ -203,7 +203,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // (EQUIVALENCE_TOPOLOGY) is the sole owner of the both-paths rendering;
   // S5 would duplicate one path and obscure the other.
   {
-    slug:     'double-leg-over',
+    slug:     'double_leg_over',
     readings: ['miraging legover'],
     curatorConfirmPending: false,   // pt4-locked (DLO = Miraging Legover)
   },
@@ -243,7 +243,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,   // pt2-locked
   },
   {
-    slug:     'grave-digger',
+    slug:     'grave_digger',
     readings: ['stepping ss torque'],
     curatorConfirmPending: false,   // pt8-locked (canonical "stepping same-side torque"; ss abbreviation matches registry convention)
   },
@@ -253,7 +253,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,   // pt6 + pt8-locked
   },
   {
-    slug:     'atomic-torque',
+    slug:     'atomic_torque',
     readings: ['atomic torque'],
     curatorConfirmPending: false,   // pt4-locked (folk-name: silo)
   },
@@ -268,17 +268,17 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // as BASE_ANCHOR). parkwalk deferred: folk-name compound whose
   // structural decomposition is not yet curator-locked.
   {
-    slug:     'atomic-butterfly',
+    slug:     'atomic_butterfly',
     readings: ['atomic butterfly'],
     curatorConfirmPending: false,
   },
   {
-    slug:     'ducking-butterfly',
+    slug:     'ducking_butterfly',
     readings: ['ducking butterfly'],
     curatorConfirmPending: false,
   },
   {
-    slug:     'spinning-butterfly',
+    slug:     'spinning_butterfly',
     readings: ['spinning butterfly'],
     curatorConfirmPending: false,
   },
@@ -301,12 +301,12 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // whose decomposition is not curator-locked; fury was deliberately
   // omitted earlier (pt1 vs pt6 conflict unresolved).
   {
-    slug:     'paradox-mirage',
+    slug:     'paradox_mirage',
     readings: ['paradox mirage'],
     curatorConfirmPending: false,
   },
   {
-    slug:     'symposium-mirage',
+    slug:     'symposium_mirage',
     readings: ['symposium mirage'],
     curatorConfirmPending: false,
   },
@@ -331,17 +331,17 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // in MODIFIERS + BASE_ANCHORS registries. barraging-osis already
   // pending the operator-class question; deferred.
   {
-    slug:     'ducking-osis',
+    slug:     'ducking_osis',
     readings: ['ducking osis'],
     curatorConfirmPending: false,
   },
   {
-    slug:     'spinning-osis',
+    slug:     'spinning_osis',
     readings: ['spinning osis'],
     curatorConfirmPending: false,
   },
   {
-    slug:     'stepping-osis',
+    slug:     'stepping_osis',
     readings: ['stepping osis'],
     curatorConfirmPending: false,
   },
@@ -357,17 +357,17 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // spinal-tap deferred: folk-name compound whose structural
   // decomposition is not yet curator-locked.
   {
-    slug:     'paradox-torque',
+    slug:     'paradox_torque',
     readings: ['paradox torque'],
     curatorConfirmPending: false,
   },
   {
-    slug:     'spinning-torque',
+    slug:     'spinning_torque',
     readings: ['spinning torque'],
     curatorConfirmPending: false,   // canonical-name decomposition; mobius is the folk-name (existing chain)
   },
   {
-    slug:     'blurry-torque',
+    slug:     'blurry_torque',
     readings: ['blurry torque'],
     curatorConfirmPending: true,   // Red: blurry no longer implies paradox; structural decomposition under review
   },
@@ -379,7 +379,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // tokens registered (miraging in MODIFIERS, far in SIDE_POSITIONAL,
   // symposium in MODIFIERS, butterfly in BASE_ANCHORS).
   {
-    slug:     'dada-curve',
+    slug:     'dada_curve',
     readings: ['miraging far symposium butterfly'],
     curatorConfirmPending: false,   // user-spec doctrine
   },
@@ -397,42 +397,42 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // stepping; it does not imply paradox anymore"). Canonical ADD
   // remains at 5 pending curator clarification on the decomposition.
   {
-    slug:     'paradox-whirl',
+    slug:     'paradox_whirl',
     readings: ['paradox whirl'],
     curatorConfirmPending: false,
   },
   {
-    slug:     'spinning-whirl',
+    slug:     'spinning_whirl',
     readings: ['spinning whirl'],
     curatorConfirmPending: false,
   },
   {
-    slug:     'ducking-whirl',
+    slug:     'ducking_whirl',
     readings: ['ducking whirl'],
     curatorConfirmPending: false,
   },
   {
-    slug:     'symposium-whirl',
+    slug:     'symposium_whirl',
     readings: ['symposium whirl'],
     curatorConfirmPending: false,
   },
   {
-    slug:     'stepping-whirl',
+    slug:     'stepping_whirl',
     readings: ['stepping whirl'],
     curatorConfirmPending: false,
   },
   {
-    slug:     'tapping-whirl',
+    slug:     'tapping_whirl',
     readings: ['tapping whirl'],
     curatorConfirmPending: false,
   },
   {
-    slug:     'blurry-whirl',
+    slug:     'blurry_whirl',
     readings: ['blurry whirl'],
     curatorConfirmPending: true,   // Red: blurry no longer implies paradox; structural decomposition under review
   },
   {
-    slug:     'spinning-symposium-whirl',
+    slug:     'spinning_symposium_whirl',
     readings: ['spinning symposium whirl'],
     curatorConfirmPending: false,
   },
@@ -458,12 +458,12 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // curator authoring. Folk-derived rows (tomahawk, witchdoctor, fury)
   // carry the unresolved-pill instead.
   {
-    slug:     'paradox-blender',
+    slug:     'paradox_blender',
     readings: ['paradox blender', 'paradox whirling op osis'],
     curatorConfirmPending: false,   // tokenizes the canonical name; deeper reading extends blender's pt11-locked 'whirling osis'
   },
   {
-    slug:     'food-processor',
+    slug:     'food_processor',
     readings: ['blurry blender', 'stepping paradox blender'],
     curatorConfirmPending: false,   // Red-locked: Food Processor = Stepping Paradox Blender (Red)
   },
@@ -473,7 +473,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,   // curator-prose-confirmed in FAMILY_TEXTS['blender']: "spender (Spinning Paradox Blender, 6 ADD)"
   },
   {
-    slug:     'paradox-drifter',
+    slug:     'paradox_drifter',
     readings: ['paradox drifter', 'paradox miraging clipper'],
     curatorConfirmPending: false,   // tokenizes the canonical name; deeper reading extends drifter's pt11-locked 'miraging clipper'
   },
@@ -509,7 +509,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,   // FM 'Pixie Eggbeater' + PB 'Pixie far Eggbeater' agree (far = +0 per Red)
   },
   {
-    slug:     'mind-bender',
+    slug:     'mind_bender',
     readings: ['ducking paradox blender'],
     curatorConfirmPending: false,   // FM 'Ducking Paradox Blender' + PB 'Clipper Ducking far Blender' agree on ducking+paradox+blender (Clipper prefix = set-initiator; far = paradox per Red)
   },
@@ -544,12 +544,12 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: true,   // FM 'Stepping Double Legover' only (PB silent); structurally clean; math stepping(+1)+DLO(3)=4 matches DB asserted_adds
   },
   {
-    slug:     'scrambled-eggbeater',
+    slug:     'scrambled_eggbeater',
     readings: ['atomic pickup'],
     curatorConfirmPending: true,   // FM 'Atomic Pickup' only (PB silent); math atomic(+1 non-rotational)+pickup(2)=3 matches DB asserted_adds
   },
   {
-    slug:     'spinal-tap',
+    slug:     'spinal_tap',
     readings: ['tapping torque'],
     curatorConfirmPending: true,   // FM 'Tapping Torque' only (PB silent); math tapping(+1)+torque(4)=5 matches DB asserted_adds
   },
@@ -579,7 +579,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: true,   // FM 'Tapping Butterfly' only (PB silent); math tapping(+1)+butterfly(3)=4; Red pt3 tapping=+1
   },
   {
-    slug:     'big-apple',
+    slug:     'big_apple',
     readings: ['gyro symposium torque'],
     curatorConfirmPending: false,   // FM 'Gyro Symposium Torque' + PB 'Symp. Mobius' agree (mobius unfolds to gyro torque); math gyro(+1)+symposium(+1)+torque(4)=6
   },
@@ -610,27 +610,27 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // adds no information to the browse card. Omitted alongside pendulum's
   // analogous "toe swing" reading.
   {
-    slug:     'flying-clipper',
+    slug:     'flying_clipper',
     readings: ['flying clipper'],
     curatorConfirmPending: false,   // Resolved: flying(+1) + clipper(1 body kick) = 2 ADD. Folk alias 'jester' preserved on DB row. flying is body-modifier +1; clipper here is the 1-ADD body kick, not clipper-stall surface
   },
   {
-    slug:     'ducking-clipper',
+    slug:     'ducking_clipper',
     readings: ['ducking clipper'],
     curatorConfirmPending: false,   // Resolved: ducking(+1) + clipper-stall(2) = 3 ADD. Canonical name IS the structural reading (operator + base atom)
   },
   {
-    slug:     'spinning-clipper',
+    slug:     'spinning_clipper',
     readings: ['spinning clipper'],
     curatorConfirmPending: false,   // Resolved: spinning(+1) + clipper-stall(2) = 3 ADD. Canonical name IS the structural reading
   },
   {
-    slug:     'whirling-swirl',
+    slug:     'whirling_swirl',
     readings: ['whirling swirl'],
     curatorConfirmPending: false,   // Resolved: whirling(+1) + swirl(3) = 4 ADD. Canonical name IS the structural reading
   },
   {
-    slug:     'barraging-osis',
+    slug:     'barraging_osis',
     readings: ['barraging osis'],
     curatorConfirmPending: false,   // Red ruling: 'Baroque (Barraging Osis) = Two dexes + Osis = 5'. Structurally = barraging segment + osis. DB alias 'baroque' preserved
   },
@@ -640,7 +640,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,   // Surging Modeling Rule (Red pt2): surging primitive decomposes to spinning + stepping. NOT in modifier table per the rule. 2 ADD = primitive operator-stack value
   },
   {
-    slug:     'double-around-the-world',
+    slug:     'double_around_the_world',
     readings: ['double around the world'],
     curatorConfirmPending: true,    // Canonical row at 3 ADD; doctrinally double(+1)+ATW(2)=3 per multiplier audit framework but 'double' operator not in modifier table; open Red question on double-as-multiplier doctrine. Per Red pt3 (Productive Multiplicity), double-around-the-world is stabilized canonical
   },
@@ -668,7 +668,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,
   },
   {
-    slug:     'spike-hammer',
+    slug:     'spike_hammer',
     readings: ['stepping ducking paradox mirage'],
     // Atom-level: structural twin of avalanche (mirage base instead of illusion).
     // Migrated from aliases_json (folk-name compression to 3-operator stack).
@@ -678,7 +678,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // operators, so they wire as decomposition readings rather than as new
   // primitives or standalone rows (fewer-rows bias).
   {
-    slug:     'shooting-star',
+    slug:     'shooting_star',
     readings: ['symposium stepping paradox illusioning'],
     // The paradox-bearing second dex is a paradox illusion living inside the
     // prefix, not a separate double-over-down or torque base. With no
@@ -739,10 +739,10 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
 export const PEDAGOGICAL_COMPRESSION_EXEMPLARS: ReadonlySet<string> = new Set([
   'mobius',          // 3-depth ladder authored; flagship glossary example
   'ripwalk',         // single-depth today; depth expansion deferred
-  'atom-smasher',    // single-depth today; depth expansion deferred
+  'atom_smasher',    // single-depth today; depth expansion deferred
   'blur',            // single-depth at atom level (stepping paradox mirage)
   'barrage',         // no chain yet; reserved for future curator authoring
-  'paradox-mirage',  // tautological entry today; depth-ladder authoring deferred
+  'paradox_mirage',  // tautological entry today; depth-ladder authoring deferred
 ]);
 
 /**

@@ -35,11 +35,11 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // paradox-mirage: in RESOLVED_FORMULAS_SPRINT_1 with derivation
+  // paradox_mirage: in RESOLVED_FORMULAS_SPRINT_1 with derivation
   // 'paradox(+1) + mirage(2) = 3 ADD'. Trick-detail must render the
   // Tier-4 disclosure.
   insertFreestyleTrick(db, {
-    slug: 'paradox-mirage',
+    slug: 'paradox_mirage',
     canonical_name: 'paradox mirage',
     trick_family: 'mirage',
     category: 'compound',
@@ -81,19 +81,19 @@ describe('Trick-detail Tier-4 ADD block — resolved-formula slugs', () => {
   // "ADD"-labeled row. The contract now mirrors the Notation Summary
   // card's ADD slot (visible-by-default labeled formula).
 
-  it('renders the ADD block on paradox-mirage (non-first-class compound)', async () => {
-    // Note: paradox-mirage may be first-class and render via the
+  it('renders the ADD block on paradox_mirage (non-first-class compound)', async () => {
+    // Note: paradox_mirage may be first-class and render via the
     // Notation Summary instead; assert the derivation text is present
     // somewhere on the page rather than which container holds it.
     // Slice D 2026-05-26: trailing `= 3 ADD` is stripped on trick-detail
     // surfaces (the hero ADD chip is the authoritative total).
-    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/paradox\(\+1\) \+ mirage\(2\)/);
   });
 
   it('renders the curator-published derivation verbatim inside a <code> element', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     // Either the ADD-block dl OR the Notation Summary derivation slot
     // carries the derivation; assert presence within a <code> tag.
     expect(res.text).toMatch(
@@ -102,14 +102,14 @@ describe('Trick-detail Tier-4 ADD block — resolved-formula slugs', () => {
   });
 
   it('ADD block renders expand-by-default (no <details> collapse remaining)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     // The collapsed <details> pattern was retired 2026-05-23.
     expect(res.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
     expect(res.text).not.toMatch(/Click to expand/);
   });
 
   it('does NOT render curator-internal provenance on the public page', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     expect(res.text).not.toContain('canonical inventory');
     expect(res.text).not.toContain('+1 body modifier');
   });
@@ -143,11 +143,11 @@ describe('Trick-detail Tier-4 ADD-analysis disclosure — 4-tier hierarchy contr
   it('Tier-4 derivation pattern absent from /freestyle/tricks?view=add browse OUTSIDE first-class cards', async () => {
     // Note: as of the FC pilot (2026-05-19), the compact first-class
     // secondary row deliberately renders ADD-breakdown patterns on the
-    // 5 pilot browse cards (osis / paradox-mirage / symposium-mirage /
-    // atomic-butterfly / ripwalk). The contract still forbids Tier-4
+    // 5 pilot browse cards (osis / paradox_mirage / symposium_mirage /
+    // atomic_butterfly / ripwalk). The contract still forbids Tier-4
     // patterns on the general non-first-class cohort. We strip the
     // first-class card regions before sweeping for leakage.
-    const FIRST_CLASS_PILOT_SLUGS = ['osis', 'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk'];
+    const FIRST_CLASS_PILOT_SLUGS = ['osis', 'paradox_mirage', 'symposium_mirage', 'atomic_butterfly', 'ripwalk'];
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     let sweep = res.text;

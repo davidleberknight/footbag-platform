@@ -251,11 +251,11 @@ beforeAll(async () => {
     category: 'compound', description: 'core torque', notation: 'TORQUE', sort_order: 52,
   });
   insertFreestyleTrick(db, {
-    slug: 'around-the-world', canonical_name: 'around the world', adds: '2',
-    base_trick: 'around-the-world', trick_family: 'around-the-world', category: 'dex',
+    slug: 'around_the_world', canonical_name: 'around the world', adds: '2',
+    base_trick: 'around_the_world', trick_family: 'around_the_world', category: 'dex',
     description: 'full leg circle around the bag', notation: 'ATW', sort_order: 53,
   });
-  insertFreestyleTrickAlias(db, 'atw', 'around-the-world', 'atw');
+  insertFreestyleTrickAlias(db, 'atw', 'around_the_world', 'atw');
 
   // The 6 test fixtures themselves — each carries its LOCKED Tier 1 notation.
   insertFreestyleTrick(db, {
@@ -393,7 +393,7 @@ describe('GET /freestyle/tricks', () => {
     // from atom browse cards. Legover ≡ leg-over orthographic noise stays out.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
-    const atwIdx = res.text.indexOf('data-trick-slug="around-the-world"');
+    const atwIdx = res.text.indexOf('data-trick-slug="around_the_world"');
     expect(atwIdx).toBeGreaterThan(0);
     const atwCardEnd = res.text.indexOf('</article>', atwIdx);
     const atwCard = res.text.slice(atwIdx, atwCardEnd);
@@ -1030,7 +1030,7 @@ describe('GET /freestyle/tricks/:slug — with dictionary entry', () => {
 
   it('shows record-only trick (not in dict) when accessed by slug', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/mystery-trick');
+    const res = await request(app).get('/freestyle/tricks/mystery_trick');
     expect(res.status).toBe(200);
     expect(res.text).toContain('mystery-trick');
     // No dict entry, so no About section
@@ -1211,10 +1211,10 @@ describe('GET /freestyle/tricks/:slug — Phase 6 notation display', () => {
 
   it('classifies ATW as core_family via alias resolution to around-the-world', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/around-the-world');
+    const res = await request(app).get('/freestyle/tricks/around_the_world');
     // Alias 'atw' resolves to slug 'around-the-world'; tooltip carries the
     // resolved canonical name per the §5.4a ratification.
-    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Base trick family: around-the-world">ATW<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Base trick family: around_the_world">ATW<\/span>/);
   });
 
   it('classifies HEAD STALL as unusual_surface + suffix', async () => {

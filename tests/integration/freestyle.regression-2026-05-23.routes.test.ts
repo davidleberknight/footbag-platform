@@ -15,7 +15,7 @@
  *      anchored at #jobs-notation, with an explicit reference to the
  *      historical Jobs notation source archive.
  *   5. The compound-description slot does not duplicate the JOB
- *      formula. For atomic-style tricks (cloud-kick) the operational
+ *      formula. For atomic-style tricks (cloud_kick) the operational
  *      notation string renders only once.
  *   6. The notation card reads Execution notation (the operational JOB
  *      chain) then ADD derivation; the rev(0) reading lives in the ALT
@@ -24,10 +24,10 @@
  *      and is not labelled "canonical decomposition pending".
  *   8. "unusual surface" no longer appears in ADD-accounting displays;
  *      `UNS(1)` is the bucket token. The glossary explains UNS.
- *   9. double-around-the-world and double-leg-over surface JOB
+ *   9. double_around_the_world and double_leg_over surface JOB
  *      notation + ADD calculation rows from the resolved-formulas
  *      content module.
- *  10. flying-clipper ADD accounting renders as `BOD(1) + clipper(1)`,
+ *  10. flying_clipper ADD accounting renders as `BOD(1) + clipper(1)`,
  *      not `flying(+1)`.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -76,11 +76,11 @@ beforeAll(async () => {
   // Atomic-ish trick used by items 5+6+8 (compound-description slot,
   // formula row order, UNS rendering).
   insertFreestyleTrick(db, {
-    slug:                 'cloud-kick',
+    slug:                 'cloud_kick',
     canonical_name:       'cloud kick',
     adds:                 '1',
-    base_trick:           'cloud-kick',
-    trick_family:         'cloud-kick',
+    base_trick:           'cloud_kick',
+    trick_family:         'cloud_kick',
     category:             'kick',
     description:          'Kick off the back of the shin.',
     notation:             'CLOUD KICK',
@@ -94,7 +94,7 @@ beforeAll(async () => {
     slug:                 'rake',
     canonical_name:       'rake',
     adds:                 '2',
-    base_trick:           'toe-stall',
+    base_trick:           'toe_stall',
     trick_family:         'rake',
     category:             'compound',
     description:          'Rake trick.',
@@ -104,14 +104,14 @@ beforeAll(async () => {
     is_active:            1,
   });
 
-  // Bases referenced by toe-stall + clipper FK targets for the
+  // Bases referenced by toe_stall + clipper FK targets for the
   // compound rows below. Minimal rows; not under direct assertion.
   insertFreestyleTrick(db, {
-    slug:                 'toe-stall',
+    slug:                 'toe_stall',
     canonical_name:       'toe stall',
     adds:                 '1',
-    base_trick:           'toe-stall',
-    trick_family:         'toe-stall',
+    base_trick:           'toe_stall',
+    trick_family:         'toe_stall',
     category:             'surface',
     review_status:        'expert_reviewed',
     is_active:            1,
@@ -127,11 +127,11 @@ beforeAll(async () => {
     is_active:            1,
   });
   insertFreestyleTrick(db, {
-    slug:                 'around-the-world',
+    slug:                 'around_the_world',
     canonical_name:       'around the world',
     adds:                 '2',
-    base_trick:           'around-the-world',
-    trick_family:         'around-the-world',
+    base_trick:           'around_the_world',
+    trick_family:         'around_the_world',
     category:             'body',
     review_status:        'expert_reviewed',
     is_active:            1,
@@ -151,11 +151,11 @@ beforeAll(async () => {
   // overrides operational_notation at shape time, but the row must
   // exist for the trick-detail route to render at all.
   insertFreestyleTrick(db, {
-    slug:                 'double-around-the-world',
+    slug:                 'double_around_the_world',
     canonical_name:       'double around the world',
     adds:                 '3',
-    base_trick:           'around-the-world',
-    trick_family:         'around-the-world',
+    base_trick:           'around_the_world',
+    trick_family:         'around_the_world',
     category:             'compound',
     description:          'two consecutive full leg circles',
     operational_notation: null,
@@ -163,7 +163,7 @@ beforeAll(async () => {
     is_active:            1,
   });
   insertFreestyleTrick(db, {
-    slug:                 'double-leg-over',
+    slug:                 'double_leg_over',
     canonical_name:       'double leg over',
     adds:                 '3',
     base_trick:           'legover',
@@ -175,9 +175,9 @@ beforeAll(async () => {
     is_active:            1,
   });
 
-  // Item 10 — flying-clipper for BOD(1) accounting.
+  // Item 10 — flying_clipper for BOD(1) accounting.
   insertFreestyleTrick(db, {
-    slug:                 'flying-clipper',
+    slug:                 'flying_clipper',
     canonical_name:       'flying clipper',
     adds:                 '2',
     base_trick:           'clipper',
@@ -257,11 +257,11 @@ describe('Item 4: glossary has Jobs notation section with archive reference', ()
   });
 });
 
-// ── Items 5 + 6 + 8 — cloud-kick page contract ───────────────────────────
-describe('Items 5 + 6 + 8: cloud-kick formula rows', () => {
+// ── Items 5 + 6 + 8 — cloud_kick page contract ───────────────────────────
+describe('Items 5 + 6 + 8: cloud_kick formula rows', () => {
   it('renders the ADD breakdown as UNS(1) (no "unusual surface" long form)', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/cloud-kick');
+    const res = await request(app).get('/freestyle/tricks/cloud_kick');
     expect(res.status).toBe(200);
     // Slice D 2026-05-26: the `= 1 ADD` terminator is stripped from
     // trick-detail breakdowns; the hero ADD chip carries the total.
@@ -272,7 +272,7 @@ describe('Items 5 + 6 + 8: cloud-kick formula rows', () => {
 
   it('does not duplicate the operational formula in a compound-description slot', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/cloud-kick');
+    const res = await request(app).get('/freestyle/tricks/cloud_kick');
     // The operational notation "[set] > cloud kick" should render at
     // most once on an atomic trick — the Execution notation section is
     // its single home; no second copy renders in a description slot.
@@ -287,7 +287,7 @@ describe('Items 5 + 6 + 8: cloud-kick formula rows', () => {
     // section; it renders above the ADD derivation section so the page
     // reads Movement notation -> Execution notation -> ADD.
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/cloud-kick');
+    const res = await request(app).get('/freestyle/tricks/cloud_kick');
     const execIdx = res.text.indexOf('operational-notation-display');
     const addIdx = res.text.indexOf('trick-add-analysis');
     expect(execIdx).toBeGreaterThan(0);
@@ -373,10 +373,10 @@ describe('Item 8: glossary explains the UNS abbreviation', () => {
 });
 
 // ── Item 9 — DATW + DLO formulas ─────────────────────────────────────────
-describe('Item 9: double-around-the-world + double-leg-over formula rows', () => {
-  it('double-around-the-world renders JOB + ADD formulas from the resolved-formulas override', async () => {
+describe('Item 9: double_around_the_world + double_leg_over formula rows', () => {
+  it('double_around_the_world renders JOB + ADD formulas from the resolved-formulas override', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/double-around-the-world');
+    const res = await request(app).get('/freestyle/tricks/double_around_the_world');
     expect(res.status).toBe(200);
     // Tokens render as separate spans with attribute markup between;
     // assert each token in order with permissive gaps. This is the
@@ -387,20 +387,20 @@ describe('Item 9: double-around-the-world + double-leg-over formula rows', () =>
     expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)/);
   });
 
-  it('double-leg-over renders JOB + ADD formulas from the resolved-formulas override', async () => {
+  it('double_leg_over renders JOB + ADD formulas from the resolved-formulas override', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/double-leg-over');
+    const res = await request(app).get('/freestyle/tricks/double_leg_over');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/>SET<[\s\S]+?>OP<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>OP<[\s\S]+?>OUT<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>TOE<[\s\S]+?>\[DEL\]</);
     expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)/);
   });
 });
 
-// ── Item 10 — flying-clipper BOD accounting ──────────────────────────────
-describe('Item 10: flying-clipper ADD accounting uses BOD(1)', () => {
-  it('renders BOD(1) + clipper(1) on the flying-clipper detail page (Slice D: terminator stripped)', async () => {
+// ── Item 10 — flying_clipper BOD accounting ──────────────────────────────
+describe('Item 10: flying_clipper ADD accounting uses BOD(1)', () => {
+  it('renders BOD(1) + clipper(1) on the flying_clipper detail page (Slice D: terminator stripped)', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/flying-clipper');
+    const res = await request(app).get('/freestyle/tricks/flying_clipper');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/BOD\(1\)\s*\+\s*clipper\(1\)/);
     // The old flying(+1) form must not appear in user-facing displays.

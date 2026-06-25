@@ -115,7 +115,7 @@ describe('assertFirstClassConvergence — atomic-decomposition path', () => {
 describe('assertFirstClassConvergence — flat derivation path', () => {
   it('paradox-mirage converges flat (paradox(+1) + mirage(2) = 3)', () => {
     const result = assertFirstClassConvergence(
-      'paradox-mirage',
+      'paradox_mirage',
       {
         canonical_name: 'paradox mirage',
         adds: 3,
@@ -159,7 +159,7 @@ describe('assertFirstClassConvergence — flat derivation path', () => {
     // Pretend "ghost" = some-modifier + base; official says 9 but math
     // says 5. Should not pass H5 even with a resolved-formula entry.
     const result = assertFirstClassConvergence(
-      'paradox-mirage',
+      'paradox_mirage',
       {
         canonical_name: 'paradox mirage',
         adds: 999,                       // bogus

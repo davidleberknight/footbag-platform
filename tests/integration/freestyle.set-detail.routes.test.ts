@@ -40,12 +40,12 @@ beforeAll(async () => {
     slug: 'pixie', modifier_name: 'pixie', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set', notes: '',
   });
   insertFreestyleTrick(db, {
-    slug: 'pixie-mirage', canonical_name: 'pixie mirage', adds: '3',
+    slug: 'pixie_mirage', canonical_name: 'pixie mirage', adds: '3',
     base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
     operational_notation: 'TOE > SAME IN [DEX] > OP IN [DEX] > OP TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  insertFreestyleTrickModifierLink(db, 'pixie-mirage', 'pixie');
+  insertFreestyleTrickModifierLink(db, 'pixie_mirage', 'pixie');
 
   db.close();
   createApp = await importApp();
@@ -64,10 +64,10 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.status).toBe(404);
   });
 
-  it('renders the display name and #<slug>-set hashtag in the header', async () => {
+  it('renders the display name and #set_<slug> hashtag in the header', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/pixie');
     expect(res.text).toContain('Pixie');
-    expect(res.text).toContain('#pixie-set');
+    expect(res.text).toContain('#set_pixie');
   });
 
   it('renders the formula as a code block', async () => {
@@ -119,7 +119,7 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
   it('renders example-tricks section populated when modifier-link rows exist', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/pixie');
     expect(res.text).toContain('class="set-detail-trick-list"');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/pixie-mirage"/);
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\/pixie_mirage"/);
   });
 
   it('renders example-tricks empty state for holden-only sets with no linked tricks', async () => {

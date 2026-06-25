@@ -68,14 +68,14 @@ IS_CORE_SLUGS = frozenset({
     # set primitives (2)
     "pixie", "fairy",
     # body primitive (1)
-    "around-the-world",
+    "around_the_world",
 })
 
 
 def trick_name_to_slug(name: str) -> str:
     slug = name.lower()
-    slug = re.sub(r"[^a-z0-9]+", "-", slug)
-    slug = slug.strip("-")
+    slug = re.sub(r"[^a-z0-9]+", "_", slug)
+    slug = slug.strip("_")
     return slug
 
 

@@ -29,16 +29,16 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertFreestyleTrick(db, {
-    slug: 'paradox-da-da-curve',
+    slug: 'paradox_da_da_curve',
     canonical_name: 'paradox da-da curve',
-    adds: '5', base_trick: 'dada-curve', trick_family: 'dada-curve',
+    adds: '5', base_trick: 'dada_curve', trick_family: 'dada_curve',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
     operational_notation: null,
   });
   insertFreestyleTrick(db, {
-    slug: 'paradox-whirling-swirl',
+    slug: 'paradox_whirling_swirl',
     canonical_name: 'paradox whirling swirl',
-    adds: '5', base_trick: 'whirling-swirl', trick_family: 'whirling-swirl',
+    adds: '5', base_trick: 'whirling_swirl', trick_family: 'whirling_swirl',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
     operational_notation: null,
   });
@@ -50,7 +50,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('RESOLVED_FORMULAS_SPRINT_1 — paradox family entries', () => {
   it('paradox-da-da-curve overlay carries FB.org-confirmed JOB', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'paradox-da-da-curve');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'paradox_da_da_curve');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.baseAdd).toBe(4);
@@ -61,13 +61,13 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — paradox family entries', () => {
   });
 
   it('paradox-whirling-swirl overlay carries FB.org-confirmed JOB (preserves OP BACK SWIRL + SAME CLIP)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'paradox-whirling-swirl');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'paradox_whirling_swirl');
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.operationalNotation).toBe('CLIP > SAME IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]');
   });
 
   it('both paradox compounds use the standard paradox-prefix pattern SAME IN [PDX] [DEX]', () => {
-    for (const slug of ['paradox-da-da-curve', 'paradox-whirling-swirl']) {
+    for (const slug of ['paradox_da_da_curve', 'paradox_whirling_swirl']) {
       const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === slug);
       expect(entry?.operationalNotation ?? '').toMatch(/SAME IN \[PDX\] \[DEX\]/);
     }
@@ -75,8 +75,8 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — paradox family entries', () => {
 });
 
 describe('Paradox-family detail pages — first-class JOB + ADD', () => {
-  it('/freestyle/tricks/paradox-da-da-curve renders 5 ADD + [PDX] token + (NO PLANT WHILE) pre-state', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/paradox-da-da-curve');
+  it('/freestyle/tricks/paradox_da_da_curve renders 5 ADD + [PDX] token + (NO PLANT WHILE) pre-state', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/paradox_da_da_curve');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -89,8 +89,8 @@ describe('Paradox-family detail pages — first-class JOB + ADD', () => {
     expect(res.text).toMatch(/class="op-token[^"]*"[^>]*>\(NO PLANT WHILE\)</);
   });
 
-  it('/freestyle/tricks/paradox-whirling-swirl renders 5 ADD + OP BACK SWIRL rotation-variant token', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/paradox-whirling-swirl');
+  it('/freestyle/tricks/paradox_whirling_swirl renders 5 ADD + OP BACK SWIRL rotation-variant token', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/paradox_whirling_swirl');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
     // BACK SWIRL fuses into rotation_variant token per operationalNotationRendering
@@ -108,7 +108,7 @@ describe('Paradox-family browse rendering — FIRST_CLASS_TIER_2', () => {
   it('both paradox-family browse cards render JOB + ADD inline (not "canonical decomposition pending")', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    for (const slug of ['paradox-da-da-curve', 'paradox-whirling-swirl']) {
+    for (const slug of ['paradox_da_da_curve', 'paradox_whirling_swirl']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx).toBeGreaterThan(-1);
       const articleOpen = res.text.lastIndexOf('<article', idx);

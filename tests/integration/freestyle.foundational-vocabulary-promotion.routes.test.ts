@@ -44,10 +44,10 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 // <span> so we assert token-by-token rather than verbatim-substring).
 const PROMOTION_COHORT = [
   {
-    slug:        'around-the-world-kick',
+    slug:        'around_the_world_kick',
     canonicalName: 'around the world kick',
     adds:        '1',
-    base:        'around-the-world',
+    base:        'around_the_world',
     category:    'dex',
     // Each token must appear as a single op-token span in the rendered HTML.
     jobTokens:   ['TOE', 'SAME', 'IN', '[DEX]'],
@@ -64,19 +64,19 @@ const PROMOTION_COHORT = [
     forbiddenJobTokens: ['[DEL]', '[DEX]'],
   },
   {
-    slug:        'triple-around-the-world',
+    slug:        'triple_around_the_world',
     canonicalName: 'triple around the world',
     adds:        '4',
-    base:        'around-the-world',
+    base:        'around_the_world',
     category:    'compound',
     jobTokens:   ['TOE', 'SAME', 'IN', '[DEX]', '[DEL]'],
     forbiddenJobTokens: [],
   },
   {
-    slug:        'double-around-the-world-heel',
+    slug:        'double_around_the_world_heel',
     canonicalName: 'double around the world heel',
     adds:        '3',
-    base:        'double-around-the-world',
+    base:        'double_around_the_world',
     category:    'compound',
     jobTokens:   ['TOE', 'SAME', 'IN', '[DEX]', 'HEEL', '[UNS]', '[DEL]'],
     forbiddenJobTokens: [],
@@ -103,8 +103,8 @@ beforeAll(async () => {
   }
 
   // Seed parent bases so the renderer has a structurally-coherent dictionary.
-  insertFreestyleTrick(db, { slug: 'around-the-world',        canonical_name: 'around the world',        adds: '2', base_trick: 'around-the-world',        trick_family: 'around-the-world',        category: 'dex' });
-  insertFreestyleTrick(db, { slug: 'double-around-the-world', canonical_name: 'double around the world', adds: '3', base_trick: 'double-around-the-world', trick_family: 'double-around-the-world', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'around_the_world',        canonical_name: 'around the world',        adds: '2', base_trick: 'around_the_world',        trick_family: 'around_the_world',        category: 'dex' });
+  insertFreestyleTrick(db, { slug: 'double_around_the_world', canonical_name: 'double around the world', adds: '3', base_trick: 'double_around_the_world', trick_family: 'double_around_the_world', category: 'compound' });
 
   db.close();
   createApp = await importApp();
@@ -191,16 +191,16 @@ describe('Foundational-vocabulary promotion — no "canonical decomposition pend
 
 describe('Foundational-vocabulary promotion — no tautological compound-slot leakage', () => {
   it('around-the-world-kick does NOT render its own canonical name as a fake chain reading', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/around-the-world-kick');
+    const res = await request(await createApp()).get('/freestyle/tricks/around_the_world_kick');
     // The equivalent-readings chain (semanticNotation layer 2) must NOT
     // simply echo "around the world kick" as a tautological reading.
     // If it does, the chain row is information-free.
-    expect(res.text).not.toMatch(/<a[^>]*data-token-slug="around-the-world-kick"/);
+    expect(res.text).not.toMatch(/<a[^>]*data-token-slug="around_the_world_kick"/);
   });
 
   it('triple-around-the-world does NOT echo its own canonical name in a chain row', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/triple-around-the-world');
-    expect(res.text).not.toMatch(/<a[^>]*data-token-slug="triple-around-the-world"/);
+    const res = await request(await createApp()).get('/freestyle/tricks/triple_around_the_world');
+    expect(res.text).not.toMatch(/<a[^>]*data-token-slug="triple_around_the_world"/);
   });
 });
 
@@ -244,21 +244,21 @@ describe('Foundational-vocabulary promotion — canonical browse view (/freestyl
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     const oneAddSectionMatch = res.text.match(/<section[^>]*id="add-1"[\s\S]*?<\/section>/);
     expect(oneAddSectionMatch).toBeTruthy();
-    expect(oneAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="around-the-world-kick"');
+    expect(oneAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="around_the_world_kick"');
   });
 
   it('triple-around-the-world appears under the 4 ADD section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     const fourAddSectionMatch = res.text.match(/<section[^>]*id="add-4"[\s\S]*?<\/section>/);
     expect(fourAddSectionMatch).toBeTruthy();
-    expect(fourAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="triple-around-the-world"');
+    expect(fourAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="triple_around_the_world"');
   });
 
   it('double-around-the-world-heel appears under the 3 ADD section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     const threeAddSectionMatch = res.text.match(/<section[^>]*id="add-3"[\s\S]*?<\/section>/);
     expect(threeAddSectionMatch).toBeTruthy();
-    expect(threeAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="double-around-the-world-heel"');
+    expect(threeAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="double_around_the_world_heel"');
   });
 
   it('clipper appears under the 1 ADD section (Clipper Kick is a legitimate body-kick trick)', async () => {
@@ -291,10 +291,10 @@ describe('Foundational-vocabulary promotion — Emerging Vocabulary no longer co
         allTrackedSlugs.add(name.slug);
       }
     }
-    expect(allTrackedSlugs.has('around-the-world-kick')).toBe(false);
-    expect(allTrackedSlugs.has('triple-around-the-world')).toBe(false);
-    expect(allTrackedSlugs.has('double-around-the-world-heel')).toBe(false);
-    expect(allTrackedSlugs.has('clipper-kick')).toBe(false);
+    expect(allTrackedSlugs.has('around_the_world_kick')).toBe(false);
+    expect(allTrackedSlugs.has('triple_around_the_world')).toBe(false);
+    expect(allTrackedSlugs.has('double_around_the_world_heel')).toBe(false);
+    expect(allTrackedSlugs.has('clipper_kick')).toBe(false);
   });
 
   it('/freestyle/observational page renders an updated (lower) count, not the pre-session 558', async () => {
@@ -310,9 +310,9 @@ describe('Foundational-vocabulary promotion — Emerging Vocabulary no longer co
     const res = await request(await createApp()).get('/freestyle/observational');
     // The tracked-names section renders #slug tags. After promotion, these
     // slugs must not appear as observational entries.
-    expect(res.text).not.toMatch(/#around-the-world-kick/);
-    expect(res.text).not.toMatch(/#triple-around-the-world(?!-)/);  // negative lookahead to avoid matching e.g. triple-around-the-world-XYZ
-    expect(res.text).not.toMatch(/#double-around-the-world-heel/);
-    expect(res.text).not.toMatch(/#clipper-kick/);
+    expect(res.text).not.toMatch(/#around_the_world_kick/);
+    expect(res.text).not.toMatch(/#triple_around_the_world(?!_)/);  // negative lookahead to avoid matching e.g. triple_around_the_world_XYZ
+    expect(res.text).not.toMatch(/#double_around_the_world_heel/);
+    expect(res.text).not.toMatch(/#clipper_kick/);
   });
 });

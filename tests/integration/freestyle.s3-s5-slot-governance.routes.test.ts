@@ -32,10 +32,10 @@ describe('S3/S5 slot governance — slot ownership invariants', () => {
     const expected = new Set([
       'mobius',
       'ripwalk',
-      'atom-smasher',
+      'atom_smasher',
       'blur',
       'barrage',
-      'paradox-mirage',
+      'paradox_mirage',
     ]);
     expect(PEDAGOGICAL_COMPRESSION_EXEMPLARS).toEqual(expected);
   });
@@ -51,8 +51,8 @@ describe('S5 migration — removed entries (no longer chain-rendered)', () => {
   // These three slugs had SE chain entries before the 2026-05-26
   // migration that wrongly held content owned by other slots.
 
-  it('toe-blur SE chain removed (toe-blur is a pure alias of quantum-mirage, not a canonical trick)', () => {
-    expect(getSymbolicEquivalenceChain('toe-blur')).toBeNull();
+  it('toe_blur SE chain removed (toe_blur is a pure alias of quantum-mirage, not a canonical trick)', () => {
+    expect(getSymbolicEquivalenceChain('toe_blur')).toBeNull();
   });
 
   it('flurry SE chain removed (equivalent-derivation case; S9 sole owner)', () => {
@@ -80,8 +80,8 @@ describe('S5 migration — new atom-level entries', () => {
     expect(chain?.curatorConfirmPending).toBe(false);
   });
 
-  it('spike-hammer SE chain carries atom-level 3-operator stack reading (mirage base; twin of avalanche)', () => {
-    const chain = getSymbolicEquivalenceChain('spike-hammer');
+  it('spike_hammer SE chain carries atom-level 3-operator stack reading (mirage base; twin of avalanche)', () => {
+    const chain = getSymbolicEquivalenceChain('spike_hammer');
     expect(chain).not.toBeNull();
     expect(chain?.readings).toEqual(['stepping ducking paradox mirage']);
     expect(chain?.curatorConfirmPending).toBe(false);
@@ -97,8 +97,8 @@ describe('S5 migration — preserved entries (kept after migration)', () => {
     expect(getSymbolicEquivalenceChain('ripwalk')?.readings).toEqual(['stepping butterfly']);
   });
 
-  it('atom-smasher chain unchanged: ["atomic mirage"] (atom-level)', () => {
-    expect(getSymbolicEquivalenceChain('atom-smasher')?.readings).toEqual(['atomic mirage']);
+  it('atom_smasher chain unchanged: ["atomic mirage"] (atom-level)', () => {
+    expect(getSymbolicEquivalenceChain('atom_smasher')?.readings).toEqual(['atomic mirage']);
   });
 
   it('eggbeater chain carries both atom-level operator readings: ["atomic legover", "illusioning legover"]', () => {
@@ -126,8 +126,8 @@ describe('Atom-level preference rule — primary readings expand to stable atoms
     expect(COMPRESSED_INTERMEDIARIES).not.toContain(firstToken);
   });
 
-  it('avalanche + spike-hammer primary readings expand to atom-level operator stacks', () => {
-    for (const slug of ['avalanche', 'spike-hammer']) {
+  it('avalanche + spike_hammer primary readings expand to atom-level operator stacks', () => {
+    for (const slug of ['avalanche', 'spike_hammer']) {
       const reading = getSymbolicEquivalenceChain(slug)?.readings[0] ?? '';
       const firstToken = reading.split(/\s+/)[0]?.toLowerCase();
       expect(COMPRESSED_INTERMEDIARIES).not.toContain(firstToken);
@@ -144,12 +144,12 @@ describe('S3/S5 separation rule — no aliases_json contains structural compress
     { slug: 'smear',         banned: 'pixie mirage' },
     { slug: 'ripwalk',       banned: 'blurry butterfly' },
     { slug: 'ripwalk',       banned: 'stepping butterfly' },
-    { slug: 'atom-smasher',  banned: 'atomic mirage' },
+    { slug: 'atom_smasher',  banned: 'atomic mirage' },
     { slug: 'blur',          banned: 'blurry mirage' },
     { slug: 'blur',          banned: 'stepping paradox mirage' },
     { slug: 'mobius',        banned: 'gyro torque' },
     { slug: 'avalanche',     banned: 'stepping ducking paradox illusion' },
-    { slug: 'spike-hammer',  banned: 'stepping ducking paradox mirage' },
+    { slug: 'spike_hammer',  banned: 'stepping ducking paradox mirage' },
     { slug: 'witchdoctor',   banned: 'atomic symposium mirage' },
     { slug: 'flurry',        banned: 'barraging legover' },
     { slug: 'eggbeater',     banned: 'atomic legover' },

@@ -81,8 +81,8 @@ ADDS_IN_DESC_RE = re.compile(r"=\s*(\d+)\s*ADD", re.IGNORECASE)
 # Pairs flagged for human direction-adjudication. These are documented in the
 # skill: same-stem names where direction is structural, not cosmetic.
 DIRECTION_PAIRS = [
-    ("around-the-world", "around-the-world-kick"),  # 2 ADD compound vs 1 ADD body
-    ("around-the-world", "orbit"),                  # reverse-direction ATW; canonical slug is orbit
+    ("around_the_world", "around_the_world_kick"),  # 2 ADD compound vs 1 ADD body
+    ("around_the_world", "orbit"),                  # reverse-direction ATW; canonical slug is orbit
     ("mirage",   "illusion"),                       # in-to-out vs out-to-in dex
     ("spinning", "inspinning"),
 ]
@@ -102,10 +102,10 @@ ALLOWLIST_COMPOSITIONAL_NAMED: frozenset[str] = frozenset({
     # Curator-named compounds whose slug decomposes structurally but whose
     # community-recognized identity is preserved via alias on the canonical
     # row. Each has a documented alternative name (alias or pt-correction).
-    "atomic-butterfly",   # alias: legbeater (modifier-table note)
-    "atomic-torque",      # alias: silo (Red pt4)
-    "spinning-torque",    # alias: marius (row's inline aliases column)
-    "barraging-osis",     # alias: baroque (Red pt4 NEW_TRICK)
+    "atomic_butterfly",   # alias: legbeater (modifier-table note)
+    "atomic_torque",      # alias: silo (Red pt4)
+    "spinning_torque",    # alias: marius (row's inline aliases column)
+    "barraging_osis",     # alias: baroque (Red pt4 NEW_TRICK)
 })
 
 
@@ -119,8 +119,8 @@ def normalize_concept(name: str) -> str:
 
 
 def name_to_slug(name: str) -> str:
-    s = re.sub(r"[^a-z0-9]+", "-", name.lower().strip())
-    return s.strip("-")
+    s = re.sub(r"[^a-z0-9]+", "_", name.lower().strip())
+    return s.strip("_")
 
 
 def conflict_id(*parts: str) -> str:
@@ -659,7 +659,7 @@ def detect_compositional_review(
             continue
 
         # Criterion 1: slug fits (mod-)*base pattern
-        tokens = slug.split("-")
+        tokens = slug.split("_")
         if len(tokens) < 2:
             continue  # single-token = named identity by definition; not flagged
         base_token = tokens[-1]

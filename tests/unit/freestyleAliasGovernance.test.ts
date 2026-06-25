@@ -15,7 +15,7 @@ import {
 
 describe('freestyleAliasGovernance — allow-list entries', () => {
   it('lists the around-the-world ≡ ATW canonical equivalence (allow-listed)', () => {
-    const entry = getAliasGovernanceEntry('around-the-world', 'atw');
+    const entry = getAliasGovernanceEntry('around_the_world', 'atw');
     expect(entry).not.toBeNull();
     expect(entry?.surfaceOnBrowse).toBe(true);
     expect(entry?.displayAs).toBe('ATW');
@@ -51,7 +51,7 @@ describe('freestyleAliasGovernance — allow-list entries', () => {
 
 describe('freestyleAliasGovernance — lookup behavior', () => {
   it('is case-insensitive on both slug and alias text', () => {
-    expect(getAliasGovernanceEntry('AROUND-THE-WORLD', 'ATW')?.surfaceOnBrowse).toBe(true);
+    expect(getAliasGovernanceEntry('AROUND_THE_WORLD', 'ATW')?.surfaceOnBrowse).toBe(true);
     // 2026-05-17 Formula Accountability Slice: illusion entry is now
     // surfaceOnBrowse:false (the "outside-in mirage" reading misrepresents
     // illusion). Lookup still resolves; surfacing flag is what changed.
@@ -68,7 +68,7 @@ describe('freestyleAliasGovernance — lookup behavior', () => {
 
 describe('freestyleAliasGovernance — filterAliasesForBrowse', () => {
   it('surfaces only allow-listed canonical aliases for around-the-world', () => {
-    const filtered = filterAliasesForBrowse('around-the-world', ['atw', 'someOtherAlias']);
+    const filtered = filterAliasesForBrowse('around_the_world', ['atw', 'someOtherAlias']);
     expect(filtered).toEqual(['ATW']);   // displayAs uppercase
   });
 

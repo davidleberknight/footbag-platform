@@ -60,7 +60,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
 
   // ── Editorial exemplar #2: paradox-mirage ───────────────────────────
   {
-    slug: 'paradox-mirage',
+    slug: 'paradox_mirage',
     stages: [
       {
         stage:   'Mirage atom',
@@ -219,7 +219,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
   },
 
   {
-    slug: 'atom-smasher',
+    slug: 'atom_smasher',
     stages: [
       {
         stage:   'Mirage atom',
@@ -509,7 +509,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
   },
 
   {
-    slug: 'food-processor',
+    slug: 'food_processor',
     stages: [
       {
         stage:   'Whirl + osis atoms',

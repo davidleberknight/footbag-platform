@@ -58,7 +58,7 @@ beforeAll(async () => {
   // Compound trick with curator-authored override — DB description
   // should be replaced with the override prose.
   insertFreestyleTrick(db, {
-    slug: 'double-legover', canonical_name: 'double legover',
+    slug: 'double_legover', canonical_name: 'double legover',
     adds: '3', base_trick: 'legover', trick_family: 'legover',
     category: 'compound', notation: '[set] > leggy out dex > leggy out dex > ss toe',
     description: 'two consecutive leggy out dex steps',  // pre-existing DB prose
@@ -79,14 +79,14 @@ beforeAll(async () => {
   // illusion-specific.
   insertFreestyleTrick(db, {
     slug: 'orbit', canonical_name: 'orbit',
-    adds: '2', base_trick: 'around-the-world', trick_family: 'around-the-world',
+    adds: '2', base_trick: 'around_the_world', trick_family: 'around_the_world',
     category: 'compound', notation: 'toe > ss(midtime) out dex > ss toe',
     description: 'toe > ss(midtime) out dex > ss toe',
     is_active: 1,
   });
   insertFreestyleTrick(db, {
-    slug: 'around-the-world', canonical_name: 'around the world',
-    adds: '2', base_trick: 'around-the-world', trick_family: 'around-the-world',
+    slug: 'around_the_world', canonical_name: 'around the world',
+    adds: '2', base_trick: 'around_the_world', trick_family: 'around_the_world',
     category: 'compound', notation: 'toe > ss(midtime) in dex > ss toe',
     description: 'toe > ss(midtime) in dex > ss toe',
     is_active: 1,
@@ -111,7 +111,7 @@ describe('Part 1 — description column refinement', () => {
   });
 
   it('replaces the description with the curator override on compound tricks', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/double-legover');
+    const res = await request(createApp()).get('/freestyle/tricks/double_legover');
     expect(res.status).toBe(200);
     // The override prose renders; the pre-existing DB description does NOT.
     expect(res.text).toMatch(/mirage \+ legover chain/);
@@ -165,7 +165,7 @@ describe('Part 2 — reverse-pair transform overlay', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-transform"');
     expect(res.text).toMatch(/rev\(0\) \+ around-the-world/);
-    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/around-the-world">around-the-world<\/a>/);
+    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/around_the_world">around-the-world<\/a>/);
   });
 
   it('does NOT render the transform section on a non-reverse-pair trick (whirl)', async () => {

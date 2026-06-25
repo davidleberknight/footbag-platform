@@ -52,7 +52,7 @@ beforeAll(async () => {
   // Folk-named compound with NO modifier link in the DB. Its modifiers must be
   // recovered from the RESOLVED_FORMULAS operator ('atomic + x-dex').
   insertFreestyleTrick(db, {
-    slug: 'atom-smasher', canonical_name: 'atom smasher', base_trick: 'mirage',
+    slug: 'atom_smasher', canonical_name: 'atom smasher', base_trick: 'mirage',
     trick_family: 'mirage', category: 'compound', adds: '4', is_active: 1,
     notation: 'ATOM SMASHER',
   });
@@ -84,7 +84,7 @@ beforeAll(async () => {
   // Family descendants so hasFamilyMembers is true (trick-family
   // section renders only when length > 1).
   insertFreestyleTrick(db, {
-    slug: 'paradox-whirl', canonical_name: 'paradox whirl', base_trick: 'whirl',
+    slug: 'paradox_whirl', canonical_name: 'paradox whirl', base_trick: 'whirl',
     trick_family: 'whirl', category: 'compound', adds: '4', is_active: 1,
     notation: 'PARADOX WHIRL',
   });
@@ -94,13 +94,13 @@ beforeAll(async () => {
     notation: 'STEPPING BUTTERFLY',
   });
   insertFreestyleTrick(db, {
-    slug: 'paradox-mirage', canonical_name: 'paradox mirage', base_trick: 'mirage',
+    slug: 'paradox_mirage', canonical_name: 'paradox mirage', base_trick: 'mirage',
     trick_family: 'mirage', category: 'compound', adds: '3', is_active: 1,
     notation: 'PARADOX MIRAGE',
   });
-  insertFreestyleTrickModifierLink(db, 'paradox-mirage', 'paradox', 1);
+  insertFreestyleTrickModifierLink(db, 'paradox_mirage', 'paradox', 1);
   insertFreestyleTrick(db, {
-    slug: 'spinning-osis', canonical_name: 'spinning osis', base_trick: 'osis',
+    slug: 'spinning_osis', canonical_name: 'spinning osis', base_trick: 'osis',
     trick_family: 'osis', category: 'compound', adds: '4', is_active: 1,
     notation: 'SPINNING OSIS',
   });
@@ -167,7 +167,7 @@ describe('flagship anchors — universal notation card renders', () => {
 
 describe('Phase 3 — non-anchor tricks do NOT render the family-anchor callout', () => {
   it('paradox-mirage page does NOT render the callout (compound, not an anchor)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/class="trick-family-anchor-callout"/);
     // The page's existing family chip + family lineage still render,
@@ -186,13 +186,13 @@ describe('base-family paragraph appears on the family-anchor page only', () => {
   });
 
   it('a mirage derivative does NOT repeat the base-family paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('The mirage is the foundational 2-ADD dex base');
   });
 
   it('a whirl derivative does NOT repeat the whirl base-family paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox-whirl');
+    const res = await request(createApp()).get('/freestyle/tricks/paradox_whirl');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('The whirl is the central rotational base');
   });
@@ -226,7 +226,7 @@ describe('compact structural-fact block', () => {
   };
 
   it('a derivative surfaces family base, movement system, neighborhood, and modifier with links', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);
     const block = blockOf(res.text);
     expect(block).not.toBe('');
@@ -256,7 +256,7 @@ describe('compact structural-fact block', () => {
   });
 
   it('a folk-named compound with no DB modifier link recovers its modifiers from the operator', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/atom-smasher');
+    const res = await request(createApp()).get('/freestyle/tricks/atom_smasher');
     expect(res.status).toBe(200);
     const block = blockOf(res.text);
     expect(block).not.toBe('');

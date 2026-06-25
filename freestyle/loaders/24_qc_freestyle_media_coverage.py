@@ -93,7 +93,7 @@ STRONG_STRENGTHS = {"STRONG_TUTORIAL", "HIGH_QUALITY_DEMO"}
 
 # Tag-shape vocabulary IS the live media-tag invariant (imported above), not a
 # local copy — exact utility words + snake_case domain prefixes are NOT trick
-# references; a bare kebab-case tag is a trick slug.
+# references; a bare underscore-slug tag is a trick slug.
 UTILITY_EXACT_TAGS = UTILITY_EXACT
 DOMAIN_PREFIXES = SEMANTIC_PREFIXES
 

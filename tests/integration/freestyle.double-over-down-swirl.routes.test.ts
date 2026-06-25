@@ -28,7 +28,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertFreestyleTrick(db, {
-    slug: 'double-over-down-swirl',
+    slug: 'double_over_down_swirl',
     canonical_name: 'double-over down swirl',
     adds: '5', base_trick: 'double-over-down', trick_family: 'double-over-down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
@@ -42,7 +42,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('RESOLVED_FORMULAS_SPRINT_1 — double-over-down-swirl entry', () => {
   it('overlay carries FB.org-confirmed JOB + 5 ADD + double-over-down base extension', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'double-over-down-swirl');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'double_over_down_swirl');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.baseAdd).toBe(4);
@@ -53,7 +53,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — double-over-down-swirl entry', () => {
   });
 
   it('preserves the double-over-down chassis prefix (SAME OUT / SAME OUT dex pair) and ends with SAME CLIP terminator', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'double-over-down-swirl');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'double_over_down_swirl');
     expect(entry?.operationalNotation ?? '').toMatch(/TOE > SAME OUT \[DEX\] > SAME OUT \[DEX\]/);
     expect(entry?.operationalNotation ?? '').toMatch(/SAME CLIP \[XBD\] \[DEL\]$/);
     // OP BACK SWIRL fuses into rotation-variant token
@@ -63,7 +63,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — double-over-down-swirl entry', () => {
 
 describe('double-over-down-swirl detail page — first-class JOB + ADD', () => {
   it('/freestyle/tricks/double-over-down-swirl renders 5 ADD + 3 dex tokens + BACK SWIRL rotation-variant', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/double-over-down-swirl');
+    const res = await request(await createApp()).get('/freestyle/tricks/double_over_down_swirl');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -79,7 +79,7 @@ describe('double-over-down-swirl detail page — first-class JOB + ADD', () => {
   it('browse card renders JOB + ADD inline (not "canonical decomposition pending")', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    const idx = res.text.indexOf('data-trick-slug="double-over-down-swirl"');
+    const idx = res.text.indexOf('data-trick-slug="double_over_down_swirl"');
     expect(idx).toBeGreaterThan(-1);
     const articleOpen = res.text.lastIndexOf('<article', idx);
     const articleClose = res.text.indexOf('</article>', idx);

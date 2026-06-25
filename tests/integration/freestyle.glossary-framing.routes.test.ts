@@ -351,7 +351,7 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     expect(html).toContain('Family Parents');
     // The ratified roster renders as ?family= links from the same source the
     // dictionary "By family" browse uses (freestylePublicFamilies.ts).
-    for (const slug of ['mirage', 'whirl', 'drifter', 'butterfly-swirl']) {
+    for (const slug of ['mirage', 'whirl', 'drifter', 'butterfly_swirl']) {
       expect(html, `roster link ${slug}`).toContain(`href="/freestyle/tricks?family=${slug}"`);
     }
     // The well-documented families keep their educational cards.
@@ -366,18 +366,18 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
 
   it('promotes six empirically-admitted family parents and nests derived branches under their roots', async () => {
     const html = await glossary();
-    for (const slug of ['swirl', 'inside-stall', 'torque', 'blender', 'double-leg-over', 'eggbeater']) {
+    for (const slug of ['swirl', 'inside_stall', 'torque', 'blender', 'double_leg_over', 'eggbeater']) {
       expect(html, `promoted family ${slug}`).toContain(`href="/freestyle/tricks?family=${slug}"`);
     }
     // Derived branches render nested in parentheses after their root.
     expect(html).toMatch(/Osis<\/a> \([^)]*family=torque[^)]*family=blender[^)]*\)/);
-    expect(html).toMatch(/Legover<\/a> \([^)]*family=double-leg-over[^)]*family=eggbeater[^)]*\)/);
+    expect(html).toMatch(/Legover<\/a> \([^)]*family=double_leg_over[^)]*family=eggbeater[^)]*\)/);
     // The first-class rule states the current editorial standard (>10 descendants).
     expect(html).toMatch(/more than 10 documented descendants/);
     expect(html).not.toMatch(/at least three recursive descendant tricks/);
     expect(html).not.toMatch(/curator-selected balance/);
     // The three newly-carded families carry educational cards.
-    for (const id of ['term-double-leg-over', 'term-eggbeater', 'term-inside-stall']) {
+    for (const id of ['term-double_leg_over', 'term-eggbeater', 'term-inside_stall']) {
       expect(html, `card ${id}`).toContain(`id="${id}"`);
     }
   });
@@ -561,15 +561,15 @@ describe('Glossary family cards — lineage position and tier as independent lab
     // Branch lineage (Osis) + Family Parent.
     expect(cardSlice(html, 'torque')).toMatch(/Branch lineage \(Osis\)/);
     expect(cardSlice(html, 'torque')).toMatch(/Family Parent/);
-    // Branch lineage (Whirl) + Minor Lineage (card-only family, explicit override).
-    expect(cardSlice(html, 'rev-whirl')).toMatch(/Branch lineage \(Whirl\)/);
-    expect(cardSlice(html, 'rev-whirl')).toMatch(/Minor Lineage/);
+    // Root lineage + Family Parent (rev_whirl is its own terminal family by curator override).
+    expect(cardSlice(html, 'rev_whirl')).toMatch(/Root lineage/);
+    expect(cardSlice(html, 'rev_whirl')).toMatch(/Family Parent/);
     // Root lineage + Minor Lineage.
     expect(cardSlice(html, 'eclipse')).toMatch(/Root lineage/);
     expect(cardSlice(html, 'eclipse')).toMatch(/Minor Lineage/);
     // Root lineage + Family Parent.
-    expect(cardSlice(html, 'inside-stall')).toMatch(/Root lineage/);
-    expect(cardSlice(html, 'inside-stall')).toMatch(/Family Parent/);
+    expect(cardSlice(html, 'inside_stall')).toMatch(/Root lineage/);
+    expect(cardSlice(html, 'inside_stall')).toMatch(/Family Parent/);
   });
 
   it('retires the collapsed single chip that conflated ancestry and tier', async () => {

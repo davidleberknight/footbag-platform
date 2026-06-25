@@ -39,7 +39,7 @@ describe('CORE_ATOM_SLUGS — canonical 12-atom set', () => {
     // Per project_freestyle_core_atoms memory + freestyleCoreAtomEducational
     // (2026-05-22 curator lock): the 12-atom registry.
     const expected = [
-      'toe-stall', 'clipper-stall', 'around-the-world', 'orbit',
+      'toe_stall', 'clipper_stall', 'around_the_world', 'orbit',
       'legover', 'mirage', 'pickup', 'illusion',
       'butterfly', 'osis', 'whirl', 'swirl',
     ];

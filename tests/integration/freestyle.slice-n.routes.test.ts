@@ -2,8 +2,8 @@
  * Integration tests for Slice N — symbolic enrichment & notation precedence.
  *
  * Scope verified:
- *   - The four new Slice N chain entries (paradox-blender, food-processor,
- *     spender, paradox-drifter) render the curator-authored symbolic
+ *   - The four new Slice N chain entries (paradox_blender, food_processor,
+ *     spender, paradox_drifter) render the curator-authored symbolic
  *     equivalences instead of falling through to operational notation.
  *   - The five new Movement System glosses (spinning, ducking, symposium,
  *     stepping, pixie) render in their respective modifier groups within
@@ -45,31 +45,31 @@ beforeAll(async () => {
 
   // Slice N chain-target rows. Each has BOTH operational_notation AND a
   // chain entry — the test verifies the chain wins.
-  insertFreestyleTrick(db, { slug: 'paradox-blender', canonical_name: 'paradox blender', adds: '5', base_trick: 'blender', trick_family: 'blender', category: 'compound', operational_notation: '[set] > paradox > whirling op osis' });
-  insertFreestyleTrick(db, { slug: 'food-processor',  canonical_name: 'food processor',  adds: '6', base_trick: 'blender', trick_family: 'blender', category: 'compound', operational_notation: '[set] > blurry > whirling op osis' });
+  insertFreestyleTrick(db, { slug: 'paradox_blender', canonical_name: 'paradox blender', adds: '5', base_trick: 'blender', trick_family: 'blender', category: 'compound', operational_notation: '[set] > paradox > whirling op osis' });
+  insertFreestyleTrick(db, { slug: 'food_processor',  canonical_name: 'food processor',  adds: '6', base_trick: 'blender', trick_family: 'blender', category: 'compound', operational_notation: '[set] > blurry > whirling op osis' });
   insertFreestyleTrick(db, { slug: 'spender',         canonical_name: 'spender',         adds: '6', base_trick: 'blender', trick_family: 'blender', category: 'compound', operational_notation: '[set] > spinning > paradox > whirling op osis' });
-  insertFreestyleTrick(db, { slug: 'paradox-drifter', canonical_name: 'paradox drifter', adds: '4', base_trick: 'drifter', trick_family: 'drifter', category: 'compound', operational_notation: 'CLIP >> PARADOX > OP IN [DEX] > SAME CLIP [XBD] [DEL]' });
+  insertFreestyleTrick(db, { slug: 'paradox_drifter', canonical_name: 'paradox drifter', adds: '4', base_trick: 'drifter', trick_family: 'drifter', category: 'compound', operational_notation: 'CLIP >> PARADOX > OP IN [DEX] > SAME CLIP [XBD] [DEL]' });
 
   // Movement-system-view trick fixtures — one trick per gloss target.
-  insertFreestyleTrick(db, { slug: 'paradox-whirl',  canonical_name: 'paradox whirl',  adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'spinning-whirl', canonical_name: 'spinning whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'ducking-whirl',  canonical_name: 'ducking whirl',  adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'symposium-whirl',canonical_name: 'symposium whirl',adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'stepping-whirl', canonical_name: 'stepping whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'paradox_whirl',  canonical_name: 'paradox whirl',  adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'spinning_whirl', canonical_name: 'spinning whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'ducking_whirl',  canonical_name: 'ducking whirl',  adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'symposium_whirl',canonical_name: 'symposium whirl',adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'stepping_whirl', canonical_name: 'stepping whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'dimwalk',        canonical_name: 'dimwalk',        adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
 
-  insertFreestyleTrickModifierLink(db, 'paradox-whirl',   'paradox',   1);
-  insertFreestyleTrickModifierLink(db, 'spinning-whirl',  'spinning',  1);
-  insertFreestyleTrickModifierLink(db, 'ducking-whirl',   'ducking',   1);
-  insertFreestyleTrickModifierLink(db, 'symposium-whirl', 'symposium', 1);
-  insertFreestyleTrickModifierLink(db, 'stepping-whirl',  'stepping',  1);
+  insertFreestyleTrickModifierLink(db, 'paradox_whirl',   'paradox',   1);
+  insertFreestyleTrickModifierLink(db, 'spinning_whirl',  'spinning',  1);
+  insertFreestyleTrickModifierLink(db, 'ducking_whirl',   'ducking',   1);
+  insertFreestyleTrickModifierLink(db, 'symposium_whirl', 'symposium', 1);
+  insertFreestyleTrickModifierLink(db, 'stepping_whirl',  'stepping',  1);
   insertFreestyleTrickModifierLink(db, 'dimwalk',         'pixie',     1);
 
   // Precedence regression fixture — row with op-notation and NO chain
   // entry. The slug is unique enough that it cannot collide with any
   // curator-authored chain in freestyleSymbolicEquivalences.ts.
   insertFreestyleTrick(db, {
-    slug: 'slice-n-fallback-fixture',
+    slug: 'slice_n_fallback_fixture',
     canonical_name: 'slice n fallback fixture',
     adds: '4',
     base_trick: 'whirl',
@@ -89,10 +89,10 @@ afterAll(() => cleanupTestDb(dbPath));
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('Slice N — branch-family chain additions render symbolically', () => {
-  it('paradox-blender card renders the chain reading, not the operational notation', async () => {
+  it('paradox_blender card renders the chain reading, not the operational notation', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    const idx = res.text.indexOf('data-trick-slug="paradox-blender"');
+    const idx = res.text.indexOf('data-trick-slug="paradox_blender"');
     expect(idx).toBeGreaterThan(-1);
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
     const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
@@ -105,9 +105,9 @@ describe('Slice N — branch-family chain additions render symbolically', () => 
     expect(window).toMatch(/class="dict-trick-row-job-value">/);
   });
 
-  it('food-processor surfaces the Red-locked Blurry-Blender reading', async () => {
+  it('food_processor surfaces the Red-locked Blurry-Blender reading', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    const idx = res.text.indexOf('data-trick-slug="food-processor"');
+    const idx = res.text.indexOf('data-trick-slug="food_processor"');
     expect(idx).toBeGreaterThan(-1);
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
     const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
@@ -126,9 +126,9 @@ describe('Slice N — branch-family chain additions render symbolically', () => 
     expect(window).toMatch(/spinning[\s\S]{0,300}paradox[\s\S]{0,300}blender/i);
   });
 
-  it('paradox-drifter resolves through the new chain (not the long op-notation)', async () => {
+  it('paradox_drifter resolves through the new chain (not the long op-notation)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    const idx = res.text.indexOf('data-trick-slug="paradox-drifter"');
+    const idx = res.text.indexOf('data-trick-slug="paradox_drifter"');
     expect(idx).toBeGreaterThan(-1);
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
     const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
@@ -151,7 +151,7 @@ describe('Slice N — rendering precedence preserved (no regression)', () => {
     // / op-notation-fallback contract still holds for un-chained rows.
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    const idx = res.text.indexOf('data-trick-slug="slice-n-fallback-fixture"');
+    const idx = res.text.indexOf('data-trick-slug="slice_n_fallback_fixture"');
     expect(idx).toBeGreaterThan(-1);
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
     const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);

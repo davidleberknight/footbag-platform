@@ -58,14 +58,14 @@ export const FAMILY_OVERRIDES: ReadonlyMap<string, string> = new Map([
   // Rev-Whirl sibling family: 3 row promotions. Each row's DB
   // trick_family is 'whirl'; the service re-buckets via this override
   // into the new 'rev-whirl' family.
-  ['rev-whirl', 'rev-whirl'],   // canonical direction-variant anchor
-  ['hatchet',   'rev-whirl'],   // mechanics-confirmed
-  ['mullet',    'rev-whirl'],   // mechanics-confirmed
+  ['rev_whirl', 'rev_whirl'],   // canonical direction-variant anchor
+  ['hatchet',   'rev_whirl'],   // mechanics-confirmed
+  ['mullet',    'rev_whirl'],   // mechanics-confirmed
 
   // high-plains-drifter follows drifter into the drifter branch family
   // after the clipper-stall family retirement (see RETIRED_FAMILIES
   // below). One-way redirect: row no longer bucketed under clipper-stall.
-  ['high-plains-drifter', 'drifter'],
+  ['high_plains_drifter', 'drifter'],
 
   // Curator ruling: lose rev-up from the Whirl family until its
   // decomposition is resolved.
@@ -76,7 +76,7 @@ export const FAMILY_OVERRIDES: ReadonlyMap<string, string> = new Map([
   // pendingDecomposition pill via UNRESOLVED_COMPOUNDS. No new family
   // is created; no ontology hardened. Reversible by deleting this
   // entry: rev-up returns to whirl family on next request.
-  ['rev-up', 'rev-up'],
+  ['rev_up', 'rev_up'],
 
   // Nearest-anchor family reassignment. Each row below sits in the lineage of a
   // derived branch family (torque / blender / double-leg-over / eggbeater) but
@@ -88,59 +88,59 @@ export const FAMILY_OVERRIDES: ReadonlyMap<string, string> = new Map([
 
   // Torque (carried osis)
   ['torque', 'torque'],
-  ['symposium-torque', 'torque'],
+  ['symposium_torque', 'torque'],
   ['forque', 'torque'],
-  ['stepping-paradox-torque', 'torque'],
-  ['spinning-symposium-torque', 'torque'],
-  ['spinning-miraging-symposium-torque', 'torque'],
-  ['fairy-gyro-torque', 'torque'],
-  ['fairy-torque', 'torque'],
-  ['reverse-swirling-paradox-torque', 'torque'],
-  ['reverse-torque', 'torque'],
-  ['toe-spinning-torque', 'torque'],
-  ['atomic-ducking-torque', 'torque'],
-  ['nuclear-torque', 'torque'],
+  ['stepping_paradox_torque', 'torque'],
+  ['spinning_symposium_torque', 'torque'],
+  ['spinning_miraging_symposium_torque', 'torque'],
+  ['fairy_gyro_torque', 'torque'],
+  ['fairy_torque', 'torque'],
+  ['reverse_swirling_paradox_torque', 'torque'],
+  ['reverse_torque', 'torque'],
+  ['toe_spinning_torque', 'torque'],
+  ['atomic_ducking_torque', 'torque'],
+  ['nuclear_torque', 'torque'],
 
   // Blender (carried osis)
   ['blender', 'blender'],
   ['fender', 'blender'],
-  ['fender-bender', 'blender'],
-  ['stepping-blender', 'blender'],
-  ['reverse-blender', 'blender'],
-  ['clipper-ducking-blender', 'blender'],
-  ['reverse-swirling-blender', 'blender'],
-  ['atomic-blender', 'blender'],
+  ['fender_bender', 'blender'],
+  ['stepping_blender', 'blender'],
+  ['reverse_blender', 'blender'],
+  ['clipper_ducking_blender', 'blender'],
+  ['reverse_swirling_blender', 'blender'],
+  ['atomic_blender', 'blender'],
 
   // Double Leg Over (carried legover; stepping-ducking-smog was a route-out)
-  ['double-leg-over', 'double-leg-over'],
-  ['nova', 'double-leg-over'],
-  ['gyro-double-leg-over', 'double-leg-over'],
-  ['oh-wheely', 'double-leg-over'],
-  ['atomic-double-leg-over', 'double-leg-over'],
-  ['nuclear-double-leg-over', 'double-leg-over'],
-  ['stepping-ducking-smog', 'double-leg-over'],
+  ['double_leg_over', 'double_leg_over'],
+  ['nova', 'double_leg_over'],
+  ['gyro_double_leg_over', 'double_leg_over'],
+  ['oh_wheely', 'double_leg_over'],
+  ['atomic_double_leg_over', 'double_leg_over'],
+  ['nuclear_double_leg_over', 'double_leg_over'],
+  ['stepping_ducking_smog', 'double_leg_over'],
 
   // Eggbeater (carried legover; stepping-ducking-pigbeater was a route-out)
   ['eggbeater', 'eggbeater'],
   ['pigbeater', 'eggbeater'],
   ['mantis', 'eggbeater'],
-  ['symposium-eggbeater', 'eggbeater'],
-  ['stepping-eggbeater', 'eggbeater'],
-  ['fairy-eggbeater', 'eggbeater'],
-  ['pixie-eggbeater', 'eggbeater'],
+  ['symposium_eggbeater', 'eggbeater'],
+  ['stepping_eggbeater', 'eggbeater'],
+  ['fairy_eggbeater', 'eggbeater'],
+  ['pixie_eggbeater', 'eggbeater'],
   ['pandemonium', 'eggbeater'],
   ['bladerunner', 'eggbeater'],
-  ['chainsaw-massacre', 'eggbeater'],
-  ['stepping-ducking-symposium-eggbeater', 'eggbeater'],
-  ['spinning-eggbeater', 'eggbeater'],
-  ['barraging-eggbeater', 'eggbeater'],
-  ['stepping-ducking-pigbeater', 'eggbeater'],
+  ['chainsaw_massacre', 'eggbeater'],
+  ['stepping_ducking_symposium_eggbeater', 'eggbeater'],
+  ['spinning_eggbeater', 'eggbeater'],
+  ['barraging_eggbeater', 'eggbeater'],
+  ['stepping_ducking_pigbeater', 'eggbeater'],
 
   // Flurry (anchor carried its legover root; the branch members flurricane /
   // gyro-flurry / paradox-flurry already carry the flurry label, so only the
   // anchor and toe-flurry browsed under legover instead of their own family).
   ['flurry', 'flurry'],
-  ['toe-flurry', 'flurry'],
+  ['toe_flurry', 'flurry'],
 
   // Flail (anchor carried its illusion root; every flail-* descendant already
   // carries the flail label, so only the anchor browsed under illusion).
@@ -148,21 +148,21 @@ export const FAMILY_OVERRIDES: ReadonlyMap<string, string> = new Map([
 
   // Butterfly-Swirl (anchor carried its swirl root; every butterfly-swirl-*
   // descendant already carries the label, so only the anchor browsed under swirl).
-  ['butterfly-swirl', 'butterfly-swirl'],
+  ['butterfly_swirl', 'butterfly_swirl'],
 
   // Drifter (the drifter root family lost its anchor and several members to the
   // retired clipper-stall label they still carried; these redirects return them
   // to the drifter family they descend from. drifter also keeps its
   // dual-membership entry below).
   ['drifter', 'drifter'],
-  ['clipper-ducking-drifter', 'drifter'],
-  ['diving-drifter', 'drifter'],
-  ['fairy-drifter', 'drifter'],
+  ['clipper_ducking_drifter', 'drifter'],
+  ['diving_drifter', 'drifter'],
+  ['fairy_drifter', 'drifter'],
   ['fume', 'drifter'],
   ['lotus', 'drifter'],
-  ['nuclear-drifter', 'drifter'],
-  ['quantum-drifter', 'drifter'],
-  ['stepping-ducking-drifter', 'drifter'],
+  ['nuclear_drifter', 'drifter'],
+  ['quantum_drifter', 'drifter'],
+  ['stepping_ducking_drifter', 'drifter'],
 ]);
 
 /**
@@ -253,9 +253,9 @@ export function resolveFamilyDualMemberships(slug: string): readonly string[] {
 //     are not movement lineages.
 export const RETIRED_FAMILIES: ReadonlySet<string> = new Set<string>([
   // Foundational surfaces / base primitives
-  'clipper-stall',
+  'clipper_stall',
   'clipper',
-  'toe-stall',
+  'toe_stall',
   // Modifier ecosystems
   'pixie',
   'fairy',
@@ -270,29 +270,29 @@ export const RETIRED_FAMILIES: ReadonlySet<string> = new Set<string>([
   'shooting',
   'furious',
   // Alternative surfaces
-  'cross-body-sole-stall',
-  'sole-stall',
-  'heel-stall',
-  'sole-kick',
-  'inside-stall',
-  'outside-stall',
-  'head-stall',
-  'neck-stall',
-  'shoulder-stall',
-  'forehead-stall',
-  'cloud-stall',
-  'cloud-kick',
-  'knee-stall',
-  'dragonfly-kick',
-  'flying-inside',
-  'flying-outside',
+  'cross_body_sole_stall',
+  'sole_stall',
+  'heel_stall',
+  'sole_kick',
+  'inside_stall',
+  'outside_stall',
+  'head_stall',
+  'neck_stall',
+  'shoulder_stall',
+  'forehead_stall',
+  'cloud_stall',
+  'cloud_kick',
+  'knee_stall',
+  'dragonfly_kick',
+  'flying_inside',
+  'flying_outside',
   // Multi-bag / kick primitives
-  '2-bag-juggling',
-  '3-bag-juggling',
+  '2_bag_juggling',
+  '3_bag_juggling',
   'spin',
-  'double-spin',
-  'double-knee',
-  'knee-clipper',
+  'double_spin',
+  'double_knee',
+  'knee_clipper',
 ]);
 
 /**
@@ -316,7 +316,7 @@ export function isRetiredFamily(familySlug: string): boolean {
  * audit warrants.
  */
 export const FAMILY_DISPLAY_NAMES: ReadonlyMap<string, string> = new Map([
-  ['rev-whirl', 'Rev Whirl'],
+  ['rev_whirl', 'Rev Whirl'],
 ]);
 
 /**

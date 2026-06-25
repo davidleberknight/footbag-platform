@@ -13,7 +13,7 @@ import {
 describe('freestyleUnresolvedCompounds', () => {
   it('declares the curator-authored pilot set verbatim', () => {
     const expected = new Set([
-      'rev-up',
+      'rev_up',
       'reaper',
       'surreal',
       'montage',
@@ -31,7 +31,7 @@ describe('freestyleUnresolvedCompounds', () => {
 
   it('isUnresolvedCompound returns false for non-members', () => {
     expect(isUnresolvedCompound('whirl')).toBe(false);
-    expect(isUnresolvedCompound('paradox-whirl')).toBe(false);
+    expect(isUnresolvedCompound('paradox_whirl')).toBe(false);
     expect(isUnresolvedCompound('drifter')).toBe(false);
     expect(isUnresolvedCompound('torque')).toBe(false);
     expect(isUnresolvedCompound('butterfly')).toBe(false);

@@ -8,9 +8,9 @@ import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedF
 describe('Resolved-formula derivation hygiene', () => {
   it('the three cleaned derivations carry structural math only', () => {
     const bySlug = new Map(RESOLVED_FORMULAS_SPRINT_1.map(f => [f.slug, f.derivation]));
-    expect(bySlug.get('around-the-world-kick')).toBe('dex(1) = 1 ADD');
-    expect(bySlug.get('double-around-the-world-heel')).toBe('dex(2) + unusual-surface(1) + heel-stall(1) = 4 ADD');
-    expect(bySlug.get('butterfly-kick')).toBe('bod(1) + dex(1) = 2 ADD');
+    expect(bySlug.get('around_the_world_kick')).toBe('dex(1) = 1 ADD');
+    expect(bySlug.get('double_around_the_world_heel')).toBe('dex(2) + unusual-surface(1) + heel-stall(1) = 4 ADD');
+    expect(bySlug.get('butterfly_kick')).toBe('bod(1) + dex(1) = 2 ADD');
   });
 
   it('no derivation carries a semicolon or em/en-dash clause', () => {

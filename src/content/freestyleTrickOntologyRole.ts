@@ -34,7 +34,7 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
 
   // ── Editorial exemplar #2: paradox-mirage ───────────────────────────
   {
-    slug: 'paradox-mirage',
+    slug: 'paradox_mirage',
     role: 'Paradox topology root',
     prose:
       "Paradox-mirage is the foundational exemplar for paradox topology itself. Many compounds in modern shred vocabulary inherit paradox topology from this trick: blur extends the same chassis with a stepping multi-dex pattern; fury extends further with a third dex; sumo escalates with nuclear x-dex; surge layers a rotational character. The paradox topology composes naturally with stepping, rotational, x-dex, and surface modifiers: the persistence of its hip-pivot signature under heavy modifier stacking is what made paradox topology productive.",
@@ -79,7 +79,7 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
   },
 
   {
-    slug: 'atom-smasher',
+    slug: 'atom_smasher',
     role: 'Explicit X-Dex exemplar',
     prose:
       "Atom-smasher is the canonical exemplar for explicit X-Dex compounds on the mirage chassis. Where sumo demonstrates implicit X-Dex (the canonical name does not surface the X-Dex character but ADD accounting requires it), atom-smasher demonstrates the explicit case: the outside-then-inside dex sequence is the structural signature, and the operator name (\"atomic\") carries the X-Dex character openly. Atom-smasher pairs with sumo as the explicit-vs-implicit X-Dex pair in the doctrine.",
@@ -160,7 +160,7 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
   },
 
   {
-    slug: 'food-processor',
+    slug: 'food_processor',
     role: 'Blurry-naming on compound-of-canonicals',
     prose:
       "Food-processor is the canonical exemplar for blurry-naming extension into compound-of-canonicals territory. Where blur (mirage chassis), blurriest (barfly chassis), and blurrage (barrage chassis) demonstrate blurry-naming on single-anchor chassis, food-processor demonstrates the same naming tradition reaching into compound territory: blurry on a whirl-osis compound. The folk name 'food-processor' is among the dictionary's more visually distinctive names: it does not resemble either parent canonical (whirl or osis) or the chassis name (blender), instead inheriting culturally-promoted identity rather than structural-grammar resemblance.",

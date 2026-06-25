@@ -1,7 +1,7 @@
 /**
  * "Compressed from" trick-detail pedagogy line (2026-05-25 glossary
  * follow-on). Strict allowlist of famous structural compressions only:
- * smear, ripwalk, atom-smasher, eggbeater, mobius. Reinforces the
+ * smear, ripwalk, atom_smasher, eggbeater, mobius. Reinforces the
  * glossary §composition "Structural compression" concept on flagship
  * detail pages without expanding ontology surfaces.
  *
@@ -43,7 +43,7 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
-    slug: 'atom-smasher', canonical_name: 'atom smasher', adds: '3',
+    slug: 'atom_smasher', canonical_name: 'atom smasher', adds: '3',
     base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
     review_status: 'expert_reviewed', is_active: 1,
   });
@@ -64,7 +64,7 @@ beforeAll(async () => {
   // famous-compression allowlist.
   insertFreestyleTrick(db, {
     slug: 'drifter', canonical_name: 'drifter', adds: '3',
-    base_trick: 'clipper-stall', trick_family: 'clipper-stall',
+    base_trick: 'clipper_stall', trick_family: 'clipper_stall',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
   });
 
@@ -72,7 +72,7 @@ beforeAll(async () => {
   // allowlisted (a plain compound). The "Compressed from" line MUST
   // NOT render.
   insertFreestyleTrick(db, {
-    slug: 'pixie-legover', canonical_name: 'pixie legover', adds: '3',
+    slug: 'pixie_legover', canonical_name: 'pixie legover', adds: '3',
     base_trick: 'legover', trick_family: 'legover', category: 'compound',
     review_status: 'expert_reviewed', is_active: 1,
   });
@@ -99,8 +99,8 @@ describe('"Compressed from" surface — allowlisted famous compressions', () => 
     expect(res.text).toMatch(/<em class="trick-compressed-from-reading">stepping butterfly<\/em>/);
   });
 
-  it('atom-smasher detail page renders "Compressed from: atomic mirage"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/atom-smasher');
+  it('atom_smasher detail page renders "Compressed from: atomic mirage"', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/atom_smasher');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-compressed-from-label">Compressed from:<\/span>/);
     expect(res.text).toMatch(/<em class="trick-compressed-from-reading">atomic mirage<\/em>/);
@@ -139,8 +139,8 @@ describe('"Compressed from" surface — suppression rules', () => {
     expect(res.text).not.toMatch(/<em class="trick-compressed-from-reading">miraging clipper<\/em>/);
   });
 
-  it('plain non-allowlisted compound does NOT render the line (pixie-legover control)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/pixie-legover');
+  it('plain non-allowlisted compound does NOT render the line (pixie_legover control)', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/pixie_legover');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="trick-compressed-from"');
   });

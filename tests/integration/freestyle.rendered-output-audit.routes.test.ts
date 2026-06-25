@@ -5,7 +5,7 @@
  * page the curator's audit flagged. The goal is to catch any future
  * regression where:
  *
- *   1. DATW + DLO + rev-whirl lose their JOB or ADD rows.
+ *   1. DATW + DLO + rev_whirl lose their JOB or ADD rows.
  *   2. The 9 FM-sourced compounds re-leak into the canonical ADD browse.
  *   3. The "FM dex-count convention" prose reappears on canonical pages.
  *   4. The tautological ≡ slot reappears on atomic/simple cards.
@@ -42,21 +42,21 @@ beforeAll(async () => {
   // assertions. Each row carries notation, operational_notation, and
   // base_trick = self so the convergence rule fires.
   insertFreestyleTrick(db, {
-    slug: 'cloud-kick', canonical_name: 'cloud kick', adds: '1',
-    base_trick: 'cloud-kick', trick_family: 'cloud-kick', category: 'body',
+    slug: 'cloud_kick', canonical_name: 'cloud kick', adds: '1',
+    base_trick: 'cloud_kick', trick_family: 'cloud_kick', category: 'body',
     notation: 'CLOUD KICK', operational_notation: '[set] > cloud kick',
     description: 'Kick off the back of the shin.',
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
-    slug: 'flying-inside', canonical_name: 'flying inside', adds: '1',
-    base_trick: 'flying-inside', trick_family: 'flying-inside', category: 'body',
+    slug: 'flying_inside', canonical_name: 'flying inside', adds: '1',
+    base_trick: 'flying_inside', trick_family: 'flying_inside', category: 'body',
     notation: 'FLYING INSIDE', operational_notation: 'flying > inside',
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
     slug: 'rake', canonical_name: 'rake', adds: '2',
-    base_trick: 'toe-stall', trick_family: 'rake', category: 'compound',
+    base_trick: 'toe_stall', trick_family: 'rake', category: 'compound',
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
@@ -67,8 +67,8 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
-    slug: 'toe-stall', canonical_name: 'toe stall', adds: '1',
-    base_trick: 'toe-stall', trick_family: 'toe-stall', category: 'surface',
+    slug: 'toe_stall', canonical_name: 'toe stall', adds: '1',
+    base_trick: 'toe_stall', trick_family: 'toe_stall', category: 'surface',
     review_status: 'expert_reviewed', is_active: 1,
   });
 
@@ -76,27 +76,27 @@ beforeAll(async () => {
   // backfilled; base_trick = self so isAtomic gate fires for the
   // ATOMIC_FLAG path in the service.
   insertFreestyleTrick(db, {
-    slug: 'double-around-the-world', canonical_name: 'double around the world',
-    adds: '3', base_trick: 'double-around-the-world', trick_family: 'atw',
+    slug: 'double_around_the_world', canonical_name: 'double around the world',
+    adds: '3', base_trick: 'double_around_the_world', trick_family: 'atw',
     category: 'compound',
     notation: 'DOUBLE AROUND THE WORLD',
     operational_notation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
-    slug: 'double-leg-over', canonical_name: 'double leg over',
-    adds: '3', base_trick: 'double-leg-over', trick_family: 'legover',
+    slug: 'double_leg_over', canonical_name: 'double leg over',
+    adds: '3', base_trick: 'double_leg_over', trick_family: 'legover',
     category: 'compound',
     notation: 'DOUBLE LEGOVER',
     operational_notation: 'SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
 
-  // rev-whirl: notation + op_notation backfilled; the JOB row carries
+  // rev_whirl: notation + op_notation backfilled; the JOB row carries
   // the canonical bracket form, the ALT row carries the reverse-pair
   // reading.
   insertFreestyleTrick(db, {
-    slug: 'rev-whirl', canonical_name: 'rev whirl', adds: '3',
+    slug: 'rev_whirl', canonical_name: 'rev whirl', adds: '3',
     base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
     notation: 'REV WHIRL',
     operational_notation: 'CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
@@ -114,10 +114,10 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-// ── DATW + DLO + rev-whirl: Execution notation + ADD rows per the user's exact spec ──
-describe('DATW + DLO + rev-whirl: rendered Execution notation + ADD per curator spec', () => {
+// ── DATW + DLO + rev_whirl: Execution notation + ADD rows per the user's exact spec ──
+describe('DATW + DLO + rev_whirl: rendered Execution notation + ADD per curator spec', () => {
   it('DATW renders Execution notation "TOE > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]" + ADD "dex(2) + stall(1)"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/double-around-the-world');
+    const res = await request(await createApp()).get('/freestyle/tricks/double_around_the_world');
     expect(res.status).toBe(200);
     // The operational chain renders as role-classified op-tokens in the
     // Execution notation section; assert each token in order.
@@ -129,7 +129,7 @@ describe('DATW + DLO + rev-whirl: rendered Execution notation + ADD per curator 
   });
 
   it('DLO renders Execution notation "SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]" + ADD "dex(2) + stall(1)"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/double-leg-over');
+    const res = await request(await createApp()).get('/freestyle/tricks/double_leg_over');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(
       />SET<[\s\S]+?>OP<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>OP<[\s\S]+?>OUT<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>TOE<[\s\S]+?>\[DEL\]</,
@@ -137,8 +137,8 @@ describe('DATW + DLO + rev-whirl: rendered Execution notation + ADD per curator 
     expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)/);
   });
 
-  it('rev-whirl renders Execution notation + ADD "xbody(1) + dex(1) + stall(1)" + ALT "rev(0) + whirl(3)"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/rev-whirl');
+  it('rev_whirl renders Execution notation + ADD "xbody(1) + dex(1) + stall(1)" + ALT "rev(0) + whirl(3)"', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/rev_whirl');
     expect(res.status).toBe(200);
     // Execution notation chain.
     expect(res.text).toMatch(
@@ -150,8 +150,8 @@ describe('DATW + DLO + rev-whirl: rendered Execution notation + ADD per curator 
     expect(res.text).toMatch(/rev\(0\)\s*\+\s*whirl\(3\)/);
   });
 
-  it('rev-whirl Execution notation carries the actual chain, NOT a "canonical decomposition pending" placeholder', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/rev-whirl');
+  it('rev_whirl Execution notation carries the actual chain, NOT a "canonical decomposition pending" placeholder', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/rev_whirl');
     // The Execution notation section renders the real operational chain.
     const classIdx = res.text.indexOf('operational-notation-display');
     expect(classIdx).toBeGreaterThan(0);
@@ -169,8 +169,8 @@ describe('Canonical ADD browse: unreviewed FM-sourced compounds stay out', () =>
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     for (const slug of [
-      'bladerunner', 'bling-blang', 'cold-fusion', 'flurricane',
-      'golden-shower', 'goliath', 'gybas', 'motion-sickness', 'pandemonium',
+      'bladerunner', 'bling_blang', 'cold_fusion', 'flurricane',
+      'golden_shower', 'goliath', 'gybas', 'motion_sickness', 'pandemonium',
     ]) {
       expect(res.text, `${slug} should not appear in canonical ADD browse`)
         .not.toContain(`data-trick-slug="${slug}"`);
@@ -181,7 +181,7 @@ describe('Canonical ADD browse: unreviewed FM-sourced compounds stay out', () =>
     const browse = await request(await createApp()).get('/freestyle/tricks?view=add');
     expect(browse.text).not.toContain('FM dex-count convention');
     expect(browse.text).not.toContain('(DEX) events =');
-    const cloudKick = await request(await createApp()).get('/freestyle/tricks/cloud-kick');
+    const cloudKick = await request(await createApp()).get('/freestyle/tricks/cloud_kick');
     expect(cloudKick.text).not.toContain('FM dex-count convention');
     const rake = await request(await createApp()).get('/freestyle/tricks/rake');
     expect(rake.text).not.toContain('FM dex-count convention');
@@ -216,45 +216,45 @@ describe('rake + pendulum: ≡ slot does not echo the JOB notation', () => {
   });
 });
 
-// ── rev-up demoted: absent from canonical ADD browse ─────────────────────
-describe('rev-up demoted from canonical ADD browse', () => {
-  it('rev-up does NOT appear in /freestyle/tricks?view=add', async () => {
-    // rev-up is structurally distinct from rev-whirl (per curator) but
+// ── rev_up demoted: absent from canonical ADD browse ─────────────────────
+describe('rev_up demoted from canonical ADD browse', () => {
+  it('rev_up does NOT appear in /freestyle/tricks?view=add', async () => {
+    // rev_up is structurally distinct from rev_whirl (per curator) but
     // had no curator-authored structural decomposition; demoted via
     // is_active=0 in red_corrections until its own reading is published.
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).not.toContain('data-trick-slug="rev-up"');
+    expect(res.text).not.toContain('data-trick-slug="rev_up"');
   });
 });
 
 // ── Compound-description slot leakage prevention ─────────────────────────
 describe('Compound-description slot leakage prevention', () => {
-  it('cloud-kick browse card has NO standalone op-notation chip (would echo JOB)', async () => {
+  it('cloud_kick browse card has NO standalone op-notation chip (would echo JOB)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    const card = res.text.match(/data-trick-slug="cloud-kick"[\s\S]*?<\/article>/);
+    const card = res.text.match(/data-trick-slug="cloud_kick"[\s\S]*?<\/article>/);
     expect(card).not.toBeNull();
     expect(card![0]).not.toMatch(/<code class="dict-card-notation/);
     // ≡ slot also empty (no tautological reading).
     expect(card![0]).not.toMatch(/class="core-trick-equivalence/);
   });
 
-  it('flying-inside browse card has NO standalone op-notation chip', async () => {
+  it('flying_inside browse card has NO standalone op-notation chip', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    const card = res.text.match(/data-trick-slug="flying-inside"[\s\S]*?<\/article>/);
+    const card = res.text.match(/data-trick-slug="flying_inside"[\s\S]*?<\/article>/);
     expect(card).not.toBeNull();
     expect(card![0]).not.toMatch(/<code class="dict-card-notation/);
   });
 
   it('DATW browse card has NO ≡ tautological reading ("double around the world")', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    const card = res.text.match(/data-trick-slug="double-around-the-world"[\s\S]*?<\/article>/);
+    const card = res.text.match(/data-trick-slug="double_around_the_world"[\s\S]*?<\/article>/);
     expect(card).not.toBeNull();
     // Tautological filter drops the canonical-name echo.
     expect(card![0]).not.toMatch(/class="core-trick-equivalence/);
   });
 
-  it('cloud-kick detail page has NO tautological hero-formula ("cloud kick = 1 ADD")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/cloud-kick');
+  it('cloud_kick detail page has NO tautological hero-formula ("cloud kick = 1 ADD")', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/cloud_kick');
     // The hero-formula slot is suppressed for atomic/no-modifier-link
     // tricks (would otherwise render the tautological identity).
     expect(res.text).not.toMatch(/class="trick-hero-formula"/);
@@ -269,15 +269,15 @@ describe('Compound-description slot leakage prevention', () => {
 // ── Token normalization: BOD + UNS uppercase ─────────────────────────────
 describe('Token normalization: BOD + UNS uppercase in ADD displays', () => {
   // Slice D 2026-05-26: `= N ADD` terminator stripped from breakdowns.
-  it('flying-inside renders ADD with uppercase BOD(1)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/flying-inside');
+  it('flying_inside renders ADD with uppercase BOD(1)', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/flying_inside');
     expect(res.text).toMatch(/BOD\(1\)/);
     // The lowercase bod(1) form should not appear in ADD displays.
     expect(res.text).not.toMatch(/>bod\(1\)</);
   });
 
-  it('cloud-kick renders ADD with uppercase UNS(1)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/cloud-kick');
+  it('cloud_kick renders ADD with uppercase UNS(1)', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/cloud_kick');
     expect(res.text).toMatch(/UNS\(1\)/);
     expect(res.text).not.toMatch(/unusual surface\(1\)/);
   });

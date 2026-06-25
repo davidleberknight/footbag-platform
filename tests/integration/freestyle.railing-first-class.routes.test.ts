@@ -60,13 +60,13 @@ beforeAll(async () => {
   insertFreestyleTrickModifierLink(db, 'dorshanatrix', 'railing', 1);
   insertFreestyleTrickModifierLink(db, 'dorshanatrix', 'symposium', 2);
 
-  insertFreestyleTrick(db, { slug: 'flying-fish', canonical_name: 'railing ducking mirage', base_trick: 'mirage', adds: '5', notation: 'RAILING DUCKING MIRAGE', category: 'compound', is_active: 1 });
-  insertFreestyleTrickModifierLink(db, 'flying-fish', 'railing', 1);
-  insertFreestyleTrickModifierLink(db, 'flying-fish', 'ducking', 2);
+  insertFreestyleTrick(db, { slug: 'flying_fish', canonical_name: 'railing ducking mirage', base_trick: 'mirage', adds: '5', notation: 'RAILING DUCKING MIRAGE', category: 'compound', is_active: 1 });
+  insertFreestyleTrickModifierLink(db, 'flying_fish', 'railing', 1);
+  insertFreestyleTrickModifierLink(db, 'flying_fish', 'ducking', 2);
 
-  insertFreestyleTrick(db, { slug: 'rail-warrior', canonical_name: 'railing ducking butterfly', base_trick: 'butterfly', adds: '6', notation: 'RAILING DUCKING BUTTERFLY', category: 'compound', is_active: 1 });
-  insertFreestyleTrickModifierLink(db, 'rail-warrior', 'railing', 1);
-  insertFreestyleTrickModifierLink(db, 'rail-warrior', 'ducking', 2);
+  insertFreestyleTrick(db, { slug: 'rail_warrior', canonical_name: 'railing ducking butterfly', base_trick: 'butterfly', adds: '6', notation: 'RAILING DUCKING BUTTERFLY', category: 'compound', is_active: 1 });
+  insertFreestyleTrickModifierLink(db, 'rail_warrior', 'railing', 1);
+  insertFreestyleTrickModifierLink(db, 'rail_warrior', 'ducking', 2);
 
   // redwetter — the shooting-set sibling of the same pattern.
   insertFreestyleTrick(db, { slug: 'redwetter', canonical_name: 'shooting eggbeater', base_trick: 'eggbeater', adds: '6', notation: 'SHOOTING EGGBEATER', category: 'compound', is_active: 1 });
@@ -119,8 +119,8 @@ describe('railing cohort — universal notation card', () => {
     expect(exec!).toContain('>Expanded<');
   });
 
-  it('flying-fish and rail-warrior also render the named-set shorthand in Execution notation', async () => {
-    for (const slug of ['flying-fish', 'rail-warrior']) {
+  it('flying_fish and rail_warrior also render the named-set shorthand in Execution notation', async () => {
+    for (const slug of ['flying_fish', 'rail_warrior']) {
       const html = await trick(slug);
       const exec = executionNotation(html);
       expect(exec).not.toBeNull();

@@ -33,21 +33,21 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertFreestyleTrick(db, {
-    slug: 'double-over-down',
+    slug: 'double_over_down',
     canonical_name: 'double-over down',
     adds: '4', base_trick: 'double-over-down', trick_family: 'double-over-down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
     operational_notation: null,
   });
   insertFreestyleTrick(db, {
-    slug: 'down-double-down',
+    slug: 'down_double_down',
     canonical_name: 'down double-down',
     adds: '4', base_trick: 'down-double-down', trick_family: 'down-double-down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
     operational_notation: null,
   });
   insertFreestyleTrick(db, {
-    slug: 'down-diver',
+    slug: 'down_diver',
     canonical_name: 'down diver',
     adds: '5', base_trick: 'double-over-down', trick_family: 'double-over-down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
@@ -62,7 +62,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('RESOLVED_FORMULAS_SPRINT_1 — down family entries', () => {
   it('double-over-down overlay carries FB.org-confirmed JOB (TOE-set chassis)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'double-over-down');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'double_over_down');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.operationalNotation).toBe('TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]');
@@ -71,14 +71,14 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — down family entries', () => {
   });
 
   it('down-double-down overlay carries FB.org-confirmed JOB (CLIP-set chassis)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'down-double-down');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'down_double_down');
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.operationalNotation).toBe('CLIP > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]');
     expect(entry?.provenance ?? '').toMatch(/distinct chassis/i);
   });
 
   it('down-diver overlay carries FB.org-confirmed JOB (diving on double-over-down chassis)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'down-diver');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'down_diver');
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.baseAdd).toBe(4);
     expect(entry?.operator).toBe('diving');
@@ -88,8 +88,8 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — down family entries', () => {
   });
 
   it('double-over-down and down-double-down have distinct chassis (TOE vs CLIP starting set)', () => {
-    const dod = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'double-over-down');
-    const ddd = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'down-double-down');
+    const dod = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'double_over_down');
+    const ddd = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'down_double_down');
     expect(dod?.operationalNotation ?? '').toMatch(/^TOE >/);
     expect(ddd?.operationalNotation ?? '').toMatch(/^CLIP >/);
     // Both have 4 tokens (same ADD math via different chassis)
@@ -99,7 +99,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — down family entries', () => {
 
 describe('Down-family detail pages — first-class JOB + ADD', () => {
   it('/freestyle/tricks/double-over-down renders 4 ADD + TOE-set tokens', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/double-over-down');
+    const res = await request(await createApp()).get('/freestyle/tricks/double_over_down');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -111,7 +111,7 @@ describe('Down-family detail pages — first-class JOB + ADD', () => {
   });
 
   it('/freestyle/tricks/down-double-down renders 4 ADD + CLIP-set start (not TOE)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/down-double-down');
+    const res = await request(await createApp()).get('/freestyle/tricks/down_double_down');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
     // CLIP is the first surface token. Confirm CLIP renders as op-token.
@@ -120,7 +120,7 @@ describe('Down-family detail pages — first-class JOB + ADD', () => {
   });
 
   it('/freestyle/tricks/down-diver renders 5 ADD + DIVE body action token', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/down-diver');
+    const res = await request(await createApp()).get('/freestyle/tricks/down_diver');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
     // DIVE is a body-action token in operationalNotationRendering vocabulary
@@ -129,7 +129,7 @@ describe('Down-family detail pages — first-class JOB + ADD', () => {
   });
 
   it('down-diver detail page surfaces the "Diving Down Double-Down" alias', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/down-diver');
+    const res = await request(await createApp()).get('/freestyle/tricks/down_diver');
     expect(res.status).toBe(200);
     // alias should render in the "Also known as" row via aliases_json
     expect(res.text).toMatch(/diving down double-down/i);
@@ -140,7 +140,7 @@ describe('Down-family browse rendering — FIRST_CLASS_TIER_2', () => {
   it('all three down-family browse cards render JOB + ADD (not "canonical decomposition pending")', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    for (const slug of ['double-over-down', 'down-double-down', 'down-diver']) {
+    for (const slug of ['double_over_down', 'down_double_down', 'down_diver']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx).toBeGreaterThan(-1);
       const articleOpen = res.text.lastIndexOf('<article', idx);

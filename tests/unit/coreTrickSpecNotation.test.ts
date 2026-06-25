@@ -8,8 +8,8 @@ import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
 // "op/ss toe", "ss clipper"). Bracket-bearing flags ([DEX]/[BOD]/[XBD]/[DEL]/...)
 // must count to the atom's ADD.
 const EXPECTED: Record<string, { notation: string; adds: number }> = {
-  'toe-stall':        { notation: 'SET > SAME TOE [DEL]',                       adds: 1 },
-  'clipper-stall':    { notation: 'SET > OP CLIP [XBD] [DEL]',                  adds: 2 },
+  'toe_stall':        { notation: 'SET > SAME TOE [DEL]',                       adds: 1 },
+  'clipper_stall':    { notation: 'SET > OP CLIP [XBD] [DEL]',                  adds: 2 },
   'mirage':           { notation: 'SET > OP IN [DEX] > OP TOE [DEL]',           adds: 2 },
   'legover':          { notation: 'SET > OP OUT [DEX] > SAME TOE [DEL]',        adds: 2 },
   'pickup':           { notation: 'SET > OP IN [DEX] > SAME TOE [DEL]',         adds: 2 },
@@ -18,7 +18,7 @@ const EXPECTED: Record<string, { notation: string; adds: number }> = {
   'butterfly':        { notation: 'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]',   adds: 3 },
   'swirl':            { notation: 'SET > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]', adds: 3 },
   'osis':             { notation: 'SET > SPIN [BOD] > OP CLIP [XBD] [DEL]',     adds: 3 },
-  'around-the-world': { notation: 'TOE > SAME IN [DEX] > SAME TOE [DEL]',       adds: 2 },
+  'around_the_world': { notation: 'TOE > SAME IN [DEX] > SAME TOE [DEL]',       adds: 2 },
   'orbit':            { notation: 'TOE > SAME OUT [DEX] > SAME TOE [DEL]',      adds: 2 },
 };
 

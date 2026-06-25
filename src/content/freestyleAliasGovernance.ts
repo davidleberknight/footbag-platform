@@ -49,7 +49,7 @@ export interface AliasGovernanceEntry {
 export const ALIAS_GOVERNANCE_ENTRIES: readonly AliasGovernanceEntry[] = [
   // ── Atom-level aliases (5 entries) ─────────────────────
   {
-    trickSlug:       'around-the-world',
+    trickSlug:       'around_the_world',
     aliasText:       'atw',
     surfaceOnBrowse: true,
     displayAs:       'ATW',

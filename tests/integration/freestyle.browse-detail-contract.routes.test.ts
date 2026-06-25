@@ -44,8 +44,8 @@ beforeAll(async () => {
 
   // Atom + base coverage so browse views have content to render.
   insertFreestyleTrick(db, {
-    slug: 'toe-stall', canonical_name: 'toe stall', adds: '1',
-    base_trick: 'toe-stall', trick_family: 'toe-stall', category: 'surface',
+    slug: 'toe_stall', canonical_name: 'toe stall', adds: '1',
+    base_trick: 'toe_stall', trick_family: 'toe_stall', category: 'surface',
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
@@ -64,7 +64,7 @@ beforeAll(async () => {
   // rev-whirl is a curator-locked rev(0)-paired entry — its detail page
   // renders the ALT row via trick-transform.hbs. Positive-control case.
   insertFreestyleTrick(db, {
-    slug: 'rev-whirl', canonical_name: 'rev whirl', adds: '3',
+    slug: 'rev_whirl', canonical_name: 'rev whirl', adds: '3',
     base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
     notation: 'REV WHIRL',
     operational_notation: 'CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
@@ -132,7 +132,7 @@ describe('Browse contract: scoring notes never appear on browse surfaces', () =>
 
 describe('Detail contract: ALT row DOES render on rev(0)-paired tricks', () => {
   it('/freestyle/tricks/rev-whirl: ALT row is present (trick-transform overlay)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/rev-whirl');
+    const res = await request(await createApp()).get('/freestyle/tricks/rev_whirl');
     expect(res.status).toBe(200);
     // The trick-transform partial section renders with the dedicated
     // aria-label and the ALT dt.

@@ -28,7 +28,7 @@
 export const TIER_A_SLUGS: ReadonlySet<string> = new Set([
   // Editorial exemplars (set the template)
   'mirage',
-  'paradox-mirage',
+  'paradox_mirage',
   'whirl',
   // Rest of Tier A roster (follow the exemplar template)
   'blur',
@@ -40,11 +40,11 @@ export const TIER_A_SLUGS: ReadonlySet<string> = new Set([
   'barrage',
   'ripwalk',
   'fury',
-  'atom-smasher',
+  'atom_smasher',
   'sumo',
   'surreal',
   'ripstein',
-  'food-processor',
+  'food_processor',
   'phoenix',
   'blurriest',
   'blender',

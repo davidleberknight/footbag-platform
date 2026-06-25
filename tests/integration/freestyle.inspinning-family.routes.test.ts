@@ -29,21 +29,21 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertFreestyleTrick(db, {
-    slug: 'inspinning-butterfly',
+    slug: 'inspinning_butterfly',
     canonical_name: 'inspinning butterfly',
     adds: '4', base_trick: 'butterfly', trick_family: 'butterfly',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
     operational_notation: null,
   });
   insertFreestyleTrick(db, {
-    slug: 'inspinning-paradox-illusion',
+    slug: 'inspinning_paradox_illusion',
     canonical_name: 'inspinning paradox illusion',
     adds: '4', base_trick: 'illusion', trick_family: 'illusion',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
     operational_notation: null,
   });
   insertFreestyleTrick(db, {
-    slug: 'inspinning-paradox-mirage',
+    slug: 'inspinning_paradox_mirage',
     canonical_name: 'inspinning paradox mirage',
     adds: '4', base_trick: 'mirage', trick_family: 'mirage',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
@@ -57,7 +57,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('RESOLVED_FORMULAS_SPRINT_1 — inspinning family entries', () => {
   it('inspinning-butterfly overlay carries FB.org-confirmed JOB', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'inspinning-butterfly');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'inspinning_butterfly');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.baseAdd).toBe(3);
@@ -70,19 +70,19 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — inspinning family entries', () => {
   });
 
   it('inspinning-paradox-illusion overlay applies the direction-flip rule', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'inspinning-paradox-illusion');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'inspinning_paradox_illusion');
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.operationalNotation).toBe('CLIP > (front) SPIN [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL]');
   });
 
   it('inspinning-paradox-mirage overlay applies the direction-flip rule', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'inspinning-paradox-mirage');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'inspinning_paradox_mirage');
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.operationalNotation).toBe('CLIP > (front) SPIN [BOD] > SAME IN [PDX] [DEX] > OP TOE [DEL]');
   });
 
   it('all three inspinning JOBs use (front) SPIN and SAME-side dex (not OP like spinning)', () => {
-    const slugs = ['inspinning-butterfly', 'inspinning-paradox-illusion', 'inspinning-paradox-mirage'];
+    const slugs = ['inspinning_butterfly', 'inspinning_paradox_illusion', 'inspinning_paradox_mirage'];
     for (const slug of slugs) {
       const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === slug);
       expect(entry?.operationalNotation ?? '').toContain('(front) SPIN [BOD]');
@@ -94,7 +94,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — inspinning family entries', () => {
 
 describe('Inspinning detail pages — first-class JOB + ADD', () => {
   it('/freestyle/tricks/inspinning-butterfly renders 4 ADD hero chip + (front) SPIN token', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/inspinning-butterfly');
+    const res = await request(await createApp()).get('/freestyle/tricks/inspinning_butterfly');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -109,7 +109,7 @@ describe('Inspinning detail pages — first-class JOB + ADD', () => {
   });
 
   it('/freestyle/tricks/inspinning-paradox-illusion renders 4 ADD + [PDX] token + OP TOE terminal', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/inspinning-paradox-illusion');
+    const res = await request(await createApp()).get('/freestyle/tricks/inspinning_paradox_illusion');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
     for (const token of ['(front)', '[BOD]', 'SAME', 'OUT', '[PDX]', '[DEX]', 'OP', 'TOE', '[DEL]']) {
@@ -120,7 +120,7 @@ describe('Inspinning detail pages — first-class JOB + ADD', () => {
   });
 
   it('/freestyle/tricks/inspinning-paradox-mirage renders 4 ADD + IN direction (not OUT like illusion)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/inspinning-paradox-mirage');
+    const res = await request(await createApp()).get('/freestyle/tricks/inspinning_paradox_mirage');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
     // The dex direction differs from paradox-illusion: paradox-mirage uses IN
@@ -133,7 +133,7 @@ describe('Inspinning browse rendering — FIRST_CLASS_TIER_2 cohort', () => {
   it('inspinning-butterfly browse card renders JOB + ADD inline (not "canonical decomposition pending")', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    const idx = res.text.indexOf('data-trick-slug="inspinning-butterfly"');
+    const idx = res.text.indexOf('data-trick-slug="inspinning_butterfly"');
     expect(idx).toBeGreaterThan(-1);
     const articleOpen = res.text.lastIndexOf('<article', idx);
     const articleClose = res.text.indexOf('</article>', idx);

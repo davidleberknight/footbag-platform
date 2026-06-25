@@ -38,14 +38,14 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertFreestyleTrick(db, {
-    slug: 'pixie-double-over-down',
+    slug: 'pixie_double_over_down',
     canonical_name: 'pixie double-over down',
     adds: '5', base_trick: 'double-over-down', trick_family: 'double-over-down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
     operational_notation: null,
   });
   insertFreestyleTrick(db, {
-    slug: 'scorpions-tail',
+    slug: 'scorpions_tail',
     canonical_name: "Scorpion's Tail",
     adds: '5', base_trick: 'down-double-down', trick_family: 'down-double-down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
@@ -68,7 +68,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('RESOLVED_FORMULAS_SPRINT_1 — down-family follow-ons + flux entries', () => {
   it('pixie-double-over-down carries FB.org-confirmed JOB with (plant) pre-state', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie-double-over-down');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie_double_over_down');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.baseAdd).toBe(4);
@@ -80,7 +80,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — down-family follow-ons + flux entries',
   });
 
   it("scorpions-tail carries FB.org-confirmed JOB with lowercase [bod] preserved verbatim", () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'scorpions-tail');
+    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'scorpions_tail');
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.operator).toBe('spinning');
     expect(entry?.base).toBe('down-double-down');
@@ -101,7 +101,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — down-family follow-ons + flux entries',
 
 describe('Down-family follow-ons + flux detail pages — first-class JOB + ADD', () => {
   it('/freestyle/tricks/pixie-double-over-down renders 5 ADD + (plant) pre-state', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/pixie-double-over-down');
+    const res = await request(await createApp()).get('/freestyle/tricks/pixie_double_over_down');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
     // (plant) pre-state flag renders with pre-state cssRole
@@ -114,7 +114,7 @@ describe('Down-family follow-ons + flux detail pages — first-class JOB + ADD',
   });
 
   it('/freestyle/tricks/scorpions-tail renders 5 ADD + SPIN body action + lowercase [bod]', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/scorpions-tail');
+    const res = await request(await createApp()).get('/freestyle/tricks/scorpions_tail');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
     // (back) pre-state + SPIN body action + [bod] component (lowercase)
@@ -124,7 +124,7 @@ describe('Down-family follow-ons + flux detail pages — first-class JOB + ADD',
   });
 
   it("scorpions-tail surfaces 'spinning down double-down' alias", async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/scorpions-tail');
+    const res = await request(await createApp()).get('/freestyle/tricks/scorpions_tail');
     expect(res.text).toMatch(/spinning down double-down/i);
   });
 
@@ -150,7 +150,7 @@ describe('Down-family follow-ons + flux browse rendering — FIRST_CLASS_TIER_2'
   it('all three browse cards render JOB + ADD inline (not "canonical decomposition pending")', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    for (const slug of ['pixie-double-over-down', 'scorpions-tail', 'flux']) {
+    for (const slug of ['pixie_double_over_down', 'scorpions_tail', 'flux']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx).toBeGreaterThan(-1);
       const articleOpen = res.text.lastIndexOf('<article', idx);

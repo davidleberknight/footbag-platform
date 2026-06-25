@@ -8,14 +8,14 @@ import {
 
 export function trickNameToSlug(name: string): string {
   // The slug is the lexical form of the name only: lowercase, non-alphanumeric
-  // runs to hyphens. A positional qualifier (ss / op / near / far / same side) is
+  // runs to underscores. A positional qualifier (ss / op / near / far / same side) is
   // structural, not lexical, so it is preserved here, never stripped — identity is
   // decided by configuration, not by deleting the qualifier. Preserving it keeps
   // app-side resolution in agreement with the loader, which slugifies the same way.
   return name
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
 }
 
 // The hashtag body is the slug lowercased with hyphens as underscores. On an

@@ -3,7 +3,7 @@
 
 Invariant (per scripts/_trick_tag_invariant.py):
   1. Every media_items row must carry ≥1 semantic tag.
-  2. Semantic domains: TRICK (kebab-case slug, active or pending),
+  2. Semantic domains: TRICK (underscore slug, active or pending),
      EVENT (event_*), SYSTEM (demo_*, fh_*), FUTURE (player_*, club_*, set_*).
   3. Trick-shaped tags must resolve; alias-only or unknown bodies fail.
   4. Utility tags (freestyle, trick, curated, tricks_of_the_trade) pass

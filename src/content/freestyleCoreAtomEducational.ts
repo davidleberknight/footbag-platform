@@ -73,7 +73,7 @@ export interface CoreAtomEducationalCard {
  */
 export const CORE_ATOM_EDUCATIONAL: readonly CoreAtomEducationalCard[] = [
   {
-    slug:        'toe-stall',
+    slug:        'toe_stall',
     displayName: 'Toe Stall',
     adds:        '1',
     lead:        'The bag balanced on the flat top of the foot, near the toes: the surface every freestyler learns first. Foot held still under the bag; the bag settles.',
@@ -82,7 +82,7 @@ export const CORE_ATOM_EDUCATIONAL: readonly CoreAtomEducationalCard[] = [
     familyRole:  'Terminal surface of mirage, legover, illusion, pickup, and many higher-ADD tricks.',
   },
   {
-    slug:        'clipper-stall',
+    slug:        'clipper_stall',
     displayName: 'Clipper Stall',
     adds:        '2',
     lead:        'An inside-of-foot stall with the foot tucked behind the supporting leg: the bag rests on the inside surface in a cross-body position. The cross-body position itself changes everything that can follow.',
@@ -91,7 +91,7 @@ export const CORE_ATOM_EDUCATIONAL: readonly CoreAtomEducationalCard[] = [
     familyRole:  'Terminal surface of butterfly, whirl, swirl, osis, and most of their families.',
   },
   {
-    slug:        'around-the-world',
+    slug:        'around_the_world',
     displayName: 'Around-the-World (ATW)',
     adds:        '2',
     lead:        'The leg traces a full circle around the bag in the air, then catches the bag back on the toe. The bag hangs while the leg orbits it.',
