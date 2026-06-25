@@ -11,12 +11,20 @@ import os from 'node:os';
 const cpuCount = os.cpus().length;
 const memForkCap = Math.max(1, Math.floor(os.totalmem() / (0.8 * 1024 ** 3)));
 const ramBound = memForkCap < cpuCount;
+// A VM that is CPU- or disk-slow but RAM-adequate slips past the memory cap and
+// runs full parallelism, so each worker's cold app-graph compile in beforeAll
+// can blow the hook ceiling. VITEST_MAX_FORKS lets such a box throttle workers
+// without editing config.
+const envForkCap = process.env.VITEST_MAX_FORKS
+  ? Math.max(1, parseInt(process.env.VITEST_MAX_FORKS, 10))
+  : null;
+const forkCap = envForkCap ?? (ramBound ? memForkCap : null);
 
 export default defineConfig({
   test: {
     testTimeout: 15_000,
-    hookTimeout: 15_000,
-    ...(ramBound ? { pool: 'forks' as const, maxWorkers: memForkCap } : {}),
+    hookTimeout: 30_000,
+    ...(forkCap ? { pool: 'forks' as const, maxWorkers: forkCap } : {}),
     setupFiles: ['./tests/setup-env.ts'],
     // Sweep stale `footbag-test-*` artifacts from os.tmpdir() at session
     // start and end. Per-test afterAll() handles the happy path; this hook

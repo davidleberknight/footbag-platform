@@ -40,6 +40,7 @@ This guide helps contributors do different things: understand how the platform i
   - [1.8 Run the dev server](#18-run-the-dev-server)
   - [1.9 Browser verification (hello world)](#19-browser-verification-hello-world)
   - [1.10 Run the test suite](#110-run-the-test-suite)
+  - [1.10A Optional: load the full operator dataset](#110a-optional-load-the-full-operator-dataset)
   - [1.11 Optional: exercise Safe Browsing in dev](#111-optional-exercise-safe-browsing-in-dev)
   - [1.12 Optional deterministic checks](#112-optional-deterministic-checks)
   - [1.13 Docker parity check](#113-docker-parity-check)
@@ -146,7 +147,7 @@ Success for this path means you can:
 
 ### 1.2 Supported machine setup
 
-This guide is written **WSL-first** for the newcomer path (Windows Subsystem for Linux).
+This guide targets an **Ubuntu (Linux) shell** and works from any Ubuntu install. The newcomer path on Windows is WSL Ubuntu (Windows Subsystem for Linux); on a Mac, run Ubuntu in a VM (for example UTM) or adapt the same commands in your native terminal. Once you have an Ubuntu shell, the rest of this guide is the same everywhere.
 
 For Windows contributors, use this working model:
 
@@ -158,9 +159,9 @@ Recommended Windows + WSL working model:
 
 - install Cursor on Windows (for working with code).
 - enable the WSL 2 backend and WSL integration for your Ubuntu distro (essential).
-- run Node, npm, sqlite3, Git, AWS CLI, Terraform, SSH, and Claude Code from the WSL Ubuntu shell.
+- run Node, npm, sqlite3, Git, SSH, and Claude Code from the WSL Ubuntu shell.
 
-macOS/Linux contributors can adapt the same command flow in their normal terminal, but the primary onboarding path in this guide assumes Windows + WSL Ubuntu.
+macOS and native-Linux contributors are fully supported. The simplest Mac path is an Ubuntu VM (for example UTM), where every step below works unchanged; alternatively, adapt the §1.4 install commands to your native terminal (Homebrew for the tools, `nvm` for Node 22) and continue from §1.5. Only §1.4 step 1 (WSL) is Windows-specific; on any non-Windows Ubuntu, start at §1.4 step 2.
 
 ### 1.3 Required tools
 
@@ -183,9 +184,9 @@ If you know you will continue into **Path D** or **Path E**, also install or ver
 
 - Docker Desktop with WSL integration
 - `docker compose` support
-- AWS CLI v2
-- Terraform CLI
 - Cursor on Windows
+
+The AWS CLI and Terraform install as part of the AWS deployment path (§4.2), not here.
 
 **Use Node 22 as the project baseline.**
 
@@ -195,6 +196,8 @@ Notes:
 - `better-sqlite3` compiles a native addon during install, which is why `build-essential` is required; if you switch Node versions afterward, run `npm rebuild`
 
 ### 1.4 First-time machine install steps
+
+> Step 1 sets up Ubuntu on Windows via WSL. On a native Ubuntu machine or an Ubuntu VM (for example on a Mac), skip step 1 and start at step 2.
 
 #### 1. If WSL is not installed yet
 
@@ -273,7 +276,7 @@ git config --global user.email "you@example.com"
 git config --global init.defaultBranch main
 ```
 
-> **Steps 5-7 are optional.** Docker, the AWS CLI, and Terraform are needed only for the Docker parity check (§1.13) and for Path D/E (AWS deployment), not to reach hello world. A new developer can skip to step 8. Claude Code (step 8) is required for all contributors.
+> **Step 5 is optional.** Docker is needed only for the Docker parity check (§1.13) and for Path D/E (AWS deployment), not to reach hello world. A new developer can skip to step 6. Claude Code (step 6) is required for all contributors. The AWS CLI and Terraform install as part of the AWS deployment path (§4.2).
 
 #### 5. Verify Docker from WSL if you will use Docker parity or any AWS path (you can skip this just to run a local server)
 
@@ -286,37 +289,7 @@ docker --version
 docker compose version
 ```
 
-#### 6. Install AWS CLI v2 in WSL if you will use Path D or Path E (AWS setup steps) 
-
-On most x86_64 Windows + WSL setups:
-
-```bash
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip -u awscliv2.zip
-sudo ./aws/install
-aws --version
-```
-
-If `uname -m` reports `aarch64`, use the ARM64 AWS CLI package instead.
-
-#### 7. Install Terraform in WSL if you will use Path D or Path E (AWS setup steps) 
-
-```bash
-curl -fsSL https://apt.releases.hashicorp.com/gpg | \
-  gpg --dearmor | \
-  sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
-
-echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(. /etc/os-release && echo "$VERSION_CODENAME") main" | \
-  sudo tee /etc/apt/sources.list.d/hashicorp.list
-
-sudo apt update
-sudo apt install -y terraform
-terraform version
-```
-
-Verify the version is >= 1.11 (required by this project's `providers.tf`).
-
-#### 8. Install Claude Code in WSL (before you get into development work)
+#### 6. Install Claude Code (before you get into development work)
 
 You need an Anthropic plan (Pro or above). Install it, then authenticate:
 
@@ -328,7 +301,7 @@ claude        # then run /login and complete the browser OAuth sign-in
 
 Claude Code runs inside WSL Linux; the Cursor IDE runs on Windows and connects to it.
 
-#### 9. Line-ending sanity check (Windows versus Linux incompatability)
+#### 7. Line-ending sanity check (Windows versus Linux incompatability)
 
 This repo includes `.gitattributes` rules so shell scripts stay LF-terminated in normal use.
 
@@ -360,6 +333,8 @@ If `npm install` fails while compiling `better-sqlite3`:
 - confirm `which node` points to the WSL/Linux binary
 - then rerun `npm install`
 
+> **Run Claude Code from the project root.** Always start `claude` from the repository root (`~/GIT/footbag-platform`), not from a subdirectory or your home directory. Claude Code loads the project's `CLAUDE.md` and the path-scoped rules under `.claude/` from the working directory; starting it elsewhere runs it without the project's instructions.
+
 ### 1.6 Local env file
 
 Create the local environment file from the example:
@@ -368,7 +343,9 @@ Create the local environment file from the example:
 cp .env.example .env
 ```
 
-The minimum local `.env` shape is:
+`cp .env.example .env` already provides every required value with safe development placeholders, so you do not need to hand-edit it to reach hello world.
+
+The required local `.env` shape is:
 
 ```
 COMPOSE_FILE=docker/docker-compose.yml
@@ -377,9 +354,11 @@ NODE_ENV=development
 LOG_LEVEL=info
 FOOTBAG_DB_PATH=./database/footbag.db
 PUBLIC_BASE_URL=http://localhost:3000
+SESSION_SECRET=changeme-use-a-long-random-string-in-production
+INTERNAL_EVENT_SECRET=changeme-internal-event-secret-not-for-production
 ```
 
-For local development, keep `.env` intentionally small.
+The app fails fast at boot if `SESSION_SECRET` or `INTERNAL_EVENT_SECRET` is missing. For local development, keep `.env` intentionally small.
 
 Use local `.env` for:
 
@@ -397,7 +376,7 @@ A fresh clone has no database yet, and the event inputs the loader reads (`legac
 bash scripts/reset-local-db.sh
 ```
 
-It needs the `sqlite3` CLI and `python3` (installed in §1.4) and creates a Python virtualenv under `scripts/.venv` on first run. `./run_dev.sh` (§1.8) runs this automatically when `database/footbag.db` is missing, so on a fresh clone `./run_dev.sh` alone reaches a seeded, browsable site.
+It needs the `sqlite3` CLI and `python3` (installed in §1.4) and creates a Python virtualenv under `scripts/.venv` on first run. It applies the schema, loads the committed seed CSVs, and builds the freestyle tables via `freestyle/run_freestyle.sh`, so no separate freestyle build is needed. `./run_dev.sh` (§1.8) runs this automatically when `database/footbag.db` is missing, so on a fresh clone `./run_dev.sh` alone reaches a seeded, browsable site.
 
 Two real-data inputs power the full dataset, and a hello-world clone needs neither:
 
@@ -422,7 +401,7 @@ Re-run `bash scripts/reset-local-db.sh` whenever you want a clean rebuild.
 
 This launches both the web server (port 3000) and the image worker (port 4001). Avatar, photo, and curator video uploads route through the image worker over HTTP per DD §1.7's four-container topology; `npm run dev` alone fails uploads because no worker is listening. `./run_dev.sh` keeps both alive and tears both down on Ctrl+C; see also `npm run dev` and `npm run dev:image` if you want to run them individually for debugging.
 
-On WSL2, the port is forwarded automatically, so you can use your normal browser on Windows.
+Open `http://localhost:3000` in your browser. On WSL2 the port is forwarded to Windows automatically; on native Ubuntu or macOS it is already local. If you run Ubuntu in a VM, browse to the VM's IP (for example `http://192.168.64.2:3000`) because the host's `localhost` does not reach the guest.
 
 ### 1.9 Browser verification (hello world)
 
@@ -558,6 +537,22 @@ docker pull owasp/zap2docker-stable
 ```
 
 Per `docs/TESTING.md` §9.3. Operator-invoked; never runs unattended against production.
+
+### 1.10A Optional: load the full operator dataset
+
+The hello-world clone runs on the committed synthetic CI fixtures (events) plus the committed seed CSVs (public member and club names). The full real dataset needs two inputs that are gitignored and handed off separately by the maintainer:
+
+- the footbag.org **mirror** (`legacy_data/mirror_footbag_org/`), used to regenerate canonical event data from source;
+- the **IFPA member roster** (`legacy_data/membership/inputs/membership_input_normalized.csv`), kept out of GitHub because it holds member PII, used for the full member load.
+
+Request whichever you need from the maintainer, then load:
+
+```bash
+./run_dev.sh --from-csv      # full enrichment rebuild: no mirror, but needs the member roster
+./run_dev.sh --soup-to-nuts  # everything: mirror rebuild + media + personas + dev admins
+```
+
+The **freestyle** tables are not part of this handoff: they build entirely from committed inputs via `freestyle/run_freestyle.sh` (which `reset-local-db.sh` runs automatically), so freestyle content is already complete on a fresh hello-world clone.
 
 ### 1.11 Optional: exercise Safe Browsing in dev
 
@@ -1217,7 +1212,37 @@ ssh -V
 rsync --version
 ```
 
-If any of those commands fail, stop and install the missing tool first (see section 1.4).
+If `ssh` or `rsync` is missing, install it per section 1.4. If `aws` or `terraform` is missing, install them now.
+
+#### Install the AWS CLI and Terraform
+
+On most x86_64 setups:
+
+```bash
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip -u awscliv2.zip
+sudo ./aws/install
+aws --version
+```
+
+If `uname -m` reports `aarch64`, use the ARM64 AWS CLI package instead.
+
+Then install Terraform:
+
+```bash
+curl -fsSL https://apt.releases.hashicorp.com/gpg | \
+  gpg --dearmor | \
+  sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(. /etc/os-release && echo "$VERSION_CODENAME") main" | \
+  sudo tee /etc/apt/sources.list.d/hashicorp.list
+
+sudo apt update
+sudo apt install -y terraform
+terraform version
+```
+
+Verify the version is >= 1.11 (required by this project's `providers.tf`).
 
 #### Credential/profile gate
 
