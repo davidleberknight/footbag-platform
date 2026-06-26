@@ -75,7 +75,7 @@ beforeAll(async () => {
     // ── Other public families render as their own sections (≥2 rows) ──
     trick('eclipse', 'eclipse', 'dex'), trick('lunar_eclipse', 'eclipse'),
     trick('drifter', 'drifter', 'dex'), trick('day_drifter', 'drifter'),
-    trick('inside_stall', 'inside_stall', 'dex'), trick('guay', 'guay'),
+    trick('inside_stall', 'inside_stall', 'dex'), trick('guay', 'inside-stall'),
   ];
   for (const r of rows) insertFreestyleTrick(db, r);
 

@@ -96,7 +96,7 @@ export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
 export const SUBLABEL_FAMILY_OF: ReadonlyMap<string, string> = new Map<string, string>([
   ['whirling_swirl',      'swirl'],
   ['mobius',              'torque'],        // curator: a mobius is a torque-family member
-  ['guay',                'inside_stall'],  // curator: a guay lands into an inside stall
+  ['inside-stall',        'inside_stall'],  // curator: the guay lineage (trick_family 'inside-stall') lands into an inside stall
   ['double_pickup',       'pickup'],
   ['paradox_mirage',      'mirage'],
   ['paradox_illusion',    'illusion'],
