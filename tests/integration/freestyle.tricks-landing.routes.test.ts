@@ -435,12 +435,40 @@ describe('GET /freestyle/tricks — browse views', () => {
     const res = await request(createApp()).get('/freestyle/tricks?family=whirl');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="trick-view-toggle"');
-    expect(res.text).toContain('family-filter-pill');
+    expect(res.text).toMatch(/ family: \d+ tricks?\./);
   });
 
   it('an unknown ?view= falls back to the ADD ladder', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=nonsense');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/class="trick-view-toggle-active">By ADD</);
+  });
+});
+
+describe('GET /freestyle/tricks — one orienting lede per state', () => {
+  it('the default landing leads with the generic dictionary intro', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Pick a lens below to start');
+  });
+
+  it('a secondary view drops the generic landing intro and shows its own lede', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Pick a lens below to start');
+    expect(res.text).toMatch(/four big movement families/i);
+  });
+
+  it('the family filter drops the generic landing intro for the family header', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?family=whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Pick a lens below to start');
+    expect(res.text).toContain('finish with a whirl');
+  });
+
+  it('secondary views keep beginner help reachable via a glossary link', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('New to the dictionary? Start with the <a href="/freestyle/glossary">glossary</a>');
   });
 });

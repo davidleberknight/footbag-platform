@@ -16,10 +16,17 @@
 
 <div class="wrapper">
 
-  {{! ── Page intro — plain, orientation-first. Shown on every browse view. ── }}
+  {{! ── Page intro — plain, orientation-first. The generic dictionary intro is
+      the default-landing lede only. Secondary views and the family filter carry
+      their own state-specific orientation (the per-view intro / the family
+      header below), so the generic "pick a lens" line would read oddly there. ── }}
+  {{#if (eq content.activeView "add")}}
+  {{#unless content.activeFamily}}
   {{#if content.dictionaryIntro}}
   <p class="browse-view-intro">{{content.dictionaryIntro}}
     <a class="dictionary-intro-glossary-link" href="/freestyle/glossary">New to the words? Open the glossary &rarr;</a></p>
+  {{/if}}
+  {{/unless}}
   {{/if}}
 
   {{! ── Trick search: name/alias lookup. Submits to the dedicated search page
@@ -102,10 +109,9 @@
   {{/if}}
 
   {{#if content.activeFamily}}
-  <p class="family-filter-pill">
-    Filtering by family: <strong>{{content.activeFamily}}</strong>
-    &nbsp;<a href="/freestyle/tricks">Clear filter</a>
-  </p>
+  <p class="browse-view-intro">{{content.familyFilterIntro}}
+    <a class="dictionary-intro-glossary-link" href="/freestyle/glossary">New to the dictionary? Open the glossary &rarr;</a>
+    &nbsp;<a href="/freestyle/tricks">Clear the filter</a> to see the full dictionary.</p>
   {{#if content.relatedSetGroups.length}}
   <nav class="related-set-groups" aria-label="Related set or modifier groups">
     <span class="related-set-groups-label">Related set/modifier groups:</span>
@@ -169,7 +175,7 @@
       Encyclopedia cross-links in their respective cards; on secondary
       views, this aside paragraph preserves reachability without requiring
       a return trip to the landing. }}
-  <p class="trick-view-toggle-aside">For modifier and operator vocabulary, see the <a href="/freestyle/operators">Operators &amp; Modifiers reference</a> (not a dictionary browse axis; it's vocabulary that helps you read trick names). For set systems as first-class objects (what is pixie / stepping / atomic as a system?), see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
+  <p class="trick-view-toggle-aside">New to the dictionary? Start with the <a href="/freestyle/glossary">glossary</a>. For modifier and operator vocabulary, see the <a href="/freestyle/operators">Operators &amp; Modifiers reference</a> (not a dictionary browse axis; it's vocabulary that helps you read trick names). For set systems as first-class objects (what is pixie / stepping / atomic as a system?), see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
   {{/unless}}
 
   {{! ── Default ADD-grouped view — two-line row contract.
@@ -573,7 +579,7 @@
       render in author order (no priority-by-frequency re-sort). }}
   {{#if (eq content.activeView "movement-system")}}
   <p class="browse-view-status-label"><strong>An exploratory view, not an official grouping.</strong></p>
-  <p class="browse-view-intro"><strong>By movement system = the four big groupings</strong> (sets &amp; uptime · how you enter · mid-air body moves · airborne). Each grouping gathers the modifiers that belong to it. It also recognizes <strong>Alternative surfaces</strong> (tricks caught on an unusual part of the body), listed separately below the four groupings. To find every trick that uses a <em>specific</em> modifier (pixie, fairy, ducking, spinning, …), use <a href="/freestyle/tricks?view=sets">By modifier</a>. For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
+  <p class="browse-view-intro">{{content.movementSystemIntro}} To find every trick that uses a specific modifier (pixie, fairy, ducking, spinning, and so on), use <a href="/freestyle/tricks?view=sets">By modifier</a>. For what a set system actually is, see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
   <p class="browse-view-lens-note detail-muted">Each grouping total here counts the distinct tricks in that movement grouping. It will not match the per-cluster totals in <a href="/freestyle/tricks?view=sets">By modifier</a>, because the two views place some modifiers in different groups. They are different lenses on the same tricks.</p>
   <p class="movement-system-view-note">{{content.movementSystemView.observationalNote}}</p>
   {{#if content.movementSystemScale}}<p class="browse-view-scale">{{content.movementSystemScale}}</p>{{/if}}

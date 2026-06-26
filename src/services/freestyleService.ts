@@ -3062,6 +3062,12 @@ export interface FreestyleTricksIndexContent {
   // and modifier views carried theirs inline before.
   dexCountIntro: string | null;
   setsIntro: string | null;
+  // Per-view intro for the movement-system view, service-shaped so copy has a
+  // single source of truth (the template appends the cross-links).
+  movementSystemIntro: string | null;
+  // Self-orienting header for the family filter (?family=<name>): plain-words
+  // orientation naming the family and trick count. Null unless a filter is active.
+  familyFilterIntro: string | null;
   /** Landing-surface 3-band conceptual grid
    *  rendered above the inline view-toggle when on the default landing view.
    *  Bands = Difficulty / Structure / Tracking & Expansion. Each card carries
@@ -9015,6 +9021,30 @@ export const freestyleService = {
       `${topologyMemberships} trick-row ${plural(topologyMemberships, 'membership', 'memberships')} shown. ` +
       'Exploratory, pedagogical grouping, not a canonical taxonomy.';
 
+    // Family-filter self-orienting header (the hashtag-click ?family=<name>
+    // state). Plain words: name the family and its trick count, then say in
+    // everyday language that every member shares the same ending while modifiers
+    // and difficulty vary. Null unless a family filter is active.
+    const activeFamilyName = activeFamily
+      ? (PUBLIC_FAMILY_LABEL.get(activeFamily)
+          ?? resolveFamilyDisplayName(activeFamily)
+          ?? (activeFamily.charAt(0).toUpperCase() + activeFamily.slice(1).replace(/[-_]/g, ' ')))
+      : null;
+    const familyFilterIntro = activeFamily && activeFamilyName
+      ? `The ${activeFamilyName} family: ${canonicalCount} ${plural(canonicalCount, 'trick', 'tricks')}. `
+        + `These tricks all finish with ${/^[aeiou]/i.test(activeFamilyName) ? 'an' : 'a'} `
+        + `${activeFamilyName.toLowerCase()}; their sets, modifiers, and ADD values vary, but the `
+        + 'ending stays the same.'
+      : null;
+
+    // Movement-system view intro, service-shaped like the other per-view intros
+    // so the copy lives in one place; the template appends the cross-links.
+    const movementSystemIntro =
+      'By movement system groups tricks into four big movement families: sets and uptime, '
+      + 'how you enter, mid-air body moves, and airborne. Each grouping gathers the modifiers '
+      + 'that belong to it. Tricks caught on an unusual part of the body are listed separately as '
+      + 'Alternative surfaces below the four groupings.';
+
     return {
       seo: {
         title: 'Freestyle Trick Dictionary',
@@ -9112,6 +9142,8 @@ export const freestyleService = {
         topologyScale,
         dexCountIntro,
         setsIntro,
+        movementSystemIntro,
+        familyFilterIntro,
       },
     };
   },

@@ -501,11 +501,11 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?family=whirl');
     expect(res.status).toBe(200);
-    // Pill renders with the family name and a clear-filter link
-    expect(res.text).toContain('family-filter-pill');
-    expect(res.text).toContain('Filtering by family:');
-    expect(res.text).toMatch(/<strong>whirl<\/strong>/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks"[^>]*>Clear filter</);
+    // Self-orienting family header: family name, trick count, the shared ending
+    // in plain words, and a clear-filter link.
+    expect(res.text).toMatch(/ family: \d+ tricks?\./);
+    expect(res.text).toContain('finish with a whirl');
+    expect(res.text).toMatch(/href="\/freestyle\/tricks"[^>]*>Clear the filter</);
     // Whirl-family rows still render
     expect(res.text).toContain('/freestyle/tricks/whirl');
     expect(res.text).toContain('/freestyle/tricks/spinning-whirl');
@@ -518,8 +518,8 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?family=does-not-exist');
     expect(res.status).toBe(200);
-    // Falls through to unfiltered dictionary; pill must NOT render
-    expect(res.text).not.toContain('family-filter-pill');
+    // Falls through to unfiltered dictionary; the family header must NOT render
+    expect(res.text).not.toContain('to see the full dictionary');
     // All families still visible
     expect(res.text).toContain('/freestyle/tricks/whirl');
     expect(res.text).toContain('/freestyle/tricks/legover');
@@ -548,7 +548,7 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
     const app = createApp();
     // legover family has one trick (legover) and no modifier_links rows.
     const res = await request(app).get('/freestyle/tricks?family=legover');
-    expect(res.text).toContain('family-filter-pill'); // sanity: filter active
+    expect(res.text).toMatch(/ family: \d+ tricks?\./); // sanity: filter active
     expect(res.text).not.toContain('class="related-set-groups"');
   });
 });

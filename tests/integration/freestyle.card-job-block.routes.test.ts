@@ -231,7 +231,7 @@ describe('/freestyle/tricks?view=sets — two-line rows (not bare hashtags)', ()
 describe('Movement-system / By-set axis disambiguation', () => {
   it('Movement System intro names the four movement-system groupings + cross-links to By set', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
-    expect(res.text).toMatch(/four big groupings/i);
+    expect(res.text).toMatch(/four big movement families/i);
     expect(res.text).toMatch(/how you enter/i);
     expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=sets"/);
   });

@@ -3914,16 +3914,6 @@ section.home-media { padding-top: 0; }
   white-space: nowrap;
 }
 
-.family-filter-pill {
-  display: inline-block;
-  font-size: 0.85rem;
-  background: var(--gray-100);
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-full);
-  padding: 4px 12px;
-  margin: 0 0 12px 0;
-}
-
 .related-set-groups {
   font-size: 0.85rem;
   margin: 0 0 12px 0;
