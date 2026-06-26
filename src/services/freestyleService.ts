@@ -563,9 +563,9 @@ function classifyNotationBlocker(
   // an undefined folk operator in the name is the blocker, whatever else is present
   if (toks.some(t => NB_UNDEFINED_OPERATORS.has(t))) return 'undefined-operator';
   // weaving is an undefined folk operator still awaiting a doctrine ruling: the only
-  // remaining doctrine block here. Atomic / quantum / nuclear on an eligible receiver
-  // is resolved (X-Dex rides only an eligible far-form receiver dex), so those rows just
-  // need their far/near notation authored; witchdoctor reads as atom-smasher plus
+  // remaining doctrine block here. Atomic / quantum / nuclear are resolved
+  // (X-Dex is a separate +1 scored only where the notation carries [XDEX]), so those rows just
+  // need their notation authored; witchdoctor reads as atom-smasher plus
   // symposium, a curator link, not a doctrine block.
   if (toks.includes('weaving')) return 'red-doctrine';
   // down-family / DOD is a governance / verification call
@@ -2769,8 +2769,8 @@ export interface FreestyleSetDetailContent {
   auditStatus?:         CanonicalSetAuditKey;
   auditStatusLabel?:    string;
   componentMechanicsNote: string;
-  /** Receiver-rule pointer rendered only on the X-Dex-relevant sets
-   *  (atomic / quantum / nuclear). The full rule lives in the glossary
+  /** Notation-authority note rendered on the atomic / quantum / nuclear set pages:
+   *  X-Dex is scored from [XDEX] in the notation. The full rule lives in the glossary
    *  X-Dex entry; this one-liner keeps the set page from silently omitting
    *  a rule its scoring depends on. Undefined on every other set. */
   xDexReceiverNote?:    string;
@@ -3409,7 +3409,7 @@ const SET_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     name:        'Atomic',
     glyph:       null,
     feel:        'Atomic launches a single outward, cross-body dexterity from a toe set, before the base.',
-    intuition:   'A +1 launch primitive: one outward dex from the toe set. Any X-Dex is a separate, receiver-gated event on a following dex, not part of atomic.',
+    intuition:   'A +1 launch primitive: one outward dex from the toe set. Any X-Dex is a separate +1 marked [XDEX] in the notation, not part of atomic.',
     example:     'Atom Smasher = Atomic Mirage; Eggbeater = Atomic Legover.',
     familyHint:  'Atomic stacks with paradox into Nuclear; surfaces in eggbeater, silo, flux, legbeater.',
     midtimeBody: false,
@@ -3459,7 +3459,7 @@ const SET_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     name:        'Furious',
     glyph:       null,
     feel:        'Furious extends the uptime with rotational character.',
-    intuition:   'A set modifier with rotational policy; non-rotational reading under community review.',
+    intuition:   'A two-dex set (+2 on any base); the barraging operator in set-prefix position.',
     example:     'Fury = Furious Paradox Mirage; Nemesis = Furious Barfly.',
     familyHint:  null,
     midtimeBody: false,
@@ -8491,7 +8491,7 @@ export const freestyleService = {
       whirling:  'A body rotation through the dex moment, distinct from spinning by tempo and direction (whirling + osis = blender).',
       stepping:  'A foot relocation during uptime that compresses or lengthens the set.',
       pixie:     'A compressed pre-base uptime set; tighter motion than stepping.',
-      atomic:    'A cross-body uptime set with x-dex character.',
+      atomic:    'A cross-body uptime set (+1). X-Dex, when present, is a separate [XDEX] flag on the following dex.',
       quantum:   'The compressed form of atomic: a tighter uptime treatment.',
       nuclear:   'A +2 set modifier; structurally paradox + illusion.',
       fairy:     'A pre-base uptime set treatment closely related to pixie.',
@@ -9677,7 +9677,7 @@ export const freestyleService = {
     // Pogo are settled and no longer carried as doctrine: the generator routes
     // them to the needs-authoring frontier (structure understood, notation not
     // yet authored). Only Weaving genuinely awaits Red on this frontier; the
-    // other open Red question (the atomic / X-Dex receiver rule) is a
+    // other open Red question (the atomic / X-Dex rule) is a
     // value-migration on the canonical band,
     // not part of this emerging-vocabulary frontier.
     type FrontierCategory =
@@ -9796,7 +9796,7 @@ export const freestyleService = {
     const statBlocks: ObservationalStat[] = [
       { label: 'Canonical candidates', value: String(cc('ready')),          hint: 'every token resolves to a known operator with a clean derived ADD; ready for curation, not auto-published' },
       { label: 'Needs authoring',      value: String(cc('authoring')),      hint: 'structure understood; the movement notation or decomposition is not yet written' },
-      { label: 'Doctrine unresolved',  value: String(cc('red')),            hint: 'awaiting an expert ruling on a movement operator (weaving). A separate atomic / cross-dex receiver question sits on the canonical band, not this frontier' },
+      { label: 'Doctrine unresolved',  value: String(cc('red')),            hint: 'awaiting an expert ruling on a movement operator (weaving). A separate atomic / X-Dex question sits on the canonical band, not this frontier' },
       { label: 'Curator / governance', value: String(cc('governance')),     hint: 'a verification, precedent, or insertion-convention call, not a doctrine ruling (DOD / DDD)' },
       { label: 'Undefined operator',   value: String(cc('undefined')),      hint: 'the name carries a folk operator whose weight or structure is not yet defined; it cannot be authored until that operator is settled' },
       { label: 'Identification',       value: String(cc('identification')), hint: 'a named structure whose identity is not yet confirmed' },
@@ -10081,10 +10081,10 @@ export const freestyleService = {
     };
 
     // Operator reference is only meaningful when the set has a registered
-    // modifier (pixie/fairy/atomic/quantum/nuclear/stepping/surging). Other
-    // sets have no operator-page anchor; omit the field.
+    // modifier (pixie/fairy/atomic/miraging/quantum/nuclear/stepping/surging).
+    // Other sets have no operator-page anchor; omit the field.
     const REGISTERED_MODIFIER_SLUGS = new Set([
-      'pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'stepping', 'surging',
+      'pixie', 'fairy', 'atomic', 'miraging', 'quantum', 'nuclear', 'stepping', 'surging',
     ]);
     const operatorReferenceHref = REGISTERED_MODIFIER_SLUGS.has(set.slug)
       ? `/freestyle/operators#${set.slug}`
@@ -10171,9 +10171,9 @@ export const freestyleService = {
           'are body modifiers, not sets. See the Operators & Modifiers reference.',
         xDexReceiverNote:
           (set.slug === 'atomic' || set.slug === 'quantum' || set.slug === 'nuclear')
-            ? 'After this set, a following far-form dex on an eligible base ' +
-              '(mirage, illusion, whirl, torque, drifter) earns a separate +1 X-Dex. ' +
-              'Near forms, and bases such as swirl, butterfly, or down, do not.'
+            ? 'A following dex marked [XDEX] in the notation scores a separate +1. ' +
+              'X-Dex is recorded explicitly in the notation, never inferred from the ' +
+              'set or the base.'
             : undefined,
         previousSet,
         nextSet,
@@ -10269,14 +10269,15 @@ export const freestyleService = {
       }
     };
 
-    // Flagship-foundational cohort: the 5 literal-primitive true-core sets
+    // Flagship-foundational cohort: the 6 literal-primitive true-core sets
     // that anchor most of the compositional vocabulary. Mirrors the
     // flagship-marker discipline on /freestyle/glossary.
     const FLAGSHIP_SET_TOOLTIPS: Record<string, string> = {
       pixie:    'Flagship set: the simplest +1 uptime entry; anchors terraging / sailing / frantic.',
       fairy:    "Flagship set: pixie's directional mirror (out-dex); anchors the fairy-spinning family.",
       stepping: 'Flagship set: clipper-entry +1; anchors blurry / barraging / shooting / leaning.',
-      atomic:   'Flagship set: out-dex toe entry resolving to op-side; anchors nuclear / fairy-atomic.',
+      atomic:   'Flagship set: out-dex toe entry resolving to op-side; the outward-dex uptime set, anchors nuclear / fairy-atomic.',
+      miraging: "Flagship set: in-dex uptime set; atomic's inward-dex peer, anchors drifter and the miraging cohort.",
       quantum:  "Flagship set: atomic's in-dex sibling; the curator-canonical pt2 replacement for toe-prefix naming.",
     };
 

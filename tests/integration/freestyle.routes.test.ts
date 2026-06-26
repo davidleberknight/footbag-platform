@@ -551,10 +551,10 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
     expect(res.text).toContain('id="operator-paradox"');
     expect(res.text).not.toContain('class="glossary-modifier-card"');
     // Tail keeps only the cross-cutting notes (decomposition concept + alpine +
-    // cross-body); per-modifier depth moved to the detail pages.
+    // notation/ADD components); per-modifier depth moved to the detail pages.
     expect(res.text).toContain('id="advanced-decomposition-operator-theory"');
-    expect(res.text).toContain('id="execution-mechanics"');
-    expect(res.text).toContain('id="cross-body"');
+    expect(res.text).toContain('id="alpine"');
+    expect(res.text).toContain('id="notation-components"');
     // The per-modifier reference dl/grid no longer renders on the operators page.
     expect(res.text).not.toContain('id="intermediate-operators"');
     expect(res.text).not.toContain('id="set-modifiers-tier-1"');
@@ -800,7 +800,7 @@ describe('GET /freestyle/glossary §6 is the per-modifier reference home (operat
     }
     // The operators page keeps only the cross-cutting tail.
     expect(operators.text).toContain('id="advanced-decomposition-operator-theory"');
-    expect(operators.text).toContain('id="cross-body"');
+    expect(operators.text).toContain('id="notation-components"');
     // Feel cards are glossary-only.
     expect(glossary.text).toContain('class="glossary-modifier-card"');
     expect(operators.text).not.toContain('class="glossary-modifier-card"');
@@ -1284,7 +1284,8 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
     // rendered text changes.
     expect(res.text).toMatch(/>gyro<\/span>\s*<span[^>]*>torque</);            // reading 0 (no abbreviations)
     expect(res.text).toMatch(/>spinning<\/span>\s*<span[^>]*>same-side</);     // reading 1 (ss → same-side)
-    expect(res.text).toMatch(/>miraging<\/span>\s*<span[^>]*>opposite</);      // reading 2 (op → opposite)
+    // miraging is now a registered operator, so it auto-links like atomic.
+    expect(res.text).toMatch(/>miraging<\/a>\s*<span[^>]*>opposite</);         // reading 2 (op → opposite)
     // Last reading: tokenized; osis is a CORE atom → auto-linked
     expect(res.text).toMatch(/href="\/freestyle\/glossary#term-osis"[^>]*>osis</);
     // Ordering: depth-0 before depth-1 before depth-2

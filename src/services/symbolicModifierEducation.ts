@@ -275,7 +275,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
     {
       heading: 'Paradox vs xdex',
       prose:
-        'Paradox and X-Dex are not the same thing. Paradox is a dex relationship (a side-switching hip pivot) worth +1 on any base. X-Dex is a separate conditional +1 that a following dex earns only when it is the far form of an eligible receiver (mirage, illusion, whirl, torque, drifter), and only when the dex before it is not a paradox. A paradox dex never triggers X-Dex. When you mean a universal +1 hip-pivot, the modifier is paradox.',
+        'Paradox and X-Dex are not the same thing. Paradox is a dex relationship (a side-switching hip pivot) worth +1 on any base. X-Dex is a separate conditional +1 scored only where the notation carries [XDEX]; it does not fire from the base type, and only when the dex before it is not a paradox. A paradox dex never triggers X-Dex. When you mean a universal +1 hip-pivot, the modifier is paradox.',
     },
     {
       heading: 'Paradox vs symposium',
@@ -361,7 +361,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
   relatedModifiers: [
     {
       name:  'xdex',
-      prose: 'Not a paradox sibling: a conditional +1 a following dex earns only as the far form of an eligible receiver (mirage, illusion, whirl, torque, drifter), and only after a non-paradox dex.',
+      prose: 'Not a paradox sibling: a conditional +1 scored only where the notation carries [XDEX]; not inferred from the base type, and only after a non-paradox dex.',
     },
     {
       name:  'symposium',

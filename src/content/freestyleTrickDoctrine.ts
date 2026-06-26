@@ -124,7 +124,7 @@ export const DOCTRINE_DIVERGENCE_REGISTRY: ReadonlyMap<string, DoctrineDivergenc
     sourceClaim:        3,
     canonicalValue:     4,
     noteVisibility:     'public',
-    provenanceNote:     'An outside source historically lists predator at 3 ADD. The executable IFPA-grammar derivation yields 4 ADD via atomic(+1 non-rotational) + dlo(3); the 1-ADD divergence may reflect an implicit paradox-atomic framing under review.',
+    provenanceNote:     'An outside source historically lists predator at 3 ADD. The executable IFPA-grammar derivation yields 4 ADD via atomic(+1) + dlo(3); the 1-ADD divergence may reflect an implicit paradox-atomic framing under review.',
     internalNote:       'Doctrine-divergence pilot publication. PB-claim 3 vs IFPA-derived 4. Strongest single-row evidence for Q7 hypothesis (B): IFPA\'s `Atomic X` may read as `Paradox Atomic X` per pt10 framing, making the implicit paradox the source of the +1 gap.',
     relatedRedQuestion: 'Q7',
     status:             'published',

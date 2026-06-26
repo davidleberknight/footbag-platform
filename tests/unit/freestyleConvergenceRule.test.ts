@@ -24,10 +24,10 @@
 import { describe, it, expect } from 'vitest';
 import { assertFirstClassConvergence } from '../../src/services/freestyleService';
 
-// Standard modifier-table fixture mirroring DB shape post-Slice R1
-// (barraging weight 1 → 2 already applied).
+// Standard modifier-table fixture mirroring the DB shape: every modifier
+// carries equal add_bonus and add_bonus_rotational (atomic is +1 on any base).
 const modifierTable = new Map<string, { add_bonus: number; add_bonus_rotational: number }>([
-  ['atomic',    { add_bonus: 1, add_bonus_rotational: 2 }],
+  ['atomic',    { add_bonus: 1, add_bonus_rotational: 1 }],
   ['paradox',   { add_bonus: 1, add_bonus_rotational: 1 }],
   ['symposium', { add_bonus: 1, add_bonus_rotational: 1 }],
   ['stepping',  { add_bonus: 1, add_bonus_rotational: 1 }],

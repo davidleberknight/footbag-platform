@@ -43,7 +43,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
       { slug: 'paradox_mirage', label: 'paradox-mirage', note: 'Adds paradox hip-pivot topology to the in-to-out dex.' },
       { slug: 'blur',           label: 'blur',           note: 'Stepping multi-dex extension over the paradox-mirage chassis.' },
       { slug: 'fury',           label: 'fury',           note: 'Three-dex extension on the blur chassis.' },
-      { slug: 'sumo',           label: 'sumo',           note: 'Nuclear x-dex escalation; 5 ADD named exception.' },
+      { slug: 'sumo',           label: 'sumo',           note: 'Nuclear with an [XDEX] in its notation; 5 ADD.' },
       { slug: 'drifter',        label: 'drifter',        note: 'Terminal-surface shift from toe delay to clipper stall.' },
     ],
   },
@@ -56,7 +56,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
     productiveDescendants: [
       { slug: 'blur',     label: 'blur',     note: 'Stepping multi-dex on the paradox-mirage chassis; major productive anchor in its own right.' },
       { slug: 'fury',     label: 'fury',     note: 'Three-dex extension (furious paradox mirage).' },
-      { slug: 'sumo',     label: 'sumo',     note: 'Nuclear x-dex escalation; 5 ADD named exception.' },
+      { slug: 'sumo',     label: 'sumo',     note: 'Nuclear with an [XDEX] in its notation; 5 ADD.' },
       { slug: 'surreal',  label: 'surreal',  note: 'Surging rotational system layered on paradox-whirl, mirror-pattern descendant.' },
     ],
   },
@@ -128,7 +128,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'osis',
     prose:
-      "Osis anchors one of the dictionary's most productive trees. The spin-into-clipper structural signature composes naturally with body modifiers (ducking-osis, spinning-osis, atomic-osis), with paradox topology (paradox-osis), with x-dex character (atomic-osis as the explicit case; stepping-osis as the multi-dex case), with set treatments (pixie-osis), with rotational layering producing compound-of-canonicals (torque = miraging-osis; blender = whirling-osis), and with naming-driven extensions (twirl, aeon-flux, barraging-osis). The osis family is among the broadest at the 4-5 ADD layer.",
+      "Osis anchors one of the dictionary's most productive trees. The spin-into-clipper structural signature composes naturally with body modifiers (ducking-osis, spinning-osis, atomic-osis), with paradox topology (paradox-osis), with an X-Dex where the notation carries [XDEX] (atomic-osis; stepping-osis as the multi-dex case), with set treatments (pixie-osis), with rotational layering producing compound-of-canonicals (torque = miraging-osis; blender = whirling-osis), and with naming-driven extensions (twirl, aeon-flux, barraging-osis). The osis family is among the broadest at the 4-5 ADD layer.",
     productiveDescendants: [
       { slug: 'torque',         label: 'torque',         note: 'Miraging-osis compound; sub-family anchor in its own right.' },
       { slug: 'blender',        label: 'blender',        note: 'Whirling-osis compound; compound-of-canonicals exemplar.' },

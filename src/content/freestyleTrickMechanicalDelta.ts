@@ -103,8 +103,8 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     slug:        'fury',
     parentSlugs: ['paradox_mirage'],
     prose:
-      "Relative to paradox-mirage, fury layers a furious multi-dex stack that extends the pattern across additional dex moments. Where blur adds a single stepping dex onto the paradox-mirage chassis, fury layers a furious modifier whose mechanical signature is a deeper multi-dex sequence with the paradox hip-pivot threaded through the catch end.\n\n" +
-      "The furious operator carries +2 on the mirage chassis (a doctrine-internal scaling rule for bases with rotational character; +1 elsewhere), yielding 5 ADD: furious(+2) + paradox(+1) + mirage(2). The chain reading replaces an earlier paradox + barraging + mirage decomposition that arrived at the same 5 ADD via a different operator stack.",
+      "Relative to paradox-mirage, fury adds the furious two-dex set: two same-direction dex steps on the set, with the paradox hip-pivot threaded through the catch end. Where blur adds a single stepping dex onto the paradox-mirage chassis, fury adds the two-dex barraging pattern instead.\n\n" +
+      "The furious set carries +2, yielding 5 ADD: furious(+2) + paradox(+1) + mirage(2). Furious and barraging name the same two-dex set.",
     topologyKind: 'paradox',
   },
 
@@ -112,8 +112,8 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     slug:        'sumo',
     parentSlugs: ['mirage'],
     prose:
-      "Relative to mirage, sumo carries a nuclear modifier and an implicit X-Dex transition. The dex direction shifts to outside-then-inside (the same pattern atom-smasher uses) and the body posture widens into a nuclear stance through the dex cycle.\n\n" +
-      "The 5-ADD count exceeds what the standard +2 nuclear rule would produce (nuclear(+2) + mirage(2) = 4 ADD). The extra +1 traces to the implicit X-Dex escalation: certain nuclear-mirage compounds read as carrying an X-Dex character even when the notation does not name it explicitly. Sumo is the doctrine's named exemplar for this named exception: the structural reading is settled at 5 ADD even though the operator-board math without the named exception would suggest 4.",
+      "Relative to mirage, sumo carries a nuclear modifier and an X-Dex transition. The dex direction shifts to outside-then-inside (the same pattern atom-smasher uses) and the body posture widens into a nuclear stance through the dex cycle.\n\n" +
+      "The 5-ADD count exceeds what the standard +2 nuclear rule would produce (nuclear(+2) + mirage(2) = 4 ADD). Sumo's operational notation carries [XDEX] on the far mirage dex, which scores a separate +1; the folk name 'sumo' compresses this detail. Its structural reading is settled at 5 ADD because the notation carries that [XDEX]; the score follows the notation, not the operator-board base math.",
     topologyKind: 'x-dex',
   },
 
@@ -130,8 +130,8 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     slug:        'atom_smasher',
     parentSlugs: ['mirage'],
     prose:
-      "Relative to mirage, atom-smasher reverses and stretches the dex direction into an outside-then-inside sequence: the canonical X-Dex character. Where mirage swings the support leg under-and-over inside-then-outside, atom-smasher swings it in the opposite direction, producing a wider cross-body arc during the dex and recatching on the opposite toe.\n\n" +
-      "The atomic operator adds +1, and atom-smasher carries an explicit X-Dex(+1) on the following dex, yielding 4 ADD on the mirage chassis: atomic(+1) + X-Dex(+1) + mirage(2). Atom-smasher is the canonical exemplar of an EXPLICIT X-Dex pattern: the outside-then-inside dex is read directly in the canonical name (\"atomic mirage\"). Sumo, by contrast, is the implicit-X-Dex counterpart where the X-Dex character pushes ADD beyond the standard +2 nuclear rule but is not named in the canonical.",
+      "Relative to mirage, atom-smasher reverses and stretches the dex direction into an outside-then-inside sequence, the dex its notation marks [XDEX]. Where mirage swings the support leg under-and-over inside-then-outside, atom-smasher swings it in the opposite direction, producing a wider cross-body arc during the dex and recatching on the opposite toe.\n\n" +
+      "The atomic operator adds +1, and atom-smasher carries an X-Dex(+1) on the following dex, yielding 4 ADD on the mirage chassis: atomic(+1) + X-Dex(+1) + mirage(2). X-Dex is scored from the [XDEX] flag in the operational notation. Atom Smasher's notation carries it; Sumo's notation also carries [XDEX] on the mirage dex, though the folk name 'sumo' does not surface it.",
     topologyKind: 'x-dex',
   },
 
@@ -169,7 +169,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     parentSlugs: ['paradox_whirl', 'whirl'],
     prose:
       "Relative to paradox-whirl, surreal layers a surging rotational system that adds a back-spin entry and an additional dex moment onto the chassis. Where paradox-whirl carries a single dex with paradox hip-pivot threaded through, surreal stacks a back-spin body modifier before the dex sequence and continues into a paradox-whirl-style dex to close.\n\n" +
-      "The 6-ADD count comes from surging(+2 on rotational character) + paradox(+1) + whirl(3). Surreal sits at the top of the rotational-topology ladder: the deepest commonly-named compound on the whirl chassis with multiple modifier layers stacked. The structural signature combines rotational character at three points: whirl's rotational dex, paradox's cross-body hip-pivot, and surging's back-spin entry.",
+      "The 6-ADD count comes from surging(+2) + paradox(+1) + whirl(3). Surging decomposes to spinning + stepping, a flat +2 on any base. Surreal sits at the top of the rotational-topology ladder: the deepest commonly-named compound on the whirl chassis with multiple modifier layers stacked. The structural signature combines rotational character at three points: whirl's rotational dex, paradox's cross-body hip-pivot, and surging's back-spin entry.",
     topologyKind: 'rotational',
   },
 

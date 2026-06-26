@@ -49,10 +49,11 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
       'begins. Pre-base uptime treatments, compressed-set families, and ' +
       'compound set modifiers (nuclear = paradox + illusion, quantum = ' +
       'compressed atomic).',
-    // Order: pixie / fairy (pre-base uptime compressors); atomic / quantum / nuclear
-    // (atomic family, pt10 relationships); stepping / surging (set-foot relocations);
-    // whirling (the whirl dex performed during uptime, before the bag peaks).
-    modifierSlugs:  ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'stepping', 'surging', 'whirling'],
+    // Order: pixie / fairy (pre-base uptime compressors); atomic / miraging
+    // (peer outward-dex and inward-dex uptime sets); quantum / nuclear; stepping /
+    // surging (set-foot relocations); whirling (the whirl dex performed during
+    // uptime, before the bag peaks).
+    modifierSlugs:  ['pixie', 'fairy', 'atomic', 'miraging', 'quantum', 'nuclear', 'stepping', 'surging', 'whirling'],
   },
   {
     axisKey:        'entry-topology',
@@ -167,13 +168,12 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
   ],
   ['atomic',
     'ATOMIC + base: a launch set adding one outward dexterity before the base, +1. ' +
-    'Any X-Dex is a separate, receiver-gated +1 on the following far-form dex ' +
-    '(mirage, illusion, whirl, torque, drifter); not part of atomic, never automatic. ' +
+    'Any X-Dex is a separate +1 marked [XDEX] in the notation; it is not part of atomic and is never inferred. ' +
     'Compounds: ATOMIC + TORQUE, ATOMIC + MIRAGE.',
   ],
   ['quantum',
     'QUANTUM + base: a compressed atomic launch, one inward dexterity before the base, +1. ' +
-    'Any X-Dex is a separate, receiver-gated +1 on the following far-form dex, not part of quantum. ' +
+    'Any X-Dex is a separate +1 marked [XDEX] in the notation, not part of quantum. ' +
     'Compounds: QUANTUM + MIRAGE, QUANTUM + OSIS.',
   ],
   ['nuclear',

@@ -80,14 +80,14 @@ Controlling the bag on a surface.
 
 ### X-Dex
 
-A conditional extra dexterity worth +1. It fires only when a following dex is the far form of an eligible base and the dex before it is not a paradox. Eligible bases (receivers) are mirage, illusion, whirl, torque, and drifter. Swirl, butterfly, barfly, and the down (double-over-down) family never carry it. The near (default) form of an eligible base scores no X-Dex; only the far form does. Modifiers such as ducking or gyro do not change which bases are eligible.
+A conditional extra dexterity worth +1. It is scored wherever the operational notation carries the `[XDEX]` marker on a dex; the notation is the source of truth. X-Dex is its own component: it is never part of a modifier's own weight, and it is never assumed from an operator name.
+
+Historically, `[XDEX]` was recorded on the far form of certain bases (mirage, illusion, whirl, torque, drifter) and not on others (swirl, butterfly, barfly, the down family); the notation now carries that judgement directly, so a dex scores X-Dex only where `[XDEX]` is written.
 
 **Examples:**
 
-* Atomic Torque (Silo) = 5, no X-Dex (near form)
-* Atomic Far Torque = 6 (far form fires it)
-* Atomic Miraging Butterfly = 5 (butterfly is not a receiver)
-* Atom Smasher does fire it
+* Atom Smasher carries `[XDEX]` and scores the extra +1
+* Atomic Miraging Butterfly does not carry `[XDEX]`
 
 ---
 

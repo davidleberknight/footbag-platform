@@ -209,7 +209,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'atomic(+1) + butterfly(3) = 4 ADD',
-    provenance:  'atomic = +1 on non-rotational bases; butterfly = 3 ADD core atom',
+    provenance:  'atomic = +1; butterfly = 3 ADD core atom',
   },
   {
     slug:        'ducking_butterfly',
@@ -350,7 +350,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'atomic(+1) + legover(2) = 3 ADD',
-    provenance:  'pt4 settled: eggbeater = atomic legover. atomic = +1 on non-rotational; legover = 2 ADD core atom',
+    provenance:  'pt4 settled: eggbeater = atomic legover. atomic = +1; legover = 2 ADD core atom',
   },
   {
     slug:        'ducking_clipper',
@@ -547,7 +547,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //
   // fury: Red pt6 overrode pt4 (paradox+barraging+mirage)
   // with the cleaner furious-paradox-mirage reading. furious is +2 on
-  // rotational bases (mirage is rotational), +1 on non-rotational.
+  // furious = +2 universally (two-dex set, the barraging pattern).
   //
   // fog: Red pt6 MODEL_CHANGE: Fog does NOT contain an
   // eggbeater (Bedwetter does). Decomposition uses dlo (double-leg-over)
@@ -560,9 +560,9 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'mirage',
     baseAdd:     2,
     totalAdd:    5,
-    derivation:  'furious(+2 rotational) + paradox(+1) + mirage(2) = 5 ADD',
+    derivation:  'furious(+2) + paradox(+1) + mirage(2) = 5 ADD',
     operationalNotation: 'CLIP > SAME IN [DEX] >> OP IN [PDX] [DEX] > OP TOE [DEL]',  // Sibling-derivation; furious multi-dex pattern (nemesis precedent) + paradox-mirage stack; not Red-confirmed (Red pt6 ruled the chain reading but not the operational notation).
-    provenance:  'Red pt6: Fury = Furious Paradox Mirage (replaces pt4 paradox+barraging+mirage decomposition; ADD 5 unchanged). furious modifier is +1 non-rotational / +2 rotational; applied to mirage (rotational base) yields +2. Chain reading published in freestyleSymbolicEquivalences.ts.',
+    provenance:  'Red pt6: Fury = Furious Paradox Mirage (replaces pt4 paradox+barraging+mirage decomposition; ADD 5 unchanged). furious modifier is +2 universally (two-dex set, the barraging pattern). Chain reading published in freestyleSymbolicEquivalences.ts.',
   },
   {
     slug:        'fog',
@@ -688,7 +688,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'atomic(+1) + pickup(2) = 3 ADD',
-    provenance:  'atomic = +1 non-rotational set modifier; pickup = 2 ADD core atom.',
+    provenance:  'atomic = +1 set modifier; pickup = 2 ADD core atom.',
   },
   {
     slug:        'tap',
@@ -1394,8 +1394,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'double-leg-over',
     baseAdd:     3,
     totalAdd:    4,
-    derivation:  'atomic(+1 non-rotational) + dlo(3) = 4 ADD',
-    provenance:  'atomic = +1 non-rotational set modifier; double-leg-over (dlo) = 3 ADD compound base (dlo not in FIRST_CLASS_ROTATIONAL_BASES). PassBack source claims 3 ADD; the +1 gap may reflect pt10\'s implicit paradox-atomic framing per Red Q7. Doctrine-divergence pilot.',
+    derivation:  'atomic(+1) + dlo(3) = 4 ADD',
+    provenance:  'atomic = +1 set modifier; double-leg-over (dlo) = 3 ADD compound base. PassBack source claims 3 ADD; the +1 gap may reflect pt10\'s implicit paradox-atomic framing per Red Q7. Doctrine-divergence pilot.',
   },
   {
     slug:        'schmoe',
@@ -1472,9 +1472,9 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'illusion',
     baseAdd:     2,
     totalAdd:    3,
-    derivation:  'atomic(+1 non-rotational) + illusion(2) = 3 ADD',
+    derivation:  'atomic(+1) + illusion(2) = 3 ADD',
     operationalNotation: 'SET > OP OUT [DEX] >> OP IN [DEX] > OP TOE [DEL]',  // Sibling-derivation; chain reading "atomic illusion" (pt2 + followup-2026-04 locked) drives the derivation despite DB base_trick=pickup; structural conflict noted in audit; not Red-confirmed for operational notation.
-    provenance:  'Chain reading "atomic illusion" per freestyleSymbolicEquivalences.ts (pt2 + followup-2026-04 locked) — derivation follows the chain, NOT the DB base_trick=pickup. Structural conflict between chain reading and DB base flagged in audit Bucket A (medium confidence). atomic = +1 non-rotational set modifier; illusion = 2 ADD core atom. Bucket A derivation backfill.',
+    provenance:  'Chain reading "atomic illusion" per freestyleSymbolicEquivalences.ts (pt2 + followup-2026-04 locked) — derivation follows the chain, NOT the DB base_trick=pickup. Structural conflict between chain reading and DB base flagged in audit Bucket A (medium confidence). atomic = +1 set modifier; illusion = 2 ADD core atom. Bucket A derivation backfill.',
   },
 
   // ─── Foundational-vocabulary promotion ─────────────────────────────────
@@ -1875,7 +1875,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    4,
     derivation:  'atomic(+1) + osis(3) = 4 ADD ([DEX] + [BOD] + [XBD] + [DEL])',
     operationalNotation: 'TOE > OP OUT [DEX] > (FRONT) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed. Atomic prefix manifests as (FRONT) SPIN [BOD] mid-trick rather than at the front.
-    provenance:  'Deferred-candidate promotion. atomic = +1 non-rotational body modifier (Red-settled canonical inventory); osis = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim. FB.org alias "Atomic Osis" wired via aliases column.',
+    provenance:  'Deferred-candidate promotion. atomic = +1 set modifier (Red-settled canonical inventory); osis = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim. FB.org alias "Atomic Osis" wired via aliases column.',
   },
 
   // ─── Double-over-down-swirl promotion (extends just-shipped

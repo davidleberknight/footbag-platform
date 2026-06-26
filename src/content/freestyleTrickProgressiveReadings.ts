@@ -157,7 +157,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'ADD accounting',
-        reading: "furious(+2) + paradox(+1) + mirage(2) = 5 ADD. The +2 for furious applies on bases with rotational character (a doctrine-internal scaling rule); +1 on bases without.",
+        reading: "furious(+2) + paradox(+1) + mirage(2) = 5 ADD. Furious is a two-dex set: +2 on any base (the barraging pattern).",
       },
       {
         stage:   'Doctrine evolution',
@@ -178,12 +178,12 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
         reading: "The standard +2 nuclear rule on the mirage chassis would suggest nuclear(+2) + mirage(2) = 4 ADD.",
       },
       {
-        stage:   'X-Dex escalation: named exception',
-        reading: "Sumo is the doctrine's named exemplar where the standard rule does not hold: an implicit X-Dex transition pushes the ADD to 5 even though the canonical name does not surface the X-Dex explicitly.",
+        stage:   'X-Dex from the notation',
+        reading: "Sumo's operational notation carries [XDEX] on the mirage dex, which scores a separate +1; the canonical folk name compresses this.",
       },
       {
         stage:   'Operational notation',
-        reading: "CLIP > SAME OUT [DEX] [PDX] >> OP IN [DEX] [XDEX] > OP TOE [DEL]. The [XDEX] marker carries the named exception in the operational notation; the canonical-name reading is the higher-level folk handle \"sumo\".",
+        reading: "CLIP > SAME OUT [DEX] [PDX] >> OP IN [DEX] [XDEX] > OP TOE [DEL]. The [XDEX] marker scores the extra +1 directly in the operational notation; the canonical-name reading is the higher-level folk handle \"sumo\".",
       },
       {
         stage:   'ADD accounting',
@@ -227,19 +227,19 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'X-Dex reversal',
-        reading: "Reversing the dex direction to outside-then-inside produces the X-Dex character: same surfaces, opposite directional flow.",
+        reading: "Reversing the dex direction to outside-then-inside is the pattern whose dex the notation marks [XDEX]: same surfaces, opposite directional flow.",
       },
       {
         stage:   'Atomic operator',
-        reading: "Layering atomic onto mirage produces atom-smasher: atomic(+1) plus an explicit X-Dex(+1) on the following dex + mirage(2) = 4 ADD.",
+        reading: "Layering atomic onto mirage produces atom-smasher: atomic(+1) plus a separate [XDEX] component (+1) on the following dex + mirage(2) = 4 ADD.",
       },
       {
-        stage:   'Explicit vs implicit X-Dex',
-        reading: "The canonical name surfaces the X-Dex character openly (\"atomic mirage\"). Sumo by contrast names only the nuclear operator while the X-Dex character is implicit and surfaces only in the ADD accounting.",
+        stage:   'X-Dex is scored from the notation',
+        reading: "X-Dex is scored wherever the operational notation carries [XDEX]; the canonical folk name may or may not surface it. Both atom-smasher and sumo carry [XDEX] in their notation.",
       },
       {
         stage:   'Pedagogical sibling',
-        reading: "Atom-smasher and sumo together demonstrate the explicit-vs-implicit X-Dex distinction in the doctrine.",
+        reading: "Atom-smasher and sumo both carry [XDEX] in their operational notation; X-Dex is scored from that flag, not inferred from the name.",
       },
     ],
   },
@@ -341,7 +341,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'ADD accounting',
-        reading: "surging(+2 on rotational character) + paradox(+1) + whirl(3) = 6 ADD.",
+        reading: "surging(+2) + paradox(+1) + whirl(3) = 6 ADD.",
       },
       {
         stage:   'Family-language summary',

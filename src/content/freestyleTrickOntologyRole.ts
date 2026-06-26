@@ -68,7 +68,7 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
     slug: 'sumo',
     role: 'X-dex escalation locus',
     prose:
-      "Sumo is the canonical exemplar for nuclear-mirage compounds that escalate beyond the standard +2 nuclear rule via implicit X-Dex character. Where most nuclear modifiers add +2 cleanly onto the base ADD, certain compounds (sumo among them) read as carrying an additional X-Dex transition that pushes the ADD higher than the operator-board math would suggest. The doctrine names sumo specifically because the structural reading is settled at 5 ADD via the named exception, demonstrating that ADD arithmetic sometimes follows named-exception rules rather than mechanical addition.",
+      "Sumo's 5 ADD is explained by the [XDEX] flag in its operational notation. Where most nuclear modifiers add +2 cleanly onto the base ADD, sumo's notation carries an [XDEX] on a dex, which scores a separate +1 above the operator-board base math. Its structural reading is settled at 5 ADD because the notation carries that [XDEX]; the score follows the notation, not the operator name.",
   },
 
   {
@@ -80,9 +80,9 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
 
   {
     slug: 'atom_smasher',
-    role: 'Explicit X-Dex exemplar',
+    role: 'X-Dex exemplar',
     prose:
-      "Atom-smasher is the canonical exemplar for explicit X-Dex compounds on the mirage chassis. Where sumo demonstrates implicit X-Dex (the canonical name does not surface the X-Dex character but ADD accounting requires it), atom-smasher demonstrates the explicit case: the outside-then-inside dex sequence is the structural signature, and the operator name (\"atomic\") carries the X-Dex character openly. Atom-smasher pairs with sumo as the explicit-vs-implicit X-Dex pair in the doctrine.",
+      "Atom-smasher is the canonical exemplar for X-Dex compounds on the mirage chassis; its notation carries [XDEX]. Both atom-smasher and sumo carry [XDEX] in their operational notation; X-Dex is scored from that flag, not from the operator name. The folk name may or may not surface it.",
   },
 
   {

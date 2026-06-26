@@ -187,8 +187,8 @@ export const EQUIVALENCE_TOPOLOGY: readonly EquivalenceTopologyEntry[] = [
     curatorNote:
       'The alternate flat-stack reading\'s naïve total (4) differs ' +
       'from the canonical ADD (5); the 1-component gap is what the ' +
-      'composite-base reading resolves (atom-smasher already carries ' +
-      'an X-dex from a toe, contributing the additional +1). The ' +
+      'composite-base reading resolves (atom-smasher\'s notation carries ' +
+      '[XDEX], contributing the additional +1). The ' +
       'alternate is preserved as historical/pedagogical context, not ' +
       'as a competing arithmetic claim.',
   },

@@ -51,7 +51,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'X-dex escalation',
         prose:
-          "Layering a nuclear modifier on paradox-mirage produces sumo, a named exception where the nuclear escalation reads as 5 ADD rather than the standard +2 nuclear rule. Sumo is the canonical x-dex escalation locus.",
+          "Layering a nuclear modifier on paradox-mirage produces sumo, which reads as 5 ADD because its notation carries an [XDEX] above the standard +2 nuclear base. Sumo is the canonical X-Dex locus.",
         exemplarSlugs: ['sumo'],
       },
       {
@@ -82,7 +82,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'X-dex escalation',
         prose:
-          "Layering a nuclear modifier escalates paradox-mirage into sumo, a 5-ADD named exception to the standard +2 nuclear rule.",
+          "Layering a nuclear modifier escalates paradox-mirage into sumo, which reads 5 ADD because its notation carries an [XDEX] above the +2 nuclear base.",
         exemplarSlugs: ['sumo'],
       },
       {

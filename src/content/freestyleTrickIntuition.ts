@@ -141,7 +141,7 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
     slug: 'atom_smasher',
     prose:
-      "Atom-smasher feels like a mirage with the dex direction reversed and stretched. The support leg swings outside-then-inside rather than inside-then-outside: the X-Dex character. The body works through a wider arc during the dex, and the catch arrives on the opposite toe after the bag passes through a broader cross-body trajectory than ordinary mirage. The rhythm holds the mirage cadence but feels weightier through the wider dex.",
+      "Atom-smasher feels like a mirage with the dex direction reversed and stretched. The support leg swings outside-then-inside rather than inside-then-outside, the dex its notation marks [XDEX]. The body works through a wider arc during the dex, and the catch arrives on the opposite toe after the bag passes through a broader cross-body trajectory than ordinary mirage. The rhythm holds the mirage cadence but feels weightier through the wider dex.",
     attribution: '',
   },
   {

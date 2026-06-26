@@ -285,10 +285,10 @@ describe('GET /freestyle/sets — S1 ★ flagship marker on 5 foundational sets'
     },
   );
 
-  it('the flagship cohort is exactly 5 cards (matches FLAGSHIP_SET_TOOLTIPS in the service)', async () => {
+  it('the flagship cohort is exactly 6 cards (matches FLAGSHIP_SET_TOOLTIPS in the service)', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
     const flagshipMatches = res.text.match(/sets-encyclopedia-card-flagship/g) ?? [];
-    expect(flagshipMatches.length).toBe(5);
+    expect(flagshipMatches.length).toBe(6);
   });
 });
 

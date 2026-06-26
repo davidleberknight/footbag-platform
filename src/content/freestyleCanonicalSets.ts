@@ -182,7 +182,7 @@ export const SET_SUBTYPE_SPECS: readonly SubtypeSpec[] = [
 
 export const CANONICAL_SETS: readonly CanonicalSet[] = [
 
-  // ── True core sets (10) ────────────────────────────────────────────
+  // ── True core sets (11) ────────────────────────────────────────────
   {
     slug: 'toe', hashtag: '#set_toe', displayName: 'Toe Set', subtype: 'true-core',
     formula: 'TOE >',
@@ -291,6 +291,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     ],
     relatedSystems: [
       { slug: 'atomic',   label: 'Atomic (outward counterpart, op-side terminal)' },
+      { slug: 'miraging', label: 'Miraging (inward-dex sibling; the non-terminating uptime form of the same inward shape)' },
       { slug: 'slapping', label: 'Slapping (same-side-component sibling)' },
     ],
     source: 'platform-tracked',
@@ -318,7 +319,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     ],
     relatedSystems: [
       { slug: 'quantum',  label: 'Quantum (inward counterpart, op-side terminal)' },
-      { slug: 'miraging', label: 'Miraging (inward-dex mirror of the illusioning reading)' },
+      { slug: 'miraging', label: 'Miraging (inward-dex peer; the opposite-direction uptime set)' },
       { slug: 'nuclear',  label: 'Nuclear (platform reading: paradox + illusion)' },
     ],
     source: 'platform-tracked',
@@ -376,15 +377,13 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     auditStatus: 'holden-only',
     tier: 'literal-primitive',
   },
-
-  // ── Composite / derived sets (10) ──────────────────────────────────
   {
-    slug: 'miraging', hashtag: '#set_miraging', displayName: 'Miraging', subtype: 'composite-derived',
+    slug: 'miraging', hashtag: '#set_miraging', displayName: 'Miraging', subtype: 'true-core',
     formula: 'SET > OP IN [DEX] >',
     movementExplanation:
-      'A derived entry topology readable as the mirage shape compressed into an uptime ' +
-      'set: same dex direction and side, terminal toe-stall omitted because the set ' +
-      'continues into the next move.',
+      'A set with an opposite-side inward dex; the uptime motion mirrors the mirage ' +
+      'shape, with the terminal toe-stall omitted as the set continues into the next ' +
+      'move. The inward-dex peer of atomic\'s outward-dex set.',
     equivalenceNotes: [
       { reading: 'uptime mirage structure', citation: 'Structural reading' },
     ],
@@ -392,12 +391,17 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'flailing', label: 'Flailing (Symposium Reverse Miraging)' },
       { slug: 'surging',  label: 'Surging (Holden reading: spinning miraging)' },
     ],
-    relatedSystems: [],
+    relatedSystems: [
+      { slug: 'atomic',  label: 'Atomic (outward-dex peer; the opposite-direction uptime set)' },
+      { slug: 'quantum', label: 'Quantum (inward-dex sibling; the terminating compressed-set form of the same inward shape)' },
+    ],
     source: 'platform-tracked',
     sourceCitation: 'Holden compilation (2003); aligned with platform notation.',
     auditStatus: 'aligned',
-    tier: 'compositional-system',
+    tier: 'literal-primitive',
   },
+
+  // ── Composite / derived sets (9) ──────────────────────────────────
   {
     slug: 'terraging', hashtag: '#set_terraging', displayName: 'Terraging', subtype: 'composite-derived',
     formula: 'TOE > SAME IN [DEX] > SAME IN [DEX] >',

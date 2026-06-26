@@ -253,8 +253,8 @@ describe('GET /freestyle/add-analysis — Phase 1 refactor (2026-05-21)', () => 
     expect(res.text).toContain('add-analysis-callout--spin');
     expect(res.text).toMatch(/spin flag is a rotational/i);
     expect(res.text).toMatch(/spinning operator is a body modifier/i);
-    expect(res.text).toMatch(/rotational character is a property/i);
-    expect(res.text).toMatch(/\+2 instead of \+1/);
+    expect(res.text).toMatch(/rotational character describes atoms/i);
+    expect(res.text).toMatch(/atomic is \+1 on every base/i);
   });
 
   it('operator-axis rows are labeled as a pedagogical organizing convention, not an official grouping', async () => {
@@ -389,7 +389,9 @@ describe('GET /freestyle/add-analysis — discrepancy case studies', () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toContain('Sumo');
     expect(res.text).toContain('Genesis');
-    expect(res.text).toMatch(/named X-Dex exception/);
+    // Sumo's mention is now notation-authoritative; Genesis keeps the retired
+    // rotational-escalation only as a historical, external-source note.
+    expect(res.text).toMatch(/\[XDEX\] flag in its operational notation/);
     expect(res.text).toMatch(/rotational-escalation/);
   });
 });

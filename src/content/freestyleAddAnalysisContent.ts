@@ -183,8 +183,8 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
   // pedagogical / organizational convention, NOT a canonical
   // single-valued taxonomy. Unresolved-doctrine weightings are marked TBD.
   {
-    componentClass: 'Set / Uptime modifiers: pixie, fairy, atomic, quantum, nuclear, blurry, barraging (pedagogical axis, not an official grouping)',
-    contribution:   'pixie / fairy / quantum +1; atomic +1 (rotational bases may carry a separate +1 X-Dex on the following dex); nuclear +2 (= paradox + illusion); blurry +1 (implies stepping); barraging +2 (a two-dex set).',
+    componentClass: 'Set / Uptime modifiers: pixie, fairy, atomic, quantum, nuclear, blurry, barraging / furious (pedagogical axis, not an official grouping)',
+    contribution:   'pixie / fairy / quantum +1; atomic +1 (a separate +1 X-Dex applies only where [XDEX] appears in the notation of the following dex); nuclear +2 (= paradox + illusion); blurry +1 (implies stepping); barraging +2 (a two-dex set; also called furious).',
     example:        'atomic + mirage = atom smasher = 4 ADD; barraging + osis = baroque = 5 ADD',
   },
   {
@@ -193,8 +193,8 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
     example:        'paradox + mirage (2) = 3 ADD; CLIP > OP IN [DEX] is paradox as an entry topology, not every paradox',
   },
   {
-    componentClass: 'Midtime body modifiers: spinning, ducking, diving, swirling, stepping, tapping, gyro, furious, whirling, miraging, flying (pedagogical axis, not an official grouping)',
-    contribution:   'mostly +1 on most bases; gyro +1; furious +2 on rotational bases (non-rotational not yet settled); whirling / miraging +1 on compatible bases; flying +1 (the jump body-action: flying inside, flying outside, flying clipper).',
+    componentClass: 'Midtime body modifiers: spinning, ducking, diving, swirling, stepping, tapping, gyro, whirling, miraging, flying (pedagogical axis, not an official grouping)',
+    contribution:   'mostly +1 on most bases; gyro +1; whirling / miraging +1 on compatible bases; flying +1 (the jump body-action: flying inside, flying outside, flying clipper).',
     example:        'spinning + osis = spinning osis = 4 ADD; ducking + whirl = ducking whirl = 4 ADD; flying + clipper kick = flying clipper = 2 ADD',
   },
   {
@@ -222,11 +222,12 @@ const SPIN_NOTE =
   '"Spin" means three different things here. A spin flag is a rotational ' +
   'primitive inside an atom: osis is spin(1) + xbody(1) + stall(1) = 3. The ' +
   'spinning operator is a body modifier that adds +1 on top of a base, so ' +
-  'spinning osis = 4. Rotational character is a property of certain atoms ' +
-  '(mirage, whirl, osis) that changes how the atomic operator counts on them ' +
-  '(+2 instead of +1). Same word, three layers: the flag is part of the atom, ' +
-  'the operator is added to it, and the rotational rule is about how other ' +
-  'operators behave.';
+  'spinning osis = 4. Rotational character describes atoms like osis, mirage, ' +
+  'and whirl, where the body turns or arcs during the dex. It does not change ' +
+  'how atomic counts: atomic is +1 on every base. Any extra point comes from a ' +
+  'separate [XDEX] component in the notation. Same word, three layers: the flag is part of the atom, ' +
+  'the operator is added on top, and rotational character just describes the ' +
+  'movement, not a separate scoring rule.';
 
 // ─────────────────────────────────────────────────────────────────────────
 // §2 Worked examples: 8 tricks, low to high
@@ -370,9 +371,9 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickName:  'Atom Smasher',
     trickSlug:  'atom_smasher',
     addLabel:   '4 ADD',
-    components: 'Atomic operator (+1) + mirage (2) + implicit X-dex carry (+1).',
+    components: 'Atomic operator (+1) + mirage (2) + a separate [XDEX] component (+1).',
     derivation: 'atomic(+1) + mirage(2) + xdex(+1) = 4 ADD',
-    whyNote:    'Atom smasher carries an implicit X-dex from a toe, like paradox. The atomic operator alone adds +1; the X-dex carry adds another +1 above the bare atomic+mirage arithmetic.',
+    whyNote:    "Atom smasher's operational notation carries [XDEX] on the far mirage dex, contributing +1. The atomic operator alone adds +1; the X-dex carry adds another +1 above the bare atomic+mirage arithmetic.",
   },
   {
     trickName:  'Blurry Whirl',
@@ -513,7 +514,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     externalSourceLabel:     'IFPA (hidden mechanism)',
     externalAdd:             '4',
     delta:                   '0',
-    decompositionDifference: 'The arithmetic-only reading would be atomic (+1 non-rotational on mirage) + mirage (2) = 3. But atom-smasher carries an implicit X-dex from a toe that adds +1, giving 4.',
+    decompositionDifference: "The arithmetic-only reading would be atomic (+1) + mirage (2) = 3. Atom-smasher's notation carries [XDEX] on the mirage dex, adding +1 for 4.",
     pattern:                 'hidden mechanism (X-dex preservation)',
     ifpaStatusLine:          'settled (X-dex carry from a toe)',
   },
@@ -552,7 +553,7 @@ const EDGE_CASES: readonly AddAnalysisEdgeCase[] = [
     trickName:  'Sumo (Nuclear Mirage)',
     trickSlug:  'sumo',
     ifpaAdd:    '5',
-    briefNote:  'Sumo’s 5 ADD comes via a named X-Dex exception: certain nuclear-mirage compounds carry an implicit X-Dex similar to atom smasher.',
+    briefNote:  "Sumo's 5 ADD reflects the [XDEX] flag in its operational notation.",
   },
   {
     trickName:  'Genesis (outside source: Furious Whirl)',

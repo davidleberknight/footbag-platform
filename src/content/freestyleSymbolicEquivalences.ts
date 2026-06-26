@@ -546,7 +546,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'scrambled_eggbeater',
     readings: ['atomic pickup'],
-    curatorConfirmPending: true,   // FM 'Atomic Pickup' only (PB silent); math atomic(+1 non-rotational)+pickup(2)=3 matches DB asserted_adds
+    curatorConfirmPending: true,   // FM 'Atomic Pickup' only (PB silent); math atomic(+1)+pickup(2)=3 matches DB asserted_adds
   },
   {
     slug:     'spinal_tap',

@@ -446,7 +446,7 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
   {
     holdenName:      'Atomic',
     holdenReading:   'TOE > OP OUT [DEX] > (op side component); Holden parenthetical: Toe set Illusion.',
-    platformReading: 'Same notation; operator reference treats atomic as a primitive +1 set with x-dex character, not as a compressed toe + illusion-class decomposition.',
+    platformReading: 'Same notation; operator reference treats atomic as a primitive +1 set; any X-Dex is a separate [XDEX] component in the notation, not a compressed toe + illusion-class decomposition.',
     status:          'partial',
     note:            'Notation agrees. Holden offers a deeper structural reading (atomic IS a toe set followed by an illusion-class dex); the platform does not formalize that decomposition.',
   },

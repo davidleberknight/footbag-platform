@@ -113,7 +113,7 @@ export const COMPONENT_FLAG_LABELS: Record<string, string> = {
   BOD:  'Body component (body-position step, no bag-foot interaction)',
   XBD:  'Cross-body component (delay step across the body)',
   PDX:  'Paradox component (paradox-direction dex)',
-  XDEX: 'X-Dex component (conditional +1 on an eligible far-form receiver dex)',
+  XDEX: 'X-Dex component (conditional +1, scored only where [XDEX] is present)',
   UNS:  'Unusual-surface component (stall on a non-standard landing surface)',
   KICK: 'Kick action marker (non-scoring; the kick itself carries no ADD)',
 };

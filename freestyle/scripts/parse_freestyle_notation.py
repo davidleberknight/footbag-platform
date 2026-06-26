@@ -58,6 +58,8 @@ DEFAULT_OUT_DIR = REPO / "freestyle" / "reports"
 PARSER_VERSION = "2.5"  # Phase 2.5: descriptive vs add_contributing role split, status vocabulary refinement, rotational-escalation policy warning
 
 DEFAULT_TARGET_FAMILIES: set[str] = set()  # empty → no family filter (full corpus)
+# Currently inert for ADD: every registered modifier has add_bonus == add_bonus_rotational,
+# so this set produces no weight differential. Kept only as a structural hook.
 ROTATIONAL_BASES = {"whirl", "mirage", "torque", "swirl"}
 
 # Role registries. Hard-coded for now; the registered modifiers in
@@ -352,13 +354,10 @@ def compute_formula(
         rot_used = is_rotational and m["add_bonus_rotational"] != m["add_bonus"]
         rot_label = " rot" if rot_used else ""
         contributions.append(f"{tok}(+{weight}{rot_label})")
-        # rotational_escalation_policy_pending_red warning retired 2026-05-10
-        # per Red pt10 + James adjudication: spinning/whirling/swirling stay
-        # flat +1 on rotational bases (modifier-table values migrated). The
-        # remaining rotational-column-divergent modifiers (blurry/atomic/
-        # furious) continue to use add_bonus_rotational silently; if those
-        # need future review they'll surface via computed-vs-asserted ADD
-        # divergence on specific compounds, not via this generic warning.
+        # All registered modifiers carry equal add_bonus and add_bonus_rotational,
+        # so the rotational column adds no differential and weight selection above
+        # is effectively flat. The parser does not infer an X-Dex bonus; named
+        # compounds carry their asserted ADD from the dictionary.
 
     for s in contrib.get("set", []):       add_contribution(s["token"])
     for r in contrib.get("rotation", []):  add_contribution(r["token"])

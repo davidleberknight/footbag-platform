@@ -4231,14 +4231,15 @@ CREATE INDEX idx_freestyle_tricks_is_active     ON freestyle_tricks(is_active);
 CREATE INDEX idx_freestyle_tricks_review_status ON freestyle_tricks(review_status);
 
 -- Modifier reference table — loaded from trick_modifiers.csv (21 rows).
--- Each modifier applies a flat ADD bonus to any base trick,
--- with a higher bonus when the base is rotational (blurry, spinning, swirling).
+-- Each modifier applies a flat ADD bonus to any base trick. The
+-- add_bonus_rotational column is currently set equal to add_bonus for every
+-- modifier; the historical rotational-base differential is retired.
 -- NOT a duplicate of freestyle_tricks modifier rows — this table carries the ADD rules.
 CREATE TABLE freestyle_trick_modifiers (
   slug                  TEXT PRIMARY KEY,          -- e.g. 'blurry'
   modifier_name         TEXT NOT NULL,             -- e.g. 'blurry'
-  add_bonus             INTEGER NOT NULL,          -- ADD added to non-rotational base tricks
-  add_bonus_rotational  INTEGER NOT NULL,          -- ADD added to rotational base tricks (mirage, whirl, torque…)
+  add_bonus             INTEGER NOT NULL,          -- ADD this modifier adds to a base trick
+  add_bonus_rotational  INTEGER NOT NULL,          -- historical rotational column; currently equal to add_bonus for every modifier
   modifier_type         TEXT NOT NULL,             -- 'body' | 'set' | 'rotational-qualifier' (no CHECK; v2.1 expanded for Gyro)
   notes                 TEXT,
   loaded_at             TEXT NOT NULL

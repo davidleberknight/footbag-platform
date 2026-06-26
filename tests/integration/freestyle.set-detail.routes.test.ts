@@ -197,10 +197,10 @@ describe('GET /freestyle/sets/:slug — S5 sibling navigation strip', () => {
     expect(strip).toContain('Quantum');
   });
 
-  it('last-in-subtype (tapping): renders prev=slapping, no next', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/tapping');
+  it('last-in-subtype (miraging): renders prev=tapping, no next', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/miraging');
     expect(res.text).toContain('class="set-detail-sibling-nav"');
-    expect(res.text).toMatch(/<a class="set-detail-sibling-nav-prev" href="\/freestyle\/sets\/slapping">/);
+    expect(res.text).toMatch(/<a class="set-detail-sibling-nav-prev" href="\/freestyle\/sets\/tapping">/);
     expect(res.text).not.toMatch(/<a class="set-detail-sibling-nav-next"/);
   });
 
@@ -374,9 +374,9 @@ describe('Set detail — X-Dex receiver note (atomic / quantum / nuclear only)',
       const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
       expect(res.status).toBe(200);
       expect(res.text).toContain('X-Dex behavior');
-      expect(res.text).toMatch(/far-form dex on an eligible base/);
-      // The five receivers are named, and the full rule lives in the glossary.
-      expect(res.text).toMatch(/mirage, illusion, whirl, torque, drifter/);
+      // The note is notation-authoritative: X-Dex is scored from the [XDEX] flag,
+      // not inferred from the set or base. The full rule lives in the glossary.
+      expect(res.text).toMatch(/marked \[XDEX\] in the notation/);
       expect(res.text).toContain('href="/freestyle/glossary#term-x-dex"');
     });
   }

@@ -433,7 +433,7 @@
       <dd>A dex's <em>fullness</em> is how far the leg circles the bag. A <em>full</em> dex circles the bag entirely &mdash; the leg starts on one side, circles, and returns to the same side. A <em>half</em> dex circles only partway, finishing on the opposite side.</dd>
 
       <dt id="term-x-dex">X-Dex</dt>
-      <dd>An extra dexterity worth +1, available only in a specific structure. It fires when a following dex is the <em>far form</em> of an eligible base and the dex before it is not a paradox. Eligible bases (receivers) are mirage, illusion, whirl, torque, and drifter. Swirl, butterfly, barfly, and the down (double-over-down) family never carry it. A paradox dex does not trigger it, and modifiers such as ducking or gyro do not change which bases are eligible. The near (default) form of an eligible base scores no X-Dex; only the far form does. For example, <a href="/freestyle/tricks/atomic-torque">Atomic Torque</a> (Silo) is 5 with no X-Dex because it is the near form; an explicit Atomic Far Torque is 6 because the far form fires it; and <a href="/freestyle/tricks/atomic-miraging-butterfly">Atomic Miraging Butterfly</a> is 5 because butterfly is not a receiver. The <a href="/freestyle/tricks/atom-smasher">Atom Smasher</a> is the classic move that does fire it.</dd>
+      <dd>An extra dexterity worth +1. It is scored wherever the operational notation carries the <code>[XDEX]</code> marker on a dex; the notation is the source of truth. For example, the <a href="/freestyle/tricks/atom-smasher">Atom Smasher</a> carries <code>[XDEX]</code> and scores the extra +1, while <a href="/freestyle/tricks/atomic-miraging-butterfly">Atomic Miraging Butterfly</a> does not. X-Dex is its own component: it is never part of a modifier's own weight, and it is never assumed from an operator name. (Historically, <code>[XDEX]</code> was recorded on the far form of certain bases such as mirage, illusion, whirl, torque, and drifter; the notation now carries that judgement directly, so a dex scores X-Dex only where <code>[XDEX]</code> is written.)</dd>
     </dl>
 
     <h3 class="section-heading">Direction</h3>
@@ -459,10 +459,10 @@
       <dd>The dex is on the opposite side from the reference (<code>op</code> abbreviated; &ldquo;far&rdquo; in trick names). Reaching across the body is more work, the same reason paradox is harder, so <code>SAME</code> and <code>OP</code> forms are genuinely different executions even when they score the same. <code>op</code> is implied for toe-led tricks.</dd>
 
       <dt id="term-paradox-side">Paradox (<code>PDX</code>)</dt>
-      <dd>The third side relationship: the body switches sides between dex events. Paradox is its own marker and coexists with <code>SAME</code> / <code>OP</code> and with X-Dex on one trick; a single trick can carry a paradox dex and, later, an opposite-side X-Dex receiver dex.</dd>
+      <dd>The third side relationship: the body switches sides between dex events. Paradox is its own marker and coexists with <code>SAME</code> / <code>OP</code> and with X-Dex on one trick; a single trick can carry a paradox dex and, later, a dex marked <code>[XDEX]</code>.</dd>
 
       <dt id="term-op-not-xdex"><code>OP</code> is not X-Dex</dt>
-      <dd>Performing a dex on the far / opposite side does not by itself add difficulty. <a href="#term-x-dex">X-Dex</a> is a separate, receiver-gated +1 that fires only when a far dex lands on an eligible receiver (mirage, illusion, whirl, torque, drifter). A far dex on a non-receiver, such as an opposite-side butterfly or clipper, changes the side but not the score.</dd>
+      <dd>Performing a dex on the far / opposite side does not by itself add difficulty. <a href="#term-x-dex">X-Dex</a> is a separate +1 scored only where the operational notation carries <code>[XDEX]</code>. A far dex changes the side but not the score unless the notation marks it <code>[XDEX]</code>.</dd>
     </dl>
 
     <h3 class="section-heading">Execution window</h3>
@@ -1312,7 +1312,7 @@
       <dt id="op-flag-pdx"><code>[PDX]</code></dt>
       <dd>Paradox component &mdash; flags a cross-body far dex requiring a hip-pivot repositioning to bring the leg under the bag. Operationally: <code>CLIP &gt; OP IN [DEX]</code> (clipper set, far in-out dex). Equivalent to the <code>paradox</code> dex relationship in semantic notation.</dd>
       <dt id="op-flag-xdex"><code>[XDEX]</code></dt>
-      <dd>X-Dex component. Marks the conditional +1 that an eligible far-form receiver dex earns after a set (see <a href="#term-x-dex">X-Dex</a>). Recorded only where the notation carries it; some external references use the flag more broadly.</dd>
+      <dd>X-Dex component. Marks the conditional +1 a dex scores when the notation carries <code>[XDEX]</code> (see <a href="#term-x-dex">X-Dex</a>). Recorded only where the notation carries it; some external references use the flag more broadly.</dd>
     </dl>
 
     <h4>Sides</h4>
@@ -1446,10 +1446,9 @@
 
     <h3>Modifier weights</h3>
     <p>
-      Each modifier adds a fixed ADD weight on every base. An X-Dex, when it
-      fires, is a separate +1 on a following far-form dex (only on the receivers
-      mirage, illusion, whirl, torque, and drifter); it is never part of a
-      modifier's own weight.
+      Each modifier adds a fixed ADD weight on every base. An X-Dex is a
+      separate +1 scored wherever the operational notation carries
+      <code>[XDEX]</code> on a dex; it is never part of a modifier's own weight.
     </p>
     <div class="glossary-add-weight-table-wrap">
       <table class="glossary-add-weight-table">

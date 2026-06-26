@@ -136,7 +136,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   MIRAGING:  'Miraging, body modifier (+1 ADD; underlies Torque, Drifter, DLO)',
   BACKSIDE:  'Backside, body modifier (+1 ADD; Symposium-equivalent)',
   TERRAGING: 'Terraging, body modifier (+3 ADD)',
-  XDEX:      'X-Dex, conditional +1 ADD on an eligible far-form receiver dex',
+  XDEX:      'X-Dex, conditional +1 ADD; scored only where the notation carries [XDEX]',
 
   // ── Rotation modifiers (rotation) ─────────────────────────────────────
   SPINNING:   'Spinning, rotation modifier (+1 ADD)',
@@ -152,7 +152,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   QUANTUM:  'Quantum, set modifier (+1 ADD)',
   PIXIE:    'Pixie, set modifier (+1 ADD)',
   FAIRY:    'Fairy, set modifier (+1 ADD)',
-  FURIOUS:  'Furious, set modifier (+1 / +2 on rotational base)',
+  FURIOUS:  'Furious, set modifier (+2; two-dex set)',
   POGO:     'Pogo, set modifier (0 ADD; non-scoring)',
   SHOOTING: 'Shooting, set modifier (+3 ADD)',
   ROOTED:   'Rooted, set modifier (0 ADD; held position)',
@@ -197,7 +197,7 @@ const BODY_COMPONENT_LABELS: Record<string, string> = {
   '[BOD]':  'BOD, body-position component',
   '[XBD]':  'XBD, cross-body component',
   '[PDX]':  'PDX, paradox-direction marker',
-  '[XDEX]': 'XDEX, X-Dex (conditional +1 on a far-form receiver dex)',
+  '[XDEX]': 'XDEX, X-Dex (conditional +1; scored only where [XDEX] is present)',
 };
 
 // ── Caller-supplied lookup context ────────────────────────────────────────
