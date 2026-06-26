@@ -136,20 +136,12 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(res.text).not.toContain('data-card-slug=');
   });
 
-  it('opens with the orientation-first dictionary intro + glossary link, search box after it, and the corpus counts demoted lower', async () => {
+  it('drops the generic intro and shows the corpus counts in beginner-facing wording', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.text).toContain('class="browse-view-intro"');
-    // The intro leads with beginner orientation, not a raw count.
-    expect(res.text).toContain('dictionary of named freestyle footbag tricks');
-    expect(res.text).toContain('class="dictionary-intro-glossary-link"');
-    expect(res.text).toContain('href="/freestyle/glossary"');
-    // The search box follows the orientation intro rather than preceding it.
-    const introIdx = res.text.indexOf('browse-view-intro');
-    const searchIdx = res.text.indexOf('search-box-card');
-    expect(introIdx).toBeGreaterThan(-1);
-    expect(searchIdx).toBeGreaterThan(introIdx);
-    // The corpus counts are supporting metadata lower on the page, in
-    // beginner-facing wording (not the internal "canonical").
+    // The generic "dictionary of named..." intro is dropped; the onboarding block
+    // leads the landing instead (its lead position is covered separately).
+    expect(res.text).not.toContain('dictionary of named freestyle footbag tricks');
+    // The corpus counts read in beginner-facing wording (not the internal "canonical").
     expect(res.text).toMatch(/Full pages cover [\d,]+ of [\d,]+ documented trick names/);
     expect(res.text).toMatch(/plus [\d,]+ aliases/);
   });
@@ -446,23 +438,36 @@ describe('GET /freestyle/tricks — browse views', () => {
 });
 
 describe('GET /freestyle/tricks — one orienting lede per state', () => {
-  it('the default landing leads with the generic dictionary intro', async () => {
+  it('the default landing leads with the onboarding block, ahead of the search box', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Pick a lens below to start');
+    const onboardingIdx = res.text.indexOf('class="dict-onboarding"');
+    const searchIdx = res.text.indexOf('search-box-card');
+    expect(onboardingIdx).toBeGreaterThan(-1);
+    expect(onboardingIdx).toBeLessThan(searchIdx);
+    // The generic "pick a lens" intro is dropped in favor of the onboarding block.
+    expect(res.text).not.toContain('Pick a lens below to start');
   });
 
-  it('a secondary view drops the generic landing intro and shows its own lede', async () => {
+  it('the corpus-count line sits under the onboarding block, above the browse lenses', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    expect(res.status).toBe(200);
+    const onboardingIdx = res.text.indexOf('class="dict-onboarding"');
+    const countIdx = res.text.indexOf('class="browse-view-scale"');
+    const gridIdx = res.text.indexOf('class="dict-landing-grid"');
+    expect(countIdx).toBeGreaterThan(onboardingIdx);
+    expect(countIdx).toBeLessThan(gridIdx);
+  });
+
+  it('a secondary view shows its own state-specific lede', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Pick a lens below to start');
     expect(res.text).toMatch(/four big movement families/i);
   });
 
-  it('the family filter drops the generic landing intro for the family header', async () => {
+  it('the family filter shows the family header', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?family=whirl');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Pick a lens below to start');
     expect(res.text).toContain('finish with a whirl');
   });
 

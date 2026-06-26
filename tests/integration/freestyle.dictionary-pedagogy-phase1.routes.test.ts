@@ -95,28 +95,27 @@ describe('Dictionary Pedagogy Phase 1 — family-view intro paragraph', () => {
   });
 });
 
-describe('Dictionary — plain-language intro paragraph', () => {
-  it('renders the dictionary intro at the top of the ADD browse view', async () => {
+describe('Dictionary — beginner-first landing lede', () => {
+  it('renders the onboarding block on the ADD browse view', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/class="browse-view-intro"/);
+    expect(res.text).toContain('class="dict-onboarding"');
   });
 
-  it('the intro explains the dictionary in plain, movement-first language', async () => {
+  it('explains the dictionary in plain, movement-first language', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/movement vocabulary/i);
-    // The intro is orientation-first and points the reader to the lenses; the
-    // three-lens model itself lives in the landing-grid bands (difficulty /
-    // structure / tracking & expansion), each with its own lens-question.
-    expect(res.text).toMatch(/Pick a lens/i);
+    // The plain-language explanation lives in the onboarding block and the
+    // landing-grid bands (difficulty / structure / tracking & expansion), each
+    // with its own lens-question.
     expect(res.text).toMatch(/difficulty/i);
     expect(res.text).toMatch(/structure/i);
     expect(res.text).toMatch(/How layered is the trick/);
-    // No ontology jargon in the beginner intro.
+    // No ontology jargon in the beginner lede.
     expect(res.text).not.toMatch(/orthogonal/i);
   });
 
-  it('the dictionary intro is page-level — it also shows on the family view', async () => {
+  it('the hero subtitle is page-level — it also shows on the family view', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.text).toMatch(/movement vocabulary/i);
   });

@@ -482,11 +482,11 @@ describe('public dictionary presentation', () => {
     expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?family=whirl">/);
   });
 
-  it('renders the plain-language dictionary intro (no governance note)', async () => {
+  it('renders the plain-language onboarding lede (no governance note)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/class="browse-view-intro"/);
+    expect(res.text).toContain('class="dict-onboarding"');
     // The corpus counts are surfaced as supporting metadata, in beginner-facing
     // wording (not the internal "canonical").
     expect(res.text).toMatch(/Full pages cover [\d,]+ of [\d,]+ documented trick names/);

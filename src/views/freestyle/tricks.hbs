@@ -16,15 +16,37 @@
 
 <div class="wrapper">
 
-  {{! ── Page intro — plain, orientation-first. The generic dictionary intro is
-      the default-landing lede only. Secondary views and the family filter carry
-      their own state-specific orientation (the per-view intro / the family
-      header below), so the generic "pick a lens" line would read oddly there. ── }}
+  {{! ── Beginner-first landing lede. The "New to freestyle? Start here"
+      onboarding block leads the page so orientation, not a number, is the first
+      thing a newcomer reads; the corpus-count line follows it (prominent near the
+      top, supporting metadata, not the opening lede). Default landing only:
+      secondary views and the family filter carry their own state-specific
+      orientation, and the search box below leads on those. ── }}
   {{#if (eq content.activeView "add")}}
   {{#unless content.activeFamily}}
-  {{#if content.dictionaryIntro}}
-  <p class="browse-view-intro">{{content.dictionaryIntro}}
-    <a class="dictionary-intro-glossary-link" href="/freestyle/glossary">New to the words? Open the glossary &rarr;</a></p>
+  {{#if content.landingOnboarding}}
+  <aside class="dict-onboarding" aria-label="New to freestyle? Start here">
+    <h2 class="dict-onboarding-heading">{{content.landingOnboarding.heading}}</h2>
+    {{#each content.landingOnboarding.intro}}<p class="dict-onboarding-intro">{{this}}</p>{{/each}}
+    {{#if content.landingOnboarding.definitions.length}}
+    <dl class="dict-onboarding-defs">
+      {{#each content.landingOnboarding.definitions}}<div class="dict-onboarding-def"><dt>{{term}}</dt><dd>{{plain}}</dd></div>{{/each}}
+    </dl>
+    {{/if}}
+    <p class="dict-onboarding-example">
+      <span class="dict-onboarding-example-label">{{content.landingOnboarding.example.label}}:</span>
+      {{#each content.landingOnboarding.example.steps}}<span class="dict-onboarding-step"><strong>{{name}}</strong> <span class="dict-onboarding-step-note">{{note}}</span></span>{{#unless @last}} <span class="dict-onboarding-arrow">&rarr;</span> {{/unless}}{{/each}}
+    </p>
+    <ul class="dict-onboarding-lenses">
+      {{#each content.landingOnboarding.lenses}}<li><strong>{{label}}</strong> <span class="dict-onboarding-lens-note">{{note}}</span></li>{{/each}}
+    </ul>
+    <p class="dict-onboarding-links">
+      {{#each content.landingOnboarding.links}}<a href="{{href}}">{{label}}</a>{{#unless @last}} <span class="dict-onboarding-link-sep">·</span> {{/unless}}{{/each}}
+    </p>
+  </aside>
+  {{/if}}
+  {{#if content.dictionaryStats}}
+  <p class="browse-view-scale">{{content.dictionaryStats}}</p>
   {{/if}}
   {{/unless}}
   {{/if}}
@@ -54,30 +76,6 @@
       previous separate footer-style paragraph. }}
   {{#if (eq content.activeView "add")}}
   {{#unless content.activeFamily}}
-  {{! ── Beginner orientation bridge. Plain-language welcome above the advanced
-      taxonomy nav, default landing only. The ontology underneath is unchanged;
-      this is progressive disclosure, not simplification. ── }}
-  {{#if content.landingOnboarding}}
-  <aside class="dict-onboarding" aria-label="New to freestyle? Start here">
-    <h2 class="dict-onboarding-heading">{{content.landingOnboarding.heading}}</h2>
-    {{#each content.landingOnboarding.intro}}<p class="dict-onboarding-intro">{{this}}</p>{{/each}}
-    {{#if content.landingOnboarding.definitions.length}}
-    <dl class="dict-onboarding-defs">
-      {{#each content.landingOnboarding.definitions}}<div class="dict-onboarding-def"><dt>{{term}}</dt><dd>{{plain}}</dd></div>{{/each}}
-    </dl>
-    {{/if}}
-    <p class="dict-onboarding-example">
-      <span class="dict-onboarding-example-label">{{content.landingOnboarding.example.label}}:</span>
-      {{#each content.landingOnboarding.example.steps}}<span class="dict-onboarding-step"><strong>{{name}}</strong> <span class="dict-onboarding-step-note">{{note}}</span></span>{{#unless @last}} <span class="dict-onboarding-arrow">&rarr;</span> {{/unless}}{{/each}}
-    </p>
-    <ul class="dict-onboarding-lenses">
-      {{#each content.landingOnboarding.lenses}}<li><strong>{{label}}</strong> <span class="dict-onboarding-lens-note">{{note}}</span></li>{{/each}}
-    </ul>
-    <p class="dict-onboarding-links">
-      {{#each content.landingOnboarding.links}}<a href="{{href}}">{{label}}</a>{{#unless @last}} <span class="dict-onboarding-link-sep">·</span> {{/unless}}{{/each}}
-    </p>
-  </aside>
-  {{/if}}
   <div class="dict-landing-grid" aria-label="Dictionary browse axes">
     {{#each content.landingGrid.bands}}
     <section class="dict-landing-band">
@@ -162,13 +160,6 @@
       <a href="/freestyle/tricks?view=sets">By modifier</a>
     {{/if}}
   </nav>
-  {{! ── Corpus counts as supporting metadata, below the orientation and the
-      browse lenses rather than as the page lede. Default landing only. ── }}
-  {{#if (eq content.activeView "add")}}
-    {{#if content.dictionaryStats}}
-    <p class="browse-view-scale">{{content.dictionaryStats}}</p>
-    {{/if}}
-  {{/if}}
   {{#unless (eq content.activeView "add")}}
   {{! Secondary-view reachability for cross-link surfaces. On the default
       landing view, the dict-landing-grid above carries Operators / Set

@@ -3039,15 +3039,12 @@ export interface FreestyleTricksIndexContent {
   activeFamily: string | null;           // when set, dictionary is filtered to this family only (hashtag-click filter)
   // Empty unless activeFamily is set AND the family has modifier-linked tricks.
   relatedSetGroups: FreestyleRelatedSetLink[];
-  // dictionaryIntro: plain-language intro rendered once below the hero on
-  // every browse view. familyViewIntro: per-view context note for the
-  // advanced family browse view. Absence = silence (template branches on
-  // truthy string).
-  dictionaryIntro: string | null;
   // dictionaryStats: the corpus counts (full pages / documented names / aliases),
-  // shown as supporting metadata lower on the default landing rather than as the
-  // page lede, so beginner orientation comes first.
+  // shown right under the beginner onboarding block on the default landing as
+  // supporting metadata, prominent near the top but not the opening lede.
   dictionaryStats: string | null;
+  // familyViewIntro: per-view context note for the advanced family browse view.
+  // Absence = silence (template branches on the truthy string).
   familyViewIntro: string | null;
   // Per-view scale sentences (browse-shell cleanup). Each is computed from the
   // same group arrays the template renders, so the counts always match the
@@ -9117,11 +9114,6 @@ export const freestyleService = {
             { label: 'Beginner glossary', href: '/freestyle/glossary#section-core-concepts' },
           ],
         },
-        dictionaryIntro:
-          'This is the dictionary of named freestyle footbag tricks. Search for a trick by ' +
-          'name, or browse by difficulty, by family, or by the modifiers a trick layers on. ' +
-          'Open any trick for its full detail page, or follow its hashtag to the media gallery. ' +
-          'Pick a lens below to start.',
         dictionaryStats:
           `Full pages cover ${canonicalCount} of ${fmtCount(uniqueDocumentedTrickCount)} ` +
           `documented trick names, plus ${fmtCount(documentedAliasCount)} aliases. The rest are ` +
