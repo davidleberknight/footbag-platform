@@ -683,7 +683,10 @@ function loadConfig(): AppConfig {
   return {
     port,
     nodeEnv,
-    logLevel: process.env.LOG_LEVEL ?? 'info',
+    // Development defaults to debug so a local run shows the full picture
+    // (including the per-cycle outbox heartbeat); staging and production stay at
+    // info to match the production log convention.
+    logLevel: process.env.LOG_LEVEL ?? (footbagEnv === 'development' ? 'debug' : 'info'),
     dbPath: requireEnv('FOOTBAG_DB_PATH'),
     publicBaseUrl: requireEnv('PUBLIC_BASE_URL'),
     sessionSecret,

@@ -605,7 +605,7 @@ Curator content has two source-of-truth phases tied to the platform lifecycle.
 
 Before go-live, curator content is sourced from `/curated/`, a directory tree in the application repository, with one JSON sidecar per item. The seeder (`scripts/seed_fh_curator.py`) is the only path from `/curated/` to the platform DB and S3. The DB and S3 are derived materializations: either can be wiped and rebuilt from `/curated/` by re-running the seeder. This is what lets curator content be authored, reviewed in git, and seeded before any persistent DB exists. The `/curated/` sidecars are themselves produced by an upstream pre-go-live data-prep layer (curator staging, discovery, and promotion inputs); that layer and the sidecars it emits are authoring inputs only.
 
-After go-live, the persistent production DB is the source of truth. The admin UI writes curator content directly to the DB (and S3 for binaries), the same pathway member uploads use; the seeder is not run against the production DB, because its reconcile and orphan-cleanup model would treat admin- and member-created rows that have no sidecar as deletable. Durability after go-live is the standard DB backup and restore path, not `/curated/` replay. The entire pre-go-live input layer, the upstream data-prep CSVs and the `/curated/` sidecars alike, is no longer consumed once the DB is persistent; `/curated/` remains the dev and pre-go-live authoring surface and ships as a build artifact, not a runtime-mutable tree.
+After go-live, the persistent production DB is the source of truth. The admin UI writes curator content directly to the DB (and S3 for binaries), the same pathway member uploads use; the seeder is not run against the production DB, because its reconcile and orphan-cleanup model would treat admin- and member-created rows that have no sidecar as deletable. Durability after go-live is the standard DB backup and restore path, not `/curated/` replay. The entire pre-go-live input layer, the upstream data-prep CSVs and the `/curated/` sidecars alike, is no longer consumed once the DB is persistent; `/curated/` remains the dev and pre-go-live authoring surface and ships as a build artifact, not a runtime-mutable tree. This source-of-truth pattern, committed authoring inputs seeded into a derived database before go-live and the persistent database as the source of truth after, is reused beyond curator media: the email templates and the freestyle dictionary follow the same pre-go-live-curate-then-cut-over-to-the-database model.
 
 The DB schema carries no filesystem coupling in either phase; admin edit and delete locate the sidecar that produced a given `media_items` row at runtime by matching the row's `(video_platform, video_url)` against sidecars on disk.
 
@@ -1027,6 +1027,12 @@ Impact:
 - Compliance procedures rely on audit log immutability.
 
 - Audit log display surfaces must render the 'reason' field (and any free-form admin-authored text) with Handlebars default escaping. Raw HTML rendering (triple-stache, SafeString, or client-side innerHTML) of admin-authored audit content is forbidden.
+
+- The audit log is read through an admin viewer that filters by actor, affected entity, member, date, action type, and category, with actor- and entity-scoped timelines and a self-action filter. Beyond routine debugging and fact-finding, this serves security review: threat-hunting over privileged actions, insider and anomaly detection (an admin acting on their own or a targeted member's record), and incident-response timeline reconstruction with CSV/JSON export.
+
+- Reading or exporting the audit log is itself an audited action (the audit-of-audit), so access to the log is accountable.
+
+- Integrity rests on the application-level append-only triggers and the WORM-protected off-host backups above; cryptographic per-row hash chaining, which would additionally detect direct-database tampering, is a compatible strengthening of this model.
 
 ## 2.6 Hashtags and Media
 
@@ -2708,6 +2714,10 @@ Impact:
 - Bounce and complaint notifications update MailingListSubscription records (and, indirectly, Member.subscriptions), and simple metrics and alarms are maintained for delivery health.
 
 - We intentionally avoid marketing automation and analytics tooling.
+
+- Every outbound email is sent through one email service that resolves a registered template, renders it, and stamps the template's `template_key` onto the outbox row, so each message records its email type and every email uses a registered template.
+
+- Each registered template carries a PII classification (`public` / `internal` / `confidential` / `restricted`) that bounds how much of a sent message an admin may view: public and internal bodies may be shown, a confidential body only behind a justification-logged reveal, and a restricted (token-bearing) body never, because its `body_text` holds a live reset or magic-link token until the post-send scrub. The classification is a property of the template, not the individual message.
 
 - Controllers only enqueue outbox entries; they never call SES directly.
 

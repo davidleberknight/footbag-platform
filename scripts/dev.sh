@@ -71,4 +71,14 @@ echo "→ Starting web server (port 3000)..."
 npm run dev &
 WEB_PID=$!
 
+# Human-scannable summary of the dev stack. The per-process startup lines follow;
+# in development the logger prints them in a compact human-readable form.
+echo ""
+echo "  footbag dev stack"
+echo "    web          http://localhost:3000"
+echo "    workers      image :4001   outbox/jobs :3100"
+echo "    logs         development, human-readable, LOG_LEVEL=${LOG_LEVEL:-debug}"
+echo "    stop         Ctrl+C (stops all three)"
+echo ""
+
 wait -n "${WEB_PID}" "${IMAGE_PID}" "${WORKER_PID}"

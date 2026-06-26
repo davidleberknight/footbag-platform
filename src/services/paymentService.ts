@@ -99,8 +99,7 @@ import {
   getPaymentAdapter,
   type StripeWebhookEvent,
 } from '../adapters/paymentAdapter';
-import { getCommunicationService } from './communicationService';
-import { paymentReceiptEmail } from './emailContent';
+import { emailService } from './emailService';
 import { isSafePath } from '../lib/safePath';
 import type { PageViewModel } from '../types/page';
 
@@ -781,24 +780,22 @@ function enqueueReceiptEmail(payment: PaymentRow, outcome: 'succeeded' | 'failed
     return;
   }
 
-  const { subject, bodyText } = paymentReceiptEmail({
-    descriptor: payment.descriptor,
-    amountDisplay: `$${(payment.amount_cents / 100).toFixed(2)} ${payment.currency}`,
-    outcome,
-    isMembership: payment.payment_type === 'membership',
-    purchasedTier:
-      payment.purchased_tier_status === 'tier1' || payment.purchased_tier_status === 'tier2'
-        ? payment.purchased_tier_status
-        : null,
-    referenceId: payment.id,
-  });
-
   try {
-    getCommunicationService().enqueueEmail({
+    emailService.send({
+      template: 'payment_receipt',
+      params: {
+        descriptor: payment.descriptor,
+        amountDisplay: `$${(payment.amount_cents / 100).toFixed(2)} ${payment.currency}`,
+        outcome,
+        isMembership: payment.payment_type === 'membership',
+        purchasedTier:
+          payment.purchased_tier_status === 'tier1' || payment.purchased_tier_status === 'tier2'
+            ? payment.purchased_tier_status
+            : null,
+        referenceId: payment.id,
+      },
       recipientEmail: contact.loginEmail,
       recipientMemberId: payment.member_id,
-      subject,
-      bodyText,
       idempotencyKey: `payment_receipt:${payment.id}:${outcome}`,
     });
   } catch (err) {

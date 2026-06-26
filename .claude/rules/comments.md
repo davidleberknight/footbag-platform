@@ -62,3 +62,19 @@ a section shorthand beside prose is not allowed.
 Application code logs through the structured `logger` (`src/config/logger`), never `console.*` —
 console output bypasses the CloudWatch pipeline and the test `logger.error` guard. The audit-row +
 `logger.error` pairing via `recordOperationalError` is specified in `service-layer.md`.
+
+Pick the level deliberately, because production runs at `LOG_LEVEL=warn` and drops `info`/`debug`:
+
+- `error` — a failure an operator must act on (pairs with an audit row via `recordOperationalError`
+  for governance-sensitive failures).
+- `warn` — an operationally-significant condition that must be visible in production: a backlog, a
+  degraded or failing dependency, an exhausted retry. Anything a production operator needs to see
+  lives at `warn` or above.
+- `info` — normal-operation milestones useful in development and staging (startup, a completed job),
+  not worth production noise.
+- `debug` — high-frequency or diagnostic detail (per-cycle heartbeats, per-request traces); shown
+  only in development.
+
+A line that feeds a CloudWatch metric filter MUST emit at a level production shows (`warn` or above)
+or the metric is silently starved. A high-frequency per-cycle line belongs at `debug` (or as a
+metric), never `info`.

@@ -39,9 +39,17 @@ async function emailOutboxLoop(): Promise<void> {
   while (!stopping) {
     try {
       await operationsPlatformService.runEmailWorker();
-      // Structured depth line per cycle; the CloudWatch metric filter turns
-      // $.depth into the OutboxDepth metric behind the backlog alarm.
-      logger.info('outbox.depth', { depth: operationsPlatformService.getOutboxBacklogDepth() });
+      // A backlog means the worker is falling behind or SES is failing, so emit
+      // it at warn: production runs at the warn level and would suppress an info
+      // line, starving the OutboxDepth metric the backlog alarm depends on. An
+      // idle queue logs at debug (shown in dev, suppressed in prod/staging); the
+      // metric filter's default of 0 covers those idle periods.
+      const outboxDepth = operationsPlatformService.getOutboxBacklogDepth();
+      if (outboxDepth > 0) {
+        logger.warn('outbox.depth', { depth: outboxDepth });
+      } else {
+        logger.debug('outbox.depth', { depth: outboxDepth });
+      }
     } catch (err) {
       logger.error('worker: email-outbox unexpected error', {
         error: err instanceof Error ? err.message : String(err),

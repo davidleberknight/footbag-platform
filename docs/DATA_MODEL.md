@@ -369,7 +369,7 @@ News items are auto-generated as side effects of primary entity flows (event pub
 **Views:** `email_templates_enabled`
 
 #### Outbox pattern
-All emails are written to `outbox_emails` first; a background worker sends them and updates `status`. The admin Pause Sending toggle prevents new sends without losing queued items.
+All emails are written to `outbox_emails` first; a background worker sends them and updates `status`. The admin Pause Sending toggle prevents new sends without losing queued items. Each row records the `template_key` of the registered template that produced it, stamped by the email service.
 
 `idempotency_key` prevents duplicate sends when the same outbox row is retried.
 
@@ -382,7 +382,7 @@ At least one of `recipient_email`, `recipient_member_id`, or `mailing_list_id` m
 `email_archives` stores a record of bulk sends (mailing list blasts, event participant emails, announcements). `CHECK` constraints enforce that mailing-list sends reference a list and event-participant sends reference an event.
 
 #### Email templates
-`email_templates` stores admin-editable subject and body templates keyed by `template_key`. The `email_templates_enabled` view exposes only templates where `is_enabled = 1`. Setting `is_enabled = 0` suppresses the corresponding automated email type without deleting the content.
+`email_templates` stores admin-editable subject and body templates keyed by `template_key`, each carrying a `pii_classification` (`public` / `internal` / `confidential` / `restricted`) that bounds how much of a sent message an admin viewer may reveal. The `email_templates_enabled` view exposes only templates where `is_enabled = 1`. Setting `is_enabled = 0` suppresses the corresponding automated email type without deleting the content.
 
 #### Mailing list column
 `mailing_lists.is_member_manageable` controls whether members can self-subscribe/unsubscribe. Seven core lists are seeded at initialization; see §4.23.

@@ -62,8 +62,7 @@ import {
 } from '../db/db';
 import { logger } from '../config/logger';
 import { appendAuditEntry, type AuditActorType } from './auditService';
-import { getCommunicationService } from './communicationService';
-import { vouchConfirmationEmail } from './emailContent';
+import { emailService } from './emailService';
 import { readIntConfig } from './configReader';
 import { RateLimitedError, ValidationError } from './serviceErrors';
 import { uuidv7Hex } from './uuidv7';
@@ -405,17 +404,15 @@ function enqueueVouchConfirmation(
   const voucher = account.findNotificationContactById.get(voucherId) as
     | { display_name: string }
     | undefined;
-  const { subject, bodyText } = vouchConfirmationEmail({
-    voucherName: voucher?.display_name ?? 'another member',
-    expiryDate: expiresAt.slice(0, 10),
-  });
-
   try {
-    getCommunicationService().enqueueEmail({
+    emailService.send({
+      template: 'vouch_confirmation',
+      params: {
+        voucherName: voucher?.display_name ?? 'another member',
+        expiryDate: expiresAt.slice(0, 10),
+      },
       recipientEmail: target.login_email,
       recipientMemberId: targetId,
-      subject,
-      bodyText,
       idempotencyKey: `vouch_confirmation:${grantId}`,
     });
   } catch (err) {

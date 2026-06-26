@@ -87,8 +87,7 @@ import {
 import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { clubService } from './clubService';
-import { getCommunicationService } from './communicationService';
-import { clubLeaderlessContactEmail } from './emailContent';
+import { emailService } from './emailService';
 import { logger } from '../config/logger';
 import { PageViewModel } from '../types/page';
 
@@ -982,17 +981,17 @@ function contactMembersToVolunteer(
 
   let recipientCount = 0;
   try {
-    const comms = getCommunicationService();
     for (const m of members) {
       if (!m.login_email) continue;
-      comms.enqueueEmail({
-        idempotencyKey: `club-leaderless-contact:${clubId}:${m.id}`,
-        recipientEmail: m.login_email,
-        recipientMemberId: m.id,
-        ...clubLeaderlessContactEmail({
+      emailService.send({
+        template: 'club_leaderless_contact',
+        params: {
           memberName: m.display_name,
           clubName: club.name,
-        }),
+        },
+        recipientEmail: m.login_email,
+        recipientMemberId: m.id,
+        idempotencyKey: `club-leaderless-contact:${clubId}:${m.id}`,
       });
       recipientCount++;
     }

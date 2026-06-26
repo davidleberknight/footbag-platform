@@ -101,16 +101,7 @@ import { hashPassword } from '../lib/passwordHash';
 import { auth, registration, legacyClaim, legacyMembers, account, workQueue, autoLinkStagedCandidates, declaredAnchors, accountTokens, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow, AutoLinkStagedCandidateRow } from '../db/db';
 import { transaction } from '../db/db';
 import { accountTokenService } from './accountTokenService';
-import { getCommunicationService } from './communicationService';
-import {
-  accountVerifyEmail,
-  legacyClaimConfirmEmail,
-  passwordChangedEmail,
-  passwordResetRequestEmail,
-  passwordResetConfirmEmail,
-  mailboxLinkConfirmEmail,
-  adminQueueAlertEmail,
-} from './emailContent';
+import { emailService } from './emailService';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
@@ -812,14 +803,16 @@ async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: stri
     tokenRowId = issued.tokenRowId;
     const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
     const verifyUrl = `${baseUrl}/verify/${issued.rawToken}`;
-    getCommunicationService().enqueueEmailOrFail({
+    emailService.send({
+      template: 'account_verify',
+      params: { verifyUrl, ttlHours },
+      recipientEmail,
+      recipientMemberId: memberId,
       // tokenRowId is the natural single-use key: re-issuing on a worker
       // restart between SES-send and outbox-mark-sent collapses to the same
       // outbox row instead of double-delivering.
       idempotencyKey: `verify:${issued.tokenRowId}`,
-      recipientEmail,
-      recipientMemberId: memberId,
-      ...accountVerifyEmail({ verifyUrl, ttlHours }),
+      strict: true,
     });
   } catch (err) {
     // Member row (or, for resend, the existing unverified member) committed
@@ -2220,11 +2213,13 @@ function initiateLegacyClaim(
   const baseUrl    = config.publicBaseUrl.replace(/\/+$/, '');
   const confirmUrl = `${baseUrl}/register/wizard/legacy_claim/claim/confirm/${rawToken}`;
   try {
-    getCommunicationService().enqueueEmailOrFail({
-      idempotencyKey:    `claim:${tokenRowId}`,
+    emailService.send({
+      template: 'legacy_claim_confirm',
+      params: { confirmUrl, ttlHours: claimTokenTtlHours() },
       recipientEmail:    row.legacy_email,
       recipientMemberId: requestingMemberId,
-      ...legacyClaimConfirmEmail({ confirmUrl, ttlHours: claimTokenTtlHours() }),
+      idempotencyKey:    `claim:${tokenRowId}`,
+      strict: true,
     });
   } catch (err) {
     // The account_claim token is already committed by issueToken but no
@@ -2759,15 +2754,17 @@ async function changePassword(
     | undefined;
   if (member?.login_email) {
     try {
-      getCommunicationService().enqueueEmailOrFail({
+      emailService.send({
+        template: 'password_changed',
+        params: {},
+        recipientEmail: member.login_email,
+        recipientMemberId: memberId,
         // No token row for password-change notifications; use the new
         // password_version as the per-event key so re-emit on worker
         // restart between SES-send and outbox-mark-sent collapses to the
         // same outbox row.
         idempotencyKey: `pwchange:${memberId}:${row.password_version + 1}`,
-        recipientEmail: member.login_email,
-        recipientMemberId: memberId,
-        ...passwordChangedEmail(),
+        strict: true,
       });
     } catch (err) {
       // High-priority audit row: the password change committed but the
@@ -2828,11 +2825,13 @@ async function requestPasswordReset(email: string): Promise<PasswordResetRequest
   // token in account_tokens with the email-pipeline degradation, and still
   // return responseSent so the caller renders the uniform sent page.
   try {
-    getCommunicationService().enqueueEmailOrFail({
-      idempotencyKey: `pwreset:${tokenRowId}`,
+    emailService.send({
+      template: 'password_reset_request',
+      params: { resetUrl, ttlHours },
       recipientEmail: email.trim(),
       recipientMemberId: row.id,
-      ...passwordResetRequestEmail({ resetUrl, ttlHours }),
+      idempotencyKey: `pwreset:${tokenRowId}`,
+      strict: true,
     });
   } catch (err) {
     // Swallow (do not re-throw) to preserve the anti-enumeration contract:
@@ -2930,13 +2929,15 @@ async function completePasswordReset(
   // re-issue + redirect); the audit row carries the operator signal.
   if (member.login_email) {
     try {
-      getCommunicationService().enqueueEmailOrFail({
+      emailService.send({
+        template: 'password_reset_confirm',
+        params: {},
+        recipientEmail: member.login_email,
+        recipientMemberId: consumed.memberId,
         // Pin to the consumed token row id so re-issue on worker restart
         // between SES-send and outbox-mark-sent collapses to the same row.
         idempotencyKey: `pwresetconfirm:${consumed.tokenRowId}`,
-        recipientEmail: member.login_email,
-        recipientMemberId: consumed.memberId,
-        ...passwordResetConfirmEmail(),
+        strict: true,
       });
     } catch (err) {
       recordOperationalError({
@@ -3651,14 +3652,16 @@ function requestAnchorMailboxVerification(
   });
   const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
   try {
-    getCommunicationService().enqueueEmailOrFail({
-      idempotencyKey:    `mailbox_link:${tokenRowId}`,
-      recipientEmail:    anchor.anchor_value,
-      recipientMemberId: memberId,
-      ...mailboxLinkConfirmEmail({
+    emailService.send({
+      template: 'mailbox_link_confirm',
+      params: {
         verifyUrl: `${baseUrl}/register/wizard/legacy_claim/anchors/verify/${rawToken}`,
         ttlHours,
-      }),
+      },
+      recipientEmail:    anchor.anchor_value,
+      recipientMemberId: memberId,
+      idempotencyKey:    `mailbox_link:${tokenRowId}`,
+      strict: true,
     });
   } catch (err) {
     // The token row committed above; a lost enqueue would otherwise orphan
@@ -3887,9 +3890,9 @@ function submitLinkHelpRequest(
         metadata: { work_queue_item_id: id },
       });
     }
-    getCommunicationService().enqueueMailingListEmail({
-      mailingListSlug:      'admin-alerts',
-      ...adminQueueAlertEmail({ taskType: 'member_link_help_request', entityId: memberId }),
+    emailService.sendToAdmins({
+      template: 'admin_queue_alert',
+      params: { taskType: 'member_link_help_request', entityId: memberId },
       idempotencyKeyPrefix: `admin-alerts:member_link_help_request:${id}`,
     });
   });

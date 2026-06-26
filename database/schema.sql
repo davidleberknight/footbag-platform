@@ -630,6 +630,9 @@ CREATE TABLE outbox_emails (
 
   subject   TEXT NOT NULL,
   body_text TEXT,
+  -- Identifies the registered template that produced this row (stamped by the
+  -- email compose service); the admin viewer reads it for type and PII class.
+  template_key TEXT,
 
   status TEXT NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending','sending','sent','failed','dead_letter')),
@@ -698,6 +701,12 @@ CREATE TABLE email_templates (
   subject_template TEXT NOT NULL,
   body_template    TEXT NOT NULL,
   is_enabled       INTEGER NOT NULL DEFAULT 1 CHECK (is_enabled IN (0,1)),
+  -- Drives how much of a sent message the admin email viewer may reveal:
+  -- public/internal bodies show freely, confidential bodies behind a logged
+  -- reveal, restricted (token-bearing) bodies never. The compose-service code
+  -- registry is the runtime source; this column is the editable override.
+  pii_classification TEXT NOT NULL DEFAULT 'confidential'
+    CHECK (pii_classification IN ('public','internal','confidential','restricted')),
   updated_by_label TEXT,
   updated_at_label TEXT
 );

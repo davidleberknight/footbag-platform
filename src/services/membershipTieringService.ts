@@ -63,7 +63,6 @@
  * Service shape: singleton object (no external adapters).
  */
 import {
-  account,
   adminRole,
   mailingListSubscriptions,
   memberTier,
@@ -71,15 +70,8 @@ import {
   type MemberTierCurrentRow,
   type MemberTierGrantLatestRow,
 } from '../db/db';
-import { logger } from '../config/logger';
 import { appendAuditEntry, type AuditActorType } from './auditService';
-import { getCommunicationService } from './communicationService';
-import {
-  adminRoleChangeEmail,
-  honorCongratulationEmail,
-  tierChangeNoticeEmail,
-  type EmailContent,
-} from './emailContent';
+import { emailService } from './emailService';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { endOnTier3Grant, endOnTierUpgrade } from './activePlayerService';
 import { uuidv7Hex } from './uuidv7';
@@ -206,53 +198,20 @@ function audit(opts: {
   });
 }
 
-// Member notifications enqueue AFTER the tier transaction commits, so a failed
-// or skipped enqueue never unwinds the committed grant. A member with no
-// deliverable recipient (no login email, deceased, or purged) is skipped rather
-// than raised. The grant id keys idempotency, so re-enqueuing the same committed
-// grant collapses to one row.
-function enqueueMemberEmail(opts: {
-  memberId: string;
-  content: EmailContent;
-  idempotencyKey: string;
-  context: string;
-}): void {
-  const row = account.findNotificationContactById.get(opts.memberId) as
-    | { login_email: string | null }
-    | undefined;
-  if (!row?.login_email) {
-    logger.warn(`${opts.context} skipped: no deliverable recipient`, {
-      memberId: opts.memberId,
-    });
-    return;
-  }
-  try {
-    getCommunicationService().enqueueEmail({
-      recipientEmail: row.login_email,
-      recipientMemberId: opts.memberId,
-      subject: opts.content.subject,
-      bodyText: opts.content.bodyText,
-      idempotencyKey: opts.idempotencyKey,
-    });
-  } catch (err) {
-    logger.warn(`${opts.context} email enqueue failed`, {
-      err: err instanceof Error ? err.message : String(err),
-      memberId: opts.memberId,
-    });
-  }
-}
-
+// Member notifications send AFTER the tier transaction commits, so a delivery
+// problem never unwinds the committed grant; emailService.sendToMember skips a
+// member with no deliverable recipient and keys idempotency on the grant id.
 function enqueueHonorCongrats(
   memberId: string,
   honor: 'hof' | 'bap',
   staysTier3: boolean,
   grantId: string,
 ): void {
-  enqueueMemberEmail({
+  emailService.sendToMember({
     memberId,
-    content: honorCongratulationEmail({ honor, staysTier3 }),
+    template: 'honor_congratulation',
+    params: { honor, staysTier3 },
     idempotencyKey: `honor_congrats:${grantId}`,
-    context: 'honor congratulation',
   });
 }
 
@@ -262,11 +221,11 @@ function enqueueTierChangeNotice(
   reasonText: string,
   grantId: string,
 ): void {
-  enqueueMemberEmail({
+  emailService.sendToMember({
     memberId,
-    content: tierChangeNoticeEmail({ newTier, reasonText }),
+    template: 'tier_change_notice',
+    params: { newTier, reasonText },
     idempotencyKey: `tier_change_notice:${grantId}`,
-    context: 'tier change notice',
   });
 }
 
@@ -545,11 +504,11 @@ export function grantAdminRole(
     });
   });
 
-  enqueueMemberEmail({
+  emailService.sendToMember({
     memberId: targetMemberId,
-    content: adminRoleChangeEmail({ action: 'granted' }),
+    template: 'admin_role_change',
+    params: { action: 'granted' },
     idempotencyKey: `admin_role_grant:${eventId}`,
-    context: 'admin role grant notice',
   });
 
   return { ok: true };
@@ -596,11 +555,11 @@ export function revokeAdminRole(
     });
   });
 
-  enqueueMemberEmail({
+  emailService.sendToMember({
     memberId: targetMemberId,
-    content: adminRoleChangeEmail({ action: 'revoked' }),
+    template: 'admin_role_change',
+    params: { action: 'revoked' },
     idempotencyKey: `admin_role_revoke:${eventId}`,
-    context: 'admin role revoke notice',
   });
 
   return { ok: true };

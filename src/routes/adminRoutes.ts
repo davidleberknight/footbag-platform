@@ -6,6 +6,7 @@ import { adminClubCleanupController } from '../controllers/adminClubCleanupContr
 import { adminBootstrapController } from '../controllers/adminBootstrapController';
 import { adminClubLeadershipController } from '../controllers/adminClubLeadershipController';
 import { adminAdminRolesController } from '../controllers/adminAdminRolesController';
+import { adminAuditLogController } from '../controllers/adminAuditLogController';
 import { requireAuth } from '../middleware/auth';
 import { requireAdmin } from '../middleware/requireAdmin';
 
@@ -27,6 +28,8 @@ adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);
 adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.linkHelpApprove);
 adminRouter.post('/work-queue/:id/link-help/reject',  adminWorkQueueController.linkHelpReject);
 adminRouter.post('/work-queue/:id/link-help/dispute-revert', adminWorkQueueController.linkHelpDisputeRevert);
+adminRouter.get('/audit-log',                 adminAuditLogController.index);
+adminRouter.get('/audit-log/export',          adminAuditLogController.exportLog);
 adminRouter.get('/clubs/leadership',          adminClubLeadershipController.queue);
 adminRouter.get('/clubs/:clubId/leadership',  adminClubLeadershipController.detail);
 adminRouter.post('/clubs/:clubId/leadership/assign',  adminClubLeadershipController.assign);

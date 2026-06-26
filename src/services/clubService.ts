@@ -95,13 +95,7 @@ import {
   type LegacyClubCandidateRow,
   type LegacyPersonClubAffiliationRow,
 } from '../db/db';
-import { getCommunicationService } from './communicationService';
-import {
-  clubMembershipMemberEmail,
-  clubMembershipLeaderEmail,
-  clubVolunteerLeadershipEmail,
-  clubCoLeaderInviteEmail,
-} from './emailContent';
+import { emailService } from './emailService';
 import { logger } from '../config/logger';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
@@ -966,7 +960,6 @@ function enqueueClubMembershipEmails(opts: {
   notificationKey: string;
 }): void {
   try {
-    const comms = getCommunicationService();
     const member = account.findContactInfoById.get(opts.memberId) as
       | { id: string; display_name: string; login_email: string | null }
       | undefined;
@@ -975,30 +968,32 @@ function enqueueClubMembershipEmails(opts: {
     }>;
 
     if (member?.login_email) {
-      comms.enqueueEmail({
-        idempotencyKey: `club-${opts.kind}:${opts.notificationKey}:member`,
-        recipientEmail: member.login_email,
-        recipientMemberId: member.id,
-        ...clubMembershipMemberEmail({
+      emailService.send({
+        template: 'club_membership_member',
+        params: {
           kind: opts.kind,
           memberName: member.display_name,
           clubName: opts.clubName,
-        }),
+        },
+        recipientEmail: member.login_email,
+        recipientMemberId: member.id,
+        idempotencyKey: `club-${opts.kind}:${opts.notificationKey}:member`,
       });
     }
 
     for (const leader of leaders) {
       if (!leader.login_email || leader.member_id === opts.memberId) continue;
-      comms.enqueueEmail({
-        idempotencyKey: `club-${opts.kind}:${opts.notificationKey}:leader:${leader.member_id}`,
-        recipientEmail: leader.login_email,
-        recipientMemberId: leader.member_id,
-        ...clubMembershipLeaderEmail({
+      emailService.send({
+        template: 'club_membership_leader',
+        params: {
           kind: opts.kind,
           leaderName: leader.display_name,
           memberName: member?.display_name ?? 'A member',
           clubName: opts.clubName,
-        }),
+        },
+        recipientEmail: leader.login_email,
+        recipientMemberId: leader.member_id,
+        idempotencyKey: `club-${opts.kind}:${opts.notificationKey}:leader:${leader.member_id}`,
       });
     }
   } catch (err) {
@@ -1019,7 +1014,6 @@ function enqueueVolunteerLeadershipEmails(opts: {
   clubLeaderId: string;
 }): void {
   try {
-    const comms = getCommunicationService();
     const member = account.findContactInfoById.get(opts.memberId) as
       | { id: string; display_name: string; login_email: string | null }
       | undefined;
@@ -1030,15 +1024,16 @@ function enqueueVolunteerLeadershipEmails(opts: {
 
     for (const leader of leaders) {
       if (!leader.login_email || leader.member_id === opts.memberId) continue;
-      comms.enqueueEmail({
-        idempotencyKey: `club-coleader-volunteered:${opts.clubLeaderId}:leader:${leader.member_id}`,
-        recipientEmail: leader.login_email,
-        recipientMemberId: leader.member_id,
-        ...clubVolunteerLeadershipEmail({
+      emailService.send({
+        template: 'club_volunteer_leadership',
+        params: {
           leaderName: leader.display_name,
           joinerName,
           clubName: opts.clubName,
-        }),
+        },
+        recipientEmail: leader.login_email,
+        recipientMemberId: leader.member_id,
+        idempotencyKey: `club-coleader-volunteered:${opts.clubLeaderId}:leader:${leader.member_id}`,
       });
     }
   } catch (err) {
@@ -2593,15 +2588,15 @@ export class ClubService {
     }
 
     try {
-      const comms = getCommunicationService();
-      comms.enqueueEmail({
-        idempotencyKey: `club-coleader-invite:${clubId}:${invitee.id}`,
-        recipientEmail: contact.login_email,
-        recipientMemberId: invitee.id,
-        ...clubCoLeaderInviteEmail({
+      emailService.send({
+        template: 'club_coleader_invite',
+        params: {
           inviteeName: invitee.display_name,
           clubName: club.name,
-        }),
+        },
+        recipientEmail: contact.login_email,
+        recipientMemberId: invitee.id,
+        idempotencyKey: `club-coleader-invite:${clubId}:${invitee.id}`,
       });
     } catch (err) {
       logger.warn('club co-leader invite enqueue failed', {

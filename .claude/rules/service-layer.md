@@ -47,6 +47,15 @@ Bare `throw new Error(...)` is reserved for internal invariant assertions ("this
 
 When a catch block writes a `*_failed` audit row, it uses `recordOperationalError(...)` from `src/services/operationalErrors.ts`, not `appendAuditEntry` directly. The helper pairs the audit row with a `logger.error()` line — same call drives the staging/prod CloudWatch alarm and the in-test guard. The helper does not throw or swallow; the caller decides per its contract.
 
+## Audit log
+
+`audit_entries` is the durable, append-only accountability record (immutability enforced by triggers). When appending a row (`appendAuditEntry`):
+
+- Reuse the established `action_type` vocabulary — lowercase, dotted, domain-prefixed (`tier.purchase_grant`, `admin.role_granted`, `legacy.auto_link_revert`). For the same event reuse the existing `action_type`; do not coin a synonym. `action_type` is a closed vocabulary that downstream queries, metric filters, and reviews match on, so renaming an existing one means updating every matcher in the same change.
+- Set `category` from the existing set; record `actor_type`, `actor_member_id`, `entity_type`, and `entity_id` faithfully (a member is referenced by id).
+- Never write a secret, token, decrypted ballot, password, or raw PII into `reason_text` or `metadata_json`. Hash sensitive lookups (search query, IP, email) and reference personal data by id, not value. Exclude sensitive data at write time rather than relying on read-time redaction.
+- Log every governance- or security-significant write (grants, overrides, role changes, deletions, claims, disputes) so the trail reconstructs who did what, when, and why.
+
 ## Rate limiting
 
 Rate-limit enforcement (`rateLimitHit(key)` plus `throw new RateLimitedError(...)`) lives in the

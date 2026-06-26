@@ -45,8 +45,7 @@ import { randomUUID } from 'node:crypto';
 import { workQueue, account, transaction } from '../db/db';
 import { enforceWorkQueueResolveLimit } from './identityAccessService';
 import { appendAuditEntry } from './auditService';
-import { getCommunicationService } from './communicationService';
-import { adminQueueAlertEmail, contactRequestResolutionEmail } from './emailContent';
+import { emailService } from './emailService';
 import { recordOperationalError } from './operationalErrors';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
@@ -313,9 +312,9 @@ export const contactRequestService = {
           message_length: trimmed.length,
         },
       });
-      getCommunicationService().enqueueMailingListEmail({
-        mailingListSlug:      'admin-alerts',
-        ...adminQueueAlertEmail({ taskType: TASK_TYPE, entityId: id }),
+      emailService.sendToAdmins({
+        template: 'admin_queue_alert',
+        params: { taskType: TASK_TYPE, entityId: id },
         idempotencyKeyPrefix: `admin-alerts:${TASK_TYPE}:${id}`,
       });
     });
@@ -394,11 +393,6 @@ export const contactRequestService = {
       | undefined;
     if (member && member.login_email) {
       const displayDecision = DECISION_LABEL_DISPLAY[decisionLabel];
-      const { subject, bodyText } = contactRequestResolutionEmail({
-        memberName: member.display_name,
-        displayDecision,
-        note,
-      });
 
       // Strict enqueue (R4 pattern): an outbox failure after the resolve
       // committed must surface to the admin as a 503 rather than silently
@@ -408,12 +402,17 @@ export const contactRequestService = {
       // operator triage. Terminal-state idempotency key collapses re-
       // enqueue attempts.
       try {
-        getCommunicationService().enqueueEmailOrFail({
+        emailService.send({
+          template: 'contact_request_resolution',
+          params: {
+            memberName: member.display_name,
+            displayDecision,
+            note,
+          },
           recipientEmail:    member.login_email,
           recipientMemberId: member.id,
-          subject,
-          bodyText,
           idempotencyKey:    `contact-request-resolve:${input.queueItemId}`,
+          strict: true,
         });
       } catch (err) {
         recordOperationalError({

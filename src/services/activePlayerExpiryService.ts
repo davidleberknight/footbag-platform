@@ -36,8 +36,7 @@ import {
 } from '../db/db';
 import { applyExpiry } from './activePlayerService';
 import { getTierStatus } from './membershipTieringService';
-import { getCommunicationService } from './communicationService';
-import { activePlayerExpiryReminderEmail } from './emailContent';
+import { emailService } from './emailService';
 import { readIntConfig } from './configReader';
 import { logger } from '../config/logger';
 import { formatDateDisplay } from './dateFormat';
@@ -121,16 +120,6 @@ function formatExpiryDate(isoDate: string): string {
   return formatDateDisplay(isoDate, { style: 'long' });
 }
 
-function buildReminderEmail(expiresAtIso: string, offsetLabel: OffsetLabel): {
-  subject: string;
-  bodyText: string;
-} {
-  return activePlayerExpiryReminderEmail({
-    displayDate: formatExpiryDate(expiresAtIso),
-    isDayOf: offsetLabel === 'day_of',
-  });
-}
-
 function isSubscribed(memberId: string): boolean {
   // Absence of a row = subscribed by default (opt-out semantics matching the
   // mailing list's `is_member_manageable=1` configuration; members may
@@ -205,8 +194,6 @@ export function runDailyPass(opts: RunOpts = {}): RunDailyPassResult {
     ActivePlayerExpiryCandidateRow[];
   result.candidates_scanned = candidates.length;
 
-  const comm = getCommunicationService();
-
   for (const c of candidates) {
     // Step 1: lapsed grants get an expire ledger row written. applyExpiry is
     // idempotent (no-op when the latest row is already expire/end). Pass the
@@ -257,12 +244,14 @@ export function runDailyPass(opts: RunOpts = {}): RunDailyPassResult {
     const sent = transaction(() => {
       const recorded = tryRecordReminderSent(c.member_id, c.expires_at, offset.label, nowIso);
       if (!recorded) return false;
-      const { subject, bodyText } = buildReminderEmail(c.expires_at, offset.label);
-      comm.enqueueEmail({
+      emailService.send({
+        template: 'active_player_expiry_reminder',
+        params: {
+          displayDate: formatExpiryDate(c.expires_at),
+          isDayOf: offset.label === 'day_of',
+        },
         recipientEmail:    c.login_email!,
         recipientMemberId: c.member_id,
-        subject,
-        bodyText,
         mailingListId:     MAILING_LIST_SLUG,
         idempotencyKey:    `ap-reminder:${c.member_id}:${c.expires_at}:${offset.label}`,
       });

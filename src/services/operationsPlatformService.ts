@@ -64,7 +64,7 @@ import { memberService } from './memberService';
 import { hashtagDiscoveryService } from './hashtagDiscoveryService';
 import { recordOperationalError } from './operationalErrors';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
-import { adminQueueAlertEmail } from './emailContent';
+import { emailService } from './emailService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
@@ -390,9 +390,9 @@ export class OperationsPlatformService {
               `Batch auto-link match (low)`,
               null,
             );
-            getCommunicationService().enqueueMailingListEmail({
-              mailingListSlug:      'admin-alerts',
-              ...adminQueueAlertEmail({ taskType: 'auto_link_match', entityId: c.id }),
+            emailService.sendToAdmins({
+              template: 'admin_queue_alert',
+              params: { taskType: 'auto_link_match', entityId: c.id },
               idempotencyKeyPrefix: `admin-alerts:auto_link_match:${c.id}`,
             });
           });

@@ -275,7 +275,7 @@ resource "aws_cloudwatch_dashboard" "main" {
 resource "aws_cloudwatch_log_metric_filter" "outbox_depth" {
   name           = "${local.prefix}-outbox-depth"
   log_group_name = aws_cloudwatch_log_group.app.name
-  pattern        = "{ $.message = \"outbox.depth\" }"
+  pattern        = "{ $.msg = \"outbox.depth\" }"
   metric_transformation {
     namespace     = "Footbag/${var.environment}"
     name          = "OutboxDepth"

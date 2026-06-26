@@ -55,6 +55,8 @@ export interface EnqueueEmailInput {
   scheduledFor?: string;
   mailingListId?: string;
   fromIdentity?: string;
+  /** Registered template that produced this email; the compose service stamps it. */
+  templateKey?: string | null;
 }
 
 export interface EnqueueResult {
@@ -67,6 +69,7 @@ export interface EnqueueMailingListEmailInput {
   subject: string;
   bodyText: string;
   idempotencyKeyPrefix: string;
+  templateKey?: string | null;
 }
 
 export interface MailingListEnqueueResult {
@@ -130,6 +133,7 @@ export function createCommunicationService(
           input.fromIdentity ?? defaultFrom ?? null,
           input.subject,
           input.bodyText,
+          input.templateKey ?? null,
           input.scheduledFor ?? null,
         );
         return { id, status: 'enqueued' };
@@ -201,6 +205,7 @@ export function createCommunicationService(
           mailingListId: sub.mailing_list_id,
           subject: input.subject,
           bodyText: input.bodyText,
+          templateKey: input.templateKey,
           idempotencyKey: `${input.idempotencyKeyPrefix}:${sub.member_id}`,
         });
         if (result.status === 'duplicate') duplicates += 1;

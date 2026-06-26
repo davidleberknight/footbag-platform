@@ -5303,6 +5303,89 @@ export const auditEntries = {
   `); },
 };
 
+// Read surface for the admin audit-log viewer. Filters are optional and
+// dynamic, so the SQL is assembled per call (the project's dynamic-SQL-helper
+// pattern) rather than as a fixed prepared statement.
+export interface AuditLogFilters {
+  memberId?: string | null;      // matches actor OR member-entity
+  actionType?: string | null;
+  category?: string | null;
+  actorType?: string | null;
+  fromDate?: string | null;      // occurred_at >= (inclusive)
+  toDate?: string | null;        // occurred_at <= (inclusive)
+  selfActionOnly?: boolean;      // actor is the affected member (self-dealing lens)
+  includeAuditAccess?: boolean;  // include the viewer's own audit.viewed/exported rows
+}
+
+export interface AuditLogQueryRow {
+  id: string;
+  occurred_at: string;
+  actor_type: string;
+  actor_member_id: string | null;
+  action_type: string;
+  entity_type: string;
+  entity_id: string;
+  category: string;
+  reason_text: string | null;
+  metadata_json: string;
+  actor_display_name: string | null;
+  actor_slug: string | null;
+  entity_display_name: string | null;
+  entity_slug: string | null;
+}
+
+function buildAuditLogWhere(f: AuditLogFilters): { sql: string; params: unknown[] } {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (f.memberId) {
+    clauses.push("(a.actor_member_id = ? OR (a.entity_type = 'member' AND a.entity_id = ?))");
+    params.push(f.memberId, f.memberId);
+  }
+  if (f.actionType) { clauses.push('a.action_type = ?'); params.push(f.actionType); }
+  if (f.category)   { clauses.push('a.category = ?');    params.push(f.category); }
+  if (f.actorType)  { clauses.push('a.actor_type = ?');  params.push(f.actorType); }
+  if (f.fromDate)   { clauses.push('a.occurred_at >= ?'); params.push(f.fromDate); }
+  if (f.toDate)     { clauses.push('a.occurred_at <= ?'); params.push(f.toDate); }
+  if (f.selfActionOnly) {
+    clauses.push("a.actor_member_id IS NOT NULL AND a.entity_type = 'member' AND a.actor_member_id = a.entity_id");
+  }
+  if (!f.includeAuditAccess) {
+    clauses.push("a.action_type NOT IN ('audit.viewed', 'audit.exported')");
+  }
+  return { sql: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
+}
+
+export function queryAuditLog(filters: AuditLogFilters, limit: number, offset: number): AuditLogQueryRow[] {
+  const { sql, params } = buildAuditLogWhere(filters);
+  return db.prepare(`
+    SELECT
+      a.id, a.occurred_at, a.actor_type, a.actor_member_id, a.action_type,
+      a.entity_type, a.entity_id, a.category, a.reason_text, a.metadata_json,
+      am.display_name AS actor_display_name, am.slug AS actor_slug,
+      em.display_name AS entity_display_name, em.slug AS entity_slug
+    FROM audit_entries a
+    -- Join through members_active so a soft-deleted member resolves to no
+    -- display name or slug: the viewer then shows their id with no profile
+    -- link, rather than a /members/<slug> link that 404s for deleted accounts.
+    LEFT JOIN members_active am ON am.id = a.actor_member_id
+    LEFT JOIN members_active em ON em.id = a.entity_id AND a.entity_type = 'member'
+    ${sql}
+    ORDER BY a.occurred_at DESC
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset) as AuditLogQueryRow[];
+}
+
+export function countAuditLog(filters: AuditLogFilters): number {
+  const { sql, params } = buildAuditLogWhere(filters);
+  const row = db.prepare(`SELECT COUNT(*) AS n FROM audit_entries a ${sql}`).get(...params) as { n: number };
+  return row.n;
+}
+
+export function listAuditLogCategories(): string[] {
+  const rows = db.prepare('SELECT DISTINCT category FROM audit_entries ORDER BY category').all() as Array<{ category: string }>;
+  return rows.map((r) => r.category);
+}
+
 export const outbox = {
   // Operational depth probe: pending + sending rows are the deliverable
   // backlog; a growing count means the worker is down or SES is failing.
@@ -5316,13 +5399,13 @@ export const outbox = {
       idempotency_key,
       recipient_email, recipient_member_id, mailing_list_id,
       sender_member_id, from_identity,
-      subject, body_text,
+      subject, body_text, template_key,
       status, retry_count, scheduled_for
     ) VALUES (?, ?, 'system', ?, 'system', 1,
       ?,
       ?, ?, ?,
       ?, ?,
-      ?, ?,
+      ?, ?, ?,
       'pending', 0, ?)
   `); },
 

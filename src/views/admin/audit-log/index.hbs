@@ -1,0 +1,62 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>Search the audit trail to investigate a member complaint or to confirm a flow logged what it should. Read-only.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <form method="GET" action="/admin/audit-log" class="mb-6">
+    <p>
+      <label>Member id <input type="text" name="member" value="{{content.filters.member}}"></label>
+      <label>Action type <input type="text" name="actionType" value="{{content.filters.actionType}}"></label>
+      <label>Category
+        <select name="category">
+          <option value="">Any</option>
+          {{#each content.categoryOptions}}
+            <option value="{{this}}"{{#if (eq this ../content.filters.category)}} selected{{/if}}>{{this}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>Actor
+        <select name="actorType">
+          <option value="">Any</option>
+          {{#each content.actorTypeOptions}}
+            <option value="{{this}}"{{#if (eq this ../content.filters.actorType)}} selected{{/if}}>{{this}}</option>
+          {{/each}}
+        </select>
+      </label>
+    </p>
+    <p>
+      <label>From <input type="date" name="from" value="{{content.filters.fromDate}}"></label>
+      <label>To <input type="date" name="to" value="{{content.filters.toDate}}"></label>
+      <label><input type="checkbox" name="self" value="1"{{#if content.filters.selfActionOnly}} checked{{/if}}> Self-actions only</label>
+      <label><input type="checkbox" name="includeAccess" value="1"{{#if content.filters.includeAuditAccess}} checked{{/if}}> Include audit-access events</label>
+    </p>
+    <p>
+      <button type="submit" class="btn btn-primary">Apply Filters</button>
+      <a href="/admin/audit-log" class="btn btn-outline">Clear</a>
+    </p>
+  </form>
+
+  <p class="text-muted">{{content.resultSummary}}</p>
+  <p class="fs-sm">Export this view: <a href="{{content.exportCsvHref}}">CSV</a> &middot; <a href="{{content.exportJsonHref}}">JSON</a></p>
+
+  {{#each content.entries}}
+    <div class="card mb-2">
+      <div class="card-title">{{actionType}} <span class="badge">{{category}}</span></div>
+      <p class="card-meta">
+        {{occurredAtDisplay}} &middot;
+        {{actorType}}: {{#if actorHref}}<a href="{{actorHref}}">{{actorLabel}}</a>{{else}}{{actorLabel}}{{/if}}
+        &middot; on {{#if entityHref}}<a href="{{entityHref}}">{{entityLabel}}</a>{{else}}{{entityLabel}}{{/if}}
+      </p>
+      {{#if reasonText}}<p class="card-meta">Reason: {{reasonText}}</p>{{/if}}
+      {{#if metadataPreview}}<p class="card-meta fs-sm text-muted">{{metadataPreview}}</p>{{/if}}
+    </div>
+  {{/each}}
+
+  <p class="mt-4">
+    {{#if content.prevPageHref}}<a href="{{content.prevPageHref}}" class="btn btn-outline">Previous</a>{{/if}}
+    {{#if content.nextPageHref}}<a href="{{content.nextPageHref}}" class="btn btn-outline">Next</a>{{/if}}
+  </p>
+</div>

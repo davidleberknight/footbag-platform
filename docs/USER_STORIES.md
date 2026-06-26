@@ -2654,12 +2654,14 @@ Success Criteria:
 
 - Audit log view lists entries with at least: timestamp, actor (admin, system, or member), action type, affected entity (such as member, event, media, payment, election), and a short description or reason where available.
 - Entries are sorted by timestamp, newest first by default.
-- Admin can filter logs by: date range (from/to); topic/category (for example: membership changes, pricing changes, elections, content moderation, payments, system alarms, configuration changes); actor type (admin vs system vs member).
-- Admin cannot search logs via the app at launch but must instead use an external tool if searching logs is required operationally.
+- Admin can filter logs by: date range (from/to); topic/category (for example: membership changes, pricing changes, elections, content moderation, payments, system alarms, configuration changes); actor type (admin vs system vs member); a specific member (matching rows where that member is the actor or the affected entity); and action type. A self-action filter surfaces rows where the acting admin is the affected member.
+- Filtering uses the structured filters above; the app does not provide free-text search over reason or metadata content, which is done with an external tool when needed.
 - Audit coverage includes at least: membership tier changes, pricing updates, event sanction approvals, media takedown decisions, election operations (create, publish, decrypt), admin role changes, alarm acknowledgments, and system cleanup or reconciliation processes.
 - Monthly summary view shows counts per category (for example: number of tier changes, number of event approvals, number of takedowns) to support lightweight reporting.
 - Logs retain limited identifiers necessary for traceability (IDs, not email addresses), consistent with privacy rules in Global Behaviors and Technical Requirements.
 - All audit log data is read-only; no UI allows editing or deleting existing entries.
+- Reading or exporting the audit log is itself recorded as an audit entry (`action_type` `audit.viewed` or `audit.exported`, category `audit`, naming the admin and the filter target). These audit-access entries are excluded from the default view to avoid self-noise and surfaced only on request.
+- The filtered view exports to CSV and JSON for incident-response handoff, preserving the ids-not-email-addresses guarantee, and the export is audit-logged.
 
 ### A_Acknowledge_Alarm
 
