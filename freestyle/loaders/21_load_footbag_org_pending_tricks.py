@@ -71,8 +71,8 @@ PENDING_SORT_BASE     = 10_000  # well above any curated/red sort_order
 # ---------------------------------------------------------------------------
 
 def name_to_slug(name: str) -> str:
-    s = re.sub(r"[^a-z0-9]+", "-", name.lower().strip())
-    return s.strip("-")
+    s = re.sub(r"[^a-z0-9]+", "_", name.lower().strip())
+    return s.strip("_")
 
 
 def parse_int(value) -> int | None:

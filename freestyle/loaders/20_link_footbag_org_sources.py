@@ -51,8 +51,8 @@ FOOTBAG_ORG_RETRIEVED_AT = "2026-04-15T00:00:00.000Z"
 
 def trick_name_to_slug(name: str) -> str:
     slug = name.lower()
-    slug = re.sub(r"[^a-z0-9]+", "-", slug)
-    slug = slug.strip("-")
+    slug = re.sub(r"[^a-z0-9]+", "_", slug)
+    slug = slug.strip("_")
     return slug
 
 

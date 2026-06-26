@@ -132,6 +132,13 @@ def main() -> None:
     # ── reconciliation audit: the unpublished name set ──────────────
     with RECON.open(newline='') as f:
         recon = list(csv.DictReader(f))
+    # Slugs in the reconciliation master predate the underscore slug convention.
+    # Normalize hyphen separators to underscore so they match the canonical-gate
+    # slugs (taken from the live DB and red_additions, now underscore) and so the
+    # emitted tracked-name slugs stay on convention.
+    for r in recon:
+        if r.get('slug'):
+            r['slug'] = r['slug'].strip().replace('-', '_')
     # Two-gate filter:
     #   1. governance_state must not be "1 Published Canonical"
     #   2. slug must not appear in any canonical CSV

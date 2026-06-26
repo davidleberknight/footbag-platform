@@ -47,8 +47,8 @@ MOVE_URL   = "http://www.footbag.org/newmoves/showmove/{}"
 
 def name_to_slug(name: str) -> str:
     slug = name.lower().strip()
-    slug = re.sub(r"[^a-z0-9]+", "-", slug)
-    return slug.strip("-")
+    slug = re.sub(r"[^a-z0-9]+", "_", slug)
+    return slug.strip("_")
 
 
 # ---------------------------------------------------------------------------
