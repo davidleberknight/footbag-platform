@@ -377,7 +377,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'literal-primitive',
   },
 
-  // ── Composite / derived sets (11) ──────────────────────────────────
+  // ── Composite / derived sets (10) ──────────────────────────────────
   {
     slug: 'miraging', hashtag: '#set_miraging', displayName: 'Miraging', subtype: 'composite-derived',
     formula: 'SET > OP IN [DEX] >',
@@ -472,28 +472,6 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     ],
     source: 'platform-tracked',
     sourceCitation: 'Holden compilation (2003); aligned with pt8 platform ruling.',
-    auditStatus: 'aligned',
-    tier: 'compositional-system',
-  },
-  {
-    slug: 'furious', hashtag: '#set_furious', displayName: 'Furious', subtype: 'composite-derived',
-    formula: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',
-    movementExplanation:
-      'Furious is the same two-dex set as Barraging, with Barraging the more explanative term. ' +
-      'It contributes +2 and is kept as a name because named compounds use it, such as Furious ' +
-      'Clipper and Fury (furious + paradox + mirage = 5). An earlier reading treated Furious as a ' +
-      'distinct standalone primitive expanded through a longer Barraging Paradox Miraging chain; ' +
-      'that lineage is superseded by folding Furious into Barraging as one set.',
-    equivalenceNotes: [
-      { reading: 'Barraging Paradox Miraging (superseded lineage)', citation: 'Holden parenthetical; superseded by folding Furious into Barraging' },
-    ],
-    equivalentNames: [
-      { name: 'Barraging', note: 'The more explanative term for this same two-dex set.' },
-    ],
-    derivedSystems: [],
-    relatedSystems: [],
-    source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with platform tracking.',
     auditStatus: 'aligned',
     tier: 'compositional-system',
   },
@@ -1144,11 +1122,13 @@ export function findCanonicalSetBySlug(slug: string): CanonicalSet | null {
 /**
  * Retired set slugs that now resolve to a surviving canonical set, so existing
  * deep links keep working after two parallel entries collapse into one. The
- * illusioning set folded into atomic (one set, two names), so /freestyle/sets/
- * illusioning sends the reader to the atomic entry that carries that history.
+ * illusioning set folded into atomic, and the furious set folded into barraging
+ * (each is one set under two names), so the retired slug sends the reader to the
+ * surviving entry that carries that history as an equivalent name.
  */
 const SET_SLUG_ALIASES: ReadonlyMap<string, string> = new Map([
   ['illusioning', 'atomic'],
+  ['furious', 'barraging'],
 ]);
 
 /**

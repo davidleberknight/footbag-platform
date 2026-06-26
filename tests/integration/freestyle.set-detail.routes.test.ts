@@ -295,18 +295,22 @@ describe('GET /freestyle/sets/:slug — Furious and Barraging are one set', () =
     expect(res.text).not.toContain('third dex extension');
   });
 
-  it('furious names Barraging as an equivalent, drops the "+2 primitive"/"two-dex base" framing', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/furious');
+  it('furious folded into barraging, so its old link 301s to the barraging entry', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/furious').redirects(0);
+    expect(res.status).toBe(301);
+    expect(res.headers['location']).toBe('/freestyle/sets/barraging');
+  });
+
+  it('the barraging entry drops the "+2 primitive"/"two-dex base" framing', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/barraging');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Equivalent names');
-    expect(res.text).toContain('Barraging');
     expect(res.text).not.toContain('two-dex base');
     expect(res.text).not.toContain('Structural +2 set primitive');
     expect(res.text).not.toContain('parallel to atomic');
   });
 
-  it('furious renders the two-dex set formula, not a three-dex chain', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/furious');
+  it('barraging renders the two-dex set formula, not a three-dex chain', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/barraging');
     expect(res.text).toContain('SAME IN [DEX]');
     // The reconciled formula stops at two dexes; no third OP IN dex follows.
     expect(res.text).not.toMatch(/SAME IN \[DEX\] &gt; OP IN \[DEX\]/);
@@ -346,19 +350,13 @@ describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail s
     expect(ascending).toBe(true);
   });
 
-  it('furious keeps its present sections in parity order, equivalent names above the readings', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/furious');
-    const { present, ascending } = presentSectionsInOrder(res.text);
-    expect(ascending).toBe(true);
-    expect(present.indexOf('aria-label="Equivalent names"'))
-      .toBeLessThan(present.indexOf('aria-label="Equivalence readings"'));
-  });
-
-  it('barraging keeps its present sections in parity order, with an equivalent-names section', async () => {
+  it('barraging keeps its present sections in parity order, equivalent names above the readings', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/barraging');
     const { present, ascending } = presentSectionsInOrder(res.text);
     expect(ascending).toBe(true);
     expect(present).toContain('aria-label="Equivalent names"');
+    expect(present.indexOf('aria-label="Equivalent names"'))
+      .toBeLessThan(present.indexOf('aria-label="Equivalence readings"'));
   });
 });
 

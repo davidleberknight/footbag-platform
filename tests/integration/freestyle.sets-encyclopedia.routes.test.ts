@@ -31,10 +31,12 @@ const { dbPath } = setTestEnv('3159');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
-// Priority sets the curator named in the slice. Each must render.
+// Priority sets the curator named in the slice. Each must render. Furious is
+// folded into barraging (one set, two names), so its slug redirects rather than
+// rendering its own page, the same as illusioning into atomic.
 const PRIORITY_SETS = [
   'pixie', 'fairy', 'stepping', 'atomic', 'quantum', 'nuclear',
-  'barraging', 'blurry', 'furious', 'surging', 'tapping',
+  'barraging', 'blurry', 'surging', 'tapping',
 ] as const;
 
 beforeAll(async () => {
