@@ -306,7 +306,13 @@ describe('scripts/reset-local-db.sh preflight + fixture auto-stage', () => {
       );
       fs.writeFileSync(path.join(tmpRoot, 'database/schema.sql'), '-- empty\n');
 
-      const r = run('bash', ['scripts/reset-local-db.sh'], { cwd: tmpRoot });
+      // CURATOR_SEED=no skips the ffmpeg precondition; this test exercises the
+      // canonical_input preflight, which runs before any curator seeding and
+      // needs no transcoder, so the assertion holds on hosts without ffmpeg.
+      const r = run('bash', ['scripts/reset-local-db.sh'], {
+        cwd: tmpRoot,
+        env: { CURATOR_SEED: 'no' },
+      });
       expect(r.status).toBe(1);
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
       expect(combined).toMatch(/MISSING:/);
@@ -336,7 +342,13 @@ describe('scripts/reset-local-db.sh preflight + fixture auto-stage', () => {
         '#!/usr/bin/env bash\necho STUB_STAGER_INVOKED\nexit 1\n',
       );
 
-      const r = run('bash', ['scripts/reset-local-db.sh'], { cwd: tmpRoot });
+      // CURATOR_SEED=no skips the ffmpeg precondition; this test exercises the
+      // fixture-stager auto-invoke, which runs before any curator seeding and
+      // needs no transcoder, so the assertion holds on hosts without ffmpeg.
+      const r = run('bash', ['scripts/reset-local-db.sh'], {
+        cwd: tmpRoot,
+        env: { CURATOR_SEED: 'no' },
+      });
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
       expect(combined).toMatch(/STUB_STAGER_INVOKED/);
       expect(r.status).not.toBe(0);
