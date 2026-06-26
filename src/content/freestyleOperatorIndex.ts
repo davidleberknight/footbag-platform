@@ -34,7 +34,7 @@ export interface OperatorIndexAxis {
 export const OPERATOR_INDEX_AXES: readonly OperatorIndexAxis[] = [
   {
     axisKey:   'entry-topology',
-    axisName:  'Cross-body & Entry Topology',
+    axisName:  'Entry Topology',
     typeLabel: 'Entry',
     modifierSlugs: ['paradox'],
   },

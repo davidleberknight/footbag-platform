@@ -68,7 +68,7 @@ describe('GET /freestyle/operators — compact modifier index', () => {
   it('renders the relationship, body, and no-plant axes as grouped sections', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Cross-body &amp; Entry Topology');
+    expect(res.text).toContain('Entry Topology');
     expect(res.text).toContain('Midtime Body Modifiers');
     expect(res.text).toContain('No-Plant &amp; Suspension');
     // The set primitives no longer have their own operator axis here.
@@ -125,7 +125,23 @@ describe('GET /freestyle/operators — compact modifier index', () => {
   it('retains the advanced decomposition reference below the index', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
     expect(res.text).toContain('id="advanced-decomposition-operator-theory"');
-    expect(res.text).toContain('id="execution-mechanics"');
+    expect(res.text).toContain('id="alpine"');
+  });
+
+  // The brackets an operator leaves behind are taught as a peer notation
+  // vocabulary, distinct from the operators that produce them: a paradox dex
+  // and a cross-body delay step are separate components, and X-Dex is a
+  // conditional scoring rider, never an operator.
+  it('teaches the notation/ADD components as a peer vocabulary, not as operators', async () => {
+    const res = await request(await createApp()).get('/freestyle/operators');
+    expect(res.text).toContain('id="notation-components"');
+    expect(res.text).toContain('[PDX]');
+    expect(res.text).toContain('[XBD]');
+    expect(res.text).toContain('[XDEX]');
+    // Paradox is taught by comparison, not by leading with its notation formula.
+    expect(res.text).toContain('Paradox Mirage');
+    // The page must not reassert paradox as a kind of cross-body.
+    expect(res.text).not.toMatch(/paradox[^.]*\bspecies\b/i);
   });
 
   it('sub-labels the spin and head-movement families within the body axis', async () => {

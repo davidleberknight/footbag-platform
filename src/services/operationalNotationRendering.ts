@@ -107,7 +107,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
 // different educational content. Labels are user-facing prose ("<Name>
 // component (clarifier)"); the raw token text already renders inside the
 // pill, so the tooltip avoids repeating it.
-const COMPONENT_FLAG_LABELS: Record<string, string> = {
+export const COMPONENT_FLAG_LABELS: Record<string, string> = {
   DEX:  'Dexterity component (bag-foot interaction)',
   DEL:  'Delay component (final stall / landing)',
   BOD:  'Body component (body-position step, no bag-foot interaction)',

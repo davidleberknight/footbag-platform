@@ -80,10 +80,15 @@
       page (open any row above). The notes below are the few ideas that cut
       across modifiers rather than belonging to one.
     </p>
-    <h3 class="section-heading" id="execution-mechanics">Alpine</h3>
-    <p>Alpine divides a trick between its uptime and downtime, inserting a duck or dive between them. Alpine Ripwalk = Stepping Ducking Butterfly.</p>
-    <h3 class="section-heading" id="cross-body">Cross-body</h3>
-    <p>Cross-body describes tricks (and components) where the active foot or dex crosses the body&rsquo;s center line. The ADD category XBD covers cross-body components.</p>
-    <p>Paradox is the side-switch relationship between the support leg and the dexterity: the body crosses sides on a dex. When paradox is the entry, it reads as an opposite-side clipper entry (clipper set, then an opposite-side inward dex: CLIP &gt; OP IN [DEX]), which is why it associates with cross-body entry topology. But paradox can also occur mid-trick as a later side-switch (a [PDX] dex), so CLIP &gt; OP IN [DEX] is paradox&rsquo;s entry-topology case, not its form in every trick.</p>
+    <h3 class="section-heading" id="alpine">Alpine</h3>
+    <p>Alpine divides a trick between its uptime and downtime, inserting a duck or dive between them. Alpine Ripwalk = Stepping Ducking Butterfly. The name is a folk label for that split, not a separate operator: its structure is the ducking or diving it inserts.</p>
+    <h3 class="section-heading" id="notation-components">Notation and ADD components</h3>
+    <p>Operators are the transformations you apply; notation is how we record what an operator leaves behind. Apply paradox to a base and you get its paradox variant: Mirage becomes Paradox Mirage. The operator switches which side the support leg and the dexterity work on, and the analysis records that consequence as a paradox-direction dex. The operator is the cause; the notation component is the consequence it leaves in the score. These components are the analysis vocabulary:</p>
+    <ul>
+      {{#each content.notationVocabulary}}
+      <li><code>{{token}}</code>: {{meaning}}</li>
+      {{/each}}
+    </ul>
+    <p>These components are peers, not nested. A paradox dex (<code>[PDX]</code>) and a cross-body delay step (<code>[XBD]</code>) are two different crossing components, neither one a kind of the other. An X-Dex (<code>[XDEX]</code>) is a conditional scoring bonus that rides an eligible far-form dex. Each records a structural consequence of how a trick is built; none is an operator a player applies.</p>
   </section>
 </div>

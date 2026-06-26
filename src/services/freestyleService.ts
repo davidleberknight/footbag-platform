@@ -83,6 +83,7 @@ import {
 import {
   OperationalToken,
   shapeOperationalNotationDisplay,
+  COMPONENT_FLAG_LABELS,
 } from './operationalNotationRendering';
 import {
   SemanticBrowseToken,
@@ -3947,6 +3948,11 @@ export interface FreestyleOperatorsContent {
   // operators surface no longer renders the per-modifier reference (that stays in
   // the glossary's Modifiers & Operators section, the anchor home).
   indexAxes: OperatorIndexAxisGroup[];
+  // The analysis vocabulary: the notation components an operator leaves behind
+  // when applied. These are scoring/notation constructs (a property a component
+  // has), not operators a player applies, so they sit apart from the index as
+  // peers. Sourced from the canonical component-flag labels.
+  notationVocabulary: { token: string; meaning: string }[];
 }
 
 // Data-driven detail page for a known modifier that has no hand-authored
@@ -9894,6 +9900,14 @@ export const freestyleService = {
       },
       content: {
         indexAxes: buildOperatorIndexAxes(modifierRows),
+        // [PDX], [XBD], [XDEX] are the consequences operators leave in the
+        // notation, surfaced here as analysis vocabulary (peers, not operators).
+        // Order: paradox's own component, the cross-body delay it is not, then
+        // the conditional scoring rider.
+        notationVocabulary: (['PDX', 'XBD', 'XDEX'] as const).map(flag => ({
+          token:   `[${flag}]`,
+          meaning: COMPONENT_FLAG_LABELS[flag],
+        })),
       },
     };
   },
