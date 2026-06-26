@@ -107,7 +107,7 @@ describe('GET /freestyle/add-analysis — component-contribution table', () => {
       'Unusual surface',
       // 4 operator-board axes (pedagogical organizing convention)
       'Set / Uptime modifiers',
-      'Entry-topology modifiers',
+      'Entry topology:',
       'Midtime body modifiers',
       'Positional / directional cues',
     ];
@@ -333,10 +333,9 @@ describe('GET /freestyle/add-analysis — Phase 1 refactor (2026-05-21)', () => 
   });
 
   it('Phase 1 additions do not introduce curator-internal language in the §1 component-table region', async () => {
-    // Scope: §1 component-class table only. The §2b resolved-formulas
-    // table carries pre-existing "Sprint N" + "pt##" provenance leakage
-    // that predates Phase 1 — surfaced in the refactor design doc as
-    // a Phase 4 cross-surface cleanup target, not a Phase 1 regression.
+    // Scope: §1 component-class table. (The §2b resolved-formulas Provenance
+    // column that previously leaked "pt##" / ruling citations has since been
+    // removed; a separate page-wide test now guards against its jargon.)
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const sectionStart = res.text.indexOf('id="how-add-is-built"');
     const sectionEnd = res.text.indexOf('id="worked-examples"');
@@ -648,17 +647,26 @@ describe('GET /freestyle/add-analysis — public pedagogy cleanup', () => {
     }
   });
 
-  it('strips internal governance citations from the core pedagogy prose', async () => {
-    // Scope: the core pedagogy (component table, worked examples, interpretation
-    // notes). The deferred formula-table Provenance column still carries
-    // citations; that cleanup lands with the Part 7 reorganization.
+  it('strips internal governance citations from the whole page (incl. the dropped provenance column)', async () => {
+    // The formula-table Provenance column was removed (its strings were internal
+    // audit notes saturated with code symbols, file names, and ruling labels). The
+    // clean ADD math stays in the Breakdown column. The page must now carry no such
+    // internal jargon anywhere.
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).not.toMatch(/TBD pending Wave 2/);
     expect(res.text).not.toMatch(/prior paradox-implication retired/);
     expect(res.text).not.toMatch(/prior paradox-atomic reading retired/);
-    // Worked-example why-notes no longer open with a ruling citation.
     expect(res.text).not.toMatch(/Settled by pt11\./);
     expect(res.text).not.toMatch(/Settled by Red 2026-05-15:/);
+    // Provenance-column leakage is gone page-wide: no ruling labels, sprint/pt tags,
+    // code-symbol names, or source-file references reach the rendered page.
+    expect(res.text).not.toMatch(/Red ruling/i);
+    expect(res.text).not.toMatch(/per Red\b/);
+    expect(res.text).not.toMatch(/\bpt\d+\b/);
+    expect(res.text).not.toContain('COMPOSITE_DERIVATIONS');
+    expect(res.text).not.toContain('FIRST_CLASS_ROTATIONAL_BASES');
+    expect(res.text).not.toMatch(/freestyleSymbolicEquivalences\.ts/);
+    expect(res.text).not.toContain('resolved-formula-provenance');
   });
 
   it('renames internal-sounding section titles', async () => {

@@ -3251,7 +3251,6 @@ section.home-media { padding-top: 0; }
   margin-top: 2px;
   text-decoration: none;
 }
-.trick-hashtag:hover { text-decoration: underline; }
 
 /* ── Trick dictionary: ADD-grouped beginner view ─────────────────────────── */
 .trick-view-toggle {
@@ -6027,8 +6026,10 @@ section.home-media { padding-top: 0; }
    universally on trick-detail pages, since it carries little signal there.
    ───────────────────────────────────────────────────────────────────────── */
 
+/* Taxonomy ribbon: rendered at the top of the trick-detail body (not the
+   hero), so the chips sit on the light page background. */
 .trick-hero-meta-ribbon {
-  margin: 6px 0 12px;
+  margin: 4px 0 18px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px 8px;
@@ -6039,8 +6040,9 @@ section.home-media { padding-top: 0; }
 .trick-hero-meta-chip {
   padding: 3px 11px;
   border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.15);
-  color: var(--white);
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
   font-weight: 500;
   letter-spacing: 0.01em;
   text-decoration: none;
@@ -6048,29 +6050,37 @@ section.home-media { padding-top: 0; }
   line-height: 1.4;
 }
 
+/* Clickable identity tag: the sole signal the trick has media. A plain
+   .trick-hero-meta-chip (no --media) is a non-clickable identity token. */
+a.trick-hero-meta-chip--media {
+  color: var(--secondary);
+}
+a.trick-hero-meta-chip--media:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .trick-hero-meta-chip-family {
-  background: rgba(255, 255, 255, 0.18);
+  color: var(--secondary);
 }
 .trick-hero-meta-chip-family:hover {
-  background: rgba(255, 255, 255, 0.28);
-  color: var(--white);
+  background: var(--green-soft);
+  color: var(--secondary);
   text-decoration: none;
 }
 
 .trick-hero-meta-chip-adds {
   font-weight: 600;
-  background: rgba(180, 240, 200, 0.22);
-}
-
-.trick-hero-meta-chip-record {
-  background: rgba(255, 220, 180, 0.20);
+  color: var(--green-deep);
+  background: var(--green-pale);
+  border-color: var(--green-pale);
 }
 
 @media (max-width: 768px) {
   .trick-hero-meta-ribbon {
     gap: 4px 6px;
     font-size: 0.8rem;
-    margin: 4px 0 10px;
+    margin: 2px 0 14px;
   }
   .trick-hero-meta-chip { padding: 2px 9px; }
 }
@@ -6079,7 +6089,7 @@ section.home-media { padding-top: 0; }
    Surfaces the page's classification in the ribbon since modifier pages have
    no ADD chip (no fixed ADD value). */
 .trick-hero-meta-chip-modifier {
-  background: rgba(255, 245, 200, 0.22);
+  background: var(--green-soft);
   font-weight: 600;
 }
 
@@ -8397,14 +8407,28 @@ section.home-media { padding-top: 0; }
   letter-spacing: 0.01em;
   text-decoration: none;
 }
-.dict-card-title::before {
-  content: '#';
+.dict-card-detail {
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dict-card-detail:hover {
+  color: var(--secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Clickable hashtag: the sole signal that a trick has media. A plain
+   .dict-card-hashtag (no --media) is a non-clickable identity token. */
+a.dict-card-hashtag--media {
   color: var(--secondary);
 }
-a.dict-card-title:hover {
+a.dict-card-hashtag--media:hover {
   text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+  text-underline-offset: 2px;
 }
 .dict-card-add {
   display: inline-block;
@@ -8525,6 +8549,26 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-weight: 500;
   font-size: 0.78rem;
   color: var(--text-muted);
+}
+/* Clickable hashtag: the sole signal that a trick has media. */
+a.dict-trick-row-hashtag--media {
+  color: var(--secondary);
+}
+a.dict-trick-row-hashtag--media:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.dict-trick-row-detail {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.dict-trick-row-detail:hover {
+  color: var(--secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .dict-trick-row-interpretation {
   font-size: 0.85rem;

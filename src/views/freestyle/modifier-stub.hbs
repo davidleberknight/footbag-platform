@@ -28,6 +28,9 @@
     {{#if content.notation}}
     <p class="modifier-stub-notation"><span class="dict-trick-row-label">SET</span> <code class="dict-trick-row-job-value">{{content.notation}}</code></p>
     {{/if}}
+    {{#if content.baseAtom}}
+    <p class="detail-muted">Base trick: <a href="{{content.baseAtom.href}}">{{content.baseAtom.label}}</a></p>
+    {{/if}}
   </section>
 
   {{#if (or content.decomposition content.workedExamples.length)}}

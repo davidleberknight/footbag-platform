@@ -50,12 +50,15 @@ export const ALTERNATIVE_SURFACES: AlternativeSurfacesContent = {
       label: 'Sole and heel',
       note:
         'Foot-edge surfaces. The bag rests on the sole (bottom) or heel (back) of ' +
-        'the foot instead of the top. Cross-body sole stall adds an [XBD] inversion.',
+        'the foot instead of the top. Cross-body sole stall adds an [XBD] inversion; ' +
+        'around-the-world variants can terminate on the heel instead of the toe.',
       tricks: [
         'sole_stall',
         'sole_kick',
         'cross_body_sole_stall',
         'heel_stall',
+        'around_the_world_heel',
+        'double_around_the_world_heel',
       ],
     },
     {

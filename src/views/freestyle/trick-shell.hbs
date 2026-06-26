@@ -15,6 +15,31 @@
 
 <div class="wrapper trick-shell">
 
+  {{!-- Taxonomy ribbon: identity tag, family, and ADD. Lives in the body,
+       not the hero. The hashtag links to the trick's media gallery only
+       when reference media exists; otherwise it is a plain identity token. --}}
+  <p class="trick-hero-meta-ribbon" aria-label="Trick metadata">
+    {{#if content.trickTag}}
+      {{#if content.hasReferenceMedia}}
+      <a class="trick-hero-meta-chip trick-hero-meta-chip--media" href="{{content.referenceGalleryHref}}" aria-label="Media for this trick">{{content.trickTag}}</a>
+      {{else}}
+      <span class="trick-hero-meta-chip">{{content.trickTag}}</span>
+      {{/if}}
+    {{/if}}
+    {{#if content.familyChip}}
+    <a class="trick-hero-meta-chip trick-hero-meta-chip-family{{#if content.familyChip.isMinorLineage}} trick-hero-meta-chip-family--minor{{/if}}" href="/freestyle/tricks?family={{content.familyChip.slug}}">{{content.familyChip.label}}{{#if content.familyChip.isMinorLineage}} &middot; minor lineage{{/if}}</a>
+    {{/if}}
+    {{#if content.dictEntry}}
+      {{#if content.dictEntry.isModifier}}
+      <span class="trick-hero-meta-chip trick-hero-meta-chip-modifier">Modifier</span>
+      {{else}}
+        {{#if content.dictEntry.adds}}
+        <span class="trick-hero-meta-chip trick-hero-meta-chip-adds">{{content.dictEntry.adds}} ADD</span>
+        {{/if}}
+      {{/if}}
+    {{/if}}
+  </p>
+
   {{> trick-compressed-from}}
 
   {{!--

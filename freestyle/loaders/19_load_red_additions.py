@@ -270,7 +270,12 @@ def load_corrections(conn: sqlite3.Connection, corrections_csv: Path, loaded_at:
     with corrections_csv.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            slug = (row.get("slug") or "").strip()
+            # Normalize the correction slug to the canonical underscore form so a
+            # hyphenated CSV slug still matches the underscored DB slug after the
+            # slug migration. The lookup below is an exact match, and additions
+            # generate underscore slugs via the same trick_name_to_slug, so without
+            # this every hyphen-slug correction silently skips ("trick not found").
+            slug = trick_name_to_slug((row.get("slug") or "").strip())
             field = (row.get("field") or "").strip()
             old_value = (row.get("old_value") or "").strip() or None
             new_value = (row.get("new_value") or "").strip() or None

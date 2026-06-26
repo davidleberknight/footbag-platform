@@ -6,10 +6,13 @@
   renders one row. Every row obeys the SAME structure:
 
   Line 1 (.dict-trick-row-head):
-    - trick name (linked anchor; plain span when external-only)
-    - hashtag (#slug identity)
-    - interpretation subtitle  — `≡ <reading>`  (optional, only when meaningful)
-    - media badge              — Tutorial/Demo available (optional, after interpretation)
+    - trick name (plain-English display text, never a link)
+    - hashtag (#slug identity): links to the trick's media gallery when the
+      trick has media, otherwise a plain token. A clickable hashtag is the
+      sole signal that media exists.
+    - Trick Detail link (the separate control that opens the detail page;
+      suppressed for external-only placeholders)
+    - interpretation subtitle  `≡ <reading>`  (optional, only when meaningful)
 
   Line 2 (.dict-trick-row-notation):
     - JOB:  <operational notation tokens>  (or "canonical decomposition pending" when absent)
@@ -31,12 +34,15 @@
          data-trick-slug="{{slug}}"
          data-media-coverage="{{mediaCoverage}}">
   <div class="dict-trick-row-head">
-    {{#if isExternalOnly}}
-      <span class="dict-trick-row-title">{{displayName}}</span>
+    <span class="dict-trick-row-title">{{displayName}}</span>
+    {{#if hashtagHref}}
+      <a class="dict-trick-row-hashtag dict-trick-row-hashtag--media" href="{{hashtagHref}}" aria-label="Media for this trick">{{hashtag}}</a>
     {{else}}
-      <a class="dict-trick-row-title" href="{{href}}">{{displayName}}</a>
+      <span class="dict-trick-row-hashtag" aria-label="Tag identity">{{hashtag}}</span>
     {{/if}}
-    <span class="dict-trick-row-hashtag" aria-label="Tag identity">{{hashtag}}</span>
+    {{#unless isExternalOnly}}
+      <a class="dict-trick-row-detail" href="{{href}}">Trick Detail</a>
+    {{/unless}}
 
     {{#if tokenizedEquivalences.length}}
       <span class="dict-trick-row-interpretation" aria-label="Interpretation reading">
@@ -49,10 +55,6 @@
       <span class="dict-trick-row-aliases" aria-label="Also called">
         Also called: {{#each commonAliases}}{{this}}{{#unless @last}} &middot; {{/unless}}{{/each}}
       </span>
-    {{/if}}
-
-    {{#if hasReferenceMedia}}
-      <span class="dict-trick-row-media dict-trick-row-media--{{mediaCoverage}}" aria-label="Media coverage">{{mediaCoverageLabel}}</span>
     {{/if}}
 
     {{#if statusBadge}}

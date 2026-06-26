@@ -1795,10 +1795,13 @@ describe('Formula Accountability Corrective Slice (2026-05-17)', () => {
     expect(slice).toMatch(/PDX/);
   });
 
-  it('ADD Analysis paradox component class surfaces the canonical formula', async () => {
+  it('ADD Analysis surfaces paradox notation as the entry-topology case', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    expect(res.text).toMatch(/Paradox itself reads as PDX/);
+    // CLIP > OP IN [DEX] is still surfaced, but framed as paradox's entry case
+    // (a side-switch that can also occur mid-trick), not paradox in every form.
     expect(res.text).toMatch(/CLIP &gt; OP IN \[DEX\]/);
+    expect(res.text).toMatch(/entry.topology/i);
+    expect(res.text).not.toContain('Paradox itself reads as PDX');
   });
 
   it('Worlds 2023 Team Freestyle featured caption carries Scott Davidson + Tuan Vu attribution', async () => {

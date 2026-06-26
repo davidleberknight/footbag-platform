@@ -9,8 +9,9 @@
  *   1 dex event   — single-dex tricks (mirage, illusion, fairy)
  *   2 dex events  — most named compounds
  *   3+ dex events — deep compounds
- *   then the no-op-notation rows grouped by real blocker (Needs authoring, Stale,
- *   Blocked: undefined operator / Red doctrine / governance / identification)
+ *   then the no-op-notation rows grouped by real blocker (Needs authoring,
+ *   Operational notation pending, Blocked: undefined operator / doctrine (weaving) /
+ *   governance / identification)
  *
  * Uses the shared dictionary-trick-card partial; card shapes identical
  * to the ADD view. Phase 4.1 of the audit-driven roadmap; backed by

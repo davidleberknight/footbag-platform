@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { getCompoundSemanticDescription } from '../../src/content/freestyleSemanticOverrides';
-import { findCanonicalSetBySlug } from '../../src/content/freestyleCanonicalSets';
+import { findCanonicalSetBySlug, resolveCanonicalSetAlias } from '../../src/content/freestyleCanonicalSets';
 
 describe('dex-kick description overrides', () => {
   it('Around the World Kick no longer claims to be the only 1-ADD dex trick', () => {
@@ -33,12 +33,21 @@ describe('dex-kick description overrides', () => {
   });
 });
 
-describe('Illusioning set points to Atomic as the underlying operator', () => {
-  it('illusioning relatedSystems includes both atomic and miraging', () => {
-    const set = findCanonicalSetBySlug('illusioning');
-    expect(set).not.toBeNull();
-    const slugs = (set!.relatedSystems ?? []).map(s => s.slug);
-    expect(slugs).toContain('atomic');
-    expect(slugs).toContain('miraging');
+describe('Illusioning folds into the Atomic set (one set, two names)', () => {
+  it('illusioning is no longer a separate canonical-set entry', () => {
+    expect(findCanonicalSetBySlug('illusioning')).toBeNull();
+  });
+
+  it('the surviving atomic entry carries Illusioning as an equivalent name and links to miraging', () => {
+    const atomic = findCanonicalSetBySlug('atomic');
+    expect(atomic).not.toBeNull();
+    const equivNames = (atomic!.equivalentNames ?? []).map(e => e.name);
+    expect(equivNames).toContain('Illusioning');
+    const relatedSlugs = (atomic!.relatedSystems ?? []).map(s => s.slug);
+    expect(relatedSlugs).toContain('miraging');
+  });
+
+  it('the retired illusioning slug resolves to atomic', () => {
+    expect(resolveCanonicalSetAlias('illusioning')).toBe('atomic');
   });
 });

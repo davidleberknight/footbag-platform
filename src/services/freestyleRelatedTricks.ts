@@ -99,6 +99,39 @@ const NEIGHBORHOOD_GROUPS: readonly (readonly string[])[] = [
   ['around_the_world', 'inside_around_the_world', 'outside_around_the_world'],
 ];
 
+// Base-atom -> same-named operator cross-link. A base atom (spin, whirl) and the
+// operator built from it (spinning, whirling) sit in separate rows with no
+// family / base / neighbour rule connecting them, so the atom's detail page never
+// points at the operator's tricks and the reader has to infer the relationship.
+// This curated map adds an explicit "See also: <Operator> tricks" link from the
+// atom to the operator's collection. Curator-extensible; each value must be a
+// real operator/modifier so the link resolves.
+export const ATOM_OPERATOR_CROSSLINKS: Readonly<Record<string, string>> = {
+  spin:     'spinning',
+  whirl:    'whirling',
+  swirl:    'swirling',
+  mirage:   'miraging',
+  illusion: 'illusioning',
+  barrage:  'barraging',
+};
+
+/** The operator slug a base atom cross-links to, or null when it has none. */
+export function operatorCrossLinkFor(slug: string): string | null {
+  return ATOM_OPERATOR_CROSSLINKS[slug] ?? null;
+}
+
+// Inverse of ATOM_OPERATOR_CROSSLINKS, so the operator's page links back to its
+// base atom (spinning -> spin), making the relationship discoverable from either
+// direction.
+const OPERATOR_BASE_ATOMS: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(ATOM_OPERATOR_CROSSLINKS).map(([atom, op]) => [op, atom]),
+);
+
+/** The base-atom slug an operator cross-links back to, or null when it has none. */
+export function baseAtomCrossLinkFor(operatorSlug: string): string | null {
+  return OPERATOR_BASE_ATOMS[operatorSlug] ?? null;
+}
+
 // Curated neighbors for a slug: its one-directional overlay entry plus the
 // other members of any mutual group it belongs to.
 function explicitNeighborsFor(slug: string): readonly string[] {

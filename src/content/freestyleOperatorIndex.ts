@@ -3,10 +3,11 @@
  * =========================
  *
  * Presentation grouping for the /freestyle/operators compact index: which
- * modifiers appear under each movement-system axis, in display order. This
- * mirrors the four axes the page already teaches and is the curated vocabulary
- * cohort (the broad set-primitive composites in `freestyle_trick_modifiers`
- * that are really Set Encyclopedia sets are intentionally excluded here).
+ * modifiers appear under each movement-system axis, in display order. The page
+ * carries only relationship, body, and no-plant modifiers; set primitives (the
+ * uptime systems like pixie, fairy, atomic, barraging) are first-class objects
+ * of the Set Encyclopedia and are intentionally excluded here, so the same
+ * concept is never presented as both a set and an operator on two surfaces.
  *
  * This is reversible presentation config. It does NOT change the trick-browse
  * axis membership in `freestyleMovementSystems.ts`, the `trick_family` data, or
@@ -32,19 +33,8 @@ export interface OperatorIndexAxis {
 
 export const OPERATOR_INDEX_AXES: readonly OperatorIndexAxis[] = [
   {
-    axisKey:   'set-uptime',
-    axisName:  'Set / Uptime Systems',
-    typeLabel: 'Set',
-    // Furious is folded into Barraging (same operator, two names); it still
-    // resolves at /freestyle/modifier/furious.
-    modifierSlugs: [
-      'pixie', 'fairy', 'atomic', 'quantum', 'nuclear',
-      'barraging', 'blurry', 'stepping', 'whirling',
-    ],
-  },
-  {
     axisKey:   'entry-topology',
-    axisName:  'Entry Topologies',
+    axisName:  'Cross-body & Entry Topology',
     typeLabel: 'Entry',
     modifierSlugs: ['paradox'],
   },
@@ -52,6 +42,12 @@ export const OPERATOR_INDEX_AXES: readonly OperatorIndexAxis[] = [
     axisKey:   'midtime-body',
     axisName:  'Midtime Body Modifiers',
     typeLabel: 'Body',
+    // Tapping is intentionally a body modifier here, not a set. The role
+    // registry classifies it as an operator (unlike whirling, which the curator
+    // pins to the set role), and it is a productive +1 modifier across many
+    // bases. Its only set form is a Holden-only reading with no platform
+    // canonical, which lives in the Set Encyclopedia and is referenced there as
+    // related, so it does not belong with the uptime set systems.
     modifierSlugs: [
       'spinning', 'gyro', 'inspinning',
       'ducking', 'diving', 'weaving', 'zulu',

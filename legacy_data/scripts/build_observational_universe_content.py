@@ -103,6 +103,88 @@ SOURCE_BADGE = {
     "fborg": "FB", "ifpa-canonical": "IFPA", "multi": "MULTI", "curator": "CUR",
 }
 
+# ── Long-tail disposition: fold non-frontier noise OUT of the public surface ──
+# The folk / parser long tail mixes genuine community names with aliases,
+# misspellings, malformed scrape strings, and single-source junk. This set +
+# the helpers below route each long-tail row to: keep public (plausibly real),
+# alias (resolves to canonical), or junk (internal-only, dropped from the TS and
+# written to a reports CSV). Curator-tunable; reversible (re-run the generator).
+# Mirrors the service's KNOWN_FRONTIER_TOKENS so "carries a real operator/atom" is
+# judged the same way on both surfaces.
+KNOWN_TOKENS = {
+    "toe", "stall", "clipper", "clip", "around", "world", "atw", "orbit", "legover", "leg", "over",
+    "pickup", "mirage", "illusion", "butterfly", "osis", "whirl", "swirl", "sole",
+    "blender", "torque", "drifter", "dyno", "barfly", "eclipse", "flail", "guay", "eggbeater", "dada",
+    "curve", "da", "paradon", "flurry", "blur", "fog", "smoke", "smog", "haze", "fury", "nemesis",
+    "royale", "mobius", "bubba", "witchdoctor", "spyro", "hatchet", "smear", "magellan", "infinity",
+    "flapper", "bar", "rake", "scoop", "neutron",
+    "pogo", "terraging", "terrage", "blurry", "blurrier", "blurriest", "furious", "barraging",
+    "sailing", "shooting", "frantic", "nuclear", "atomic", "quantum", "illusioning", "miraging",
+    "whirling", "swirling", "gyro", "flailing", "surfing", "slicing", "splicing", "warping", "railing",
+    "rooted", "floating", "tapping", "backside", "inspinning", "spinning", "stepping", "ducking",
+    "diving", "symposium", "paradox", "fairy", "pixie", "blistering",
+    "far", "near", "op", "os", "reverse", "rev", "same", "ss", "double", "triple", "down", "up",
+    "set", "kick", "side", "front", "back", "inside", "outside", "cross", "body", "in", "out",
+    "dex", "xbd", "bs", "dod", "ddd", "plo", "dlo", "dso", "pdx", "bod", "del", "uns", "xdex", "symp",
+    "inward", "outward", "wo", "crossbody", "hopover", "ps", "twirl", "arctic", "pinching", "pincher",
+    "muted", "flying",
+}
+# Folk operators that are undefined but recur often enough to be worth investigating;
+# this constant only sets the "repeated enough" threshold (see disposition()).
+REPEATED_OPERATOR_MIN = 3
+# A name carrying anything outside this set is a malformed scrape/OCR string.
+_ALLOWED_NAME_CHARS = re.compile(r"^[A-Za-z0-9 ()/'.&\-]+$")
+
+
+def name_tokens(name: str) -> list[str]:
+    return re.findall(r"[a-z]+", name.split("(")[0].lower())
+
+
+def is_malformed(name: str) -> bool:
+    """A scrape/OCR/parser artifact, not a trick name."""
+    n = (name or "").strip()
+    if not n:
+        return True
+    if "," in n:                       # list / two-names-mashed artifact
+        return True
+    if re.match(r"^\d", n):            # starts with a number ("84")
+        return True
+    if not _ALLOWED_NAME_CHARS.match(n):   # stray OCR characters
+        return True
+    toks = name_tokens(n)
+    if "is" in toks and len(toks) >= 4:    # prose ("Alex Zerbe is the greatest")
+        return True
+    return False
+
+
+def _norm_slug(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def _lev1(a: str, b: str) -> bool:
+    """True if edit distance(a, b) <= 1 (cheap, length-gated by the caller)."""
+    if a == b:
+        return True
+    la, lb = len(a), len(b)
+    if abs(la - lb) > 1:
+        return False
+    if la == lb:                       # one substitution
+        return sum(1 for x, y in zip(a, b) if x != y) <= 1
+    if la > lb:                        # one deletion from a
+        a, b = b, a
+    i = j = 0
+    skipped = False
+    while i < len(a) and j < len(b):
+        if a[i] == b[j]:
+            i += 1
+            j += 1
+        elif skipped:
+            return False
+        else:
+            skipped = True
+            j += 1
+    return True
+
 
 def read(p: Path) -> list[dict]:
     with p.open(encoding="utf-8") as f:
@@ -223,6 +305,73 @@ def main() -> None:
             con.close()
     rows = [r for r in rows if r["slug"] not in canonical_slugs]
 
+    # ── long-tail disposition ── fold aliases / misspellings / malformed scrape
+    # strings / single-source junk OUT of the public folk + parser long tail so the
+    # public counts are honest and small. Genuine folk names (carry a real atom /
+    # operator), recurring undefined operators (worth investigating), and
+    # multi-source names stay public; high-confidence misspellings become aliases
+    # (lookup-only); everything else is junk, dropped from the TS and written to an
+    # internal reports CSV. Frontier / doctrine / already-archive rows are untouched.
+    canon_norm = {_norm_slug(s) for s in canonical_slugs}
+    canon_by_len: dict[int, list[str]] = {}
+    for s in canonical_slugs:
+        canon_by_len.setdefault(len(s), []).append(s)
+
+    def is_misspelling(slug: str) -> bool:
+        ns = _norm_slug(slug)
+        if ns and ns in canon_norm:        # hyphen/space-only normalized duplicate
+            return True
+        for L in (len(slug) - 1, len(slug), len(slug) + 1):
+            for cs in canon_by_len.get(L, ()):
+                if _lev1(slug, cs):
+                    return True
+        return False
+
+    LONGTAIL = {"folk", "parser"}
+    unknown_freq: Counter = Counter(
+        t for r in rows if r["section"] in LONGTAIL
+        for t in name_tokens(r["name"]) if t not in KNOWN_TOKENS and len(t) > 1
+    )
+    kept: list[dict] = []
+    junk: list[dict] = []
+    for r in rows:
+        if r["section"] not in LONGTAIL or r["intakeBucket"] in ("alias", "duplicate_variant"):
+            kept.append(r)                 # frontier / doctrine / already-archive: untouched
+            continue
+        name, slug = r["name"], r["slug"]
+        if is_malformed(name):
+            r["_junkReason"] = "malformed"
+            junk.append(r)
+            continue
+        if is_misspelling(slug):
+            r["intakeBucket"] = "alias"     # resolves to a canonical trick (high-confidence)
+            r["section"] = "folk"
+            kept.append(r)
+            continue
+        toks = name_tokens(name)
+        has_known = any(t in KNOWN_TOKENS for t in toks)
+        repeated_operator = any(
+            unknown_freq.get(t, 0) >= REPEATED_OPERATOR_MIN
+            for t in toks if t not in KNOWN_TOKENS and len(t) > 1
+        )
+        if corroborated(slug) or has_known or repeated_operator:
+            kept.append(r)                 # plausibly real / multi-source / operator worth investigating
+            continue
+        r["_junkReason"] = "low-confidence-no-signal"
+        junk.append(r)
+    rows = kept
+
+    # Folded junk → internal reports CSV (lookup-only; never on the public surface).
+    REPORTS = REPO / "legacy_data/reports"
+    REPORTS.mkdir(parents=True, exist_ok=True)
+    junk_csv = REPORTS / "observational_junk_folded.csv"
+    with junk_csv.open("w", encoding="utf-8", newline="") as jf:
+        w = csv.writer(jf)
+        w.writerow(["name", "slug", "source", "section", "failure_class", "fold_reason", "n_sources"])
+        for r in sorted(junk, key=lambda r: (r.get("_junkReason", ""), r["name"].lower())):
+            w.writerow([r["name"], r["slug"], r["source"], r["section"],
+                        r["failureClass"], r.get("_junkReason", ""), nsources.get((r["slug"] or "").strip(), 0)])
+
     # ── lexical-duplicate collapse (Phase 1) ──
     # Same canonical slug across rows is wording/source drift, not distinct
     # structures. Keep the first occurrence as the survivor (fold variant names
@@ -331,6 +480,9 @@ def main() -> None:
         "parserUnresolvedPct": pct(by_section["parser"]),
         "canonicalCoveragePct": round(100 * canonical / classified_total) if classified_total else 0,
         "sources": dict(sorted(by_source.items(), key=lambda kv: -kv[1])),
+        # Long-tail rows folded OUT of the public surface to the internal junk CSV
+        # (aliases stay in the TS archive; this counts only the dropped junk).
+        "foldedJunk": len(junk),
         "generatedOn": date.today().isoformat(),
     }
 
@@ -403,6 +555,8 @@ def main() -> None:
         "  parserUnresolvedPct: number;\n"
         "  canonicalCoveragePct: number;\n"
         "  sources: Record<string, number>;\n"
+        "  /** Long-tail rows folded out to the internal junk CSV (not in this universe). */\n"
+        "  foldedJunk: number;\n"
         "  generatedOn: string;\n"
         "}\n\n"
     )
@@ -418,6 +572,8 @@ def main() -> None:
 
     OUT.write_text(header + "\n".join(body) + "\n", encoding="utf-8")
     print(f"Wrote {OUT.relative_to(REPO)} — {total} rows")
+    print(f"  folded {len(junk)} junk rows out to {junk_csv.relative_to(REPO)} "
+          f"(public universe is now {total}, was {total + len(junk)} before folding)")
     print(f"  sections: {dict(by_section)}")
     print(f"  stats: ready={stats['ready']} frontier={stats['frontier']} "
           f"doctrine={stats['doctrineBlocked']} folk={stats['folkUnresolved']} "

@@ -213,10 +213,13 @@ describe('ADD view and Family view — shared two-line row contract', () => {
       expect(addRegion, `dict-trick-row not found in ADD view for ${slug}`).not.toBeNull();
       expect(familyRegion, `dict-trick-row not found in family view for ${slug}`).not.toBeNull();
 
-      // Same dict-trick-row-title detail link in BOTH views.
-      const linkPat = new RegExp(`<a class="dict-trick-row-title" href="${escapedHref}">${pilot.name}<\\/a>`);
-      expect(addRegion![0], `ADD view missing detail link for ${slug}`).toMatch(linkPat);
-      expect(familyRegion![0], `Family view missing detail link for ${slug}`).toMatch(linkPat);
+      // Same plain-text name + Trick Detail link in BOTH views.
+      const namePat   = `<span class="dict-trick-row-title">${pilot.name}</span>`;
+      const detailPat = new RegExp(`<a class="dict-trick-row-detail" href="${escapedHref}">Trick Detail<\\/a>`);
+      expect(addRegion![0], `ADD view missing name for ${slug}`).toContain(namePat);
+      expect(familyRegion![0], `Family view missing name for ${slug}`).toContain(namePat);
+      expect(addRegion![0], `ADD view missing detail link for ${slug}`).toMatch(detailPat);
+      expect(familyRegion![0], `Family view missing detail link for ${slug}`).toMatch(detailPat);
 
       // ADD value: line-2 ADD slot in both; the green shared-card chip never
       // appears on the row. ADD view groups by ADD bucket (id="add-N").

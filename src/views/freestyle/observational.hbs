@@ -108,7 +108,7 @@
       </div>
       <p class="observed-section-intro">
         The names that still rest on an open classification question, grouped by cluster.
-        Only the Weaving cluster genuinely awaits a Red ruling; the down-family (DOD / DDD) is a
+        Only the Weaving cluster genuinely awaits an expert ruling; the down-family (DOD / DDD) is a
         per-trick verification pass, and the rest are undefined folk operators awaiting a
         definition. Side and direction variants are not here: the notation already records which
         side a move uses, so a positional name is a needs-authoring item, not a doctrine question.
@@ -139,10 +139,21 @@
     {{/if}}
 
     {{! ── Long tail (collapsed by default) ── }}
+    {{#if content.undefinedOps.total}}
     <details class="observed-disclosure">
-      <summary class="observed-disclosure-summary">Folk names &amp; unresolved structures <span class="text-muted">({{content.folk.total}} + {{content.parser.total}})</span></summary>
-      {{> observed-summary-section section=content.folk title="Folk-name & historical unresolved" anchor="folk-unresolved"}}
-      {{> observed-summary-section section=content.parser title="Parser uncertainty" anchor="parser-uncertainty"}}
+      <summary class="observed-disclosure-summary">Undefined operator <span class="text-muted">({{content.undefinedOps.total}})</span></summary>
+      {{> observed-summary-section section=content.undefinedOps title="Blocked on an undefined operator" anchor="undefined-operator"}}
+    </details>
+    {{/if}}
+
+    <details class="observed-disclosure">
+      <summary class="observed-disclosure-summary">Folk names <span class="text-muted">({{content.folk.total}})</span></summary>
+      {{> observed-summary-section section=content.folk title="Community names, structure not yet recovered" anchor="folk-names"}}
+    </details>
+
+    <details class="observed-disclosure">
+      <summary class="observed-disclosure-summary">Parser ambiguity <span class="text-muted">({{content.parser.total}})</span></summary>
+      {{> observed-summary-section section=content.parser title="Documented execution, decomposition unresolved" anchor="parser-ambiguity"}}
     </details>
 
     <details class="observed-disclosure">

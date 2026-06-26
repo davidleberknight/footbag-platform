@@ -80,13 +80,16 @@ describe('Record-to-trick linkage', () => {
     expect(res.text).not.toContain('<h1>Clipper Stall (ss)</h1>');
   });
 
-  it('the dictionary badges a record-only-video trick as "Record video", resolving the alias to canonical', async () => {
+  it('links the hashtag to the gallery for a record-only-video trick, resolving the alias to canonical', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);
     // 2-bag-juggling's record is named "2-Bag Juggle" (an alias) and carries a
-    // video_url, with no reference media: the canonical row must still badge.
-    expect(res.text).toContain('Record video');
-    // Exactly one: clipper-stall's record has no video_url, so it earns no badge.
-    expect((res.text.match(/Record video/g) || []).length).toBe(1);
+    // video_url with no reference media: the canonical row still has media, so
+    // its hashtag renders as a clickable gallery link.
+    const recordRows = res.text.match(/<article class="dict-[^>]*data-media-coverage="record"[^>]*>([\s\S]*?)<\/article>/g) || [];
+    // Exactly one: clipper-stall's record has no video_url, so it earns no coverage.
+    expect(recordRows.length).toBe(1);
+    expect(recordRows[0]).toContain('hashtag--media');
+    expect(recordRows[0]).toContain('href="/media/browse?context');
   });
 });

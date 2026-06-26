@@ -1034,7 +1034,11 @@ Decision:
 
 Events and clubs must define unique, standardized hashtags. These are validated at creation to prevent collisions. Member-uploaded media tagged with a standard hashtag auto-links to corresponding event/club galleries on page load, leveraging this convention. Users may also invent new hashtags, and these may be discoverable by other members. Also, the \#tutorial hashtag will receive special attention for member-created educational media. The User Stories document provides the rest of the detail for these use cases.
 
-Hashtag-driven coupling extends to freestyle tricks and persons in addition to events and clubs. Trick slugs (e.g. `#ripwalk`) are stored as freeform tags (`tags.is_standard=0`); uniqueness is inherited from `freestyle_tricks.slug PRIMARY KEY` and the no-rename commitment makes the slug a stable canonical identity for life. A trick's slug, its hashtag body (the text after `#`), and its detail-page URL segment are one identical lowercase token of letters, digits, and underscores, with the underscore as the only word separator (the trick *double leg over* is slug `double_leg_over`, hashtag `#double_leg_over`, page `/freestyle/tricks/double_leg_over`). The same rule applies to canonical-set tags (`#toe_set`) and every slug-derived hashtag. There is exactly one such token per trick with no exceptions, so the tag a member types, the tag stored on curated media, and the gallery link are the same string. Person hashtags reuse the member slug. Records have no separate hashtag namespace; record-attributed media is reachable through its parent trick's gallery. No foreign key exists from `media_items` to domain tables; domain coupling is purely tag-based. `tags.standard_type` remains scoped to events and clubs.
+Hashtag-driven coupling extends to freestyle tricks, sets, operators, families, and persons in addition to events and clubs. Trick slugs (e.g. `#ripwalk`) are stored as freeform tags (`tags.is_standard=0`); uniqueness is inherited from `freestyle_tricks.slug PRIMARY KEY` and the no-rename commitment makes the slug a stable canonical identity for life.
+
+A freestyle concept's hashtag form is decided by the *role* it plays, not by its row type. A trick takes the bare token: its slug, its hashtag body (the text after `#`), and its detail-page URL segment are one identical lowercase underscore token (the trick *double leg over* is slug `double_leg_over`, hashtag `#double_leg_over`, page `/freestyle/tricks/double_leg_over`). A non-trick concept takes a role prefix over that same body: a set is `#set_{slug}`, an operator or modifier is `#operator_{slug}`, and a trick family is `#family_{slug}`. The bare-token namespace is reserved for trick-role media — a concept that is only a set or only an operator never takes a bare hashtag. A concept that is genuinely both a performed trick and a set, namely pixie and fairy, carries both forms: the bare `#pixie` for the trick and `#set_pixie` for the set. Membership in that dual-role set is a curator decision, never derived from a row's stored type. Because modifiers and operators are not tricks, their detail page is the operator page, and the trick-detail route redirects a modifier or operator concept there rather than rendering it as a trick.
+
+Person hashtags reuse the member slug. Records have no separate hashtag namespace; record-attributed media is reachable through its parent trick's gallery. No foreign key exists from `media_items` to domain tables; domain coupling is purely tag-based. `tags.standard_type` remains scoped to events and clubs.
 
 Alias hashtags for tricks canonicalize to the parent trick's slug at write time on every curator path (admin UI, seeder, migration script); `tags` and `media_tags` therefore carry canonical slugs only. Read-side surfaces that expose alias slugs (e.g. `/tags/{alias}`) 301-redirect to the canonical slug. `freestyle_trick_aliases` is the single source of truth for the alias-to-canonical mapping.
 
@@ -1049,6 +1053,8 @@ Rationale:
 - Suggested hashtags at creation time guide correct tagging (it is possible to build an auto-fill feature using AJAX as an optional extra usability detail).
 
 - A hashtag token ends at the first non-word character, so a hyphen would split `#double-leg-over` into `#double`; the underscore keeps a multi-word trick one searchable token. Members find media by typing the hashtag, so the slug, the stored media tag, and the hashtag must be the identical underscore token for that search to be uniform.
+
+- A non-trick concept's role marker is a *prefix* (`#set_pixie`), never a suffix (`#pixie_set`). Under the underscore convention a suffix is shape-indistinguishable from a compound-trick token — `#pixie_set` reads the same as a hypothetical trick `#pixie_mirage` — so only a prefix, a fixed closed-vocabulary marker resolved before any slug match, keeps role tags from colliding with trick tags. This reuses the standardized-prefix pattern already used for `#event_*` and `#club_*`.
 
 Trade-offs:
 
@@ -1073,6 +1079,8 @@ Impact:
 - Events use `#event_{year}_{event_slug}`.
 
 - Clubs use `#club_{location_slug}`.
+
+- Freestyle non-trick concepts use role prefixes: sets `#set_{slug}`, operators and modifiers `#operator_{slug}`, families `#family_{slug}`; tricks use the bare `#{slug}`.
 
 - Hashtag validation applies to all hashtags (standardized and freeform): maximum 100 characters per tag, must start with '#' character, and may contain letters, numbers, and underscores only after the leading '#'. Validation prevents excessively long tags, script injection, spaces/punctuation, and other disallowed special characters. Tag matching is case-insensitive but original capitalization is preserved for display quality.
 

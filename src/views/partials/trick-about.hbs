@@ -79,5 +79,11 @@
   </div>
   {{/if}}
 
+  {{!-- Base-atom -> operator cross-link: e.g. the spin atom points at Spinning
+       tricks, so the relationship is explicit rather than inferred. --}}
+  {{#if content.relatedOperator}}
+  <p class="text-muted">See also: <a href="{{content.relatedOperator.href}}">{{content.relatedOperator.label}}</a></p>
+  {{/if}}
+
 </section>
 {{/if}}

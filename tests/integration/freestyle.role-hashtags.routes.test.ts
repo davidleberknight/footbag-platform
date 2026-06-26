@@ -55,19 +55,17 @@ function operatorRow(html: string, slug: string): string {
 }
 
 describe('GET /freestyle/operators — role-aware hashtags', () => {
-  it('renders modifiers as #operator_ and sets as #set_, never a bare trick tag', async () => {
+  it('renders a modifier as #operator_, never a bare trick tag', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
     expect(res.status).toBe(200);
     expect(operatorRow(res.text, 'spinning')).toContain('#operator_spinning');
     expect(operatorRow(res.text, 'spinning')).not.toContain('>#spinning<');
-    expect(operatorRow(res.text, 'pixie')).toContain('#set_pixie');
-    expect(operatorRow(res.text, 'atomic')).toContain('#set_atomic');
   });
 
-  it('honors the curator role override: whirling reads #set_whirling, not #operator_whirling', async () => {
+  it('does not list set primitives, so their #set_ hashtags are not on this page', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
-    expect(operatorRow(res.text, 'whirling')).toContain('#set_whirling');
-    expect(operatorRow(res.text, 'whirling')).not.toContain('#operator_whirling');
+    expect(res.text).not.toContain('#set_pixie');
+    expect(res.text).not.toContain('#set_atomic');
   });
 });
 
@@ -76,6 +74,13 @@ describe('GET /freestyle/modifier/:slug — stub hashtag', () => {
     const res = await request(await createApp()).get('/freestyle/modifier/pixie');
     expect(res.status).toBe(200);
     expect(res.text).toContain('#set_pixie');
+  });
+
+  it('honors the curator role override: whirling reads #set_whirling, not #operator_whirling', async () => {
+    const res = await request(await createApp()).get('/freestyle/modifier/whirling');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('#set_whirling');
+    expect(res.text).not.toContain('#operator_whirling');
   });
 });
 

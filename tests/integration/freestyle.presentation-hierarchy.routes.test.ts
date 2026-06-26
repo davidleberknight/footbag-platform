@@ -174,7 +174,7 @@ describe('Presentation-hierarchy contract — ADD and Family share the two-line 
     }
   });
 
-  it('the detail-page link uses the same dict-trick-row-title anchor in both views', async () => {
+  it('the detail page is reached through the same Trick Detail link in both views', async () => {
     const app = createApp();
     const add = await request(app).get('/freestyle/tricks?view=add');
     const fam = await request(app).get('/freestyle/tricks?view=family');
@@ -184,7 +184,8 @@ describe('Presentation-hierarchy contract — ADD and Family share the two-line 
       const famRow = trickRowRegion(fam.text, pilot.slug);
       expect(addRow).not.toBeNull();
       expect(famRow).not.toBeNull();
-      const pat = new RegExp(`<a class="dict-trick-row-title" href="/freestyle/tricks/${pilot.slug}">`);
+      // The name is plain text; the detail page is reached via the Trick Detail link.
+      const pat = new RegExp(`<a class="dict-trick-row-detail" href="/freestyle/tricks/${pilot.slug}">Trick Detail</a>`);
       expect(addRow!).toMatch(pat);
       expect(famRow!).toMatch(pat);
     }

@@ -818,42 +818,47 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     expect(res.text).toContain('Unrated / unresolved');
   });
 
-  // DSC-2 slice 1 — symbolic trick card carries a small optional media chip
-  // ('Tutorial available' / 'Demo available') only when media is present.
-  // Tricks without media render no chip; the absence is the visual signal.
-  // The card root also exposes data-media-coverage so tests can assert
-  // tier classification without depending on chip text.
+  // A trick's hashtag links to its media gallery only when reference media
+  // exists; a clickable hashtag is the sole signal that media is present, and
+  // a trick without media renders a plain (non-clickable) identity token.
+  // The card root also exposes data-media-coverage so tests can assert tier
+  // classification independently.
   it('renders a data-media-coverage attribute on every card', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/data-media-coverage="(?:tutorial|demo|none)"/);
   });
 
-  it('renders no media chip for tricks with no media coverage (absence is the signal)', async () => {
+  it('renders the hashtag as a plain token (no gallery link) for tricks with no media coverage', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
-    // ADD-view rows with data-media-coverage="none" must not render the media
-    // badge inside their <article>. Locate one such row and assert.
+    // ADD-view rows with data-media-coverage="none" must render the hashtag as
+    // a plain span, never as a clickable media-gallery link.
     const cardMatch = res.text.match(/<article class="dict-trick-row[^>]*data-media-coverage="none"[^>]*>([\s\S]*?)<\/article>/);
     expect(cardMatch).not.toBeNull();
-    expect(cardMatch![1]).not.toContain('dict-trick-row-media');
+    expect(cardMatch![1]).not.toContain('dict-trick-row-hashtag--media');
+    expect(cardMatch![1]).toContain('<span class="dict-trick-row-hashtag"');
   });
 
-  it('renders the "Tutorial available" chip when a trick has tutorial-tier coverage', async () => {
+  it('renders the hashtag as a clickable media-gallery link when a trick has tutorial-tier coverage', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
-    expect(res.text).toContain('dict-trick-row-media dict-trick-row-media--tutorial');
-    expect(res.text).toContain('Tutorial available');
+    const cardMatch = res.text.match(/<article class="dict-trick-row[^>]*data-media-coverage="tutorial"[^>]*>([\s\S]*?)<\/article>/);
+    expect(cardMatch).not.toBeNull();
+    expect(cardMatch![1]).toContain('dict-trick-row-hashtag--media');
+    expect(cardMatch![1]).toContain('href="/media/browse?context');
   });
 
-  it('renders the "Demo available" chip when a trick has only demo-tier coverage', async () => {
+  it('renders the hashtag as a clickable media-gallery link when a trick has only demo-tier coverage', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
-    expect(res.text).toContain('dict-trick-row-media dict-trick-row-media--demo');
-    expect(res.text).toContain('Demo available');
+    const cardMatch = res.text.match(/<article class="dict-trick-row[^>]*data-media-coverage="demo"[^>]*>([\s\S]*?)<\/article>/);
+    expect(cardMatch).not.toBeNull();
+    expect(cardMatch![1]).toContain('dict-trick-row-hashtag--media');
+    expect(cardMatch![1]).toContain('href="/media/browse?context');
   });
 
-  it('renders the "Tutorial available" chip when a trick has only curator-tagged tutorial media', async () => {
+  it('links the hashtag to the gallery for a trick whose tutorial media comes only from the curator channel', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     // `curator-only-trick`'s tutorial-tier coverage comes from the curator
@@ -864,8 +869,8 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     const cardClose = res.text.indexOf('</article>', slugIdx);
     expect(cardClose).toBeGreaterThan(slugIdx);
     const cardBlock = res.text.slice(slugIdx, cardClose);
-    expect(cardBlock).toContain('Tutorial available');
-    expect(cardBlock).toContain('dict-trick-row-media--tutorial');
+    expect(cardBlock).toContain('dict-trick-row-hashtag--media');
+    expect(cardBlock).toContain('href="/media/browse?context&#x3D;curator-only-trick"');
   });
 
   it('renders ≡ symbolic-equivalence readings on the ADD-view row', async () => {

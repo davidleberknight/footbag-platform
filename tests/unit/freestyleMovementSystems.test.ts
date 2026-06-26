@@ -148,13 +148,13 @@ describe('MODIFIER_COMPOSITION_GLOSSES (Slice M + Slice N + post-Wave-7 editoria
     expect(resolveModifierCompositionGloss('whirling')).toMatch(/WHIRLING \+ base/);
   });
 
-  it('paradox gloss carries the entry-shape line (Pre-Red sweep 2026-05-16)', () => {
-    // Per the Pre-Red completion sweep directive: "PDX → clip > op-in dex"
-    // must appear in the paradox gloss to reinforce paradox as an
-    // entry topology rather than a terminal family.
+  it('paradox gloss names the entry shape as the entry case, not paradox always', () => {
+    // The gloss frames "clip > op-in dex" as paradox's entry case (it can also be
+    // a later mid-trick dex), so paradox reads as a side-switch relationship
+    // rather than a terminal family.
     const gloss = resolveModifierCompositionGloss('paradox');
     expect(gloss).not.toBeNull();
-    expect(gloss).toMatch(/Entry shape: clip > op-in dex/);
+    expect(gloss).toMatch(/As an entry it reads clip > op-in dex/);
   });
 
   it('returns null for modifiers without a gloss (restraint contract)', () => {

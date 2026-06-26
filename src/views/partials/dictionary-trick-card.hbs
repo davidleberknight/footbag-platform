@@ -10,8 +10,11 @@
   subtitle cards).
 
   Slot order (top → bottom, both densities):
-    1. canonical title (linked anchor; plain span when external-only)
-    2. hashtag (#slug identity)
+    1. canonical title (plain-English display text, never a link)
+    2. hashtag (#slug identity): links to the trick's media gallery when the
+       trick has media, otherwise a plain token (the clickable hashtag is the
+       sole signal media exists). A separate "Trick Detail" link opens the
+       detail page; suppressed for external-only placeholders.
     3. interpretation subtitle — `≡ <reading>` from tokenizedEquivalences
        (chain registry + alias governance). OPTIONAL. The human-readable
        decomposition / folk-name equivalence. Does NOT suppress the JOB
@@ -22,7 +25,7 @@
        floats as loose body text. Suppressed (null) for first-class
        cards, whose JOB/ADD render in the first-class-row partial below.
     5. ADD chip — labeled `N ADD` (`? ADD` when unrated).
-    6. pending-decomposition pill / media chip / status badge (metadata).
+    6. pending-decomposition pill / status badge (metadata).
     7. first-class-row (isFirstClass only) — the labeled `JOB:` / `ADD:`
        breakdown rows; honest "JOB: canonical decomposition pending" when upstream
        op-notation is genuinely absent.
@@ -50,12 +53,15 @@
   <article class="dict-card dict-card--registry{{#if isExternalOnly}} dict-card--external-placeholder{{/if}}"
            data-trick-slug="{{slug}}"
            data-media-coverage="{{mediaCoverage}}">
-    {{#if isExternalOnly}}
-      <span class="dict-card-title">{{displayName}}</span>
+    <span class="dict-card-title">{{displayName}}</span>
+    {{#if hashtagHref}}
+      <a class="dict-card-hashtag dict-card-hashtag--media" href="{{hashtagHref}}" aria-label="Media for this trick">{{hashtag}}</a>
     {{else}}
-      <a class="dict-card-title" href="{{href}}">{{displayName}}</a>
+      <span class="dict-card-hashtag" aria-label="Tag identity">{{hashtag}}</span>
     {{/if}}
-    <span class="dict-card-hashtag" aria-label="Tag identity">{{hashtag}}</span>
+    {{#unless isExternalOnly}}
+      <a class="dict-card-detail" href="{{href}}">Trick Detail</a>
+    {{/unless}}
 
     {{! Slot 3 — interpretation subtitle (optional). Does NOT suppress the JOB block. }}
     {{#if tokenizedEquivalences.length}}
@@ -73,10 +79,6 @@
 
     {{#if pendingDecomposition}}
     <span class="dict-card-pending-pill" aria-label="Decomposition under review"><em>decomposition under review</em></span>
-    {{/if}}
-
-    {{#if hasReferenceMedia}}
-    <span class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">{{mediaCoverageLabel}}</span>
     {{/if}}
 
     {{#if statusBadge}}
@@ -97,12 +99,15 @@
   <article class="dict-card dict-card--browse{{#if isExternalOnly}} dict-card--external-placeholder{{/if}}"
            data-trick-slug="{{slug}}"
            data-media-coverage="{{mediaCoverage}}">
-    {{#if isExternalOnly}}
-      <span class="dict-card-title">{{displayName}}</span>
+    <span class="dict-card-title">{{displayName}}</span>
+    {{#if hashtagHref}}
+      <a class="dict-card-hashtag dict-card-hashtag--media" href="{{hashtagHref}}" aria-label="Media for this trick">{{hashtag}}</a>
     {{else}}
-      <a class="dict-card-title" href="{{href}}">{{displayName}}</a>
+      <span class="dict-card-hashtag" aria-label="Tag identity">{{hashtag}}</span>
     {{/if}}
-    <span class="dict-card-hashtag" aria-label="Tag identity">{{hashtag}}</span>
+    {{#unless isExternalOnly}}
+      <a class="dict-card-detail" href="{{href}}">Trick Detail</a>
+    {{/unless}}
 
     {{! Slot 3 — interpretation subtitle(s) (optional). Does NOT suppress the JOB block. }}
     {{#if tokenizedEquivalences.length}}
@@ -131,10 +136,6 @@
 
     {{#if pendingDecomposition}}
     <span class="dict-card-pending-pill" aria-label="Decomposition under review"><em>decomposition under review</em></span>
-    {{/if}}
-
-    {{#if hasReferenceMedia}}
-    <span class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">{{mediaCoverageLabel}}</span>
     {{/if}}
 
     {{#if statusBadge}}

@@ -2,15 +2,19 @@
  * Integration tests for the Operators & Modifiers consistency layer.
  *
  * Verifies:
- *   - /freestyle/operators renders the compact index grouped by the four
- *     movement-system axes, in the dict-trick-row idiom shared with the
- *     dictionary and set encyclopedia.
+ *   - /freestyle/operators renders the compact index grouped by the
+ *     relationship, body, and no-plant movement-system axes, in the
+ *     dict-trick-row idiom shared with the dictionary and set encyclopedia.
+ *   - Set primitives (pixie, fairy, atomic, barraging, and the rest) are NOT
+ *     listed here: they are first-class objects of the Set Encyclopedia, so the
+ *     same concept is never presented as both a set and an operator. The page
+ *     links out to the Set Encyclopedia for them.
  *   - Each modifier row carries a type chip, an ADD weight when tracked, a
  *     status pill, and View-details / Browse-tricks click-throughs.
- *   - Notation appears only for set-structured modifiers (canonical-set
- *     formula); body modifiers never carry a fabricated notation line.
+ *   - Body relationship modifiers (paradox, spinning) never carry a notation
+ *     line; that set formula belongs to the encyclopedia.
  *   - Status pills reflect the data: a modifier with a teaching page reads
- *     "Teaching page", a tracked one reads "Platform-tracked".
+ *     "Teaching page".
  *   - The advanced decomposition reference is retained below the index.
  *   - Universal detail resolution: a known modifier without a teaching page
  *     resolves to a data-driven stub (not 404); a modifier with a teaching
@@ -61,44 +65,54 @@ function rowSlice(html: string, slug: string): string {
 }
 
 describe('GET /freestyle/operators — compact modifier index', () => {
-  it('renders the four movement-system axes as grouped sections', async () => {
+  it('renders the relationship, body, and no-plant axes as grouped sections', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Set / Uptime Systems');
-    expect(res.text).toContain('Entry Topologies');
+    expect(res.text).toContain('Cross-body &amp; Entry Topology');
     expect(res.text).toContain('Midtime Body Modifiers');
     expect(res.text).toContain('No-Plant &amp; Suspension');
+    // The set primitives no longer have their own operator axis here.
+    expect(res.text).not.toContain('Set / Uptime Systems');
     // Reuses the trick-dictionary row idiom.
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).toContain('class="dict-trick-row"');
   });
 
-  it('gives every curated modifier a row with click-throughs', async () => {
+  it('points sets at the Set Encyclopedia instead of listing them here', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
-    for (const slug of ['pixie', 'atomic', 'paradox', 'spinning', 'symposium', 'whirling']) {
+    expect(res.text).toContain('href="/freestyle/sets"');
+  });
+
+  it('gives every relationship/body modifier a row with click-throughs', async () => {
+    const res = await request(await createApp()).get('/freestyle/operators');
+    for (const slug of ['paradox', 'spinning', 'symposium', 'ducking']) {
       expect(res.text, `row ${slug}`).toContain(`id="operator-${slug}"`);
     }
-    expect(res.text).toContain('href="/freestyle/modifier/pixie"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system#movement-pixie"');
+    expect(res.text).toContain('href="/freestyle/modifier/paradox"');
+    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system#movement-paradox"');
+  });
+
+  it('does not list set primitives as operator rows', async () => {
+    const res = await request(await createApp()).get('/freestyle/operators');
+    for (const slug of ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'barraging', 'blurry', 'stepping', 'whirling']) {
+      expect(res.text, `set ${slug} absent`).not.toContain(`id="operator-${slug}"`);
+    }
+    // Furious is a name for the barraging set; it has no operator row either.
+    expect(res.text).not.toContain('id="operator-furious"');
   });
 
   it('shows the flat ADD weight from the table for each modifier', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
     expect(rowSlice(res.text, 'paradox')).toContain('+1');
-    expect(rowSlice(res.text, 'atomic')).toContain('+1');
-    // Atomic is +1 on every base (no rotational class); the retired split
-    // "+1 / +2 rot" rendering must not reappear on its row.
-    expect(rowSlice(res.text, 'atomic')).not.toContain('rot');
   });
 
-  it('shows notation only for set modifiers, never for body modifiers', async () => {
+  it('does not render a set notation line on a relationship modifier', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
-    // pixie is a canonical set -> SET notation line present.
-    const pixie = rowSlice(res.text, 'pixie');
-    expect(pixie).toContain('dict-trick-row-notation');
-    expect(pixie).toContain('SAME IN [DEX]');
-    // paradox is a dex relationship (not a set) -> no notation line.
+    // paradox and spinning are relationships/body actions, not sets.
     expect(rowSlice(res.text, 'paradox')).not.toContain('dict-trick-row-notation');
+    expect(rowSlice(res.text, 'spinning')).not.toContain('dict-trick-row-notation');
+    // pixie's set formula no longer surfaces here now that sets left the page.
+    expect(res.text).not.toContain('SAME IN [DEX]');
   });
 
   it('uses honest status pills from the data', async () => {
@@ -106,8 +120,6 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     // paradox + spinning have authored teaching pages.
     expect(rowSlice(res.text, 'paradox')).toContain('operator-status-pill--teaching');
     expect(rowSlice(res.text, 'spinning')).toContain('operator-status-pill--teaching');
-    // pixie is tracked but has no teaching page.
-    expect(rowSlice(res.text, 'pixie')).toContain('operator-status-pill--platform-tracked');
   });
 
   it('retains the advanced decomposition reference below the index', async () => {
@@ -123,12 +135,6 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     // The sub-label sits before its first member.
     expect(res.text).toMatch(/>Spin family<[\s\S]*?id="operator-spinning"/);
     expect(res.text).toMatch(/>Head-movement family<[\s\S]*?id="operator-ducking"/);
-  });
-
-  it('folds furious into barraging (no separate furious index row)', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
-    expect(res.text).toContain('id="operator-barraging"');
-    expect(res.text).not.toContain('id="operator-furious"');
   });
 });
 
@@ -151,6 +157,17 @@ describe('GET /freestyle/modifier/:slug — universal detail resolution', () => 
     expect(res.status).toBe(200);
     // The rich teaching page, not the stub.
     expect(res.text).toContain('The body and the motion');
+  });
+
+  it('an operator links back to its base atom (reverse of the atom->operator cross-link)', async () => {
+    // Teaching page: spinning -> spin.
+    const teaching = await request(await createApp()).get('/freestyle/modifier/spinning');
+    expect(teaching.text).toContain('Base trick:');
+    expect(teaching.text).toContain('href="/freestyle/tricks/spin"');
+    // Stub page: whirling -> whirl (resolves via the operator reference).
+    const stub = await request(await createApp()).get('/freestyle/modifier/whirling');
+    expect(stub.status).toBe(200);
+    expect(stub.text).toContain('href="/freestyle/tricks/whirl"');
   });
 
   it('unknown modifier slug returns 404', async () => {

@@ -253,9 +253,6 @@
       <h2>{{dexLabel}}</h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
-    {{#unless dexCount}}{{#if (eq bucketId "dex-unknown")}}
-    <p class="dex-count-unknown-note"><em>We haven&rsquo;t mapped these tricks&rsquo; moves in detail yet, so they can&rsquo;t be sorted by dexterity-move count. The tricks still exist.</em></p>
-    {{/if}}{{/unless}}
     {{! Secondary ADD bands: cards are ordered by ADD, each run gets a header. }}
     {{#each addBands}}
     <div class="trick-add-lineage">

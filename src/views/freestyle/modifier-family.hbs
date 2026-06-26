@@ -29,6 +29,10 @@
 
     <p class="modifier-subtitle">{{content.pageSubtitle}}</p>
 
+    {{#if content.baseAtom}}
+    <p class="detail-muted">Base trick: <a href="{{content.baseAtom.href}}">{{content.baseAtom.label}}</a></p>
+    {{/if}}
+
     {{!-- Section 1: Mechanical lead --}}
     <section class="modifier-section mechanical-lead" aria-label="The body and the motion">
       <h2>The body and the motion</h2>

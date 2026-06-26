@@ -235,6 +235,11 @@ export const freestyleController = {
   setDetail(req: Request, res: Response, next: NextFunction): void {
     try {
       const rawSlug = typeof req.params['slug'] === 'string' ? req.params['slug'] : '';
+      const redirectTo = freestyleService.setRouteRedirectTarget(rawSlug);
+      if (redirectTo) {
+        res.redirect(301, redirectTo);
+        return;
+      }
       const vm = freestyleService.getCanonicalSetDetailPage(rawSlug);
       if (!vm) {
         res.status(404).render('errors/not-found', {

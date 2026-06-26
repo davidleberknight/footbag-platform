@@ -245,6 +245,19 @@ describe('/freestyle/sets routes render directly', () => {
   });
 });
 
+describe('GET /freestyle/sets/:slug — retired set slug redirects to the surviving entry', () => {
+  it('illusioning folded into atomic, so its old link 301s to the atomic entry', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/illusioning').redirects(0);
+    expect(res.status).toBe(301);
+    expect(res.headers['location']).toBe('/freestyle/sets/atomic');
+  });
+
+  it('a live canonical set is never redirected', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/atomic').redirects(0);
+    expect(res.status).toBe(200);
+  });
+});
+
 describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name equivalences)', () => {
   it('atomic shows Illusioning as an equivalent name with its REV(0) Miraging structural reading', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/atomic');

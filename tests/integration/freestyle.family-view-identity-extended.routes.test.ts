@@ -259,10 +259,13 @@ describe('ADD View and Family View — shared two-line row contract, shared firs
       expect(addRegion, `dict-trick-row not found in ADD view for ${slug}`).not.toBeNull();
       expect(familyRegion, `dict-trick-row not found in Family view for ${slug}`).not.toBeNull();
 
-      // Same dict-trick-row-title detail link in BOTH views.
-      const linkPat = new RegExp(`<a class="dict-trick-row-title" href="/freestyle/tricks/${slug}">${pilot.name}<\\/a>`);
-      expect(addRegion![0]).toMatch(linkPat);
-      expect(familyRegion![0]).toMatch(linkPat);
+      // Same plain-text name + Trick Detail link in BOTH views.
+      const namePat   = `<span class="dict-trick-row-title">${pilot.name}</span>`;
+      const detailPat = new RegExp(`<a class="dict-trick-row-detail" href="/freestyle/tricks/${slug}">Trick Detail<\\/a>`);
+      expect(addRegion![0]).toContain(namePat);
+      expect(familyRegion![0]).toContain(namePat);
+      expect(addRegion![0]).toMatch(detailPat);
+      expect(familyRegion![0]).toMatch(detailPat);
 
       // ADD value: line-2 ADD slot in both; green chip never on the row.
       expect(addView.text).toContain(`id="add-${pilot.adds}"`);

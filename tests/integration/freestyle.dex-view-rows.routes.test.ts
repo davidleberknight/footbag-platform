@@ -66,8 +66,8 @@ beforeAll(async () => {
     { slug: 'blazing-fixture', canonical_name: 'blazing mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
     // weaving is the only remaining Red-doctrine block: the operator itself is still unruled.
     { slug: 'weaving-fixture', canonical_name: 'weaving mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
-    // atomic / quantum / nuclear on an X-Dex receiver is resolved by the receiver rule:
-    // it falls to needs-authoring (far/near notation pending), never to Red-doctrine.
+    // atomic / quantum / nuclear on an X-Dex receiver is resolved by the receiver rule,
+    // never Red-doctrine; with JOB notation already written it is documentation-pending.
     { slug: 'atomic-xdex-fixture', canonical_name: 'atomic torque', adds: '5', base_trick: 'torque', trick_family: 'torque', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'down-gov-fixture', canonical_name: 'down double down', adds: '4', base_trick: 'down', trick_family: 'down', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'stale-fixture', canonical_name: 'blurry whirl', adds: '5', base_trick: 'whirl', trick_family: 'whirl', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
@@ -129,7 +129,10 @@ describe('Dex view — two-line row contract', () => {
     expect(res.text).toMatch(/id="dex-undefined-operator"/);
     expect(res.text).toMatch(/id="dex-red-doctrine"/);
     expect(res.text).toMatch(/id="dex-governance"/);
-    expect(res.text).toMatch(/id="dex-stale"/);
+    // Rows that already carry movement (JOB) notation are documentation-complete:
+    // only the symbolic operational notation is pending, so they sit here, not in
+    // "needs authoring" (which is for rows with no notation written at all).
+    expect(res.text).toMatch(/id="dex-documented"/);
   });
 
   it('classifies each no-op-notation trick by its real blocker; modifiers excluded', async () => {
@@ -138,10 +141,13 @@ describe('Dex view — two-line row contract', () => {
     // weaving is the only remaining Red-doctrine block; atomic/X-Dex no longer lands here.
     expect(sectionFor(res.text, 'dex-red-doctrine')).toContain('data-trick-slug="weaving-fixture"');
     expect(sectionFor(res.text, 'dex-red-doctrine')).not.toContain('data-trick-slug="atomic-xdex-fixture"');
-    // an atomic / X-Dex-receiver row is resolved: it needs notation authored, not a ruling.
-    expect(sectionFor(res.text, 'dex-needs-authoring')).toContain('data-trick-slug="atomic-xdex-fixture"');
+    // an atomic / X-Dex-receiver row that already carries JOB notation is
+    // documentation-complete: only the operational notation is pending.
+    expect(sectionFor(res.text, 'dex-documented')).toContain('data-trick-slug="atomic-xdex-fixture"');
     expect(sectionFor(res.text, 'dex-governance')).toContain('data-trick-slug="down-gov-fixture"');
-    expect(sectionFor(res.text, 'dex-stale')).toContain('data-trick-slug="stale-fixture"');
+    // a settled-operator row with JOB notation but no op-notation is documentation-pending.
+    expect(sectionFor(res.text, 'dex-documented')).toContain('data-trick-slug="stale-fixture"');
+    // mystery-trick has no notation of any kind: genuinely needs authoring.
     expect(sectionFor(res.text, 'dex-needs-authoring')).toContain('data-trick-slug="mystery-trick"');
     // A modifier never appears in the trick dex-count view.
     expect(res.text).not.toContain('data-trick-slug="ducking"');

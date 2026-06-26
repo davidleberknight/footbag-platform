@@ -58,8 +58,11 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
     axisKey:        'entry-topology',
     axisName:       'Entry Topologies',
     axisDefinition:
-      'How the body enters the trick: hip pivots between dexes and same-set side ' +
-      'changes. The body changes sides without changing the set foot.',
+      'Where the entry dex sits relative to the plant foot and the body ' +
+      'centreline: the same-side/op, near/far, and planted/no-plant ' +
+      'relationships. Paradox is the side-switch between the support leg and the ' +
+      'dexterity; as an entry it reads opposite-side clipper (CLIP > OP IN [DEX]), ' +
+      'its cross-body entry-topology case, but it can also be a later mid-trick dex.',
     modifierSlugs:  ['paradox'],
   },
   {
@@ -126,9 +129,8 @@ export function allMovementSystemModifierSlugs(): string[] {
 
 export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map([
   ['paradox',
-    'PDX + base: the body crosses sides without changing the set foot. ' +
-    'Reads as an entry topology, not a terminal family. ' +
-    'Entry shape: clip > op-in dex. ' +
+    'PDX + base: a side-switch between the support leg and the dex, not a terminal family. ' +
+    'As an entry it reads clip > op-in dex; it can also be a later mid-trick dex. ' +
     'Compounds: PDX + WHIRL, PDX + TORQUE, PDX + BLENDER.',
   ],
   // 5 additional pilot glosses. Each line stays ≤200 chars per the

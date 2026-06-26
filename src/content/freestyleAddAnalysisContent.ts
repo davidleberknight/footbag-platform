@@ -188,9 +188,9 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
     example:        'atomic + mirage = atom smasher = 4 ADD; barraging + osis = baroque = 5 ADD',
   },
   {
-    componentClass: 'Entry-topology modifiers: paradox, symposium (pedagogical axis, not an official grouping)',
-    contribution:   '+1 each. These modify the dex-entry position. Paradox itself reads as PDX → CLIP > OP IN [DEX] (clipper set, then a far in-out dex).',
-    example:        'paradox + mirage (2) = 3 ADD',
+    componentClass: 'Entry topology: where the entry dex sits relative to the plant foot and the body centreline, covering the same-side/op, near/far, and planted/no-plant relationships (pedagogical axis, not an official grouping)',
+    contribution:   'The placement cues themselves are +0 (see positional cues below); the operators that act on the entry are scored. Paradox is the side-switch relationship between the support leg and the dexterity (the dex crosses the centreline, an xbody traversal); +1. When paradox is the entry it reads CLIP > OP IN [DEX] (its cross-body entry-topology case), but it can also occur mid-trick as a later [PDX] dex, so that form is not paradox in every trick. Symposium is the no-plant case: the support leg leaves the ground through the dex; +1.',
+    example:        'paradox + mirage (2) = 3 ADD; CLIP > OP IN [DEX] is paradox as an entry topology, not every paradox',
   },
   {
     componentClass: 'Midtime body modifiers: spinning, ducking, diving, swirling, stepping, tapping, gyro, furious, whirling, miraging, flying (pedagogical axis, not an official grouping)',
@@ -354,7 +354,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '3 ADD',
     components: 'Paradox operator (+1) on mirage (2).',
     derivation: 'paradox(+1) + mirage(2) = 3 ADD',
-    whyNote:    'Demonstrates how an operator stacks onto a base. Paradox itself reads as PDX → CLIP > OP IN [DEX] (clipper set, then a far in-out dex); on top of mirage it adds +1.',
+    whyNote:    'Demonstrates how an operator stacks onto a base. Paradox is the side-switch relationship between the support leg and the dexterity; as an entry it reads CLIP > OP IN [DEX], but it can also be a later mid-trick [PDX] dex. On top of mirage it adds +1.',
   },
 
   // ── 4-5 ADD compounds (operators + bases; Red-settled rulings) ───────

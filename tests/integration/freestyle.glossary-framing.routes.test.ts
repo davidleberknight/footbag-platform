@@ -321,7 +321,10 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     expect(html).toContain('What makes a family?');
     expect(html).toMatch(/Whirl is the model/);
     expect(html).toMatch(/Foundational Terminal Surfaces<\/strong> \(toe, clipper\)/);
-    expect(html).toMatch(/Modifier ecosystems<\/strong> \(ducking, spinning, blurry\)/);
+    // Blurry is a composite set (≡ stepping+paradox), not a no-ending modifier
+    // ecosystem, so it is not listed here (it appears as a set in the kind table).
+    expect(html).toMatch(/Modifier ecosystems<\/strong> \(ducking, spinning\)/);
+    expect(html).not.toMatch(/Modifier ecosystems<\/strong> \(ducking, spinning, blurry\)/);
   });
 
   it('teaches the family-ish kinds with a two-axis Family entry (family / atom / ecosystem / anchor)', async () => {

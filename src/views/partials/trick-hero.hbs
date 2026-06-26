@@ -1,9 +1,9 @@
 {{!--
-  Trick hero block. Renders a metadata ribbon (family badge, ADD chip,
-  record chip) in a single row directly below the h1. Below the ribbon:
+  Trick hero block. Carries identity only: the h1, then the structural
   decomposition strip, formula, and summary in that order. Sparse pages
   without a heroDecomposition fall back to the records-side sortname
-  subtitle for identity continuity.
+  subtitle for identity continuity. The taxonomy ribbon (hashtag, family,
+  ADD) renders in the page body, not the hero.
 --}}
 <div class="hero hero-sm{{#if summary}} trick-hero-ux2{{/if}}">
   <div>
@@ -15,26 +15,6 @@
     </nav>
     {{/if}}
     <h1>{{page.title}}</h1>
-    <p class="trick-hero-meta-ribbon" aria-label="Trick metadata">
-      {{#if content.trickTag}}
-      <span class="trick-hero-meta-chip">{{content.trickTag}}</span>
-      {{/if}}
-      {{#if content.familyChip}}
-      <a class="trick-hero-meta-chip trick-hero-meta-chip-family{{#if content.familyChip.isMinorLineage}} trick-hero-meta-chip-family--minor{{/if}}" href="/freestyle/tricks?family={{content.familyChip.slug}}">{{content.familyChip.label}}{{#if content.familyChip.isMinorLineage}} &middot; minor lineage{{/if}}</a>
-      {{/if}}
-      {{#if content.dictEntry}}
-        {{#if content.dictEntry.isModifier}}
-        <span class="trick-hero-meta-chip trick-hero-meta-chip-modifier">Modifier</span>
-        {{else}}
-          {{#if content.dictEntry.adds}}
-          <span class="trick-hero-meta-chip trick-hero-meta-chip-adds">{{content.dictEntry.adds}} ADD</span>
-          {{/if}}
-        {{/if}}
-      {{/if}}
-      {{! Record chip removed from hero per FC slice — records still
-          surface in the Passback Records table + pathways block lower
-          on the page. The hero focuses on identity + ADD, not stats. }}
-    </p>
     {{#if content.heroDecomposition}}
     <p class="trick-hero-decomposition" aria-label="Structural decomposition: {{#each content.heroDecomposition}}{{text}}{{#unless @last}} {{/unless}}{{/each}}">
       {{#each content.heroDecomposition}}<span class="hero-decomp-token hero-decomp-{{cssRole}}" data-kind="{{kind}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}

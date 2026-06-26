@@ -177,7 +177,7 @@ export const SET_SUBTYPE_SPECS: readonly SubtypeSpec[] = [
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────
-// Canonical set entries (46)
+// Canonical set entries (45)
 // ─────────────────────────────────────────────────────────────────────
 
 export const CANONICAL_SETS: readonly CanonicalSet[] = [
@@ -306,9 +306,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'motion echoes the pickup crossing.',
     equivalenceNotes: [
       { reading: 'Toe set Illusion', citation: 'Holden parenthetical' },
+      { reading: 'uptime illusion structure (reverse-miraging)', citation: 'Structural reading' },
     ],
     equivalentNames: [
-      { name: 'Illusioning', structuralReading: 'REV(0) Miraging', note: 'Alternate, historic set-operator name; the descriptive reading of the atomic operator.' },
+      { name: 'Illusioning', structuralReading: 'REV(0) Miraging', note: 'Also called Illusioning, an older set-operator name; the descriptive reverse-miraging reading of the same outward uptime dex. One set, two names.' },
     ],
     derivedSystems: [
       { slug: 'fairy_atomic', label: 'Fairy Atomic' },
@@ -316,8 +317,9 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'tapping',      label: 'Tapping' },
     ],
     relatedSystems: [
-      { slug: 'quantum', label: 'Quantum (inward counterpart, op-side terminal)' },
-      { slug: 'nuclear', label: 'Nuclear (platform reading: paradox + illusion)' },
+      { slug: 'quantum',  label: 'Quantum (inward counterpart, op-side terminal)' },
+      { slug: 'miraging', label: 'Miraging (inward-dex mirror of the illusioning reading)' },
+      { slug: 'nuclear',  label: 'Nuclear (platform reading: paradox + illusion)' },
     ],
     source: 'platform-tracked',
     sourceCitation: 'Holden compilation (2003); platform tracks atomic as a +1 set primitive (audit row records partial: platform does not formalize Holden\'s Toe-set Illusion decomposition).',
@@ -375,30 +377,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'literal-primitive',
   },
 
-  // ── Composite / derived sets (12) ──────────────────────────────────
-  {
-    slug: 'illusioning', hashtag: '#set_illusioning', displayName: 'Illusioning', subtype: 'composite-derived',
-    formula: 'SET > OP OUT [DEX] >',
-    movementExplanation:
-      'A derived entry topology readable as the uptime illusion shape: structurally the ' +
-      'reverse-direction mirror of miraging (an outward dex rather than inward), with the ' +
-      'terminal stall omitted because the set continues into the next move. The same outward ' +
-      'uptime dex is the Atomic set operator; Illusioning is the descriptive reading of that ' +
-      'operator, not a separate productive modifier.',
-    equivalenceNotes: [
-      { reading: 'uptime illusion structure', citation: 'Structural reading' },
-    ],
-    equivalentNames: [
-      { name: 'Atomic', structuralReading: 'REV(0) Miraging', note: 'The underlying set-operator name for this uptime illusion reading.' },
-    ],
-    derivedSystems: [],
-    relatedSystems: [
-      { slug: 'miraging', label: 'Miraging (inward-dex mirror)' },
-      { slug: 'atomic', label: 'Atomic (the underlying set operator)' },
-    ],
-    source: 'platform-tracked',
-    sourceCitation: 'Structural pattern; not in the Holden compilation.',
-  },
+  // ── Composite / derived sets (11) ──────────────────────────────────
   {
     slug: 'miraging', hashtag: '#set_miraging', displayName: 'Miraging', subtype: 'composite-derived',
     formula: 'SET > OP IN [DEX] >',
@@ -1160,6 +1139,26 @@ const SETS_BY_SLUG: ReadonlyMap<string, CanonicalSet> = new Map(
 
 export function findCanonicalSetBySlug(slug: string): CanonicalSet | null {
   return SETS_BY_SLUG.get(slug) ?? null;
+}
+
+/**
+ * Retired set slugs that now resolve to a surviving canonical set, so existing
+ * deep links keep working after two parallel entries collapse into one. The
+ * illusioning set folded into atomic (one set, two names), so /freestyle/sets/
+ * illusioning sends the reader to the atomic entry that carries that history.
+ */
+const SET_SLUG_ALIASES: ReadonlyMap<string, string> = new Map([
+  ['illusioning', 'atomic'],
+]);
+
+/**
+ * Returns the canonical set slug a retired alias slug redirects to, or null
+ * when the slug is not a retired alias. Only fires for slugs that are not
+ * themselves a live canonical set, so a real set is never redirected.
+ */
+export function resolveCanonicalSetAlias(slug: string): string | null {
+  if (SETS_BY_SLUG.has(slug)) return null;
+  return SET_SLUG_ALIASES.get(slug) ?? null;
 }
 
 export function canonicalSetsBySubtype(subtype: SetSubtype): readonly CanonicalSet[] {

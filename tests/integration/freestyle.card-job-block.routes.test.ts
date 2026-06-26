@@ -190,13 +190,11 @@ describe('JOB-block rendering across browse views (no raw operational notation o
 });
 
 describe('/freestyle/tricks?view=sets — two-line rows (not bare hashtags)', () => {
-  it('renders <a class="dict-trick-row-title"> anchors for each listed trick (not plain text)', async () => {
-    // By Modifier migrated to the two-line dict-trick-row contract (2026-05-27).
+  it('renders the trick name as plain text plus a separate Trick Detail link for each listed trick', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    // Fairy section must surface the fairy-mirage row with a linked title.
-    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/fairy_mirage">/);
-    // Spinning section must surface the spinning-paradox-mirage row with a linked title.
-    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/spinning_paradox_mirage">/);
+    // The name is display text only; a distinct Trick Detail control opens the detail page.
+    expect(res.text).toMatch(/<a class="dict-trick-row-detail" href="\/freestyle\/tricks\/fairy_mirage">Trick Detail<\/a>/);
+    expect(res.text).toMatch(/<a class="dict-trick-row-detail" href="\/freestyle\/tricks\/spinning_paradox_mirage">Trick Detail<\/a>/);
   });
 
   it('renders the line-2 ADD slot + hashtag per row (no green chip; DictionaryTrickCard shape flows through)', async () => {
@@ -211,14 +209,22 @@ describe('/freestyle/tricks?view=sets — two-line rows (not bare hashtags)', ()
     expect(window).toMatch(/class="dict-trick-row-hashtag"[^>]*>#spinning_paradox_mirage</);
   });
 
-  it('does NOT render hashtags as the primary UI — every card has a linked title before the hashtag', async () => {
+  it('renders the trick name as plain text first, then the hashtag, then the Trick Detail link', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    // The fairy-mirage card title-anchor must appear before its hashtag in the DOM order.
-    const titleIdx = res.text.indexOf('href="/freestyle/tricks/fairy_mirage"');
-    const hashtagIdx = res.text.indexOf('>#fairy_mirage<');
+    const slugIdx = res.text.indexOf('data-trick-slug="fairy_mirage"');
+    expect(slugIdx).toBeGreaterThan(-1);
+    const window = res.text.substring(slugIdx, slugIdx + 2000);
+    // Name is plain text, not an anchor.
+    expect(window).toContain('<span class="dict-trick-row-title">');
+    const titleIdx   = window.indexOf('class="dict-trick-row-title"');
+    const hashtagIdx = window.indexOf('>#fairy_mirage<');
+    const detailIdx  = window.indexOf('class="dict-trick-row-detail"');
     expect(titleIdx).toBeGreaterThan(-1);
     expect(hashtagIdx).toBeGreaterThan(-1);
+    expect(detailIdx).toBeGreaterThan(-1);
+    // DOM order: name → hashtag → Trick Detail.
     expect(titleIdx).toBeLessThan(hashtagIdx);
+    expect(hashtagIdx).toBeLessThan(detailIdx);
   });
 });
 

@@ -63,35 +63,43 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(res.status).toBe(200);
   });
 
-  it('renders the eight frontier-health categories (status-first, not Red-centric)', async () => {
+  it('renders the reason-based frontier-health categories (status-first, not Red-centric)', async () => {
     const html = await page();
     expect(html).toContain('observed-stats');
     expect(html).toContain('observed-stat-value');
-    for (const label of ['Red doctrine blocked', 'Curator / governance', 'Identification',
-                         'Notation blocked', 'Needs authoring', 'Structurally ready',
-                         'Folk / unresolved', 'Alias / duplicate']) {
+    for (const label of ['Canonical candidates', 'Needs authoring', 'Doctrine unresolved',
+                         'Curator / governance', 'Undefined operator', 'Identification',
+                         'Parser ambiguity', 'Folk names']) {
       expect(html).toContain(label);
     }
+    // Aliases are NOT a frontier-health metric: a name that resolves to an existing
+    // trick is not frontier work, so it never inflates the metrics strip.
+    expect(html).not.toContain('Aliases / duplicates');
+    // No rendered category names the rules expert directly.
+    expect(html).not.toContain('Red doctrine');
     // The stale "Doctrine Blocked = awaiting a curator or Red ruling" metric is gone.
     expect(html).not.toContain('Doctrine Blocked');
     expect(html).not.toContain('awaiting a curator or Red ruling');
+    // The vague "Unknown / Notation blocked" framing is gone; names are classified by reason.
+    expect(html).not.toContain('Notation blocked');
     expect(html).toMatch(/\d+%/);
   });
 
-  it('does not present the frontier as 185 names waiting on Red', async () => {
+  it('does not present the frontier as names waiting on Red', async () => {
     const html = await page();
-    // Red-doctrine is now a small slice (Weaving), reported as such in the note.
-    expect(html).toMatch(/Only \d+ await a Red ruling/);
-    // Structurally-ready remains a distinct frontier-health category.
-    expect(html).toContain('Structurally ready');
+    // The doctrine-unresolved slice (Weaving) is a small share, reported in the note.
+    expect(html).toMatch(/\d+ await an expert ruling/);
+    // Canonical candidates remain a distinct frontier-health category.
+    expect(html).toContain('Canonical candidates');
   });
 
-  it('reclassifies stale notation-blocked rows out of the bucket (not all unknown-token rows are blocked)', async () => {
+  it('empties the stale Unknown bucket: undefined operators and parser ambiguity are their own reasons', async () => {
     const html = await page();
-    const m = html.match(/observed-stat-value">(\d+)<\/span>\s*<span class="observed-stat-label">Notation blocked/);
-    expect(m, 'Notation blocked stat not found').not.toBeNull();
-    // ~100 rows whose tokens are now all known move out of the bucket; was 236.
-    expect(Number(m![1])).toBeLessThan(200);
+    // No vague "Unknown" / "Notation blocked" bucket survives.
+    expect(html).not.toContain('Notation blocked');
+    // Undefined-operator names get an honest, named home rather than "Unknown".
+    expect(html).toContain('Undefined operator');
+    expect(html).toContain('Parser ambiguity');
   });
 
   it('makes Awaiting Ruling the first content section, above the metric strip', async () => {
@@ -132,8 +140,8 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(html).toContain('id="doctrine-blocked"');
     expect(html).toContain('observed-cluster');
     expect(html).toContain('Doctrine &amp; governance clusters');
-    // Only Weaving genuinely awaits Red; the down-family is a verification pass.
-    expect(html).toMatch(/Only the Weaving cluster genuinely awaits a\s+Red ruling/);
+    // Only Weaving genuinely awaits expert review; the down-family is a verification pass.
+    expect(html).toMatch(/Only the Weaving cluster genuinely awaits an\s+expert ruling/);
     expect(html).toMatch(/per-trick verification pass/);
     // Side / direction variants are explicitly not doctrine: the notation encodes the side.
     expect(html).toMatch(/Side and direction variants are not here/);
@@ -152,10 +160,11 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(html).toContain('observed-matrix');
   });
 
-  it('renders folk + parser summary sections with full lists behind disclosure', async () => {
+  it('renders folk, undefined-operator, and parser-ambiguity sections with full lists behind disclosure', async () => {
     const html = await page();
-    expect(html).toContain('id="folk-unresolved"');
-    expect(html).toContain('id="parser-uncertainty"');
+    expect(html).toContain('id="folk-names"');
+    expect(html).toContain('id="undefined-operator"');
+    expect(html).toContain('id="parser-ambiguity"');
     expect(html).toContain('observed-fulllist');
     expect(html).toContain('Show all');
   });

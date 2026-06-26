@@ -1,6 +1,6 @@
 # Doc-sync proposal for implemented hashtag ontology
 
-**Status: No edits applied. Requesting maintainer review.**
+**Status: Applied to DESIGN_DECISIONS.md §2.6 and USER_STORIES.md (maintainer-approved). Flag to the primary maintainer for any wording adjustment to DD §2.6.**
 
 DESIGN_DECISIONS.md and USER_STORIES.md are maintainer-owned canonical docs. The
 four edits below are proposed, not applied. They bring the canonical hashtag
