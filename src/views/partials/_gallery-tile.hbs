@@ -17,5 +17,6 @@
       {{/each}}
     </ul>
   {{/if}}
+  {{#if setLink}}<p class="gallery-tile-set-link"><a href="{{setLink.href}}">Set: {{setLink.label}} &rarr;</a></p>{{/if}}
   {{#if uploadedAtDisplay}}<p class="gallery-tile-date"><time datetime="{{uploadedAtIso}}">{{uploadedAtDisplay}}</time></p>{{/if}}
 </li>

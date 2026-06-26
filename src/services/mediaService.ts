@@ -78,15 +78,19 @@ import {
   GALLERY_ITEMS_QUERY_CAP,
   GallerySortOrder,
   countGalleryItemsByCriteria,
+  countGalleryItemsByTagGroups,
   media,
   queryCooccurringTags,
   queryCuratorMediaTags,
   queryGalleryItemsByCriteria,
+  queryGalleryItemsByTagGroups,
   queryGalleryItemsByCriteriaGrouped,
   queryRecentCommunityMedia,
   queryMemberDisplayNamesBySlugs,
+  queryStyleTermTagIds,
   queryTagIdsByNormalized,
 } from '../db/db';
+import { CANONICAL_SETS, resolveCanonicalSetAlias } from '../content/freestyleCanonicalSets';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { isSafePath } from '../lib/safePath';
 import { runSqliteRead } from './sqliteRetry';
@@ -214,6 +218,10 @@ export interface GalleryItem {
   // Per-tile chips: non-`#by_*` link to /media/browse?tag=…; `#by_*` lifts to
   // the member's display name linked to that member's public gallery.
   tags: TagChip[];
+  // Set-concept cross-link: a `#concept_<slug>_sets` tag (e.g. a set tutorial
+  // video) links the tile to that Set Encyclopedia page, resolving set aliases
+  // to the canonical set. Null when the item carries no set-concept tag.
+  setLink: { label: string; href: string } | null;
   // Video tiles render a click-to-play facade via partials/video-facade.hbs
   // fed by this canonical shape. Null for photos.
   media: VideoMedia | null;
@@ -520,6 +528,27 @@ function sanitizePage(raw: unknown): number {
   return Math.floor(n);
 }
 
+// Canonical set slug -> display name, for the set-concept tile cross-link.
+const SET_DISPLAY_BY_SLUG: ReadonlyMap<string, string> =
+  new Map(CANONICAL_SETS.map((s) => [s.slug, s.displayName]));
+
+// Map a media item's tags to a Set Encyclopedia cross-link, when one carries a
+// `#concept_<slug>_sets` tag. Set aliases resolve to the canonical set (e.g.
+// illusioning -> atomic, furious -> barraging); an unknown set yields no link
+// (so a stale tag never renders a broken link). First matching tag wins.
+function setLinkFromTags(tags: TagChip[]): { label: string; href: string } | null {
+  for (const tag of tags) {
+    const m = /^#?concept_([a-z0-9_]+)_sets$/i.exec(tag.display);
+    if (!m) continue;
+    const raw = m[1].toLowerCase();
+    const canonical = resolveCanonicalSetAlias(raw) ?? raw;
+    const label = SET_DISPLAY_BY_SLUG.get(canonical);
+    if (!label) continue;
+    return { label, href: `/freestyle/sets/${canonical}` };
+  }
+  return null;
+}
+
 function shapeItem(
   row: CuratorGalleryRow,
   tags: TagChip[],
@@ -554,6 +583,7 @@ function shapeItem(
     uploadedAtIso: row.uploaded_at,
     uploadedAtDisplay: formatUploadedAt(row.uploaded_at),
     tags,
+    setLink: setLinkFromTags(tags),
     media,
     itemHref: null,
   };
@@ -1224,7 +1254,7 @@ export const mediaService = {
       const formIncludeText = includeNormalized.map(stripHash).join(' ');
       const formExcludeText = excludeNormalized.map(stripHash).join(' ');
 
-      const allNormalized = [...contextNormalized, ...includeNormalized, ...excludeNormalized];
+      const allNormalized = uniqStrings([...contextNormalized, ...includeNormalized, ...excludeNormalized]);
       const tagRows = allNormalized.length === 0 ? [] : queryTagIdsByNormalized(allNormalized);
       const tagRowByNormalized = new Map(tagRows.map((r) => [r.tag_normalized, r]));
 
@@ -1247,8 +1277,28 @@ export const mediaService = {
         ...excludeRows.map((r) => r.tag_display),
       ];
 
-      // The AND set is context + visitor-include.
-      const criteriaTagIds = [...contextRows.map((r) => r.id), ...includeRows.map((r) => r.id)];
+      // The match set: each context token is a single-tag group; each visitor
+      // include token is an OR-group of tag ids. A recognized set/style term
+      // matches its bare tag, its #<term>_* compounds, and its set/concept tags
+      // (token-based); any other token matches exactly. Groups AND together;
+      // criteriaTagIds (flat) drives the results-mode gate and the co-occurring
+      // suggestions. The display chips above stay on the submitted tokens, so the
+      // shown hashtags are unchanged.
+      const expandIncludeTokenTagIds = (normalized: string): string[] => {
+        const term = stripHash(normalized);
+        const setSlug = SET_STYLE_TERMS.get(term);
+        if (setSlug) {
+          const { exacts, prefix } = styleTermTagPatterns(term, setSlug);
+          return queryStyleTermTagIds(exacts, prefix);
+        }
+        const row = tagRowByNormalized.get(normalized);
+        return row ? [row.id] : [];
+      };
+      const criteriaGroups = [
+        ...contextNormalized.map((n) => { const r = tagRowByNormalized.get(n); return r ? [r.id] : []; }),
+        ...includeNormalized.map(expandIncludeTokenTagIds),
+      ].filter((g) => g.length > 0);
+      const criteriaTagIds = criteriaGroups.flat();
       const excludeTagIds = excludeRows.map((r) => r.id);
 
       // Browse mode: no resolved criteria → no results pane. Hero echoes
@@ -1288,9 +1338,9 @@ export const mediaService = {
 
       // Results mode.
       const page = sanitizePage(args.rawPage);
-      const total = countGalleryItemsByCriteria(criteriaTagIds, excludeTagIds);
+      const total = countGalleryItemsByTagGroups(criteriaGroups, excludeTagIds);
       const offset = (page - 1) * PAGE_SIZE;
-      const rows = queryGalleryItemsByCriteria(criteriaTagIds, PAGE_SIZE, offset, excludeTagIds);
+      const rows = queryGalleryItemsByTagGroups(criteriaGroups, PAGE_SIZE, offset, excludeTagIds);
 
       const itemTagRows = rows.length > 0 ? queryCuratorMediaTags(rows.map((r) => r.id)) : [];
 
@@ -1444,6 +1494,38 @@ export function normalizeTagToken(raw: string): string {
 
 function stripHash(t: string): string {
   return t.startsWith('#') ? t.slice(1) : t;
+}
+
+// Token-based search expansion for /media/browse. A handful of recognized
+// set/style terms expand to ALL the tags that name them, so a visitor who
+// searches "pixie" finds every pixie and pixie-set video in one go: the bare
+// tag, its `#<term>_*` compounds (e.g. #pixie_barrage), and its set/concept
+// tags (#set_pixie, #concept_pixie_sets). The value is the canonical SET slug
+// for the term (the term itself for most; barraging for furious, whose set
+// folded into barraging). NOT a synonym engine and NOT folk-name resolution
+// (pigbeater = pixie eggbeater belongs to a later ontology-backed phase); it
+// does not rename tags, retag media, or change displayed hashtags. Any token
+// not in this table matches exactly, so other searches behave as before.
+const SET_STYLE_TERMS: ReadonlyMap<string, string> = new Map<string, string>([
+  ['pixie',     'pixie'],
+  ['fairy',     'fairy'],
+  ['atomic',    'atomic'],
+  ['miraging',  'miraging'],
+  ['stepping',  'stepping'],
+  ['barraging', 'barraging'],
+  ['furious',   'barraging'],
+]);
+
+// The exact tag forms and the `#<term>_*` compound prefix a set/style term
+// matches: its own bare/set/concept tags, plus (when the canonical set differs,
+// e.g. furious -> barraging) the canonical set's set/concept tags.
+function styleTermTagPatterns(term: string, setSlug: string): { exacts: string[]; prefix: string } {
+  const exacts = new Set<string>([
+    `#${term}`,
+    `#set_${term}`,    `#concept_${term}_sets`,
+    `#set_${setSlug}`, `#concept_${setSlug}_sets`,
+  ]);
+  return { exacts: [...exacts], prefix: `#${term}` };
 }
 
 function notEmpty(s: string): boolean {

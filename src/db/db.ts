@@ -6189,6 +6189,23 @@ export function queryTagIdsByNormalized(
   `).all(...normalizedForms) as { id: string; tag_normalized: string; tag_display: string }[];
 }
 
+// Resolve the tag ids for a set/style search term: the given exact tag forms
+// (e.g. #pixie, #set_pixie, #concept_pixie_sets) plus any underscore-delimited
+// compound tag `#<term>_*` (e.g. #pixie_barrage). The underscore in the prefix
+// is escaped so it matches a literal `_`, not a single-char wildcard. Used only
+// by /media/browse search expansion; returns ids of tags that actually exist.
+export function queryStyleTermTagIds(exactNormalized: string[], compoundPrefix: string): string[] {
+  const inClause = exactNormalized.length > 0
+    ? `tag_normalized IN (${exactNormalized.map(() => '?').join(',')})`
+    : '0';
+  const rows = db.prepare(`
+    SELECT id FROM tags
+    WHERE ${inClause}
+       OR tag_normalized LIKE ? ESCAPE '\\'
+  `).all(...exactNormalized, `${compoundPrefix}\\_%`) as { id: string }[];
+  return rows.map((r) => r.id);
+}
+
 // Tag-AND-of-N gallery query. Items appear iff they carry every one of
 // the given tag ids. Standard SQLite GROUP BY / HAVING COUNT(DISTINCT)
 // pattern. Built dynamically because better-sqlite3 has no array-bind
@@ -6236,6 +6253,75 @@ export function queryGalleryItemsByCriteria(
     ORDER BY mi.uploaded_at DESC, mi.id DESC
     LIMIT ? OFFSET ?
   `).all(...tagIds, ...excludeTagIds, tagIds.length, limit, offset) as CuratorGalleryRow[];
+}
+
+// OR-group variant of queryGalleryItemsByCriteria. Each inner array is an
+// OR-group: an item must carry at least one tag from EVERY group (groups AND
+// together, tags within a group OR). A single-tag group is identical to the flat
+// AND match, so this is a strict generalization used only by /media/browse to
+// let a search term also match its set-tag alias, without touching the AND-only
+// callers (named galleries, clubs, events). Same visibility filters and ordering.
+export function queryGalleryItemsByTagGroups(
+  tagIdGroups: string[][],
+  limit: number,
+  offset: number,
+  excludeTagIds: string[] = [],
+): CuratorGalleryRow[] {
+  const groups = tagIdGroups.filter((g) => g.length > 0);
+  if (groups.length === 0) return [];
+  const groupClauses = groups
+    .map((g) => `AND EXISTS (SELECT 1 FROM media_tags mtg WHERE mtg.media_id = mi.id AND mtg.tag_id IN (${g.map(() => '?').join(',')}))`)
+    .join('\n      ');
+  const excludeClause = excludeTagIds.length === 0
+    ? ''
+    : `AND NOT EXISTS (SELECT 1 FROM media_tags mtex WHERE mtex.media_id = mi.id AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')}))`;
+  return db.prepare(`
+    SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
+           mi.s3_key_thumb, mi.s3_key_display,
+           mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
+           mi.width_px, mi.height_px
+    FROM media_items mi
+    WHERE mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+      ${groupClauses}
+      ${excludeClause}
+      AND NOT EXISTS (
+        SELECT 1 FROM media_tags mtu
+        JOIN tags tu ON tu.id = mtu.tag_id
+        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+      )
+    ORDER BY mi.uploaded_at DESC, mi.id DESC
+    LIMIT ? OFFSET ?
+  `).all(...groups.flat(), ...excludeTagIds, limit, offset) as CuratorGalleryRow[];
+}
+
+// Count counterpart to queryGalleryItemsByTagGroups (same OR-group AND match).
+export function countGalleryItemsByTagGroups(
+  tagIdGroups: string[][],
+  excludeTagIds: string[] = [],
+): number {
+  const groups = tagIdGroups.filter((g) => g.length > 0);
+  if (groups.length === 0) return 0;
+  const groupClauses = groups
+    .map((g) => `AND EXISTS (SELECT 1 FROM media_tags mtg WHERE mtg.media_id = mi.id AND mtg.tag_id IN (${g.map(() => '?').join(',')}))`)
+    .join('\n      ');
+  const excludeClause = excludeTagIds.length === 0
+    ? ''
+    : `AND NOT EXISTS (SELECT 1 FROM media_tags mtex WHERE mtex.media_id = mi.id AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')}))`;
+  const row = db.prepare(`
+    SELECT COUNT(*) AS n
+    FROM media_items mi
+    WHERE mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+      ${groupClauses}
+      ${excludeClause}
+      AND NOT EXISTS (
+        SELECT 1 FROM media_tags mtu
+        JOIN tags tu ON tu.id = mtu.tag_id
+        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+      )
+  `).get(...groups.flat(), ...excludeTagIds) as { n: number };
+  return row.n;
 }
 
 // Recent member-authored community media, with no tag criterion, for the

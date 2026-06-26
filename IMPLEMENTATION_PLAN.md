@@ -199,6 +199,7 @@ Real work, but nothing is being done on it now.
 - **Glossary version 4 multi-layer rollout.** Waiting on curator triage and a static-page rollout.
 - **Symbolic-grammar UI rollout.** Phase 1 waiting on approval.
 - **Local MP4 trick clips.** Need a way to ingest video files that are not embeds.
+- **Consolidate PassBack tutorials into one folder.** Bring all PassBack tutorials together while preserving the Beginner/Advanced organization. Deferred; not part of the media search-expansion / set-video-link patches.
 - **Quantum and Miraging: one set or two? (curator / Red question).** Both are inward op-side counterparts of atomic (atomic is the outward-dex peer; the data records `REV(0) miraging = atomic`). They are currently treated as distinct first-class sets: Quantum is a terminating toe set (`TOE > OP IN [DEX] >` op-side), Miraging omits the terminal and generalizes the entry (`SET > OP IN [DEX] >`), and the platform records different compound families for each (Quantum to frantic; Miraging to drifter and double-leg-over). Their bare inward-dex skeletons are close enough that a future ruling may merge them the way Illusioning folded into Atomic. The Quantum and Miraging set detail pages cross-link each other noting the similarity. Until ruled, keep them distinct.
 - **Merging the two canonical result sets.** Combine the pre-1997 and post-1997 sets and retire the older one.
 - **Version stamps in the data outputs.** Add the build version, build date, and identity-lock version to the workbook and canonical files.

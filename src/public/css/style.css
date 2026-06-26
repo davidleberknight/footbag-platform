@@ -1276,6 +1276,12 @@ button.tag-suggestion {
   color: var(--text-muted);
 }
 
+.gallery-tile-set-link {
+  margin: 4px 0 0;
+  padding: 0 12px;
+  font-size: 0.8rem;
+}
+
 .gallery-pagination {
   display: flex;
   align-items: center;
