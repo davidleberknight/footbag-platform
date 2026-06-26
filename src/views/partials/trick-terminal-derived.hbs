@@ -1,0 +1,32 @@
+{{!--
+  Terminal-derived relationship. Two modes, set by the service:
+    - cohort:   on a terminal-stall atom that is not a public family
+                (toe_stall, clipper_stall), the curated cross-family list of
+                recognizable tricks that finish on this surface.
+    - backlink: on a cohort member, the reciprocal "lands in" link back to its
+                terminal atom.
+  The Family ladder owns terminals that ARE families (e.g. inside_stall), so this
+  section never duplicates it.
+--}}
+{{#if content.terminalDerived}}
+{{#if (eq content.terminalDerived.mode 'cohort')}}
+<section class="content-section" data-section="terminal-derived">
+  <div class="section-heading">
+    <h2>Tricks that land here</h2>
+    <p class="section-intro">Recognizable moves that finish on this surface.</p>
+  </div>
+  <ul class="related-tricks-list">
+    {{#each content.terminalDerived.tricks}}
+    <li>
+      <a href="{{detailHref}}">{{canonicalName}}</a>
+      <span class="text-muted fs-sm">({{addLabel}})</span>
+    </li>
+    {{/each}}
+  </ul>
+</section>
+{{else}}
+<section class="content-section" data-section="terminal-backlink">
+  <p class="text-muted">Lands in: <a href="{{content.terminalDerived.terminalHref}}">{{content.terminalDerived.terminalName}}</a></p>
+</section>
+{{/if}}
+{{/if}}

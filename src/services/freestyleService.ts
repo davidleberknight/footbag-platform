@@ -133,6 +133,7 @@ import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
 import { TRICKS_MOSAIC } from '../content/freestyleTricksMosaic';
+import { TERMINAL_DERIVED_COHORTS, TERMINAL_OF_MEMBER } from '../content/freestyleTerminalCohorts';
 import { loadSiteVideo, loadMosaicVideo } from './siteMediaService';
 import {
   CORE_ATOM_EDUCATIONAL,
@@ -1354,6 +1355,13 @@ export interface FreestyleTrickModifierMembership {
   gloss:       string | null;   // one-line composition gloss, null when none authored
 }
 
+// Terminal-derived relationship view-model. Two modes: the curated "what lands
+// here" cohort on a terminal atom's page, or the reciprocal "lands in" backlink
+// on a cohort member's page.
+export type TerminalDerivedView =
+  | { mode: 'cohort'; tricks: { canonicalName: string; detailHref: string; addLabel: string }[] }
+  | { mode: 'backlink'; terminalName: string; terminalHref: string };
+
 export interface FreestyleTrickContent {
   trickName: string;
   sortName: string | null;
@@ -1405,6 +1413,13 @@ export interface FreestyleTrickContent {
   // operator structure. Null when no bucket has members, so the block is hidden
   // rather than rendered empty.
   structuralNeighbors: StructuralNeighbors | null;
+  // Terminal-derived cohort. On a terminal-stall atom that is not a public family
+  // (toe_stall, clipper_stall), the curated cross-family list of recognizable
+  // tricks that finish on this surface. On a cohort member's page, the reciprocal
+  // backlink to its terminal atom. Null otherwise. Distinct from the Family ladder
+  // (which owns terminals that ARE families, e.g. inside_stall) so nothing is
+  // shown twice.
+  terminalDerived: TerminalDerivedView | null;
   // Derived one-line relocations of the retired Mechanical Delta and Progressive
   // Readings sections. intuitionDelta ("Compared with X, this adds Y") renders in
   // Movement Intuition; buildPath ("Built from A -> B -> + mod = this") renders in
@@ -6945,6 +6960,30 @@ export const freestyleService = {
             const buckets = full.buckets.filter(b => b.key === 'operator_kin' || b.key === 'twins');
             return buckets.length ? { ...full, buckets } : null;
           })(),
+          // Terminal-derived cohort (curated). On a terminal atom that is not a
+          // public family, the cross-family "what lands here" list; on a cohort
+          // member, the reciprocal "lands in" backlink. The Family ladder owns
+          // terminals that ARE families, so the two never overlap.
+          terminalDerived: ((): TerminalDerivedView | null => {
+            // allDictRows (listAll) is already is_active = 1, so a slug match is
+            // enough; an inactive or absent member simply drops out.
+            const cohort = TERMINAL_DERIVED_COHORTS.get(slug);
+            if (cohort) {
+              const tricks = cohort.flatMap(s => {
+                const r = allDictRows.find(row => row.slug === s);
+                return r
+                  ? [{ canonicalName: r.canonical_name, detailHref: `/freestyle/tricks/${r.slug}`, addLabel: `${r.adds} ADD` }]
+                  : [];
+              });
+              return tricks.length ? { mode: 'cohort', tricks } : null;
+            }
+            const terminal = TERMINAL_OF_MEMBER.get(slug);
+            if (terminal) {
+              const trow = allDictRows.find(row => row.slug === terminal);
+              if (trow) return { mode: 'backlink', terminalName: trow.canonical_name, terminalHref: `/freestyle/tricks/${terminal}` };
+            }
+            return null;
+          })(),
           intuitionDelta: derivedDelta,
           buildPath:      derivedBuildPath,
           quantityLadder,
@@ -9091,7 +9130,7 @@ export const freestyleService = {
           heading: 'New to freestyle? Start here.',
           intro: [
             'This is a reference for tricks: the named moves players do. Every trick is a base move with modifiers layered on top, and the more you layer, the harder it gets.',
-            'That difficulty has a score: ADD (added difficulty). A simple base is around 2 to 3; a heavily modified trick can reach 7 or more.',
+            'That difficulty has a score called ADD (added difficulty). The simplest moves are 1 or 2; layer enough on and a trick can reach 7 or more.',
           ],
           definitions: [
             { term: 'ADD', plain: 'how hard a trick is, as a number; the more you layer on, the higher it goes.' },
