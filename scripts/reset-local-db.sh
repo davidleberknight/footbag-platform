@@ -38,6 +38,14 @@ if ! command -v python3 &>/dev/null; then
   exit 1
 fi
 
+if [[ "${CURATOR_SEED:-yes}" != "no" ]] && ! command -v ffmpeg &>/dev/null; then
+  echo "Error: ffmpeg not found, but the curator seed needs it to transcode the demo videos."
+  echo "  Ubuntu/Debian: sudo apt-get install ffmpeg"
+  echo "  macOS:         brew install ffmpeg"
+  echo "  Or skip the curator seed: CURATOR_SEED=no bash scripts/reset-local-db.sh"
+  exit 1
+fi
+
 DB_FILE="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 SCHEMA="database/schema.sql"
 CANONICAL_INPUT_DIR="legacy_data/event_results/canonical_input"

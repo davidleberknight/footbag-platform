@@ -23,7 +23,10 @@ const forkCap = envForkCap ?? (ramBound ? memForkCap : null);
 export default defineConfig({
   test: {
     testTimeout: 15_000,
-    hookTimeout: 30_000,
+    // beforeAll hooks transpile and import the whole app graph on first run;
+    // on a slow laptop that cold transform can exceed half a minute, so the
+    // ceiling is generous enough that the import cost is never the failure.
+    hookTimeout: 120_000,
     ...(forkCap ? { pool: 'forks' as const, maxWorkers: forkCap } : {}),
     setupFiles: ['./tests/setup-env.ts'],
     // Sweep stale `footbag-test-*` artifacts from os.tmpdir() at session

@@ -176,6 +176,7 @@ For the **minimum newcomer local path**, install these first:
 - `build-essential`
 - `python3` (with `python3-venv` and `python3-pip`)
 - `sqlite3`
+- `ffmpeg`
 - `curl`
 - `unzip`
 - `ca-certificates`
@@ -198,6 +199,7 @@ Notes:
 
 - the repo's Dockerfiles use `node:22-alpine` and `package.json` requires `"engines": {"node": ">=22.0.0"}`, so Node 22 keeps local and container behavior aligned
 - `better-sqlite3` compiles a native addon during install, which is why `build-essential` is required; if you switch Node versions afterward, run `npm rebuild`
+- `ffmpeg` is required by the local database reset: the curator seed re-encodes the committed demo videos through it, so a machine without `ffmpeg` stops at `scripts/reset-local-db.sh` with `FileNotFoundError: ... 'ffmpeg'`
 
 ### 1.4 First-time machine install steps
 
@@ -231,6 +233,7 @@ sudo apt install -y \
   python3-venv \
   python3-pip \
   sqlite3 \
+  ffmpeg \
   git \
   unzip \
   zip \
@@ -246,6 +249,7 @@ Verify the basics:
 
 ```bash
 sqlite3 --version
+ffmpeg -version
 python3 --version
 git --version
 ssh -V
@@ -388,22 +392,35 @@ How the tunnel works: the app listens on `127.0.0.1:3000` *inside the guest*, wh
    ip -4 route get 1.1.1.1 | awk '{for (i=1; i<=NF; i++) if ($i=="src") {print $(i+1); exit}}'
    ```
 
-3. From macOS Terminal, open one SSH session that doubles as your working shell and the port tunnel. Replace `<ubuntu-user>` with the Linux username you created when you first set up the Ubuntu VM, and `<vm-ip>` with the address that step 2 printed. `ExitOnForwardFailure=yes` makes SSH abort rather than connect without the tunnel if port 3000 is already taken on the Mac (so you do not get a shell that looks fine but a browser that cannot connect):
+3. Start the dev server in its own terminal. From macOS Terminal, SSH into the VM (replace `<ubuntu-user>` with the Linux username you created when you first set up the Ubuntu VM, and `<vm-ip>` with the address that step 2 printed), then start the stack and leave this window open:
 
    ```bash
-   ssh -o ExitOnForwardFailure=yes \
-     -L localhost:3000:127.0.0.1:3000 \
-     <ubuntu-user>@<vm-ip>
-   ```
-
-4. Inside that SSH session, start the dev stack and leave the session open (the tunnel lives only while SSH is connected):
-
-   ```bash
+   ssh <ubuntu-user>@<vm-ip>
    cd ~/GIT/footbag-platform
    ./run_dev.sh
    ```
 
-5. On the Mac, browse to `http://localhost:3000`. The browser hits its own forwarded port and SSH carries the traffic to `127.0.0.1:3000` inside the VM. Only port 3000 needs forwarding; the image worker on 4001 is called server-to-server inside the VM, so the browser never contacts it.
+4. Open the port tunnel in a second macOS terminal, in the background. `-f -N` holds the forward with no remote shell; `ExitOnForwardFailure=yes` makes it abort instead of backgrounding a dead tunnel if port 3000 is already taken on the Mac (so you do not get a tunnel that looks fine but a browser that cannot connect):
+
+   ```bash
+   ssh -f -N -o ExitOnForwardFailure=yes \
+     -L localhost:3000:127.0.0.1:3000 \
+     <ubuntu-user>@<vm-ip>
+   ```
+
+   Tear the tunnel down when you are done:
+
+   ```bash
+   pkill -f "ssh -f -N .* -L localhost:3000:127.0.0.1:3000"
+   ```
+
+5. Confirm the server is reachable from the Mac, then browse to it:
+
+   ```bash
+   curl http://localhost:3000
+   ```
+
+   Open `http://localhost:3000` in your Mac browser. The browser hits its own forwarded port and SSH carries the traffic to `127.0.0.1:3000` inside the VM. Only port 3000 needs forwarding; the image worker on 4001 is called server-to-server inside the VM, so the browser never contacts it. Decoupling the server window from the tunnel means restarting one never drops the other.
 
 If direct SSH to the VM IP is not reachable (depending on the UTM network mode), add a VM port forward for SSH (Mac `localhost:2222` to guest port 22) and connect through it, keeping the same app-port tunnel. This `2222` is local to UTM and unrelated to the `2222` used later for AWS Lightsail:
 
