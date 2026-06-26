@@ -89,6 +89,7 @@ import {
   queryMemberDisplayNamesBySlugs,
   queryStyleTermTagIds,
   queryTagIdsByNormalized,
+  resolveTrickTags,
 } from '../db/db';
 import { CANONICAL_SETS, resolveCanonicalSetAlias } from '../content/freestyleCanonicalSets';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
@@ -199,6 +200,13 @@ function shapeGalleryChips(
   return { byMember, criteriaTags, excludeTags };
 }
 
+// A resolved ontology cross-link from a media tag to a canonical freestyle page.
+export interface MediaDestination {
+  kind: 'trick' | 'set';
+  label: string;
+  href: string;
+}
+
 export interface GalleryItem {
   mediaId: string;
   mediaType: 'photo' | 'video';
@@ -218,10 +226,12 @@ export interface GalleryItem {
   // Per-tile chips: non-`#by_*` link to /media/browse?tag=…; `#by_*` lifts to
   // the member's display name linked to that member's public gallery.
   tags: TagChip[];
-  // Set-concept cross-link: a `#concept_<slug>_sets` tag (e.g. a set tutorial
-  // video) links the tile to that Set Encyclopedia page, resolving set aliases
-  // to the canonical set. Null when the item carries no set-concept tag.
-  setLink: { label: string; href: string } | null;
+  // Ontology cross-links resolved from this item's tags: trick tags (slug or
+  // alias) link to the trick page; set/concept tags link to the Set Encyclopedia
+  // page (set aliases resolved to canonical). Deduped by destination, so a tag
+  // and its alias pointing at the same page render once. Empty when nothing
+  // resolves (unknown/utility tags stay plain, never a broken link).
+  destinations: MediaDestination[];
   // Video tiles render a click-to-play facade via partials/video-facade.hbs
   // fed by this canonical shape. Null for photos.
   media: VideoMedia | null;
@@ -528,25 +538,62 @@ function sanitizePage(raw: unknown): number {
   return Math.floor(n);
 }
 
-// Canonical set slug -> display name, for the set-concept tile cross-link.
+// Canonical set slug -> display name, for the set/concept tile cross-link.
 const SET_DISPLAY_BY_SLUG: ReadonlyMap<string, string> =
   new Map(CANONICAL_SETS.map((s) => [s.slug, s.displayName]));
 
-// Map a media item's tags to a Set Encyclopedia cross-link, when one carries a
-// `#concept_<slug>_sets` tag. Set aliases resolve to the canonical set (e.g.
-// illusioning -> atomic, furious -> barraging); an unknown set yields no link
-// (so a stale tag never renders a broken link). First matching tag wins.
-function setLinkFromTags(tags: TagChip[]): { label: string; href: string } | null {
-  for (const tag of tags) {
-    const m = /^#?concept_([a-z0-9_]+)_sets$/i.exec(tag.display);
-    if (!m) continue;
-    const raw = m[1].toLowerCase();
-    const canonical = resolveCanonicalSetAlias(raw) ?? raw;
-    const label = SET_DISPLAY_BY_SLUG.get(canonical);
-    if (!label) continue;
-    return { label, href: `/freestyle/sets/${canonical}` };
+// Normalize a tag display to its slug body: drop a leading '#', lowercase, and
+// fold hyphens to underscores (media tags and trick slugs are underscore-form).
+function tagBody(display: string): string {
+  return display.replace(/^#/, '').toLowerCase().replace(/-/g, '_');
+}
+
+// Resolve a tag body to a Set Encyclopedia destination when it is `set_<slug>`
+// or `concept_<slug>_sets`. Set aliases resolve to the canonical set (e.g.
+// illusioning -> atomic, furious -> barraging). Unknown set -> null (no link).
+function setDestFromTagBody(body: string): MediaDestination | null {
+  let slug: string | null = null;
+  if (body.startsWith('set_')) slug = body.slice(4);
+  else if (body.startsWith('concept_') && body.endsWith('_sets')) slug = body.slice(8, -5);
+  if (!slug) return null;
+  const canonical = resolveCanonicalSetAlias(slug) ?? slug;
+  const label = SET_DISPLAY_BY_SLUG.get(canonical);
+  return label ? { kind: 'set', label, href: `/freestyle/sets/${canonical}` } : null;
+}
+
+// A media tag name made readable for a cross-link label: underscores/hyphens to
+// spaces, title-cased ("pixie-barrage" -> "Pixie Barrage").
+function titleizeTrickName(name: string): string {
+  return name.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+}
+
+// Resolve every item's tags to canonical freestyle destinations (trick + set),
+// deduped per item by href. Trick resolution is one batched DB query across all
+// items on the page. Set resolution is pure (content module). Unknown/utility
+// tags resolve to nothing and stay plain tags.
+function attachDestinations(items: GalleryItem[]): void {
+  if (items.length === 0) return;
+  const candidateBodies = new Set<string>();
+  for (const it of items) for (const t of it.tags) candidateBodies.add(tagBody(t.display));
+  const trickByBody = new Map<string, { canonicalSlug: string; canonicalName: string }>();
+  for (const r of resolveTrickTags([...candidateBodies])) {
+    if (!trickByBody.has(r.matched)) trickByBody.set(r.matched, { canonicalSlug: r.canonicalSlug, canonicalName: r.canonicalName });
   }
-  return null;
+  for (const it of items) {
+    const dests: MediaDestination[] = [];
+    const seen = new Set<string>();
+    for (const t of it.tags) {
+      const body = tagBody(t.display);
+      const set = setDestFromTagBody(body);
+      if (set && !seen.has(set.href)) { dests.push(set); seen.add(set.href); }
+      const trick = trickByBody.get(body);
+      if (trick) {
+        const href = `/freestyle/tricks/${trick.canonicalSlug}`;
+        if (!seen.has(href)) { dests.push({ kind: 'trick', label: titleizeTrickName(trick.canonicalName), href }); seen.add(href); }
+      }
+    }
+    it.destinations = dests;
+  }
 }
 
 function shapeItem(
@@ -583,7 +630,7 @@ function shapeItem(
     uploadedAtIso: row.uploaded_at,
     uploadedAtDisplay: formatUploadedAt(row.uploaded_at),
     tags,
-    setLink: setLinkFromTags(tags),
+    destinations: [],   // resolved in a batch by attachDestinations()
     media,
     itemHref: null,
   };
@@ -1155,6 +1202,7 @@ export const mediaService = {
         if (isMosaicGallery) item.captionMask = true;
         return item;
       });
+      attachDestinations(items);
 
       // When the gallery is empty, the empty state offers five site-wide
       // popular tags as a teachable jumping-off point.
@@ -1289,7 +1337,10 @@ export const mediaService = {
         const setSlug = SET_STYLE_TERMS.get(term);
         if (setSlug) {
           const { exacts, prefix } = styleTermTagPatterns(term, setSlug);
-          return queryStyleTermTagIds(exacts, prefix);
+          // The term doubles as the modifier slug for the ontology link (pixie,
+          // atomic, ...), so trick tags of #<slug> tricks carrying that modifier
+          // (e.g. #pigbeater for pixie) are matched too.
+          return queryStyleTermTagIds(exacts, prefix, term);
         }
         const row = tagRowByNormalized.get(normalized);
         return row ? [row.id] : [];
@@ -1373,6 +1424,7 @@ export const mediaService = {
         item.itemHref = `/media/item/${encodeURIComponent(item.mediaId)}?${itemContextQuery}`;
         return item;
       });
+      attachDestinations(items);
 
       const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
       const hasPrev = page > 1;
@@ -1473,11 +1525,13 @@ export const mediaService = {
       const adapter = getMediaStorageAdapter();
       const safeBack = isSafePath(backHref) ? backHref : '/media/browse';
       const backParam = `back=${encodeURIComponent(safeBack)}`;
-      return rows.map((row) => {
+      const items = rows.map((row) => {
         const item = shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k));
         item.itemHref = `/media/item/${encodeURIComponent(item.mediaId)}?${backParam}`;
         return item;
       });
+      attachDestinations(items);
+      return items;
     });
   },
 };

@@ -6190,11 +6190,17 @@ export function queryTagIdsByNormalized(
 }
 
 // Resolve the tag ids for a set/style search term: the given exact tag forms
-// (e.g. #pixie, #set_pixie, #concept_pixie_sets) plus any underscore-delimited
-// compound tag `#<term>_*` (e.g. #pixie_barrage). The underscore in the prefix
-// is escaped so it matches a literal `_`, not a single-char wildcard. Used only
+// (e.g. #pixie, #set_pixie, #concept_pixie_sets), any underscore-delimited
+// compound tag `#<term>_*` (e.g. #pixie_barrage), AND the trick tags of every
+// trick that carries `<modifierSlug>` as a modifier (the ontology link, e.g.
+// #pigbeater is a pixie trick by modifier even though its name has no "pixie").
+// The underscore in the prefix is escaped so it matches a literal `_`. Used only
 // by /media/browse search expansion; returns ids of tags that actually exist.
-export function queryStyleTermTagIds(exactNormalized: string[], compoundPrefix: string): string[] {
+export function queryStyleTermTagIds(
+  exactNormalized: string[],
+  compoundPrefix: string,
+  modifierSlug: string,
+): string[] {
   const inClause = exactNormalized.length > 0
     ? `tag_normalized IN (${exactNormalized.map(() => '?').join(',')})`
     : '0';
@@ -6202,8 +6208,36 @@ export function queryStyleTermTagIds(exactNormalized: string[], compoundPrefix: 
     SELECT id FROM tags
     WHERE ${inClause}
        OR tag_normalized LIKE ? ESCAPE '\\'
-  `).all(...exactNormalized, `${compoundPrefix}\\_%`) as { id: string }[];
+    UNION
+    SELECT t.id FROM tags t
+    JOIN freestyle_trick_modifier_links ml ON t.tag_normalized = '#' || ml.trick_slug
+    WHERE ml.modifier_slug = ?
+  `).all(...exactNormalized, `${compoundPrefix}\\_%`, modifierSlug) as { id: string }[];
   return rows.map((r) => r.id);
+}
+
+// Batch-resolve media tag bodies (a tag normalized to its slug form, no '#') to
+// freestyle trick destinations: an exact `freestyle_tricks.slug`, or an
+// `freestyle_trick_aliases.alias_slug` that points at one. Returns one row per
+// input slug that resolves, with the canonical trick slug and display name.
+// Exact slug wins over alias. Slugs that resolve to nothing are simply omitted
+// (no broken links). Used by the media-card ontology cross-link resolver.
+export function resolveTrickTags(
+  slugs: string[],
+): { matched: string; canonicalSlug: string; canonicalName: string }[] {
+  if (slugs.length === 0) return [];
+  const ph = slugs.map(() => '?').join(',');
+  return db.prepare(`
+    SELECT slug AS matched, slug AS canonicalSlug, canonical_name AS canonicalName
+    FROM freestyle_tricks
+    WHERE slug IN (${ph})
+    UNION
+    SELECT a.alias_slug AS matched, a.trick_slug AS canonicalSlug, ft.canonical_name AS canonicalName
+    FROM freestyle_trick_aliases a
+    JOIN freestyle_tricks ft ON ft.slug = a.trick_slug
+    WHERE a.alias_slug IN (${ph})
+      AND a.alias_slug NOT IN (SELECT slug FROM freestyle_tricks)
+  `).all(...slugs, ...slugs) as { matched: string; canonicalSlug: string; canonicalName: string }[];
 }
 
 // Tag-AND-of-N gallery query. Items appear iff they carry every one of

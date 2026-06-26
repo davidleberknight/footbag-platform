@@ -6,14 +6,24 @@
  *    without exposing the ontology. Non-expanded searches are unchanged.
  * 2. Set-video linking: a media tile carrying a `#concept_<slug>_sets` tag links
  *    to that Set Encyclopedia page, resolving set aliases to the canonical set.
+ * 3. Ontology-backed trick linking: a media tile whose hashtag matches a canonical
+ *    trick slug or an alias slug links to that trick's detail page, and a folk name
+ *    carrying a modifier (e.g. pigbeater carries the pixie modifier) is reached when
+ *    searching that modifier. Utility/source tags resolve to nothing — no link.
  *
- * Neither patch retags media, renames hashtags, or changes displayed hashtags.
+ * None of these patches retag media, rename hashtags, or change displayed hashtags.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import {
+  insertMember,
+  insertFreestyleTrick,
+  insertFreestyleTrickAlias,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3141');
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -77,6 +87,28 @@ beforeAll(async () => {
   seed('#concept_illusioning_sets', 'm_c_illus',  'illusioning-set-list-video', '2027-02-03T00:00:00.000Z');
   // A non-set concept tag (no `_sets` suffix): must not render a set link.
   seed('#concept_records',          'm_c_recs',   'records-concept-video',      '2027-02-04T00:00:00.000Z');
+
+  // Ontology fixtures: real trick rows so trick-tag resolution and modifier-based
+  // search expansion have a dictionary to resolve against (an isolated fixture DB
+  // ships no dictionary). pigbeater is a folk-named pixie compound; the modifier
+  // link is what lets a "pixie" search reach it.
+  insertFreestyleTrickModifier(db, { slug: 'pixie' });
+  insertFreestyleTrick(db, { slug: 'pigbeater', canonical_name: 'pigbeater' });
+  insertFreestyleTrickModifierLink(db, 'pigbeater', 'pixie');
+  insertFreestyleTrick(db, { slug: 'pixie_barrage', canonical_name: 'pixie barrage' });
+  insertFreestyleTrick(db, { slug: 'paradox_whirl', canonical_name: 'paradox whirl' });
+  insertFreestyleTrickAlias(db, 'pdx_whirl', 'paradox_whirl');
+
+  // A trick video (folk slug), for the ontology trick-link + search-by-modifier cases.
+  seed('#pigbeater',     'm_pigbeater',  'pigbeater-trick-video',     '2027-03-01T00:00:00.000Z');
+  // An alias-tagged tile, for the alias-resolves-to-canonical case.
+  seed('#pdx_whirl',     'm_pdx_whirl',  'pdx-whirl-trick-video',     '2027-03-02T00:00:00.000Z');
+  // Utility / source / meta tags: must resolve to nothing — no trick or set link.
+  seed('#bap',                       'm_u_bap',     'bap-utility-item',          '2027-04-01T00:00:00.000Z');
+  seed('#individual_shred_videos',   'm_u_shred',   'shred-source-item',         '2027-04-02T00:00:00.000Z');
+  seed('#passback_tutorials',        'm_u_pbtut',   'passback-tutorial-item',    '2027-04-03T00:00:00.000Z');
+  seed('#concept_learning',          'm_u_learn',   'learning-concept-item',     '2027-04-04T00:00:00.000Z');
+  seed('#concept_naming',            'm_u_naming',  'naming-concept-item',       '2027-04-05T00:00:00.000Z');
 
   db.close();
   createApp = await importApp();
@@ -148,5 +180,47 @@ describe('GET /media/browse — set-video cross-link', () => {
     expect(res.text).toContain('records-concept-video');
     expect(res.text).not.toContain('gallery-tile-set-link');
     expect(res.text).not.toContain('/freestyle/sets/');
+  });
+});
+
+describe('GET /media/browse — ontology-backed trick linking', () => {
+  it('a tile tagged #pigbeater links to its trick detail page', async () => {
+    const res = await request(createApp()).get('/media/browse?tag=pigbeater');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('href="/freestyle/tricks/pigbeater"');
+    expect(res.text).toContain('Trick: Pigbeater');
+  });
+
+  it('a tile tagged #pixie_barrage links to its trick detail page', async () => {
+    const res = await request(createApp()).get('/media/browse?tag=pixie_barrage');
+    expect(res.text).toContain('href="/freestyle/tricks/pixie_barrage"');
+    expect(res.text).toContain('Trick: Pixie Barrage');
+  });
+
+  it('an alias tag resolves to the canonical trick detail page', async () => {
+    const res = await request(createApp()).get('/media/browse?tag=pdx_whirl');
+    expect(res.text).toContain('href="/freestyle/tricks/paradox_whirl"');
+    expect(res.text).toContain('Trick: Paradox Whirl');
+  });
+
+  it('utility / source / meta tags resolve to no link', async () => {
+    for (const tag of ['bap', 'individual_shred_videos', 'passback_tutorials', 'concept_learning', 'concept_naming']) {
+      const res = await request(createApp()).get(`/media/browse?tag=${tag}`);
+      expect(res.status).toBe(200);
+      expect(res.text).not.toContain('gallery-tile-set-link');
+      expect(res.text).not.toContain('href="/freestyle/tricks/');
+      expect(res.text).not.toContain('href="/freestyle/sets/');
+    }
+  });
+});
+
+describe('GET /media/browse — search reaches folk names via the ontology', () => {
+  it('searching "pixie" also returns #pigbeater (a pixie-modifier compound)', async () => {
+    const res = await request(createApp()).get('/media/browse?tag=pixie');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('pigbeater-trick-video');   // reached via modifier_links
+    // The earlier-asserted token-prefix and set matches still hold.
+    expect(res.text).toContain('pixie-barrage-trick');
+    expect(res.text).toContain('pixie-set-item');
   });
 });
