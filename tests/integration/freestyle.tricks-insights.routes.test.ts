@@ -489,8 +489,9 @@ describe('public dictionary presentation', () => {
     expect(res.text).toContain('class="dict-onboarding"');
     // The corpus counts are surfaced as supporting metadata, in beginner-facing
     // wording (not the internal "canonical").
-    expect(res.text).toMatch(/Full pages cover [\d,]+ of [\d,]+ documented trick names/);
-    expect(res.text).toMatch(/plus [\d,]+ aliases/);
+    expect(res.text).toContain('come with a full page');
+    expect(res.text).toMatch(/[\d,]+ trick names in all/);
+    expect(res.text).toMatch(/[\d,]+ nicknames/);
     // The retired publication-state expansion note must not return.
     expect(res.text).not.toContain('being expanded and aligned with established freestyle notation');
   });

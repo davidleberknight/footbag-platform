@@ -128,18 +128,22 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(res.text).toContain('id="alpine"');
   });
 
-  // The brackets an operator leaves behind are taught as a peer notation
-  // vocabulary, distinct from the operators that produce them: a paradox dex
-  // and a cross-body delay step are separate components, and X-Dex is a
-  // conditional scoring rider, never an operator.
-  it('teaches the notation/ADD components as a peer vocabulary, not as operators', async () => {
+  // Paradox is taught definition-first (a side relationship between the support
+  // leg and the dex), with the classic entry formula shown as the concrete
+  // example, not the definition. The brackets are a short notation vocabulary,
+  // distinct from the operators that leave them behind.
+  it('teaches paradox by definition with the entry formula as the example, plus the notation components', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
+    // Paradox section: definition + the canonical entry formula as the example.
+    expect(res.text).toContain('id="paradox"');
+    expect(res.text).toMatch(/side relationship between the support leg and the dexterity/);
+    expect(res.text).toContain('CLIP &gt; OP IN [DEX]');
+    expect(res.text).toMatch(/classic paradox entry topology/);
+    // Notation/ADD components vocabulary.
     expect(res.text).toContain('id="notation-components"');
     expect(res.text).toContain('[PDX]');
     expect(res.text).toContain('[XBD]');
     expect(res.text).toContain('[XDEX]');
-    // Paradox is taught by comparison, not by leading with its notation formula.
-    expect(res.text).toContain('Paradox Mirage');
     // The page must not reassert paradox as a kind of cross-body.
     expect(res.text).not.toMatch(/paradox[^.]*\bspecies\b/i);
   });

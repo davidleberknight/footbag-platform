@@ -83,7 +83,6 @@ import {
 import {
   OperationalToken,
   shapeOperationalNotationDisplay,
-  COMPONENT_FLAG_LABELS,
 } from './operationalNotationRendering';
 import {
   SemanticBrowseToken,
@@ -9096,16 +9095,17 @@ export const freestyleService = {
           ],
           definitions: [
             { term: 'ADD', plain: 'how hard a trick is, as a number; the more you layer on, the higher it goes.' },
-            { term: 'Dex', plain: 'a dexterity move, where you circle a leg around the bag.' },
+            { term: 'Dex', plain: 'a dexterity move, where your leg circles the bag.' },
             { term: 'Family', plain: 'a group of tricks built on the same base move.' },
-            { term: 'Modifier', plain: 'a twist you add to a base move, like a spin or a hip-pivot.' },
+            { term: 'Modifier', plain: 'a twist you add to a base move, like a spin, a hip-pivot, or a change of timing.' },
           ],
           example: {
             label: 'Build-up example',
             steps: [
-              { name: 'Whirl', note: 'a base move · 3 ADD' },
-              { name: 'Spinning Whirl', note: '+ a spin · 4 ADD' },
-              { name: 'Spinning Paradox Whirl', note: '+ a hip-pivot · 5 ADD' },
+              { name: 'Toe Stall', note: 'a simple base move · 1 ADD' },
+              { name: 'Legover', note: '+ one dexterity · 2 ADD' },
+              { name: 'Double Legover', note: '+ another dexterity · 3 ADD' },
+              { name: 'Symposium Double Legover', note: '+ a symposium (no-plant timing) · 4 ADD' },
             ],
           },
           lenses: [
@@ -9121,9 +9121,10 @@ export const freestyleService = {
           ],
         },
         dictionaryStats:
-          `Full pages cover ${canonicalCount} of ${fmtCount(uniqueDocumentedTrickCount)} ` +
-          `documented trick names, plus ${fmtCount(documentedAliasCount)} aliases. The rest are ` +
-          'tracked in Emerging Vocabulary: observed or historical names that do not yet have full pages.',
+          `Most tricks here come with a full page: what the move is, how it's done, and how hard ` +
+          `it is. ${canonicalCount} have one, and a search also finds them by ${fmtCount(documentedAliasCount)} ` +
+          `nicknames. There are ${fmtCount(uniqueDocumentedTrickCount)} trick names in all; the ones still ` +
+          'being written up are gathered under Emerging Vocabulary, so no real move is left out.',
         // Per-view context note for the advanced family browse view.
         familyViewIntro:
           'Family groupings cluster tricks that preserve a conserved terminal mechanic. ' +
@@ -9900,14 +9901,14 @@ export const freestyleService = {
       },
       content: {
         indexAxes: buildOperatorIndexAxes(modifierRows),
-        // [PDX], [XBD], [XDEX] are the consequences operators leave in the
-        // notation, surfaced here as analysis vocabulary (peers, not operators).
-        // Order: paradox's own component, the cross-body delay it is not, then
-        // the conditional scoring rider.
-        notationVocabulary: (['PDX', 'XBD', 'XDEX'] as const).map(flag => ({
-          token:   `[${flag}]`,
-          meaning: COMPONENT_FLAG_LABELS[flag],
-        })),
+        // The notation components an operator leaves behind, surfaced as a short
+        // teaching vocabulary on the operators page. Glosses are intentionally
+        // terser than the canonical tooltip labels in COMPONENT_FLAG_LABELS.
+        notationVocabulary: [
+          { token: '[PDX]',  meaning: 'paradox-direction dex' },
+          { token: '[XBD]',  meaning: 'cross-body delay' },
+          { token: '[XDEX]', meaning: 'conditional +1 X-Dex component' },
+        ],
       },
     };
   },

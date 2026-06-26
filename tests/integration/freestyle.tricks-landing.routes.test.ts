@@ -142,8 +142,10 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     // leads the landing instead (its lead position is covered separately).
     expect(res.text).not.toContain('dictionary of named freestyle footbag tricks');
     // The corpus counts read in beginner-facing wording (not the internal "canonical").
-    expect(res.text).toMatch(/Full pages cover [\d,]+ of [\d,]+ documented trick names/);
-    expect(res.text).toMatch(/plus [\d,]+ aliases/);
+    expect(res.text).toContain('come with a full page');
+    expect(res.text).toMatch(/[\d,]+ trick names in all/);
+    expect(res.text).toMatch(/[\d,]+ nicknames/);
+    expect(res.text).toContain('Emerging Vocabulary');
   });
 
   it('renders ADD jump-nav chips that link to the in-page ADD section anchors', async () => {
@@ -355,13 +357,19 @@ describe('GET /freestyle/tricks — beginner orientation bridge', () => {
     expect(res.text).toContain('New to freestyle? Start here.');
     // High-level ADD definition in plain words.
     expect(res.text).toMatch(/ADD \(added difficulty\)/);
-    // The single-base build-up example, in order.
-    const whirl   = res.text.indexOf('<strong>Whirl</strong>');
-    const spin     = res.text.indexOf('<strong>Spinning Whirl</strong>');
-    const paradox = res.text.indexOf('<strong>Spinning Paradox Whirl</strong>');
-    expect(whirl).toBeGreaterThan(-1);
-    expect(spin).toBeGreaterThan(whirl);
-    expect(paradox).toBeGreaterThan(spin);
+    // The build-up example, in order; each step introduces one concept and
+    // raises ADD by exactly one (1 to 4).
+    const toe    = res.text.indexOf('<strong>Toe Stall</strong>');
+    const lego   = res.text.indexOf('<strong>Legover</strong>');
+    const dlo    = res.text.indexOf('<strong>Double Legover</strong>');
+    const symDlo = res.text.indexOf('<strong>Symposium Double Legover</strong>');
+    expect(toe).toBeGreaterThan(-1);
+    expect(lego).toBeGreaterThan(toe);
+    expect(dlo).toBeGreaterThan(lego);
+    expect(symDlo).toBeGreaterThan(dlo);
+    for (const add of ['1 ADD', '2 ADD', '3 ADD', '4 ADD']) {
+      expect(res.text).toContain(add);
+    }
     // The three exploration lenses in beginner wording.
     expect(res.text).toContain('By difficulty (ADD)');
     expect(res.text).toContain('grouped by the base move');
@@ -378,7 +386,7 @@ describe('GET /freestyle/tricks — beginner orientation bridge', () => {
     }
     // Plain-language glosses, not insider phrasing.
     expect(defs).toContain('how hard a trick is');
-    expect(defs).toContain('circle a leg around the bag');
+    expect(defs).toContain('your leg circles the bag');
     expect(defs).toContain('built on the same base move');
     expect(defs).toContain('a twist you add to a base move');
   });

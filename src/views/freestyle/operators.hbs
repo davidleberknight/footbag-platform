@@ -80,15 +80,20 @@
       page (open any row above). The notes below are the few ideas that cut
       across modifiers rather than belonging to one.
     </p>
+    <h3 class="section-heading" id="paradox">Paradox</h3>
+    <p>Paradox changes the side relationship between the support leg and the dexterity. It contributes +1 ADD and is recorded as <code>[PDX]</code> in notation.</p>
+    <p>The most common example is the paradox entry:</p>
+    <p><code>CLIP &gt; OP IN [DEX]</code></p>
+    <p>Here the opposite-side clipper set creates the paradox relationship before the dex. This is the classic paradox entry topology, but paradox can also occur later in a trick as a mid-trick <code>[PDX]</code> dex.</p>
     <h3 class="section-heading" id="alpine">Alpine</h3>
     <p>Alpine divides a trick between its uptime and downtime, inserting a duck or dive between them. Alpine Ripwalk = Stepping Ducking Butterfly. The name is a folk label for that split, not a separate operator: its structure is the ducking or diving it inserts.</p>
     <h3 class="section-heading" id="notation-components">Notation and ADD components</h3>
-    <p>Operators are the transformations you apply; notation is how we record what an operator leaves behind. Apply paradox to a base and you get its paradox variant: Mirage becomes Paradox Mirage. The operator switches which side the support leg and the dexterity work on, and the analysis records that consequence as a paradox-direction dex. The operator is the cause; the notation component is the consequence it leaves in the score. These components are the analysis vocabulary:</p>
+    <p>Operators create structural consequences that notation records.</p>
     <ul>
       {{#each content.notationVocabulary}}
       <li><code>{{token}}</code>: {{meaning}}</li>
       {{/each}}
     </ul>
-    <p>These components are peers, not nested. A paradox dex (<code>[PDX]</code>) and a cross-body delay step (<code>[XBD]</code>) are two different crossing components, neither one a kind of the other. An X-Dex (<code>[XDEX]</code>) is a conditional scoring bonus, a separate +1 scored wherever the notation carries that flag. Each records a structural consequence of how a trick is built; none is an operator a player applies.</p>
+    <p>These describe what happened during the trick. They are notation components, not operators.</p>
   </section>
 </div>
