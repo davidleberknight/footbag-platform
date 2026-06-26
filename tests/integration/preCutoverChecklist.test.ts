@@ -15,6 +15,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
+import { insertAuditEntry } from '../fixtures/factories';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCHEMA_SQL = fs.readFileSync(path.join(REPO_ROOT, 'database', 'schema.sql'), 'utf8');
@@ -94,14 +95,16 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
   `).run();
 
   // The G20 data-review sign-off row the green path requires.
-  db.prepare(`
-    INSERT INTO audit_entries
-      (id, created_at, created_by, occurred_at, actor_type, actor_member_id,
-       action_type, entity_type, entity_id, category, reason_text, metadata_json)
-    VALUES ('aud-g20-signoff', '2025-01-01T00:00:00.000Z', 'system', '2025-01-01T00:00:00.000Z',
-            'system', NULL, 'legacy_pipeline.data_review_signoff', 'system', 'legacy_pipeline',
-            'system', 'Legacy data complete; member-list presentation reviewed.', '{}')
-  `).run();
+  insertAuditEntry(db, {
+    id: 'aud-g20-signoff',
+    actor_type: 'system',
+    actor_member_id: null,
+    action_type: 'legacy_pipeline.data_review_signoff',
+    entity_type: 'system',
+    entity_id: 'legacy_pipeline',
+    category: 'legacy_pipeline',
+    reason_text: 'Legacy data complete; member-list presentation reviewed.',
+  });
 
   // The permanent showcase event tag + Footbag Hacky historical person the
   // SHOWCASE-PRESENCE gate requires to be present before cutover.

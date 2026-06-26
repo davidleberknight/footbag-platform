@@ -17,9 +17,9 @@ Tests are split into two layers:
 
 When tests land, edge-case coverage, and anti-patterns are governed by `.claude/rules/testing.md` (operational mandate). Strategic framing lives in `docs/TESTING.md`.
 
-## Test data: use factories
+## Test data: factories only
 
-Use the factory helpers in `tests/fixtures/factories.ts` to insert test data. Each factory accepts optional overrides and returns the inserted ID.
+All test data is created through the factory helpers in `tests/fixtures/factories.ts`; a raw `INSERT` for table data in a test is forbidden (see the anti-pattern in `.claude/rules/testing.md`). Each factory accepts optional overrides and returns the inserted ID. If a table has no factory, add one rather than inlining the insert.
 
 ```typescript
 import { insertEvent, insertMember, insertDiscipline } from '../fixtures/factories';

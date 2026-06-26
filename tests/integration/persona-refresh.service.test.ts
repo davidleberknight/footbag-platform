@@ -23,6 +23,7 @@ import {
   insertPayment,
   insertLegacyClubCandidate,
 } from '../../src/testkit/personaRowBuilders';
+import { insertOutboxEmail } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3097');
 
@@ -169,11 +170,7 @@ describe('refreshAllPersonas', () => {
          (id, created_at, created_by, updated_at, updated_by, version, member_id, target_anchor_id, token_type, token_hash, issued_at, expires_at)
        VALUES ('tok-persona-2', ?, 'system', ?, 'system', 1, ?, 'anchor-persona-1', 'mailbox_link', 'hash-2', ?, ?)`,
     ).run(TS, TS, T1, TS, TS);
-    db.prepare(
-      `INSERT INTO outbox_emails
-         (id, created_at, created_by, updated_at, updated_by, version, recipient_member_id, subject)
-       VALUES ('out-persona-1', ?, 'system', ?, 'system', 1, ?, 'Welcome')`,
-    ).run(TS, TS, T1);
+    insertOutboxEmail(db, { id: 'out-persona-1', recipient_member_id: T1, subject: 'Welcome' });
 
     // A purchase: the persona as audit ACTOR, the payment, and its append-only
     // status transition.

@@ -895,10 +895,15 @@ export interface AuditEntryOverrides {
   category?: string;
   reason_text?: string | null;
   metadata?: Record<string, unknown>;
+  // Verbatim metadata_json, bypassing JSON.stringify. The only use is seeding a
+  // deliberately invalid metadata_json (the column has no JSON CHECK) to prove
+  // a reader survives corrupt metadata; normal callers pass `metadata`.
+  metadata_json_raw?: string;
 }
 
 export function insertAuditEntry(db: BetterSqlite3.Database, o: AuditEntryOverrides): string {
   const id = o.id ?? `audit-test-${uid()}`;
+  const metadataJson = o.metadata_json_raw ?? JSON.stringify(o.metadata ?? {});
   db.prepare(`
     INSERT INTO audit_entries (
       id, created_at, created_by,
@@ -911,7 +916,7 @@ export function insertAuditEntry(db: BetterSqlite3.Database, o: AuditEntryOverri
     TS, o.actor_type ?? 'system', o.actor_member_id ?? null,
     o.action_type, o.entity_type ?? 'member', o.entity_id,
     o.category ?? 'identity', o.reason_text ?? null,
-    JSON.stringify(o.metadata ?? {}),
+    metadataJson,
   );
   return id;
 }

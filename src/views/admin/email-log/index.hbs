@@ -1,0 +1,55 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>Browse outbound email for operational diagnostics: who it was addressed to, which template produced it, and whether it sent. Metadata only, read-only.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <form method="GET" action="/admin/email-log" class="mb-6">
+    <p>
+      <label>Recipient <input type="text" name="recipient" value="{{content.filters.recipient}}"></label>
+      <label>Template
+        <select name="template">
+          <option value="">Any</option>
+          {{#each content.templateKeyOptions}}
+            <option value="{{this}}"{{#if (eq this ../content.filters.templateKey)}} selected{{/if}}>{{this}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>Status
+        <select name="status">
+          <option value="">Any</option>
+          {{#each content.statusOptions}}
+            <option value="{{this}}"{{#if (eq this ../content.filters.status)}} selected{{/if}}>{{this}}</option>
+          {{/each}}
+        </select>
+      </label>
+    </p>
+    <p>
+      <button type="submit" class="btn btn-primary">Apply Filters</button>
+      <a href="/admin/email-log" class="btn btn-outline">Clear</a>
+    </p>
+  </form>
+
+  <p class="text-muted">{{content.resultSummary}}</p>
+
+  {{#each content.entries}}
+    <div class="card mb-2">
+      <div class="card-title">{{subject}} <span class="badge">{{statusLabel}}</span></div>
+      <p class="card-meta">
+        To: {{#if recipientHref}}<a href="{{recipientHref}}">{{recipientLabel}}</a>{{else}}{{recipientLabel}}{{/if}}
+        &middot; template: {{templateKey}}{{#if classificationLabel}} <span class="badge">{{classificationLabel}}</span>{{/if}}
+      </p>
+      <p class="card-meta fs-sm text-muted">
+        Created {{createdAtDisplay}}{{#if sentAtDisplay}} &middot; sent {{sentAtDisplay}}{{/if}}
+      </p>
+      {{#if lastError}}<p class="card-meta fs-sm">Error: {{lastError}}</p>{{/if}}
+    </div>
+  {{/each}}
+
+  <p class="mt-4">
+    {{#if content.prevPageHref}}<a href="{{content.prevPageHref}}" class="btn btn-outline">Previous</a>{{/if}}
+    {{#if content.nextPageHref}}<a href="{{content.nextPageHref}}" class="btn btn-outline">Next</a>{{/if}}
+  </p>
+</div>

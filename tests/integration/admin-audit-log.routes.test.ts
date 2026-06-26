@@ -3,7 +3,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertAuditEntry, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3134');
 
@@ -21,34 +21,6 @@ function adminCookie(): string {
 }
 function memberCookie(): string {
   return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
-}
-
-let auditSeq = 0;
-function seedAudit(db: BetterSqlite3.Database, o: {
-  occurredAt?: string;
-  actorType?: string;
-  actorMemberId?: string | null;
-  actionType: string;
-  entityType: string;
-  entityId: string;
-  category: string;
-  reasonText?: string | null;
-  metadata?: Record<string, unknown>;
-}): string {
-  const id = `audit_test_${String(++auditSeq).padStart(4, '0')}`;
-  const ts = o.occurredAt ?? '2026-06-01T00:00:00.000Z';
-  db.prepare(`
-    INSERT INTO audit_entries (
-      id, created_at, created_by, occurred_at, actor_type, actor_member_id,
-      action_type, entity_type, entity_id, category, reason_text, metadata_json
-    ) VALUES (?, ?, 'system', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id, ts, ts,
-    o.actorType ?? 'system', o.actorMemberId ?? null,
-    o.actionType, o.entityType, o.entityId, o.category,
-    o.reasonText ?? null, JSON.stringify(o.metadata ?? {}),
-  );
-  return id;
 }
 
 function withDb<T>(fn: (db: BetterSqlite3.Database) => T): T {
@@ -102,9 +74,9 @@ describe('GET /admin/audit-log', () => {
   });
 
   it('admin, with entries → 200 listing action type and a member profile link', async () => {
-    withDb((db) => seedAudit(db, {
-      actorType: 'member', actorMemberId: MEMBER_ID,
-      actionType: 'tier.purchase_grant', entityType: 'member', entityId: MEMBER_ID, category: 'tier_change',
+    withDb((db) => insertAuditEntry(db, {
+      actor_type: 'member', actor_member_id: MEMBER_ID,
+      action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change',
     }));
     const app = createApp();
     const res = await request(app).get('/admin/audit-log').set('Cookie', adminCookie());
@@ -116,11 +88,11 @@ describe('GET /admin/audit-log', () => {
   it('member filter narrows to rows where the member is the actor OR the affected entity', async () => {
     withDb((db) => {
       // MEMBER as actor.
-      seedAudit(db, { actorType: 'member', actorMemberId: MEMBER_ID, actionType: 'tier.purchase_grant', entityType: 'member', entityId: MEMBER_ID, category: 'tier_change' });
+      insertAuditEntry(db, { actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change' });
       // MEMBER as entity, admin as actor (an override on the member).
-      seedAudit(db, { actorType: 'admin', actorMemberId: ADMIN_ID, actionType: 'tier.admin_override', entityType: 'member', entityId: MEMBER_ID, category: 'tier_change' });
+      insertAuditEntry(db, { actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change' });
       // OTHER member, unrelated.
-      seedAudit(db, { actorType: 'member', actorMemberId: OTHER_ID, actionType: 'auth.login', entityType: 'member', entityId: OTHER_ID, category: 'auth' });
+      insertAuditEntry(db, { actor_type: 'member', actor_member_id: OTHER_ID, action_type: 'auth.login', entity_type: 'member', entity_id: OTHER_ID, category: 'auth' });
     });
     const app = createApp();
     const res = await request(app).get(`/admin/audit-log?member=${MEMBER_ID}`).set('Cookie', adminCookie());
@@ -157,10 +129,10 @@ describe('GET /admin/audit-log', () => {
   });
 
   it('escapes HTML in reason text (no stored XSS)', async () => {
-    withDb((db) => seedAudit(db, {
-      actorType: 'admin', actorMemberId: ADMIN_ID,
-      actionType: 'tier.admin_override', entityType: 'member', entityId: MEMBER_ID, category: 'tier_change',
-      reasonText: '<script>alert(1)</script>',
+    withDb((db) => insertAuditEntry(db, {
+      actor_type: 'admin', actor_member_id: ADMIN_ID,
+      action_type: 'tier.admin_override', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change',
+      reason_text: '<script>alert(1)</script>',
     }));
     const app = createApp();
     const res = await request(app).get(`/admin/audit-log?member=${MEMBER_ID}`).set('Cookie', adminCookie());
@@ -178,9 +150,9 @@ describe('GET /admin/audit-log/export', () => {
   });
 
   it('CSV export → 200 text/csv attachment with header and rows', async () => {
-    withDb((db) => seedAudit(db, {
-      actorType: 'member', actorMemberId: MEMBER_ID,
-      actionType: 'tier.purchase_grant', entityType: 'member', entityId: MEMBER_ID, category: 'tier_change',
+    withDb((db) => insertAuditEntry(db, {
+      actor_type: 'member', actor_member_id: MEMBER_ID,
+      action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change',
     }));
     const app = createApp();
     const res = await request(app).get('/admin/audit-log/export?format=csv').set('Cookie', adminCookie());
@@ -193,9 +165,9 @@ describe('GET /admin/audit-log/export', () => {
   });
 
   it('JSON export → 200 application/json array', async () => {
-    withDb((db) => seedAudit(db, {
-      actorType: 'member', actorMemberId: MEMBER_ID,
-      actionType: 'tier.purchase_grant', entityType: 'member', entityId: MEMBER_ID, category: 'tier_change',
+    withDb((db) => insertAuditEntry(db, {
+      actor_type: 'member', actor_member_id: MEMBER_ID,
+      action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change',
     }));
     const app = createApp();
     const res = await request(app).get('/admin/audit-log/export?format=json').set('Cookie', adminCookie());
@@ -206,7 +178,7 @@ describe('GET /admin/audit-log/export', () => {
   });
 
   it('writes an audit.exported row recording the export', async () => {
-    withDb((db) => seedAudit(db, { actorType: 'member', actorMemberId: MEMBER_ID, actionType: 'auth.login', entityType: 'member', entityId: MEMBER_ID, category: 'auth' }));
+    withDb((db) => insertAuditEntry(db, { actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'auth.login', entity_type: 'member', entity_id: MEMBER_ID, category: 'auth' }));
     const app = createApp();
     await request(app).get(`/admin/audit-log/export?format=csv&member=${MEMBER_ID}`).set('Cookie', adminCookie());
     const row = withDb((db) => db
@@ -220,10 +192,10 @@ describe('GET /admin/audit-log/export', () => {
   });
 
   it('CSV quotes a cell containing commas, quotes, and newlines (RFC 4180)', async () => {
-    withDb((db) => seedAudit(db, {
-      actorType: 'admin', actorMemberId: ADMIN_ID,
-      actionType: 'tier.admin_override', entityType: 'member', entityId: MEMBER_ID, category: 'tier_change',
-      reasonText: 'has, comma "quote"',
+    withDb((db) => insertAuditEntry(db, {
+      actor_type: 'admin', actor_member_id: ADMIN_ID,
+      action_type: 'tier.admin_override', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change',
+      reason_text: 'has, comma "quote"',
     }));
     const app = createApp();
     const res = await request(app).get(`/admin/audit-log/export?format=csv&member=${MEMBER_ID}`).set('Cookie', adminCookie());

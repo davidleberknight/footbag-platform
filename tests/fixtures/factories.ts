@@ -30,6 +30,7 @@ import {
   insertPayment,
   insertMemberTierGrant,
   insertActivePlayerGrant,
+  insertAuditEntry,
   completeOnboarding,
   insertOnboardingTask,
   insertMailingListSubscription,
@@ -56,6 +57,7 @@ export {
   insertPayment,
   insertMemberTierGrant,
   insertActivePlayerGrant,
+  insertAuditEntry,
   completeOnboarding,
   insertOnboardingTask,
   insertMailingListSubscription,
@@ -96,6 +98,7 @@ export type {
   LegacyPersonClubAffiliationOverrides,
   NameVariantOverrides,
   GivenNameVariantOverrides,
+  AuditEntryOverrides,
   CreateMemberAtTierOpts,
   CreateTier0WithActivePlayerOpts,
   CreateTier3WithUnderlyingOpts,
@@ -1222,6 +1225,50 @@ export function insertClubViabilitySignal(db: BetterSqlite3.Database, o: ClubVia
     o.activity_signal ?? 'active',
     o.source_entity_type ?? null,
     o.source_entity_id ?? null,
+  );
+  return id;
+}
+
+// ── Outbox email ───────────────────────────────────────────────────────────────
+
+export interface OutboxEmailOverrides {
+  id?: string;
+  recipient_email?: string | null;
+  recipient_member_id?: string | null;
+  mailing_list_id?: string | null;
+  subject?: string;
+  body_text?: string | null;
+  template_key?: string | null;
+  status?: 'pending' | 'sending' | 'sent' | 'failed' | 'dead_letter';
+  last_error?: string | null;
+  sent_at?: string | null;
+  created_at?: string;
+}
+
+export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOverrides = {}): string {
+  const id = o.id ?? `outbox_${uid()}`;
+  const ts = o.created_at ?? TS;
+  // The CHECK constraint requires at least one addressing column; default to a
+  // recipient_email when the caller supplies none.
+  const recipientEmail = o.recipient_email !== undefined ? o.recipient_email
+    : (o.recipient_member_id || o.mailing_list_id) ? null : `outbox_${id}@example.com`;
+  db.prepare(`
+    INSERT INTO outbox_emails (
+      id, created_at, created_by, updated_at, updated_by, version,
+      recipient_email, recipient_member_id, mailing_list_id,
+      subject, body_text, template_key, status, last_error, sent_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, ts, SYS, ts, SYS,
+    recipientEmail,
+    o.recipient_member_id ?? null,
+    o.mailing_list_id ?? null,
+    o.subject ?? 'Test email',
+    o.body_text ?? null,
+    o.template_key ?? null,
+    o.status ?? 'pending',
+    o.last_error ?? null,
+    o.sent_at ?? null,
   );
   return id;
 }

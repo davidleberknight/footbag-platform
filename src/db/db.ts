@@ -5386,6 +5386,60 @@ export function listAuditLogCategories(): string[] {
   return rows.map((r) => r.category);
 }
 
+export interface OutboxLogFilters {
+  recipient?: string | null;   // substring match on recipient_email
+  templateKey?: string | null;
+  status?: string | null;
+}
+
+export interface OutboxLogQueryRow {
+  id: string;
+  created_at: string;
+  sent_at: string | null;
+  recipient_email: string | null;
+  recipient_member_id: string | null;
+  mailing_list_id: string | null;
+  subject: string;
+  template_key: string | null;
+  status: string;
+  last_error: string | null;
+  recipient_display_name: string | null;
+  recipient_slug: string | null;
+}
+
+function buildOutboxLogWhere(f: OutboxLogFilters): { sql: string; params: unknown[] } {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (f.recipient)   { clauses.push("o.recipient_email LIKE '%' || ? || '%'"); params.push(f.recipient); }
+  if (f.templateKey) { clauses.push('o.template_key = ?'); params.push(f.templateKey); }
+  if (f.status)      { clauses.push('o.status = ?');       params.push(f.status); }
+  return { sql: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
+}
+
+export function queryOutboxLog(filters: OutboxLogFilters, limit: number, offset: number): OutboxLogQueryRow[] {
+  const { sql, params } = buildOutboxLogWhere(filters);
+  return db.prepare(`
+    SELECT
+      o.id, o.created_at, o.sent_at, o.recipient_email, o.recipient_member_id,
+      o.mailing_list_id, o.subject, o.template_key, o.status, o.last_error,
+      rm.display_name AS recipient_display_name, rm.slug AS recipient_slug
+    FROM outbox_emails o
+    -- Join through members_active so a soft-deleted recipient resolves to no
+    -- slug: the viewer then shows the stored email with no profile link, rather
+    -- than a /members/<slug> link that 404s for a deleted account.
+    LEFT JOIN members_active rm ON rm.id = o.recipient_member_id
+    ${sql}
+    ORDER BY o.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset) as OutboxLogQueryRow[];
+}
+
+export function countOutboxLog(filters: OutboxLogFilters): number {
+  const { sql, params } = buildOutboxLogWhere(filters);
+  const row = db.prepare(`SELECT COUNT(*) AS n FROM outbox_emails o ${sql}`).get(...params) as { n: number };
+  return row.n;
+}
+
 export const outbox = {
   // Operational depth probe: pending + sending rows are the deliverable
   // backlog; a growing count means the worker is down or SES is failing.

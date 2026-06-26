@@ -74,6 +74,7 @@ If an adversarial test reveals a hole, fix it *and* keep the test.
 ## Anti-patterns (forbidden)
 
 - **No mocking the DB.** Integration tests run against a real SQLite file per `tests/CLAUDE.md`.
+- **No hand-rolled row inserts.** All test data is created through the shared factories in `tests/fixtures/factories.ts` (which re-exports the row builders in `src/testkit/personaRowBuilders.ts`). A raw `db.prepare('INSERT ...')` for table data in a test is forbidden; if a table has no factory, add one rather than inlining the insert. The sole exception is seeding deliberately invalid data to prove a reader survives it, and that goes through an explicit factory escape hatch (such as `insertAuditEntry`'s `metadata_json_raw`), never a raw insert.
 - **No mocking framework internals.** Don't mock Express, Handlebars, JWT, argon2, or SES adapter internals. Use the stub adapters and real middleware.
 - **No timestamp / random / UUID leakage.** Tests that compare against `Date.now()`, `randomUUID()`, or `crypto.randomBytes()` without freezing the source produce flake. Freeze time; seed randomness; or assert shape, not value.
 - **No global state leakage between test files.** Each file owns its temp DB path; no fixture file assumes rows seeded by another file.

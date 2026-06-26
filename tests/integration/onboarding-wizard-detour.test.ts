@@ -13,7 +13,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { insertMember, insertAuditEntry } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3161');
 
@@ -208,25 +208,19 @@ describe('memberOnboardingService.getDashboardTaskWidget', () => {
       `UPDATE member_onboarding_tasks SET state = 'in_progress_paused' WHERE id = ?`,
     ).run(taskRow.id);
     // Insert audit row with malformed metadata. metadata_json column has
-    // no JSON CHECK so this is accepted at the storage layer.
-    dbw.prepare(`
-      INSERT INTO audit_entries (
-        id, created_at, created_by, occurred_at, actor_type, actor_member_id,
-        action_type, entity_type, entity_id, category, metadata_json
-      ) VALUES (
-        'audit-malformed-d3',
-        '2025-01-01T00:00:00.000Z',
-        'test',
-        '2025-01-01T00:00:00.000Z',
-        'member',
-        ?,
-        'wizard.task.detour_paused',
-        'member_onboarding_task',
-        ?,
-        'onboarding',
-        '{this is { not json'
-      )
-    `).run(MEMBER_MALFORMED, taskRow.id);
+    // no JSON CHECK so this is accepted at the storage layer; the factory's
+    // metadata_json_raw hatch writes the invalid string verbatim.
+    insertAuditEntry(dbw, {
+      id: 'audit-malformed-d3',
+      created_by: 'test',
+      actor_type: 'member',
+      actor_member_id: MEMBER_MALFORMED,
+      action_type: 'wizard.task.detour_paused',
+      entity_type: 'member_onboarding_task',
+      entity_id: taskRow.id,
+      category: 'onboarding',
+      metadata_json_raw: '{this is { not json',
+    });
     dbw.close();
 
     // Widget call MUST NOT throw. The JSON.parse catch swallows the bad

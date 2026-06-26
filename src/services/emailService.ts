@@ -70,6 +70,11 @@ export function emailTemplateClassification(key: string | null | undefined): Ema
   return key in TEMPLATES ? TEMPLATES[key as EmailTemplateKey].classification : null;
 }
 
+/** The registered template keys, sorted, for the admin email-log filter. */
+export function listEmailTemplateKeys(): string[] {
+  return Object.keys(TEMPLATES).sort();
+}
+
 interface SendBase {
   recipientEmail: string;
   recipientMemberId?: string | null;

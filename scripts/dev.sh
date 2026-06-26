@@ -28,12 +28,22 @@ IMAGE_PID=""
 WORKER_PID=""
 
 # Signal a child's entire process group. $pid is the group leader (PGID)
-# because it was started under `set -m`.
+# because it was started under `set -m`. The liveness probe targets the whole
+# group (`kill -0 -- -$pid`), not the leader PID: npm exits first on a forwarded
+# signal and leaves its tsx/node children orphaned in the same group, so a
+# leader-only check would report the group dead and skip the kill, leaking those
+# children until tsx's own multi-second force-kill fires.
 kill_group() {
   local pid=$1 sig=$2
   [[ -n "$pid" ]] || return 0
-  kill -0 "$pid" 2>/dev/null || return 0
+  kill -0 -- "-$pid" 2>/dev/null || return 0
   kill -"$sig" -- "-$pid" 2>/dev/null || true
+}
+
+# True while any process survives in the group led by $1. Guards the empty-PID
+# case because `kill -0 -- -` with no PID would target the caller's own group.
+group_alive() {
+  [[ -n "$1" ]] && kill -0 -- "-$1" 2>/dev/null
 }
 
 cleanup() {
@@ -44,9 +54,9 @@ cleanup() {
   kill_group "$WEB_PID"    TERM
 
   for i in 1 2 3 4 5; do
-    if ! kill -0 "${IMAGE_PID:-0}" 2>/dev/null \
-       && ! kill -0 "${WORKER_PID:-0}" 2>/dev/null \
-       && ! kill -0 "${WEB_PID:-0}" 2>/dev/null; then
+    if ! group_alive "$IMAGE_PID" \
+       && ! group_alive "$WORKER_PID" \
+       && ! group_alive "$WEB_PID"; then
       break
     fi
     sleep 0.5
