@@ -44,6 +44,15 @@ describe('homepage foundational-tricks mosaic', () => {
     expect(mosaicClipFilename('swirl')).toBe('mosaic-swirl.mp4');
   });
 
+  // The atom slugs are underscore-joined but the curated clip files are
+  // hyphen-joined; the multi-word atoms must still resolve to their clip,
+  // otherwise the first three mosaic cells render empty.
+  it('maps an underscore atom slug to its hyphen-joined clip file', () => {
+    expect(mosaicClipFilename('toe_stall')).toBe('mosaic-toe-stall.mp4');
+    expect(mosaicClipFilename('clipper_stall')).toBe('mosaic-clipper-stall.mp4');
+    expect(mosaicClipFilename('around_the_world')).toBe('mosaic-around-the-world.mp4');
+  });
+
   // The named-gallery tile overlays this caption to mask the clip's burnt-in
   // lower-left poster text, so the caption must be the plain trick name alone:
   // any descriptive suffix renders as clutter on top of the clip. The label

@@ -40,8 +40,11 @@ export function mosaicMatchesCoreAtoms(): boolean {
 /**
  * Source filename a curated loop must carry to light up its cell, e.g.
  * `mosaic-toe-stall.mp4`. The freestyle landing loads each cell's clip by this name;
- * until the curated media exists the cell renders its labelled empty state.
+ * until the curated media exists the cell renders its labelled empty state. The atom
+ * slug is underscore-joined (`toe_stall`) while the curated clip files are
+ * hyphen-joined (`mosaic-toe-stall.mp4`), so the separator is normalized here;
+ * without it the multi-word atoms (toe stall, clipper stall, around the world) miss.
  */
 export function mosaicClipFilename(slug: string): string {
-  return `mosaic-${slug}.mp4`;
+  return `mosaic-${slug.replace(/_/g, '-')}.mp4`;
 }
