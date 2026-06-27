@@ -224,10 +224,18 @@ else
   # database/footbag.db (the file the local dev container mounts). If schema.sql
   # has moved ahead of that DB, app code may crash on a missing table/column.
   # There is no in-place migration; offer a reset (reapplies schema). Git state
-  # is irrelevant — compare against the actual local DB. Best-effort: skipped if
-  # the sqlite3 CLI is unavailable.
+  # is irrelevant; compare against the actual local DB. When the sqlite3 CLI is
+  # missing the check cannot run, so it warns rather than skipping silently; an
+  # explicit FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK=1 opt-out stays quiet because the
+  # operator asked for it.
   _did_reset=0
-  if [[ "${FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK:-}" != "1" ]] && command -v sqlite3 >/dev/null 2>&1; then
+  if [[ "${FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK:-}" == "1" ]]; then
+    : # operator opted out explicitly; honor it without noise
+  elif ! command -v sqlite3 >/dev/null 2>&1; then
+    echo "WARNING: sqlite3 CLI not found; skipping the schema-drift check." >&2
+    echo "         A stale local DB can crash app code on a missing table/column." >&2
+    echo "         Install sqlite3, or rebuild with ./run_dev.sh --reset." >&2
+  else
     _schema_fp_query="SELECT m.name || '|' || p.name
                       FROM sqlite_schema m JOIN pragma_table_info(m.name) p
                       WHERE m.type='table' AND m.name NOT LIKE 'sqlite_%'
@@ -239,7 +247,9 @@ else
     fi
     rm -f "${_exp_db}" "${_exp_db}-wal" "${_exp_db}-shm"
     _actual_fp=$(sqlite3 database/footbag.db "${_schema_fp_query}" 2>/dev/null || true)
-    if [[ -n "$_expected_fp" && -n "$_actual_fp" && "$_expected_fp" != "$_actual_fp" ]]; then
+    if [[ -z "$_expected_fp" || -z "$_actual_fp" ]]; then
+      echo "WARNING: could not read a schema fingerprint from schema.sql or database/footbag.db; skipping the schema-drift check." >&2
+    elif [[ "$_expected_fp" != "$_actual_fp" ]]; then
       echo "" >&2
       echo "WARNING: database/schema.sql differs from your local database/footbag.db schema." >&2
       echo "         Running code-only against a stale DB may crash on a missing table/column." >&2

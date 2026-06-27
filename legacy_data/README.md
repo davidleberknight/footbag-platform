@@ -47,14 +47,16 @@ Refer to docs/DEV_ONBOARDING.md for runnning hello world without these files.
 
 What is committed vs maintainer-only, and when each is used:
 
-**Tier 1 — committed, runs the site (hello-world).** The synthetic fixtures
-(`legacy_data/tests/fixtures/`) plus the committed mirror-derived seed CSVs
-(`seed/clubs.csv` = club names/locations, `contact_email` empty;
-`seed/club_members.csv` = member display names/aliases). These hold real member and
-club **names** — treated as public for practical purposes pre-go-live — with no
-emails, contact details, or membership status. `bash scripts/reset-local-db.sh`
-builds entirely from these (auto-staging the fixtures on a fresh clone); no real-data
-archive is needed.
+**Tier 1, committed, runs the site (hello-world).** The committed canonical event
+data (`event_results/canonical_input/*.csv`, real event results and historical
+persons, `legacy_email` empty) plus the committed mirror-derived seed CSVs
+(`seed/clubs.csv` for club names and locations, `contact_email` empty;
+`seed/club_members.csv` for member display names and aliases). These hold real
+competitor and club names and results, treated as public for practical purposes
+pre-go-live, with no emails, contact details, or membership status.
+`bash scripts/reset-local-db.sh` builds entirely from these; no maintainer-only
+archive is needed. The synthetic fixtures under `legacy_data/tests/fixtures/` are
+a fallback the reset stages only if `canonical_input/` is absent.
 
 **Tier 2 — gitignored, maintainer-only, full data path.**
 - the **mirror** (`mirror_footbag_org/`) — footbag.org HTML crawl; used by
@@ -76,8 +78,41 @@ snapshot lives under `database/snapshots/` instead.
 
 **Testing.** CI's `db-load-smoke` gate and `npm test` run against committed Tier-1
 data only. A small set of tests needs Tier-2 data — the persona-crawl gate needs the
-roster and skips on a fixture clone; a tester who must run those gets the gitignored
+roster and skips on a clone without it; a tester who must run those gets the gitignored
 roster from the maintainer who owns the legacy-data handoff.
+
+---
+
+## Script-consumed CSVs: committed vs gitignored
+
+This lists only the CSVs the pipeline and loaders actually read. The
+historical-pipeline maintainer produces many more interim CSVs as intermediate
+steps; those, and everything under the gitignored `out/` trees, are byproducts,
+not script inputs, and are never committed. The final, useful results are
+committed as the curated, seed, and identity inputs below.
+
+**One script input is gitignored (the member roster); every other CSV a script reads is committed.**
+
+| CSV (path / glob) | Git | Read by | What it is |
+|---|---|---|---|
+| `membership/inputs/membership_input_normalized.csv` | **gitignored** | `membership/scripts/01_build_membership_enrichment.py` (phase C) | IFPA member roster (real member PII); operator handoff, not regenerable |
+| `event_results/canonical_input/*.csv` (5 files) | committed | `reset-local-db.sh`, `run_pipeline.sh` canonical loaders | real committed competitor event data (event results and historical persons, `legacy_email` empty); the maintainer regenerates it from the mirror |
+| `tests/fixtures/canonical_input/*.csv` (5 files) | committed | `reset-local-db.sh` fallback, staged only if `canonical_input/` is absent | PII-free synthetic stand-in used only by that fallback; the default build loads the committed real data |
+| `seed/clubs.csv`, `seed/club_members.csv`, `seed/clubs_url_verdicts.csv` | committed | `load_clubs_seed.py`, `load_club_members_seed.py` | mirror-derived club seed (names and locations; `contact_email` empty) |
+| `inputs/name_variants.csv` | committed | `load_name_variants_seed.py` | name-variant pairs (generated; only HIGH rows load) |
+| `inputs/identity_lock/*.csv` | committed (older `Persons_Truth_Final_v*` / `Placements_ByPerson_v*` snapshots are gitignored; the latest of each is whitelisted) | `pipeline/identity/build_name_variants.py` | frozen identity lock (patch-toolchain only) |
+| `inputs/bap_data_updated.csv` | committed | `build_name_variants.py` | Big-Add-Posse honor names |
+| `inputs/canonical_discipline_fixes.csv` | committed | canonical pipeline | discipline-name corrections |
+| `inputs/consecutives_records.csv`, `inputs/curated/**/*.csv` | committed | workbook, canonical, and records builders | curated pre-1997 sources and records |
+| `overrides/*.csv` | committed | `build_name_variants.py`, canonical pipeline | curated person and event overrides |
+
+**Missing-input handling.** The gitignored member roster fails loudly with
+guidance, never silently: `run_pipeline.sh` preflights it and aborts with a
+how-to-obtain message, and `01_build_membership_enrichment.py` raises a clear
+error before reading. `canonical_input` is committed, so it is present on every
+clone; the `reset-local-db.sh` fallback stages the synthetic fixtures only if it
+is somehow absent. The committed seed and name-variant loaders also error on a
+missing or malformed file rather than crashing opaquely.
 
 ---
 
@@ -186,11 +221,12 @@ Modifiers:
 Combinations work: `-ryW` = reuse local DB, accept defaults, skip wipe.
 
 #### `scripts/reset-local-db.sh`
-Fastest path to a fresh `database/footbag.db`. Mirror-free: loads clubs
-and members from the committed seed CSVs, and on a fresh clone (when
-`canonical_input/` is absent) auto-stages the committed synthetic
-canonical-input fixtures first. Underlies `deploy-local-data.sh
---db-only` and the default path of `deploy-rebuild.sh`.
+Fastest path to a fresh `database/footbag.db`. Mirror-free: loads the
+committed real canonical event data plus clubs and members from the
+committed seed CSVs (falling back to the synthetic canonical-input
+fixtures only if `canonical_input/` is somehow absent). Underlies
+`deploy-local-data.sh --db-only` and the default path of
+`deploy-rebuild.sh`.
 - Mirror required: no — reads the committed `seed/clubs.csv` /
   `seed/club_members.csv` via `load_clubs_seed.py` and
   `load_club_members_seed.py` (the mirror extractors run from

@@ -337,7 +337,7 @@ Do not commit `.env` (make sure it is in your .gitignore)
 
 ### 1.7 Reset the local database
 
-A fresh clone has no database yet, and the event inputs the loader reads (`legacy_data/event_results/canonical_input/`) are gitignored. You do not stage anything by hand: `reset-local-db.sh` detects the absent canonical input and auto-stages the committed, PII-free synthetic fixtures (`legacy_data/tests/fixtures/`), then applies the schema and loads them. Build it with one command:
+A fresh clone has no database yet. The event inputs the loader reads (`legacy_data/event_results/canonical_input/`) are committed real competitor data (event results and historical persons, with no member emails or contact data), so `reset-local-db.sh` applies the schema and loads them directly. Build it with one command:
 
 ```bash
 bash scripts/reset-local-db.sh
@@ -350,13 +350,13 @@ Two real-data inputs power the full dataset, and a hello-world clone needs neith
 - the footbag.org **mirror** (`legacy_data/mirror_footbag_org/`), gitignored, used to regenerate canonical event data from source (the `--soup-to-nuts` / `run_pipeline.sh full` path);
 - the **IFPA member roster** (`legacy_data/membership/inputs/membership_input_normalized.csv`), gitignored because it holds member PII (emails and personal data), used for the full member load.
 
-Both are separate maintainer handoffs; request them only when you need the full data load. The synthetic fixtures are enough to run and browse the site locally.
+Both are separate maintainer handoffs; request them only when you need the full data load. The committed real event data and seed CSVs are enough to run and browse the site locally.
 
 Expected result:
 
 - `reset-local-db.sh` completes without error
 - `database/footbag.db` is built
-- the app has deterministic fixture data for local browsing
+- the app has the committed real event archive for local browsing
 
 Re-run `bash scripts/reset-local-db.sh` whenever you want a clean rebuild.
 
@@ -440,20 +440,20 @@ Open these in a browser:
 
 | URL                                                                              | Expected outcome                                     |
 | -------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| [http://localhost:3000/events](http://localhost:3000/events)                     | events landing page renders, listing fixture events  |
-| [http://localhost:3000/events/year/2020](http://localhost:3000/events/year/2020) | 2020 archive renders the synthetic CI fixture events |
+| [http://localhost:3000/events](http://localhost:3000/events)                     | events landing page renders, listing the committed event archive  |
+| [http://localhost:3000/events/year/2020](http://localhost:3000/events/year/2020) | 2020 archive renders the real events for that year |
 | [http://localhost:3000/health/live](http://localhost:3000/health/live)           | `{"ok":true,"check":"live"}`                         |
 | [http://localhost:3000/health/ready](http://localhost:3000/health/ready)         | `{"ok":true,"check":"ready"}`                        |
 
 What matters here:
 
 - the Events landing page renders cleanly
-- the 2020 year archive lists the synthetic fixture events
+- the 2020 year archive lists the real events for that year
 - opening any event from the archive renders its detail/results page cleanly
 - the health endpoints return clean liveness/readiness responses
 - you can click around the public slice locally without stack traces or route confusion
 
-These event pages are the committed synthetic CI fixtures, so the events themselves carry no real data; the local DB also loads real, public member and club names from the committed seed CSVs, which is what populates clubs and affiliations. With a full operator data handoff loaded, the real event archive (for example `/events/year/2025`) and event pages appear instead.
+These event pages render the committed real competitor archive (event results and historical persons, with no member emails or contact data); the local DB also loads real public member and club names from the committed seed CSVs, which populates clubs and affiliations. The mirror and member-roster handoffs add the full member load and let you regenerate the canonical data from source.
 
 ### 1.10 Run the test suite
 
@@ -488,9 +488,9 @@ npx playwright install        # one-time: Playwright e2e browsers
 
 Developers and testers should run the complete suite with `--full`, and it is meant to pass for them on a plain workstation. The default `./run_all_tests.sh` runs every gate that is safe on a workstation: build, lint, dependency audit, conventions, secret-scan, unit, integration, e2e, and terraform fmt/validate (`--quick` skips e2e and terraform for a fast loop). `--full` adds the heavyweight pentest, the staging-AWS smoke, and the persona-crawl; on a fixture-seeded clone (no operator data handoff, no AWS profile) the staging-smoke and persona-crawl SKIP with a warning while every other gate still runs, so the run completes green instead of failing on data or credentials you are not expected to have.
 
-> **The persona-crawl gate, for developers and testers.** `--full` includes a persona-crawl that drives the build-switch persona journey (`/dev/build-switch?as=...`) and checks a fully onboarded profile: the Hall-of-Fame identity, the co-led `Wellington Hack Crew` club, and the media and onboarding pages. That data comes from the full operator load, not the synthetic fixtures, so the gate SKIPs on a fixture clone. To run it, do the full data load (below), start `./run_dev.sh`, then `./run_all_tests.sh --with-persona-crawl`.
+> **The persona-crawl gate, for developers and testers.** `--full` includes a persona-crawl that drives the build-switch persona journey (`/dev/build-switch?as=...`) and checks a fully onboarded profile: the Hall-of-Fame identity, the co-led `Wellington Hack Crew` club, and the media and onboarding pages. That data comes from the full operator load, so the gate SKIPs on a clone without it. To run it, do the full data load (below), start `./run_dev.sh`, then `./run_all_tests.sh --with-persona-crawl`.
 >
-> **Final note — the full data load needs operator data kept out of GitHub, including a PII file.** The full load (`./run_dev.sh --from-csv`) requires the operator dataset, which a fresh clone does not have. Part of it is the IFPA member roster, `legacy_data/membership/inputs/membership_input_normalized.csv`, which is deliberately kept out of GitHub because it contains member PII (email addresses and personal data). Request the dataset from the project maintainer if you need the full load. The hello-world journey above and the default `./run_all_tests.sh` need none of it; they run entirely on committed data (the synthetic fixtures plus the committed seed CSVs).
+> **Final note — the full data load needs operator data kept out of GitHub, including a PII file.** The full load (`./run_dev.sh --from-csv`) requires the operator dataset, which a fresh clone does not have. Part of it is the IFPA member roster, `legacy_data/membership/inputs/membership_input_normalized.csv`, which is deliberately kept out of GitHub because it contains member PII (email addresses and personal data). Request the dataset from the project maintainer if you need the full load. The hello-world journey above and the default `./run_all_tests.sh` need none of it; they run entirely on committed data (the committed canonical event data plus the committed seed CSVs).
 
 #### Writing new tests
 
@@ -569,19 +569,21 @@ Per `docs/TESTING.md` §9.3. Operator-invoked; never runs unattended against pro
 
 ### 1.10A Optional: load the full operator dataset
 
-The hello-world clone runs on the committed synthetic CI fixtures (events) plus the committed seed CSVs (public member and club names). The full real dataset needs two inputs that are gitignored and handed off separately by the maintainer:
+The hello-world clone runs on the committed real event data (`canonical_input`) plus the committed seed CSVs (public member and club names). The full real dataset needs two inputs that are gitignored and handed off separately by the maintainer, never committed:
 
-- the footbag.org **mirror** (`legacy_data/mirror_footbag_org/`), used to regenerate canonical event data from source;
-- the **IFPA member roster** (`legacy_data/membership/inputs/membership_input_normalized.csv`), kept out of GitHub because it holds member PII, used for the full member load.
+- the footbag.org **mirror** (`legacy_data/mirror_footbag_org/`), an offline archival crawl of the live site that the pipeline parses to regenerate canonical event data. It is large (roughly 55 to 60 GB) and is normally taken as a maintainer handoff rather than re-crawled. To regenerate it from scratch, run the crawl from `legacy_data/` via `create_mirror_footbag_org.py <member_email> <password>` (run inside the `legacy_data` Python venv): a member account login reaches member-only content, `ffmpeg` is required (every fetched image and video is re-encoded through it to strip malware), and the crawl runs for multiple days, saving progress so it resumes after an interruption.
+- the **IFPA member roster** (`legacy_data/membership/inputs/membership_input_normalized.csv`), a curated CSV of the IFPA membership kept out of GitHub because it holds member PII (emails and personal data). It drives the full member load and is the input the `--from-csv` enrichment pass reads.
 
 Request whichever you need from the maintainer, then load:
 
 ```bash
-./run_dev.sh --from-csv      # full enrichment rebuild: no mirror, but needs the member roster
-./run_dev.sh --soup-to-nuts  # everything: mirror rebuild + media + personas + dev admins
+./run_dev.sh --from-csv      # full enrichment rebuild + media + personas; no mirror, no dev-admins; needs the member roster
+./run_dev.sh --soup-to-nuts  # everything --from-csv does, plus mirror rebuild + dev admins
 ```
 
 The **freestyle** tables are not part of this handoff: they build entirely from committed inputs via `freestyle/run_freestyle.sh` (which `reset-local-db.sh` runs automatically), so freestyle content is already complete on a fresh hello-world clone.
+
+Beyond these local inputs, the full migration also draws on the **legacy footbag.org database export**, a raw MariaDB `mysqldump` of the live site supplied by the legacy-site webmaster. It is the source of the legacy member-account import that runs at migration cutover (the historical accounts members later reconnect to through the claim flow): the platform parses it into canonical loader input and drops the credential and session columns. Because it carries clear-text passwords and member PII, it is worked only in an operator-controlled environment and never committed or shared (see `docs/DATA_GOVERNANCE.md`).
 
 ### 1.10B Set up your developer tooling (after your first green run)
 

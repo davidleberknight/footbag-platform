@@ -55,13 +55,12 @@ CLUB_MEMBERS_SEED_CSV="legacy_data/seed/club_members.csv"
 VENV="scripts/.venv"
 REQUIREMENTS="scripts/requirements.txt"
 
-# Auto-stage the synthetic fixtures on a fresh clone. The canonical event inputs
-# under legacy_data/event_results/canonical_input/ are gitignored, so a fresh
-# clone has none and the preflight below would abort. Stage the committed,
-# PII-free fixtures so a newcomer reaches a seeded site in one command
-# (./run_dev.sh -> this script). The stager carries an absolute real-data guard
-# and runs only when canonical_input is absent, so an operator's real tree is
-# never overwritten. Guarded on the stager's own presence so a minimal
+# The canonical event inputs under legacy_data/event_results/canonical_input/
+# are committed real competitor data, so a fresh clone has them and the preflight
+# below passes. The fallback here stages the committed synthetic fixtures only if
+# canonical_input is somehow absent. The stager carries an absolute real-data
+# guard and runs only when canonical_input is absent, so an operator's real tree
+# is never overwritten. Guarded on the stager's own presence so a minimal
 # script-only scaffold still reaches the preflight error path.
 _STAGER="scripts/ci/stage_loader_smoke_fixtures.sh"
 if [[ ! -f "${CANONICAL_INPUT_DIR}/events.csv" && -f "${_STAGER}" ]]; then

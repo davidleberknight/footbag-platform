@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Assert post-load row counts for the loader regression CI gate.
 
-Runs after `bash scripts/reset-local-db.sh` against the tiny fixture set.
+Runs after `bash scripts/reset-local-db.sh` against the committed canonical dataset.
 For every table any loader writes to, asserts:
 
   1. The table exists in the DB (catches schema drift).
@@ -11,12 +11,10 @@ For every table any loader writes to, asserts:
 
 Exits 1 on any failure. Prints a summary table either way.
 
-Thresholds are hand-tuned against the fixture in
-legacy_data/tests/fixtures/. They are floors, not exact counts: extra rows
-from the synthetic fixture in 08_load_mvfp_seed_full_to_sqlite.py or from
-real curated inputs (records, tricks, media, name_variants) are expected
-and welcomed. Tighten a threshold only when you've confirmed the new
-expected count is stable across the fixture's intended domain.
+Thresholds are floors, not exact counts: the committed canonical dataset and
+the committed curated inputs (records, tricks, media, name_variants) sit well
+above them, so extra rows are expected and welcomed. Tighten a threshold only
+when you've confirmed the new expected count is stable.
 """
 
 import argparse

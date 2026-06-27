@@ -156,10 +156,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Stage CI fixtures into pipeline paths
-        run: bash scripts/ci/stage_loader_smoke_fixtures.sh
-
-      - name: Run reset-local-db.sh against fixtures
+      - name: Run reset-local-db.sh against the committed canonical data
         env:
           FOOTBAG_DB_PATH: ./database/footbag-ci.db
           STUB_PASSWORD: ci-not-a-real-password
