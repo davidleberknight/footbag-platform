@@ -468,7 +468,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: '',
     movementExplanation:
       'A ducking set: the bag travels across the body, under the chin, before the duck. ' +
-      'The launch embeds a ducking body component; the across-body path into the duck is ' +
+      'The launch incorporates the ducking body movement; the across-body path into the duck is ' +
       'what distinguishes it. A set is defined by its launch mechanism, and this launch ' +
       'incorporates ducking rather than a bare dexterity.',
     equivalenceNotes: [],
@@ -485,7 +485,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: '',
     movementExplanation:
       'A ducking set in which the bag is caught on the same foot that performed the set. ' +
-      'The launch embeds a ducking body component; the same-foot catch is what ' +
+      'The launch incorporates the ducking body movement; the same-foot catch is what ' +
       'distinguishes it. A set is defined by its launch mechanism, and this launch ' +
       'incorporates ducking rather than a bare dexterity.',
     equivalenceNotes: [],

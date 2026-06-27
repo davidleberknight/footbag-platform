@@ -33,6 +33,105 @@
     <p class="detail-muted">Base trick: <a href="{{content.baseAtom.href}}">{{content.baseAtom.label}}</a></p>
     {{/if}}
 
+    {{#if content.definition}}
+    {{!-- ── Concept-first frozen template (Definition / What changes / How it
+          changes / JOB notation / Where it appears / Progression / Representative
+          examples / Common confusions / Related concepts / Execution notes).
+          Teaches the concept before the execution. ── --}}
+    <section class="modifier-section" aria-label="What it is">
+      <h2>What it is</h2>
+      <p>{{content.definition}}</p>
+    </section>
+
+    <section class="modifier-section" aria-label="Why it exists">
+      <h2>Why it exists</h2>
+      <p>{{content.whyItExists}}</p>
+    </section>
+
+    <section class="modifier-section" aria-label="How it changes the base trick">
+      <h2>How it changes the base trick</h2>
+      <p>{{content.howItChangesBase}}</p>
+    </section>
+
+    <section class="modifier-section" aria-label="JOB notation">
+      <h2>JOB notation</h2>
+      <p>{{content.jobNotation}}</p>
+    </section>
+
+    <section class="modifier-section" aria-label="Where it appears">
+      <h2>Where it appears</h2>
+      <p>{{content.whereItAppears}}</p>
+    </section>
+
+    {{#if content.howItComposes}}
+    <section class="modifier-section" aria-label="How it composes">
+      <h2>How it composes</h2>
+      <p>{{content.howItComposes}}</p>
+    </section>
+    {{/if}}
+
+    <section class="modifier-section symbolic-walking-progression" aria-label="Progression {{content.progression.anchorBaseLabel}}">
+      <h2>Progression {{content.progression.anchorBaseLabel}}</h2>
+      <ol class="progression-chain" role="list">
+        {{#each content.progression.steps}}
+        <li class="progression-step{{#if isAnchor}} is-anchor{{/if}}" id="modifier-step-{{stepNumber}}-{{slug}}">
+          <div class="step-header">
+            <span class="step-number" aria-hidden="true">{{stepNumber}}</span>
+            {{#if isPilot}}<a class="step-name" href="{{detailHref}}">{{canonicalName}}</a>{{else}}<span class="step-name">{{canonicalName}}</span>{{/if}}
+            {{#if adds}}<span class="step-adds" aria-label="ADD {{adds}}">{{adds}} ADD</span>{{/if}}
+            <span class="step-modifier">{{modifierAdded}}</span>
+          </div>
+          <p class="step-rationale">{{rationale}}</p>
+        </li>
+        {{/each}}
+      </ol>
+    </section>
+
+    <section class="modifier-section" aria-label="Representative examples">
+      <h2>Representative examples</h2>
+      <p>{{content.crossBase.framingLine}}</p>
+      <ul class="cross-base-list">
+        {{#each content.crossBase.examples}}
+        <li>
+          <span class="cross-base-base">{{baseLabel}}</span>
+          {{#if isPilot}}<a class="cross-base-name" href="{{detailHref}}">{{canonicalName}}</a>{{else}}<span class="cross-base-name">{{canonicalName}}</span>{{/if}}
+          {{#if adds}}<span class="cross-base-adds">{{adds}} ADD</span>{{/if}}
+          <p class="cross-base-prose">{{prose}}</p>
+        </li>
+        {{/each}}
+      </ul>
+    </section>
+
+    <section class="modifier-section" aria-label="Common confusions">
+      <h2>Common confusions</h2>
+      {{#each content.confusions}}
+      <div class="confusion-card">
+        <h3>{{heading}}</h3>
+        <p>{{prose}}</p>
+      </div>
+      {{/each}}
+    </section>
+
+    <section class="modifier-section" aria-label="Related concepts">
+      <h2>Related concepts</h2>
+      <ul class="related-modifiers-list">
+        {{#each content.relatedModifiers}}
+        <li><span class="related-name">{{name}}</span>: {{prose}}</li>
+        {{/each}}
+      </ul>
+      <p class="modifier-glossary-link"><a href="{{content.glossaryHref}}">Browse the glossary →</a></p>
+    </section>
+
+    {{#if content.executionNotes}}
+    <section class="modifier-section" aria-label="Execution notes">
+      <h2>Execution notes</h2>
+      <p>{{content.executionNotes}}</p>
+    </section>
+    {{/if}}
+
+    {{else}}
+    {{!-- ── Legacy mechanical-lead layout (pages not yet migrated to the
+          frozen template) ── --}}
     {{!-- Section 1: Mechanical lead --}}
     <section class="modifier-section mechanical-lead" aria-label="The body and the motion">
       <h2>The body and the motion</h2>
@@ -103,6 +202,7 @@
       </ul>
       <p class="modifier-glossary-link"><a href="{{content.glossaryHref}}">Browse the glossary →</a></p>
     </section>
+    {{/if}}
 
     <nav class="symbolic-crosslinks" aria-label="Related symbolic surfaces">
       <span class="symbolic-crosslinks-label">Related educational pages</span>
