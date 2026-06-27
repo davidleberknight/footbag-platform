@@ -1417,7 +1417,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
 export const DOCTRINE_BLOCKING_QUESTIONS: Record<string, string> =
   {
     "dod-ddd": "How do Double-Down and Double-Over-Down terminals score? (policy unruled)",
-    "weaving": "Weaving is an undefined folk operator; movement structure unruled.",
+    "weaving": "Weaving is a defined ducking set (bag caught on the same foot that set); canonical operational notation is pending authoring.",
     "shooting": "Shooting is an undefined folk operator; structural reading unruled.",
     "other": "Operator weight or definition pending (fairy / pixie weight; folk operators)."
   };

@@ -127,7 +127,6 @@ describe('Dex view — two-line row contract', () => {
     // No-op-notation rows are grouped by their blocker reason.
     expect(res.text).toMatch(/id="dex-needs-authoring"/);
     expect(res.text).toMatch(/id="dex-undefined-operator"/);
-    expect(res.text).toMatch(/id="dex-red-doctrine"/);
     expect(res.text).toMatch(/id="dex-governance"/);
     // Rows that already carry movement (JOB) notation are documentation-complete:
     // only the symbolic operational notation is pending, so they sit here, not in
@@ -138,9 +137,9 @@ describe('Dex view — two-line row contract', () => {
   it('classifies each no-op-notation trick by its real blocker; modifiers excluded', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(sectionFor(res.text, 'dex-undefined-operator')).toContain('data-trick-slug="blazing-fixture"');
-    // weaving is the only remaining Red-doctrine block; atomic/X-Dex no longer lands here.
-    expect(sectionFor(res.text, 'dex-red-doctrine')).toContain('data-trick-slug="weaving-fixture"');
-    expect(sectionFor(res.text, 'dex-red-doctrine')).not.toContain('data-trick-slug="atomic-xdex-fixture"');
+    // weaving is now a defined ducking set, no longer a doctrine block; with JOB notation
+    // written it is documentation-pending like any other settled operator.
+    expect(sectionFor(res.text, 'dex-documented')).toContain('data-trick-slug="weaving-fixture"');
     // an atomic / X-Dex-receiver row that already carries JOB notation is
     // documentation-complete: only the operational notation is pending.
     expect(sectionFor(res.text, 'dex-documented')).toContain('data-trick-slug="atomic-xdex-fixture"');

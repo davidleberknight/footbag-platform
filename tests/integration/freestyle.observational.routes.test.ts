@@ -140,8 +140,10 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(html).toContain('id="doctrine-blocked"');
     expect(html).toContain('observed-cluster');
     expect(html).toContain('Doctrine &amp; governance clusters');
-    // Only Weaving genuinely awaits expert review; the down-family is a verification pass.
-    expect(html).toMatch(/Only the Weaving cluster genuinely awaits an\s+expert ruling/);
+    // Weaving and zulu are now defined ducking sets; no operator awaits an expert ruling.
+    // The down-family remains a verification pass.
+    expect(html).toMatch(/No movement operator now awaits an expert ruling/);
+    expect(html).toMatch(/weaving and zulu are defined ducking\s+sets/);
     expect(html).toMatch(/per-trick verification pass/);
     // Side / direction variants are explicitly not doctrine: the notation encodes the side.
     expect(html).toMatch(/Side and direction variants are not here/);

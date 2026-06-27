@@ -97,7 +97,7 @@ const PANEL_INPUTS: PanelInput[] = [
     term:             'ducking',
     displayName:      'Ducking',
     shortDefinition:
-      'A head dip toward the bag, allowing the bag to pass around the neck. Part of a four-variant head-motion family: ducking, diving, weaving, zulu.',
+      'A head dip toward the bag, allowing the bag to pass around the neck. Part of a four-variant ducking family: ducking, diving, weaving, zulu (weaving and zulu are ducking sets).',
     symbolicGroupId:  'ducking-family',
     relatedSymbolicGroups: [
       { groupId: 'diving-family' },

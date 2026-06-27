@@ -73,7 +73,7 @@ const MODIFIER_PEDAGOGY_SECTION: LearnIndexSection = {
     {
       title:      'Ducking',
       href:       '/freestyle/modifier/ducking',
-      shortBlurb: 'A head dip that lets the bag pass around the neck. One member of a four-way head-motion family (ducking / weaving / diving / zulu, a 2×2 of head direction × bag-fall side). Six teaching sections including a progression on butterfly and folk single-token compounds (phoenix, mullet, mind-bender) that hide ducking in their canonical reading.',
+      shortBlurb: 'A head dip that lets the bag pass around the neck. One member of a four-way ducking family (ducking / weaving / diving / zulu): ducking and diving differ by head motion, while weaving and zulu are ducking sets distinguished by the bag path. Six teaching sections including a progression on butterfly and folk single-token compounds (phoenix, mullet, mind-bender) that hide ducking in their canonical reading.',
       status:     'shipped',
       isShipped:  true,
     },

@@ -550,9 +550,9 @@ function isDexlessBodyAtom(r: { category: string | null; base_trick: string | nu
 // by its REAL blocker so the dictionary groups by why a row is stuck, not by which
 // notation field happens to be populated. Token-driven + curator-extensible.
 export type NotationBlocker =
-  | 'undefined-operator' | 'red-doctrine' | 'governance' | 'documented' | 'needs-authoring' | 'identification';
+  | 'undefined-operator' | 'governance' | 'documented' | 'needs-authoring' | 'identification';
 const NB_UNDEFINED_OPERATORS = new Set([
-  'blazing','zulu','symple','slapping','fusing','phasing','slaying','sonic','twinspinning',
+  'blazing','symple','slapping','fusing','phasing','slaying','sonic','twinspinning',
   'frootie','fyro','leaning','twisted','twisting','wonton','wrecking','snapping','zipper',
 ]);
 function classifyNotationBlocker(
@@ -562,12 +562,10 @@ function classifyNotationBlocker(
   const toks: string[] = name.match(/[a-z]+/g) ?? [];
   // an undefined folk operator in the name is the blocker, whatever else is present
   if (toks.some(t => NB_UNDEFINED_OPERATORS.has(t))) return 'undefined-operator';
-  // weaving is an undefined folk operator still awaiting a doctrine ruling: the only
-  // remaining doctrine block here. Atomic / quantum / nuclear are resolved
-  // (X-Dex is a separate +1 scored only where the notation carries [XDEX]), so those rows just
-  // need their notation authored; witchdoctor reads as atom-smasher plus
-  // symposium, a curator link, not a doctrine block.
-  if (toks.includes('weaving')) return 'red-doctrine';
+  // weaving and zulu are now defined ducking sets, not doctrine blocks; with their
+  // notation authored they sit in 'documented'. Atomic / quantum / nuclear are
+  // resolved too (X-Dex is a separate +1 scored only where the notation carries
+  // [XDEX]), so those rows just need their notation authored.
   // down-family / DOD is a governance / verification call
   if (toks.includes('down') || toks.includes('dod') || toks.includes('ddd')) return 'governance';
   // The movement (JOB) notation and ADD are already written; only the symbolic
@@ -2837,7 +2835,7 @@ export interface FreestyleAddBand {
 export interface FreestyleTrickDexCountGroup {
   dexCount: number | null;     // null = not dex-countable (no op_notation); grouped below by real blocker
   dexLabel: string;            // pre-shaped: '0 dex events' … '3+ dex events', then blocker-type labels (Needs authoring, Operational notation pending, Blocked: undefined operator / weaving / governance / identification)
-  bucketId: string;            // pre-shaped section anchor: 'dex-0' … 'dex-3', then 'dex-needs-authoring', 'dex-documented', 'dex-undefined-operator', 'dex-red-doctrine', 'dex-governance', 'dex-identification'. Avoids Handlebars 0-is-falsy footgun in the template.
+  bucketId: string;            // pre-shaped section anchor: 'dex-0' … 'dex-3', then 'dex-needs-authoring', 'dex-documented', 'dex-undefined-operator', 'dex-governance', 'dex-identification'. Avoids Handlebars 0-is-falsy footgun in the template.
   cards: DictionaryTrickCard[];
   // The same cards, partitioned into ADD-labelled sub-bands (ADD ascending).
   // The template renders these so the secondary ADD ordering carries a header.
@@ -8322,7 +8320,6 @@ export const freestyleService = {
         ['needs-authoring',     'dex-needs-authoring',     'Needs authoring (no notation written yet)'],
         ['documented',          'dex-documented',          'Operational notation pending (movement notation and ADD already written)'],
         ['undefined-operator',  'dex-undefined-operator',  'Blocked: undefined operator'],
-        ['red-doctrine',        'dex-red-doctrine',        'Awaiting expert review: weaving operator'],
         ['governance',          'dex-governance',          'Blocked: curator / governance'],
         ['identification',      'dex-identification',       'Blocked: identification'],
       ];
@@ -9635,9 +9632,9 @@ export const freestyleService = {
     // also carries a genuine doctrine question (a Double-Down terminal under
     // DOD / DDD, or an undefined operator).
     const CLUSTER_STATUS: Record<string, string> = {
-      weaving:   'Genuinely open: awaiting an expert ruling on the weaving operator (status and ADD). Resolve it and the cluster unblocks.',
+      weaving:   'Settled: weaving is a defined ducking set. The launch mechanics are fixed; only the canonical operational notation is pending authoring.',
       'dod-ddd': 'Governance and verification: the down-family structure is understood; each row needs a per-trick decomposition check, not an expert ruling.',
-      other:     'Definition pending: undefined folk operators and operator-weight questions (zulu, alpine, rooting, pixie weight); structure not yet settled.',
+      other:     'Definition pending: undefined folk operators and operator-weight questions (alpine, rooting, pixie weight); structure not yet settled.',
     };
     const doctrineRows = inSection('doctrine');
     const doctrineClusters: ObservationalDoctrineCluster[] =
@@ -9700,10 +9697,10 @@ export const freestyleService = {
     // the universe's existing fields (no regeneration; reversible). Blurry and
     // Pogo are settled and no longer carried as doctrine: the generator routes
     // them to the needs-authoring frontier (structure understood, notation not
-    // yet authored). Only Weaving genuinely awaits Red on this frontier; the
-    // other open Red question (the atomic / X-Dex rule) is a
-    // value-migration on the canonical band,
-    // not part of this emerging-vocabulary frontier.
+    // yet authored). Weaving and zulu are likewise settled (defined ducking sets,
+    // notation pending), so no movement operator awaits an expert ruling on this
+    // frontier; the separate atomic / X-Dex rule is a value-migration on the
+    // canonical band, not part of this emerging-vocabulary frontier.
     type FrontierCategory =
       | 'red' | 'governance' | 'identification' | 'undefined' | 'notation'
       | 'authoring' | 'ready' | 'folk' | 'alias';
@@ -9820,7 +9817,7 @@ export const freestyleService = {
     const statBlocks: ObservationalStat[] = [
       { label: 'Canonical candidates', value: String(cc('ready')),          hint: 'every token resolves to a known operator with a clean derived ADD; ready for curation, not auto-published' },
       { label: 'Needs authoring',      value: String(cc('authoring')),      hint: 'structure understood; the movement notation or decomposition is not yet written' },
-      { label: 'Doctrine unresolved',  value: String(cc('red')),            hint: 'awaiting an expert ruling on a movement operator (weaving). A separate atomic / X-Dex question sits on the canonical band, not this frontier' },
+      { label: 'Doctrine unresolved',  value: String(cc('red')),            hint: 'a movement operator whose definition is still open. Weaving and zulu are now settled defined ducking sets (canonical notation pending), so they no longer sit here; the separate atomic / X-Dex question sits on the canonical band, not this frontier' },
       { label: 'Curator / governance', value: String(cc('governance')),     hint: 'a verification, precedent, or insertion-convention call, not a doctrine ruling (DOD / DDD)' },
       { label: 'Undefined operator',   value: String(cc('undefined')),      hint: 'the name carries a folk operator whose weight or structure is not yet defined; it cannot be authored until that operator is settled' },
       { label: 'Identification',       value: String(cc('identification')), hint: 'a named structure whose identity is not yet confirmed' },
