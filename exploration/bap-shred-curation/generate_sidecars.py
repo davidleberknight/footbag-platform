@@ -7,10 +7,30 @@ Vimeo candidates are deferred (Vimeo sidecars require a thumbnailUrl that is
 not derivable offline). Re-runnable: stable filenames; overwrites in place.
 """
 from __future__ import annotations
-import hashlib, json, re
+import hashlib, json, re, unicodedata
 from pathlib import Path
 
 OUT = Path(__file__).resolve().parents[2] / "curated" / "individual_shred"
+
+# Non-NFKD-decomposing Latin letters seen in the roster (e.g. Polish l-stroke).
+_PREMAP = str.maketrans({"ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "đ": "d", "Đ": "D"})
+
+# Canonical person identity comes from the Persons Truth table, NOT the BAP
+# roster. Where the roster spelling differs from the reconciled canonical person,
+# the #player_ tag uses the canonical person slug (verified by pid + bap_nickname);
+# the roster spelling is an alias only.
+CANONICAL_PLAYER_SLUG = {
+    "Lon Smith":           "skyler_lon_smith",     # Skyler Lon Smith (Shred On)
+    "Red Husted":          "ethan_red_husted",     # Ethan Red Husted (Shred)
+    "Dave Holton":         "david_holton",         # David Holton (Highlander)
+    "Eli Piltz":           "eliot_piltz_galan",    # Eliot Piltz Galán (Intergalactic)
+    "Gordon Scott Bevier": "gordon_bevier",        # Gordon Bevier (Flash)
+    "Honza Weber":         "jan_weber",            # Jan Weber (Webslinger)
+    "Johnny Murphy":       "jonathan_murphy",      # Jonathan Murphy (Magic Feet)
+    "Phillip Morrison":    "philip_morrison",      # Philip Morrison (Red Rocket)
+    "Sebastien Duschesne": "sebastien_duchesne",   # Sebastien Duchesne (Hurricane)
+    "Tina Aberli":         "tina_aeberli",         # Tina Aeberli (Swiss Miss)
+}
 
 # (year, name, nickname, youtube_id) — CURATE rows <=2007, YouTube only.
 ROWS = [
@@ -65,8 +85,9 @@ ROWS = [
 
 
 def slugify(name: str) -> str:
-    s = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-    return s
+    s = name.translate(_PREMAP)
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 
 
 def main() -> None:
@@ -77,6 +98,8 @@ def main() -> None:
         assert vid not in seen_ids, f"duplicate video id {vid}"
         seen_ids.add(vid)
         url = f"https://www.youtube.com/watch?v={vid}"
+        slug = slugify(name)
+        player_slug = CANONICAL_PLAYER_SLUG.get(name, slug.replace("-", "_"))
         sidecar = {
             "videoUrl": url,
             "videoPlatform": "youtube",
@@ -84,7 +107,7 @@ def main() -> None:
             "creator": name,
             "sourceId": "bap_individual_shred",
             "tier": "REFERENCE",
-            "tags": ["#freestyle", "#individual_shred_videos", "#bap"],
+            "tags": ["#freestyle", "#individual_shred_videos", "#bap", f"#player_{player_slug}"],
         }
         # invariants the seeder enforces
         assert "#curated" not in sidecar["tags"]
