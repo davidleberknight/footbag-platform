@@ -9,7 +9,6 @@ covering 1980–present and loads it into the platform SQLite database.
 
 ```bash
 cd ~/projects/footbag-platform/legacy_data
-source .venv/bin/activate        # or footbag_venv / venv — auto-detected
 
 ./run_pipeline.sh full           # recommended: full rebuild (mirror access required)
 ./run_pipeline.sh canonical_only # canonical pipeline only (mirror access required)
@@ -33,8 +32,8 @@ other input a full run reads is committed — the curated inputs under
 `inputs/curated/`, the `overrides/`, the latest identity-lock snapshots, and the
 `seed/` CSVs — so the mirror and the roster are the only two you must supply.
 
-Run from `legacy_data/`. The venv is detected automatically; set `VENV_DIR` to
-override.
+Run from `legacy_data/`. The venv is created and detected automatically on first
+run; set `VENV_DIR` to override.
 
 For exact stage order, script paths, and arguments, read `run_pipeline.sh` — it
 is the source of truth.

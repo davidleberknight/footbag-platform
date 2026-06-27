@@ -15,7 +15,7 @@
 #                     (no mirror access required; seed and canonical_input must exist)
 #
 # Run from: legacy_data/
-# Assumes:  venv already active
+# Bootstraps and activates a Python venv (.venv) on first run.
 # =============================================================================
 set -euo pipefail
 
@@ -23,12 +23,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$SCRIPT_DIR"
 
+# Reuse an existing venv when present (VENV_DIR override, or a committed
+# footbag_venv / hand-made .venv / venv); otherwise create .venv and install
+# requirements, so a fresh checkout on a python3-only host needs no manual venv
+# setup. The bare `python` calls below run inside this venv, which provides a
+# `python` even where the host ships only `python3`.
+_venv=""
 for candidate in "${VENV_DIR:-}" .venv footbag_venv venv; do
   if [ -n "$candidate" ] && [ -f "$candidate/bin/activate" ]; then
-    . "$candidate/bin/activate"
+    _venv="$candidate"
     break
   fi
 done
+if [ -z "$_venv" ]; then
+  echo "── Bootstrapping Python venv (.venv) ──────────────────────────────────"
+  python3 -m venv .venv
+  _venv=".venv"
+fi
+"${_venv}/bin/pip" install --quiet -r requirements.txt
+. "${_venv}/bin/activate"
 
 MODE="${1:-full}"
 
