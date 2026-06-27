@@ -32,8 +32,10 @@ other input a full run reads is committed — the curated inputs under
 `inputs/curated/`, the `overrides/`, the latest identity-lock snapshots, and the
 `seed/` CSVs — so the mirror and the roster are the only two you must supply.
 
-Run from `legacy_data/`. The venv is created and detected automatically on first
-run; set `VENV_DIR` to override.
+Run from `legacy_data/`. You need only `python3`: the pipeline creates the venv and
+installs requirements automatically on every run (every stage runs inside the venv),
+so no manual activation or `pip install` is needed. Set `VENV_DIR` to reuse an
+existing venv.
 
 For exact stage order, script paths, and arguments, read `run_pipeline.sh` — it
 is the source of truth.

@@ -367,8 +367,16 @@ describe('legacy_data/run_pipeline.sh identity-lock preflight', () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'run-pipeline-'));
     try {
       fs.mkdirSync(path.join(tmpRoot, '.venv', 'bin'), { recursive: true });
-      // 'activate' is sourced; an empty file is enough.
+      // The pipeline installs requirements via `.venv/bin/pip` and then sources
+      // `.venv/bin/activate` before any Python step, because every stage runs
+      // inside the venv. A real venv always ships both; the stub mirrors that.
+      // 'activate' is sourced, so an empty file suffices; 'pip' is executed, so
+      // it needs a no-op executable — without it the script aborts (command not
+      // found) before reaching the identity-lock guard this test exercises.
       fs.writeFileSync(path.join(tmpRoot, '.venv', 'bin', 'activate'), '');
+      fs.writeFileSync(path.join(tmpRoot, '.venv', 'bin', 'pip'), '#!/bin/sh\nexit 0\n', {
+        mode: 0o755,
+      });
       fs.copyFileSync(
         path.join(REPO_ROOT, 'legacy_data/run_pipeline.sh'),
         path.join(tmpRoot, 'run_pipeline.sh'),
