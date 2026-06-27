@@ -318,7 +318,13 @@ export const freestyleController = {
    *  data-driven stub; unknown modifiers 404. */
   modifierFamily(req: Request, res: Response, next: NextFunction): void {
     try {
-      const detail = freestyleService.getModifierDetail(req.params['slug'] ?? '');
+      const rawSlug = req.params['slug'] ?? '';
+      const redirectTo = freestyleService.modifierRouteRedirectTarget(rawSlug);
+      if (redirectTo) {
+        res.redirect(301, redirectTo);
+        return;
+      }
+      const detail = freestyleService.getModifierDetail(rawSlug);
       res.render(
         detail.kind === 'teaching' ? 'freestyle/modifier-family' : 'freestyle/modifier-stub',
         detail.vm,

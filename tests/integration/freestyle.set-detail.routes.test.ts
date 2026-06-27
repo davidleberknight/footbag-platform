@@ -47,6 +47,18 @@ beforeAll(async () => {
   });
   insertFreestyleTrickModifierLink(db, 'pixie_mirage', 'pixie');
 
+  // Stepping set-education page resolves progression + representative-trick
+  // slugs against the dictionary for clickable links (underscore slugs, as in
+  // the real DB).
+  insertFreestyleTrick(db, { slug: 'butterfly',                  canonical_name: 'butterfly',                  adds: '3', base_trick: 'butterfly', trick_family: 'butterfly', category: 'core', is_active: 1 });
+  insertFreestyleTrick(db, { slug: 'ripwalk',                    canonical_name: 'ripwalk',                    adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound', is_active: 1 });
+  insertFreestyleTrick(db, { slug: 'parkwalk',                   canonical_name: 'parkwalk',                   adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound', is_active: 1 });
+  insertFreestyleTrick(db, { slug: 'stepping_ducking_butterfly', canonical_name: 'stepping ducking butterfly', adds: '5', base_trick: 'ducking-butterfly', trick_family: 'butterfly', category: 'compound', is_active: 1 });
+  insertFreestyleTrick(db, { slug: 'stepping_mirage',           canonical_name: 'stepping mirage',           adds: '3', base_trick: 'mirage',    trick_family: 'mirage',    category: 'compound', is_active: 1 });
+  insertFreestyleTrick(db, { slug: 'stepping_whirl',            canonical_name: 'stepping whirl',            adds: '4', base_trick: 'whirl',     trick_family: 'whirl',     category: 'compound', is_active: 1 });
+  insertFreestyleTrick(db, { slug: 'stepping_eggbeater',        canonical_name: 'stepping eggbeater',        adds: '4', base_trick: 'eggbeater', trick_family: 'legover',   category: 'compound', is_active: 1 });
+  insertFreestyleTrick(db, { slug: 'stepping_symposium_mirage', canonical_name: 'stepping symposium mirage', adds: '4', base_trick: 'symposium-mirage', trick_family: 'mirage', category: 'compound', is_active: 1 });
+
   db.close();
   createApp = await importApp();
 });
@@ -385,5 +397,82 @@ describe('Set detail — X-Dex receiver note (atomic / quantum / nuclear only)',
     const res = await request(await createApp()).get('/freestyle/sets/pixie');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('X-Dex behavior');
+  });
+});
+
+describe('GET /freestyle/sets/stepping — set-page educational reference implementation', () => {
+  it('returns 200 and renders the launch-set subtitle', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Stepping');
+    expect(res.text).toMatch(/launch set/);
+    expect(res.text).toMatch(/relocating support foot/);
+  });
+
+  it('renders the frozen set teaching template, concept before mechanics', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    expect(res.text).toContain('<h2>What it is</h2>');
+    expect(res.text).toContain('<h2>Why it exists</h2>');
+    expect(res.text).toContain('<h2>How it launches</h2>');
+    expect(res.text).toContain('<h2>JOB notation</h2>');
+    expect(res.text).toContain('<h2>Where it appears</h2>');
+    expect(res.text).toContain('<h2>How it composes</h2>');
+    expect(res.text).toContain('<h2>Representative tricks</h2>');
+    expect(res.text).toContain('<h2>Common confusions</h2>');
+    expect(res.text).toContain('<h2>Related concepts</h2>');
+    expect(res.text).toContain('<h2>Launch notes</h2>');
+    expect(res.text.indexOf('<h2>What it is</h2>')).toBeLessThan(res.text.indexOf('<h2>Launch notes</h2>'));
+  });
+
+  it('absorbs the thin Formula / Movement sections into the teaching layer', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    // On a migrated set the teaching layer replaces the bare Formula/Movement headings.
+    expect(res.text).not.toContain('<h2>Formula</h2>');
+    expect(res.text).not.toContain('<h2>Movement</h2>');
+  });
+
+  it('teaches the set notation: stepping is the CLIP > OP IN [DEX] launch, not a body token', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    expect(res.text).toMatch(/CLIP &gt; OP IN \[DEX\]/);
+    expect(res.text).toMatch(/stepping\(\+1\) \+ mirage\(2\)/);
+    expect(res.text).toMatch(/not as a \[BOD\] or \[PDX\] token/);
+  });
+
+  it('contrasts stepping with pixie as a separate launch (no research pre-judgement)', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    expect(res.text).toContain('Stepping vs a plain clipper or toe set');
+    expect(res.text).toContain('Stepping is a launch, not a body movement');
+    expect(res.text).toContain('Stepping vs pixie');
+    expect(res.text).toContain('Stepping does not replace the base trick');
+    expect(res.text).toMatch(/separate launch identities, not two names for one launch/);
+  });
+
+  it('renders progression with anchor on butterfly, landing on named tricks (clickable underscore slugs)', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    expect(res.text).toContain('set-step-1-butterfly');
+    expect(res.text).toContain('set-step-2-ripwalk');
+    expect(res.text).toContain('set-step-3-parkwalk');
+    expect(res.text).toContain('set-step-4-stepping_ducking_butterfly');
+    expect(res.text).toContain('href="/freestyle/tricks/ripwalk"');
+    const anchorMatches = res.text.match(/is-anchor/g) ?? [];
+    expect(anchorMatches.length).toBe(1);
+  });
+
+  it('renders representative tricks as clickable links, organized by category', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    expect(res.text).toContain('href="/freestyle/tricks/stepping_mirage"');
+    expect(res.text).toContain('href="/freestyle/tricks/stepping_whirl"');
+    expect(res.text).toContain('href="/freestyle/tricks/stepping_eggbeater"');
+    expect(res.text).toContain('href="/freestyle/tricks/stepping_symposium_mirage"');
+    for (const cat of ['Basic dex', 'Whirl family', 'Cross-body', 'Multiple operators', 'Recognizable named trick']) {
+      expect(res.text).toContain(cat);
+    }
+  });
+
+  it('keeps the structural reference layer (derived systems, cross-references, provenance) below the teaching layer', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    expect(res.text).toContain('Derived systems');
+    expect(res.text).toContain('Cross-references');
+    expect(res.text.indexOf('<h2>What it is</h2>')).toBeLessThan(res.text.indexOf('Cross-references'));
   });
 });

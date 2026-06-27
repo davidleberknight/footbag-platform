@@ -16,6 +16,102 @@
     <code class="set-detail-hashtag">{{content.hashtag}}</code>
   </header>
 
+  {{#if content.education}}
+  {{!-- Concept-first teaching layer (migrated sets only). Reads in lockstep
+        with the operator template; "How it launches" / "Launch notes" replace
+        the operator slots "How it changes the base trick" / "Execution notes".
+        When present it absorbs the thin Formula / Movement sections below, which
+        are suppressed; the structural reference sections still render beneath. --}}
+  <p class="modifier-subtitle">{{content.education.pageSubtitle}}</p>
+
+  <section class="set-detail-section" aria-label="What it is">
+    <h2>What it is</h2>
+    <p>{{content.education.definition}}</p>
+  </section>
+
+  <section class="set-detail-section" aria-label="Why it exists">
+    <h2>Why it exists</h2>
+    <p>{{content.education.whyItExists}}</p>
+  </section>
+
+  <section class="set-detail-section" aria-label="How it launches">
+    <h2>How it launches</h2>
+    <p>{{content.education.howItLaunches}}</p>
+  </section>
+
+  <section class="set-detail-section" aria-label="JOB notation">
+    <h2>JOB notation</h2>
+    <p>{{content.education.jobNotation}}</p>
+  </section>
+
+  <section class="set-detail-section" aria-label="Where it appears">
+    <h2>Where it appears</h2>
+    <p>{{content.education.whereItAppears}}</p>
+  </section>
+
+  <section class="set-detail-section" aria-label="How it composes">
+    <h2>How it composes</h2>
+    <p>{{content.education.howItComposes}}</p>
+  </section>
+
+  <section class="set-detail-section symbolic-walking-progression" aria-label="Progression {{content.education.progression.anchorBaseLabel}}">
+    <h2>Progression {{content.education.progression.anchorBaseLabel}}</h2>
+    <ol class="progression-chain" role="list">
+      {{#each content.education.progression.steps}}
+      <li class="progression-step{{#if isAnchor}} is-anchor{{/if}}" id="set-step-{{stepNumber}}-{{slug}}">
+        <div class="step-header">
+          <span class="step-number" aria-hidden="true">{{stepNumber}}</span>
+          {{#if isPilot}}<a class="step-name" href="{{detailHref}}">{{canonicalName}}</a>{{else}}<span class="step-name">{{canonicalName}}</span>{{/if}}
+          {{#if adds}}<span class="step-adds" aria-label="ADD {{adds}}">{{adds}} ADD</span>{{/if}}
+          <span class="step-modifier">{{addedLabel}}</span>
+        </div>
+        <p class="step-rationale">{{rationale}}</p>
+      </li>
+      {{/each}}
+    </ol>
+  </section>
+
+  <section class="set-detail-section" aria-label="Representative tricks">
+    <h2>Representative tricks</h2>
+    <p>{{content.education.representativeTricks.framingLine}}</p>
+    <ul class="cross-base-list">
+      {{#each content.education.representativeTricks.examples}}
+      <li>
+        <span class="cross-base-base">{{baseLabel}}</span>
+        {{#if isPilot}}<a class="cross-base-name" href="{{detailHref}}">{{canonicalName}}</a>{{else}}<span class="cross-base-name">{{canonicalName}}</span>{{/if}}
+        {{#if adds}}<span class="cross-base-adds">{{adds}} ADD</span>{{/if}}
+        <p class="cross-base-prose">{{prose}}</p>
+      </li>
+      {{/each}}
+    </ul>
+  </section>
+
+  <section class="set-detail-section" aria-label="Common confusions">
+    <h2>Common confusions</h2>
+    {{#each content.education.confusions}}
+    <div class="confusion-card">
+      <h3>{{heading}}</h3>
+      <p>{{prose}}</p>
+    </div>
+    {{/each}}
+  </section>
+
+  <section class="set-detail-section" aria-label="Related concepts">
+    <h2>Related concepts</h2>
+    <ul class="related-modifiers-list">
+      {{#each content.education.relatedConcepts}}
+      <li><span class="related-name">{{name}}</span>: {{prose}}</li>
+      {{/each}}
+    </ul>
+  </section>
+
+  <section class="set-detail-section" aria-label="Launch notes">
+    <h2>Launch notes</h2>
+    <p>{{content.education.launchNotes}}</p>
+  </section>
+  {{/if}}
+
+  {{#unless content.education}}
   <section class="set-detail-section" aria-label="Formula">
     <h2>Formula</h2>
     {{#if content.formula}}<code class="set-detail-formula">{{content.formula}}</code>{{else}}<p class="set-detail-component-note">Canonical JOB notation is pending: the launch mechanics are defined, but the bracket-grammar form is not yet authored.</p>{{/if}}
@@ -25,6 +121,7 @@
     <h2>Movement</h2>
     <p class="set-detail-movement">{{content.movementExplanation}}</p>
   </section>
+  {{/unless}}
 
   {{#if content.xDexReceiverNote}}
   <section class="set-detail-section" aria-label="X-Dex receiver behavior">

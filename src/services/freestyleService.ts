@@ -117,6 +117,11 @@ import {
   hasModifierFamilyPage,
 } from './symbolicModifierEducation';
 import {
+  buildSetEducationContent,
+  hasSetEducationPage,
+  type SetEducationContent,
+} from './symbolicSetEducation';
+import {
   GlossaryConnectivePanel,
   buildGlossaryConnectivePanels,
 } from './symbolicGlossaryPanels';
@@ -2793,6 +2798,12 @@ export interface FreestyleSetDetailContent {
    *  if both are null. */
   previousSet:          SetDetailSibling | null;
   nextSet:              SetDetailSibling | null;
+  /** Concept-first teaching layer, present only on migrated sets (a set page
+   *  with authored set-education content). The template renders the teaching
+   *  sections above the structural reference sections when this is set, and
+   *  suppresses the thin Formula / Movement sections it absorbs. Null on every
+   *  un-migrated set, which renders the reference-only layout unchanged. */
+  education:            SetEducationContent | null;
 }
 
 export interface SetDetailSibling {
@@ -9945,6 +9956,14 @@ export const freestyleService = {
     return { kind: 'stub', vm: this.getModifierStubPage(slug) };
   },
 
+  // A set is a launch system, not a modifier applied after launch: its teaching
+  // home is the Set Encyclopedia. When a set has an authored set page, the old
+  // /freestyle/modifier/:slug path redirects there so the launch is taught in
+  // one place. Returns the set path, or null to let the modifier route render.
+  modifierRouteRedirectTarget(slug: string): string | null {
+    return hasSetEducationPage(slug) ? `/freestyle/sets/${slug}` : null;
+  },
+
   // Modifier and operator rows live in freestyle_tricks for decomposition and
   // ADD math, but they are not tricks: the trick-detail route redirects them to
   // their operator / modifier page so they never render as a trick-detail entry.
@@ -10206,6 +10225,7 @@ export const freestyleService = {
             : undefined,
         previousSet,
         nextSet,
+        education: buildSetEducationContent(set.slug, allActiveRows),
       },
     };
   },
