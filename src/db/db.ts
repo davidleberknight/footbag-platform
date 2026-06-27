@@ -6876,21 +6876,37 @@ export const tagStats = {
   `); },
 };
 
-export function suggestTagsByPrefix(prefix: string, limit: number): TagSuggestRow[] {
-  const escaped = prefix.replace(/[%_\\]/g, c => '\\' + c);
+// Tag autocomplete for /tags/suggest. Matches the bare term as a `#<term>%`
+// prefix, and applies the same ontology expansion the /media/browse search uses:
+// a set/style term also surfaces its set and concept tags (`#set_<term>`,
+// `#concept_<term>_sets`) and the trick tags of every trick that carries `<term>`
+// as a modifier (so typing "pixie" surfaces #set_pixie, #concept_pixie_sets, and
+// modifier-carrying folk names like #pigbeater, none of which share the `#pixie`
+// prefix). A term with no set/concept/modifier matches gains nothing from the
+// extra branches, so ordinary prefix suggestions are unchanged.
+export function suggestTagsForTerm(term: string, limit: number): TagSuggestRow[] {
+  const escaped = term.replace(/[%_\\]/g, c => '\\' + c);
   const pattern = `#${escaped}%`;
   return db.prepare(`
     SELECT t.tag_normalized, t.tag_display,
            ts.usage_count
     FROM tags t
     LEFT JOIN tag_stats ts ON ts.tag_id = t.id
-    WHERE t.tag_normalized LIKE ? ESCAPE '\\'
+    WHERE (
+        t.tag_normalized LIKE ? ESCAPE '\\'
+        OR t.tag_normalized IN ('#set_' || ?, '#concept_' || ? || '_sets')
+        OR t.id IN (
+          SELECT t2.id FROM tags t2
+          JOIN freestyle_trick_modifier_links ml ON t2.tag_normalized = '#' || ml.trick_slug
+          WHERE ml.modifier_slug = ?
+        )
+      )
       AND t.tag_normalized NOT LIKE '#by_%'
       AND t.tag_normalized <> '#unavailable_embed'
     ORDER BY COALESCE(ts.distinct_member_count, 0) DESC,
              COALESCE(ts.usage_count, 0) DESC
     LIMIT ?
-  `).all(pattern, limit) as TagSuggestRow[];
+  `).all(pattern, term, term, term, limit) as TagSuggestRow[];
 }
 
 export interface MediaJobRow {

@@ -30,7 +30,7 @@
 import {
   queryTagStatsSource,
   tagStats,
-  suggestTagsByPrefix,
+  suggestTagsForTerm,
   transaction,
   type PopularTagRow,
   type StandardTagWithMediaRow,
@@ -181,7 +181,7 @@ export const hashtagDiscoveryService = {
           usageCount: r.usage_count,
         }));
       }
-      const rows = suggestTagsByPrefix(normalized, limit);
+      const rows = suggestTagsForTerm(normalized, limit);
       return rows.map(r => ({
         normalized: r.tag_normalized,
         display: r.tag_display,
