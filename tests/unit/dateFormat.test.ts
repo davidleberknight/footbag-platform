@@ -7,23 +7,28 @@ import { describe, it, expect } from 'vitest';
 import { formatDateDisplay } from '../../src/services/dateFormat';
 
 describe('formatDateDisplay', () => {
-  it('default short style emits en-US month-abbreviation form', () => {
+  it('default short style is day-first with a spelled month, not American month-first', () => {
     const out = formatDateDisplay('2099-09-15T12:00:00.000Z');
-    expect(out).toContain('Sep');
+    expect(out).toMatch(/Sep/);   // month always renders as a name, never a bare number
     expect(out).toContain('2099');
+    // International order: the day precedes the month.
+    expect(out.indexOf('15')).toBeLessThan(out.search(/Sep/));
   });
 
-  it('long style emits the full month name', () => {
+  it('long style emits the full month name, day-first', () => {
     const out = formatDateDisplay('2099-09-15T12:00:00.000Z', { style: 'long' });
     expect(out).toContain('September');
     expect(out).toContain('2099');
+    expect(out.indexOf('15')).toBeLessThan(out.indexOf('September'));
   });
 
-  it('respects a non-default locale', () => {
-    const out = formatDateDisplay('2099-09-15T12:00:00.000Z', { locale: 'en-GB' });
-    // en-GB short form puts day before month and uses different month abbreviation casing.
-    expect(out).toContain('15');
+  it('respects an explicit locale override', () => {
+    const out = formatDateDisplay('2099-09-15T12:00:00.000Z', { locale: 'en-US' });
+    // Passing en-US restores the American month-first order, proving the
+    // caller can override the international default.
+    expect(out).toContain('Sep');
     expect(out).toContain('2099');
+    expect(out.search(/Sep/)).toBeLessThan(out.indexOf('15'));
   });
 
   it('uses UTC so the rendered calendar day matches the ISO date regardless of host time zone', () => {

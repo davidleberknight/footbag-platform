@@ -3,10 +3,13 @@
  *
  * Returns the raw ISO string when the input cannot be parsed, so callers
  * surfacing user-facing copy never render an empty placeholder for a date
- * that exists in the database. Default locale is `en-US`; callers needing
- * a different locale pass it explicitly. Time zone is fixed to UTC for
- * date-only output so all viewers see the same calendar day regardless of
- * client locale.
+ * that exists in the database. Default locale is `en-GB`, so dates render
+ * day-first with a spelled-out month ("15 Sep 2024" / "15 September 2024"),
+ * an unambiguous international order rather than the American month-first
+ * form; callers needing a different locale pass it explicitly. The explicit
+ * `month: 'short' | 'long'` option means the month always renders as a name,
+ * never a bare number, in any locale. Time zone is fixed to UTC for date-only
+ * output so all viewers see the same calendar day regardless of client locale.
  */
 
 type DateStyle = 'short' | 'long';
@@ -32,5 +35,5 @@ export function formatDateDisplay(
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const fmt = opts.style === 'long' ? LONG_OPTS : SHORT_OPTS;
-  return d.toLocaleDateString(opts.locale ?? 'en-US', fmt);
+  return d.toLocaleDateString(opts.locale ?? 'en-GB', fmt);
 }
