@@ -48,9 +48,12 @@ export const OPERATOR_INDEX_AXES: readonly OperatorIndexAxis[] = [
     // bases. Its only set form is a Holden-only reading with no platform
     // canonical, which lives in the Set Encyclopedia and is referenced there as
     // related, so it does not belong with the uptime set systems.
+    // Weaving and zulu are NOT here: they are platform-canonical ducking launch
+    // sets (like whirling), so they belong only in the Set Encyclopedia and the
+    // modifier route redirects them to their set page.
     modifierSlugs: [
       'spinning', 'gyro', 'inspinning',
-      'ducking', 'diving', 'weaving', 'zulu',
+      'ducking', 'diving',
       'tapping',
     ],
     subFamilies: [

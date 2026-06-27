@@ -94,7 +94,9 @@ describe('GET /freestyle/operators — compact modifier index', () => {
 
   it('does not list set primitives as operator rows', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
-    for (const slug of ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'barraging', 'blurry', 'stepping', 'whirling']) {
+    // weaving and zulu are platform-canonical ducking launch sets, not operators,
+    // so they belong only in the Set Encyclopedia and never get an operator row.
+    for (const slug of ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'barraging', 'blurry', 'stepping', 'whirling', 'weaving', 'zulu']) {
       expect(res.text, `set ${slug} absent`).not.toContain(`id="operator-${slug}"`);
     }
     // Furious is a name for the barraging set; it has no operator row either.
