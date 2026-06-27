@@ -118,7 +118,6 @@ import {
 } from './symbolicModifierEducation';
 import {
   buildSetEducationContent,
-  hasSetEducationPage,
   isSetFirstSlug,
   isRouteMigratedSet,
   type SetEducationContent,

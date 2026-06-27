@@ -82,7 +82,6 @@ import {
   media,
   queryCooccurringTags,
   queryCuratorMediaTags,
-  queryGalleryItemsByCriteria,
   queryGalleryItemsByTagGroups,
   queryGalleryItemsByCriteriaGrouped,
   queryRecentCommunityMedia,
