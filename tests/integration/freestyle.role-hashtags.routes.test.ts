@@ -76,11 +76,10 @@ describe('GET /freestyle/modifier/:slug — stub hashtag', () => {
     expect(res.text).toContain('#set_pixie');
   });
 
-  it('honors the curator role override: whirling reads #set_whirling, not #operator_whirling', async () => {
+  it('honors the curator role override: whirling is a first-class set, so its modifier route redirects to the set page', async () => {
     const res = await request(await createApp()).get('/freestyle/modifier/whirling');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('#set_whirling');
-    expect(res.text).not.toContain('#operator_whirling');
+    expect(res.status).toBe(301);
+    expect(res.headers['location']).toBe('/freestyle/sets/whirling');
   });
 });
 

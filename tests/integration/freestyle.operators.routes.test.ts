@@ -43,6 +43,9 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'pixie',   modifier_name: 'Pixie',   add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set' });
   insertFreestyleTrickModifier(db, { slug: 'atomic',  modifier_name: 'Atomic',  add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set' });
   insertFreestyleTrickModifier(db, { slug: 'paradox', modifier_name: 'Paradox', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body' });
+  // Miraging renders a data-driven stub (a dual-role set that is NOT route-migrated,
+  // unlike whirling/swirling); its base atom is mirage.
+  insertFreestyleTrickModifier(db, { slug: 'miraging', modifier_name: 'Miraging', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body' });
 
   // Tricks that use pixie, for the stub "common tricks" list.
   insertFreestyleTrick(db, { slug: 'smear',   canonical_name: 'smear',   adds: '3', base_trick: 'mirage',    trick_family: 'mirage' });
@@ -187,10 +190,10 @@ describe('GET /freestyle/modifier/:slug — universal detail resolution', () => 
     const teaching = await request(await createApp()).get('/freestyle/modifier/spinning');
     expect(teaching.text).toContain('Base trick:');
     expect(teaching.text).toContain('href="/freestyle/tricks/spin"');
-    // Stub page: whirling -> whirl (resolves via the operator reference).
-    const stub = await request(await createApp()).get('/freestyle/modifier/whirling');
+    // Stub page: miraging -> mirage (whirling/swirling are now route-migrated sets).
+    const stub = await request(await createApp()).get('/freestyle/modifier/miraging');
     expect(stub.status).toBe(200);
-    expect(stub.text).toContain('href="/freestyle/tricks/whirl"');
+    expect(stub.text).toContain('href="/freestyle/tricks/mirage"');
   });
 
   it('unknown modifier slug returns 404', async () => {

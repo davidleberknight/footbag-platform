@@ -270,6 +270,27 @@ export function hasSetEducationPage(slug: string): boolean {
   return Object.prototype.hasOwnProperty.call(SET_PAGE_CONTENT, slug);
 }
 
+// Sets whose canonical home is the Set Encyclopedia even before their educational
+// page is authored. They are platform-canonical sets that carried legacy modifier
+// assumptions (a modifier stub, a trick-route redirect to the modifier page); the
+// route layer redirects them to /freestyle/sets/<slug> so a first-class set never
+// resolves to a modifier stub. Their +1 ADD-math layer (trick_modifiers, operator
+// reference) is unaffected. Sets with an authored page are covered by
+// hasSetEducationPage and need not be listed here.
+const SET_FIRST_MODIFIER_SLUGS: ReadonlySet<string> = new Set(['whirling', 'swirling']);
+
+/** True when the slug is a first-class set whose modifier/trick routes redirect
+ *  to its set page (an authored set page, or a route-migrated canonical set). */
+export function isSetFirstSlug(slug: string): boolean {
+  return hasSetEducationPage(slug) || SET_FIRST_MODIFIER_SLUGS.has(slug);
+}
+
+/** True only for sets migrated by route classification (no authored page yet);
+ *  used where stepping's authored-page redirect must not also apply. */
+export function isRouteMigratedSet(slug: string): boolean {
+  return SET_FIRST_MODIFIER_SLUGS.has(slug);
+}
+
 /**
  * Build the set-teaching content for a slug, resolving every progression step
  * and representative-trick slug against the dictionary so links are clickable

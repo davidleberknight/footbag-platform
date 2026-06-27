@@ -119,6 +119,8 @@ import {
 import {
   buildSetEducationContent,
   hasSetEducationPage,
+  isSetFirstSlug,
+  isRouteMigratedSet,
   type SetEducationContent,
 } from './symbolicSetEducation';
 import {
@@ -9961,14 +9963,17 @@ export const freestyleService = {
   // /freestyle/modifier/:slug path redirects there so the launch is taught in
   // one place. Returns the set path, or null to let the modifier route render.
   modifierRouteRedirectTarget(slug: string): string | null {
-    return hasSetEducationPage(slug) ? `/freestyle/sets/${slug}` : null;
+    return isSetFirstSlug(slug) ? `/freestyle/sets/${slug}` : null;
   },
 
   // Modifier and operator rows live in freestyle_tricks for decomposition and
   // ADD math, but they are not tricks: the trick-detail route redirects them to
   // their operator / modifier page so they never render as a trick-detail entry.
-  // Sets are deliberately not redirected — pixie and fairy are dual-role tricks.
+  // Sets are deliberately not redirected here (pixie and fairy are dual-role
+  // tricks), except route-migrated first-class sets (whirling, swirling), which
+  // resolve to their set page rather than a modifier stub.
   trickRouteRedirectTarget(slug: string): string | null {
+    if (isRouteMigratedSet(slug)) return `/freestyle/sets/${slug}`;
     const row = runSqliteRead('freestyleTricks.categoryBySlug', () =>
       freestyleTricks.categoryBySlug.get(slug) as { category: string | null } | undefined,
     );

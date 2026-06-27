@@ -92,10 +92,10 @@ describe('Movement intuition — flagship pages render the section', () => {
 });
 
 describe('Movement intuition — non-flagship pages omit the section', () => {
-  it('whirling (a modifier) redirects to its operator page, so the intuition section never renders', async () => {
+  it('whirling (a first-class set) redirects from the trick route to its set page, so the intuition section never renders', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/whirling');
     expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/modifier/whirling');
+    expect(res.headers['location']).toBe('/freestyle/sets/whirling');
   });
 });
 

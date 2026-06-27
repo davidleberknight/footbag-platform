@@ -715,10 +715,14 @@ describe('GET /freestyle/modifier/gyro — concept-first (Tier-1, closely relate
   });
 });
 
-describe('GET /freestyle/modifier/stepping — a set, taught in the Set Encyclopedia', () => {
-  it('permanently redirects the modifier route to the set page (a set is a launch, not a modifier)', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/stepping');
-    expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/sets/stepping');
-  });
+describe('GET /freestyle/modifier/:slug — first-class sets redirect to the Set Encyclopedia', () => {
+  // Stepping has an authored set page; whirling and swirling are route-migrated
+  // first-class sets. All resolve to their set page, never a modifier stub.
+  for (const slug of ['stepping', 'whirling', 'swirling']) {
+    it(`permanently redirects /freestyle/modifier/${slug} to /freestyle/sets/${slug}`, async () => {
+      const res = await request(createApp()).get(`/freestyle/modifier/${slug}`);
+      expect(res.status).toBe(301);
+      expect(res.headers['location']).toBe(`/freestyle/sets/${slug}`);
+    });
+  }
 });
