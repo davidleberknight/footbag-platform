@@ -2976,9 +2976,9 @@ export interface MovementSystemAxisView {
 export interface MovementSystemBrowseView {
   observationalNote: string;
   axes:              MovementSystemAxisView[];   // axes with zero non-empty groups are pruned
-  // Alternative-surfaces subsection. Compact educational subsection rendered
-  // AFTER the 4 movement-system axes. Always shaped; renders only when
-  // activeView === 'movement-system'.
+  // Alternative-surfaces subsection rendered beneath the movement-system
+  // axes. Always shaped; renders only when activeView === 'movement-system'.
+  // Tricks use the shared dictionary-trick-row shape, like every browse view.
   alternativeSurfaces: AlternativeSurfacesView;
 }
 
@@ -2990,17 +2990,8 @@ export interface AlternativeSurfacesView {
 export interface AlternativeSurfaceGroupView {
   slug:   string;            // anchor id ('alt-surface-sole-and-heel' etc)
   label:  string;            // pre-shaped group label
-  note:   string;             // pre-shaped framing line
-  tricks: AlternativeSurfaceTrickView[]; // members surviving the canonical-DB existence filter
-}
-
-export interface AlternativeSurfaceTrickView {
-  slug:                 string;
-  displayName:          string;
-  href:                 string; // /freestyle/tricks/:slug
-  adds:                 string | null;
-  addsLabel:            string;  // pre-shaped '2 ADD' / '? ADD'
-  operationalNotation:  string;  // raw op_notation string; empty when not populated
+  note:   string;            // pre-shaped framing line
+  cards:  DictionaryTrickCard[]; // members surviving the canonical-DB existence filter, in the shared browse-row shape
 }
 
 export interface FreestyleTricksIndexContent {
@@ -8737,24 +8728,17 @@ export const freestyleService = {
     // canonical rows added later just appear once their row is active).
     const alternativeSurfaceGroups: AlternativeSurfaceGroupView[] =
       ALTERNATIVE_SURFACES.groups.map(group => {
-        const tricks: AlternativeSurfaceTrickView[] = group.tricks
+        const rows = group.tricks
           .map(slug => allActiveTrickRowsBySlug.get(slug))
-          .filter((row): row is FreestyleTrickRowWithStatus => row !== undefined)
-          .map(row => ({
-            slug:                row.slug,
-            displayName:         row.canonical_name,
-            href:                `/freestyle/tricks/${row.slug}`,
-            adds:                row.adds ?? null,
-            addsLabel:           row.adds ? `${row.adds} ADD` : '? ADD',
-            operationalNotation: row.operational_notation ?? '',
-          }));
+          .filter((row): row is FreestyleTrickRowWithStatus => row !== undefined);
+        const cards = rows.map(row => shapeDictionaryTrickCard(row, shapeTrickIndexRow(row, ctx), null, ctx));
         return {
           slug:   `alt-surface-${group.slug}`,
           label:  group.label,
           note:   group.note,
-          tricks,
+          cards,
         };
-      }).filter(g => g.tricks.length > 0);
+      }).filter(g => g.cards.length > 0);
 
     const movementSystemView: MovementSystemBrowseView = {
       observationalNote:
@@ -8985,7 +8969,7 @@ export const freestyleService = {
               lensQuestion: 'Which broad movement style does it belong to?',
               chips:        [
                 ...movementSystemView.axes.map(a => ({ label: axisChipLabel(a.axisKey, a.axisName), href: `/freestyle/tricks?view=movement-system#${a.anchorId}`, count: a.cards.length })),
-                { label: 'Alternative Surfaces', href: '/freestyle/tricks?view=movement-system#alt-surfaces', count: movementSystemView.alternativeSurfaces.groups.reduce((n, g) => n + g.tricks.length, 0) },
+                { label: 'Alternative Surfaces', href: '/freestyle/tricks?view=movement-system#alt-surfaces', count: movementSystemView.alternativeSurfaces.groups.reduce((n, g) => n + g.cards.length, 0) },
               ],
               crossLink:    { label: 'For modifier vocabulary, see Operators & Modifiers →', href: '/freestyle/operators' },
             },

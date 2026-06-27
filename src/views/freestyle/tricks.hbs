@@ -614,13 +614,10 @@
   </section>
   {{/if}}
 
-  {{! ── Alternative surfaces (compact educational subsection).
-      Rendered after the 4 movement-system axes. Compact-list density
-      (NOT registry density / NOT dictionary-trick-card). Each group
-      shows trick name + ADD + raw op_notation as an inline list.
-      This is the right surface for sparse-
-      categorical exception data; a separate ?view= would waste the
-      toggle slot. }}
+  {{! ── Alternative surfaces. A browse section organized on one principle:
+      what surface the bag is controlled on. Each group renders the shared
+      dictionary-trick-row, so its rows match every other browse view (name
+      + Trick Detail link + media hashtag, JOB and ADD on the second line). }}
   {{#if content.movementSystemView.alternativeSurfaces.groups.length}}
   <section class="content-section alt-surfaces" id="alt-surfaces" aria-label="Alternative surfaces">
     <div class="section-heading">
@@ -632,15 +629,11 @@
     <section class="alt-surface-group" id="{{slug}}">
       <h3 class="alt-surface-group-label">{{label}}</h3>
       <p class="alt-surface-group-note">{{note}}</p>
-      <ul class="alt-surface-trick-list">
-        {{#each tricks}}
-        <li class="alt-surface-trick">
-          <a href="{{href}}">{{displayName}}</a>
-          <span class="alt-surface-add">({{addsLabel}})</span>
-          {{#if operationalNotation}}<code class="alt-surface-notation">{{operationalNotation}}</code>{{/if}}
-        </li>
+      <div class="dict-trick-row-stack">
+        {{#each cards}}
+          {{> dictionary-trick-row}}
         {{/each}}
-      </ul>
+      </div>
     </section>
     {{/each}}
   </section>

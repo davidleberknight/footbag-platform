@@ -1,21 +1,17 @@
 /**
- * Alternative-surfaces content module for the Movement System view
- * (rendered as a compact subsection AFTER the 4 movement-system axes).
+ * Alternative-surfaces content module for the Movement System view,
+ * rendered as a subsection beneath the movement-system axes.
  *
- * Per the follow-up decision after the nonstandard-topology audit,
- * alternative surfaces become a compact subsection of
- * /freestyle/tricks?view=movement-system rather than a standalone
- * `?view=alternative-surfaces` browse toggle. The data is sparse-
- * categorical (~18 rows across 5 sub-groups); a full browse mode would
- * waste the toggle-bar slot. A compact educational subsection is the
- * right surface: it preserves browse simplicity while making the
- * non-standard topology legible.
+ * The page has one organizing principle: alternative terminal surfaces
+ * and balance systems. Every group answers the same question — what
+ * surface is the bag controlled on — for the surfaces beyond the
+ * toe/clipper-dominant freestyle default. Airborne and body-movement
+ * concepts (flying and the like) answer a different question (how the
+ * body moves) and belong with the modifier/operator views, not here.
  *
- * Doctrine framing: NOT "weird tricks" or "miscellaneous". The
- * alternative-surface tricks are alternative *control systems*,
- * different balance and movement-topology choices than the toe/clipper-
- * dominant freestyle default. The subsection emphasises movement
- * topology and balance/control mechanics, not rarity or novelty.
+ * The framing is alternative *control systems*, not "weird" or
+ * "miscellaneous" tricks: each group is a different balance and
+ * movement-topology choice.
  *
  * The slug references below MUST exist as `is_active=1` canonical rows
  * in `freestyle_tricks` for their detail-page links to resolve. The
@@ -40,18 +36,15 @@ export interface AlternativeSurfacesContent {
 
 export const ALTERNATIVE_SURFACES: AlternativeSurfacesContent = {
   intro:
-    'Most freestyle tricks revolve around toe and clipper surfaces. ' +
-    'These tricks explore alternative surfaces, body catches, and ' +
-    'non-standard balance systems. Each group below is a different ' +
-    'balance/control regime, not a novelty bucket.',
+    'Most freestyle controls the bag on the toe or clipper. These tricks ' +
+    'use other surfaces. Each group is a different place the bag rests, ' +
+    'and a different balance system to hold it there.',
   groups: [
     {
       slug: 'sole-and-heel',
       label: 'Sole and heel',
       note:
-        'Foot-edge surfaces. The bag rests on the sole (bottom) or heel (back) of ' +
-        'the foot instead of the top. Cross-body sole stall adds an [XBD] inversion; ' +
-        'around-the-world variants can terminate on the heel instead of the toe.',
+        'The bag rests on the sole or heel of the foot instead of the top.',
       tricks: [
         'sole_stall',
         'sole_kick',
@@ -65,8 +58,7 @@ export const ALTERNATIVE_SURFACES: AlternativeSurfacesContent = {
       slug: 'inside-outside',
       label: 'Inside and outside',
       note:
-        'Side-of-foot stall surfaces. Foundational beyond toe and clipper; ' +
-        'most compound tricks visit these surfaces in transit but rarely terminate on them.',
+        'Side-of-foot surfaces. Most compounds pass over them in transit but rarely stall there.',
       tricks: [
         'inside_stall',
         'outside_stall',
@@ -76,8 +68,7 @@ export const ALTERNATIVE_SURFACES: AlternativeSurfacesContent = {
       slug: 'head-neck-shoulder',
       label: 'Head, neck, and shoulder',
       note:
-        'Upper-body stalls. The bag rests on a non-foot surface; balance shifts ' +
-        'from leg control to torso and head control.',
+        'Upper-body stalls. Balance shifts from the leg to the torso and head.',
       tricks: [
         'head_stall',
         'neck_stall',
@@ -89,27 +80,11 @@ export const ALTERNATIVE_SURFACES: AlternativeSurfacesContent = {
       slug: 'cloud-and-knee',
       label: 'Cloud and knee',
       note:
-        'Leg-surface stalls beyond the foot. Cloud is the back of the calf; ' +
-        'knee is exactly what it sounds like. Both demand precise leg-angle control.',
+        'Leg surfaces beyond the foot (cloud is the back of the calf). Both need precise leg-angle control.',
       tricks: [
         'cloud_stall',
         'cloud_kick',
         'knee_stall',
-      ],
-    },
-    {
-      slug: 'flying-variants',
-      label: 'Flying and airborne variants',
-      note:
-        'The body becomes airborne, either entering the trick from a jump or ' +
-        'leaving the ground during the trick. The bag traces a longer path while ' +
-        'the body cycles around it.',
-      tricks: [
-        'flying_clipper',
-        'flying_inside',
-        'flying_outside',
-        'dragonfly_kick',
-        'butterfly_kick',
       ],
     },
   ],
