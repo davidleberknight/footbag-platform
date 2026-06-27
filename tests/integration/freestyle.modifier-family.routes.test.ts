@@ -286,7 +286,7 @@ describe('GET /freestyle/modifier/ducking — happy path', () => {
     expect(res.text).toContain('anchor-sentence');
     expect(res.text).toContain('diagram-placeholder');
     expect(res.text).toContain('Common confusions');
-    expect(res.text).toContain('The four head-motion siblings');
+    expect(res.text).toContain('The four ducking-family siblings');
     expect(res.text).toContain('Ducking vs other body modifiers');
     expect(res.text).toContain('Ducking as a hidden modifier');
     expect(res.text).toMatch(/Progression on butterfly/);
@@ -294,13 +294,13 @@ describe('GET /freestyle/modifier/ducking — happy path', () => {
     expect(res.text).toContain('Related modifiers');
   });
 
-  it('renders the 2×2 head-motion family explanation', async () => {
+  it('renders the four-sibling family explanation, with weaving and zulu as ducking sets', async () => {
     const res = await request(createApp()).get('/freestyle/modifier/ducking');
-    // The "=" character in the source prose renders as &#x3D; via Handlebars escaping;
-    // assert on the descriptive phrases on either side instead of the literal equals sign.
-    expect(res.text).toMatch(/Weaving.*head toward bag, bag same side/i);
-    expect(res.text).toMatch(/Diving.*head over and under bag, bag same side/i);
-    expect(res.text).toMatch(/Zulu.*head over and under bag, bag opposite/i);
+    // Ducking and diving are told apart by the head; weaving and zulu are ducking sets
+    // told apart by the bag (same-foot catch vs across-body path), per the settled ruling.
+    expect(res.text).toMatch(/diving sends the head over and under the bag/i);
+    expect(res.text).toMatch(/weaving set the bag is caught on the same foot/i);
+    expect(res.text).toMatch(/zulu set the bag passes across the body, under the chin/i);
   });
 
   it('uses coach-tone phrases (not engineering-manual phrasing)', async () => {

@@ -18,7 +18,7 @@
 
   <section class="set-detail-section" aria-label="Formula">
     <h2>Formula</h2>
-    <code class="set-detail-formula">{{content.formula}}</code>
+    {{#if content.formula}}<code class="set-detail-formula">{{content.formula}}</code>{{else}}<p class="set-detail-component-note">Canonical JOB notation is pending: the launch mechanics are defined, but the bracket-grammar form is not yet authored.</p>{{/if}}
   </section>
 
   <section class="set-detail-section" aria-label="Movement explanation">

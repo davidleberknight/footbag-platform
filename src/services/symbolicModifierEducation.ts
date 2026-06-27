@@ -273,6 +273,11 @@ const PARADOX_CONTENT: ModifierEducationInput = {
     'Hip-pivot diagram: body position at dex 1 / mid-pivot / dex 2. Diagram planned.',
   confusions: [
     {
+      heading: 'Operator, dex relationship, and [PDX]',
+      prose:
+        'Paradox names three layers that line up. As an operator it is the +1 hip pivot added to a base. As a dex relationship it is the third side relationship, beside same and opposite. In operational notation it is the component [PDX], the sibling of [XBD] (a cross-body delay) and [XDEX] (the conditional X-Dex). The form CLIP > OP IN [DEX] is the common paradox entry, where an opposite-side clipper set creates the relationship before the first dex; it is the usual example, not the definition. Paradox also appears mid-trick, as a later [PDX] dex inside a longer chain. The notation glossary carries the same [PDX] reading.',
+    },
+    {
       heading: 'Paradox vs xdex',
       prose:
         'Paradox and X-Dex are not the same thing. Paradox is a dex relationship (a side-switching hip pivot) worth +1 on any base. X-Dex is a separate conditional +1 scored only where the notation carries [XDEX]; it does not fire from the base type, and only when the dex before it is not a paradox. A paradox dex never triggers X-Dex. When you mean a universal +1 hip-pivot, the modifier is paradox.',
@@ -369,7 +374,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
     },
     {
       name:  'atomic',
-      prose: 'Combined with paradox, atomic produces the nuclear set (+2). Nuclear is the structural reading of matador, sumo, hurl, and barfry.',
+      prose: 'A +1 uptime launch set that stacks with paradox like any modifier pair. It does not combine with paradox into nuclear: nuclear is paradox plus a downtime illusion dex, a different second dex from atomic\'s uptime one.',
     },
     {
       name:  'stepping',
@@ -403,9 +408,9 @@ const DUCKING_CONTENT: ModifierEducationInput = {
     'Head-motion 2×2 diagram: head direction × side the bag falls. Diagram planned.',
   confusions: [
     {
-      heading: 'The four head-motion siblings (ducking / weaving / diving / zulu)',
+      heading: 'The four ducking-family siblings (ducking / weaving / diving / zulu)',
       prose:
-        'The ducking family is a 2×2 matrix. Two questions: does the head move TOWARD the bag, or OVER and under it? And does the bag fall on the OPPOSITE side from the head\'s motion, or the SAME side? Ducking = head toward bag, bag opposite. Weaving = head toward bag, bag same side. Diving = head over and under bag, bag same side. Zulu = head over and under bag, bag opposite. All four are +1 body modifiers; which one you have depends on the two answers.',
+        'The ducking family groups four +1 body modifiers around the same head and neck region. Ducking and diving are told apart by the head: ducking dips the head toward the bag so it passes around the neck; diving sends the head over and under the bag in a full arc. Weaving and zulu are ducking sets told apart by what the bag does, not the head: in a weaving set the bag is caught on the same foot that performed the set; in a zulu set the bag passes across the body, under the chin, before the duck. All four score +1.',
     },
     {
       heading: 'Ducking vs other body modifiers',
@@ -486,7 +491,7 @@ const DUCKING_CONTENT: ModifierEducationInput = {
   relatedModifiers: [
     {
       name:  'weaving',
-      prose: 'Sibling head-motion modifier. Same head motion toward the bag as ducking; bag falls to the SAME side as the head moved, not the opposite.',
+      prose: 'A ducking set in which the bag is caught on the same foot that performed the set. Same ducking head dip; the distinguishing feature is the same-foot catch.',
     },
     {
       name:  'diving',
@@ -494,7 +499,7 @@ const DUCKING_CONTENT: ModifierEducationInput = {
     },
     {
       name:  'zulu',
-      prose: 'Sibling head-motion modifier. The head goes over and under the bag like diving, but the bag falls to the opposite side. The full-arc sibling of ducking.',
+      prose: 'A ducking set in which the bag passes across the body, under the chin, before the duck. Same ducking head dip; the distinguishing feature is the across-body bag path into it.',
     },
     {
       name:  'alpine',

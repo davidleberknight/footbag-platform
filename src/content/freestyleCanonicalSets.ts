@@ -304,7 +304,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'TOE > OP OUT [DEX] > (op side component)',
     movementExplanation:
       'A toe set with an opposite-side outward dex landing on the far side; the uptime ' +
-      'motion echoes the pickup crossing.',
+      'motion echoes the pickup crossing. The outward-dex peer of miraging\'s inward-dex ' +
+      'set, neither derived from the other.',
     equivalenceNotes: [
       { reading: 'Toe set Illusion', citation: 'Holden parenthetical' },
       { reading: 'uptime illusion structure (reverse-miraging)', citation: 'Structural reading' },
@@ -460,6 +461,40 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     source: 'holden-only',
     sourceCitation: 'Holden compilation (2003); decomposes mechanically to pixie + illusion-class second dex.',
     auditStatus: 'holden-only',
+    tier: 'compositional-system',
+  },
+  {
+    slug: 'zulu', hashtag: '#set_zulu', displayName: 'Zulu', subtype: 'composite-derived',
+    formula: '',
+    movementExplanation:
+      'A ducking set: the bag travels across the body, under the chin, before the duck. ' +
+      'The launch embeds a ducking body component; the across-body path into the duck is ' +
+      'what distinguishes it. A set is defined by its launch mechanism, and this launch ' +
+      'incorporates ducking rather than a bare dexterity.',
+    equivalenceNotes: [],
+    derivedSystems: [],
+    relatedSystems: [
+      { slug: 'weaving', label: 'Weaving (sibling ducking set; same-foot catch)' },
+    ],
+    source: 'platform-tracked',
+    sourceCitation: 'A defined ducking set system; canonical JOB notation is pending authoring.',
+    tier: 'compositional-system',
+  },
+  {
+    slug: 'weaving', hashtag: '#set_weaving', displayName: 'Weaving', subtype: 'composite-derived',
+    formula: '',
+    movementExplanation:
+      'A ducking set in which the bag is caught on the same foot that performed the set. ' +
+      'The launch embeds a ducking body component; the same-foot catch is what ' +
+      'distinguishes it. A set is defined by its launch mechanism, and this launch ' +
+      'incorporates ducking rather than a bare dexterity.',
+    equivalenceNotes: [],
+    derivedSystems: [],
+    relatedSystems: [
+      { slug: 'zulu', label: 'Zulu (sibling ducking set; across-body bag path)' },
+    ],
+    source: 'platform-tracked',
+    sourceCitation: 'A defined ducking set system; canonical JOB notation is pending authoring.',
     tier: 'compositional-system',
   },
   {

@@ -3416,7 +3416,7 @@ const SET_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     feel:        'Atomic launches a single outward, cross-body dexterity from a toe set, before the base.',
     intuition:   'A +1 launch primitive: one outward dex from the toe set. Any X-Dex is a separate +1 marked [XDEX] in the notation, not part of atomic.',
     example:     'Atom Smasher = Atomic Mirage; Eggbeater = Atomic Legover.',
-    familyHint:  'Atomic stacks with paradox into Nuclear; surfaces in eggbeater, silo, flux, legbeater.',
+    familyHint:  'Surfaces in eggbeater, silo, flux, and legbeater.',
     midtimeBody: false,
   },
   {
@@ -3509,7 +3509,7 @@ const BODY_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     name:        'Ducking',
     glyph:       null,
     feel:        'Ducking dips the head near the apex so the bag passes around the neck.',
-    intuition:   'A body modifier; one of a four-way family (ducking, diving, weaving, zulu) defined by head direction and bag-fall side.',
+    intuition:   'A body modifier; one of a four-way family (ducking, diving, weaving, zulu). Ducking and diving differ by head motion; weaving and zulu are ducking sets, distinguished by the bag path.',
     example:     'Phoenix = Pixie Ducking Butterfly; Mind-Bender.',
     familyHint:  'Ducking branches into phoenix, mind-bender, montage, tomahawk.',
     midtimeBody: true,
@@ -8515,7 +8515,7 @@ export const freestyleService = {
       spinning:  'A full-body 360° rotation carried through the dex moment.',
       ducking:   'A head dip that lets the bag pass around the neck; head moves toward the bag, bag falls opposite.',
       diving:    'A head arc (over and under the bag) with the bag falling to the same side.',
-      weaving:   'Head moves toward the bag, bag falls to the same side.',
+      weaving:   'A ducking set in which the bag is caught on the same foot that performed the set.',
       gyro:      'A half-body 180° rotation carried through the dex moment.',
       whirling:  'A body rotation through the dex moment, distinct from spinning by tempo and direction (whirling + osis = blender).',
       stepping:  'A foot relocation during uptime that compresses or lengthens the set.',
@@ -10112,7 +10112,11 @@ export const freestyleService = {
     ]);
     const operatorReferenceHref = REGISTERED_MODIFIER_SLUGS.has(set.slug)
       ? `/freestyle/operators#${set.slug}`
-      : undefined;
+      // Ducking sets embed the ducking body component; point at the Ducking
+      // operator page rather than a set-named operator anchor.
+      : (set.slug === 'zulu' || set.slug === 'weaving')
+        ? '/freestyle/modifier/ducking'
+        : undefined;
 
     const crossLinks: SetDetailCrossLinks = {
       setHubHref:             '/freestyle/tricks?view=sets',
@@ -10191,8 +10195,12 @@ export const freestyleService = {
         auditStatus:           set.auditStatus,
         auditStatusLabel:      set.auditStatus ? auditLabels[set.auditStatus] : undefined,
         componentMechanicsNote:
-          'Component mechanics (ducking, diving, bare spinning, bare inspinning, gyro) ' +
-          'are body modifiers, not sets. See the Operators & Modifiers reference.',
+          (set.slug === 'zulu' || set.slug === 'weaving')
+            ? 'This is a set defined by its launch mechanism, and that launch incorporates ' +
+              'the ducking body component. Ducking on its own is the body modifier, taught ' +
+              'on the Operators & Modifiers reference.'
+            : 'Component mechanics (ducking, diving, bare spinning, bare inspinning, gyro) ' +
+              'are body modifiers, not sets. See the Operators & Modifiers reference.',
         xDexReceiverNote:
           (set.slug === 'atomic' || set.slug === 'quantum' || set.slug === 'nuclear')
             ? 'A following dex marked [XDEX] in the notation scores a separate +1. ' +
