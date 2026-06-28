@@ -1,0 +1,13 @@
+{
+  "id": "gallery_bap_current",
+  "name": "Individual Shred: Current (2020-present)",
+  "description": "Big Add Posse inductees from 2020 onward, the current generation of the roster. One representative shred clip per legend.",
+  "sortOrder": "caption_asc",
+  "criteriaTags": [
+    "#curated",
+    "#individual_shred_videos",
+    "#bap_current"
+  ],
+  "excludeTags": [],
+  "externalLinks": []
+}

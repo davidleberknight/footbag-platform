@@ -32,6 +32,20 @@ def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 
 
+def bap_era(year: int) -> str:
+    """Induction-era bucket for the collection's era browse, mirroring the Big
+    Add Posse roster's own year organization."""
+    if year <= 1994:
+        return "originators"
+    if year <= 1999:
+        return "golden_age"
+    if year <= 2009:
+        return "expansion"
+    if year <= 2019:
+        return "modern"
+    return "current"
+
+
 # Canonical person identity comes from the Persons Truth table, NOT the BAP
 # roster. Where the roster spelling (nickname, transliteration, typo, diminutive,
 # legacy spelling) differs from the reconciled canonical person, the #player_ tag
@@ -105,7 +119,7 @@ def main() -> None:
             "creator": name,
             "sourceId": "bap_individual_shred",
             "tier": "REFERENCE",
-            "tags": ["#freestyle", "#individual_shred_videos", "#bap", player_tag],
+            "tags": ["#freestyle", "#individual_shred_videos", "#bap", f"#bap_{bap_era(year)}", player_tag],
         }
         assert "#curated" not in sidecar["tags"]
         fname = f"{slug}_{hashlib.sha1(url.encode()).hexdigest()[:8]}.meta.json"

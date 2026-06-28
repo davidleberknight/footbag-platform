@@ -41,7 +41,17 @@ export const FREESTYLE_MEDIA_STRUCTURE: FreestyleMediaSectionDef[] = [
     folders: [
       { galleryId: 'gallery_passback_records', label: 'Freestyle Records' },
       { galleryId: 'gallery_curated_freestyle_tricks', label: 'Curated Trick Videos' },
-      { galleryId: 'gallery_individual_shred_videos', label: 'Individual Shred Videos' },
+    ],
+  },
+  {
+    heading: 'Individual Shred Videos',
+    folders: [
+      { galleryId: 'gallery_individual_shred_videos', label: 'All Shredders' },
+      { galleryId: 'gallery_bap_originators', label: 'Originators (1992)' },
+      { galleryId: 'gallery_bap_golden_age', label: 'Golden Age (1995-1999)' },
+      { galleryId: 'gallery_bap_expansion', label: 'Expansion (2000-2009)' },
+      { galleryId: 'gallery_bap_modern', label: 'Modern (2010-2019)' },
+      { galleryId: 'gallery_bap_current', label: 'Current (2020-present)' },
     ],
   },
 ];

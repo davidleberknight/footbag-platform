@@ -401,6 +401,12 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
       'Freestyle Records',
       'Curated Trick Videos',
       'Individual Shred Videos',
+      'All Shredders',
+      'Originators (1992)',
+      'Golden Age (1995-1999)',
+      'Expansion (2000-2009)',
+      'Modern (2010-2019)',
+      'Current (2020-present)',
     ]) {
       expect(res.text).toContain(label);
     }

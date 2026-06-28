@@ -90,6 +90,20 @@ def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 
 
+def bap_era(year: int) -> str:
+    """Induction-era bucket for the collection's era browse, mirroring the Big
+    Add Posse roster's own year organization."""
+    if year <= 1994:
+        return "originators"
+    if year <= 1999:
+        return "golden_age"
+    if year <= 2009:
+        return "expansion"
+    if year <= 2019:
+        return "modern"
+    return "current"
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     written = 0
@@ -107,7 +121,7 @@ def main() -> None:
             "creator": name,
             "sourceId": "bap_individual_shred",
             "tier": "REFERENCE",
-            "tags": ["#freestyle", "#individual_shred_videos", "#bap", f"#player_{player_slug}"],
+            "tags": ["#freestyle", "#individual_shred_videos", "#bap", f"#bap_{bap_era(year)}", f"#player_{player_slug}"],
         }
         # invariants the seeder enforces
         assert "#curated" not in sidecar["tags"]

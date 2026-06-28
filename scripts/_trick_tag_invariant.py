@@ -45,6 +45,9 @@ UTILITY_EXACT: frozenset[str] = frozenset({
     # named-gallery collection tag, both on the individual-shred clips; parallel to
     # the source-collection tags above.
     "bap", "individual_shred_videos",
+    # Induction-era buckets for the individual-shred collection's era browse,
+    # mirroring the Big Add Posse roster's own year organization.
+    "bap_originators", "bap_golden_age", "bap_expansion", "bap_modern", "bap_current",
     # Curator-applied status marker, NOT a source: db.ts filters items tagged
     # #unavailable_embed out of all media surfaces (always-on exclusion).
     "unavailable_embed",
