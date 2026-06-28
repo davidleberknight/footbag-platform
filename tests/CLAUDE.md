@@ -66,22 +66,30 @@ tests/
     factories.ts         ← test data factories (use these)
     testDb.ts            ← shared DB setup/teardown helper
   unit/
-    *.test.ts            ← pure function tests (no DB, no HTTP)
+    *.test.ts            ← pure-function tests (no DB, no HTTP)
   integration/
-    *.routes.test.ts     ← route/controller integration tests
+    *.test.ts            ← route/controller and service integration tests
+  smoke/                 ← live-AWS adapter smoke; operator-run on staging (RUN_STAGING_SMOKE=1)
+  e2e/                   ← Playwright browser tests against a local throwaway stack
+  dev/                   ← development-only persona crawl (RUN_PERSONA_CRAWL=1)
+  global-setup.ts, playwright.config.ts, setup-env.ts   ← shared harness
 ```
 
-New unit tests go in `tests/unit/`. New integration tests go in `tests/integration/`. Name them `{domain}.routes.test.ts` or `{domain}.service.test.ts`.
+New unit tests go in `tests/unit/`. New integration tests go in `tests/integration/`. Name a route/controller suite `{domain}.routes.test.ts` and a service suite `{domain}.service.test.ts`; other integration suites use a `{domain}.{aspect}.test.ts` name that states the contract they verify (for example `security.login-timing.test.ts`, `dev-shortcuts.flag-off.test.ts`).
 
 ## Running tests
 
 ```bash
-npm test              # run all tests once (unit + integration)
-npm run test:unit     # unit tests only
+npm test                  # unit + integration (excludes smoke, e2e, dev)
+npm run test:unit         # unit tests only
 npm run test:integration  # integration tests only
-npm run test:watch    # watch mode
-npm run test:coverage # with coverage report
-npm run build         # tsc type-check; must pass before any PR
+npm run test:e2e          # Playwright browser suite against a local stack
+npm run test:watch        # watch mode
+npm run test:coverage     # with coverage report
+npm run test:pre-pr       # build + conventions + npm test (run before a PR)
+npm run test:all          # build + conventions + npm test + smoke + e2e
+npm run build             # tsc type-check; must pass before any PR
+./run_all_tests.sh        # full local safe suite; --with-smoke / --with-persona-crawl opt in to the staging-AWS and dev-crawl tiers
 ```
 
 ## CI

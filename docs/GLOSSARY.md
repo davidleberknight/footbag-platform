@@ -84,6 +84,8 @@
 
 **GitHub Actions**: CI/CD automation platform integrated with GitHub repositories. Footbag.org uses GitHub Actions to run the CI checks (tests, type-check, lint, security scanning, Terraform validate) on every push and pull request. Images are not built in CI and there is no image registry: images are built on the operator workstation and shipped to the Lightsail host via `docker save | ssh | docker load` (the host is too small to build them itself).
 
+**Gallery / Media Item / Media Collection / Archive**: A *gallery* (table `member_galleries`, route `/media/:galleryId`) is a browseable, named view of media; a *media item* (table `media_items`) is one photo or video shown within galleries and tag/browse pages. "Media collection" is an informal UI synonym for a member's own galleries. None of these is the *legacy archive*, which is the member-only read-only mirror of the old footbag.org site, a separate surface entirely.
+
 **Grace Period**: Time window after soft delete where data remains recoverable before permanent removal. Footbag.org uses a configurable grace period (default 90 days, `member_cleanup_grace_days`) for deleted member accounts. Photo and video deletions are immediate and permanent (no grace).
 
 **Handlebars**: A simple templating system that generates HTML pages from templates plus data. Footbag.org controllers pass view models to Handlebars templates for server-side HTML rendering, keeping presentation logic separate from business logic.
@@ -164,9 +166,9 @@
 
 **S3 (Simple Storage Service)**: AWS object storage service providing scalable, durable file storage. Footbag.org uses S3 to store uploaded photos (two processed variants per photo), SQLite database backup snapshots uploaded every 5 minutes, and the legacy archive. Application state (members, events, registrations, etc.) is stored in a SQLite database, not in S3.
 
-**S3 Lifecycle Rules**: Automated policies transitioning objects between storage classes or deleting after expiration. Footbag.org uses lifecycle rules to expire noncurrent object versions (30 days on the media buckets, 90 days on the snapshots bucket) and to expire routine database snapshots after 30 days, preventing unbounded storage growth.
+**S3 Lifecycle Rules**: Automated policies transitioning objects between storage classes or deleting after expiration. Footbag.org uses lifecycle rules to expire noncurrent object versions (30 days on the media buckets, 30 days on the snapshots bucket) and to expire routine database snapshots after 30 days, preventing unbounded storage growth.
 
-**S3 Object Lock (WORM)**: S3 feature preventing objects from being modified or deleted for a specified retention period, enforcing Write Once Read Many semantics. Footbag.org applies Object Lock (GOVERNANCE mode, 30-day retention) to the cross-region disaster-recovery database-snapshot bucket, so routine backups cannot be deleted before their retention window elapses, while a privileged operator can still honor a lawful erasure request.
+**S3 Object Lock (WORM)**: S3 feature preventing objects from being modified or deleted for a specified retention period, enforcing Write Once Read Many semantics. Footbag.org applies Object Lock (GOVERNANCE mode, 90-day retention) to the cross-region disaster-recovery database-snapshot bucket, so routine backups cannot be deleted before their retention window elapses, while a privileged operator can still honor a lawful erasure request.
 
 **S3 One Zone-IA**: S3 storage class storing data in a single availability zone at lower cost than standard S3, suitable for data that can be recreated if lost. Footbag.org uses One Zone-IA for the photo backup bucket (cross-region replication target) to reduce backup storage costs.
 

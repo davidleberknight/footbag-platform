@@ -164,7 +164,7 @@ No contact field (email, phone, social handle) is visible on any public page or 
 **Raw legacy dumps:**
 
 - The webmaster's private dump repository stays private, gains no collaborators without the webmaster's approval, and no raw dump is ever committed, pasted into issues, logs, tests, screenshots, or AI prompts.
-- The platform receives only a sanitized export that excludes all password material by contract (no `password_hash`, salt, iteration count, or recovery answers); the operator schema-checks each export and aborts the load if any password-bearing column is present.
+- The platform receives only a sanitized export that excludes all password material by contract: any password of any form (the legacy `MemberPassword` column stores **plaintext**, not a hash), plus any hash, salt, iteration count, or recovery answers; the operator schema-checks each export and aborts the load if any password-bearing column is present. Because the legacy passwords are cleartext, the raw export is especially sensitive and is handled under the raw-dump rules below (never committed, logged, pasted into issues/tests, or placed in an AI-readable context).
 - Passwords are never imported, stored, logged, or used.
 
 **Invalid legacy rows.** Legacy member rows the source marks invalid (`MemberValid = 0`) and other mechanically-obvious garbage are excluded from `legacy_members` by default, so their PII never enters the platform. The only exception is a row pulled back by linkage to a published result, an honor, or a documented admin-recovery need (MIGRATION_PLAN legacy-member import). Exclusions are counted and validated, never silent.

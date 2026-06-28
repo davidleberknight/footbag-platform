@@ -1,6 +1,6 @@
 ---
 name: migrate-browse-view
-description: Migrate one dictionary browse view (?view=add / family / category / component / topology / new) onto the shared `<dictionary-trick-card>` partial. Use when a task adds a new browse view or moves a legacy view off inline markup. Preserves the card-uniformity contract (mechanically tested across all browse views).
+description: Migrate one dictionary browse view (any `?view=` surface) onto the shared `<dictionary-trick-card>` partial. Use when a task adds a new browse view or moves a legacy view off inline markup. Preserves the card-uniformity contract (mechanically tested across all browse views).
 ---
 
 # Migrate Browse View
@@ -22,7 +22,7 @@ Do **not** use this skill to:
 
 ## The pattern this skill encodes
 
-Every browse view shipped to date (`ADD`, `family`, `category`, `component`, `topology`) follows the same six-step recipe. The contract is mechanically tested by `freestyle.dictionary-trick-card.routes.test.ts`: any view that fails to render `dict-card-stack` fails the regression guard.
+Every browse view shipped to date (`add`, `family`, `category`, `sets`, `component`, `topology`, `movement-system`, `dex-count`) follows the same six-step recipe. The contract is mechanically tested by `freestyle.dictionary-trick-card.routes.test.ts`: any view that fails to render `dict-card-stack` fails the regression guard.
 
 ```
 Step 1 → READ existing patterns          (no writing yet)
@@ -43,7 +43,7 @@ Read the most recent migration's report so the new slice matches established con
 - `src/views/partials/dictionary-trick-card.hbs`: the shared partial all views render
 - The existing group type for the view being migrated (e.g., `FreestyleTrickAddGroup`, `FreestyleFamilyGroup`, `FreestyleTrickGroup`, `ComponentGroup`, `TopologyGroup`): to see how prior slices extended their group types
 
-If migrating a brand-new view, also read `exploration/dictionary-symbolic-card/SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md`: verify the new view doesn't violate the 5-view ceiling without curator approval.
+If migrating a brand-new view, also read `exploration/dictionary-symbolic-card/SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md` for background: a new browse view needs curator approval before it is added to the current set.
 
 ## Step 2: Extend the service group type + builder
 
@@ -213,7 +213,7 @@ The slice MUST NOT:
 - Render card-internal markup inline in the template
 - Introduce per-view CSS that affects shared card rules
 - Skip the operational-notation rendering (cards must show notation tokens OR the "Notation pending" placeholder)
-- Add a new browse view past the 5-view ceiling without curator approval (per `SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md`)
+- Add a new browse view without curator approval (the current set is eight; see `SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md` for background)
 
 ## Naming convention
 
@@ -236,7 +236,7 @@ Observational badge convention: `<span class="symbolic-layer-badge" title="...">
 
 - `exploration/dictionary-symbolic-card/SYMBOLIC_CARD_SPEC.md`: the partial's contract
 - `exploration/dictionary-symbolic-card/UNIFIED_DICTIONARY_VIEW_PLAN.md`: the architectural target
-- `exploration/dictionary-symbolic-card/SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md`: current architectural stance + the 5-view ceiling
+- `exploration/dictionary-symbolic-card/SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md`: background on the semantic-navigation architecture and the curator-approval gate for adding a browse view
 - `src/views/partials/dictionary-trick-card.hbs`: the shared partial; never modify in a browse-view slice
 - `tests/integration/freestyle.dictionary-trick-card.routes.test.ts`: the card-uniformity regression guard
 - `feedback_modifier_public_visibility.md`: modifier-stub exclusion

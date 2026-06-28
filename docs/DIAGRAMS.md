@@ -329,7 +329,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Caption:** These are Express route handlers for server-rendered pages and required callbacks; not a public REST API. Routes fall into three lanes with different authentication and response rules: protected browser routes use JWT + session validation and render Handlebars HTML with POST-Redirect-GET; public browser routes (login page, health checks) skip JWT; webhook callbacks use payload signature verification instead of cookies and return JSON only. Security controls are layered: AWS Shield Standard at CloudFront handles volumetric DDoS, app middleware handles per-account rate limiting, and each lane handles its own auth check. The 409 stale-form outcome is an application-level UX reconciliation tool; SQLite ACID transactions provide the actual write safety guarantee.
+**Caption:** These are Express route handlers for server-rendered pages and required callbacks; not a public REST API. Routes fall into three lanes with different authentication and response rules: protected browser routes use JWT + session validation and render Handlebars HTML with POST-Redirect-GET; public browser routes (login page, health checks) skip JWT; webhook callbacks use payload signature verification instead of cookies and return JSON only. Security controls are layered: AWS Shield Standard at CloudFront handles volumetric DDoS, the app service layer handles per-account rate limiting, and each lane handles its own auth check. The 409 stale-form outcome is an application-level UX reconciliation tool; SQLite ACID transactions provide the actual write safety guarantee.
 
 ---
 

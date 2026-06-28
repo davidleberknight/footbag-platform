@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertEvent, insertClub, insertTag, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertEvent, insertClub, insertTag, insertMemberGallery, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3080');
 const ORIGIN = 'http://localhost:3080';
@@ -31,6 +31,9 @@ beforeAll(async () => {
   // An open club, so its detail URL appears in the sitemap.
   const clubTag = insertTag(db, { standard_type: 'club', tag_normalized: '#club_test_seattle' });
   insertClub(db, { hashtag_tag_id: clubTag, name: 'Seattle Footbag' });
+
+  // A named gallery, so its detail URL appears in the sitemap.
+  insertMemberGallery(db, { id: 'gallery_seo_test', owner_member_id: 'seo-member-1', name: 'SEO Test Gallery' });
 
   db.close();
   createApp = await importApp();
@@ -81,6 +84,18 @@ describe('GET /sitemap.xml', () => {
     // each is always present.
     expect(res.text).toMatch(new RegExp(`<loc>${ORIGIN}/rules/[^<]+</loc>`));
     expect(res.text).toMatch(new RegExp(`<loc>${ORIGIN}/ifpa/[^<]+</loc>`));
+  });
+
+  it('lists freestyle set-detail and named-gallery URLs', async () => {
+    const res = await request(createApp()).get('/sitemap.xml');
+    // The Toe Set is a stable canonical set, so its detail page is always present.
+    expect(res.text).toContain(`<loc>${ORIGIN}/freestyle/sets/toe</loc>`);
+    expect(res.text).toContain(`<loc>${ORIGIN}/media/gallery_seo_test</loc>`);
+  });
+
+  it('does not enumerate individual media-item pages', async () => {
+    const res = await request(createApp()).get('/sitemap.xml');
+    expect(res.text).not.toContain(`${ORIGIN}/media/item/`);
   });
 
   it('every <loc> is an absolute URL', async () => {

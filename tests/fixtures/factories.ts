@@ -1229,6 +1229,39 @@ export function insertClubViabilitySignal(db: BetterSqlite3.Database, o: ClubVia
   return id;
 }
 
+// ── Member galleries ───────────────────────────────────────────────────────────
+
+export interface MemberGalleryOverrides {
+  id?: string;
+  owner_member_id?: string;
+  name?: string;
+  description?: string;
+  is_default?: number;
+  sort_order?: string;
+  created_at?: string;
+}
+
+// A named gallery (member or curator). Default is_default=0 so it appears on the
+// /media/:galleryId surface and in the sitemap. Pass an existing owner_member_id
+// (foreign_keys are ON in the test DB).
+export function insertMemberGallery(db: BetterSqlite3.Database, o: MemberGalleryOverrides = {}): string {
+  const id = o.id ?? `gallery_${uid()}`;
+  db.prepare(`
+    INSERT INTO member_galleries
+      (id, created_at, created_by, updated_at, updated_by, version,
+       owner_member_id, name, description, is_default, sort_order)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `).run(
+    id, o.created_at ?? TS, SYS, o.created_at ?? TS, SYS,
+    o.owner_member_id ?? `mem_${uid()}`,
+    o.name ?? `Gallery ${id}`,
+    o.description ?? '',
+    o.is_default ?? 0,
+    o.sort_order ?? 'upload_desc',
+  );
+  return id;
+}
+
 // ── Outbox email ───────────────────────────────────────────────────────────────
 
 export interface OutboxEmailOverrides {

@@ -103,9 +103,9 @@ export function createApp(): express.Application {
         upgradeInsecureRequests: [],
         // Browser POSTs CSP violation reports to this path so the
         // /csp-report handler (below, before route mounting) can log them.
-        // Catches regressions of the inline-attr ban (DD §3.3 / HIGH-2)
-        // and missing-origin gaps (HIGH-1) at runtime without any
-        // operator visibility loss.
+        // Catches regressions of the inline-attr ban (DD §3.3) and
+        // missing-origin gaps at runtime without any operator
+        // visibility loss.
         reportUri: ['/csp-report'],
       },
     },
@@ -259,7 +259,7 @@ export function createApp(): express.Application {
   // or `application/reports+json` (modern Reporting API) when an inline
   // event handler, an inline style, an unauthorized frame origin, or any
   // other CSP directive is violated. Logged at warn level so operators
-  // can spot regressions of HIGH-1 (frame-src) and HIGH-2 (inline attrs)
+  // can spot regressions of the frame-src and inline-attribute CSP rules
   // without manual template scanning. Mounted before auth so unauthenticated
   // page renders that violate CSP still get reported.
   //

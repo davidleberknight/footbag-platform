@@ -1943,7 +1943,7 @@ Required `footbag.service` contract:
 - `Requires=docker.service`
 - `WorkingDirectory=/srv/footbag`
 - `EnvironmentFile=/srv/footbag/env`
-- starts with `docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up --detach --remove-orphans`
+- starts with `docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up --detach --remove-orphans --no-build` (`--no-build`: images are pre-built on the workstation and loaded onto the host, never built at boot)
 - stops with the matching `docker compose ... down`
 
 ### 4.8 Deploy and start application
@@ -1952,21 +1952,24 @@ On the host:
 
 ```bash
 cd /srv/footbag
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
+# Images are built on the operator workstation and shipped to the host via
+# `docker save | ssh | docker load`; the host is too small to build them and a
+# boot-time build OOMs it. See DEVOPS_GUIDE §13.1 for the build-and-ship step,
+# which must run before the service starts.
 sudo cp ops/systemd/footbag.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now footbag
 sudo systemctl status footbag
 ```
 
-The systemd service starts the stack with `up --detach --remove-orphans` (matching the actual `footbag.service` file).
+The systemd service starts the stack with `up --detach --remove-orphans --no-build` (matching the actual `footbag.service` file); it never builds at boot.
 
 Expected behavior:
 
 - `footbag.service` may show `active (exited)` if it is a `Type=oneshot` unit with `RemainAfterExit=yes`
 - nginx and web containers should be running
-- the worker should exist but be in `Exited (0)` state; the worker container is a stub and runs no scheduled jobs
-- the worker should not be restart-looping
+- the worker container should be running (not exited): it is a long-running process that drains the email outbox and runs the scheduled daily jobs (`restart: unless-stopped`)
+- the worker should be running steadily, not restart-looping
 
 Useful checks:
 
@@ -1981,13 +1984,13 @@ sudo systemctl status footbag
 ```
 
 > [!NOTE]
-> During build, Compose may warn that PUBLIC_BASE_URL is unset. That is expected. The variable is needed at container start time, and systemd supplies it from /srv/footbag/env.
+> During `compose up`, Compose may warn that PUBLIC_BASE_URL is unset. That is expected. The variable is needed at container start time, and systemd supplies it from /srv/footbag/env.
 
 On later deploys (after the first):
 
 ```bash
 cd /srv/footbag
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
+# Load the freshly-shipped images first (DEVOPS_GUIDE §13.1), then restart:
 sudo systemctl restart footbag
 ```
 
@@ -2096,7 +2099,7 @@ Deploys land with `SAFE_BROWSING_ADAPTER=stub` by default; submitted external UR
    ```
 8. Redeploy via the entry-point script:
    ```
-   ./deploy_to_aws.sh staging
+   DEPLOY_TARGET=footbag-staging ./deploy_to_aws.sh
    ```
    The deploy preserves the operator's `SAFE_BROWSING_ADAPTER=live` line.
 

@@ -263,7 +263,7 @@ Does not belong:
 
 ### 5.5 E2E lightweight (Playwright)
 
-`tests/e2e/`, Playwright config at `tests/playwright.config.ts`. Real browser. Single worker, chromium, headless. Test set is small and business-critical. Tests may carry `@smoke` (also runs in the post-deploy gate), `@security`, `@a11y`, or `@migration` tags per §6.3.
+`tests/e2e/`, Playwright config at `tests/playwright.config.ts`. Real browser. Single worker, chromium, headless. Test set is small and business-critical. Tests may carry `@smoke`, `@security`, `@a11y`, or `@migration` tags per §6.3.
 
 Belongs:
 
@@ -322,6 +322,10 @@ Every promised email is covered by construction. The email catalog names each em
 
 Production differs in what the live path adds: it resolves `SES_ADAPTER=live` and sends through SES; it honors the SES suppression list, so an address that has hard-bounced or complained is withheld; it records bounce and complaint feedback through the webhook; and it carries the sender-identity, DKIM, and DMARC records that the stub path does not exercise. Production safety rests on the build-time strip and config guards (§7.1, §9.5); below production, the stub captures every message.
 
+### 5.10 Persona-crawl (development)
+
+A development-only tier under `tests/dev/` that exercises the full persona set across the app's pages (a member-journey and page crawl) to surface broken pages and journeys the per-route integration tests do not. It is excluded from the default `npm test` run and is invoked by `npm run test:persona-crawl` (`RUN_PERSONA_CRAWL=1`) and by `./run_all_tests.sh --with-persona-crawl` (opt-in). It runs against a local fixture-seeded database and needs no AWS.
+
 ---
 
 ## 6. Playwright strategy
@@ -364,7 +368,7 @@ Does not belong:
 
 A test may carry zero or more tags. Tags are how gates select within the suite (§11). Canonical tags:
 
-- `@smoke`. Subset that also runs in the post-deploy staging smoke gate. Smallest, fastest, read-only-ish.
+- `@smoke`. The smallest, fastest, read-only-ish browser tests. They run inside the full local Playwright e2e suite (which boots a throwaway local stack and needs no AWS), and the same subset is selected by `npm run test:e2e:smoke` for a post-deploy browser smoke check against a deployed staging environment. This browser smoke subset is separate from the vitest staging-adapter smoke gate in §5.4, which exercises live-AWS adapters rather than the browser.
 - `@security`. Security regression sub-class.
 - `@a11y`. Accessibility regression via axe-core against business-critical surfaces; runs in CI on every push and in the full local suite (`./run_all_tests.sh --full`).
 - `@migration`. Migration and onboarding regression. May live in integration or e2e; cuts across.
@@ -771,7 +775,7 @@ The platform targets WCAG 2.1 AA as the baseline accessibility conformance level
 Accessibility testing is a named test layer, not an afterthought. The layer combines:
 
 - *Automated checks* via `@axe-core/playwright` (per §15.3.1) in the lightweight Playwright suite, tagged `@a11y`. Every business-critical surface in the suite carries an axe assertion against the WCAG 2.1 AA rule set. Runs in CI on every push and in the full local suite (`./run_all_tests.sh --full`); catches automated-detectable regressions early.
-- *Smoke-tagged automated checks* (`@smoke @a11y`) on a small subset of high-traffic public pages (home, member dashboard, login, register, public event detail, results page) that also runs in the post-deploy staging smoke gate.
+- *Smoke-tagged automated checks* (`@smoke @a11y`) on a small subset of high-traffic public pages (home, member dashboard, login, register, public event detail, results page) that the post-deploy staging browser smoke check (`npm run test:e2e:smoke`) also covers, separate from the vitest staging-adapter smoke gate (§5.4).
 - *Manual audit* by the maintainer or an external accessibility reviewer periodically and before major launches. The third-party periodic pentest engagement (§9.4) may include accessibility scope.
 - *Deeper audit beyond automated coverage* (full keyboard-only journey, screen-reader flow validation, cognitive accessibility) is operator-invoked via the `browser-qa` skill.
 
@@ -829,7 +833,7 @@ Operational anti-patterns (no DB mocking, no framework mocking, no timestamp lea
 
 The platform's testing toolchain consists of:
 
-- *Vitest.* Unit and integration test runner. `npm test` excludes `tests/smoke/` and `tests/e2e/`; `npm run test:unit`, `npm run test:integration`, `npm run test:smoke`, `npm run test:e2e`, `npm run test:coverage`, `npm run test:pre-pr`, `npm run test:all` are the canonical scripts.
+- *Vitest.* Unit and integration test runner. `npm test` excludes `tests/smoke/`, `tests/e2e/`, and `tests/dev/`. The canonical scripts are `npm run test:unit`, `npm run test:integration`, `npm run test:smoke`, `npm run test:e2e`, `npm run test:e2e:smoke` (the `@smoke` browser subset for post-deploy staging, §6.3), `npm run test:persona-crawl` (§5.10), `npm run test:strong-hash` (the strong-password-hash and login-timing checks), `npm run test:pentest:heavy` (§9.3), `npm run test:coverage`, `npm run test:pre-pr`, and `npm run test:all`.
 - *Supertest.* HTTP assertion helper for integration tests.
 - *better-sqlite3.* Real SQLite per test file; no mocking. Per `tests/CLAUDE.md`.
 - *@vitest/coverage-v8.* Coverage measurement. Thresholds set in `vitest.config.ts`.

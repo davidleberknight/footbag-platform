@@ -186,6 +186,7 @@ table is the single reference; later sections operate each row but do not redefi
 | `SAFE_BROWSING_ADAPTER` | `stub` | `live` | `live` |
 | `JWT_SIGNER` | `local` (PEM) | `kms` | `kms` |
 | `CAPTCHA_ADAPTER` (Turnstile) | `stub` | `stub` | `stub` by default; set `CAPTCHA_ADAPTER=live` to enable real Turnstile (not auto-forced) |
+| `HTTP_REACHABILITY_ADAPTER` | `stub` | `stub` | must be set explicitly to `live` or `disabled` (no default; boot-fails if unset) |
 | `TRUST_PROXY` hop count | `0` | `2` (nginx + CloudFront) | `3` while the legacy front door proxies the apex; drops to `2` at the DNS-handover milestone |
 | `LOG_LEVEL` | `info` | `info` | `warn` |
 | SSM namespace | `/footbag/development/...` | `/footbag/staging/...` | `/footbag/production/...` |
@@ -1168,7 +1169,7 @@ Production rotation follows the same procedure with production resource ARNs (DE
 2. Confirm the new value satisfies the guards: contains no `#` (systemd EnvironmentFile parsing), no `changeme`, length ≥ 32. The deploy script enforces all three.
 3. Redeploy so the deploy remote-half fetches the new value from SSM into `/srv/footbag/env` and restarts the service:
    ```bash
-   ./deploy_to_aws.sh {env}
+   DEPLOY_TARGET=footbag-{env} ./deploy_to_aws.sh
    ```
 4. Expect: every active session is immediately invalidated. All currently-signed-in users will be redirected to login on their next request.
 5. Smoke-test login with a known account and confirm a fresh `footbag_session` cookie issues.
@@ -1754,7 +1755,7 @@ This path preserves `/srv/footbag/env` but intentionally destroys and replaces t
 
 For schema changes against a target with non-disposable data (production), follow the migration runbook in §15.3 instead of Option B.
 
-Do not document manual `scp` + `ssh sudo cp` DB-replacement procedures. Those manual destructive flows are superseded by `scripts/deploy-rebuild.sh`.
+Do not document manual `scp` + `ssh sudo cp` DB-replacement procedures. Those manual destructive flows are superseded by the entry-point deploy, `./deploy_to_aws.sh` (which delegates to `scripts/deploy-rebuild.sh`).
 
 #### Operational invariants enforced by the deploy
 

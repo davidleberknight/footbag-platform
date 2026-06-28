@@ -171,7 +171,7 @@ Minimum Indexes (added when query \>500ms): members(login_email_normalized), mem
 
 Monitoring: Query latency P95, slow query log (\>500ms), transaction duration (alert if P95 \>10s), backup success rate and age (alert if \>15 min), database size (alert at 80%), WAL size (alert if \>1GB), checkpoint latency (alert if \>5s), SQLITE_BUSY frequency (alert if \>5%).
 
-Health Endpoints: `/health/live` is a process check. `/health/ready` validates essential dependencies required to serve traffic; broader readiness coverage (backup freshness, memory pressure, dependency fan-out) remains later-phase operational design.
+Health Endpoints: `/health/live` is a process check. `/health/ready` validates the dependencies required to serve traffic: SQLite connectivity and container memory pressure (§7.6). Broader readiness coverage (backup freshness, dependency fan-out) remains later-phase operational design.
 
 Recovery: Download the selected S3 snapshot, run `PRAGMA integrity_check`, replace the live file, restart services, and verify health plus smoke checks. Target RTO remains approximately five minutes for the common restore case.
 
@@ -573,10 +573,10 @@ Decision:
 
 Internal-only code (operator, maintainer, and QC tools that are not reachable from public navigation and are gated by role) lives under dedicated subtrees at `src/internal-<purpose>/**` with matching view trees at `src/views/internal-<purpose>/**`. It is kept separate from the permanent product surface in `src/services/**`, `src/controllers/**`, and `src/views/**`. Internal-only subtrees are present in every environment (dev, staging, production): the separation is role-based, not environment-based, and is orthogonal to the dev/staging/production adapter parity model defined in §1.9 and §5.3.
 
-Current and reserved subtrees:
+Internal-only subtrees:
 
-- `src/internal-qc/{controllers,services}/**` (live): historical-data QC tooling (net team corrections, persons data-quality review). Every file in this subtree carries the banner `// ---- QC-only (delete with pipeline-qc subsystem) ----` so the retirement scope is mechanically greppable at retirement time.
-- `src/internal-admin/**` (reserved, not yet created): future role-gated admin tooling covering work queue, audit viewer, alarm management, and config writes. Follows the same subtree convention without the QC deletion banner.
+- `src/internal-qc/{controllers,services}/**`: historical-data QC tooling (net team corrections, persons data-quality review). Every file in this subtree carries the banner `// ---- QC-only (delete with pipeline-qc subsystem) ----` so the retirement scope is mechanically greppable at retirement time.
+- `src/internal-admin/**`: role-gated admin tooling covering work queue, audit viewer, alarm management, and config writes. Follows the same subtree convention without the QC deletion banner.
 
 Rationale:
 
@@ -592,7 +592,7 @@ Trade-offs:
 
 Impact:
 
-- `src/internal-qc/` already houses the Net QC and persons QC subsystems. `src/internal-admin/` is reserved, not yet created.
+- The historical-data QC subsystem lives entirely under `src/internal-qc/`; role-gated admin tooling lives under `src/internal-admin/`.
 - `src/services/`, `src/controllers/`, `src/views/` hold permanent product code only. New internal-only code must land under the appropriate `src/internal-<purpose>/**` subtree on first commit. Do not merge an internal-only addition into the main trees with intent to move later.
 - Integration tests for internal-only routes continue to live in `tests/integration/` alongside other route tests. Test-file paths do not mirror the src-layer separation today; if a convention for that is adopted later, it is a test-layout decision, not a change to this rule.
 - Internal-only subtrees are not part of the permanent product service surface; permanent product services are, and the high-stakes write-path ones carry the file-header JSDoc convention.
@@ -1772,7 +1772,7 @@ Legacy migration security rules:
 - Production has no admin email-skip; admins requiring manual recovery use the member-initiated admin help request flow (`A_Review_Member_Link_Help_Requests`) with full audit trail and access controls. A legacy claim takes effect on wizard-card confirmation without any email roundtrip (the mailbox-control round-trip is optional and only upgrades the audit evidence tier, per `M_Claim_Legacy_Account`), so a stub `legacy_members` row with no `legacy_email` remains claimable through the historical-person card-confirm path. A dev-only flag `FOOTBAG_DEV_ADMIN_GRANT_TIER2` enforces the admin↔Tier 2 prerequisite (per `A_Manage_Admin_Role`) on the data side: at boot, every member with `is_admin=1` whose tier ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically. These dev-only vars share the same fail-fast guard and refuse to start in production (the email-allowlist additionally permits staging); the runtime catalog of the dev/staging bootstrap conveniences lives in `src/dev-bootstrap/runtime.ts`, which is the authoritative enumeration.
 - Imported `legacy_members` rows cannot log in, are not searchable, and do not receive any member communications.
 - **Surname matching across claim paths.** Both the wizard-confirmed candidate flow and the direct historical-record claim path match against the member's current real-name surname OR any declared former surname (see member-declared anchors above). A member whose legal name changed between their legacy identity and current account declares the former surname in the legacy-claim task (reached from their profile) or at signup; the claim path then resolves normally. Surname mismatches that the platform cannot resolve through declared anchors route to the member-initiated admin help request.
-- **Cookie domain widening (`Domain=.footbag.org`).** The session cookie is widened to the apex so the legacy archive subdomain receives it. Retained `*.footbag.org` subdomains under the legacy host's parallel-role window therefore also receive the cookie. HTTPS is non-negotiable on every retained subdomain; a plain-HTTP retained subdomain would leak the session token in cleartext. The CSRF Origin-pin middleware (§3.3) is the cross-subdomain defense against a malicious form on a retained host.
+- **Cookie domain widening (`Domain=.footbag.org`).** The session cookie is widened to the apex so the `archive.footbag.org` subdomain receives it. That archive is the platform's own static mirror served over HTTPS by its dedicated CloudFront distribution (§6.4); no other `.footbag.org` host receives the cookie, so there is no cleartext-leak exposure on a third-party subdomain. The CSRF Origin-pin middleware (§3.3) is the cross-subdomain defense against a malicious form on the archive subdomain.
 - **Historical-person claim races are resolved by partial UNIQUE index + service-layer error mapping.** Concurrent claims to the same `historical_persons` row both pass the in-controller "already claimed" check; the partial UNIQUE index `ux_members_historical_person_id` catches the loser at insert. The service wraps the SQLite `SQLITE_CONSTRAINT_UNIQUE` exception in `ConflictError` so the controller renders the same user-readable "already claimed by another member" 422 it renders on the synchronous check path. Raw SQL errors must not leak to the response.
 
 Rationale:
@@ -2671,7 +2671,7 @@ Impact:
 
 - Service-level tests can mock adapters; integration tests validate adapter + SDK behavior end-to-end.
 
-- The adapter set covers: JWT signing (§3.5), secrets resolution (§3.6), ballot encryption (§3.7), email send (§5.4), media storage, image processing (§6.8), video transcoding, payments (§6.1), Safe Browsing URL screening, CAPTCHA verification, and outbound HTTP reachability. Each adapter defines one interface; dev and test use an in-process stub, a local backend, or an injected double, while staging and production use the live AWS or third-party backend (image processing and video transcoding instead call the in-cluster worker in every environment). Two backends differ by intent: CAPTCHA verification stays stubbed on staging and goes live in production only; outbound HTTP reachability has a disabled backend for deployments that opt out of all outbound probes from the validation path.
+- The adapter set covers: JWT signing (§3.5), secrets resolution (§3.6), ballot encryption (§3.7), email send (§5.4), media storage, image processing (§6.8), video transcoding, payments (§6.1), Safe Browsing URL screening, CAPTCHA verification, and outbound HTTP reachability. Each adapter defines one interface; dev and test use an in-process stub, a local backend, or an injected double, while staging and production use the live AWS or third-party backend (image processing and video transcoding instead call the in-cluster worker in every environment). Three backends differ by intent: SES email send and CAPTCHA verification stay stubbed on staging and go live in production only (§5.6); outbound HTTP reachability has a disabled backend for deployments that opt out of all outbound probes from the validation path.
 
 - Adapters fail fast at boot when a required environment variable is absent, so a misconfigured deployment cannot start in a half-wired state. Adapter contract parity is verified per §5.7.
 
@@ -3624,7 +3624,7 @@ Trade-offs:
 
 Impact:
 
-- CI builds one primary set of application images used across environments.
+- A single set of application images is used across all environments; the images are built on the operator workstation and shipped to the host (§7.4), not built by CI.
 - Environment selection is done via configuration and adapter wiring, not via conditional feature implementation or alternate business logic.
 - Test plans should validate that staging uses the same routes, adapters, and behavioral expectations as production.
 - JWT signing remains KMS-based in production; no `JWT_SECRET` production design is introduced by this decision.
@@ -3987,7 +3987,7 @@ Impact:
 
 Decision:
 
-In-process rate limiting middleware: 60 requests/min for anonymous, 120 for authenticated. App-side rate limiting state (including IP-based counters for login/reset) is kept in memory only and is not persisted to the database or logs. Cloudflare Turnstile CAPTCHA gates login, register, password-reset, claim-lookup, and verify-email-resend form submissions; the server verifies the Turnstile response token before any DB read. Turnstile runs in Managed mode (Cloudflare-recommended default), which completes without user interaction for low-risk sessions and escalates to a checkbox challenge for higher-risk sessions. AWS Shield Standard, automatic on the CloudFront distribution, covers volumetric L3/L4 DDoS at no additional cost. A CloudWatch origin-spike alarm pages the operator when sustained per-minute origin request volume exceeds the configured threshold. No edge-layer application abuse rule engine. No managed WAF or AI-based bot detection beyond Turnstile's risk scoring.
+In-process rate limiting via an in-memory bucket service (not a route middleware; see §1.9): state-changing actions are bucketed per action and request-derived key (per-member, per-IP, per-target), with bucket sizes and windows from system config. App-side rate limiting state (including IP-based counters for login/reset) is kept in memory only and is not persisted to the database or logs. Cloudflare Turnstile CAPTCHA gates login, register, password-reset, claim-lookup, and verify-email-resend form submissions; the server verifies the Turnstile response token before any DB read. Turnstile runs in Managed mode (Cloudflare-recommended default), which completes without user interaction for low-risk sessions and escalates to a checkbox challenge for higher-risk sessions. AWS Shield Standard, automatic on the CloudFront distribution, covers volumetric L3/L4 DDoS at no additional cost. A CloudWatch origin-spike alarm pages the operator when sustained per-minute origin request volume exceeds the configured threshold. No edge-layer application abuse rule engine. No managed WAF or AI-based bot detection beyond Turnstile's risk scoring.
 
 Rationale:
 

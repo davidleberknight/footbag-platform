@@ -10085,6 +10085,18 @@ export const freestyleService = {
   },
 
   /**
+   * Canonical set slugs whose /freestyle/sets/:slug page renders directly.
+   * Alias slugs that 301-redirect to their canonical are excluded (same alias
+   * test as setRouteRedirectTarget). Drives the sitemap enumeration of
+   * set-detail pages, parallel to the freestyle trick pages.
+   */
+  listSitemapSetSlugs(): string[] {
+    return CANONICAL_SETS
+      .filter((s) => !resolveCanonicalSetAlias(s.slug))
+      .map((s) => s.slug);
+  },
+
+  /**
    * GET /freestyle/sets/:slug — when a retired set slug folded into a surviving
    * canonical set, send its old deep link to the surviving entry. Returns the
    * redirect path, or null when the slug is a live set (render it) or unknown

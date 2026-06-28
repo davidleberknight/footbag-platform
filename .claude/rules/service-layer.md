@@ -16,7 +16,7 @@ No repository abstractions, ORMs, mediator layers, or generic query-builder laye
 
 Two patterns, chosen by stateful dependency:
 
-- **Singleton** for services with no external resources beyond `db.ts`, as an object literal (`export const memberService = { ... };`; examples `memberService`, `eventService`, `clubService`, `identityAccessService`, `historyService`) or, where internal cohesion warrants, a class instance (`export class OperationsPlatformService { ... }` plus `export const operationsPlatformService = new OperationsPlatformService();`).
+- **Singleton** for services with no external resources beyond `db.ts`, as an object literal (`export const memberService = { ... };`; examples `memberService`, `identityAccessService`, `historyService`) or, where internal cohesion warrants, a class instance (`export class OperationsPlatformService { ... }` plus `export const operationsPlatformService = new OperationsPlatformService();`; examples `OperationsPlatformService`, `EventService`, `ClubService`).
 - **Factory function** for services that take adapters or other injected dependencies: `export function createXService(deps: XServiceDeps) { ... }`. Examples: `createAvatarService`, `createCuratorMediaService`, `createCommunicationService`, `createMediaJobService`.
 
 When in doubt, look at whether the service needs `getMediaStorageAdapter()`, `getSesAdapter()`, or similar -- those services use factories so adapters can be injected in tests.

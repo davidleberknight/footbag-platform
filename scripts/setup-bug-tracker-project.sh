@@ -2,9 +2,9 @@
 # setup-bug-tracker-project.sh -- one-shot setup of the GitHub Projects v2
 # board that backs the bug-tracker forms in .github/ISSUE_TEMPLATE/.
 #
-# Creates the project, configures four custom fields with the exact
-# vocabularies from docs/TESTING.md §15.2, and links this repository to the
-# project. Idempotent: re-runs detect existing state and skip.
+# Creates the project, configures four custom fields with the project's
+# standard bug-tracker vocabularies (defined inline below), and links this
+# repository to the project. Idempotent: re-runs detect existing state and skip.
 #
 # The Status field is GitHub's built-in (non-deletable) field; this script
 # overwrites its options via the GraphQL updateProjectV2Field mutation, so
@@ -65,13 +65,13 @@ ensure_field() {
   fi
 }
 
-echo "Configuring custom fields per docs/TESTING.md §15.2..."
+echo "Configuring custom fields with the standard bug-tracker vocabularies..."
 ensure_field "Area" "auth,migration,onboarding,clubs,members,events,media,admin,staging,docs,security"
 ensure_field "Environment" "local,staging,production"
 ensure_field "Severity" "blocker,major,normal,minor"
 ensure_field "User role" "anonymous,member,club leader,admin,event organizer,legacy claimant"
 
-echo "Updating Status field options per docs/TESTING.md §15.2..."
+echo "Updating Status field options to the standard bug-tracker workflow states..."
 STATUS_FIELD_ID=$(gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --format json \
   | jq -r '.fields[] | select(.name=="Status") | .id')
 if [[ -z "$STATUS_FIELD_ID" ]]; then

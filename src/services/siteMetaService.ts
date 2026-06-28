@@ -11,17 +11,21 @@
  * Rendering contract:
  *   - build* methods return plain strings; the route sets the content type.
  *   - Sitemap URLs are absolute, built from config.publicBaseUrl, and cover only
- *     public content. Member and historical-person profiles are excluded: the
- *     member listing is a welcome page rather than a public directory, and member
- *     enumeration is a privacy boundary. Auth, admin, internal, webhook, and
- *     health routes are never listed.
+ *     public content: static hubs, plus per-row event, club, net-team, freestyle
+ *     trick and set-detail, rules, IFPA, and named-gallery pages. Member and
+ *     historical-person profiles are excluded: the member listing is a welcome
+ *     page rather than a public directory, and member enumeration is a privacy
+ *     boundary. Individual media-item pages are excluded too -- high-volume and
+ *     reachable from the named-gallery and browse pages already listed. Auth,
+ *     admin, internal, webhook, and health routes are never listed.
  *   - robots.txt allows all crawlers (search engines and AI agents alike) in
  *     production. Private content is kept out of search by per-response noindex
  *     headers and per-page noindex meta, never by naming paths here: a Disallow
  *     line is publicly readable and would advertise the very paths it hides.
  */
 import { config } from '../config/env';
-import { publicEvents, clubs, netTeams, freestyleTricks } from '../db/db';
+import { publicEvents, clubs, netTeams, freestyleTricks, media } from '../db/db';
+import { freestyleService } from './freestyleService';
 import { listGroupedByDiscipline } from '../lib/rulesLoader';
 import { getIfpaDocs } from '../lib/ifpaLoader';
 
@@ -120,6 +124,19 @@ function collectPublicPaths(): string[] {
   // Freestyle: every active trick in the dictionary.
   for (const row of freestyleTricks.listAll.all() as Array<{ slug: string }>) {
     paths.add(`/freestyle/tricks/${row.slug}`);
+  }
+
+  // Freestyle: every canonical set-detail page (parallels the trick pages;
+  // alias slugs that redirect are excluded by listSitemapSetSlugs).
+  for (const slug of freestyleService.listSitemapSetSlugs()) {
+    paths.add(`/freestyle/sets/${slug}`);
+  }
+
+  // Media: every named gallery (curator and member). Individual media-item
+  // pages are not enumerated: they are high-volume and already reachable from
+  // these gallery pages and the /media/browse surfaces listed above.
+  for (const row of media.listAllNamedGalleries.all() as Array<{ id: string }>) {
+    paths.add(`/media/${row.id}`);
   }
 
   // Rules: every rule detail page across all disciplines.
