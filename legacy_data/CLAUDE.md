@@ -80,6 +80,15 @@ Canonical outputs:
 - Corrections carry provenance metadata.
 - Workbook person visibility follows the platform filter.
 - Federations such as WFA/NHSA may act as host clubs for early events.
+- The committed canonical CSVs can be ahead of the local mirror. The committed
+  `event_results/canonical_input/*.csv` were generated from a more recent
+  footbag.org crawl than the `mirror_footbag_org/` present in a typical local
+  checkout. A handful of recently-completed events appear in the committed CSVs
+  but not in a locally-rebuilt `out/canonical/`, because the parser drops events
+  whose results the older local crawl never captured (their show pages are
+  results-less stubs). Do not run a canonical regeneration and commit the result
+  from a checkout whose mirror predates those events — it silently deletes them.
+  Refresh the mirror first, or treat the committed CSVs as source of truth.
 
 ## DB invariants
 
