@@ -1392,7 +1392,7 @@ else:
 # Source: verified_new/Résultats Hivernal 2002 .doc
 #         (email chain Archambault/Cote, corrections confirmed)
 # Source: verified_new/2002-07-21 Championnat International 2002.doc
-#         (Yves Archambault email to announce@footbag.org, 2002-07-22)
+#         (Yves Archambault email, 2002-07-22)
 # Both confirmed "pas publié sur Footbag.org" — not in mirror.
 # Injected here as authoritative non-mirror canonical records.
 
@@ -1564,7 +1564,7 @@ if _EK2 not in existing_event_keys:
         "country":     "Canada",
         "event_type":  "net",
         "status":      "completed",
-        "notes":       "Not published on Footbag.org; verified from Archambault email to announce@footbag.org 2002-07-22",
+        "notes":       "Not published on Footbag.org; verified from email (Archambault 2002-07)",
         "source":      "verified_new",
     })
 
