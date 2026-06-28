@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-tools/run_qc_gate.py
-
 Authoritative QC gate for the Footbag results pipeline.
 
 Primary authority:
