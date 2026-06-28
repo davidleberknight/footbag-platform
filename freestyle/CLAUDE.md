@@ -16,8 +16,11 @@ read only from `freestyle/inputs/` (and `curated/` for media), never from
   `scripts/18_scrape_footbag_org_moves.py --live` run that overwrites the
   snapshot; the rebuild never scrapes. The `check_no_live_pipeline_fetch.sh`
   guard enforces no new live fetch.
-- **Loaders are DELETE+INSERT, idempotent, with honest counters.** `run_freestyle.sh`
-  is safe to re-run.
+- **Loaders are DELETE+INSERT, idempotent, with honest counters, with one exception.** `run_freestyle.sh`
+  is safe to re-run. The records loader (`freestyle/loaders/10_load_freestyle_records_to_sqlite.py`) is the
+  exception: it is additive (`INSERT OR IGNORE`, no `DELETE`), so re-running it preserves existing record
+  rows rather than replacing them. Changes to existing records therefore require a fresh database build to
+  take effect.
 - **Read inputs from `freestyle/inputs/`.** When adding a loader input, put the
   file under `freestyle/inputs/` and reference it via `SCRIPT_DIR.parent` (the
   `freestyle/` root), not `legacy_data/`.
