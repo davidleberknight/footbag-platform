@@ -82,15 +82,18 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.text).toContain('#set_pixie');
   });
 
+  // blurry is a thin set (no authored teaching page), so its Formula and Movement
+  // sections render directly; a migrated set like pixie absorbs them into the
+  // teaching layer.
   it('renders the formula as a code block', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await request(await createApp()).get('/freestyle/sets/blurry');
     expect(res.text).toContain('class="set-detail-formula"');
-    expect(res.text).toContain('TOE &gt; SAME IN [DEX] &gt;');
+    expect(res.text).toContain('CLIP &gt; OP IN [DEX] &gt; OP OUT [DEX] &gt;');
   });
 
   it('renders the movement explanation', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
-    expect(res.text).toMatch(/A toe set with a same-side inward dex/);
+    const res = await request(await createApp()).get('/freestyle/sets/blurry');
+    expect(res.text).toMatch(/Stepping combined with a paradox-style orientation change/);
   });
 
   it('renders derived systems as anchor links to /freestyle/sets/<slug>', async () => {
@@ -475,4 +478,34 @@ describe('GET /freestyle/sets/stepping — set-page educational reference implem
     expect(res.text).toContain('Cross-references');
     expect(res.text.indexOf('<h2>What it is</h2>')).toBeLessThan(res.text.indexOf('Cross-references'));
   });
+});
+
+describe('GET /freestyle/sets/:slug — migrated set-education pages (pixie / fairy / whirl-family / composite +3)', () => {
+  // The seven settled, non-ambiguous platform-canonical sets authored on the
+  // frozen 11-section template. Their content resolves slugs against the test
+  // dictionary; unseeded slugs render as plain text, so these assertions check
+  // only the static teaching layer (headings + the redirect), not link pilots.
+  const MIGRATED = ['pixie', 'fairy', 'whirling', 'swirling', 'floating', 'surfing', 'warping'];
+
+  for (const slug of MIGRATED) {
+    it(`${slug} renders the frozen teaching layer (concept-first headings)`, async () => {
+      const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
+      expect(res.status).toBe(200);
+      for (const heading of ['What it is', 'How it launches', 'JOB notation', 'Where it appears', 'How it composes', 'Launch notes']) {
+        expect(res.text, `${slug} / ${heading}`).toContain(`<h2>${heading}</h2>`);
+      }
+    });
+
+    it(`${slug} absorbs the thin Formula/Movement sections into the teaching layer`, async () => {
+      const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
+      expect(res.text).not.toContain('<h2>Formula</h2>');
+      expect(res.text).not.toContain('<h2>Movement</h2>');
+    });
+
+    it(`${slug} modifier route redirects to its set page`, async () => {
+      const res = await request(await createApp()).get(`/freestyle/modifier/${slug}`);
+      expect(res.status).toBe(301);
+      expect(res.headers['location']).toBe(`/freestyle/sets/${slug}`);
+    });
+  }
 });

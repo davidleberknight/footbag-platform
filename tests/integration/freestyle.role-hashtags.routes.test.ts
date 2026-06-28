@@ -70,10 +70,13 @@ describe('GET /freestyle/operators — role-aware hashtags', () => {
 });
 
 describe('GET /freestyle/modifier/:slug — stub hashtag', () => {
-  it('renders the role-aware hashtag on a stub (pixie set → #set_pixie)', async () => {
-    const res = await request(await createApp()).get('/freestyle/modifier/pixie');
+  it('renders the role-aware hashtag on a stub (atomic set → #set_atomic)', async () => {
+    // atomic is a set with no authored teaching page, so its modifier route
+    // still resolves to a data-driven stub (unlike pixie, which now redirects
+    // to its set-encyclopedia page).
+    const res = await request(await createApp()).get('/freestyle/modifier/atomic');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('#set_pixie');
+    expect(res.text).toContain('#set_atomic');
   });
 
   it('honors the curator role override: whirling is a first-class set, so its modifier route redirects to the set page', async () => {

@@ -47,11 +47,13 @@ beforeAll(async () => {
   // unlike whirling/swirling); its base atom is mirage.
   insertFreestyleTrickModifier(db, { slug: 'miraging', modifier_name: 'Miraging', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body' });
 
-  // Tricks that use pixie, for the stub "common tricks" list.
+  // Tricks linked to miraging, for the stub "common tricks" list. miraging is a
+  // dual-role set with no teaching page, so its modifier route renders a stub;
+  // pixie now has an authored set page and redirects there instead.
   insertFreestyleTrick(db, { slug: 'smear',   canonical_name: 'smear',   adds: '3', base_trick: 'mirage',    trick_family: 'mirage' });
   insertFreestyleTrick(db, { slug: 'dimwalk', canonical_name: 'dimwalk', adds: '4', base_trick: 'butterfly', trick_family: 'butterfly' });
-  insertFreestyleTrickModifierLink(db, 'smear',   'pixie');
-  insertFreestyleTrickModifierLink(db, 'dimwalk', 'pixie');
+  insertFreestyleTrickModifierLink(db, 'smear',   'miraging');
+  insertFreestyleTrickModifierLink(db, 'dimwalk', 'miraging');
 
   db.close();
   createApp = await importApp();
@@ -165,16 +167,14 @@ describe('GET /freestyle/operators — compact modifier index', () => {
 
 describe('GET /freestyle/modifier/:slug — universal detail resolution', () => {
   it('known modifier without a teaching page resolves to a data-driven stub', async () => {
-    const res = await request(await createApp()).get('/freestyle/modifier/pixie');
+    const res = await request(await createApp()).get('/freestyle/modifier/miraging');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Common tricks');
-    // Common tricks come from the modifier links, lowest ADD first.
+    // Common tricks come from the modifier links.
     expect(res.text).toContain('href="/freestyle/tricks/smear"');
     expect(res.text).toContain('href="/freestyle/tricks/dimwalk"');
-    // Related modifiers are the pixie axis siblings.
-    expect(res.text).toContain('href="/freestyle/modifier/fairy"');
-    // Set modifier -> notation shown.
-    expect(res.text).toContain('SAME IN [DEX]');
+    // A stub modifier still links back to its base atom (miraging -> mirage).
+    expect(res.text).toContain('href="/freestyle/tricks/mirage"');
   });
 
   it('modifier with an authored teaching page still resolves to the rich page', async () => {
