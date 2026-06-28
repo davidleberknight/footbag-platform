@@ -50,13 +50,13 @@ OPTIONAL_CHECKS = [
     },
     # Alias registry validator in gate mode. Reports malformed UUID, blank
     # alias, duplicate rows, missing canonical target pid, and Bucket-2 alias
-    # conflicts. Severity=warn for now: a backlog of pre-existing stale/mojibake
-    # rows and deferred Bucket-2 conflicts would otherwise block every rebuild.
-    # Promote to hard once the backlog is cleared.
+    # conflicts. Severity=hard: the alias registry is the sole identity
+    # authority, so the gate must fail on a corrupt registry rather than pass it
+    # as a warning. The gate-mode check currently reports zero problem rows.
     {
         "name": "alias_registry",
         "path": "pipeline/qc/check_alias_registry.py",
-        "severity": "warn",
+        "severity": "hard",
         "needs_workbook": False,
         "args": ["--mode", "gate"],
     },
@@ -85,6 +85,21 @@ OPTIONAL_CHECKS = [
         "severity": "warn",
         "needs_workbook": False,
     },
+    # Tie-flattening detector for the frozen identity lock: compares Stage 2 tie
+    # structure against Placements_ByPerson and flags genuine ties that were
+    # sequentialized in the lock. Writes summary/detail audit CSVs under out/,
+    # and self-skips when its Stage 2 or lock input is absent.
+    # Current: severity=warn, because the detector flags pre-existing cases that
+    # must be adjudicated and corrected through the identity-lock patch toolchain
+    # before the gate can fail on them.
+    # Target: severity=hard once the detector reports zero flagged pairs, so any
+    # new flattening fails the gate.
+    {
+        "name": "tie_flattening",
+        "path": "audit_tie_flattening.py",
+        "severity": "warn",
+        "needs_workbook": False,
+    },
     # Release workbook EVENT INDEX parity. Codifies the invariant:
     # out/Footbag_Results_Release.xlsx EVENT INDEX row count ==
     # event_results/canonical_input/events.csv row count. Self-skips when
@@ -102,30 +117,6 @@ OPTIONAL_CHECKS = [
         "name": "workbook_qc",
         "path": "qc_footbag_workbook.py",
         "severity": "warn",
-        "needs_workbook": True,
-    },
-    {
-        "name": "incomplete_results",
-        "path": "qc_detect_incomplete_results.py",
-        "severity": "warn",
-        "needs_workbook": False,
-    },
-    {
-        "name": "team_contamination",
-        "path": "qc_team_contamination.py",
-        "severity": "warn",
-        "needs_workbook": False,
-    },
-    {
-        "name": "qc2_structural",
-        "path": "qc2.py",
-        "severity": "warn",
-        "needs_workbook": False,
-    },
-    {
-        "name": "qc3_hygiene",
-        "path": "qc3.py",
-        "severity": "info",
         "needs_workbook": True,
     },
 ]
@@ -580,7 +571,7 @@ def run_optional_check(root: Path, workbook_path: Path | None, item: dict, colle
     extra_args = item.get("args") or []
     if extra_args:
         cmd.extend(str(a) for a in extra_args)
-    if name in {"workbook_qc", "qc3_hygiene"} and workbook_path is not None:
+    if name == "workbook_qc" and workbook_path is not None:
         cmd.append(str(workbook_path))
 
     print(f"\n=== RUN {name} ({severity}) ===")

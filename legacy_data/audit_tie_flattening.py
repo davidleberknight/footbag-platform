@@ -181,7 +181,13 @@ def looks_like_sequentialized(s2_places: list[int], lock_places: list[int]) -> b
 # ---------------------------------------------------------------------------
 # Step 4 — Main audit
 # ---------------------------------------------------------------------------
-def main() -> None:
+def main() -> int:
+    if not STAGE2_CSV.exists() or not LOCK_CSV.exists():
+        print(
+            "  Skipped tie-flattening audit: required input missing "
+            f"(stage2={STAGE2_CSV.exists()}, lock={LOCK_CSV.exists()})"
+        )
+        return 0
     print("Loading Stage 2 data …")
     s2 = load_stage2(STAGE2_CSV)
     print(f"  {len(s2):,} Stage 2 participant rows loaded")
@@ -356,6 +362,8 @@ def main() -> None:
             if len(summary_rows) > 20:
                 print(f"    … and {len(summary_rows) - 20} more (see CSV)")
 
+    return 1 if ties_flattened else 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
