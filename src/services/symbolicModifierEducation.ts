@@ -471,7 +471,7 @@ const DUCKING_CONTENT: ModifierEducationInput = {
     {
       heading: 'Ducking operator vs zulu and weaving sets',
       prose:
-        'Ducking is the body operator, added to an existing trick. Zulu and weaving are launch sets whose launch incorporates the ducking body movement. Zulu is a set in which the bag passes across the body, under the chin, before the duck; weaving is a set in which the bag is caught on the same foot that performed it. The ducking movement is shared; what differs is whether it modifies a trick or defines the launch.',
+        'Ducking is the body operator, added to an existing trick. Zulu and weaving are launch sets whose launch incorporates the ducking body movement; each is defined on its own set page. The ducking movement is shared; what differs is whether it modifies a trick or defines the launch.',
     },
     {
       heading: 'Ducking vs alpine',

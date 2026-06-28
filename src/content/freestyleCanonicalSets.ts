@@ -365,7 +365,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'TOE > OP OUT [DEX] (plant) > (same side component)',
     movementExplanation:
       'Toe set, then an opposite-side outward dex with a plant, resolving to a same-side ' +
-      'terminal. Holden reads it as Atomic same-side; no current platform canonical.',
+      'terminal. A historical Holden set reading (also read as Atomic same-side); the ' +
+      'platform-canonical identity of tapping is the operator, a +1 tap modifier taught on the Tapping operator page.',
     equivalenceNotes: [
       { reading: 'Atomic same side', citation: 'Holden parenthetical' },
     ],
@@ -374,7 +375,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'atomic', label: 'Atomic (op-side-terminal sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
+    sourceCitation: 'Holden compilation (2003); historical set reading only. The platform-canonical identity is the Tapping operator.',
     auditStatus: 'holden-only',
     tier: 'literal-primitive',
   },

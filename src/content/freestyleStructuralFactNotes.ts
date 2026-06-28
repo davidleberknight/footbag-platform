@@ -20,7 +20,7 @@ export const MODIFIER_BEGINNER_NOTES: ReadonlyMap<string, string> = new Map([
   // ── Paraphrased from curator feel cards (jargon removed) ──
   ['pixie',      'A tight, compressed set right before the trick begins.'],
   ['fairy',      'An alternate uptime set that circles the bag on an outside path before the base.'],
-  ['stepping',   'A foot relocation mid-trick; the kicking foot moves between phases.'],
+  ['stepping',   'A launch set that opens the trick as the support foot relocates.'],
   ['atomic',     'A launch set that adds one dexterity before the base (+1); any X-Dex is a separate +1 marked [XDEX] in the notation, not part of atomic.'],
   ['quantum',    'A quicker, compressed version of the atomic launch.'],
   ['blurry',     'Stepping momentum combined with a paradox side-change.'],
@@ -35,10 +35,10 @@ export const MODIFIER_BEGINNER_NOTES: ReadonlyMap<string, string> = new Map([
   // ── Well-defined operators with no curator feel card (NEEDS-CURATOR review) ──
   ['gyro',       'A half body turn carried into the dexterity moment.'],
   ['diving',     'The upper body dives over the bag and back during the trick.'],
-  ['swirling',   'A body turn run through the trick, following the swirl direction.'],
+  ['swirling',   'The whirl-and-swirl launch set: a rotational opening carried by a swirl dexterity.'],
   ['inspinning', 'An inward body turn carried into the dexterity moment.'],
   ['miraging',   'An uptime set that adds one inward dexterity before the base (+1); the inward-dex peer of the atomic launch set.'],
-  ['whirling',   'Adds a front-whirl dexterity move onto the base.'],
+  ['whirling',   'The whirl-family launch set: a rotational opening run before the base (whirling osis is the blender).'],
   ['tapping',    'Adds a quick extra dexterity tap before the base.'],
   ['sailing',    'A compound uptime set that runs two set treatments before the base.'],
   ['railing',    'A compound uptime set combining a held position with a sailing set.'],

@@ -139,7 +139,7 @@ const PANEL_INPUTS: PanelInput[] = [
     term:             'pixie',
     displayName:      'Pixie',
     shortDefinition:
-      'A set modifier that tightens the dex moment. The foot path through the kick is shorter and more enclosed; the bag arc compresses.',
+      'A toe-anchored launch set that opens the trick from a same-side inward entry; the dex window is tight and compressed.',
     symbolicGroupId:  'pixie-family',
     relatedSymbolicGroups: [
       { groupId: 'quantum-family' },

@@ -113,7 +113,7 @@ describe('GET /freestyle/glossary — connective panels section', () => {
     expect(res.text).toMatch(/A head dip toward the bag/i);
     expect(res.text).toMatch(/full-body rotation that carries through the dex moment/i);
     expect(res.text).toMatch(/A rotational base trick/i);
-    expect(res.text).toMatch(/A set modifier that tightens the dex moment/i);
+    expect(res.text).toMatch(/A toe-anchored launch set that opens the trick/i);
   });
 
   it('renders related-tricks chips for each panel that has members', async () => {
