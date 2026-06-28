@@ -1,11 +1,17 @@
 # Zulu / Weaving — first promotion batch, mirrored JOB notation draft
 
-Status: PROMOTED. The 12 first-batch compounds (six bases x Zulu/Weaving) are
-canonical: red_additions rows + red_corrections operational_notation + a zulu
-trick_modifiers row, mirroring the live ducking_<base> exemplars. ADD math and
-bracket-count==ADD verified for all 12; the encyclopedia example sections derive
-from the modifier links; the bare compounds were removed from the Emerging
-Vocabulary (TRACKED_UNPUBLISHED_NAMES).
+Status: PROMOTED. The full single-modifier base layer is canonical: 24 compounds
+(twelve bases x Zulu/Weaving) — the six first-batch bases (mirage, clipper,
+legover, butterfly, whirl, osis) plus the extension (drifter, pickup, illusion,
+guay, double-leg-over, toe-stall). Each is red_additions rows + red_corrections
+operational_notation (plus a trick_family override on guay -> inside-stall, as
+for ducking-guay) + a zulu trick_modifiers row, mirroring the live ducking_<base>
+exemplars. ADD math and bracket-count==ADD verified for all 24; the encyclopedia
+example sections derive from the modifier links (twelve examples per set); the
+bare compounds were removed from the Emerging Vocabulary
+(TRACKED_UNPUBLISHED_NAMES). Multi-modifier compositions, folk names, positional
+variants, and the more complex ducking compounds (paradox / symposium / swirl /
+jump / barfly / reverse variants) remain held.
 
 Follow-up (not a blocker): the distinguishing launch detail is carried as a
 non-scoring annotation — Zulu `(across body)` before the duck, Weaving `(same

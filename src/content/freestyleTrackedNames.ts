@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1497;
+export const TRACKED_UNPUBLISHED_TOTAL = 1487;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -626,13 +626,9 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Warped DLO', slug: 'warped_dlo' },
     { displayName: 'Warped Mirage (Warp)', slug: 'warped_mirage_warp' },
     { displayName: 'Warped Symposium Mirage (Warp Speed)', slug: 'warped_symposium_mirage_warp_speed' },
-    { displayName: 'Weaving Drifter', slug: 'weaving_drifter' },
     { displayName: 'Weaving Eclipse', slug: 'weaving_eclipse' },
-    { displayName: 'Weaving Guay', slug: 'weaving_guay' },
-    { displayName: 'Weaving Illusion', slug: 'weaving_illusion' },
     { displayName: 'Weaving Reverse Guay', slug: 'weaving_reverse_guay' },
     { displayName: 'Weaving Symposium Mirage', slug: 'weaving_symposium_mirage' },
-    { displayName: 'Weaving Toe Stall', slug: 'weaving_toe_stall' },
     { displayName: 'Weaving XBD Rake', slug: 'weaving_xbd_rake' },
     { displayName: 'Whirling Gyro Mirage (Blister)', slug: 'whirling_gyro_mirage_blister' },
     { displayName: 'Whirling Osis (Blender)', slug: 'whirling_osis_blender' },
@@ -649,20 +645,16 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Wrecking Torque (Spinning Mobius)', slug: 'wrecking_torque_spinning_mobius' },
     { displayName: 'X(unwrap)', slug: 'x_unwrap' },
     { displayName: 'X_(walk)', slug: 'x_walk' },
-    { displayName: 'Zulu Drifter', slug: 'zulu_drifter' },
     { displayName: 'Zulu Eclipse', slug: 'zulu_eclipse' },
     { displayName: 'Zulu Far Clipper (Red Ribbon)', slug: 'zulu_far_clipper_red_ribbon' },
     { displayName: 'Zulu Far Legover', slug: 'zulu_far_legover' },
     { displayName: 'Zulu Far Pickup', slug: 'zulu_far_pickup' },
-    { displayName: 'Zulu Guay', slug: 'zulu_guay' },
-    { displayName: 'Zulu Illusion', slug: 'zulu_illusion' },
     { displayName: 'Zulu Infinity (Zulu Le Loup)', slug: 'zulu_infinity_zulu_le_loup' },
     { displayName: 'Zulu Paradox Drifter', slug: 'zulu_paradox_drifter' },
     { displayName: 'Zulu Paradox Mirage', slug: 'zulu_paradox_mirage' },
     { displayName: 'Zulu Paradox Whirl', slug: 'zulu_paradox_whirl' },
     { displayName: 'Zulu Reverse Guay', slug: 'zulu_reverse_guay' },
     { displayName: 'Zulu Symposium Mirage', slug: 'zulu_symposium_mirage' },
-    { displayName: 'Zulu Toe Stall', slug: 'zulu_toe_stall' },
   ] },
   { sourceLabel: 'FootbagMoves', names: [
     { displayName: '84', slug: '84', operationalNotation: 'Toe > Same In (DEX) > Same Out (DEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
@@ -1047,7 +1039,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Twinspinning ss Mirage', slug: 'twinspinning_ss_mirage' },
     { displayName: 'Vertigo', slug: 'vertigo', operationalNotation: 'Clip >> Duck (BOD) >> Same In (DEX)(PDX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Wahnsinn', slug: 'wahnsinn', operationalNotation: 'Toe > Same In (DEX) >> Duck (BOD) >> (front) Spin (BOD) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Weaving Pickup', slug: 'weaving_pickup' },
     { displayName: 'Wentletrappe', slug: 'wentletrappe', operationalNotation: 'Toe > Same Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Whale Tail', slug: 'whale_tail', operationalNotation: 'Clip > (back) Spin (BOD) > Same In (DEX) >> Op Out (DEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'What!?', slug: 'what!?' },
@@ -1063,7 +1054,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Zipper Stepping Op Butterfly Zipper', slug: 'zipper_stepping_op_butterfly_zipper' },
     { displayName: 'Zipwalk', slug: 'zipwalk', operationalNotation: 'XBD Toe > Op In (DEX) >> Op Out (DEX) > Op XBD Toe (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'low' },
     { displayName: 'Zulu Le Loup', slug: 'zulu_le_loup', operationalNotation: 'Clip >> Dive (BOD) >> Op Out (DEX) > Op Clip (XBD)(DEL)[/quote]', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
-    { displayName: 'Zulu Pickup', slug: 'zulu_pickup' },
   ] },
   { sourceLabel: 'PassBack', names: [
     { displayName: 'Alpine Atomsmasher', slug: 'alpine_atomsmasher' },

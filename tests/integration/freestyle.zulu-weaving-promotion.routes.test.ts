@@ -3,9 +3,9 @@
  *
  * Zulu and Weaving are ducking sets (Zulu: the bag travels across the body
  * before the duck; Weaving: the bag is caught on the same foot that performed
- * the set). Their first-batch compounds mirror the matching Ducking compound's
- * base chain and ADD, with a non-scoring annotation for the distinguishing
- * launch detail.
+ * the set). Their single-modifier compounds mirror the matching Ducking
+ * compound's base chain and ADD, with a non-scoring annotation for the
+ * distinguishing launch detail.
  *
  * Pins:
  *   - the canonical set page derives its example-tricks section from
@@ -24,15 +24,21 @@ const { dbPath } = setTestEnv('3258');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
-// (base, family, adds) for the six first-batch bases, mirroring the live
-// ducking_<base> exemplars.
+// (base-slug, family, adds, notation) for the twelve single-modifier bases,
+// mirroring the live ducking_<base> exemplars.
 const BASES: ReadonlyArray<[string, string, string, string]> = [
-  ['mirage',   'mirage',        '3', 'TOE > DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]'],
-  ['clipper',  'clipper_stall', '3', 'TOE > DUCK [BOD] > SAME CLIP [XBD] [DEL]'],
-  ['legover',  'legover',       '3', 'TOE > DUCK [BOD] > OP OUT [DEX] > SAME TOE [DEL]'],
-  ['butterfly','butterfly',     '4', 'SET > DUCK [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]'],
-  ['whirl',    'whirl',         '4', 'SET > DUCK [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]'],
-  ['osis',     'osis',          '4', 'SET > DUCK [BOD] > SAME/OP OSIS [BOD] [XBD] [DEL]'],
+  ['mirage',          'mirage',          '3', 'TOE > DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]'],
+  ['clipper',         'clipper_stall',   '3', 'TOE > DUCK [BOD] > SAME CLIP [XBD] [DEL]'],
+  ['legover',         'legover',         '3', 'TOE > DUCK [BOD] > OP OUT [DEX] > SAME TOE [DEL]'],
+  ['butterfly',       'butterfly',       '4', 'SET > DUCK [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]'],
+  ['whirl',           'whirl',           '4', 'SET > DUCK [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]'],
+  ['osis',            'osis',            '4', 'SET > DUCK [BOD] > SAME/OP OSIS [BOD] [XBD] [DEL]'],
+  ['drifter',         'drifter',         '4', 'TOE > DUCK [BOD] > OP IN [DEX] > SAME CLIP [XBD] [DEL]'],
+  ['pickup',          'pickup',          '3', 'TOE > DUCK [BOD] > OP IN [DEX] > SAME TOE [DEL]'],
+  ['illusion',        'illusion',        '3', 'TOE > DUCK [BOD] > OP OUT [DEX] > OP TOE [DEL]'],
+  ['guay',            'inside-stall',    '3', 'TOE > DUCK [BOD] > OP IN [DEX] > SAME INSIDE [DEL]'],
+  ['double_leg_over', 'double_leg_over', '4', 'TOE > DUCK [BOD] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]'],
+  ['toe_stall',       'toe_stall',       '2', 'TOE > DUCK [BOD] > OP TOE [DEL]'],
 ];
 
 beforeAll(async () => {
@@ -74,7 +80,7 @@ describe('Zulu / Weaving encyclopedia example sections derive from modifier link
 });
 
 describe('Zulu / Weaving promoted compounds leave the Emerging Vocabulary', () => {
-  it('the 12 promoted slugs do NOT appear in TRACKED_UNPUBLISHED_NAMES', async () => {
+  it('the promoted single-modifier slugs do NOT appear in TRACKED_UNPUBLISHED_NAMES', async () => {
     const { TRACKED_UNPUBLISHED_NAMES } = await import('../../src/content/freestyleTrackedNames');
     const tracked = new Set<string>();
     for (const group of TRACKED_UNPUBLISHED_NAMES) {
@@ -87,12 +93,12 @@ describe('Zulu / Weaving promoted compounds leave the Emerging Vocabulary', () =
     }
   });
 
-  it('a non-promoted neighbour (weaving_guay) is still tracked', async () => {
+  it('a still-held multi-modifier composition (fairy_weaving_mirage) remains tracked', async () => {
     const { TRACKED_UNPUBLISHED_NAMES } = await import('../../src/content/freestyleTrackedNames');
     const tracked = new Set<string>();
     for (const group of TRACKED_UNPUBLISHED_NAMES) {
       for (const name of group.names) tracked.add(name.slug);
     }
-    expect(tracked.has('weaving_guay')).toBe(true);
+    expect(tracked.has('fairy_weaving_mirage')).toBe(true);
   });
 });
