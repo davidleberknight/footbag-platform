@@ -1,12 +1,12 @@
 /**
  * GET /dev/switch?as=<slug> — issue a real session cookie for a seeded persona.
  *
- * Development-only: registered behind a config.footbagEnv === 'development'
- * guard in publicRoutes.ts, so the route does not exist in any other
- * environment. The harness only chooses which member to act as; the cookie
- * itself is minted by the same production primitive (createSessionJwt) and
- * verified by the same auth middleware production uses, never a parallel
- * auth-bypass.
+ * Development and staging only: the /dev mount is registered behind a
+ * config.footbagEnv check (development or staging) and stripped from the
+ * production image, so the route does not exist in production. The harness only
+ * chooses which member to act as; the cookie itself is minted by the same
+ * production primitive (createSessionJwt) and verified by the same auth
+ * middleware production uses, never a parallel auth-bypass.
  *
  * Looks the member up by slug via the same session-member query the auth
  * middleware uses (members_active, email-verified). Unknown slug → 404.

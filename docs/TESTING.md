@@ -859,8 +859,9 @@ The persona harness in `src/testkit/` lets a tester act as any seeded member, se
 ### 16.1 What the harness provides
 
 - A curated persona catalog (`src/testkit/canonicalPersonas.ts`), seeded into the dev or staging database.
-- `GET /dev/personas`, a table of every loadable persona with its tier, roles, purpose, and coverage notes. A session-eligible persona row carries a Switch control; a login-blocked persona (unverified, deceased, soft-deleted) carries a Log in control that drives the real login path.
+- `GET /dev/personas`, a grid of cards, one per loadable persona, showing its tier, roles, purpose, and coverage notes. A session-eligible persona card carries a Switch control; a login-blocked persona (unverified, deceased, soft-deleted) carries a Log in control that drives the real login path. The real-data-backed maintainer persona leads the grid, marked as built from real legacy data rather than a seeded fixture.
 - `GET /dev/switch?as=<slug>`, which issues a real session cookie for that persona (the same primitive the login path uses, not an auth bypass).
+- Each persona's profile About marks it as a test persona and states what it exists to test, so a switched-in profile is never read as a real member.
 - A **Refresh all personas** control on `/dev/personas` (`POST /dev/personas/refresh`) that tears down the persona-owned rows and re-seeds the catalog, returning every persona to its seeded state. Use it to undo in-app changes a persona accumulated, for example a tier upgrade, which appends to the membership ledger and otherwise persists.
 - The simulated-email card, captured outbound email rendered inline on email-gated pages when `SES_ADAPTER=stub`.
 - `GET /dev/outbox`, a read-only page listing every message the stub adapter captured, newest first. The simulated-email card covers email-gated pages; this viewer covers notifications that have no host page (a tier change, a vouch confirmation), so a tester reads any outbound message in one place.
@@ -870,7 +871,7 @@ The persona harness in `src/testkit/` lets a tester act as any seeded member, se
 
 1. Seed the catalog: `./run_dev.sh --seed-test-personas` (combinable with any rebuild mode; idempotent, a persona whose slug already exists is skipped). To seed without launching, run `./scripts/manage-test-personas.sh --seed-test-personas`.
 2. Open `GET /dev/personas`. Every seeded persona is listed.
-3. Click Switch on a row to become that persona (redirects to `/`). Log out to return to anonymous.
+3. Click Switch on a card to become that persona (redirects to `/`). Log out to return to anonymous.
 
 All seeded personas share one fixed test password, defined once in `src/testkit/` and never reproduced in docs. `/dev/switch` needs no password, so prefer it for routine switching and use form login only when the password path itself is under test.
 

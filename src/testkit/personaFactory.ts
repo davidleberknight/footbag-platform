@@ -69,6 +69,14 @@ export const PERSONA_LOGIN_AUDIT_ACTION_TYPE = 'dev_login_persona';
 export const PERSONA_REFRESH_AUDIT_ACTION_TYPE = 'dev_persona_refresh';
 export const PERSONA_SEED_CREATED_BY = 'dev-shortcuts/personas';
 
+/**
+ * Disclaimer that opens every seeded persona's profile About text, so a tester
+ * who switches in and views the profile is never misled into reading it as a
+ * real member.
+ */
+export const TEST_PERSONA_BIO_PREFIX =
+  'Test persona for the footbag platform development and staging harness, not a real member profile.';
+
 export type PersonaTier = 'tier0' | 'tier1' | 'tier2' | 'tier3';
 
 /** Graded auto-link confidence bucket a persona instantiates. */
@@ -352,6 +360,18 @@ export interface SeedPersonaOpts {
 }
 
 /**
+ * The About text a seeded persona shows on its profile: the harness disclaimer
+ * followed by the persona's purpose, so the profile itself explains what the
+ * persona exists to test. Both this and the /dev/personas card read from
+ * `purpose`, so the card and the profile can never drift.
+ */
+export function composePersonaBio(spec: PersonaSpec): string {
+  return spec.purpose
+    ? `${TEST_PERSONA_BIO_PREFIX} ${spec.purpose}`
+    : TEST_PERSONA_BIO_PREFIX;
+}
+
+/**
  * Build a member plus its supporting rows from a spec. Idempotency and env
  * gating are the caller's concern (the seed runner and /dev/switch enforce the
  * dev/staging boot guard); this is a pure composition over the row builders.
@@ -454,6 +474,7 @@ export function seedPersona(
     login_email: memberLoginEmail,
     real_name: memberRealName,
     display_name: spec.displayName,
+    bio: composePersonaBio(spec),
     is_admin: isAdmin as 0 | 1,
     ...(spec.emailVerified === false ? { email_verified_at: null } : {}),
     ...(spec.isDeceased ? { is_deceased: 1 as const, deceased_at: '2025-06-01T00:00:00.000Z' } : {}),

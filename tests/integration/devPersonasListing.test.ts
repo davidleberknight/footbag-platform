@@ -9,11 +9,14 @@
  * devSwitchRoute.test.ts; the production-refusal (404) case by
  * devRoutes.prodGate.test.ts.
  *
- * The route renders the in-memory canonical catalog and probes the DB per
- * persona: a Switch link appears only when the session lookup the switch route
- * runs resolves the persona, so a seeded-but-login-blocked persona (unverified,
- * deceased, soft-deleted) renders "Not switchable" rather than a link that would
- * 404, and a blocked or unseeded one renders greyed. beforeAll seeds the backed
+ * The route renders the in-memory canonical catalog as a grid of persona cards
+ * and probes the DB per persona: a Switch button appears only when the session
+ * lookup the switch route runs resolves the persona, so a seeded-but-login-
+ * blocked persona (unverified, deceased, soft-deleted) offers a Log In button
+ * that runs the real login attempt instead of a Switch link that would 404, and
+ * a blocked or unseeded one renders greyed with no link. The real-data-backed
+ * maintainer persona leads the catalog and carries a note marking it as built
+ * from real legacy data rather than a seeded fixture. beforeAll seeds the backed
  * catalog so the Switch-link assertions hold.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -104,6 +107,44 @@ describe('GET /dev/personas (staging boot)', () => {
     for (const spec of CANONICAL_PERSONAS.filter((p) => p.blockedBy)) {
       expect(res.text, spec.slug).toContain(spec.blockedBy as string);
       expect(res.text, spec.slug).not.toMatch(new RegExp(`/dev/switch\\?as(=|&#x3D;)${spec.slug}\\b`));
+    }
+  });
+
+  it('renders persona cards (not a table) and leads with the real-data persona', async () => {
+    const res = await request(createApp()).get('/dev/personas');
+    expect(res.status).toBe(200);
+    // The legacy table layout is gone.
+    expect(res.text).not.toContain('<table');
+    // One card per catalog persona (backed, login-blocked, and blocked all render).
+    const cardCount = (res.text.match(/class="card[ "]/g) ?? []).length;
+    expect(cardCount).toBeGreaterThanOrEqual(CANONICAL_PERSONAS.length);
+    // The real-data-backed maintainer persona leads the catalog.
+    const special = CANONICAL_PERSONAS.find((p) => p.buildOnSwitch);
+    expect(special, 'catalog should include a build-on-switch persona').toBeDefined();
+    const firstSeeded = CANONICAL_PERSONAS.find((p) => !p.buildOnSwitch);
+    expect(res.text.indexOf(special!.slug)).toBeLessThan(res.text.indexOf(firstSeeded!.slug));
+    // Its card carries the note distinguishing it from the seeded fixtures.
+    expect(res.text).toContain('Special persona.');
+    expect(res.text).toContain('not a production identity');
+    expect(res.text).toContain('real legacy data');
+  });
+
+  it('gives every persona a switch-style control matching its login state', async () => {
+    const res = await request(createApp()).get('/dev/personas');
+    // Switchable personas get a primary Switch button.
+    for (const spec of CANONICAL_PERSONAS.filter(isSwitchable)) {
+      expect(res.text, spec.slug).toMatch(
+        new RegExp(`btn btn-primary" href="[^"]*${spec.slug}\\b`),
+      );
+    }
+    // Seeded-but-login-blocked personas get an outline Log In button instead.
+    const loginBlocked = CANONICAL_PERSONAS.filter(
+      (p) => !p.blockedBy && !p.buildOnSwitch && !isSwitchable(p),
+    );
+    for (const spec of loginBlocked) {
+      expect(res.text, spec.slug).toMatch(
+        new RegExp(`btn btn-outline" href="[^"]*/dev/login[^"]*${spec.slug}\\b`),
+      );
     }
   });
 

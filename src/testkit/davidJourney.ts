@@ -50,6 +50,7 @@ import { getDefaultAvatarService } from '../services/avatarService';
 import { createCuratorMediaService } from '../services/curatorMediaService';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
+import { TEST_PERSONA_BIO_PREFIX } from './personaFactory';
 
 export const DAVID_SLUG = 'david_leberknight';
 // Synthetic login address for the built persona, following the test-persona
@@ -59,6 +60,17 @@ export const DAVID_SLUG = 'david_leberknight';
 export const DAVID_EMAIL = `${DAVID_SLUG}@personas.test`;
 export const DAVID_PASSWORD = '88888888';
 export const DAVID_NAME = 'David Leberknight';
+
+// About text authored on his profile through the real edit-profile use case.
+// Reuses the shared test-persona disclaimer so his profile carries the same
+// "not a real member" signal every seeded persona shows, then adds the one way
+// he differs: he is built from real Hall of Fame and legacy data rather than a
+// seeded fixture, so a tester is never misled into reading him as a production
+// identity.
+export const DAVID_BIO =
+  `${TEST_PERSONA_BIO_PREFIX} This account is built from real Hall of Fame and ` +
+  'legacy footbag.org data rather than the seeded persona fixtures, so the team ' +
+  'can verify that migrated real-world data renders and behaves correctly across the site.';
 
 // The journey's photo/avatar fixtures live with the testkit (not under tests/)
 // so they ship in the staging image, which copies src/testkit/assets but never
@@ -153,14 +165,20 @@ export async function buildDavidJourney(): Promise<BuildDavidResult> {
   // developer who builds him gets a plain member. See the file header.
 
   // 5. Personal details: Tauranga NZ; DOB fake + private; gender private;
-  //    first competition year 1987 shown; show competitive results.
+  //    first competition year 1987 shown; show competitive results. The public
+  //    fields are named once here and reused when his About is authored below,
+  //    so the two writes never drift.
+  const DAVID_CITY = 'Tauranga';
+  const DAVID_REGION = '';
+  const DAVID_COUNTRY = 'New Zealand';
+  const DAVID_FIRST_YEAR = '1987';
   memberService.setPersonalDetails(memberId, {
-    city: 'Tauranga',
-    region: '',
-    country: 'New Zealand',
+    city: DAVID_CITY,
+    region: DAVID_REGION,
+    country: DAVID_COUNTRY,
     birthDate: '2008-08-08',
     gender: 'undisclosed',
-    yearValue: '1987',
+    yearValue: DAVID_FIRST_YEAR,
     showFirstCompetitionYear: true,
     showCompetitiveResults: true,
   });
@@ -195,6 +213,32 @@ export async function buildDavidJourney(): Promise<BuildDavidResult> {
       );
     }
   }
+
+  // 6c. Author his About through the real edit-profile use case. Every test
+  //     persona explains itself on its own profile; David, built from real
+  //     legacy data rather than a seeded fixture, says so here so a tester never
+  //     reads his profile as a production identity. Running it after he co-leads
+  //     also exercises the co-leader contact-visibility lock (email forced to
+  //     members-only). The public fields mirror his personal-details step so the
+  //     edit re-affirms rather than regresses them.
+  await memberService.updateOwnProfile(slug, {
+    bio: DAVID_BIO,
+    city: DAVID_CITY,
+    region: DAVID_REGION,
+    country: DAVID_COUNTRY,
+    phone: '',
+    whatsapp: '',
+    emailVisibility: 'members',
+    phoneVisible: '0',
+    whatsappVisible: '0',
+    searchable: '1',
+    firstCompetitionYear: DAVID_FIRST_YEAR,
+    showCompetitiveResults: '1',
+    showFirstCompetitionYear: '1',
+    showGender: '0',
+    gender: 'undisclosed',
+    links: [],
+  });
 
   // 7. Avatar (real image worker).
   await getDefaultAvatarService().uploadAvatar(

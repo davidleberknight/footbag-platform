@@ -1,9 +1,10 @@
 /**
  * GET /dev/personas — tester-facing catalog of every loadable persona.
  *
- * Lists the canonical persona catalog, each row carrying a Switch link to
- * /dev/switch?as=<slug>. This is the human entry point to the persona harness:
- * a tester opens the page, picks a persona, and clicks Switch to act as them.
+ * Lists the canonical persona catalog, each persona rendered as a card carrying
+ * a Switch link to /dev/switch?as=<slug>. This is the human entry point to the
+ * persona harness: a tester opens the page, picks a persona, and clicks Switch
+ * to act as them.
  *
  * Permanent test scaffolding in src/testkit/. Reachability is governed entirely
  * by the env-gated /dev mount in app.ts (development + staging only); this
@@ -15,8 +16,15 @@ import { auth } from '../db/db';
 import { CANONICAL_PERSONAS } from './canonicalPersonas';
 import type { PersonaSpec } from './personaFactory';
 
+/** A pre-shaped state chip the card renders; muted ones read as inactive. */
+interface PersonaStatusBadge {
+  text: string;
+  muted: boolean;
+}
+
 interface PersonaListRow {
   slug: string;
+  displayName: string;
   tierLabel: string;
   /**
    * The authorization roles this persona actually holds. A single 'admin'-vs-
@@ -53,6 +61,15 @@ interface PersonaListRow {
    */
   loginHref?: string;
   switchHref: string;
+  /** State chips (deny half, account state, real-data backing, blocked). */
+  statusBadges: PersonaStatusBadge[];
+  /**
+   * The real-data-backed maintainer persona, built by real flows rather than
+   * seeded. Its card leads the catalog and carries a note distinguishing it
+   * from the deliberately seeded fixtures.
+   */
+  isSpecial: boolean;
+  specialNote?: string;
 }
 
 interface PersonaGroup {
@@ -68,6 +85,38 @@ const TIER_LABELS: Record<string, string> = {
   tier2: 'Tier 2',
   tier3: 'Tier 3',
 };
+
+/**
+ * Card note for the real-data-backed maintainer persona, the one entry not
+ * produced by the seeded fixtures. Spells out why it is special and that, in
+ * this dev/staging context, it is still a test view and not a production
+ * identity, so a tester never mistakes it for a live real-person profile.
+ */
+const SPECIAL_PERSONA_NOTE =
+  'Special persona. This account is backed by real historical and legacy data ' +
+  '(a Hall of Fame record and a legacy account) rather than the normal seeded ' +
+  'persona fixtures, and is built by the real signup, claim, and onboarding ' +
+  'flows on first Switch. It appears first because it verifies that migrated ' +
+  'real-world data behaves correctly in the harness. In this dev and staging ' +
+  'context it is still a test persona view, not a production identity.';
+
+/**
+ * State chips a card shows beyond its roles: the deny half of an authorization
+ * pair, the account state that blocks login, the real-data backing of the
+ * maintainer persona, and the muted "blocked" chip on an unbuilt-feature
+ * persona. Derived from the spec so the template renders pre-shaped values only.
+ */
+function deriveStatusBadges(spec: PersonaSpec): PersonaStatusBadge[] {
+  const badges: PersonaStatusBadge[] = [];
+  if (spec.negative) badges.push({ text: 'deny / adjacent', muted: false });
+  if (spec.emailVerified === false) badges.push({ text: 'unverified email', muted: false });
+  if (spec.isDeceased) badges.push({ text: 'deceased', muted: false });
+  if (spec.deletionState === 'grace_open') badges.push({ text: 'restore window open', muted: false });
+  if (spec.deletionState === 'grace_elapsed') badges.push({ text: 'restore window elapsed', muted: false });
+  if (spec.buildOnSwitch) badges.push({ text: 'real legacy data', muted: false });
+  if (spec.blockedBy) badges.push({ text: 'blocked', muted: true });
+  return badges;
+}
 
 /** The authorization roles a persona holds, beyond the bare tier ladder. */
 function deriveRoles(spec: PersonaSpec): string[] {
@@ -88,8 +137,12 @@ function toRow(
 ): PersonaListRow {
   return {
     slug: spec.slug,
+    displayName: spec.displayName,
     tierLabel: TIER_LABELS[spec.tier] ?? spec.tier,
     roles: deriveRoles(spec),
+    statusBadges: deriveStatusBadges(spec),
+    isSpecial: spec.buildOnSwitch ?? false,
+    ...(spec.buildOnSwitch ? { specialNote: SPECIAL_PERSONA_NOTE } : {}),
     purpose: spec.purpose ?? spec.coverageNotes[0] ?? '',
     negative: spec.negative ?? false,
     coverage: spec.coverageNotes,

@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { CANONICAL_PERSONAS } from '../../src/testkit/canonicalPersonas';
-import { seedPersona } from '../../src/testkit/personaFactory';
+import { seedPersona, composePersonaBio } from '../../src/testkit/personaFactory';
 
 // A persona is backed when its feature is built. Blocked personas are catalog-
 // only placeholders (greyed on /dev/personas) for test cases that arrive with a
@@ -52,6 +52,18 @@ describe('canonical persona catalog', () => {
       expect(() => db.transaction(() => seedPersona(db, spec))(), spec.slug).not.toThrow();
       const row = memberBySlug.get(spec.slug) as { id: string } | undefined;
       expect(row?.id, `${spec.slug} member row`).toBe(`member_persona_${spec.slug}`);
+    }
+  });
+
+  it('every backed persona carries an About bio that marks it a test persona and states its purpose', () => {
+    // The catalog is already seeded by the test above (shared db).
+    const bioBySlug = db.prepare(`SELECT bio FROM members WHERE slug = ?`);
+    for (const spec of BACKED) {
+      const row = bioBySlug.get(spec.slug) as { bio: string } | undefined;
+      // The seeded About text equals the single source the card also reads, so
+      // the profile and the /dev/personas card cannot drift.
+      expect(row?.bio, `${spec.slug} bio`).toBe(composePersonaBio(spec));
+      expect(row?.bio, `${spec.slug} bio marks it a test persona`).toContain('Test persona');
     }
   });
 

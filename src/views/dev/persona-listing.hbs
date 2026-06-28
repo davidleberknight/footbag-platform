@@ -1,56 +1,74 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">
+      Permanent persona harness, development and staging only. Pick a persona and
+      click Switch to act as them.
+    </p>
+  </div>
+</div>
+
 <div class="wrapper">
-  <h1>{{page.title}}</h1>
-  <p>
-    Permanent persona harness (development and staging only). {{personaCount}} persona{{#unless (eq personaCount 1)}}s{{/unless}}
-    loaded from the canonical catalog, grouped by the authorization axis each one exercises.
-    Click Switch to issue a real session cookie and act as that persona.
+  <p class="text-muted fs-sm mb-4">
+    {{personaCount}} persona{{#unless (eq personaCount 1)}}s{{/unless}} loaded from the
+    canonical catalog, grouped by the authorization axis each one exercises. Every seeded
+    persona is validated end to end by the catalog coverage tests, switched in the route
+    crawl, and run through the authorization matrix, so the list doubles as a coverage matrix.
   </p>
 
-  <form method="post" action="/dev/personas/refresh" class="mb-4">
-    <button type="submit" class="btn btn-primary">Refresh All Personas to Initial State</button>
+  <form method="post" action="/dev/personas/refresh" class="mb-8">
+    <button type="submit" class="btn btn-outline">Refresh All Personas to Initial State</button>
   </form>
 
   {{#each groups}}
     <section class="mb-8">
       <h2 class="section-heading">{{dimension}}</h2>
-      <table class="dev-persona-list">
-        <thead>
-          <tr>
-            <th>Slug</th>
-            <th>Tier</th>
-            <th>Roles</th>
-            <th>Why this persona exists</th>
-            <th>How it's used in testing</th>
-            <th>Coverage notes</th>
-            <th>Act as</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each personas}}
-            <tr class="{{#unless backed}}dev-persona-unseeded{{/unless}}">
-              <td>
-                <code>{{slug}}</code>
-                {{#if negative}}<span class="badge">deny / adjacent</span>{{/if}}
-                {{#unless backed}}<span class="badge badge-muted">{{#if blockedBy}}blocked: {{blockedBy}}{{else}}no seed data{{/if}}{{#if userStory}} ({{userStory}}){{/if}}</span>{{/unless}}
-              </td>
-              <td>{{tierLabel}}</td>
-              <td>
-                {{#each roles}}<span class="badge">{{this}}</span> {{/each}}
-              </td>
-              <td>{{purpose}}</td>
-              <td>{{testingUsage}}</td>
-              <td>
-                <ul class="dev-persona-coverage">
-                  {{#each coverage}}
-                    <li>{{this}}</li>
-                  {{/each}}
-                </ul>
-              </td>
-              <td>{{#if switchable}}<a href="{{switchHref}}">Switch</a>{{else}}{{#if loginHref}}<a href="{{loginHref}}">Log in</a>{{else}}<span class="text-muted">Not seeded</span>{{/if}}{{/if}}</td>
-            </tr>
-          {{/each}}
-        </tbody>
-      </table>
+      <div class="card-grid">
+        {{#each personas}}
+          <div class="card{{#if isSpecial}} dev-persona-special{{/if}}{{#unless backed}} dev-persona-muted{{/unless}}">
+            <div class="card-title">{{displayName}}</div>
+            <div class="card-meta">
+              <code>{{slug}}</code>
+              <span>{{tierLabel}}</span>
+              {{#each roles}}<span class="badge">{{this}}</span>{{/each}}
+              {{#each statusBadges}}<span class="badge{{#if muted}} badge-muted{{/if}}">{{text}}</span>{{/each}}
+            </div>
+
+            {{#if specialNote}}<p class="dev-persona-note">{{specialNote}}</p>{{/if}}
+
+            <p class="card-description">{{purpose}}</p>
+            <p class="fs-sm"><strong>Verify:</strong> {{testingUsage}}</p>
+
+            {{#if coverage.length}}
+              <ul class="dev-persona-coverage">
+                {{#each coverage}}<li>{{this}}</li>{{/each}}
+              </ul>
+            {{/if}}
+
+            {{#unless backed}}
+              <p class="fs-sm text-muted">
+                {{#if blockedBy}}Blocked: {{blockedBy}}{{#if userStory}} ({{userStory}}){{/if}}{{else}}No seed data{{/if}}
+              </p>
+            {{/unless}}
+
+            <div class="card-actions">
+              {{#if switchable}}
+                <a class="btn btn-primary" href="{{switchHref}}">Switch</a>
+              {{else}}
+                {{#if loginHref}}
+                  <a class="btn btn-outline" href="{{loginHref}}">Log In</a>
+                {{else}}
+                  <span class="badge badge-muted">Not Seeded</span>
+                {{/if}}
+              {{/if}}
+            </div>
+          </div>
+        {{/each}}
+      </div>
     </section>
   {{/each}}
+
+  {{#unless groups}}
+    <div class="empty-state">No personas loaded.</div>
+  {{/unless}}
 </div>

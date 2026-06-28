@@ -70,6 +70,10 @@ describe.skipIf(!INVOKED)('David persona media and onboarding journey', () => {
     expect(res.status).toBe(200);
     // The legacy claim + club affiliation surface on his profile.
     expect(res.text).toContain('Wellington');
+    // His About explains that this is a test persona built from real legacy
+    // data, so a tester never reads his profile as a production identity.
+    expect(res.text).toContain('Test persona');
+    expect(res.text).toContain('built from real Hall of Fame and');
   });
 
   it('media journey: his Funky Footbags gallery lists with his uploaded media', async () => {

@@ -12355,31 +12355,28 @@ a.dict-trick-row-hashtag--media:hover {
   color: var(--text-primary);
 }
 
-/* Dev-only persona harness listing (/dev/personas; development + staging). */
-.dev-persona-list {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 16px;
-}
-.dev-persona-list th,
-.dev-persona-list td {
-  border: 1px solid var(--border);
-  padding: 6px 10px;
-  text-align: left;
-  vertical-align: top;
-}
-.dev-persona-list th {
-  background: var(--surface-muted);
-}
+/* Dev-only persona harness listing (/dev/personas; development + staging).
+   Cards compose from the shared .card / .card-grid primitives; these rules add
+   only the harness-specific bits: the coverage-note list, the special-persona
+   note callout, and the muted treatment for blocked / unseeded cards. */
 .dev-persona-coverage {
-  margin: 0;
+  margin: 4px 0 0;
   padding-left: 18px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
-.dev-persona-unseeded {
-  opacity: 0.55;
+.dev-persona-note {
+  border-left: 3px solid var(--primary);
+  background: var(--surface-muted);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
 }
-.dev-persona-unseeded code {
-  color: var(--gray-700);
+.dev-persona-special {
+  border-color: var(--primary);
+}
+.dev-persona-muted {
+  opacity: 0.6;
 }
 
 /* Homepage foundational-tricks mosaic: a 4-across by 3-down grid of labelled
