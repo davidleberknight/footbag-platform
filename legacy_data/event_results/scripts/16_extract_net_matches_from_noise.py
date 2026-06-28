@@ -302,8 +302,9 @@ def process_file(
                 parse_status = 'unparseable'
                 stats['unparseable'] += 1
 
-            # Insert fragment
-            db.execute(frag_insert, (
+            # Insert fragment. Count only rows actually inserted: INSERT OR IGNORE
+            # returns rowcount 0 when this fragment id already exists.
+            cur = db.execute(frag_insert, (
                 frag_id,
                 str(source_path.name),
                 line_num,
@@ -314,7 +315,7 @@ def process_file(
                 parse_status,
                 ts,
             ))
-            stats['fragments'] += 1
+            stats['fragments'] += cur.rowcount
 
             # Only promote to candidate if extraction guard passed
             if parse_status != 'parsed':
@@ -348,7 +349,9 @@ def process_file(
 
             cand_id = make_candidate_id(frag_id, player_a_raw, player_b_raw)
 
-            db.execute(cand_insert, (
+            # Count only rows actually inserted (INSERT OR IGNORE returns rowcount
+            # 0 when this candidate id already exists).
+            cur = db.execute(cand_insert, (
                 cand_id,
                 frag_id,
                 event_id_filter,     # event_id — operator-supplied, nullable
@@ -364,7 +367,7 @@ def process_file(
                 confidence,
                 ts,
             ))
-            stats['candidates'] += 1
+            stats['candidates'] += cur.rowcount
 
     return stats
 

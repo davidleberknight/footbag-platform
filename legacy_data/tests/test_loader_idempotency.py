@@ -594,6 +594,59 @@ def test_net_teams_qc_counter_honest_under_ignored_duplicate(tmp_path: Path) -> 
     assert flagged >= 1, "expected at least one flagged QC issue"
 
 
+# ---------------------------------------------------------------------------
+# Loader 16 (net noise extraction): honest INSERT OR IGNORE counters
+# ---------------------------------------------------------------------------
+
+def _write_noise(path: Path, lines: list[str]) -> Path:
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def _loader16(db: Path, noise: Path) -> list[str]:
+    return [
+        "legacy_data/event_results/scripts/16_extract_net_matches_from_noise.py",
+        "--db", str(db), "--input", str(noise), "--source-label", "TEST",
+    ]
+
+
+def _summary_int(stdout: str, label: str) -> int:
+    import re as _re
+    m = _re.search(rf"{_re.escape(label)}\s*:\s*([\d,]+)", stdout)
+    assert m, f"summary label {label!r} not found.\nstdout: {stdout}"
+    return int(m.group(1).replace(",", ""))
+
+
+def test_net_noise_first_load(tmp_path: Path) -> None:
+    """A parseable match line yields one fragment and one candidate, and the
+    summary reports those as inserted."""
+    db = make_db(tmp_path)
+    noise = _write_noise(tmp_path / "noise.txt", ["John Smith beat Jane Doe 15-10"])
+    r = run(_loader16(db, noise))
+    assert r.returncode == 0, r.stderr
+    assert count(db, "net_raw_fragment") == 1
+    assert count(db, "net_candidate_match") == 1
+    assert _summary_int(r.stdout, "Fragments inserted") == 1
+    assert _summary_int(r.stdout, "Candidates inserted") == 1
+
+
+def test_net_noise_rerun_counts_honest(tmp_path: Path) -> None:
+    """A re-run over the same source inserts nothing (INSERT OR IGNORE skips the
+    existing ids); the counters report 0, not the re-attempted total."""
+    db = make_db(tmp_path)
+    noise = _write_noise(tmp_path / "noise.txt", ["John Smith beat Jane Doe 15-10"])
+    assert run(_loader16(db, noise)).returncode == 0
+    frag_before = count(db, "net_raw_fragment")
+    cand_before = count(db, "net_candidate_match")
+    assert frag_before >= 1 and cand_before >= 1
+    r2 = run(_loader16(db, noise))
+    assert r2.returncode == 0
+    assert count(db, "net_raw_fragment") == frag_before   # nothing added (idempotent)
+    assert count(db, "net_candidate_match") == cand_before
+    assert _summary_int(r2.stdout, "Fragments inserted") == 0   # honest under ignored dupes
+    assert _summary_int(r2.stdout, "Candidates inserted") == 0
+
+
 def _write_trick_dictionary_inputs(tmp_path: Path) -> list[str]:
     """The 17-loader inputs: one base trick, one modifier, one alias pointing at
     the base trick. Returns the loader arg flags for the three CSVs."""
