@@ -207,7 +207,7 @@ DB load order:
    - Loads `club_bootstrap_leaders`.
    - FK: `club_id -> clubs.id` via `mapped_club_id`.
 
-All club loaders are idempotent DELETE + INSERT loaders.
+Club loaders are idempotent, but not uniformly DELETE + INSERT: `07_load_bootstrap_leaders.py` and `07a_load_bootstrap_leader_signals.py` reseed with DELETE + INSERT, while `load_clubs_seed.py` and `06_cutover_pre_populated_clubs.py` are additive (`INSERT OR IGNORE`).
 
 DB tables:
 - `clubs`
@@ -219,7 +219,7 @@ DB tables:
 ## Records
 
 Authoritative curated inputs:
-- `inputs/curated/records/records_master.csv`
+- `freestyle/inputs/curated/records/records_master.csv`
 - `inputs/consecutives_records.csv`
 
 No pipeline regenerates these.
@@ -228,7 +228,7 @@ Loaders:
 - `freestyle/loaders/10_load_freestyle_records_to_sqlite.py`
 - `freestyle/loaders/11_load_consecutive_records_to_sqlite.py`
 - Both run from `freestyle/run_freestyle.sh` (invoked by `scripts/reset-local-db.sh`).
-- Pattern: `DELETE FROM` + `INSERT OR REPLACE`.
+- Patterns differ: loader 11 is `DELETE FROM` + `INSERT OR REPLACE`; loader 10 is additive (`INSERT OR IGNORE`, no DELETE), so record edits take effect only on a fresh build.
 
 DB tables:
 - `freestyle_records`
