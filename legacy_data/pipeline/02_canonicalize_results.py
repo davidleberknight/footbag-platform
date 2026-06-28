@@ -3378,6 +3378,14 @@ def parse_results_text(results_text: str, event_id: str, event_type: str = None)
             player2 = None
             competitor_type = "player"
 
+        if player2 and _is_trick_name_line(player2):
+            # "Name - Trick" freestyle entries (e.g. sick-trick divisions where a
+            # line reads "1) Player - Their Trick"): the dash-separated second
+            # part is the player's trick, not a teammate, so drop it rather than
+            # promoting it to a co-competitor.
+            player2 = None
+            competitor_type = "player"
+
         # Skip entries that are standalone trick names (no " > " but still recognisable
         # as trick annotation). e.g. "LEG OVER.", "BLURRY WHIRL", "DOBLE LEG OVER".
         # These appear after the player name in South-American result formats.
