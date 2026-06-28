@@ -1,8 +1,8 @@
 /**
- * Integration tests for Slice N — symbolic enrichment & notation precedence.
+ * Integration tests for symbolic enrichment & notation precedence.
  *
  * Scope verified:
- *   - The four new Slice N chain entries (paradox_blender, food_processor,
+ *   - The four chain entries (paradox_blender, food_processor,
  *     spender, paradox_drifter) render the curator-authored symbolic
  *     equivalences instead of falling through to operational notation.
  *   - The five new Movement System glosses (spinning, ducking, symposium,
@@ -88,7 +88,7 @@ afterAll(() => cleanupTestDb(dbPath));
 // 1. New chain entries render symbolically (not via op-notation fallback)
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Slice N — branch-family chain additions render symbolically', () => {
+describe('branch-family chain additions render symbolically', () => {
   it('paradox_blender card renders the chain reading, not the operational notation', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
@@ -144,7 +144,7 @@ describe('Slice N — branch-family chain additions render symbolically', () => 
 // 3. Precedence contract — op-notation still renders when no chain exists
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Slice N — rendering precedence preserved (no regression)', () => {
+describe('rendering precedence preserved (no regression)', () => {
   it('a row with operational_notation but NO chain still falls back to op-notation', async () => {
     // The fixture row is seeded in beforeAll. It carries operational
     // notation but no chain registry entry — verifies the symbolic-first

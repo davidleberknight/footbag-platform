@@ -1,6 +1,5 @@
 /**
- * Integration tests for Slice E of the 2026-05 dictionary/glossary
- * normalization plan — navigation cross-links between the dictionary
+ * Integration tests for navigation cross-links between the dictionary
  * surface and the glossary surface.
  *
  * Long-term contract pinned:
@@ -18,7 +17,7 @@
  *   3. Freestyle heroes are breadcrumb + title + subhead only — no
  *      cross-link CTA inside the hero. The glossary body still
  *      references the trick dictionary in prose; in-content
- *      dictionary↔glossary linking is rebuilt in later phases.
+ *      dictionary↔glossary linking is rebuilt separately.
  *
  * Four-layer compliance: glossaryAnchor is a NAVIGATION reference (layer
  * 3 → layer 4 jump), not a content collapse. Token text / role / slug

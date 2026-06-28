@@ -1,7 +1,7 @@
 /**
  * Freestyle dictionary / glossary / observational regression suite.
  *
- * Pins the ten contract items from the 2026-05-23 regression pass:
+ * Pins ten dictionary / glossary / observational contract items:
  *
  *   1. Dictionary landing browse-tab strip carries no Observed Tricks
  *      link (the duplicate of the Go Deeper card was removed).
@@ -398,7 +398,7 @@ describe('Item 9: double_around_the_world + double_leg_over formula rows', () =>
 
 // ── Item 10 — flying_clipper BOD accounting ──────────────────────────────
 describe('Item 10: flying_clipper ADD accounting uses BOD(1)', () => {
-  it('renders BOD(1) + clipper(1) on the flying_clipper detail page (Slice D: terminator stripped)', async () => {
+  it('renders BOD(1) + clipper(1) on the flying_clipper detail page (terminator stripped)', async () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks/flying_clipper');
     expect(res.status).toBe(200);

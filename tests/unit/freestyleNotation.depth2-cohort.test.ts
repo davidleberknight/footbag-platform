@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-// Slice 2 of the observational->canonical promotion: the D1 depth-2 cohort (two
-// ratified modifiers on a base; composition order entry -> body -> operators ->
+// The depth-2 cohort (two ratified modifiers on a base; composition order
+// entry -> body -> operators ->
 // base core -> terminal). Self-contained
 // verification of each promoted notation: parse-valid and bracket count == ADD.
 // `reverse-swirling-paradox-torque` carries a torque->osis family override (loader-19).
@@ -18,7 +18,7 @@ const APPROVED = [
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;
 const KNOWN_FAMILIES = new Set(['whirl', 'mirage', 'osis', 'pickup', 'swirl']);
 
-describe('promotion slice 2 - D1 depth-2 cohort', () => {
+describe('depth-2 cohort notation', () => {
   it('promotes exactly 7 rows', () => {
     expect(APPROVED).toHaveLength(7);
   });

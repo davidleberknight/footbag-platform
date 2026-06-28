@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-// Slice 1 of the observational->canonical promotion: the guay cohort (one ratified
-// modifier on guay, family inside-stall). Self-contained verification of the derived
+// The guay cohort (one ratified modifier on guay, family inside-stall).
+// Self-contained verification of the derived
 // notation each row was promoted with: parse-valid (entry surface -> terminal [DEL])
 // and bracket count == stated ADD. A regression in the derivation or a hand edit to
 // the notation fails here, independent of the DB.
@@ -17,7 +17,7 @@ const APPROVED = [
 
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;
 
-describe('promotion slice 1 - guay cohort', () => {
+describe('guay cohort notation', () => {
   it('promotes exactly 7 rows', () => {
     expect(APPROVED).toHaveLength(7);
   });

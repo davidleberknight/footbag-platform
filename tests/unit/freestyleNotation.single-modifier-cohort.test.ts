@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-// Slice 5 of the observational->canonical promotion: the remaining verified
-// PROMOTE_NOW bulk (28 depth-<=1 single-modifier compounds). Self-contained:
-// parse-valid + bracket count
+// The single-modifier cohort (28 depth-<=1 single-modifier compounds).
+// Self-contained: parse-valid + bracket count
 // == ADD. Family overrides: blender/torque->osis, drifter->clipper-stall.
 const APPROVED = [
   { slug: 'rev-swirl', add: 3, family: 'swirl', notation: 'CLIP > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]' },
@@ -37,7 +36,7 @@ const APPROVED = [
 
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;
 
-describe('promotion slice 5 - remaining PROMOTE_NOW bulk', () => {
+describe('single-modifier cohort notation', () => {
   it('promotes exactly 28 rows', () => {
     expect(APPROVED).toHaveLength(28);
   });

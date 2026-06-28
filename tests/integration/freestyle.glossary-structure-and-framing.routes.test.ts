@@ -1,13 +1,12 @@
 /**
- * Integration tests for the Phase 1 prose additions of the 2026-05-21
- * glossary architecture overhaul. Three additions ship in this slice:
+ * Integration tests for three glossary prose additions:
  *
- *   (a) "How to read this glossary" subsection in §1 (Part 7 of the
- *       overhaul proposal — publication-state vocabulary)
+ *   (a) "How to read this glossary" subsection in §1
+ *       (publication-state vocabulary)
  *   (b) "Family-anchor trick" terminology paragraph in §5 intro
- *       (Part 3 of the overhaul proposal — family vs trick clarity)
- *   (c) "Generative insight" subsection in §7 (Part 5 of the overhaul
- *       proposal — Jobs notation compositional-completeness framing)
+ *       (family vs trick clarity)
+ *   (c) "Generative insight" subsection in §7
+ *       (Jobs notation compositional-completeness framing)
  *
  * Contract under test:
  *   - Each subsection's anchor + heading renders.

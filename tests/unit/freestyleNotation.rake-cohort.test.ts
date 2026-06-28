@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 
-// Slice 6: the rake-cohort, unblocked by correcting the rake base notation.
+// The rake cohort, built on the 2-bracket rake base notation.
 // rake is the TERMINAL movement (swing-into-toe catch) worth 2 ADD = SWING [DEX]
-// + SAME TOE [DEL]; the prior 1-bracket form under-counted it. (pendulum is the
+// + SAME TOE [DEL]. (pendulum is the
 // entry/set counterpart and is intentionally NOT touched here.) Self-contained:
 // the rake base is 2 brackets, and each cohort trick ends in the rake terminal
 // with bracket count == ADD. base_trick = rake, family = rake (no override).
@@ -17,8 +17,8 @@ const COHORT = [
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;
 const RAKE_TERMINAL = /SWING \[DEX\] (\[PDX\] )?> SAME TOE \[DEL\]$/;
 
-describe('promotion slice 6 - rake-cohort', () => {
-  it('rake base is corrected to 2 brackets (swing + toe)', () => {
+describe('rake cohort notation', () => {
+  it('rake base is 2 brackets (swing + toe)', () => {
     expect((RAKE_BASE.notation.match(ADD_TOKEN) || []).length).toBe(RAKE_BASE.add);
     expect(RAKE_TERMINAL.test(RAKE_BASE.notation)).toBe(true);
   });

@@ -1,10 +1,9 @@
 /**
- * Integration tests for Dictionary Pedagogy Phase 1.
+ * Integration tests for the dictionary browse pedagogy additions.
  *
- * The slice ships three pedagogical additions to /freestyle/tricks
- * browse views:
- *   (a) Four new family-invariant entries (butterfly, mirage, osis,
- *       swirl) extending the Slice-I pilot from 2 to 6 terminal families
+ * Three pedagogical additions to /freestyle/tricks browse views:
+ *   (a) Four family-invariant entries (butterfly, mirage, osis,
+ *       swirl) bringing the family-invariant set to 6 terminal families
  *   (b) familyViewIntro paragraph teaching the family-grouping logic
  *   (c) addViewIntro paragraph teaching ADD/topology orthogonality
  *
@@ -75,7 +74,7 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Dictionary Pedagogy Phase 1 — family-view intro paragraph', () => {
+describe('Dictionary browse — family-view intro paragraph', () => {
   it('renders the familyViewIntro at the top of the family browse view', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
@@ -121,7 +120,7 @@ describe('Dictionary — beginner-first landing lede', () => {
   });
 });
 
-describe('Dictionary Pedagogy Phase 1 — extended family invariants', () => {
+describe('Dictionary browse — extended family invariants', () => {
   it('whirl invariant renders under the whirl family heading (regression)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.text).toContain('leggy in dex &gt; ss clipper');
@@ -135,17 +134,17 @@ describe('Dictionary Pedagogy Phase 1 — extended family invariants', () => {
     expect(res.text).not.toContain('leggy out dex &gt; ss clipper');
   });
 
-  it('butterfly invariant renders (NEW Phase 1)', async () => {
+  it('butterfly invariant renders', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.text).toContain('hippy out dex &gt; ss clipper');
   });
 
-  it('mirage invariant renders (NEW Phase 1)', async () => {
+  it('mirage invariant renders', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.text).toContain('hippy in dex &gt; op toe');
   });
 
-  it('osis invariant renders (NEW Phase 1)', async () => {
+  it('osis invariant renders', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.text).toContain('spin &gt; ss clipper');
   });
@@ -157,7 +156,7 @@ describe('Dictionary Pedagogy Phase 1 — extended family invariants', () => {
   });
 });
 
-describe('Dictionary Pedagogy Phase 2 — family-anchor sub-label', () => {
+describe('Dictionary browse — family-anchor sub-label', () => {
   it('renders the "Family-anchor:" sub-label under each family heading', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
@@ -193,7 +192,7 @@ describe('Dictionary Pedagogy Phase 2 — family-anchor sub-label', () => {
   });
 });
 
-describe('Dictionary Pedagogy Phase 1 — no curator-internal language leakage', () => {
+describe('Dictionary browse — no curator-internal language leakage', () => {
   it('intro paragraphs do not expose pt## tags, Slice X labels, or Wave-N references', async () => {
     const familyRes = await request(createApp()).get('/freestyle/tricks?view=family');
     const addRes = await request(createApp()).get('/freestyle/tricks?view=add');

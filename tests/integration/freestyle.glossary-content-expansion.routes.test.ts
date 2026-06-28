@@ -1,6 +1,5 @@
 /**
- * Integration tests for Slice C of the 2026-05 dictionary/glossary
- * normalization plan — glossary content expansion.
+ * Integration tests for glossary content expansion.
  *
  * Long-term contract pinned:
  *
@@ -47,7 +46,7 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Glossary §3 — Direction subsection (Slice C)', () => {
+describe('Glossary §3 — Direction subsection', () => {
   it('renders the in-dex term anchor and definition', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
@@ -88,7 +87,7 @@ describe('Glossary §3 — Direction subsection (Slice C)', () => {
   });
 });
 
-describe('Glossary §7 — visible glyph quick-reference (Slice C)', () => {
+describe('Glossary §7 — visible glyph quick-reference', () => {
   it('renders the glyph quick-reference container at the top of §7', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
@@ -125,7 +124,7 @@ describe('Glossary §7 — visible glyph quick-reference (Slice C)', () => {
   });
 });
 
-describe('Glossary §8 — walking-family progression (Slice C)', () => {
+describe('Glossary §8 — walking-family progression', () => {
   it('renders the walking-family progression heading and anchor', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
@@ -164,7 +163,7 @@ describe('Glossary §8 — walking-family progression (Slice C)', () => {
   });
 });
 
-describe('Glossary §9 — representative-selection framing (Slice C)', () => {
+describe('Glossary §9 — representative-selection framing', () => {
   it('renders the "representative selection, not comprehensive" framing', async () => {
     // Slice K (2026-05-16) strengthened the framing: "not a comprehensive
     // topology atlas" replaced the bare "not comprehensive" phrasing; the
@@ -176,7 +175,7 @@ describe('Glossary §9 — representative-selection framing (Slice C)', () => {
   });
 });
 
-describe('Glossary §12 — named source families (Slice C)', () => {
+describe('Glossary §12 — named source families', () => {
   it('renders the source-families list', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
@@ -207,7 +206,7 @@ describe('Glossary §12 — named source families (Slice C)', () => {
   });
 });
 
-describe('Landing page — Watch & Learn card (Slice C lineage)', () => {
+describe('Landing page — Watch & Learn card', () => {
   it('does not render the retired "Educational pathways" chip', async () => {
     // Slice C (2026-05) removed the Educational-pathways chip from the
     // landing tutorials card. The two-band landing rebuild (Phase C,

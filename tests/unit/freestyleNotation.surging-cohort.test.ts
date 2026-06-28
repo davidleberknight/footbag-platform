@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-// Slice 3 of the observational->canonical promotion: the D2 surging cohort.
+// The surging cohort.
 // surging = stepping entry (CLIP > OP IN [DEX] >>) + spinning [BOD], with the first
 // base dex flipped OP->SAME (side-flip).
 // Self-contained: parse-valid, bracket count == ADD, and every notation carries the
@@ -15,7 +15,7 @@ const APPROVED = [
 
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;
 
-describe('promotion slice 3 - D2 surging cohort', () => {
+describe('surging cohort notation', () => {
   it('promotes exactly 4 rows', () => {
     expect(APPROVED).toHaveLength(4);
   });

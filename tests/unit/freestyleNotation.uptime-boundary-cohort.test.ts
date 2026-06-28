@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-// Slice 4 of the observational->canonical promotion: the D3 `>>`-boundary cohort.
+// The uptime `>>`-boundary cohort.
 // Each base carries an internal `>>` (uptime) boundary that reverse/entry-surface
 // must preserve. Self-contained:
 // parse-valid, bracket count == ADD, and the `>>` survives in each notation.
@@ -15,7 +15,7 @@ const APPROVED = [
 
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;
 
-describe('promotion slice 4 - D3 >>-boundary cohort', () => {
+describe('uptime >>-boundary cohort notation', () => {
   it('promotes exactly 5 rows', () => {
     expect(APPROVED).toHaveLength(5);
   });
