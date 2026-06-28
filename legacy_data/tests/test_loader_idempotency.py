@@ -250,6 +250,141 @@ def test_mvfp_seed_loader_idempotent(tmp_path: Path) -> None:
     assert n >= 1
 
 
+def _mvfp_loader_args(db: Path, seed_dir: Path) -> list[str]:
+    return [
+        "legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py",
+        "--db", str(db), "--seed-dir", str(seed_dir), "--no-backup",
+    ]
+
+
+def _seed_app_data(db: Path) -> dict:
+    """Insert app-managed rows the loader must never touch: an app-created event
+    (created_by != 'seed_loader') plus its registration, co-organizer, and
+    results upload, and the member and tag those need. Returns ids for later
+    assertions. Inserted FK-safe with enforcement on."""
+    ts = "2024-01-01T00:00:00.000Z"
+    member, event, tag = "app_member_0001", "event_app_0001", "tag_app_0001"
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    try:
+        conn.execute(
+            "INSERT INTO tags (id, created_at, created_by, updated_at, updated_by, "
+            "tag_normalized, tag_display, is_standard, standard_type) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'event')",
+            (tag, ts, member, ts, member, "#app_event", "#app_event"),
+        )
+        conn.execute(
+            "INSERT INTO members (id, created_at, created_by, updated_at, updated_by, "
+            "real_name, display_name, display_name_normalized, is_system) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
+            (member, ts, member, ts, member, "App Member", "App Member", "app member"),
+        )
+        conn.execute(
+            "INSERT INTO events (id, created_at, created_by, updated_at, updated_by, "
+            "title, start_date, end_date, city, country, hashtag_tag_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (event, ts, member, ts, member, "App Event", "2024-06-01", "2024-06-02",
+             "City", "Country", tag),
+        )
+        conn.execute(
+            "INSERT INTO registrations (id, created_at, created_by, updated_at, "
+            "updated_by, event_id, member_id, registered_at, registration_type) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'competitor')",
+            ("reg_app_1", ts, member, ts, member, event, member, ts),
+        )
+        conn.execute(
+            "INSERT INTO event_organizers (id, created_at, created_by, updated_at, "
+            "updated_by, event_id, member_id, added_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("org_app_1", ts, member, ts, member, event, member, ts),
+        )
+        conn.execute(
+            "INSERT INTO event_results_uploads (id, created_at, created_by, updated_at, "
+            "updated_by, event_id, uploaded_by_member_id, uploaded_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("upl_app_1", ts, member, ts, member, event, member, ts),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"event_id": event, "member_id": member}
+
+
+def test_mvfp_loader_preserves_app_rows_on_rerun(tmp_path: Path) -> None:
+    """A re-run leaves app-created events and their registrations, co-organizers
+    and results-uploads intact while reseeding only the loader's canonical rows."""
+    db = make_db(tmp_path)
+    seed_dir = build_mvfp_seed(tmp_path / "seed")
+    loader = _mvfp_loader_args(db, seed_dir)
+    assert run(loader).returncode == 0
+    ids = _seed_app_data(db)
+    events_before = count(db, "events")  # canonical events + the one app event
+    r2 = run(loader)
+    assert r2.returncode == 0, f"re-run refused/failed.\n{r2.stderr}"
+    assert count(db, "registrations") == 1
+    assert count(db, "event_organizers") == 1
+    assert count(db, "event_results_uploads") == 1
+    conn = sqlite3.connect(db)
+    try:
+        assert conn.execute(
+            "SELECT 1 FROM events WHERE id = ?", (ids["event_id"],)
+        ).fetchone() is not None, "app-created event was deleted by the loader"
+    finally:
+        conn.close()
+    assert count(db, "events") == events_before  # nothing added or removed
+
+
+def test_mvfp_loader_rerun_counts_are_stable(tmp_path: Path) -> None:
+    """Honest counters: every canonical table the loader reseeds has the same
+    non-zero row count after a re-run (no duplication, no drift)."""
+    db = make_db(tmp_path)
+    seed_dir = build_mvfp_seed(tmp_path / "seed")
+    loader = _mvfp_loader_args(db, seed_dir)
+    tables = ["events", "event_disciplines", "event_result_entries",
+              "event_result_entry_participants", "historical_persons", "tags"]
+    assert run(loader).returncode == 0
+    first = {t: count(db, t) for t in tables}
+    assert run(loader).returncode == 0
+    second = {t: count(db, t) for t in tables}
+    assert first == second, f"canonical counts changed on re-run: {first} -> {second}"
+    assert all(v > 0 for v in first.values()), f"a canonical table loaded empty: {first}"
+
+
+def test_mvfp_loader_aborts_on_app_row_on_canonical_event(tmp_path: Path) -> None:
+    """Ownership guard: an app-managed row attached to a canonical (seed_loader)
+    event makes the loader fail fast with a clear error instead of deleting it."""
+    db = make_db(tmp_path)
+    seed_dir = build_mvfp_seed(tmp_path / "seed")
+    loader = _mvfp_loader_args(db, seed_dir)
+    assert run(loader).returncode == 0
+    ts = "2024-01-01T00:00:00.000Z"
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    try:
+        canon_event = conn.execute(
+            "SELECT id FROM events WHERE created_by = 'seed_loader' LIMIT 1"
+        ).fetchone()[0]
+        conn.execute(
+            "INSERT INTO members (id, created_at, created_by, updated_at, updated_by, "
+            "real_name, display_name, display_name_normalized, is_system) "
+            "VALUES ('m_guard', ?, 'm_guard', ?, 'm_guard', 'M', 'M', 'm', 1)", (ts, ts),
+        )
+        conn.execute(
+            "INSERT INTO registrations (id, created_at, created_by, updated_at, "
+            "updated_by, event_id, member_id, registered_at, registration_type) "
+            "VALUES ('reg_guard', ?, 'm_guard', ?, 'm_guard', ?, 'm_guard', ?, 'competitor')",
+            (ts, ts, canon_event, ts),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    r = run(loader)
+    assert r.returncode != 0, "loader should abort on an app row on a canonical event"
+    assert "app-managed registrations row references canonical event" in (r.stdout + r.stderr), \
+        f"missing clear guard error.\nstdout: {r.stdout}\nstderr: {r.stderr}"
+    assert count(db, "registrations") == 1  # nothing deleted; abort before any delete
+
+
 def _write_trick_dictionary_inputs(tmp_path: Path) -> list[str]:
     """The 17-loader inputs: one base trick, one modifier, one alias pointing at
     the base trick. Returns the loader arg flags for the three CSVs."""

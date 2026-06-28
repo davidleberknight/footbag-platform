@@ -141,38 +141,92 @@ def main() -> None:
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.row_factory = sqlite3.Row
 
-    # This loader is a full canonical reseed; the deletes below assume an empty
-    # slate. If event_result_entries already holds rows, a prior full build
-    # populated the DB and the deletes would abort on foreign-key children that
-    # are not cleared here (for example net_team_appearance). Fail with a clear
-    # message rather than a cryptic FK error.
-    if conn.execute("SELECT 1 FROM event_result_entries LIMIT 1").fetchone():
-        raise SystemExit(
-            "08 canonical reseed aborted: event_result_entries is non-empty "
-            "(this loader requires an empty canonical slate). Rebuild via "
-            "reset-local-db.sh or deploy-local-data.sh, which wipe first."
-        )
+    # This loader is a canonical reseed scoped to the rows it owns, so it re-runs
+    # safely against a populated database. It owns: events it created
+    # (created_by = 'seed_loader'), their disciplines / result entries /
+    # participants and per-event hashtag tags, and the canonical historical_persons
+    # (source_scope 'CANONICAL' or unset; loader 09 owns source_scope
+    # 'PROVISIONAL'). Everything app-managed is left intact: app-created events,
+    # registrations, event_organizers, event_results_uploads, and PROVISIONAL
+    # persons. The strict (no-cascade) foreign keys force a child-before-parent
+    # delete order.
 
     try:
         # ------------------------------------------------------------------
-        # Clear existing result/event data only
+        # Ownership guard. A canonical (seed_loader) event must never carry
+        # app-managed child rows. If one does, stop rather than delete the event
+        # or strand/destroy app data — this makes the ownership boundary explicit.
         # ------------------------------------------------------------------
-        print("Deleting existing event/result data...")
-        # Delete children before parents so the order is FK-safe even with
-        # enforcement on. event_result_entry_participants holds FKs to both
-        # event_result_entries and historical_persons, so it goes first;
-        # historical_persons and the event tags (parents) go last.
-        conn.execute("DELETE FROM event_result_entry_participants")
-        conn.execute("DELETE FROM event_result_entries")
-        conn.execute("DELETE FROM event_results_uploads")
-        conn.execute("DELETE FROM event_disciplines")
-        conn.execute("DELETE FROM event_organizers")
-        conn.execute("DELETE FROM registrations")
-        conn.execute("DELETE FROM events")
-        conn.execute("DELETE FROM historical_persons")
+        for child in ("registrations", "event_organizers", "event_results_uploads"):
+            offending = conn.execute(
+                f"SELECT event_id FROM {child} WHERE event_id IN "
+                "(SELECT id FROM events WHERE created_by = ?) LIMIT 1",
+                (system_user,),
+            ).fetchone()
+            if offending:
+                raise SystemExit(
+                    f"08 aborted: app-managed {child} row references canonical event "
+                    f"{offending[0]!r} (created_by='{system_user}'). Canonical events "
+                    "must not carry app-managed rows."
+                )
 
-        # delete only event tags created by this loader pattern
-        conn.execute("DELETE FROM tags WHERE standard_type = 'event'")
+        # ------------------------------------------------------------------
+        # Clear only this loader's canonical rows, children before parents, and
+        # scoped to seed_loader events. net_team_appearance (loader 13's
+        # downstream net rows, which loader 13 reseeds) references the canonical
+        # result entries, so it is cleared first. registrations, event_organizers
+        # and event_results_uploads are never touched.
+        # ------------------------------------------------------------------
+        print("Deleting this loader's canonical event/result data (scoped)...")
+        canon_events = "(SELECT id FROM events WHERE created_by = ?)"
+        canon_entries = (
+            "(SELECT id FROM event_result_entries WHERE event_id IN "
+            "(SELECT id FROM events WHERE created_by = ?))"
+        )
+        # Capture the canonical events' hashtag tags before the event rows go;
+        # events reference tags, so the tag rows can only be removed afterward.
+        canon_tag_ids = [
+            r[0]
+            for r in conn.execute(
+                "SELECT hashtag_tag_id FROM events WHERE created_by = ?", (system_user,)
+            )
+        ]
+        deleted: dict[str, int] = {}
+        deleted["net_team_appearance"] = conn.execute(
+            f"DELETE FROM net_team_appearance WHERE result_entry_id IN {canon_entries}",
+            (system_user,),
+        ).rowcount
+        deleted["event_result_entry_participants"] = conn.execute(
+            "DELETE FROM event_result_entry_participants WHERE result_entry_id IN "
+            f"{canon_entries}",
+            (system_user,),
+        ).rowcount
+        deleted["event_result_entries"] = conn.execute(
+            f"DELETE FROM event_result_entries WHERE event_id IN {canon_events}",
+            (system_user,),
+        ).rowcount
+        deleted["event_disciplines"] = conn.execute(
+            f"DELETE FROM event_disciplines WHERE event_id IN {canon_events}",
+            (system_user,),
+        ).rowcount
+        deleted["events"] = conn.execute(
+            "DELETE FROM events WHERE created_by = ?", (system_user,)
+        ).rowcount
+        if canon_tag_ids:
+            placeholders = ",".join("?" * len(canon_tag_ids))
+            deleted["tags"] = conn.execute(
+                f"DELETE FROM tags WHERE id IN ({placeholders})", canon_tag_ids
+            ).rowcount
+        else:
+            deleted["tags"] = 0
+        deleted["historical_persons"] = conn.execute(
+            "DELETE FROM historical_persons "
+            "WHERE source_scope = 'CANONICAL' OR source_scope IS NULL"
+        ).rowcount
+
+        print("  scoped delete row counts:")
+        for table_name, n in deleted.items():
+            print(f"    {table_name}: {n:,}")
 
         # ------------------------------------------------------------------
         # Load historical persons
