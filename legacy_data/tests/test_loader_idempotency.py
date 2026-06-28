@@ -385,6 +385,215 @@ def test_mvfp_loader_aborts_on_app_row_on_canonical_event(tmp_path: Path) -> Non
     assert count(db, "registrations") == 1  # nothing deleted; abort before any delete
 
 
+# ---------------------------------------------------------------------------
+# Loader 13 (net teams): scoped teardown + honest counters
+# ---------------------------------------------------------------------------
+
+DBL_PID_A = "aaaaaaaa-1111-1111-1111-111111111111"
+DBL_PID_B = "bbbbbbbb-2222-2222-2222-222222222222"
+
+
+def _person_row(pid: str, name: str) -> dict:
+    return {
+        "person_id": pid, "person_name": name, "member_id": "",
+        "country": "United States", "first_year": "", "last_year": "",
+        "event_count": "1", "placement_count": "1", "bap_member": "0",
+        "bap_nickname": "", "bap_induction_year": "", "hof_member": "0",
+        "hof_induction_year": "", "freestyle_sequences": "", "freestyle_max_add": "",
+        "freestyle_unique_tricks": "", "freestyle_diversity_ratio": "",
+        "signature_trick_1": "", "signature_trick_2": "", "signature_trick_3": "",
+        "source_scope": "CANONICAL",
+    }
+
+
+def build_doubles_seed(seed_dir: Path, with_qc: bool = False) -> Path:
+    """A canonical doubles-net entry (two linked participants -> one team). With
+    with_qc, also a malformed entry (one participant) that loader 13 flags as a
+    wrong_participant_count QC issue without building a team."""
+    seed_dir.mkdir(parents=True, exist_ok=True)
+    ek, dk = "2001_dbl_test", "open_doubles_net"
+    write_csv(
+        seed_dir / "seed_events.csv",
+        ["event_key", "legacy_event_id", "year", "event_name", "event_slug",
+         "start_date", "end_date", "city", "region", "country", "host_club",
+         "status", "notes", "source"],
+        [{"event_key": ek, "legacy_event_id": ek, "year": "2001",
+          "event_name": "Doubles Test Open", "event_slug": "doubles_test_2001",
+          "start_date": "2001-01-01", "end_date": "2001-01-02", "city": "Town",
+          "region": "State", "country": "United States", "host_club": "",
+          "status": "completed", "notes": "", "source": "mirror"}],
+    )
+    write_csv(
+        seed_dir / "seed_event_disciplines.csv",
+        ["event_key", "discipline_key", "discipline_name", "discipline_category",
+         "team_type", "sort_order", "coverage_flag", "notes"],
+        [{"event_key": ek, "discipline_key": dk, "discipline_name": "Open Doubles Net",
+          "discipline_category": "net", "team_type": "doubles", "sort_order": "1",
+          "coverage_flag": "partial", "notes": ""}],
+    )
+    results = [{"event_key": ek, "discipline_key": dk, "placement": "1",
+                "score_text": "", "notes": "", "source": ""}]
+    participants = [
+        {"event_key": ek, "discipline_key": dk, "placement": "1",
+         "participant_order": "1", "display_name": "Player A",
+         "person_id": DBL_PID_A, "notes": ""},
+        {"event_key": ek, "discipline_key": dk, "placement": "1",
+         "participant_order": "2", "display_name": "Player B",
+         "person_id": DBL_PID_B, "notes": ""},
+    ]
+    if with_qc:
+        results.append({"event_key": ek, "discipline_key": dk, "placement": "2",
+                        "score_text": "", "notes": "", "source": ""})
+        participants.append(
+            {"event_key": ek, "discipline_key": dk, "placement": "2",
+             "participant_order": "1", "display_name": "Lone Player",
+             "person_id": DBL_PID_A, "notes": ""})
+    write_csv(
+        seed_dir / "seed_event_results.csv",
+        ["event_key", "discipline_key", "placement", "score_text", "notes", "source"],
+        results,
+    )
+    write_csv(
+        seed_dir / "seed_event_result_participants.csv",
+        ["event_key", "discipline_key", "placement", "participant_order",
+         "display_name", "person_id", "notes"],
+        participants,
+    )
+    write_csv(
+        seed_dir / "seed_persons.csv",
+        list(_person_row("", "").keys()),
+        [_person_row(DBL_PID_A, "Player A"), _person_row(DBL_PID_B, "Player B")],
+    )
+    return seed_dir
+
+
+def _load_canonical_doubles(tmp_path: Path, with_qc: bool = False) -> Path:
+    """Build the schema, load the doubles seed via loader 08, return the db path."""
+    db = make_db(tmp_path)
+    seed_dir = build_doubles_seed(tmp_path / "seed", with_qc=with_qc)
+    r = run([
+        "legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py",
+        "--db", str(db), "--seed-dir", str(seed_dir), "--no-backup",
+    ])
+    assert r.returncode == 0, f"loader 08 setup failed.\n{r.stderr}"
+    return db
+
+
+def _loader13(db: Path) -> list[str]:
+    return ["legacy_data/event_results/scripts/13_build_net_teams.py", "--db", str(db)]
+
+
+def test_net_teams_first_load(tmp_path: Path) -> None:
+    """Loader 13 builds one team, two members and one canonical appearance from a
+    doubles-net entry."""
+    db = _load_canonical_doubles(tmp_path)
+    assert run(_loader13(db)).returncode == 0
+    assert count(db, "net_team") == 1
+    assert count(db, "net_team_member") == 2
+    assert count(db, "net_team_appearance") == 1
+
+
+def test_net_teams_rerun_idempotent(tmp_path: Path) -> None:
+    """A re-run leaves the team / member / appearance counts unchanged."""
+    db = _load_canonical_doubles(tmp_path)
+    assert run(_loader13(db)).returncode == 0
+    first = {t: count(db, t) for t in ("net_team", "net_team_member", "net_team_appearance")}
+    assert run(_loader13(db)).returncode == 0
+    second = {t: count(db, t) for t in ("net_team", "net_team_member", "net_team_appearance")}
+    assert first == second, f"counts changed on re-run: {first} -> {second}"
+    assert first["net_team"] == 1
+
+
+def test_net_teams_rerun_preserves_curated_appearance(tmp_path: Path) -> None:
+    """A curated appearance (and the team/members it references) survives a
+    re-run; the teardown no longer blocks on the foreign key it holds."""
+    db = _load_canonical_doubles(tmp_path)
+    assert run(_loader13(db)).returncode == 0
+    ts = "2024-01-01T00:00:00.000Z"
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    try:
+        re_id, ev_id, disc_id = conn.execute(
+            "SELECT id, event_id, discipline_id FROM event_result_entries LIMIT 1"
+        ).fetchone()
+        for pid, name in (("cccccccc-3333-3333-3333-333333333333", "Player C"),
+                          ("dddddddd-4444-4444-4444-444444444444", "Player D")):
+            conn.execute(
+                "INSERT INTO historical_persons (person_id, person_name, country, "
+                "source_scope, event_count, placement_count, bap_member, hof_member, "
+                "hof_induction_year) VALUES (?, ?, 'US', 'CANONICAL', 1, 1, 0, 0, NULL)",
+                (pid, name),
+            )
+        t2 = "team_curated_0001"
+        conn.execute(
+            "INSERT INTO net_team (team_id, person_id_a, person_id_b, appearance_count, "
+            "created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)",
+            (t2, "cccccccc-3333-3333-3333-333333333333",
+             "dddddddd-4444-4444-4444-444444444444", ts, ts),
+        )
+        conn.execute("INSERT INTO net_team_member (id, team_id, person_id, position) "
+                     "VALUES ('m_c_a', ?, 'cccccccc-3333-3333-3333-333333333333', 'a')", (t2,))
+        conn.execute("INSERT INTO net_team_member (id, team_id, person_id, position) "
+                     "VALUES ('m_c_b', ?, 'dddddddd-4444-4444-4444-444444444444', 'b')", (t2,))
+        conn.execute(
+            "INSERT INTO net_team_appearance (id, team_id, event_id, discipline_id, "
+            "result_entry_id, placement, score_text, event_year, evidence_class, "
+            "extracted_at) VALUES ('app_curated_1', ?, ?, ?, ?, 1, '', 2001, "
+            "'curated_enrichment', ?)",
+            (t2, ev_id, disc_id, re_id, ts),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    r2 = run(_loader13(db))
+    assert r2.returncode == 0, f"re-run blocked on curated data.\n{r2.stderr}"
+    conn = sqlite3.connect(db)
+    try:
+        assert conn.execute(
+            "SELECT 1 FROM net_team_appearance WHERE id = 'app_curated_1'"
+        ).fetchone() is not None, "curated appearance was deleted"
+        assert conn.execute(
+            "SELECT 1 FROM net_team WHERE team_id = 'team_curated_0001'"
+        ).fetchone() is not None, "curated team was deleted"
+        assert conn.execute(
+            "SELECT COUNT(*) FROM net_team_member WHERE team_id = 'team_curated_0001'"
+        ).fetchone()[0] == 2, "curated team members were deleted"
+        # The canonical team was still reseeded.
+        assert conn.execute(
+            "SELECT COUNT(*) FROM net_team_appearance WHERE evidence_class = 'canonical_only'"
+        ).fetchone()[0] == 1
+    finally:
+        conn.close()
+
+
+def test_net_teams_qc_counter_honest_under_ignored_duplicate(tmp_path: Path) -> None:
+    """When INSERT OR IGNORE skips a QC row that already exists (resolved), the
+    summary reports rows actually inserted, not the in-memory flagged count."""
+    import re as _re
+    db = _load_canonical_doubles(tmp_path, with_qc=True)
+    assert run(_loader13(db)).returncode == 0
+    # Resolve the flagged QC row so the teardown (open-only) keeps it.
+    conn = sqlite3.connect(db)
+    try:
+        assert count(db, "net_review_queue") >= 1
+        conn.execute("UPDATE net_review_queue SET resolution_status = 'resolved'")
+        conn.commit()
+    finally:
+        conn.close()
+    queue_before = count(db, "net_review_queue")
+    r2 = run(_loader13(db))
+    assert r2.returncode == 0
+    # The resolved duplicate is skipped, so nothing new is inserted and the count
+    # does not grow.
+    assert count(db, "net_review_queue") == queue_before
+    m = _re.search(r"QC issues inserted:\s+([\d,]+)\s+\(of\s+([\d,]+)\s+flagged", r2.stdout)
+    assert m, f"summary line not found.\nstdout: {r2.stdout}"
+    inserted = int(m.group(1).replace(",", ""))
+    flagged = int(m.group(2).replace(",", ""))
+    assert inserted == 0, f"reported {inserted} inserted but the duplicate was skipped"
+    assert flagged >= 1, "expected at least one flagged QC issue"
+
+
 def _write_trick_dictionary_inputs(tmp_path: Path) -> list[str]:
     """The 17-loader inputs: one base trick, one modifier, one alias pointing at
     the base trick. Returns the loader arg flags for the three CSVs."""

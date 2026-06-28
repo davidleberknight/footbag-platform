@@ -423,34 +423,51 @@ def write_results(
     appearances: list[dict],
     qc_issues: list[dict],
     now: str,
-) -> None:
+) -> dict[str, int]:
     """
-    Writes all output in a single transaction. Deletes existing net enrichment
-    rows first (idempotent re-run). Preserves net_review_queue rows that already
-    have resolution_notes (INSERT OR IGNORE).
+    Writes all output in a single transaction. Deletes only this loader's
+    canonical rows: its 'canonical_only' appearances, and the teams / members no
+    longer referenced by any surviving appearance. A team (and its members) that
+    a curated / inferred / candidate appearance still points at — evidence_class
+    other than 'canonical_only', written by loaders 12/16 or curation — is
+    preserved, as are resolved net_review_queue rows. Returns the number of rows
+    actually inserted per table (INSERT OR IGNORE skips rows that already exist).
     """
+    inserted: dict[str, int] = {}
     with conn:
-        # Clear previous script-13 output (cascade order)
+        # Clear this loader's canonical appearances, then only the teams/members
+        # that no surviving appearance references. A team kept alive by a curated
+        # or candidate appearance would otherwise block the parent delete (strict
+        # FK) and the curated row would be stranded.
         conn.execute("DELETE FROM net_team_appearance WHERE evidence_class = 'canonical_only'")
-        conn.execute("DELETE FROM net_team_member")
-        conn.execute("DELETE FROM net_team")
+        conn.execute(
+            "DELETE FROM net_team_member "
+            "WHERE team_id NOT IN (SELECT DISTINCT team_id FROM net_team_appearance)"
+        )
+        conn.execute(
+            "DELETE FROM net_team "
+            "WHERE team_id NOT IN (SELECT DISTINCT team_id FROM net_team_appearance)"
+        )
         # Clear only unresolved script-13 QC rows so manual resolutions survive
         conn.execute(
             "DELETE FROM net_review_queue WHERE source_file = ? AND resolution_status = 'open'",
             (SCRIPT_NAME,)
         )
 
-        # Insert teams
+        # Insert teams (OR IGNORE: a team preserved above already exists, so this
+        # is a no-op rather than a primary-key error).
+        before = conn.total_changes
         conn.executemany("""
-            INSERT INTO net_team
+            INSERT OR IGNORE INTO net_team
               (team_id, person_id_a, person_id_b, first_year, last_year,
                appearance_count, created_at, updated_at)
             VALUES
               (:team_id, :person_id_a, :person_id_b, :first_year, :last_year,
                :appearance_count, :created_at, :updated_at)
         """, teams.values())
+        inserted['teams'] = conn.total_changes - before
 
-        # Insert members (2 per team)
+        # Insert members (2 per team), OR IGNORE for the same reason.
         members = []
         for t in teams.values():
             members.append({
@@ -465,12 +482,16 @@ def write_results(
                 'person_id': t['person_id_b'],
                 'position': 'b',
             })
+        before = conn.total_changes
         conn.executemany("""
-            INSERT INTO net_team_member (id, team_id, person_id, position)
+            INSERT OR IGNORE INTO net_team_member (id, team_id, person_id, position)
             VALUES (:id, :team_id, :person_id, :position)
         """, members)
+        inserted['members'] = conn.total_changes - before
 
-        # Insert appearances
+        # Insert appearances (all canonical_only rows were deleted above, so a
+        # plain INSERT cannot clash with a surviving curated appearance).
+        before = conn.total_changes
         conn.executemany("""
             INSERT INTO net_team_appearance
               (id, team_id, event_id, discipline_id, result_entry_id,
@@ -479,8 +500,12 @@ def write_results(
               (:id, :team_id, :event_id, :discipline_id, :result_entry_id,
                :placement, :score_text, :event_year, :evidence_class, :extracted_at)
         """, appearances)
+        inserted['appearances'] = conn.total_changes - before
 
-        # Insert QC issues (OR IGNORE — preserve any existing manual resolutions)
+        # QC issues: OR IGNORE preserves any existing manual resolutions. Count
+        # the rows actually inserted, not the in-memory candidate total — an
+        # ignored duplicate must not inflate the reported QC-issue count.
+        before = conn.total_changes
         conn.executemany("""
             INSERT OR IGNORE INTO net_review_queue
               (id, source_file, item_type, priority, event_id, discipline_id,
@@ -493,21 +518,27 @@ def write_results(
                :review_stage, :resolution_status, :resolution_notes,
                :resolved_by, :resolved_at, :imported_at)
         """, qc_issues)
+        inserted['qc_issues'] = conn.total_changes - before
+
+    return inserted
 
 
-def print_summary(teams: dict, appearances: list[dict], qc_issues: list[dict]) -> None:
+def print_summary(
+    inserted: dict[str, int], teams: dict, appearances: list[dict], qc_issues: list[dict]
+) -> None:
     print(f"\n=== Script 13 summary ===")
-    print(f"  Teams:              {len(teams):>6,}")
-    print(f"  Members:            {len(teams) * 2:>6,}")
-    print(f"  Appearances:        {len(appearances):>6,}")
-    print(f"  QC issues logged:   {len(qc_issues):>6,}")
+    print(f"  Teams inserted:       {inserted['teams']:>6,}  (of {len(teams):,} built)")
+    print(f"  Members inserted:     {inserted['members']:>6,}  (of {len(teams) * 2:,} built)")
+    print(f"  Appearances inserted: {inserted['appearances']:>6,}  (of {len(appearances):,} built)")
+    print(f"  QC issues inserted:   {inserted['qc_issues']:>6,}  "
+          f"(of {len(qc_issues):,} flagged; existing/resolved duplicates skipped)")
 
     by_check: dict[str, int] = defaultdict(int)
     for q in qc_issues:
         by_check[q['check_id']] += 1
     for check_id in sorted(by_check):
         p = next(q['priority'] for q in qc_issues if q['check_id'] == check_id)
-        print(f"    [{p}] {check_id}: {by_check[check_id]}")
+        print(f"    [{p}] {check_id}: {by_check[check_id]}  (flagged)")
 
 
 def main() -> None:
@@ -537,9 +568,9 @@ def main() -> None:
     detect_position_flips(conn, teams)
 
     print("Writing results...")
-    write_results(conn, teams, appearances, qc_issues, now)
+    inserted = write_results(conn, teams, appearances, qc_issues, now)
 
-    print_summary(teams, appearances, qc_issues)
+    print_summary(inserted, teams, appearances, qc_issues)
     print("\nDone.")
     conn.close()
 
