@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1508;
+export const TRACKED_UNPUBLISHED_TOTAL = 1497;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -630,7 +630,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Weaving Eclipse', slug: 'weaving_eclipse' },
     { displayName: 'Weaving Guay', slug: 'weaving_guay' },
     { displayName: 'Weaving Illusion', slug: 'weaving_illusion' },
-    { displayName: 'Weaving Mirage', slug: 'weaving_mirage' },
     { displayName: 'Weaving Reverse Guay', slug: 'weaving_reverse_guay' },
     { displayName: 'Weaving Symposium Mirage', slug: 'weaving_symposium_mirage' },
     { displayName: 'Weaving Toe Stall', slug: 'weaving_toe_stall' },
@@ -658,7 +657,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Zulu Guay', slug: 'zulu_guay' },
     { displayName: 'Zulu Illusion', slug: 'zulu_illusion' },
     { displayName: 'Zulu Infinity (Zulu Le Loup)', slug: 'zulu_infinity_zulu_le_loup' },
-    { displayName: 'Zulu Mirage', slug: 'zulu_mirage' },
     { displayName: 'Zulu Paradox Drifter', slug: 'zulu_paradox_drifter' },
     { displayName: 'Zulu Paradox Mirage', slug: 'zulu_paradox_mirage' },
     { displayName: 'Zulu Paradox Whirl', slug: 'zulu_paradox_whirl' },
@@ -1049,12 +1047,7 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Twinspinning ss Mirage', slug: 'twinspinning_ss_mirage' },
     { displayName: 'Vertigo', slug: 'vertigo', operationalNotation: 'Clip >> Duck (BOD) >> Same In (DEX)(PDX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Wahnsinn', slug: 'wahnsinn', operationalNotation: 'Toe > Same In (DEX) >> Duck (BOD) >> (front) Spin (BOD) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Weaving Butterfly', slug: 'weaving_butterfly' },
-    { displayName: 'Weaving Clipper', slug: 'weaving_clipper' },
-    { displayName: 'Weaving Legover', slug: 'weaving_legover' },
-    { displayName: 'Weaving Osis', slug: 'weaving_osis' },
     { displayName: 'Weaving Pickup', slug: 'weaving_pickup' },
-    { displayName: 'Weaving Whirl', slug: 'weaving_whirl' },
     { displayName: 'Wentletrappe', slug: 'wentletrappe', operationalNotation: 'Toe > Same Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Whale Tail', slug: 'whale_tail', operationalNotation: 'Clip > (back) Spin (BOD) > Same In (DEX) >> Op Out (DEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'What!?', slug: 'what!?' },
@@ -1069,12 +1062,8 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Zig Zag', slug: 'zig_zag', operationalNotation: 'Clip > Same Back Swirl (DEX) >> Same Front Swirl (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Zipper Stepping Op Butterfly Zipper', slug: 'zipper_stepping_op_butterfly_zipper' },
     { displayName: 'Zipwalk', slug: 'zipwalk', operationalNotation: 'XBD Toe > Op In (DEX) >> Op Out (DEX) > Op XBD Toe (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'low' },
-    { displayName: 'Zulu Butterfly', slug: 'zulu_butterfly' },
     { displayName: 'Zulu Le Loup', slug: 'zulu_le_loup', operationalNotation: 'Clip >> Dive (BOD) >> Op Out (DEX) > Op Clip (XBD)(DEL)[/quote]', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
-    { displayName: 'Zulu Legover', slug: 'zulu_legover' },
-    { displayName: 'Zulu Osis', slug: 'zulu_osis' },
     { displayName: 'Zulu Pickup', slug: 'zulu_pickup' },
-    { displayName: 'Zulu Whirl', slug: 'zulu_whirl' },
   ] },
   { sourceLabel: 'PassBack', names: [
     { displayName: 'Alpine Atomsmasher', slug: 'alpine_atomsmasher' },

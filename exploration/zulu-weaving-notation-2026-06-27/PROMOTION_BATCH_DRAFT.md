@@ -1,9 +1,18 @@
 # Zulu / Weaving — first promotion batch, mirrored JOB notation draft
 
-Status: drafted, not promoted. This is the first promotion batch, held until the
-Zulu/Weaving notation convention is accepted. Once accepted, promotion is a
-mechanical exercise (red_additions + trick_modifiers zulu row + loader 19), not a
-new investigation.
+Status: PROMOTED. The 12 first-batch compounds (six bases x Zulu/Weaving) are
+canonical: red_additions rows + red_corrections operational_notation + a zulu
+trick_modifiers row, mirroring the live ducking_<base> exemplars. ADD math and
+bracket-count==ADD verified for all 12; the encyclopedia example sections derive
+from the modifier links; the bare compounds were removed from the Emerging
+Vocabulary (TRACKED_UNPUBLISHED_NAMES).
+
+Follow-up (not a blocker): the distinguishing launch detail is carried as a
+non-scoring annotation — Zulu `(across body)` before the duck, Weaving `(same
+foot)` on the terminal — rather than a formal JOB token. A future notation pass
+may represent it more explicitly (for Weaving, the candidate is flipping the
+terminal side from the ducking exemplar's `OP` to `SAME`); until then the
+annotation keeps ADD unchanged and invents no new syntax.
 
 ## The mirror rule (the whole proposal in one line)
 
