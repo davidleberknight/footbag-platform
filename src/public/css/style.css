@@ -6522,6 +6522,27 @@ a.trick-hero-meta-chip--media:hover {
   line-height: 1.45;
 }
 
+/* PassBack "Set List" historical chart on the Set Encyclopedia landing.
+   Large enough to read on desktop, responsive on mobile (global img rule
+   keeps it within the container). */
+.setlist-figure {
+  margin: 1.5rem auto 2rem auto;
+  max-width: 900px;
+  text-align: center;
+}
+.setlist-figure img {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.setlist-figure figcaption {
+  font-size: 0.86rem;
+  color: var(--earth-450);
+  margin-top: 0.5rem;
+  line-height: 1.45;
+}
+
 /* §5 family-tree visual: anchor + branched compound members rendered
    as a compact registry-style list. Tree characters (├ └) provided by
    pseudo-elements so the markup stays semantic. */

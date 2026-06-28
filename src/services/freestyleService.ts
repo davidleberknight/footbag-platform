@@ -1173,6 +1173,13 @@ function buildOperatorIndexAxes(
   modifierRows: readonly FreestyleTrickModifierRow[],
 ): OperatorIndexAxisGroup[] {
   const rowBySlug = new Map(modifierRows.map(r => [r.slug, r]));
+  // Operators that have a By-Movement-System section get the in-page anchor;
+  // flying has a movement neighborhood (the topology view) instead; the rest
+  // have neither surface, so they fall back to the dictionary search rather than
+  // a dead #movement-<slug> anchor.
+  const movementSystemSlugs = new Set<string>(
+    MOVEMENT_SYSTEM_AXES.flatMap(a => [...a.modifierSlugs]),
+  );
   return OPERATOR_INDEX_AXES.map(axis => ({
     axisKey:  axis.axisKey,
     axisName: axis.axisName,
@@ -1188,6 +1195,13 @@ function buildOperatorIndexAxes(
         descriptor: operatorDescriptor(slug),
         status:     operatorStatus(slug),
         subFamilyLabel: axis.subFamilies?.find(sf => sf.firstSlug === slug)?.label ?? null,
+        browseHref: movementSystemSlugs.has(slug)
+          ? `/freestyle/tricks?view=movement-system#movement-${slug}`
+          : slug === 'flying'
+            // Flying is a movement neighborhood (the topology view), not a
+            // movement-system axis; route its browse there.
+            ? '/freestyle/tricks?view=topology#topology-flying'
+            : `/freestyle/search?q=${encodeURIComponent(slug)}`,
       };
     }),
   }));
@@ -3947,8 +3961,14 @@ export interface OperatorIndexRow {
   // Sub-family divider label, set on the first row of an educational
   // sub-grouping within an axis (e.g. "Spin family"); null otherwise.
   subFamilyLabel: string | null;
-  // Detail + browse hrefs are built in the template from `slug` (single-variable
-  // URLs) so the query-string '=' is not HTML-escaped.
+  // Where "Browse tricks" goes. Operators with a By-Movement-System section get
+  // that in-page anchor; flying is a movement neighborhood, so it goes to the
+  // topology view; the remaining operators without either surface (symple,
+  // muted, tapping, inspinning) fall back to the dictionary search so the action
+  // is never a dead anchor. Rendered with a trusted triple-stache so the query
+  // string's '=' is not HTML-escaped. The View-details href is still built in
+  // the template from `slug` (single-variable URL).
+  browseHref: string;
 }
 
 export interface OperatorIndexAxisGroup {
@@ -5951,6 +5971,10 @@ interface ModifierLinkInfo {
 const HIPPY_BASES = new Set(['mirage', 'butterfly']);
 const LEGGY_BASES = new Set(['legover', 'pickup', 'whirl', 'swirl', 'illusion']);
 const CLIPPER_LANDING_BASES = new Set(['butterfly', 'whirl', 'swirl', 'osis', 'blender']);
+// Airborne body events (the player leaves the ground): the canonical Flying
+// body component as it appears in operational notation. Membership is matched
+// structurally on these body tokens, never by trick name.
+const FLYING_BODY_TOKENS = ['FLYING [BOD]', 'DOUBLE KICK [BOD]', 'DOUBLE KNEE [BOD]'];
 
 interface TopologyGroupDef {
   slug:        string;
@@ -5960,7 +5984,7 @@ interface TopologyGroupDef {
   // function (closure over the caller's link data). Returns true when this
   // group includes the trick.
   matches(
-    row: { slug: string; base_trick: string | null },
+    row: { slug: string; base_trick: string | null; operational_notation: string | null },
     hasModifierLink: (modifierSlug: string) => boolean,
   ): boolean;
 }
@@ -6004,6 +6028,13 @@ const TOPOLOGY_GROUPS: TopologyGroupDef[] = [
     matches:    (row, hasLink) => hasLink('ducking')
       && !!(row.base_trick && CLIPPER_LANDING_BASES.has(row.base_trick)),
   },
+  {
+    slug:       'flying',
+    name:       'Flying',
+    definition: 'Tricks performed airborne: the player leaves the ground for a body event recorded as a flying body token in the notation (a flying clipper, a dragonfly kick, a double kick or double knee).',
+    matches:    row => !!row.operational_notation
+      && FLYING_BODY_TOKENS.some(t => row.operational_notation!.includes(t)),
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -6035,7 +6066,7 @@ export interface TrickSemanticMemberships {
 }
 
 function computeTrickSymbolicMemberships(
-  row: { slug: string; base_trick: string | null },
+  row: { slug: string; base_trick: string | null; operational_notation: string | null },
   modifierLinks: ModifierLinkInfo[],
 ): TrickSemanticMemberships {
   const linkSlugs = new Set(modifierLinks.map(l => l.slug));
@@ -6103,7 +6134,7 @@ function firstSentence(s: string): string {
 }
 
 function buildStructuralFacts(
-  row: { slug: string; base_trick: string | null; trick_family: string | null },
+  row: { slug: string; base_trick: string | null; trick_family: string | null; operational_notation: string | null },
   isBase: boolean,
   modifierLinks: ModifierLinkInfo[],
 ): TrickStructuralFacts {
@@ -7000,7 +7031,7 @@ export const freestyleService = {
               ? currentTrickMods
               : deriveModifierLinksFromOperator(dictRow.slug, allModifierRows);
             const facts = buildStructuralFacts(
-              { slug: dictRow.slug, base_trick: dictRow.base_trick, trick_family: dictRow.trick_family },
+              { slug: dictRow.slug, base_trick: dictRow.base_trick, trick_family: dictRow.trick_family, operational_notation: dictRow.operational_notation },
               dictEntry?.isBase ?? false,
               modsForFacts,
             );
@@ -8662,7 +8693,7 @@ export const freestyleService = {
     const topologyView: TopologyBrowseView = {
       layerSource:       'observational',
       observationalNote:
-        'Movement Neighborhoods group tricks that share a movement feel, timing pattern, or structural relationship across families. Six neighborhoods are recognized: Hippy downtime dex, Leggy dex, Whirl / swirl structures, Pixie uptime dex, Symposium clipper structures, and Ducking clipper structures. They are a way to explore similarity, not an official family classification. The family view remains the structural reference.',
+        'Movement Neighborhoods group tricks that share a movement feel, timing pattern, or structural relationship across families. Seven neighborhoods are recognized: Hippy downtime dex, Leggy dex, Whirl / swirl structures, Pixie uptime dex, Symposium clipper structures, Ducking clipper structures, and Flying. They are a way to explore similarity, not an official family classification. The family view remains the structural reference.',
       groups: TOPOLOGY_GROUPS
         .map(buildTopologyGroup)
         .filter(g => g.memberCount > 0),
