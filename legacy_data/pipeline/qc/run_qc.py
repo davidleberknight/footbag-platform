@@ -88,16 +88,13 @@ OPTIONAL_CHECKS = [
     # Tie-flattening detector for the frozen identity lock: compares Stage 2 tie
     # structure against Placements_ByPerson and flags genuine ties that were
     # sequentialized in the lock. Writes summary/detail audit CSVs under out/,
-    # and self-skips when its Stage 2 or lock input is absent.
-    # Current: severity=warn, because the detector flags pre-existing cases that
-    # must be adjudicated and corrected through the identity-lock patch toolchain
-    # before the gate can fail on them.
-    # Target: severity=hard once the detector reports zero flagged pairs, so any
-    # new flattening fails the gate.
+    # and self-skips when its Stage 2 or lock input is absent. Severity=hard: the
+    # lock must not silently flatten a genuine tie, and the detector reports zero
+    # flagged pairs on current data, so any new flattening fails the gate.
     {
         "name": "tie_flattening",
         "path": "audit_tie_flattening.py",
-        "severity": "warn",
+        "severity": "hard",
         "needs_workbook": False,
     },
     # Release workbook EVENT INDEX parity. Codifies the invariant:
