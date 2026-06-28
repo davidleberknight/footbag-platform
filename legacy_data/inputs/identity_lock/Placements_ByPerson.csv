@@ -4095,7 +4095,8 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 1134914723,2006,Doubles Net,net,11,team,,a08d3c72-20de-5dde-956f-a1dc746f4256|ffe10517-080f-5a67-b641-3548a44d6d9e,__NON_PERSON__,Thomas tomtom Jouan / Ivan Bel,complete,,,
 1134914723,2006,Mini Net,net,1,player,,,Franck Remy,,unresolved,1,franck remy,Mini Net
 1134914723,2006,Mini Net,net,2,player,fbf52ca9-ba84-50bc-bce9-0244718c18e7,,Lino Landau,,complete,,lino landau,
-1134914723,2006,Mini Net,net,3,team,,d4002cc4-45c2-58fd-b2f1-255491cf1c95|ec1d5118-cd4b-591f-a84a-04bbe20868bc,__NON_PERSON__,Gerg Lima / Grischa Tellenbach,complete,,,
+1134914723,2006,Mini Net,net,3,player,,,Gerg Lima,,unresolved,1,gerg lima,
+1134914723,2006,Mini Net,net,3,player,ec1d5118-cd4b-591f-a84a-04bbe20868bc,,Grischa Tellenbach,,complete,,grischa tellenbach,
 1134914723,2006,Mixte Double Net,net,1,team,,24331263-e0d9-5d89-be90-7558ae1a3db6|e023aa06-ace7-5617-8145-aaca829f4c54,__NON_PERSON__,Helena Schlichting / Nicolas De Zeeuw,complete,,,
 1134914723,2006,Mixte Double Net,net,2,team,,8cecdcc8-5029-5dc8-959d-6bf8a8013e26|b5c82731-ff37-5170-86a5-f744afe4d154,__NON_PERSON__,Lisa Amengual / Vincent Rousseau,complete,,,
 1134914723,2006,Mixte Double Net,net,3,team,,a6c1aa5a-ae94-5316-9210-c69b2ca48fa7|c91a2084-4b3a-5614-8b34-a52171742e13,__NON_PERSON__,Myriam Mimi Carrier / Marco Brunet,complete,,,
@@ -22814,9 +22815,9 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 1727756195,2024,Open Doubles,freestyle,5,team,,93ae2905-be44-5297-b346-0cb10aa85b3f|f72bace0-f194-5284-b023-44f42dc38be3,__NON_PERSON__,Piotr Staroscic / Tomasz Kleszynski,complete,,,
 1727756195,2024,Open Golf,golf,1,player,b980fe51-dd4b-54fd-bb60-21cbb482f674,,Michal Klimczak,,complete,,michal klimczak,Open Golf
 1727756195,2024,Open Golf,golf,2,player,8a15006e-bc85-5621-bbe6-66090397b7d2,,Przemyslaw Pietrzycki,,complete,,przemyslaw pietrzycki,Open Golf
-1727756195,2024,Open Golf,golf,3,player,401af1f3-a976-5403-9740-210e2849f159,,Maciej Niczyporuk,,complete,,maciej niczyporuk,Open Golf
+1727756195,2024,Open Golf,golf,2,player,401af1f3-a976-5403-9740-210e2849f159,,Maciej Niczyporuk,,complete,,maciej niczyporuk,Open Golf
 1727756195,2024,Open Golf,golf,4,player,bb89d2bb-12af-5038-a092-0b4cf1269860,,Marcin Czech,,complete,,marcin czech,Open Golf
-1727756195,2024,Open Golf,golf,5,player,7803c245-2181-5686-bd08-95d6d178974a,,Kuba Mosciszewski,,complete,,kuba mosciszewski,Open Golf
+1727756195,2024,Open Golf,golf,4,player,7803c245-2181-5686-bd08-95d6d178974a,,Kuba Mosciszewski,,complete,,kuba mosciszewski,Open Golf
 1727756195,2024,Open Golf,golf,6,player,392ef8ff-d969-5917-8bc5-176805ecb787,,Michal Rog,,complete,,michal rog,Open Golf
 1727756195,2024,Open Golf,golf,7,player,9fccb3a3-3408-518a-aacb-43d9678fcce4,,Pawel Nowak,,complete,,pawel nowak,Open Golf
 1727756195,2024,Open Golf,golf,8,player,0c38b19f-43e0-57ab-9f24-a19fdfeefabb,,Wojtek Ignaczak,,complete,,wojtek ignaczak,Open Golf
