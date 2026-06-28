@@ -390,6 +390,7 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     expect(res.text).toContain('Tutorials &amp; Demos');
     for (const label of [
       'Foundations of Freestyle',
+      'All PassBack Tutorials',
       'How to Footbag Freestyle',
       'Beginner PassBack Tutorials',
       'Advanced PassBack Tutorials',

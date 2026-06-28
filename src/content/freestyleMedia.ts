@@ -26,14 +26,20 @@ export const FREESTYLE_MEDIA_STRUCTURE: FreestyleMediaSectionDef[] = [
     heading: 'Tutorials & Demos',
     folders: [
       { galleryId: 'gallery_foundations_of_freestyle', label: 'Foundations of Freestyle' },
-      { galleryId: 'gallery_passback_how_to', label: 'How to Footbag Freestyle' },
-      { galleryId: 'gallery_passback_beginner', label: 'Beginner PassBack Tutorials' },
-      { galleryId: 'gallery_passback_advanced', label: 'Advanced PassBack Tutorials' },
       { galleryId: 'gallery_tricks_of_the_trade', label: 'Tricks of the Trade' },
       { galleryId: 'gallery_anz_trikz', label: 'Anz Trikz' },
       { galleryId: 'gallery_shred_global', label: 'Shred Global' },
       { galleryId: 'gallery_footbag_finland', label: 'Footbag Finland' },
       { galleryId: 'gallery_footbag_org', label: 'Footbag.org' },
+    ],
+  },
+  {
+    heading: 'PassBack Tutorials',
+    folders: [
+      { galleryId: 'gallery_passback_tutorials', label: 'All PassBack Tutorials' },
+      { galleryId: 'gallery_passback_how_to', label: 'How to Footbag Freestyle' },
+      { galleryId: 'gallery_passback_beginner', label: 'Beginner PassBack Tutorials' },
+      { galleryId: 'gallery_passback_advanced', label: 'Advanced PassBack Tutorials' },
     ],
   },
   {
