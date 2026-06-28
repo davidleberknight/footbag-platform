@@ -9,7 +9,21 @@
 
 <div class="wrapper">
 
+  {{> tier-explainer content}}
+
+  {{#if content.showJoinCtas}}
   <section>
+    <div class="card">
+      <div class="card-title">Become a Member</div>
+      <p class="card-description">Become an IFPA Member to compete in events, join a club, upload photos and videos, organize events, vote in IFPA elections, and participate in the global footbag community.</p>
+      <a href="/register" class="btn btn-primary">Sign Up</a>
+    </div>
+    <p class="mt-3">Already a member? <a href="/login">Log In</a></p>
+  </section>
+  {{/if}}
+
+  <section>
+    <h2>Governance Documents</h2>
     <div class="card-grid card-grid-2col">
       {{#each content.docs}}
         <div class="card">

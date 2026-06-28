@@ -66,8 +66,17 @@ describe('auth gate: unauthenticated access -> 302 to /login?returnTo=...', () =
   const postRoutes = [
     '/register/wizard/legacy_claim/find',
     '/register/wizard/legacy_claim/auto-link/confirm',
+    '/register/wizard/legacy_claim/auto-link/decline',
     '/register/wizard/legacy_claim/claim/confirm',
+    '/register/wizard/legacy_claim/cross-source/confirm',
+    '/register/wizard/legacy_claim/help-request',
+    '/register/wizard/legacy_claim/anchors/send-verification',
+    '/register/wizard/legacy_claim/anchors/add',
+    '/register/wizard/legacy_claim/anchors/remove',
+    '/register/wizard/personal_details/submit',
+    '/register/wizard/personal_details/skip',
     '/register/wizard/club_affiliations/submit',
+    '/register/wizard/club_affiliations/skip',
     '/register/wizard/legacy_claim/skip',
   ];
 
@@ -90,8 +99,17 @@ describe('CSRF: state-changing wizard POSTs reject missing/mismatched Origin', (
   const postRoutes = [
     '/register/wizard/legacy_claim/find',
     '/register/wizard/legacy_claim/auto-link/confirm',
+    '/register/wizard/legacy_claim/auto-link/decline',
     '/register/wizard/legacy_claim/claim/confirm',
+    '/register/wizard/legacy_claim/cross-source/confirm',
+    '/register/wizard/legacy_claim/help-request',
+    '/register/wizard/legacy_claim/anchors/send-verification',
+    '/register/wizard/legacy_claim/anchors/add',
+    '/register/wizard/legacy_claim/anchors/remove',
+    '/register/wizard/personal_details/submit',
+    '/register/wizard/personal_details/skip',
     '/register/wizard/club_affiliations/submit',
+    '/register/wizard/club_affiliations/skip',
     '/register/wizard/legacy_claim/skip',
   ];
 

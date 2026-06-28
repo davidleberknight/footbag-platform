@@ -107,13 +107,15 @@ describe('POST /clubs/:key/volunteer', () => {
     expect(leaderRows(clubId)).toEqual([{ member_id: m, role: 'co-leader' }]);
   });
 
-  it('a Tier 0 member without Active Player is refused', async () => {
+  it('a Tier 0 member without Active Player is refused at the tier gate', async () => {
     const { clubId, clubKey } = seedClub();
     const m = tier0Actor(`v-t0-${_n}`, `v_t0_${_n}`);
     insertMemberClubAffiliation(db, m, clubId);
 
+    // Volunteering to co-lead always requires Tier 1 benefits; the route gate
+    // returns 403 before the service runs.
     const res = await request(createApp()).post(`/clubs/${clubKey}/volunteer`).set('Cookie', cookieFor(m));
-    expect(res.status).toBe(303);
+    expect(res.status).toBe(403);
     expect(leaderRows(clubId)).toHaveLength(0);
   });
 

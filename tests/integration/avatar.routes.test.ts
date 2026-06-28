@@ -353,8 +353,8 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
 
   it('unauthenticated responses are not marked no-store', async () => {
     const app = createApp();
-    // Public welcome page at /members for unauthenticated visitors.
-    const res = await request(app).get('/members');
+    // A public page (the IFPA membership hub) for unauthenticated visitors.
+    const res = await request(app).get('/ifpa');
     expect(res.status).toBe(200);
     expect(res.headers['cache-control']).toBeUndefined();
   });

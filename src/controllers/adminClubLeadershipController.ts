@@ -55,11 +55,18 @@ export const adminClubLeadershipController = {
   demote(req: Request, res: Response, next: NextFunction): void {
     const clubId = req.params.clubId ?? '';
     try {
+      // The demote form offers exactly these two actions; reject anything else
+      // rather than silently falling back to a demotion the admin did not pick.
+      const mode = req.body.mode;
+      if (mode !== 'to_member' && mode !== 'remove_affiliation') {
+        renderDetailError(res, clubId, new ValidationError('Choose how to demote the leader.'));
+        return;
+      }
       adminClubLeadershipService.demoteLeader(
         req.user!.userId,
         clubId,
         String(req.body.member_id ?? ''),
-        req.body.mode === 'remove_affiliation' ? 'remove_affiliation' : 'to_member',
+        mode,
         String(req.body.reason ?? ''),
       );
       res.redirect(303, `/admin/clubs/${clubId}/leadership`);

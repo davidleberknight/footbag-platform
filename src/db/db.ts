@@ -1429,28 +1429,6 @@ export const clubLeaders = {
     SELECT 1 AS x FROM club_leaders WHERE member_id = ? LIMIT 1
   `); },
 
-  // Path-2 leadership offers: the member's current clubs that have NO
-  // leadership rows at all (bootstrap candidates may exist provisional, but
-  // no one has registered and claimed).
-  get listLeaderlessCurrentClubsForMember() { return db.prepare(`
-    SELECT c.id, c.name
-    FROM member_club_affiliations a
-    JOIN clubs c ON c.id = a.club_id
-    WHERE a.member_id = ? AND a.is_current = 1
-      AND c.status IN ('active','inactive')
-      AND NOT EXISTS (SELECT 1 FROM club_leaders l WHERE l.club_id = c.id)
-    ORDER BY a.is_primary DESC, c.name
-  `); },
-
-  // A declined path-2 offer is terminal for that member/club pair; the
-  // decline audit row is the suppression source.
-  get hasPathTwoDecline() { return db.prepare(`
-    SELECT 1 AS x FROM audit_entries
-    WHERE action_type = 'club.leadership_path2_declined'
-      AND actor_member_id = ? AND entity_type = 'club' AND entity_id = ?
-    LIMIT 1
-  `); },
-
   // Admin leadership remediation lookups.
   get findClubForAdminLeadership() { return db.prepare(`
     SELECT id, name, status FROM clubs WHERE id = ?

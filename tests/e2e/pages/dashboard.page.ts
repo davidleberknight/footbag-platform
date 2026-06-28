@@ -24,6 +24,11 @@ export class DashboardPage {
     await this.page.waitForURL(/\/register\/wizard\//);
   }
 
+  async clickFirstSkippedResume(): Promise<void> {
+    await this.page.locator('.onboarding-task-list-skipped .onboarding-task-cta').first().click();
+    await this.page.waitForURL(/\/register\/wizard\//);
+  }
+
   get heading() {
     return this.page.getByRole('heading', { level: 1 });
   }

@@ -25,7 +25,7 @@ When in doubt, look at whether the service needs `getMediaStorageAdapter()`, `ge
 
 Methods that produce a public page view-model:
 
-- Named `get<Page>Page()` (e.g. `getOwnProfile`, `getPublicEventPage`, `getMembersWelcomePage`).
+- Named `get<Page>Page()` (e.g. `getOwnProfile`, `getPublicEventPage`, `getIfpaIndexPage`).
 - Declared return type `Promise<PageViewModel<TContent>>` from `src/types/page.ts` (or `PageViewModel<TContent> | null` for privacy-gated reads where null maps to 404 at the controller).
 - Compose all view-model fields, including hrefs, labels, badges, booleans. Controllers do not augment the result.
 

@@ -58,17 +58,6 @@ function renderNotFound(res: Response): void {
 }
 
 export const memberController = {
-  /** GET /members, public informational landing (welcome + tier explainer). */
-  landing(req: Request, res: Response, next: NextFunction): void {
-    try {
-      const vm = memberService.getMembersWelcomePage({ isAuthenticated: req.isAuthenticated });
-      res.render('members/welcome', vm);
-    } catch (err) {
-      logger.error('members welcome error', { error: err instanceof Error ? err.message : String(err) });
-      next(err);
-    }
-  },
-
   /** GET /members/:memberKey: own profile, any member profile for an
    * authenticated viewer, or the HoF/BAP public read-only exception for
    * anonymous visitors (others redirect to login). */

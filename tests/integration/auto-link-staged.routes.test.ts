@@ -204,3 +204,41 @@ describe('cross-path staged resolution and evidence tagging', () => {
     expect(JSON.parse(String(blocked[0].metadata_json)).reason).toBe('surname_mismatch');
   });
 });
+
+describe('auto-link confirm drift banner', () => {
+  it('a drifting confirm 303s to legacy_claim and the receiving GET renders the drift notice once', async () => {
+    const memberId = insertMember(db, {
+      slug: 'autolink_drift',
+      login_email: 'autolink-drift@example.com',
+    });
+
+    // A confirm whose suggested match no longer resolves (here a stale form
+    // posting an empty personId) takes the drift fallback: 303 back to the task
+    // carrying the drift flash, never the standalone confirm template.
+    const post = await request(createApp())
+      .post('/register/wizard/legacy_claim/auto-link/confirm')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ personId: '' });
+    expect(post.status).toBe(303);
+    expect(post.headers.location).toBe('/register/wizard/legacy_claim');
+
+    const setCookies = (post.headers['set-cookie'] ?? []) as unknown as string[];
+    const flashCookie = setCookies
+      .map((c) => c.split(';')[0])
+      .find((c) => c.startsWith('footbag_flash='));
+    expect(flashCookie).toBeDefined();
+
+    const withFlash = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', `${cookieFor(memberId)}; ${flashCookie}`);
+    expect(withFlash.status).toBe(200);
+    expect(withFlash.text).toContain('Your suggested match is no longer applicable');
+
+    // The drift flash is one-shot: a fresh GET without it does not show the banner.
+    const without = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(memberId));
+    expect(without.text).not.toContain('Your suggested match is no longer applicable');
+  });
+});

@@ -53,7 +53,7 @@ const ADMIN_ID  = 'crawl-admin-001';
 // Hard bound per persona so a link explosion fails fast instead of hanging
 // the suite. High enough to cover every section root plus discovered detail
 // pages on the small seed corpus; the crawl logs what it visited on failure.
-const MAX_PAGES = 200;
+const MAX_PAGES = 250;
 
 const SEED_ROOTS = [
   '/', '/members', '/clubs', '/events', '/media', '/media/browse', '/hof',

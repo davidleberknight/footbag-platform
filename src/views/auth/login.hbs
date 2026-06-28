@@ -1,4 +1,5 @@
-{{! Login page }}
+{{! Login page: the single visitor entry. Legacy-claim card first, then the
+    sign-in form, a register CTA, and a pointer to IFPA membership. }}
 
 <div class="hero hero-sm">
   <div>
@@ -10,14 +11,19 @@
 <div class="wrapper">
 
   <section>
+    {{> legacy-account-card}}
+
+    <p class="mt-4">New to IFPA? <a href="/register">Create an account</a></p>
+    <p class="mt-2"><a href="/ifpa">See IFPA membership tiers and benefits</a></p>
+
     {{#if content.authReason}}
-      <p class="form-notice">{{content.authReason}}</p>
+      <p class="form-notice mt-4">{{content.authReason}}</p>
     {{/if}}
     {{#if content.error}}
-      <p class="form-field-error" role="alert">{{content.error}}</p>
+      <p class="form-field-error mt-4" role="alert">{{content.error}}</p>
     {{/if}}
 
-    <form method="POST" action="/login" class="login-form">
+    <form method="POST" action="/login" class="login-form mt-4">
       {{#if content.returnTo}}
         <input type="hidden" name="returnTo" value="{{content.returnTo}}" />
       {{/if}}
@@ -34,11 +40,6 @@
     </form>
 
     <p class="mt-4"><a href="/password/forgot">Forgot your password?</a></p>
-    <p class="mt-4">New to IFPA? <a href="/register">Create an account</a></p>
-    <div class="card mt-4">
-      <div class="card-title">Had an account on the old footbag.org?</div>
-      <p class="card-description">You will need to <a href="/register">create a new account</a> here first to become a member in the new system. During setup, you can link to your historical data, such as event results, and club affiliation.</p>
-    </div>
   </section>
 
 </div>

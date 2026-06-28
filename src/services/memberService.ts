@@ -2,8 +2,8 @@
  * MemberService -- member-account page shaping and the PII-purge primitive.
  *
  * Owns:
- *   - Page shaping for /members/* surfaces (public welcome with tier explainer;
- *     own-profile as authenticated personal home; member-viewable read-only
+ *   - Page shaping for /members/* surfaces (own-profile as authenticated personal
+ *     home; member-viewable read-only
  *     profile of any other member, with the HoF/BAP exception as the only
  *     anonymous-public render; profile edit including inline avatar upload)
  *   - Member search (`searchMembers`)
@@ -204,12 +204,6 @@ export interface MemberWelcomeTier {
   benefits: ReadonlyArray<string>;
 }
 
-export interface MemberWelcomeContent {
-  /** Sign Up + Log In cards render only for unauthenticated visitors. */
-  showJoinCtas: boolean;
-  /** Tier 0 → 3 in canonical order, with display labels, prices, and benefits. */
-  tiers: ReadonlyArray<MemberWelcomeTier>;
-}
 // Contact-email visibility is off (private) or members-only; never public.
 // A held co-leader/organizer role forces 'members' (enforced in updateOwnProfile).
 const VALID_EMAIL_VISIBILITY = new Set(['private', 'members']);
@@ -1299,19 +1293,9 @@ export const memberService = {
     return { query: trimmed, results, hasMore, tooShort: false, rateLimited: false };
   },
 
-  getMembersWelcomePage(
-    opts: { isAuthenticated: boolean },
-  ): PageViewModel<MemberWelcomeContent> {
-    const tiers: MemberWelcomeTier[] = welcomeTierContent();
-    return {
-      seo:  { title: 'Members' },
-      page: { sectionKey: 'members', pageKey: 'member_welcome', title: 'Members' },
-      navigation: { contextLinks: [] },
-      content: {
-        showJoinCtas: !opts.isAuthenticated,
-        tiers,
-      },
-    };
+  /** The membership-tier explainer rows, single-sourced for the IFPA page. */
+  getMembershipTiers(): MemberWelcomeTier[] {
+    return welcomeTierContent();
   },
 
 };

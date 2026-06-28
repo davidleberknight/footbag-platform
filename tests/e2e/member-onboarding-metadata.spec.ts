@@ -38,12 +38,20 @@ test('personal_details: future year rejected inline', async ({ browser, baseURL 
 
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
+  await page.locator('#country').fill('US');
   await page.locator('#birthDate').fill('2000-01-15');
   await wizard.yearInput.fill('2099');
   await wizard.saveButton.click();
 
+  // The year field has no browser max, so a future year reaches the server,
+  // which rejects it and re-renders the form with an inline error; the task
+  // is not completed.
   expect(page.url()).toContain('personal_details');
   await expect(wizard.inlineError).toBeVisible();
+
+  const db2 = openLiveDb();
+  expect(getTaskState(db2, persona.memberId, 'personal_details')).toBe('pending');
+  db2.close();
 
   await ctx.close();
 });
@@ -96,7 +104,7 @@ test('keyboard: Tab reaches identifier input, Find button, Skip button', { tag: 
   const findReachable = await reachByTab(page, 'button:has-text("Find")');
   expect(findReachable).toBe(true);
 
-  const skipReachable = await reachByTab(page, 'button:has-text("Skip for now")');
+  const skipReachable = await reachByTab(page, 'button:has-text("Continue Without Linking a Past Account")');
   expect(skipReachable).toBe(true);
 
   await ctx.close();

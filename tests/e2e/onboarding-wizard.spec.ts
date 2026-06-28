@@ -124,10 +124,11 @@ test('complete personal_details via form fill -> advances to next task', async (
   await wizard.goto('personal_details');
   await expect(wizard.yearInput).toBeVisible();
   await page.locator('#city').fill('Portland');
+  await page.locator('#country').fill('US');
   await page.locator('#birthDate').fill('2000-01-15');
   await wizard.submitYear('2005');
 
-  expect(page.url()).toMatch(/\/register\/wizard\/complete/);
+  expect(page.url()).toMatch(/\/register\/wizard\/club_affiliations/);
 
   await context.close();
 });

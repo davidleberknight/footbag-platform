@@ -1,8 +1,7 @@
 /**
- * Integration tests for the public welcome at GET /members and the
- * member-search affordance on the personal home at GET /members/<slug>?q=…
- * (the dashboard search was relocated to the profile when /members
- * reverted to a public welcome page).
+ * Integration tests for GET /members (which has no landing page of its own and
+ * redirects) and the member-search affordance on the personal home at
+ * GET /members/<slug>?q=… (where the dashboard search lives).
  *
  * Port 3060 — unique to this file.
  */
@@ -82,35 +81,30 @@ afterAll(() => cleanupTestDb(dbPath));
 
 // ── Landing page ──────────────────────────────────────────────────────────────
 
-describe('GET /members — welcome', () => {
-  it('unauthenticated → 200 with welcome page (Sign Up CTA)', async () => {
+describe('GET /members — removed (no landing page of its own)', () => {
+  it('unauthenticated → 404 (the route does not exist)', async () => {
     const app = createApp();
     const res = await request(app).get('/members');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Sign Up');
-    expect(res.text).toContain('/register');
+    expect(res.status).toBe(404);
   });
 
-  it('unauthenticated welcome tells legacy footbag.org users they need a new account', async () => {
+  it('the login visitor entry tells legacy footbag.org users they need a new account', async () => {
     // Arrivals from the old site must learn up front that old credentials do
-    // not carry over and that historical data is linked during setup.
+    // not carry over and that historical data is linked during setup. That
+    // guidance now lives on the login visitor entry.
     const app = createApp();
-    const res = await request(app).get('/members');
+    const res = await request(app).get('/login');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Had an account on the old footbag.org?');
-    expect(res.text).toContain('You will need to create a new account here first to become a member in the new system.');
+    expect(res.text).toContain('create a new account');
+    expect(res.text).toContain('to become a member in the new system');
     expect(res.text).toContain('link to your historical data');
   });
 
-  it('authenticated → 200 with welcome page (no search form on /members)', async () => {
-    // The Find Members search lives on the personal home now. The welcome
-    // page renders the same tier explainer to everyone; only the join CTAs
-    // are hidden for authenticated visitors.
+  it('authenticated → 404 (the route does not exist)', async () => {
     const app = createApp();
     const res = await request(app).get('/members').set('Cookie', searcherCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('global governing body for footbag');
-    expect(res.text).not.toContain('Find Members');
+    expect(res.status).toBe(404);
   });
 });
 

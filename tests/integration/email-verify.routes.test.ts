@@ -544,7 +544,7 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
 });
 
 describe('Authenticated member search excludes unverified rows', () => {
-  it('an unverified member is not in members_searchable and not in /members?q=', async () => {
+  it('an unverified member is not in members_searchable and not in member search', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
       realName: 'Shadow Figure',
@@ -554,7 +554,7 @@ describe('Authenticated member search excludes unverified rows', () => {
     });
 
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: 'verify-searcher' })}`;
-    const res = await request(app).get('/members?q=Shadow').set('Cookie', cookie);
+    const res = await request(app).get('/members/verify_searcher?q=Shadow').set('Cookie', cookie);
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Shadow Figure');
   });

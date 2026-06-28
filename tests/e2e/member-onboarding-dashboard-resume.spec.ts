@@ -17,7 +17,7 @@ test('skipped tasks appear in dashboard widget with Resume affordance', async ({
   const page = await ctx.newPage();
   const wizard = new WizardPage(page);
 
-  await wizard.goto('legacy_claim');
+  await wizard.goto('club_affiliations');
   await wizard.skipCurrentTask();
 
   const dashboard = new DashboardPage(page);
@@ -59,14 +59,14 @@ test('resume skipped task opens correct wizard page with correct heading', async
   const page = await ctx.newPage();
   const wizard = new WizardPage(page);
 
-  await wizard.goto('legacy_claim');
+  await wizard.goto('club_affiliations');
   await wizard.skipCurrentTask();
 
   const dashboard = new DashboardPage(page);
   await dashboard.goto(persona.slug);
-  await dashboard.clickFirstResume();
+  await dashboard.clickFirstSkippedResume();
 
-  expect(page.url()).toContain('/register/wizard/');
+  expect(page.url()).toContain('/register/wizard/club_affiliations');
   await expect(wizard.heading).toBeVisible();
   await expect(wizard.skipButton).toBeVisible();
 
@@ -150,11 +150,11 @@ test('logout and re-login preserves wizard task state', async ({ browser, baseUR
   const page = await ctx.newPage();
   const wizard = new WizardPage(page);
 
-  await wizard.goto('legacy_claim');
+  await wizard.goto('club_affiliations');
   await wizard.skipCurrentTask();
 
   const db2 = openLiveDb();
-  expect(getTaskState(db2, persona.memberId, 'legacy_claim')).toBe('skipped');
+  expect(getTaskState(db2, persona.memberId, 'club_affiliations')).toBe('skipped');
   db2.close();
 
   await ctx.close();

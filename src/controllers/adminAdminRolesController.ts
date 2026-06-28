@@ -3,10 +3,10 @@ import { adminRoleService } from '../services/adminRoleService';
 import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 
-// Re-render the page with an inline error: 404 when the named member does not
-// exist (anti-enumeration parity with other admin member lookups), 422 when the
-// submitted values fail a business rule (wrong tier, self-revoke, already/not an
-// admin, missing reason).
+// Re-render the page with an inline error; the status follows the error class.
+// NotFoundError -> 404 (a revoke addressed to an unknown member id).
+// ValidationError / ConflictError -> 422 for a fixable submission: an unknown
+// grant key, wrong tier, self-revoke, already/not an admin, or a missing reason.
 function renderError(
   res: Response,
   viewerId: string,

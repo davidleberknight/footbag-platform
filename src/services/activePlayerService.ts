@@ -612,7 +612,7 @@ export function applyVouch(
  * only blocks duplicate club-join inserts); a member who has had AP via
  * attendance or vouch is no longer eligible for the one-time club grant.
  */
-export function applyClubJoin(
+function applyClubJoinCore(
   actorId: string,
   memberId: string,
   clubAffiliationId: string,
@@ -671,53 +671,73 @@ export function applyClubJoin(
     return { status: 'noop', reason: 'already_active_player_history' };
   }
 
-  return transaction(() => {
-    const now = new Date();
-    const nowIso = now.toISOString();
-    const newExpiresAt = isoFromDateAddDays(now, durationDays());
-    const id = newGrantId();
-    try {
-      activePlayer.insertGrant.run(
-        id,
-        nowIso,
-        memberId,
-        actorId,
-        'grant',
-        null,
-        newExpiresAt,
-        'club_join_one_time_active_player_grant',
-        null,
-        null, null,
-        aff.club_id,
-        clubAffiliationId,
-        null,
-      );
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        // Concurrent caller won the unique-index race.
-        return { status: 'noop' as const, reason: 'already_active_player_history' };
-      }
-      throw err;
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const newExpiresAt = isoFromDateAddDays(now, durationDays());
+  const id = newGrantId();
+  try {
+    activePlayer.insertGrant.run(
+      id,
+      nowIso,
+      memberId,
+      actorId,
+      'grant',
+      null,
+      newExpiresAt,
+      'club_join_one_time_active_player_grant',
+      null,
+      null, null,
+      aff.club_id,
+      clubAffiliationId,
+      null,
+    );
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      // Concurrent caller won the unique-index race.
+      return { status: 'noop' as const, reason: 'already_active_player_history' };
     }
+    throw err;
+  }
 
-    appendAuditEntry({
-      actionType: 'active_player.grant',
-      category: 'active_player_change',
-      actorType: 'system',
-      actorMemberId: actorId,
-      entityType: 'member',
-      entityId: memberId,
-      reasonText: null,
-      metadata: {
-        reason_code: 'club_join_one_time_active_player_grant',
-        club_id: aff.club_id,
-        club_affiliation_id: clubAffiliationId,
-        new_expires_at: newExpiresAt,
-      },
-    });
-
-    return { status: 'granted' as const, expiresAt: newExpiresAt };
+  appendAuditEntry({
+    actionType: 'active_player.grant',
+    category: 'active_player_change',
+    actorType: 'system',
+    actorMemberId: actorId,
+    entityType: 'member',
+    entityId: memberId,
+    reasonText: null,
+    metadata: {
+      reason_code: 'club_join_one_time_active_player_grant',
+      club_id: aff.club_id,
+      club_affiliation_id: clubAffiliationId,
+      new_expires_at: newExpiresAt,
+    },
   });
+
+  return { status: 'granted' as const, expiresAt: newExpiresAt };
+}
+
+export function applyClubJoin(
+  actorId: string,
+  memberId: string,
+  clubAffiliationId: string,
+): ApplyResult {
+  // Standalone entry point: opens its own transaction so the grant insert and
+  // its audit row commit together.
+  return transaction(() => applyClubJoinCore(actorId, memberId, clubAffiliationId));
+}
+
+export function applyClubJoinInTx(
+  actorId: string,
+  memberId: string,
+  clubAffiliationId: string,
+): ApplyResult {
+  // In-transaction entry point: the caller already holds an open transaction,
+  // so the one-time Active Player grant co-commits atomically with the club
+  // affiliation or club row that triggered it. better-sqlite3 forbids nested
+  // transactions, so this must not open its own.
+  return applyClubJoinCore(actorId, memberId, clubAffiliationId);
 }
 
 /**

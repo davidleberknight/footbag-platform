@@ -5,9 +5,9 @@ import { handleControllerError } from '../lib/controllerErrors';
 
 export const ifpaController = {
   /** GET /ifpa */
-  index(_req: Request, res: Response, next: NextFunction): void {
+  index(req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = ifpaService.getIfpaIndexPage();
+      const vm = ifpaService.getIfpaIndexPage({ isAuthenticated: req.isAuthenticated });
       res.render('ifpa/index', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'ifpa controller');

@@ -29,6 +29,8 @@ const { dbPath } = setTestEnv('3092');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let aps: typeof import('../../src/services/activePlayerService');
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+let dbMod: typeof import('../../src/db/db');
 
 const PAST_AP = '2020-01-01T00:00:00.000Z';
 const FUTURE_AP = '2099-01-01T00:00:00.000Z';
@@ -56,6 +58,7 @@ beforeAll(async () => {
     '2025-01-01T00:00:00.000Z', 'seed');
   db.close();
   aps = await import('../../src/services/activePlayerService');
+  dbMod = await import('../../src/db/db');
 });
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -639,6 +642,31 @@ describe('applyClubJoin', () => {
     expect(() => aps.applyClubJoin(ACTOR_ID, id, 'aff-bogus')).toThrow(
       /not found/,
     );
+  });
+
+  it('applyClubJoinInTx run inside a committing caller transaction writes the grant', () => {
+    const id = freshMember();
+    const affId = buildAffiliation(id);
+    dbMod.transaction(() => {
+      aps.applyClubJoinInTx(ACTOR_ID, id, affId);
+    });
+    const rows = apGrants(id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].reason_code).toBe('club_join_one_time_active_player_grant');
+  });
+
+  it('applyClubJoinInTx co-commits: a caller transaction that throws rolls back the grant', () => {
+    const id = freshMember();
+    const affId = buildAffiliation(id);
+    expect(() =>
+      dbMod.transaction(() => {
+        aps.applyClubJoinInTx(ACTOR_ID, id, affId);
+        throw new Error('caller fails after the grant');
+      }),
+    ).toThrow('caller fails');
+    // The grant participated in the caller's transaction and rolled back with it,
+    // so no orphaned grant survives a post-grant caller failure.
+    expect(apGrants(id)).toHaveLength(0);
   });
 });
 

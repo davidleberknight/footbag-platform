@@ -12,7 +12,7 @@ import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertLegacyMember, insertHistoricalPerson, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertLegacyMember, insertHistoricalPerson, insertOnboardingTask, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3133');
 
@@ -77,11 +77,36 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
       .get('/register/wizard/personal_details')
       .set('Cookie', cookieFor(memberId));
     expect(res.status).toBe(200);
+    // The save control renders at both the top and bottom of the form so the
+    // pending action stays visible without scrolling.
+    expect(res.text.match(/>Save and Continue Onboarding</g)?.length).toBe(2);
     expect(countOnboardingTasks(memberId)).toBe(3);
     await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(memberId));
     expect(countOnboardingTasks(memberId)).toBe(3);
+  });
+
+  it('personal_details submit label says Continue while other steps remain, Complete when it is the last', async () => {
+    // Fresh member, every task pending: saving personal_details continues the wizard.
+    const more = insertMember(testDb, { slug: `pd_more_${Date.now()}`, login_email: `pd-more-${Date.now()}@example.com` });
+    const moreRes = await request(createApp())
+      .get('/register/wizard/personal_details')
+      .set('Cookie', cookieFor(more));
+    expect(moreRes.text).toContain('Save and Continue Onboarding');
+    expect(moreRes.text).not.toContain('Save and Complete Onboarding');
+
+    // Member whose other tasks are already terminal: personal_details is the
+    // last outstanding step, so the label finishes onboarding.
+    const last = insertMember(testDb, { slug: `pd_last_${Date.now()}`, login_email: `pd-last-${Date.now()}@example.com` });
+    insertOnboardingTask(testDb, last, 'personal_details', 'pending');
+    insertOnboardingTask(testDb, last, 'legacy_claim', 'completed');
+    insertOnboardingTask(testDb, last, 'club_affiliations', 'skipped');
+    const lastRes = await request(createApp())
+      .get('/register/wizard/personal_details')
+      .set('Cookie', cookieFor(last));
+    expect(lastRes.text).toContain('Save and Complete Onboarding');
+    expect(lastRes.text).not.toContain('Save and Continue Onboarding');
   });
 
   it('unknown :taskType -> 404', async () => {
@@ -98,7 +123,7 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
     expect(res.status).toBe(404);
   });
 
-  it('renders each known taskType (club_affiliations 303-transitions when the member has zero possible cards)', async () => {
+  it('renders each known taskType (club_affiliations renders the wrap-up landing when the member has zero possible cards)', async () => {
     const stamp = Date.now();
     const memberId = insertMember(testDb, { slug: `wiz_eachtask_${stamp}`, login_email: `wiz-each-${stamp}@example.com` });
     const cookie = cookieFor(memberId);
@@ -108,12 +133,15 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
         .set('Cookie', cookie);
       expect(res.status, `taskType=${taskType}`).toBe(200);
     }
-    // club_affiliations with no legacy linkage auto-transitions to
-    // not_applicable on GET, and 303-redirects to the next pending task.
+    // club_affiliations is universal: a member with no legacy linkage has no
+    // Stage 1 card and lands on the find-or-create-your-club wrap-up landing.
     const ca = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookie);
-    expect(ca.status).toBe(303);
+    expect(ca.status).toBe(200);
+    expect(ca.text).toContain('Find or create your club');
+    expect(ca.text).toContain('We did not find a past club affiliation for you');
+    expect(getTaskState(memberId, 'club_affiliations')).toBe('pending');
   });
 
   it('GET /register/wizard/complete renders the completion page', async () => {
@@ -162,13 +190,13 @@ describe('POST /register/wizard/personal_details/submit — collects details and
 });
 
 describe('POST /register/wizard/:taskType/skip — 303 advance to next task', () => {
-  it('skipping legacy_claim transitions state and redirects 303 to club_affiliations', async () => {
+  it('the legacy_claim "nothing to claim" decision completes the task and advances 303 to club_affiliations', async () => {
     const stamp = Date.now();
     const memberId = insertMember(testDb, { slug: `wiz_skip_lc_${stamp}`, login_email: `wiz-skip-lc-${stamp}@example.com` });
     await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
-    const beforeAudits = countAuditEntries(memberId, 'onboarding_task_skipped');
+    const beforeAudits = countAuditEntries(memberId, 'onboarding_task_completed');
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/skip')
       .set('Cookie', cookieFor(memberId))
@@ -176,38 +204,47 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
       .send({});
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/club_affiliations');
-    expect(getTaskState(memberId, 'legacy_claim')).toBe('skipped');
-    expect(countAuditEntries(memberId, 'onboarding_task_skipped')).toBe(beforeAudits + 1);
+    // legacy_claim is a required decision: the "nothing to claim" control
+    // completes it rather than leaving it skipped.
+    expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
+    expect(countAuditEntries(memberId, 'onboarding_task_completed')).toBe(beforeAudits + 1);
     // Member has no legacy_member_id linkage -> listWizardCardsForMember
-    // returns []; the GET handler auto-transitions club_affiliations to
-    // not_applicable and 303-redirects to the next pending task.
+    // returns []; club_affiliations is universal, so the GET renders the
+    // find-or-create-your-club wrap-up landing and the task stays pending.
     const followUp = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(memberId));
-    expect(followUp.status).toBe(303);
-    expect(getTaskState(memberId, 'club_affiliations')).toBe('not_applicable');
+    expect(followUp.status).toBe(200);
+    expect(followUp.text).toContain('Find or create your club');
+    expect(getTaskState(memberId, 'club_affiliations')).toBe('pending');
   });
 
-  it('skipping all tasks in sequence lands on /register/wizard/complete', async () => {
+  it('completing the required tasks and skipping the optional club task lands on /register/wizard/complete', async () => {
     const stamp = Date.now();
     const memberId = insertMember(testDb, { slug: `wiz_skip_all_${stamp}`, login_email: `wiz-skip-all-${stamp}@example.com` });
     const cookie = cookieFor(memberId);
     await request(createApp()).get('/register/wizard/personal_details').set('Cookie', cookie);
-    let res = await request(createApp()).post('/register/wizard/personal_details/skip').set('Cookie', cookie).type('form').send({});
+    // personal_details is required: it completes via a valid submit, not a skip.
+    let res = await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookie).type('form')
+      .send({ city: 'Eugene', region: 'Oregon', country: 'USA', birthDate: '1990-05-05', gender: 'undisclosed' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/legacy_claim');
+    // legacy_claim is required: the "nothing to claim" control completes it.
     res = await request(createApp()).post('/register/wizard/legacy_claim/skip').set('Cookie', cookie).type('form').send({});
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/club_affiliations');
+    // club_affiliations is optional and may be skipped.
     res = await request(createApp()).post('/register/wizard/club_affiliations/skip').set('Cookie', cookie).type('form').send({});
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/complete');
     const followUp = await request(createApp()).get('/register/wizard/complete').set('Cookie', cookie);
     expect(followUp.text).toContain('Your onboarding tasks are handled');
-    for (const tt of ['personal_details', 'legacy_claim', 'club_affiliations'] as const) {
-      expect(getTaskState(memberId, tt), `task=${tt}`).toBe('skipped');
-    }
-    expect(countAuditEntries(memberId, 'onboarding_task_skipped')).toBe(3);
+    expect(getTaskState(memberId, 'personal_details')).toBe('completed');
+    expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
+    expect(getTaskState(memberId, 'club_affiliations')).toBe('skipped');
+    expect(countAuditEntries(memberId, 'onboarding_task_skipped')).toBe(1);
   });
 
   it('skip on unknown taskType -> 404, no state changes', async () => {
@@ -528,11 +565,14 @@ describe('POST /register/wizard/legacy_claim/claim/confirm — token confirmatio
 });
 
 describe('last outstanding task -> 303 to /register/wizard/complete', () => {
-  it('skipping all three tasks lands on complete', async () => {
+  it('completing the required tasks and skipping the optional club task lands on complete', async () => {
     const memberId = insertMember(testDb, { slug: `wiz_done_${Date.now()}`, login_email: `wiz-done-${Date.now()}@example.com` });
     const cookie = cookieFor(memberId);
     await request(createApp()).get('/register/wizard/personal_details').set('Cookie', cookie);
-    await request(createApp()).post('/register/wizard/personal_details/skip').set('Cookie', cookie).type('form').send({});
+    await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookie).type('form')
+      .send({ city: 'Eugene', region: 'Oregon', country: 'USA', birthDate: '1990-05-05', gender: 'undisclosed' });
     await request(createApp()).post('/register/wizard/legacy_claim/skip').set('Cookie', cookie).type('form').send({});
     await request(createApp()).post('/register/wizard/club_affiliations/skip').set('Cookie', cookie).type('form').send({});
     const followUp = await request(createApp()).get('/register/wizard/complete').set('Cookie', cookie);
@@ -550,7 +590,8 @@ describe('per-member scoping: handlers read memberId from session, never URL/bod
     const beforeB = getTaskState(memberBId, 'legacy_claim');
     await request(createApp())
       .post('/register/wizard/legacy_claim/skip').set('Cookie', cookieFor(memberAId)).type('form').send({});
-    expect(getTaskState(memberAId, 'legacy_claim')).toBe('skipped');
+    // The legacy_claim decision completes member A's task; member B is untouched.
+    expect(getTaskState(memberAId, 'legacy_claim')).toBe('completed');
     expect(getTaskState(memberBId, 'legacy_claim')).toBe(beforeB);
   });
 });

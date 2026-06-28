@@ -7,6 +7,7 @@
 <div class="wrapper">
   <section>
     <p>Match your account to your past on footbag.org. Pick a suggested match below, tell us an email address or surname you used on the old site, or search by your old footbag.org ID.</p>
+    <p class="text-muted fs-sm">If you never had an account on the old footbag.org, you can continue without linking, using the button at the bottom of this page.</p>
 
     {{#if content.validationMessage}}
       <p class="form-notice" role="alert">{{content.validationMessage}}</p>
@@ -19,7 +20,7 @@
     {{#if (eq content.anchorVerificationNotice 'sent')}}
       <p class="form-success-banner" role="status">If that address can receive mail, a confirmation link is on its way. Open it while signed in to this account.</p>
     {{else if (eq content.anchorVerificationNotice 'verified')}}
-      <p class="form-success-banner" role="status">Mailbox confirmed. Claims matched through this address now carry hard evidence.</p>
+      <p class="form-success-banner" role="status">Mailbox confirmed. Matches found through this address are treated as a stronger link to your old account.</p>
     {{else if (eq content.anchorVerificationNotice 'invalid')}}
       <p class="form-notice" role="alert">That confirmation link is no longer valid. You can request a fresh one below.</p>
     {{/if}}
@@ -39,13 +40,13 @@
             <label for="disputeStatement">Which record is yours, and how can we verify that?</label>
             <textarea id="disputeStatement" name="statement" rows="3" maxlength="2000" required></textarea>
           </div>
-          <button type="submit" class="btn btn-outline btn-sm">One of These Is Me &mdash; Ask an Administrator</button>
+          <button type="submit" class="btn btn-outline btn-sm">Yes, One of These Is Me (Ask an Administrator)</button>
         </form>
       </div>
     {{/if}}
 
     {{#if content.lowConfidenceBanner}}
-      <p class="form-notice" role="status">We searched for a confident match and didn't find one. Try searching by your old footbag.org member id, username, email, or historical-record id.</p>
+      <p class="form-notice" role="status">We searched for a confident match and didn't find one. Try searching by your old footbag.org member id, username, or the email address you used there.</p>
     {{/if}}
 
     {{#if content.autoLinkDriftNotice}}
@@ -54,7 +55,7 @@
 
     {{#if content.sentNotice.show}}
       <div class="form-success-banner" role="status">
-        If an eligible legacy record was found, a confirmation link has been sent to its legacy email address. Open the link while signed in to this account to complete the claim. The link expires in 24 hours.
+        If an eligible legacy record was found, a confirmation link has been sent to its legacy email address. Open that link in this same browser, while you are still signed in, to complete the claim. The link expires in 24 hours.
       </div>
       {{#if content.sentNotice.outcomeNote}}
         <p class="form-notice" role="status">{{content.sentNotice.outcomeNote}}</p>
@@ -205,7 +206,8 @@
     </form>
 
     <form method="POST" action="/register/wizard/legacy_claim/skip" class="mt-6">
-      <button type="submit" class="btn-link text-muted">Skip for Now</button>
+      <p class="text-muted fs-sm">If you never had an account on the old footbag.org, or none of the matches above are you, continue. Your past results and clubs will not be linked, and you can return to this step from your profile.</p>
+      <button type="submit" class="btn btn-outline">Continue Without Linking a Past Account</button>
     </form>
 
     <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>

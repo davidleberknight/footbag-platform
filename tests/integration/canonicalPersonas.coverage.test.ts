@@ -176,6 +176,7 @@ describe('canonical persona catalog', () => {
     const mlN = db.prepare(`SELECT COUNT(*) AS n FROM mailing_list_subscriptions WHERE member_id = ?`);
     const affN = db.prepare(`SELECT COUNT(*) AS n FROM member_club_affiliations WHERE member_id = ?`);
     const onbN = db.prepare(`SELECT COUNT(*) AS n FROM member_onboarding_tasks WHERE member_id = ?`);
+    const onbStateOf = db.prepare(`SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?`);
     type MemberRow = {
       display_name: string;
       is_admin: number;
@@ -241,7 +242,15 @@ describe('canonical persona catalog', () => {
           spec.clubs.length,
         );
       }
-      if (spec.onboardingTasks || spec.onboardingComplete) {
+      if (spec.onboardingTasks) {
+        // Assert the seeded state of each declared task, not just that some row
+        // exists: a regression that wrote every task as 'completed' would slip
+        // past a bare row-count check.
+        for (const [taskType, wantState] of Object.entries(spec.onboardingTasks)) {
+          const row = onbStateOf.get(id, taskType) as { state: string } | undefined;
+          expect(row?.state, `${spec.slug} ${taskType} state`).toBe(wantState);
+        }
+      } else if (spec.onboardingComplete) {
         expect(countN(onbN, id), `${spec.slug} onboarding rows`).toBeGreaterThan(0);
       }
     }

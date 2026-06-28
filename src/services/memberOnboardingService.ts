@@ -5,11 +5,16 @@
  *   - The onboarding task list and its lifecycle: idempotent startTaskList on first wizard GET,
  *     per-task state (pending / in_progress_paused / skipped / completed / not_applicable), and the
  *     sequential advance order that the wizard and the dashboard Resume target both follow.
- *   - The three current tasks: personal_details, legacy_claim, and club_affiliations. Each renders
- *     a single page and resolves via submit (save-and-advance) or skip. The results-visibility
- *     preference (show_competitive_results) is collected within the personal_details task, not as a
- *     separate task.
- *   - The dashboard task widget (getTaskWidget): one row per outstanding task with a Resume target;
+ *   - The three current tasks: personal_details, legacy_claim, and club_affiliations. personal_details
+ *     and legacy_claim are REQUIRED to become a full member and cannot be skipped (the legacy_claim
+ *     "nothing to claim" control is the required decision, which completes the task); club_affiliations
+ *     is optional. Each renders a single page and resolves via submit (save-and-advance) or, where
+ *     allowed, skip. The results-visibility preference (show_competitive_results) is collected within
+ *     the personal_details task, not as a separate task.
+ *   - The membership-completion predicate isOnboardingComplete (personal_details AND legacy_claim
+ *     both completed), consumed by the requireOnboardingComplete gate that fences the member and
+ *     club capability surfaces until onboarding is finished.
+ *   - The dashboard task widget (getDashboardTaskWidget): one row per outstanding task with a Resume target;
  *     hidden when no outstanding tasks remain.
  *
  * Does not own:
@@ -48,7 +53,6 @@ import { randomUUID } from 'crypto';
 import {
   account,
   clubBootstrapLeaders,
-  clubLeaders,
   clubBootstrapLeaderSignals,
   clubViabilitySignals,
   legacyClubCandidates,
@@ -64,7 +68,6 @@ import {
   type WizardLeadershipCardRow,
 } from '../db/db';
 import { appendAuditEntry } from './auditService';
-import { hasTier1Benefits } from './tierPredicates';
 import { memberService } from './memberService';
 import { clubService } from './clubService';
 import {
@@ -268,19 +271,37 @@ function nextOutstandingTaskType(memberId: string): OnboardingTaskType | null {
   return paused[0] ?? null;
 }
 
+// Membership-completion predicate consumed by the requireOnboardingComplete
+// gate. A verified member becomes a full member only after the two required
+// tasks are COMPLETED: personal_details (its required fields populated) and the
+// legacy_claim decision (a claim, or the explicit "nothing to claim"
+// completion). A skipped required task does NOT satisfy this: skipping is not a
+// decision. club_affiliations is optional and never gates membership, so a
+// member who finished both required tasks is complete even while the club task
+// is still pending or detour-paused. Zero task rows (never entered the wizard)
+// reads as incomplete.
+function isOnboardingComplete(memberId: string): boolean {
+  return getTaskState(memberId, 'personal_details') === 'completed'
+      && getTaskState(memberId, 'legacy_claim') === 'completed';
+}
+
+// Whether the member still has an outstanding task OTHER than the given one.
+// Drives the wizard submit label: completing this task continues the wizard
+// when more steps remain, and finishes it when this is the last one.
+function hasOtherOutstandingTasks(memberId: string, exceptTaskType: OnboardingTaskType): boolean {
+  const rows = memberOnboarding.listForMember.all(memberId) as MemberOnboardingTaskRow[];
+  return rows.some(
+    (r) =>
+      (r.task_type as OnboardingTaskType) !== exceptTaskType &&
+      (r.state === 'pending' || r.state === 'in_progress_paused'),
+  );
+}
+
 function getTaskState(memberId: string, taskType: OnboardingTaskType): OnboardingTaskState | null {
   const row = memberOnboarding.findByMemberAndType.get(memberId, taskType) as
     | MemberOnboardingTaskRow
     | undefined;
   return row ? row.state as OnboardingTaskState : null;
-}
-
-const TERMINAL_STATES: ReadonlySet<string> = new Set(['completed', 'skipped', 'not_applicable']);
-
-function isOnboardingComplete(memberId: string): boolean {
-  const rows = memberOnboarding.listForMember.all(memberId) as MemberOnboardingTaskRow[];
-  if (rows.length === 0) return false;
-  return rows.every((r) => TERMINAL_STATES.has(r.state));
 }
 
 function startTaskList(memberId: string): void {
@@ -365,9 +386,12 @@ function ensureLegacyClaimReflectsState(memberId: string): boolean {
 }
 
 /**
- * Auto-transition `club_affiliations` to `not_applicable` when the member
- * has no possible cards to act on (no linked legacy identity, or linked
- * legacy with zero pending cards). Returns true if a transition occurred.
+ * Auto-complete `club_affiliations` when the member already holds a current
+ * club affiliation and has no card left to act on.
+ * Returns true if a transition occurred. The task is universal, like
+ * legacy_claim: a member with no suggestion cards is NOT skipped: the task
+ * stays renderable so every member reaches the find-or-create-your-club
+ * wrap-up landing and is asked to join or create a club.
  */
 function ensureClubAffiliationsReflectsState(memberId: string): boolean {
   const row = memberOnboarding.findByMemberAndType.get(memberId, 'club_affiliations') as
@@ -376,9 +400,6 @@ function ensureClubAffiliationsReflectsState(memberId: string): boolean {
   if (!row || row.state === 'completed' || row.state === 'not_applicable') return false;
   const cards = listWizardCardsForMember(memberId);
   if (cards.length > 0) return false;
-  // A pending path-2 leadership offer keeps the task renderable: the offer
-  // surfaces on this task and would be lost if the task auto-resolved.
-  if (listPathTwoLeadershipOffers(memberId).length > 0) return false;
   // No cards left and a current club affiliation in hand: the task's goal
   // is met regardless of how the affiliation arrived.
   const current = (memberClubAffiliations.countCurrentByMemberId.get(memberId) as { c: number }).c;
@@ -386,21 +407,28 @@ function ensureClubAffiliationsReflectsState(memberId: string): boolean {
     completeTask(memberId, 'club_affiliations');
     return true;
   }
-  // No affiliation: a member whose suggestion cards all resolved without a
-  // club stays on the task so the find-or-create-your-club guidance screen
-  // renders. A member who never had any suggestion material has no club to
-  // be asked about; the task is moot.
+  // No cards and no current affiliation: the task stays pending so the wrap-up
+  // landing renders for every member, including one with no legacy suggestion
+  // material. No auto-transition.
+  return false;
+}
+
+/**
+ * Whether the member ever had legacy club-suggestion material: a linked legacy
+ * member id carrying at least one scored person-club affiliation or bootstrap
+ * leadership candidate. Drives the wrap-up landing copy: a member with no
+ * material is told no legacy club affiliation was found, rather than that their
+ * suggestion cards resolved without a club.
+ */
+function memberHadClubSuggestionMaterial(memberId: string): boolean {
   const memberRow = account.findLegacyMemberIdById.get(memberId) as
     | { legacy_member_id: string | null }
     | undefined;
   const legacyMemberId = memberRow?.legacy_member_id ?? null;
-  if (legacyMemberId) {
-    const lpca = (legacyPersonClubAffiliations.countByLegacyMember.get(legacyMemberId) as { c: number }).c;
-    const cbl  = (clubBootstrapLeaders.countByLegacyMember.get(legacyMemberId) as { c: number }).c;
-    if (lpca > 0 || cbl > 0) return false;
-  }
-  markTaskNotApplicable(memberId, 'club_affiliations');
-  return true;
+  if (!legacyMemberId) return false;
+  const lpca = (legacyPersonClubAffiliations.countByLegacyMember.get(legacyMemberId) as { c: number }).c;
+  const cbl  = (clubBootstrapLeaders.countByLegacyMember.get(legacyMemberId) as { c: number }).c;
+  return lpca > 0 || cbl > 0;
 }
 
 /**
@@ -494,7 +522,8 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
       ctaLabel = 'Continue Onboarding';
       ctaHref  = `/register/wizard/${taskType}`;
     } else if (state === 'skipped') {
-      ctaLabel = 'Resume Task';
+      // A skipped task was never started, so "Open" reads truer than "Resume".
+      ctaLabel = 'Open Task';
       ctaHref  = `/register/wizard/${taskType}`;
     }
     const item: DashboardTaskItem = {
@@ -615,9 +644,9 @@ const CONFIDENCE_BAND_LABELS: Record<MembershipConfidenceBand, string> = {
 };
 
 const CLASSIFICATION_LABELS: Record<'strong' | 'weak' | 'none', string> = {
-  strong: 'STRONG',
-  weak:   'WEAK',
-  none:   'NONE',
+  strong: 'Strong match',
+  weak:   'Possible match',
+  none:   'Uncertain match',
 };
 
 const ROLE_LABELS: Record<'leader' | 'co-leader', string> = {
@@ -1138,6 +1167,11 @@ async function processLegacyClaimSubmit(
   try {
     const outcome = identityAccessService.initiateLegacyClaim(memberId, identifier, ip);
     if (outcome.kind === 'auto_linked') {
+      // initiateLegacyClaim commits the email-equality link inside its own
+      // transaction, which cannot nest, so completing the task is a separate
+      // write. A crash in the gap leaves the member linked with the task still
+      // pending; the next legacy_claim GET reconciles it through
+      // ensureLegacyClaimReflectsState, so the end state self-corrects.
       completeTask(memberId, 'legacy_claim');
       return advanceOrOfferCrossSource(memberId);
     }
@@ -1377,6 +1411,28 @@ function processTaskSkip(
   memberId: string,
   taskType: OnboardingTaskType,
 ): WizardActionResult {
+  // personal_details and legacy_claim are required to become a member and
+  // cannot be skipped.
+  if (taskType === 'personal_details') {
+    // Required fields must be saved; a skip request (only reachable by a
+    // tampered POST, since the view offers no skip control) is a no-op that
+    // re-renders the form.
+    return { kind: 'retry_same', flash: null };
+  }
+  if (taskType === 'legacy_claim') {
+    // The legacy decision is required; the wizard's "no past account / nothing
+    // to claim" control posts here and is the explicit DECISION, which
+    // COMPLETES the task rather than skipping it.
+    completeTask(memberId, 'legacy_claim');
+    return advanceAfter(memberId, 'legacy_claim');
+  }
+  // A task already resolved (completed or marked not applicable) cannot be
+  // re-opened by a skip: a stray or tampered skip POST is a no-op that leaves
+  // the terminal state intact rather than re-listing the task as outstanding.
+  const state = getTaskState(memberId, taskType);
+  if (state === 'completed' || state === 'not_applicable') {
+    return { kind: 'retry_same', flash: null };
+  }
   skipTask(memberId, taskType);
   return advanceAfter(memberId, taskType);
 }
@@ -1465,13 +1521,18 @@ function submitDisambiguationResponse(
     assertCandidateOwnership(memberId, id, 'membership');
   }
   const selectedSet = new Set(selectedIds);
+  let anyCapHit = false;
   for (const id of allIds) {
     const decision = selectedSet.has(id) ? 'confirm' : 'decline';
-    submitMembershipResponse(memberId, id, decision, null);
+    const r = submitMembershipResponse(memberId, id, decision, null);
+    // A confirm that hit the two-current-club cap left the card unresolved.
+    // Carry that up so the wizard surfaces the cap notice instead of telling
+    // the member the club was added.
+    if (decision === 'confirm' && r.branch === 'cap_hit') anyCapHit = true;
   }
   const taskState = maybeCompleteClubAffiliationsTask(memberId);
   return {
-    branch:         selectedIds.length > 0 ? 'confirmed' : 'declined',
+    branch:         anyCapHit ? 'cap_hit' : selectedIds.length > 0 ? 'confirmed' : 'declined',
     classification: 'none',
     actualRole:     null,
     taskState,
@@ -1521,12 +1582,16 @@ async function processClubAffiliationsSubmit(
     }
     const result = submitDisambiguationResponse(memberId, selectedIds, allIds);
     if (result.taskState === 'completed') {
-      if (listPathTwoLeadershipOffers(memberId).length > 0) {
-      // The just-confirmed affiliation may have created a path-2 leadership
-      // offer; stay on the task so the offer card renders.
-      return { kind: 'retry_same', flash: null };
+      return advanceAfter(memberId, 'club_affiliations');
     }
-    return advanceAfter(memberId, 'club_affiliations');
+    if (result.branch === 'cap_hit') {
+      // At least one confirmed club could not be added at the two-current-club
+      // cap; the card stays actionable. Surface the cap notice rather than a
+      // "resolved" banner so the member can free a slot.
+      return {
+        kind: 'retry_same',
+        flash: { kind: 'WIZARD_CLUB_CAP_HIT', payload: { clubName: 'the selected club(s)' } },
+      };
     }
     const selectedCount = selectedIds.length;
     return {
@@ -1590,11 +1655,6 @@ async function processClubAffiliationsSubmit(
 
   const result = submitClubAffiliationsResponse(memberId, body);
   if (result.taskState === 'completed') {
-    if (listPathTwoLeadershipOffers(memberId).length > 0) {
-      // The just-confirmed affiliation may have created a path-2 leadership
-      // offer; stay on the task so the offer card renders.
-      return { kind: 'retry_same', flash: null };
-    }
     return advanceAfter(memberId, 'club_affiliations');
   }
   if (result.branch === 'cap_hit') {
@@ -1630,67 +1690,6 @@ function getClubAffiliationStage(memberId: string): ClubAffiliationStage {
 export type { ClubAffiliationsBranch, ClubAffiliationsResult };
 
 
-// ---------------------------------------------------------------------------
-// Leadership path 2: a Tier 1+ member who confirms affiliation with a club
-// that has no leadership at all is offered co-leadership during onboarding.
-// Acceptance writes a co-leader row; decline is terminal per member/club
-// pair (the decline audit row suppresses re-offers).
-// ---------------------------------------------------------------------------
-
-export interface PathTwoLeadershipOffer {
-  clubId: string;
-  clubName: string;
-}
-
-function listPathTwoLeadershipOffers(memberId: string): PathTwoLeadershipOffer[] {
-  if (!hasTier1Benefits(memberId)) return [];
-  // A member co-leads at most one club; one who already co-leads cannot accept
-  // a leadership offer, so the offer is suppressed entirely.
-  if (clubLeaders.memberCoLeadsAnyClub.get(memberId) != null) return [];
-  const rows = clubLeaders.listLeaderlessCurrentClubsForMember.all(memberId) as Array<{
-    id: string;
-    name: string;
-  }>;
-  return rows
-    .filter((r) => !clubLeaders.hasPathTwoDecline.get(memberId, r.id))
-    .map((r) => ({ clubId: r.id, clubName: r.name }));
-}
-
-export type PathTwoLeadershipResult =
-  | { status: 'accepted' }
-  | { status: 'declined' }
-  | { status: 'not_eligible' };
-
-function resolvePathTwoLeadership(
-  memberId: string,
-  clubId: string,
-  decision: 'accept' | 'decline',
-): PathTwoLeadershipResult {
-  // Re-validate eligibility at write time: the offer is render-derived and
-  // the club may have gained a leader since the page rendered.
-  const eligible = listPathTwoLeadershipOffers(memberId).some((o) => o.clubId === clubId);
-  if (!eligible) return { status: 'not_eligible' };
-
-  if (decision === 'decline') {
-    appendAuditEntry({
-      actionType:    'club.leadership_path2_declined',
-      category:      'club',
-      actorType:     'member',
-      actorMemberId: memberId,
-      entityType:    'club',
-      entityId:      clubId,
-      reasonText:    null,
-    });
-    return { status: 'declined' };
-  }
-
-  // Accept routes through the single volunteer write: eligibility, the
-  // 5-co-leader cap, the one-club fence, co-leader notification, club revival,
-  // and the audit row all live in volunteerToCoLeadClub.
-  const result = clubService.volunteerToCoLeadClub(memberId, clubId);
-  return result.branch === 'volunteered' ? { status: 'accepted' } : { status: 'not_eligible' };
-}
-
 export const memberOnboardingService = {
   getTaskWidget,
   getDashboardTaskWidget,
@@ -1703,12 +1702,11 @@ export const memberOnboardingService = {
   markTaskNotApplicable,
   ensureLegacyClaimReflectsState,
   ensureClubAffiliationsReflectsState,
+  memberHadClubSuggestionMaterial,
   transitionToDetourPaused,
   submitTaskResponse,
   submitClubAffiliationsResponse,
   processClubAffiliationsSubmit,
-  listPathTwoLeadershipOffers,
-  resolvePathTwoLeadership,
   listWizardCardsForMember,
   processPersonalDetailsSubmit,
   processLegacyClaimSubmit,
@@ -1720,5 +1718,6 @@ export const memberOnboardingService = {
   claimHistoricalPersonAndCompleteTask,
   getTaskState,
   isOnboardingComplete,
+  hasOtherOutstandingTasks,
   getClubAffiliationStage,
 };

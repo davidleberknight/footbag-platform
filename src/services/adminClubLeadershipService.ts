@@ -140,6 +140,9 @@ function requireReason(reason: string): string {
   return trimmed;
 }
 
+// Every leadership write here is an admin action: the routes that call into
+// this service sit behind requireAdmin, so the actor is always the
+// authenticated admin and the audit row records actor_type 'admin'.
 function audit(
   adminMemberId: string,
   actionType: string,

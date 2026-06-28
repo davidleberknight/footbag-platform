@@ -474,6 +474,15 @@ export function refreshAllPersonas(
     delIn('tag_stats', 'tag_id', tagIds);
     delIn('tags', 'id', tagIds);
     delIn('historical_persons', 'legacy_member_id', legacyRoots);
+    // Competing same-name candidate persons carry no legacy back-link (that is
+    // what makes the candidate query return more than one match), so the
+    // legacy-root delete above misses them; remove them by their deterministic
+    // per-slug id. GLOB so the literal underscores are not single-char wildcards.
+    for (const r of memberRows) {
+      db.prepare(`DELETE FROM historical_persons WHERE person_id GLOB ?`).run(
+        `person_persona_${r.slug}_alt_*`,
+      );
+    }
     delIn('legacy_members', 'legacy_member_id', legacyRoots);
     for (const [canonical, variant] of nameVariantKeys) {
       db.prepare(

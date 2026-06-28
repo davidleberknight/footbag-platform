@@ -11,8 +11,24 @@ export class WizardPage {
     await this.page.goto(`/register/wizard/${taskType}`);
   }
 
+  // legacy_claim's "nothing to claim" decision, which COMPLETES the task.
+  get continueWithoutLinkingButton() {
+    return this.page.getByRole('button', { name: /Continue Without Linking a Past Account/i });
+  }
+
+  // club_affiliations skip control (wrap-up "Skip for Now" or the cards-view
+  // "Skip Remaining Clubs for Now").
+  get skipClubButton() {
+    return this.page.getByRole('button', { name: /Skip (Remaining Clubs )?for Now/i }).first();
+  }
+
+  // The advance/skip control on the current task page: legacy_claim's
+  // continue-without-linking, or club_affiliations' skip. personal_details has
+  // no such control; its required fields must be filled and saved.
   get skipButton() {
-    return this.page.getByRole('button', { name: /Skip for now/i });
+    return this.page
+      .getByRole('button', { name: /Continue Without Linking a Past Account|Skip (Remaining Clubs )?for Now/i })
+      .first();
   }
 
   get dashboardLink() {
@@ -23,8 +39,18 @@ export class WizardPage {
     return this.page.getByRole('heading', { level: 1 });
   }
 
+  // Advances past the current task using its own control. legacy_claim is
+  // completed by the continue-without-linking decision; club_affiliations is
+  // skipped. personal_details is required and cannot be advanced this way.
   async skipCurrentTask(): Promise<void> {
-    await this.skipButton.click();
+    const url = this.page.url();
+    if (url.includes('legacy_claim')) {
+      await this.continueWithoutLinkingButton.click();
+    } else if (url.includes('club_affiliations')) {
+      await this.skipClubButton.click();
+    } else {
+      throw new Error(`skipCurrentTask: current task has no skip/continue control: ${url}`);
+    }
     await this.page.waitForURL(/\/register\/wizard\//);
   }
 
@@ -48,12 +74,27 @@ export class WizardPage {
     return this.page.locator('#year');
   }
 
+  // personal_details submit. Its label reads "Save and Continue" while more
+  // tasks remain and "Save and Complete" on the last one.
   get saveButton() {
-    return this.page.getByRole('button', { name: 'Save' });
+    return this.page.getByRole('button', { name: /Save and (Continue|Complete) Onboarding/ }).first();
   }
 
   async submitYear(year: string): Promise<void> {
     await this.yearInput.fill(year);
+    await this.saveButton.click();
+    await this.page.waitForURL(/\/register\/wizard\//);
+  }
+
+  // Fills the personal_details required fields (city, country, birthDate) plus
+  // an optional first-competition year, then saves and waits for the advance.
+  async fillPersonalDetailsAndSave(
+    opts: { city?: string; country?: string; birthDate?: string; year?: string } = {},
+  ): Promise<void> {
+    await this.page.locator('#city').fill(opts.city ?? 'Portland');
+    await this.page.locator('#country').fill(opts.country ?? 'US');
+    await this.page.locator('#birthDate').fill(opts.birthDate ?? '2000-01-15');
+    if (opts.year !== undefined) await this.yearInput.fill(opts.year);
     await this.saveButton.click();
     await this.page.waitForURL(/\/register\/wizard\//);
   }
@@ -65,23 +106,23 @@ export class WizardPage {
 
   // Club affiliations task
   get clubCardHeading() {
-    return this.page.locator('h2').first();
+    return this.page.locator('.card-title').first();
   }
 
   get clubMembershipQuestion() {
-    return this.page.locator('.wizard-card-actions fieldset:first-of-type legend');
+    return this.page.locator('fieldset:has(input[name="userDecision"]) legend');
   }
 
   get clubYesRadio() {
-    return this.page.locator('.wizard-card-actions input[name="userDecision"][value="confirm"]');
+    return this.page.locator('input[name="userDecision"][value="confirm"]');
   }
 
   get clubNoRadio() {
-    return this.page.locator('.wizard-card-actions input[name="userDecision"][value="decline"]');
+    return this.page.locator('input[name="userDecision"][value="decline"]');
   }
 
   get clubSaveAnswersButton() {
-    return this.page.locator('.wizard-card-actions button[type="submit"]');
+    return this.page.getByRole('button', { name: /Save Answers/i }).first();
   }
 
   get skipRemainingClubsButton() {

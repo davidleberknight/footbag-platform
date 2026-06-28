@@ -102,7 +102,7 @@ test('leadership card: renders role and signal checklist', async ({ browser, bas
   await ctx.close();
 });
 
-test('no cards -> task auto-transitions, does not render empty page', async ({ browser, baseURL }) => {
+test('no cards -> club_affiliations renders the wrap-up landing, stays pending', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `ca_none_${Date.now()}` });
   db.close();
@@ -111,15 +111,17 @@ test('no cards -> task auto-transitions, does not render empty page', async ({ b
   const page = await ctx.newPage();
   const wizard = new WizardPage(page);
 
-  await wizard.goto('legacy_claim');
-  await wizard.skipCurrentTask();
+  await wizard.goto('club_affiliations');
 
-  const url = page.url();
-  expect(url).not.toContain('club_affiliations');
+  // club_affiliations is universal: a brand-new player with no suggestion cards
+  // still reaches the find-or-create-your-club wrap-up landing rather than an
+  // empty page, and the task stays pending.
+  expect(page.url()).toContain('club_affiliations');
+  await expect(page.locator('text=Find or create your club')).toBeVisible();
 
   const db2 = openLiveDb();
   const state = getTaskState(db2, persona.memberId, 'club_affiliations');
-  expect(state).toBe('not_applicable');
+  expect(state).toBe('pending');
   db2.close();
 
   await ctx.close();

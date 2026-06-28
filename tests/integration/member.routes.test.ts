@@ -97,78 +97,19 @@ afterAll(() => {
 
 // ── GET /members ───────────────────────────────────────────────────────────────
 
-describe('GET /members — landing page', () => {
-  it('unauthenticated → 200 with welcome page', async () => {
+describe('GET /members — removed (no landing page)', () => {
+  it('returns 404; membership lives on /ifpa and authentication on /login', async () => {
     const app = createApp();
     const res = await request(app).get('/members');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Sign Up');
-    expect(res.text).toContain('/register');
+    expect(res.status).toBe(404);
   });
 
-  it('renders tier prices in USD', async () => {
-    const app = createApp();
-    const res = await request(app).get('/members');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Free');
-    expect(res.text).toContain('$10 USD');
-    expect(res.text).toContain('$50 USD');
-    expect(res.text).toContain('Assigned by IFPA');
-  });
-
-  it('renders tier-specific benefits from IFPA structure and purchase stories', async () => {
-    const app = createApp();
-    const res = await request(app).get('/members');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Vote in IFPA elections');
-    expect(res.text).toContain('sanctioned events');
-    expect(res.text).toContain('Active Player');
-    expect(res.text).toContain('Event Organizer');
-    expect(res.text).toContain('Club Leader');
-  });
-
-  it('does NOT make inaccurate tier-gating claims', async () => {
-    const app = createApp();
-    const res = await request(app).get('/members');
-    expect(res.status).toBe(200);
-    // Tier 0 members CAN compete in events and join clubs per
-    // M_Register_For_Event.
-    expect(res.text).not.toContain('tournament eligibility');
-    // IFPA was incorporated in 1994, not 1983.
-    expect(res.text).not.toContain('since 1983');
-    // The vague "IFPA-member-only areas" filler from M_Purchase_Tier_1 has no
-    // enumerable Tier-1-only area in the code or docs; concrete benefits
-    // (media uploads, club/event creation, voting) cover the actual gating.
-    expect(res.text).not.toContain('IFPA-member-only areas');
-  });
-
-  it('renders Membership Tiers section BELOW the join CTAs (unauthenticated)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/members');
-    expect(res.status).toBe(200);
-    const ctaIdx = res.text.indexOf('Become a Member');
-    const tiersIdx = res.text.indexOf('Membership Tiers');
-    expect(ctaIdx).toBeGreaterThan(-1);
-    expect(tiersIdx).toBeGreaterThan(-1);
-    expect(ctaIdx).toBeLessThan(tiersIdx);
-  });
-
-  it('authenticated → 200 with welcome page (tier explainer, no join CTAs)', async () => {
-    // Personal-home affordances (Welcome banner, Membership, Quick Actions,
-    // Find Members, Coming Soon) live on the profile at /members/<slug>;
-    // /members renders the same public welcome to everyone, with the join
-    // CTAs hidden for authenticated visitors.
+  it('returns 404 even for an authenticated member', async () => {
     const app = createApp();
     const res = await request(app)
       .get('/members')
       .set('Cookie', ownCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Why join?');
-    expect(res.text).toContain('Tier 0 Registered Member');
-    expect(res.text).not.toContain('Welcome,');
-    expect(res.text).not.toContain('Become a Member');
-    expect(res.text).not.toContain('Quick Actions');
-    expect(res.text).not.toContain('Find Members');
+    expect(res.status).toBe(404);
   });
 });
 

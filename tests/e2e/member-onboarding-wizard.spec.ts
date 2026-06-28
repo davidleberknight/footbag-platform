@@ -35,7 +35,7 @@ test('brand-new player sees legacy_claim with search form, no candidate cards, s
   await ctx.close();
 });
 
-test('skip legacy_claim: advances, DB state=skipped, next task heading visible', async ({ browser, baseURL }) => {
+test('legacy_claim continue without linking: completes the task, advances', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `w_skip_${Date.now()}` });
   const { memberId } = persona;
@@ -51,8 +51,9 @@ test('skip legacy_claim: advances, DB state=skipped, next task heading visible',
   await expect(wizard.heading).toBeVisible();
   expect(page.url()).not.toContain('legacy_claim');
 
+  // The "nothing to claim" decision is an explicit completion, not a skip.
   const db2 = openLiveDb();
-  expect(getTaskState(db2, memberId, 'legacy_claim')).toBe('skipped');
+  expect(getTaskState(db2, memberId, 'legacy_claim')).toBe('completed');
   db2.close();
 
   await ctx.close();
@@ -121,10 +122,13 @@ test('personal_details: valid year saves to DB', async ({ browser, baseURL }) =>
 
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
+  await page.locator('#country').fill('US');
   await page.locator('#birthDate').fill('2000-01-15');
   await wizard.submitYear('2005');
 
-  expect(page.url()).toContain('complete');
+  // club_affiliations is still pending (universal task), so completing
+  // personal_details advances to the club task, not the completion page.
+  expect(page.url()).toContain('club_affiliations');
 
   const db2 = openLiveDb();
   expect(getMemberField(db2, persona.memberId, 'first_competition_year')).toBe(2005);
@@ -172,12 +176,13 @@ test('personal_details: empty year accepted, clears field', async ({ browser, ba
 
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
+  await page.locator('#country').fill('US');
   await page.locator('#birthDate').fill('2000-01-15');
   await wizard.yearInput.fill('');
   await wizard.saveButton.click();
   await page.waitForURL(/\/register\/wizard\//);
 
-  expect(page.url()).toContain('complete');
+  expect(page.url()).toContain('club_affiliations');
 
   const db2 = openLiveDb();
   expect(getMemberField(db2, persona.memberId, 'first_competition_year')).toBeNull();
@@ -196,10 +201,13 @@ test('completion page: text correct, profile link works', async ({ browser, base
   const page = await ctx.newPage();
   const wizard = new WizardPage(page);
 
-  await wizard.goto('legacy_claim');
+  // Reach completion by handling each task in order: personal_details is
+  // required (fill and save), legacy_claim is completed by the
+  // continue-without-linking decision, and the optional club_affiliations is
+  // skipped.
+  await wizard.goto('personal_details');
+  await wizard.fillPersonalDetailsAndSave();
   await wizard.skipCurrentTask();
-  // club_affiliations auto-transitions for brand-new player, lands on personal_details
-  await page.waitForURL(/\/register\/wizard\//);
   await wizard.skipCurrentTask();
   await page.waitForURL(/\/register\/wizard\/complete/);
 
@@ -211,7 +219,7 @@ test('completion page: text correct, profile link works', async ({ browser, base
   await ctx.close();
 });
 
-test('skip all three tasks end-to-end -> completion -> profile', async ({ browser, baseURL }) => {
+test('handle all three tasks end-to-end -> completion -> profile', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `w_all_${Date.now()}` });
   db.close();
@@ -220,19 +228,20 @@ test('skip all three tasks end-to-end -> completion -> profile', async ({ browse
   const page = await ctx.newPage();
   const wizard = new WizardPage(page);
 
-  await wizard.goto('legacy_claim');
+  await wizard.goto('personal_details');
+  await wizard.fillPersonalDetailsAndSave();
   await wizard.skipCurrentTask();
-  // club_affiliations auto-transitions for no-match member, lands on personal_details
-  await page.waitForURL(/\/register\/wizard\//);
   await wizard.skipCurrentTask();
   await page.waitForURL(/\/register\/wizard\/complete/);
 
   await expect(wizard.completionMessage).toBeVisible();
 
+  // The two required tasks reach completed (personal_details saved,
+  // legacy_claim continued without linking); the optional club task is skipped.
   const db2 = openLiveDb();
-  expect(getTaskState(db2, persona.memberId, 'legacy_claim')).toBe('skipped');
-  expect(getTaskState(db2, persona.memberId, 'club_affiliations')).toMatch(/skipped|not_applicable/);
-  expect(getTaskState(db2, persona.memberId, 'personal_details')).toBe('skipped');
+  expect(getTaskState(db2, persona.memberId, 'personal_details')).toBe('completed');
+  expect(getTaskState(db2, persona.memberId, 'legacy_claim')).toBe('completed');
+  expect(getTaskState(db2, persona.memberId, 'club_affiliations')).toBe('skipped');
   db2.close();
 
   await ctx.close();

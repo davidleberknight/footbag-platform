@@ -56,10 +56,10 @@ interface ClubAffiliationsCardContent {
   cardsTotal:      number;
   cardsRemaining:  number;
   resolvedNotice:  { clubName: string; decision: 'confirm' | 'correct' | 'decline'; message: string } | null;
-  capHitNotice:    { message: string } | null;
+  capHitNotice:    { message: string; manageClubsHref: string } | null;
   formError:       string | null;
-  leadershipOffers?: Array<{ clubId: string; clubName: string }>;
   isWrapUp?:       boolean;
+  noLegacyAffiliationFound?: boolean;
   canCreateClub?:  boolean;
   clubsBrowseHref?: string;
   memberCountry?:  string;
@@ -73,9 +73,9 @@ interface PersonalDetailsContent {
   birthDate: string;
   gender: string;
   yearValue: string;
-  showFirstCompetitionYear: boolean;
   showCompetitiveResults: boolean;
   error: string | null;
+  submitLabel: string;
 }
 
 interface WizardCompleteContent {
@@ -101,13 +101,8 @@ function taskUrlFor(taskType: OnboardingTaskType): string {
   return `/register/wizard/${taskType}`;
 }
 
-function nextPendingTask(memberId: string): OnboardingTaskType | null {
-  const pending = memberOnboardingService.getTaskWidget(memberId);
-  return pending.length > 0 ? pending[0].taskType : null;
-}
-
 function nextPendingHref(memberId: string): string {
-  const next = nextPendingTask(memberId);
+  const next = memberOnboardingService.nextOutstandingTaskType(memberId);
   return next ? taskUrlFor(next) : WIZARD_COMPLETE_URL;
 }
 
@@ -232,7 +227,7 @@ function renderClubAffiliationsCard(
   const resolvedFlash = readClubResolvedFlash(req, res);
   // Pre-shaped banner text so the template never branches on the decision code.
   const RESOLVED_MESSAGES: Record<'confirm' | 'correct' | 'decline', (clubName: string) => string> = {
-    confirm: (n) => `Linked ${n} as your primary club.`,
+    confirm: (n) => `Added ${n} to your clubs.`,
     decline: (n) => `Marked ${n} as not yours.`,
     correct: (n) => `Noted that the ${n} record needs correction.`,
   };
@@ -241,13 +236,15 @@ function renderClubAffiliationsCard(
     : null;
   const capHitFlash = readClubCapHitFlash(req, res);
   const capHitNotice = capHitFlash
-    ? { message: `You are already at the two current-club limit, so ${capHitFlash.clubName} was not added. Mark one of your current clubs as former to add it.` }
+    ? {
+        message: `You are already at the two current-club limit, so ${capHitFlash.clubName} was not added. Mark one of your current clubs as former to add it.`,
+        manageClubsHref: dashboardHrefFor(req),
+      }
     : null;
   const cardsRemaining = cards.length;
   const cardsTotal     = resolvedNotice ? cardsRemaining + 1 : cardsRemaining;
 
   const stage = memberOnboardingService.getClubAffiliationStage(memberId);
-  const leadershipOffers = memberOnboardingService.listPathTwoLeadershipOffers(memberId);
   const prefill = memberService.getPersonalDetailsPrefill(memberId);
   const memberCountry = prefill.country ?? null;
   const countrySlug = memberCountry
@@ -255,8 +252,8 @@ function renderClubAffiliationsCard(
     : null;
 
   res.status(opts.statusOverride ?? 200).render('register/wizard/club-affiliations', {
-    seo:  { title: 'Link your primary club' },
-    page: { sectionKey: 'members', pageKey: 'onboarding_club_affiliations', title: 'Link your primary club' },
+    seo:  { title: 'Club affiliations' },
+    page: { sectionKey: 'members', pageKey: 'onboarding_club_affiliations', title: 'Club affiliations' },
     content: {
       dashboardHref:  dashboardHrefFor(req),
       submitHref:     '/register/wizard/club_affiliations/submit',
@@ -267,8 +264,9 @@ function renderClubAffiliationsCard(
       resolvedNotice,
       capHitNotice,
       formError:      opts.formError ?? null,
-      leadershipOffers,
       isWrapUp:       stage === 'wrap_up',
+      noLegacyAffiliationFound:
+        stage === 'wrap_up' && !memberOnboardingService.memberHadClubSuggestionMaterial(memberId),
       canCreateClub:  (() => {
         const tier = getTierStatus(memberId);
         return tier != null && tier.tier_status !== 'tier0';
@@ -282,7 +280,7 @@ function renderClubAffiliationsCard(
 function renderPersonalDetails(
   req: Request,
   res: Response,
-  opts: { city?: string; region?: string; country?: string; birthDate?: string; gender?: string; yearValue?: string; showFirstCompetitionYear?: boolean; showCompetitiveResults?: boolean; error?: string | null; statusOverride?: number } = {},
+  opts: { city?: string; region?: string; country?: string; birthDate?: string; gender?: string; yearValue?: string; showCompetitiveResults?: boolean; error?: string | null; statusOverride?: number } = {},
 ): void {
   const prefill = memberService.getPersonalDetailsPrefill(req.user!.userId);
   const yearValue =
@@ -302,9 +300,13 @@ function renderPersonalDetails(
       birthDate: opts.birthDate ?? prefill.birthDate,
       gender: opts.gender ?? prefill.gender,
       yearValue,
-      showFirstCompetitionYear: opts.showFirstCompetitionYear ?? prefill.showFirstCompetitionYear,
       showCompetitiveResults: opts.showCompetitiveResults ?? prefill.showCompetitiveResults,
       error: opts.error ?? null,
+      // "Continue" while other onboarding steps remain; "Complete" when saving
+      // this required step finishes the member's outstanding wizard tasks.
+      submitLabel: memberOnboardingService.hasOtherOutstandingTasks(req.user!.userId, 'personal_details')
+        ? 'Save and Continue Onboarding'
+        : 'Save and Complete Onboarding',
     },
   } satisfies PageViewModel<PersonalDetailsContent>);
 }
@@ -414,10 +416,8 @@ export const memberOnboardingController = {
         // right after the first claim completes); otherwise completed tasks
         // bounce to the next outstanding one.
         const hasOpenOffers =
-          (taskType === 'legacy_claim' &&
-            identityAccessService.listOpenStagedCandidates(memberId).length > 0) ||
-          (taskType === 'club_affiliations' &&
-            memberOnboardingService.listPathTwoLeadershipOffers(memberId).length > 0);
+          taskType === 'legacy_claim' &&
+          identityAccessService.listOpenStagedCandidates(memberId).length > 0;
         if (!hasOpenOffers) {
           res.redirect(303, nextPendingHref(memberId));
           return;
@@ -434,9 +434,10 @@ export const memberOnboardingController = {
   getComplete(req: Request, res: Response, next: NextFunction): void {
     try {
       const memberId = req.user!.userId;
-      // Don't lie: if any pending tasks remain, route the member to the next
-      // one instead of telling them everything is handled.
-      const upcoming = nextPendingTask(memberId);
+      // Don't lie: if any task is still outstanding (pending or paused mid-flow),
+      // route the member to the next one instead of telling them everything is
+      // handled. Uses the same outstanding-task source the gate middleware uses.
+      const upcoming = memberOnboardingService.nextOutstandingTaskType(memberId);
       if (upcoming) {
         res.redirect(303, taskUrlFor(upcoming));
         return;
@@ -550,22 +551,6 @@ export const memberOnboardingController = {
     }
   },
 
-  async postLeadershipOffer(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const decision = req.body.decision === 'accept' ? 'accept' : 'decline';
-      memberOnboardingService.resolvePathTwoLeadership(
-        req.user!.userId,
-        String(req.body.clubId ?? ''),
-        decision,
-      );
-      // not_eligible collapses to the same redirect: the offer card simply
-      // no longer renders.
-      res.redirect(303, taskUrlFor('club_affiliations'));
-    } catch (err) {
-      next(err);
-    }
-  },
-
   async postLegacyClaimHelpRequest(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       identityAccessService.submitLinkHelpRequest(req.user!.userId, {
@@ -668,7 +653,6 @@ export const memberOnboardingController = {
           birthDate: result.formState.birthDate,
           gender: result.formState.gender,
           yearValue: result.formState.yearValue,
-          showFirstCompetitionYear: result.formState.showFirstCompetitionYear,
           showCompetitiveResults: result.formState.showCompetitiveResults,
           error: result.message,
           statusOverride: 422,

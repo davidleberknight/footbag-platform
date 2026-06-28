@@ -16,6 +16,7 @@
 import { PageViewModel } from '../types/page';
 import { NotFoundError } from './serviceErrors';
 import { getIfpaDoc, getIfpaDocs, ParsedIfpaDoc } from '../lib/ifpaLoader';
+import { memberService, type MemberWelcomeTier } from './memberService';
 
 interface IfpaIndexCard {
   slug: string;
@@ -26,6 +27,9 @@ interface IfpaIndexCard {
 
 interface IfpaIndexContent {
   docs: IfpaIndexCard[];
+  tiers: ReadonlyArray<MemberWelcomeTier>;
+  /** The Become-a-Member / Log-In cards render only for unauthenticated visitors. */
+  showJoinCtas: boolean;
 }
 
 interface IfpaDocContent {
@@ -42,7 +46,7 @@ const SUMMARIES: Record<string, string> = {
 };
 
 export const ifpaService = {
-  getIfpaIndexPage(): PageViewModel<IfpaIndexContent> {
+  getIfpaIndexPage(opts: { isAuthenticated: boolean }): PageViewModel<IfpaIndexContent> {
     const docs = getIfpaDocs().map((d) => ({
       slug: d.slug,
       title: d.title,
@@ -55,9 +59,13 @@ export const ifpaService = {
         sectionKey: 'ifpa',
         pageKey: 'ifpa_index',
         title: 'IFPA',
-        intro: 'Governance documents for the International Footbag Players Association.',
+        intro: 'The International Footbag Players Association is the global governing body for footbag, supporting players, clubs, and competitions.',
       },
-      content: { docs },
+      content: {
+        docs,
+        tiers: memberService.getMembershipTiers(),
+        showJoinCtas: !opts.isAuthenticated,
+      },
     };
   },
 

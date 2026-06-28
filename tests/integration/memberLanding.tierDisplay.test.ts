@@ -169,9 +169,9 @@ describe('GET /members/<slug> — Membership block rendering on personal home', 
   });
 });
 
-describe('GET /members — public welcome page', () => {
-  it('renders the tier explainer + Sign Up / Log In CTAs for anonymous visitors', async () => {
-    const res = await request(createApp()).get('/members');
+describe('GET /ifpa — membership tier display', () => {
+  it('renders the tier explainer with canonical labels and prices', async () => {
+    const res = await request(createApp()).get('/ifpa');
     expect(res.status).toBe(200);
     expect(res.text).toContain('global governing body for footbag');
     // Tier explainer enumerates all four tiers using the canonical labels.
@@ -179,21 +179,41 @@ describe('GET /members — public welcome page', () => {
     expect(res.text).toContain('Tier 1 IFPA Member');
     expect(res.text).toContain('Tier 2 IFPA Organizer Member');
     expect(res.text).toContain('Tier 3 IFPA Director');
-    // CTAs render only for unauthenticated visitors.
-    expect(res.text).toContain('Become a Member');
-    expect(res.text).toContain('Already a Member');
-    // Personal-home affordances must not leak onto the public welcome page.
-    expect(res.text).not.toContain('Quick Actions');
-    expect(res.text).not.toContain('Find Members');
+    expect(res.text).toContain('Free');
+    expect(res.text).toContain('$10 USD');
+    expect(res.text).toContain('$50 USD');
+    expect(res.text).toContain('Assigned by IFPA');
   });
 
-  it('hides Sign Up / Log In CTAs for authenticated visitors', async () => {
+  it('renders tier-specific benefits and avoids inaccurate gating claims', async () => {
+    const res = await request(createApp()).get('/ifpa');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Vote in IFPA elections');
+    expect(res.text).toContain('sanctioned events');
+    expect(res.text).toContain('Active Player');
+    expect(res.text).toContain('Event Organizer');
+    expect(res.text).toContain('Club Leader');
+    // Tier 0 members CAN compete in events and join clubs; IFPA was
+    // incorporated in 1994; there is no enumerable Tier-1-only area.
+    expect(res.text).not.toContain('tournament eligibility');
+    expect(res.text).not.toContain('since 1983');
+    expect(res.text).not.toContain('IFPA-member-only areas');
+  });
+
+  it('shows the Become a Member card and a login link to anonymous visitors', async () => {
+    const res = await request(createApp()).get('/ifpa');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Become a Member');
+    expect(res.text).toContain('/register');
+    expect(res.text).toContain('/login');
+  });
+
+  it('shows the same membership tiers to authenticated members, without the join CTAs', async () => {
     const res = await request(createApp())
-      .get('/members')
+      .get('/ifpa')
       .set('Cookie', cookieFor(T1_ID));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('global governing body for footbag');
+    expect(res.text).toContain('Tier 0 Registered Member');
     expect(res.text).not.toContain('Become a Member');
-    expect(res.text).not.toContain('Already a Member');
   });
 });

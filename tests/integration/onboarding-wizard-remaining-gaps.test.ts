@@ -191,7 +191,7 @@ describe('Tier 0 leadership: current implementation promotes regardless of tier'
 // ── Dashboard task widget ────────────────────────────────────────────────────
 
 describe('dashboard task widget: pending and skipped tasks surface Resume buttons', () => {
-  it('member with skipped legacy_claim sees Resume button on dashboard', async () => {
+  it('member with a skipped optional club task sees Resume button on dashboard', async () => {
     const stamp = Date.now();
     const memberId = insertMember(db, {
       slug: `widget_${stamp}`,
@@ -199,20 +199,22 @@ describe('dashboard task widget: pending and skipped tasks surface Resume button
     });
     const cookie = cookieFor(memberId);
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookie);
+    // club_affiliations is the optional task that can be skipped; legacy_claim
+    // and personal_details are required and cannot reach a skipped state.
+    await request(createApp()).get('/register/wizard/club_affiliations').set('Cookie', cookie);
     await request(createApp())
-      .post('/register/wizard/legacy_claim/skip')
+      .post('/register/wizard/club_affiliations/skip')
       .set('Cookie', cookie)
       .type('form')
       .send({});
-    expect(getTaskState(memberId, 'legacy_claim')).toBe('skipped');
+    expect(getTaskState(memberId, 'club_affiliations')).toBe('skipped');
 
     const dashboard = await request(createApp())
       .get(`/members/widget_${stamp}`)
       .set('Cookie', cookie);
 
     expect(dashboard.status).toBe(200);
-    expect(dashboard.text).toContain('/register/wizard/legacy_claim');
+    expect(dashboard.text).toContain('/register/wizard/club_affiliations');
     expect(dashboard.text).toMatch(/Resume|Continue/i);
   });
 

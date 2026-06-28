@@ -1,0 +1,20 @@
+{{! Membership-tier explainer. Receives the page content as context; renders
+    content.tiers (Tier 0 to 3 with display label, price, and benefits). }}
+<section>
+  <h2>Membership Tiers</h2>
+  <ul class="tier-explainer">
+    {{#each tiers}}
+      <li class="tier-explainer-item">
+        <div class="tier-explainer-head">
+          <strong>{{this.label}}</strong>
+          <span class="tier-explainer-price">{{this.price}}</span>
+        </div>
+        <ul class="tier-explainer-benefits">
+          {{#each this.benefits}}
+            <li>{{this}}</li>
+          {{/each}}
+        </ul>
+      </li>
+    {{/each}}
+  </ul>
+</section>

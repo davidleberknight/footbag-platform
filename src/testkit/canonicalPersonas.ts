@@ -228,6 +228,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     purpose: 'Unlinked legacy match with no email: the historical-person card-confirm claim path.',
     testingUsage: 'Walk the historical-person card-confirm claim path for an unlinked match with no legacy email.',
     legacy: { linked: false, realName: 'Jo Cardonly' },
+    onboardingTasks: { personal_details: 'completed', legacy_claim: 'in_progress_paused' },
     coverageNotes: [
       'unlinked legacy match, null legacy_email',
       'historical-person card-confirm claim path',
@@ -306,7 +307,8 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     dimension: 'Legacy club cards',
     purpose: 'Legacy-club-candidate cards across pending / declined / resolved / junk-suppressed states.',
     testingUsage: 'Confirm the onboarding wizard renders legacy-club cards across pending, declined, and resolved states and suppresses the junk one.',
-    legacy: { linked: false, realName: 'Cam Cards' },
+    legacy: { linked: true, realName: 'Cam Cards' },
+    onboardingTasks: { personal_details: 'completed', legacy_claim: 'completed', club_affiliations: 'pending' },
     legacyClubCandidates: [
       { clubName: 'Pending Kick Club', classification: 'onboarding_visible', resolutionStatus: 'pending' },
       { clubName: 'Declined Shred Club', classification: 'onboarding_visible', resolutionStatus: 'rejected' },
@@ -315,7 +317,22 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     ],
     coverageNotes: [
       'legacy-club-candidate cards: pending / declined / resolved / junk-suppressed',
-      'unlinked legacy identity hosting the affiliations',
+      'legacy-linked member hosting the affiliations; lands on the club step',
+    ],
+  },
+  {
+    slug: 'legacy_multi_candidate',
+    displayName: 'Mandy Multiple',
+    realName: 'Mandy Multiple',
+    tier: 'tier0',
+    dimension: 'Auto-link confidence',
+    purpose: 'Two or more competing historical-person matches: the email anchor finds a provenance person, but the name query returns several same-name people, so the wizard offers a disambiguation choice rather than a single auto-link.',
+    testingUsage: 'Confirm a member whose name matches several historical people is sent to the disambiguation choice instead of a one-click auto-link.',
+    legacy: { autoLinkConfidence: 'high', competingNameCandidates: 1 },
+    onboardingTasks: { personal_details: 'completed', legacy_claim: 'in_progress_paused' },
+    coverageNotes: [
+      'email anchor with multiple same-name historical-person candidates',
+      'auto-link disambiguation (multiple-candidate review path)',
     ],
   },
 
@@ -344,6 +361,25 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     onboardingComplete: true,
     clubs: [{ clubName: 'Riverside Footbag', current: true, contact: true }],
     coverageNotes: ['current club affiliation flagged as listed contact'],
+  },
+  {
+    slug: 'club_two_current',
+    displayName: 'Dora Dual',
+    tier: 'tier1',
+    dimension: 'Club affiliations',
+    purpose: 'Member already holding two current club affiliations (primary plus secondary): sits at the two-current-club cap, so adding a third current affiliation must be denied.',
+    testingUsage: 'Confirm a member already at two current club affiliations is denied a third, exercising the two-current-club cap.',
+    negative: true,
+    onboardingComplete: true,
+    clubs: [
+      { clubName: 'North Side Footbag', current: true, primary: true },
+      { clubName: 'South Side Footbag', current: true },
+    ],
+    coverageNotes: [
+      'two current club affiliations (at the cap)',
+      'one primary, one secondary',
+      'two-current-club cap deny path',
+    ],
   },
 
   // ── Club roles (authorization) ────────────────────────────────────────────
@@ -418,6 +454,38 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     coverageNotes: [
       'tier0 bootstrap-leader claim (club_bootstrap_leaders row + signal)',
       'no live club_leaders row yet (claim not promoted)',
+    ],
+  },
+  {
+    slug: 'bootstrap_leader_onboarding',
+    displayName: 'Brock Pending',
+    tier: 'tier0',
+    dimension: 'Club roles (authorization)',
+    purpose: 'Tier 0 bootstrap-leader claim awaiting promotion held by a member whose onboarding is not finished: exercises a pending leadership claim alongside an incomplete-onboarding member.',
+    testingUsage: 'Confirm a pending bootstrap-leader claim and an unfinished onboarding wizard coexist, with no live co-leader edit rights yet.',
+    onboardingTasks: { personal_details: 'completed' },
+    club: { clubName: 'Meadowbrook Footbag', leader: true },
+    coverageNotes: [
+      'tier0 bootstrap-leader claim (club_bootstrap_leaders row + signal)',
+      'onboarding wizard not complete (required tasks pending)',
+      'no live club_leaders row yet (claim not promoted)',
+    ],
+  },
+  {
+    slug: 'club_leader_second_attempt',
+    displayName: 'Cleo Onlyone',
+    tier: 'tier1',
+    dimension: 'Club roles (authorization)',
+    purpose: 'Co-leads one club through a live leadership row and is also a current affiliate of a second leaderless club: attempting to lead the second must be denied by the one-club-leadership rule.',
+    testingUsage: 'Confirm a member who already co-leads one club is denied leadership of a second leaderless club it affiliates with, exercising the one-club-leadership rule.',
+    negative: true,
+    onboardingComplete: true,
+    club: { clubName: 'Mainline Footbag', role: 'co-leader' },
+    clubs: [{ clubName: 'Branchline Footbag', current: true }],
+    coverageNotes: [
+      'live club_leaders co-leader row on one club',
+      'current affiliation on a second leaderless club',
+      'one-club-leadership deny path',
     ],
   },
 

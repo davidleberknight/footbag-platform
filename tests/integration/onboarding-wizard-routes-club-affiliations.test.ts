@@ -17,6 +17,7 @@ import {
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
   insertMemberClubAffiliation,
+  insertOnboardingTask,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -34,6 +35,9 @@ const MEMBER_JUNK      = 'wiz-clubaff-junk';
 const MEMBER_PROMOTE   = 'wiz-clubaff-promote';
 const MEMBER_NOPROMOTE = 'wiz-clubaff-nopromote';
 const MEMBER_CAP       = 'wiz-clubaff-cap';
+const MEMBER_DISAMBIG_CAP = 'wiz-clubaff-disambig-cap';
+const MEMBER_SKIP_DONE    = 'wiz-clubaff-skip-done';
+const MEMBER_PD_SKIP      = 'wiz-clubaff-pd-skip';
 
 let membershipClubId = '';
 let membershipAffId  = '';
@@ -49,6 +53,8 @@ let promoteAffId     = '';
 let nopromoteCandId  = '';
 let nopromoteAffId   = '';
 let capAffId         = '';
+let disambigCapAffX  = '';
+let disambigCapAffY  = '';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -228,6 +234,35 @@ beforeAll(async () => {
     legacy_club_candidate_id: otherCand,
   });
 
+  // At-cap disambiguation: a member already at the two-current-club cap with a
+  // same-city pair of pending candidates (one disambiguation card). Confirming
+  // a club from it is a cap hit, so the wizard must surface the cap notice
+  // rather than telling the member the club was added.
+  insertMember(db, {
+    id: MEMBER_DISAMBIG_CAP,
+    slug: 'wiz_clubaff_disambig_cap',
+    login_email: 'wiz-disambig-cap@example.com',
+    legacy_member_id: 'lm-wiz-disambig-cap',
+  });
+  const dcCurA = insertClub(db, { name: 'DisambigCap Current A' });
+  const dcCurB = insertClub(db, { name: 'DisambigCap Current B' });
+  insertMemberClubAffiliation(db, MEMBER_DISAMBIG_CAP, dcCurA, { is_current: 1, is_primary: 1 });
+  insertMemberClubAffiliation(db, MEMBER_DISAMBIG_CAP, dcCurB, { is_current: 1, is_primary: 0 });
+  const dcClubX = insertClub(db, { name: 'Boston X', city: 'Boston', country: 'USA' });
+  const dcClubY = insertClub(db, { name: 'Boston Y', city: 'Boston', country: 'USA' });
+  const dcCandX = insertLegacyClubCandidate(db, { classification: 'pre_populate', mapped_club_id: dcClubX, display_name: 'Boston X' });
+  const dcCandY = insertLegacyClubCandidate(db, { classification: 'pre_populate', mapped_club_id: dcClubY, display_name: 'Boston Y' });
+  disambigCapAffX = insertLegacyPersonClubAffiliation(db, { legacy_member_id: 'lm-wiz-disambig-cap', legacy_club_candidate_id: dcCandX, confidence_score: 0.9 });
+  disambigCapAffY = insertLegacyPersonClubAffiliation(db, { legacy_member_id: 'lm-wiz-disambig-cap', legacy_club_candidate_id: dcCandY, confidence_score: 0.7 });
+
+  // Skip-guard members: one with the club task already completed (a skip POST
+  // must not re-open it), one with personal_details pending (a skip POST on the
+  // required task is a no-op that leaves it pending).
+  insertMember(db, { id: MEMBER_SKIP_DONE, slug: 'wiz_clubaff_skip_done', login_email: 'wiz-skip-done@example.com' });
+  insertOnboardingTask(db, MEMBER_SKIP_DONE, 'club_affiliations', 'completed');
+  insertMember(db, { id: MEMBER_PD_SKIP, slug: 'wiz_clubaff_pd_skip', login_email: 'wiz-pd-skip@example.com' });
+  insertOnboardingTask(db, MEMBER_PD_SKIP, 'personal_details', 'pending');
+
   db.close();
   createApp = await importApp();
   testDb = new BetterSqlite3(dbPath);
@@ -257,10 +292,10 @@ function readBootstrapStatus(id: string): string {
   return row?.status ?? '';
 }
 
-function readTaskState(memberId: string): string | null {
+function readTaskState(memberId: string, taskType: string = 'club_affiliations'): string | null {
   const row = testDb
-    .prepare(`SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'`)
-    .get(memberId) as { state: string } | undefined;
+    .prepare(`SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?`)
+    .get(memberId, taskType) as { state: string } | undefined;
   return row?.state ?? null;
 }
 
@@ -282,28 +317,30 @@ function isActivePlayer(memberId: string): number {
 }
 
 describe('GET /register/wizard/club_affiliations — card listing', () => {
-  it('member with no candidates -> task auto-transitions to not_applicable and 303-redirects to next task', async () => {
+  it('member with no candidates -> task stays pending and renders the find-or-create wrap-up landing', async () => {
     const res = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(MEMBER_EMPTY));
-    // A member with zero possible cards is moved to not_applicable so the
-    // wizard does not render a meaningless "no clubs to confirm" page with a
-    // skip-as-Continue button. The dashboard widget drops not_applicable rows
-    // entirely, so the task disappears from view.
-    expect(res.status).toBe(303);
-    expect(res.headers.location).not.toBe('/register/wizard/club_affiliations');
-    expect(readTaskState(MEMBER_EMPTY)).toBe('not_applicable');
+    // club_affiliations is universal: a member with zero possible cards still
+    // reaches the find-or-create-your-club wrap-up so every member is asked to
+    // join or create a club. With no legacy suggestion material, the landing
+    // states that no past club affiliation was found.
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Find or create your club');
+    expect(res.text).toContain('We did not find a past club affiliation for you');
+    expect(readTaskState(MEMBER_EMPTY)).toBe('pending');
   });
 
-  it('junk-classified candidate never surfaces as a card; member treated as having no cards', async () => {
+  it('junk-classified candidate never surfaces as a card; member reaches the wrap-up landing', async () => {
     const res = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(MEMBER_JUNK));
     expect(res.text).not.toContain('Junk Wizard Club');
-    // With the junk candidate filtered, the member has zero possible cards
-    // and follows the no-candidates path.
-    expect(res.status).toBe(303);
-    expect(readTaskState(MEMBER_JUNK)).toBe('not_applicable');
+    // With the junk candidate filtered, the member has zero Stage 1 cards and
+    // still lands on the find-or-create-your-club wrap-up landing.
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Find or create your club');
+    expect(readTaskState(MEMBER_JUNK)).toBe('pending');
   });
 
   it('member with one membership candidate -> renders the membership card with the confidence band', async () => {
@@ -317,6 +354,9 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
     // The hidden inputs encode kind + candidateId for the POST.
     expect(res.text).toContain('value="membership"');
     expect(res.text).toContain(`value="${membershipAffId}"`);
+    // The save control renders at both the top and bottom of the card so the
+    // pending action stays visible without scrolling.
+    expect(res.text.match(/>Save Answers</g)?.length).toBe(2);
   });
 
   it('member with one leadership candidate -> renders the leadership card with classification + signal checklist', async () => {
@@ -326,8 +366,8 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Leadership Wizard Club');
     expect(res.text).toContain('Were you a contact for');
-    // No signals seeded -> classification falls back to 'none'.
-    expect(res.text).toContain('NONE');
+    // No signals seeded -> classification falls back to 'none' (plain-language label).
+    expect(res.text).toContain('Uncertain match');
     expect(res.text).toContain('value="leadership"');
     expect(res.text).toContain(`value="${leadershipCblId}"`);
     // Per Q1 lock: all 7 signal labels render.
@@ -828,5 +868,56 @@ describe('POST /register/wizard/club_affiliations/submit — activity-signal emi
     expect(earlySignals[0].club_id).toBe(mappedClubId);
     expect(earlySignals[0].source_entity_type).toBe('legacy_club_candidate');
     expect(readSignals(SIG_LATE)[0].club_id).toBe(mappedClubId);
+  });
+});
+
+describe('club_affiliations skip-guard and disambiguation cap', () => {
+  it('disambiguation confirm at the two-current-club cap surfaces the cap notice, not "added"; rows stay pending', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_DISAMBIG_CAP))
+      .type('form')
+      .send({
+        kind: 'disambiguation',
+        allCandidateIds: [disambigCapAffX, disambigCapAffY],
+        selectedCandidateIds: disambigCapAffX,
+      });
+    expect(res.status).toBe(303);
+    // The confirmed club could not be added at the cap, so the candidate stays
+    // actionable rather than silently resolving.
+    expect(readAffiliationStatus(disambigCapAffX)).toBe('pending');
+
+    const setCookies = (res.headers['set-cookie'] ?? []) as unknown as string[];
+    const flashCookie = setCookies
+      .map((c) => c.split(';')[0])
+      .find((c) => c.startsWith('footbag_flash='));
+    expect(flashCookie).toBeDefined();
+    const getRes = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', `${cookieFor(MEMBER_DISAMBIG_CAP)}; ${flashCookie}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.text).toContain('already at the two current-club limit');
+    // The false "added" banner must not appear when nothing was added.
+    expect(getRes.text).not.toContain('Added 1 club(s)');
+  });
+
+  it('skip POST on an already-completed club_affiliations task is a no-op (stays completed)', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/skip')
+      .set('Cookie', cookieFor(MEMBER_SKIP_DONE))
+      .type('form')
+      .send({});
+    expect(res.status).toBe(303);
+    expect(readTaskState(MEMBER_SKIP_DONE, 'club_affiliations')).toBe('completed');
+  });
+
+  it('skip POST on the required personal_details task is a no-op (stays pending)', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/personal_details/skip')
+      .set('Cookie', cookieFor(MEMBER_PD_SKIP))
+      .type('form')
+      .send({});
+    expect(res.status).toBe(303);
+    expect(readTaskState(MEMBER_PD_SKIP, 'personal_details')).toBe('pending');
   });
 });

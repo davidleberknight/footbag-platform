@@ -15,29 +15,13 @@
     {{#if content.capHitNotice}}
       <p class="form-notice" role="status">
         {{content.capHitNotice.message}}
+        <a href="{{content.capHitNotice.manageClubsHref}}">Manage your clubs</a>
       </p>
     {{/if}}
 
     {{#if content.formError}}
       <p class="form-notice" role="alert">{{content.formError}}</p>
     {{/if}}
-
-    {{#each content.leadershipOffers}}
-      <div class="card card-static mb-4">
-        <div class="card-title">{{this.clubName}} has no listed contact</div>
-        <p>You're the first member to claim this club. Would you like to be its contact? You can step down at any time.</p>
-        <form method="POST" action="/register/wizard/club_affiliations/leadership-offer" class="candidate-card-action">
-          <input type="hidden" name="clubId" value="{{this.clubId}}" />
-          <input type="hidden" name="decision" value="accept" />
-          <button type="submit" class="btn btn-primary">Yes, Make Me the Contact</button>
-        </form>
-        <form method="POST" action="/register/wizard/club_affiliations/leadership-offer" class="candidate-card-action">
-          <input type="hidden" name="clubId" value="{{this.clubId}}" />
-          <input type="hidden" name="decision" value="decline" />
-          <button type="submit" class="btn btn-outline">No Thanks</button>
-        </form>
-      </div>
-    {{/each}}
 
     {{#if content.card}}
       {{#if (gt content.cardsRemaining 1)}}
@@ -49,112 +33,128 @@
         {{/if}}
       {{/if}}
 
-      {{#if content.card.isMembership}}
-        <h2>About {{content.card.clubName}}</h2>
-        <p class="text-muted">Match strength: {{content.card.confidenceBandLabel}}</p>
-        {{#if content.card.clubDescription}}<p class="text-muted fs-sm mt-2">{{content.card.clubDescription}}</p>{{/if}}
-        {{#if content.card.clubExternalUrl}}
-          <p class="fs-sm mt-1">{{externalLink content.card.clubExternalUrl label="Club website"}}</p>
-        {{/if}}
-        <p class="text-muted fs-sm">Source: legacy roster records.</p>
-      {{/if}}
-
-      {{#if content.card.isLeadership}}
-        <h2>About {{content.card.clubName}}</h2>
-        <p class="text-muted">Listed as: {{content.card.roleLabel}}</p>
-        {{#if content.card.clubDescription}}<p class="text-muted fs-sm mt-2">{{content.card.clubDescription}}</p>{{/if}}
-        {{#if content.card.clubExternalUrl}}
-          <p class="fs-sm mt-1">{{externalLink content.card.clubExternalUrl label="Club website"}}</p>
-        {{/if}}
-        <p class="badge mt-2">{{content.card.classificationLabel}}</p>
-        <ul class="signal-checklist mt-4">
-          {{#each content.card.signals}}
-            <li class="signal-checklist-row">
-              <span class="signal-checklist-mark">{{#if this.isPresent}}&#10004;{{else}}&#9675;{{/if}}</span>
-              <span class="signal-checklist-label">{{this.signalLabel}}</span>
-            </li>
-          {{/each}}
-        </ul>
-      {{/if}}
-
       {{#if content.card.isDisambiguation}}
-        <h2>Which clubs in {{content.card.city}} were you part of?</h2>
-        <p class="text-muted fs-sm">Select all that apply, or leave unchecked if none.</p>
+        <div class="card card-static">
+          <div class="card-title">Which clubs in {{content.card.city}} were you part of?</div>
+          <p class="text-muted fs-sm">Select all that apply, or leave unchecked if none.</p>
 
-        <form method="POST" action="{{content.submitHref}}" class="mt-6">
-          <input type="hidden" name="kind" value="disambiguation" />
-          {{#each content.card.clubs}}
-            <input type="hidden" name="allCandidateIds" value="{{this.candidateId}}" />
-          {{/each}}
-
-          <ul class="disambiguation-club-list">
+          <form method="POST" action="{{content.submitHref}}" class="mt-6">
+            <input type="hidden" name="kind" value="disambiguation" />
             {{#each content.card.clubs}}
-              <li class="disambiguation-club-item">
-                <label class="disambiguation-club-label">
-                  <input type="checkbox" name="selectedCandidateIds" value="{{this.candidateId}}" />
-                  <span class="fw-600">{{this.clubName}}</span>
-                  <span class="text-muted fs-sm">({{this.confidenceBandLabel}} match)</span>
-                </label>
-                {{#if this.clubDescription}}<p class="text-muted fs-sm mt-1 mb-0">{{this.clubDescription}}</p>{{/if}}
-                {{#if this.clubExternalUrl}}<p class="fs-sm mt-1 mb-0">{{externalLink this.clubExternalUrl label="Club website"}}</p>{{/if}}
-              </li>
+              <input type="hidden" name="allCandidateIds" value="{{this.candidateId}}" />
             {{/each}}
-          </ul>
 
-          <button type="submit" class="btn btn-primary mt-4">Confirm Selection</button>
-        </form>
+            <ul class="disambiguation-club-list">
+              {{#each content.card.clubs}}
+                <li class="disambiguation-club-item">
+                  <label class="disambiguation-club-label">
+                    <input type="checkbox" name="selectedCandidateIds" value="{{this.candidateId}}" />
+                    <span class="fw-600">{{this.clubName}}</span>
+                    <span class="text-muted fs-sm">({{this.confidenceBandLabel}} match)</span>
+                  </label>
+                  {{#if this.clubDescription}}<p class="text-muted fs-sm mt-1 mb-0">{{this.clubDescription}}</p>{{/if}}
+                  {{#if this.clubExternalUrl}}<p class="fs-sm mt-1 mb-0">{{externalLink this.clubExternalUrl label="Club website"}}</p>{{/if}}
+                </li>
+              {{/each}}
+            </ul>
 
-        <p class="audit-notice text-muted fs-sm mt-4">This decision is recorded.</p>
+            <button type="submit" class="btn btn-primary mt-4">Confirm Selection</button>
+          </form>
+
+          <p class="audit-notice text-muted fs-sm mt-4">This decision is recorded.</p>
+        </div>
 
         <form method="POST" action="{{content.skipHref}}" class="mt-6">
           <button type="submit" class="btn-link text-muted">Skip Remaining Clubs for Now</button>
         </form>
-      {{/if}}
-
-      {{#unless content.card.isDisambiguation}}
-      <form method="POST" action="{{content.submitHref}}" class="mt-6 wizard-card-actions">
-        <input type="hidden" name="kind"        value="{{content.card.kind}}" />
-        <input type="hidden" name="candidateId" value="{{content.card.candidateId}}" />
-
-        <fieldset class="activity-signal-fieldset mt-4 mb-6">
-          <legend class="fs-sm fw-600">
-            {{content.card.questionLabel}}
-          </legend>
-          <label class="radio-label"><input type="radio" name="userDecision" value="confirm" required /> Yes</label>
-          <label class="radio-label"><input type="radio" name="userDecision" value="decline" required /> No</label>
-        </fieldset>
-
-        <fieldset class="activity-signal-fieldset mt-4 mb-6">
-          <legend class="fs-sm fw-600">Is {{content.card.clubName}} still active?</legend>
-          <p class="text-muted fs-sm mb-2">This helps us keep club listings accurate.</p>
-          <label class="radio-label"><input type="radio" name="activitySignal" value="active" required /> Still active</label>
-          <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" required /> Not active anymore</label>
-          <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" required /> Not sure</label>
-        </fieldset>
-
-        <p class="audit-notice text-muted fs-sm mb-4">Both answers required. Your answers will be saved.</p>
-
-        <button type="submit" class="btn btn-primary">Save Answers</button>
-      </form>
-
-      <p class="text-muted fs-sm mt-4">Not the right club? <a href="{{content.clubsBrowseHref}}">Browse all clubs</a> to find yours; you can come back to finish onboarding from your dashboard.</p>
-
-      <form method="POST" action="{{content.skipHref}}" class="mt-6">
-        <button type="submit" class="btn-link text-muted">Skip Remaining Clubs for Now</button>
-      </form>
-      {{/unless}}
-    {{else}}
-      <h2>Find or create your club</h2>
-      <p>We didn't link a club to your account. You can find your local club on the clubs page and join it there, or create a new club if yours isn't listed.</p>
-      <p class="mt-4"><a href="/clubs" class="btn btn-outline">Browse Clubs</a> {{#if content.memberCountry}}<a href="{{content.clubsBrowseHref}}" class="btn btn-outline">Clubs in {{content.memberCountry}}</a>{{/if}}</p>
-      {{#if content.canCreateClub}}
-        <p class="mt-2"><a href="/clubs/create" class="btn btn-primary">Create a New Club</a></p>
       {{else}}
-        <div class="notice-card notice-card--warn mt-4">
-          <p class="m-0">Creating a club requires IFPA Membership (Tier 1) because you become the club's first co-leader. You can upgrade from your profile page and come back any time.</p>
+        <div class="card card-static">
+          <div class="card-title">About {{content.card.clubName}}</div>
+
+          {{#if content.card.isMembership}}
+            <p class="text-muted">Match strength: {{content.card.confidenceBandLabel}}</p>
+            {{#if content.card.clubDescription}}<p class="text-muted fs-sm mt-2">{{content.card.clubDescription}}</p>{{/if}}
+            {{#if content.card.clubExternalUrl}}
+              <p class="fs-sm mt-1">{{externalLink content.card.clubExternalUrl label="Club website"}}</p>
+            {{/if}}
+            <p class="text-muted fs-sm">Source: legacy roster records.</p>
+          {{/if}}
+
+          {{#if content.card.isLeadership}}
+            <p class="text-muted">Listed as: {{content.card.roleLabel}}</p>
+            {{#if content.card.clubDescription}}<p class="text-muted fs-sm mt-2">{{content.card.clubDescription}}</p>{{/if}}
+            {{#if content.card.clubExternalUrl}}
+              <p class="fs-sm mt-1">{{externalLink content.card.clubExternalUrl label="Club website"}}</p>
+            {{/if}}
+            <p class="badge mt-2">{{content.card.classificationLabel}}</p>
+            <ul class="signal-checklist mt-4">
+              {{#each content.card.signals}}
+                <li class="signal-checklist-row">
+                  <span class="signal-checklist-mark">{{#if this.isPresent}}&#10004;{{else}}&#9675;{{/if}}</span>
+                  <span class="signal-checklist-label">{{this.signalLabel}}</span>
+                </li>
+              {{/each}}
+            </ul>
+          {{/if}}
+
+          <form method="POST" action="{{content.submitHref}}" class="mt-4">
+            <input type="hidden" name="kind"        value="{{content.card.kind}}" />
+            <input type="hidden" name="candidateId" value="{{content.card.candidateId}}" />
+
+            <div class="mb-6">
+              <button type="submit" class="btn btn-primary">Save Answers</button>
+            </div>
+
+            <fieldset class="activity-signal-fieldset mt-4 mb-6">
+              <legend class="fs-sm fw-600">
+                {{content.card.questionLabel}}
+              </legend>
+              <label class="radio-label"><input type="radio" name="userDecision" value="confirm" required /> Yes</label>
+              <label class="radio-label"><input type="radio" name="userDecision" value="decline" required /> No</label>
+            </fieldset>
+
+            <fieldset class="activity-signal-fieldset mt-4 mb-6">
+              <legend class="fs-sm fw-600">Is {{content.card.clubName}} still active?</legend>
+              <p class="text-muted fs-sm mb-2">This helps us keep club listings accurate.</p>
+              <label class="radio-label"><input type="radio" name="activitySignal" value="active" required /> Still active</label>
+              <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" required /> Not active anymore</label>
+              <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" required /> Not sure</label>
+            </fieldset>
+
+            <p class="audit-notice text-muted fs-sm mb-4">Both answers required. Your answers will be saved.</p>
+
+            <button type="submit" class="btn btn-primary">Save Answers</button>
+          </form>
+
+          <p class="text-muted fs-sm mt-4">Not the right club? <a href="{{content.clubsBrowseHref}}">Browse all clubs</a> to find yours; you can come back to finish onboarding from your dashboard.</p>
         </div>
+
+        <p class="text-muted fs-sm mt-6">Reviewing these clubs is optional. You can finish later from your profile.</p>
+        <form method="POST" action="{{content.skipHref}}" class="mt-2">
+          <button type="submit" class="btn-link text-muted">Skip Remaining Clubs for Now</button>
+        </form>
       {{/if}}
-      <form method="POST" action="{{content.skipHref}}" class="mt-6">
+    {{else}}
+      <div class="card card-static">
+        <div class="card-title">Find or create your club</div>
+        {{#if content.noLegacyAffiliationFound}}
+          <p>We did not find a past club affiliation for you. Joining or leading a club is optional, but it is a great way to connect with players near you.</p>
+        {{else}}
+          <p>We did not link a club to your account. Joining or leading a club is optional, but it is a great way to connect with players near you.</p>
+        {{/if}}
+        <p>Find your local club on the clubs page and join it there{{#if content.canCreateClub}}, or create a new club if yours is not listed{{/if}}.</p>
+        <p class="mt-4"><a href="/clubs" class="btn btn-outline">Browse Clubs</a> {{#if content.memberCountry}}<a href="{{content.clubsBrowseHref}}" class="btn btn-outline">Clubs in {{content.memberCountry}}</a>{{/if}}</p>
+        {{#if content.canCreateClub}}
+          <p class="mt-2"><a href="/clubs/create" class="btn btn-primary">Create a New Club</a></p>
+        {{else}}
+          <div class="notice-card notice-card--warn mt-4">
+            <p class="m-0">Creating a club requires IFPA Membership (Tier 1) because you become the club's first co-leader. You can upgrade from your profile page and come back any time.</p>
+          </div>
+        {{/if}}
+      </div>
+
+      <p class="text-muted fs-sm mt-6">Joining or leading a club is optional. You can do this any time from your profile.</p>
+      <form method="POST" action="{{content.skipHref}}" class="mt-2">
         <button type="submit" class="btn-link text-muted">Skip for Now</button>
       </form>
     {{/if}}

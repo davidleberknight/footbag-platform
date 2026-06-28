@@ -100,8 +100,7 @@ import { logger } from '../config/logger';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { appendAuditEntry } from './auditService';
-import { recordOperationalError } from './operationalErrors';
-import { applyClubJoin as applyActivePlayerClubJoin, getStatus as getActivePlayerStatus } from './activePlayerService';
+import { applyClubJoinInTx as applyActivePlayerClubJoinInTx, getStatus as getActivePlayerStatus } from './activePlayerService';
 import { getTierStatus } from './membershipTieringService';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
@@ -1568,29 +1567,16 @@ export class ClubService {
             metadata:      { prior_status: club.status, bootstrap_leader_id: bootstrapLeaderId },
           });
         }
+
+        if (affiliationId) {
+          // The one-time club-join Active Player grant co-commits with the
+          // bootstrap leadership claim in this same transaction.
+          applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, affiliationId);
+        }
       });
     } catch (err) {
       if (err instanceof ConflictError) throw err;
       throw err;
-    }
-
-    if (affiliationId) {
-      try {
-        applyActivePlayerClubJoin(actorMemberId, actorMemberId, affiliationId);
-      } catch (err) {
-        // AP grant is best-effort and idempotent (once per member, lifetime);
-        // the bootstrap claim stands regardless. Record so a systematic break alarms.
-        recordOperationalError({
-          actionType: 'club.active_player_grant_failed',
-          category: 'club_membership',
-          actorType: 'member',
-          actorMemberId,
-          entityType: 'member_club_affiliation',
-          entityId: affiliationId,
-          reasonText: 'Active Player grant on bootstrap leadership claim failed; claim committed regardless.',
-          cause: err,
-        });
-      }
     }
 
     return {
@@ -1766,6 +1752,12 @@ export class ClubService {
             });
           }
         }
+
+        if (newAffiliationId) {
+          // The one-time club-join Active Player grant co-commits with the
+          // affiliation in this same transaction (atomic; no post-commit gap).
+          applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, newAffiliationId);
+        }
       });
     } catch (err) {
       if (err instanceof ConflictError) throw err;
@@ -1779,25 +1771,6 @@ export class ClubService {
         resolvedClubId,
         newAffiliationId: null,
       };
-    }
-
-    if (newAffiliationId) {
-      try {
-        applyActivePlayerClubJoin(actorMemberId, actorMemberId, newAffiliationId);
-      } catch (err) {
-        // AP grant is best-effort and idempotent (once per member, lifetime);
-        // the affiliation stands regardless. Record so a systematic break alarms.
-        recordOperationalError({
-          actionType: 'club.active_player_grant_failed',
-          category: 'club_membership',
-          actorType: 'member',
-          actorMemberId,
-          entityType: 'member_club_affiliation',
-          entityId: newAffiliationId,
-          reasonText: 'Active Player grant on legacy-affiliation confirm failed; affiliation committed regardless.',
-          cause: err,
-        });
-      }
     }
 
     return {
@@ -2093,6 +2066,10 @@ export class ClubService {
               : null,
           },
         });
+
+        // The one-time club-join Active Player grant co-commits with the new
+        // club and the creator's affiliation in this same transaction.
+        applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, affiliationId);
       });
     } catch (err) {
       if (isUniqueViolation(err)) {
@@ -2102,23 +2079,6 @@ export class ClubService {
         }
       }
       throw err;
-    }
-
-    try {
-      applyActivePlayerClubJoin(actorMemberId, actorMemberId, affiliationId);
-    } catch (err) {
-      // AP grant is best-effort; creation succeeds regardless. Record the
-      // failure so a systematic AP-grant break raises an operator alarm.
-      recordOperationalError({
-        actionType: 'club.active_player_grant_failed',
-        category: 'club_membership',
-        actorType: 'member',
-        actorMemberId,
-        entityType: 'member_club_affiliation',
-        entityId: affiliationId,
-        reasonText: 'Active Player grant on club create failed; club created regardless.',
-        cause: err,
-      });
     }
 
     const clubKey = `club_${slug}`;
@@ -2209,6 +2169,12 @@ export class ClubService {
           });
         }
       }
+
+      if (affiliationId) {
+        // The one-time club-join Active Player grant co-commits with the
+        // self-join affiliation in this same transaction.
+        applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, affiliationId);
+      }
     });
 
     if (!affiliationId && !existing) {
@@ -2216,23 +2182,6 @@ export class ClubService {
     }
 
     if (affiliationId) {
-      try {
-        applyActivePlayerClubJoin(actorMemberId, actorMemberId, affiliationId);
-      } catch (err) {
-        // AP grant is best-effort; join succeeds regardless. Record the
-        // failure so a systematic AP-grant break raises an operator alarm.
-        recordOperationalError({
-          actionType: 'club.active_player_grant_failed',
-          category: 'club_membership',
-          actorType: 'member',
-          actorMemberId,
-          entityType: 'member_club_affiliation',
-          entityId: affiliationId,
-          reasonText: 'Active Player grant on club join failed; join committed regardless.',
-          cause: err,
-        });
-      }
-
       const current = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
         | { id: string; version: number } | undefined;
       enqueueClubMembershipEmails({
@@ -2428,8 +2377,8 @@ export class ClubService {
 
   /**
    * A current member with Tier 1 benefits self-adds as a co-leader. Immediate,
-   * no approval step. This single write backs both the onboarding wizard's
-   * leadership-assumption offer and the standing club-page volunteer affordance.
+   * no approval step. This single write backs the standing club-page volunteer
+   * affordance.
    *
    * Eligibility (all required): the actor is a current confirmed member of the
    * club; has Tier 1 benefits (Tier 1+ OR Active Player); does not already

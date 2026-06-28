@@ -31,6 +31,9 @@ import { requireTier1Benefits } from '../middleware/requireTier';
 import { requireOnboardingComplete } from '../middleware/requireOnboardingComplete';
 
 export const publicRouter = Router();
+// A verified member who has not finished required onboarding is redirected to
+// the wizard from the member, club, and admin capability surfaces; browse and
+// the wizard's own affordances stay reachable (see requireOnboardingComplete).
 publicRouter.use(requireOnboardingComplete);
 
 publicRouter.get('/',      homeController.home);
@@ -43,7 +46,7 @@ publicRouter.post('/clubs/create',          requireAuth, requireTier1Benefits(),
 publicRouter.get('/clubs/:key',             clubController.byKey);
 publicRouter.post('/clubs/:key/join',           requireAuth, clubController.postJoin);
 publicRouter.post('/clubs/:key/leave',          requireAuth, clubController.postLeave);
-publicRouter.post('/clubs/:key/volunteer',      requireAuth, clubController.postVolunteer);
+publicRouter.post('/clubs/:key/volunteer',      requireAuth, requireTier1Benefits(), clubController.postVolunteer);
 publicRouter.post('/clubs/:key/invite',         requireAuth, clubController.postInvite);
 publicRouter.post('/clubs/:key/step-down',      requireAuth, clubController.postStepDown);
 publicRouter.post('/clubs/:key/mark-inactive',  requireAuth, clubController.postMarkInactive);
@@ -154,7 +157,6 @@ publicRouter.get('/history/:personId',   historyController.detail);
 // registered before /members/:memberKey/:section so literal segments are not
 // captured as :section. The /members/:memberKey/galleries/* tree must
 // also precede the catch-all so "galleries" is not captured as :section.
-publicRouter.get('/members',                       memberController.landing);
 // Legacy-URL forwarding: must match BEFORE the slug route so old
 // /members/profile/<legacy id> emails never resolve as a slug lookup.
 publicRouter.get('/members/profile/:legacyMemberId', legacyRedirectController.memberProfile);
@@ -232,7 +234,6 @@ publicRouter.post('/register/wizard/legacy_claim/claim/confirm',        requireA
 publicRouter.post('/register/wizard/legacy_claim/anchors/add',          requireAuth, memberOnboardingController.postAddAnchor);
 publicRouter.post('/register/wizard/legacy_claim/anchors/remove',       requireAuth, memberOnboardingController.postRemoveAnchor);
 publicRouter.post('/register/wizard/club_affiliations/submit',          requireAuth, memberOnboardingController.postClubAffiliationsSubmit);
-publicRouter.post('/register/wizard/club_affiliations/leadership-offer', requireAuth, memberOnboardingController.postLeadershipOffer);
 publicRouter.post('/register/wizard/:taskType/skip',                    requireAuth, memberOnboardingController.postSkip);
 publicRouter.get('/register/wizard/complete',                           requireAuth, memberOnboardingController.getComplete);
 publicRouter.get('/register/wizard/:taskType',                          requireAuth, memberOnboardingController.getTask);

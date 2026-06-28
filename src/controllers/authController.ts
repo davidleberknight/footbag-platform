@@ -28,36 +28,47 @@ import { getCaptchaAdapter } from '../adapters/captchaAdapter';
 // every real token, so this never appears there.
 const CAPTCHA_FAILED_MESSAGE = 'Please complete the verification challenge and try again.';
 
+// The login page is the single visitor entry: legacy-claim card, sign-in form,
+// register CTA, and a pointer to IFPA membership. Both the initial GET and every
+// failed-login re-render compose the same page, so the model is built once here.
+function buildLoginViewModel(opts: {
+  returnTo?: string;
+  authReason?: string;
+  error?: string;
+}): PageViewModel<LoginContent> {
+  return {
+    seo: { title: 'Login', noindex: true },
+    page: { sectionKey: '', pageKey: 'login', title: 'Member Login', intro: 'Sign in to your IFPA member account.' },
+    content: {
+      returnTo: opts.returnTo,
+      authReason: opts.authReason,
+      error: opts.error,
+      turnstileSiteKey: config.turnstileSiteKey,
+      captchaStubbed: config.captchaAdapter === 'stub',
+    },
+  } satisfies PageViewModel<LoginContent>;
+}
+
 function getLogin(req: Request, res: Response): void {
   if (req.isAuthenticated) {
     res.redirect(303, `/members/${req.user!.slug}`);
     return;
   }
   const returnTo = isSafePath(req.query.returnTo) ? req.query.returnTo : undefined;
-  res.render('auth/login', {
-    seo: { title: 'Login', noindex: true },
-    page: { sectionKey: '', pageKey: 'login', title: 'Member Login', intro: 'Sign in to your IFPA member account.' },
-    content: {
-      returnTo,
-      authReason: returnTo ? 'The content you are trying to reach requires an IFPA Member account.' : undefined,
-      turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub',
-    },
-  } satisfies PageViewModel<LoginContent>);
+  res.render('auth/login', buildLoginViewModel({
+    returnTo,
+    authReason: returnTo ? 'The content you are trying to reach requires an IFPA Member account.' : undefined,
+  }));
 }
 
 async function postLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
   const { email, password, returnTo } = req.body as { email?: string; password?: string; returnTo?: string };
 
   const renderError = (msg: string, status = 200) => {
-    res.status(status).render('auth/login', {
-      seo: { title: 'Login', noindex: true },
-      page: { sectionKey: '', pageKey: 'login', title: 'Member Login', intro: 'Sign in to your IFPA member account.' },
-      content: {
-        error: msg,
-        returnTo: isSafePath(returnTo) ? returnTo : undefined,
-        turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub',
-      },
-    } satisfies PageViewModel<LoginContent>);
+    res.status(status).render('auth/login', buildLoginViewModel({
+      error: msg,
+      returnTo: isSafePath(returnTo) ? returnTo : undefined,
+    }));
   };
 
   const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);

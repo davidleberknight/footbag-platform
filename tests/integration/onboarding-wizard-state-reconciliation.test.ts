@@ -93,7 +93,7 @@ describe('A2: out-of-wizard HP claim completes the legacy_claim task', () => {
 });
 
 describe('A5 + L5: wizard GETs reconcile task state with underlying reality', () => {
-  it('GET /register/wizard/club_affiliations auto-transitions to not_applicable for a member with no possible cards', async () => {
+  it('GET /register/wizard/club_affiliations stays pending and renders the wrap-up landing for a member with no possible cards', async () => {
     const stamp = Date.now();
     const memberId = insertMember(testDb, {
       slug: `state_a5_${stamp}`,
@@ -104,8 +104,11 @@ describe('A5 + L5: wizard GETs reconcile task state with underlying reality', ()
     const res = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(memberId));
-    expect(res.status).toBe(303);
-    expect(getTaskState(memberId, 'club_affiliations')).toBe('not_applicable');
+    // club_affiliations is universal: a member with no possible cards reaches
+    // the find-or-create-your-club wrap-up landing rather than being skipped.
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Find or create your club');
+    expect(getTaskState(memberId, 'club_affiliations')).toBe('pending');
   });
 
   it('GET /register/wizard/legacy_claim auto-transitions to completed when historical_person_id is set', async () => {
@@ -201,7 +204,7 @@ describe('A6 + A7: skipped tasks land in the skipped bucket, not the in-sequence
     expect(widget.skipped.map((t) => t.taskType)).toContain('club_affiliations');
     expect(widget.pending.map((t) => t.taskType)).not.toContain('club_affiliations');
     const skipped = widget.skipped.find((t) => t.taskType === 'club_affiliations')!;
-    expect(skipped.ctaLabel).toBe('Resume Task');
+    expect(skipped.ctaLabel).toBe('Open Task');
   });
 });
 

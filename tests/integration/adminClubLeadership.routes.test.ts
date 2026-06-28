@@ -211,4 +211,23 @@ describe('demote', () => {
     ).get(m, clubId) as { is_current: number };
     expect(aff.is_current).toBe(0);
   });
+
+  it('an unrecognized demote mode is rejected (422), leaving the leadership intact', async () => {
+    const clubId = seedClub();
+    const m = seedMember();
+    await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_key: m, reason: 'setup' });
+
+    const res = await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/demote`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_id: m, mode: 'banish', reason: 'tampered mode' });
+    expect(res.status).toBe(422);
+    // The bogus mode neither removed the roster row nor the affiliation.
+    expect(leaders(clubId)).toHaveLength(1);
+  });
 });

@@ -1196,7 +1196,7 @@ Requirements:
 
 - Two grant paths exist: in-app `A_Manage_Admin_Role` (steady state) and out-of-band bootstrap (initial admins only). No third path.
 
-- Bootstrap and steady-state share identical per-row write semantics: in one transaction, `is_admin=1` plus an `audit_entries` row plus a `member_tier_grants` row that satisfies the admin↔Tier 2 prerequisite. Bootstrap uses `actor_type='system'` for both the admin flag and the tier grant, with the mechanism-specific action_type described above; steady-state uses `actor_type='admin'`.
+- Both paths write, in one transaction, `is_admin=1` plus an `audit_entries` row plus the `admin-alerts` subscription. They differ on the admin↔Tier 2 prerequisite: bootstrap also writes a `member_tier_grants` row in the same transaction (tier data may not exist on day one), whereas steady-state requires the target to already hold Tier 2 or Tier 3 and therefore writes no tier grant. Bootstrap uses `actor_type='system'` for both the admin flag and the tier grant, with the mechanism-specific action_type described above; steady-state uses `actor_type='admin'`.
 
 - The Tier 2 prerequisite from `A_Manage_Admin_Role` is satisfied as a side effect of every successful grant. Bootstrap does not check Tier 2 as a precondition (tier data may not exist on day one); it writes the Tier 2 row atomically alongside the admin flag. Steady-state checks the prerequisite at request time.
 

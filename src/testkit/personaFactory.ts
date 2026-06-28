@@ -149,6 +149,15 @@ export interface PersonaLegacySpec {
    */
   autoLinkConfidence?: PersonaAutoLinkConfidence;
   /**
+   * Seed this many extra historical_persons rows sharing the member's real_name
+   * (no legacy back-link), on top of the provenance person. With the email
+   * anchor in place the auto-link candidate query then returns more than one
+   * match, so the classifier routes to the multiple-candidate review path the
+   * onboarding wizard disambiguates. Pairs with autoLinkConfidence 'high' (whose
+   * provenance person carries the exact member name), which supplies the anchor.
+   */
+  competingNameCandidates?: number;
+  /**
    * Sets legacy_members.legacy_is_admin=1 on this persona's legacy row. With
    * `linked: true` it seeds the claimed-legacy-admin case: the legacy admin flag
    * must never confer a live admin role, so the member's own is_admin stays 0.
@@ -400,6 +409,16 @@ export function seedPersona(
       insertNameVariant(db, {
         canonical_normalized: normalizeNameForVariant(legacyDisplayName),
         variant_normalized: normalizeNameForVariant(memberRealName),
+      });
+    }
+    // Extra same-name historical_persons with no legacy back-link turn the
+    // single candidate into a competing set, so the candidate query returns more
+    // than one match and the classifier hands the member a disambiguation choice.
+    const competing = spec.legacy.competingNameCandidates ?? 0;
+    for (let i = 0; i < competing; i++) {
+      insertHistoricalPerson(db, {
+        person_id: `person_persona_${spec.slug}_alt_${i + 1}`,
+        person_name: legacyDisplayName,
       });
     }
   }

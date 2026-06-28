@@ -7,8 +7,9 @@
 <div class="wrapper">
   <section>
     <p class="form-notice" role="alert">
-      {{#if content.error}}{{content.error}}{{else}}This claim link is no longer valid. Please start the claim again from the legacy account task.{{/if}}
+      {{#if content.error}}{{content.error}}{{else}}This claim link is no longer valid. You can try again from the find-your-past-records step in your onboarding tasks.{{/if}}
     </p>
-    <p><a href="{{content.dashboardHref}}">Back to dashboard</a></p>
+    <p><a href="/register/wizard/legacy_claim" class="btn btn-primary">Return to the Legacy Account Step</a></p>
+    <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>
   </section>
 </div>
