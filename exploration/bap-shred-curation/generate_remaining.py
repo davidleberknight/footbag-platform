@@ -6,11 +6,13 @@ Differences from generate_sidecars.py:
 - Unicode-safe slugify (pre-maps non-decomposing Latin letters such as Polish l,
   then NFKD-folds the rest) so diacritic names produce correct slugs/player tags.
 - Emits the #player_<slug> tag (the seeder uses sidecar tags verbatim).
-- Includes Vimeo rows: the sidecar is written with a null thumbnailUrl so the
-  curation record exists now; the thumbnail is filled in later.
+- Includes Vimeo rows: the seeder requires a thumbnailUrl for Vimeo (the CDN
+  thumbnail id is separate from the video id, so it is not derivable offline).
+  The public thumbnail URLs are fetched once from Vimeo's oEmbed API and cached
+  in VIMEO_THUMBNAILS below, keeping this generator offline-deterministic; a
+  Vimeo row with no cached thumbnail is deferred rather than written.
 
-Re-runnable: stable filenames; overwrites in place. Does NOT touch the 46
-already-curated sidecars.
+Re-runnable: stable filenames; overwrites in place.
 """
 from __future__ import annotations
 import hashlib, json, re, unicodedata
@@ -72,7 +74,7 @@ def normalize_url(platform: str, url: str) -> str:
 ROWS = [
     (1992, "Rick Reese", "Rippin'", "vimeo", "https://vimeo.com/472505541"),
     (1995, "Eric Wulff", "Iron Man", "vimeo", "https://vimeo.com/197154435"),
-    (1996, "Daryl Genz", "Genzu Blades", "vimeo", "https://vimeo.com/198106959"),
+    (1996, "Daryl Genz", "Genzu Blades", "youtube", "https://www.youtube.com/watch?v=CaxMzgzPfeQ"),
     (2001, "Allan Haggett", "Allan", "vimeo", "https://vimeo.com/158856059"),
     (2008, "Arek Dzudzinski", "Hi-Tek", "youtube", "https://www.youtube.com/watch?v=v6VdTmLw7VM"),
     (2009, "Anssi Sundberg", "Accelerator", "youtube", "https://www.youtube.com/watch?v=ORrnOcnFk_4"),
@@ -98,6 +100,19 @@ ROWS = [
 ]
 
 
+# Public Vimeo thumbnail URLs, keyed by numeric video id, fetched once from
+# Vimeo's oEmbed API (https://vimeo.com/api/oembed.json?url=...&width=640). The
+# CDN thumbnail id is independent of the video id, so it cannot be derived
+# offline; caching it here keeps this generator (and the seeder) deterministic
+# with no network call at generate or seed time.
+VIMEO_THUMBNAILS: dict[str, str] = {
+    "472505541": "https://i.vimeocdn.com/video/982940574-13ea3c15ba3a9010fa78c3ec88e7b9638e693c9a94b1a052bbc4f032ebe91232-d_640?region=us",
+    "197154435": "https://i.vimeocdn.com/video/609812333-aa67319f7bd7b2367c3bb05c187c59bf6e48c5858d83050b9c6f911b23fefa8e-d_640?region=us",
+    "158856059": "https://i.vimeocdn.com/video/560455806-f129e5292beb7819f9c4e7c8ea23df142739a5c52a1707fa103695438af4cab5-d_640?region=us",
+    "143522157": "https://i.vimeocdn.com/video/865183302-265b64cd4fd56bff446b5219378f14c3f30af3b4a204eef1208d99b052931994-d_640?region=us",
+}
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     written = 0
@@ -107,11 +122,6 @@ def main() -> None:
         slug = slugify(name)
         player_slug = CANONICAL_PLAYER_SLUG.get(name, slug.replace("-", "_"))
         player_tag = "#player_" + player_slug
-        if platform == "vimeo":
-            # Deferred: the seeder requires a Vimeo thumbnailUrl (not derivable
-            # offline), so the sidecar is not written until a thumbnail is added.
-            deferred.append((name, url, player_tag))
-            continue
         sidecar = {
             "videoUrl": url,
             "videoPlatform": platform,
@@ -119,8 +129,17 @@ def main() -> None:
             "creator": name,
             "sourceId": "bap_individual_shred",
             "tier": "REFERENCE",
-            "tags": ["#freestyle", "#individual_shred_videos", "#bap", f"#bap_{bap_era(year)}", player_tag],
         }
+        if platform == "vimeo":
+            m = re.search(r"vimeo\.com/(\d+)", url)
+            thumb = VIMEO_THUMBNAILS.get(m.group(1)) if m else None
+            if not thumb:
+                # No cached thumbnail: defer rather than write a sidecar the
+                # seeder would reject (Vimeo thumbnailUrl is mandatory).
+                deferred.append((name, url, player_tag))
+                continue
+            sidecar["thumbnailUrl"] = thumb
+        sidecar["tags"] = ["#freestyle", "#individual_shred_videos", "#bap", f"#bap_{bap_era(year)}", player_tag]
         assert "#curated" not in sidecar["tags"]
         fname = f"{slug}_{hashlib.sha1(url.encode()).hexdigest()[:8]}.meta.json"
         (OUT / fname).write_text(json.dumps(sidecar, indent=2) + "\n", encoding="utf-8")
