@@ -2435,3 +2435,6 @@ zulu-guay,operational_notation,,TOE > (across body) DUCK [BOD] > OP IN [DEX] > S
 zulu-guay,trick_family,guay,inside-stall,"Family mirrors ducking-guay: guay terminates in inside-stall (member, not parent)"
 zulu-double-leg-over,operational_notation,,TOE > (across body) DUCK [BOD] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],"Mirror of ducking-double-leg-over plus a non-scoring (across body) annotation; bracket-count==ADD (4)"
 zulu-toe-stall,operational_notation,,TOE > (across body) DUCK [BOD] > OP TOE [DEL],"Mirror of ducking-toe-stall plus a non-scoring (across body) annotation; bracket-count==ADD (2)"
+guay,pronunciation,,gwhy,Recovered from the legacy footbag.org moves2 Pronunciation field.
+barrage,pronunciation,,ba-razh',Recovered from the legacy footbag.org moves2 Pronunciation field.
+dyno,pronunciation,,die-no,Recovered from the legacy footbag.org moves2 Pronunciation field.

@@ -1391,6 +1391,9 @@ export interface FreestyleTrickContent {
   trickName: string;
   sortName: string | null;
   slug: string;
+  // Phonetic respelling shown as a compact fact chip when the trick has a
+  // non-obvious pronunciation (e.g. guay = "gwhy"); null otherwise.
+  pronunciation: string | null;
   records: FreestyleRecordViewModel[];      // current holders only (superseded_by IS NULL)
   recordCount: number;
   topValue: number;
@@ -6982,6 +6985,7 @@ export const freestyleService = {
           trickName,
           sortName,
           slug,
+          pronunciation: dictRow?.pronunciation ?? null,
           trickTag,
           records:          currentRows.map(r => shapeFreestyleRecord(r)),
           recordCount:      currentRows.length,

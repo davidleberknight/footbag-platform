@@ -4189,7 +4189,11 @@ CREATE TABLE freestyle_tricks (
   short_description    TEXT,                       -- one-sentence elevator pitch rendered in the hero
   execution_summary    TEXT,                       -- plain-English mechanics; multi-paragraph (split by service on \n\n)
   learning_notes       TEXT,                       -- gotchas + progression tips; multi-paragraph
-  prerequisite_notes   TEXT                        -- prereq prose; falls back to "Previous Tricks" anchor when absent
+  prerequisite_notes   TEXT,                       -- prereq prose; falls back to "Previous Tricks" anchor when absent
+  -- Phonetic respelling for tricks with non-obvious pronunciation (e.g. guay =
+  -- "gwhy"). Nullable; rendered as a compact fact chip when present. Recovered
+  -- from the legacy footbag.org moves2 Pronunciation field, then curator-expanded.
+  pronunciation        TEXT
 );
 
 CREATE INDEX idx_freestyle_tricks_category      ON freestyle_tricks(category);

@@ -2089,6 +2089,7 @@ export interface FreestyleTrickRowWithParse extends FreestyleTrickRow {
   execution_summary:           string | null;
   learning_notes:              string | null;
   prerequisite_notes:          string | null;
+  pronunciation:               string | null;
 }
 
 // Extension of FreestyleTrickRow returned by listAllWithPending; carries the
@@ -2198,7 +2199,7 @@ export const freestyleTricks = {
            computed_adds, add_formula_status,
            operational_notation, operational_notation_source,
            short_description, execution_summary, learning_notes,
-           prerequisite_notes
+           prerequisite_notes, pronunciation
     FROM freestyle_tricks
     WHERE slug = ? AND is_active = 1
   `); },

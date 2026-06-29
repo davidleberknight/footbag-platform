@@ -38,6 +38,9 @@
         {{/if}}
       {{/if}}
     {{/if}}
+    {{#if content.pronunciation}}
+    <span class="trick-hero-meta-chip trick-hero-meta-chip-pronunciation" aria-label="Pronunciation: {{content.pronunciation}}">{{content.pronunciation}}</span>
+    {{/if}}
   </p>
 
   {{> trick-compressed-from}}

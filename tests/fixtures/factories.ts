@@ -722,6 +722,7 @@ export interface FreestyleTrickOverrides {
   // O1d (2026-05-10) free-form curator-authored provenance / citation
   // line for operational_notation. Nullable; default NULL.
   operational_notation_source?: string | null;
+  pronunciation?:               string | null;
 }
 
 export function insertFreestyleTrick(
@@ -735,8 +736,8 @@ export function insertFreestyleTrick(
        description, aliases_json, notation, sort_order, review_status, is_active, loaded_at,
        jobs_notation_raw, jobs_notation_normalized, structural_parse_json,
        computed_add_formula, computed_adds, add_formula_status,
-       operational_notation, operational_notation_source)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       operational_notation, operational_notation_source, pronunciation)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     slug,
     o.canonical_name ?? slug.replace(/-/g, ' '),
@@ -759,6 +760,7 @@ export function insertFreestyleTrick(
     o.add_formula_status        ?? null,
     o.operational_notation      ?? null,
     o.operational_notation_source ?? null,
+    o.pronunciation             ?? null,
   );
   return slug;
 }

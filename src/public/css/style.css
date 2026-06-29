@@ -6130,6 +6130,18 @@ a.trick-hero-meta-chip--media:hover {
   font-weight: 600;
 }
 
+/* Pronunciation fact chip: phonetic respelling (e.g. guay = "gwhy"). The "say"
+   prefix labels it without consuming ribbon space; the value renders italic. */
+.trick-hero-meta-chip-pronunciation {
+  font-style: italic;
+  color: var(--text-muted);
+}
+.trick-hero-meta-chip-pronunciation::before {
+  content: "say ";
+  font-style: normal;
+  opacity: 0.7;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
    Substitution inline-compact mode. Activates when
    content.substitutions.length >= 3 (Matador's 4-row case + similar
