@@ -4930,32 +4930,55 @@ section.home-media { padding-top: 0; }
 .notation-grammar-collapsible > *:not(summary):first-of-type { padding-top: 14px; }
 .notation-grammar-collapsible > *:last-child { padding-bottom: 14px; }
 
-/* Legacy footbag.org Member Tips — community advice behind a compact collapsible
-   on trick-detail, collapsed by default so the page does not grow. Display-only
-   community guidance, never canonical doctrine. Long lists scroll internally. */
-.community-tips-collapsible {
+/* Compact collapsible disclosures on trick-detail, collapsed by default so the
+   page does not grow: curator Technique Notes (execution, learning,
+   prerequisites) and legacy footbag.org community Member Tips. Both are display
+   support beside the canonical About explanation, never canonical doctrine.
+   Long lists scroll internally. */
+.community-tips-collapsible,
+.trick-technique-collapsible {
   background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 0;
 }
-.community-tips-collapsible > summary {
+.community-tips-collapsible > summary,
+.trick-technique-collapsible > summary {
   cursor: pointer;
   list-style: none;
   padding: 14px 18px;
   font-weight: 600;
   font-size: 1.05rem;
 }
-.community-tips-collapsible > summary::-webkit-details-marker { display: none; }
-.community-tips-collapsible > summary::before {
+.community-tips-collapsible > summary::-webkit-details-marker,
+.trick-technique-collapsible > summary::-webkit-details-marker { display: none; }
+.community-tips-collapsible > summary::before,
+.trick-technique-collapsible > summary::before {
   content: "▸";
   display: inline-block;
   margin-right: 8px;
   color: var(--text-muted);
   transition: transform 0.15s ease;
 }
-.community-tips-collapsible[open] > summary::before { transform: rotate(90deg); }
-.community-tips-collapsible[open] > summary { border-bottom: 1px solid var(--border); }
+.community-tips-collapsible[open] > summary::before,
+.trick-technique-collapsible[open] > summary::before { transform: rotate(90deg); }
+.community-tips-collapsible[open] > summary,
+.trick-technique-collapsible[open] > summary { border-bottom: 1px solid var(--border); }
+
+/* Technique Notes inner sub-blocks (Execution / Learning Notes / Before You Try
+   This), each a compact labeled group inside the single disclosure. */
+.trick-technique-part {
+  padding: 12px 18px 14px;
+}
+.trick-technique-part + .trick-technique-part {
+  padding-top: 0;
+}
+.trick-technique-heading {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
 .community-tips-note {
   padding: 12px 18px 0;
   margin: 0;

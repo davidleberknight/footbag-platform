@@ -92,27 +92,40 @@
 
   {{> trick-equivalence-topology}}
 
-  {{#if content.ux2Pilot.executionParagraphs.length}}
-  {{> trick-prose
-      heading="Execution"
-      intro="A plain-English walkthrough of the mechanics."
-      paragraphs=content.ux2Pilot.executionParagraphs
-      sectionClass="trick-execution-summary"}}
-  {{/if}}
-
-  {{#if content.ux2Pilot.learningParagraphs.length}}
-  {{> trick-prose
-      heading="Learning notes"
-      paragraphs=content.ux2Pilot.learningParagraphs
-      sectionClass="trick-learning-notes"}}
-  {{/if}}
-
-  {{#if content.ux2Pilot.prerequisiteParagraphs.length}}
-  {{> trick-prose
-      heading="Before you try this"
-      paragraphs=content.ux2Pilot.prerequisiteParagraphs
-      sectionClass="trick-prerequisites"
-      extraLink=content.ux2Pilot.prereqExtraLink}}
+  {{!-- Technique Notes: execution, learning, and prerequisites grouped into one
+       compact disclosure, collapsed by default so the page does not grow. Sits
+       below the canonical reference material and stays distinct from the
+       canonical About explanation and from community-contributed tips. --}}
+  {{#if content.ux2Pilot.hasTechniqueNotes}}
+  <section id="technique-notes" class="content-section" aria-label="Technique Notes">
+    <details class="trick-technique-collapsible">
+      <summary>Technique Notes</summary>
+      {{#if content.ux2Pilot.executionParagraphs.length}}
+      <div class="trick-technique-part">
+        <h3 class="trick-technique-heading">Execution</h3>
+        {{#each content.ux2Pilot.executionParagraphs}}
+        <p class="trick-prose-paragraph">{{this}}</p>
+        {{/each}}
+      </div>
+      {{/if}}
+      {{#if content.ux2Pilot.learningParagraphs.length}}
+      <div class="trick-technique-part">
+        <h3 class="trick-technique-heading">Learning Notes</h3>
+        {{#each content.ux2Pilot.learningParagraphs}}
+        <p class="trick-prose-paragraph">{{this}}</p>
+        {{/each}}
+      </div>
+      {{/if}}
+      {{#if content.ux2Pilot.prerequisiteParagraphs.length}}
+      <div class="trick-technique-part">
+        <h3 class="trick-technique-heading">Before You Try This</h3>
+        {{#each content.ux2Pilot.prerequisiteParagraphs}}
+        <p class="trick-prose-paragraph">{{this}}</p>
+        {{/each}}
+      </div>
+      {{/if}}
+    </details>
+  </section>
   {{/if}}
 
   {{!-- Structural neighbors (cross-base composition) read before Related

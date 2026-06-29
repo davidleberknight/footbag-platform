@@ -1797,6 +1797,7 @@ export interface Ux2PilotData {
   executionParagraphs: string[];                    // pre-split paragraphs; empty array hides the section
   learningParagraphs: string[];                     // pre-split paragraphs; empty array hides the section
   prerequisiteParagraphs: string[];                 // pre-split paragraphs; empty array hides the section
+  hasTechniqueNotes: boolean;                       // true when any technique block has content; gates the single disclosure
   featuredMedia: TrickReferenceMediaItem | null;    // single featured media; null = empty state
   featuredMediaEmptyState: string | null;           // copy shown when featuredMedia is null
 }
@@ -5817,11 +5818,18 @@ function shapeUx2PilotFromRow(
     !!row.learning_notes ||
     !!row.prerequisite_notes;
   if (!hasProse) return null;
+  const executionParagraphs    = splitProseParagraphs(row.execution_summary);
+  const learningParagraphs     = splitProseParagraphs(row.learning_notes);
+  const prerequisiteParagraphs = splitProseParagraphs(row.prerequisite_notes);
   return {
     shortDescription:        row.short_description ?? null,
-    executionParagraphs:     splitProseParagraphs(row.execution_summary),
-    learningParagraphs:      splitProseParagraphs(row.learning_notes),
-    prerequisiteParagraphs:  splitProseParagraphs(row.prerequisite_notes),
+    executionParagraphs,
+    learningParagraphs,
+    prerequisiteParagraphs,
+    hasTechniqueNotes:
+      executionParagraphs.length > 0 ||
+      learningParagraphs.length > 0 ||
+      prerequisiteParagraphs.length > 0,
     featuredMedia:           null,
     featuredMediaEmptyState:
       recordCount > 0

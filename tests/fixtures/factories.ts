@@ -723,6 +723,12 @@ export interface FreestyleTrickOverrides {
   // line for operational_notation. Nullable; default NULL.
   operational_notation_source?: string | null;
   pronunciation?:               string | null;
+  // Curator-authored instructional prose (rendered in the Technique Notes
+  // disclosure on trick-detail). All nullable; default NULL.
+  short_description?:           string | null;
+  execution_summary?:           string | null;
+  learning_notes?:              string | null;
+  prerequisite_notes?:          string | null;
 }
 
 export function insertFreestyleTrick(
@@ -736,8 +742,9 @@ export function insertFreestyleTrick(
        description, aliases_json, notation, sort_order, review_status, is_active, loaded_at,
        jobs_notation_raw, jobs_notation_normalized, structural_parse_json,
        computed_add_formula, computed_adds, add_formula_status,
-       operational_notation, operational_notation_source, pronunciation)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       operational_notation, operational_notation_source, pronunciation,
+       short_description, execution_summary, learning_notes, prerequisite_notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     slug,
     o.canonical_name ?? slug.replace(/-/g, ' '),
@@ -761,6 +768,10 @@ export function insertFreestyleTrick(
     o.operational_notation      ?? null,
     o.operational_notation_source ?? null,
     o.pronunciation             ?? null,
+    o.short_description         ?? null,
+    o.execution_summary         ?? null,
+    o.learning_notes            ?? null,
+    o.prerequisite_notes        ?? null,
   );
   return slug;
 }
