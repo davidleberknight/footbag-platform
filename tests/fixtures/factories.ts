@@ -763,6 +763,44 @@ export function insertFreestyleTrick(
   return slug;
 }
 
+// ── Freestyle Trick Tip (legacy footbag.org Member Tips) ──────────────────────
+
+export interface FreestyleTrickTipOverrides {
+  trick_slug:          string;          // required: FK to freestyle_tricks(slug)
+  tip_text?:           string;
+  legacy_hint_id?:     number | null;
+  legacy_move_id?:     number | null;
+  created_at_legacy?:  number | null;
+  modified_at_legacy?: number | null;
+  display_order?:      number;
+  status?:             string;
+  source?:             string;
+}
+
+export function insertFreestyleTrickTip(
+  db: BetterSqlite3.Database,
+  o: FreestyleTrickTipOverrides,
+): number {
+  const info = db.prepare(`
+    INSERT INTO freestyle_trick_tips
+      (trick_slug, legacy_hint_id, legacy_move_id, tip_text,
+       created_at_legacy, modified_at_legacy, display_order, status, source, loaded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    o.trick_slug,
+    o.legacy_hint_id     ?? null,
+    o.legacy_move_id     ?? null,
+    o.tip_text           ?? 'Keep your head down and set the bag waist high.',
+    o.created_at_legacy  ?? null,
+    o.modified_at_legacy ?? null,
+    o.display_order      ?? 0,
+    o.status             ?? 'published',
+    o.source             ?? 'footbag_org_moves2',
+    TS,
+  );
+  return Number(info.lastInsertRowid);
+}
+
 // ── Net Review Queue Item ─────────────────────────────────────────────────────
 
 export interface NetReviewQueueItemOverrides {

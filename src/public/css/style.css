@@ -4930,6 +4930,47 @@ section.home-media { padding-top: 0; }
 .notation-grammar-collapsible > *:not(summary):first-of-type { padding-top: 14px; }
 .notation-grammar-collapsible > *:last-child { padding-bottom: 14px; }
 
+/* Legacy footbag.org Member Tips — community advice behind a compact collapsible
+   on trick-detail, collapsed by default so the page does not grow. Display-only
+   community guidance, never canonical doctrine. Long lists scroll internally. */
+.community-tips-collapsible {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0;
+}
+.community-tips-collapsible > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 14px 18px;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+.community-tips-collapsible > summary::-webkit-details-marker { display: none; }
+.community-tips-collapsible > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+.community-tips-collapsible[open] > summary::before { transform: rotate(90deg); }
+.community-tips-collapsible[open] > summary { border-bottom: 1px solid var(--border); }
+.community-tips-note {
+  padding: 12px 18px 0;
+  margin: 0;
+}
+.community-tips-list {
+  margin: 0;
+  padding: 12px 18px 14px 38px;
+  max-height: 26rem;
+  overflow-y: auto;
+}
+.community-tip { margin-bottom: 14px; }
+.community-tip:last-child { margin-bottom: 0; }
+.community-tip p { margin: 0 0 6px; }
+.community-tip p:last-child { margin-bottom: 0; }
+
 /* Tier-4 executable-accounting disclosure on trick-detail. Matches the
    collapsed-by-default disclosure aesthetic of the structural panel but
    sits earlier in the flow (between modifier-layering and execution

@@ -2294,6 +2294,19 @@ export const freestyleTrickAliases = {
   `); },
 };
 
+export const freestyleTrickTips = {
+  // Published legacy footbag.org Member Tips for one trick, in display order
+  // (chronological by legacy creation). Community advice rendered behind a
+  // compact control on the trick detail page; never canonical doctrine, and
+  // never carries author names in v1.
+  get listForTrick() { return db.prepare(`
+    SELECT tip_text, created_at_legacy
+    FROM freestyle_trick_tips
+    WHERE trick_slug = ? AND status = 'published'
+    ORDER BY display_order, id
+  `); },
+};
+
 export const freestyleMediaLinks = {
   // Per-trick media-coverage rows joined to source_id. One row per
   // (trick_slug, source_id) pair (deduped). Drives the tier-aware media

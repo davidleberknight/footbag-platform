@@ -142,6 +142,27 @@
   </section>
   {{/if}}
 
+  {{#if content.hasCommunityTips}}
+  <section id="community-tips" class="content-section" aria-label="Community Tips">
+    <details class="community-tips-collapsible">
+      <summary>Community Tips ({{content.communityTipsCount}})</summary>
+      <p class="community-tips-note text-muted fs-sm">
+        Legacy footbag.org community advice, contributed by players over the years.
+        Helpful technique notes, not official doctrine.
+      </p>
+      <ol class="community-tips-list">
+        {{#each content.communityTips}}
+        <li class="community-tip">
+          {{#each (splitParagraphs this.text)}}
+          <p>{{this}}</p>
+          {{/each}}
+        </li>
+        {{/each}}
+      </ol>
+    </details>
+  </section>
+  {{/if}}
+
   {{> trick-records}}
 
   {{> trick-progression}}

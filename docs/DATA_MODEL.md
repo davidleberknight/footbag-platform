@@ -1337,6 +1337,16 @@ The stage-and-confirm surface for auto-link (per `M_Claim_Legacy_Account`): batc
 
 The freestyle trick dictionary (`freestyle_tricks` and related tables), the Net team-appearance tables (`net_team` and related), and the cross-sport records tables (`freestyle_records`, `consecutive_kicks_records`) are populated from the historical-data pipeline and read read-only by `FreestyleService`, `NetService`, and `RecordsService` for the public `/freestyle/*`, `/net/*`, and `/records` surfaces. Their schema semantics are owned by the legacy_data track (`legacy_data/CLAUDE.md`); the freestyle taxonomy is governed as reversible/observational and is intentionally not hardened in this document. `given_name_variants` is a name-matching utility alongside §4.28.
 
+#### `freestyle_trick_tips` (legacy Footbag.org community tips)
+
+One related freestyle table whose public-rendering contract is worth pinning here even though, like the rest of the freestyle tables above, its column-level semantics stay owned by the legacy_data/freestyle track. It holds legacy Footbag.org community tips (player-contributed technique advice) for freestyle tricks, recovered from the legacy `moves2.movehints` table.
+
+- **Display-only and non-doctrinal.** Tips are community advice, not canonical content. They never affect notation, ADDs, parser output, family membership, first-class eligibility, or canonical descriptions. v1 stores no author names.
+- **`status` values:** `published`, `unresolved_freestyle`, `unresolved_frontier`, `unresolved_ambiguous`, `future_net`, `hidden`.
+- **Public rendering rule:** only `status = 'published'` tips render on public freestyle trick pages; every other status is non-public.
+- **Nothing is discarded.** A tip whose legacy trick name has no canonical slug yet is preserved under a stable placeholder slug rather than dropped: `unresolved:<name>` for freestyle tips and `unresolved:net:<name>` for net techniques held for future Net pages. These placeholder slugs have no foreign key to `freestyle_tricks`; when the canonical trick (or Net page) is later authored, the placeholder is remapped to the final slug.
+- **Source:** legacy Footbag.org `moves2.movehints`.
+
 ---
 
 ## 5. View Reference
