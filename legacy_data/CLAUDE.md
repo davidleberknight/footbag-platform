@@ -182,7 +182,7 @@ URL safety verification (data-prep time, no app callout):
 
 Classification:
 - `clubs/scripts/02_build_legacy_club_candidates.py`
-- Implements `MIGRATION_PLAN` §10.1 rules R1-R10.
+- Implements the four-way club classification (R1-R10); this file is the overview and the script is the authoritative rule home.
 - Emits `clubs/out/legacy_club_candidates.csv`.
 - `category` is one of: `pre_populate`, `onboarding_visible`, `dormant`, `junk`.
 - `bootstrap_eligible=1` iff `category='pre_populate'`.
@@ -278,7 +278,7 @@ DB table:
 - DELETE + INSERT pattern.
 
 `source_scope='PROVISIONAL'`:
-- Club-only and membership-only cohorts from `MIGRATION_PLAN` §10.2.
+- Club-only and membership-only cohorts (the ~1,700 club-only persons added with PROVISIONAL provenance).
 - Owned by `09_load_enrichment_to_sqlite.py`.
 - `source` distinguishes `CLUB`, `MEMBERSHIP`, and `RESULTS`.
 - Deletes only `source_scope='PROVISIONAL'`; preserves CANONICAL rows.
@@ -289,18 +289,15 @@ Identity locks:
 - Patches mutate `Persons_Truth_Final.csv` / `Placements_ByPerson.csv` in place.
 - Git log is the version trail.
 
-## MIGRATION_PLAN targeted references
+## Canonical references
 
-Load only the relevant section:
-- §2 + §9 — `legacy_members` structure and claim merge rules.
-- §7 — auto-link candidate matching and classification.
-- §10.1 — club classification rules.
-- §10.2 — `historical_persons` expansion for club members.
-- §10.3 — club onboarding flow; platform-side, not this subtree.
-- §15 — required schema changes.
-- §15.15 — `name_variants` schema and contract.
-- §19 — legacy-site data dump requirements.
-- §26 — persons count baseline.
+Load only the relevant source:
+- Claim, merge, and auto-link design: the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5) and the `M_Claim_Legacy_Account` user story.
+- Club classification and onboarding: the classifier under `clubs/scripts/` (the authoritative rule home), with the `M_Complete_Onboarding_Wizard` and `A_Periodic_Club_Cleanup` user stories for the member and admin flows.
+- `historical_persons` club-only expansion: the legacy_data pipeline (this file) plus the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5).
+- Schema and the `name_variants` contract: DATA_MODEL and `database/schema.sql`.
+- Legacy-site data dump requirements: `MIGRATION_PLAN` §19.
+- Persons count baseline: `MIGRATION_PLAN` §26.
 
 ## Curator-canonical freestyle sidecars
 

@@ -1,0 +1,3 @@
+# Credential-free but PII-bearing intermediate extract outputs (member emails,
+# names, addresses, dates of birth). Inputs to the load step only; never committed.
+out/

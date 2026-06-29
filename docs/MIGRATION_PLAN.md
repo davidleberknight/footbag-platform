@@ -2,9 +2,9 @@
 
 **Document Purpose:**
 
-This document is the source of truth for go-live readiness: legacy data migration design (streams, claim flow, auto-link, merge rules, club bootstrap, name model, competition history), operational readiness gates (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts), and the phasing, operational states, and validation gates that govern both. For functional requirements, see `USER_STORIES.md`. For privacy and visibility policy, see `DATA_GOVERNANCE.md`.
+This document is the go-live plan for the footbag.org migration: the coordination with the people who hold the legacy facts and decisions (the legacy-site webmaster, the IFPA secretary, and the project manager), the pass/fail cutover gates, the operational states and sequencing, and the operational-readiness checklist (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts). It is a roadmap, not a design home. The migration design it coordinates (the three-table identity model, the claim and auto-link flows, merge rules, club bootstrap and classification, the name and competition-history model, schema deltas, and the audit-event catalog) lives in the canonical docs (the Legacy Data Migration decision in DESIGN_DECISIONS, the `M_Claim_Legacy_Account` and `M_Complete_Onboarding_Wizard` user stories, DATA_MODEL, DATA_GOVERNANCE, and the legacy_data pipeline docs); this plan references those homes rather than restating them. For functional requirements see `USER_STORIES.md`; for privacy and visibility policy see `DATA_GOVERNANCE.md`.
 
-It opens with three short sections written for coordination with the legacy-site webmaster: a summary of the migration, the open questions that need the webmaster's input, and a recap of the decisions already made. The numbered sections that follow carry the full design and go-live detail.
+It opens with three short sections for coordination with the legacy-site webmaster: a summary of the migration, the open questions that need the webmaster's input, and a recap of the decisions already made. The numbered sections that follow carry the gates, the operational states, the sequencing, and the operational-readiness detail.
 
 ---
 
@@ -36,11 +36,11 @@ Open questions owned by the IFPA secretary and the community-requirements discov
 
 **2. DNS registrar/provider, apex ALIAS/ANAME capability, and apex handling. Still open — now go-live-relevant.** Because the clean cutover points the apex at the new platform, the apex method matters at go-live: either an apex ALIAS/ANAME or an apex→`www` redirect, with `www` as a CNAME to CloudFront. Recommendation: the webmaster confirms the registrar, the authoritative provider, the apex's ALIAS/ANAME capability, and the reverse-DNS update path if the IP changes. IFPA owns `footbag.org`, the only domain the cutover touches. Separately and at low priority (not a cutover dependency): confirm whether IFPA still owns `footbag.sport` and `footbag.us` and decide whether to hold them defensively (to block a look-alike footbag/IFPA site, or to redirect mistyped traffic to `footbag.org`) or let them lapse.
 
-**3. Legacy subdomains. Moot under the clean cutover.** No subdomains stay live on the legacy host. The only `.footbag.org` subdomain the platform uses is `archive.footbag.org` (platform-controlled, CloudFront, HTTPS, per DD §6.4). The webmaster's bind9 zone (already provided) is the reference for any DNS cleanup at the later Route 53 migration.
+**3. Legacy subdomains. Moot under the clean cutover.** No subdomains stay live on the legacy host. The only `.footbag.org` subdomain the platform uses is `archive.footbag.org` (platform-controlled, CloudFront, HTTPS, per the Legacy Archive decision in DESIGN_DECISIONS, §6.4). The webmaster's bind9 zone (already provided) is the reference for any DNS cleanup at the later Route 53 migration.
 
 **4. A reachable contact during the cutover window, plus a test-subdomain rehearsal. Still open.** Rollback is a DNS revert on the webmaster's own zone, so it cannot depend on one person being reachable during an incident. Recommendation: stand up a test subdomain to rehearse the cutover end-to-end first; name a delegate with standing DNS access and a tested escalation path for the 48 hours after the flip.
 
-**5. TLS on retained subdomains. Moot under the clean cutover.** No subdomains stay live on the legacy host. The session cookie widens to `.footbag.org` only to reach the platform-controlled `archive.footbag.org` (CloudFront/HTTPS per DD §6.4), so there is no retained-legacy-subdomain leak exposure. The new platform's own TLS is served by CloudFront/ACM.
+**5. TLS on retained subdomains. Moot under the clean cutover.** No subdomains stay live on the legacy host. The session cookie widens to `.footbag.org` only to reach the platform-controlled `archive.footbag.org` (CloudFront/HTTPS per the Legacy Archive decision in DESIGN_DECISIONS, §6.4), so there is no retained-legacy-subdomain leak exposure. The new platform's own TLS is served by CloudFront/ACM.
 
 **Email**
 
@@ -138,7 +138,7 @@ These decisions are settled. Each is final unless a noted open question revises 
 
 **23.** No legacy communication path goes dark at cutover unless it has been explicitly inventoried, classified, and either migrated, retained, redirected, archived, or deliberately retired with stakeholder sign-off. Operationalized per-function in §19 item 26 and §29.12a constraint 5.
 
-**24.** No old governance data, such as IFPA voting records, is deleted unless the right people confirm that deletion is acceptable. Disposition of IFPA-owned legacy records is an IFPA governance decision (the IFPA secretary rules), never an operator or maintainer decision. Enforced by the sealed-archive treatment in §29.12a (applied to IFPA governance records per §28) and DESIGN_DECISIONS §6.5a.
+**24.** No old governance data, such as IFPA voting records, is deleted unless the right people confirm that deletion is acceptable. Disposition of IFPA-owned legacy records is an IFPA governance decision (the IFPA secretary rules), never an operator or maintainer decision. Enforced by the sealed-archive treatment in §29.12a (applied to IFPA governance records per §28) and the Sealed Legacy Email Archive decision in DESIGN_DECISIONS (§6.5a).
 
 ---
 
@@ -200,11 +200,9 @@ The plan is long; readers usually need a subset. Where to start, by role:
 
 - **Legacy-site webmaster coordination**: the three sections above (Summary, Open questions, Decisions made); §19 carries the contract-grade detail behind them.
 - **Cutover operators** (running the migration day): §22 (gate index), §24 (state transitions), §25 (validation gates), §27 (rollback), §29 (operational readiness).
-- **Identity / claim review** (auto-link, evidence tiers, anti-enumeration): §6 (identity model), §7 (auto-link), §8 (self-serve claim), §9 (merge rules), §13 (admin flows).
-- **Club bootstrap review** (classification rules, wizard stages, leadership activation): §2 (bootstrap rule), §10 (club bootstrap and onboarding).
 - **AWS / DNS / email infrastructure**: §29 (operational readiness). §29.12 and §29.12a carry the DNS-cutover and mail disposition.
-- **Schema changes**: §15 (schema delta against the current DB).
 - **Open issues**: the open-questions table above; §28 holds internal open items.
+- **Migration design** (identity model, claim and auto-link flows, merge rules, club bootstrap and classification, name and competition-history model, schema, audit events): not in this plan. See the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5), the `M_Claim_Legacy_Account` and `M_Complete_Onboarding_Wizard` user stories, DATA_MODEL, and the legacy_data pipeline docs.
 
 For functional requirements, see `USER_STORIES.md`. For privacy and visibility policy, see `DATA_GOVERNANCE.md`.
 
@@ -214,128 +212,13 @@ For functional requirements, see `USER_STORIES.md`. For privacy and visibility p
 
 ## 1. Executive summary
 
-The front-matter Summary above carries the orientation: three workstreams (historical pipeline, legacy member accounts, operational readiness), the proposed clean DNS-cutover front-door architecture (pending webmaster ratification), and the step sequence to go-live. Hall of Fame and Big Add Posse are abbreviated HoF and BAP throughout.
-
-The cross-source identity key is `legacy_member_id`: it links `historical_persons` to `legacy_members` as provenance, and live `members` rows link later through the member-confirmed claim flow (§7-§9), with verified email as the primary anchor. Tier mapping at claim (§3), the name model (§4), competition history fields (§5), and auto-link (§7) complete the design surface.
+The front-matter Summary carries the orientation: the three workstreams (historical pipeline, legacy member accounts, operational readiness), the clean DNS-cutover front door (proposed, pending the webmaster's ratification), and the step sequence to go-live. The migration design this plan coordinates lives in the canonical docs (the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5), the `M_Claim_Legacy_Account` and `M_Complete_Onboarding_Wizard` user stories, DATA_MODEL, DATA_GOVERNANCE, and the legacy_data pipeline docs); this plan carries the coordination, the gates, the operational states, and the sequencing. Hall of Fame and Big Add Posse are abbreviated HoF and BAP throughout.
 
 ---
 
 ## 2. Migration sources
 
-### Historical pipeline
-
-**What it covers:** Historical events, results, persons, honors, clubs, club affiliations, and club leadership. Person truth comes from human-curated CSV. Club data comes from mirror extraction scripts.
-
-**Key invariant:** A historical person may exist without a claimed modern account. Historical data is published regardless of whether the underlying person has ever claimed a legacy account. The `legacy_member_id` on a `historical_persons` row becomes the bridge to a modern account only after a successful claim.
-
-**Pipeline status:** club extraction, candidate classification, affiliation and leadership inference, and the ~1,700 club-only member extraction are built (`legacy_data/clubs/scripts/`, `legacy_data/scripts/`). The one outstanding piece is the mirror member extraction code, which lives outside the repository (tracked in `IMPLEMENTATION_PLAN.md`).
-
-The live system needs clubs on day one. The mirror is the best available source of club identity and prior leadership information.
-
-#### Pipeline outputs (required before the legacy-account export)
-
-The historical-data pipeline produces:
-
-- Normalized legacy club candidates (one row per distinct club identity)
-- Inferred person-to-club affiliation rows with confidence scores
-- Inferred role classifications: `member`, `contact`, `leader`, `co-leader`
-- Linkage from inferred persons to `historical_persons.person_id` where possible
-- Preserved `legacy_member_id` when known from the mirror
-- Club classification per section 10.1 rules (pre-populate, onboarding-visible, dormant, or junk)
-- Bootstrap eligibility decision for pre-populated clubs, based on leader candidate availability (section 2 bootstrap rule)
-- Review report including:
-  - Per-club classification with which rule(s) matched
-  - Clubs with no credible leader candidate
-  - Clubs with multiple competing leader candidates
-  - People with multiple apparent current-club indications (store all affiliations with `resolution_status = 'pending'`; the member resolves at claim time by choosing up to two current clubs and marking the rest as former)
-  - Unmapped club aliases or duplicate club identities
-  - Recommended split per classification rules (section 10.1): pre-populate / onboarding-visible / dormant / junk
-
-#### Bootstrap rule
-
-A pre-populated club (under the `PP-hosting` and `PP-contact-corroborated` rules in §10.1) receives bootstrap leader candidate rows when one or more legacy members exhibit structural signals of leadership for that club. Clubs that fail the pre-populate rules are classified instead as onboarding-visible, dormant, or junk and do not receive bootstrap leader rows.
-
-**Structural signals (drive classification):**
-
-- `listed_contact` - the legacy club page names this person as contact
-- `affiliation` - a row exists in `legacy_person_club_affiliations` linking this person to this club
-- `hosting` - the club hosted IFPA-registered events during this person's active competitive years
-- `roster` - the legacy member roster lists this person as a club member
-- `mirror_text` - the club page narrative mentions this person by name or known alias
-
-**Modifiers (context only, do not change classification):**
-
-- `tier_signal` - paid Tier 1+ legacy status at cutover
-- `recent_activity` - last competitive year overlaps the club's activity window
-- `geographic_alignment` - legacy member city or country matches the club's city or country
-
-Per-`(member, club)` classification follows the combination gates defined in `M_Complete_Onboarding_Wizard` (strong / weak / none over the structural signals).
-
-Modifiers display alongside signals in member-facing and admin surfaces but do not promote weak to strong or demote strong to weak. The `club_bootstrap_leaders.confidence_score` column persists as a sortable informational attribute and is not the classification gate. The gate rule set is rules-as-code; revisions follow observed false-positive data.
-
-Seeded bootstrap candidates carry `affiliation` by construction (candidates are selected from affiliation rows), so the `none` classification is unreachable for them and `weak` is the practical floor; for seeded candidates the ladder is anchored by `listed_contact` and the person-level `hosting`/`roster` pair. Admission into `club_bootstrap_leaders` seeding is score-based (`confidence_score >= 0.70`); the classification badge shown to members is signal-based, display-only, and never gates promotion.
-
-#### Leadership model
-
-Bootstrap-eligible clubs are created with:
-
-- A live `clubs` row
-- One or more `club_bootstrap_leaders` candidate rows representing potential leaders, each carrying the structural-signal evidence and classification (strong, weak, none) per the bootstrap rule above
-
-`club_bootstrap_leaders` rows are candidate leadership attributions, not active leadership. Promotion to active leadership writes a `club_leaders` row through one of the activation paths below.
-
-**Leadership activation paths:**
-
-1. **Bootstrap leader registers and claims**: the onboarding wizard presents classified `(member, club)` candidates. On user confirmation or correction, the bootstrap row promotes to a live `club_leaders` row in a silent audit-logged transaction, regardless of classification strength; the classification (strong, weak, none) is recorded in audit metadata for post-cutover analytics. The schema invariant `ux_one_club_leader_per_member` enforces that a member co-leads at most one club; a registrant who already co-leads another club is affiliated to this club but not inserted as a co-leader, recorded in audit metadata. Co-leaders are a flat equal set (no head-leader role). The application-level cap of five total leadership rows per club is enforced: when the cap is reached the new claim still affiliates the member (`member_club_affiliations`) but does not insert a `club_leaders` row; an admin can later promote affiliated-only members via `A_Reassign_Club_Leader`. A member declining a candidate sets `club_bootstrap_leaders.status='rejected'`; the row remains eligible for the other activation paths. When the same member matches signals for multiple clubs, the wizard presents all candidates and the member selects which clubs they led. See `M_Complete_Onboarding_Wizard` for the full user-facing acceptance criteria.
-
-2. **First affiliated member volunteers for leadership**: if no bootstrap leader has yet registered, an affiliated member with Tier 1 benefits (Tier 1+ or Active Player) volunteers to co-lead the club (`V_Volunteer_To_CoLead`). The member is added as a co-leader. Any existing bootstrap leader candidates remain provisional until those candidates register and claim. Clubs may have multiple co-leaders.
-
-3. **Admin resolution**: admin can supersede bootstrap assignments and appoint any registered member as leader through the standard `club_leaders` workflow.
-
-A club without any `club_bootstrap_leaders` row at import remains leaderless until an affiliated member with Tier 1 benefits volunteers via path 2 or an admin appoints via path 3.
-
----
-
-### Legacy member import
-
-**What it covers:** All legacy registered member accounts from the live legacy site.
-
-**Source:** One-time export from the legacy-site webmaster, used twice: first as a test load, then as the final production import after write freeze.
-
-#### Imported-row model
-
-Each imported legacy member is a **row in `legacy_members`** (schema in DATA_MODEL §4.14b; three-table rules in DD §2.4): a permanent archival record that grants no authentication and is never deleted, even after a current member claims it. Claim sets `claimed_by_member_id` + `claimed_at`; those claim-state columns clear again on PII purge or account-deletion reversion; nothing else mutates after import.
-
-**Source-validity filter.** `legacy_members` is populated from `members WHERE MemberValid > 0`. Rows with `MemberValid = 0` are excluded as source-system garbage (the legacy-site webmaster confirms these are unscrubbed junk and directs the canonical `SELECT ... FROM members WHERE MemberValid > 0`), along with other mechanically-obvious junk: rows with no usable identity at all (no name, no email, no handle), structurally malformed or truncated rows, exact duplicates, and clear test/placeholder rows. Exception: any otherwise-excluded row referenced by a retained published event result, an award or Hall-of-Fame/BAP honor, or a documented admin-recovery need is imported anyway and flagged as a validity-exception row. Exceptions are pulled back by linkage, never by guesswork. The junk heuristics only ever remove, and the linkage exception always wins over them, so no person tied to a result or honor is dropped. The import is counted and validated at test-load: rows examined, rows excluded per rule, rows imported, and exception rows pulled back are all reported, so no exclusion is silent.
-
-**Mirror pre-seed before the export.** To satisfy the `historical_persons.legacy_member_id` → `legacy_members(legacy_member_id)` foreign key before the legacy-account export exists, the historical pipeline pre-seeds temporary `legacy_members` rows from the mirror (club rosters plus the `historical_persons` IDs that need an FK target), keyed on `legacy_member_id` with `import_source = 'mirror'` and other columns left NULL; the seed is insert-if-absent, so re-runs add no duplicates. The legacy-account export then supersedes these rows with its full profile fields and flips `import_source` from `'mirror'` to `'legacy_site_data'`. Both key on the same `legacy_member_id` namespace (§19 item 10), so the export updates the matching pre-seeded row in place rather than inserting a duplicate. "Not mutated after import" refers to this post-export state: the mirror pre-seed is temporary scaffolding the export replaces, not a snapshot mutated after the import completes; only the claim-state columns change later.
-
-Fields present on imported rows:
-
-| Field | Notes |
-|---|---|
-| `legacy_member_id` | Primary key; the old-site user-account id |
-| `legacy_user_id` | Legacy username; migration metadata only |
-| `legacy_email` | Migration metadata only; used to deliver the one-time claim link. Never a login credential |
-| `real_name` | Best available name from export; required (use display_name as fallback). See section 4 for name model notes on imports |
-| `display_name` | From export |
-| `display_name_normalized` | Derived |
-| `city`, `region`, `country` | From export; nullable |
-| `bio` | From export if available |
-| `birth_date` | From export if available |
-| `street_address`, `postal_code` | From export if available |
-| `ifpa_join_date` | From export if available |
-| `first_competition_year` | Pre-populated from `historical_persons.first_year` via COALESCE at import if a match exists |
-| `is_hof` | From export; carries to the claiming member at claim time per §9 OR-merge |
-| `is_bap` | From export; carries to the claiming member at claim time per §9 OR-merge |
-| `legacy_is_admin` | Old-site admin flag; retained for audit only, never grants live admin |
-| `import_source` | `'mirror'` (temporary pre-seeded row) or `'legacy_site_data'` (export-loaded); flipped from `'mirror'` to `'legacy_site_data'` when the export supersedes the row, per "Mirror pre-seed before the export" above |
-| `imported_at` | Timestamp of import |
-| `legacy_banned` | Optional column; added only when the legacy-account export contains a trustworthy banned/inactive field. When present, populated from the export as audit metadata only; it never gates the self-serve claim card. Banned cases route through admin review whether or not the column exists. |
-
-Credentials, authentication state, mailing-list subscriptions, club-governance permissions, and current-platform flags are never present on `legacy_members`; they belong to the claiming `members` row created at registration and linked at claim time via `members.legacy_member_id` (credential-state invariant per §15.1; three-table rules per DD §2.4).
-
-**Name model note for imports:** The surname constraint (§4) applies only to new registrations and profile edits; `legacy_members` rows are exempt because legacy data may not conform. Write "legacy member" or "imported legacy account" for these rows; the older "imported placeholder" phrasing belongs to the superseded two-table design.
+Two legacy data bodies feed the platform. The historical pipeline (events, results, persons, honors, clubs, affiliations, and leadership) is built under `legacy_data/`; its design is the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5), its inventory is in `legacy_data/CLAUDE.md`, and the club bootstrap rule, structural signals, and leadership activation paths are in the `M_Complete_Onboarding_Wizard` user story. The legacy member-account import populates the `legacy_members` table; the imported-row model and field set are in DATA_MODEL Legacy Members (§4.14b), and the credential exclusion, the `MemberValid > 0` source-validity filter with its counted-exclusions report, and the mirror pre-seed that the final export supersedes are owned by the loader in `legacy_data/member_data_scripts/`. The cutover sequence that runs these is the operational states (§24); the data-quality gates are the validation gates (§25).
 
 ---
 
@@ -345,542 +228,83 @@ Under the three-table design, `member_tier_grants` is a ledger keyed by `member_
 
 The tier-grant mapping itself (the per-standing precedence and the Tier 3 underlying derivation) is the rule defined in the `M_Claim_Legacy_Account` user story and is not restated here. This section covers only the cutover sequencing.
 
-The five `legacy_*` tier-state fields the mapping reads (see DATA_MODEL §4.14b) are a deferred schema extension on `legacy_members` (or staging), populated by the loader and gated on test-load validation per §15.16 and §25 gate G6; the board-at-cutover input depends on the committee table. A field that is not loaded (data undelivered, or held back at validation) simply does not fire, so the affected claims grant on whatever standings are present; an account with only honors is granted on that basis. Held-back fields are recorded in §28.
+The five `legacy_*` tier-state fields the mapping reads (see DATA_MODEL Legacy Members, §4.14b) are a deferred schema extension on `legacy_members` (or staging), populated by the loader and gated on test-load validation per §15.16 and §25 gate G6; the board-at-cutover input depends on the committee table. A field that is not loaded (data undelivered, or held back at validation) simply does not fire, so the affected claims grant on whatever standings are present; an account with only honors is granted on that basis. Held-back fields are recorded in §28.
 
 ---
 
 ## 4. Name model
 
-Two registration fields:
-
-- **Full legal name** (`real_name`): required. Validation: two words minimum, no digits, no capitalization policing (caps normalized on save).
-- **Display name** (`display_name`): optional, defaults to `real_name` if not provided.
-
-**Surname constraint:** Display name must share a surname with real_name. Surname extraction uses suffix stripping (Jr, Sr, II, III, IV). This constraint applies to new registrations and profile edits only. Imported legacy account rows in `legacy_members` are exempt.
-
-**Semantic asymmetry:** For new registrations, `real_name` is the legal name supplied by the member. For imported `legacy_members` rows, `real_name` is the best-available name from the legacy export, which may be a display name, a username, or something else entirely. The field name is the same but the quality and provenance differ.
-
-**Slug lifecycle:** `display_name` and the derived slug are permanent post-registration.
+The name model (the `real_name` plus `display_name` fields, the shared-surname constraint scoped to new registrations and profile edits, the legacy-import exemption, and the permanent slug lifecycle) is specified in the Member Name Model decision in DESIGN_DECISIONS (§2.10).
 
 ---
 
 ## 5. Competition history fields
 
-Two fields on `members`:
-
-- `first_competition_year` (INTEGER, nullable): editable on profile edit. Pre-populated from `historical_persons.first_year` during claim (COALESCE; member value wins if already set). Shown as "Competing since {year}" on profile. Leave blank to hide (opt-out by clearing).
-- `show_competitive_results` (INTEGER, default 1): toggle controlling whether results show on public profile. Collected in the `personal_details` onboarding task and editable via M_Edit_Profile. Own profile always shows results to the owner regardless of toggle state.
-
-**Caveat text on results section:** "Published event results only. Historical records may be incomplete."
-
-**Onboarding prompt:** During registration/onboarding, ask the member to confirm their first competition year. (Deferred to onboarding flow implementation.)
+The `first_competition_year` and `show_competitive_results` fields, their COALESCE prefill at claim, the public-results caveat text, and the onboarding prompt are specified in the Competition History Fields decision in DESIGN_DECISIONS (§2.11) and collected per the `M_Complete_Onboarding_Wizard` user story.
 
 ---
 
 ## 6. Identity and person links
 
-DD §2.4 rules 3-5 own this contract: `personHref()` dispatches to `/members/:slug` when a live member has claimed the historical person, else `/history/:personId`; account deletion clears both FK links (and `legacy_members.claimed_by_member_id`), reverting person links to the historical URL. One member-facing nuance lives here: when a linked historical person's name differs from the member's display name, the historical name is shown on the member profile.
+The Member, Legacy Member, and Historical Person Entity Types decision in DESIGN_DECISIONS (§2.4, rules 3-5) owns this contract: `personHref()` dispatches to `/members/:slug` when a live member has claimed the historical person, else `/history/:personId`; account deletion clears both FK links (and `legacy_members.claimed_by_member_id`), reverting person links to the historical URL. One member-facing nuance lives here: when a linked historical person's name differs from the member's display name, the historical name is shown on the member profile.
 
 ---
 
 ## 7. Auto-link: matching legacy_members, historical_persons, and members
 
-Auto-link has two goals under the three-table design (DD §2.4):
-
-1. **Provenance link**: associate each `historical_persons` row with its corresponding `legacy_members` row when the mirror named the legacy account, by setting `historical_persons.legacy_member_id`. This is a data-pipeline step owned by the historical-pipeline track.
-2. **Claim link**: stage a candidate association between a current `members` row and a `legacy_members` row (and, if back-linked, the corresponding `historical_persons` row). The candidate is presented to the member through the onboarding wizard for confirmation; no live tables are mutated until the member confirms. `M_Complete_Onboarding_Wizard` is the source of truth for the member-facing card interaction.
-
-Auto-link sends no notification emails. The wizard's claim task is the only post-link member-facing surface.
-
-### Identity anchors
-
-Auto-link considers multiple anchors when looking for candidates:
-
-- Modern login email (verified at registration) matching `legacy_members.legacy_email`.
-- Member-declared old email (optional profile field; see §15) matching `legacy_members.legacy_email`.
-- Member-declared former surname (optional profile field; see §15) matching the surname on `legacy_members.real_name`.
-- Member's current real-name surname matching `legacy_members.real_name` surname, used alongside the above.
-
-A member can declare more than one old email. All declared anchors participate in candidate matching across batch and registration-time passes.
-
-### Evidence-strength tiers
-
-Each confirmed claim transaction carries an evidence-strength tag in its audit row, in increasing strength:
-
-- `declared_anchor_only`: member declared an old email or former surname; no mailbox proof exercised. Soft evidence.
-- `currently_controls_modern_email_matching_legacy`: modern verified login email matches a legacy email.
-- `mailbox_control_via_link_click`: member opted into a confirmation link delivered to their declared old email and clicked it, demonstrating current mailbox control. Hard evidence.
-- `admin_vetted_evidence`: admin reviewed a member-initiated help request (§13) and approved the link based on out-of-band evidence.
-
-The card surface is the same regardless of tier. The tag drives the admin oversight feed (§13) and any dispute-resolution path; the member's experience is uniform across tiers.
-
-### Multi-record candidates
-
-When a single legacy account back-links to more than one historical person via the variants table, the platform surfaces all candidates for the member to choose from. Gate G27 measures the ambiguity count against the test-load `legacy_members` set; if the count exceeds what the wizard's confirmation throughput can comfortably handle, the `name_variants` seed is pruned before batch auto-link runs at cutover.
-
-### Anchor availability when uniqueness assumptions fail
-
-The classifier matches a member's login email and declared old emails against a legacy account's three email columns (`legacy_email` / `legacy_email2` / `legacy_email3`), and presumes that no email value spans two accounts and that `legacy_user_id` is unique where non-NULL (gates G1 and G2 in §25). If a uniqueness check fails at test load, the affected anchor is treated as ambiguous:
-
-- **When an email value spans two accounts.** The cross-column lookup returns multiple `legacy_members` rows for some live members. Affected matches surface no candidate (the platform cannot disambiguate); the member uses declared anchors or asks admin for help instead (§13). Unambiguous email matches in the rest of the export continue to classify normally.
-- **When `legacy_user_id` is not unique.** The legacy-username anchor is used in the self-serve identifier-lookup affordance (§8) but does not contribute to auto-link confidence. Self-serve username lookups that return multiple rows display the non-revealing matched-multiple banner (§8) and never silently resolve. Auto-link is unaffected.
-- **When both are non-unique.** Ambiguous slices have no auto-surfaced candidate; recovery is through member declaration or admin help.
-
-The non-unique lookup index in §15.7 supports these fallback behaviors at the schema layer; the fallback decision is recorded in §28.
-
-### Known name variants
-
-Known name variants are stored in a **DB table** (not CSV), generated from mined data (~385 pairs at the current pipeline run); the high-confidence subset (~303) is loaded and the ~82 medium-confidence pairs are deferred (the generated seed files track exact counts). Categories: accent variations, prefix variations, typo corrections, diminutives.
-
-Variants support first-name matching (e.g. Bob/Robert). Surname changes (e.g. marriage) are handled by the member-declared former surname field rather than by the variants table; the variants table holds equivalence between spellings of the same name, not transformations between different names.
-
-### Batch auto-link at cutover
-
-The batch pass runs across all `legacy_members` rows at cutover. For each candidate match against a live member:
-
-- The batch writes a staged auto-link candidate. No `members`, `legacy_members`, or `member_tier_grants` rows are mutated.
-- The candidate is presented at the member's next sign-in through the wizard's claim task.
-- The batch is idempotent: rerun produces no duplicate candidates.
-
-Pre-cutover live members and members who register after cutover are both covered: at any sign-in, the wizard surfaces any staged candidates plus the declared-anchor inputs and any newly-found candidates.
-
-Honors-bearing matches (Hall of Fame, Big Add Posse) apply on member confirmation with the same UX as any other claim; the honors flag is invisible to the registrant. Honors trustworthiness is established a priori: the imported `is_hof` / `is_bap` flags are validated at test-load against the public HoF and BAP rosters (`A_View_Honors_Oversight_Feed`), so a wrong flag is caught before any tier grants. Ongoing oversight is community self-policing plus the admin dispute-revert path; the interactive admin oversight feed is deferred to v2.
-
-### Cross-source candidate detection
-
-After the member confirms one identity source (legacy account or historical record), the platform searches the other source for a plausible candidate match using available anchors (surname agreement, country agreement, no other claimant). Detected candidates surface inline as a follow-on prompt in the wizard. `M_Complete_Onboarding_Wizard` specifies the card-level interaction.
-
-### Registration-time and signup-time conflict prompt
-
-When a new member registers and the platform detects their surname (current or declared former) matches the surname on an already-claimed record they're about to navigate to, the wizard surfaces an inline "we already have a claim under this name, is one of these you?" prompt. This catches same-name collisions and impersonation cases at the earliest point. `M_Complete_Onboarding_Wizard` specifies the card-level interaction.
-
-### Honors oversight (a-priori, no daily email)
-
-There is no daily oversight email. Honors trustworthiness is established before go-live: the imported `is_hof` / `is_bap` flags are cross-checked at test-load against the authoritative public rosters (footbaghalloffame.net for Hall of Fame, bigaddposse.com for Big Add Posse), and mismatches are curated out, so an honor-driven tier grant cannot rest on a wrong flag. After go-live the small, visible community self-polices and an admin reverts any wrong claim through the dispute path. The interactive admin oversight feed is a v2 surface; `A_View_Honors_Oversight_Feed` owns its design.
-
-### Platform code gated on legacy data dump arrival
-
-The following surfaces are designed against the dump's production-shaped fields. Build state differs per item; each also carries a data-side gate that clears when the code-side smoke runs cleanly against the loaded dump.
-
-1. **Optional mailbox-control link click.** Member declares an old email; the platform offers a confirmation-link round-trip; clicking the link while signed in to the same account upgrades the audit tier from `declared_anchor_only` to `mailbox_control_via_link_click`. Token storage uses `account_tokens` with `token_type = 'mailbox_link'` bound to the anchor via `target_anchor_id` (SHA-256 hash only); rate-limited per requesting member, per target anchor, and per IP. Data-side gate: the dump must populate `legacy_email` on enough rows that the round-trip is reachable as an opt-in upgrade. Gate ID: G22.
-2. **Multi-anchor candidate classification** (classifier and declared-anchor surfaces built). Auto-link queries the verified-modern-email anchor, the declared-old-email anchors, and the declared-former-surname anchor against the `legacy_members` set, and against `historical_persons` via the back-link. Data-side gate: the dump payload must populate at least one anchor per identity and the `name_variants` seed must be in place to drive same-name variant resolution. Gate IDs: G23 (anchor coverage) and G11 (variants seeded).
-3. **Batch auto-link candidate staging at cutover.** A one-time system job stages candidates without mutating live tables, wrapped by the standard `system_job_runs` lifecycle for observability. Idempotent: rerun produces no duplicate staged candidates. Data-side gate: must run after the dump load and before §24 State 3 → State 4 transition. Gate ID: G24.
-4. **Direct historical-record claim affordance** (built). The `/history/:personId/claim` confirm page handles the surname-match check (current or declared former) and the first-name-variant warning inline; on success it writes an `audit_entries` row carrying the evidence tier and any name variant used. Data-side gate: full value depends on `name_variants` being seeded. Gate IDs: G25 (affordance) and G11 (variants seeded).
+Auto-link links each `historical_persons` row to its `legacy_members` provenance, and stages candidate matches between a live member and a `legacy_members` / `historical_persons` row for the member to confirm in the onboarding wizard (no email is sent and no live table is mutated until the member confirms). The anchors, the evidence-strength tiers, multi-record handling, the anchor-uniqueness fallbacks, name-variant matching, cross-source detection, and the a-priori honors validation are specified in the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5) and the `M_Claim_Legacy_Account` user story. The one-time batch auto-link staging job runs at cutover (gate G24 in the validation gates, §25, sequenced in the operational states, §24); the remaining dump-gated claim surfaces clear gates G22, G23, and G25.
 
 ---
 
 ## 8. Self-serve claim flow
 
-The member's experience of claiming pre-existing identity (old website account, historical competition record, or both) is specified by `M_Claim_Legacy_Account`. This section covers the system-side contract: identity-reconciliation cases, anchors, direct historical-record claim mechanics, registration-time conflict prompt, dispute path, anti-enumeration posture, rate limiting, and claim ineligibility predicates.
-
-### Identity-reconciliation cases
-
-A registrant falls into one of five situations relative to the legacy data; `M_Claim_Legacy_Account` carries the case-by-case member experience, and `M_Complete_Onboarding_Wizard` orchestrates the path (the claim task is universal regardless of case):
-
-| Case | Legacy account | Historical record | Resolution |
-|---|---|---|---|
-| A | no | no | No claim available; new account |
-| B | yes | no | Claim links the legacy account; tier mapping (§3) applies |
-| C | no | yes | Direct claim at `/history/:personId/claim` |
-| D | yes | yes, not back-linked | Claim each separately, or the cross-source prompt (§7) finds the second |
-| E | yes | yes, back-linked | Claiming either transitively claims the other in one transaction |
-
-### Anchors
-
-Identifying a candidate uses any of:
-
-- Verified modern login email matching `legacy_members.legacy_email`.
-- Member-declared old email (optional profile field) matching `legacy_members.legacy_email`.
-- Member-declared former surname or current real-name surname matching `legacy_members.real_name` surname.
-- Surname match (current or declared former) against `historical_persons.person_name` for the direct historical-record affordance.
-
-Email match is the strongest anchor. Surname (current or declared former) is the only available anchor for case B without modern-email match and case C.
-
-### Direct historical-record claim
-
-Entry point: `GET /history/:personId`. When the viewer's `real_name` surname OR any declared former surname matches the HP's `person_name` surname and the HP is unclaimed, the page surfaces a "Claim this identity" CTA. The confirmation page renders the record's country, honor status, and a first-name warning when the member's first name is a variant of the HP's. On `POST /history/:personId/claim/confirm`:
-
-- Surname reconciliation runs server-side against current real-name surname and any declared former surnames.
-- If the HP carries a `legacy_member_id` back-link (case E) and that legacy row is unclaimed, the claim transitively marks the `legacy_members` row claimed and runs the legacy-field merge.
-- If the back-linked legacy row is already claimed by someone else, the HP claim is rejected rather than leaving inconsistent state.
-- `members.historical_person_id` is set. Historical-person identity fields are carried forward per the merge rules in §9 (under "historical_persons-sourced fields").
-- The audit row records the evidence tier defined under "Evidence-strength tiers" in §7.
-
-Anti-abuse: the surname rule (current or declared former) gates direct claims. The partial UNIQUE index on `members.historical_person_id` prevents double-claim. A member can claim at most one HP. Honors-bearing direct claims (HoF, BAP) apply without admin pre-screening; a-priori roster validation (§7), community self-policing, and the dispute-revert path (§13) cover oversight.
-
-### Registration-time conflict prompt
-
-When a new member is registering and the platform detects their surname (current or declared former) matches the surname of an already-claimed legacy account or historical record they're about to navigate to, the wizard surfaces an inline "we already have a claim under this name, is one of these you?" prompt with details of the existing claim. This catches same-name collisions and impersonation cases at the earliest point. The real member arriving after an impersonator was confirmed has an inline path to dispute through this affordance, instead of having to contact admin out-of-band. `M_Complete_Onboarding_Wizard` specifies the card-level interaction.
-
-### Dispute path
-
-A member who confirms a card later believed to be wrong, or a real member arriving after an impersonator was confirmed by mistake, has two affordances:
-
-- Inline at the registration-time conflict prompt above, if surfaced at signup.
-- Member-initiated admin help request (§13) if the dispute surfaces later or the platform did not detect the conflict.
-
-Admin reviews disputes and can revert wrong claims via the admin recovery flow. After-the-fact disputes are general support, not a migration-specific surface.
-
-### Anti-enumeration messaging
-
-User-visible messages must never reveal whether the submitted identifier:
-
-- Matched no row
-- Matched multiple rows
-- Matched an ineligible row (already claimed; admin-flagged)
-
-`M_Complete_Onboarding_Wizard` spells out the user-facing copy. MP requires that the response shape is identical across the matched-none, matched-multiple, matched-ineligible, and matched-eligible cases.
-
-The CSRF Origin-pin middleware (DD §3.3) returns 403 for any state-changing request that omits both `Origin` and `Referer` headers. That 403 is distinguishable from the non-revealing 200 response above; the side-channel is accepted because the pin rejects at the perimeter before the claim flow's response logic runs.
-
-### Rate limiting
-
-Identifier-lookup attempts, declared-anchor changes, and optional mailbox-link-click round-trips must be rate-limited per requesting member account, per target `legacy_members` row, and per source IP/session. This prevents abuse of legacy mailboxes and limits side-channel enumeration. The token mechanics follow DD §3.8; normative numeric limits are administrator-configurable with defaults owned by `USER_STORIES.md` (per its defaults policy), implemented against the `account_tokens` schema described in §15.9. This is the single statement of rate-limit scope for the claim surfaces; other sections reference it.
-
-### Claim ineligibility
-
-A `legacy_members` row is unclaimable when:
-
-- Already claimed (`claimed_by_member_id IS NOT NULL`).
-- Duplicate `legacy_members` rows matched the identifier (the `legacy_email` or `legacy_user_id` uniqueness assumption failed at test load; see §25 gates G1 and G2).
-- The `legacy_banned` column did not land (gate G3 FAIL per §15.5) AND the row carries a banned/inactive indicator in the source export that the platform cannot trust to apply automatically.
-- An admin has flagged the row as review-only.
-
-The legacy banned flag is recorded as audit metadata only and does not gate the claim card. Any platform-level disciplinary state is handled by the new platform's discipline mechanisms, not by legacy ban state.
-
-Ineligible cases are directed to the member-initiated admin help request (§13).
+The member's claim experience (the five identity-reconciliation cases, the anchors, the direct historical-record claim, the registration-time conflict prompt, the dispute path, the non-revealing anti-enumeration messaging, the rate limiting, and the claim-ineligibility predicates) is specified by the `M_Claim_Legacy_Account` user story and the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5). Two of its invariants are go-live gates: the non-revealing-messaging invariant is gate G17 and claim-surface rate limiting is gate G18 (validation gates, §25).
 
 ---
 
 ## 9. Merge rules
 
-The active modern account always survives. The `legacy_members` row is MARKED CLAIMED (`claimed_by_member_id` + `claimed_at` set) and persists as the permanent archival record; it is NOT deleted. Merge copies editable fields from `legacy_members` to the claiming `members` row so the member has their own copy to edit; the `legacy_members` row itself is not mutated beyond the two claim-state columns.
-
-| Field / category | Merge rule |
-|---|---|
-| `legacy_member_id` | Written to `members.legacy_member_id` (FK to `legacy_members.legacy_member_id`) |
-| `legacy_user_id` | Copied to `members.legacy_user_id` as migration metadata; `legacy_members` retains its copy |
-| `legacy_email` | Copied to `members.legacy_email` as legacy metadata; never a login credential; `legacy_members` retains its copy |
-| Login and auth fields | Active account always wins; nothing copied from `legacy_members` (which has no credentials) |
-| `display_name`, `real_name` | Active account always wins |
-| `phone`, `whatsapp` | Active account always wins |
-| `bio` | Import fills `members.bio` only if active `bio` is empty string |
-| `birth_date`, `street_address`, `postal_code` | Import fills `members.*` only if active value is NULL |
-| `city`, `region`, `country` | Import fills `members.*` only if active value is NULL or empty |
-| `ifpa_join_date` | Copied to `members.ifpa_join_date` if present and active value absent |
-| `first_competition_year` | COALESCE: member value wins; import value fills `members.first_competition_year` if member is NULL |
-| `is_hof`, `is_bap` | OR semantics; `members.is_hof` / `members.is_bap` set to 1 if `legacy_members` has the flag |
-| `historical_person_id` | Set to the HP's `person_id` whenever the claim resolves an HP: (a) legacy-account claim where `legacy_members.legacy_member_id` matches a `historical_persons.legacy_member_id` back-link (case E per §8), or (b) direct HP claim (cases C or D per §8). Partial UNIQUE index enforces one live member per HP. |
-| `historical_persons`-sourced fields | Whenever `members.historical_person_id` is being set, the same transaction also runs the HP merge: `country` fill-if-empty from `historical_persons.country`; `is_hof` / `is_bap` OR semantics from `hof_member` / `bap_member`; `hof_inducted_year` fill-if-empty from `hof_induction_year`; `first_competition_year` COALESCE from `first_year`. This ensures honors and country propagate onto the member row from whichever archival table carries the authoritative value. |
-| `announce_opt_in` | Not carried forward as active consent; recorded as legacy metadata only. Members establish subscription preferences fresh after claim (`M_Manage_Email_Subscriptions`); unclaimed `legacy_members` rows are never active mail recipients |
-| Legacy admin metadata (`legacy_is_admin`) | Copied to `members.legacy_is_admin` as audit/history context only; never auto-promotes live admin role |
-| Tier | Write a single `member_tier_grants` row (`reason_code = 'legacy.claim_tier_grant'`) per the tier-grant mapping in USER_STORIES `M_Claim_Legacy_Account`, from the legacy standings on `legacy_members`. |
-| Confirmed club affiliations | Write/update `member_club_affiliations` |
-| Confirmed bootstrap leadership | May promote to `club_leaders` if safe; otherwise remains provisional |
-| Discarded conflicting imported values | Preserved in audit metadata |
-
-After merge, `legacy_email` may survive on the active account as legacy metadata but is never a login identity.
-
-**Surname matching across claim paths.** Both the wizard-confirmed candidate flow and the direct historical-record claim path match against the member's current real-name surname or any declared former surname. A member with a name change between their legacy identity and current account declares the former surname on their profile (or at signup) and the claim path then resolves normally. If the member has not declared a former surname and the surnames don't agree, the platform routes the case to the member-initiated admin help request (§13).
-
-**Concurrent claim races on the same historical person** are resolved by the partial UNIQUE index `ux_members_historical_person_id` plus service-layer error mapping. Two members claiming the same historical person simultaneously both pass the in-controller "already claimed" check; the loser is rejected at the INSERT by the index. The claim transaction runs under SQLite IMMEDIATE isolation so the SELECT-then-INSERT logic and the dependent merge writes commit or roll back atomically; the unique index is the load-bearing defense against the race. The service wraps the SQLite `SQLITE_CONSTRAINT_UNIQUE` exception in `ConflictError`; the controller renders the same user-readable "already claimed by another member" 422 response it renders on the synchronous check path.
-
-**Concurrent claim races on the same legacy account** are resolved by the partial UNIQUE indexes `ux_members_legacy_id` on `members(legacy_member_id)` and `ux_legacy_members_claimed_by` on `legacy_members(claimed_by_member_id)`. Two members confirming the same `legacy_members` row at roughly the same time both pass the in-controller "claimed_by_member_id IS NULL" check before either INSERT lands; the loser is rejected by one of the unique indexes. The service wraps `SQLITE_CONSTRAINT_UNIQUE` in `ConflictError`; the controller renders the same user-readable "this legacy account has been claimed by another member" 422 response that the synchronous check path renders. The `member_tier_grants` insert occurs inside the same merge transaction as the index-protected writes, so a unique-constraint rejection rolls back the entire transaction; no partial tier grant persists.
+When a claim resolves, the active modern account always wins and editable fields are copied from the claimed `legacy_members` row (honors by OR, profile fields fill-if-empty, first competition year by COALESCE, a single `member_tier_grants` row, and the historical-person merge), with concurrent-claim races resolved by the partial UNIQUE indexes. The full field-by-field merge and the race handling are specified in the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5) and the `M_Claim_Legacy_Account` user story.
 
 ---
 
 ## 10. Club bootstrap and onboarding
 
-Terminology used throughout this section:
-
-- **Bootstrap row**: a row in `club_bootstrap_leaders` that records a `(member, club)` leadership candidate inferred from mirror data; not yet a live leader. Promoted to a `club_leaders` row at wizard confirmation per §2.
-- **Promotion path**: the transition that turns a non-live candidate into a live row. For clubs, this turns an `onboarding_visible` or `dormant` candidate in `legacy_club_candidates` into a `clubs` row; for leadership, this turns a bootstrap row into a `club_leaders` row.
-- **Junk candidate**: a `legacy_club_candidates` row whose classification rules out promotion to a live club regardless of registrant signal. Junk candidates are never shown in the wizard.
-- **Pre-populated / onboarding-visible / dormant**: classification states for `legacy_club_candidates`; the four-way classification (the fourth being junk) is defined in §10.1.
+Club bootstrap and onboarding is specified across three homes: the club classifier under `legacy_data/clubs/scripts/` with its overview in `legacy_data/CLAUDE.md` (the authoritative rule home for the four-way classification, its thresholds, and the R1-R10 rules); the `M_Complete_Onboarding_Wizard` user story (the registrant club flow and the bootstrap-leadership classification gates) and the `A_Periodic_Club_Cleanup` user story (the admin residue queue and cleanup predicates); and DATA_MODEL Migration Staging and Bootstrap Tables (§4.27) for `legacy_club_candidates`, `legacy_person_club_affiliations`, and `club_bootstrap_leaders`.
 
 ### 10.1 Club classification rules
 
-Every legacy club extracted from the mirror is classified into one of four categories: `pre_populate`, `onboarding_visible`, `dormant`, or `junk`. Classification determines whether the club exists in the live `clubs` table at go-live, appears as a suggestion during registration, is searchable but not suggested, or is excluded from public surfaces entirely.
-
-Classification is deterministic and tunable. Each rule references a named parameter with a documented default. The classifier prints a category-distribution summary (with per-rule firing counts) and a diff against the previous run's output for any parameter set, so cutoffs can be sanity-checked before cutover.
-
-#### Source signals
-
-All signals come from data already produced by the mirror pipeline. No external lookups.
-
-- **Hosting evidence** from the event archive: ever-hosted flag, hosted-event count, last hosted year. The canonical hosting link is the FK `events.host_club_id` to `clubs.id`. When the classifier runs before live `clubs` rows exist, it falls back to a normalized-name match between event host text and candidate names.
-- **Page timestamps** from `div#MainModified` on each club page: created year, last-updated year.
-- **Listed contact** from `div.clubsContacts`: the contact's mirror member id, captured from `members/profile/{id}`. The contact's last competitive year is resolved by joining the mirror id to `historical_persons.last_year` via the mirror-id to historical-person-id mapping.
-- **Affiliated rostered members** from the showmembers page: count of unique member names, count matched to known historical persons, max last competitive year across matched members.
-- **Description**: presence and content of `div#ClubsWelcome`.
-- **External URL**: presence and verification status of the URL from `div.clubsURL`. URL verification is performed before publication per §10.3.
-
-#### Classification parameters
-
-All parameters are tunable; defaults are documented here.
-
-| Parameter | Default | Drives |
-|---|---|---|
-| `hosting_recency_years` | 7 | Hosting-alone-sufficient signal |
-| `page_edit_recency_years` | 5 | Page-maintenance corroborator at pre-populate |
-| `contact_active_recency_years` | 5 | Listed-contact corroborator |
-| `member_active_recency_years` | 5 | Affiliated-member signal |
-| `new_club_grace_years` | 4 | New-club onboarding-visible carve-out |
-| `edited_after_creation_min_year` | 5 | Page-maintenance recency window at onboarding-visible |
-| `anchor_year` | the cutover year, passed explicitly (never derived from the clock) | All recency windows resolve against this anchor |
-
-#### Duplicate clubs
-
-The mirror lists some real clubs under more than one legacy key (for example a club re-created in a later year, or a near-empty re-listing). A curator records confirmed duplicate pairs in `legacy_data/overrides/club_duplicates.csv` (`keep_legacy_key`, `drop_legacy_key`, reason). The pipeline merges each confirmed pair deterministically into the `keep` candidate:
-
-- `name`, `city`, `region`, `country`, `contact_member_id`, `external_url`: from the candidate with the strongest signal evidence (most hosting, largest roster, most recent edit); ties broken by latest update.
-- `description`: longest non-empty across the pair.
-- `created`: earliest. `last_updated`: latest.
-- Roster, affiliations, and hosted-event credits: union across the pair, deduplicated by resolved person.
-- Source identities: the merge is recorded in the curator override file (`legacy_data/overrides/club_duplicates.csv`) and the pipeline outputs, so every source `legacy_club_key` remains auditable and the merge reversible by editing the override and re-running the pipeline.
-
-Merging unions rosters rather than discarding a duplicate, so no affiliation is lost. The merge is curator-confirmed and deterministic at pipeline time; there is no automatic similarity clustering and no platform-side merge process. A curator who needs to undo a merge edits the override and re-runs the pipeline.
-
-Wizard resolution treats all source identities as resolving to the merged candidate: when a registrant cites a source legacy name in Stage 1B, the affiliation maps to the merged row.
-
-#### Hard exclusions: junk
-
-A candidate is marked `junk` only by the signal-absence rule below or the force-junk override. Junk candidates remain in the candidate set for audit but are invisible to all non-admin surfaces. Pattern rules (name blacklist, structural patterns, profanity list) are deliberately not part of the classifier: evaluated against the full club-candidate set they matched zero candidates, and the mirror is frozen, so they cannot ever match.
-
-Signal-absence rule fires when all of the following hold simultaneously:
-
-1. Description is empty.
-2. Never hosted any event in the legacy archive.
-3. No rostered member has a known competitive year.
-4. External URL is empty or fails verification.
-5. Contact-member-id is empty or cannot be matched to any record.
-6. Created more than `new_club_grace_years` ago.
-7. Never edited after creation. The legacy CMS records `created` and `last_updated` as separate timestamps; clause 7 fires when `last_updated` falls in the same year as `created` (year granularity, matching the pipeline's derived year columns).
-
-The signal-absence rule is the catch-all classifier for legitimate-looking clubs that nevertheless lack any signal a registrant could confirm. A club that fails pre_populate, fails onboarding_visible, and has no description (and therefore no dormant-candidate hook a registrant could later confirm) routes here. The force-keep override list (below) is the recovery path for any real club that was mis-caught.
-
-Admin override lists:
-
-- **Force-keep**: specific legacy keys immune to the junk rule, used to rescue real clubs that have no signals; a force-keep entry may also pin the candidate to a specific category.
-- **Force-junk**: specific legacy keys marked junk regardless of other classification, used for spam the rules missed.
-
-Both lists live as curator-owned override CSVs in `legacy_data/overrides/`, alongside the duplicate overrides.
-
-#### Pre-populate rules
-
-A candidate enters `pre_populate` if it survives the hard exclusions and meets any of:
-
-- **PP-hosting**: hosted an officially recorded event in the last `hosting_recency_years` years.
-- **PP-contact-corroborated**: listed contact is recognized in `historical_persons` AND last competed in the last `contact_active_recency_years` years AND any one of:
-  - Club ever hosted an event.
-  - Page edited in the last `page_edit_recency_years` years AND edit was after creation.
-- **PP-maintained-host**: page edited in the last `page_edit_recency_years` years AND the club ever hosted an event.
-
-The substitute path (any recently active rostered player counts in place of an identified listed contact) is not permitted at the pre-populate tier. Recently active rostered members may corroborate at the onboarding-visible tier only.
-
-Pre-populated candidates may also receive bootstrap leadership rows under the bootstrap rule in §2 (which also describes the leadership activation paths). Bootstrap leadership is independent of classification: clubs lacking a strong-classification leader candidate still pre-populate without a provisional leader.
-
-#### Onboarding-visible rules
-
-A candidate enters `onboarding_visible` if it survives the hard exclusions, fails the pre-populate rules, and meets any of:
-
-- Page lists a contact but the contact is not recognized in `historical_persons`.
-- Listed contact is recognized but last competed more than `contact_active_recency_years` ago.
-- An affiliated rostered member (not the listed contact) last competed within `member_active_recency_years` years.
-- Club ever hosted an event without meeting a pre-populate corroborator.
-- Page edited within `edited_after_creation_min_year` years AND edit was after creation.
-- Created within `new_club_grace_years` years (too new to judge by other signals).
-- **OV-roster-size**: the roster lists at least 10 unique member names, or at least 3 roster members are linkable to known historical persons.
-
-#### Dormant rule
-
-A candidate enters `dormant` if it survives the hard exclusions, fails all pre-populate and onboarding-visible rules, and has a non-empty description. These are real historical clubs without current activity signals.
-
-#### Classification evidence persistence
-
-Each candidate row carries, alongside `classification`, one 0/1 flag column per named rule (R1–R10) recording exactly which rules fired, plus the underlying signal values as plain columns (last hosted year, last edit year, listed contact's last competitive year, member counts). Admin reviewing a candidate sees the bucket label and the rationale without re-running the classifier. Schema for these columns is specified in DATA_MODEL `legacy_club_candidates` and `database/schema.sql`.
-
-#### Live content at GoLive (pre-populated clubs)
-
-For each pre-populated candidate, the live `clubs` row carries:
-
-- `name`, `city`, `country`: from the (possibly merged) candidate.
-- `region`: from the candidate when present; may be NULL.
-- `hashtag_tag_id`: standardized hashtag generated deterministically from `name`.
-- `external_url`: carried from the candidate and verified at data-prep time per DD §3.17. The public club read shows the URL only once it is verified and not quarantined; an unverified or flagged URL is retained on the row but hidden from public render, and surfaced to the listed contact (and admin) for review.
-- `description`: published as-is from the legacy data.
-
-A club carries no club-level contact field; it is reachable through its co-leaders' own contact. Description and URL on the live page are edited directly by the club's co-leaders, with URL verification per §10.3 before publication. Other members report inaccuracies to club leadership out of band.
-
-#### Promotion rules
-
-Pre-populated candidates exist as live `clubs` rows at go-live. All other non-junk candidates remain in `legacy_club_candidates` until promoted, archived, or admin-resolved. Promotion paths:
-
-- **Stage 1 confirmation**: when a registrant in Stage 1A or Stage 1B confirms a personal affiliation with an onboarding-visible or dormant candidate, the candidate is promoted to a live `clubs` row using the live-content rules above.
-- **Admin override**: an admin can promote any non-junk candidate manually via the cleanup queue. Candidates not covered by a registrant's Stage 1 personal card reach live status only through this path (or surface through the `M_Create_Club` duplicate-prevention check, which routes the creator to the existing entry).
-
-The promotion transaction is idempotent. The club id is derived deterministically from the candidate's legacy key (`stable_id("club", legacy_club_key)`), and the candidate's `mapped_club_id` records the promotion. If two registrants confirm the same `legacy_club_candidates` row in concurrent transactions, both derive the same club id; the second transaction's INSERT is rejected by the `clubs` primary key, and the service treats the candidate as already promoted, completing the second registrant's affiliation against the existing `clubs` row.
-
-The `legacy_club_candidates` table remains operational until every non-junk candidate has reached a terminal state per §10.4.
-
-#### Pipeline ordering
-
-The classifier depends on `historical_persons` being fully populated, including the club-only members extracted from the mirror (per §10.2). Without those rows, the listed-contact-active and member-active signals are artificially deflated for clubs whose people never competed.
-
-Required order:
-
-1. Extract club-only members into `historical_persons` (§10.2).
-2. Classify clubs against the rules above.
-3. Auto-merge duplicate clusters; route significant-difference clusters to admin.
-4. Mark junk.
-5. Persist classification evidence on each candidate.
-6. Pre-populated candidates enter the live `clubs` table; non-junk non-pre-populate candidates remain in `legacy_club_candidates`.
+The four-way classification (pre-populate, onboarding-visible, dormant, junk), its tunable thresholds, the duplicate-club merge, the junk signal-absence rule, the promotion paths, and the R1-R10 evidence columns are owned by the club classifier under `legacy_data/clubs/scripts/` and summarized in `legacy_data/CLAUDE.md`. Cutover quality is gate G7 in the validation gates (§25), which requires the club-only person extraction (§10.2) to run first.
 
 ### 10.2 Expanding historical_persons for club members
 
-The historical_persons table contains ~3,570 persons drawn from event results (count moves with pipeline runs; §26 and the pipeline QC reports are authoritative). Approximately 1,700 additional people in the mirror appear only as club members (never competed in events). These must be extracted and added to historical_persons to support club affiliation linking at claim time.
+The roughly 1,700 club-only people from the mirror are extracted into `historical_persons` with `PROVISIONAL` provenance so the classifier's contact-active and member-active signals are not deflated. This is gate G12 in the validation gates (§25), and the pipeline runs it before classification (operational states, §24, State 1). The extraction is owned by the legacy_data pipeline (`legacy_data/CLAUDE.md`).
 
 ### 10.3 Club onboarding flow during registration
 
-Registration is the primary cleanup mechanism for legacy club data. Every registrant passes through the club-affiliations wizard task after identity resolution (§6-§8). The wizard asks club questions only where the registrant has personal authority (Stage 1: the registrant is named in the legacy data on a club as listed contact or rostered member); a registrant with no suggested affiliation skips Stage 1 cards and goes directly to the wrap-up landing. After the cards, a wrap-up landing routes to the regular club browse, join, and create surfaces. There is no in-wizard club search, and the wizard never creates a `clubs` row except by promoting a confirmed candidate.
-
-`M_Complete_Onboarding_Wizard` (USER_STORIES) is the authoritative member-facing contract: card wording (two orthogonal questions per Stage 1 card, membership confirmation and activity signal), card resume, detour handling, the two-current-affiliations cap, leadership promotion and downgrade invariants, and viability-signal collection into `club_viability_signals` feeding `A_Periodic_Club_Cleanup`. The flow is implemented in `MemberOnboardingService` (stage-1 cards plus wrap-up).
-
-System rules the wizard preserves:
-
-- Junk candidates are never shown on any surface. Onboarding-visible and dormant candidates promote to live `clubs` rows only via the §10.1 promotion paths on member confirmation, or via admin override.
-
-#### Content editing
-
-Description and external URL on every live `clubs` row are edited directly by the listed contact and any registered club leader; there is no approval gate and no suggestion queue. Other members report inaccuracies to club leadership out of band. Every URL bound for a live page passes URL verification before appearing publicly per DD §3.17: a contact or leader edit is verified at submit time, and a URL carried from legacy data is verified at data-prep time. Until a URL is verified and not quarantined it is hidden from public render; the value is retained and the validator's error is surfaced to the editor.
+The registrant club-affiliation flow (Stage 1 cards, the wrap-up landing, the content-editing gates, and URL verification before publication) is specified in the `M_Complete_Onboarding_Wizard` user story.
 
 ### 10.4 Long-term cleanup
 
-The `legacy_club_candidates` table is not a permanent operational surface. Every non-junk candidate eventually reaches a terminal state: promoted to a live `clubs` row, demoted to dormant, archived, or merged with another club. Admin is the sole decision authority; members provide input through structured flags. There is no time-bounded saturation window; admin reviews the queue at their own pace, and the table remains operational until empty.
-
-Admin's user-facing entry point is `A_Periodic_Club_Cleanup` in USER_STORIES.
-
-#### Member flag mechanism
-
-Members flag clubs through one surface: the onboarding wizard. Negative activity answers (never-heard-of-it reports, not-active signals) are recorded as `club_viability_signals` rows per `M_Complete_Onboarding_Wizard`, carrying the club id, the member id, the signal value, the wizard stage, and a timestamp; membership rejections persist as affiliation status transitions and surface to admin through the residue counts. The cleanup queue counts them one vote per member (latest signal wins) and names negative voters to the admin; authorship never renders publicly.
-
-#### On-demand cleanup evaluation
-
-There is no unattended background process. When an admin opens the `A_Periodic_Club_Cleanup` queue, the platform evaluates the viability and leadership-staleness predicates fresh (`crowdsource_club_viability` G1-G4, `leaderless_active_club`, `stale_provisional_leader`) and surfaces the clubs that need a human decision, each with a recommended one-click action (demote, archive, dismiss, defer). No transition fires automatically; demote and archive are admin actions, each writing one `audit_entries` row with `actor_type='admin'`.
-
-Unconfirmed `legacy_person_club_affiliations` residue (`'pending'` rows) is retired by an explicit per-club admin de-list to `'former_only'`, also cascaded when a club is demoted or archived. Duplicate club candidates are merged before cutover by a curator-confirmed directive in the pipeline (per §10.1), not by a platform-side process.
-
-#### Admin residue queue
-
-When an admin opens the queue, it aggregates the items requiring human judgment:
-
-- Wizard-generated flags grouped by candidate or live club.
-- Junk-flagged candidates (per §10.1 junk rules) and any admin force-keep or force-junk requests.
-- Non-junk candidates not yet promoted to live `clubs` rows.
-- `legacy_person_club_affiliations` rows still in `resolution_status='pending'` (unconfirmed legacy residue), grouped by live club with each club's pending count and oldest-row age.
-
-The admin-home backlog badge surfaces the count of open queue items and the age of the oldest open item. Admin sorts and filters this queue at their own cadence. There is no automated demotion or time-based escalation. Recommended cadence is monthly during steady-state operation; weekly during periods of high member activity.
-
-Admin's available actions per item:
-
-- Promote a candidate to a live `clubs` row.
-- Demote a candidate to dormant.
-- Mark a live `clubs` row `status='inactive'`.
-- Archive a `clubs` row (`status='archived'`).
-- Merge two live `clubs` rows that turn out to be the same club.
-- Add a candidate to force-keep or force-junk.
-- Dismiss a flag with an optional reason, or defer with a bounded duration (30 / 90 / 180 days) after which the item re-surfaces.
-- De-list a club's unconfirmed `legacy_person_club_affiliations` residue: one click transitions that club's `'pending'` rows to `'former_only'` in a single transaction (each row carries the actor and timestamp; one summary audit row records the action and count), guided by the oldest-row age shown in the queue. Safe to re-run; also cascaded by demote and archive.
-
-Every admin action is recorded in the audit log. Concurrent admin coordination uses a lightweight claim marker per item (auto-releases on resolve or after a 30-minute stale-claim timeout).
-
-#### Per-category terminal states
-
-- **Pre-populated**: continues as a live `clubs` row until an admin action moves it. Member flags accumulate in the queue; admin decides whether to demote, mark inactive, archive, or dismiss.
-- **Onboarding-visible**: reaches a terminal state when promoted to live (via wizard confirmation per §10.3 or via admin promotion), demoted to dormant (admin only), or archived (admin only).
-- **Dormant**: revived through a registrant's Stage 1 personal card, the `M_Create_Club` duplicate-prevention check, or admin promotion. Admin may archive a dormant candidate at any time.
-- **Junk**: invisible to non-admin surfaces; admin force-keep returns it to the classifier's normal evaluation.
-
-#### Labeled legacy affiliations on rosters
-
-The platform's club-roster reads include `resolution_status='pending'` alongside `'confirmed_current'` and `'promoted'`, so loader-imported affiliations render on `/clubs/:key` from launch. Without this, every imported affiliation would be invisible until its member walked the onboarding wizard, and rosters would launch empty.
-
-On the club detail page these are shown honestly: confirmed members appear under "Members", and `'pending'` rows appear under a separate, labeled "possible members from legacy records" section that states they have not yet confirmed in onboarding. A `'pending'` row is never presented as a current member. There is no read-filter revert; labeling, not hiding, is the long-term design.
-
-The `'pending'` set drains through two paths: members confirm or decline their own rows during the onboarding wizard, and an admin retires a club's unconfirmed residue with a one-click de-list in the `A_Periodic_Club_Cleanup` queue (`'pending'` to `'former_only'`), also cascaded when a club is demoted or archived. The de-list is taken at the admin's discretion, guided by an advisory age signal, with no fixed deadline and no timed transition.
-
-#### Closure
-
-When every non-junk candidate has reached a terminal state, the `legacy_club_candidates` table may be dropped. Until then, it remains operational and queryable by admin through the cleanup queue. There is no fixed deadline; the table's lifetime is bounded by admin's pace.
+The admin-driven cleanup of legacy club residue (the on-demand cleanup queue, the labeled `pending` affiliations on rosters, the member flag mechanism, and the per-category terminal states) is specified in the `A_Periodic_Club_Cleanup` user story.
 
 ---
 
 ## 11. Onboarding wizard service
 
-The onboarding wizard is the primary surface for cleaning up legacy identity data. A single backend service, `MemberOnboardingService`, owns the per-member task list and orchestrates the wizard flow. `M_Complete_Onboarding_Wizard` is the source of truth for task states, entry-point semantics, applicability rules, skip/resume behavior, detour lifecycle, dashboard task-widget behavior, and audit emission. This section covers only the migration-specific design: task-to-source-flow routing and storage.
-
-### Task catalog
-
-Every member has an ordered task list. Tasks at cutover:
-
-| Task type | Source flow | Owning service for the underlying logic |
-|---|---|---|
-| `personal_details` | Location, date of birth, gender, first competition year, show competitive results | `MemberService` |
-| `legacy_claim` | §7 auto-link or §8 self-serve claim | `IdentityAccessService` |
-| `club_affiliations` | §10.3 club flow (stage-1 cards plus wrap-up) | clubs service |
-
-Task ordering is fixed: `personal_details`, then `legacy_claim`, then `club_affiliations`. Adding a new task type later is a service-internal change (register a handler in the catalog); the service interface does not change.
-
-### Storage
-
-`member_onboarding_tasks` (DATA_MODEL §4.29) carries one row per (member_id, task_type) with state and timestamps. The table is permanent operational state, not migration-only.
-
-### Relationship to §10.3
-
-The wizard service is the orchestration shell; §10.3 and `M_Complete_Onboarding_Wizard` describe the `club_affiliations` task content, which every registrant sees regardless of whether they claim a legacy account. The claim flows in §7-§8 render together as the `legacy_claim` task: one page mixing `legacy_members` and `historical_persons` candidates, deep-linking HP cards to `/history/:personId/claim`.
+The onboarding wizard service (the per-member task list, the fixed task order of `personal_details` then `legacy_claim` then `club_affiliations`, and its storage in `member_onboarding_tasks`) is specified in the `M_Complete_Onboarding_Wizard` user story; the table is documented in DATA_MODEL Member Onboarding Tasks (§4.29).
 
 ---
 
 ## 12. Security model summary
 
-- Legacy passwords are never imported, stored, or accepted
-- `legacy_email` is migration metadata, not a login credential
-- Auto-link sends no notification emails; the wizard's confirmation card is the only post-link member-facing surface (§7)
-- Optional mailbox-control proof via a confirmation-link round-trip to the member's declared old email upgrades the audit evidence tier from `declared_anchor_only` to `mailbox_control_via_link_click`; it is an opt-in upgrade, not a required gate
-- Member-declared anchors (former surname, declared old emails) are always private: visible only to the member and admin (§15)
-- Imported rows cannot log in, cannot be searched, cannot receive member broadcasts
-- Claim tokens (for the optional mailbox-link-click round-trip) are account-bound: consuming a token while authenticated as a different account fails
-- Rate limiting protects every claim surface; the single statement of scope and keying lives in §8
-- The non-revealing messaging rule applies everywhere in the claim flow
-- Bootstrap leadership confers zero live permissions until confirmed on a real modern account
-- Name validation is loosened for imports (two words + no digits only); surname constraint scoped to new registrations and edits; declared former surnames extend the matching surface across all claim paths
-- Cookie domain widening to `Domain=.footbag.org` (§29.15) sends the session token to the platform-controlled `archive.footbag.org` (its own CloudFront distribution over HTTPS, DD §6.4); there are no retained legacy subdomains receiving it. The CSRF Origin-pin middleware (DD §3.3) is the cross-subdomain defense against a malicious form on the archive subdomain
+The migration security and privacy rules (no credential import; `legacy_email` as metadata only; no auto-link emails; the optional mailbox-control upgrade; member-declared anchors kept member-and-admin private; imported rows that cannot log in, be searched, or be broadcast to; account-bound claim tokens; rate limiting on every claim surface; the non-revealing-messaging rule; bootstrap leadership conferring no live permission until confirmed; loosened name validation for imports; and the cookie-domain widening defended by the CSRF Origin pin) are specified in the Security, Privacy, and Historical Record Governance decision in DESIGN_DECISIONS (§3.9), the Account Security Tokens decision (§3.8), and DATA_GOVERNANCE.
 
 ---
 
 ## 13. Admin flows
 
-Migration-time admin involvement is reactive, not gating. Members confirm their own claims via the wizard; the platform applies effects only on member confirmation. Admin acts only when the member asks for help, when a dispute surfaces, or for read-only oversight of a narrow category of post-facto claims.
-
-### Member-initiated admin link request (review)
-
-The reactive recovery flow described in §15 is the only migration-time admin queue with active member-driven items: a member whose identity no candidate or declared anchor can resolve submits a free-text request with whatever references they can supply, and the request enters an admin queue. `A_Review_Member_Link_Help_Requests` owns the admin-facing review story. System-side contract: an approved link records evidence tier `admin_vetted_evidence` in its audit metadata; approval never auto-promotes legacy `is_admin` metadata to a live admin role; the legacy banned flag is audit metadata only and does not gate the link decision (platform discipline mechanisms govern, not legacy ban data).
-
-### Honors-bearing direct claim oversight
-
-Never gating: honors-bearing direct historical-record claims (per §8) apply on confirmation. Honors data is validated a priori at test-load against the public rosters (§7), the community self-polices, and the dispute revert is the recovery path for a wrong claim. The interactive admin oversight feed is a v2 surface; `A_View_Honors_Oversight_Feed` owns its design.
-
-### Dispute revert
-
-A real member arriving after an impersonator confirmed, or a member who confirmed a wrong card, can either use the registration-time conflict prompt (§8) inline at signup or invoke the member-initiated help request to ask admin to revert. Admin reverts by clearing the back-link columns and the tier grant; the audit row records the dispute event. After-the-fact disputes follow the same admin recovery pattern as link requests.
-
-### Initial-admin bootstrap
-
-At cutover, the platform has zero `is_admin=1` rows. The initial Application Administrator(s) are granted out-of-band by a System Administrator per DD §2.9. The grant path is reserved for inception and total-admin-loss recovery; all subsequent grants and revocations use the in-app admin-management story (US).
-
-The grants satisfy go-live gate GV2 ("At least one administrator account provisioned in production and login-tested", §22). They are performed after the production DB is live and seeded, and before any admin-only path is opened to volunteers. Operator-facing procedure for the current bootstrap mechanism is documented in DEV_ONBOARDING.
-
-The bootstrap path is exempt from the Tier 2 / Tier 3 status gate that the in-app admin-management story enforces. Rationale: at cutover the SysAdmin who performs the first grant may not yet have claimed their own legacy account, so their tier state is `tier0` even if they hold honors or paid tier in legacy (tier grants are written one row per member-confirmed claim, per State 4 step 4). The in-app gate exists to govern admin-to-admin grants where both parties have settled tier state; it does not apply to the SysAdmin's out-of-band first grant. The in-app gate remains in force for every grant after the first.
+Migration-time admin involvement is reactive. The member-initiated link-help request, the honors-bearing direct-claim oversight, and the dispute revert are specified in the `A_Review_Member_Link_Help_Requests` and `A_View_Honors_Oversight_Feed` user stories, and the initial-admin bootstrap is the Administrator Role Lifecycle decision in DESIGN_DECISIONS (§2.9). The bootstrap grants satisfy go-live gate GV2 (§22).
 
 ---
 
@@ -894,17 +318,7 @@ The user-facing behavior referenced throughout this document is specified by the
 
 ## 15. Required schema changes
 
-### 15.1 Credential-state invariant: three-branch
-Three-branch CHECK on `members`: live non-system account (credentials present), purged row (credentials NULL, `personal_data_purged_at` set), or system-member account (`is_system=1`, credentials NULL, never purged). Imported legacy accounts live in `legacy_members` (§2 Legacy member import), not as placeholder rows in `members`.
-
-### 15.2 Location field nullability
-`city` and `country` are nullable. `region` was already nullable.
-
-### 15.3 Membership tier and Active Player are read-model-only
-Current membership tier reads from `member_tier_current`. Active Player status reads from `member_active_player_current`. Combined gate: `member_membership_status_current`. No cached tier or status columns exist on `members`.
-
-### 15.4 New migration fields on `members`
-Added: `legacy_user_id`, `legacy_email`, `ifpa_join_date`, `birth_date`, `street_address`, `postal_code`, `legacy_is_admin`.
+The schema the migration adds and the constraints it relies on are specified in DATA_MODEL (Members & Authentication §4.14, Legacy Members §4.14b, Member Tier Grants §4.12, Migration Staging and Bootstrap Tables §4.27, Member Declared Anchors §4.30, Staged Auto-Link Candidates §4.31, and Name-matching utilities §4.28) and are authoritative in `database/schema.sql`. Two fields are cutover-conditional and stay tracked here because go-live gates depend on them:
 
 ### 15.5 `legacy_banned`
 
@@ -916,46 +330,6 @@ legacy_banned INTEGER NOT NULL DEFAULT 0 CHECK (legacy_banned IN (0,1)),
 
 The column is audit metadata only and never gates the self-serve claim card, whether or not it lands. Banned/inactive cases route through admin review per §8 self-serve ineligibility. Gating on the column value is a possible future policy change requiring webmaster/IFPA input; the audit-metadata-only default stands until such a decision is made.
 
-### 15.6 `legacy_member_id` uniqueness
-Partial unique index `ux_members_legacy_id` on `members(legacy_member_id) WHERE legacy_member_id IS NOT NULL`.
-
-### 15.7 Uniqueness for `legacy_email` columns and `legacy_user_id`
-
-`legacy_user_id` is unique where non-NULL; if the test load disproves that assumption (gate G2 in §25), it drops to a non-unique lookup with service-layer ambiguity handling.
-
-A legacy account carries up to three email addresses (`legacy_email` plus secondary `legacy_email2` / `legacy_email3`); a member's verified login email and each declared old email match against all three (§7, M_Claim_Legacy_Account). The email columns are non-unique, because one address may legitimately be primary on one account and secondary on another. Cross-account email uniqueness (an address must not identify two different accounts) is the go-live gate G1 (§25), checked by `scripts/validate-legacy-import-gates.sh`, which flags any value shared across accounts in the three columns for curation before cutover; an address still ambiguous at match time surfaces no auto candidate (the runtime backstop).
-
-### 15.8 `members_searchable` view
-Includes `email_verified_at IS NOT NULL` filter.
-
-### 15.9 `account_tokens`: `account_claim` type and target binding
-`token_type` CHECK includes `'account_claim'`. `target_legacy_member_id` with `ON DELETE NO ACTION`.
-
-Cleanup interaction: the §29.6 daily `account_tokens` cleanup job removes rows where `expires_at < now()` or where `used_at IS NOT NULL` and the consumption is older than the configured retention window. Because `legacy_members` rows are never deleted (they persist as permanent archival records, claimed or not), the `ON DELETE NO ACTION` FK on `target_legacy_member_id` is not load-bearing in production; it exists to prevent accidental cascade if a `legacy_members` row is ever administratively removed. The cleanup job operates on `account_tokens` only and does not need to inspect `legacy_members` state.
-
-### 15.10 `member_club_affiliations`
-Permanent operational table. The current-club cap is two concurrent current clubs per member, service-enforced (no partial unique index).
-
-### 15.11 `legacy_club_candidates`
-Migration-only staging table.
-
-### 15.12 `legacy_person_club_affiliations`
-Migration-only staging table with dual partial unique indexes.
-
-### 15.13 `club_bootstrap_leaders`
-Operational table with `imported_member_id ON DELETE SET NULL` and a `status` lifecycle column (`provisional` → `claimed`, `rejected`, or `superseded`). Full schema in DATA_MODEL.
-
-### 15.13a `legacy_members.claim_status`
-
-Not present in the schema, and stays out unless a concrete query or admin workflow proves it is needed before cutover. Audit-log entries plus `claimed_by_member_id` / `claimed_at` remain authoritative.
-
-### 15.14 `first_competition_year` and `show_competitive_results`
-On `members` table.
-
-### 15.15 Known name variants table
-
-`name_variants` (built; schema authority `database/schema.sql`) stores name-equivalence pairs supporting auto-link matching (§7) and claim/registration-time prompts. Seeded at State 1 from mirror-mined pairs (~385 at the current run); permanent post-cutover so admins and members may record further equivalences. Contract notes the schema cannot express: the relation is symmetric (store one direction only; lookups check both columns), and normalization is application-side (NFKC + lowercase + whitespace-collapse + trim) before any insert or lookup. Not prefixed `legacy_*` because the pairs are a permanent name-matching utility with no resolution step, unlike migration-scope staging tables.
-
 ### 15.16 Tier-mapping fields on `legacy_members`
 
 The five `legacy_*` tier-state fields read by the claim-time tier grant are specified in DATA_MODEL §4.14b (their meaning) and USER_STORIES `M_Claim_Legacy_Account` (the mapping that reads them). This section covers only their cutover handling.
@@ -964,163 +338,29 @@ Schema authority: `database/schema.sql`. The cutover database is built fresh fro
 
 At test load (gate G6, §25), each field is spot-checked against known reference cases: HoF members with documented payment history, board members at cutover, and known lifetime-tier1 payers. A field whose values do not match the references (administrative corrections, refunded payments, test records, or other contamination) is left unpopulated; its basis then does not fire for any claim, and the other standings still apply. If the tier inputs are insufficient overall, the paid and board fields are left unpopulated and claims grant on honors alone. Whatever is held back is recorded in §28.
 
-### 15.17 Declared identity anchors (former surnames and old emails)
-
-Built as one table, `member_declared_anchors` (schema authority `database/schema.sql`; documented in DATA_MODEL §4.30): one row per `(member_id, anchor_type, anchor_value)` with `anchor_type` in (`former_surname`, `old_email`). Anchors are member-asserted with no proof required. Former surnames participate in claim matching across all claim paths alongside the current real-name surname; old emails match against `legacy_members.legacy_email` during auto-link candidate matching (§7). Normalization is application-side before insert and lookup.
-
-- Surfaces: optional input at registration, prompted within the wizard's universal claim task, editable from the profile; see `M_Complete_Onboarding_Wizard`.
-- Privacy: visible only to the member and to admin; never surfaced on public profile, member search, or any cross-member listing.
-- Cleared on PII purge alongside `members.legacy_member_id` and `members.historical_person_id`.
-
-### 15.18 Mailbox-control verification columns
-
-The optional confirmation-link round-trip (§7, gate G22) keeps verification state on declared old-email anchors: `verified_via_link_click_at` TEXT NULL and `verification_token_id` TEXT NULL on `member_declared_anchors`, set when the member clicks the link delivered to the declared address while signed in to the same account, upgrading the audit evidence tier from `declared_anchor_only` to `mailbox_control_via_link_click`. The link is a single-use `account_tokens` row of `token_type = 'mailbox_link'` bound to its anchor via `target_anchor_id`.
-
-### 15.19 Evidence-strength tag on claim transactions
-
-Every confirmed claim transaction (auto-link card confirmation, cross-source candidate confirmation, mailbox-link-click round-trip, admin-help-request approval) carries an evidence-strength tag on its `audit_entries` row.
-
-Tiers in increasing strength:
-
-- `declared_anchor_only`
-- `currently_controls_modern_email_matching_legacy`
-- `mailbox_control_via_link_click`
-- `admin_vetted_evidence`
-
-Schema authority: `database/schema.sql`. The tag lives in `audit_entries.metadata_json` under a stable key (e.g. `evidence_strength`). The admin oversight feed (§13) filters by tier. Name-only confirmations (a medium-confidence staged-candidate confirmation, or a direct historical-record claim passing only the surname rule) tag the `declared_anchor_only` floor tier; an email anchor must be the member's verified login email to carry `currently_controls_modern_email_matching_legacy`, and a declared old email carries the floor tier until its mailbox-control round-trip completes.
-
-### 15.20 Staged auto-link candidates
-
-Batch auto-link (§7) stages candidate matches without mutating live tables. Each staged candidate carries a member identifier, the target `legacy_members` and / or `historical_persons` rows, the matched anchor(s), and the proposed evidence tier. The wizard reads from this staging surface to surface cards at member sign-in.
-
-The staging table is `auto_link_staged_candidates` in `database/schema.sql`. The staging surface is migration-scope; rows resolve on member confirmation, decline, or expiration of the staging window, and re-staging an open member/target pair is a unique-constraint no-op so batch reruns stay idempotent.
-
-### 15.21 Member-initiated admin link request
-
-`work_queue_items` task_type `member_link_help_request` carries member-submitted help requests per §13. The request payload includes the member's identity statement, any attachments, and structured fields (claimed legacy username, claimed legacy email, references to community members who can vouch, etc.). The audit row written on admin approval carries `evidence_strength = 'admin_vetted_evidence'`.
-
-`work_queue_items.task_type` is free-form text (no CHECK), so this needs no schema change; the task_type value and its payload contract are owned by the service that enqueues it.
-
 ---
 
 ## 16. Data pipeline inventory
 
-### Curated CSVs (human-curated, source of truth; committed to the repository)
+The data pipeline inventory (the curated and extracted CSVs, the generated outputs, and the pipeline script locations) is in `legacy_data/CLAUDE.md` and `legacy_data/README.md`.
 
-Location: `legacy_data/event_results/canonical_input/`
-
-- `persons.csv`: historical persons with IFPA IDs, honors, stats
-- `events.csv`: historical events (the normalized variant `events_normalized.csv` is an upstream curated input under `legacy_data/inputs/`)
-- `event_results.csv`: result entries
-- `event_result_participants.csv`: participant-to-result mappings
-- `event_disciplines.csv`: discipline breakdowns
-
-### Extracted CSVs (from mirror, treated as source of truth; committed to the repository)
-
-Location: `legacy_data/seed/`
-
-- `clubs.csv`: club identities extracted from mirror
-- `club_members.csv`: club membership associations from mirror (~2,400 associations)
-- `name_variants.csv` (generated seed, `legacy_data/inputs/`): ~385 name-equivalence pairs from `build_name_variants.py`, committed for review; loaded by `load_name_variants_seed.py` (gate G11; see §15.15)
-
-### Generated CSVs (pipeline output, regenerable; not committed)
-
-Location: `legacy_data/event_results/seed/mvfp_full/`
-
-- `seed_events.csv`, `seed_event_disciplines.csv`, `seed_event_results.csv`, `seed_event_result_participants.csv`, `seed_persons.csv`
-
-### Pipeline scripts
-
-Built and operational, owned by the historical-pipeline track (coordinate before touching): the event-results pipeline (`legacy_data/event_results/scripts/`, seed build / load / verify), the club and member scripts (`legacy_data/scripts/`, extraction and seed loading including `name_variants`), and the club classification and bootstrap builders (`legacy_data/clubs/scripts/`). Per-script detail lives in `legacy_data/CLAUDE.md` and the `legacy_data/runbooks/`.
 ---
 
 ## 17. Migration vs operational table classification
 
-The whole pre-go-live build pipeline is build-time tooling, not a runtime system: mirror extraction, canonical CSV generation, the club/event/person loaders, and the curator seeder build the database before go-live, and the legacy-account import runs once at cutover on the final export (State 4). After cutover, none of it runs against the persistent production DB again; the DB is the sole source of truth, and data changes are operational (member and admin actions, and data-preserving migrations via `scripts/deploy-migrate.sh`), not pipeline rebuilds. The table-level expression is the classification below: migration-only staging is dropped once it has served its purpose; operational tables persist.
-
-| Table | Category | May be dropped |
-|---|---|---|
-| `members` | Permanent operational | Never |
-| `legacy_members` | Permanent archival | Never. Persists as the permanent archival record of every legacy account, claimed or unclaimed. PII is purged only via member account deletion, which clears claim-state columns; the snapshot row itself remains. |
-| `historical_persons` | Permanent operational | Never. Public historical-record source; populated from the human-curated CSV plus mirror-extracted club-only members. |
-| `member_tier_grants` | Permanent operational | Never. Append-only ledger; the active-tier read model derives from this. |
-| `member_declared_anchors` | Permanent operational | Never (§15.17) |
-| `legacy_club_candidates` | Migration-only staging | Yes, after all onboarding-visible and dormant clubs are either created or abandoned, and all bootstrap decisions are finalized |
-| `legacy_person_club_affiliations` | Migration-only staging | Yes, after all affiliation suggestions are resolved |
-| `club_bootstrap_leaders` | Operational, migration-origin | Yes, after all provisional rows reach a terminal state (`claimed`, `superseded`, or `rejected`) |
-| `member_club_affiliations` | Permanent operational | Never |
-| `name_variants` | Permanent operational | Never (name-matching utility; see §15.15) |
-| `auto_link_staged_candidates` | Migration-only staging | Yes, after all staged candidates resolve (member confirm, member decline, or expiration of the staging window) (§15.20). |
+Which migration tables are permanent and which are droppable staging is documented per table in DATA_MODEL Migration Staging and Bootstrap Tables (§4.27).
 
 ---
 
 ## 18. Audit requirements
 
-No migration dashboard is required. The existing append-only audit history records all migration events.
-
-Scope note: this section enumerates migration-specific events only. General auth audit events share the same append-only audit history and are cataloged in DATA_MODEL. Event names follow the platform's dotted `domain.event` convention; the two claim-completion events below are already emitted under these names.
-
-Required event types:
-
-Auto-link and member-confirmed claim:
-
-- `legacy.auto_link_candidate_staged`: batch or registration-time pass staged a candidate for a live member.
-- `legacy.auto_link_candidate_confirmed`: member confirmed a staged candidate via the wizard.
-- `legacy.auto_link_candidate_declined`: member declined a staged candidate.
-- `legacy.auto_link_candidate_expired`: staged candidate aged out without member action.
-- `legacy.cross_source_candidate_offered`: after a first-source confirm, the platform offered an inline second-source candidate.
-- `legacy.cross_source_candidate_confirmed`: member confirmed the second-source candidate.
-- `legacy.cross_source_candidate_declined`: member declined the second-source candidate.
-- `legacy.registration_conflict_prompted`: surname collision detected at signup against an already-claimed record.
-- `legacy.registration_conflict_disputed`: registrant invoked the dispute path from the conflict prompt.
-
-Claim completion (one event per claimed source; emitted today):
-
-- `claim.legacy_account`: legacy-account claim completed, whatever the path (wizard candidate confirm, token round-trip, transitive via a back-linked historical-person claim, admin recovery).
-- `claim.historical_person`: direct historical-record claim completed, with or without transitive legacy-account claim.
-- `claim.historical_person_blocked`: surname rule rejected the claim server-side.
-
-Optional mailbox-control round-trip:
-
-- `legacy.mailbox_link_token_issued`: confirmation link generated and sent to a declared old email.
-- `legacy.mailbox_link_token_consumed`: member clicked the link; evidence tier upgraded.
-- `legacy.mailbox_link_token_expired`: token aged out without click.
-
-Member-initiated admin link request:
-
-- `support.help_request_submitted`: member submitted a help request with evidence.
-- `support.help_request_approved`: admin approved the request and applied the link.
-- `support.help_request_rejected`: admin rejected with a reason.
-
-Dispute and revert:
-
-- `claim.dispute_opened`: dispute filed against a confirmed claim (inline conflict prompt or admin route).
-- `claim.revert_applied`: admin reverted a previously-confirmed claim; back-link columns cleared, tier grant revoked.
-
-Club bootstrap:
-
-- `club.bootstrap_created`
-- `club.bootstrap_promoted`
-- `club.bootstrap_superseded`
-
-Required metadata per event where applicable:
-
-- Active member ID
-- `legacy_member_id`
-- Masked `legacy_email`
-- Anchor(s) that matched (modern email, declared old email, declared former surname, current real-name surname)
-- Evidence-strength tag per §15.19 (every confirmed-claim event)
-- Merge field summary (for completed claims)
-- Tier-change summary (for completed claims)
-- Club IDs involved (for bootstrap events)
-- Admin reason / verification note (for admin-help and dispute events)
-- Original claim audit row identifier (for revert and dispute events)
+The migration audit events (the `claim.*`, `legacy.*`, `wizard.*`, `support.*`, and `club.bootstrap_*` action types and the required per-event metadata) are in the authoritative action_type catalog in DATA_MODEL Admin Operations (§4.9). No migration dashboard is required; the existing append-only audit history records all migration events.
 
 ---
 
 ## 19. What we need from the legacy-site webmaster
 
-Steve, the legacy-site webmaster (contact at `brat@footbag.org`, DD §5.5), is the current operator of the live legacy site. The front-matter open-questions table carries the live status of the webmaster items below; this section holds the contract-grade detail. The webmaster holds the legacy-system facts (DNS, mail, server config, data); Julie, the IFPA secretary, holds governance answers (membership policy, committees, records, rules currency). The written design in these canonical docs is the baseline; proposed changes arrive as specific doc-revision requests, and the maintainer keeps the canonical docs.
+Steve, the legacy-site webmaster (contact at `brat@footbag.org`, the Canonical Email Addresses decision in DESIGN_DECISIONS, §5.5), is the current operator of the live legacy site. The front-matter open-questions table carries the live status of the webmaster items below; this section holds the contract-grade detail. The webmaster holds the legacy-system facts (DNS, mail, server config, data); Julie, the IFPA secretary, holds governance answers (membership policy, committees, records, rules currency). The written design in these canonical docs is the baseline; proposed changes arrive as specific doc-revision requests, and the maintainer keeps the canonical docs.
 
 The webmaster is not asked to produce club data; that comes from the mirror pipeline (§20). The long-term operator pattern for coordinating with any external DNS/mail upstream is documented in `docs/DEVOPS_GUIDE.md` §6.8; this section applies that pattern to the webmaster's specific contract.
 
@@ -1153,7 +393,7 @@ The webmaster is not asked to produce club data; that comes from the mirror pipe
    - Tier / membership fields (current tier, expiry dates, tier history if available)
    - Account-status flags of any kind: `banned`, `inactive`, `is_admin`, `suspended`, `locked`, `deleted`, `expired`, `lapsed`, `no_contact`, privacy/visibility flags (e.g. `hidden`, `private_profile`), opt-out flags, and any other column on the legacy `members` table whose value gates eligibility for self-serve claim, opens admin-recovery paths, or affects what the member sees on the legacy site. Confirm presence, reliability, and semantics for each. If unsure whether a column counts, include it.
 
-9. **Credential exclusion**: password material is never imported (DD §3.9). The raw dump contains credential and session columns (the legacy `members` table carries `MemberPassword`, stored in **plaintext**, and `MemberSession`); the platform's extraction step drops them and never emits them into the loader input. As a hard backstop, the load step aborts before reading any row if any column header looks credential-bearing (password, hash, salt, secret, recovery, and the session/token/cookie/auth family, so a `MemberSession` or cookie column is caught too); attestation alone is insufficient, so this guard is mandatory.
+9. **Credential exclusion**: password material is never imported (the Security, Privacy, and Historical Record Governance decision in DESIGN_DECISIONS, §3.9). The raw dump contains credential and session columns (the legacy `members` table carries `MemberPassword`, stored in **plaintext**, and `MemberSession`); the platform's extraction step drops them and never emits them into the loader input. As a hard backstop, the load step aborts before reading any row if any column header looks credential-bearing (password, hash, salt, secret, recovery, and the session/token/cookie/auth family, so a `MemberSession` or cookie column is caught too); attestation alone is insufficient, so this guard is mandatory.
 
 10. **Namespace agreement for `legacy_member_id`**: confirm that the integer IDs in the export are the same integers used in the legacy site's `members/profile/{id}` URLs (the mirror-derived namespace). If they diverge, resolve before any test import; otherwise every `historical_persons.legacy_member_id` → `legacy_members.legacy_member_id` back-link in the pipeline is invalidated.
 
@@ -1177,7 +417,7 @@ The webmaster is not asked to produce club data; that comes from the mirror pipe
 
 19. **Secondary contact and unavailability protocol**: confirm a secondary contact (phone, alternate email, or named delegate) reachable on demand through the §27 48-hour window after the DNS cutover. The secondary is empowered to revert the `www`/apex DNS to the legacy backup if the webmaster is unreachable during an incident.
 
-20. **TLS on the archive subdomain. Moot under the clean cutover.** There are no retained legacy `*.footbag.org` subdomains. The only `.footbag.org` host receiving the widened session cookie is the platform-controlled `archive.footbag.org`, whose TLS is managed by its CloudFront distribution (DD §6.4) — always valid, so no external expiry probe is needed.
+20. **TLS on the archive subdomain. Moot under the clean cutover.** There are no retained legacy `*.footbag.org` subdomains. The only `.footbag.org` host receiving the widened session cookie is the platform-controlled `archive.footbag.org`, whose TLS is managed by its CloudFront distribution (the Legacy Archive decision in DESIGN_DECISIONS, §6.4), always valid, so no external expiry probe is needed.
 
 ### 19.4 Email
 
@@ -1240,8 +480,8 @@ See §28 "Email transition" for the full picture: the platform sends outbound vi
 The historical-pipeline work, with build state:
 
 1. **Club extraction into pipeline** (built: `legacy_data/clubs/scripts/` implements §10.1 classification, affiliation and leadership inference, and bootstrap eligibility per the §2 bootstrap rule).
-2. **Mirror member extraction** into `historical_persons` (~1,700 club-only members; loaders built, the extraction code itself is outside the repo, tracked in `IMPLEMENTATION_PLAN.md`). Field mapping: mirror member ID → `legacy_member_id`; mirror display name → `person_name` (NFKC normalization + suffix stripping per §4); mirror country → `country`; mirror first-seen year → `first_year` if present, else NULL; provenance recorded in `source` (`CLUB` / `MEMBERSHIP` / `RESULTS`) and `source_scope = 'PROVISIONAL'` (event-result rows carry `source_scope = 'CANONICAL'`). Conflict policy: a mirror member that duplicates an existing row is skipped and counted, via name-level dedup plus the unique index on `historical_persons.legacy_member_id` (constraint-violation skip); the existing row wins because event-result provenance is stronger than membership-only provenance.
-3. **Known name variants table** (built; seeded from mined data per §15.15).
+2. **Mirror member extraction** into `historical_persons` (~1,700 club-only members; loaders built, the extraction code tracked in `IMPLEMENTATION_PLAN.md`). The field mapping and conflict policy are the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5) and the legacy_data pipeline (`legacy_data/CLAUDE.md`).
+3. **Known name variants table** (built; seeded from mined data; the `name_variants` contract is DATA_MODEL Name-matching utilities, §4.28).
 4. **World records CSV** (built; loadable per G15).
 5. **Legacy-data analysis and review sign-off** (in progress: the delivered legacy data is under analysis). The sign-off confirms legacy data is complete and member-list presentation is reviewed (unblocks members ungating), recorded as an `audit_entries` row with `action_type='legacy_pipeline.data_review_signoff'`, the maintainer's identity in `actor_member_id`, and reference identifiers plus a free-text reasoning summary in `metadata_json`.
 
@@ -1287,7 +527,7 @@ Dave is the project manager and the primary maintainer. Steve, Julie, and the hi
 
 ## 21. Design decisions affected
 
-The migration-driven design decisions live in `docs/DESIGN_DECISIONS.md`: the three-table identity model (DD §2.4), the name model (DD §2.10), competition history fields (DD §2.11), account security tokens (DD §3.8), migration security and privacy rules (DD §3.9), and legacy data migration including the stage-and-confirm claim flow (DD §6.5, §6.5a).
+The migration-driven design decisions live in `docs/DESIGN_DECISIONS.md`: the three-table identity model (Member, Legacy Member, and Historical Person Entity Types, §2.4), the Member Name Model (§2.10), Competition History Fields (§2.11), Account Security Tokens (§3.8), Security, Privacy, and Historical Record Governance (§3.9), and Legacy Data Migration (§6.5, §6.5a).
 
 ---
 
@@ -1380,6 +620,9 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | OR7 | Secrets rotation | §29.7 | State 3 → State 4 |
 | OR8 | Production database restore drill completed against a copy of production data | §29.1 | State 3 → State 4 |
 | OR9 | Post-launch admin curator authoring scheme designed and implemented, and the JSON-sidecar→DB source-of-truth switch covered by special tests (durability across a data-preserving deploy with no seeder run; admin-UI as sole authoring path; guard against seeding a persistent DB) | §29.14 | State 3 → State 4 |
+| OR9a | Email-template source-of-truth cutover: JSON sidecars seed `email_templates` pre-go-live, then the persistent DB is the source of truth (seeder not run against production; admin editor is the sole authoring path; rows survive a data-preserving deploy), covered by the same durability tests as OR9 | §29.14a | State 3 → State 4 |
+| OR9b | Club-classification override CSV retired at the go-live switch to the persistent database: forcing a club kept or junked is done through the live-database admin club-cleanup actions, and `legacy_data/overrides/club_classification_overrides.csv` is no longer a build input | IMPLEMENTATION_PLAN | State 3 → State 4 |
+| OR9c | Legacy member-account loader guarded against the persistent production DB: the loader refuses to run against production so a re-run cannot clobber claim state or member-authored rows; the real load stays a maintainer-only cutover step | IMPLEMENTATION_PLAN | State 3 → State 4 |
 | OR10 | Pre-flip DB snapshot captured, integrity-verified, restored against staging in dry-run | §29.1a | State 3 → State 4 |
 | OR11 | Legacy archive subdomain reachable end-to-end (S3, CloudFront, signed-cookie key group, DNS, cookie-Domain widening) | §29.15 | State 3 → State 4 |
 | OR12 | Retained-subdomain TLS health probe wired with alarms to maintainer and secondary webmaster contact; daily check; expiry-grace window configurable | §29.16 | State 3 → State 4 |
@@ -1387,6 +630,8 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | OR14 | Pre-cutover audit confirms every retained `*.footbag.org` subdomain (per §19 item 16) serves a valid HTTPS certificate matching its hostname; baseline reading recorded before cookie-Domain widening lands | §29.15, §29.16 | State 3 → State 4 |
 | OR15 | Smoke test green against a test subdomain: `curl --resolve` against a current CloudFront edge IP returns the apex page over the `footbag.org` certificate; first run at State 3, re-run green on cutover day before the switch | §29.12 | State 3 → State 4 |
 | OR16 | Search-engine and crawler readiness: production `robots.txt` served and correct (allows all crawlers, names no private paths, points at the sitemap), per-page title / meta-description / canonical / social-preview tags rendered, XML sitemap and `llms.txt` published and the sitemap submitted to Search Console, non-production `X-Robots-Tag: noindex` verified, and the member-only legacy archive confirmed excluded from indexing | DD §4.10 | State 3 → State 4 |
+| OR17 | Production `snapshots` bucket carries `lifecycle { prevent_destroy = true }` to match the media/media_dr/dr buckets, protecting the §27 path-B rollback artifact store from accidental destroy or replace | §29.1 | State 3 → State 4 |
+| OR18 | Staging/production Terraform parity audited: every divergence is removed or asserted in the Terraform with a stated reason (CloudWatch alarm coverage, DR-bucket replication and its comment, SES IAM identity scope, `default_tags` Project value, and any metric filter keyed below the production log level) | §29.4 | State 3 → State 4 |
 | RD1 | Legacy URL forwarding redirect handlers cover all in-flight email patterns (`/members/profile/:legacyMemberId`, `/clubs/:slug`) per §29.12b; sample-replay validation against a stored set of legacy URLs passes at test load | §29.12b | State 3 → State 4 |
 
 ### Code governance gates
@@ -1422,6 +667,7 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | ID | Criterion | Section | Blocks |
 |---|---|---|---|
 | R1 | QC subsystem retired (routes, code, tables, tests) | §30 | State 3 → State 4 |
+| R2 | Club-classification QC panel removed: the dev-only diagnostics panel renders nowhere in production; the `TEMP-DEVIATION` sites in `src/views/clubs/detail.hbs`, `src/services/clubService.ts`, and `src/testkit/personaRowBuilders.ts` are removed and the covering test `tests/integration/clubs-qc-panel.routes.test.ts` deleted | IMPLEMENTATION_PLAN | State 3 → State 4 |
 
 ---
 
@@ -1437,7 +683,7 @@ Club extraction, name-variants seeding, and world records are built (§20). Outs
 
 ### Phase 3: Needs the legacy-account data (in progress)
 
-The delivered data is under validation (§25 gates). The code-side surfaces are built (the optional mailbox-link-click upgrade per §7 item 1, and the stage-and-confirm batch auto-link staging job with its staging table and cutover runner per §7 item 3, §15.20); what remains is the legacy-account data load and the data-side gates that clear against it (§25).
+The delivered data is under validation (§25 gates). The code-side surfaces are built (the optional mailbox-link-click upgrade and the stage-and-confirm batch auto-link staging job with its staging table and cutover runner; the auto-link design is the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5) and the staging table is DATA_MODEL Staged Auto-Link Candidates, §4.31); what remains is the legacy-account data load and the data-side gates that clear against it (§25).
 
 ### Phase 4: Go-live
 
@@ -1448,10 +694,10 @@ External prerequisites that must land before Phase 4 starts:
 - **Email cutover complete** (§28, §29.12a): SES sending verified (SPF amended, SES DKIM applied), legacy mail retired, inbound role-address receiver in place, `SES_FROM_IDENTITY` at `noreply@footbag.org` (used by registration-verification, password-reset, optional mailbox-link-click round-trip, and other transactional mail; auto-link itself sends no email per §7).
 - **SES production access granted** for the AWS account. Sandbox caps are 200 sends/day and require per-recipient verification; transactional mail (registration verification, password reset, optional mailbox-link-click) is incompatible with sandbox. Production access is an AWS support ticket with a typical 24-48h approval window; start early (see State 3 readiness checklist).
 - **`footbag.org` verified in SES at the domain level** (sender identity for the entire domain via DKIM CNAMEs, per §29.12a MX disposition) and runtime-role `ses:SendEmail` IAM policy pinned to the `footbag.org` domain identity ARN (post-production-access, the recipient-identity permission check goes away, so the sender-only pin is sufficient and least-privilege). Outbound mail uses `noreply@footbag.org` as the FROM address; no separate verification of the `noreply@` mailbox is needed.
-- **JWT session TTL at the DD §3.4 baseline** (24h). The TTL is a source-compiled constant, not a runtime config value; staging observability-tuned values are reverted by editing source and rebuilding before the cutover deploy. Allow source-change + deploy-cycle lead time when scheduling Phase 4.
+- **JWT session TTL at the DD §3.4 (JWT Token Lifecycle and Configuration) baseline** (24h). The TTL is a source-compiled constant, not a runtime config value; staging observability-tuned values are reverted by editing source and rebuilding before the cutover deploy. Allow source-change + deploy-cycle lead time when scheduling Phase 4.
 - **Email-delivery smoke passes end-to-end** on the final pre-cutover release: enqueue a test row via the outbox, worker drains, SES accepts, recipient inbox receives. See §25 gate G10.
 - **Lightsail SSH firewall rule restored** via `terraform apply` from `terraform/staging/` (removes Console override of the port-22 rule and returns to `operator_cidrs`-constrained ingress). See §29.8.
-- **Curator content source-of-truth cutover** (DD §1.13): production curator media moves from the `/curated/` + seeder model to the persistent DB as source of truth. The admin UI writes curator content directly to the DB; the seeder is no longer run against production; data-preserving deploys use `scripts/deploy-migrate.sh`. See §29.14 (gate OR9).
+- **Curator content source-of-truth cutover** (the Curator Content Source of Truth decision in DESIGN_DECISIONS, §1.13): production curator media moves from the `/curated/` + seeder model to the persistent DB as source of truth. The admin UI writes curator content directly to the DB; the seeder is no longer run against production; data-preserving deploys use `scripts/deploy-migrate.sh`. See §29.14 (gate OR9).
 
 Phase 4 activities:
 
@@ -1552,7 +798,7 @@ The following must be confirmed at the test load before go-live. These are not o
 | G8 | Sufficient high-confidence club-leader bootstrap candidates | Adjust bootstrap threshold or expand manual review scope |
 | G9 | Bootstrapped clubs produce valid, non-broken club pages | Fix UI before go-live |
 | G10 | Outbox → SES → recipient inbox path works end-to-end on the pre-cutover release (enqueue test row, worker drains within 60 seconds, SES returns MessageId, message arrives in recipient inbox) | Debug before cutover; common causes are IAM Resource scope, SES sandbox state, worker container env vars, worker event-loop bugs |
-| G11 | `name_variants` seeded with the high-confidence mined pairs (~303 loaded of ~385 generated; ~82 medium-confidence deferred per §15.15) | Auto-link medium-confidence coverage drops; low-confidence admin queue expands; document shortfall in State 1 review |
+| G11 | `name_variants` seeded with the high-confidence mined pairs (~303 loaded of ~385 generated; ~82 medium-confidence deferred; the `name_variants` contract is DATA_MODEL Name-matching utilities, §4.28) | Auto-link medium-confidence coverage drops; low-confidence admin queue expands; document shortfall in State 1 review |
 | G12 | ~1,700 club-only persons extracted into `historical_persons` per §10.2 | Classification signals (active-players, contact-competed) run with reduced coverage; onboarding-visible list may shrink |
 | G13 | `club_bootstrap_leaders` populated for pre-populated clubs meeting the §2 bootstrap rule | Leadership activation defers to path 2 (first affiliated member volunteers for leadership) for affected clubs |
 | G14 | Canonical `persons.csv` row count reconciled against `historical_persons` population; any accepted discrepancy documented and signed off | Block at test load until reconciled; unexplained delta risks missing or duplicated historical identities |
@@ -1566,7 +812,7 @@ The following must be confirmed at the test load before go-live. These are not o
 | G22 | Optional mailbox-control round-trip verified end-to-end at test load: declared old email → confirmation link issued → click consumes token and upgrades the audit evidence tier to `mailbox_control_via_link_click`; rate-limited per requesting member, per target row, per session/IP per §8 | Members cannot upgrade declared-anchor claims to hard-evidence; admin help requests carry more weight by default |
 | G23 | Multi-anchor candidate matching covers verified modern email, declared old emails, declared former surname, and current real-name surname per §7; seeded `name_variants` table drives first-name variant resolution | Candidate coverage drops to email-anchor-only and admin-help-request volume rises |
 | G24 | `OperationsPlatformService` batch auto-link SYS job ready to run once at cutover; the job stages candidates (no live-table mutation, no notification emails); one `system_job_runs` row recorded per run; audit-emission coverage verified at test load (one `audit_entries` row per `legacy.auto_link_candidate_staged` event). Idempotent: rerun produces no duplicate candidates. | If audit-emission coverage is incomplete, fix the audit emission path before declaring G24 PASS; without the staging job, candidate matching runs only at member sign-in and pre-cutover live members get no proactive surfacing |
-| G25 | `/history/:personId/claim` confirm page renders the first-name-variant warning inline; surname-mismatch messaging is user-readable; audit metadata captures the evidence tier per §15.19 and any first-name variant used for direct-HP claims per §8 | Direct HP claim usable but klunky; surname-block failures surface as raw `ValidationError` text rather than the spec'd confirm-page warning |
+| G25 | `/history/:personId/claim` confirm page renders the first-name-variant warning inline; surname-mismatch messaging is user-readable; audit metadata captures the evidence tier (the four evidence-strength tiers are in the Legacy Data Migration decision in DESIGN_DECISIONS, §6.5) and any first-name variant used for direct-HP claims per §8 | Direct HP claim usable but klunky; surname-block failures surface as raw `ValidationError` text rather than the spec'd confirm-page warning |
 | G26 | Member-initiated admin help request (§13) wired with structured evidence intake, admin review surface, and audit emission carrying `admin_vetted_evidence` on approval | Members stuck without an auto-surfaced candidate have no path forward; admin-recovery is informal |
 | G27 | Multi-record candidate ambiguity count from the seeded `name_variants` table against the test-load `legacy_members` set measured and reviewed jointly by the primary maintainer and historical-pipeline maintainer; if the count exceeds the member-confirmation throughput the platform can comfortably handle, the `name_variants` seed is pruned before batch candidate staging runs at cutover | If unmeasured, members are presented with too many candidates per card and confirmation fatigue produces wrong-account confirmations |
 
@@ -1578,7 +824,7 @@ The following must be confirmed at the test load before go-live. These are not o
 
 Counts move with pipeline runs; the pipeline QC reports are authoritative. Verified against the current canonical outputs: `legacy_data/event_results/canonical_input/persons.csv` carries ~3,570 persons (the ~1,700 club-only cohort loads separately as PROVISIONAL rows per §10.2), and the generated `name_variants` seed carries ~385 pairs (gate G11; the seed file tracks the exact count).
 
-One structural limitation worth keeping in view: first-name-change cases (a member who legitimately changed their first name, rather than a variant or spelling difference) cannot be caught by the variants table; they surface only when the member declares the change through the optional anchors (§15.17) or invokes the admin help request (§13).
+One structural limitation worth keeping in view: first-name-change cases (a member who legitimately changed their first name, rather than a variant or spelling difference) cannot be caught by the variants table; they surface only when the member declares the change through the optional declared anchors (DATA_MODEL Member Declared Anchors, §4.30) or invokes the admin help request (§13).
 
 ---
 
@@ -1790,7 +1036,7 @@ Gate: login rate-limit cooldown is wired to the `login_cooldown_minutes` setting
 
 ### 29.7 Secrets rotation
 
-Gate: JWT signing-key rotation procedure with 24h overlap is documented and drilled against staging before production cutover (generate new key, stand it up alongside current key, flip the active signer, retire the old key after the overlap window); session JWT refresh re-issues the cookie when `exp` is within 6h per DD §3.4 so users are not silently logged out at the 24h TTL boundary; `SESSION_SECRET` rotation runbook exists. Source-profile access-key rotation is covered under §29.4. Procedure: `docs/DEVOPS_GUIDE.md` §10.
+Gate: JWT signing-key rotation procedure with 24h overlap is documented and drilled against staging before production cutover (generate new key, stand it up alongside current key, flip the active signer, retire the old key after the overlap window); session JWT refresh re-issues the cookie when `exp` is within 6h per DD §3.4 (JWT Token Lifecycle and Configuration) so users are not silently logged out at the 24h TTL boundary; `SESSION_SECRET` rotation runbook exists. Source-profile access-key rotation is covered under §29.4. Procedure: `docs/DEVOPS_GUIDE.md` §10.
 
 ### 29.8 Pre-cutover revert and rotation checklist
 
@@ -1798,12 +1044,12 @@ Before Phase 4 cutover, the following staging-observability-only deviations must
 
 1. SES sender cutover: re-run `docs/DEV_ONBOARDING.md` §8.8 against the canonical domain; switch `SES_FROM_IDENTITY` in `/srv/footbag/env` to `noreply@footbag.org` (the FROM address) and switch the `OutboundEmail` IAM policy `Resource` ARN to the `footbag.org` SES domain identity ARN (per §29.12a MX disposition: domain-level verification, not email-address-level); restart the app. Env + IAM only, no code.
 2. Lightsail SSH firewall rule restore: `terraform apply` from `terraform/staging/` to remove any browser-SSH firewall opening (port 22 loosened beyond `operator_cidrs` during staging bring-up) and return to the `operator_cidrs`-constrained ingress documented in DEV_ONBOARDING Path D §4.4.
-3. SES adapter on production: `/srv/footbag/env` sets `SES_ADAPTER=live` for production once SES production access has been granted. Dev and staging run `SES_ADAPTER=stub` and capture outbound mail for retrieval (the in-page simulated-email card on registration check-email; the captured outbox on the password-reset and legacy-claim pages); live SES delivery is production-only (DD §5.6). The legacy `SES_SANDBOX_MODE` flag has been removed from the codebase; it is no longer read and must not be set in the env file.
+3. SES adapter on production: `/srv/footbag/env` sets `SES_ADAPTER=live` for production once SES production access has been granted. Dev and staging run `SES_ADAPTER=stub` and capture outbound mail for retrieval (the in-page simulated-email card on registration check-email; the captured outbox on the password-reset and legacy-claim pages); live SES delivery is production-only (the Dev and Staging Email Preview decision in DESIGN_DECISIONS, §5.6). The legacy `SES_SANDBOX_MODE` flag has been removed from the codebase; it is no longer read and must not be set in the env file.
 4. Production Terraform reconciliation before any `terraform apply` from `terraform/production/`. The region default in `terraform/production/variables.tf` is `us-east-1` (the region the project runs in, DEVOPS_GUIDE §9.2 networking and TLS), so the default carries no cross-region risk. Production Terraform has not yet been applied to the production account, so its infrastructure (CloudFront distribution, ACM certs, Route 53 records, security groups, KMS keys) does not exist yet or was created outside Terraform; run a `terraform plan` against the production account well before cutover to surface the full delta between desired and actual state, and import (`terraform import`) any manually created resources before `terraform apply` to avoid duplication or conflicts.
 5. Preview fixture scrub: `legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py` inserts a "Footbag Hacky" fixture (fake event, discipline, result, HP record with HoF flag, and result-entry participant) alongside the preview-user account. Acceptable in staging for UX preview; must not reach the production DB. Either condition the fixture block on an env flag (e.g. `FOOTBAG_SEED_PREVIEW_FIXTURE=1`) or delete the block in the production-cutover data pass.
 6. Restore live `mailto:admin@footbag.org` in `/legal`: swap the `.contact-pending` span used in Privacy, Terms, and Copyright contact lines for a live `mailto:admin@footbag.org` once SES sender cutover (item 1) is complete and the canonical mailbox is active. Template-only change; no service or DB work.
-7. Dev-shortcut auth surface removal. Dev autologin has already been removed: `src/middleware/auth.ts` runs the cookie path unconditionally and the `FOOTBAG_DEV_AUTOLOGIN_*` env vars and their guards no longer exist. The test-data persona harness (the `devRouter` mount in `src/app.ts` for `GET /dev/switch` and `GET /dev/personas`, gated to development and staging, and the `src/testkit/` subtree of persona factory, catalog, and seed runner) is permanent test infrastructure: it is excluded from the production image at build time and never mounted in production, but it is not removed from source at cutover. The removable surface at cutover is `src/dev-bootstrap/` (the bootstrap conveniences), not the harness. **Scope**: this item covers dev-only auth/persona surfaces. Dev-admin seeding (the registration-time admin allowlist and the `--seed-dev-admins` direct-insert path) is a separate concern, deleted entirely under PC7; production first-admin uses the SSM-token `/admin/bootstrap-claim` route (DD §2.9; operator runbook in DEVOPS_GUIDE §20.8).
-8. JWT session TTL revert: the source-compiled TTL constant in the JWT signing service is set to the DD §3.4 baseline (24h = 86400 seconds). Staging observability-tuned values are reverted by editing the constant and rebuilding before the cutover deploy. This is the PC1 gate.
+7. Dev-shortcut auth surface removal. Dev autologin has already been removed: `src/middleware/auth.ts` runs the cookie path unconditionally and the `FOOTBAG_DEV_AUTOLOGIN_*` env vars and their guards no longer exist. The test-data persona harness (the `devRouter` mount in `src/app.ts` for `GET /dev/switch` and `GET /dev/personas`, gated to development and staging, and the `src/testkit/` subtree of persona factory, catalog, and seed runner) is permanent test infrastructure: it is excluded from the production image at build time and never mounted in production, but it is not removed from source at cutover. The removable surface at cutover is `src/dev-bootstrap/` (the bootstrap conveniences), not the harness. **Scope**: this item covers dev-only auth/persona surfaces. Dev-admin seeding (the registration-time admin allowlist and the `--seed-dev-admins` direct-insert path) is a separate concern, deleted entirely under PC7; production first-admin uses the SSM-token `/admin/bootstrap-claim` route (the Administrator Role Lifecycle decision in DESIGN_DECISIONS, §2.9; operator runbook in DEVOPS_GUIDE §20.8).
+8. JWT session TTL revert: the source-compiled TTL constant in the JWT signing service is set to the DD §3.4 (JWT Token Lifecycle and Configuration) baseline (24h = 86400 seconds). Staging observability-tuned values are reverted by editing the constant and rebuilding before the cutover deploy. This is the PC1 gate.
 
 Sign-off on this checklist is a prerequisite for §24 State 3 → State 4 transition.
 
@@ -1852,7 +1098,7 @@ After cutover the legacy host is **not** in the live path. It is kept only as a 
 **Hard design constraints (locked):**
 
 1. The legacy backup serves nothing on the live path; the §29.3 origin-verification gate stands (only CloudFront reaches the new platform's origin). On a rollback the legacy backup serves read-only directly.
-2. Historical content is served read-only from the platform-controlled `archive.footbag.org` (its own CloudFront distribution over HTTPS, Route 53 DNS, signed-cookie auth per DD §6.4), not from live legacy subdomains. The session cookie widens to `Domain=.footbag.org` per DD §3.2/§6.4 so the archive receives it; the only host receiving it is the platform-controlled archive over HTTPS, and there are no retained legacy subdomains, so there is no cleartext-leak exposure.
+2. Historical content is served read-only from the platform-controlled `archive.footbag.org` (its own CloudFront distribution over HTTPS, Route 53 DNS, signed-cookie auth per DD §6.4, Legacy Archive), not from live legacy subdomains. The session cookie widens to `Domain=.footbag.org` per DD §3.2 (JWT sessions) and §6.4 so the archive receives it; the only host receiving it is the platform-controlled archive over HTTPS, and there are no retained legacy subdomains, so there is no cleartext-leak exposure.
 3. The cold backup is retired once stable operation is confirmed and the rollback + dispute-lookup window has elapsed (§19 item 31). It is never a long-lived parallel system.
 4. The cold backup remains the legacy-site webmaster's to keep restorable through that window; DNS stays under his authority.
 5. Group, committee, and mailing-list functions do not stay on a live legacy server. Per §19 item 26 (with Julie scoping which survive): discussion lists move to Google Groups or retire with notice and archived history; one-way announce is native. IFPA `@ifpa.footbag.org` list functions are dispositioned with IFPA governance.
@@ -1900,7 +1146,7 @@ Usage discovery (the legacy-site webmaster supplies the facts; disposition of an
 1. Which `@ifpa.footbag.org` aliases received any non-spam mail in the last 12 months?
 2. Who reads each such alias today, and does any committee still conduct business over it rather than over ordinary email or board tools?
 3. For any alias still in real use, is running it on llic.net acceptable indefinitely, or is there a date by which the list host must retire?
-4. The legacy source (the `wrapper` list component and the `groups/` code) addresses every committee and sanctioning list as `<list>@ifpa.footbag.org`, and no apex `sanctioning@footbag.org` or `directors@footbag.org` appears in the legacy code or the published site. Apex mail routing lives in sendmail aliases outside the codebase, so confirm whether `sanctioning@footbag.org` and `directors@footbag.org` exist as live apex aliases today and where they forward. This reconciles DESIGN_DECISIONS §5.5, which lists both as apex receive addresses to provision on Google: if the real in-use contacts are the `@ifpa.footbag.org` lists, settle the target domain (consolidate onto apex on Google, or keep on the llic.net list server) before the email transition provisions any address.
+4. The legacy source (the `wrapper` list component and the `groups/` code) addresses every committee and sanctioning list as `<list>@ifpa.footbag.org`, and no apex `sanctioning@footbag.org` or `directors@footbag.org` appears in the legacy code or the published site. Apex mail routing lives in sendmail aliases outside the codebase, so confirm whether `sanctioning@footbag.org` and `directors@footbag.org` exist as live apex aliases today and where they forward. This reconciles the Canonical Email Addresses decision in DESIGN_DECISIONS (§5.5), which lists both as apex receive addresses to provision on Google: if the real in-use contacts are the `@ifpa.footbag.org` lists, settle the target domain (consolidate onto apex on Google, or keep on the llic.net list server) before the email transition provisions any address.
 
 The roughly 1.2GB `ifpa_group_messages` archive is dispositioned under the sealed legacy email archive below.
 
@@ -1929,27 +1175,31 @@ Procedure: redirect handlers live in the public router; the sample-replay valida
 
 ### 29.13 Curator content seeding
 
-Gate: the system member account (Footbag Hacky per DD §2.8) is seeded into the production DB and its curator content (avatar in `/curated/avatars/`, fixed site content (demo loops, the foundations mosaic, the event promo image) in `/curated/site/`, tutorials and records in `/curated/freestyle_tricks/`, etc.) is loaded into the production media bucket before public DNS cutover. Landing pages and curator-tagged surfaces must resolve to the production media bucket, not 404. The deploy orchestrator runs `scripts/seed_fh_curator.py` against the prod DB and `aws s3 sync` against the prod media bucket; verify via post-deploy smoke check. Curator content extends by adding file-paired sidecars under `/curated/{category}/`; no manifest edits are needed. This is the one-time pre-cutover population, performed while the production DB is still being established; after cutover the production DB is persistent and the seeder is not re-run against it (post-launch authoring is admin-UI -> DB per §29.14).
+Gate: the system member account (Footbag Hacky per the System Member Account decision in DESIGN_DECISIONS, §2.8) is seeded into the production DB and its curator content (avatar in `/curated/avatars/`, fixed site content (demo loops, the foundations mosaic, the event promo image) in `/curated/site/`, tutorials and records in `/curated/freestyle_tricks/`, etc.) is loaded into the production media bucket before public DNS cutover. Landing pages and curator-tagged surfaces must resolve to the production media bucket, not 404. The deploy orchestrator runs `scripts/seed_fh_curator.py` against the prod DB and `aws s3 sync` against the prod media bucket; verify via post-deploy smoke check. Curator content extends by adding file-paired sidecars under `/curated/{category}/`; no manifest edits are needed. This is the one-time pre-cutover population, performed while the production DB is still being established; after cutover the production DB is persistent and the seeder is not re-run against it (post-launch authoring is admin-UI -> DB per §29.14).
 
-The seed transcodes off-host at build time: `scripts/seed_fh_curator.py` runs on the operator build host, re-encoding each source video through a one-at-a-time ffmpeg subprocess into an ephemeral build directory that the deploy `aws s3 sync`s to the production media bucket. The production host serves the pre-transcoded artifacts and never runs ffmpeg for curator content. The interactive admin curator upload path, which executes on the memory-constrained production host, runs transcode through the async `media_jobs` lifecycle (DD §6.8) instead. This is the pre-go-live seed path; it consumes the `/curated/` JSON sidecars, which are retired at go-live when the persistent DB becomes the source of truth (§29.14).
+The seed transcodes off-host at build time: `scripts/seed_fh_curator.py` runs on the operator build host, re-encoding each source video through a one-at-a-time ffmpeg subprocess into an ephemeral build directory that the deploy `aws s3 sync`s to the production media bucket. The production host serves the pre-transcoded artifacts and never runs ffmpeg for curator content. The interactive admin curator upload path, which executes on the memory-constrained production host, runs transcode through the async `media_jobs` lifecycle (the Image Processing decision in DESIGN_DECISIONS, §6.8) instead. This is the pre-go-live seed path; it consumes the `/curated/` JSON sidecars, which are retired at go-live when the persistent DB becomes the source of truth (§29.14).
 
 ### 29.14 Post-launch admin curator authoring
 
-At go-live the source of truth for system-member-owned curator content moves from the pre-go-live `/curated/` authoring layer (and the seeder that builds the DB from it) to the persistent production DB: admins thereafter author through the admin UI, which writes the DB directly; the seeder is not run against production; data-preserving deploys use `scripts/deploy-migrate.sh`. The model and success criteria are defined in DD §1.13 and USER_STORIES `A_Upload_Curated_Media` / `A_Manage_Curated_Gallery`. This switch from JSON-sidecar authoring to the persistent DB is covered by special tests of its failure modes: curator content (`media_items`, galleries, and S3 bytes) survives a data-preserving `scripts/deploy-migrate.sh` deploy with no seeder run; admin-UI create, edit, and delete is the sole post-go-live authoring path and is durable without seeder replay; and a guard prevents the seeder from running against a persistent production DB, whose orphan-cleanup would otherwise delete admin- and member-created rows that have no `/curated/` sidecar (DD §1.13). Gate: OR9 (the data-preserving deploy additionally depends on OR1/OR8 backup and restore). Must land before State 3 → State 4.
+At go-live the source of truth for system-member-owned curator content moves from the pre-go-live `/curated/` authoring layer (and the seeder that builds the DB from it) to the persistent production DB: admins thereafter author through the admin UI, which writes the DB directly; the seeder is not run against production; data-preserving deploys use `scripts/deploy-migrate.sh`. The model and success criteria are defined in the Curator Content Source of Truth decision in DESIGN_DECISIONS (§1.13) and the `A_Upload_Curated_Media` / `A_Manage_Curated_Gallery` user stories. This switch from JSON-sidecar authoring to the persistent DB is covered by special tests of its failure modes: curator content (`media_items`, galleries, and S3 bytes) survives a data-preserving `scripts/deploy-migrate.sh` deploy with no seeder run; admin-UI create, edit, and delete is the sole post-go-live authoring path and is durable without seeder replay; and a guard prevents the seeder from running against a persistent production DB, whose orphan-cleanup would otherwise delete admin- and member-created rows that have no `/curated/` sidecar (the Curator Content Source of Truth decision in DESIGN_DECISIONS, §1.13). Gate: OR9 (the data-preserving deploy additionally depends on OR1/OR8 backup and restore). Must land before State 3 → State 4.
+
+### 29.14a Post-launch admin email-template authoring
+
+At go-live the source of truth for email-template content moves from the pre-go-live committed JSON sidecars (and the seeder that loads them into `email_templates`) to the persistent production DB, exactly like curated media (§29.14): admins author through the template editor, the seeder is not run against production, and template rows survive a data-preserving `scripts/deploy-migrate.sh` deploy. The model mirrors the Curator Content Source of Truth decision in DESIGN_DECISIONS (§1.13). The switch is covered by the same class of special tests: templates survive a data-preserving deploy with no seeder run; admin-UI editing is the sole post-go-live authoring path; and the seeder fails fast rather than orphan-deleting admin-edited rows when pointed at a persistent production DB. Gate: OR9a. Must land before State 3 → State 4.
 
 ### 29.15 Legacy archive subdomain readiness
 
-Per DD §6.4, archive.footbag.org serves the static legacy HTML mirror under member-only access enforced by CloudFront signed cookies. The archive launches at cutover.
+Per the Legacy Archive decision in DESIGN_DECISIONS (§6.4), archive.footbag.org serves the static legacy HTML mirror under member-only access enforced by CloudFront signed cookies. The archive launches at cutover.
 
-**Archive completeness and legacy media.** The archive mirror holds the legacy content the crawl could reach: media linked under `www.footbag.org` (the `gallery`, `video`, `photos`, and `qt-video` paths) is captured and re-encoded to mp4/jpg/gif. Legacy media lives only in this archive; it is never imported into the new platform's media system (DD §6.4). Media reachable on the legacy server only by a direct `video.`/`photo.` file path that was never linked under `www` was not crawled and is therefore not in the mirror; those direct-path links are already dead today, so no subdomain is retained for them. Recovering that un-crawled media would require the webmaster to supply the files plus a path mapping from the legacy server; that is an optional, non-blocking, post-v1 archive-enrichment handled through the §19 feedback workflow, not a cutover dependency.
+**Archive completeness and legacy media.** The archive mirror holds the legacy content the crawl could reach: media linked under `www.footbag.org` (the `gallery`, `video`, `photos`, and `qt-video` paths) is captured and re-encoded to mp4/jpg/gif. Legacy media lives only in this archive; it is never imported into the new platform's media system (the Legacy Archive decision in DESIGN_DECISIONS, §6.4). Media reachable on the legacy server only by a direct `video.`/`photo.` file path that was never linked under `www` was not crawled and is therefore not in the mirror; those direct-path links are already dead today, so no subdomain is retained for them. Recovering that un-crawled media would require the webmaster to supply the files plus a path mapping from the legacy server; that is an optional, non-blocking, post-v1 archive-enrichment handled through the §19 feedback workflow, not a cutover dependency.
 
 Gate, all of the following are provisioned and verified end-to-end:
 
 - **Archive S3 bucket** (Terraform `aws_s3_bucket.archive` or equivalent) is private behind Origin Access Control. Bucket policy permits only the archive CloudFront distribution to read. Versioning and Object Lock per the standard private-bucket pattern.
 - **CloudFront key group** (`aws_cloudfront_public_key` + `aws_cloudfront_key_group`) is provisioned in Terraform. The trusted-signer keypair private half is stored in AWS Secrets Manager (or SSM SecureString) scoped to the main app's runtime IAM role; the public half is registered in the key group.
-- **Archive CloudFront distribution** is provisioned with: the archive S3 bucket as origin via OAC; the cache behavior naming the key group in `trusted_key_groups`; 1-year edge TTL per DD §6.2 immutable-archive guidance; ACM cert for `archive.footbag.org` attached; custom 403 error response redirecting to `https://footbag.org/login?return=archive.footbag.org`.
+- **Archive CloudFront distribution** is provisioned with: the archive S3 bucket as origin via OAC; the cache behavior naming the key group in `trusted_key_groups`; 1-year edge TTL per the CloudFront CDN decision in DESIGN_DECISIONS (§6.2) immutable-archive guidance; ACM cert for `archive.footbag.org` attached; custom 403 error response redirecting to `https://footbag.org/login?return=archive.footbag.org`.
 - **DNS record** for `archive.footbag.org` pointing at the archive distribution, applied by the webmaster in the authoritative zone pre-handover (CNAME; per §19 item 17 / WM14). After DNS handover the record becomes a Route 53 ALIAS.
-- **Cookie-Domain widening** deployed: both `footbag_session` and the new CloudFront signed cookie use `Domain=.footbag.org` so the archive subdomain receives them. The widening lands AFTER the CSRF Origin-pin middleware (DD §3.3) is in production and BEFORE archive.footbag.org receives its first authenticated request.
+- **Cookie-Domain widening** deployed: both `footbag_session` and the new CloudFront signed cookie use `Domain=.footbag.org` so the archive subdomain receives them. The widening lands AFTER the CSRF Origin-pin middleware (the CSRF Protection decision in DESIGN_DECISIONS, §3.3) is in production and BEFORE archive.footbag.org receives its first authenticated request.
 
 **Cookie-Domain widening scope:** widening to `Domain=.footbag.org` sends `footbag_session` to `.footbag.org` hosts. Under the clean cutover the only such host is the platform-controlled `archive.footbag.org`, served over HTTPS by its own CloudFront distribution (DD §6.4); there are no retained legacy subdomains receiving it, so the earlier retained-subdomain cleartext-leak risk does not arise. The CSRF Origin-pin middleware (DD §3.3) remains the cross-subdomain defense against a malicious form on the archive subdomain.
 - **Archive HTML mirror content** uploaded to the bucket. All video content is mp4, all images are jpg, no JavaScript present (DD §6.4 contract).

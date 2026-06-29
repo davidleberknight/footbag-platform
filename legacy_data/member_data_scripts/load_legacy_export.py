@@ -43,7 +43,7 @@ uniqueness is enforced here and by the validation gate, not by the DB.
 legacy_user_id uniqueness stays single-column.
 
 Usage:
-  python legacy_data/scripts/load_legacy_export.py --export /path/to/export.csv [--db path] [--apply]
+  python legacy_data/member_data_scripts/load_legacy_export.py --export /path/to/export.csv [--db path] [--apply]
 """
 
 import argparse

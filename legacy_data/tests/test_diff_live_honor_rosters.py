@@ -7,7 +7,7 @@ never invoked here or in CI.
 import importlib.util
 from pathlib import Path
 
-_MOD = Path(__file__).resolve().parents[1] / "scripts" / "diff_live_honor_rosters.py"
+_MOD = Path(__file__).resolve().parents[1] / "member_data_scripts" / "diff_live_honor_rosters.py"
 _spec = importlib.util.spec_from_file_location("diff_live_honor_rosters", _MOD)
 drr = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(drr)

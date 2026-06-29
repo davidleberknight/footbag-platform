@@ -3,7 +3,7 @@ test_load_legacy_export.py
 ==========================
 
 Contract tests for the legacy-site export loader
-(legacy_data/scripts/load_legacy_export.py):
+(legacy_data/member_data_scripts/load_legacy_export.py):
 
   * credential-bearing export columns abort BEFORE any write (poisoned fixture)
   * missing required headers abort with the header list
@@ -29,7 +29,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = REPO_ROOT / "database" / "schema.sql"
-LOADER = REPO_ROOT / "legacy_data" / "scripts" / "load_legacy_export.py"
+LOADER = REPO_ROOT / "legacy_data" / "member_data_scripts" / "load_legacy_export.py"
 
 TS = "2026-01-01T00:00:00Z"
 

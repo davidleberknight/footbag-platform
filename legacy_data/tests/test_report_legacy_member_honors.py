@@ -9,7 +9,7 @@ than silently dropped, since a missed honoree means a missed tier-2 grant.
 import importlib.util
 from pathlib import Path
 
-_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "report_legacy_member_honors.py"
+_SCRIPT = Path(__file__).resolve().parents[1] / "member_data_scripts" / "report_legacy_member_honors.py"
 _spec = importlib.util.spec_from_file_location("report_legacy_member_honors", _SCRIPT)
 rep = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(rep)

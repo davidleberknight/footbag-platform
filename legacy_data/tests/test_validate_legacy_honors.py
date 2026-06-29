@@ -4,7 +4,7 @@ import importlib.util
 import sqlite3
 from pathlib import Path
 
-_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "validate_legacy_honors.py"
+_SCRIPT = Path(__file__).resolve().parents[1] / "member_data_scripts" / "validate_legacy_honors.py"
 _spec = importlib.util.spec_from_file_location("validate_legacy_honors", _SCRIPT)
 vlh = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(vlh)

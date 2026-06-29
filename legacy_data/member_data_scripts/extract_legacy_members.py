@@ -2,7 +2,7 @@
 """Extract the legacy-site `members` dump into the canonical loader-input CSV.
 
 Parses a MariaDB mysqldump of the `members` table and emits the credential-free
-CSV that `legacy_data/scripts/load_legacy_export.py` consumes. The dump uses
+CSV that `legacy_data/member_data_scripts/load_legacy_export.py` consumes. The dump uses
 positional extended INSERTs (`INSERT INTO members VALUES (...),(...)` with no
 column list), so values are mapped to columns by the `CREATE TABLE` column
 order, then to canonical loader fields by column name.

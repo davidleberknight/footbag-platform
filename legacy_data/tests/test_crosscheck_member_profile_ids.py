@@ -8,7 +8,7 @@ attribution link with no member account (a result pointing at nothing).
 import importlib.util
 from pathlib import Path
 
-_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "crosscheck_member_profile_ids.py"
+_SCRIPT = Path(__file__).resolve().parents[1] / "member_data_scripts" / "crosscheck_member_profile_ids.py"
 _spec = importlib.util.spec_from_file_location("crosscheck_member_profile_ids", _SCRIPT)
 cc = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(cc)

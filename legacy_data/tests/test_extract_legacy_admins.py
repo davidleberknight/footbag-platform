@@ -9,7 +9,7 @@ import csv
 import importlib.util
 from pathlib import Path
 
-_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "extract_legacy_admins.py"
+_SCRIPT = Path(__file__).resolve().parents[1] / "member_data_scripts" / "extract_legacy_admins.py"
 _spec = importlib.util.spec_from_file_location("extract_legacy_admins", _SCRIPT)
 ela = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ela)
