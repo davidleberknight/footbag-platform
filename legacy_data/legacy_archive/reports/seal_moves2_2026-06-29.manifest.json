@@ -1,0 +1,47 @@
+{
+  "run_id": "moves2-seal-2026-06-29",
+  "app": "moves2",
+  "kind": "raw-seal manifest (payload-free)",
+  "engine": "seal.py (copy + sha256 + chmod 0444)",
+  "note": "ingest.py was NOT run; this manifest is the committed provenance for the raw seal plus a pointer to the committed public extracts. raw/ and parsed/ are gitignored by construction, so this report (counts + checksum, no row payloads) is the durable record.",
+  "source": {
+    "origin": "Steve Goldberg footbag.org clone (sibling, outside repo)",
+    "dump_path": "../legacy_SG_clone/moves2/backups/latest.sql",
+    "raw_path": "legacy_data/legacy_archive/raw/moves2/latest.sql",
+    "dump_sha256": "9f4dd6c739f967917bee4fc060ec34c162c16c834effb2196ca9c7e25e5000f3",
+    "byte_size": 328624,
+    "dump_date": "2026-06-25"
+  },
+  "tables_in_dump": [
+    { "table": "moves",          "rows": 303, "classification": "public freestyle metadata" },
+    { "table": "movehints",      "rows": 431, "classification": "public community tips (Member Tips)" },
+    { "table": "moves_journal",  "rows": 97,  "classification": "PRIVATE per-member practice log (denylisted: not extracted)" },
+    { "table": "move_tip_votes", "rows": 1,   "classification": "per-member upvotes (abandoned; not allowlisted)" }
+  ],
+  "allowlist_applied": ["moves", "movehints"],
+  "denylist_applied": { "moves_journal": ["*"] },
+  "preserved_committed": [
+    {
+      "artifact": "freestyle/inputs/footbag_org_member_tips.ndjson",
+      "from": "movehints",
+      "rows": 419,
+      "purpose": "Member Tips, loaded by freestyle/loaders/27_load_trick_tips.py"
+    },
+    {
+      "artifact": "freestyle/inputs/footbag_org_moves_metadata.ndjson",
+      "from": "moves",
+      "rows": 303,
+      "fields": ["name", "modifier", "nickname", "pronunciation", "family", "add_count", "boa", "notation", "description", "is_fundamental", "video", "move_type", "move_record", "move_record_holder_name"],
+      "coverage": { "pronunciation": 5, "nickname": 100, "description": 194, "notation": 254, "video": 46, "per_trick_record": 12 },
+      "purpose": "future recovery work: pronunciation, description reconciliation, alias cross-check, per-trick records. Not yet loaded by any loader."
+    }
+  ],
+  "preserved_local_only_gitignored": [
+    "legacy_data/legacy_archive/raw/moves2/latest.sql (immutable 0444 seal + .sha256 sidecar)"
+  ],
+  "excluded": [
+    "moves_journal (PRIVATE; denylisted; never extracted)",
+    "move_tip_votes (abandoned; not allowlisted)",
+    "author/holder member ids (not carried into any committed extract)"
+  ]
+}

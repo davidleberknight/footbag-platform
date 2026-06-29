@@ -20,3 +20,10 @@ clubs:
   # Local-machine config: private footbag.org clone, sibling dir, repo-root-relative.
   dump_path: "../legacy_SG_clone/clubs/backups/latest.sql"
   expected_dump_date: "2026-05-28"
+
+moves2:
+  # Freestyle move database: the source behind recovered Member Tips plus the
+  # moves metadata (pronunciation, descriptions, nicknames, video refs, per-trick
+  # records) kept for future recovery work. Sibling clone, repo-root-relative.
+  dump_path: "../legacy_SG_clone/moves2/backups/latest.sql"
+  expected_dump_date: "2026-06-25"

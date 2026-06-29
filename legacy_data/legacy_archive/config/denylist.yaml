@@ -29,3 +29,9 @@ ifpa_membership_transactions:
 # Dropped before extraction; never enters parsed NDJSON.
 clubs:
   - Password
+
+# moves2.moves_journal is a per-member private practice log (strong side, hit
+# percentages, personal records, private notes). Forbidden entirely: never
+# allowlist it, never extract it. The public moves/movehints tables are unaffected.
+moves_journal:
+  - "*"
