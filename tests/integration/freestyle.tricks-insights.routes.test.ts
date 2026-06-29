@@ -224,7 +224,7 @@ beforeAll(async () => {
     lessonTitle: 'Phase3 Mixed Demo', source_id: 'footbag_finland',
   });
 
-  // ── Phase 6: role-aware notation rendering fixtures ──────────────────────
+  // ── role-aware notation rendering fixtures ──────────────────────
   // Exercises shapeNotationDisplay's classification path. Adds modifier rows
   // (paradox/blurry/ducking/stepping) and trick rows for the 6 test cases
   // James named: WHIRL (already above), PARADOX WHIRL, BLURRY MIRAGE, ATW

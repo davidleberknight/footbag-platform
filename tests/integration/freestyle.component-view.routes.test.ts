@@ -1,5 +1,5 @@
 /**
- * Integration tests for DSC-2 slice 3A — the component view (?view=component).
+ * Integration tests for the component view (?view=component).
  *
  * Scope verified:
  *   - /freestyle/tricks?view=component returns 200

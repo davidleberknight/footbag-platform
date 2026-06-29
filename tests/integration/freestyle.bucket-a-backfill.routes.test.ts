@@ -1,5 +1,5 @@
 /**
- * Bucket A derivation backfill — regression tests (2026-05-25).
+ * Bucket A derivation backfill — regression tests.
  *
  * Pre-Red derivation governance pass applied 19 sibling-derived
  * operational_notation candidates to RESOLVED_FORMULAS_SPRINT_1 (via the

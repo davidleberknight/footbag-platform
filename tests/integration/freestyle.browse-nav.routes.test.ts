@@ -1,5 +1,5 @@
 /**
- * Browse-shell top-nav consistency guard (2026-05-27).
+ * Browse-shell top-nav consistency guard.
  *
  * The view-toggle nav (`<nav class="trick-view-toggle">`) is a single shared
  * template block rendered identically on every primary browse view. This test

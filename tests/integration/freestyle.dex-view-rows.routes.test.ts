@@ -1,5 +1,5 @@
 /**
- * /freestyle/tricks?view=dex-count — two-line row contract (2026-05-27 migration).
+ * /freestyle/tricks?view=dex-count — two-line row contract.
  *
  * Dex view migrated to the SAME generalized dictionary-trick-row partial as the
  * ADD and Family views. Every dex-bucketed row obeys the two-line contract:

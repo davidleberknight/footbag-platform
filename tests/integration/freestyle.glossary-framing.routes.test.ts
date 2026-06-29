@@ -1,5 +1,5 @@
 /**
- * Integration tests for the additive glossary framing sections (2026-05-28).
+ * Integration tests for the additive glossary framing sections.
  *
  * GET /freestyle/glossary gains five additive, static orientation pieces that
  * synchronize the glossary with the modern platform ontology WITHOUT rewriting

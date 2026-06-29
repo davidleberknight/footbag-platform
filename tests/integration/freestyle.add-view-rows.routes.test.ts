@@ -1,5 +1,5 @@
 /**
- * /freestyle/tricks?view=add — two-line row contract (2026-05-27).
+ * /freestyle/tricks?view=add — two-line row contract.
  *
  * Every promoted trick row obeys the SAME two-line structure:
  *   Line 1 (.dict-trick-row-head): name · hashtag · optional ≡ interpretation · optional media

@@ -1,5 +1,5 @@
 /**
- * Browse-shell row-contract stability guard (2026-05-27).
+ * Browse-shell row-contract stability guard.
  *
  * After the six-view two-line migration, ALL primary browse views must render
  * the generalized two-line `dictionary-trick-row.hbs` partial (`dict-trick-row-*`)

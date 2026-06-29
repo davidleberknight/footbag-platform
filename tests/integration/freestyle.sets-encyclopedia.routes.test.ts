@@ -1,5 +1,5 @@
 /**
- * GET /freestyle/sets — Set Encyclopedia (2026-05-25).
+ * GET /freestyle/sets — Set Encyclopedia.
  *
  * Standalone minimalist surface listing canonical sets as first-class
  * ontology objects. Distinct from:

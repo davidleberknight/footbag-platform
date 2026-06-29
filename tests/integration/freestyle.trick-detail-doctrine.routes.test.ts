@@ -71,7 +71,7 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
 
-  // ── Phase C C1 mirage-descendant batch (2026-05-25) ───────────────
+  // ── mirage-descendant batch ───────────────
   insertFreestyleTrick(db, {
     slug: 'blur', canonical_name: 'blur', adds: '4',
     base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
@@ -124,7 +124,7 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
 
-  // ── Phase C C2 whirl-descendant batch (2026-05-25) ────────────────
+  // ── whirl-descendant batch ────────────────
   insertFreestyleTrick(db, {
     slug: 'blender', canonical_name: 'blender', adds: '4',
     base_trick: 'osis', trick_family: 'blender', category: 'compound',
@@ -147,7 +147,7 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
 
-  // ── Phase C C3 independent-anchor batch (2026-05-25) ─────────────
+  // ── independent-anchor batch ─────────────
   insertFreestyleTrick(db, {
     slug: 'osis', canonical_name: 'osis', adds: '3',
     base_trick: 'osis', trick_family: 'osis', category: 'dex',
@@ -191,7 +191,7 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
 
-  // ── Phase C C4 folk-name rescue exemplar (2026-05-25) ────────────
+  // ── folk-name rescue exemplar ────────────
   insertFreestyleTrick(db, {
     slug: 'ripstein', canonical_name: 'ripstein', adds: '4',
     base_trick: null, trick_family: 'ripstein', category: 'compound',

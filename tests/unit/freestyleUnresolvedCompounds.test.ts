@@ -1,5 +1,5 @@
 /**
- * Unit tests for src/content/freestyleUnresolvedCompounds.ts (Slice M).
+ * Unit tests for src/content/freestyleUnresolvedCompounds.ts.
  *
  * Allow-list is curator-authored; the test pins the pilot membership
  * exactly so an inadvertent edit fails loudly.

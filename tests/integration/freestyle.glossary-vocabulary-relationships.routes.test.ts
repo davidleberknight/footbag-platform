@@ -1,5 +1,5 @@
 /**
- * Glossary §composition expansion (2026-05-25) — Vocabulary Relationships
+ * Glossary §composition expansion — Vocabulary Relationships
  * subsection. Replaces the prior #compression-vs-alternate-derivation +
  * standalone #symbolic-compression-flow blocks with a 4-way relationship-
  * types treatment (pure alias / structural compression / equivalent

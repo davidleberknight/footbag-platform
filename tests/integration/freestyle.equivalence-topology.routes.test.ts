@@ -1,10 +1,10 @@
 /**
  * Integration tests for the equivalence-topology surface on trick-detail
- * pages (Phase 2 of the equivalence-topology rollout).
+ * pages.
  *
  * Contract under test:
  *   - When a trick has a ratified equivalence-topology entry (flurry,
- *     witchdoctor at Phase 2), the trick-detail page renders the
+ *     witchdoctor), the trick-detail page renders the
  *     <details>-collapsed "Alternate derivations" section.
  *   - The section includes both derivation paths as <li> rows with
  *     source-label chips and ADD breakdowns.

@@ -1,5 +1,5 @@
 /**
- * Per-view scale-intro guard (2026-05-27 browse-shell cleanup).
+ * Per-view scale-intro guard.
  *
  * Each non-landing browse view shows a visible "scale" sentence stating how
  * many groupings + trick-row memberships it renders. The counts are derived

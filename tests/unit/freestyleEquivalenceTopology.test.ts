@@ -1,7 +1,7 @@
 /**
  * Unit tests for src/content/freestyleEquivalenceTopology.ts.
  *
- * The module is the Phase 1 pilot of the equivalence-topology layer
+ * The module is the equivalence-topology layer
  * (alternate-derivation entries for tricks whose canonical reading
  * admits a structurally distinct path). Tests pin schema invariants
  * + content membership so a future inadvertent edit fails loudly.

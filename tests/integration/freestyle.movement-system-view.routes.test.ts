@@ -1,5 +1,5 @@
 /**
- * Integration tests for Slice L2 — the Movement System view branch.
+ * Integration tests for the Movement System view branch.
  *
  * Scope verified:
  *   - /freestyle/tricks?view=movement-system returns 200

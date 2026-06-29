@@ -418,7 +418,7 @@ describe('GET /freestyle/sets/reference (flat Holden table, moved from /freestyl
     expect(res.text).toContain('Stepping');
   });
 
-  // ── Phase 1: cross-link moves → dictionary ───────────────────────────────
+  // ── cross-link moves → dictionary ───────────────────────────────
   // Strict rule: slugify(label) must exactly equal a public freestyle_tricks
   // slug. Compound labels and modifier-only matches stay plain text. Every
   // row carries a stable id="move-<slug>" anchor for future backlinking.
