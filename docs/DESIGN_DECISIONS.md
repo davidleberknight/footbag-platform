@@ -1793,7 +1793,7 @@ Requirements:
 
 Decision:
 
-Express's `trust proxy` setting is environment-variable driven via `TRUST_PROXY` in `/srv/footbag/env`. Each host sets the exact integer hop count of the proxy chain between the client and Express, so `req.ip` resolves to the true client address, which per-IP rate limiting keys on. With the legacy front door proxying the apex into CloudFront the production count is 3 (legacy proxy, CloudFront edge, nginx); staging without that hop runs 2. When `TRUST_PROXY` is unset, production falls back to the named-range string `'loopback, linklocal, uniquelocal'`; the boolean `true` form is rejected.
+Express's `trust proxy` setting is environment-variable driven via `TRUST_PROXY` in `/srv/footbag/env`. Each host sets the exact integer hop count of the proxy chain between the client and Express, so `req.ip` resolves to the true client address, which per-IP rate limiting keys on. Under the clean DNS cutover the chain is CloudFront edge then nginx, so both production and staging run 2; there is no legacy front-door hop. When `TRUST_PROXY` is unset, production falls back to the named-range string `'loopback, linklocal, uniquelocal'`; the boolean `true` form is rejected.
 
 Rationale:
 

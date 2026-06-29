@@ -187,7 +187,7 @@ table is the single reference; later sections operate each row but do not redefi
 | `JWT_SIGNER` | `local` (PEM) | `kms` | `kms` |
 | `CAPTCHA_ADAPTER` (Turnstile) | `stub` | `stub` | `stub` by default; set `CAPTCHA_ADAPTER=live` to enable real Turnstile (not auto-forced) |
 | `HTTP_REACHABILITY_ADAPTER` | `stub` | `stub` | must be set explicitly to `live` or `disabled` (no default; boot-fails if unset) |
-| `TRUST_PROXY` hop count | `0` | `2` (nginx + CloudFront) | `3` while the legacy front door proxies the apex; drops to `2` at the DNS-handover milestone |
+| `TRUST_PROXY` hop count | `0` | `2` (nginx + CloudFront) | clean cutover chain is CloudFront → nginx = `2` from go-live; no legacy front-door hop |
 | `LOG_LEVEL` | `info` | `info` | `warn` |
 | SSM namespace | `/footbag/development/...` | `/footbag/staging/...` | `/footbag/production/...` |
 | KMS key alias | none (local keypair) | `alias/footbag-staging` | `alias/footbag-production` |
@@ -523,7 +523,7 @@ The orchestrator's `CLAIM-SAFETY` gate re-runs the integration suite against the
 
 The DNS cutover swaps `footbag.org` and `www.footbag.org` from the legacy origin to the CloudFront distribution attached to the production certificate. The sequence is gated on §6.6 having passed; once started it is operator-driven and runs to completion before any further write traffic is taken. This sequence swaps only the apex and `www` A/AAAA records; it does not touch MX. The `@footbag.org` MX move to Google is a separate, earlier step (§6.8 MX-to-Google mail cutover; MIGRATION_PLAN §29.12a) completed before T-0, so the apex swap is MX-neutral. Retained `*.footbag.org` subdomains (including the `ifpa.` mail host) keep their existing records and must not be altered or clobbered by the apply.
 
-The numerics below (60s TTL pre-shrink, T+24h TTL restore, T-0 to T+1h rollback window) are the generic-procedure defaults used for staging dry-runs and any cutover without its own overrides. For production footbag.org: the front-door cutover does not move DNS at all (MIGRATION_PLAN §29.12; the agreed Option A cutover is a reverse-proxy flip on the legacy server). This runbook applies later, at the post-stability DNS-handover milestone, where MIGRATION_PLAN §29.12 additionally requires a fresh zone snapshot first so mail and retained-subdomain records copy faithfully into Route 53. Where MIGRATION_PLAN §29.12 and this section disagree, MIGRATION_PLAN §29.12 wins for footbag.org.
+The numerics below (60s TTL pre-shrink, T+24h TTL restore, T-0 to T+1h rollback window) are the generic-procedure defaults used for staging dry-runs and any cutover without its own overrides. For production footbag.org: the go-live cutover is the `www`/apex DNS switch itself (MIGRATION_PLAN §29.12), so this runbook applies at cutover, and it governs again later at the post-stability Route 53 zone migration, where MIGRATION_PLAN §29.12 additionally requires a fresh zone snapshot first so mail and retained-subdomain records copy faithfully into Route 53. Where MIGRATION_PLAN §29.12 and this section disagree, MIGRATION_PLAN §29.12 wins for footbag.org.
 
 Sequence:
 
@@ -610,7 +610,7 @@ Rollback: if Google inbound fails verification, revert the `footbag.org` MX to t
 
 The ordered sequence for standing up a staging or production environment from provisioned infrastructure to serving traffic. Steps 3, 5, 6, and 7 are milestone-gated rather than same-day: run them when their milestone arrives, not eagerly. At any point, `scripts/bringup-status.sh --target <staging|production> --profile <profile>` reports each step as DONE / PENDING / UNKNOWN with the exact next command.
 
-1. **Host env file** (`/srv/footbag/env`, per host). Set `TRUST_PROXY` to the exact X-Forwarded-For hop count (staging 2; production 3 while the legacy front door proxies the apex, dropping to 2 at the DNS-handover milestone) and `BACKUP_S3_BUCKET` to the environment's db-snapshots bucket. A missing `TRUST_PROXY` degrades to coarse per-edge rate limiting; a missing `BACKUP_S3_BUCKET` blocks step 4's uploads. Verify: `scripts/verify-staging-env.sh --target <t>` (§10.13).
+1. **Host env file** (`/srv/footbag/env`, per host). Set `TRUST_PROXY` to the exact X-Forwarded-For hop count (staging 2; production 2 under the clean cutover, the CloudFront → nginx chain with no legacy front-door hop) and `BACKUP_S3_BUCKET` to the environment's db-snapshots bucket. A missing `TRUST_PROXY` degrades to coarse per-edge rate limiting; a missing `BACKUP_S3_BUCKET` blocks step 4's uploads. Verify: `scripts/verify-staging-env.sh --target <t>` (§10.13).
 2. **Terraform** (staging first, then production). `terraform -chdir=terraform/<t> plan`, review, `terraform import` any Console-created resource before applying (§11), then apply. The gated flags (`enable_backup_alarm`, `ses_feedback_webhook_url`, and on production only `enable_cutover_login_alarm`) default off and are flipped by the later steps.
 3. **Payments activation** (at the payments-activation milestone, not before). `scripts/activate-payments.sh --target production --profile <prod-profile>` (§10.5): Stripe key to SSM, Dashboard webhook endpoint (manual, the script pauses for it), host env flip to `PAYMENT_ADAPTER=live` + `STRIPE_WEBHOOK_SECRET`, PAYMENTS-BOOT gate. Production refuses to boot on the stub adapter, so this precedes the production go-live deploy.
 4. **Backup timer.** `scripts/install-backup-timer.sh --target <t>` (§16): installs and starts the systemd pair and runs the first snapshot immediately. After two `BackupAgeMinutes` datapoints, set `enable_backup_alarm = true` in `terraform/<t>/terraform.tfvars` and apply.
@@ -1316,7 +1316,7 @@ The production platform launches with zero admins; the single-shot bootstrap tok
 #### Required verification
 
 - The script exits 0 with the summary `All critical invariants passed`.
-- Any `WARN` entries are reviewed and either intentional or remediated in the host env file. `TRUST_PROXY` warns unless it is the exact integer hop count (staging 2; production 3 while the legacy front door proxies the apex; drops by one at the DNS-handover milestone when that hop retires); a missing value degrades to coarse per-edge rate limiting rather than blocking boot.
+- Any `WARN` entries are reviewed and either intentional or remediated in the host env file. `TRUST_PROXY` warns unless it is the exact integer hop count (staging 2; production 2 under the clean cutover, the CloudFront → nginx chain with no legacy front-door hop); a missing value degrades to coarse per-edge rate limiting rather than blocking boot.
 
 #### Failure modes and recovery
 
@@ -1445,11 +1445,10 @@ Rules:
 - environment-specific names, tags, bucket paths, and alarms must be deterministic
 - do not allow a single command to mutate multiple environments implicitly
 
-Milestone-gated variables (default off; flip at the DNS-handover milestone, when the zone moves to Route 53 and the legacy front-door proxy retires):
+Milestone-gated variables (default off; flip at the DNS-handover milestone, when the zone moves to Route 53):
 
-- `enable_apex_alias_records`: creates the apex/www ALIAS records to CloudFront. Before handover the webmaster's proxy fronts the apex and these records would not resolve.
+- `enable_apex_alias_records`: creates the apex/www ALIAS records to CloudFront in Route 53. Before handover the zone is authoritative on the webmaster's bind9 (not Route 53), where the webmaster points the apex at the distribution during the go-live cutover; these Route 53 records apply only once Route 53 serves the zone.
 - `ses_enable_domain_auth`: provisions the SES domain identity, DKIM, and SPF/DMARC records in Route 53. Requires a zone Route 53 actually serves.
-- The same milestone drops production `TRUST_PROXY` from 3 to 2 (the proxy hop retires).
 
 ### 11.5 Emergency console changes
 
