@@ -257,7 +257,7 @@ describe('GET /freestyle/combo-analysis — wording discipline', () => {
   });
 });
 
-describe('Landing portal-card inbound link to combo-analysis (2026-05-17)', () => {
+describe('Landing portal-card inbound link to combo-analysis', () => {
   it('freestyle landing portal-cards grid links to /freestyle/combo-analysis', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.status).toBe(200);

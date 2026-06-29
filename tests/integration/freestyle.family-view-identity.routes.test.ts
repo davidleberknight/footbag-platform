@@ -125,7 +125,7 @@ describe('Family View — whirl-family pilot contract', () => {
     }
   });
 
-  it('does NOT render non-tricks in family view (Slice A regression guard)', async () => {
+  it('does NOT render non-tricks in family view', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);

@@ -244,7 +244,7 @@ describe('buildRelatedTricks — rule contracts', () => {
     expect(r3[0]!.slug).toBe('osis');
   });
 
-  it('R4 (parent base trick): sparse-family compound surfaces both parent + grandparent (2026-05-26 polish)', () => {
+  it('R4 (parent base trick): sparse-family compound surfaces both parent + grandparent', () => {
     // avalanche has trick_family = paradox-illusion (its own base_trick).
     // R1 (family=paradox-illusion) finds no other tricks (avalanche is the
     // only one in fixture). R3 finds the grandparent (illusion via

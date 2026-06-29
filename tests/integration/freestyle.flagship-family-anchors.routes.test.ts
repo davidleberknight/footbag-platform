@@ -111,7 +111,7 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Phase 3 — family-anchor callout on flagship trick-detail pages', () => {
+describe('family-anchor callout on flagship trick-detail pages', () => {
   it.each([
     { slug: 'whirl',     family: 'whirl',     invariant: 'leggy in dex &gt; ss clipper' },
     { slug: 'butterfly', family: 'butterfly', invariant: 'hippy out dex &gt; ss clipper' },
@@ -165,7 +165,7 @@ describe('flagship anchors — universal notation card renders', () => {
   });
 });
 
-describe('Phase 3 — non-anchor tricks do NOT render the family-anchor callout', () => {
+describe('non-anchor tricks do NOT render the family-anchor callout', () => {
   it('paradox-mirage page does NOT render the callout (compound, not an anchor)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);

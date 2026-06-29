@@ -417,7 +417,7 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
   });
 });
 
-describe('Glossary Phase 6 — media claim-scope (L6)', () => {
+describe('Glossary — media claim-scope (L6)', () => {
   it('renders the media claim-scope section', async () => {
     const html = await glossary();
     expect(html).toContain('id="section-media-claim-scope"');
@@ -449,7 +449,7 @@ describe('Glossary Phase 6 — media claim-scope (L6)', () => {
   });
 });
 
-describe('Glossary Phase 3 — L3 folk/structural projections + equivalence mechanism', () => {
+describe('Glossary — L3 folk/structural projections + equivalence mechanism', () => {
   it('renders the two-projections subsection', async () => {
     const html = await glossary();
     expect(html).toContain('id="two-projections"');

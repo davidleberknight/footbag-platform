@@ -182,7 +182,7 @@ describe('/freestyle/tricks?view=sets — modifier-grouped trick lists (not Set 
     expect(res.text).toContain('id="cluster-dexterity-structural"');
   });
 
-  it('renders the two-line dict-trick-row stack per section (2026-05-27 migration)', async () => {
+  it('renders the two-line dict-trick-row stack per section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
     expect(res.text).toContain('class="dict-trick-row-stack"');
     expect(res.text).toMatch(/class="dict-trick-row[ "]/);

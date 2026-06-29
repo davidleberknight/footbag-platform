@@ -245,7 +245,7 @@ describe('symbolic full-page cross-links — modifier-family footer', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle — educational pointer paragraph', () => {
-  it('landing page no longer promotes /freestyle/learn as an educational-pathways destination (Slice K, 2026-05-16)', async () => {
+  it('landing page no longer promotes /freestyle/learn as an educational-pathways destination', async () => {
     // Slice K retired the landing "Where to go next" orientation block,
     // which carried the .freestyle-learn-pointer paragraph promoting
     // /freestyle/learn as the educational-pathways landing-page CTA.

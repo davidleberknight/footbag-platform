@@ -197,7 +197,7 @@ describe('assertFirstClassConvergence — doctrine-blocked guard', () => {
     expect(result.diagnostic).toBe('workbook doctrine blocker');
   });
 
-  it('witchdoctor is NOT in DOCTRINE_BLOCKED_SLUGS anymore (Slice R1b)', () => {
+  it('witchdoctor is NOT in DOCTRINE_BLOCKED_SLUGS anymore', () => {
     // The rule should NOT short-circuit at H7 for witchdoctor; instead
     // it should reach H4+ and pass via composite-derivation.
     const result = assertFirstClassConvergence(
@@ -216,7 +216,7 @@ describe('assertFirstClassConvergence — doctrine-blocked guard', () => {
     expect(result.diagnostic).not.toBe('workbook doctrine blocker');
   });
 
-  it('barraging-osis is NOT in DOCTRINE_BLOCKED_SLUGS anymore (Slice R1)', () => {
+  it('barraging-osis is NOT in DOCTRINE_BLOCKED_SLUGS anymore', () => {
     const result = assertFirstClassConvergence(
       'barraging-osis',
       {

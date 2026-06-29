@@ -191,7 +191,7 @@ describe('Family View — butterfly / mirage / osis / torque pilot families rend
   }
 });
 
-describe('Family View — Slice A3 chain entries surface as visible formulas', () => {
+describe('Family View — chain entries surface as visible formulas', () => {
   it('renders the first-reading tokens for each chained pilot', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
@@ -285,7 +285,7 @@ describe('ADD View and Family View — shared two-line row contract, shared firs
   }
 });
 
-describe('Family View — non-trick filter regression guard (Slice A still works)', () => {
+describe('Family View — non-trick filter regression guard', () => {
   // After Slice A3 cohort expansion, modifier / operator rows must
   // still be filtered from family-view buckets.
   it('paradox (modifier) does NOT appear in family view even with trick_family=mirage', async () => {

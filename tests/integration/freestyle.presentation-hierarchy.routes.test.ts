@@ -97,7 +97,7 @@ function trickRowRegion(html: string, slug: string): string | null {
   return match ? match[0] : null;
 }
 
-describe('Presentation-hierarchy contract — ADD View two-line row (2026-05-27)', () => {
+describe('Presentation-hierarchy contract — ADD View two-line row', () => {
   // The ADD view no longer renders the shared dict-card. It uses the
   // dict-trick-row two-line contract: line 1 (head) = title + hashtag +
   // optional interpretation; line 2 (notation) = JOB + ADD. The canonical
@@ -127,7 +127,7 @@ describe('Presentation-hierarchy contract — ADD View two-line row (2026-05-27)
   }
 });
 
-describe('Presentation-hierarchy contract — Family View two-line row (2026-05-27 migration)', () => {
+describe('Presentation-hierarchy contract — Family View two-line row', () => {
   // Family migrated to the same generalized two-line dict-trick-row contract
   // as the ADD view. Row order: title (line 1) BEFORE the JOB/ADD notation
   // (line 2). No shared dict-card wrapper, no green chip.
@@ -154,7 +154,7 @@ describe('Presentation-hierarchy contract — Family View two-line row (2026-05-
   }
 });
 
-describe('Presentation-hierarchy contract — ADD and Family share the two-line row contract (2026-05-27)', () => {
+describe('Presentation-hierarchy contract — ADD and Family share the two-line row contract', () => {
   // Both ADD and Family migrated to the generalized two-line dict-trick-row.
   // They render the SAME row contract; only the grouping (ADD bucket vs
   // family section) differs. (Long-term target: every browse view on this

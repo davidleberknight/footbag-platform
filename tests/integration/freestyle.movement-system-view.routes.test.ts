@@ -167,7 +167,7 @@ describe('GET /freestyle/tricks?view=movement-system — axes + groups', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/tricks?view=movement-system — cards', () => {
-  it('renders the two-line dict-trick-row stack (2026-05-27 migration)', async () => {
+  it('renders the two-line dict-trick-row stack', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('dict-card-stack');

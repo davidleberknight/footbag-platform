@@ -127,7 +127,7 @@ describe('freestyleEquivalenceTopology — schema invariants', () => {
   });
 });
 
-describe('freestyleEquivalenceTopology — Phase 2 ratified membership', () => {
+describe('freestyleEquivalenceTopology — ratified membership', () => {
   it('flurry entry is present and ratified', () => {
     const flurry = getEquivalenceTopologyFor('flurry');
     expect(flurry).not.toBeNull();
@@ -187,7 +187,7 @@ describe('freestyleEquivalenceTopology — accessor functions', () => {
     }
   });
 
-  it('getRatifiedEquivalenceTopology surfaces both flurry and witchdoctor at Phase 2', () => {
+  it('getRatifiedEquivalenceTopology surfaces both flurry and witchdoctor', () => {
     const slugs = getRatifiedEquivalenceTopology().map(e => e.slug);
     expect(slugs).toContain('flurry');
     expect(slugs).toContain('witchdoctor');

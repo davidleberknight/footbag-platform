@@ -495,7 +495,7 @@ describe('GET /freestyle/tricks?view=family — symbolic trick cards (slice 2)',
     expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?family=butterfly">Butterfly family<\/a><\/h2>/);
   });
 
-  it('family section renders the two-line dict-trick-row stack (2026-05-27 migration)', async () => {
+  it('family section renders the two-line dict-trick-row stack', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     // Family migrated to the generalized two-line row contract; it no longer
     // uses the shared dict-card-stack.
@@ -529,7 +529,7 @@ describe('GET /freestyle/tricks?view=family — symbolic trick cards (slice 2)',
 });
 
 describe('other dictionary views — slice-by-slice migration', () => {
-  it('/freestyle/tricks?view=family returns 200 and uses the two-line row contract (2026-05-27)', async () => {
+  it('/freestyle/tricks?view=family returns 200 and uses the two-line row contract', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     // Family migrated off the shared dict-card to the generalized dict-trick-row.
@@ -543,7 +543,7 @@ describe('other dictionary views — slice-by-slice migration', () => {
     expect(res.text).toContain('dict-card-stack');
   });
 
-  it('/freestyle/tricks?view=sets returns 200 (dedicated By Set view, 2026-05-24)', async () => {
+  it('/freestyle/tricks?view=sets returns 200 (dedicated By Set view)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
     // 2026-05-24 governance/polish slice: ?view=sets is no longer a

@@ -17,7 +17,7 @@ import {
   resolveFamilyDisplayName,
 } from '../../src/content/freestyleFamilyOverrides';
 
-describe('FAMILY_OVERRIDES (Slice J + Slice M one-way redirects)', () => {
+describe('FAMILY_OVERRIDES (one-way redirects)', () => {
   it('Slice J entries promote whirl-family rows to rev-whirl-family', () => {
     expect(resolveFamilyOverride('rev_whirl')).toBe('rev_whirl');
     expect(resolveFamilyOverride('hatchet')).toBe('rev_whirl');
@@ -59,7 +59,7 @@ describe('FAMILY_OVERRIDES (Slice J + Slice M one-way redirects)', () => {
   });
 });
 
-describe('FAMILY_DUAL_MEMBERSHIPS (Slice M additive memberships)', () => {
+describe('FAMILY_DUAL_MEMBERSHIPS (additive memberships)', () => {
   it('branch-family anchors gain membership in their own branch family', () => {
     expect(resolveFamilyDualMemberships('torque')).toEqual(['torque']);
     expect(resolveFamilyDualMemberships('blender')).toEqual(['blender']);

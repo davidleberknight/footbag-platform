@@ -82,7 +82,7 @@ afterAll(() => cleanupTestDb(dbPath));
 // Service shape — direct invocation; route-level tests deferred to Slice L2.
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Slice L1 — Movement System view shape on FreestyleTricksIndexContent', () => {
+describe('Movement System view shape on FreestyleTricksIndexContent', () => {
   it('surfaces movementSystemView with the curator-authored observational note + non-empty axes', async () => {
     const { freestyleService } = await import('../../src/services/freestyleService');
     const page = freestyleService.getFreestyleTricksIndexPage();

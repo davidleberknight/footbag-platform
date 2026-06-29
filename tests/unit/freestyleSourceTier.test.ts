@@ -24,14 +24,14 @@ describe('SOURCE_TIER taxonomy', () => {
     expect(SOURCE_TIER.passback_basics).toBe('TUTORIAL');
   });
 
-  it('holds anz_trikz and footbagspot_passback at TUTORIAL pending Phase 2d per-clip review', () => {
+  it('holds anz_trikz and footbagspot_passback at TUTORIAL pending per-clip review', () => {
     // Mixed-character corpora; blanket reclass would lose real instructional
     // clips. Per-clip override support is required before reclassification.
     expect(SOURCE_TIER.anz_trikz).toBe('TUTORIAL');
     expect(SOURCE_TIER.footbagspot_passback).toBe('TUTORIAL');
   });
 
-  it('classifies shred_global as DEMONSTRATION (Phase 2b reclassification)', () => {
+  it('classifies shred_global as DEMONSTRATION', () => {
     // Every shred_global entry is a single-trick showcase, not instructional
     // content, so it belongs in DEMONSTRATION rather than TUTORIAL.
     expect(SOURCE_TIER.shred_global).toBe('DEMONSTRATION');

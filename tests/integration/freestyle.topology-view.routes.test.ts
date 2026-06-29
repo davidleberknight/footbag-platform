@@ -306,7 +306,7 @@ describe('topology view — group rendering', () => {
     expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?view=topology#topology-hippy-downtime-dex">Hippy downtime dex<\/a><\/h2>/);
   });
 
-  it('group sections use the two-line dict-trick-row stack (2026-05-27 migration)', async () => {
+  it('group sections use the two-line dict-trick-row stack', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('dict-card-stack');

@@ -883,7 +883,7 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     expect(res.text).not.toMatch(/class="dict-card-aliases"/);
   });
 
-  it('suppresses "Notation pending" placeholder in registry density (BROWSE-REFACTOR-1 Slice 1)', async () => {
+  it('suppresses "Notation pending" placeholder in registry density', async () => {
     // BROWSE-REFACTOR-1 Slice 1: pending placeholder is suppressed on the
     // registry-density By ADD view per the audit (clean identifier-only
     // cards for atoms / pending rows). Browse-density views (family /
@@ -937,7 +937,7 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/tricks?view=sets — dedicated By Set view (2026-05-24)', () => {
+describe('GET /freestyle/tricks?view=sets — dedicated By Set view', () => {
   // 2026-05-24 governance/polish slice: ?view=sets no longer aliases to
   // ?view=component (which is soft-retired). It now activates the
   // dedicated By Set browse view with two cohorts (Core sets +
@@ -1170,7 +1170,7 @@ describe('GET /freestyle — landing page highlights', () => {
 // ---------------------------------------------------------------------------
 // Role-aware notation rendering on trick-detail pages.
 
-describe('GET /freestyle/tricks/:slug — Phase 6 notation display', () => {
+describe('GET /freestyle/tricks/:slug — notation display', () => {
   it('renders the notation section with the role-aware <code> block when notation is populated', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/whirl');

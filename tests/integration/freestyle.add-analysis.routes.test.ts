@@ -47,7 +47,7 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
     expect(res.text).toMatch(/How freestyle players describe trick difficulty/);
   });
 
-  it('renders the philosophy paragraph (Slice Z statement)', async () => {
+  it('renders the philosophy paragraph', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toMatch(/structural reading for every accepted trick/);
     expect(res.text).toMatch(/movement language explainable/);
@@ -247,7 +247,7 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
   });
 });
 
-describe('GET /freestyle/add-analysis — Phase 1 refactor (2026-05-21)', () => {
+describe('GET /freestyle/add-analysis', () => {
   it('a dedicated callout disambiguates spin flag vs spinning operator vs rotational character', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toContain('add-analysis-callout--spin');
@@ -413,7 +413,7 @@ describe('GET /freestyle/add-analysis — interpretation notes + cross-links', (
   });
 });
 
-describe('ADD Analysis discoverability — inbound links (Slice X corrective 2026-05-17)', () => {
+describe('ADD Analysis discoverability — inbound links', () => {
   it('freestyle landing surfaces an ADD analysis link in the History & ADD System card', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.status).toBe(200);
@@ -613,7 +613,7 @@ describe('GET /freestyle/add-analysis — outside-source ADD framing subsection'
   });
 });
 
-describe('GET /freestyle/add-analysis — wording lexicon discipline (Slice X §4)', () => {
+describe('GET /freestyle/add-analysis — wording lexicon discipline', () => {
   it('never uses "is wrong" / "incorrect" framing on external sources', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     // Hard never-ship phrases per Slice X §4 lexicon

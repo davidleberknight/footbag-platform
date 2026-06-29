@@ -78,7 +78,7 @@ describe('Family invariant — content module', () => {
     expect(getFamilyInvariant('whirl')).toBe('leggy in dex > ss clipper');
   });
 
-  it('returns the Butterfly invariant text exactly (Dictionary Pedagogy Phase 1)', () => {
+  it('returns the Butterfly invariant text exactly', () => {
     expect(getFamilyInvariant('butterfly')).toBe('hippy out dex > ss clipper');
   });
 
@@ -140,7 +140,7 @@ describe('Family invariant — rendered on Family View', () => {
     expect(stackIdx).toBeGreaterThan(invariantIdx);
   });
 
-  it('renders the Butterfly family invariant line (Dictionary Pedagogy Phase 1)', async () => {
+  it('renders the Butterfly family invariant line', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-butterfly"');
@@ -155,7 +155,7 @@ describe('Family invariant — rendered on Family View', () => {
 });
 
 describe('Family invariant — does NOT destabilize card rendering', () => {
-  it('Whirl family rows render with the two-line dict-trick-row contract (2026-05-27)', async () => {
+  it('Whirl family rows render with the two-line dict-trick-row contract', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-whirl"');

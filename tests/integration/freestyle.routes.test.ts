@@ -1967,7 +1967,7 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
 // ---------------------------------------------------------------------------
 // Landing-page "Language of Freestyle Footbag" structure invariants
 
-describe('Freestyle landing — portal IA (post 2026-05-19 refactor)', () => {
+describe('Freestyle landing — portal IA', () => {
   it('exposes the freestyle-portal-lede intro content-section', async () => {
     // Structural invariant: the landing renders the lede surface with the
     // documented class hooks. Copy is not pinned by this test.
@@ -2008,7 +2008,7 @@ describe('Landing — legacy landing grids retired', () => {
   });
 });
 
-describe('Freestyle landing — Featured strip (C-3 + Phase 1/C merge, 2026-05-14)', () => {
+describe('Freestyle landing — Featured strip', () => {
   // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C: Competition Formats +
   // Demonstrations merged into one compact `Featured` strip. Format names
   // (Routine / Circle / Sick 3 / Shred 30) preserved as card titles; curated
@@ -2095,7 +2095,7 @@ describe('Freestyle glossary — Symbolic Notation / Compression layer', () => {
   });
 });
 
-describe('Freestyle glossary — Structural compression subsection (post 2026-05-25 Vocabulary Relationships expansion)', () => {
+describe('Freestyle glossary — Structural compression subsection', () => {
   it('renders the symbolic-compression-flow anchor inside §composition (above §connective-panels)', async () => {
     // 2026-05-25 Vocabulary Relationships expansion: the worked
     // compression moved from a standalone h3 to an h4 inside the

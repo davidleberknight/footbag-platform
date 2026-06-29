@@ -140,14 +140,14 @@ describe('symbolic Related Topology panel — allow-listed slugs', () => {
 });
 
 describe('symbolic Related Topology panel — non-allow-listed slugs', () => {
-  it('does NOT render the panel on butterfly (not in Phase 1 allow-list)', async () => {
+  it('does NOT render the panel on butterfly (not in the allow-list)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/butterfly');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('symbolic-related-topology');
     expect(res.text).not.toMatch(/Related topology tricks/i);
   });
 
-  it('does NOT render the panel on mirage (not in Phase 1 allow-list)', async () => {
+  it('does NOT render the panel on mirage (not in the allow-list)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('symbolic-related-topology');

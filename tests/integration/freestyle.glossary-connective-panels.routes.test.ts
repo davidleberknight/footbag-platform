@@ -168,7 +168,7 @@ describe('GET /freestyle/glossary — connective panels section', () => {
     expect(spinningSlice).toMatch(/Modifier reference\s*&rarr;/);
   });
 
-  it('non-spinning panels do NOT include modifier-family deep-link (Phase 6 pilot)', async () => {
+  it('non-spinning panels do NOT include modifier-family deep-link', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     // paradox/symposium/ducking/whirl/pixie panels should NOT have a modifier-family link
     const paradoxStart = res.text.indexOf('id="glossary-panel-paradox"');

@@ -184,7 +184,7 @@ describe('freestyleSymbolicEquivalences — Pre-Red completion sweep chain addit
   });
 });
 
-describe('freestyleSymbolicEquivalences — Slice N branch-family chain additions', () => {
+describe('freestyleSymbolicEquivalences — branch-family chain additions', () => {
   it('paradox-blender resolves to a two-stop chain', () => {
     const chain = getSymbolicEquivalenceChain('paradox_blender');
     expect(chain).not.toBeNull();
@@ -214,7 +214,7 @@ describe('freestyleSymbolicEquivalences — Slice N branch-family chain addition
   });
 });
 
-describe('freestyleSymbolicEquivalences — Path A chain additions (2026-05-17, Slice X follow-on)', () => {
+describe('freestyleSymbolicEquivalences — Path A chain additions', () => {
   // 5 additional chain entries for existing IFPA rows lacking chains.
   // Multi-source-agreed entries use curatorConfirmPending=false; FM-only
   // entries use curatorConfirmPending=true per the witchdoctor precedent.
@@ -255,7 +255,7 @@ describe('freestyleSymbolicEquivalences — Path A chain additions (2026-05-17, 
   });
 });
 
-describe('freestyleSymbolicEquivalences — Path B canonical promotions (2026-05-17, Slice X pilot)', () => {
+describe('freestyleSymbolicEquivalences — Path B canonical promotions', () => {
   // 5 new canonical tricks promoted via red_additions_2026_04_20.csv on the
   // same day. These chains land alongside the loader-19 row so the trick is
   // publishable from first DB rebuild (CTPC Principle 1: symbolic

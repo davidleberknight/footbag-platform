@@ -125,7 +125,7 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
     expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
   });
 
-  it('?view=sets is NO LONGER a component-view alias (2026-05-24 governance/polish slice)', async () => {
+  it('?view=sets is NO LONGER a component-view alias', async () => {
     // The 2026-05-24 governance/polish slice ended the ?view=sets →
     // ?view=component alias. ?view=sets now activates the dedicated By
     // Set browse view. The component view is unaffected (still soft-
