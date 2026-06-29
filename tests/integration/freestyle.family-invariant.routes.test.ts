@@ -161,8 +161,8 @@ describe('Family invariant — does NOT destabilize card rendering', () => {
     const sectionStart = res.text.indexOf('id="family-whirl"');
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
-    // Family migrated to the generalized two-line row; rows use dict-trick-row,
-    // not the shared dict-card.
+    // Family view rows use the generalized two-line dict-trick-row, not the
+    // shared dict-card.
     expect(sectionHtml).toContain('class="dict-trick-row');
     expect(sectionHtml).not.toContain('class="dict-card dict-card--registry');
     // The rows do NOT carry the invariant line — invariant is family-level only.

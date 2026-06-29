@@ -1,9 +1,9 @@
 /**
- * Integration tests for DSC-2 slice 3B — the By Category view migrated to
- * the shared symbolic trick-card partial. The 5-column legacy spreadsheet
- * (Trick / ADD / Description / Notation / Aliases) is retired in favour of
- * `<section class="trick-category-group">` entries with `<div class="dict-card-stack">`
- * rendering the shared `dictionary-trick-card.hbs` partial.
+ * Integration tests for the By Category view. The view uses the shared symbolic
+ * trick-card partial: each category renders a `<section class="trick-category-group">`
+ * containing a `<div class="dict-card-stack">` of the shared
+ * `dictionary-trick-card.hbs` partial, not a tabular
+ * Trick / ADD / Description / Notation / Aliases layout.
  *
  * Verifies:
  *   - /freestyle/tricks?view=category returns 200

@@ -497,8 +497,8 @@ describe('GET /freestyle/tricks?view=family — symbolic trick cards (slice 2)',
 
   it('family section renders the two-line dict-trick-row stack', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    // Family migrated to the generalized two-line row contract; it no longer
-    // uses the shared dict-card-stack.
+    // Family view uses the generalized two-line row contract, not the shared
+    // dict-card-stack.
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('dict-card-stack');
     // The rows inside the family section carry data-trick-slug from our seeded set.
@@ -532,7 +532,7 @@ describe('other dictionary views — slice-by-slice migration', () => {
   it('/freestyle/tricks?view=family returns 200 and uses the two-line row contract', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    // Family migrated off the shared dict-card to the generalized dict-trick-row.
+    // Family view uses the generalized dict-trick-row, not the shared dict-card.
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('dict-card-stack');
   });
@@ -546,9 +546,8 @@ describe('other dictionary views — slice-by-slice migration', () => {
   it('/freestyle/tricks?view=sets returns 200 (dedicated By Set view)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
-    // 2026-05-24 governance/polish slice: ?view=sets is no longer a
-    // component alias. It now renders the dedicated By Set browse view
-    // (compact-list density, NOT dict-card-stack registry density).
+    // ?view=sets renders the dedicated By Set browse view, not a component
+    // alias (compact-list density, NOT dict-card-stack registry density).
     // Active-toggle marker confirms the routing.
     expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
   });

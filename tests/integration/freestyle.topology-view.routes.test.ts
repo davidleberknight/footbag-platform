@@ -358,8 +358,8 @@ describe('topology view — intentional cross-group membership', () => {
 
 describe('topology view — row-uniformity invariant', () => {
   it('uses the generalized two-line dict-trick-row partial (data-trick-slug + tokenized formula content)', async () => {
-    // Neighborhoods (topology) migrated to the two-line dict-trick-row contract
-    // (2026-05-27). Token markup still renders: op-tokens in the line-2 JOB
+    // Neighborhoods (topology) view uses the two-line dict-trick-row contract.
+    // Token markup renders: op-tokens in the line-2 JOB
     // value, sem-tokens in the line-1 interpretation slot.
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
     expect(res.text).toMatch(/<article class="dict-trick-row[^"]*"[^>]*data-trick-slug="/);

@@ -1,7 +1,7 @@
 /**
  * /freestyle/tricks?view=dex-count — two-line row contract.
  *
- * Dex view migrated to the SAME generalized dictionary-trick-row partial as the
+ * Dex view uses the SAME generalized dictionary-trick-row partial as the
  * ADD and Family views. Every dex-bucketed row obeys the two-line contract:
  *   Line 1 (.dict-trick-row-head): name · hashtag · optional ≡ interpretation · optional media
  *   Line 2 (.dict-trick-row-notation): JOB: <op notation> · ADD: <formula | bare N>

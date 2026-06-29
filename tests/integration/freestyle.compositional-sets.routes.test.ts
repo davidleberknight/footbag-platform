@@ -281,7 +281,7 @@ describe('/freestyle/sets/reference — flat Holden table (moved from /freestyle
     expect(res.text).toMatch(/Freestyle Move Sets/);
   });
 
-  it('/freestyle/sets renders the standalone Set Encyclopedia (200; promoted from 301 redirect 2026-05-25)', async () => {
+  it('/freestyle/sets renders the standalone Set Encyclopedia (HTTP 200)', async () => {
     const res = await request(createApp()).get('/freestyle/sets');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Set Encyclopedia');

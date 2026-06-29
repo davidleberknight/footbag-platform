@@ -350,10 +350,9 @@ describe('GET /freestyle/tricks', () => {
   });
 
   it('descriptions are no longer rendered in any browse view (DSC-2 slice 3B retired the spreadsheet)', async () => {
-    // DSC-2 slice 3B: the By Category view migrated to symbolic trick cards.
-    // Prose descriptions are explicitly excluded from every browse card (ADD,
-    // family, component, category). Descriptions still live on the trick-
-    // detail page; browse cards don't carry them.
+    // Prose descriptions are excluded from every browse card (ADD, family,
+    // component, category). Descriptions live on the trick-detail page; browse
+    // cards don't carry them.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=category');
     expect(res.text).not.toContain('most connected trick');
@@ -477,8 +476,8 @@ describe('public dictionary presentation', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    // DSC-2 slice 2: family view migrated to symbolic trick cards. Each
-    // family section renders an <h2> heading wrapping an <a> family-filter link.
+    // Each family section renders an <h2> heading wrapping an <a> family-filter
+    // link.
     expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?family=whirl">/);
   });
 

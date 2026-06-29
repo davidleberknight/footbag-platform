@@ -2,9 +2,7 @@
  * Integration tests for the Vocabulary Relationships subsection inside
  * /freestyle/glossary §composition (Symbolic Composition).
  *
- * This subsection replaced the prior "Compression ladders vs alternate
- * derivations" h3 on 2026-05-25 (see freestyle.glossary-vocabulary-
- * relationships.routes.test.ts for the new-structure test coverage).
+ * The equivalence-topology worked examples render under that subsection.
  *
  * THIS FILE preserves the equivalence-topology-specific contracts:
  *   - flurry + witchdoctor worked examples still render with the

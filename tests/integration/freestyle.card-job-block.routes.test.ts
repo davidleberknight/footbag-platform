@@ -1,8 +1,7 @@
 /**
  * Card JOB-block + by-set linked-card regression tests.
  *
- * Post-2026-05-27 rendered-surface repair pass. Pins the four
- * observation-rooted fixes:
+ * Pins four rendered-surface contracts:
  *
  *   1. Across the SHARED-card browse views (family / movement-system /
  *      sets), the operational-notation row on each card renders inside a
@@ -127,7 +126,7 @@ function expectTwoLineJob(text: string, slug: string) {
 
 describe('JOB-block rendering across browse views (no raw operational notation outside the labeled block)', () => {
   it('By family (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
-    // Family migrated to the two-line dict-trick-row contract (2026-05-27).
+    // Family view uses the two-line dict-trick-row contract.
     const res = await request(await createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expectTwoLineJob(res.text, 'fairy_mirage');
@@ -135,7 +134,7 @@ describe('JOB-block rendering across browse views (no raw operational notation o
   });
 
   it('By dex-count (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
-    // Dex migrated to the two-line dict-trick-row contract (2026-05-27).
+    // Dex view uses the two-line dict-trick-row contract.
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     expectTwoLineJob(res.text, 'atomic_illusion');
@@ -143,7 +142,7 @@ describe('JOB-block rendering across browse views (no raw operational notation o
   });
 
   it('By movement system (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
-    // Movement System migrated to the two-line dict-trick-row contract (2026-05-27).
+    // Movement System view uses the two-line dict-trick-row contract.
     const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.status).toBe(200);
     expectTwoLineJob(res.text, 'fairy_mirage');
