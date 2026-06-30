@@ -431,6 +431,13 @@ def emit_from_aliases(aliases_csv: Path,
             conf = classify_confidence(alias, canonical)
             if conf == "medium" and not _is_structural_variant(alias, canonical):
                 continue
+            if conf == "medium" and status == "verified":
+                # A curator-verified alias has already had the human review that
+                # the medium-confidence deferral exists to force, so it is
+                # production-eligible even when it differs from the canonical
+                # name by a whole added or dropped name token. Unreviewed
+                # (non-verified) variants keep the structural safety net.
+                conf = "high"
             variant_final = normalize_case(alias)
             if variant_final == canonical:
                 continue
