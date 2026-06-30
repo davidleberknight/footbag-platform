@@ -433,7 +433,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 
 ┌─────────────────────────────────────────────────────────────────────┐
 │  • Same four Docker containers  (nginx · web · worker · image)      │
-│  • Same SQLite schema and migration files                           │
+│  • Same SQLite schema (schema.sql bootstrap, no migrations)         │
 │  • Same db.ts module with all prepared statements                   │
 │  • Same service layer code  (AuthService, EventService, etc.)       │
 │  • Same controllers and Handlebars templates                        │

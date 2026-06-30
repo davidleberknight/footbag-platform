@@ -58,6 +58,12 @@ documented authority order; it does not refuse to.
   `docs/PROJECT_SUMMARY.md`, `PROJECT_SUMMARY_CONCISE.md`, `docs/DEV_ONBOARDING.md`,
   `docs/DEVOPS_GUIDE.md`, `docs/TESTING.md`, `GOVERNANCE.md`, `CONTRIBUTING.md`,
   `SECURITY.md`.
+- **IFPA governing documents** (`ifpa/BYLAWS.md`, `ifpa/ArticlesOfIncorporation.md`,
+  `ifpa/IFPAMembershipStructure_2026.md`, `ifpa/rules/**`) are the authority of record for
+  membership policy, tiers, Active Player status, voting eligibility, and rules content,
+  ranking above the docs that defer to them. A doc that contradicts the IFPA governing
+  documents on membership or voting is drift toward the governing document, not the reverse;
+  flag it and let the maintainer route any genuine governance change to IFPA.
 - **Implementation status** (temporary deviations, accepted shortcuts, active-slice scope)
   lives only in `IMPLEMENTATION_PLAN.md`.
 - **Code is authoritative for implemented behavior**, not for design intent (bootstrap
@@ -153,9 +159,17 @@ what is covered so far and let the maintainer decide whether to continue.
 
 ## Initial read order
 
-For a comprehensive audit, read (subset for a scoped ask per Scaling):
+For a comprehensive audit, read (subset for a scoped ask per Scaling). This list is a
+floor, not a closed set: first ENUMERATE every candidate file, then account for each one
+in the coverage ledger as read, scoped-out, or not-applicable. Enumerate `docs/*.md`, the
+root `*.md` files, every `CLAUDE.md` in the tree, `.claude/rules/*.md`, `.claude/skills/*`,
+and `ifpa/**`. A canonical doc, governing document, or subtree contract that exists but is
+named nowhere below is itself a coverage gap to record, not a file to skip silently.
 
-1. `CLAUDE.md`
+1. `CLAUDE.md` plus every per-subtree `CLAUDE.md` (`docs/`, `database/`, `tests/`,
+   `freestyle/`, `legacy_data/`, `src/db/`, `src/services/`, `src/public/`) — each states a
+   path-scoped contract that overlaps DD, service JSDoc, and the rules; the same rule in
+   many places is many places to drift.
 2. `.claude/rules/doc-governance.md`
 3. `.claude/skills/doc-sync/SKILL.md`, `.claude/skills/bug-hunt/SKILL.md`,
    `.claude/skills/design-bug-hunt/SKILL.md`
@@ -163,9 +177,16 @@ For a comprehensive audit, read (subset for a scoped ask per Scaling):
 5. `IMPLEMENTATION_PLAN.md`
 6. `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`,
    `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`,
-   `docs/TESTING.md`, `docs/DEVOPS_GUIDE.md`, `docs/MIGRATION_PLAN.md`,
-   `docs/DIAGRAMS.md`, `docs/GLOSSARY.md`, `docs/PROJECT_SUMMARY.md`
-7. `legacy_data/CLAUDE.md`, `README.md`, `SECURITY.md`, `GOVERNANCE.md`, `CONTRIBUTING.md`
+   `docs/TESTING.md`, `docs/DEVOPS_GUIDE.md`, `docs/DEV_ONBOARDING.md`,
+   `docs/MIGRATION_PLAN.md`, `docs/DIAGRAMS.md`, `docs/GLOSSARY.md`,
+   `docs/Freestyle_Footbag_Glossary.md`, `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md`,
+   `docs/PROJECT_SUMMARY.md`
+7. `ifpa/BYLAWS.md`, `ifpa/ArticlesOfIncorporation.md`,
+   `ifpa/IFPAMembershipStructure_2026.md`, `ifpa/rules/**` — the governing documents that
+   `USER_STORIES.md` and `PROJECT_SUMMARY.md` name as the authoritative source for
+   membership tiers, Active Player status, voting eligibility, and published rules content.
+8. `README.md`, `SECURITY.md`, `GOVERNANCE.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
+   `TRADEMARKS.md`
 
 `docs/DIAGRAMS.md` and `docs/GLOSSARY.md` are easy to skip and are exactly where stale
 "control X is present" claims hide. Read them, and reconcile every named control, service,
@@ -189,6 +210,25 @@ Use read-only commands only. For a scoped ask, run only the phases that bear on 
 State: this is `extended-doc-sync`; findings-only chat report; no files written;
 comprehensive or scoped (and which phases are skipped if scoped); Python legacy pipeline
 excluded unless the user included it; browser QA excluded; raw PII excluded.
+
+### Phase 0.5: Mechanical pre-pass (read-only greps)
+Run cheap, high-yield, mechanically detectable checks before the manual reading, so the
+saturating hygiene classes surface every run instead of by luck. These feed the taxonomy
+categories below; apply the aggregation rule (Severity rubric) so high-count patterns do
+not bury substantive findings.
+- **Banned stale-language tokens** across canonical docs: `Last updated:`, `as of <date>`,
+  bare dates in headers, `(deferred post-sprint)`, `pending team review`,
+  hard-coded credentials, demo/preview identifiers, and team names outside the docs that
+  doc-governance permits them in. Treat `currently` / `now` as candidates only: a hit is
+  drift solely when it describes build, deploy, or implementation status; the same word
+  describing a domain state (a member's status, a club a person currently belongs to) is
+  ordinary prose, not drift. Exempt `IMPLEMENTATION_PLAN.md` (carrying status is its purpose)
+  and any local-only operator-notes file from the stale-language and `Last updated` checks.
+- **Broken internal references**: extract every `docs/…`, `ifpa/…`, `scripts/…`,
+  `legacy_data/…` path and every `§N` cited target from the docs and confirm each exists or
+  resolves; a reference to a missing file or absent section is a finding.
+- **Locator-and-comment hygiene**: run the four detectors in Phase 11.
+State in the scope declaration that the pre-pass ran and summarize its counts.
 
 ### Phase 1: Re-derive the deployed surface
 Do not trust existing lists. From `src/app.ts` and `src/routes/**`, derive mounted routes,
@@ -255,7 +295,15 @@ longer match the service, controller business logic where the JSDoc says service
 service whose contract has drifted from its JSDoc. `.claude/rules/view-layer.md` and each page service's JSDoc page contract vs `src/routes/**`,
 controllers, `src/views/**`, public-route tests: route/path/page-key mismatch, missing view-model
 shape where required, template deriving domain logic, sensitive-page rendering rule missing from
-code/tests. Also `.claude/skills/*` procedures vs the current code and conventions they describe.
+code/tests. Also `.claude/skills/*` procedures vs the current code and conventions they describe, and the
+contract-bearing rules by name (`adapter-conventions`, `controller-conventions`, `db-layer`,
+`db-write-safety`, `template-conventions`, `service-layer`, `comments`, `script-secret-safety`)
+vs the services, adapters, controllers, db layer, and templates they govern. For each named
+DD architectural pattern (the adapter set `SesAdapter` / `JwtSigningAdapter` /
+`MediaStorageAdapter` / `BallotEncryptionAdapter` / `SecretsAdapter`, service-owned shaping,
+the view-model boundary, db-write-safety), check that DD, the matching rule, the service
+JSDoc, and the code still describe the same pattern; a divergence among the four homes is
+drift to report with its direction.
 For every behavior, identifier, boundary, or contract the deployed code establishes, grep the full
 `.claude/rules/*` and `.claude/skills/*` set for the matching term and report any clause that still
 states the superseded behavior as drift. A stale sentence buried in an otherwise-current rule or
@@ -309,6 +357,39 @@ renumber; recommend replacing each with the durable section title or feature nam
 description. The gate-index table, whose rows are labelled by ID, is the structural exception. Do
 not run a web link checker unless asked; this is repository-internal sync.
 
+Run these four mechanical detectors (read-only greps) and confirm each survivor by direct
+inspection (Hard constraint 9). A numeric doc locator is a latent stale reference: it points
+at the right place only until a renumber, with no compile-time signal, so treat the saturated
+cases as drift risk, not decoration.
+1. **Bare doc-internal locators.** Find `(see|per|in|under|from) §N` not immediately paired
+   with a parenthetical title or descriptive clause. A bare `per §19` is the defect; a
+   paired `§19 (the go-live cutover sequence)` is fine. Category: obscure-reference-for-prose.
+2. **Doc references inside code comments.** Apply `.claude/rules/comments.md`, which is
+   narrower than "no doc references in code", so this detector does NOT fire on every `§N`.
+   In `src/` and `scripts/`: a doc PATH (`docs/<file>.md`, `see <file>.md`, `exploration/…`)
+   is always a violation; a bare section shorthand (`DD §x`, `US §x`) is a violation ONLY when
+   it substitutes for the explanation (the comment is just the pointer, with no self-contained
+   reason beside it). A bare shorthand sitting beside a complete self-contained explanation is
+   tolerated and is NOT a finding. In `tests/` the rule is stricter: any doc, section, or
+   finding reference (`DD §`, `US §`, `DATA_GOVERNANCE §`, a `*.md` filename, a `B##` id) is
+   forbidden outright. Also exclude a file documenting its own internal structure with its own
+   section markers (self-reference, not an external-doc pointer). A bare `§N`-in-comment grep
+   overcounts severalfold, so confirm every candidate against this rule before recording it,
+   and never flag a tolerated locator. Category: forbidden reference pattern.
+3. **Sprint/slice/temporal code comments.** Grep code comments for `slice`, `sprint`,
+   `phase N`, `for now`, `temporary`, `as of <date>`, `TODO`, `FIXME`, `HACK`; a genuine
+   deviation comment must read `Current:` / `Target:`, never "for now". In freestyle, curated-
+   media, and legacy_data pipeline code, `phase` / `stage` / `slice` routinely name real
+   pipeline stages, not delivery sprints, so treat hits there as candidates needing the
+   owner's domain judgment, never mechanical findings; that code is the historical-pipeline
+   maintainer's to clean, so route it to the implementation plan rather than rewording it
+   here. Category: forbidden reference pattern / stale claim.
+4. **Stale comment vs code.** A comment naming an identifier, route, or behavior the code no
+   longer has is a stale comment; the detector-2/3 hits plus the identifier grep already run
+   for rules and skills surface the candidates. Category: stale implementation claim.
+This skill reports these and counts them; it never authors the replacement wording.
+Conversion to a title or prose is downstream `doc-sync` work.
+
 ### Phase 12: Active refutation
 Before recording any finding, try to prove it false. Search all relevant terms and alternate
 names. Check `IMPLEMENTATION_PLAN.md` for an accepted deviation, doc-governance for the rule,
@@ -345,6 +426,13 @@ missing verification evidence; not inspected.
 ## Severity rubric
 
 Severity is audit impact, not remediation priority.
+
+**Aggregation of systemic patterns.** When a mechanical detector finds the same hygiene
+pattern many times (bare `§N` locators, doc references in code comments, stale-language
+tokens), record ONE finding per pattern-per-document, with a count and two or three
+representative examples, at E3. Do not emit one finding per hit: hundreds of E3 hygiene
+rows would bury the E0/E1 findings. A single instance that changes meaning (a broken
+reference, a contradicted governance fact) keeps its own finding at its own severity.
 
 - **E0**: critical inconsistency that could mislead go-live, identity, privacy, security,
   payment, email, migration, or production operations.
@@ -392,17 +480,17 @@ change. Resolution is downstream analysis, not this audit.
 
 ## Question discipline
 
-Ask one question only when blocked after read-only investigation:
+Ask one question only when blocked after read-only investigation. Follow `.claude/rules/asking.md`: plain self-contained English, no internal codes the human was not given, and one recommended answer made the default so a bare "y" takes it.
 
 ```markdown
 I need one decision before continuing.
 Evidence:
 - ...
-Question: <one precise question>
+Question: <one precise question, self-contained>
+Recommended answer: <the single answer the sources support, and why; this is the default a bare "y" accepts>
+Load-bearing assumptions: <the assumptions behind the recommendation, so a wrong one can be corrected first>
 Why this blocks the audit: <what cannot be classified without the answer>
-Possible interpretations:
-- A:
-- B:
+Interpretations (only if genuinely open): A: … / B: …
 ```
 
 Do not bundle questions. Do not ask the human to do work read-only repo inspection can do.

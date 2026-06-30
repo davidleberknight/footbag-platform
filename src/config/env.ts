@@ -111,7 +111,7 @@ export interface AppConfig {
   // orphaned by a crash and resets it to pending_transcode for re-dispatch.
   mediaJobLeaseSeconds: number;
   // Maximum total attempts before a media job transitions to terminal 'failed'.
-  // v1: every failure is terminal (max=1). Reserved for a future slice that
+  // Today every failure is terminal (max=1). Reserved for later work that
   // wants in-process retry on transient S3/ffmpeg blips.
   mediaJobMaxRetries: number;
   // SSE heartbeat cadence (seconds). The status-page stream from web to admin

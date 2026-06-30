@@ -6492,6 +6492,10 @@ export const freestyleService = {
       seo: {
         title: hasQuery ? `Search: ${query}` : 'Search Tricks',
         description: 'Search the freestyle trick dictionary by trick name or alias.',
+        // A parameterizable search-results surface is kept out of the index; the
+        // trick, set, and modifier detail pages it links to carry the indexable
+        // content and are listed in the sitemap.
+        noindex: true,
       },
       page: {
         sectionKey: 'freestyle',
@@ -10094,6 +10098,24 @@ export const freestyleService = {
     return CANONICAL_SETS
       .filter((s) => !resolveCanonicalSetAlias(s.slug))
       .map((s) => s.slug);
+  },
+
+  /**
+   * Modifier slugs whose /freestyle/modifier/:slug page renders directly. The
+   * known-modifier universe is the operator index, the modifier table, and the
+   * operator reference (the same gate as the detail route). Set-first slugs are
+   * excluded because they 301-redirect to /freestyle/sets/:slug, which the set
+   * collector already lists. Drives the sitemap enumeration of modifier pages,
+   * parallel to the freestyle trick and set pages.
+   */
+  listSitemapModifierSlugs(): string[] {
+    const rows = runSqliteRead('freestyleTrickModifiers.listAll', () =>
+      freestyleTrickModifiers.listAll.all() as FreestyleTrickModifierRow[],
+    );
+    const slugs = new Set<string>(OPERATOR_INDEX_SLUGS);
+    for (const r of rows) slugs.add(r.slug);
+    for (const e of OPERATOR_REFERENCE_ENTRIES) slugs.add(e.slug);
+    return [...slugs].filter((s) => !isSetFirstSlug(s)).sort();
   },
 
   /**

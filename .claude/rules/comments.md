@@ -44,6 +44,10 @@ Code that does X today but is intended to do Y uses `Current:` / `Target:` lines
 AND the deviation is recorded in `IMPLEMENTATION_PLAN.md` (root or `legacy_data/`). No other
 planning-style content is permitted in code text.
 
+This applies to built code that behaves differently from its target. A feature not yet written
+is not a deviation: a comment or JSDoc stating its correct target contract is design intent and
+takes no `Current:` / `Target:` markers.
+
 ## Test comments (stricter)
 
 Test filenames, `describe` blocks, test names, file-header comments, and inline comments describe

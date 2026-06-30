@@ -871,7 +871,7 @@ Path B does not recover from systemic bugs in the candidate-staging step itself,
 
 **Rollback window:** 48 hours post-flip. After 48 hours the new platform is authoritative regardless of what surfaces; reversal requires explicit joint sign-off from the primary maintainer and the legacy-site webmaster, and is treated as a manual recovery exercise rather than a rollback.
 
-**Post-cutover monitoring posture (T+0 to T+48h).** The rollback window requires active monitoring, not passive waiting. No cutover-specific monitoring runbook exists yet; the following observables must be specified in `docs/DEVOPS_GUIDE.md` before cutover, with alert thresholds and escalation paths:
+**Post-cutover monitoring posture (T+0 to T+48h).** The rollback window requires active monitoring, not passive waiting. `docs/DEVOPS_GUIDE.md` documents the cutover watches (the CloudFront origin-latency watch and the zero-logins / cutover-login alarm) and the production CloudWatch config defines them; the remaining work before cutover is setting the origin-latency and login-success alarm thresholds against the staging baseline, with escalation paths. The observables:
 
 - HTTP 5xx error rate on the CloudFront distribution (baseline: 0; alarm: sustained >1% of requests over 5 minutes).
 - Response latency at the origin (p95; alarm threshold TBD based on staging baseline).

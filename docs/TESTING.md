@@ -395,7 +395,7 @@ Lightweight integration with auth uses the existing `tests/fixtures/personas.ts`
 The platform targets four environments. Each has parity contracts that tests verify.
 
 - *Local development.* Runs on the maintainer workstation via `./run_dev.sh`. SQLite at `./database/footbag.db`. Local stub adapters (JWT signing stub, SES outbox stub, media storage local-disk stub). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=development`.
-- *CI.* Runs every test job (typecheck, lint, dependency audit, secret scan, conventions, unit, integration, db-load smoke, e2e, terraform) against ephemeral SQLite. No real AWS. Adapters are the same local stubs the workstation uses.
+- *CI.* Runs every test job (typecheck, lint, dependency audit, secret scan, conventions, unit, integration, db-load smoke, e2e, CodeQL static analysis, terraform) against ephemeral SQLite. No real AWS. Adapters are the same local stubs the workstation uses.
 - *Staging.* The real AWS staging account (KMS, SES, S3, SSM, Lightsail). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=staging`. The staging smoke suite (`tests/smoke/`) runs here, gated by `RUN_STAGING_SMOKE=1`.
 - *Production.* The real AWS production account. `src/testkit/`, `src/dev-bootstrap/`, and the `src/internal-qc/` QC subsystem are excluded from the production image at build time (when `INCLUDE_DEV_SHORTCUTS=0` the Dockerfile strips all three subtrees and replaces `dist/routes/internalRoutes.js` with a null stub); boot-time guards in `src/config/env.ts` fail-fast if any `FOOTBAG_DEV_*` env var is set; `scripts/audit-dev-shortcuts.sh` returns zero against the production DB. `src/testkit/` is permanent in source (build-excluded from prod, not deleted); `src/dev-bootstrap/` is deleted at cutover, and `src/internal-qc/` is build-excluded now with its source subtree removed at QC retirement.
 
@@ -682,7 +682,7 @@ Not every test runs every time. This section defines the named gates, what runs 
 - *On-demand heavyweight pentest.* Human invokes (`npm run test:pentest:heavy`). May include OWASP ZAP baseline, upload-abuse probes, internal-route probes, header checks, dependency scanning. Browser-driven attack flows are operator-invoked via the `browser-qa` skill. Never runs against production unless explicitly authorized.
 - *Periodic third-party pentest.* At major launches (per §9.4). Reports findings; findings produce regression tests at the cheapest appropriate layer.
 
-The db-load smoke gate is a canonical example of class-specific gating within the CI-on-PR gate: it runs only on changes that affect the loader pipeline. The pattern (run a gate only when the surface that the gate covers has changed) extends to other gates as tooling permits.
+The db-load smoke gate runs the loader pipeline against fixed fixtures on every CI-on-PR build; it carries no path filter, so a loader regression is caught regardless of which files a change touches. Class-specific gating (running a gate only when the surface it covers has changed) is a pattern the suite may adopt for other gates as tooling permits.
 
 ### 11.2 Selection mechanisms within a gate
 

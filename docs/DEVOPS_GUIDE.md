@@ -186,7 +186,7 @@ table is the single reference; later sections operate each row but do not redefi
 | `SAFE_BROWSING_ADAPTER` | `stub` | `live` | `live` |
 | `JWT_SIGNER` | `local` (PEM) | `kms` | `kms` |
 | `CAPTCHA_ADAPTER` (Turnstile) | `stub` | `stub` | `stub` by default; set `CAPTCHA_ADAPTER=live` to enable real Turnstile (not auto-forced) |
-| `HTTP_REACHABILITY_ADAPTER` | `stub` | `stub` | must be set explicitly to `live` or `disabled` (no default; boot-fails if unset) |
+| `HTTP_REACHABILITY_ADAPTER` | `stub` | `live` | must be set explicitly to `live` or `disabled` (no default; boot-fails if unset) |
 | `TRUST_PROXY` hop count | `0` | `2` (nginx + CloudFront) | clean cutover chain is CloudFront → nginx = `2` from go-live; no legacy front-door hop |
 | `LOG_LEVEL` | `info` | `info` | `warn` |
 | SSM namespace | `/footbag/development/...` | `/footbag/staging/...` | `/footbag/production/...` |

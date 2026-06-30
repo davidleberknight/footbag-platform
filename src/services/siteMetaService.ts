@@ -12,7 +12,8 @@
  *   - build* methods return plain strings; the route sets the content type.
  *   - Sitemap URLs are absolute, built from config.publicBaseUrl, and cover only
  *     public content: static hubs, plus per-row event, club, net-team, freestyle
- *     trick and set-detail, rules, IFPA, and named-gallery pages. Member and
+ *     trick, set-detail, and modifier-detail, rules, IFPA, and named-gallery
+ *     pages. Member and
  *     historical-person profiles are excluded: the member listing is a welcome
  *     page rather than a public directory, and member enumeration is a privacy
  *     boundary. Individual media-item pages are excluded too -- high-volume and
@@ -59,7 +60,6 @@ const STATIC_PUBLIC_PATHS = [
   '/records',
   '/media',
   '/media/browse',
-  '/media/freestyle-tutorials',
   '/media/member-galleries',
   '/net',
   '/net/events',
@@ -130,6 +130,12 @@ function collectPublicPaths(): string[] {
   // alias slugs that redirect are excluded by listSitemapSetSlugs).
   for (const slug of freestyleService.listSitemapSetSlugs()) {
     paths.add(`/freestyle/sets/${slug}`);
+  }
+
+  // Freestyle: every modifier-detail page (parallels the set pages; set-first
+  // slugs that redirect to a set page are excluded by listSitemapModifierSlugs).
+  for (const slug of freestyleService.listSitemapModifierSlugs()) {
+    paths.add(`/freestyle/modifier/${slug}`);
   }
 
   // Media: every named gallery (curator and member). Individual media-item

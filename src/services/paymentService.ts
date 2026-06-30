@@ -452,7 +452,7 @@ function dispatchEvent(event: StripeWebhookEvent): WebhookOutcome {
       return handleCheckoutExpired(event);
     default:
       // Every other type (subscription/invoice events for the future recurring-
-      // donation slice, plus the many types Stripe sends that we do not
+      // donation feature, plus the many types Stripe sends that we do not
       // subscribe to) is acknowledged so Stripe stops retrying. Record the id
       // for the received-event trail; there is no state to mutate.
       logger.info('stripe event ignored (no handler)', { eventId: event.id, type: event.type });

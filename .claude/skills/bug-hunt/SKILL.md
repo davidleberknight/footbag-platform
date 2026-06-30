@@ -99,14 +99,14 @@ Use this scratch format:
 | M_Example | route + controller + service | A1-A5 | Complete and deployed | B? or none | no |
 ```
 
-**Discrepancy rule:** if code and user story disagree, first determine whether the code violates a clear requirement, the requirement is stale/incomplete, or the domain intent is unclear. Do not record a severity finding until this is clear. If blocked, ask one question using this exact shape:
+**Discrepancy rule:** if code and user story disagree, first determine whether the code violates a clear requirement, the requirement is stale/incomplete, or the domain intent is unclear. Do not record a severity finding until this is clear. If blocked, ask one question using this exact shape (per `.claude/rules/asking.md`: plain self-contained English, no internal codes; the recommended answer is the default a bare "y" accepts):
 
 ```markdown
-Question: <one decision needed>
-Context: <where the code and documents disagree, with file/doc references>
+Question: <one decision needed, self-contained>
+Context: <where the code and documents disagree; name the file and doc lines>
 Why this matters: <what bug/security/design outcome depends on the answer>
-Recommended answer: <your recommendation and why>
-Alternatives: <only the realistic alternatives>
+Recommended answer: <your recommendation and why; this is the default a bare "y" accepts>
+Alternatives: <only the realistic alternatives, when genuinely open>
 ```
 
 Do not batch questions. Ask the highest-leverage blocking question first, then continue after the maintainer answers.
@@ -179,6 +179,7 @@ Before scanning any source file, load these into context:
 4. `IMPLEMENTATION_PLAN.md` — the accepted-deviation blocks. A behavior that looks like a bug may be an explicitly documented deviation; cross-check before flagging. The legacy-pipeline deviations recorded there are mandatory to check even though the `legacy_data/` pipeline itself is out of scope, because they can surface in deployed routes.
 5. **All path-scoped rules in `.claude/rules/*.md`** (the full set: `testing`, `service-layer`, `controller-conventions`, `template-conventions`, `view-layer`, `db-layer`, `db-write-safety`, `adapter-conventions`, `comments`, `doc-governance`, `memory`) and the relevant `.claude/skills/*` procedures — the operational rules and workflows every finding must respect (the layer-boundary rules are the canonical patterns the §4.4B design-divergence sweep checks against).
 6. `docs/DATA_GOVERNANCE.md` (mandatory before any finding that touches members, historical persons, search, contact fields, exports, stats, or privacy boundaries).
+7. The IFPA governing documents (`ifpa/IFPAMembershipStructure_2026.md`, `ifpa/BYLAWS.md`, `ifpa/ArticlesOfIncorporation.md`, `ifpa/rules/**`) — mandatory before any finding whose success criterion concerns membership tiers, Active Player status, voting eligibility, or published rules content. They are the authority of record for what that criterion must be, and `docs/USER_STORIES.md` defers to them; a success criterion that contradicts them is a finding against the criterion, not against the governing document.
 
 The user-scope project memory (`MEMORY.md`) autoloads. Respect every behavioral rule documented there.
 

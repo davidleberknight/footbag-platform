@@ -157,7 +157,7 @@ No contact field (email, phone, social handle) is visible on any public page or 
 
 - Member account erasure is supported; it clears the account's identifying personal data and severs the account-to-historical-record link.
 - The historical record itself remains public, with attribution name and honors.
-- Two erasure paths exist and must not be collapsed. A soft-deleted account, after `member_cleanup_grace_days`, undergoes full PII purge: credentials, contact, identity links, and declared anchors are cleared while HoF/BAP display is preserved. A member flagged deceased, after `deceased_cleanup_grace_days`, undergoes a contact scrub: credentials, contact fields, demographics (gender and birth date), and declared anchors are cleared while identity, locale, honors, and identity links are preserved. Each path appends an `erasure_log` row.
+- Two erasure paths exist and must not be collapsed. A soft-deleted account, after `member_cleanup_grace_days`, undergoes full PII purge: credentials, contact, identity links, and declared anchors are cleared while HoF/BAP display is preserved. A member flagged deceased, after `deceased_cleanup_grace_days`, undergoes a contact scrub: credentials, contact fields, private address lines (street address and postal code), demographics (gender and birth date), and declared anchors are cleared while identity, locale, honors, and identity links are preserved. Each path appends an `erasure_log` row.
 - Audit-log retention follows §8; erasure does not delete audit history.
 - Erasure that fails on any persistent surface (account PII, search and derived indices, backup re-application) is a launch-blocker.
 

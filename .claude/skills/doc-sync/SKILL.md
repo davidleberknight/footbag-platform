@@ -33,7 +33,7 @@ Do not use this skill for:
 When sources conflict, evaluate in this order:
 
 1. explicit human decisions in the current task
-2. `docs/USER_STORIES.md` for functional requirements
+2. `docs/USER_STORIES.md` for functional requirements; and for membership tiers, Active Player status, voting eligibility, or published rules content, the IFPA governing documents (`ifpa/BYLAWS.md`, `ifpa/IFPAMembershipStructure_2026.md`, `ifpa/ArticlesOfIncorporation.md`, `ifpa/rules/**`), which USER_STORIES defers to as the authority of record — a doc contradicting them on membership or voting drifts toward the governing document, and any genuine governance change is routed to IFPA, not edited in
 3. the top active-slice/status block in `IMPLEMENTATION_PLAN.md` for current scope and out-of-scope boundaries
 4. current local repository code and configuration for implemented behavior
 5. derived local documentation (`DATA_MODEL`, etc.), the path-scoped `.claude/rules/*` files, the `.claude/skills/*` procedures, and per-service file-header JSDoc — the authoritative home for service ownership, required patterns, invariants, and side-effects. These rule and skill files are canonical and are drift-checked like any doc.
@@ -87,6 +87,8 @@ Locate the most relevant existing document or section for the affected topic.
 
 The matching documentation is not only prose docs. The path-scoped `.claude/rules/*` files whose glob covers the touched code, the `.claude/skills/*` procedures for that area, and the touched service's file-header JSDoc are all canonical and drift like any doc. For every changed behavior, identifier, boundary, or contract, grep these for the OLD behavior or identifier and drift-check each hit, the same as a prose doc: a change under `src/services/**` is drift in `service-layer.md` if that rule still states the old contract; a renamed identifier is drift wherever a rule or skill still names the old one. This grep is mandatory, not optional, because reading a rule for context does not by itself surface a stale clause buried in it; skipping it is how rule and skill drift survives a doc-sync pass.
 
+Extend that same grep to code comments in the touched area. A comment that names the renamed identifier or describes the superseded behavior is a stale comment to fix in the same change. For comments that cite a design-doc section, apply `.claude/rules/comments.md` rather than treating every reference as a violation: a doc PATH (`docs/<file>.md`) is always forbidden, and a bare shorthand (`// per DD §<n>`) is forbidden only when it substitutes for the explanation; a bare shorthand sitting beside a complete self-contained explanation is tolerated in `src/` (tests are stricter and allow none). Where the touched change renames a symbol or renumbers a section, the bare locators pointing at it rot with no compile-time signal, so reword those to state the reason in words.
+
 Prefer updating the current authoritative location rather than inventing a new place.
 
 Before proposing an edit, scan enough surrounding context to ensure:
@@ -127,6 +129,7 @@ Requirements:
 - group all edits needed for one issue together
 - review the whole doc to include every place that must change for consistency
 - do not propose to rewrite entire sections when a few lines will do
+- the edit must not introduce a banned stale-language token (`Last updated:`, `as of <date>`, `currently`, sprint/slice labels) or a broken internal reference, and where it cites another section, prefer that section's durable title over a bare number, which rots on renumber (per `.claude/rules/doc-governance.md`)
 
 For each proposed edit, provide:
 - file path

@@ -1344,7 +1344,7 @@ function welcomeTierContent(): MemberWelcomeTier[] {
         'Request IFPA sponsorship and send community announcements via announce@footbag.org',
         'Vouch for Tier 0 members to earn or extend Active Player status',
         'Access the Official IFPA Roster for organizer purposes',
-        'Granted automatically by Hall of Fame or Big Add Posse induction',
+        'Granted automatically by Hall of Fame or Big Add Posse induction (if you hold one and it is not shown, contact the IFPA admin to have it reviewed)',
       ],
     },
     {

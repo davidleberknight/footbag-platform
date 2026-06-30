@@ -1,6 +1,6 @@
 ---
 name: footbag-curated-media
-description: Use when adding, modifying, validating, or troubleshooting curated freestyle media intake for the footbag-platform project: Tricks of the Trade lessons, PassBack Records, AnzTrikz tutorials, Shred Global, FootbagSpot, or any future tutorial / record / expert-review source. Enforces the established curated-source pipeline (snippet_candidates → promote → sidecars → media_items → tag-based gallery), the trick-tag invariant, and the strict separation between data prep (James-owned) and gallery management (Dave-owned).
+description: Use when adding, modifying, validating, or troubleshooting curated freestyle media intake for the footbag-platform project: Tricks of the Trade lessons, PassBack Records, AnzTrikz tutorials, Shred Global, FootbagSpot, or any future tutorial / record / expert-review source. Enforces the established curated-source pipeline (snippet_candidates → promote → sidecars → media_items → tag-based gallery), the trick-tag invariant, and the boundary between curator data-prep / gallery-sidecar work and the admin gallery-editor UI and schema.
 ---
 
 # Footbag Curated Media Skill
@@ -9,7 +9,7 @@ Use this skill when the task is **curated freestyle media intake**: staging, val
 
 > **Lifecycle scope: this skill governs PRE-GO-LIVE curated-media data prep.** The CSV → sidecar → seeder → DB pipeline below builds the database before go-live, when `/curated/` is the source of truth. After go-live the persistent production DB is the source of truth and curated media is managed through the admin UI, which writes the DB directly; the seeder is not run against production (DD §1.13). The rules below are the pre-go-live data-prep contract, not a claim that the seeder is the eternal only writer of `media_items`.
 
-> **Boundary update (2026-06-06): the gallery boundary is lifted for James.** James now directs gallery / curated-media work directly — creating and editing `curated/galleries/*.json` sidecars, running `seed_fh_curator.py` (standalone + idempotent; lands sidecar changes without a full `reset-local-db.sh`), and editing the emerging-vocab generators. The "Dave-owned" notes on gallery JSON, gallery creation, and `seed_fh_curator.py` below are **superseded for James's work**. Only the admin gallery-edit-**tool UI** code (`adminCuratorController.ts`, `curatorMediaService.ts`, `src/views/admin/curator/**`) and the gallery schema remain Dave's. A named gallery is a tag-AND `member_galleries` row; a catch-all gallery's `excludeTags` MUST list every source-gallery tag or it double-lists. See memory `feedback_gallery_dave_track`.
+> **Scope.** Curated-media data work is done directly through this pipeline: the `curated/galleries/*.json` sidecars, gallery creation, running `seed_fh_curator.py` (standalone and idempotent; it lands sidecar changes without a full `reset-local-db.sh`), and the emerging-vocab generators. The admin gallery-editor UI code (`adminCuratorController.ts`, `curatorMediaService.ts`, `src/views/admin/curator/**`) and the gallery schema are application code, changed through normal review. A named gallery is a tag-AND `member_galleries` row; a catch-all gallery's `excludeTags` MUST list every source-gallery tag or it double-lists.
 
 ## 1. Core pipeline
 
@@ -28,7 +28,7 @@ freestyle/tools/trick_video_discovery/snippet_candidates.csv
 curated/freestyle_tricks/{trick-slug}_{sha1(video_id)[:8]}.meta.json
    (one sidecar per (trick_slug, video_id); shape is fixed,
     see §3 and §10 examples)
-   ↓  scripts/seed_fh_curator.py (Dave-owned)
+   ↓  scripts/seed_fh_curator.py
 DB: media_items + media_tags
    ↓  named gallery filter via member_gallery_tags (tag-AND match)
 public gallery page at /media/<gallery_id>
@@ -151,23 +151,23 @@ Named-gallery membership is computed at request time by **tag-AND match** agains
 
 1. **Every intended sidecar must carry the source tag.** If you introduce `#<new_source>`, ensure both new emissions AND any pre-existing sidecars from that source carry the tag. Backfill is one-shot, idempotent, and limited to the `tags` array: never modify other sidecar fields.
 2. **Whitelist the source tag** in `scripts/_trick_tag_invariant.py:UTILITY_EXACT` before introducing it. Otherwise the validator rejects sidecar emissions and post-load QC fails.
-3. **Gallery creation is now James-track (2026-06-06 boundary lift).** A named gallery can be created either via the admin UI or directly as a `curated/galleries/<name>.json` sidecar (tag-AND `member_galleries`; `id` = `gallery_<slug>`, `criteriaTags`, `excludeTags`), then landed by running `seed_fh_curator.py`. Whitelist any new source tag in `scripts/_trick_tag_invariant.py:UTILITY_EXACT` first.
+3. **Gallery creation.** A named gallery can be created either via the admin UI or directly as a `curated/galleries/<name>.json` sidecar (tag-AND `member_galleries`; `id` = `gallery_<slug>`, `criteriaTags`, `excludeTags`), then landed by running `seed_fh_curator.py`. Whitelist any new source tag in `scripts/_trick_tag_invariant.py:UTILITY_EXACT` first.
 
 ## 9. Safety boundaries
 
 | Boundary | Rule |
 |---|---|
-| `scripts/seed_fh_curator.py` | James may RUN it (standalone/idempotent) per the 2026-06-06 boundary lift; coordinate with Dave before MODIFYING the script body. |
-| `curated/galleries/*.json` | James-track since the 2026-06-06 boundary lift — create/edit gallery sidecars directly (catch-all `excludeTags` must list every source tag). |
-| `src/controllers/adminCuratorController.ts`, `src/services/curatorMediaService.ts`, `src/views/admin/curator/**` | Dave-owned (gallery editor + member upload). |
-| `src/db/db.ts` schema (member_galleries, member_gallery_tags, media_items, media_tags) | Schema changes need Dave coordination. |
-| `freestyle/tools/trick_video_discovery/snippet_candidates.csv` | James-track. Append-only edits via `csv.writer` in append mode; never round-trip via DictReader/DictWriter (memory rule). |
-| `curated/freestyle_tricks/*.meta.json` | James-track for promotion + backfill via `promote_snippet_candidates.py` and one-shot backfill scripts. |
-| `scripts/promote_snippet_candidates.py` | James-track. |
-| `scripts/_trick_tag_invariant.py` | James-track. Add new source tags to `UTILITY_EXACT` here. |
-| `freestyle/loaders/{24,25}_qc_*.py` + `legacy_data/event_results/scripts/28_qc_bap_coverage.py` | James-track. |
+| `scripts/seed_fh_curator.py` | Safe to RUN (standalone, idempotent); take care before MODIFYING the script body. |
+| `curated/galleries/*.json` | Create/edit gallery sidecars directly (a catch-all `excludeTags` must list every source tag). |
+| `src/controllers/adminCuratorController.ts`, `src/services/curatorMediaService.ts`, `src/views/admin/curator/**` | Application code (gallery editor + member upload); change through normal review. |
+| `src/db/db.ts` schema (member_galleries, member_gallery_tags, media_items, media_tags) | Schema changes go through normal review. |
+| `freestyle/tools/trick_video_discovery/snippet_candidates.csv` | Append-only edits via `csv.writer` in append mode; never round-trip via DictReader/DictWriter (memory rule). |
+| `curated/freestyle_tricks/*.meta.json` | Promotion and backfill via `promote_snippet_candidates.py` and one-shot backfill scripts. |
+| `scripts/promote_snippet_candidates.py` | Promotion script for snippet candidates. |
+| `scripts/_trick_tag_invariant.py` | Add new source tags to `UTILITY_EXACT` here. |
+| `freestyle/loaders/{24,25}_qc_*.py` + `legacy_data/event_results/scripts/28_qc_bap_coverage.py` | QC checks; run after a load. |
 
-When in doubt about whether a change crosses Dave's boundary, ask. The cost of pausing is low; reverting an unwanted change to his territory is high.
+When in doubt about whether a change reaches the application-code or schema layer rather than the data files, pause and confirm first. The cost of pausing is low; reverting an unwanted change is high.
 
 ## 10. Examples
 
@@ -273,9 +273,9 @@ The tier registry is **not codified in code or schema**. Each sidecar's tier is 
 
 The default tier is a starting point, not a mandate. Curator may set a different tier on a per-sidecar basis when the content quality justifies it. Document the override reason in the sidecar's `notes` field if the deviation isn't self-evident.
 
-### Audit observation (2026-05-07; superseded by 2026-05-10 reclass)
+### Source-default tier for shred_global and footbag_finland
 
-The media linkage integrity audit (2026-05-07) found 14 sidecars whose tier didn't match the audit's then-source-default expectation. Most cases were `footbag_finland` and `shred_global` sidecars labeled `HIGH_QUALITY_DEMO` instead of the then-expected STRONG_TUTORIAL default. **Phase 2b (2026-05-10) reclassified `shred_global` to demo-tier, which means those `HIGH_QUALITY_DEMO` sidecars are now the correct tier: the original audit expectation was the side that drifted, not the sidecars.** The table above reflects the post-reclass defaults. Existing sidecars do NOT need bulk updating; the convention applies forward.
+`shred_global` is a demo-tier source, so its `HIGH_QUALITY_DEMO` sidecars carry the correct tier; `footbag_finland` follows the same demo-tier default. The table above is authoritative for source defaults. Existing sidecars are not bulk-updated to match a default change; the convention applies forward.
 
 ### Tier is presentation, not data integrity
 
@@ -297,6 +297,5 @@ Conditional: if the source emits a gallery TAG `#<source>`, whitelist it in `scr
 ## Cross-references
 
 - `footbag-freestyle-dictionary` skill: trick / alias / glossary layer separation rules; the canonical source for what counts as a trick.
-- `feedback_gallery_dave_track.md` (memory): gallery management is Dave's track during his gallery-edit-tool build; only tagging hygiene + sidecar work + QC is allowed.
 - `feedback_admin_post_rebuild_backfill.md` (memory): DB rebuilds wipe member rows including `is_admin`; not directly about media but the same operational lesson: rebuilds don't reapply per-row state.
 - `project_gallery_organization.md` (memory): historical context on TT Series view + cluster candidates (passback_records, anz_trikz, footbag_finland, shred_global, flipsider_footbag); note that the original TT view code was removed in commit `23a4bae` and replaced by named-gallery sidecars.

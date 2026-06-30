@@ -51,7 +51,7 @@ Overlap with `bug-hunt` is intentional and accepted. The two skills sweep overla
 5. Do not inspect or dump raw PII unnecessarily.
 6. Do not print raw member PII, emails, addresses, phone numbers, passwords, password hashes, reset tokens, sessions, secrets, or credential-like values.
 7. Do not audit the Python legacy pipeline as code unless the human explicitly expands scope.
-8. Do not treat legacy CSVs, mirror feeds, or Steve Goldberg's dump as post-go-live runtime sources of truth. After go-live, the production database and live platform become the source of truth unless a canonical doc explicitly says otherwise.
+8. Do not treat legacy CSVs, mirror feeds, or the legacy data dump as post-go-live runtime sources of truth. After go-live, the production database and live platform become the source of truth unless a canonical doc explicitly says otherwise.
 9. Do not treat "not currently implemented" as a design bug by itself. Documented future work is design intent, not audit drift. A missing service, view, schema, governance, or test contract for an undelivered story is reportable ONLY when the intended behavior is ambiguous, contradictory, unsafe, unverifiable, or missing required acceptance criteria. Mere absence of an unbuilt feature is never a finding, and the hunt never proposes building the feature.
 10. Do not treat existing design rationale as automatically correct. Good rationale can still hide edge-case bugs.
 11. Do not guess. Use `UNKNOWN`, `NOT SPECIFIED`, `NOT FOUND`, `CONTRADICTED`, or `NEEDS HUMAN DECISION`.
@@ -92,6 +92,7 @@ Read:
 12. `docs/DEVOPS_GUIDE.md`
 13. `docs/MIGRATION_PLAN.md`
 14. `legacy_data/CLAUDE.md`
+15. `ifpa/BYLAWS.md`, `ifpa/IFPAMembershipStructure_2026.md`, `ifpa/ArticlesOfIncorporation.md`, `ifpa/rules/**` — required before any finding touching membership tiers, Active Player status, voting eligibility, or published rules; the governing documents `docs/USER_STORIES.md` defers to as the authority of record.
 
 This full read-order applies to a comprehensive design audit. For a scoped ask, read only the subset that bears on the request (see Scaling and budget).
 
@@ -266,7 +267,9 @@ Use the repo's canonical order; do not restate a competing one. The authority or
 
 When two sources conflict, classify the conflict as a finding rather than silently choosing one.
 
-One rule this skill adds, because it is go-live-specific and `CLAUDE.md` does not state it: after go-live the platform database and live application are the source of truth for production state. Legacy feeds, mirror data, Steve Goldberg's preliminary dump, raw SQL backups, and curated CSVs are migration inputs and audit evidence only, never a retained runtime source, unless a canonical design doc explicitly defines a retained legacy source. Flag any design that implies continuing runtime dependency on migration inputs after go-live.
+The IFPA governing documents (`ifpa/BYLAWS.md`, `ifpa/IFPAMembershipStructure_2026.md`, `ifpa/ArticlesOfIncorporation.md`, `ifpa/rules/**`) are the authority of record for membership policy, tiers, Active Player status, voting eligibility, and published rules content, ranking above `docs/USER_STORIES.md`, which defers to them. A design doc that contradicts them on membership or voting is a design bug detectable now, classified by severity, not a missing decision to route to the IFPA board. Reserve the board-decision bucket for questions the governing documents genuinely leave open.
+
+One rule this skill adds, because it is go-live-specific and `CLAUDE.md` does not state it: after go-live the platform database and live application are the source of truth for production state. Legacy feeds, mirror data, the preliminary legacy data dump, raw SQL backups, and curated CSVs are migration inputs and audit evidence only, never a retained runtime source, unless a canonical design doc explicitly defines a retained legacy source. Flag any design that implies continuing runtime dependency on migration inputs after go-live.
 
 ## Required working method
 
@@ -513,9 +516,9 @@ Find bugs in:
 * repeated import idempotency design
 * validation gate coverage
 * rollback plan
-* Steve Goldberg question ownership
+* legacy-site webmaster question ownership
 * IFPA board decision ownership
-* Dave maintainer decision ownership
+* project-maintainer decision ownership
 * legacy account claim safety
 * legacy credential exclusion
 * legacy admin role migration
@@ -536,7 +539,7 @@ Find bugs in:
 
 Critical migration principle:
 
-The Python legacy pipeline, mirror data, Steve dump, and CSVs are pre-go-live transition machinery. They must not become indefinite runtime dependencies unless a canonical design explicitly says so. Flag any design that implies continuing dependency on migration inputs after go-live.
+The Python legacy pipeline, mirror data, the legacy data dump, and CSVs are pre-go-live transition machinery. They must not become indefinite runtime dependencies unless a canonical design explicitly says so. Flag any design that implies continuing dependency on migration inputs after go-live.
 
 ### Phase 9: Dev/staging/prod parity sweep
 
@@ -688,20 +691,20 @@ Report contradictions only when they affect implementation, testing, migration, 
 
 Classify every unresolved issue into exactly one primary owner:
 
-* `Steve / legacy webmaster factual question`
+* `legacy-site webmaster factual question`
 * `IFPA board / governance decision`
-* `Dave / platform maintainer decision`
+* `project-maintainer decision`
 * `Technical design decision`
 * `Test/verification backlog`
 * `DevOps/parity backlog`
 * `Migration validation backlog`
 * `Bug-hunt implementation follow-up`
 
-Do not ask Steve to decide new-platform policy unless the issue is specifically about legacy facts.
+Do not ask the legacy-site webmaster to decide new-platform policy unless the issue is specifically about legacy facts.
 
 Do not ask the IFPA board technical implementation questions.
 
-Do not ask Dave questions that deterministic repo analysis can answer.
+Do not ask the project maintainer questions that deterministic repo analysis can answer.
 
 ### Phase 14: Active refutation
 
@@ -741,8 +744,8 @@ Use these reviewer personas:
 * security reviewer
 * DevOps/on-call maintainer
 * future developer implementing an undelivered story
-* Steve Goldberg as legacy factual witness
-* Dave as docs maintainer
+* the legacy-site webmaster as legacy factual witness
+* the project maintainer as docs maintainer
 
 Each persona should try to find production bugs in the design.
 
@@ -791,7 +794,7 @@ Each finding must use this format:
 
 - Severity: P0 | P1 | P2 | P3
 - Category: <one category>
-- Owner: Steve / IFPA / Dave / Technical design / Testing / DevOps / Migration / Bug-hunt follow-up
+- Owner: legacy-site webmaster / IFPA / project maintainer / Technical design / Testing / DevOps / Migration / Bug-hunt follow-up
 - Status: New | Confirmed | Contradicted | Needs human decision | Needs validation
 - Scope: User story | Design decision | Service contract | View-layer | Data model | Migration | DevOps | Testing | Cross-doc
 - Evidence:
@@ -916,7 +919,7 @@ Table:
 
 ## 6. Missing decisions
 
-### Steve / legacy webmaster factual questions
+### Legacy-site webmaster factual questions
 
 Only legacy factual questions.
 
@@ -924,7 +927,7 @@ Only legacy factual questions.
 
 Only policy/governance questions.
 
-### Dave / platform maintainer decisions
+### Project-maintainer decisions
 
 Design/documentation authority questions.
 
@@ -944,7 +947,7 @@ Table:
 
 Separate migration/go-live issues from normal feature issues.
 
-Explicitly state whether the design correctly treats legacy feeds, mirror data, Steve dump, and CSVs as pre-go-live migration inputs rather than post-go-live runtime sources of truth.
+Explicitly state whether the design correctly treats legacy feeds, mirror data, the legacy data dump, and CSVs as pre-go-live migration inputs rather than post-go-live runtime sources of truth.
 
 ## 9. Dev/staging/prod parity risks
 
@@ -970,7 +973,7 @@ Do not implement them unless asked.
 
 ## Question discipline
 
-Ask a question only when blocked.
+Ask a question only when blocked. Follow `.claude/rules/asking.md`: plain self-contained English, no internal codes the human was not given, one recommended answer made the default so a bare "y" takes it.
 
 When asking, use this format:
 
@@ -982,10 +985,13 @@ Evidence:
 - ...
 
 Question:
-<one precise question>
+<one precise question, self-contained>
 
 Recommended answer:
-<recommended answer if evidence supports one>
+<the single answer the sources support, and why; research it from the authoritative source rather than leaving it open. This is the default a bare "y" accepts.>
+
+Load-bearing assumptions:
+<the assumptions behind the recommendation, so a wrong one can be corrected first>
 
 Why it matters:
 <what downstream analysis depends on it>

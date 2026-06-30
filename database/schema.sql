@@ -717,38 +717,6 @@ CREATE TABLE email_templates (
 CREATE VIEW email_templates_enabled AS
   SELECT * FROM email_templates WHERE is_enabled = 1;
 
--- ---------------------------------------------------------------------------
--- Seed: built-in templates that need to exist before the first send.
---
--- hof_bap_admin_digest
---   Daily digest to the admin-alerts mailing list summarizing silent claims
---   that produced a member_tier_grants row with reason_code
---   'legacy.claim_tier_grant' AND HoF or BAP honor flag in the prior 24h.
---   Row identifiers and decision-relevant attributes only -- no PII.
--- ---------------------------------------------------------------------------
-INSERT OR IGNORE INTO email_templates
-  (id, created_at, created_by, updated_at, updated_by, version,
-   template_key, subject_template, body_template, is_enabled)
-VALUES
-  (
-    'tpl_hof_bap_admin_digest',
-    '2000-01-01T00:00:00.000Z', 'system',
-    '2000-01-01T00:00:00.000Z', 'system',
-    1,
-    'hof_bap_admin_digest',
-    'IFPA admin digest: {{claim_count}} HoF/BAP claim(s) in last 24h',
-    'Silent auto-link claims with HoF or BAP honor flag in the prior 24 hours.
-
-{{claim_rows}}
-
-Monitoring window remaining: {{monitoring_window_remaining_days}} day(s).
-
-This digest covers only row identifiers and decision-relevant attributes. No member contact fields are included.
-
--- IFPA platform',
-    1
-  );
-
 -- =============================================================================
 -- SECTION 9: ADMIN OPERATIONS
 -- =============================================================================

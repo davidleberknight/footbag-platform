@@ -321,7 +321,7 @@ run_v0_backbone() {
     if [[ ${#_id_missing[@]} -gt 0 ]]; then
         echo "ERROR: identity-lock CSV(s) not found:" >&2
         for _f in "${_id_missing[@]}"; do echo "  MISSING: ${_f}" >&2; done
-        echo "Recommendation: see legacy_data/IMPLEMENTATION_PLAN.md (top of 'Still to do')." >&2
+        echo "Recommendation: see legacy_data/runbooks/rebuild-identity-pipeline.md." >&2
         exit 1
     fi
     python pipeline/adapters/mirror_results_adapter.py --mirror mirror_footbag_org
