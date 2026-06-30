@@ -1,25 +1,32 @@
 /**
- * Integration tests for DSC-2 slice 1: the By ADD view migrated to the
- * shared dictionary-trick-card partial.
+ * Dictionary browse-view card and row rendering.
  *
- * Sample tricks (per the user spec):
+ * The browse views split across two rendering contracts:
+ *   - By ADD (the /freestyle/tricks default) and By Family render the two-line
+ *     dict-trick-row contract (dict-trick-row-stack), NOT the shared card.
+ *   - By Category and By Component render the shared dictionary-trick-card
+ *     partial (dict-card-stack).
+ *   - By Set uses its own compact-list density and is outside the
+ *     card-uniformity contract.
+ *
+ * Sample tricks:
  *   - toe stall   — sparse base trick, low ADD
  *   - mirage      — base trick, simple operational notation
+ *   - butterfly   — family anchor (slug === trick_family)
  *   - ripwalk     — compound with aliases
  *   - mobius      — compound with folk-name alias (gyro torque)
  *   - montage     — flagship deep compound
+ *   - torque      — null operational notation but present in the equivalence chain registry
  *
  * Invariants verified:
- *   - /freestyle/tricks (By ADD default) returns 200
- *   - Each seeded trick renders the dictionary-trick-card partial
- *   - Card renders: title link, ADD label, operational notation (or "Notation pending"), aliases when present
- *   - Card does NOT render prose description (browse cards never carry description prose)
- *   - Sparse tricks (Toe Stall) render safely without aliases / extra slots
- *   - Compound tricks render with role-tagged token spans
- *   - Notation tokens carry the op-token CSS class + cssRole modifier
- *   - The card stack is scoped to its ADD group via section id
- *   - Other browse views (By Family / By Category / By Sets) still return 200
- *     (regression guard; not migrated in this slice)
+ *   - Every browse view returns 200
+ *   - By ADD / By Family render the two-line dict-trick-row stack, not the shared card
+ *   - By Category / By Component render the shared dictionary-trick-card partial
+ *   - A card renders: plain-text title, separate Trick Detail link, #slug chip,
+ *     ADD label, tokenized notation or ≡ equivalence readings; never prose description
+ *   - Sparse and deep tricks render through the one shared card template
+ *   - Cards are grouped under their ADD / family / category section anchors
+ *   - Tier-4 executable-accounting prose stays off non-first-class browse cards
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
