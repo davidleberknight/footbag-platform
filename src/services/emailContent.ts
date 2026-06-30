@@ -4,6 +4,12 @@
  * import the same builder instead of duplicating copy. Bodies are plain text:
  * the SES transport sends them as a text part, so an interpolated member-supplied
  * value cannot inject mail headers, and a newline in a value only adds body lines.
+ *
+ * Current: each email's subject and body are built by the hard-coded generators
+ * below, which are the initial template set the email scenarios test against.
+ * Target: the subject and body live in the email_templates table seeded from
+ * committed JSON sidecars, and the email service renders from there; these
+ * generators are removed once that template source is built.
  */
 
 export interface EmailContent {

@@ -381,7 +381,7 @@ variable "enable_cutover_login_alarm" {
 resource "aws_cloudwatch_log_metric_filter" "login_success" {
   name           = "${local.prefix}-login-success"
   log_group_name = aws_cloudwatch_log_group.app.name
-  pattern        = "{ $.message = \"auth.login_success\" }"
+  pattern        = "{ $.msg = \"auth.login_success\" }"
   metric_transformation {
     namespace     = "Footbag/${var.environment}"
     name          = "LoginSuccessCount"

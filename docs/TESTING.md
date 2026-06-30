@@ -411,7 +411,7 @@ These tests describe permanent contracts. They are not sprint-scoped.
 
 The staging-smoke leg applies to adapters that reach an external service over the network: `JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, and `SecretsAdapter` (real AWS via the assumed-role chain) and `SafeBrowsingAdapter` (the real Google Safe Browsing API). The three internal docker-network adapters (`HttpReachabilityAdapter`, `ImageProcessingAdapter`, `VideoTranscodingAdapter`) carry boot-config and interface-parity tests but no workstation staging-smoke: their dependency is the internal `image` worker rather than an external surface the dev-against-staging (no-ssh) model can reach, and their failure mode is a noisy first-request error rather than silent IAM or network drift. Their wiring is covered by the interface-parity tests, the compose `image:4000/health` healthcheck that gates stack startup, and the e2e upload path.
 
-`PaymentAdapter` carries boot-config and interface-parity tests but no workstation staging-smoke. Its live implementation reaches Stripe, but a smoke test that created a real Checkout session or delivered a real charge has side effects no read-only probe should: the live path is instead verified by the signed-webhook integration tests (signature acceptance, tamper rejection, and replay idempotency against the real verifier) and by the stub checkout pass-through that drives the same handler. Live-Stripe end-to-end exercise belongs to the operator's manual pre-launch check, not the smoke suite.
+`PaymentAdapter` carries boot-config and interface-parity tests but no workstation staging-smoke. Its live implementation reaches Stripe, but a smoke test that created a real Checkout session or delivered a real charge has side effects no read-only probe should: the live path is instead verified by the signed-webhook integration tests (signature acceptance, tamper rejection, and replay idempotency against the real verifier) and by the stub checkout pass-through that drives the same handler. Live-Stripe end-to-end exercise is the operator-run production-only verification in §7.7, not the smoke suite.
 
 ### 7.3 Staging smoke entry point
 
@@ -483,6 +483,22 @@ These tests describe long-term contracts on the affordance's safety properties, 
 ### 7.6 Test-only HTTP endpoints live behind the env-gated dev router
 
 A test-only HTTP endpoint is permitted only when its handler lives in `src/testkit/` (or `src/dev-bootstrap/`) and is reachable solely through the dev router, mounted under `FOOTBAG_ENV ∈ {development, staging}` with a production hard-guard. The `/dev/switch` persona-switch route and the `/dev/personas` listing are the worked examples: their handlers and mount glue live in `src/testkit/`, and they are never mounted in production. What stays forbidden is a standalone request-time bypass whose logic escapes these subtrees or that is reachable in a production build (a hypothetical `/__test/login` or `/__test/seed` wired into a permanent router).
+
+### 7.7 Production-only go-live verification
+
+Some contracts cannot be exercised below production: the stub and staging paths deliberately avoid real side effects (real charges, real mail to real inboxes, real DNS and TLS, the real first-admin claim). These are lumped here as one operator-run pass, performed after the production deploy and before the surface opens to members. Each produces an observable artifact (a settled row, an audit row, a delivered message), not just a 200.
+
+**Live email deliverability.** With `SES_ADAPTER=live`: a real send to an operator inbox lands in the inbox and passes SPF, DKIM, and DMARC at a major provider; a real bounce and a real complaint (the SES simulator addresses) write a suppression row and a feedback-webhook audit row; the suppression list then withholds a later send to that address.
+
+**Live Stripe payments.** Live payments move real money, so they are verified in two stages — Stripe test mode against the real Stripe API, then a controlled live canary — before members can pay. The stub checkout (§16.5) and the signed-webhook integration tests (§7.2) cover the handler; this verifies the real Stripe surface the stub cannot.
+
+1. Test-mode end-to-end: against test keys, drive real Checkout session creation and a real Stripe-signed webhook (`stripe listen` / `trigger`): success grants the tier, cancel and decline do not, the signature validates against the production verifier, a resent event does not double-grant, and the SCA / authentication-required and declined-card paths behave.
+2. Live canary: with the live API key and webhook signing secret in Parameter Store and the live endpoint registered against the production domain, make one real low-value charge with a real card; confirm a settled `payments` row, the tier grant, the receipt email, and the audit row written by the signature-validation path; refund it and confirm the refund path leaves no dangling grant; replay the live webhook from the Stripe Dashboard and confirm no double-grant.
+3. Reconciliation and controls: the `payments` table reconciles against the Stripe ledger (no missed webhooks — the Stripe event log against the rows), amount and currency are correct, card data never reaches the origin (hosted Checkout; no PAN in logs), live keys live only in Parameter Store, and payments can be disabled quickly if a defect appears. Open payments to members only after the canary and reconciliation pass; watch failed-payment and webhook-delivery-failure signals through the first days.
+
+**Live front door.** The apex and `www` resolve through CloudFront over the real `footbag.org` certificate; direct-to-origin is refused (origin-verify); the first production admin is provisioned through the real SSM-token claim.
+
+These are operator-run, not part of the automated suite — the production half of the adapter parity contract (§7.2), whose staging-smoke leg cannot reach the real charge, the real inbox, or the real zone.
 
 ---
 
@@ -906,7 +922,7 @@ The stub payment adapter registers the checkout pass-through when `PAYMENT_ADAPT
    - **Cancel**: payment is canceled, no tier change, redirect to the cancel page.
    - **Decline payment**: payment fails, no tier change, redirect to the cancel page in its failure variant.
 
-Live Stripe checkout-session creation and the `stripe listen` / `trigger` developer loop are out of scope until the live adapter ships.
+Live Stripe checkout-session creation and the `stripe listen` / `trigger` loop are the production-only go-live verification (§7.7) once the live adapter ships; they are out of the dev/staging harness.
 
 ### 16.6 Staging loop
 

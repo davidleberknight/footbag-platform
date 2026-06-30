@@ -54,3 +54,33 @@ resource "aws_route53_record" "www_a" {
     evaluate_target_health = false
   }
 }
+
+resource "aws_route53_record" "www_aaaa" {
+  count   = var.enable_apex_alias_records ? 1 : 0
+  zone_id = var.route53_zone_id
+  name    = "www.${var.domain_name}"
+  type    = "AAAA"
+
+  alias {
+    name                   = aws_cloudfront_distribution.main.domain_name
+    zone_id                = aws_cloudfront_distribution.main.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+# CAA constrains TLS certificate issuance to Amazon's certificate authority (the
+# one ACM uses), so no other CA can issue a certificate for footbag.org or its
+# subdomains. A CAA at the apex is inherited by www and archive. This takes
+# effect once Route 53 is authoritative; before the DNS handover the webmaster's
+# zone must carry no CAA that would block ACM from issuing.
+resource "aws_route53_record" "caa" {
+  count   = var.enable_apex_alias_records ? 1 : 0
+  zone_id = var.route53_zone_id
+  name    = var.domain_name
+  type    = "CAA"
+  ttl     = 300
+  records = [
+    "0 issue \"amazon.com\"",
+    "0 issuewild \"amazon.com\"",
+  ]
+}

@@ -161,7 +161,7 @@ Read deployed controllers, services, middleware, adapters, templates, schema-fac
 - **Audit before edit**. The §4.5 step-0 audit of `BUGS.md` (re-verify every existing entry) is mandatory before any write to that file.
 - **Scope = currently deployed code in `src/`** per §1 deployed-US inventory.
 - **Skip CAPTCHA AC; skip the `legacy_data/` pipeline unless the kickoff prompt includes it** per §0.2. Honor any per-run exclusions from the kickoff prompt and record them in the `BUGS.md` scope note.
-- **One question per turn** if you need to ask the maintainer something.
+- **One question per turn** if you need to ask the maintainer something. Questions follow `.claude/rules/asking.md`: resolve from the source-of-truth order first, one self-contained question in plain words with a recommended answer, no codes the maintainer was not given (a `BUGS.md` finding ID is fine — it is shared).
 - **Breadth fan-out is encouraged; verification stays central.** Trivial lookups stay in the main session. For coverage, controlled read-only sub-agents may sweep one surface or bug-class each in parallel, but every candidate they surface is re-verified against the cited lines in the main session before it is recorded: a sub-agent conclusion is a lead, never a finding. Security/correctness survivors still get the main-session adversarial second pass.
 - **Concise communication**. No filler, no preamble, no emojis.
 - **No backwards-compat hacks**. If you find dead code, deletable shims, or unused exports, flag them under "low severity" but do not propose elaborate migration plans.

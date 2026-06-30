@@ -109,7 +109,7 @@ Do not treat these as drift:
 - missing nice-to-have explanation when the docs are still accurate
 
 ### 4) Escalate when meaning changes
-Always escalate to the human before any documentation edit:
+Always escalate to the human before any documentation edit (questions follow `.claude/rules/asking.md`: resolve from the source-of-truth order first, one self-contained question with a recommended answer, no codes the human was not given):
 - user-visible behavior
 - interfaces or interface semantics
 - identifiers

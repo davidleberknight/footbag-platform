@@ -52,7 +52,7 @@ When future sessions encounter requests like "let's add a `family_galleries` tab
 - Schema changes (alias_kind column, secondary_family relation): explicitly deferred
 - Auth-gated dictionary depth: never; depth is layered, not gated
 
-If a request blurs these boundaries, escalate. Explicitly note the sandbox-vs-production status in the response.
+If a request blurs these boundaries, escalate. Explicitly note the sandbox-vs-production status in the response. Questions to the human follow `.claude/rules/asking.md`.
 
 ---
 

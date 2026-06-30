@@ -54,7 +54,7 @@ Minimal call sequence for content/behavior check:
 
 ## Procedure
 
-1. Confirm with the human before running:
+1. Confirm with the human before running (questions follow `.claude/rules/asking.md`: one self-contained question with a recommended answer, no codes the human was not given):
    - exact URL(s) to visit
    - what is being checked (layout, content, behavior)
    - target environment: local dev server (default port 3000), staging, or explicit URL

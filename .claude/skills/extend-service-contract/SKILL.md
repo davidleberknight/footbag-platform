@@ -31,7 +31,7 @@ Read only the section relevant to this task. For large documents, locate the sec
    - the required patterns the service must follow
    - the invariants and transaction discipline it preserves
    - the persistence and side-effect categories it produces
-6. **Code, types, tests, and `database/schema.sql`**: authoritative for current shapes (method signatures, return types, error class shape, exact column names, nullable vs required, enum values, FK relationships, indices, triggers). When current code disagrees with the JSDoc contract, the JSDoc is drift to fix in the same change; a temporary, tracked deviation lives in `IMPLEMENTATION_PLAN.md`. Always follow existing code patterns and naming conventions if similar features have already been implemented; if no good pattern exists, ask the human before introducing a new one.
+6. **Code, types, tests, and `database/schema.sql`**: authoritative for current shapes (method signatures, return types, error class shape, exact column names, nullable vs required, enum values, FK relationships, indices, triggers). When current code disagrees with the JSDoc contract, the JSDoc is drift to fix in the same change; a temporary, tracked deviation lives in `IMPLEMENTATION_PLAN.md`. Always follow existing code patterns and naming conventions if similar features have already been implemented; if no good pattern exists, ask the human before introducing a new one. Questions to the human follow `.claude/rules/asking.md`.
 7. **`docs/DATA_MODEL.md`**: understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and data invariants the service-layer change must preserve.
 
 ## Step 2: Inspect current code

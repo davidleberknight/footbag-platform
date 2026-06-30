@@ -55,7 +55,7 @@ Overlap with `bug-hunt` is intentional and accepted. The two skills sweep overla
 9. Do not treat "not currently implemented" as a design bug by itself. Documented future work is design intent, not audit drift. A missing service, view, schema, governance, or test contract for an undelivered story is reportable ONLY when the intended behavior is ambiguous, contradictory, unsafe, unverifiable, or missing required acceptance criteria. Mere absence of an unbuilt feature is never a finding, and the hunt never proposes building the feature.
 10. Do not treat existing design rationale as automatically correct. Good rationale can still hide edge-case bugs.
 11. Do not guess. Use `UNKNOWN`, `NOT SPECIFIED`, `NOT FOUND`, `CONTRADICTED`, or `NEEDS HUMAN DECISION`.
-12. Ask at most one question at a time, only when truly blocked after collecting available evidence.
+12. Ask at most one question at a time, only when truly blocked after collecting available evidence; follow `.claude/rules/asking.md` (one self-contained question with a recommended answer, no codes the maintainer was not given).
 13. Findings must be evidence-grounded and actively refuted before recording.
 14. Continue until no new candidate design bugs appear after at least two independent passes, subject to the scaling rule below.
 

@@ -98,7 +98,7 @@ Always produce, in order:
 1. **Plan** — sections to delete, merge, rewrite; any structural changes.
 2. **Proposed result** — full rewritten file OR clean diff.
 3. **Assumptions and risks** — anything removed that may matter later; ambiguity in interpretation; misplaced-but-useful content.
-4. **Pause for approval** — never apply changes without explicit approval.
+4. **Pause for approval** — never apply changes without explicit approval. Questions to the human follow `.claude/rules/asking.md`.
 
 ---
 

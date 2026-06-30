@@ -147,10 +147,13 @@ resource "aws_route53_record" "ses_mail_from_spf" {
 }
 
 # ── SPF ──────────────────────────────────────────────────────────────────────
-# Single TXT record at the apex listing every authorised sender. SES
-# requires `include:amazonses.com`. ~all (softfail) is the conservative
-# starting policy; tighten to -all (fail) once deliverability is verified
-# across major receivers.
+# Single TXT record at the apex listing every authorised sender. The platform
+# app is outbound-only through SES (`include:amazonses.com`). The domain is not
+# SES-only: Google Workspace outbound for @footbag.org is authorised broadly via
+# `include:_spf.google.com`, and the webmaster's `brat@` sending host is added
+# here once the mail-sender scope is settled. ~all (softfail) is the conservative
+# starting policy; tighten to -all (fail) once deliverability is verified across
+# major receivers.
 
 resource "aws_route53_record" "spf" {
   count   = var.ses_enable_domain_auth ? 1 : 0
@@ -158,7 +161,7 @@ resource "aws_route53_record" "spf" {
   name    = var.domain_name
   type    = "TXT"
   ttl     = 600
-  records = ["v=spf1 include:amazonses.com ~all"]
+  records = ["v=spf1 include:amazonses.com include:_spf.google.com ~all"]
 }
 
 # ── DMARC ────────────────────────────────────────────────────────────────────
@@ -175,10 +178,17 @@ resource "aws_route53_record" "dmarc" {
   type    = "TXT"
   ttl     = 600
   records = [
-    var.ses_dmarc_rua_email != ""
-    ? "v=DMARC1; p=quarantine; rua=mailto:${var.ses_dmarc_rua_email}; adkim=s; aspf=r; pct=100"
-    : "v=DMARC1; p=quarantine; adkim=s; aspf=r; pct=100"
+    "v=DMARC1; p=quarantine; rua=mailto:${var.ses_dmarc_rua_email}; adkim=s; aspf=r; pct=100"
   ]
+
+  # DMARC aggregate reports are useless without a destination, so the reporting
+  # mailbox must be a real address before SES domain auth goes live.
+  lifecycle {
+    precondition {
+      condition     = var.ses_dmarc_rua_email != ""
+      error_message = "ses_dmarc_rua_email must be set to a real mailbox before enabling SES domain auth, so DMARC aggregate reports have a destination."
+    }
+  }
 }
 
 # =============================================================================

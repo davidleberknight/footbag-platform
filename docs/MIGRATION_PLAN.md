@@ -26,7 +26,7 @@ The legacy-site webmaster has delivered the legacy data; it is under analysis by
 
 These are the decisions that involve the legacy-site webmaster. Each is labelled with its status, and **only the items marked "Still open" need an answer**; everything else is settled and kept here for the record. The numbers are fixed labels referred to elsewhere in this plan (§19 uses an independent 1-37 numbering; §28 refers back to these front-matter numbers as "front-matter question N").
 
-Quick status (reconciled to the clean-cutover reframe): **proposed — pending webmaster ratification**: 1, 8 (clean DNS cutover; SES outbound + legacy mail retires). **Moot under the clean cutover**: 3, 5, 19. **Settled**: 9, 12, 16. **Confirmed against the delivered dump, re-confirm on the final export**: 10, 11, 17. **Still open (webmaster/Julie coordination)**: 2, 4, 6, 7, 13, 14, 15, 18, 20, 21, 22, 23.
+Quick status (reconciled to the clean-cutover reframe): **proposed — pending webmaster ratification**: 1, 8 (clean DNS cutover; SES outbound + legacy mail retires). **Moot under the clean cutover**: 3, 5, 19. **Settled**: 9, 12. **Confirmed against the delivered dump, re-confirm on the final export**: 10, 11, 17. **Still open (webmaster/Julie coordination)**: 2, 4, 6, 7, 13, 14, 15, 16, 18, 20, 21, 22, 23.
 
 Open questions owned by the IFPA secretary and the community-requirements discovery rather than the webmaster are tracked in their own sections, not the list above, and are all still open: §19 items 35 (legacy group activity), 36 (group communication home), and 37 (sanctioning workflow depth); the seven items in §20a; and the IFPA list-mail questions in §29.12a.
 
@@ -539,6 +539,16 @@ All pass/fail go-live blockers in one view. Gate definitions and failure handlin
 
 This list is comprehensive for go-live cutover blockers. Broader product work that does not gate cutover lives in `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, and the active-slice trackers in `IMPLEMENTATION_PLAN.md` files.
 
+**Go-live gate criteria.** This index holds real cutover gates only. A requirement permanently true once built lives in `docs/DESIGN_DECISIONS.md` or `docs/USER_STORIES.md` and is owned by the tests, not this index. A line is a real gate only if all five hold:
+
+1. Cutover-time checkpoint — verified true at a specific moment in the sequence, not "always true once shipped."
+2. Falsifiable evidence — passing yields an observable artifact (command exit, audit row, probe, signed-off line), not "works as designed."
+3. Distinct go-live consequence — skipping risks a launch-specific harm the test suite would not catch: data loss, outage, PII exposure, an irreversible or unrecallable send, a compliance breach, or an unrecoverable cutover.
+4. Not already guaranteed by CI, the build, or a standing test — if an automated check enforces it on every change, it is a requirement the suite owns; a gate may assert that the check is green at cutover, but it never re-describes the behavior.
+5. Owned and actionable before cutover.
+
+Test every candidate line: what breaks at go-live if this is skipped, and what artifact shows it passed? A concrete cutover harm plus an observable pass is a real gate — keep it, worded as the check. "Nothing breaks at cutover; the feature just behaves" is a restatement — remove it; `docs/DESIGN_DECISIONS.md` / `docs/USER_STORIES.md` and the tests own it. A real gate names its observable pass condition and owner.
+
 ### Data-quality, pipeline-output, and code-behavior gates
 
 | ID | Criterion | Section | Blocks |
@@ -563,6 +573,7 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | G18 | Rate limiting active on claim / registration / password-reset | §25 | State 2 → State 3 |
 | G19 | Wizard claim task universal; all evidence tiers exercised at test load | §25 | State 2 → State 3 |
 | G20 | Data review sign-off: legacy data complete, member-list presentation reviewed; recorded as an audit_entries row | §25 | State 1 → State 2 |
+| G20-SIGNOFF | Data-review sign-off re-confirmed at cutover: the State-1 sign-off audit row still exists and was issued against the final post-freeze pipeline output, not a stale earlier run | §25 | State 3 → State 4 |
 | G21 | `legacy_user_id` and `legacy_email` populated on canonical `persons.csv` where mirror provides them | §25 | State 1 → State 2 |
 | G22 | Optional mailbox-control round-trip to declared old email verified end-to-end; evidence-tier upgrade audited | §25 | State 2 → State 3 |
 | G23 | Multi-anchor candidate matching covers modern email + declared old emails + declared former surname + current real-name surname; `name_variants` in play | §25 | State 2 → State 3 |
@@ -578,10 +589,11 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | EX1 | `footbag.org` domain owned by IFPA; clean DNS cutover to the new platform agreed and verified (proposed — pending webmaster ratification; `www`/apex → CloudFront, apex via ALIAS or apex→`www` redirect) | §23 Phase 4 prereqs; §29.12 | State 3 → State 4 |
 | EX2 | SES production access granted for AWS account | §23 Phase 4 prereqs | State 3 → State 4 |
 | EX3 | `footbag.org` verified as SES sender identity at the domain level via DKIM CNAMEs in the zone (per §29.12a MX disposition) | §29.5 | State 3 → State 4 |
-| EX4 | ACM certificate for `footbag.org` issued in `us-east-1` and attached to CloudFront | §29.9 | State 3 → State 4 |
+| EX4 | ACM certificate for `footbag.org` issued in `us-east-1` and attached to CloudFront, and the separate ACM certificate for `archive.footbag.org` issued in `us-east-1` and attached to the archive distribution | §29.9 | State 3 → State 4 |
 | EX5 | Stripe production live API keys + webhook secret in Parameter Store; webhook endpoint configured; one end-to-end webhook delivery confirmed | §29.9 | State 3 → State 4 |
 | EX6 | SES bounce/complaint SNS subscription tested with synthetic bounce; hard-bounce suppression confirmed in app | §29.5 | State 3 → State 4 |
 | EX7 | Email cutover: platform sending via SES verified (SPF amended to authorize SES, SES DKIM applied, one real end-to-end send confirmed); legacy mail retired at cutover; inbound role-address receiver in place before legacy mail is withdrawn (proposed — pending webmaster ratification) | §28, §29.12a | State 3 → State 4 |
+| EX8 | Live payments verified to professional standard before payments open to members: the production-only go-live procedure passes (TESTING §7.7 — Stripe test-mode end-to-end, then a controlled live canary with a real low-value charge, refund, and webhook-replay idempotency check); payment reconciliation is operational (the Stripe ledger reconciles against the platform `payments` table, missed webhooks are detected, and mismatches surface to the admin work queue); a platform payment kill-switch can disable live payments without a redeploy; and webhook-delivery-failure alerting is wired so a sustained burst of rejected deliveries alerts an operator before Stripe disables the endpoint | §29.9; TESTING §7.7 | State 3 → State 4 |
 
 ### Legacy-site webmaster coordination
 
@@ -593,7 +605,7 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | WM4 | Namespace agreement for `legacy_member_id` confirmed and verified by a comprehensive (100%) integer-format + cross-source overlap check | §19 items 10, 11 | State 1 → State 2 |
 | WM5 | Banned-member product semantics confirmed; admin-recovery routing documented | §19 item 12 | State 1 → State 2 |
 | WM6 | Data-quality metrics delivered (deliverability estimate, last-activity timestamps) | §19 item 13 | State 1 → State 2 |
-| WM7 | Final member export delivered from the permanently-frozen legacy member system, same raw-dump format as the test export | §19 item 14 | State 3 → State 4 |
+| WM7 | Final member export readiness confirmed: the post-freeze export-and-import is scheduled and rehearsed against the test export in the canonical raw-dump format; the freeze, export, and import are executed as State 4 cutover steps (§24 State 4 steps 1-3), not before this gate | §19 item 14; §24 State 4 | State 3 → State 4 |
 | WM8 | Write-freeze coordinated: legacy member system goes permanently read-only (one-way) at the agreed moment before the final export | §19 item 29 | State 3 → State 4 |
 | WM9 | Legacy database retention committed (minimum 30 days after the 48-hour rollback window) | §19 item 30 | State 3 → State 4 |
 | WM10 | DNS cutover coordination confirmed: T-7d notice, cutover-day availability, and the §27 monitored-window coverage (low TTL on `www`/apex for a fast switch and revert) | §19 item 18; §29.12 | State 3 → State 4 |
@@ -618,20 +630,25 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | OR5 | Email deliverability operations | §29.5 | State 3 → State 4 |
 | OR6 | Scheduled maintenance jobs | §29.6 | State 3 → State 4 |
 | OR7 | Secrets rotation | §29.7 | State 3 → State 4 |
-| OR8 | Production database restore drill completed against a copy of production data | §29.1 | State 3 → State 4 |
+| OR8 | Production database restore drill completed against a copy of production data, in an isolated environment — never an internet-reachable staging host while the `/dev/*` surface is active (per §29.17) | §29.1 | State 3 → State 4 |
 | OR9 | Post-launch admin curator authoring scheme designed and implemented, and the JSON-sidecar→DB source-of-truth switch covered by special tests (durability across a data-preserving deploy with no seeder run; admin-UI as sole authoring path; guard against seeding a persistent DB) | §29.14 | State 3 → State 4 |
 | OR9a | Email-template source-of-truth cutover: JSON sidecars seed `email_templates` pre-go-live, then the persistent DB is the source of truth (seeder not run against production; admin editor is the sole authoring path; rows survive a data-preserving deploy), covered by the same durability tests as OR9 | §29.14a | State 3 → State 4 |
 | OR9b | Club-classification override CSV retired at the go-live switch to the persistent database: forcing a club kept or junked is done through the live-database admin club-cleanup actions, and `legacy_data/overrides/club_classification_overrides.csv` is no longer a build input | IMPLEMENTATION_PLAN | State 3 → State 4 |
 | OR9c | Legacy member-account loader guarded against the persistent production DB: the loader refuses to run against production so a re-run cannot clobber claim state or member-authored rows; the real load stays a maintainer-only cutover step | IMPLEMENTATION_PLAN | State 3 → State 4 |
 | OR10 | Pre-flip DB snapshot captured, integrity-verified, restored against staging in dry-run | §29.1a | State 3 → State 4 |
 | OR11 | Legacy archive subdomain reachable end-to-end (S3, CloudFront, signed-cookie key group, DNS, cookie-Domain widening) | §29.15 | State 3 → State 4 |
-| OR12 | Retained-subdomain TLS health probe wired with alarms to maintainer and secondary webmaster contact; daily check; expiry-grace window configurable | §29.16 | State 3 → State 4 |
+| OR12 | (Removed) Retained-subdomain TLS health monitoring is moot under the clean cutover — no legacy subdomains stay live; the archive's TLS is CloudFront-managed | §29.16 | n/a |
 | OR13 | Curator content seeded into the production DB and media bucket before DNS cutover (`scripts/seed_fh_curator.py` plus `aws s3 sync`); post-deploy smoke confirms landing pages and curator-tagged surfaces resolve to the production bucket, not 404 | §29.13 | State 3 → State 4 |
-| OR14 | Pre-cutover audit confirms every retained `*.footbag.org` subdomain (per §19 item 16) serves a valid HTTPS certificate matching its hostname; baseline reading recorded before cookie-Domain widening lands | §29.15, §29.16 | State 3 → State 4 |
+| OR14 | (Removed) Retained-subdomain HTTPS-certificate audit is moot under the clean cutover — no legacy subdomains stay live; the only `.footbag.org` host receiving the widened cookie is the CloudFront-managed archive | §29.15, §29.16 | n/a |
 | OR15 | Smoke test green against a test subdomain: `curl --resolve` against a current CloudFront edge IP returns the apex page over the `footbag.org` certificate; first run at State 3, re-run green on cutover day before the switch | §29.12 | State 3 → State 4 |
 | OR16 | Search-engine and crawler readiness: production `robots.txt` served and correct (allows all crawlers, names no private paths, points at the sitemap), per-page title / meta-description / canonical / social-preview tags rendered, XML sitemap and `llms.txt` published and the sitemap submitted to Search Console, non-production `X-Robots-Tag: noindex` verified, and the member-only legacy archive confirmed excluded from indexing | DD §4.10 | State 3 → State 4 |
 | OR17 | Production `snapshots` bucket carries `lifecycle { prevent_destroy = true }` to match the media/media_dr/dr buckets, protecting the §27 path-B rollback artifact store from accidental destroy or replace | §29.1 | State 3 → State 4 |
 | OR18 | Staging/production Terraform parity audited: every divergence is removed or asserted in the Terraform with a stated reason (CloudWatch alarm coverage, DR-bucket replication and its comment, SES IAM identity scope, `default_tags` Project value, and any metric filter keyed below the production log level) | §29.4 | State 3 → State 4 |
+| OR19 | Operator-doc security-hardening items resolved or explicitly accepted, with rationale recorded in the cutover sign-off: operator secret hygiene, production-role MFA, source-profile key-rotation cadence, break-glass alarms, feedback-webhook auth, maintenance-bucket public-access block, `/dev/*` production-404 verification, committed-secret scan coverage, and the repo clean of genuine-risk identifiers | §29.17 | State 3 → State 4 |
+| OR20 | Basic load/performance check passed on staging: one representative run meets the agreed latency and error-rate targets | §29.18 | State 3 → State 4 |
+| OR21 | Member-migration communications sent and an out-of-band status channel named and tested before cutover day | §29.18 | State 3 → State 4 |
+| OR22 | Formal go/no-go decision recorded: named decider, written criteria checked against this index, latest-safe rollback time agreed | §29.18 | State 3 → State 4 |
+| OR23 | Post-launch close-watch period completed before legacy retirement and the DNS handover: an agreed stability window passes with no unresolved high-severity issues and error/latency within target | §29.18 | DNS-handover milestone (post-cutover) |
 | RD1 | Legacy URL forwarding redirect handlers cover all in-flight email patterns (`/members/profile/:legacyMemberId`, `/clubs/:slug`) per §29.12b; sample-replay validation against a stored set of legacy URLs passes at test load | §29.12b | State 3 → State 4 |
 
 ### Code governance gates
@@ -646,6 +663,8 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | ID | Criterion | Section | Blocks |
 |---|---|---|---|
 | LEG1 | Privacy policy, Terms of Service, and cookie banner (if applicable) reviewed and accessible from the production site footer | §29.11 | State 3 → State 4 |
+| LEG2 | Member self-service data export and account deletion (data-subject request) verified end-to-end on staging: export artifact produced, deletion completes and clears identity links | §29.18 | State 3 → State 4 |
+| LEG3 | WCAG 2.1 AA accessibility checks (axe-core across high-traffic public pages) wired into the suite and green at cutover; accepted exceptions recorded in the sign-off | §29.18 | State 3 → State 4 |
 
 ### Pre-cutover revert and rotation checklist
 
@@ -668,6 +687,7 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 |---|---|---|---|
 | R1 | QC subsystem retired (routes, code, tables, tests) | §30 | State 3 → State 4 |
 | R2 | Club-classification QC panel removed: the dev-only diagnostics panel renders nowhere in production; the `TEMP-DEVIATION` sites in `src/views/clubs/detail.hbs`, `src/services/clubService.ts`, and `src/testkit/personaRowBuilders.ts` are removed and the covering test `tests/integration/clubs-qc-panel.routes.test.ts` deleted | IMPLEMENTATION_PLAN | State 3 → State 4 |
+| R3 | Primary-maintainer test-user scaffolding retired: the journey builder (`src/testkit/davidJourney.ts`) and the build-then-switch route deleted, the two CI enforcement layers (positive-assertion absence test + grep guard) present and green, and no member carrying the test user's slug remains in the production-bound DB | §31 | State 3 → State 4 |
 
 ---
 
@@ -724,7 +744,7 @@ Phase 4 activities:
 - Review report reviewed; admin decisions logged for ambiguous cases
 - Known name variants table seeded
 
-### State 2: Phase 1 complete (test load)
+### State 2: Test load complete
 
 - Legacy webmaster provides test export
 - Imported legacy account rows inserted into staging `legacy_members`; no imported legacy account row is inserted into `members`
@@ -737,7 +757,7 @@ Phase 4 activities:
 - Full claim flow rehearsed end-to-end on staging through the wizard, declared-anchor entry, optional mailbox-link-click round-trip, and direct historical-record affordance
 - All validation gates (section 25) evaluated
 
-### State 3: Phase 2 complete (go-live preparation)
+### State 3: Go-live preparation complete
 
 - Email cutover complete per §29.12a: SPF amended to authorize SES, SES DKIM applied, one real SES send verified; legacy mail retired at cutover; inbound role-address receiver in place
 - `www`/apex DNS records prepared with the webmaster (low TTL set); smoke test green against a test subdomain (§29.12)
@@ -749,7 +769,7 @@ Phase 4 activities:
 - `footbag.org` SES domain identity verified (DKIM CNAMEs in the zone); `SES_FROM_IDENTITY` on the production host updated to `noreply@footbag.org`; runtime-role `OutboundEmail` IAM policy resource ARN set to the `footbag.org` domain identity
 - Email-delivery smoke passes end-to-end (§25 gate G10)
 
-### State 4: Phase 3 complete (production cutover)
+### State 4: Production cutover
 
 1. Legacy webmaster freezes the legacy member system read-only permanently (one-way; the coordinated moment and notice text are settled under §19 item 29). It never takes member writes again.
 2. Legacy webmaster produces the final member export from the frozen state
@@ -859,7 +879,6 @@ Path B does not recover from systemic bugs in the candidate-staging step itself,
 - Outbox queue depth: `outbox_emails` rows with `status='pending'` growing faster than the worker drains them (alarm: >50 pending rows sustained over 10 minutes).
 - Login success rate: failed logins as a fraction of attempts (detects auth-chain defects; alarm threshold TBD).
 - Claim-wizard conversion: candidates surfaced vs. claims initiated (no hard alarm; manual check at T+4h and T+24h to confirm the flow is working).
-- Retained-subdomain TLS health: per gate OR12, daily probe on every retained `*.footbag.org` subdomain; first probe runs at T+1h, not T+24h.
 - CloudFront cache-invalidation confirmation: verify `/*` invalidation completed within 60 seconds of T-0 (one-time check).
 
 **Legacy DB retention:** the legacy-site webmaster retains the legacy database for at least 30 days after the 48-hour rollback window ends for reference and targeted manual recovery. This is sequential to and distinct from the 48-hour rollback window: retention enables one-off historical lookups by admin; rollback is the time-bounded path back to the legacy site as authority.
@@ -929,7 +948,7 @@ Functionality not in v1 scope is built natively afterward (complete by Worlds 20
 - §19 item 31: parallel-window duration (cannot be bounded until the scope of retained legacy services is known).
 - §19 item 26: per-mailing-list allocation (Google Group, native in-app group, or retire).
 
-**v1 (launch day):** member accounts, registration, login, profiles, tier management; legacy account import and claim flow (auto-link, declared anchors, mailbox verification, admin help requests); club bootstrap and onboarding; events (create, register, pay, results, attendance, co-organizers, routine music); freestyle trick dictionary and curated media; media and galleries; payments (Stripe: dues, event fees, donations, recurring); admin tools (work queues, payment reconciliation, sanctions, member help); transactional email via SES (SPF amended, SES DKIM applied), with legacy mail retired at cutover; native announce, the news feed, and live Stripe (live Stripe gated on the IFPA bank account + Board/Treasurer authorization); the clean DNS cutover itself; an archive subdomain for read-only historical content.
+**v1 (launch day):** member accounts, registration, login, profiles, tier management; legacy account import and claim flow (auto-link, declared anchors, mailbox verification, admin help requests); club bootstrap and onboarding; events (read-only public event pages and historical results; the organizer and registration build — create, register, pay, attendance, co-organizers, routine music — is post-MVP, below); freestyle trick dictionary and curated media; media and galleries; payments (Stripe: dues, event fees, donations, recurring); admin tools (work queues, payment reconciliation, sanctions, member help); transactional email via SES (SPF amended, SES DKIM applied), with legacy mail retired at cutover; native announce, the news feed, and live Stripe (live Stripe gated on the IFPA bank account + Board/Treasurer authorization); the clean DNS cutover itself; an archive subdomain for read-only historical content.
 
 **Open questions (version placement depends on webmaster's answers):**
 - Per-mailing-list disposition (move to Google Groups or retire; one-way announce is native) per §19 item 26, with Julie scoping which groups survive. Discussion lists never stay on a live legacy site. The platform's own outbound (SES) is settled v1 scope (§28 "Email transition").
@@ -961,13 +980,13 @@ Email architecture (proposed — pending webmaster ratification): the platform o
 
 **Decided architecture:**
 - **Outbound:** AWS SES sends all transactional and mailing-list email (built and working).
-- **Inbound:** Google Managed Services handles all ordinary `@footbag.org` inbound. The `footbag.org` MX points to Google. Mailboxes, aliases, and forwarding are configured on Google. No custom code; the platform receives no inbound mail.
+- **Inbound:** the chosen inbound receiver — Google Workspace, a forward, or retired — handles `@footbag.org` role addresses (open per §19 items 6-9, with Julie). If a receiver is used, the `footbag.org` MX points to it and its mailboxes, aliases, and forwarding are configured there. The platform itself receives no inbound mail and runs no custom inbound code.
 - **Legacy `@footbag.org` mail server:** retired at the transition, both directions.
 - **`@ifpa.footbag.org`:** out of scope here. It is a distinct mail domain on llic.net, dispositioned separately under §29.12a (IFPA list mail). Moving `footbag.org` MX does not touch it; zone edits must preserve its delegation.
 
-**Two-phase DNS sequencing.** Phase one, any time early: the SES DKIM CNAMEs and the ACM/SES domain-verification records go into the zone (they do not affect the legacy sender) so certificate issuance, SES domain verification, and the production-access ticket complete ahead of the transition. Phase two, on email-transition day, atomically: the MX flips to Google, SPF flips to authorize exactly the two new senders (SES and Google; the legacy server drops out), and the DMARC policy applies (quarantine initially, tightened to reject once deliverability is verified). Applying the strict SPF/DMARC early would quarantine the still-running legacy sender's mail, which is why phase two waits for the transition day.
+**Two-phase DNS sequencing.** Phase one, any time early: the SES DKIM CNAMEs and the ACM/SES domain-verification records go into the zone (they do not affect the legacy sender) so certificate issuance, SES domain verification, and the production-access ticket complete ahead of cutover. Phase two, at cutover (not a separate email-transition day): the SPF record flips to authorize the new senders (SES, plus the chosen inbound receiver if it also sends), the MX repoints to the chosen receiver if one is used, the DMARC policy applies (quarantine initially, tightened to reject once deliverability is verified), and legacy mail retires. Applying the strict SPF/DMARC early would quarantine the still-running legacy sender's mail, which is why phase two waits for cutover.
 
-**Transition-day gate.** The MX flip is gated on provisioning being verifiably complete: every active `@footbag.org` address (per the §19 item 21 inventory, including the webmaster's own address and any list-intake addresses) exists on Google as a mailbox or forward, and every mailing list has its §19 item 26 disposition executed or scheduled. An unprovisioned active address loses mail silently at the flip; the inventory is the safety gate.
+**Provisioning gate.** Withdrawing legacy `@footbag.org` mail is gated on provisioning being verifiably complete: every active `@footbag.org` address (per the §19 item 21 inventory, including the webmaster's own address and any list-intake addresses) exists on the chosen receiver as a mailbox or forward, and every mailing list has its §19 item 26 disposition executed or scheduled. An unprovisioned active address loses mail silently; the inventory is the safety gate.
 
 **Email sequencing:** the platform's SES sending is verified before cutover (SPF amended, SES DKIM applied), and the inbound role-address receiver is in place before legacy mail is withdrawn so no inbound is lost (§19 item 24). There is no separate email-transition day gated ahead of the web cutover. Contact addresses printed on the new site (`admin@`, per §29.8) resolve to the chosen inbound receiver.
 
@@ -1230,6 +1249,17 @@ Rationale: the operator runbooks and committed configuration are themselves an a
 Procedure: items 1, 8, and 9 are doc/CI changes applied pre-cutover; items 2-6 are infra/process changes completed under §29.3/§29.4/§29.7; item 7 is a standing rule verified at cutover preflight (§24).
 
 ---
+
+### 29.18 Additional go-live sign-off gates
+
+Calibrated for a small, volunteer-run international nonprofit handling member PII and payments. Each is a cutover-time checkpoint with an observable pass artifact.
+
+- **Member data-subject requests.** A member can export their own personal data and request account deletion through the site; deletion clears the identity links per the member / historical-person entity-types decision. Verified by one end-to-end exercise on staging that produces the export artifact and a completed deletion.
+- **Accessibility.** The WCAG 2.1 AA automated checks (axe-core across the high-traffic public pages) are wired into the suite and green at cutover; any accepted exceptions are recorded in the cutover sign-off.
+- **Load and performance.** One representative load run on staging meets the agreed latency and error-rate targets. Lightest of these gates; the targets are modest and set to the expected member population.
+- **Member communications and status channel.** Members are notified of the cutover window and what changes for them, and an out-of-band status channel (reachable if the site is down) is named and tested before cutover day.
+- **Go / no-go decision.** A named decider records a written go/no-go against the blocker index, with the latest-safe rollback time agreed, before the cutover deploy.
+- **Post-launch close-watch period (hypercare).** Immediately after cutover the team watches the system closely and responds fast to issues. Before legacy retirement and the DNS handover, a defined stability window passes with no unresolved high-severity issues and error/latency within target, so rollback is no longer needed. This defines the "stable post-cutover operation" the legacy retirement milestones depend on.
 
 ## 30. QC subsystem retirement (go-live gate)
 

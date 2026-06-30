@@ -130,7 +130,7 @@ impulse to batch, or to punt a decision the sources already settle.
    `DESIGN_DECISIONS.md` for rationale and architecture, the path-scoped rule or service JSDoc for
    contracts, code for implemented behavior), not in current infra or guesswork. Resolve open
    "which way?" questions yourself by following that authoritative source, then recommend; do not
-   ask the maintainer to wordsmith what the sources already determine.
+   ask the maintainer to wordsmith what the sources already determine. The canonical asking standard is `.claude/rules/asking.md`.
 4. Reserve the question itself for decisions the sources genuinely leave open, or for edits to
    canonical design docs. Where the authoritative source settles it, state the resolution and
    proceed.
@@ -301,7 +301,12 @@ staging, production, final export, write freeze, rollback, source of truth). Fla
 for one concept, one name for two concepts, code-vs-docs divergence, and stale terminology.
 Also audit references: files that do not exist, committed docs pointing at gitignored/
 sprint-scoped files, code comments referencing docs where governance forbids it, internal
-team-member names where governance forbids them, and stale section/route/service names. Do
+team-member names where governance forbids them, and stale section/route/service names. Flag obscure references standing in for readable prose:
+a bare gate ID, section number, finding code, state number, or item number used in place of the
+thing's name or a self-contained description (per the plain-words rule in
+`.claude/rules/doc-governance.md`). Numeric and code locators rot as docs are edited and sections
+renumber; recommend replacing each with the durable section title or feature name plus a short
+description. The gate-index table, whose rows are labelled by ID, is the structural exception. Do
 not run a web link checker unless asked; this is repository-internal sync.
 
 ### Phase 12: Active refutation
@@ -333,8 +338,9 @@ canonical/current-state leakage; stale implementation claim; stale design claim;
 service-contract drift; view-layer drift; data model drift; data governance drift; testing-doc
 drift; CI/script drift; DevOps-doc drift; Docker/Terraform parity drift; migration/go-live
 drift; post-go-live source-of-truth ambiguity; terminology/identifier drift; broken internal
-reference; forbidden reference pattern; sensitive-content governance issue; missing
-verification evidence; not inspected.
+reference; forbidden reference pattern; obscure-reference-for-prose (a bare code or number used
+in place of a readable name or self-contained description); sensitive-content governance issue;
+missing verification evidence; not inspected.
 
 ## Severity rubric
 

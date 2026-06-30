@@ -89,7 +89,7 @@ async function postLogin(req: Request, res: Response, next: NextFunction): Promi
       issueSessionCookie(res, cookieValue, req);
       // Structured success line: the cutover zero-logins alarm counts these
       // via a CloudWatch metric filter (no PII beyond the member id).
-      logger.info('auth.login_success', { memberId: member.id });
+      logger.warn('auth.login_success', { memberId: member.id });
       res.redirect(303, isSafePath(returnTo) ? returnTo : `/members/${memberSlug}`);
       return;
     }

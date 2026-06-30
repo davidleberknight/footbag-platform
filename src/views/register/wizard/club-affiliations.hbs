@@ -35,16 +35,17 @@
 
       {{#if content.card.isDisambiguation}}
         <div class="card card-static">
-          <div class="card-title">Which clubs in {{content.card.city}} were you part of?</div>
-          <p class="text-muted fs-sm">Select all that apply, or leave unchecked if none.</p>
-
           <form method="POST" action="{{content.submitHref}}" class="mt-6">
             <input type="hidden" name="kind" value="disambiguation" />
             {{#each content.card.clubs}}
               <input type="hidden" name="allCandidateIds" value="{{this.candidateId}}" />
             {{/each}}
 
-            <ul class="disambiguation-club-list">
+            <fieldset class="form-fieldset">
+              <legend class="card-title">Which clubs in {{content.card.city}} were you part of?</legend>
+              <p class="text-muted fs-sm">Select all that apply, or leave unchecked if none.</p>
+
+              <ul class="disambiguation-club-list">
               {{#each content.card.clubs}}
                 <li class="disambiguation-club-item">
                   <label class="disambiguation-club-label">
@@ -57,6 +58,7 @@
                 </li>
               {{/each}}
             </ul>
+            </fieldset>
 
             <button type="submit" class="btn btn-primary mt-4">Confirm Selection</button>
           </form>

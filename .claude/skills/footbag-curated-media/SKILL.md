@@ -110,7 +110,7 @@ Always dry-run before writing. The dry-run output must include:
 7. MALFORMED rows + raw-line excerpt
 8. Any ambiguities surfacing operator decision
 
-No writes without explicit operator approval. After approval, the implementation phase produces only the files explicitly named in the plan; never silently expand to additional outputs.
+No writes without explicit operator approval. After approval, the implementation phase produces only the files explicitly named in the plan; never silently expand to additional outputs. Questions to the operator follow `.claude/rules/asking.md`.
 
 ## 7. QC commands
 

@@ -152,7 +152,7 @@ cd legacy_data && ./run_pipeline.sh full
 For loader-touching changes, also run the loader twice and confirm DELETE+INSERT idempotency (no duplicates, honest counters).
 
 ### 5. Pause for approval
-Never apply edits without explicit approval. State the proposed edit set and wait.
+Never apply edits without explicit approval. State the proposed edit set and wait. Questions to the human follow `.claude/rules/asking.md` (one self-contained question with a recommended answer, no codes the human was not given).
 
 ---
 

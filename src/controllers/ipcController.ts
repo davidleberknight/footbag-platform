@@ -57,7 +57,7 @@ export const ipcController = {
         return;
       }
       const result = sesFeedbackService.processSnsMessage(rawBody);
-      logger.info('ses_feedback.received', { result: result.status });
+      logger.warn('ses_feedback.received', { result: result.status });
       res.status(200).json({ ok: true });
     } catch (err) {
       next(err);

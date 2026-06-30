@@ -44,6 +44,10 @@ Rule of thumb: if deferral points to another section/path/doc as the home for th
 - **No dedicated "Cross-references" sections** or trailing "Cross-references:" bullets in DD, DATA_MODEL, MIGRATION_PLAN, or other long-term docs. Inline refs in prose are fine when they're load-bearing for comprehension. AI routing between docs is handled via CLAUDE.md + skill triggers + memory, not in-doc navigation.
 - **Refs to committed `.claude/rules/*` and `.claude/skills/*` are allowed** as sources of truth, and preferred over restating their content. Pointing a canonical doc (or a service JSDoc) at the committed, stable rule, skill, or contract that owns a detail is more AI-efficient and drift-resistant than duplicating it.
 
+## Plain words, not bare codes
+
+In any doc or plan, describe the thing in plain words a reader understands on its own. A gate ID, section number, finding code, state number, or item label may sit beside a self-contained explanation as a locator, never replace it. A reader who would have to open another document to know what a reference means has been handed shorthand, not a description — that is the defect. The one exception is a table whose rows are labelled by ID (the Migration Plan blocker index): there the ID is the row's own structural label. Everywhere else, lead with the words. When a locator is genuinely useful, prefer a durable one — the target's section title or feature name — over a numeric or code locator (a section number, gate ID, or item number), which rots as the doc is edited and sections renumber; titles and names stay readable and stable. The `IMPLEMENTATION_PLAN.md` front matter already states this for its own items; this is the cross-doc generalization, and it mirrors the code-comment standard in `.claude/rules/comments.md` and the question standard in `.claude/rules/asking.md`.
+
 ## Sensitive content
 
 - **No hard-coded credentials or passwords** in docs, plan files, or any checked-in text. When referencing a stub auth mechanism with hard-coded values, say "hard-coded credentials" without spelling them out. The literals live only in code or local config.

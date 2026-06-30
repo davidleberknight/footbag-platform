@@ -530,6 +530,10 @@ function loadConfig(): AppConfig {
     );
   }
 
+  // Current: the Stripe webhook signing secret is read from the host env file,
+  // pasted in by hand. Target: resolve it from AWS Parameter Store at startup
+  // like the other secrets; the Parameter Store entry, the server's read grant,
+  // and the deploy wiring are not built yet.
   const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || undefined;
   if (paymentAdapter === 'live' && !stripeWebhookSecret) {
     throw new Error(
