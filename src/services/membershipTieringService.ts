@@ -468,11 +468,17 @@ export function applyAdminTier2InvariantGrantInTx(
  * satisfies the admin Tier 2 prerequisite and tier predicates short-circuit on
  * `is_admin`. The affected-member email enqueues after commit.
  */
-export function grantAdminRole(
-  adminMemberId: string,
+/**
+ * Validate an admin-role grant without writing, throwing the same errors
+ * grantAdminRole does: a reason is required, the target must exist and hold
+ * Tier 2 or Tier 3, and must not already be an admin. Returns the trimmed reason
+ * and the target's current tier so a confirmation step can name the change
+ * before it commits. grantAdminRole calls this, so the grant rules have one home.
+ */
+export function assertGrantAdminRoleAllowed(
   targetMemberId: string,
   reason: string,
-): { ok: true } {
+): { trimmedReason: string; tierStatus: string } {
   const trimmedReason = requireAdminRoleReason(reason);
   const current = getCurrent(targetMemberId); // NotFoundError when no such member
   if (current.tier_status !== 'tier2' && current.tier_status !== 'tier3') {
@@ -487,6 +493,15 @@ export function grantAdminRole(
   if (roleRow.is_admin === 1) {
     throw new ConflictError('That member is already an administrator.');
   }
+  return { trimmedReason, tierStatus: current.tier_status };
+}
+
+export function grantAdminRole(
+  adminMemberId: string,
+  targetMemberId: string,
+  reason: string,
+): { ok: true } {
+  const { trimmedReason } = assertGrantAdminRoleAllowed(targetMemberId, reason);
 
   const now = new Date().toISOString();
   const eventId = `evt_${uuidv7Hex()}`;
@@ -515,6 +530,32 @@ export function grantAdminRole(
 }
 
 /**
+ * Validate an admin-role revoke without writing, throwing the same errors
+ * revokeAdminRole does: a reason is required, an admin cannot revoke their own
+ * role, and the target must exist and currently be an admin. Returns the trimmed
+ * reason so a confirmation step can show it before committing. revokeAdminRole
+ * calls this, so the revoke rules have one home.
+ */
+export function assertRevokeAdminRoleAllowed(
+  adminMemberId: string,
+  targetMemberId: string,
+  reason: string,
+): { trimmedReason: string } {
+  const trimmedReason = requireAdminRoleReason(reason);
+  if (targetMemberId === adminMemberId) {
+    throw new ValidationError('You cannot revoke your own admin role.');
+  }
+  const roleRow = adminRole.getIsAdmin.get(targetMemberId) as { is_admin: number } | undefined;
+  if (!roleRow) {
+    throw new NotFoundError(`member ${targetMemberId} not found`);
+  }
+  if (roleRow.is_admin !== 1) {
+    throw new ConflictError('That member is not an administrator.');
+  }
+  return { trimmedReason };
+}
+
+/**
  * Revoke the platform admin role from a member (story A_Manage_Admin_Role). An
  * admin cannot revoke their own role, so at least one admin always remains. In
  * one transaction this sets `is_admin=0`, appends an admin-actor audit row with
@@ -527,17 +568,7 @@ export function revokeAdminRole(
   targetMemberId: string,
   reason: string,
 ): { ok: true } {
-  const trimmedReason = requireAdminRoleReason(reason);
-  if (targetMemberId === adminMemberId) {
-    throw new ValidationError('You cannot revoke your own admin role.');
-  }
-  const roleRow = adminRole.getIsAdmin.get(targetMemberId) as { is_admin: number } | undefined;
-  if (!roleRow) {
-    throw new NotFoundError(`member ${targetMemberId} not found`);
-  }
-  if (roleRow.is_admin !== 1) {
-    throw new ConflictError('That member is not an administrator.');
-  }
+  const { trimmedReason } = assertRevokeAdminRoleAllowed(adminMemberId, targetMemberId, reason);
 
   const now = new Date().toISOString();
   const eventId = `evt_${uuidv7Hex()}`;

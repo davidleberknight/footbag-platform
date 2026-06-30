@@ -47,8 +47,8 @@ const CATALOG: CatalogEntry[] = [
   { builder: passwordResetRequestEmail as never, sample: { resetUrl: 'https://x/reset/t', ttlHours: 1 }, templateKey: 'password_reset_request', services: ['identityAccessService'] },
   { builder: passwordResetConfirmEmail as never, sample: undefined, templateKey: 'password_reset_confirm', services: ['identityAccessService'] },
   { builder: mailboxLinkConfirmEmail as never, sample: { verifyUrl: 'https://x/anchors/verify/t', ttlHours: 24 }, templateKey: 'mailbox_link_confirm', services: ['identityAccessService'] },
-  // Shared admin-alerts fan-out, sent from three services.
-  { builder: adminQueueAlertEmail as never, sample: { taskType: 't', entityId: 'e' }, templateKey: 'admin_queue_alert', services: ['identityAccessService', 'contactRequestService', 'operationsPlatformService'] },
+  // Admin-alerts fan-out, sent from the single work-queue enqueue path.
+  { builder: adminQueueAlertEmail as never, sample: { taskType: 't', entityId: 'e' }, templateKey: 'admin_queue_alert', services: ['workQueueService'] },
   // contactRequestService — member-facing resolution reply.
   { builder: contactRequestResolutionEmail as never, sample: { memberName: 'M', displayDecision: 'D', note: 'n' }, templateKey: 'contact_request_resolution', services: ['contactRequestService'] },
   // clubService / clubCleanupService — club operational notifications.

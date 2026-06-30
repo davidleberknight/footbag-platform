@@ -41,11 +41,11 @@
  *
  * Service shape: singleton object (no external adapters beyond db.ts).
  */
-import { randomUUID } from 'node:crypto';
 import { workQueue, account, transaction } from '../db/db';
 import { enforceWorkQueueResolveLimit } from './identityAccessService';
 import { appendAuditEntry } from './auditService';
 import { emailService } from './emailService';
+import { workQueueService } from './workQueueService';
 import { recordOperationalError } from './operationalErrors';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
@@ -271,30 +271,27 @@ export const contactRequestService = {
       );
     }
 
-    const id = `wq_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-    const nowIso = new Date().toISOString();
     const categoryLabel = CONTACT_CATEGORY_LABELS[category];
     const summary = trimmed.length > MAX_REASON_TEXT
       ? trimmed.slice(0, MAX_REASON_TEXT)
       : trimmed;
     const reasonText = `${categoryLabel}: ${summary}`;
 
-    // The work_queue_items INSERT, the submission audit row, and the admin-
-    // alerts mailing-list notification commit in one transaction: a rollback
-    // cannot leave a dangling alert, an alertless queue item, or a queue
-    // item without its corresponding audit-trail entry.
-    transaction(() => {
-      workQueue.insertItem.run(
-        id, nowIso, input.requestingMemberId, nowIso, input.requestingMemberId,
-        'membership',
-        TASK_TYPE,
-        'member',
-        input.requestingMemberId,
-        5,
-        nowIso,
+    // The work_queue_items INSERT (with its admin-alerts notification) and the
+    // submission audit row commit in one transaction: a rollback cannot leave a
+    // dangling alert, an alertless queue item, or a queue item without its
+    // corresponding audit-trail entry.
+    const { id } = transaction(() => {
+      const { id } = workQueueService.enqueue({
+        actorId:       input.requestingMemberId,
+        queueCategory: 'membership',
+        taskType:      TASK_TYPE,
+        entityType:    'member',
+        entityId:      input.requestingMemberId,
+        priority:      5,
         reasonText,
-        trimmed,
-      );
+        detailText:    trimmed,
+      });
       appendAuditEntry({
         actionType:    'support.contact_request_submitted',
         category:      'support',
@@ -312,11 +309,7 @@ export const contactRequestService = {
           message_length: trimmed.length,
         },
       });
-      emailService.sendToAdmins({
-        template: 'admin_queue_alert',
-        params: { taskType: TASK_TYPE, entityId: id },
-        idempotencyKeyPrefix: `admin-alerts:${TASK_TYPE}:${id}`,
-      });
+      return { id };
     });
 
     return { id };

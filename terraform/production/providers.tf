@@ -30,7 +30,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "footbag"
+      Project     = "footbag-platform"
       Environment = var.environment
       ManagedBy   = "terraform"
     }
@@ -44,7 +44,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "footbag"
+      Project     = "footbag-platform"
       Environment = var.environment
       ManagedBy   = "terraform"
     }
@@ -59,7 +59,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "footbag"
+      Project     = "footbag-platform"
       Environment = var.environment
       ManagedBy   = "terraform"
     }

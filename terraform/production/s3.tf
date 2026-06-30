@@ -212,6 +212,7 @@ resource "aws_s3_bucket_cors_configuration" "media" {
 
 resource "aws_s3_bucket" "snapshots" {
   bucket = "${local.prefix}-db-snapshots"
+  lifecycle { prevent_destroy = true }
 }
 
 resource "aws_s3_bucket_versioning" "snapshots" {

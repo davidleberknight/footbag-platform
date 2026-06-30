@@ -100,6 +100,21 @@ describe('requireOnboardingComplete — membership gate', () => {
     expect(res.headers.location).toContain('/register/wizard/');
   });
 
+  it('not complete but nothing outstanding: redirects to the wizard complete page, never back into a task', async () => {
+    // legacy_claim marked not_applicable leaves the member not-complete yet with
+    // no task pending or paused. The gate must send them to the terminal complete
+    // page, which re-checks and routes onward if needed, rather than to a specific
+    // task that is not outstanding and would immediately redirect again.
+    const memberId = insertMember(testDb, { slug: 'gate_none_outstanding' });
+    insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
+    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'not_applicable');
+    const res = await request(createApp())
+      .get('/clubs/create')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/complete');
+  });
+
   it('club browse (GET /clubs) stays reachable mid-onboarding', async () => {
     const memberId = insertMember(testDb, { slug: 'gate_browse_open' });
     const res = await request(createApp())

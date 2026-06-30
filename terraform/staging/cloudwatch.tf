@@ -176,6 +176,107 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
   }
 }
 
+# ── Outbox backlog ────────────────────────────────────────────────────────────
+# The worker logs a structured `outbox.depth` line per polling cycle; the
+# filter turns $.depth into the OutboxDepth metric. A sustained backlog means
+# the worker is down or SES is failing while members wait for verify links.
+
+resource "aws_cloudwatch_log_metric_filter" "outbox_depth" {
+  name           = "${local.prefix}-outbox-depth"
+  log_group_name = aws_cloudwatch_log_group.app.name
+  pattern        = "{ $.msg = \"outbox.depth\" }"
+  metric_transformation {
+    namespace     = "Footbag/${var.environment}"
+    name          = "OutboxDepth"
+    value         = "$.depth"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "outbox_backlog" {
+  alarm_name          = "${local.prefix}-outbox-backlog"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "OutboxDepth"
+  namespace           = "Footbag/${var.environment}"
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 50
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "Email outbox backlog above 50 for 15+ minutes (worker down or SES failing)"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
+# ── SES reputation ────────────────────────────────────────────────────────────
+# Account-level bounce/complaint rates. SES pauses sending around 10% bounce /
+# 0.5% complaint; alarm early at half those levels.
+
+resource "aws_cloudwatch_metric_alarm" "ses_bounce_rate" {
+  alarm_name          = "${local.prefix}-ses-bounce-rate"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Reputation.BounceRate"
+  namespace           = "AWS/SES"
+  period              = 3600
+  statistic           = "Average"
+  threshold           = 0.05
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "SES account bounce rate above 5% (SES pauses sending near 10%)"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "ses_complaint_rate" {
+  alarm_name          = "${local.prefix}-ses-complaint-rate"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Reputation.ComplaintRate"
+  namespace           = "AWS/SES"
+  period              = 3600
+  statistic           = "Average"
+  threshold           = 0.0025
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "SES account complaint rate above 0.25% (SES pauses sending near 0.5%)"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
+# ── Origin latency ────────────────────────────────────────────────────────────
+# Gated on enable_cloudfront like the rest of staging's CloudFront wiring;
+# OriginLatency requires the per-distribution additional-metrics subscription.
+
+resource "aws_cloudfront_monitoring_subscription" "main" {
+  count           = var.enable_cloudfront ? 1 : 0
+  distribution_id = aws_cloudfront_distribution.main[0].id
+  monitoring_subscription {
+    realtime_metrics_subscription_config {
+      realtime_metrics_subscription_status = "Enabled"
+    }
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "origin_latency" {
+  count               = var.enable_cloudfront ? 1 : 0
+  alarm_name          = "${local.prefix}-origin-latency"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "OriginLatency"
+  namespace           = "AWS/CloudFront"
+  period              = 300
+  extended_statistic  = "p90"
+  threshold           = 3000
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "CloudFront p90 origin latency above 3s for 15+ minutes"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    DistributionId = aws_cloudfront_distribution.main[0].id
+    Region         = "Global"
+  }
+}
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_dashboard" "main" {

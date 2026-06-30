@@ -22,8 +22,10 @@ adminRouter.use(requireAuth, requireAdmin);
 
 adminRouter.get('/', adminController.index);
 adminRouter.get('/admin-roles',               adminAdminRolesController.index);
-adminRouter.post('/admin-roles/grant',        adminAdminRolesController.grant);
-adminRouter.post('/admin-roles/:memberId/revoke', adminAdminRolesController.revoke);
+adminRouter.post('/admin-roles/grant',                    adminAdminRolesController.grant);
+adminRouter.post('/admin-roles/grant/confirm',            adminAdminRolesController.grantConfirm);
+adminRouter.post('/admin-roles/:memberId/revoke',         adminAdminRolesController.revoke);
+adminRouter.post('/admin-roles/:memberId/revoke/confirm', adminAdminRolesController.revokeConfirm);
 adminRouter.get('/work-queue',                adminWorkQueueController.index);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);
 adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.linkHelpApprove);

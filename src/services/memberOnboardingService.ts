@@ -343,6 +343,14 @@ function completeTask(memberId: string, taskType: string): void {
 }
 
 function markTaskNotApplicable(memberId: string, taskType: string): void {
+  // personal_details is always completable by saving its required fields, so it
+  // has no not_applicable path and must never be removed from the outstanding
+  // set this way; doing so would leave a member who can never finish onboarding.
+  // legacy_claim may legitimately become not_applicable when there is no
+  // plausible legacy match, and club_affiliations is optional, so both are allowed.
+  if (taskType === 'personal_details') {
+    throw new Error(`personal_details cannot be marked not_applicable`);
+  }
   transitionTask(memberId, taskType, 'not_applicable', 'onboarding_task_not_applicable');
 }
 

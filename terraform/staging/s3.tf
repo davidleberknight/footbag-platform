@@ -2,7 +2,7 @@
 # S3 Buckets
 # - media:        processed photo objects and media assets
 # - snapshots:    5-minute SQLite WAL snapshots (primary backup)
-# - dr:           nightly cross-region DR copies (Object Lock)
+# - dr:           reserved cross-region DR target; no replication wired yet (staging is reset-tolerant)
 # - maintenance:  static maintenance page served by CloudFront during outages
 # =============================================================================
 
@@ -28,6 +28,9 @@ resource "aws_s3_bucket" "snapshots" {
   lifecycle { prevent_destroy = true }
 }
 
+# Not yet wired: nothing replicates here and no Object Lock is configured. Kept
+# as a reserved DR target while staging is reset-tolerant; a candidate for
+# removal if it stays unused.
 resource "aws_s3_bucket" "dr" {
   bucket = local.buckets.dr
   lifecycle { prevent_destroy = true }

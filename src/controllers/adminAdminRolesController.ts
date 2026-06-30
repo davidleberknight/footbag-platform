@@ -29,8 +29,26 @@ export const adminAdminRolesController = {
     }
   },
 
-  /** POST /admin/admin-roles/grant */
+  /** POST /admin/admin-roles/grant — validate, then show the confirmation page. */
   grant(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = adminRoleService.previewGrant(
+        req.user!.userId,
+        String(req.body.member_key ?? ''),
+        String(req.body.reason ?? ''),
+      );
+      res.render('admin/admin-roles/grant-confirm', vm);
+    } catch (err) {
+      if (err instanceof NotFoundError || err instanceof ValidationError || err instanceof ConflictError) {
+        renderError(res, req.user!.userId, err);
+        return;
+      }
+      handleControllerError(err, res, next, 'admin roles controller');
+    }
+  },
+
+  /** POST /admin/admin-roles/grant/confirm — commit the grant after confirmation. */
+  grantConfirm(req: Request, res: Response, next: NextFunction): void {
     try {
       adminRoleService.grantByKey(
         req.user!.userId,
@@ -47,8 +65,26 @@ export const adminAdminRolesController = {
     }
   },
 
-  /** POST /admin/admin-roles/:memberId/revoke */
+  /** POST /admin/admin-roles/:memberId/revoke — validate, then show the confirmation page. */
   revoke(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = adminRoleService.previewRevoke(
+        req.user!.userId,
+        req.params.memberId ?? '',
+        String(req.body.reason ?? ''),
+      );
+      res.render('admin/admin-roles/revoke-confirm', vm);
+    } catch (err) {
+      if (err instanceof NotFoundError || err instanceof ValidationError || err instanceof ConflictError) {
+        renderError(res, req.user!.userId, err);
+        return;
+      }
+      handleControllerError(err, res, next, 'admin roles controller');
+    }
+  },
+
+  /** POST /admin/admin-roles/:memberId/revoke/confirm — commit the revoke after confirmation. */
+  revokeConfirm(req: Request, res: Response, next: NextFunction): void {
     try {
       adminRoleService.revoke(
         req.user!.userId,

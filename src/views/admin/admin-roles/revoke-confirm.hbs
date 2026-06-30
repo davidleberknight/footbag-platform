@@ -1,0 +1,23 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <div class="card mb-6">
+      <p class="m-0 fw-500">Revoke the admin role from {{content.displayName}}?</p>
+      <p class="m-0 mt-1 text-muted">Reason: {{content.reason}}</p>
+    </div>
+
+    <p>This removes the platform admin role, unsubscribes the member from the admin-alerts list (leaving their other subscriptions untouched), and emails them.</p>
+
+    <form method="POST" action="{{content.confirmHref}}">
+      <input type="hidden" name="reason" value="{{content.reason}}" />
+      <button type="submit" class="btn btn-outline">Yes, Revoke the Admin Role</button>
+    </form>
+
+    <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>
+  </section>
+</div>

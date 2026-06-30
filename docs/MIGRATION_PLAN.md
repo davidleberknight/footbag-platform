@@ -70,7 +70,7 @@ Open questions owned by the IFPA secretary and the community-requirements discov
 
 **Community knowledge and feature scope**
 
-**16. How real the impersonation risk is. Still open.** This decides whether an honors-bearing claim needs a check before it applies, beyond the after-the-fact review already in place. Recommendation: keep the no-check approach. Several safeguards already exist: a name-collision prompt at sign-up, an after-the-fact review feed for honors claims, and an admin who can reverse a wrong claim. Footbag is a small, visible community where impersonating a known competitor would be obvious and pointless, and a pre-check would slow legitimate claims and add admin work for little gain. Add a check or a grace period only if the webmaster's read of the community says impersonation is a real concern.
+**16. Impersonation is handled in-platform, not by the webmaster. Settled.** Every claim is gated by the identity-link matching rules (the claimant's current or declared former surname must match the record, with the declared old emails and date of birth as additional private anchors); the registration-time name-collision prompt flags same-name signups; honor flags are validated a priori against the public rosters; and a suspected fraudulent claim is raised to the admins and reverted through the dispute path. No honors-bearing claim is self-asserted without these controls, so impersonation needs neither a separate pre-check gate nor a webmaster risk assessment.
 
 **17. Whether old bans still matter. Confirmed against the delivered dump (no ban field); reconfirm on the final export.** The delivered data contains no ban records at all: there is no banned, blocked, or suspended field anywhere in the dump; the only status signals are `MemberValid` and `MemberEmailInvalid`, with no dedicated inactive column (§28 item 2). The test-load report counted roughly 8,000 accounts flagged by one of these signals (re-confirmed on the final export); a cleared `MemberValid` is the §2 source-validity-filter exclusion, not a ban. So there is probably nothing to carry over. The ask: the webmaster confirms whether the final export carries any banned, blocked, suspended, or inactive field (the test dump had none; reconfirm on the final export), and whether any bans were ever enforced outside the database. If neither, this question is moot. Either way, the recommendation is to keep any legacy ban as a background note only, never blocking a claim, since old bans are probably stale and often have unknown reasons and the new platform has its own tools for handling misbehavior. Move to enforcing specific bans only if the webmaster and board say they still matter.
 
@@ -304,13 +304,13 @@ The migration security and privacy rules (no credential import; `legacy_email` a
 
 ## 13. Admin flows
 
-Migration-time admin involvement is reactive. The member-initiated link-help request, the honors-bearing direct-claim oversight, and the dispute revert are specified in the `A_Review_Member_Link_Help_Requests` and `A_View_Honors_Oversight_Feed` user stories, and the initial-admin bootstrap is the Administrator Role Lifecycle decision in DESIGN_DECISIONS (§2.9). The bootstrap grants satisfy go-live gate GV2 (§22).
+Migration-time admin involvement is reactive. The member-initiated link-help request and the dispute revert are specified in the `A_Review_Member_Link_Help_Requests` user story, and the initial-admin bootstrap is the Administrator Role Lifecycle decision in DESIGN_DECISIONS (§2.9). The bootstrap grants satisfy go-live gate GV2 (§22).
 
 ---
 
 ## 14. User stories summary
 
-The user-facing behavior referenced throughout this document is specified by the stories in `docs/USER_STORIES.md`, principally `M_Claim_Legacy_Account`, `M_Complete_Onboarding_Wizard`, `M_Edit_Profile`, `M_Delete_Account`, `A_Review_Member_Link_Help_Requests`, `A_View_Honors_Oversight_Feed`, and `A_Periodic_Club_Cleanup`.
+The user-facing behavior referenced throughout this document is specified by the stories in `docs/USER_STORIES.md`, principally `M_Claim_Legacy_Account`, `M_Complete_Onboarding_Wizard`, `M_Edit_Profile`, `M_Delete_Account`, `A_Review_Member_Link_Help_Requests`, and `A_Periodic_Club_Cleanup`.
 
 ---
 
@@ -459,7 +459,7 @@ See §28 "Email transition" for the full picture: the platform sends outbound vi
 
 ### 19.7 Community knowledge
 
-32. **Impersonation risk magnitude**: how significant is the risk that a registrant picks a famous competitor's surname (or declares a former surname matching one) and confirms a card or a direct historical-record claim under a false identity? See §28 "For the legacy-site webmaster's community knowledge" for how this informs the platform's gate stance.
+32. **Impersonation handling. Settled (no webmaster input needed).** Claims are gated by the platform's identity-link matching rules (surname match plus the declared email and date-of-birth anchors), the registration-time name-collision prompt, a-priori honor-flag validation against the public rosters, and admin alerting with the dispute-revert path. Impersonation is mitigated in-platform and does not gate on the webmaster's read.
 
 33. **Banned policy carryover**: what fraction of legacy bans represent ongoing community issues vs. stale historical bans that nobody would enforce now? See §28 "For the legacy-site webmaster's community knowledge" for how this informs the platform's banned-member handling.
 
@@ -469,7 +469,7 @@ See §28 "Email transition" for the full picture: the platform sends outbound vi
 
 **Can proceed now, in parallel:** validate the delivered data (items 7-13); answer item 4 (hosting; payments resolved per item 5); answer items 21-22 and 25 (email and mailing-list inventories, mailbox types); answer item 16 (subdomain inventory); answer items 27 and 34 (tournament-in-a-box scope; legacy-feature disclosure); apply the ACM validation and SES DKIM CNAMEs (maintainer supplies values; needed early so certificate issuance and SES domain verification complete ahead of the transitions).
 
-**Then, in order:** apply the SPF amendment + SES DKIM and verify one real SES send, and settle the inbound role-address receiver (item 24); answer item 26 (groups/committees disposition, with Julie); answer items 18-19 (DNS-switch coordination, secondary contact); answer items 32-33 (impersonation risk, banned policy); agree the legacy-retirement window (item 31); produce the member export (item 14); run the smoke test on a test subdomain; switch the `www`/apex DNS to the new platform.
+**Then, in order:** apply the SPF amendment + SES DKIM and verify one real SES send, and settle the inbound role-address receiver (item 24); answer item 26 (groups/committees disposition, with Julie); answer items 18-19 (DNS-switch coordination, secondary contact); answer item 33 (banned policy); agree the legacy-retirement window (item 31); produce the member export (item 14); run the smoke test on a test subdomain; switch the `www`/apex DNS to the new platform.
 
 **After cutover:** keep the legacy server only as a cold, restorable backup (no live front door, no retained live services or subdomains); retire it once stable operation is confirmed and the rollback + dispute window has elapsed (item 31).
 
@@ -790,7 +790,7 @@ Phase 4 activities:
 - Legacy database retained by the legacy-site webmaster for reference and targeted recovery
 - Members confirm their wizard-staged candidates over time as they sign in
 - Members declare additional anchors (former surname, old emails) in the legacy-claim task (reached from their profile) as needed; the platform re-runs candidate matching against the new anchors
-- Admins process member-initiated help requests (§13) and review the honors-bearing direct-claim oversight feed (§13)
+- Admins process member-initiated help requests and dispute reverts (§13)
 - Leadership activations accumulate as members register and claim
 
 ### State 6: Migration complete
@@ -885,7 +885,7 @@ Path B does not recover from systemic bugs in the candidate-staging step itself,
 
 **Member writes lost on restore:** any claim, registration, or club-affiliation write that lands between snapshot capture and rollback is lost on restore. The 48-hour window plus the platform's traffic profile bound the affected count; affected members re-do the action after the platform stabilizes.
 
-**Post-flip path A-prime, bounded business-logic defects:** admin-level data correction plus affected-member notification, without full platform rollback. Covers defects that corrupt a bounded set of records but do not meet the path B catastrophic threshold: incorrect tier-mapping for a subset of members, auto-link candidate staging that surfaces wrong matches for a subset of legacy accounts, club-bootstrap that assigns wrong leaders. The defect is in the data, not the schema or identity layer, and the affected population is enumerable. Remediation: admin identifies affected rows via the oversight feed (§13) or targeted query; applies per-record correction via admin tools; dispatches notification email to affected members explaining the correction. Path A-prime does not require a DNS revert or DB restore. Decision authority is the primary maintainer; if the affected count exceeds 1% of migrated accounts or the defect cannot be corrected by record-specific admin actions, escalate to path B evaluation.
+**Post-flip path A-prime, bounded business-logic defects:** admin-level data correction plus affected-member notification, without full platform rollback. Covers defects that corrupt a bounded set of records but do not meet the path B catastrophic threshold: incorrect tier-mapping for a subset of members, auto-link candidate staging that surfaces wrong matches for a subset of legacy accounts, club-bootstrap that assigns wrong leaders. The defect is in the data, not the schema or identity layer, and the affected population is enumerable. Remediation: admin identifies affected rows via targeted query; applies per-record correction via admin tools; dispatches notification email to affected members explaining the correction. Path A-prime does not require a DNS revert or DB restore. Decision authority is the primary maintainer; if the affected count exceeds 1% of migrated accounts or the defect cannot be corrected by record-specific admin actions, escalate to path B evaluation.
 
 **No automated rollback** is provided after the DNS cutover. Path B is operator-driven via the runbook in `docs/DEVOPS_GUIDE.md`.
 
@@ -907,7 +907,7 @@ Decisions gated on what validation of the delivered legacy data reveals.
 
 Decisions gated on the webmaster's read of community dynamics rather than on test-load data.
 
-4. **Impersonation risk magnitude**: how significant is the risk that a registrant picks a famous competitor's surname (or declares a former surname matching one) and confirms a card or a direct historical-record claim under a false identity? The platform currently applies no platform gate for honors-bearing direct claims (§8): honors-bearing claims apply on member confirmation; admin sees them post-facto via the oversight feed (§13); the registration-time conflict prompt (§8) catches same-name collisions at signup. If the webmaster's read indicates impersonation is a meaningful concern, the platform may reinstate a gate (hold honors-bearing direct claims for admin verification) or move to a community-grace-window model (the claim is visible but flagable for N days before solidifying). Pending the webmaster's input, the no-gate stance stands.
+4. **Impersonation handling. Settled (no webmaster input needed).** Honors-bearing direct claims are gated by the identity-link matching rules (surname match plus the declared email and date-of-birth anchors) and validated a priori against the public rosters; the registration-time name-collision prompt (§8) catches same-name collisions at signup; and a suspected fraudulent claim is raised to the admins and reverted through the dispute path. Impersonation is mitigated by these in-platform controls rather than by a webmaster risk assessment.
 
 5. **Banned policy carryover**: what fraction of legacy bans represent ongoing community issues vs. stale historical bans that nobody would enforce now? The current default treats the legacy banned flag as audit metadata only and does not gate the claim card (§13). If the webmaster and the IFPA board indicate many legacy bans are still meaningful, the platform may shift to one of: ban carries over silently (claim applies but new account starts in a restricted state); banned legacy accounts unclaimable self-serve (member contacts admin); claim held until board review. Pending input, the audit-metadata-only default stands.
 

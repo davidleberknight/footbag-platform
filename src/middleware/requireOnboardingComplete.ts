@@ -48,7 +48,10 @@ function isUngated(path: string): boolean {
 
 function nextPendingWizardHref(memberId: string): string {
   const next = memberOnboardingService.nextOutstandingTaskType(memberId);
-  return next ? `/register/wizard/${next}` : '/register/wizard/personal_details';
+  // With nothing outstanding, route to the wizard complete page, which re-checks
+  // and redirects onward if a task is in fact still pending. Falling back to a
+  // specific task here would loop if that task were ever non-completable.
+  return next ? `/register/wizard/${next}` : '/register/wizard/complete';
 }
 
 export function requireOnboardingComplete(req: Request, res: Response, next: NextFunction): void {

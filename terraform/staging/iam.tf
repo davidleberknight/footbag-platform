@@ -159,9 +159,14 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
         Resource = aws_kms_key.jwt_signing.arn
       },
       {
-        Sid      = "OutboundEmail"
-        Effect   = "Allow"
-        Action   = "ses:SendEmail"
+        Sid    = "OutboundEmail"
+        Effect = "Allow"
+        Action = "ses:SendEmail"
+        # Deliberate staging-only widening: while SES is in the sandbox, sends go
+        # from per-recipient verified identities rather than one domain identity,
+        # so this allows any identity in the account. Production scopes this to
+        # the single sender-identity ARN. Tighten staging to match once it leaves
+        # the SES sandbox and sends from a verified domain identity.
         Resource = "arn:aws:ses:${var.aws_region}:${var.aws_account_id}:identity/*"
       }
     ]

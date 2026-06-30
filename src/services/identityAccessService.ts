@@ -102,6 +102,7 @@ import { auth, registration, legacyClaim, legacyMembers, account, workQueue, aut
 import { transaction } from '../db/db';
 import { accountTokenService } from './accountTokenService';
 import { emailService } from './emailService';
+import { workQueueService } from './workQueueService';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
@@ -1614,7 +1615,8 @@ function recordHistoricalPersonClaimBlocked(memberId: string, err: SurnameMismat
 /**
  * Evidence-strength tag carried on every confirmed-claim audit row. Name-only
  * evidence (surname rule, name-variant match) tags the declared_anchor_only
- * floor tier; the admin oversight feed filters by tier, weakest first.
+ * floor tier, the weakest evidence band an admin sees when reviewing a
+ * disputed claim.
  */
 export type EvidenceStrength =
   | 'declared_anchor_only'
@@ -3137,8 +3139,7 @@ async function getLinkHistoryViewForWizard(
 //   5. Append an audit_entries row with action_type 'legacy.auto_link_revert'
 //      carrying metadata_json.original_claim_audit_id. This append-only row is
 //      the revert's durable trail; the revert deliberately enqueues no admin
-//      work-queue task, since the admin is already acting when they revert and
-//      the honors oversight surface reviews claims on demand, not per revert.
+//      work-queue task, since the admin is already acting when they revert.
 //
 // Anti-enumeration: an unrecognized original_claim_audit_id and an already-
 // reverted link both return a non-revealing reason discriminator so a
@@ -3836,22 +3837,17 @@ function submitLinkHelpRequest(
     return { status: 'already_open', workQueueItemId: existing.id };
   }
 
-  const id = `wq_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-  const now = new Date().toISOString();
-  transaction(() => {
-    workQueue.insertItem.run(
-      id,
-      now, memberId,
-      now, memberId,
-      'membership',
-      'member_link_help_request',
-      'member',
-      memberId,
-      5,
-      now,
-      JSON.stringify(payload),
-      null,
-    );
+  const result = transaction(() => {
+    const { id } = workQueueService.enqueue({
+      actorId:       memberId,
+      queueCategory: 'membership',
+      taskType:      'member_link_help_request',
+      entityType:    'member',
+      entityId:      memberId,
+      priority:      5,
+      reasonText:    JSON.stringify(payload),
+      detailText:    null,
+    });
     appendAuditEntry({
       actionType:    'support.help_request_submitted',
       category:      'identity',
@@ -3890,13 +3886,9 @@ function submitLinkHelpRequest(
         metadata: { work_queue_item_id: id },
       });
     }
-    emailService.sendToAdmins({
-      template: 'admin_queue_alert',
-      params: { taskType: 'member_link_help_request', entityId: memberId },
-      idempotencyKeyPrefix: `admin-alerts:member_link_help_request:${id}`,
-    });
+    return { id };
   });
-  return { status: 'submitted', workQueueItemId: id };
+  return { status: 'submitted', workQueueItemId: result.id };
 }
 
 function loadOpenLinkHelpItem(workQueueItemId: string): { id: string; entity_id: string; reason_text: string | null } {

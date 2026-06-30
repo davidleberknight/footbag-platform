@@ -12,6 +12,7 @@ import { test, expect } from '@playwright/test';
 import {
   seedBrandNewPlayer,
   seedMemberMidWizard,
+  seedMemberWithClubCards,
   seedTier0Member,
 } from './helpers/onboarding';
 import { insertLegacyMember } from '../fixtures/factories';
@@ -208,6 +209,37 @@ test('wizard pages have accessible form labels and heading', { tag: ['@a11y'] },
       await expect(wizard.skipButton).toBeVisible();
     }
   }
+
+  await context.close();
+});
+
+test('club-affiliations disambiguation group is a labelled fieldset', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
+  // Two candidate clubs in one city produce the disambiguation card. Its
+  // checkboxes must be grouped in a fieldset whose legend carries the question,
+  // so a screen reader announces the choice and the group together.
+  const db = openLiveDb();
+  const persona = seedMemberWithClubCards(db, {
+    slug: `e2e_club_fieldset_${Date.now()}`,
+    clubCount: 2,
+    city: 'Disambigville',
+  });
+  db.close();
+
+  const context = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await context.newPage();
+  const wizard = new WizardPage(page);
+
+  await wizard.goto('club_affiliations');
+
+  const fieldset = page.locator('fieldset.form-fieldset');
+  await expect(fieldset).toBeVisible();
+
+  const legend = fieldset.locator('legend.card-title');
+  await expect(legend).toBeVisible();
+  await expect(legend).toContainText(/Which clubs in .+ were you part of\?/);
+
+  const checkboxes = fieldset.locator('input[type="checkbox"][name="selectedCandidateIds"]');
+  expect(await checkboxes.count()).toBeGreaterThan(0);
 
   await context.close();
 });

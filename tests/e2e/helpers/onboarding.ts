@@ -185,7 +185,7 @@ export function seedMemberWithHpMatch(
 
 export function seedMemberWithClubCards(
   db: BetterSqlite3.Database,
-  opts: { slug?: string; clubCount?: number; withCoLeader?: boolean } = {},
+  opts: { slug?: string; clubCount?: number; withCoLeader?: boolean; city?: string } = {},
 ): Persona & { candidateIds: string[]; affiliationIds: string[]; clubIds: string[] } {
   const memberId = `clubs-${rand()}`;
   const slug = opts.slug ?? `clubs_${rand()}`;
@@ -211,7 +211,7 @@ export function seedMemberWithClubCards(
 
   for (let i = 0; i < count; i++) {
     const tagId = insertTag(db, { id: `tag-mc-${rand()}`, tag_normalized: `#club_e2e_${rand()}`, standard_type: 'club' });
-    const clubId = insertClub(db, { id: `club-mc-${rand()}`, hashtag_tag_id: tagId, name: `Test Club ${i + 1}`, city: `City${i + 1}` });
+    const clubId = insertClub(db, { id: `club-mc-${rand()}`, hashtag_tag_id: tagId, name: `Test Club ${i + 1}`, city: opts.city ?? `City${i + 1}` });
     clubIds.push(clubId);
 
     // An existing co-leader keeps the club non-leaderless, so confirming

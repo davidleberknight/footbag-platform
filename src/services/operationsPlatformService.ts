@@ -64,7 +64,7 @@ import { memberService } from './memberService';
 import { hashtagDiscoveryService } from './hashtagDiscoveryService';
 import { recordOperationalError } from './operationalErrors';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
-import { emailService } from './emailService';
+import { workQueueService } from './workQueueService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
@@ -374,26 +374,16 @@ export class OperationsPlatformService {
             result.skipped_low_already_queued += 1;
             continue;
           }
-          const nowIso = new Date().toISOString();
-          const id = `wq_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
           transaction(() => {
-            workQueue.insertItem.run(
-              id,
-              nowIso, 'system',
-              nowIso, 'system',
-              'membership',
-              'auto_link_match',
-              'member',
-              c.id,
-              5,
-              nowIso,
-              `Batch auto-link match (low)`,
-              null,
-            );
-            emailService.sendToAdmins({
-              template: 'admin_queue_alert',
-              params: { taskType: 'auto_link_match', entityId: c.id },
-              idempotencyKeyPrefix: `admin-alerts:auto_link_match:${c.id}`,
+            workQueueService.enqueue({
+              actorId:       'system',
+              queueCategory: 'membership',
+              taskType:      'auto_link_match',
+              entityType:    'member',
+              entityId:      c.id,
+              priority:      5,
+              reasonText:    'Batch auto-link match (low)',
+              detailText:    null,
             });
           });
           result.queued_low += 1;

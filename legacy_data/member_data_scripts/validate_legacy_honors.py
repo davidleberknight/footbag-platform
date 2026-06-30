@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""M12 — a-priori honors-flag validation (v1 honors-oversight gate).
+"""M12 — a-priori honors-flag validation.
 
 Cross-checks the derived is_hof / is_bap flags on the members export against the
 authoritative honor rosters, because a wrong flag mis-grants a Tier 2 membership

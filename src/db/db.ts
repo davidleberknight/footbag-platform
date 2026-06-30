@@ -7967,34 +7967,6 @@ export const memberTier = {
   `); },
 };
 
-// ── HoF/BAP honors-claim review support ──
-// On-demand read for admin oversight of automatic honors-tier grants.
-// Returns one row per `member_tier_grants` entry written for ANY claim path
-// (wizard candidate confirm, token round-trip, direct historical-record
-// claim; all share the single legacy.claim_tier_grant reason code) in the
-// given window where the underlying member carries an HoF or BAP honor flag.
-// Joins members for the display name and honor flags so a reviewer sees each
-// grant without a second per-row fetch. Row ordering is stable by created_at
-// ASC so results are deterministic.
-export const hofBapDigest = {
-  get listRecentHonorsClaims() { return db.prepare(`
-    SELECT g.id AS tier_grant_id,
-           g.created_at AS granted_at,
-           g.member_id,
-           g.new_tier_status,
-           m.legacy_member_id,
-           m.is_hof,
-           m.is_bap
-    FROM member_tier_grants AS g
-    JOIN members AS m ON m.id = g.member_id
-    WHERE g.reason_code = 'legacy.claim_tier_grant'
-      AND g.created_at >= ?
-      AND g.created_at <  ?
-      AND (m.is_hof = 1 OR m.is_bap = 1)
-    ORDER BY g.created_at ASC, g.id ASC
-  `); },
-};
-
 // ── Active Player ledger (active_player_grants / member_active_player_current) ──
 // Append-only ledger; UPDATE/DELETE blocked by triggers.
 

@@ -515,7 +515,7 @@ The cutover preflight orchestrator sequences the validation gates from `MIGRATIO
 - Dev-admin shortcuts confirmed absent from the production runtime via `scripts/audit-dev-shortcuts.sh`; expected count is zero.
 - `npm run test:smoke` and `npm run test:e2e` green against the production origin.
 
-Each precondition halts the cutover if it fails. The orchestrator's pass means all gates are satisfied; the operator's go signal completes the cutover. After DNS swap, follow up with §18.10 (HoF and BAP honors oversight) and §13.6 (Cutover rollback decision rule) as needed.
+Each precondition halts the cutover if it fails. The orchestrator's pass means all gates are satisfied; the operator's go signal completes the cutover. After DNS swap, follow up with §18.10 (HoF and BAP honors integrity) and §13.6 (Cutover rollback decision rule) as needed.
 
 The orchestrator's `CLAIM-SAFETY` gate re-runs the integration suite against the shipped working tree. Because a deploy ships the working tree rather than a committed SHA, this is the authoritative check that the artifact going live passes the claim-flow safety gates (anti-enumeration, rate limiting, claim and auto-link, mailbox-control round-trip, admin help-request). A cutover deploy must not pass `SKIP_TESTS=yes`, which would bypass the equivalent deploy-time `npm test`; the preflight gate is the backstop that the live artifact is verified.
 
@@ -2410,11 +2410,11 @@ When the team grows beyond one maintainer:
 
 The severity definitions and acknowledgment targets above are the operational policy; update this section if the project's reality shifts.
 
-### 18.10 Hall of Fame and Big Add Posse honors oversight
+### 18.10 Hall of Fame and Big Add Posse honors integrity
 
-Honors-bearing claims (a claim landing on a member who carries a Hall of Fame or Big Add Posse flag) apply on the member's own wizard confirmation, the same as any other claim. Trustworthiness is established a priori: the imported `is_hof` / `is_bap` flags are cross-checked before go-live against the authoritative public rosters (footbaghalloffame.net for Hall of Fame, bigaddposse.com for Big Add Posse), and mismatches are curated out, so an honor-driven tier grant rests only on a validated flag.
+Honors-bearing claims (a claim landing on a member who carries a Hall of Fame or Big Add Posse flag) apply on the member's own wizard confirmation, the same as any other claim, and are gated by the identity-link matching rules (a surname match plus the declared email and date-of-birth anchors). Trustworthiness is also established a priori: the imported `is_hof` / `is_bap` flags are cross-checked before go-live against the authoritative public rosters (footbaghalloffame.net for Hall of Fame, bigaddposse.com for Big Add Posse), and mismatches are curated out, so an honor-driven tier grant rests only on a matched claim and a validated flag.
 
-After go-live, ongoing oversight is community self-policing plus the admin dispute-revert path: if a wrong honors-bearing link surfaces, route it through the dispute-revert procedure per §18.11.
+After go-live, a wrong honors-bearing link is corrected through the admin dispute-revert path: route it through the dispute-revert procedure per §18.11.
 
 ### 18.11 Claim dispute and revert handling
 

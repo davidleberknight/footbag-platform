@@ -229,6 +229,30 @@ describe('C4: dashboard widget hides when nothing is outstanding', () => {
   });
 });
 
+describe('markTaskNotApplicable guards the always-completable required task', () => {
+  it('refuses to mark personal_details not_applicable; allows legacy_claim and club_affiliations', () => {
+    const stamp = Date.now();
+    const memberId = insertMember(testDb, {
+      slug: `state_na_guard_${stamp}`,
+      login_email: `state-na-guard-${stamp}@example.com`,
+    });
+    svc.startTaskList(memberId);
+
+    // personal_details is always completable by saving its fields, so it must
+    // never be removed from the outstanding set via not_applicable; the call is
+    // refused and the state is untouched.
+    expect(() => svc.markTaskNotApplicable(memberId, 'personal_details')).toThrow();
+    expect(getTaskState(memberId, 'personal_details')).toBe('pending');
+
+    // legacy_claim has a legitimate not_applicable path (no plausible legacy
+    // match) and club_affiliations is optional, so neither is guarded.
+    expect(() => svc.markTaskNotApplicable(memberId, 'legacy_claim')).not.toThrow();
+    expect(getTaskState(memberId, 'legacy_claim')).toBe('not_applicable');
+    expect(() => svc.markTaskNotApplicable(memberId, 'club_affiliations')).not.toThrow();
+    expect(getTaskState(memberId, 'club_affiliations')).toBe('not_applicable');
+  });
+});
+
 describe('D4: legacy_claim search surfaces the validation message inline', () => {
   it('POST /register/wizard/legacy_claim/find with empty identifier renders the validation message', async () => {
     const stamp = Date.now();

@@ -117,9 +117,22 @@ describe('GET /admin/admin-roles', () => {
 });
 
 describe('POST /admin/admin-roles/grant', () => {
-  it('grants a Tier 2 member: 303, is_admin set, audited, subscribed, emailed', async () => {
+  it('grant requires confirmation: the form POST shows a confirm page naming the member and writes nothing yet', async () => {
     const res = await request(createApp())
       .post('/admin/admin-roles/grant')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_key: T2_SLUG, reason: 'Joining the admin team.' });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Tess Two');
+    expect(res.text).toContain('/admin/admin-roles/grant/confirm');
+    expect(readMember(T2_ID).is_admin).toBe(0);
+    expect(countAudit('admin.role_granted', T2_ID)).toBe(0);
+  });
+
+  it('grant confirm commits: 303, is_admin set, audited, subscribed, emailed', async () => {
+    const res = await request(createApp())
+      .post('/admin/admin-roles/grant/confirm')
       .set('Cookie', adminCookie())
       .type('form')
       .send({ member_key: T2_SLUG, reason: 'Joining the admin team.' });
@@ -129,6 +142,25 @@ describe('POST /admin/admin-roles/grant', () => {
     expect(countAudit('admin.role_granted', T2_ID)).toBe(1);
     expect(readSubStatus(T2_ID, 'admin-alerts')).toBe('subscribed');
     expect(countOutboxFor(T2_ID)).toBe(1);
+  });
+
+  it('grant confirm re-validates: an already-admin target → 422, no second grant', async () => {
+    const res = await request(createApp())
+      .post('/admin/admin-roles/grant/confirm')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_key: ADMIN2_SLUG, reason: 'Already admin.' });
+    expect(res.status).toBe(422);
+  });
+
+  it('grant confirm: non-admin actor → 403, no change', async () => {
+    const res = await request(createApp())
+      .post('/admin/admin-roles/grant/confirm')
+      .set('Cookie', memberCookie())
+      .type('form')
+      .send({ member_key: T2_SLUG, reason: 'x' });
+    expect(res.status).toBe(403);
+    expect(readMember(T2_ID).is_admin).toBe(0);
   });
 
   it('rejects granting a member below Tier 2 → 422, no change', async () => {
@@ -182,9 +214,22 @@ describe('POST /admin/admin-roles/grant', () => {
 });
 
 describe('POST /admin/admin-roles/:memberId/revoke', () => {
-  it('revokes an admin: 303, is_admin cleared, audited, admin-alerts unsubscribed, other lists intact, emailed', async () => {
+  it('revoke requires confirmation: the form POST shows a confirm page naming the member and writes nothing yet', async () => {
     const res = await request(createApp())
       .post(`/admin/admin-roles/${ADMIN2_ID}/revoke`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ reason: 'Stepping down.' });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Ben Admin');
+    expect(res.text).toContain(`/admin/admin-roles/${ADMIN2_ID}/revoke/confirm`);
+    expect(readMember(ADMIN2_ID).is_admin).toBe(1);
+    expect(countAudit('admin.role_revoked', ADMIN2_ID)).toBe(0);
+  });
+
+  it('revoke confirm commits: 303, is_admin cleared, audited, admin-alerts unsubscribed, other lists intact, emailed', async () => {
+    const res = await request(createApp())
+      .post(`/admin/admin-roles/${ADMIN2_ID}/revoke/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ reason: 'Stepping down.' });
@@ -192,9 +237,29 @@ describe('POST /admin/admin-roles/:memberId/revoke', () => {
     expect(readMember(ADMIN2_ID).is_admin).toBe(0);
     expect(countAudit('admin.role_revoked', ADMIN2_ID)).toBe(1);
     expect(readSubStatus(ADMIN2_ID, 'admin-alerts')).toBe('unsubscribed');
-    // Other subscriptions are untouched (US: revoke does not change other lists).
+    // Other subscriptions are untouched (revoke does not change other lists).
     expect(readSubStatus(ADMIN2_ID, 'all-members')).toBe('subscribed');
     expect(countOutboxFor(ADMIN2_ID)).toBe(1);
+  });
+
+  it('revoke confirm re-validates: an admin cannot confirm revoking their own role → 422, still admin', async () => {
+    const res = await request(createApp())
+      .post(`/admin/admin-roles/${ADMIN_ID}/revoke/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ reason: 'Self-revoke at commit.' });
+    expect(res.status).toBe(422);
+    expect(readMember(ADMIN_ID).is_admin).toBe(1);
+  });
+
+  it('revoke confirm: non-admin actor → 403, no change', async () => {
+    const res = await request(createApp())
+      .post(`/admin/admin-roles/${ADMIN2_ID}/revoke/confirm`)
+      .set('Cookie', memberCookie())
+      .type('form')
+      .send({ reason: 'x' });
+    expect(res.status).toBe(403);
+    expect(readMember(ADMIN2_ID).is_admin).toBe(1);
   });
 
   it('an admin cannot revoke their own role → 422, still admin', async () => {

@@ -758,7 +758,7 @@ Direct historical-record claim:
 - Entry point: the historical detail page (`GET /history/:personId`). When the viewer's current real-name surname OR any declared former surname matches the historical record's surname, the record is unclaimed, and the record is not flagged deceased (`historical_persons.is_deceased = 0`), the page surfaces a "Claim this identity" CTA.
 - The confirmation page shows the record's country, honor status (HoF / BAP if any), and a first-name warning when the member's first name is a variant of the record's first name (per the `name_variants` table seeded from mirror-mined pairs).
 - On confirm, the system writes `members.historical_person_id`, carries forward `historical_persons`-sourced fields (country, honor flags, induction year, first competition year) under fill-if-empty merge semantics, and (in case E) transitively claims the back-linked legacy account, applying the full legacy-account claim effects in the same transaction, including the tier grant.
-- Honors-bearing direct claims apply without admin pre-screening (no platform gate); honors data is validated a priori against the public rosters and an admin can review such claims on demand and revert a wrong one (see `A_View_Honors_Oversight_Feed`).
+- A confirmed honors-bearing direct claim carries the honor forward as part of the single tier mapping. The claim is gated by the identity-link matching rule (the claimant's current or declared former surname must match the record, with declared old emails and date of birth as additional private matching anchors), and the honor flag is validated a priori against the public rosters, so the grant rests on a matched claim and a correct flag. A wrong claim is reverted through the dispute path in `A_Review_Member_Link_Help_Requests`.
 - A record flagged deceased (`historical_persons.is_deceased = 1`) is not self-claimable: the "Claim this identity" CTA is suppressed and the claim-confirm route (`/history/:personId/claim`) returns the standard non-claimable response, because a living member cannot claim a deceased person's identity as their own account. A member who believes a record was wrongly flagged uses the member-initiated admin help request (`A_Review_Member_Link_Help_Requests`).
 - A historical record that is still linked to a deceased member is likewise not open for another member to claim: the deceased member keeps the historical-person link through the contact scrub (the record goes on honoring their contributions), so the record is treated as already held. The "Claim this identity" CTA is suppressed and the claim-confirm route returns the standard non-claimable response; a member who believes the record is genuinely theirs uses the member-initiated admin help request (`A_Review_Member_Link_Help_Requests`).
 
@@ -2196,19 +2196,6 @@ Success Criteria:
 - Approval never auto-promotes legacy `is_admin` metadata to a live admin role.
 - The legacy banned flag is recorded as audit metadata only and does not gate admin approval; any disciplinary state on the new platform is handled by the new platform's discipline mechanisms.
 - Dispute reverts (member confirmed a wrong card or impersonator-confirmed claim): admin can revert a previously-confirmed claim, clearing the back-link columns and revoking the tier grant. The revert is audit-logged with the original-claim audit row identifier for traceability.
-
-### A_View_Honors_Oversight_Feed
-
-Access: Admins only.
-
-Story: As an admin, I have on-demand, post-facto visibility into honors-bearing direct historical-record claims (a category the platform applies without admin pre-screening), backed by a-priori validation of the honors data itself, so the community can trust honors-driven outcomes without a pre-screen gate and without a daily push email.
-
-Success Criteria:
-
-- Honors trustworthiness is established before go-live: imported `is_hof` / `is_bap` flags are cross-checked against the authoritative public rosters (footbaghalloffame.net for Hall of Fame, bigaddposse.com for Big Add Posse), and mismatches are curated out, so an honor-driven tier grant never rests on a wrong flag.
-- There is no daily oversight email. After go-live the small, visible community self-polices honors claims, and an admin reverts any wrong claim using the dispute revert affordance from A_Review_Member_Link_Help_Requests.
-- An admin can review honors-bearing claims on demand: a read-only view lists direct historical-record claims where the linked record carries an honor flag (Hall of Fame, Big Add Posse), each row showing the confirming member's display name, the linked historical record, the confirmation timestamp, and the evidence-strength tag.
-- The view is read-only and never gating; the claim has already applied. The admin can navigate from a row to the member's profile and to the historical record to spot suspect claims.
 
 ### A_Periodic_Club_Cleanup
 

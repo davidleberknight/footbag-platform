@@ -36,6 +36,23 @@ if [ -n "$hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: work_queue_items inserts go only through src/services/workQueueService.ts.
+# Reason: Every work-queue item must fan out its admin-alerts notification in the
+# same step (USER_STORIES global rule: any task added to the work queue notifies
+# the admins). workQueueService.enqueue is the single path that writes the row
+# and sends the alert together; a direct workQueue.insertItem elsewhere could add
+# an item with no notification.
+echo "[conventions] check: workQueue.insertItem outside src/services/workQueueService.ts"
+hits=$(grep -rn --include='*.ts' 'workQueue\.insertItem' src/ \
+  | grep -v '^src/db/db\.ts:' \
+  | grep -v '^src/services/workQueueService\.ts:' \
+  || true)
+if [ -n "$hits" ]; then
+  echo "$hits" >&2
+  echo "  FAIL: work-queue inserts must go through workQueueService.enqueue (row + admin-alerts in one step)" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: AWS SDK and Stripe imports live only in src/adapters/.
 # Reason: External service SDK calls must be encapsulated behind typed
 # adapter interfaces. Services obtain adapters
