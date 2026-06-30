@@ -10,7 +10,9 @@ from committed inputs lives here — no mirror, no network.
 freestyle/run_freestyle.sh [path/to/footbag.db]   # default: database/footbag.db
 ```
 
-Idempotent (each loader is DELETE+INSERT). It loads records, the trick
+Idempotent and safe to re-run: loaders are DELETE+INSERT except the records
+loader (`loaders/10_*`), which is additive (`INSERT OR IGNORE`, no `DELETE`), so
+record edits take effect only on a fresh DB build. It loads records, the trick
 dictionary (curated-v1 base + Red overlays + footbag.org provenance + pending
 moves), runs the notation parser, and runs QC. The footbag.org move corpus
 comes from the committed snapshot (`inputs/footbag_org_moves_snapshot.csv`), not

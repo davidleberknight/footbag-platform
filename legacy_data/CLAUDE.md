@@ -220,7 +220,7 @@ DB tables:
 
 Authoritative curated inputs:
 - `freestyle/inputs/curated/records/records_master.csv`
-- `inputs/consecutives_records.csv`
+- `freestyle/inputs/curated/records/consecutives_records.csv`
 
 No pipeline regenerates these.
 

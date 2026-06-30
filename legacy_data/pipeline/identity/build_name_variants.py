@@ -59,6 +59,11 @@ column only when the pid is not present in current persons.csv.
   (diacritics, punctuation, case, whitespace), or same token set in
   different order.
 - MEDIUM: any other structural variant retained by the filters above.
+- HIGH (verified override): a `status=verified` row from `person_aliases.csv`
+  is elevated to HIGH even when it is a structural variant. The curator's
+  verified mark is the human review the MEDIUM deferral exists to force, so the
+  pair is production-eligible; unreviewed (non-verified) structural variants
+  stay MEDIUM.
 
 ## Output schema
 

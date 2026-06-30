@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Rebuild every freestyle table from the committed inputs in freestyle/inputs/.
 # Needs no mirror and no network: the footbag.org move corpus is the committed
-# snapshot, not a live scrape. Idempotent (each loader is DELETE+INSERT).
+# snapshot, not a live scrape. Idempotent and safe to re-run: loaders are
+# DELETE+INSERT except loader 10 (records), which is additive (INSERT OR IGNORE,
+# no DELETE), so record edits take effect only on a fresh DB build.
 #
 # Usage:  freestyle/run_freestyle.sh [path/to/footbag.db]   (default: database/footbag.db)
 #
