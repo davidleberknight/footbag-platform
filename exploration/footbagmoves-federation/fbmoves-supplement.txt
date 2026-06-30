@@ -1,0 +1,358 @@
+
+Inside Stall
+Adds: 1
+
+
+
+Inside Stall (same side)
+Adds: 1
+
+
+
+Toe Stall
+Adds: 1
+
+SET > OP/SAME TOE [DEL]
+
+
+Toe Stall (same side)
+Adds: 1
+
+SET > OP/SAME TOE [DEL]
+No Video Available
+
+Around The World in-out
+ATW in-out
+Adds: 2
+
+
+No Video Available
+
+Around The World out-in
+ATW out-in
+Adds: 2
+
+
+
+Blink
+Reverse Swirling Toe
+Adds: 2
+
+
+
+Clipper (same side)
+Adds: 2
+
+
+No Video Available
+
+Far Clipper
+Adds: 2
+
+
+
+Illusion
+Adds: 2
+
+
+Legover (far)
+Adds: 2
+
+
+
+Legover (same side)
+Adds: 2
+
+
+
+Mirage
+Adds: 2
+
+
+
+Pickup (far)
+Adds: 2
+
+
+
+Pickup (same side)
+Adds: 2No Video Available
+
+Atomic Illusion
+Adds: 3
+
+
+No Video Available
+
+Atomic Illusion (same side)
+Adds: 3
+
+
+No Video Available
+
+Atomic Legover (same side)
+Adds: 3
+
+
+No Video Available
+
+Atomic Pickup (same side)
+Adds: 3
+
+
+No Video Available
+
+Atomsmasher
+Atomic Mirage
+Adds: 3
+
+Toe > Op Out (DEX) >> Op In (DEX)(XDEX) > Op Toe (DEL)
+
+
+Barrage
+Clipper set Double Mirage
+Adds: 3
+
+Clip >> Op In (DEX) > Same In (DEX) >> Op Toe (DEL)
+
+
+Barrage (toe set)
+Clipper set Double Mirage
+Adds: 3
+
+Clip >> Op In (DEX) > Same In (DEX) >> Op Toe (DEL)
+
+No Video Available
+
+Bubba Beater
+Bubba Legover
+Adds: 3
+
+Clip >> Op Out (DEX) >> Op Out (DEX) > Same Toe (DEL)
+
+
+Butterfly
+Adds: 3
+
+SET > SAME or OP OUT [DEX] > OP CLIP [XBD] [DEL]
+
+
+Butterfly (same side)
+Adds: 3
+
+SET > SAME or OP OUT [DEX] > OP CLIP [XBD] [DEL]
+
+
+Diving Clipper
+Adds: 3
+
+
+No Video Available
+
+Diving Illusion
+Adds: 3
+
+
+No Video Available
+
+Diving Legover
+Adds: 3
+
+
+No Video Available
+
+Diving Mirage
+Adds: 3
+
+
+No Video Available
+
+Diving Pickup
+Adds: 3No Video Available
+
+Double ATW in-out
+Adds: 3
+
+
+No Video Available
+
+Double ATW out-in
+Adds: 3
+
+
+
+Double Legover
+Miraging Legover
+Adds: 3
+
+Set >> Op In (DEX) > Op Out (DEX) > Same Toe (DEL)
+
+No Video Available
+
+Double Pickup (far)
+Adds: 3
+
+
+
+Double Pickup (same side)
+Adds: 3
+
+
+
+Double Switchover (far)
+Adds: 3
+
+
+No Video Available
+
+Dragster
+Miraging Dragon
+Adds: 3
+
+Clip >> Op In (DEX) > Same Dragon (XBD)(DEL)
+
+
+Drifter
+Miraging Clipper
+Adds: 3
+
+Clip >> Op In (DEX) > Same Clip (XBD)(DEL)
+
+
+Drifter (same-side)
+Miraging Clipper
+Adds: 3
+
+Clip >> Op In (DEX) > Same Clip (XBD)(DEL)
+
+
+Ducking Clipper
+Adds
+No Video Available
+
+Ducking Illusion
+Adds: 3
+
+
+No Video Available
+
+Ducking Legover
+Adds: 3
+
+
+No Video Available
+
+Ducking Mirage
+Adds: 3
+
+
+No Video Available
+
+Ducking Pickup
+Adds: 3
+
+
+
+Eggbeater
+Illusioning Legover
+Adds: 3
+
+Toe >> Op Out (DEX) > Op Out (DEX) > Same Toe (DEL)
+
+No Video Available
+
+Eggplant
+Atomic Legover
+Adds: 3
+
+Toe > Op Out (DEX) >> Op Out (DEX) > Same Toe (DEL)
+
+No Video Available
+
+Fairy Illusion (same side)
+Adds: 3
+
+
+No Video Available
+
+Fairy Legover
+Adds: 3
+
+
+No Video Available
+
+Fairy Legover (same side)
+Adds: 3
+
+
+No Video Available
+
+Fairy Mirage (same side)
+Adds: 3
+No Video Available
+
+Fairy Pickup
+Adds: 3
+
+
+No Video Available
+
+Far Reverse Whirl
+Adds: 3
+
+
+No Video Available
+
+Fear
+Fairy Mirage
+Adds: 3
+
+Toe > Same Out (DEX) >> Op In (DEX) > Op Toe (DEL)
+
+No Video Available
+
+Firefly
+Butterfly Dragon
+Adds: 3
+
+Set >> Op Out (DEX) > Op Dragon (XBD)(DEL)
+
+
+Flail
+Symposium Illusion
+Adds: 3
+
+SET > (no plant while) [BOD] OP OUT [DEX] > OP TOE [DEL]
+
+
+Flapper
+Adds: 3
+
+
+No Video Available
+
+Fudge
+Fairy Illusion
+Adds: 3
+
+Toe > Same Out (DEX) >> Op Out (DEX) > Op Toe (DEL)
+
+
+Grifter
+Reverse Drifter
+Adds: 3
+
+Clip >> Op Out (DEX) > Same Clip (XBD)(DEL)
+
+
+Grifter (same side)
+Reverse Drifter
+Adds: 3
+
+Clip >> Op Out (DEX) > Same Clip (XBD)(DEL)
+
+
+Gyro Clipper
+Adds: 
+///Extract every place where FootbagMoves expresses a structural relationship, positional distinction, alternative notation, or compositional interpretation that could enrich the encyclopedia. Ignore whether the trick already exists—the goal is to capture additional doctrine and educational value, not just new entries.
+
