@@ -1,5 +1,14 @@
 # Frontier reclassification — 2026-06-30
 
+> **STALENESS CORRECTION.** The counts first published here (e.g. **237 "Ready for Authoring"**) were
+> inflated: the source `freestyleObservationalUniverse.ts` was stale and still carried rows that had
+> since become canonical. A slug-normalization bug in the generator's canonical dual-gate (hyphen vs
+> underscore) let published slugs through. After fixing the gate and regenerating, this CSV holds
+> **218 rows** (from 346) — the old "ready" section collapsed 72 → 2 — and `ready+frontier` no longer
+> overlaps any active canonical. Current primaries: **Ready 130, Needs Curator Review 52, Doctrine
+> Blocked 29, Parser Limitation 7.** See `../promotion-queue-2026-06-30/README.md` for the fix and the
+> true promotion runway.
+
 A classification / information-architecture artifact. It re-buckets every row in the three
 Emerging-Vocabulary **card sections** by **today's** blocker, so each unresolved trick answers one
 question: **what is the next concrete action before it can become canonical?**

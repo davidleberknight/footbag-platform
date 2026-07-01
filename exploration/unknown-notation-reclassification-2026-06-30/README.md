@@ -4,6 +4,13 @@ Classification / IA artifact. Re-buckets the public **"Unknown"** dex-count popu
 real blocker today, so each row answers: **what is the next concrete action before it becomes
 canonical?** No behavioral code changed.
 
+> **NOTE — these are NOT promotions.** Every row here is an **already-active** `freestyle_tricks`
+> row that merely lacks `operational_notation`. "Ready for Authoring" here means *backfill the
+> op_notation on an existing canonical*, not *promote a new canonical*. Accordingly, all 18 Ready
+> rows are **excluded from `../promotion-queue-2026-06-30/PROMOTION_QUEUE.csv`** by its
+> canonical-overlap filter. This artifact is unaffected by the universe de-staling described in the
+> promotion-queue README (its population comes from the live DB, not the observational universe).
+
 ## What "Unknown" is
 
 The landing dex-count card labels a trick **"Unknown"** purely because its `operational_notation`

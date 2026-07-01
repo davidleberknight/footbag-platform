@@ -176,8 +176,17 @@ def wave(flags, missing):
     if "verification_needed" in fs: return "wave_2_no_dependency_verification_flag"
     return "wave_1_no_dependency_no_verification"
 
+# Canonical-overlap exclusion: a promotion queue must contain only NOT-yet-canonical
+# rows. Anything already published (an active freestyle_tricks slug or a registered
+# alias) is not a promotion — the unknown-notation rows in particular are all active
+# canonicals that merely need op_notation backfill, tracked in the unknown artifact,
+# not here. Frontier rows are de-staled upstream; this is the belt-and-suspenders gate.
+_excluded_canonical = []
 queue = []
 for r in front_ready + unk_ready:
+    if canonical_slug(r["slug"]):
+        _excluded_canonical.append((r["slug"], r["source"]))
+        continue
     flags = list(r["flags"])
     has_add = bool(re.match(r"^\d+$", str(r["add"]).strip()))
     if has_add and "decomposition_present" not in flags:
@@ -214,8 +223,12 @@ e = sys.stderr
 e.write("\n==== UNKNOWN RECLASS ====\n")
 pc = collections.Counter(u["primary"] for u in unk_out)
 e.write("rows: %d | %s\n" % (len(unk_out), dict(pc)))
-e.write("\n==== PROMOTION QUEUE (Ready-for-Authoring only) ====\n")
-e.write("total Ready rows: frontier=%d unknown=%d total=%d\n" % (len(front_ready), len(unk_ready), len(queue)))
+e.write("\n==== PROMOTION QUEUE (Ready-for-Authoring, not-yet-canonical only) ====\n")
+e.write("excluded as already-canonical/alias: %d (frontier=%d unknown=%d)\n" % (
+    len(_excluded_canonical),
+    sum(1 for _,s in _excluded_canonical if s=="frontier"),
+    sum(1 for _,s in _excluded_canonical if s=="unknown-notation")))
+e.write("queue rows (genuinely new promotions): %d\n" % len(queue))
 wc = collections.Counter(r["recommended_wave"] for r in queue)
 for w in sorted(wc, key=lambda x: WAVE_ORDER.get(x,9)):
     e.write("  %-40s %d\n" % (w, wc[w]))
