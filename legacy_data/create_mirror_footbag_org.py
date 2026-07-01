@@ -396,6 +396,70 @@ def is_footbag_domain(url):
     parsed = urlparse(url)
     return parsed.netloc.endswith('footbag.org')
 
+# Section/action routes whose handlers mutate server state (DELETE/UPDATE/INSERT),
+# enumerated from the footbag.org application source. Fetching any of these as an
+# authenticated member could change or destroy live data, so the crawler must
+# never request them. registration/regsummary is intentionally NOT listed: its
+# ?tid= read view is wanted archival content, while its destructive ?unreg= mode
+# is blocked via DESTRUCTIVE_PARAMS below.
+DESTRUCTIVE_ROUTES = frozenset({
+    'clubs/edit2', 'clubs/delete', 'clubs/updatecontact', 'clubs/addcontact',
+    'clubs/leaveclub', 'clubs/new2', 'clubs/deactivate', 'clubs/removecontact',
+    'clubs/editclubinfo2', 'clubs/editclub2',
+    'events/convertdates', 'events/edit2', 'events/new2', 'events/addresults2',
+    'faq/new2', 'faq/newsection2',
+    'gallery/fixthumbnails', 'gallery/newalt2', 'gallery/new2', 'gallery/newset2',
+    'gallery2/fixthumbnails', 'gallery2/newalt2', 'gallery2/newset2', 'gallery2/new2',
+    'groups/newgroup2', 'groups/upload2', 'groups/deletefile2',
+    'groups2/newgroup2', 'groups2/cullpending', 'groups2/upload2', 'groups2/deletefile2',
+    'ifpa/removepending', 'ifpa/approvemembers2', 'ifpa/countvotes',
+    'ifpa/editelectioninfo2', 'ifpa/tmpcreate', 'ifpa/upload2', 'ifpa/newissue2',
+    'ifpa/newballot2',
+    'index2/editimage', 'index2/addimage2',
+    'localize/mk-en', 'localize/tmpfix', 'localize/unicodify',
+    'members/delete', 'members/optout2', 'members/bademail', 'members/updateprofile',
+    'members/logout', 'members/validate2', 'members/join4', 'members/join2',
+    'moves/new2', 'moves/deletehint', 'moves/addhint2', 'moves/delete',
+    'moves2/delete', 'moves2/addhint2', 'moves2/addjournal', 'moves2/deletehint',
+    'moves2/vote', 'moves2/new2',
+    'newgallery/convert',
+    'news/delete', 'news/new2',
+    'poll/delete', 'poll/edit2', 'poll/new2', 'poll/vote',
+    'ranking/xaddresults', 'ranking/removeevent', 'ranking/removeteam',
+    'ranking/addresults', 'ranking/doranks', 'ranking/newplayer2',
+    'ranking/doranks_latest_wip',
+    'registration/regedit2', 'registration/fixbyes', 'registration/editevent2',
+    'registration/regcreate', 'registration/clonetournament', 'registration/submit',
+    'registration/fixupemptyevents', 'registration/unreg', 'registration/fixupteamnames',
+    'registration/regsetup2', 'registration/fixuptemplates', 'registration/assignannual',
+    'registration/deleteevent', 'registration/maketemplates',
+    'rules/edit2', 'rules/new2', 'rules/import',
+})
+
+# Query parameters that trigger a state change on an otherwise-readable route
+# (e.g. registration/regsummary?unreg=1 unregisters a person/team). UI-only
+# params (mode/really/cachebuster) are already stripped by normalize_url.
+DESTRUCTIVE_PARAMS = frozenset({
+    'unreg', 'delete', 'remove', 'confirm', 'approve', 'reject', 'vote',
+})
+
+def is_unsafe_url(url):
+    # True for any footbag.org URL that could mutate server state or is an admin
+    # surface, so the crawler refuses it before issuing a request. Read routes
+    # are unaffected, so mirror coverage stays identical. Route keys use the
+    # first two path segments (section/action), matching the app's routing, so
+    # /gallery/show/123, /members/profile/456, /registration/register?tid=1, and
+    # sections that merely end in "2" (/index2/..., /gallery2/...) are allowed.
+    p = urlparse(url)
+    segs = [s for s in p.path.lower().split('/') if s]
+    if 'admin' in segs:
+        return True
+    if len(segs) >= 2 and f"{segs[0]}/{segs[1]}" in DESTRUCTIVE_ROUTES:
+        return True
+    if {k.lower() for k in parse_qs(p.query)} & DESTRUCTIVE_PARAMS:
+        return True
+    return False
+
 def get_extension(url_or_path):
     return Path(urlparse(url_or_path).path.lower()).suffix
 
@@ -1005,6 +1069,9 @@ def convert_and_cleanup(filepath, ext):
 def download_and_process_media(url, session):
     # Download media file and convert formats (video/audio/image) as needed.
     # Returns the final usable filepath (converted or original), or None if unavailable.
+    if is_unsafe_url(url):
+        logging.info(f"Refusing admin/mutating URL (media): {url}")
+        return None
     try:
         if "openVideoWindow" in url:
             logging.debug(f"Skipping JS-based media placeholder: {url}")
@@ -1324,7 +1391,10 @@ def get_site_root_relative_path(current_page_url):
     return './' if levels_up == 0 else '../' * levels_up
 
 def resolve_actual_video_url(popup_url):
-    # Resolve a popup page URL (e.g. /gallery/show/foo?Mode=popup (mode should be stripped)) 
+    # Resolve a popup page URL (e.g. /gallery/show/foo?Mode=popup (mode should be stripped))
+    if is_unsafe_url(popup_url):
+        logging.info(f"Refusing admin/mutating URL (popup): {popup_url}")
+        return None
     try:
         absolute_popup = normalize_url(urljoin(BASE_URL, popup_url))
         logging.debug(f"Resolving actual media from popup: {absolute_popup}")
@@ -2126,6 +2196,8 @@ def save_content(url, content, is_html):
         mirror_state.stats['failed_downloads'] += 1
 
 def is_in_scope(url):
+    if is_unsafe_url(url):
+        return False
     if not is_footbag_domain(url):
         return False
     if not url.startswith(BASE_URL):
@@ -2242,6 +2314,9 @@ def is_events_show_url(url):
         return False
 
 def fetch(url):
+    if is_unsafe_url(url):
+        logging.info(f"Refusing admin/mutating URL (fetch): {url}")
+        return None, None
     attempt = 0
     max_attempts = 1 + MAX_RETRIES  # total attempts = initial + retries
     auth_redirects = 0  # Track auth redirect loops
