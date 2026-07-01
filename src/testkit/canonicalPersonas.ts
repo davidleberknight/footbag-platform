@@ -39,7 +39,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     coverageNotes: [
       'non-prod build-on-switch real-flow journey',
       'HOF legacy claim, club co-leader, avatar, galleries, media',
-      'admin via the staging bootstrap allowlist (CUTOVER-REMOVE)',
+      'admin via the dev/staging register-allowlist bootstrap',
     ],
   },
   {

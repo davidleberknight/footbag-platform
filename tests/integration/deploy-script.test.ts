@@ -35,14 +35,6 @@ function run(
 
 const HAS_DOCKER = spawnSync('command', ['-v', 'docker'], { shell: true }).status === 0;
 
-// The dev-admin seed reads a gitignored, per-maintainer file. A workstation
-// that happens to carry a populated one would enable the seed under
-// --soup-to-nuts, so guard the best-effort-skip assertion on its absence
-// (CI and clean checkouts never have it).
-const HAS_STAGING_ADMIN_SEED = fs.existsSync(
-  path.join(REPO_ROOT, '.local', 'staging-admin-seed.json'),
-);
-
 // ── deploy_to_aws.sh wrapper ──────────────────────────────────────────────────
 
 describe('deploy_to_aws.sh wrapper', () => {
@@ -144,22 +136,15 @@ describe('deploy_to_aws.sh wrapper', () => {
     expect(combined).toMatch(/KEEP_MEDIA=yes/);
   });
 
-  it.skipIf(HAS_STAGING_ADMIN_SEED)(
-    '--soup-to-nuts skips the dev-admin seed when .local/staging-admin-seed.json is absent (best-effort); personas stay on',
-    () => {
-      const r = run('bash', ['scripts/deploy-to-aws.sh', '--soup-to-nuts', '-ny'], {
-        input: 'fake-pw\n',
-      });
-      expect(r.status).toBe(0);
-      const combined = (r.stderr ?? '') + (r.stdout ?? '');
-      // Persona catalog is code, so it always seeds; the dev-admin seed needs a
-      // populated per-maintainer file and must not abort a soup-to-nuts deploy
-      // when that file has no entries.
-      expect(combined).toMatch(/seed personas:\s+yes/);
-      expect(combined).toMatch(/seed dev admins:\s+no/);
-      expect(combined).toMatch(/skipping dev-admin seed/);
-    },
-  );
+  it('--soup-to-nuts enables the persona seed', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--soup-to-nuts', '-ny'], {
+      input: 'fake-pw\n',
+    });
+    expect(r.status).toBe(0);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    // The persona catalog is code, so it always seeds under a staging rebuild.
+    expect(combined).toMatch(/seed personas:\s+yes/);
+  });
 
   it.skipIf(!HAS_DOCKER)(
     '-k with missing AWS_OPERATOR_FILE exits 1 with generic Recommendation (no path leak)',

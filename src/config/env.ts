@@ -118,12 +118,11 @@ export interface AppConfig {
   // browser sends a heartbeat event at this interval to keep nginx and
   // CloudFront from idle-killing the connection during long transcodes.
   sseHeartbeatSeconds: number;
-  // CUTOVER-REMOVE: operator-supplied initial-admin email list.
-  // Current: each registering member whose email appears here gets is_admin=1
-  //   plus a admin.dev_register_allowlist_grant audit row. Default is
-  //   .local/initial-admins.txt (gitignored); production reads refused at
-  //   the helper level regardless of this value.
-  // Target: remove after the production first-admin bootstrap is complete.
+  // Operator-supplied initial-admin email list for the permanent dev/staging
+  // register-allowlist bootstrap: each registering member whose email appears
+  // here gets is_admin=1 plus an admin.dev_register_allowlist_grant audit row.
+  // Default is .local/initial-admins.txt (gitignored); production reads are
+  // refused at the helper level regardless of this value.
   initialAdminFile: string;
   // Value for Express's `trust proxy` setting. Hosts set the exact
   // X-Forwarded-For hop count of the proxy chain in front of the app
@@ -134,15 +133,6 @@ export interface AppConfig {
   // the edge IP and per-IP rate limiting coarsens to per-edge buckets.
   // Outside production: 0 unless overridden.
   trustProxy: number | boolean | string;
-  // CUTOVER-REMOVE: dev-only Tier 2 backfill for admin members.
-  // Current: when true, the boot orchestrator ensures every is_admin=1 member
-  //   has a current Tier 2 ledger row, inserting a dev_admin_invariant_repair
-  //   grant when the ledger lags. Repairs the admin-as-Tier-2 invariant on
-  //   dev workstations without the legacy dump or full seed flow. Boot-time
-  //   guard refuses non-development start. Default off, opt-in only.
-  // Target: remove once the dev seed flow reliably provisions Tier 2 for
-  //   admin accounts.
-  devAdminGrantTier2: boolean;
   // Test-only password-hashing cost switch. When true, hashPassword() uses a
   // cheap argon2 profile so the suite does not run memory-hard hashing across
   // ~20 parallel forks (which oversubscribes RAM/threads and times out
@@ -335,27 +325,6 @@ function loadConfig(): AppConfig {
   }
 
 
-  // CUTOVER-REMOVE: fail-fast guard for FOOTBAG_DEV_ADMIN_GRANT_TIER2.
-  // Current: dev-only fail-fast, same posture as the skip-claim-email guard.
-  // Target: remove when the dev Tier 2 auto-grant is decommissioned.
-  const rawDevAdminTier2 = process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2;
-  let devAdminGrantTier2: boolean;
-  if (rawDevAdminTier2 === undefined || rawDevAdminTier2 === '') {
-    devAdminGrantTier2 = false;
-  } else if (rawDevAdminTier2 === '1' || rawDevAdminTier2 === 'true') {
-    devAdminGrantTier2 = true;
-  } else if (rawDevAdminTier2 === '0' || rawDevAdminTier2 === 'false') {
-    devAdminGrantTier2 = false;
-  } else {
-    throw new Error(
-      `FOOTBAG_DEV_ADMIN_GRANT_TIER2 must be '1', '0', 'true', or 'false', got: ${rawDevAdminTier2}`,
-    );
-  }
-  if (devAdminGrantTier2 && footbagEnv !== 'development') {
-    throw new Error(
-      `FOOTBAG_DEV_ADMIN_GRANT_TIER2 is dev-only; set FOOTBAG_ENV=development or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
-    );
-  }
 
   // Test-only password-hashing cost switch. Cheap hashing must be impossible in
   // any real process, so it is honoured only under the Vitest runner; '1'
@@ -383,13 +352,13 @@ function loadConfig(): AppConfig {
     );
   }
 
-  // CUTOVER-REMOVE: fail-fast guard for FOOTBAG_DEV_INITIAL_ADMIN_EMAILS.
-  // Current: dev/staging-only admin-allowlist shortcut. Any production process
-  //   seeing this var is mis-configured and must refuse to start. The deploy
-  //   pipeline also refuses to write the value into /srv/footbag/env on a
-  //   production host (second line of defense). Production first-admin uses
-  //   the separate single-shot SSM-token claim path.
-  // Target: remove after the production first-admin bootstrap is complete.
+  // Fail-fast guard for FOOTBAG_DEV_INITIAL_ADMIN_EMAILS, the permanent
+  // dev/staging register-allowlist bootstrap. Any production process seeing this
+  // var is mis-configured and must refuse to start; the deploy pipeline also
+  // refuses to write the value into /srv/footbag/env on a production host
+  // (second line of defense). Production first-admin uses the separate
+  // single-shot SSM-token claim path, which is also the break-glass recovery
+  // path after total admin loss.
   const rawDevInitialAdminEmails = process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS;
   if (
     rawDevInitialAdminEmails &&
@@ -732,7 +701,6 @@ function loadConfig(): AppConfig {
     sseHeartbeatSeconds,
     initialAdminFile: process.env.FOOTBAG_INITIAL_ADMIN_FILE || '.local/initial-admins.txt',
     trustProxy,
-    devAdminGrantTier2,
     useCheapPasswordHash,
     paymentAdapter,
     stripeWebhookSecret,

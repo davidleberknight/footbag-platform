@@ -1393,9 +1393,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
      * source objects. Returns the new mediaId so the caller can update the
      * job row's media_id and announce the success event.
      *
-     * Mirrors uploadVideo's validation (size, magic bytes, caption, tags) as
-     * defense in depth: the browser is not trusted, and the /sign endpoint's
-     * size check binds the user-claimed size, not the actual S3 object size.
+     * Mirrors uploadVideo's validation (size, magic bytes, caption, tags) and
+     * its curator persona guard as defense in depth: the browser is not trusted,
+     * and the /sign endpoint's size check binds the user-claimed size, not the
+     * actual S3 object size.
      */
     async finalizeTranscodeForJob(job: MediaJobRow): Promise<CuratorUploadResult> {
       if (job.kind !== 'curator_video') {
@@ -1406,6 +1407,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           `Job ${job.id} is missing source keys; cannot finalize.`,
         );
       }
+
+      // Mirror uploadVideo's persona guard on the async finalize path: a seeded
+      // test persona must not author curated content where the /curated working
+      // tree is the source of truth (dev). No-op in staging/production.
+      assertCuratorActorMayWriteCurated(job.admin_member_id);
 
       const tags = job.tags.length === 0 ? [] : job.tags.trim().split(/\s+/).filter(Boolean);
       validateCaption(job.caption);

@@ -64,12 +64,11 @@ DATA SOURCE (opt-in DB rebuild; mutually exclusive)
                                diffs after the run. Conflicts with -r
                                and -k.
                                "Everything on" by default: turns ON media
-                               sync (+ S3 clean wipe), persona seed, and
-                               dev-admin seed (the seeds on staging only).
-                               Opt out per axis with --no-media /
-                               --no-personas / --no-dev-admins (and -W for
-                               additive S3 sync). --no-personas also applies
-                               to --from-csv, which seeds personas too.
+                               sync (+ S3 clean wipe) and persona seed (on
+                               staging only). Opt out per axis with --no-media
+                               / --no-personas (and -W for additive S3 sync).
+                               --no-personas also applies to --from-csv, which
+                               seeds personas too.
 
 MODIFIERS
 ─────────────────────────────────────────────────────────────────────
@@ -82,13 +81,6 @@ MODIFIERS
                                this only when curated binaries changed.
   -W, --no-s3-wipe             When media sync runs (-m), skip --delete flag;
                                still sync new bytes additively.
-  --seed-dev-admins            After the deploy completes, run the
-                               dev-admin seed inside the web container.
-                               Reads .local/staging-admin-seed.json
-                               (gitignored, per-maintainer) and inserts
-                               maintainer admin accounts. Allowlisted to
-                               DEPLOY_TARGET=footbag-staging only.
-                               CUTOVER-REMOVE.
   --seed-test-personas         After the deploy completes, run the persona
                                catalog seed inside the web container. The
                                catalog is code (canonicalPersonas.ts), so this
@@ -151,16 +143,9 @@ NO_S3_WIPE_FLAG="no"
 SYNC_MEDIA_FLAG="no" # -m / --sync-media: opt in to the S3 media cycle
 NO_MEDIA_FLAG="no"       # --no-media: opt OUT of soup-to-nuts media sync
 NO_PERSONAS_FLAG="no"    # --no-personas: opt OUT of soup-to-nuts persona seed
-NO_DEV_ADMINS_FLAG="no"  # --no-dev-admins: opt OUT of soup-to-nuts dev-admin seed
 DRY_RUN="no"
 FROM_CSV="no"        # explicit alias for default rebuild source
 SOUP_TO_NUTS="no"    # full clean rebuild from legacy mirror
-# CUTOVER-REMOVE: --seed-dev-admins flag.
-# Current: post-deploy seeds maintainer admin accounts into dev/staging only;
-#   not part of the production path.
-# Target: remove this flag and the seed pathway once the production
-#   first-admin SSM-token flow is the only bootstrap mechanism.
-SEED_DEV_ADMINS="no"
 # CUTOVER-REMOVE: --seed-test-personas flag.
 # Current: post-deploy seeds the canonical persona catalog into dev/staging
 #   only; not part of the production path. Signal only, no JSON payload.
@@ -200,11 +185,9 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     -n|--dry-run)          DRY_RUN="yes" ;;
     --from-csv)            FROM_CSV="yes" ;;
     --soup-to-nuts)        SOUP_TO_NUTS="yes" ;;
-    --seed-dev-admins)     SEED_DEV_ADMINS="yes" ;;
     --seed-test-personas)  SEED_TEST_PERSONAS="yes" ;;
     --no-media)            NO_MEDIA_FLAG="yes" ;;
     --no-personas)         NO_PERSONAS_FLAG="yes" ;;
-    --no-dev-admins)       NO_DEV_ADMINS_FLAG="yes" ;;
     *)
       echo "ERROR: unknown flag '$arg'" >&2
       echo "" >&2
@@ -239,17 +222,12 @@ if [[ "$SEED_TEST_PERSONAS" == "yes" && "$NO_PERSONAS_FLAG" == "yes" ]]; then
   echo "ERROR: --seed-test-personas and --no-personas are contradictory." >&2
   exit 1
 fi
-if [[ "$SEED_DEV_ADMINS" == "yes" && "$NO_DEV_ADMINS_FLAG" == "yes" ]]; then
-  echo "ERROR: --seed-dev-admins and --no-dev-admins are contradictory." >&2
-  exit 1
-fi
-
 # The --no-* opt-outs only make sense in the mode that turns the axis on by
-# default. --no-media / --no-dev-admins ride --soup-to-nuts; --no-personas rides
+# default. --no-media rides --soup-to-nuts; --no-personas rides
 # --from-csv and --soup-to-nuts (both seed personas by default on staging). A
 # stray --no-* anywhere else is almost certainly an operator mistake: fail loud.
 if [[ "$SOUP_TO_NUTS" != "yes" ]]; then
-  for _f in "--no-media:$NO_MEDIA_FLAG" "--no-dev-admins:$NO_DEV_ADMINS_FLAG"; do
+  for _f in "--no-media:$NO_MEDIA_FLAG"; do
     if [[ "${_f#*:}" == "yes" ]]; then
       echo "ERROR: ${_f%%:*} is only meaningful with --soup-to-nuts (these axes are off by default otherwise)." >&2
       exit 1
@@ -275,29 +253,9 @@ if [[ "$FROM_CSV" == "yes" || "$SOUP_TO_NUTS" == "yes" ]]; then
 fi
 
 # --soup-to-nuts is "everything on": turn on media sync (+ S3 clean wipe via the
-# existing WIPE_DEFAULT path) and the dev-admin seed, each opt-out via --no-*.
-# These are staging-only (CUTOVER-REMOVE); auto-enable them ONLY on staging,
-# re-enforcing the wrapper's allowlist (which scans literal --seed-* flags and
-# cannot see these implicit enables).
+# existing WIPE_DEFAULT path), opt out via --no-media.
 if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
   [[ "$NO_MEDIA_FLAG" == "yes" ]] || SYNC_MEDIA_FLAG="yes"
-  if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-staging" ]]; then
-    # Dev-admin seed under --soup-to-nuts is best-effort: auto-enable it only
-    # when .local/staging-admin-seed.json actually has entries. Explicit
-    # --seed-dev-admins (already SEED_DEV_ADMINS=yes here) keeps its strict
-    # refuse-to-no-op behavior, so a deploy never aborts on an empty seed file.
-    if [[ "$NO_DEV_ADMINS_FLAG" != "yes" && "$SEED_DEV_ADMINS" != "yes" ]]; then
-      _n=$(grep -v '^[[:space:]]*//' .local/staging-admin-seed.json 2>/dev/null \
-             | jq 'if type=="array" then length else 0 end' 2>/dev/null || echo 0)
-      if [[ "${_n:-0}" -gt 0 ]]; then
-        SEED_DEV_ADMINS="yes"
-      else
-        echo "NOTE: --soup-to-nuts: skipping dev-admin seed (no entries in .local/staging-admin-seed.json; pass --seed-dev-admins to require it)." >&2
-      fi
-    fi
-  else
-    echo "NOTE: --soup-to-nuts against non-staging target; dev-admin seed skipped (staging-only)." >&2
-  fi
 fi
 
 # Operator credential file must be on stdin (deploy_to_aws.sh wrapper supplies
@@ -392,7 +350,6 @@ echo "    rebuild local DB: ${REBUILD_LOCAL}"
 echo "    replace staging:  ${REPLACE_STAGING}"
 echo "    sync media:       ${SYNC_MEDIA_FLAG}"
 echo "    clean S3 sync:    ${WIPE_S3}"
-echo "    seed dev admins:  ${SEED_DEV_ADMINS}"
 echo "    seed personas:    ${SEED_TEST_PERSONAS}"
 echo "    dry run:          ${DRY_RUN}"
 echo ""
@@ -491,14 +448,6 @@ fi
 # Thread the resolved choices to leaf scripts as env vars.
 # -----------------------------------------------------------------------------
 export CURATOR_SEED="${CURATOR_SEED:-yes}"
-
-# CUTOVER-REMOVE: SEED_DEV_ADMINS, explicit opt-in; defaults to no. The
-# leaf scripts (deploy-code.sh / deploy-rebuild.sh) read this and, if
-# yes, validate .local/staging-admin-seed.json and pipe its content
-# through the SSH cat-pipe alongside FOOTBAG_DEV_INITIAL_ADMIN_EMAILS.
-# The staging-side remote scripts then run the seed inside the web
-# container.
-export SEED_DEV_ADMINS
 
 # CUTOVER-REMOVE: SEED_TEST_PERSONAS, explicit opt-in; defaults to no. The
 # leaf scripts (deploy-code.sh / deploy-rebuild.sh) thread this signal through

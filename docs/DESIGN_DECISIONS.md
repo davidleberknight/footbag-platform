@@ -1190,7 +1190,7 @@ Rationale:
 
 - Bootstrap expresses operator intent through environment-isolated mechanisms. Dev and staging use a workstation-supplied email allowlist (gitignored on the workstation; injected as `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` by the deploy pipeline) that auto-promotes matching registrations. Production uses a single-shot SSM-stored claim token consumed via an in-app endpoint by an already-registered member. The two mechanisms share no env vars and no code paths beyond the shared service primitive that writes the resulting `is_admin=1` plus Tier 2 grant.
 
-- The audit log is the authoritative grant trail in both cases. Steady-state grants record `actor_type='admin'`; bootstrap grants record `actor_type='system'`. The action_type is mechanism-specific so audits can be partitioned per source: `admin.bootstrap_grant` for the production SSM-token path, `admin.dev_register_allowlist_grant` for the dev/staging email-allowlist, `admin.dev_seed_grant` for the dev/staging direct-insert seed.
+- The audit log is the authoritative grant trail in both cases. Steady-state grants record `actor_type='admin'`; bootstrap grants record `actor_type='system'`. The action_type is mechanism-specific so audits can be partitioned per source: `admin.bootstrap_grant` for the production SSM-token path, and `admin.dev_register_allowlist_grant` for the dev/staging email-allowlist.
 
 Requirements:
 
@@ -1769,7 +1769,7 @@ Legacy migration security rules:
 - Auto-link sends no notification emails. The wizard's confirmation card (post-stage, at first sign-in) is the only post-link member-facing surface. Effects (tier upgrade, attribution, badges) apply only after the member explicitly confirms.
 - Member-confirmation of a wizard card is sufficient proof for a claim to take effect. The audit row carries an evidence-strength tag (`declared_anchor_only`, `currently_controls_modern_email_matching_legacy`, `mailbox_control_via_link_click`, `admin_vetted_evidence`); the tag is surfaced to an admin reviewing a disputed claim.
 - Member-declared identity anchors (former surnames, declared old emails) are always private: visible only to the member themselves and to admin. They participate in claim matching but never appear on public surfaces, member search, or any cross-member listing.
-- Production has no admin email-skip; admins requiring manual recovery use the member-initiated admin help request flow (`A_Review_Member_Link_Help_Requests`) with full audit trail and access controls. A legacy claim takes effect on wizard-card confirmation without any email roundtrip (the mailbox-control round-trip is optional and only upgrades the audit evidence tier, per `M_Claim_Legacy_Account`), so a stub `legacy_members` row with no `legacy_email` remains claimable through the historical-person card-confirm path. A dev-only flag `FOOTBAG_DEV_ADMIN_GRANT_TIER2` enforces the admin↔Tier 2 prerequisite (per `A_Manage_Admin_Role`) on the data side: at boot, every member with `is_admin=1` whose tier ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically. These dev-only vars share the same fail-fast guard and refuse to start in production (the email-allowlist additionally permits staging); the runtime catalog of the dev/staging bootstrap conveniences lives in `src/dev-bootstrap/runtime.ts`, which is the authoritative enumeration.
+- Production has no admin email-skip; admins requiring manual recovery use the member-initiated admin help request flow (`A_Review_Member_Link_Help_Requests`) with full audit trail and access controls. A legacy claim takes effect on wizard-card confirmation without any email roundtrip (the mailbox-control round-trip is optional and only upgrades the audit evidence tier, per `M_Claim_Legacy_Account`), so a stub `legacy_members` row with no `legacy_email` remains claimable through the historical-person card-confirm path. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically, so the admin↔Tier 2 invariant holds by construction. The var carries a boot-time fail-fast guard and refuses to start in production (it is permitted in development and staging); the runtime mechanism lives in `src/dev-bootstrap/runtime.ts`.
 - Imported `legacy_members` rows cannot log in, are not searchable, and do not receive any member communications.
 - **Surname matching across claim paths.** Both the wizard-confirmed candidate flow and the direct historical-record claim path match against the member's current real-name surname OR any declared former surname (see member-declared anchors above). A member whose legal name changed between their legacy identity and current account declares the former surname in the legacy-claim task (reached from their profile) or at signup; the claim path then resolves normally. Surname mismatches that the platform cannot resolve through declared anchors route to the member-initiated admin help request.
 - **Cookie domain widening (`Domain=.footbag.org`).** The session cookie is widened to the apex so the `archive.footbag.org` subdomain receives it. That archive is the platform's own static mirror served over HTTPS by its dedicated CloudFront distribution (§6.4); no other `.footbag.org` host receives the cookie, so there is no cleartext-leak exposure on a third-party subdomain. The CSRF Origin-pin middleware (§3.3) is the cross-subdomain defense against a malicious form on the archive subdomain.
@@ -2899,7 +2899,7 @@ verifier that production runs against the live secret validates them
 against the stub constant. Stub signing literals are permanent test
 infrastructure and live co-located with the stub adapter that uses
 them (e.g. STUB_WEBHOOK_SECRET in src/adapters/paymentAdapter.ts),
-never in the delete-at-cutover dev-bootstrap subtree, and are never
+never in the dev-bootstrap subtree, and are never
 shared with any production secret value. They ship in the production
 image but are refused at boot, not excluded from it.
 
@@ -2920,9 +2920,10 @@ Rationale:
   test and every manual stub click-through. Bypass branches are
   eliminated by construction.
 - Stub signing literals follow the §1.14 single-source containment
-  pattern. Unlike the dev-bootstrap stand-ins, the signed-stub parity
-  infrastructure is permanent; its production containment is a
-  boot-time refusal of stub-prefixed secrets, not cutover deletion.
+  pattern. Unlike the dev-bootstrap and testkit subtrees, which are
+  excluded from the production image at build time, the signed-stub
+  parity infrastructure ships in the production image; its production
+  containment is a boot-time refusal of stub-prefixed secrets.
 - Contract parity scopes narrowly to security-sensitive paths
   (signing, verification, authn). Other adapter contract surfaces
   (request shape, response shape, error mapping) follow the standard

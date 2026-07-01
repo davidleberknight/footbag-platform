@@ -589,44 +589,6 @@ fi
 
 systemctl status footbag.service --no-pager -l
 
-# CUTOVER-REMOVE: post-deploy dev-admin seed.
-# Current: runs only when the workstation passed a non-empty
-#   FOOTBAG_DEV_ADMIN_SEED_JSON via cat-pipe (set by --seed-dev-admins;
-#   otherwise the var arrives empty and we skip). Transient: NOT written to
-#   /srv/footbag/env, so a future restart cannot replay it. The seed script's
-#   own marker-based idempotency makes a replay harmless even if the var
-#   were persisted, but transient is cleaner.
-# Target: remove this block and the FOOTBAG_DEV_ADMIN_SEED_JSON pathway
-#   once the production first-admin SSM-token flow is the only bootstrap
-#   mechanism.
-#
-# Runs inside the web container via `node dist/dev-bootstrap/seed.js`
-# (compiled at build time; no tsx in the runtime image). The container
-# reads FOOTBAG_ENV from /srv/footbag/env (set per host); seedConfig.ts
-# throws on import when FOOTBAG_ENV='production'. The deploy_to_aws.sh
-# wrapper also allowlists --seed-dev-admins to DEPLOY_TARGET=footbag-staging
-# only.
-#
-# argv-leak hardening: the seed JSON content is piped to the container via
-# stdin and reassigned to the env-var inside the container's shell. Passing it
-# via `docker compose exec -e "VAR=value"` would put the JSON in the exec
-# subprocess's argv where `ps -ef` on the host can read it. Stdin keeps the
-# value off any process's argv on the host. Mirrors the sudo-password pattern
-# at the top of every remote-half script.
-if [[ -n "${FOOTBAG_DEV_ADMIN_SEED_JSON:-}" ]]; then
-  echo "    Running dev-admin seed (transient stdin-piped input)..."
-  # FOOTBAG_ENV is NOT overridden here: the container's /srv/footbag/env sets
-  # it per host. seedConfig.ts throws on import when FOOTBAG_ENV='production',
-  # which is the in-app guard. Overriding FOOTBAG_ENV here would defeat that
-  # guard if this code ever ran on a production host.
-  if ! printf '%s' "$FOOTBAG_DEV_ADMIN_SEED_JSON" \
-      | compose_cmd exec -T \
-        web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-bootstrap/seed.js'; then
-    echo "    ERROR: dev-admin seed step exited non-zero; aborting the deploy." >&2
-    exit 1
-  fi
-fi
-
 # CUTOVER-REMOVE: post-deploy persona-catalog seed.
 # Current: runs only when the workstation passed SEED_TEST_PERSONAS=yes (set by
 #   --seed-test-personas). Signal only: the persona catalog is code
@@ -639,7 +601,7 @@ fi
 # Runs inside the web container via `node dist/testkit/personaSeedRunner.js`
 # (compiled at build time; no tsx in the runtime image). FOOTBAG_ENV is NOT
 # overridden here: the container reads it from /srv/footbag/env per host;
-# seedConfig.ts throws on import when FOOTBAG_ENV='production'. The
+# the testkit import guard throws when FOOTBAG_ENV='production'. The
 # deploy_to_aws.sh wrapper also allowlists --seed-test-personas to
 # DEPLOY_TARGET=footbag-staging only.
 if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then

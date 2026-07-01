@@ -457,41 +457,6 @@ fi
 
 systemctl status footbag --no-pager -l
 
-# CUTOVER-REMOVE: post-deploy dev-admin seed. Mirrors the same block in
-# deploy-rebuild-remote.sh. Runs only when the workstation passed a
-# non-empty FOOTBAG_DEV_ADMIN_SEED_JSON (set by --seed-dev-admins).
-# Transient: not written to /srv/footbag/env. Runs inside the web
-# container via `node dist/dev-bootstrap/seed.js` (compiled at
-# build time; no tsx in the runtime image). The container reads
-# FOOTBAG_ENV from /srv/footbag/env (set per host); seedConfig.ts throws
-# on import when FOOTBAG_ENV='production'. The deploy_to_aws.sh wrapper
-# also allowlists --seed-dev-admins to DEPLOY_TARGET=footbag-staging
-# only.
-#
-# argv-leak hardening: the seed JSON content is piped to the container via
-# stdin and reassigned to the env-var inside the container's shell. Passing it
-# via `docker compose exec -e "VAR=value"` would put the JSON in the exec
-# subprocess's argv where `ps -ef` on the host can read it. Stdin keeps the
-# value off any process's argv on the host. Mirrors the sudo-password pattern
-# at the top of every remote-half script.
-if [[ -n "${FOOTBAG_DEV_ADMIN_SEED_JSON:-}" ]]; then
-  echo "==> Running dev-admin seed (transient stdin-piped input)..."
-  # FOOTBAG_ENV is NOT overridden here: the container's /srv/footbag/env sets
-  # it per host. seedConfig.ts throws on import when FOOTBAG_ENV='production',
-  # which is the in-app guard. Overriding FOOTBAG_ENV here would defeat that
-  # guard if this code ever ran on a production host.
-  if ! printf '%s' "$FOOTBAG_DEV_ADMIN_SEED_JSON" \
-      | docker compose \
-        --env-file "$ENV_PATH" \
-        -f "$LIVE_DIR/docker/docker-compose.yml" \
-        -f "$LIVE_DIR/docker/docker-compose.prod.yml" \
-        exec -T \
-        web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-bootstrap/seed.js'; then
-    echo "    ERROR: dev-admin seed step exited non-zero; aborting the deploy." >&2
-    exit 1
-  fi
-fi
-
 # CUTOVER-REMOVE: post-deploy persona-catalog seed. Mirrors the same block in
 # deploy-rebuild-remote.sh. Runs only when the workstation passed
 # SEED_TEST_PERSONAS=yes (set by --seed-test-personas). Signal only: the
@@ -499,8 +464,8 @@ fi
 # is no JSON payload and no stdin pipe. The seed runner is idempotent (skips
 # existing slugs). Runs inside the web container via
 # `node dist/testkit/personaSeedRunner.js`. FOOTBAG_ENV is NOT overridden
-# here: the container reads it from /srv/footbag/env per host; seedConfig.ts
-# throws on import when FOOTBAG_ENV='production'. The deploy_to_aws.sh wrapper
+# here: the container reads it from /srv/footbag/env per host; the testkit
+# import guard throws when FOOTBAG_ENV='production'. The deploy_to_aws.sh wrapper
 # also allowlists --seed-test-personas to DEPLOY_TARGET=footbag-staging only.
 if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then
   echo "==> Running persona-catalog seed..."

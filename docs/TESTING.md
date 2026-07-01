@@ -397,7 +397,7 @@ The platform targets four environments. Each has parity contracts that tests ver
 - *Local development.* Runs on the maintainer workstation via `./run_dev.sh`. SQLite at `./database/footbag.db`. Local stub adapters (JWT signing stub, SES outbox stub, media storage local-disk stub). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=development`.
 - *CI.* Runs every test job (typecheck, lint, dependency audit, secret scan, conventions, unit, integration, db-load smoke, e2e, CodeQL static analysis, terraform) against ephemeral SQLite. No real AWS. Adapters are the same local stubs the workstation uses.
 - *Staging.* The real AWS staging account (KMS, SES, S3, SSM, Lightsail). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=staging`. The staging smoke suite (`tests/smoke/`) runs here, gated by `RUN_STAGING_SMOKE=1`.
-- *Production.* The real AWS production account. `src/testkit/`, `src/dev-bootstrap/`, and the `src/internal-qc/` QC subsystem are excluded from the production image at build time (when `INCLUDE_DEV_SHORTCUTS=0` the Dockerfile strips all three subtrees and replaces `dist/routes/internalRoutes.js` with a null stub); boot-time guards in `src/config/env.ts` fail-fast if any `FOOTBAG_DEV_*` env var is set; `scripts/audit-dev-shortcuts.sh` returns zero against the production DB. `src/testkit/` is permanent in source (build-excluded from prod, not deleted); `src/dev-bootstrap/` is deleted at cutover, and `src/internal-qc/` is build-excluded now with its source subtree removed at QC retirement.
+- *Production.* The real AWS production account. `src/testkit/`, `src/dev-bootstrap/`, and the `src/internal-qc/` QC subsystem are excluded from the production image at build time (when `INCLUDE_DEV_SHORTCUTS=0` the Dockerfile strips all three subtrees and replaces `dist/routes/internalRoutes.js` with a null stub); boot-time guards in `src/config/env.ts` fail-fast if any `FOOTBAG_DEV_*` env var is set; `scripts/audit-dev-shortcuts.sh` returns zero against the production DB. `src/testkit/` and `src/dev-bootstrap/` are both permanent in source (build-excluded from prod, never deleted); `src/internal-qc/` is build-excluded now with its source subtree removed at QC retirement.
 
 ### 7.2 Adapter parity tests are mandatory
 
@@ -427,54 +427,54 @@ Persona contract:
 
 - Synthetic identities. Display names and email addresses are obviously test data (prefix `staging-test-` or equivalent), never resembling real member data.
 - Verified-status pre-seeded. Routine login does not depend on receiving an email.
-- Stored credentials. Passwords live in an approved secret channel (gitignored `.local/staging-personas.json` mirroring the dev-admin-seed pattern, or AWS Secrets Manager). Never committed.
-- Tier and role grants. Assigned through the dev-shortcuts seed pipeline (`reason_code` carries `dev_admin_seed.admin_tier2` and similar markers) so cutover audit catches them.
+- Stored credentials. Passwords live in an approved secret channel (gitignored `.local/staging-personas.json`, or AWS Secrets Manager). Never committed.
+- Tier and role grants. Assigned through the persona seed pipeline (`reason_code` carries `dev_persona_seed.tier_grant` and similar markers) so the prod-cleanliness audit catches them.
 
 Reset semantics:
 
 - An operator-runnable reset that re-creates the persona set from the gitignored or secret-manager seed file.
-- The reset uses `bash scripts/manage-dev-admin-seed.sh` (or an equivalent extension), which pipes JSON via stdin per the existing pattern. No password as command-line argument.
+- The reset uses `bash scripts/manage-test-personas.sh` (or an equivalent extension), which pipes JSON via stdin per the existing pattern. No password as command-line argument.
 
 ### 7.5 Test scaffolding and dev-bootstrap conveniences
 
 Two env-gated subtrees hold all dev-or-staging-only code. Both are active under `FOOTBAG_ENV ∈ {development, staging}` and excluded from the production image at build time; they differ in lifecycle.
 
 - `src/testkit/` is **permanent, first-class test infrastructure**: the persona harness (row builders, factory, canonical catalog, seed runner), the persona-switch route (`GET /dev/switch?as=<slug>`), the persona listing (`GET /dev/personas`), and the dev-router mount glue. It is never source-deleted; features keep shipping with tests against it after production launch.
-- `src/dev-bootstrap/` holds **temporary bootstrap conveniences** that exist only because a production feature is not built yet: the registration-time admin email-allowlist, the dev-admin seed, and the tier2 invariant repair. These are removed at cutover when their production replacement (the SSM-token first-admin claim, the always-enforced admin↔Tier 2 invariant) lands.
+- `src/dev-bootstrap/` holds the **permanent** registration-time admin email-allowlist bootstrap: a member registering in development or staging with an allowlisted email is promoted to admin. Like the persona harness it is never source-deleted; it is environment-isolated and excluded from the production image. It is the dev/staging peer of the production first-admin mechanism (the single-shot SSM-token claim), used at platform inception and thereafter only as a break-glass path for total admin loss.
 
-No dev-or-staging-only code path lives outside these two subtrees. A test-only HTTP endpoint, a test-only middleware bypass, or a test-only persona-issue helper belongs in `src/testkit/` (if permanent) or `src/dev-bootstrap/` (if a temporary bootstrap stand-in). Keeping each subtree self-contained lets `src/dev-bootstrap/` be removed in one operation at cutover and keeps `src/testkit/` from depending on it.
+No dev-or-staging-only code path lives outside these two subtrees. A test-only HTTP endpoint, a test-only middleware bypass, or a test-only persona-issue helper belongs in `src/testkit/` (the persona harness) or `src/dev-bootstrap/` (the admin bootstrap). Keeping each subtree self-contained and independent of the other keeps both excluded from the production image by a single build-time strip.
 
 #### 7.5.1 Existing shortcuts
 
-`src/testkit/` exposes the persona harness: seed plus `/dev/switch` and `/dev/personas`, active in development and staging. `src/dev-bootstrap/` exposes the dev-admin seed, the register-allowlist bootstrap, and the tier2 invariant repair (see the subtree READMEs for env-var triggers and behavior). Each carries audit-marker provenance (e.g. `reason_code LIKE 'dev_admin_%'` or `'dev_persona_seed.%'`, `action_type LIKE 'admin.dev_%_grant'` or `'testkit.persona_%'`, `created_by LIKE 'dev-shortcuts/%'`). The `dev-shortcuts/*` marker namespace is historical and is kept stable so the cutover audit and existing tests continue to match.
+`src/testkit/` exposes the persona harness: seed plus `/dev/switch` and `/dev/personas`, active in development and staging. `src/dev-bootstrap/` exposes the register-allowlist bootstrap (see the subtree README for its env-var trigger and behavior). Each carries audit-marker provenance (`reason_code 'dev_admin_register_allowlist.admin_tier2'` or `'dev_persona_seed.tier_grant'`, `action_type 'admin.dev_register_allowlist_grant'` or `'testkit.persona_%'`, `created_by LIKE 'dev-shortcuts/%'`). The `dev-shortcuts/*` marker namespace is kept stable so the prod-cleanliness audit and existing tests continue to match.
 
 #### 7.5.2 Required properties of a dev/staging-only affordance
 
 A dev-or-staging-only affordance (a route, seeder, or bypass) satisfies all of the following:
 
-- Lives in `src/testkit/` (permanent) or `src/dev-bootstrap/` (temporary) as part of a self-contained subtree.
+- Lives in `src/testkit/` (persona harness) or `src/dev-bootstrap/` (admin bootstrap) as part of a self-contained subtree; both are permanent and never source-deleted.
 - Is gated to development and staging: a route is mounted only under `FOOTBAG_ENV ∈ {development, staging}` with a production hard-guard; a seeder or bootstrap is triggered only by a `FOOTBAG_DEV_*` env var or a CLI flag and refuses to run in production.
-- Carries audit-marker provenance the cutover audit script detects (the stable `dev_admin_*`, `dev_persona_seed.*`, `admin.dev_*_grant`, and `dev-shortcuts/*` namespaces).
+- Carries audit-marker provenance the prod-cleanliness audit script detects (the stable `dev_admin_register_allowlist.*`, `dev_persona_seed.*`, `admin.dev_register_allowlist_grant`, `testkit.persona_*`, and `dev-shortcuts/*` namespaces).
 - Has a boot-time fail-fast guard in `src/config/env.ts` that refuses to start when its trigger is set under `FOOTBAG_ENV=production`.
 - Is excluded from the production image by the Dockerfile strip (`INCLUDE_DEV_SHORTCUTS=0` removes both `dist/testkit` and `dist/dev-bootstrap`).
 - Lands with the canonical required test set (§7.5.4).
-- For a `src/dev-bootstrap/` convenience: carries a `CUTOVER-REMOVE` marker at every callsite and is removable in one operation at cutover. `src/testkit/` is permanent and is not part of the cutover-removal surface.
+- Both subtrees are permanent test/bootstrap infrastructure, never source-deleted; they are kept out of production only by the build-time strip and the env guards.
 - Documented in its subtree's README.
 
 #### 7.5.3 Secret containment
 
-Secret literals (a seeded persona password, a dev-admin seed password, any test-only signing key) live in a single source file: the persona password in `src/testkit/`, the dev-admin password in `src/dev-bootstrap/seedConfig.ts`. The password-leak regression test (§7.5.4) enforces that each literal appears in exactly one source file and that deploy scripts, helper scripts, and stored hashes do not embed it. Deploy chains pipe seed JSON via stdin; they never pass a password literal as an argument.
+Secret literals (a seeded persona password, any test-only signing key) live in a single source file, e.g. the persona password in `src/testkit/`. The password-leak regression test (§7.5.4) enforces that each literal appears in exactly one source file and that deploy scripts, helper scripts, and stored hashes do not embed it. The register-allowlist bootstrap carries no password literal: admins register through the real flow and set their own password.
 
 #### 7.5.4 Canonical required test set
 
 A new dev/staging-only affordance lands with all of:
 
-- *env-guard test.* The module fails fast on import when `FOOTBAG_ENV` is not in `{development, staging}`. Model: `tests/integration/devAdminSeed.envGuard.test.ts`.
-- *production-guard test.* Its runtime entry points refuse to operate under `FOOTBAG_ENV=production`. Model: `tests/integration/dev-shortcuts.production-guard.test.ts`.
-- *secret-leak test.* Any literal secret appears in exactly one source file, is not embedded in seed scripts as a string, is not embedded in deploy scripts, and is stored only as a hash in the DB. Model: `tests/integration/devAdminSeed.passwordLeak.test.ts`.
-- *schema-coupling test.* The affordance's audit markers (`reason_code`, `action_type`, `created_by`) exist in schema and are populated correctly on every persisted side effect. Model: `tests/integration/devAdminSeed.schemaCoupling.test.ts`.
-- *flag-off test.* It does nothing when its trigger env var or flag is unset. Model: `tests/integration/dev-shortcuts.flag-off.test.ts`.
-- *repair and idempotency test.* Re-running against already-seeded rows is safe and idempotent. Model: `tests/integration/dev-shortcuts.repair.test.ts`.
+- *env-guard test.* The module fails fast on import (or short-circuits) when `FOOTBAG_ENV` is not in `{development, staging}`. Model: `tests/unit/devShortcuts.initialAdminEmails.test.ts`.
+- *production-guard test.* Its runtime trigger refuses to operate under `FOOTBAG_ENV=production`. Model: `tests/unit/env-config.test.ts` (the `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` boot fail-fast cases).
+- *secret-leak test.* Any literal secret appears in exactly one source file, is not embedded in seed or deploy scripts, and is stored only as a hash in the DB. Model: `tests/integration/personaSeed.passwordLeak.test.ts`.
+- *schema-coupling test.* The affordance's audit markers (`reason_code`, `action_type`, `created_by`) exist in schema and are populated correctly on every persisted side effect. Model: `tests/integration/register.routes.test.ts` (the register-allowlist grant markers).
+- *flag-off test.* It does nothing when its trigger env var or flag is unset. Model: `tests/integration/register.routes.test.ts` (registration with an absent allowlist promotes no one).
+- *idempotency test.* Re-running is safe and idempotent. Model: the persona seed runner, which skips slugs that already exist.
 - *image-strip test.* The production Dockerfile removes both the `dist/testkit` and `dist/dev-bootstrap` subtrees from the production image. Model: `tests/unit/dockerfile-dev-shortcuts-strip.test.ts`.
 - *initial-admins parity test* where applicable. Model: `tests/unit/devShortcuts.initialAdminEmails.test.ts`.
 
@@ -601,9 +601,9 @@ A qualified external security tester is engaged for periodic review before:
 
 The third-party engagement scope is mapped to OWASP ASVS L3 categories that apply (per §3.4). Findings result in regression tests at the cheapest appropriate layer (§4.5 plus §13).
 
-### 9.5 The dev-shortcuts cutover audit is the canonical zero-residue gate
+### 9.5 The production-residue audit is the canonical zero-residue gate
 
-`scripts/audit-dev-shortcuts.sh` queries the four prefix counts in the production DB (`reason_code` under `dev_admin_*`, `action_type` under `admin.dev_*_grant`, `action_type` equal to `admin.dev_invariant_repair`, `created_by` under `dev-shortcuts/*`) and exits non-zero if any count is positive. It is the canonical gate that must pass before any production deploy. It also runs as a periodic check in the heavyweight pentest suite to detect residue from any future testing shortcut that might have leaked into the production DB.
+`scripts/audit-dev-shortcuts.sh` queries the residue-marker counts in the production DB (`reason_code` under `dev_admin_*`, `action_type` under `admin.dev_*_grant`, `created_by` under `dev-shortcuts/*`, and the persona-harness markers `dev_persona_seed.tier_grant` / `testkit.persona_*`) and exits non-zero if any count is positive. It is the canonical gate that must pass before any production deploy. It also runs as a periodic check in the heavyweight pentest suite to detect residue from any future testing shortcut that might have leaked into the production DB.
 
 The production build must:
 
@@ -635,7 +635,7 @@ Test data is deterministic. The `uid()` counter pattern in `tests/fixtures/facto
 
 `.gitignore` covers:
 
-- `.local/` (including `dev-admin-seed.json`, `initial-admins.txt`, `staging-personas.json`, and equivalent).
+- `.local/` (including `initial-admins.txt`, `staging-personas.json`, and equivalent).
 - `tests/test-results/` (Playwright trace and screenshot output).
 - Any storage state file produced by Playwright auth setup.
 - `.env.local`, `.env.staging`, `.env.production` (real secrets never committed).
@@ -644,7 +644,7 @@ The password-leak regression test (§7.5.4 plus §10.4) enforces that secret lit
 
 ### 10.4 Single-source secret containment
 
-Secret literals (the dev-admin-seed password, the persona password, any test-only signing key, any test-only token salt) live in exactly one source file each: the dev-admin-seed password in `src/dev-bootstrap/seedConfig.ts`, the persona password in `src/testkit/`, any other test-only literal in its own guarded module. The secret-leak regression test for the shortcut (§7.5.4) asserts the literal appears in exactly one file and that deploy scripts pipe seed JSON via stdin rather than embedding the literal.
+Secret literals (the persona password, any test-only signing key, any test-only token salt) live in exactly one source file each: the persona password in `src/testkit/`, any other test-only literal in its own guarded module. The secret-leak regression test (§7.5.4) asserts the literal appears in exactly one file and that deploy scripts pipe secret content via stdin rather than embedding the literal. The register-allowlist bootstrap carries no password literal: admins register through the real flow.
 
 ### 10.5 Playwright artifact policy
 
@@ -677,7 +677,7 @@ Not every test runs every time. This section defines the named gates, what runs 
 - *Local fast loop.* Typecheck plus lint plus changed-file unit tests via test impact analysis (`vitest --changed`). Sub-30s. Developer-triggered. No gate enforcement; convenience for the working developer.
 - *Pre-PR.* Full unit plus integration plus security regression. Sub-2min on a fresh checkout. Optional local git hook that runs `npm run test:pre-pr` before allowing push.
 - *CI on PR.* Same as pre-PR plus db-load smoke plus lightweight Playwright plus staging-safe security checks plus per-PR dependency review (`actions/dependency-review-action` over the PR diff, alongside the whole-tree `npm audit`). Sub-10min. Blocks merge.
-- *CI nightly or on-demand.* Mutation testing on the safety-critical short list (auth, privacy filters, migration matchers, role gates), dependency audit, header check across the route table, dev-shortcuts cutover audit against the production DB. Reports, does not block.
+- *CI nightly or on-demand.* Mutation testing on the safety-critical short list (auth, privacy filters, migration matchers, role gates), dependency audit, header check across the route table, production-residue audit against the production DB. Reports, does not block.
 - *Post-deploy staging smoke.* Read-only health check, auth-gate enforcement, anti-enumeration timing, no-stack-trace probe, dev-shortcut absence probe. Sub-1min. Blocks deploy promotion on failure.
 - *On-demand heavyweight pentest.* Human invokes (`npm run test:pentest:heavy`). May include OWASP ZAP baseline, upload-abuse probes, internal-route probes, header checks, dependency scanning. Browser-driven attack flows are operator-invoked via the `browser-qa` skill. Never runs against production unless explicitly authorized.
 - *Periodic third-party pentest.* At major launches (per §9.4). Reports findings; findings produce regression tests at the cheapest appropriate layer.
@@ -730,7 +730,7 @@ The project is AI-assisted. Every test-run output is tokens in the agent's conte
 
 ### 11.6 Secrets and CI
 
-CI logs, CI artifacts, Playwright reports, traces, screenshots, and failure output are treated as potentially public unless explicitly restricted. Tests that require remote credentials receive them through GitHub Actions secrets, SSM, or an equivalent approved secret-management mechanism. Credentials are never echoed, never serialized into artifacts, never embedded in shell command lines. The password-leak regression test (§7.5.4) and the dev-shortcuts cutover audit (§9.5) together enforce this property for the dev-shortcuts surface; equivalent discipline applies to any other secret introduced into the CI environment.
+CI logs, CI artifacts, Playwright reports, traces, screenshots, and failure output are treated as potentially public unless explicitly restricted. Tests that require remote credentials receive them through GitHub Actions secrets, SSM, or an equivalent approved secret-management mechanism. Credentials are never echoed, never serialized into artifacts, never embedded in shell command lines. The password-leak regression test (§7.5.4) and the production-residue audit (§9.5) together enforce this property for the dev/staging-only surface; equivalent discipline applies to any other secret introduced into the CI environment.
 
 ---
 
@@ -935,7 +935,7 @@ On the staging host the harness is seeded after a deploy with `./deploy_to_aws.s
 - `PAYMENT_ADAPTER=stub` (the default in development; the staging setting) for the purchase flow.
 - The database has been seeded (`--seed-test-personas`); `/dev/personas` is non-empty.
 
-### 16.8 Provenance and the cutover audit
+### 16.8 Provenance and the production-residue audit
 
 Every harness write carries a stable marker (`reason_code = 'dev_persona_seed.tier_grant'`, `audit_entries.action_type` in `testkit.persona_seed` or `testkit.persona_switch`, `created_by = 'dev-shortcuts/personas'`). `scripts/audit-dev-shortcuts.sh` counts these against a production database and exits non-zero on any residue (§9.5), so the harness is provably absent from production.
 
@@ -1085,7 +1085,7 @@ A periodic audit of test completeness walks this checklist top to bottom. Each l
 1. **Deployed user-story coverage.** Cross the deployed-route inventory to its user stories and to the charters in §17. Pass: every deployed story has a charter, and every applicable charter dimension is met by a test or carries an `IMPLEMENTATION_PLAN.md` gap entry. A deployed route that maps to no story is unintended scope (§4.1).
 2. **Adapter parity, three legs (§7.2).** Every adapter in `src/adapters/` has a boot-config test (`tests/unit/env-config.test.ts`) and an interface-parity test (`tests/integration/adapter-parity.test.ts`). Every external-service adapter (JWT-KMS, SES, MediaStorage-S3, Secrets-SSM, SafeBrowsing) also has a staging-smoke leg (`tests/smoke/`, including `staging-readiness.test.ts` for the KMS-sign and SES-send round-trips). The internal docker-network adapters (HttpReachability, ImageProcessing, VideoTranscoding) carry only the first two legs. Pass: the matrix has no missing required leg.
 3. **Stub-versus-live parity.** Every adapter with both a stub and a live implementation asserts identical observable output; single-code-path adapters assert through an injected client. Pass: no stub diverges from its live counterpart untested.
-4. **Staging-smoke comprehensiveness (§5.4, §7.3).** `tests/smoke/` probes the assumed-role identity, KMS sign and verify, SES send (default sender and per-message override), S3 round-trip, SSM-plus-KMS secret decryption, Safe Browsing, persona-seed idempotency, dev-admin-seed secret containment, and health and readiness. Run: `RUN_STAGING_SMOKE=1 npm run test:smoke` (`scripts/test-smoke.sh`) or `./run_all_tests.sh --with-smoke`. Pass: every external surface has a smoke probe.
+4. **Staging-smoke comprehensiveness (§5.4, §7.3).** `tests/smoke/` probes the assumed-role identity, KMS sign and verify, SES send (default sender and per-message override), S3 round-trip, SSM-plus-KMS secret decryption, Safe Browsing, persona-seed idempotency, and health and readiness. Run: `RUN_STAGING_SMOKE=1 npm run test:smoke` (`scripts/test-smoke.sh`) or `./run_all_tests.sh --with-smoke`. Pass: every external surface has a smoke probe.
 5. **Production safety (§7.1, §9.5).** No test targets or mutates production, by design. Production safety is the build-time strip of `src/testkit/` and `src/dev-bootstrap/`, the `FOOTBAG_DEV_*` fail-fast guards in `src/config/env.ts`, and the zero-residue gate `scripts/audit-dev-shortcuts.sh` returning zero against the production database, with post-deploy staging-smoke gating promotion. Pass: the residue gate exists and passes; no test writes to production.
 6. **Security regression floor (§9.1).** The `@security` baseline exists across layers: anti-enumeration response equivalence, login timing, SQL injection, XSS, transaction atomicity, no-stack-trace-in-5xx, public-contact-field leakage, security headers, CSRF Origin-pin, and rate-limit boundaries. Pass: each baseline class has a test.
 7. **Penetration tiers (§9).** Regression-grade automated (CI), static taint analysis pre-merge (§9.1), lightweight staging-safe probes (§9.2), the operator-invoked heavyweight pass `npm run test:pentest:heavy` (§9.3), and third-party periodic engagement (§9.4). Pass: each tier is wired, or its absence is a tracked `IMPLEMENTATION_PLAN.md` deviation. The audit records which tiers are wired.

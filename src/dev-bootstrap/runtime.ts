@@ -1,36 +1,26 @@
 /**
- * Runtime logic for the dev shortcuts (dev + staging only). The whole
- * surface — this file, the seed script, the shared seedConfig — exists to
- * be removed at production cutover; every consumer is marked with
- * `// CUTOVER-REMOVE` at its callsite.
+ * Registration-time admin bootstrap for development and staging: the
+ * email-allowlist path. A member who registers with a normalized login email
+ * on the operator allowlist is granted is_admin=1 + a Tier 2 ledger row + an
+ * audit row atomically, and then completes the normal email-verification step
+ * before logging in. The allowlist comes from FOOTBAG_DEV_INITIAL_ADMIN_EMAILS
+ * (staging, injected by the deploy pipeline) or the gitignored
+ * `.local/initial-admins.txt` file (local dev).
  *
- * Inventory of dev shortcuts the project supports:
- *   - FOOTBAG_DEV_INITIAL_ADMIN_EMAILS (env var; deploy script seeds it
- *     from workstation `.local/initial-admins.txt`). Dev + staging only.
- *       At registration time, members whose email matches this allowlist
- *       are atomically granted is_admin=1 + Tier 2 ledger row + audit row
- *       in one transaction. Production has a separate single-shot bootstrap
- *       path (SSM-token claim via `/admin/bootstrap-claim`, owned by
- *       adminBootstrapService).
- *   - FOOTBAG_DEV_ADMIN_GRANT_TIER2
- *       Backfill repair pass for legacy admin accounts that pre-date the
- *       unified bootstrap. Iterates is_admin=1 members and writes a Tier 2
- *       grant for any whose ledger lags. Dev only.
- *   - Dev-admin seed direct-insert via `./scripts/manage-dev-admin-seed.sh
- *     --seed-dev-admins` (separate explicit operator script in ./seed.ts;
- *     this module reports its presence in the boot banner but does not
- *     auto-run it). Dev + staging only.
+ * This is the permanent dev/staging peer of the production first-admin
+ * mechanism (the single-shot SSM-token claim at `/admin/bootstrap-claim`, owned
+ * by adminBootstrapService); the two share no env vars and no code paths beyond
+ * the tier-grant primitive. It is environment-isolated and kept out of the
+ * production runtime image, like the persona harness. Production is protected by
+ * three layers: the env-config boot fail-fast on FOOTBAG_DEV_INITIAL_ADMIN_EMAILS,
+ * the deploy-pipeline refusal to write that var on a production host, and the
+ * production image stub that makes applyDevStagingBootstrapAdmin a no-op.
  */
-import { existsSync, readFileSync } from 'node:fs';
-import * as path from 'node:path';
-import { account, registration, transaction } from '../db/db';
+import { readFileSync } from 'node:fs';
+import { registration, transaction } from '../db/db';
 import { config } from '../config/env';
-import { logger } from '../config/logger';
 import { appendAuditEntry } from '../services/auditService';
-import {
-  applyAdminTier2InvariantGrant,
-  applyAdminTier2InvariantGrantInTx,
-} from '../services/membershipTieringService';
+import { applyAdminTier2InvariantGrantInTx } from '../services/membershipTieringService';
 
 
 export interface InitialAdminEmailsOptions {
@@ -165,104 +155,3 @@ export function applyDevStagingBootstrapAdmin(
   });
 }
 
-interface AdminBelowTier2Row {
-  id: string;
-}
-
-/**
- * Inserts a Tier 2 grant for every is_admin=1 member whose current
- * tier is below tier2. The platform admin role requires Tier 2+ as a
- * prerequisite; this brings dev workstations into compliance when the
- * legacy data dump or seed flow has not been run cleanly. Idempotent
- * (already-tier2+ members skipped).
- *
- * No-op unless FOOTBAG_ENV=development AND
- * FOOTBAG_DEV_ADMIN_GRANT_TIER2=1. The reason_code and audit
- * action_type are unique markers; pre-deploy grep should confirm zero
- * rows in any production database.
- */
-export interface RepairAdminTier2InvariantOpts {
-  /** Override for config.footbagEnv; exported for testability. */
-  footbagEnv?: string;
-  /** Override for config.devAdminGrantTier2; exported for testability. */
-  devAdminGrantTier2?: boolean;
-}
-
-export function repairAdminTier2Invariant(
-  opts: RepairAdminTier2InvariantOpts = {},
-): {
-  repaired: number;
-  skipped: number;
-} {
-  const footbagEnv = opts.footbagEnv ?? config.footbagEnv;
-  const devAdminGrantTier2 = opts.devAdminGrantTier2 ?? config.devAdminGrantTier2;
-  if (footbagEnv !== 'development' || !devAdminGrantTier2) {
-    return { repaired: 0, skipped: 0 };
-  }
-
-  const adminRows = account.listAdminMemberIds.all() as AdminBelowTier2Row[];
-  let repaired = 0;
-  let skipped = 0;
-
-  for (const row of adminRows) {
-    const result = applyAdminTier2InvariantGrant(
-      row.id,
-      'dev_admin_invariant_repair',
-      { source: 'dev-shortcuts/runtime' },
-    );
-    if (result.applied) {
-      repaired += 1;
-    } else {
-      skipped += 1;
-    }
-  }
-
-  return { repaired, skipped };
-}
-
-/**
- * Boot orchestrator. Prints the consolidated dev-shortcuts banner
- * and runs the admin tier2 invariant repair when its flag is set. Safe
- * to call unconditionally; it short-circuits in non-development
- * environments.
- */
-export function initDevShortcuts(): void {
-  if (config.footbagEnv !== 'development') return;
-
-  let repairSummary: { repaired: number; skipped: number } | null = null;
-  if (config.devAdminGrantTier2) {
-    try {
-      repairSummary = repairAdminTier2Invariant();
-    } catch (err) {
-      logger.warn('dev admin tier2 invariant repair failed', { error: String(err) });
-    }
-  }
-
-  // Lazy import: seedConfig throws at module load when FOOTBAG_ENV is not
-  // 'development' or 'staging'. initDevShortcuts is only called from
-  // server boot under FOOTBAG_ENV=development, so the import is normally
-  // safe. Wrap in try/catch defensively.
-  let seedFilePresent = false;
-  try {
-    const { DEV_ADMIN_SEED_DEV_FILE_PATH } = require('./seedConfig') as {
-      DEV_ADMIN_SEED_DEV_FILE_PATH: string;
-    };
-    const seedFilePath = path.resolve(
-      __dirname,
-      '..',
-      '..',
-      DEV_ADMIN_SEED_DEV_FILE_PATH,
-    );
-    seedFilePresent = existsSync(seedFilePath);
-  } catch (err) {
-    logger.warn('dev-shortcuts: seedConfig import failed', { error: String(err) });
-  }
-
-  logger.info('dev shortcuts', {
-    persona_switch: 'GET /dev/switch?as=<slug>',
-    admin_tier2_repair: config.devAdminGrantTier2
-      ? `yes (repaired=${repairSummary?.repaired ?? 0}, skipped=${repairSummary?.skipped ?? 0})`
-      : 'no',
-    dev_admin_seed_file: seedFilePresent ? 'present' : 'absent',
-  });
-}

@@ -7,7 +7,7 @@
 #   ./run_dev.sh                  # code only — just run dev (no DB work; bootstraps if DB missing)
 #   ./run_dev.sh --reset          # fast reset from committed seeds
 #   ./run_dev.sh --from-csv       # full enrichment rebuild (no mirror, but needs the gitignored operator roster — not committed-data-only) + persona seed; --no-personas to opt out
-#   ./run_dev.sh --soup-to-nuts   # everything on: mirror rebuild + media + personas + dev-admins (--no-* to opt out)
+#   ./run_dev.sh --soup-to-nuts   # everything on: mirror rebuild + media + personas (--no-* to opt out)
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -54,25 +54,21 @@ kill_port 3100
 RESET=0
 FROM_CSV=0
 SOUP_TO_NUTS=0
-SEED_DEV_ADMINS=0
 SEED_TEST_PERSONAS=0
 NO_MEDIA=0
 NO_PERSONAS=0
-NO_DEV_ADMINS=0
 for arg in "$@"; do
   case "$arg" in
     --reset)               RESET=1 ;;
     --from-csv)            FROM_CSV=1 ;;
     --soup-to-nuts)        SOUP_TO_NUTS=1 ;;
-    --seed-dev-admins)     SEED_DEV_ADMINS=1 ;;
     --seed-test-personas)  SEED_TEST_PERSONAS=1 ;;
     --no-media)            NO_MEDIA=1 ;;
     --no-personas)         NO_PERSONAS=1 ;;
-    --no-dev-admins)       NO_DEV_ADMINS=1 ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./run_dev.sh [MODE] [--seed-dev-admins] [--seed-test-personas]
-                    [--no-media] [--no-personas] [--no-dev-admins]
+Usage: ./run_dev.sh [MODE] [--seed-test-personas]
+                    [--no-media] [--no-personas]
 
 Local dev launcher.
 
@@ -94,9 +90,8 @@ DB rebuild modes (mutually exclusive; opt-in only):
                    (drops the DB file, regenerates canonical_input CSVs, runs
                    all enrichment phases; wipes modern operator tables —
                    members, votes, ballots, news_items, audit_entries, ...),
-                   plus curated media, the persona-catalog seed, and the
-                   dev-admin seed. Opt out per axis with --no-media /
-                   --no-personas / --no-dev-admins. Requires
+                   plus curated media and the persona-catalog seed. Opt out
+                   per axis with --no-media / --no-personas. Requires
                    legacy_data/mirror_footbag_org/ to be present.
                    Calls scripts/deploy-local-data.sh --soup-to-nuts.
 
@@ -105,14 +100,6 @@ Opt-outs (valid only in the mode that turns the axis on by default):
                    --soup-to-nuts only.
   --no-personas    Skip the canonical persona-catalog seed.
                    Valid with --from-csv or --soup-to-nuts.
-  --no-dev-admins  Skip the dev-admin account seed. --soup-to-nuts only.
-
-Dev-admin seeding (CUTOVER-REMOVE; opt-in; combinable with any rebuild mode):
-  --seed-dev-admins Reads .local/dev-admin-seed.json (JSONC-tolerant,
-                   gitignored, per-maintainer) and seeds maintainer admin
-                   accounts via scripts/manage-dev-admin-seed.sh. Runs
-                   after DB bootstrap, before the dev stack starts. Fails
-                   loudly if no seed input is present.
 
 Test-data personas (CUTOVER-REMOVE; opt-in; combinable with any rebuild mode):
   --seed-test-personas Seeds the canonical persona catalog (plus the optional
@@ -139,12 +126,12 @@ if (( RESET + FROM_CSV + SOUP_TO_NUTS > 1 )); then
 fi
 
 # The --no-* opt-outs only make sense in a mode that turns the axis on by
-# default. --no-media / --no-dev-admins ride --soup-to-nuts; --no-personas rides
+# default. --no-media rides --soup-to-nuts; --no-personas rides
 # --from-csv and --soup-to-nuts (both seed personas by default). A stray --no-*
 # anywhere else is almost certainly a mistake, so fail loud (mirrors
 # scripts/deploy-to-aws.sh).
 if (( SOUP_TO_NUTS == 0 )); then
-  for _pair in "--no-media:$NO_MEDIA" "--no-dev-admins:$NO_DEV_ADMINS"; do
+  for _pair in "--no-media:$NO_MEDIA"; do
     if (( ${_pair#*:} == 1 )); then
       echo "ERROR: ${_pair%%:*} is only meaningful with --soup-to-nuts (these axes are off by default otherwise)." >&2
       exit 1
@@ -163,24 +150,11 @@ if (( FROM_CSV == 1 || SOUP_TO_NUTS == 1 )); then
   (( NO_PERSONAS == 1 )) || SEED_TEST_PERSONAS=1
 fi
 
-# --soup-to-nuts is "everything on": the DB rebuild below plus curated media and
-# dev-admin seed, each opt-out via --no-*. Curated media rides the DB rebuild via
+# --soup-to-nuts is "everything on": the DB rebuild below plus curated media,
+# opt-out via --no-media. Curated media rides the DB rebuild via
 # the curator seed in scripts/reset-local-db.sh; --no-media skips it by exporting
 # CURATOR_SEED=no (inherited through deploy-local-data.sh).
 if (( SOUP_TO_NUTS == 1 )); then
-  # Dev-admin seed under --soup-to-nuts is best-effort: auto-enable it only when
-  # .local/dev-admin-seed.json actually has entries. Explicit --seed-dev-admins
-  # (already SEED_DEV_ADMINS=1 here) keeps its strict refuse-to-no-op behavior,
-  # so a clean rebuild never aborts just because a developer has no seed file.
-  if (( NO_DEV_ADMINS == 0 && SEED_DEV_ADMINS == 0 )); then
-    _n=$(grep -v '^[[:space:]]*//' .local/dev-admin-seed.json 2>/dev/null \
-           | jq 'if type=="array" then length else 0 end' 2>/dev/null || echo 0)
-    if [[ "${_n:-0}" -gt 0 ]]; then
-      SEED_DEV_ADMINS=1
-    else
-      echo "→ Skipping dev-admin seed under --soup-to-nuts (no entries in .local/dev-admin-seed.json; pass --seed-dev-admins to require it)."
-    fi
-  fi
   if (( NO_MEDIA == 1 )); then
     export CURATOR_SEED=no
   fi
@@ -279,27 +253,6 @@ else
   if (( _did_reset == 0 )); then
     echo "→ Skipping DB work (use --reset, --from-csv, or --soup-to-nuts to rebuild)."
   fi
-fi
-
-# CUTOVER-REMOVE: optional dev-admin seed. Runs after DB bootstrap so the
-# seed has rows to insert against. Refuses on production
-# (manage-dev-admin-seed.sh enforces); allowed on development (the default
-# here) and staging.
-if (( SEED_DEV_ADMINS == 1 )); then
-  # Pre-validate the dev seed JSON if present, parity with the staging
-  # path (deploy_to_aws.sh validates .local/staging-admin-seed.json before
-  # the SSH connection). A malformed JSON blob otherwise crashes the seed
-  # mid-run after the DB bootstrap completes. JSONC tolerance: strip `//`
-  # line comments before jq.
-  if [[ -f .local/dev-admin-seed.json ]]; then
-    if ! grep -v '^[[:space:]]*//' .local/dev-admin-seed.json | jq -e . >/dev/null 2>&1; then
-      echo "ERROR: .local/dev-admin-seed.json is not valid JSON (after JSONC comment strip)." >&2
-      echo "Recommendation: grep -v '^[[:space:]]*//' .local/dev-admin-seed.json | jq -e . to see the parse error." >&2
-      exit 1
-    fi
-  fi
-  echo "→ Seeding dev-admin accounts..."
-  bash scripts/manage-dev-admin-seed.sh --seed-dev-admins
 fi
 
 # CUTOVER-REMOVE: optional test-data persona seed. Runs after DB bootstrap so

@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# scripts/audit-dev-shortcuts.sh -- cutover audit gate.
+# scripts/audit-dev-shortcuts.sh -- production-residue gate.
 #
-# Runs the prefix-queries that detect rows persisted by any of the dev
-# shortcuts (seed, register-allowlist bootstrap, tier2 invariant repair,
-# test-data persona harness). All counts must be zero before a production
-# deploy. Exits non-zero if any count > 0; suitable for use as a CI gate at
-# cutover.
+# Runs the prefix-queries that detect rows persisted by the permanent
+# dev/staging-only mechanisms (the register-allowlist admin bootstrap and the
+# test-data persona harness). Both are excluded from the production image, so
+# their marker rows must never appear in a production database; a non-zero count
+# means dev/staging data leaked into prod. Exits non-zero if any count > 0;
+# suitable for use as a CI gate.
+#
+# (The `dev-shortcuts/*` created_by marker namespace it queries is a stable
+# historical identifier, kept unchanged so existing rows and tests keep matching.)
 #
 # Reads FOOTBAG_DB_PATH (default: ./database/footbag.db). Works on any
 # environment (dev, staging, production-DB-attached-for-audit); has no
@@ -44,9 +48,6 @@ c1=$(run_count "reason_code dev_admin_*" \
 c2=$(run_count "action_type admin.dev_*_grant" \
   "SELECT COUNT(*) FROM audit_entries WHERE action_type LIKE 'admin.dev_%_grant';")
 
-c3=$(run_count "action_type invariant_repair" \
-  "SELECT COUNT(*) FROM audit_entries WHERE action_type = 'admin.dev_invariant_repair';")
-
 c4=$(run_count "created_by dev-shortcuts/*" \
   "SELECT COUNT(*) FROM member_tier_grants WHERE created_by LIKE 'dev-shortcuts/%';")
 
@@ -56,7 +57,7 @@ c5=$(run_count "reason_code dev_persona_seed" \
 c6=$(run_count "action_type testkit.persona_seed/switch" \
   "SELECT COUNT(*) FROM audit_entries WHERE action_type IN ('testkit.persona_seed','testkit.persona_switch');")
 
-total=$((c1 + c2 + c3 + c4 + c5 + c6))
+total=$((c1 + c2 + c4 + c5 + c6))
 
 echo
 if [[ "${total}" -eq 0 ]]; then

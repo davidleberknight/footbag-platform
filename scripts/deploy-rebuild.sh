@@ -236,14 +236,10 @@ echo "==> Building Docker images locally (workstation)..."
 # memory limits, env that lives in /srv/footbag/env on the host) and would
 # fail interpolation here on the workstation. Image content is identical.
 #
-# CUTOVER-REMOVE: dev-shortcuts inclusion.
-# Current: dev/staging images bake `dist/testkit/` and `dist/dev-bootstrap/` so the seed
-#   script is runnable in-container; production images set
-#   INCLUDE_DEV_SHORTCUTS=0 (overriding the base compose default of 1)
-#   so the seed script cannot be invoked even by an operator who manually
-#   execs into the container.
-# Target: remove this override and the underlying ARG when the
-#   dev-shortcuts subsystem is retired entirely.
+# Dev/staging images bake `dist/testkit/` and `dist/dev-bootstrap/` (the persona
+# harness and the register-allowlist bootstrap); production images set
+# INCLUDE_DEV_SHORTCUTS=0 (overriding the base compose default of 1) so those
+# dev/staging-only subtrees are absent from the production container.
 if [[ "$FOOTBAG_ENV" == "production" ]]; then
   export INCLUDE_DEV_SHORTCUTS=0
 fi
@@ -311,12 +307,10 @@ else
     | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" docker load'
 fi
 
-# CUTOVER-REMOVE: parse .local/initial-admins.txt into
-# FOOTBAG_DEV_INITIAL_ADMIN_EMAILS CSV env var.
-# Current: dev/staging bootstrap reads this allowlist; remote-half refuses
-#   to write the value on production hosts. Same parsing rules as
-#   src/dev-bootstrap/runtime.ts.
-# Target: remove when the allowlist bootstrap mechanism is retired.
+# Parse .local/initial-admins.txt into the FOOTBAG_DEV_INITIAL_ADMIN_EMAILS CSV
+# env var for the permanent dev/staging register-allowlist bootstrap; the remote
+# half refuses to write the value on production hosts. Same parsing rules as
+# src/dev-bootstrap/runtime.ts.
 INITIAL_ADMIN_EMAILS_CSV=""
 LOCAL_ADMIN_FILE="$REPO_ROOT/.local/initial-admins.txt"
 if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
@@ -327,22 +321,6 @@ if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
       if (length($0) > 0) print tolower($0)
     }
   ' "$LOCAL_ADMIN_FILE" | paste -sd, -)
-fi
-
-# CUTOVER-REMOVE: parse .local/staging-admin-seed.json into compact
-# FOOTBAG_DEV_ADMIN_SEED_JSON env var.
-# Current: parsed only when SEED_DEV_ADMINS=yes (set by the orchestrator
-#   from --seed-dev-admins); env var is not persisted to /srv/footbag/env.
-#   JSONC tolerance: strip `//` line comments before jq.
-# Target: remove when dev-admin seeding is retired.
-DEV_ADMIN_SEED_JSON=""
-LOCAL_SEED_FILE="$REPO_ROOT/.local/staging-admin-seed.json"
-if [[ "${SEED_DEV_ADMINS:-no}" == "yes" && -f "$LOCAL_SEED_FILE" ]]; then
-  if ! DEV_ADMIN_SEED_JSON=$(grep -v '^[[:space:]]*//' "$LOCAL_SEED_FILE" | jq -c -e . 2>/dev/null); then
-    echo "ERROR: $LOCAL_SEED_FILE is not valid JSON (after JSONC comment strip)." >&2
-    echo "Recommendation: grep -v '^[[:space:]]*//' $LOCAL_SEED_FILE | jq -e . to see the parse error." >&2
-    exit 1
-  fi
 fi
 
 echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
@@ -361,7 +339,6 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   printf 'CURATOR_SEED=%q\n'                 "${CURATOR_SEED:-yes}"
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
-  printf 'FOOTBAG_DEV_ADMIN_SEED_JSON=%q\n' "$DEV_ADMIN_SEED_JSON"
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'

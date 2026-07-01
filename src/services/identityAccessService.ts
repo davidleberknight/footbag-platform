@@ -106,12 +106,11 @@ import { workQueueService } from './workQueueService';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
-// CUTOVER-REMOVE: dev/staging admin bootstrap convenience.
-// Current: applyDevStagingBootstrapAdmin (the registration-time admin
-//   allowlist) is active in dev/staging only; the env-config fail-fast guard
-//   prevents its trigger from being set in production.
-// Target: remove this import and the bootstrap call in registerMember at
-//   production go-live, when the SSM-token first-admin claim is the only path.
+// The permanent dev/staging register-allowlist bootstrap: applyDevStagingBootstrapAdmin
+// promotes a registrant whose email is on the operator allowlist to admin. It is
+// active in dev/staging only; the env-config fail-fast guard prevents its trigger
+// from being set in production, where the single-shot SSM-token claim is the
+// first-admin (and break-glass recovery) path.
 import { applyDevStagingBootstrapAdmin } from '../dev-bootstrap/runtime';
 import { ConflictError, NotFoundError, RateLimitedError, ServiceError, ValidationError } from './serviceErrors';
 import { isUniqueConstraintError } from './sqliteRetry';
@@ -699,7 +698,7 @@ async function registerMember(
     throw new Error('registerMember: insert did not commit after retry loop');
   }
 
-  applyDevStagingBootstrapAdmin({ memberId: id, normalizedEmail, now }); // CUTOVER-REMOVE
+  applyDevStagingBootstrapAdmin({ memberId: id, normalizedEmail, now }); // dev/staging register-allowlist bootstrap; no-op in production
 
   // Record the canonical registration audit before the verify-email enqueue.
   // The member row is already committed; enqueue failure re-throws (recording

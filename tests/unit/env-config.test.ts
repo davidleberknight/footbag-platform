@@ -568,104 +568,6 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
   });
 
 
-  it('throws when FOOTBAG_DEV_ADMIN_GRANT_TIER2=1 with FOOTBAG_ENV=staging', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
-    process.env.SES_ADAPTER = 'stub';
-    process.env.SAFE_BROWSING_ADAPTER = 'stub';
-    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
-    process.env.SECRETS_ADAPTER = 'live';
-    process.env.FOOTBAG_ENV = 'staging';
-    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
-    process.env.MEDIA_STORAGE_ADAPTER = 'local';
-    process.env.PAYMENT_ADAPTER = 'live';
-    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
-    process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = '1';
-    await expect(import('../../src/config/env')).rejects.toThrow(
-      /FOOTBAG_DEV_ADMIN_GRANT_TIER2 is dev-only/,
-    );
-  });
-
-  it('throws when FOOTBAG_DEV_ADMIN_GRANT_TIER2=1 with FOOTBAG_ENV unset', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'development';
-    delete process.env.FOOTBAG_ENV;
-    process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = '1';
-    await expect(import('../../src/config/env')).rejects.toThrow(
-      /FOOTBAG_DEV_ADMIN_GRANT_TIER2 is dev-only/,
-    );
-  });
-
-  it('accepts FOOTBAG_DEV_ADMIN_GRANT_TIER2=1 when FOOTBAG_ENV=development', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'development';
-    process.env.FOOTBAG_ENV = 'development';
-    process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = '1';
-    const { config } = await import('../../src/config/env');
-    expect(config.devAdminGrantTier2).toBe(true);
-  });
-
-  it('accepts FOOTBAG_DEV_ADMIN_GRANT_TIER2=true', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'development';
-    process.env.FOOTBAG_ENV = 'development';
-    process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = 'true';
-    const { config } = await import('../../src/config/env');
-    expect(config.devAdminGrantTier2).toBe(true);
-  });
-
-  it('FOOTBAG_DEV_ADMIN_GRANT_TIER2=0 parses as false (no fail-fast in non-dev)', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
-    process.env.SES_ADAPTER = 'stub';
-    process.env.SAFE_BROWSING_ADAPTER = 'stub';
-    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
-    process.env.SECRETS_ADAPTER = 'live';
-    process.env.FOOTBAG_ENV = 'staging';
-    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
-    process.env.MEDIA_STORAGE_ADAPTER = 'local';
-    process.env.PAYMENT_ADAPTER = 'live';
-    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
-    process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = '0';
-    const { config } = await import('../../src/config/env');
-    expect(config.devAdminGrantTier2).toBe(false);
-  });
-
-  it('FOOTBAG_DEV_ADMIN_GRANT_TIER2=false parses as false', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'development';
-    process.env.FOOTBAG_ENV = 'development';
-    process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = 'false';
-    const { config } = await import('../../src/config/env');
-    expect(config.devAdminGrantTier2).toBe(false);
-  });
-
-  it('defaults FOOTBAG_DEV_ADMIN_GRANT_TIER2 to false when unset', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'development';
-    delete process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2;
-    const { config } = await import('../../src/config/env');
-    expect(config.devAdminGrantTier2).toBe(false);
-  });
-
-  it('rejects FOOTBAG_DEV_ADMIN_GRANT_TIER2 with an invalid value', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'development';
-    process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = 'maybe';
-    await expect(import('../../src/config/env')).rejects.toThrow(
-      /FOOTBAG_DEV_ADMIN_GRANT_TIER2 must be/,
-    );
-  });
 
   it("defaults PAYMENT_ADAPTER to 'stub' in non-production", async () => {
     baselineRequired();
@@ -925,28 +827,6 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
   // highest-stakes refusal. A regression that quietly removed any of these
   // guards would let a dev shortcut land on a prod host.
 
-
-  it('throws when FOOTBAG_DEV_ADMIN_GRANT_TIER2=1 with FOOTBAG_ENV=production', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
-    process.env.SES_ADAPTER = 'live';
-    process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
-    process.env.AWS_REGION = 'us-east-1';
-    process.env.SAFE_BROWSING_ADAPTER = 'stub';
-    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
-    process.env.SECRETS_ADAPTER = 'live';
-    process.env.FOOTBAG_ENV = 'production';
-    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
-    process.env.MEDIA_STORAGE_ADAPTER = 'local';
-    process.env.PAYMENT_ADAPTER = 'live';
-    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
-    process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = '1';
-    await expect(import('../../src/config/env')).rejects.toThrow(
-      /FOOTBAG_DEV_ADMIN_GRANT_TIER2 is dev-only/,
-    );
-  });
 
   it('throws when FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is non-empty with FOOTBAG_ENV=production', async () => {
     baselineRequired();

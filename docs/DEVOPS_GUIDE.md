@@ -193,7 +193,7 @@ table is the single reference; later sections operate each row but do not redefi
 | KMS key alias | none (local keypair) | `alias/footbag-staging` | `alias/footbag-production` |
 | Stripe key mode | n/a | test-mode `sk_test_...` | live-mode `sk_live_...` |
 | Dev shortcuts (`FOOTBAG_DEV_*`, persona harness) | enabled | `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` via deploy transport; persona harness on | absent from image; boot-refused if set |
-| First-admin mechanism | email allowlist | `--seed-dev-admins` deploy flag | single-shot SSM claim token (`/admin/bootstrap-claim`) |
+| First-admin mechanism | email allowlist | email allowlist (`FOOTBAG_DEV_INITIAL_ADMIN_EMAILS`) | single-shot SSM claim token (`/admin/bootstrap-claim`) |
 | Continuous DB backup / DR | not used | systemd timer + nightly cross-region DR | systemd timer + nightly cross-region DR |
 
 ### 3.2 Container sizing per environment
@@ -247,7 +247,7 @@ Every privileged operation has a runbook or checklist. Find the task, go to the 
 
 ### 4.4 Data and migration
 - Schema migration runbook (§15.3); data-access rules (§15.4); staging refresh and anonymization (§19);
-  test-data / dev-admin seed (§20); production first-admin bootstrap (§10.12 / §20.8).
+  test-data / dev-staging admin bootstrap (§20); production first-admin bootstrap (§10.12 / §20.8).
 
 ### 4.5 AWS and infrastructure
 - ACM certificate issuance (§9.2.1); SES production-access ticket (§9.5); SES feedback-loop activation
@@ -1326,7 +1326,7 @@ The production platform launches with zero admins; the single-shot bootstrap tok
 - `SESSION_SECRET contains 'changeme'` or `is N chars (need >= 32)`: the host env file still carries the bootstrap placeholder. Generate with `openssl rand -hex 32` per §10.4 / §10.8 and overwrite the value on the host.
 - `INTERNAL_EVENT_SECRET is the dev-default literal`: the operator copied a dev `.env` to the host. Generate a fresh value with `openssl rand -hex 32` and update `/srv/footbag/env`.
 - `IMAGE_PROCESSOR_URL references localhost`: the host env still carries the dev fallback. Set to the docker-compose service name (e.g. `http://image:4000`). Staging and production require it explicitly (the app refuses to boot without it); only local development defaults to `http://localhost:4001`.
-- `FOOTBAG_DEV_ADMIN_GRANT_TIER2`, `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS`, or a similar dev-bootstrap var present on a production host env: remove the line. The env-config boot guard refuses to start the container with these set on production, so the deploy would also fail at container boot; the script catches the misconfiguration earlier.
+- `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` or a similar dev-bootstrap var present on a production host env: remove the line. The env-config boot guard refuses to start the container with these set on production, so the deploy would also fail at container boot; the script catches the misconfiguration earlier.
 - `BACKUP_S3_BUCKET unset` (WARN): the app boots without it, but `footbag-backup.timer` cannot upload snapshots. Set it to the environment's db-snapshots bucket name (terraform output) before installing the timer per §16.
 
 #### Synthetic mode
@@ -2477,110 +2477,29 @@ Before staging is declared ready, verify:
 
 ### 20.1 Scope and isolation model
 
-Dev-admin shortcut data is data inserted to enable maintainer admin login on dev or staging. It is distinct from production-derived data, which is the subject of §19. Production must never receive dev-admin shortcut data; six independent guard layers refuse the operation, and one regression test enforces that the credential literal driving dev-admin accounts lives in a single file. (The term "test data" and the `--seed-test-data` flag are reserved for a future class of seed mechanisms covering fixtures, ballots, and similar test artifacts. They are not the subject of this section.)
+Two mechanisms provision non-production accounts on development and staging, and both are excluded from the production runtime image:
 
-The pattern lives under `src/dev-bootstrap/`. The admin seed is the only current instance. Future test-data seeds (ballots, event results, photos, fixtures) will share a similar shape but live under a separate subtree and are not part of the dev-shortcuts cutover-removal concern.
+- **The admin email-allowlist bootstrap.** A member who registers with an email on the operator allowlist is promoted to admin (`is_admin=1` + Tier 2 + audit) in one transaction, then verifies their email through the normal flow before logging in. The allowlist source is `.local/initial-admins.txt` locally and the `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` env var on staging (the deploy pipeline parses the file into the var and writes it to `/srv/footbag/env`). This is the only first-admin path on dev and staging; production uses the SSM claim token in §20.8. The mechanism and its production-exclusion layers are documented in `docs/DEV_ONBOARDING.md` §1.14.1 and DESIGN_DECISIONS §2.9.
+- **The tester persona harness** (`src/testkit/`: the canonical persona catalog, `/dev/switch`, `/dev/personas`, and the `--seed-test-personas` operator script). Its operator and tester runbook lives in `docs/TESTING.md` §16.
 
-The tester-facing persona harness (`src/testkit/`: the canonical persona catalog, `/dev/switch`, `/dev/personas`) is a separate concern from this dev-admin seed and runs on development and staging; its operator and tester runbook lives in `docs/TESTING.md` §16.
-
-### 20.2 Staging admin seed
-
-Staging admin accounts seed directly into the running database via an opt-in `--seed-dev-admins` flag on the standard deploy entry point. The flag is allowlisted to `DEPLOY_TARGET=footbag-staging` only; any other target is hard-refused before the SSH connection.
-
-1. Maintain `.local/staging-admin-seed.json` on the workstation. Gitignored, per-maintainer. Same JSON shape as the dev seed described in `docs/DEV_ONBOARDING.md` §1.14.2. Review the content before each deploy that uses the flag.
-
-2. Run a deploy with the flag:
-
-   ```bash
-   ./deploy_to_aws.sh --seed-dev-admins
-   ```
-
-   Combinable with the bare/`-k` code-only deploy, `-r` for ship-current-DB, or a rebuild deploy (`--from-csv` / `--soup-to-nuts`). The seed always runs at the same phase: after the web service is up and healthy.
-
-3. The pre-deploy plan summary shows `seed dev admins: yes`. Confirm before approving the deploy.
-
-4. The remote half reports each entry's outcome on stdout: `seeded admin`, `no-op (dev-admin-seed marker present)`, or `CONFLICT (member exists without dev-admin-seed marker; not modifying)`. The deploy succeeds even if the seed step exits non-zero; the service is already up. Re-run after resolving the conflict.
-
-5. Verify on the staging host:
-
-   ```bash
-   ssh footbag-staging 'sudo sqlite3 /srv/footbag/db/footbag.db "
-     SELECT m.login_email, m.is_admin, mtg.reason_code
-     FROM members m
-     JOIN member_tier_grants mtg ON mtg.member_id = m.id
-     WHERE mtg.reason_code = ''dev_admin_seed.admin_tier2''
-     ORDER BY mtg.created_at DESC;
-   "'
-   ```
-
-6. Log in to the staging URL with the seeded email plus the fixed dev-only password (see `src/dev-bootstrap/seedConfig.ts`).
-
-### 20.3 Transport and argv-leak hardening
-
-Sensitive values must never appear in a process's argv on any host. The deploy pipeline carries the seed content through three boundaries; each boundary uses stdin, not argv.
-
-1. Workstation: `jq -c -e` validates and compacts `.local/staging-admin-seed.json`. The compacted JSON is appended to the SSH cat-pipe alongside the sudo password and `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS`. Shell-builtin `printf` does not fork, so the value is not visible to any workstation-side process listing.
-
-2. Staging host bash: receives the value as a shell environment variable (assigned by reading its own stdin). It is NOT written to `/srv/footbag/env`; the value is transient and exists for one deploy only.
-
-3. Container: the staging-host bash pipes the value to `docker compose exec -T` via stdin, and the in-container shell reassigns it from `$(cat)` before invoking the seed binary. Passing the value via `docker compose exec -e VAR=value` is forbidden because the value would land in the exec subprocess's argv, visible to any `ps -ef` reader on the host.
-
-Inside the container, the compiled seed (`node dist/dev-bootstrap/seed.js`) reads the env-var, validates the JSON shape, argon2-hashes the fixed dev-only password, and inserts the seed rows in a single transaction.
-
-### 20.4 Adding a new dev-shortcut mechanism
-
-Future dev-shortcut scripts follow the admin-seed shape. The acceptance bar:
-
-- Lives at `src/dev-bootstrap/<additional-mechanism>.ts`. Compiles via the project `tsc` (no Dockerfile changes; `dist/` already ships).
-- Imports `src/dev-bootstrap/seedConfig.ts` for the env-guard and shared marker conventions. Adds its own mechanism-specific exports (env-var name, seed file paths, marker constants).
-- Reads from `FOOTBAG_DEV_<MECHANISM>_JSON` if set; otherwise from `.local/dev-<mechanism>.json`. Missing both is fatal (exit 1): silent no-ops mask operator mistakes.
-- Writes marker columns under the `dev_admin_*` namespace with `created_by = 'dev-shortcuts/<mechanism>'` and an `audit_entries.action_type = 'admin.dev_<mechanism>_grant'`.
-- Is idempotent on the marker; reports conflicts without modifying; exits 0 / 1 / 2 as the admin seed does.
-- Adds a `--seed-<mechanism>` action to `scripts/manage-dev-admin-seed.sh` (or shares the `--seed-dev-admins` umbrella, running every dev-shortcut script whose staging file exists).
-- Wires deploy transport in `scripts/deploy-code.sh` and `scripts/deploy-rebuild.sh` (cat-pipe of the compact JSON) and staging-side exec in `scripts/internal/deploy-code-remote.sh` and `scripts/internal/deploy-rebuild-remote.sh` (stdin-piped `docker compose exec`).
-- Lands with a schema-coupling test under `tests/integration/devAdminSeed.<mechanism>.schemaCoupling.test.ts`. The env-guard contract test in `tests/integration/devAdminSeed.envGuard.test.ts` covers all mechanisms by exercising `seedConfig` once.
-
-### 20.5 Guardrails
-
-Dev-admin shortcut data must not reach production, and seed content must not leak via argv. The following invariants hold for every mechanism:
-
-- **Module-import guard.** `src/dev-bootstrap/seedConfig.ts` throws on import unless `FOOTBAG_ENV ∈ {development, staging}`. Production-mode app processes fail fast at module load.
-- **Script env-check.** `scripts/manage-dev-admin-seed.sh` refuses if `NODE_ENV=production` or `FOOTBAG_ENV=production`.
-- **Deploy entry-point gate.** `deploy_to_aws.sh` allowlists `--seed-dev-admins` to `DEPLOY_TARGET=footbag-staging` only; any other target is refused before any SSH connection.
-- **JSON validation gate.** `--seed-dev-admins` strips JSONC `//` line comments and runs `jq -e .` against the workstation-side seed file; malformed JSON aborts before SSH.
-- **Container env source.** The staging remote scripts no longer override `FOOTBAG_ENV` for the seed exec; the container reads the value from its `/srv/footbag/env` file (set per host). `seedConfig.ts` then throws on import when the host says `FOOTBAG_ENV=production`, even if the operator misconfigured the deploy chain.
-- **IAM/SSM namespace isolation.** The staging deploy role is bound to `/footbag/staging/*` SSM and cannot reach `/footbag/production/*`.
-- **argv-leak hardening.** Seed content travels stdin only at every boundary: workstation→ssh, ssh→bash, bash→docker compose exec→in-container shell. `-e VAR=value` is never used for seed content. The principle is the hard rule in `.claude/rules/script-secret-safety.md` (operator rationale in §20.3) and is enforced by code review.
-- **Image-content gate (production only).** Production images are built with `INCLUDE_DEV_SHORTCUTS=0`, set by `scripts/deploy-rebuild.sh` when `FOOTBAG_ENV=production` and reinforced by per-service `build.args.INCLUDE_DEV_SHORTCUTS: 0` in `docker/docker-compose.prod.yml`. The compiled `dist/testkit/` and `dist/dev-bootstrap/` subtrees are absent from the production image; an operator who execs into a production container cannot run the seed even with a misconfigured env.
-
-### 20.6 Password-leak protections
-
-The fixed dev-admin-seed password literal in `src/dev-bootstrap/seedConfig.ts` is hard-coded for dev/staging convenience. Five invariants hold:
-
-- **Single-source containment in code.** Regression test `tests/integration/devAdminSeed.passwordLeak.test.ts` greps source-controlled CODE files (.ts/.js/.sh/.hbs/.json/.yml) and fails if the literal appears in any file other than `src/dev-bootstrap/seedConfig.ts`. Documentation files are excluded from the scan; the discipline of keeping the literal out of docs is governed by doc-sync and human review.
-- **No log emission.** Seed scripts emit `loginEmail`, outcome counts, and the env diagnostic only. The password literal is never logged. The argon2 hash is never logged either.
-- **No network exposure.** The transport carries the seed JSON (emails, names, optional tier). The password literal does not cross the workstation→staging boundary; hashing happens inside the container at seed time.
-- **Production-import refusal.** The module-import guard prevents the literal from being loaded under `FOOTBAG_ENV=production`.
-- **Operator-level env guards.** The bash refusal gates at every entry point prevent the seed from being invoked against production-named targets.
-
-Weakening any of these invariants requires removing the corresponding regression-test assertion.
+Neither reaches production: `src/config/env.ts` boot-refuses the `FOOTBAG_DEV_*` vars on a production host, the deploy pipeline refuses to write them, and the production image is built with `INCLUDE_DEV_SHORTCUTS=0`, which strips `dist/dev-bootstrap` and `dist/testkit` (recreating the dev-bootstrap module as a no-op stub so the runtime still boots). The staging deploy role is bound to `/footbag/staging/*` SSM and cannot reach `/footbag/production/*`.
 
 ### 20.7 Removal
 
-There is no automated unseed action. Re-rebuild the staging database (`./deploy_to_aws.sh --from-csv`) to clear all seeded rows. To audit leftover rows on either dev or staging, grep the marker columns:
+There is no automated unseed action. Re-rebuild the staging database (`./deploy_to_aws.sh --from-csv`) to clear all seeded rows. To audit leftover dev/staging rows on either dev or staging, grep the marker columns:
 
 ```sql
 SELECT COUNT(*) FROM member_tier_grants WHERE created_by LIKE 'dev-shortcuts/%';
-SELECT COUNT(*) FROM audit_entries     WHERE action_type LIKE 'admin.dev_%_grant';
-SELECT COUNT(*) FROM member_tier_grants WHERE reason_code LIKE 'dev_admin_%';
-SELECT COUNT(*) FROM audit_entries     WHERE action_type = 'admin.dev_invariant_repair';
+SELECT COUNT(*) FROM audit_entries     WHERE action_type = 'admin.dev_register_allowlist_grant';
+SELECT COUNT(*) FROM member_tier_grants WHERE reason_code = 'dev_persona_seed.tier_grant';
+SELECT COUNT(*) FROM audit_entries     WHERE action_type IN ('testkit.persona_seed','testkit.persona_switch');
 ```
 
-All four counts must be zero before any production deploy. `scripts/audit-dev-shortcuts.sh` runs these queries and exits non-zero if any return > 0; suitable as a CI gate at cutover. The `dev_admin_invariant_repair` marker comes from the dev-only `FOOTBAG_DEV_ADMIN_GRANT_TIER2` invariant-repair pass (see `docs/DEV_ONBOARDING.md` §1.14.3). The `dev_admin_register_allowlist.admin_tier2` marker comes from the dev/staging email-allowlist bootstrap (the unified handler in `src/dev-bootstrap/runtime.ts`); production-first-admin uses a different reason_code and is documented in §20.8. The env-config fail-fast guard prevents any of the dev/staging shortcuts from being set in production, so a non-zero count on production indicates an env-gate bypass and warrants investigation.
+All four counts must be zero before any production deploy. `scripts/audit-dev-shortcuts.sh` runs these queries and exits non-zero if any return > 0; suitable as a CI gate at cutover. The `admin.dev_register_allowlist_grant` marker comes from the dev/staging email-allowlist bootstrap (the unified handler in `src/dev-bootstrap/runtime.ts`); the `dev_persona_seed` / `testkit.persona_*` markers come from the tester persona harness. Production-first-admin uses a different reason_code, documented in §20.8. The env-config fail-fast guard prevents any of the dev/staging shortcuts from being set in production, so a non-zero count on production indicates an env-gate bypass and warrants investigation.
 
 ### 20.8 Production first-admin bootstrap
 
-Production seeds its first administrator through a single-shot SSM-stored claim token, not the dev/staging email allowlist used by §20.2. The two mechanisms are environment-isolated: production deploys refuse to write `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS`, the production process refuses to boot if the var is present, and the production overlay carries an explanatory comment documenting the no-op intent.
+Production seeds its first administrator through a single-shot SSM-stored claim token, not the dev/staging email allowlist used on dev and staging (§20.1). The two mechanisms are environment-isolated: production deploys refuse to write `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS`, the production process refuses to boot if the var is present, and the production overlay carries an explanatory comment documenting the no-op intent.
 
 Design intent and audit-row shape are in DESIGN_DECISIONS §2.9. The operational provisioning runbook (token provision, hand-off, self-delete verification) is §10.12. The route is `/admin/bootstrap-claim`. The SSM parameter path is `/footbag/production/app/bootstrap/admin_token` (SecureString). The token format is a 64-byte hex string generated by `openssl rand -hex 32`. After a successful claim the endpoint deletes the SSM parameter; subsequent attempts return the same response shape whether the token is missing or wrong.
 

@@ -31,6 +31,7 @@ import { insertMember, insertMemberTierGrant } from '../fixtures/factories';
 import type { MediaStorageAdapter } from '../../src/adapters/mediaStorageAdapter';
 import type { ImageProcessingAdapter } from '../../src/adapters/imageProcessingAdapter';
 import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../../src/lib/personaGuards';
+import type { MediaJobRow } from '../../src/db/db';
 
 const { dbPath } = setTestEnv('3098');
 
@@ -123,5 +124,38 @@ describe('/curated guardrail with sidecar writes on', () => {
         updates: { name: 'My Own Gallery', description: '', sortOrder: 'upload_desc', criteriaTags: ['#footbags'], excludeTags: [], externalLinks: [] },
       }),
     ).resolves.toBeDefined();
+  });
+
+  // The async curator-video path (POST /sign -> queued job -> worker finalize)
+  // must enforce the same guard as the synchronous uploads: the guard fires early
+  // in finalizeTranscodeForJob, keyed on the initiating actor stored on the job.
+  const videoJob = (adminMemberId: string, id: string) =>
+    ({
+      id, kind: 'curator_video', state: 'processing', admin_member_id: adminMemberId,
+      source_video_key: 'pending/video.mp4', source_poster_key: 'pending/poster.jpg',
+      caption: null, tags: '', source_filename: 'v.mp4', media_id: null,
+      retry_count: 0, last_error: null, last_attempted_at: null,
+      lease_expires_at: null, expires_at: null,
+      created_at: '2020-01-01T00:00:00.000Z', created_by: 'system',
+    }) as unknown as MediaJobRow;
+
+  it('refuses a persona admin on the async video finalize path', async () => {
+    await expect(
+      svc().finalizeTranscodeForJob(videoJob(PERSONA_ADMIN, 'job_guard_persona')),
+    ).rejects.toThrow(GUARD);
+  });
+
+  it('lets a real admin past the persona guard on the async finalize path (any later failure is not the guard)', async () => {
+    let err: unknown;
+    try {
+      await svc().finalizeTranscodeForJob(videoJob(REAL_ADMIN, 'job_guard_real'));
+    } catch (e) {
+      err = e;
+    }
+    // The real admin (ordinary id) passes the guard; finalize then proceeds to the
+    // transcode/storage step, which the noop adapters do not implement, so it fails
+    // with a non-guard error — proving the persona guard did not fire.
+    expect(err).toBeDefined();
+    expect(String((err as Error).message)).not.toMatch(GUARD);
   });
 });

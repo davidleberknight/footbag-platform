@@ -493,23 +493,14 @@ fi
 
 # -----------------------------------------------------------------------------
 # Dev-shortcut presence is forbidden on production; staging permits the
-# allowlist + seed transport, refuses the others.
+# allowlist transport, refuses the others.
 # -----------------------------------------------------------------------------
 echo ""
 echo "Dev-shortcut posture for $TARGET:"
 
-# Production-forbidden regardless of FOOTBAG_ENV value.
-DEV_VARS_PROD_FORBIDDEN=(
-  FOOTBAG_DEV_ADMIN_GRANT_TIER2
-)
-for KEY in "${DEV_VARS_PROD_FORBIDDEN[@]}"; do
-  check_unset "$KEY" "production-forbidden dev shortcut"
-done
-
-# These two are staging-allowed, production-forbidden.
+# This one is staging-allowed, production-forbidden.
 STAGING_ALLOWED_VARS=(
   FOOTBAG_DEV_INITIAL_ADMIN_EMAILS
-  FOOTBAG_DEV_ADMIN_SEED_JSON
 )
 for KEY in "${STAGING_ALLOWED_VARS[@]}"; do
   ACTUAL="${HOST_ENV[$KEY]:-}"
@@ -519,7 +510,7 @@ for KEY in "${STAGING_ALLOWED_VARS[@]}"; do
     if [[ -n "$ACTUAL" ]]; then
       check_pass "staging-allowed shortcut: $KEY is set"
     else
-      check_warn "staging-allowed shortcut: $KEY is unset (operator may seed personas later via --seed-dev-admins)"
+      check_warn "staging-allowed shortcut: $KEY is unset (the operator can add allowlist emails to bootstrap admins later)"
     fi
   fi
 done

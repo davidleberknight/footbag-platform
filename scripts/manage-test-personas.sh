@@ -19,8 +19,7 @@
 # array of PersonaSpec objects. slug, displayName, tier, and a non-empty
 # coverageNotes[] are required. The full schema lives in the
 # personaSeedRunner.ts JSDoc; canonicalPersonas.ts holds live examples. There
-# is no checked-in .example template (the whole .local/ tree is gitignored),
-# mirroring how the dev-admin seed documents .local/dev-admin-seed.json.
+# is no checked-in .example template (the whole .local/ tree is gitignored).
 #
 # Env:
 #   FOOTBAG_ENV           development | staging. Defaults to development if

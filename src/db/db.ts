@@ -5147,9 +5147,9 @@ export const auth = {
   `); },
 
   // Look a member up by slug for session issuance. Returns the same row shape
-  // as findMemberForSession. Used by the dev-only persona-switch route
+  // as findMemberForSession. Used by the persona-switch route
   // (GET /dev/switch?as=<slug>), which mints a real session cookie for the
-  // resolved member; gated behind FOOTBAG_ENV='development'.
+  // resolved member; the route mounts under FOOTBAG_ENV in {development, staging}.
   get findMemberForSessionBySlug() { return db.prepare(`
     SELECT
       m.id,

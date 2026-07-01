@@ -5,9 +5,9 @@
  * for that logic so the two runners cannot drift (mirrors DD §1.14's
  * "no parallel code path" intent for the persona row builders).
  *
- * Pure string/argv utilities only — no seedConfig import, so this module is
+ * Pure string/argv utilities only — no personaSecrets import, so this module is
  * freely importable in any environment (the runners themselves carry the
- * seedConfig env-guard).
+ * personaSecrets env-guard).
  */
 
 /** Resolve the SQLite path from a `--db <path>` flag, else FOOTBAG_DB_PATH, else the dev default. */

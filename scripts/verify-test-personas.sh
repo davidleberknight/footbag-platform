@@ -20,7 +20,7 @@
 # Re-running the seed skips existing slugs, so auditRowsSeeded equals
 # personasSeeded (no duplicate rows on replay).
 #
-# Password handling: identical pattern to verify-dev-admin-seed.sh. `ssh -t`
+# Password handling: `ssh -t`
 # allocates a remote PTY so the remote sudo prompts on the LOCAL terminal;
 # the operator types the password directly into sudo's noecho prompt; it is
 # never piped, never captured, never logged. We do NOT use `sudo -S` (project

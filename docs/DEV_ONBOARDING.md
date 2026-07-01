@@ -475,7 +475,7 @@ The suite is split:
 - `npm run test:watch`; vitest in watch mode for fast iteration.
 - `npm run build`; `tsc -p tsconfig.json` typecheck. Must pass before any PR.
 
-The suite includes a migration-testing cluster under `tests/integration/` that exercises the legacy-data import path (legacy-claim merge, two-step emailed-token claim flow, batch auto-link SYS job, HP-detail Claim CTA, transaction atomicity) plus the dev-admin-seed schema-coupling canary and password-leak regression.
+The suite includes a migration-testing cluster under `tests/integration/` that exercises the legacy-data import path (legacy-claim merge, two-step emailed-token claim flow, batch auto-link SYS job, HP-detail Claim CTA, transaction atomicity).
 
 #### The full local suite (`run_all_tests.sh`)
 
@@ -713,63 +713,15 @@ For reference, the mechanism: the dev site auto-promotes a registrant whose norm
 
 Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's `.local/initial-admins.txt` into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9 and operationally documented in DEVOPS_GUIDE §20.8.
 
-#### 1.14.2 Pre-seeding maintainer admin accounts (maintainers)
+#### 1.14.2 Dev-only shortcuts
 
-Maintainers can also pre-seed admin accounts directly into the local database, no register or verify flow needed, so a maintainer admin login is available immediately after a DB reset. Like the allowlist above, this is maintainer tooling for authoring real curated content, not a step a new developer runs to grant themselves admin; the two mechanisms are documented here for reference.
-
-1. Create `.local/dev-admin-seed.json` at the repo root. The `.local/` directory is gitignored. Required fields per entry: `loginEmail`, `displayName`, `realName` (all non-empty strings). Optional `tier`: `'tier2'` or `'tier3'` (defaults to `'tier2'` since admin requires Tier 2+).
-
-   ```json
-   [
-     {
-       "loginEmail": "you@example.com",
-       "displayName": "Your Display Name",
-       "realName": "Your Real Name"
-     }
-   ]
-   ```
-
-2. Run the seed (combined with a fresh reset, or any time after the DB is bootstrapped):
-
-   ```bash
-   ./run_dev.sh --reset --seed-dev-admins
-   ```
-
-   Or, when the dev stack is already running, in a second shell:
-
-   ```bash
-   ./scripts/manage-dev-admin-seed.sh --seed-dev-admins
-   ```
-
-3. Verify each seeded admin lands with the dev-admin-seed marker:
-
-   ```bash
-   sqlite3 database/footbag.db "
-     SELECT m.login_email, m.is_admin, mtg.reason_code, mtg.new_tier_status
-     FROM members m
-     JOIN member_tier_grants mtg ON mtg.member_id = m.id
-     WHERE mtg.reason_code = 'dev_admin_seed.admin_tier2'
-     ORDER BY mtg.created_at DESC;
-   "
-   ```
-
-4. Log in with the seeded email plus the fixed dev-only password (see `src/dev-bootstrap/seedConfig.ts`). The password is identical for every seeded admin and is never echoed by the seed script.
-
-Exit codes: 0 success (one or more entries seeded, or already-marked idempotent no-op rows), 1 fatal (DB missing, JSON malformed, no seed input found, empty seed array), 2 one or more entries collide with a non-seed member already owning the email. Re-running with the same JSON is a no-op when the dev-admin-seed marker is already present. Conflicts are reported and not modified.
-
-Removal: rebuild the DB (`./run_dev.sh --reset`) clears all seeded rows. To audit leftover rows, run `./scripts/audit-dev-shortcuts.sh` (queries `reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'admin.dev_%_grant'`, `created_by LIKE 'dev-shortcuts/%'`, and `action_type = 'admin.dev_invariant_repair'`). All four counts must be zero before any production deploy. The seed refuses to load under `FOOTBAG_ENV=production`; staging uses a separate seed surface documented in DEVOPS_GUIDE §20.
-
-#### 1.14.3 Dev-only shortcuts
-
-Several shortcuts exist to reduce friction during local manual testing. The runtime catalog of all dev shortcuts lives in `src/dev-bootstrap/runtime.ts`; the boot orchestrator there prints a consolidated banner showing which shortcuts are active on each `./run_dev.sh` start. The env-var-gated entries refuse to start in non-permitted environments via fail-fast guards in `src/config/env.ts`. The operator script entry runs in dev or staging via the deploy pipeline; production is hard-blocked by `src/dev-bootstrap/seedConfig.ts`.
+Several conveniences exist to reduce friction during local manual testing. The env-var-gated entries refuse to start outside their permitted environments via fail-fast guards in `src/config/env.ts`; the persona-harness operator script runs in development or staging only. Production carries none of them.
 
 | Shortcut | Type | Allowed envs | What it does |
 |---|---|---|---|
 | `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` | env var | development AND staging | Email allowlist matched at registration; matching registrants get `is_admin=1` plus a Tier 2 grant plus audit rows in one transaction. The deploy pipeline parses `.local/initial-admins.txt` into this env var; the workstation file is the dev source. Production refused at boot and at deploy time. |
 | `GET /dev/switch?as=<slug>` | dev route | development and staging | Issues a real session cookie for a seeded persona via the production JWT primitive, so you act as any persona without a login chain. Audit-marked `testkit.persona_switch`. |
-| `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog. Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by `seedConfig.ts`. |
-| `FOOTBAG_DEV_ADMIN_GRANT_TIER2` | env var | development only | At boot, every `is_admin=1` member whose ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant, enforcing the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role`. |
-| `./scripts/manage-dev-admin-seed.sh --seed-dev-admins` | operator script | development AND staging | Reads `.local/dev-admin-seed.json` (JSONC; or `FOOTBAG_DEV_ADMIN_SEED_JSON` on staging) and inserts admin member rows with `is_admin=1` plus a Tier 2 grant. Production blocked by `seedConfig.ts`. |
+| `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog. Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by the testkit import guard and the production image strip. |
 
 Production has none of these shortcuts. Production admins requiring legacy-claim recovery use `manualLegacyClaimRecovery` (DD §3.9).
 
@@ -790,23 +742,8 @@ The `/dev` router mounts under `FOOTBAG_ENV ∈ {development, staging}`, so the 
 
 For the full tester workflow built on this harness (purchase flow from a fresh persona, the stub-checkout decline button, onboarding/legacy/clubs walk-throughs, and the captured-email card on dev and staging), see the tester runbook in `docs/TESTING.md` §16.
 
-A maintainer who has seeded a `.local/dev-admin-seed.json` entry (see §1.14.2) can act as that admin: run the dev-admin seed so it lands as a Tier 2 admin member, then switch to its slug:
-
-```bash
-./scripts/manage-dev-admin-seed.sh --seed-dev-admins
-```
-
-Without a tier grant, the dashboard membership block shows Tier 0 because there is no legacy data dump in dev. The dev-admin seed (`src/dev-bootstrap/seed.ts`) inserts a `member_tier_grants` row with `reason_code = 'dev_admin_seed.admin_tier2'` and an `is_admin=1` member row keyed on the JSON entry's email.
-
 A stub `legacy_members` row with no `legacy_email` (for example before the legacy data dump is loaded) is claimable from the onboarding wizard's `legacy_claim` task via the historical-person card-confirm path, which needs no email roundtrip; the mailbox-control round-trip is optional and only upgrades the audit evidence tier. Admins requiring manual recovery use the `manualLegacyClaimRecovery` flow.
 
-Optional admin Tier 2 invariant repair; set `FOOTBAG_DEV_ADMIN_GRANT_TIER2=1` to enforce the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role` on the data side. At boot, the orchestrator finds every `is_admin=1` member whose tier ledger reads below Tier 2 and inserts a `member_tier_grants` row with `reason_code = 'dev_admin_invariant_repair'` plus an `audit_entries` row with `action_type = 'admin.dev_invariant_repair'`. Idempotent (already-Tier-2+ admins skipped). Useful when the dev-admin-seed conflict exit code (2) reports a member that exists outside the seed flow without the matching tier grant. Same fail-fast guard as the other dev vars: rejected at boot in any non-development environment.
-
-```bash
-export FOOTBAG_DEV_ADMIN_GRANT_TIER2=1
-```
-
-The two marker columns (`reason_code = 'dev_admin_invariant_repair'` and `action_type = 'admin.dev_invariant_repair'`) are part of the pre-deploy grep checklist in `docs/DEVOPS_GUIDE.md` §20.7; both must return zero rows from any production database.
 
 ### 1.15 Filing a bug
 

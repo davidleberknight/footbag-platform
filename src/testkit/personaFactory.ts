@@ -25,9 +25,9 @@
  *   - audit_entries.action_type      = 'testkit.persona_switch'  (cookie issuance)
  *   - created_by / source            = 'dev-shortcuts/personas'
  *
- * These markers are non-sensitive and live here rather than in seedConfig.ts:
+ * These markers are non-sensitive and live here rather than in personaSecrets.ts:
  * the factory is imported in-process by Vitest (FOOTBAG_ENV unset), where
- * seedConfig's production import-guard would throw. The sensitive persona
+ * personaSecrets' production import-guard would throw. The sensitive persona
  * password literal stays behind that guard and is read only by the seed runner.
  */
 import BetterSqlite3 from 'better-sqlite3';

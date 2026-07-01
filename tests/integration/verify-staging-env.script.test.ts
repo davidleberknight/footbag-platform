@@ -293,11 +293,11 @@ describe('verify-staging-env.sh — dev-shortcut posture per target', () => {
     );
   });
 
-  it('staging with no seed/allowlist vars → WARN advisory, exit 0', () => {
+  it('staging with no allowlist var → WARN advisory, exit 0', () => {
     const result = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(
-      /WARN +staging-allowed shortcut: FOOTBAG_DEV_ADMIN_SEED_JSON is unset/,
+      /WARN +staging-allowed shortcut: FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is unset/,
     );
   });
 });

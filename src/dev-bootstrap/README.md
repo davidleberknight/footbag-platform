@@ -1,69 +1,51 @@
 # src/dev-bootstrap/
 
-Self-contained subtree for the **temporary** dev/staging-only admin bootstrap
-stand-ins: code that exists only because a production feature is not built yet.
-The whole subtree is removed in one operation at production cutover, when its
-production replacement (the SSM-token `/admin/bootstrap-claim` first-admin flow,
-the always-enforced admin↔Tier 2 invariant) lands.
+Permanent development- and staging-only admin bootstrap: the registration-time
+email-allowlist path. It is environment-isolated and excluded from the
+production runtime image, exactly like the persona harness in `src/testkit/`;
+it is never source-deleted.
 
-**Not here:** the persona / test-data harness is **permanent test infrastructure**
-and lives in `src/testkit/` (row builders, persona factory, canonical catalog,
-seed runner, `/dev/switch` + `/dev/personas` routes, `personaSecrets`). It is
-env-gated to development and staging and excluded from the production image at
-build time, but it is **never source-deleted** and is not part of this cutover
-procedure. `src/testkit/` must never import from `src/dev-bootstrap/`.
+The production first-admin mechanism is separate and permanent: the single-shot
+SSM-token claim at `/admin/bootstrap-claim`, owned by `adminBootstrapService`.
+Dev/staging and production share no env vars and no code paths beyond the shared
+tier-grant primitive.
+
+## What it does
+
+A member who registers in development or staging with a normalized login email on
+the operator allowlist is granted `is_admin=1` plus a Tier 2 ledger row plus an
+audit row (`admin.dev_register_allowlist_grant`) in one transaction, then
+completes the normal email-verification step before logging in. This is the
+register-through-the-real-flow path: no direct row insert, and the new admin
+verifies their email (the SES stub captures the link; read it at `/dev/outbox`)
+before the account can log in.
+
+Allowlist source:
+- Local dev: the gitignored `.local/initial-admins.txt` file (one email per line;
+  `#` starts a comment), read from the process working directory.
+- Staging: the `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` env var, which the deploy
+  pipeline parses from the same workstation file and writes to `/srv/footbag/env`.
 
 ## Files
 
-- `seedConfig.ts`. Module-load guard plus shared constants for the dev-admin seed (env-var name, file paths, marker literals, password literal). Throws on import outside FOOTBAG_ENV in {development, staging}.
-- `seed.ts`. Operator-runnable dev-admin seed script. Reads JSON entries from the staging env-var or the dev JSONC file, inserts admin members directly. Idempotent. Exit 0 on success or already-marked rows, exit 1 on missing input / malformed JSON / missing DB, exit 2 on conflict (a real member exists at the seeded email).
-- `runtime.ts`. The registration-time and request-time bootstrap conveniences (register-allowlist bootstrap, tier2 invariant repair), plus the boot banner.
+- `runtime.ts`. `getInitialAdminEmails` (reads the allowlist) and
+  `applyDevStagingBootstrapAdmin` (called from `registerMember` after the member
+  row is inserted; grants admin + Tier 2 + audit when the email matches).
 
-## Bootstrap conveniences (removable at cutover)
+## Production exclusion (three independent layers)
 
-| Mechanism | Trigger | Marker (reason_code) | Marker (action_type) |
-|---|---|---|---|
-| dev-admin seed (direct-insert) | flag: `--seed-dev-admins`; file: `.local/dev-admin-seed.json` or env: `FOOTBAG_DEV_ADMIN_SEED_JSON` | `dev_admin_seed.admin_tier2` | `admin.dev_seed_grant` |
-| register-allowlist bootstrap | env: `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS`; file: `.local/initial-admins.txt` | `dev_admin_register_allowlist.admin_tier2` | `admin.dev_register_allowlist_grant` |
-| tier2 invariant repair | env: `FOOTBAG_DEV_ADMIN_GRANT_TIER2` | `dev_admin_invariant_repair` | `admin.dev_invariant_repair` |
+1. `src/config/env.ts` boot fail-fast: refuses to start a production process when
+   `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` is set.
+2. Deploy pipeline: refuses to write `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` to a
+   production host.
+3. Production image: the Docker build strips `dist/dev-bootstrap` and recreates a
+   no-op stub, so `applyDevStagingBootstrapAdmin` and `getInitialAdminEmails` are
+   inert in production. Because `identityAccessService` statically imports the
+   module, the stub is recreated rather than removed so every runtime image boots.
 
-All persisted rows from these mechanisms carry `created_by` values under the
-historical `dev-shortcuts/*` namespace (kept stable so the cutover audit and
-existing tests keep matching). The permanent persona harness in `src/testkit/`
-uses the parallel `dev_persona_seed.tier_grant` reason_code and `testkit.persona_*` action_type markers and
-`created_by 'dev-shortcuts/personas'`; the audit below covers both so any prod DB
-shows zero residue.
+## Audit
 
-## Cutover removal procedure
-
-When production launch is imminent and the SSM-token `/admin/bootstrap-claim` path is ready:
-
-1. `bash scripts/audit-dev-shortcuts.sh` against the production DB. All prefix counts must return zero.
-2. `grep -rn "CUTOVER-REMOVE" src/` to find every callsite. Delete each line plus any block it gates.
-3. `git rm -r src/dev-bootstrap/`. (Do NOT touch `src/testkit/`; the persona harness is permanent.)
-4. `git rm scripts/manage-dev-admin-seed.sh scripts/audit-dev-shortcuts.sh`.
-5. Strip the `--seed-dev-admins` branch from `run_dev.sh` and `deploy_to_aws.sh` plus the deploy-chain scripts.
-6. Strip the `FOOTBAG_DEV_*` boot-fail-fast guards from `src/config/env.ts` (grant-tier2, initial-admin-emails).
-7. Update the Dockerfile dist-rm rules to drop `dist/dev-bootstrap` (keep the `dist/testkit` strip; the harness stays prod-excluded by build).
-8. Delete the dev-admin-seed and register-allowlist regression tests (keep the persona-harness tests).
-9. `npm test && npm run build` should pass with zero references to anything dev-bootstrap-related.
-
-## Audit (any environment)
-
-```sh
-sqlite3 database/footbag.db "
-  SELECT 'reason_code', COUNT(*) FROM member_tier_grants WHERE reason_code LIKE 'dev_admin_%'
-  UNION ALL
-  SELECT 'action_type', COUNT(*) FROM audit_entries     WHERE action_type LIKE 'admin.dev_%_grant'
-  UNION ALL
-  SELECT 'invariant_repair', COUNT(*) FROM audit_entries WHERE action_type = 'admin.dev_invariant_repair'
-  UNION ALL
-  SELECT 'created_by', COUNT(*) FROM member_tier_grants WHERE created_by LIKE 'dev-shortcuts/%'
-  UNION ALL
-  SELECT 'persona_reason', COUNT(*) FROM member_tier_grants WHERE reason_code = 'dev_persona_seed.tier_grant'
-  UNION ALL
-  SELECT 'persona_action', COUNT(*) FROM audit_entries WHERE action_type IN ('testkit.persona_seed','testkit.persona_switch');
-"
-```
-
-All counts must be zero on the production DB before cutover deploy.
+Rows from this mechanism carry reason_code
+`dev_admin_register_allowlist.admin_tier2` and action_type
+`admin.dev_register_allowlist_grant`. `scripts/audit-dev-shortcuts.sh` confirms
+zero such rows (and zero persona-harness rows) in a production database.

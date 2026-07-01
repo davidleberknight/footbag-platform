@@ -38,13 +38,19 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
-# CUTOVER-REMOVE: dev-admin shortcuts inclusion.
-# Current: subtree kept out of the runtime image unless the build explicitly
-#   opts in (staging only).
-# Target: remove this ARG and the subtree entirely after production cutover.
+# Production excludes the dev/staging-only subtrees. The dev-bootstrap
+# register-allowlist and the testkit persona harness are permanent development
+# and staging infrastructure, never present in production: the build strips
+# dist/testkit, dist/dev-bootstrap, and dist/internal-qc when
+# INCLUDE_DEV_SHORTCUTS != 1. imageWorker does not import the service chain that
+# pulls in dev-bootstrap/runtime, but the module is stubbed rather than
+# bare-removed so this image matches web/worker and cannot regress into a
+# dangling-require boot crash if a future import reaches it.
 ARG INCLUDE_DEV_SHORTCUTS=0
 RUN if [ "$INCLUDE_DEV_SHORTCUTS" != "1" ]; then \
-      rm -rf dist/testkit dist/dev-bootstrap; \
+      rm -rf dist/testkit dist/dev-bootstrap dist/internal-qc && \
+      mkdir -p dist/dev-bootstrap && \
+      printf 'module.exports = { applyDevStagingBootstrapAdmin: function () { return { applied: false }; }, getInitialAdminEmails: function () { return new Set(); } };\n' > dist/dev-bootstrap/runtime.js; \
     fi
 
 ENV NODE_ENV=production

@@ -5,12 +5,6 @@ import { config } from './config/env';
 import { logger } from './config/logger';
 import { createApp } from './app';
 import { checkpointAndCloseDatabase } from './db/db';
-// CUTOVER-REMOVE: dev/staging boot-time admin shortcuts.
-// Current: initDevShortcuts() prints the dev/staging boot banner and runs
-//   the Tier 2 invariant repair on every startup.
-// Target: remove this import and the initDevShortcuts() call below before
-//   production cutover.
-import { initDevShortcuts } from './dev-bootstrap/runtime';
 
 const app = createApp();
 
@@ -64,7 +58,6 @@ const server = app.listen(config.port, () => {
     env: config.nodeEnv,
     db: config.dbPath,
   });
-  initDevShortcuts(); // see deviation comment on the import above
   // Fire-and-forget; never blocks server start.
   void probeImageWorkerForDev();
 });

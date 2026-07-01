@@ -41,13 +41,11 @@ services:
           memory: ${NGINX_MEMORY_LIMIT:-64M}
 
   web:
-    # CUTOVER-REMOVE: production must NOT bake the dev-shortcuts.
-    # Current: prod overlay forces INCLUDE_DEV_SHORTCUTS=0; the base
-    #   compose default is 1 (so dev/staging images bundle the dev-admin
-    #   seed script). deploy-rebuild.sh also exports
-    #   INCLUDE_DEV_SHORTCUTS=0 when FOOTBAG_ENV=production
-    #   (belt-and-suspenders).
-    # Target: remove this ARG and the override after production cutover.
+    # Production must NOT bake the dev/staging-only subtrees (the persona
+    # harness and the register-allowlist bootstrap). The prod overlay forces
+    # INCLUDE_DEV_SHORTCUTS=0; the base compose default is 1 so dev/staging
+    # images bundle them. deploy-rebuild.sh also exports INCLUDE_DEV_SHORTCUTS=0
+    # when FOOTBAG_ENV=production (belt-and-suspenders).
     build:
       args:
         INCLUDE_DEV_SHORTCUTS: 0
@@ -132,7 +130,7 @@ services:
           memory: ${WEB_MEMORY_LIMIT:-192M}
 
   worker:
-    # CUTOVER-REMOVE: production must NOT bake the dev-shortcuts
+    # Production must NOT bake the dev/staging-only subtrees
     # (same rationale as the web override above).
     build:
       args:
@@ -208,7 +206,7 @@ services:
   #   - in-flight web requests see ECONNRESET, mapped to ImageProcessingError
   #     and a 5xx user-facing response by the HTTP adapter
   image:
-    # CUTOVER-REMOVE: production must NOT bake the dev-shortcuts
+    # Production must NOT bake the dev/staging-only subtrees
     # (same rationale as the web/worker overrides above).
     build:
       args:

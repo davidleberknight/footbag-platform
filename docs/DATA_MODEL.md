@@ -422,7 +422,7 @@ Emitted values, grouped by namespace:
 - **`support.*`**: `contact_request_submitted`, `contact_request_resolved`, `contact_request_resolve_notification_failed`.
 - **`roster.*`**: `list`, `summary`, `export`.
 - **`member.*`**: `profile_updated`, `search`, `search_rate_limited`, `pii_purged`, `deceased_pii_scrubbed`, `pii_erasure_failed`.
-- **`admin.*`**: `role_granted`, `role_revoked` (steady-state admin-role grant and revoke via A_Manage_Admin_Role), `bootstrap_grant` (production single-shot SSM-token first-admin), `dev_register_allowlist_grant`, `dev_seed_grant`, `dev_invariant_repair` (dev/staging admin provisioning and Tier 2 invariant repair).
+- **`admin.*`**: `role_granted`, `role_revoked` (steady-state admin-role grant and revoke via A_Manage_Admin_Role), `bootstrap_grant` (production single-shot SSM-token first-admin), `dev_register_allowlist_grant` (dev/staging register-allowlist admin bootstrap).
 - **`admin.club_cleanup.*`**: parameterized by the cleanup action taken.
 - **`media.*`**: `member_uploaded`, `curated_uploaded`, `member_edited`, `curated_edited`, `member_deleted`, `curated_deleted`, `curated_url_reference_added`, `curated_url_reference_edited`, `curated_url_reference_deleted`, `member_gallery_created`, `curated_gallery_created`, `member_gallery_updated`, `curated_gallery_updated`, `member_gallery_deleted`, `curated_gallery_deleted`.
 - **`testkit.*`**: `persona_seed`, `persona_switch`, `persona_login`, `persona_refresh` (dev/staging persona-harness audit markers).

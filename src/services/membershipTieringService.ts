@@ -350,49 +350,23 @@ export function applyPurchaseGrantInTx(
 }
 
 /**
- * Bring an admin member up to Tier 2. The platform admin role requires Tier 2+
- * as a prerequisite; this method enforces the invariant on the data side.
- * Writes a standard 'grant' row plus a system-actor audit entry, both serving
- * as greppable markers. Skips silently when the member is already at Tier 2 or
- * higher.
+ * Bring an admin member up to Tier 2, assuming the caller has already opened a
+ * transaction. The platform admin role requires Tier 2+ as a prerequisite; this
+ * enforces the invariant on the data side. Writes a standard 'grant' row plus a
+ * system-actor audit entry (both greppable markers) and ensures the admin-alerts
+ * subscription. Skips the grant silently when the member already holds Tier 2 or
+ * higher. Use this when the grant must be atomic with other writes: the bootstrap
+ * paths combine `is_admin=1` + audit + tier grant + tier audit in one
+ * transaction, and the caller owns the transaction() wrapper.
  *
- * No environment gate; callers gate on FOOTBAG_ENV (or other appropriate
- * triggers like SSM-token presence) where required:
- *   - dev/staging registration bootstrap (src/dev-bootstrap/runtime.ts),
- *     reason_code='dev_admin_register_allowlist.admin_tier2'.
- *     Current: active in dev/staging only; env-config guard blocks in
- *       production.
- *     Target: remove the caller and this bullet at production go-live.
- *   - dev-only backfill repair pass (src/dev-bootstrap/runtime.ts),
- *     reason_code='dev_admin_invariant_repair'.
- *     Current: active in dev/staging only.
- *     Target: remove the caller and this bullet at production go-live.
- *   - production single-shot bootstrap, reason_code='prod.admin_bootstrap_tier2'
- *     (the permanent post-cutover caller).
- *
- * The audit action_type is derived from reason_code. Each
- * dev-shortcut caller keeps its distinctive action_type so a single
- * audit search by action_type catches the full bootstrap event
- * (admin-flag + tier grant rows, both written in the same transaction by
- * the caller). The production-bootstrap reason_code falls through to the
- * canonical `admin.bootstrap_grant` action_type.
- */
-export function applyAdminTier2InvariantGrant(
-  memberId: string,
-  reasonCode: string,
-  auditMetadata: Record<string, unknown>,
-): { applied: boolean } {
-  return transaction(() =>
-    applyAdminTier2InvariantGrantInTx(memberId, reasonCode, auditMetadata),
-  );
-}
-
-/**
- * Same as `applyAdminTier2InvariantGrant` but assumes the caller has already
- * opened a transaction. Use this when the admin grant must be atomic with
- * another set of writes (e.g. the dev/staging bootstrap that combines
- * `is_admin=1` + audit + tier grant + tier audit in one transaction). The
- * caller is responsible for the transaction() wrapper.
+ * No environment gate; callers gate where required:
+ *   - the dev/staging registration-allowlist bootstrap
+ *     (src/dev-bootstrap/runtime.ts), reason_code
+ *     'dev_admin_register_allowlist.admin_tier2', which keeps a distinctive
+ *     action_type so an audit search partitions the dev/staging bootstrap events;
+ *   - the production single-shot SSM-token bootstrap, reason_code
+ *     'prod.admin_bootstrap_tier2', which falls through to the canonical
+ *     admin.bootstrap_grant action_type.
  */
 export function applyAdminTier2InvariantGrantInTx(
   memberId: string,
@@ -400,10 +374,10 @@ export function applyAdminTier2InvariantGrantInTx(
   auditMetadata: Record<string, unknown>,
 ): { applied: boolean } {
   const now = new Date().toISOString();
-  // Provisioning or repairing an admin subscribes them to admin-alerts, so the
-  // work-queue fan-out reaches every admin. Runs regardless of the tier-invariant
-  // branch below: an admin who already holds Tier 2/3 returns early from the tier
-  // grant but still needs the subscription ensured.
+  // Provisioning an admin subscribes them to admin-alerts, so the work-queue
+  // fan-out reaches every admin. Runs regardless of the tier-invariant branch
+  // below: an admin who already holds Tier 2/3 returns early from the tier grant
+  // but still needs the subscription ensured.
   subscribeAdminAlertsInTx(memberId, now, reasonCode);
 
   const current = getCurrent(memberId);
@@ -413,9 +387,7 @@ export function applyAdminTier2InvariantGrantInTx(
   if (current.tier_status === 'tier0') {
     endOnTierUpgrade(memberId, now);
   }
-  const reasonText = reasonCode === 'dev_admin_invariant_repair'
-    ? 'Dev-mode admin Tier 2 invariant repair (admin role requires Tier 2+).'
-    : 'Admin Tier 2 invariant grant (admin role requires Tier 2+).';
+  const reasonText = 'Admin Tier 2 invariant grant (admin role requires Tier 2+).';
   insertGrant({
     actorId: null,
     memberId,
@@ -429,20 +401,13 @@ export function applyAdminTier2InvariantGrantInTx(
     relatedPaymentId: null,
     now,
   });
-  // CUTOVER-REMOVE: dev-admin reason_code routing.
-  // Current: dev_admin_invariant_repair and dev_admin_register_allowlist.admin_tier2
-  //   route to distinctive action_types so the audit trail can be partitioned
-  //   and zero-checked before production deploy.
-  // Target: remove both branches at production go-live; only the production
-  //   bootstrap path (admin.bootstrap_grant action_type) remains.
+  // The dev/staging registration-allowlist bootstrap keeps a distinctive
+  // action_type so an audit search partitions it from the production bootstrap;
+  // every other reason_code (the production SSM-token bootstrap) falls through to
+  // the canonical admin.bootstrap_grant.
   let actionType: string;
   let category: 'admin' | 'tier_change';
-  if (reasonCode === 'dev_admin_invariant_repair') {
-    // The namespaced audit action_type and the tier-grant reason_code that
-    // selects it are separate vocabularies and intentionally differ in value.
-    actionType = 'admin.dev_invariant_repair';
-    category = 'tier_change';
-  } else if (reasonCode === 'dev_admin_register_allowlist.admin_tier2') {
+  if (reasonCode === 'dev_admin_register_allowlist.admin_tier2') {
     actionType = 'admin.dev_register_allowlist_grant';
     category = 'admin';
   } else {
