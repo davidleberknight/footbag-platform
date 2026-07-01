@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1456;
+export const TRACKED_UNPUBLISHED_TOTAL = 1455;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -64,9 +64,9 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Atomic Miraging Butterfly (Smash Walk)', slug: 'atomic_miraging_butterfly_smash_walk' },
     { displayName: 'Atomic Pickup (Scrambled Eggbeater)', slug: 'atomic_pickup_scrambled_eggbeater' },
     { displayName: 'Atomic Reverse Swirl', slug: 'atomic_reverse_swirl' },
-    { displayName: 'Atomic Swirl', slug: 'atomic_swirl' },
     { displayName: 'Atomic Symposium Mirage (Witch Doctor)', slug: 'atomic_symposium_mirage_witch_doctor' },
     { displayName: 'Atomic Torque (Silo)', slug: 'atomic_torque_silo' },
+    { displayName: 'Atomic Whirl (Reactor)', slug: 'atomic_whirl_reactor' },
     { displayName: 'Atomic Zulu Mirage', slug: 'atomic_zulu_mirage' },
     { displayName: 'Barfly Reverse Swirl', slug: 'barfly_reverse_swirl' },
     { displayName: 'Barraging Legover (Flurry)', slug: 'barraging_legover_flurry' },
@@ -662,7 +662,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Atomic os Symposium Double Over Down', slug: 'atomic_os_symposium_double_over_down' },
     { displayName: 'Atomic ss Osis', slug: 'atomic_ss_osis' },
     { displayName: 'Atomic Symposium Whirl', slug: 'atomic_symposium_whirl' },
-    { displayName: 'Atomic Whirl', slug: 'atomic_whirl' },
     { displayName: 'Atomotion', slug: 'atomotion', operationalNotation: 'Toe > Op Out (DEX) >> Op Out (DEX)(XDEX) > Same Out (DEX) > (back) Spin (BOD) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Barfry', slug: 'barfry', operationalNotation: 'Clip > Same Out (DEX) >> Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Barrage (toe set)', slug: 'barrage_toe_set', operationalNotation: 'Clip >> Op In (DEX) > Same In (DEX) >> Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
