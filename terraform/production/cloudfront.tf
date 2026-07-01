@@ -78,6 +78,7 @@ resource "aws_cloudfront_cache_policy" "static_assets" {
 # =============================================================================
 
 resource "aws_cloudfront_origin_access_control" "maintenance" {
+  count                             = var.enable_cloudfront ? 1 : 0
   name                              = "${local.prefix}-maintenance-oac"
   description                       = "OAC for maintenance bucket"
   origin_access_control_origin_type = "s3"
@@ -92,6 +93,7 @@ resource "aws_cloudfront_origin_access_control" "maintenance" {
 # =============================================================================
 
 resource "aws_cloudfront_origin_access_control" "media" {
+  count                             = var.enable_cloudfront ? 1 : 0
   name                              = "${local.prefix}-media-oac"
   description                       = "OAC for media bucket (URL-versioned cache-bust + immutable PUTs)"
   origin_access_control_origin_type = "s3"
@@ -109,6 +111,7 @@ resource "aws_cloudfront_origin_access_control" "media" {
 # =============================================================================
 
 resource "aws_cloudfront_function" "strip_media_store_prefix" {
+  count   = var.enable_cloudfront ? 1 : 0
   name    = "${local.prefix}-strip-media-store-prefix"
   runtime = "cloudfront-js-2.0"
   publish = true
@@ -131,6 +134,7 @@ resource "aws_cloudfront_function" "strip_media_store_prefix" {
 # =============================================================================
 
 resource "aws_cloudfront_distribution" "main" {
+  count               = var.enable_cloudfront ? 1 : 0
   enabled             = true
   is_ipv6_enabled     = true
   comment             = "${local.prefix} distribution"
@@ -164,7 +168,7 @@ resource "aws_cloudfront_distribution" "main" {
   origin {
     origin_id                = "s3-maintenance"
     domain_name              = aws_s3_bucket.maintenance.bucket_regional_domain_name
-    origin_access_control_id = aws_cloudfront_origin_access_control.maintenance.id
+    origin_access_control_id = aws_cloudfront_origin_access_control.maintenance[0].id
   }
 
   # ── Origin: media bucket via OAC ─────────────────────────────────────────
@@ -174,7 +178,7 @@ resource "aws_cloudfront_distribution" "main" {
   origin {
     origin_id                = "media-s3-origin"
     domain_name              = aws_s3_bucket.media.bucket_regional_domain_name
-    origin_access_control_id = aws_cloudfront_origin_access_control.media.id
+    origin_access_control_id = aws_cloudfront_origin_access_control.media[0].id
   }
 
   # ── Default cache behaviour ───────────────────────────────────────────────
@@ -269,7 +273,7 @@ resource "aws_cloudfront_distribution" "main" {
 
     function_association {
       event_type   = "viewer-request"
-      function_arn = aws_cloudfront_function.strip_media_store_prefix.arn
+      function_arn = aws_cloudfront_function.strip_media_store_prefix[0].arn
     }
   }
 
@@ -319,7 +323,7 @@ resource "aws_cloudfront_distribution" "main" {
 
   # ── TLS ──────────────────────────────────────────────────────────────────
   viewer_certificate {
-    acm_certificate_arn      = aws_acm_certificate_validation.main.certificate_arn
+    acm_certificate_arn      = aws_acm_certificate_validation.main[0].certificate_arn
     ssl_support_method       = "sni-only"
     minimum_protocol_version = "TLSv1.2_2021"
   }

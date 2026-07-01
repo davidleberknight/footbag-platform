@@ -10,9 +10,15 @@
 #   - DB volume path from env (not a hardcoded local path)
 #   - No host port binding for web — traffic flows through nginx only
 #   - Secrets and config injected from host environment / SSM at deploy time
-#   - Bounded container log rotation on every service (json-file driver,
-#     10 MB per file, 3 files retained) so stdout/stderr cannot fill the
-#     Lightsail host disk.
+#   - web, worker, and nginx ship stdout to CloudWatch Logs via the awslogs
+#     driver so the terraform metric-filter alarms (app errors, outbox backlog,
+#     the cutover login watch) can fire; web and worker share the app log group
+#     the filters read, each on its own stream. The image worker keeps bounded
+#     json-file rotation (no filter depends on it). Docker dual-logging retains
+#     a local cache so `docker compose logs` still works on the host. The awslogs
+#     driver resolves credentials from the Docker daemon, which the deploy remote
+#     half points at the footbag-<env>-logs AWS profile before `compose up`; if
+#     those credentials are absent, container creation fails.
 # =============================================================================
 
 x-log-rotation: &log-rotation
@@ -25,7 +31,13 @@ services:
 
   nginx:
     restart: always
-    logging: *log-rotation
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_REGION}
+        awslogs-group: /footbag/${FOOTBAG_ENV}/nginx
+        awslogs-create-group: "false"
+        awslogs-stream: nginx
     environment:
       X_ORIGIN_VERIFY_SECRET: ${X_ORIGIN_VERIFY_SECRET:?must be set in /srv/footbag/env}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?must be set in /srv/footbag/env}
@@ -50,7 +62,13 @@ services:
       args:
         INCLUDE_DEV_SHORTCUTS: 0
     restart: always
-    logging: *log-rotation
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_REGION}
+        awslogs-group: /footbag/${FOOTBAG_ENV}/app
+        awslogs-create-group: "false"
+        awslogs-stream: web
     volumes:
       # Directory bind mount so SQLite WAL/SHM sidecars live on the host and
       # are shared between web and worker containers. A file bind mount would
@@ -140,7 +158,13 @@ services:
     # src/worker.ts handles graceful shutdown on `docker compose down` and
     # systemd stop.
     restart: unless-stopped
-    logging: *log-rotation
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_REGION}
+        awslogs-group: /footbag/${FOOTBAG_ENV}/app
+        awslogs-create-group: "false"
+        awslogs-stream: worker
     volumes:
       # Directory bind mount — must match web so WAL/SHM sidecars are shared.
       - ${FOOTBAG_DB_DIR:-/srv/footbag/db}:/app/db:rw

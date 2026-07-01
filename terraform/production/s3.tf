@@ -85,6 +85,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "media" {
 # Put/Delete/Head only; CloudFront-OAC is the sole read path for clients.
 
 data "aws_iam_policy_document" "media_cloudfront_oac" {
+  count = var.enable_cloudfront ? 1 : 0
   statement {
     sid       = "AllowCloudFrontServicePrincipalRead"
     effect    = "Allow"
@@ -99,14 +100,15 @@ data "aws_iam_policy_document" "media_cloudfront_oac" {
     condition {
       test     = "StringEquals"
       variable = "AWS:SourceArn"
-      values   = [aws_cloudfront_distribution.main.arn]
+      values   = [aws_cloudfront_distribution.main[0].arn]
     }
   }
 }
 
 resource "aws_s3_bucket_policy" "media" {
+  count  = var.enable_cloudfront ? 1 : 0
   bucket = aws_s3_bucket.media.id
-  policy = data.aws_iam_policy_document.media_cloudfront_oac.json
+  policy = data.aws_iam_policy_document.media_cloudfront_oac[0].json
 }
 
 # ── Media DR (cross-region replication target, us-west-2) ────────────────────
@@ -358,6 +360,7 @@ resource "aws_s3_bucket_public_access_block" "maintenance" {
 # read through any other CloudFront distribution.
 
 data "aws_iam_policy_document" "maintenance_cloudfront_oac" {
+  count = var.enable_cloudfront ? 1 : 0
   statement {
     sid       = "AllowCloudFrontServicePrincipalRead"
     effect    = "Allow"
@@ -372,12 +375,13 @@ data "aws_iam_policy_document" "maintenance_cloudfront_oac" {
     condition {
       test     = "StringEquals"
       variable = "AWS:SourceArn"
-      values   = [aws_cloudfront_distribution.main.arn]
+      values   = [aws_cloudfront_distribution.main[0].arn]
     }
   }
 }
 
 resource "aws_s3_bucket_policy" "maintenance" {
+  count  = var.enable_cloudfront ? 1 : 0
   bucket = aws_s3_bucket.maintenance.id
-  policy = data.aws_iam_policy_document.maintenance_cloudfront_oac.json
+  policy = data.aws_iam_policy_document.maintenance_cloudfront_oac[0].json
 }

@@ -680,6 +680,9 @@ Test every candidate line: what breaks at go-live if this is skipped, and what a
 | PC8 | First-admin bootstrap rehearsal on staging: provision via `scripts/admin-bootstrap-token.sh`, claim at `/admin/bootstrap-claim` with a non-admin account, confirm the token self-deletes | DEVOPS_GUIDE §20.8 | State 3 → State 4 |
 | PC9 | TRUST_PROXY hop count verified against the live chain (CloudFront → nginx = 2 in both staging and production under the clean cutover; no legacy front-door hop): env value matches, and `req.ip` resolves to the real client under a spoofed `X-Forwarded-For` probe | DEVOPS_GUIDE §10 | State 3 → State 4 |
 | PC10 | Built production image verified to stub `dist/dev-bootstrap/` and `dist/testkit/`: the runtime has no env gate at the import sites, so the build-time strip is the production guard for the dev-admin code | docker/*/Dockerfile | State 3 → State 4 |
+| PC11 | Cloudflare Turnstile captcha live on production (`CAPTCHA_ADAPTER=live`, the Turnstile site key in the host env and the secret in Parameter Store), gating login, register, password-reset, verify-email-resend, and claim per the abuse-prevention design; the production process refuses to boot without the key | DD §8.3 | State 3 → State 4 |
+| PC12 | External-URL reachability live on production (`HTTP_REACHABILITY_ADAPTER=live`), the dead-link HEAD probe applied at form-submit time; production has no default and refuses to boot until this adapter is set explicitly | DD §3.17 | State 3 → State 4 |
+| PC13 | Safe Browsing URL screening live on production (`SAFE_BROWSING_ADAPTER=live`, its API key in Parameter Store); production has no default and refuses to boot until this adapter is set explicitly | DD §3.17 | State 3 → State 4 |
 
 ### Retirement gate
 
@@ -1033,7 +1036,7 @@ Procedure: `docs/DEVOPS_GUIDE.md` (snapshot creation + restore runbook).
 
 ### 29.2 Observability and monitoring readiness
 
-Gate: CloudWatch agent installed on the runtime host; `enable_cwagent_alarms = true` applied and CPU / memory / disk alarms reachable via SNS with operator subscription confirmed; CloudFront 5xx alarm active; minimal operator dashboard documented. Procedure: `docs/DEV_ONBOARDING.md` §7.6 (install + enablement); `docs/DEVOPS_GUIDE.md` §12 (operating rules).
+Gate: CloudWatch agent installed on the runtime host; `enable_cwagent_alarms = true` applied and CPU / memory / disk alarms reachable via SNS with operator subscription confirmed; CloudFront 5xx alarm active; container-log shipping to CloudWatch verified — `terraform apply` has created the `logs_publisher` role and the `/footbag/<env>/{app,nginx}` log groups that the `awslogs` driver requires pre-created, the host's `footbag-<env>-logs` profile assumes that role, and a deliberate error line and `outbox.depth` line raise the `app_errors` and `outbox_backlog` alarms; the origin-response-latency and login-success alarm thresholds read off the staging baseline and set; minimal operator dashboard documented. Procedure: `docs/DEV_ONBOARDING.md` §7.6 (install + enablement) and §8.10 (the `footbag-<env>-logs` container-log profile); `docs/DEVOPS_GUIDE.md` §12 (operating rules).
 
 ### 29.3 Edge and origin security
 

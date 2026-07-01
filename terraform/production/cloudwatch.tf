@@ -14,11 +14,6 @@ resource "aws_cloudwatch_log_group" "nginx" {
   retention_in_days = 30
 }
 
-resource "aws_cloudwatch_log_group" "worker" {
-  name              = "/footbag/${var.environment}/worker"
-  retention_in_days = 90
-}
-
 # ── Application error alarm ──────────────────────────────────────────────────
 # logger.error() in src/config/logger.ts emits a JSON line with level="error".
 # The metric filter increments AppErrorCount once per matching line; the alarm
@@ -164,6 +159,7 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_failures" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
+  count               = var.enable_cloudfront ? 1 : 0
   alarm_name          = "${local.prefix}-cloudfront-5xx"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
@@ -176,7 +172,7 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
   alarm_actions       = [aws_sns_topic.alarms.arn]
 
   dimensions = {
-    DistributionId = aws_cloudfront_distribution.main.id
+    DistributionId = aws_cloudfront_distribution.main[0].id
     Region         = "Global"
   }
 }
@@ -200,8 +196,8 @@ resource "aws_cloudwatch_dashboard" "main" {
           title  = "CloudFront Error Rates"
           region = "us-east-1"
           metrics = [
-            ["AWS/CloudFront", "4xxErrorRate", "DistributionId", aws_cloudfront_distribution.main.id, "Region", "Global"],
-            ["AWS/CloudFront", "5xxErrorRate", "DistributionId", aws_cloudfront_distribution.main.id, "Region", "Global"]
+            ["AWS/CloudFront", "4xxErrorRate", "DistributionId", var.enable_cloudfront ? aws_cloudfront_distribution.main[0].id : "CLOUDFRONT-NOT-YET-ENABLED", "Region", "Global"],
+            ["AWS/CloudFront", "5xxErrorRate", "DistributionId", var.enable_cloudfront ? aws_cloudfront_distribution.main[0].id : "CLOUDFRONT-NOT-YET-ENABLED", "Region", "Global"]
           ]
           period = 60
           view   = "timeSeries"
@@ -337,7 +333,8 @@ resource "aws_cloudwatch_metric_alarm" "ses_complaint_rate" {
 # OriginLatency requires the per-distribution additional-metrics subscription.
 
 resource "aws_cloudfront_monitoring_subscription" "main" {
-  distribution_id = aws_cloudfront_distribution.main.id
+  count           = var.enable_cloudfront ? 1 : 0
+  distribution_id = aws_cloudfront_distribution.main[0].id
   monitoring_subscription {
     realtime_metrics_subscription_config {
       realtime_metrics_subscription_status = "Enabled"
@@ -346,6 +343,7 @@ resource "aws_cloudfront_monitoring_subscription" "main" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "origin_latency" {
+  count               = var.enable_cloudfront ? 1 : 0
   alarm_name          = "${local.prefix}-origin-latency"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
@@ -360,7 +358,7 @@ resource "aws_cloudwatch_metric_alarm" "origin_latency" {
   ok_actions          = [aws_sns_topic.alarms.arn]
 
   dimensions = {
-    DistributionId = aws_cloudfront_distribution.main.id
+    DistributionId = aws_cloudfront_distribution.main[0].id
     Region         = "Global"
   }
 }
@@ -412,6 +410,7 @@ resource "aws_cloudwatch_metric_alarm" "cutover_zero_logins" {
 # silently failing (e.g. a validation CNAME removed from the webmaster zone).
 
 resource "aws_cloudwatch_metric_alarm" "acm_cert_expiry" {
+  count               = var.enable_cloudfront ? 1 : 0
   provider            = aws.us_east_1
   alarm_name          = "${local.prefix}-acm-cert-expiry"
   comparison_operator = "LessThanThreshold"
@@ -423,11 +422,11 @@ resource "aws_cloudwatch_metric_alarm" "acm_cert_expiry" {
   threshold           = 30
   treat_missing_data  = "notBreaching"
   alarm_description   = "footbag.org certificate expires in under 30 days (ACM auto-renewal is failing)"
-  alarm_actions       = [aws_sns_topic.alarms_us_east_1.arn]
-  ok_actions          = [aws_sns_topic.alarms_us_east_1.arn]
+  alarm_actions       = [aws_sns_topic.alarms_us_east_1[0].arn]
+  ok_actions          = [aws_sns_topic.alarms_us_east_1[0].arn]
 
   dimensions = {
-    CertificateArn = aws_acm_certificate.main.arn
+    CertificateArn = aws_acm_certificate.main[0].arn
   }
 }
 
@@ -435,13 +434,15 @@ resource "aws_cloudwatch_metric_alarm" "acm_cert_expiry" {
 # alarm lives in us-east-1, so it gets a sibling topic with the same email
 # subscription.
 resource "aws_sns_topic" "alarms_us_east_1" {
+  count    = var.enable_cloudfront ? 1 : 0
   provider = aws.us_east_1
   name     = "${local.prefix}-alarms-use1"
 }
 
 resource "aws_sns_topic_subscription" "alarm_email_us_east_1" {
+  count     = var.enable_cloudfront ? 1 : 0
   provider  = aws.us_east_1
-  topic_arn = aws_sns_topic.alarms_us_east_1.arn
+  topic_arn = aws_sns_topic.alarms_us_east_1[0].arn
   protocol  = "email"
   endpoint  = var.alarm_email
 }

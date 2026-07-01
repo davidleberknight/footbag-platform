@@ -573,6 +573,39 @@ systemctl daemon-reload
 # No host-side image build: the workstation builds + ships images via
 # docker save | docker load before this remote-half runs.
 
+# Container log shipping (awslogs). The prod compose overlay routes nginx/web/
+# worker stdout into the CloudWatch groups the metric filters read; the awslogs
+# driver authenticates with the Docker daemon's own credential chain, so dockerd
+# is pointed at a least-privilege logs profile that assumes the Terraform-owned
+# logs-publisher role. Installed before the compose restart so container
+# (re)creation can attach the driver; a missing or broken profile fails loud
+# here rather than letting container creation crash-loop the stack. Neither the
+# profile name nor the region is a secret, so plain assignment is fine.
+LOGS_PROFILE="footbag-${FOOTBAG_ENV_VAL}-logs"
+if ! aws sts get-caller-identity --profile "$LOGS_PROFILE" >/dev/null 2>&1; then
+  echo "    ERROR: AWS profile '$LOGS_PROFILE' cannot assume the logs-publisher role." >&2
+  echo "           Fix before deploying: run terraform apply for this environment (it creates the" >&2
+  echo "           footbag-${FOOTBAG_ENV_VAL}-logs-publisher role and the CloudWatch log groups), then add a" >&2
+  echo "           [profile $LOGS_PROFILE] stanza to /root/.aws/config whose role_arn is that role and" >&2
+  echo "           whose source_profile is footbag-${FOOTBAG_ENV_VAL}-source-profile." >&2
+  exit 1
+fi
+install -d -m 0755 -o root -g root /etc/systemd/system/docker.service.d
+awslogs_dropin_tmp=$(mktemp)
+cat > "$awslogs_dropin_tmp" <<DROPIN
+[Service]
+Environment=AWS_SDK_LOAD_CONFIG=1
+Environment=AWS_REGION=${AWS_REGION_VAL}
+Environment=AWS_PROFILE=${LOGS_PROFILE}
+DROPIN
+if ! cmp -s "$awslogs_dropin_tmp" /etc/systemd/system/docker.service.d/awslogs.conf 2>/dev/null; then
+  install -m 0644 -o root -g root "$awslogs_dropin_tmp" /etc/systemd/system/docker.service.d/awslogs.conf
+  systemctl daemon-reload
+  systemctl restart docker
+  echo "    Installed dockerd awslogs drop-in; restarted docker."
+fi
+rm -f "$awslogs_dropin_tmp"
+
 echo "    Restarting service (compose up via systemctl, --no-build)..."
 if ! systemctl restart footbag; then
   echo "    ERROR: footbag.service failed to restart. Dumping diagnostics..." >&2

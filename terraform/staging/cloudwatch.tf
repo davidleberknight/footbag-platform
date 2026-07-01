@@ -14,11 +14,6 @@ resource "aws_cloudwatch_log_group" "nginx" {
   retention_in_days = 14
 }
 
-resource "aws_cloudwatch_log_group" "worker" {
-  name              = "/footbag/${var.environment}/worker"
-  retention_in_days = 30
-}
-
 # ── Application error alarm ──────────────────────────────────────────────────
 # logger.error() in src/config/logger.ts emits a JSON line with level="error".
 # The metric filter increments AppErrorCount once per matching line; the alarm

@@ -730,7 +730,7 @@ Lightsail does not support EC2 instance profiles. The runtime AWS principal is a
 | S3 DR bucket | write only for the sync path or restore validation path if required | avoid broad delete rights |
 | SES | send only from verified domain identities used by the app | no broad SES administration |
 | Parameter Store | read-only under `/footbag/{env}/...` | runtime reads only |
-| CloudWatch Logs / Metrics | write metrics and logs for the application | no broad CloudWatch account administration from runtime |
+| CloudWatch | none on the runtime role | container logs reach CloudWatch through the Docker daemon's separate least-privilege log-publisher role, and host and infrastructure metrics through the CloudWatch agent's own credentials; the application makes no direct CloudWatch calls |
 | KMS JWT key | `Sign` and `GetPublicKey` only as needed by auth runtime | private key remains non-exportable |
 | KMS ballot key | runtime assumed role may request data keys for ballot encryption; decrypt is reserved to tally role | keep decrypt out of the normal runtime assumed role |
 
@@ -1507,7 +1507,8 @@ Required rules:
 - log enough metadata to diagnose without exposing unnecessary personal data
 - use CloudWatch Insights as the default search/query surface
 - every log surface has bounded growth via rotation, age cap, or external retention; unbounded local logs are not allowed
-- new on-host log producers ship a `/etc/logrotate.d/<name>` config (installed by the producer's bootstrap script in `scripts/`); new CloudWatch log groups set `retention_in_days` in Terraform; container logs use Docker's `json-file` driver size/file caps in `docker/docker-compose.prod.yml`
+- new on-host log producers ship a `/etc/logrotate.d/<name>` config (installed by the producer's bootstrap script in `scripts/`); new CloudWatch log groups set `retention_in_days` in Terraform; production application containers (nginx, web, worker) ship stdout to CloudWatch through the Docker `awslogs` driver, while the image-processing worker uses Docker's `json-file` driver size/file caps in `docker/docker-compose.prod.yml`
+- the `awslogs` driver authenticates through the Docker daemon's own least-privilege log-publisher role, assumed via a dedicated host profile that is separate from the application runtime role, so the daemon never holds the application's Parameter Store, S3, KMS, or SES permissions; the log groups are created by Terraform, which the driver requires because it does not create them itself
 
 ### 12.3 Alarm model
 

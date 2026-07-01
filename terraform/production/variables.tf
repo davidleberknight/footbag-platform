@@ -28,16 +28,17 @@ variable "domain_name" {
 }
 
 variable "route53_zone_id" {
-  description = "Route 53 hosted zone ID for domain_name"
+  description = "Route 53 hosted zone ID for domain_name. Required only when enable_cloudfront is true."
   type        = string
-  # TODO: Import or create the hosted zone, then fill in
+  default     = ""
 
-  # The production ACM certificate (acm.tf) validates via a Route53 DNS record
-  # with no count gate, so an empty or wrong zone id makes the first apply hang
-  # ~15 minutes on certificate validation before failing. Fail fast instead.
+  # When enable_cloudfront is true the ACM certificate (acm.tf) validates via a
+  # Route53 DNS record, so an empty or wrong zone id makes that apply hang ~15
+  # minutes on certificate validation before failing. Fail fast instead. In the
+  # first pass (enable_cloudfront = false) no zone is created or needed.
   validation {
-    condition     = var.route53_zone_id != ""
-    error_message = "route53_zone_id is required: a delegated Route 53 hosted zone must exist before the first production apply, or ACM certificate validation hangs."
+    condition     = !var.enable_cloudfront || var.route53_zone_id != ""
+    error_message = "route53_zone_id is required when enable_cloudfront is true: a delegated Route 53 hosted zone must exist before the CloudFront apply, or ACM certificate validation hangs."
   }
 }
 
@@ -82,22 +83,38 @@ variable "operator_cidrs" {
 }
 
 variable "lightsail_origin_dns" {
-  description = "Resolvable DNS hostname used as the CloudFront custom origin. Production must use a real A record (e.g. origin.footbag.org); CloudFront does not accept raw IPs."
+  description = "Resolvable DNS hostname used as the CloudFront custom origin. Required only when enable_cloudfront is true. Production must use a real A record (e.g. origin.footbag.org); CloudFront does not accept raw IPs."
   type        = string
+  default     = ""
 
   validation {
-    condition     = var.lightsail_origin_dns != "" && !startswith(var.lightsail_origin_dns, "TODO")
-    error_message = "lightsail_origin_dns must be a real resolvable hostname for the CloudFront custom origin; the terraform.tfvars.example placeholder (TODO-...) is rejected."
+    condition     = !var.enable_cloudfront || (var.lightsail_origin_dns != "" && !startswith(var.lightsail_origin_dns, "TODO"))
+    error_message = "lightsail_origin_dns must be a real resolvable hostname for the CloudFront custom origin when enable_cloudfront is true; the terraform.tfvars.example placeholder (TODO-...) is rejected."
   }
 }
 
 # ── Phased-apply feature gates ───────────────────────────────────────────────
 # Production mirrors the staging gates so apply can land in phases:
-#   pass 1: infra-only, alarms/dashboard/backup-alarm off
-#   pass 2: enable CW agent alarms once the agent is installed and emitting
-#   pass 3: enable backup alarm once the snapshot job emits BackupAgeMinutes
+#   pass 1: infra-only, CloudFront/ACM/DNS and alarms/dashboard/backup-alarm off
+#   pass 2: enable CloudFront once the zone is delegated and an origin A record exists
+#   pass 3: enable CW agent alarms once the agent is installed and emitting
+#   pass 4: enable backup alarm once the snapshot job emits BackupAgeMinutes
 # Without these gates, alarms fire INSUFFICIENT_DATA or breaching from the
 # first apply and train operators to ignore monitoring.
+
+variable "enable_cloudfront" {
+  description = <<-EOT
+    Controls whether the CloudFront distribution, its ACM certificate, the
+    Route53 apex/www alias records, and the CloudFront-dependent alarms are
+    created. Set to false for the first apply pass (Lightsail plus base infra
+    only, with no domain, delegated zone, or ACM dependency). After the
+    footbag.org zone is delegated to this account and a real origin A record
+    exists, set route53_zone_id and lightsail_origin_dns and set this to true
+    for the second apply pass.
+  EOT
+  type        = bool
+  default     = false
+}
 
 variable "enable_cwagent_alarms" {
   description = <<-EOT

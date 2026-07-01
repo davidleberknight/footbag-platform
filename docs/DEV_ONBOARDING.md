@@ -3418,7 +3418,7 @@ Four sub-steps. Access-key material lives in `/root/.aws/credentials` (root-owne
 
 **5a. Write root-owned AWS config/credentials on the staging host.**
 
-Replace every `<...>` placeholder in the heredocs below before pasting. `<ACCESS_KEY_ID_FROM_STEP_2>` and `<SECRET_ACCESS_KEY_FROM_STEP_2>` come from §8.7; `<RUNTIME_ROLE_ARN>` is the ARN of `footbag-staging-app-runtime` (IAM → Roles → copy ARN), also referenced in §8.9 step 4a. The single-quoted `<<'EOF'` deliberately disables shell expansion, so an unreplaced placeholder is written verbatim to the file and the chain will fail silently at `sts:AssumeRole`.
+Replace every `<...>` placeholder in the heredocs below before pasting. `<ACCESS_KEY_ID_FROM_STEP_2>` and `<SECRET_ACCESS_KEY_FROM_STEP_2>` come from §8.7; `<RUNTIME_ROLE_ARN>` is the ARN of `footbag-staging-app-runtime` (IAM → Roles → copy ARN), also referenced in §8.9 step 4a; `<LOGS_PUBLISHER_ROLE_ARN>` is the ARN of `footbag-staging-logs-publisher`, the least-privilege role the Docker daemon assumes to ship container logs to CloudWatch (both roles are created by `terraform apply`). The single-quoted `<<'EOF'` deliberately disables shell expansion, so an unreplaced placeholder is written verbatim to the file and the chain will fail silently at `sts:AssumeRole`.
 
 ```bash
 ssh footbag-staging
@@ -3439,9 +3439,16 @@ sudo tee /root/.aws/config > /dev/null <<'EOF'
 role_arn = <RUNTIME_ROLE_ARN>
 source_profile = footbag-staging-source-profile
 region = us-east-1
+
+[profile footbag-staging-logs]
+role_arn = <LOGS_PUBLISHER_ROLE_ARN>
+source_profile = footbag-staging-source-profile
+region = us-east-1
 EOF
 sudo chmod 0600 /root/.aws/config
 ```
+
+The `footbag-staging-logs` profile is what the Docker daemon uses for the `awslogs` log driver: the deploy remote-half writes a dockerd drop-in that points at this profile and refuses to deploy if the profile cannot assume the logs-publisher role, so it must exist (and `terraform apply` must have created that role and the CloudWatch log groups) before the first deploy that carries container-log shipping.
 
 Verify the chain before going further:
 
@@ -3916,7 +3923,7 @@ Bounce and complaint rates determine SES sender reputation. Uncontrolled bounces
 
 Mirror Path H §8.10 against the production host.
 
-1. Write `/root/.aws/credentials` and `/root/.aws/config` on the production host with production source-profile credentials (from §9.8) and the production runtime-role ARN.
+1. Write `/root/.aws/credentials` and `/root/.aws/config` on the production host with production source-profile credentials (from §9.8), the production runtime-role ARN, and a `[profile footbag-production-logs]` stanza whose `role_arn` is the production logs-publisher role and whose `source_profile` is the production source-profile (the `awslogs` container-log driver assumes it). Both the runtime and logs-publisher roles, and the CloudWatch log groups the driver requires, come from `terraform apply` against `terraform/production/`; the logs profile must resolve before the first deploy or the deploy's container-log-shipping guard aborts.
 2. Update `/srv/footbag/env` on production with:
    - `JWT_SIGNER=kms`
    - `JWT_KMS_KEY_ID=alias/footbag-production-jwt`

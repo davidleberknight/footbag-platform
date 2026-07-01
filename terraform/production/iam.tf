@@ -167,8 +167,8 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
 # Long-lived keys live on the production Lightsail host at
 # /root/.aws/credentials (root-owned, 0600); the host SDK uses them as the
 # source profile of the AssumeRole chain into app_runtime. Console access
-# disabled. Permission is scoped to sts:AssumeRole on app_runtime via the
-# inline policy below.
+# disabled. Permission is scoped to sts:AssumeRole on app_runtime and the
+# logs-publisher role via the inline policy below.
 #
 # Do not delete-and-recreate this user as a rotation strategy. AWS resolves
 # the runtime role's trust principal to this user's internal unique ID at
@@ -189,10 +189,56 @@ resource "aws_iam_user_policy" "source_profile_assume_role" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Sid      = "AssumeRuntimeRole"
-      Effect   = "Allow"
-      Action   = "sts:AssumeRole"
-      Resource = aws_iam_role.app_runtime.arn
+      Sid    = "AssumeRuntimeRole"
+      Effect = "Allow"
+      Action = "sts:AssumeRole"
+      Resource = [
+        aws_iam_role.app_runtime.arn,
+        aws_iam_role.logs_publisher.arn,
+      ]
+    }]
+  })
+}
+
+# =============================================================================
+# Container-log publisher role (awslogs driver).
+# The prod compose overlay routes nginx/web/worker stdout to CloudWatch via the
+# awslogs driver, which authenticates with the Docker daemon's own credential
+# chain. The daemon assumes this role through a source-profile -> AssumeRole
+# chain (the footbag-<env>-logs profile in /root/.aws/config), reusing the
+# existing static-key-free pattern. Scoped to writing the three app log groups
+# only; app_runtime is intentionally NOT widened, so the daemon never inherits
+# the application's SSM/S3/KMS/SES permissions.
+# =============================================================================
+
+resource "aws_iam_role" "logs_publisher" {
+  name = "${local.prefix}-logs-publisher"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "TrustSourceProfile"
+      Effect    = "Allow"
+      Principal = { AWS = aws_iam_user.source_profile.arn }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "logs_publisher_write" {
+  name = "logs-write"
+  role = aws_iam_role.logs_publisher.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid    = "ShipContainerLogs"
+      Effect = "Allow"
+      Action = ["logs:CreateLogStream", "logs:PutLogEvents"]
+      Resource = [
+        "${aws_cloudwatch_log_group.app.arn}:*",
+        "${aws_cloudwatch_log_group.nginx.arn}:*",
+      ]
     }]
   })
 }

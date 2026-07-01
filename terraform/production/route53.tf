@@ -17,53 +17,53 @@ variable "enable_apex_alias_records" {
 }
 
 resource "aws_route53_record" "apex_a" {
-  count   = var.enable_apex_alias_records ? 1 : 0
+  count   = var.enable_cloudfront && var.enable_apex_alias_records ? 1 : 0
   zone_id = var.route53_zone_id
   name    = var.domain_name
   type    = "A"
 
   alias {
-    name                   = aws_cloudfront_distribution.main.domain_name
-    zone_id                = aws_cloudfront_distribution.main.hosted_zone_id
+    name                   = aws_cloudfront_distribution.main[0].domain_name
+    zone_id                = aws_cloudfront_distribution.main[0].hosted_zone_id
     evaluate_target_health = false
   }
 }
 
 resource "aws_route53_record" "apex_aaaa" {
-  count   = var.enable_apex_alias_records ? 1 : 0
+  count   = var.enable_cloudfront && var.enable_apex_alias_records ? 1 : 0
   zone_id = var.route53_zone_id
   name    = var.domain_name
   type    = "AAAA"
 
   alias {
-    name                   = aws_cloudfront_distribution.main.domain_name
-    zone_id                = aws_cloudfront_distribution.main.hosted_zone_id
+    name                   = aws_cloudfront_distribution.main[0].domain_name
+    zone_id                = aws_cloudfront_distribution.main[0].hosted_zone_id
     evaluate_target_health = false
   }
 }
 
 resource "aws_route53_record" "www_a" {
-  count   = var.enable_apex_alias_records ? 1 : 0
+  count   = var.enable_cloudfront && var.enable_apex_alias_records ? 1 : 0
   zone_id = var.route53_zone_id
   name    = "www.${var.domain_name}"
   type    = "A"
 
   alias {
-    name                   = aws_cloudfront_distribution.main.domain_name
-    zone_id                = aws_cloudfront_distribution.main.hosted_zone_id
+    name                   = aws_cloudfront_distribution.main[0].domain_name
+    zone_id                = aws_cloudfront_distribution.main[0].hosted_zone_id
     evaluate_target_health = false
   }
 }
 
 resource "aws_route53_record" "www_aaaa" {
-  count   = var.enable_apex_alias_records ? 1 : 0
+  count   = var.enable_cloudfront && var.enable_apex_alias_records ? 1 : 0
   zone_id = var.route53_zone_id
   name    = "www.${var.domain_name}"
   type    = "AAAA"
 
   alias {
-    name                   = aws_cloudfront_distribution.main.domain_name
-    zone_id                = aws_cloudfront_distribution.main.hosted_zone_id
+    name                   = aws_cloudfront_distribution.main[0].domain_name
+    zone_id                = aws_cloudfront_distribution.main[0].hosted_zone_id
     evaluate_target_health = false
   }
 }

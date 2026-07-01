@@ -9,17 +9,17 @@ output "lightsail_static_ip" {
 
 output "cloudfront_domain" {
   description = "CloudFront distribution domain name"
-  value       = aws_cloudfront_distribution.main.domain_name
+  value       = var.enable_cloudfront ? aws_cloudfront_distribution.main[0].domain_name : null
 }
 
 output "cloudfront_distribution_id" {
   description = "CloudFront distribution ID (used for cache invalidations)"
-  value       = aws_cloudfront_distribution.main.id
+  value       = var.enable_cloudfront ? aws_cloudfront_distribution.main[0].id : null
 }
 
 output "acm_certificate_arn" {
   description = "ARN of the ACM certificate attached to CloudFront"
-  value       = aws_acm_certificate_validation.main.certificate_arn
+  value       = var.enable_cloudfront ? aws_acm_certificate_validation.main[0].certificate_arn : null
 }
 
 output "snapshots_bucket_name" {
