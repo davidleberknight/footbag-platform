@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1467;
+export const TRACKED_UNPUBLISHED_TOTAL = 1456;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -410,16 +410,9 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Pixie Zulu Osis', slug: 'pixie_zulu_osis' },
     { displayName: 'Pixie Zulu Symposium Mirage', slug: 'pixie_zulu_symposium_mirage' },
     { displayName: 'Pixie Zulu Whirl', slug: 'pixie_zulu_whirl' },
-    { displayName: 'Pogo Barrage', slug: 'pogo_barrage' },
-    { displayName: 'Pogo Blender', slug: 'pogo_blender' },
     { displayName: 'Pogo Clipper', slug: 'pogo_clipper' },
     { displayName: 'Pogo Da Da Curve', slug: 'pogo_da_da_curve' },
     { displayName: 'Pogo DLO', slug: 'pogo_dlo' },
-    { displayName: 'Pogo Drifter', slug: 'pogo_drifter' },
-    { displayName: 'Pogo Eggbeater', slug: 'pogo_eggbeater' },
-    { displayName: 'Pogo Illusion', slug: 'pogo_illusion' },
-    { displayName: 'Pogo Legover', slug: 'pogo_legover' },
-    { displayName: 'Pogo Mirage', slug: 'pogo_mirage' },
     { displayName: 'Pogo Motion', slug: 'pogo_motion' },
     { displayName: 'Pogo ss Clipper', slug: 'pogo_ss_clipper' },
     { displayName: 'Pogo ss Flail', slug: 'pogo_ss_flail' },
@@ -428,9 +421,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Pogo ss Mirage', slug: 'pogo_ss_mirage' },
     { displayName: 'Pogo ss Pickup', slug: 'pogo_ss_pickup' },
     { displayName: 'Pogo ss Symposium Mirage', slug: 'pogo_ss_symposium_mirage' },
-    { displayName: 'Pogo Torque', slug: 'pogo_torque' },
-    { displayName: 'Pogo Whirl', slug: 'pogo_whirl' },
-    { displayName: 'Pogo Whirling Swirl', slug: 'pogo_whirling_swirl' },
     { displayName: 'Quantum Blender (Tofu)', slug: 'quantum_blender_tofu' },
     { displayName: 'Quantum Butterfly (Trip Walk)', slug: 'quantum_butterfly_trip_walk' },
     { displayName: 'Quantum Butterfly Swirl (Triptide)', slug: 'quantum_butterfly_swirl_triptide' },
@@ -1449,7 +1439,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Pixie Pinching', slug: 'pixie_pinching' },
     { displayName: 'Plasma (Quantum Double Over Down)', slug: 'plasma_quantum_double_over_down', operationalNotation: 'Toe > Op In (DEX) >> Op Out (DEX)(XDEX) > Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Pogo (Symposium Whirling)', slug: 'pogo_symposium_whirling' },
-    { displayName: 'Pogo Butterfly', slug: 'pogo_butterfly', operationalNotation: 'CLIP > (NO PLANT WHILE) OP IN [DEX] [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pogo Paradox Blender (Pogo Op Blender)', slug: 'pogo_paradox_blender_pogo_op_blender', operationalNotation: 'CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pogo Paradox Da Da Curve (Pogo Op Da Da Curve)', slug: 'pogo_paradox_da_da_curve_pogo_op_da_da_curve', operationalNotation: 'CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > (no plant while) OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pogo Paradox Torque (Pogo Op Torque)', slug: 'pogo_paradox_torque_pogo_op_torque', operationalNotation: 'CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },

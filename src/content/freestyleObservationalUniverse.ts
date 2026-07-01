@@ -601,16 +601,9 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Pixie Weaving Symposium Mirage", "slug": "pixie-weaving-symposium-mirage", "source": "SG", "ecosystem": "pixie", "parentFamily": "", "section": "doctrine", "cluster": "weaving", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pixie Weaving Whirl", "slug": "pixie-weaving-whirl", "source": "SG", "ecosystem": "pixie", "parentFamily": "", "section": "doctrine", "cluster": "weaving", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "POD, Pixie Over Down", "slug": "pod-pixie-over-down", "source": "PB", "ecosystem": "pixie", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Pogo Barrage", "slug": "pogo-barrage", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Pogo Butterfly", "slug": "pogo-butterfly", "source": "FB", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Pogo Clipper", "slug": "pogo-clipper", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Pogo Da Da Curve", "slug": "pogo-da-da-curve", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Pogo Drifter", "slug": "pogo-drifter", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Pogo Eggbeater", "slug": "pogo-eggbeater", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Pogo far Mirage", "slug": "pogo-far-mirage", "source": "PB", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Pogo Illusion", "slug": "pogo-illusion", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Pogo Legover", "slug": "pogo-legover", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Pogo Mirage", "slug": "pogo-mirage", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Pogo Motion", "slug": "pogo-motion", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Pogo ss Clipper", "slug": "pogo-ss-clipper", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Pogo ss Flail", "slug": "pogo-ss-flail", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
@@ -707,12 +700,8 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Nuclear ss Reverse Whirl", "slug": "nuclear-ss-reverse-whirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear ss Whirl", "slug": "nuclear-ss-whirl", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear ss Whirl (Hurl)", "slug": "nuclear-ss-whirl-hurl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Pogo Blender", "slug": "pogo-blender", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Pogo DLO", "slug": "pogo-dlo", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Pogo Nuclear far Double Down", "slug": "pogo-nuclear-far-double-down", "source": "PB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Pogo Torque", "slug": "pogo-torque", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Pogo Whirl", "slug": "pogo-whirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Pogo Whirling Swirl", "slug": "pogo-whirling-swirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Rooting/Rooted", "slug": "rooting-rooted", "source": "FB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Shooting far Double Down", "slug": "shooting-far-double-down", "source": "PB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Shooting Star (Shooting Double Over Down)", "slug": "shooting-star-shooting-double-over-down", "source": "FB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
@@ -1151,7 +1140,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 1074,
+    "total": 1063,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1159,7 +1148,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 192,
+    "promotionFrontier": 181,
     "lexicalArchive": 876,
     "intakeBuckets": {
       "promotion_ready": {
@@ -1171,8 +1160,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 46
       },
       "unresolved_candidate": {
-        "names": 134,
-        "distinctStructures": 134
+        "names": 123,
+        "distinctStructures": 123
       },
       "alias": {
         "names": 443,
@@ -1196,20 +1185,20 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       }
     },
     "ready": 2,
-    "frontier": 144,
+    "frontier": 133,
     "doctrineBlocked": 72,
     "folkUnresolved": 526,
     "parserUnresolved": 330,
-    "promotionReadyPct": 14,
+    "promotionReadyPct": 13,
     "doctrineBlockedPct": 7,
     "folkUnresolvedPct": 49,
     "parserUnresolvedPct": 31,
     "canonicalCoveragePct": 21,
     "sources": {
-      "SG": 559,
+      "SG": 549,
       "FM": 233,
       "PB": 203,
-      "FB": 71,
+      "FB": 70,
       "MULTI": 8
     },
     "foldedJunk": 161,
