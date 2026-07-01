@@ -9649,7 +9649,6 @@ export const freestyleService = {
       if (t.curatorNote) curatorNotes.set(t.folkSlug, t.curatorNote);
     }
     const shape = (r: ObservationalUniverseRow) => shapeObservationalCard(r, curatorNotes);
-    const inSection = (s: string) => universe.filter(r => r.section === s);
     const isAliasArchive = (r: ObservationalUniverseRow) =>
       r.intakeBucket === 'alias' || r.intakeBucket === 'duplicate_variant';
 
@@ -9677,61 +9676,8 @@ export const freestyleService = {
         });
     };
 
-    // Section A — Awaiting Ruling, grouped by derived ADD (lowest first).
-    // Net the alias/duplicate archive out symmetrically (folk/parser already do
-    // this below) so the published section counts form a clean partition and the
-    // alias archive is never double-counted on top of a section.
-    const readyRows = inSection('ready').filter(r => !isAliasArchive(r));
-    const readyCards = readyRows.map(shape);
-    const readyGroups = groupByAdd(readyRows);
-
-    // Section B — per-ecosystem frontier matrix (intelligibility lens) + the
-    // curator-confirm cards.
-    const ecoKeys = new Set<string>();
-    for (const r of universe) ecoKeys.add(r.ecosystem || '(unclassified)');
-    const ecosystemMatrix: ObservationalEcosystemRow[] = [...ecoKeys].map(eco => {
-      const ofEco = universe.filter(r => (r.ecosystem || '(unclassified)') === eco);
-      const c = (s: string) => ofEco.filter(r => r.section === s && !isAliasArchive(r)).length;
-      return {
-        ecosystem:  eco,
-        label:      observedEcosystemLabel(eco),
-        ready:      c('ready'),
-        frontier:   c('frontier'),
-        doctrine:   c('doctrine'),
-        unresolved: c('folk') + c('parser'),
-        total:      ofEco.length,
-      };
-    }).sort((a, b) => (b.ready - a.ready) || (b.total - a.total));
-    const frontierRows = inSection('frontier').filter(r => !isAliasArchive(r));
-    const frontierCards = frontierRows.map(shape);
-    const frontierGroups = groupByAdd(frontierRows);
-
-    // Section C — doctrine-flagged clusters, each with what it is actually
-    // waiting on. The generated blocking-question text is overridden here
-    // (reversible) to state the current status. Side qualifiers do not appear as
-    // a cluster: the notation already encodes the side, so positional names are
-    // needs-authoring, not doctrine. A positional name lands here only when it
-    // also carries a genuine doctrine question (a Double-Down terminal under
-    // DOD / DDD, or an undefined operator).
-    const CLUSTER_STATUS: Record<string, string> = {
-      weaving:   'Settled: weaving is a defined ducking set. The launch mechanics are fixed; only the canonical operational notation is pending authoring.',
-      'dod-ddd': 'Governance and verification: the down-family structure is understood; each row needs a per-trick decomposition check, not an expert ruling.',
-      other:     'Definition pending: undefined folk operators and operator-weight questions (alpine, rooting, pixie weight); structure not yet settled.',
-    };
-    const doctrineRows = inSection('doctrine');
-    const doctrineClusters: ObservationalDoctrineCluster[] =
-      ['weaving', 'dod-ddd', 'shooting', 'other']
-        .map(key => {
-          const rows = doctrineRows.filter(r => r.cluster === key);
-          return {
-            key,
-            label:            observedEcosystemLabel(key),
-            count:            rows.length,
-            blockingQuestion: CLUSTER_STATUS[key] ?? DOCTRINE_BLOCKING_QUESTIONS[key] ?? 'Status pending.',
-            sampleNames:      rows.slice(0, 6).map(r => r.name),
-          };
-        })
-        .filter(c => c.count > 0);
+    // Section A/B/C card data is built below, after the frontier classifier, so
+    // each section is partitioned by the same model as the frontier-health tiles.
 
     // Sections D + E — summarized: sample cards + a full list behind disclosure.
     const summarizeRows = (rows: ObservationalUniverseRow[], intro: string): ObservationalSummarySection => ({
@@ -9775,14 +9721,12 @@ export const freestyleService = {
     // structures; the archive (aliases, duplicates, single-source noise, unresolved
     // doctrine) is documented vocabulary, never counted as candidate tricks.
     // Frontier-health metrics, classified by what each name is actually waiting
-    // on. Each row maps to exactly one of eight current categories, derived from
-    // the universe's existing fields (no regeneration; reversible). Blurry and
-    // Pogo are settled and no longer carried as doctrine: the generator routes
-    // them to the needs-authoring frontier (structure understood, notation not
-    // yet authored). Weaving and zulu are likewise settled (defined ducking sets,
-    // notation pending), so no movement operator awaits an expert ruling on this
-    // frontier; the separate atomic / X-Dex rule is a value-migration on the
-    // canonical band, not part of this emerging-vocabulary frontier.
+    // on. Each row maps to exactly one category, derived from the universe's
+    // fields plus the curator-hold routing below. Weaving is the one genuine
+    // doctrine blocker on this frontier: its definition is given, but the
+    // notation-token grammar is unresolved. Blurry compounds are held on the
+    // pending blurry-modifier ADD packet, and the Nuclear-Osis / Aeon-Flux pair
+    // is an open identity question, so both are curator reviews, not authoring.
     type FrontierCategory =
       | 'red' | 'governance' | 'identification' | 'undefined' | 'notation'
       | 'authoring' | 'ready' | 'folk' | 'alias';
@@ -9790,6 +9734,14 @@ export const freestyleService = {
     // yet defined (shared with the dex-count view's NB_UNDEFINED_OPERATORS so the
     // two surfaces agree), plus the two named structure-identification questions.
     const IDENTIFICATION_NAMED = new Set(['dragon', 'refraction']);
+    // Curator holds decided ahead of the generator's section label: blurry
+    // compounds are held on the pending blurry-modifier ADD packet, and the
+    // Nuclear-Osis / Aeon-Flux pair is an open identity question.
+    const BLURRY_PACKET_TOKENS = new Set(['blurry', 'blurrier', 'blurriest']);
+    const isNuclearOsisIdentity = (name: string): boolean => {
+      const lead = name.split('(')[0].toLowerCase();
+      return lead.includes('nuclear') && lead.includes('osis');
+    };
     // Parser failure classes that are genuine notation gaps (ambiguous terminal,
     // compression, directional syntax), distinct from an undefined operator.
     const PARSER_AMBIGUITY_CLASSES = new Set([
@@ -9845,6 +9797,11 @@ export const freestyleService = {
       /^[0-9]+$/.test(r.provisionalAdd) && r.decomposition.trim().length > 0;
     const classifyFrontier = (r: ObservationalUniverseRow): FrontierCategory => {
       if (isAliasArchive(r)) return 'alias';
+      // Curator/identity holds are decided before the section label, so a held
+      // row is a curator item wherever the generator filed it.
+      if (hasToken(r.name, BLURRY_PACKET_TOKENS)) return 'governance';
+      if ((r.name.match(/\(/g)?.length ?? 0) >= 2) return 'identification';
+      if (isNuclearOsisIdentity(r.name)) return 'identification';
       if (r.section === 'doctrine') {
         if (r.cluster === 'weaving') return 'red';
         if (r.cluster === 'dod-ddd') return 'governance';                    // verification / governance
@@ -9899,7 +9856,7 @@ export const freestyleService = {
     const statBlocks: ObservationalStat[] = [
       { label: 'Canonical candidates', value: String(cc('ready')),          hint: 'every token resolves to a known operator with a clean derived ADD; ready for curation, not auto-published' },
       { label: 'Needs authoring',      value: String(cc('authoring')),      hint: 'structure understood; the movement notation or decomposition is not yet written' },
-      { label: 'Doctrine unresolved',  value: String(cc('red')),            hint: 'a movement operator whose definition is still open. Weaving and zulu are now settled defined ducking sets (canonical notation pending), so they no longer sit here; the separate atomic / X-Dex question sits on the canonical band, not this frontier' },
+      { label: 'Doctrine unresolved',  value: String(cc('red')),            hint: 'a movement operator still awaiting a ruling. Weaving is the one such blocker: its definition is given but the notation-token grammar is unresolved, so its rows cannot be authored yet' },
       { label: 'Curator / governance', value: String(cc('governance')),     hint: 'a verification, precedent, or insertion-convention call, not a doctrine ruling (DOD / DDD)' },
       { label: 'Undefined operator',   value: String(cc('undefined')),      hint: 'the name carries a folk operator whose weight or structure is not yet defined; it cannot be authored until that operator is settled' },
       { label: 'Identification',       value: String(cc('identification')), hint: 'a named structure whose identity is not yet confirmed' },
@@ -9913,6 +9870,58 @@ export const freestyleService = {
     const sources = Object.keys(stats.sources).map(badge => ({
       badge, label: observedSourceLabel(badge),
     }));
+
+    // Sections A/B/C are partitioned by the SAME frontier classifier as the
+    // tiles, so every section count matches its tile and no name appears under
+    // two headings. A: candidates ready for curation. B: structure understood,
+    // notation not yet authored. C: the doctrine and curator holds.
+    const readyRows = inCategory('ready');
+    const readyCards = readyRows.map(shape);
+    const readyGroups = groupByAdd(readyRows);
+
+    const frontierRows = inCategory('authoring');
+    const frontierCards = frontierRows.map(shape);
+    const frontierGroups = groupByAdd(frontierRows);
+
+    const ecoKeys = new Set<string>();
+    for (const r of universe) ecoKeys.add(r.ecosystem || '(unclassified)');
+    const ecosystemMatrix: ObservationalEcosystemRow[] = [...ecoKeys].map(eco => {
+      const ofEco = universe.filter(r => (r.ecosystem || '(unclassified)') === eco);
+      const inCat = (cats: FrontierCategory[]) => ofEco.filter(r => cats.includes(classifyFrontier(r))).length;
+      return {
+        ecosystem:  eco,
+        label:      observedEcosystemLabel(eco),
+        ready:      inCat(['ready']),
+        frontier:   inCat(['authoring']),
+        doctrine:   inCat(['red', 'governance', 'identification', 'undefined']),
+        unresolved: inCat(['notation', 'folk']),
+        total:      ofEco.length,
+      };
+    }).sort((a, b) => (b.ready - a.ready) || (b.total - a.total));
+
+    // Section C — doctrine and curator holds, as classifier-derived clusters so
+    // the labels and counts match the tiles. Weaving is the one genuine doctrine
+    // blocker (definition given, notation-token grammar unresolved). The curator
+    // review cluster gathers the editorial and identity holds.
+    const holdClusters: { cats: FrontierCategory[]; label: string; status: string }[] = [
+      { cats: ['red'], label: 'Doctrine blocked',
+        status: 'Weaving is the one movement operator still awaiting a ruling: its definition is given, but the notation-token grammar is unresolved, so its rows cannot be authored yet.' },
+      { cats: ['governance', 'identification'], label: 'Needs curator review',
+        status: 'Structure understood; each needs an editorial or identity call, not a doctrine ruling: down-family (DOD / DDD) per-trick verification, blurry compounds held on the pending blurry packet, and open identity questions such as Nuclear Osis / Aeon Flux.' },
+    ];
+    const doctrineClusters: ObservationalDoctrineCluster[] = holdClusters
+      .map(hc => {
+        const rows = universe.filter(r => hc.cats.includes(classifyFrontier(r)));
+        return {
+          key:              hc.cats[0],
+          label:            hc.label,
+          count:            rows.length,
+          blockingQuestion: hc.status,
+          sampleNames:      rows.slice(0, 6).map(r => r.name),
+        };
+      })
+      .filter(c => c.count > 0);
+    const doctrineTotal = doctrineClusters.reduce((n, c) => n + c.count, 0);
 
     return {
       seo: {
@@ -9954,7 +9963,7 @@ export const freestyleService = {
         ecosystemMatrix,
         frontierTotal: frontierCards.length,
         frontierGroups,
-        doctrineTotal: doctrineRows.length,
+        doctrineTotal,
         doctrineClusters,
         folk,
         undefinedOps,

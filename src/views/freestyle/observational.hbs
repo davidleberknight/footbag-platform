@@ -4,9 +4,9 @@
   Status-first, ADD-ordered. Observational layer ONLY: provisional ADD /
   decomposition are observationally extrapolated, NEVER canonical; cards carry
   a tracked tag (not a canonical hashtag), no detail-page link, no media. The
-  page reads as a curator work queue: Awaiting Ruling first (lowest derived ADD
-  first), then frontier-health metrics, then Needs Authoring, then Doctrine
-  Blocked clusters, then the long-tail folk / alias / ecosystem material behind
+  page reads as a curator work queue: Ready for Authoring first (lowest derived
+  ADD first), then frontier-health metrics, then Needs Authoring, then the
+  doctrine and curator holds, then the long-tail folk / alias / ecosystem behind
   disclosure.
 --}}
 <div class="hero hero-sm">
@@ -33,17 +33,16 @@
     </p>
     {{else}}
 
-    {{! ── Section A — Awaiting Ruling (FIRST; grouped by derived ADD) ── }}
+    {{! ── Section A — Ready for Authoring (FIRST; grouped by derived ADD) ── }}
     {{#if content.readyTotal}}
-    <section class="observed-section" id="promotion-ready" aria-label="Awaiting ruling">
+    <section class="observed-section" id="promotion-ready" aria-label="Ready for authoring">
       <div class="section-heading">
-        <h2>Awaiting Ruling</h2>
+        <h2>Ready for Authoring</h2>
         <span class="section-count">{{content.readyTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        Structurally understood, with a clean derived ADD, but blocked on a curator
-        ruling, an operator chassis, or a missing base before promotion. Ordered by
-        derived ADD, lowest first.
+        Every token resolves to a settled operator and the derived ADD is clean, so
+        these can go to a curator as-is. Ordered by derived ADD, lowest first.
       </p>
       {{#each content.readyGroups}}
       <div class="observed-eco-group">
@@ -99,20 +98,20 @@
     </section>
     {{/if}}
 
-    {{! ── Section C — Doctrine & governance clusters (cluster breakdown) ── }}
+    {{! ── Section C — Doctrine & curator holds (classifier clusters) ── }}
     {{#if content.doctrineTotal}}
-    <section class="observed-section" id="doctrine-blocked" aria-label="Doctrine and governance clusters">
+    <section class="observed-section" id="doctrine-blocked" aria-label="Doctrine and curator holds">
       <div class="section-heading">
-        <h2>Doctrine &amp; governance clusters</h2>
+        <h2>Doctrine &amp; Curator Holds</h2>
         <span class="section-count">{{content.doctrineTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        The names that still rest on an open classification question, grouped by cluster.
-        No movement operator now awaits an expert ruling: weaving and zulu are defined ducking
-        sets with notation pending. The down-family (DOD / DDD) is a per-trick verification pass,
-        and the rest are undefined folk operators awaiting a
-        definition. Side and direction variants are not here: the notation already records which
-        side a move uses, so a positional name is a needs-authoring item, not a doctrine question.
+        The names that rest on an open question rather than an authoring step. Weaving is the one
+        movement operator still awaiting a ruling: its definition is given, but the notation-token
+        grammar is unresolved. The curator reviews are editorial or identity calls, not doctrine:
+        the down-family (DOD / DDD) per-trick verification, the blurry compounds held on the pending
+        blurry packet, and open identity questions such as Nuclear Osis and Aeon Flux.
+        Side and direction variants are not here: the notation already records which side a move uses.
         Each cluster states what it is actually waiting on.
       </p>
       <div class="observed-cluster-grid">
@@ -168,7 +167,7 @@
       <div class="observed-matrix-wrap">
         <table class="observed-matrix">
           <thead>
-            <tr><th>Ecosystem</th><th>Ready</th><th>Frontier</th><th>Doctrine</th><th>Unresolved</th><th>Total</th></tr>
+            <tr><th>Ecosystem</th><th>Ready</th><th>Authoring</th><th>Holds</th><th>Unresolved</th><th>Total</th></tr>
           </thead>
           <tbody>
             {{#each content.ecosystemMatrix}}

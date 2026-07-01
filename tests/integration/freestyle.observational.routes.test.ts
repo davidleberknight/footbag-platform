@@ -102,7 +102,7 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(html).toContain('Parser ambiguity');
   });
 
-  it('makes Awaiting Ruling the first content section, above the metric strip', async () => {
+  it('makes Ready for Authoring the first content section, above the metric strip', async () => {
     const html = await page();
     const readyIdx = html.indexOf('id="promotion-ready"');
     const metricsIdx = html.indexOf('observed-stats');
@@ -119,7 +119,7 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(sum).toBe(OBSERVATIONAL_UNIVERSE_STATS.total);
   });
 
-  it('groups Awaiting Ruling + Needs Authoring by derived ADD (lowest first, Unknown last)', async () => {
+  it('groups Ready for Authoring + Needs Authoring by derived ADD (lowest first, Unknown last)', async () => {
     const html = await page();
     expect(html).toContain('id="promotion-ready"');
     expect(html).toContain('id="needs-authoring"');
@@ -128,29 +128,40 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(html).toMatch(/observed-eco-heading">\d+ ADD/);
     // Provisional ADD stays labelled extrapolated, never canonical.
     expect(html).toMatch(/ADD \d+ \(extrapolated\)/);
-    // Lowest ADD precedes higher ADD inside Awaiting Ruling.
+    // Lowest ADD precedes higher ADD inside Ready for Authoring.
     const block = html.slice(html.indexOf('id="promotion-ready"'), html.indexOf('observed-stats'));
     const nums = [...block.matchAll(/observed-eco-heading">(\d+) ADD/g)].map(m => Number(m[1]));
     expect(nums.length).toBeGreaterThan(0);
     expect(nums).toEqual([...nums].sort((a, b) => a - b));
   });
 
-  it('reframes the doctrine clusters by current status, not "all waiting on Red"', async () => {
+  it('separates the one doctrine blocker (weaving grammar) from the curator holds', async () => {
     const html = await page();
     expect(html).toContain('id="doctrine-blocked"');
     expect(html).toContain('observed-cluster');
-    expect(html).toContain('Doctrine &amp; governance clusters');
-    // Weaving and zulu are now defined ducking sets; no operator awaits an expert ruling.
-    // The down-family remains a verification pass.
-    expect(html).toMatch(/No movement operator now awaits an expert ruling/);
-    expect(html).toMatch(/weaving and zulu are defined ducking\s+sets/);
-    expect(html).toMatch(/per-trick verification pass/);
+    expect(html).toContain('Doctrine &amp; Curator Holds');
+    // Weaving is the single genuine doctrine blocker: definition given, grammar unresolved.
+    expect(html).toMatch(/Weaving is the one movement operator still awaiting a ruling/);
+    expect(html).toMatch(/notation-token grammar is unresolved/);
+    // The curator holds are editorial or identity calls, not a doctrine ruling.
+    expect(html).toContain('Needs curator review');
+    expect(html).toMatch(/per-trick verification/);
+    // The pending blurry packet and the Nuclear Osis / Aeon Flux identity are curator holds.
+    expect(html).toMatch(/blurry compounds held on the pending/i);
+    expect(html).toMatch(/Nuclear Osis and Aeon Flux/);
     // Side / direction variants are explicitly not doctrine: the notation encodes the side.
     expect(html).toMatch(/Side and direction variants are not here/);
-    // The settled clusters (Blurry, Pogo) are declassified at the generator and no
-    // longer render as doctrine clusters at all.
-    expect(html).not.toMatch(/Blurry is Stepping with a Paradox/);
-    expect(html).not.toMatch(/Pogo is a \+0 set/);
+    // The stale "no operator awaits a ruling / weaving settled" contradiction is gone.
+    expect(html).not.toMatch(/No movement operator now awaits an expert ruling/);
+    expect(html).not.toMatch(/defined ducking\s+sets with notation pending/);
+  });
+
+  it('eliminates the generic Awaiting Ruling category', async () => {
+    const html = await page();
+    // The category is retired; the ready section is now Ready for Authoring, and its
+    // count matches the "Canonical candidates" health tile (one model, one population).
+    expect(html).not.toContain('Awaiting Ruling');
+    expect(html).toContain('Ready for Authoring');
   });
 
   it('surfaces the Alias / Duplicate archive collapsed, with the ecosystem matrix demoted to a disclosure', async () => {
