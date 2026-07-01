@@ -542,7 +542,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Furious Mirage", "slug": "furious-mirage", "source": "FM", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Furious Mirage (Fury)", "slug": "furious-mirage-fury", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Nuclear", "slug": "nuclear", "source": "FB", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Nuclear Butterfly", "slug": "nuclear-butterfly", "source": "FM", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear Butterfly (Matador)", "slug": "nuclear-butterfly-matador", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Nuclear DDD (Cold Fusion) (Geesha)", "slug": "nuclear-ddd-cold-fusion-geesha", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear Drifter (69)", "slug": "nuclear-drifter-69", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
@@ -1132,7 +1131,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 1055,
+    "total": 1054,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1140,7 +1139,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 177,
+    "promotionFrontier": 176,
     "lexicalArchive": 876,
     "intakeBuckets": {
       "promotion_ready": {
@@ -1152,8 +1151,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 46
       },
       "unresolved_candidate": {
-        "names": 123,
-        "distinctStructures": 123
+        "names": 122,
+        "distinctStructures": 122
       },
       "alias": {
         "names": 443,
@@ -1177,7 +1176,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       }
     },
     "ready": 2,
-    "frontier": 125,
+    "frontier": 124,
     "doctrineBlocked": 72,
     "folkUnresolved": 526,
     "parserUnresolved": 330,
@@ -1188,7 +1187,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "canonicalCoveragePct": 21,
     "sources": {
       "SG": 547,
-      "FM": 230,
+      "FM": 229,
       "PB": 200,
       "FB": 70,
       "MULTI": 8
