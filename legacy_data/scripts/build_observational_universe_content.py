@@ -303,7 +303,11 @@ def main() -> None:
                     canonical_slugs.add(s.strip())
         finally:
             con.close()
-    rows = [r for r in rows if r["slug"] not in canonical_slugs]
+    # Compare on the alphanumeric-normalized slug: observational rows use hyphen
+    # slugs while the canonical DB / CSV slugs use underscores, so a raw-string
+    # membership test never matched and the gate let published slugs through.
+    _canonical_norm = {_norm_slug(s) for s in canonical_slugs}
+    rows = [r for r in rows if _norm_slug(r["slug"]) not in _canonical_norm]
 
     # ── long-tail disposition ── fold aliases / misspellings / malformed scrape
     # strings / single-source junk OUT of the public folk + parser long tail so the
