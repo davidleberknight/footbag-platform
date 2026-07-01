@@ -14,7 +14,7 @@
 #
 # Marker semantics (set by src/testkit/personaFactory.ts seedPersona):
 #   - members.id LIKE 'member_persona_%'                 one row per persona (all tiers)
-#   - audit_entries.action_type = 'dev_persona_seed'     one row per seeded persona
+#   - audit_entries.action_type = 'testkit.persona_seed'     one row per seeded persona
 #   - member_tier_grants.reason_code =                   one row per tier1+ persona
 #       'dev_persona_seed.tier_grant'                    (tier0 personas have no grant)
 # Re-running the seed skips existing slugs, so auditRowsSeeded equals
@@ -76,7 +76,7 @@ const members = db.prepare(
   "SELECT id, password_hash FROM members WHERE id LIKE 'member_persona_%'"
 ).all();
 const ae = db.prepare(
-  "SELECT COUNT(*) c FROM audit_entries WHERE action_type='dev_persona_seed'"
+  "SELECT COUNT(*) c FROM audit_entries WHERE action_type='testkit.persona_seed'"
 ).get().c;
 const tg = db.prepare(
   "SELECT COUNT(*) c FROM member_tier_grants WHERE reason_code='dev_persona_seed.tier_grant'"

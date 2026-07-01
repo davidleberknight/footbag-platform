@@ -340,7 +340,7 @@ describe('member per-item media delete route', () => {
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
       const audit = db.prepare(
-        `SELECT actor_member_id FROM audit_entries WHERE action_type = 'delete_member_media' AND entity_id = ?`,
+        `SELECT actor_member_id FROM audit_entries WHERE action_type = 'media.member_deleted' AND entity_id = ?`,
       ).get(mediaId) as { actor_member_id: string } | undefined;
       expect(audit?.actor_member_id).toBe(OWNER_ID);
     } finally { db.close(); }

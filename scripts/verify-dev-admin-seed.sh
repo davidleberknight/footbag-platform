@@ -73,7 +73,7 @@ const tg = db.prepare(
   "SELECT COUNT(*) c FROM member_tier_grants WHERE reason_code='dev_admin_seed.admin_tier2'"
 ).get().c;
 const ae = db.prepare(
-  "SELECT COUNT(*) c FROM audit_entries WHERE action_type='grant_admin_dev_seed'"
+  "SELECT COUNT(*) c FROM audit_entries WHERE action_type='admin.dev_seed_grant'"
 ).get().c;
 let a2 = 0;
 for (const r of rows) {

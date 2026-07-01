@@ -263,7 +263,7 @@ describe('POST /admin/curator/galleries/:id/edit (happy path)', () => {
     expect(second.status).toBe(303);
   });
 
-  it('writes an update_curated_gallery audit row scoped to the admin actor', async () => {
+  it('writes an media.curated_gallery_updated audit row scoped to the admin actor', async () => {
     const app = createApp();
     const create = await request(app)
       .post('/admin/curator/galleries')
@@ -293,7 +293,7 @@ describe('POST /admin/curator/galleries/:id/edit (happy path)', () => {
     const db = new BetterSqlite3(TEST_DB_PATH);
     const audit = db.prepare(
       `SELECT actor_type, actor_member_id, entity_type FROM audit_entries
-       WHERE entity_id = ? AND action_type = 'update_curated_gallery'`,
+       WHERE entity_id = ? AND action_type = 'media.curated_gallery_updated'`,
     ).get('gallery_audit_update_target') as Record<string, unknown> | undefined;
     db.close();
     expect(audit).toBeDefined();
@@ -593,7 +593,7 @@ describe('POST /admin/curator/galleries (create)', () => {
     expect(res.status).toBe(403);
   });
 
-  it('writes a create_curated_gallery audit row scoped to the admin actor', async () => {
+  it('writes a media.curated_gallery_created audit row scoped to the admin actor', async () => {
     const res = await request(createApp())
       .post('/admin/curator/galleries')
       .set('Cookie', adminCookie())
@@ -610,7 +610,7 @@ describe('POST /admin/curator/galleries (create)', () => {
     const db = new BetterSqlite3(TEST_DB_PATH);
     const audit = db.prepare(
       `SELECT actor_type, actor_member_id, entity_type FROM audit_entries
-       WHERE entity_id = ? AND action_type = 'create_curated_gallery'`,
+       WHERE entity_id = ? AND action_type = 'media.curated_gallery_created'`,
     ).get('gallery_audit_create_target') as Record<string, unknown> | undefined;
     db.close();
     expect(audit).toBeDefined();

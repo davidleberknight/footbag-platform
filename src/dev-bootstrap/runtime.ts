@@ -118,7 +118,7 @@ interface ApplyDevStagingBootstrapAdminArgs {
  *   - sets `is_admin = 1` on the new member
  *   - writes a Tier 2 grant ledger row (admin role requires Tier 2+)
  *   - writes a single `audit_entries` row with
- *     action_type='grant_admin_dev_register_allowlist'
+ *     action_type='admin.dev_register_allowlist_grant'
  *
  * Returns `{applied: false}` when not in dev/staging or when the email does
  * not match. Production has a separate single-shot bootstrap mechanism (SSM
@@ -147,7 +147,7 @@ export function applyDevStagingBootstrapAdmin(
   return transaction(() => {
     registration.setAdminFlagOnRegister.run(args.now, args.memberId);
     appendAuditEntry({
-      actionType: 'grant_admin_dev_register_allowlist',
+      actionType: 'admin.dev_register_allowlist_grant',
       category: 'admin',
       actorType: 'system',
       actorMemberId: null,

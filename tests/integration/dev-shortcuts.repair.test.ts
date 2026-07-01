@@ -94,11 +94,11 @@ describe('repairAdminTier2Invariant', () => {
     const audit = db
       .prepare(
         `SELECT action_type FROM audit_entries
-         WHERE entity_id = ? AND action_type = 'dev_admin_invariant_repair'
+         WHERE entity_id = ? AND action_type = 'admin.dev_invariant_repair'
          ORDER BY created_at DESC, id DESC LIMIT 1`,
       )
       .get(ADMIN_T0_ID) as { action_type: string } | undefined;
-    expect(audit?.action_type).toBe('dev_admin_invariant_repair');
+    expect(audit?.action_type).toBe('admin.dev_invariant_repair');
     db.close();
   });
 

@@ -71,12 +71,12 @@ describe('GET /dev/switch', () => {
     expect(res.status).toBe(400);
   });
 
-  it('writes an audit entry with action_type dev_switch_persona', async () => {
+  it('writes an audit entry with action_type testkit.persona_switch', async () => {
     await request(createApp()).get('/dev/switch?as=sw_member');
     const db = new BetterSqlite3(dbPath, { readonly: true });
     try {
       const row = db.prepare(
-        `SELECT COUNT(*) c FROM audit_entries WHERE action_type = 'dev_switch_persona' AND entity_id = ?`,
+        `SELECT COUNT(*) c FROM audit_entries WHERE action_type = 'testkit.persona_switch' AND entity_id = ?`,
       ).get('member_persona_sw_member') as { c: number };
       expect(row.c).toBeGreaterThan(0);
     } finally {

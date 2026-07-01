@@ -264,7 +264,12 @@ describe('SES feedback webhook', () => {
       `SELECT metadata_json FROM audit_entries WHERE action_type = 'email.sns_subscription_pending'`,
     ).all() as Array<{ metadata_json: string }>;
     expect(audits).toHaveLength(1);
-    expect(JSON.parse(audits[0].metadata_json).subscribe_url).toContain('sns.us-east-1.amazonaws.com');
+    const metadata = JSON.parse(audits[0].metadata_json);
+    // The topic is recorded for the operator; the one-time SubscribeURL is a
+    // bearer token and must never be persisted in the durable audit trail.
+    expect(metadata.topic_arn).toBe('arn:aws:sns:us-east-1:000:t');
+    expect(metadata.subscribe_url).toBeUndefined();
+    expect(audits[0].metadata_json).not.toContain('sns.us-east-1.amazonaws.com');
   });
 
   it('malformed payloads are acknowledged without effect', async () => {

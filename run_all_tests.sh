@@ -51,18 +51,20 @@ SMOKE_OPTIONAL=0
 # usable by a developer or tester without the operator data handoff.
 PERSONA_CRAWL_OPTIONAL=0
 WITH_PERSONA_CRAWL=0
+A11Y=0
 FAIL_FAST=0
 for arg in "$@"; do
   case "$arg" in
     --quick)              QUICK=1 ;;
     --with-smoke)         WITH_SMOKE=1 ;;
     --with-persona-crawl) WITH_PERSONA_CRAWL=1 ;;
+    --a11y)               A11Y=1 ;;
     --pentest)            PENTEST=1 ;;
     --full)               FULL=1 ;;
     --fail-fast)          FAIL_FAST=1 ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--pentest] [--full] [--fail-fast]
+Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--a11y] [--pentest] [--full] [--fail-fast]
 
 Canonical local full-suite test runner. Runs the CI gates that are safe on a
 workstation and summarizes the results.
@@ -94,6 +96,10 @@ Options:
                 likewise SKIPs (with a warning) when the dev DB lacks the operator
                 dataset (DL's HOF record + the Wellington club), so --full also
                 completes for a developer or tester without the data handoff.
+  --a11y        Additionally run the axe WCAG 2.1 AA accessibility scan of the
+                high-traffic public pages (npm run test:e2e:a11y) against a
+                throwaway browser stack. Opt-in because it boots the full e2e
+                stack; the scan writes only to os.tmpdir().
   --fail-fast   Stop at the first failing gate instead of running them all.
   -h, --help    Show this message.
 
@@ -313,6 +319,16 @@ gate_e2e() {
   npm run test:e2e
 }
 
+gate_a11y() {
+  # Boots the same throwaway e2e stack, so reclaim its ports first like the e2e
+  # gate. Runs only the @a11y-tagged Playwright tests (the axe WCAG 2.1 AA scan
+  # of the high-traffic public pages plus the keyboard/label checks). The stack
+  # writes only to os.tmpdir(), so the no-real-data guard stays satisfied.
+  reclaim_port 3000
+  reclaim_port 4001
+  npm run test:e2e:a11y
+}
+
 gate_pentest() {
   # Boots a throwaway stack on 3000/4001, so reclaim those ports first like the
   # e2e gate. The ZAP leg self-skips when Docker is absent; the scriptable probes
@@ -473,6 +489,10 @@ fi
 
 if (( WITH_PERSONA_CRAWL == 1 )); then
   run_gate persona-crawl gate_persona_crawl
+fi
+
+if (( A11Y == 1 )); then
+  run_gate a11y       gate_a11y
 fi
 
 if (( PENTEST == 1 )); then

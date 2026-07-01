@@ -10,7 +10,7 @@
  *
  * Looks the member up by slug via the same session-member query the auth
  * middleware uses (members_active, email-verified). Unknown slug → 404.
- * Every issuance writes an audit entry with action_type 'dev_switch_persona'.
+ * Every issuance writes an audit entry with action_type 'testkit.persona_switch'.
  */
 import { Request, Response, NextFunction } from 'express';
 import { auth as authDb } from '../db/db';

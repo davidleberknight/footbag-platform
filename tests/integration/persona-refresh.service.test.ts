@@ -234,7 +234,7 @@ describe('refreshAllPersonas', () => {
       created_by: 'system',
       actor_type: 'system',
       actor_member_id: null,
-      action_type: 'dev_switch_persona',
+      action_type: 'testkit.persona_switch',
       entity_type: 'member',
       entity_id: T1,
     });

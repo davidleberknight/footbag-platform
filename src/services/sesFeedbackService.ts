@@ -8,9 +8,10 @@
  * notification appends an audit row.
  * Escalation-only writes: an admin-set 'suppressed' status is never
  * overwritten, and a complaint outranks a bounce. Subscription-confirmation
- * messages are recorded for the operator to confirm out-of-band (the
- * SubscribeURL is never auto-fetched: auto-confirm would fetch an
- * attacker-supplied URL).
+ * messages append a token-free audit row and surface the one-time SubscribeURL
+ * only on the transient operator log line for out-of-band confirmation; the URL
+ * is never persisted in the audit trail (it is a bearer token) and never
+ * auto-fetched (auto-confirm would fetch an attacker-supplied URL).
  *
  * Idempotency: the inbound SNS MessageId is claimed in ses_events (INSERT OR
  * IGNORE) inside the same transaction as the status writes; a redelivery whose
@@ -57,14 +58,17 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
       actorMemberId: null,
       entityType:    'system',
       entityId:      'ses_feedback',
-      reasonText:    'SNS subscription confirmation received; operator confirms via the SubscribeURL out-of-band.',
+      reasonText:    'SNS subscription confirmation received; operator confirms the subscription out-of-band.',
       metadata: {
         topic_arn:     typeof envelope.TopicArn === 'string' ? envelope.TopicArn : null,
-        subscribe_url: typeof envelope.SubscribeURL === 'string' ? envelope.SubscribeURL : null,
       },
     });
+    // The one-time SubscribeURL is a bearer confirmation token, so it stays out
+    // of the durable, admin-exportable audit trail and is surfaced only on this
+    // transient operator log line for immediate out-of-band confirmation.
     logger.warn('ses_feedback.subscription_confirmation_pending', {
-      topicArn: envelope.TopicArn,
+      topicArn:     envelope.TopicArn,
+      subscribeUrl: envelope.SubscribeURL,
     });
     return { status: 'subscription_pending' };
   }

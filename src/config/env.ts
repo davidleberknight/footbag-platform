@@ -120,7 +120,7 @@ export interface AppConfig {
   sseHeartbeatSeconds: number;
   // CUTOVER-REMOVE: operator-supplied initial-admin email list.
   // Current: each registering member whose email appears here gets is_admin=1
-  //   plus a grant_admin_dev_register_allowlist audit row. Default is
+  //   plus a admin.dev_register_allowlist_grant audit row. Default is
   //   .local/initial-admins.txt (gitignored); production reads refused at
   //   the helper level regardless of this value.
   // Target: remove after the production first-admin bootstrap is complete.

@@ -76,7 +76,7 @@ describe('dev-shortcuts/seed.seedOne — schema coupling + markers', () => {
         `SELECT action_type FROM audit_entries WHERE entity_id = ?`,
       ).get(m!.id) as { action_type: string } | undefined;
       expect(audit).toBeDefined();
-      expect(audit!.action_type).toBe('grant_admin_dev_seed');
+      expect(audit!.action_type).toBe('admin.dev_seed_grant');
     } finally {
       db.close();
     }
@@ -138,7 +138,7 @@ describe('dev-shortcuts/seedConfig — env-guard contract', () => {
     try {
       const m = await import('../../src/dev-bootstrap/seedConfig');
       expect(m.DEV_ADMIN_SEED_REASON_CODE).toBe('dev_admin_seed.admin_tier2');
-      expect(m.DEV_ADMIN_SEED_AUDIT_ACTION_TYPE).toBe('grant_admin_dev_seed');
+      expect(m.DEV_ADMIN_SEED_AUDIT_ACTION_TYPE).toBe('admin.dev_seed_grant');
       expect(m.DEV_ADMIN_SEED_CREATED_BY).toBe('dev-shortcuts/seed');
       expect(m.DEV_ADMIN_SEED_ENV_VAR_NAME).toBe('FOOTBAG_DEV_ADMIN_SEED_JSON');
     } finally {

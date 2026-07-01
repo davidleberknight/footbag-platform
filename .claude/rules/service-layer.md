@@ -51,7 +51,7 @@ When a catch block writes a `*_failed` audit row, it uses `recordOperationalErro
 
 `audit_entries` is the durable, append-only accountability record (immutability enforced by triggers). When appending a row (`appendAuditEntry`):
 
-- Reuse the established `action_type` vocabulary — lowercase, dotted, domain-prefixed (`tier.purchase_grant`, `admin.role_granted`, `legacy.auto_link_revert`). For the same event reuse the existing `action_type`; do not coin a synonym. `action_type` is a closed vocabulary that downstream queries, metric filters, and reviews match on, so renaming an existing one means updating every matcher in the same change.
+- Reuse the established `action_type` vocabulary — lowercase, dotted, domain-prefixed (`tier.purchase_grant`, `admin.role_granted`, `legacy.auto_link_revert`). For the same event reuse the existing `action_type`; do not coin a synonym. `action_type` is a closed vocabulary that downstream queries, metric filters, and reviews match on, so renaming an existing one means updating every matcher in the same change. Every `action_type` is namespaced; `appendAuditEntry` rejects a value that is not lowercase dotted `domain.event` (`assertCanonicalActionType`), and the convention gate rejects any non-namespaced `action_type` literal in `src/` at build time.
 - Set `category` from the existing set; record `actor_type`, `actor_member_id`, `entity_type`, and `entity_id` faithfully (a member is referenced by id).
 - Never write a secret, token, decrypted ballot, password, or raw PII into `reason_text` or `metadata_json`. Hash sensitive lookups (search query, IP, email) and reference personal data by id, not value. Exclude sensitive data at write time rather than relying on read-time redaction.
 - Log every governance- or security-significant write (grants, overrides, role changes, deletions, claims, disputes) so the trail reconstructs who did what, when, and why.
@@ -107,3 +107,4 @@ Drift between JSDoc and the actual service contract is a real bug, not a doc nic
 - No `db.prepare()` calls outside `src/db/db.ts` -- services use named prepared statements from `db.ts`.
 - No AWS SDK / Stripe imports outside `src/adapters/` -- services obtain adapters via `get<Purpose>Adapter()` only.
 - No `process.env` reads outside `src/config/env.ts` -- services read deploy-time config via the typed `config` singleton, runtime config via `readIntConfig(key, fallback)` from `configReader.ts`.
+- Every audit `action_type` literal in `src/` is lowercase, dotted, domain-prefixed -- `appendAuditEntry` also asserts the same shape at runtime via `assertCanonicalActionType`.

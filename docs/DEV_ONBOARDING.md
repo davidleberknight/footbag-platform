@@ -757,7 +757,7 @@ Maintainers can also pre-seed admin accounts directly into the local database, n
 
 Exit codes: 0 success (one or more entries seeded, or already-marked idempotent no-op rows), 1 fatal (DB missing, JSON malformed, no seed input found, empty seed array), 2 one or more entries collide with a non-seed member already owning the email. Re-running with the same JSON is a no-op when the dev-admin-seed marker is already present. Conflicts are reported and not modified.
 
-Removal: rebuild the DB (`./run_dev.sh --reset`) clears all seeded rows. To audit leftover rows, run `./scripts/audit-dev-shortcuts.sh` (queries `reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'grant_admin_dev_%'`, `created_by LIKE 'dev-shortcuts/%'`, and `action_type = 'dev_admin_invariant_repair'`). All four counts must be zero before any production deploy. The seed refuses to load under `FOOTBAG_ENV=production`; staging uses a separate seed surface documented in DEVOPS_GUIDE §20.
+Removal: rebuild the DB (`./run_dev.sh --reset`) clears all seeded rows. To audit leftover rows, run `./scripts/audit-dev-shortcuts.sh` (queries `reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'admin.dev_%_grant'`, `created_by LIKE 'dev-shortcuts/%'`, and `action_type = 'admin.dev_invariant_repair'`). All four counts must be zero before any production deploy. The seed refuses to load under `FOOTBAG_ENV=production`; staging uses a separate seed surface documented in DEVOPS_GUIDE §20.
 
 #### 1.14.3 Dev-only shortcuts
 
@@ -766,7 +766,7 @@ Several shortcuts exist to reduce friction during local manual testing. The runt
 | Shortcut | Type | Allowed envs | What it does |
 |---|---|---|---|
 | `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` | env var | development AND staging | Email allowlist matched at registration; matching registrants get `is_admin=1` plus a Tier 2 grant plus audit rows in one transaction. The deploy pipeline parses `.local/initial-admins.txt` into this env var; the workstation file is the dev source. Production refused at boot and at deploy time. |
-| `GET /dev/switch?as=<slug>` | dev route | development and staging | Issues a real session cookie for a seeded persona via the production JWT primitive, so you act as any persona without a login chain. Audit-marked `dev_switch_persona`. |
+| `GET /dev/switch?as=<slug>` | dev route | development and staging | Issues a real session cookie for a seeded persona via the production JWT primitive, so you act as any persona without a login chain. Audit-marked `testkit.persona_switch`. |
 | `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog. Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by `seedConfig.ts`. |
 | `FOOTBAG_DEV_ADMIN_GRANT_TIER2` | env var | development only | At boot, every `is_admin=1` member whose ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant, enforcing the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role`. |
 | `./scripts/manage-dev-admin-seed.sh --seed-dev-admins` | operator script | development AND staging | Reads `.local/dev-admin-seed.json` (JSONC; or `FOOTBAG_DEV_ADMIN_SEED_JSON` on staging) and inserts admin member rows with `is_admin=1` plus a Tier 2 grant. Production blocked by `seedConfig.ts`. |
@@ -800,13 +800,13 @@ Without a tier grant, the dashboard membership block shows Tier 0 because there 
 
 A stub `legacy_members` row with no `legacy_email` (for example before the legacy data dump is loaded) is claimable from the onboarding wizard's `legacy_claim` task via the historical-person card-confirm path, which needs no email roundtrip; the mailbox-control round-trip is optional and only upgrades the audit evidence tier. Admins requiring manual recovery use the `manualLegacyClaimRecovery` flow.
 
-Optional admin Tier 2 invariant repair; set `FOOTBAG_DEV_ADMIN_GRANT_TIER2=1` to enforce the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role` on the data side. At boot, the orchestrator finds every `is_admin=1` member whose tier ledger reads below Tier 2 and inserts a `member_tier_grants` row with `reason_code = 'dev_admin_invariant_repair'` plus an `audit_entries` row with `action_type = 'dev_admin_invariant_repair'`. Idempotent (already-Tier-2+ admins skipped). Useful when the dev-admin-seed conflict exit code (2) reports a member that exists outside the seed flow without the matching tier grant. Same fail-fast guard as the other dev vars: rejected at boot in any non-development environment.
+Optional admin Tier 2 invariant repair; set `FOOTBAG_DEV_ADMIN_GRANT_TIER2=1` to enforce the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role` on the data side. At boot, the orchestrator finds every `is_admin=1` member whose tier ledger reads below Tier 2 and inserts a `member_tier_grants` row with `reason_code = 'dev_admin_invariant_repair'` plus an `audit_entries` row with `action_type = 'admin.dev_invariant_repair'`. Idempotent (already-Tier-2+ admins skipped). Useful when the dev-admin-seed conflict exit code (2) reports a member that exists outside the seed flow without the matching tier grant. Same fail-fast guard as the other dev vars: rejected at boot in any non-development environment.
 
 ```bash
 export FOOTBAG_DEV_ADMIN_GRANT_TIER2=1
 ```
 
-The two marker columns (`reason_code = 'dev_admin_invariant_repair'` and `action_type = 'dev_admin_invariant_repair'`) are part of the pre-deploy grep checklist in `docs/DEVOPS_GUIDE.md` §20.7; both must return zero rows from any production database.
+The two marker columns (`reason_code = 'dev_admin_invariant_repair'` and `action_type = 'admin.dev_invariant_repair'`) are part of the pre-deploy grep checklist in `docs/DEVOPS_GUIDE.md` §20.7; both must return zero rows from any production database.
 
 ### 1.15 Filing a bug
 

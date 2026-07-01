@@ -9,7 +9,7 @@
  *
  * Detection markers:
  *   - `member_tier_grants.reason_code = 'dev_admin_seed.admin_tier2'`
- *   - `audit_entries.action_type      = 'grant_admin_dev_seed'`
+ *   - `audit_entries.action_type      = 'admin.dev_seed_grant'`
  *   - `member_tier_grants.created_by  = 'dev-shortcuts/seed'`
  * Grep all three to zero before any production deploy.
  *

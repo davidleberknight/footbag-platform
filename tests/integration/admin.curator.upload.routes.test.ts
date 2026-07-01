@@ -268,7 +268,7 @@ describe('POST /admin/curator/upload — photo', () => {
     const auditRow = db.prepare(`SELECT actor_type, actor_member_id, action_type, entity_type FROM audit_entries WHERE entity_id = ?`).get(mediaRow.id) as Record<string, string>;
     expect(auditRow.actor_type).toBe('admin');
     expect(auditRow.actor_member_id).toBe(ADMIN_ID);
-    expect(auditRow.action_type).toBe('upload_curated_media');
+    expect(auditRow.action_type).toBe('media.curated_uploaded');
     expect(auditRow.entity_type).toBe('media_item');
     db.close();
 

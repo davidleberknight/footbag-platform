@@ -463,6 +463,12 @@ export const memberController = {
         });
         return;
       }
+      // Payment kill-switch (payments_paused) and any transient payment-service
+      // unavailability render the truthful 503 page rather than a stack-trace 500.
+      if (err instanceof ServiceUnavailableError) {
+        renderServiceUnavailable(res);
+        return;
+      }
       next(err);
     }
   },

@@ -14,7 +14,7 @@
  * gets a real cookie and a redirect to its profile; a login-blocked account is
  * rejected by the same query the public form uses and lands back on /login.
  * Every issuance or rejection writes an audit entry with action_type
- * 'dev_login_persona'. Unknown slug → 404; missing ?as → 400.
+ * 'testkit.persona_login'. Unknown slug → 404; missing ?as → 400.
  */
 import { Request, Response, NextFunction } from 'express';
 import { auth } from '../db/db';

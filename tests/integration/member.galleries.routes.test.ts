@@ -343,7 +343,7 @@ describe('POST /members/:memberKey/galleries', () => {
     expect(id).toBe('gallery_mg_owner_fresh_gallery');
   });
 
-  it('writes a create_member_gallery audit row scoped to the owner', async () => {
+  it('writes a media.member_gallery_created audit row scoped to the owner', async () => {
     const res = await createGalleryViaApi('Audit Create Target', '#auditcreate');
     expect(res.status).toBe(303);
     const id = findGalleryIdByName('Audit Create Target')!;
@@ -351,7 +351,7 @@ describe('POST /members/:memberKey/galleries', () => {
     try {
       const audit = db.prepare(
         `SELECT actor_type, actor_member_id, entity_type FROM audit_entries
-         WHERE entity_id = ? AND action_type = 'create_member_gallery'`,
+         WHERE entity_id = ? AND action_type = 'media.member_gallery_created'`,
       ).get(id) as Record<string, unknown> | undefined;
       expect(audit).toBeDefined();
       expect(audit!.actor_type).toBe('member');
@@ -535,7 +535,7 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
     } finally { db.close(); }
   });
 
-  it('writes an update_member_gallery audit row scoped to the owner', async () => {
+  it('writes an media.member_gallery_updated audit row scoped to the owner', async () => {
     await createGalleryViaApi('Audit Update Source', '#auditupdsrc');
     const id = findGalleryIdByName('Audit Update Source')!;
     const res = await request(createApp())
@@ -548,7 +548,7 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
     try {
       const audit = db.prepare(
         `SELECT actor_type, actor_member_id, entity_type FROM audit_entries
-         WHERE entity_id = ? AND action_type = 'update_member_gallery'`,
+         WHERE entity_id = ? AND action_type = 'media.member_gallery_updated'`,
       ).get(id) as Record<string, unknown> | undefined;
       expect(audit).toBeDefined();
       expect(audit!.actor_type).toBe('member');

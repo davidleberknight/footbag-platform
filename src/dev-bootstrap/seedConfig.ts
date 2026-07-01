@@ -9,13 +9,13 @@
  * Detection markers (grep-able evidence that a row originated from a
  * dev-admin seed; must be 0-count before any production deploy):
  *   - `member_tier_grants.reason_code = 'dev_admin_seed.admin_tier2'`
- *   - `audit_entries.action_type      = 'grant_admin_dev_seed'`
+ *   - `audit_entries.action_type      = 'admin.dev_seed_grant'`
  *   - `member_tier_grants.created_by  = 'dev-shortcuts/seed'`
  *
  * Persona-harness detection markers (same zero-residue contract):
  *   - `member_tier_grants.reason_code = 'dev_persona_seed.tier_grant'`
- *   - `audit_entries.action_type      = 'dev_persona_seed'`     (seed)
- *   - `audit_entries.action_type      = 'dev_switch_persona'`   (cookie issuance)
+ *   - `audit_entries.action_type      = 'testkit.persona_seed'`     (seed)
+ *   - `audit_entries.action_type      = 'testkit.persona_switch'`   (cookie issuance)
  *   - file-path prefix `src/testkit/persona*`
  *
  * The fixed password literal below is hard-coded for dev/staging
@@ -59,7 +59,7 @@ export const DEV_ADMIN_SEED_PASSWORD_LITERAL = 'dev-admin-seed-password';
 export const DEV_ADMIN_SEED_REASON_CODE = 'dev_admin_seed.admin_tier2';
 export const DEV_ADMIN_SEED_REASON_TEXT =
   'DEV-ADMIN SEED. Not a real tier purchase. Remove before any production deploy.';
-export const DEV_ADMIN_SEED_AUDIT_ACTION_TYPE = 'grant_admin_dev_seed';
+export const DEV_ADMIN_SEED_AUDIT_ACTION_TYPE = 'admin.dev_seed_grant';
 export const DEV_ADMIN_SEED_CREATED_BY = 'dev-shortcuts/seed';
 
 /**

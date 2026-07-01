@@ -23,14 +23,14 @@ procedure. `src/testkit/` must never import from `src/dev-bootstrap/`.
 
 | Mechanism | Trigger | Marker (reason_code) | Marker (action_type) |
 |---|---|---|---|
-| dev-admin seed (direct-insert) | flag: `--seed-dev-admins`; file: `.local/dev-admin-seed.json` or env: `FOOTBAG_DEV_ADMIN_SEED_JSON` | `dev_admin_seed.admin_tier2` | `grant_admin_dev_seed` |
-| register-allowlist bootstrap | env: `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS`; file: `.local/initial-admins.txt` | `dev_admin_register_allowlist.admin_tier2` | `grant_admin_dev_register_allowlist` |
-| tier2 invariant repair | env: `FOOTBAG_DEV_ADMIN_GRANT_TIER2` | `dev_admin_invariant_repair` | `dev_admin_invariant_repair` |
+| dev-admin seed (direct-insert) | flag: `--seed-dev-admins`; file: `.local/dev-admin-seed.json` or env: `FOOTBAG_DEV_ADMIN_SEED_JSON` | `dev_admin_seed.admin_tier2` | `admin.dev_seed_grant` |
+| register-allowlist bootstrap | env: `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS`; file: `.local/initial-admins.txt` | `dev_admin_register_allowlist.admin_tier2` | `admin.dev_register_allowlist_grant` |
+| tier2 invariant repair | env: `FOOTBAG_DEV_ADMIN_GRANT_TIER2` | `dev_admin_invariant_repair` | `admin.dev_invariant_repair` |
 
 All persisted rows from these mechanisms carry `created_by` values under the
 historical `dev-shortcuts/*` namespace (kept stable so the cutover audit and
 existing tests keep matching). The permanent persona harness in `src/testkit/`
-uses the parallel `dev_persona_seed.*` / `dev_switch_persona` markers and
+uses the parallel `dev_persona_seed.tier_grant` reason_code and `testkit.persona_*` action_type markers and
 `created_by 'dev-shortcuts/personas'`; the audit below covers both so any prod DB
 shows zero residue.
 
@@ -54,15 +54,15 @@ When production launch is imminent and the SSM-token `/admin/bootstrap-claim` pa
 sqlite3 database/footbag.db "
   SELECT 'reason_code', COUNT(*) FROM member_tier_grants WHERE reason_code LIKE 'dev_admin_%'
   UNION ALL
-  SELECT 'action_type', COUNT(*) FROM audit_entries     WHERE action_type LIKE 'grant_admin_dev_%'
+  SELECT 'action_type', COUNT(*) FROM audit_entries     WHERE action_type LIKE 'admin.dev_%_grant'
   UNION ALL
-  SELECT 'invariant_repair', COUNT(*) FROM audit_entries WHERE action_type = 'dev_admin_invariant_repair'
+  SELECT 'invariant_repair', COUNT(*) FROM audit_entries WHERE action_type = 'admin.dev_invariant_repair'
   UNION ALL
   SELECT 'created_by', COUNT(*) FROM member_tier_grants WHERE created_by LIKE 'dev-shortcuts/%'
   UNION ALL
   SELECT 'persona_reason', COUNT(*) FROM member_tier_grants WHERE reason_code = 'dev_persona_seed.tier_grant'
   UNION ALL
-  SELECT 'persona_action', COUNT(*) FROM audit_entries WHERE action_type IN ('dev_persona_seed','dev_switch_persona');
+  SELECT 'persona_action', COUNT(*) FROM audit_entries WHERE action_type IN ('testkit.persona_seed','testkit.persona_switch');
 "
 ```
 

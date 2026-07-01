@@ -446,7 +446,7 @@ No dev-or-staging-only code path lives outside these two subtrees. A test-only H
 
 #### 7.5.1 Existing shortcuts
 
-`src/testkit/` exposes the persona harness: seed plus `/dev/switch` and `/dev/personas`, active in development and staging. `src/dev-bootstrap/` exposes the dev-admin seed, the register-allowlist bootstrap, and the tier2 invariant repair (see the subtree READMEs for env-var triggers and behavior). Each carries audit-marker provenance (e.g. `reason_code LIKE 'dev_admin_%'` or `'dev_persona_seed.%'`, `action_type LIKE 'grant_admin_dev_%'` or `'dev_%_persona'`, `created_by LIKE 'dev-shortcuts/%'`). The `dev-shortcuts/*` marker namespace is historical and is kept stable so the cutover audit and existing tests continue to match.
+`src/testkit/` exposes the persona harness: seed plus `/dev/switch` and `/dev/personas`, active in development and staging. `src/dev-bootstrap/` exposes the dev-admin seed, the register-allowlist bootstrap, and the tier2 invariant repair (see the subtree READMEs for env-var triggers and behavior). Each carries audit-marker provenance (e.g. `reason_code LIKE 'dev_admin_%'` or `'dev_persona_seed.%'`, `action_type LIKE 'admin.dev_%_grant'` or `'testkit.persona_%'`, `created_by LIKE 'dev-shortcuts/%'`). The `dev-shortcuts/*` marker namespace is historical and is kept stable so the cutover audit and existing tests continue to match.
 
 #### 7.5.2 Required properties of a dev/staging-only affordance
 
@@ -454,7 +454,7 @@ A dev-or-staging-only affordance (a route, seeder, or bypass) satisfies all of t
 
 - Lives in `src/testkit/` (permanent) or `src/dev-bootstrap/` (temporary) as part of a self-contained subtree.
 - Is gated to development and staging: a route is mounted only under `FOOTBAG_ENV ∈ {development, staging}` with a production hard-guard; a seeder or bootstrap is triggered only by a `FOOTBAG_DEV_*` env var or a CLI flag and refuses to run in production.
-- Carries audit-marker provenance the cutover audit script detects (the stable `dev_admin_*`, `dev_persona_seed.*`, `grant_admin_dev_*`, and `dev-shortcuts/*` namespaces).
+- Carries audit-marker provenance the cutover audit script detects (the stable `dev_admin_*`, `dev_persona_seed.*`, `admin.dev_*_grant`, and `dev-shortcuts/*` namespaces).
 - Has a boot-time fail-fast guard in `src/config/env.ts` that refuses to start when its trigger is set under `FOOTBAG_ENV=production`.
 - Is excluded from the production image by the Dockerfile strip (`INCLUDE_DEV_SHORTCUTS=0` removes both `dist/testkit` and `dist/dev-bootstrap`).
 - Lands with the canonical required test set (§7.5.4).
@@ -603,7 +603,7 @@ The third-party engagement scope is mapped to OWASP ASVS L3 categories that appl
 
 ### 9.5 The dev-shortcuts cutover audit is the canonical zero-residue gate
 
-`scripts/audit-dev-shortcuts.sh` queries the four prefix counts in the production DB (`reason_code` under `dev_admin_*`, `action_type` under `grant_admin_dev_*`, `action_type` equal to `dev_admin_invariant_repair`, `created_by` under `dev-shortcuts/*`) and exits non-zero if any count is positive. It is the canonical gate that must pass before any production deploy. It also runs as a periodic check in the heavyweight pentest suite to detect residue from any future testing shortcut that might have leaked into the production DB.
+`scripts/audit-dev-shortcuts.sh` queries the four prefix counts in the production DB (`reason_code` under `dev_admin_*`, `action_type` under `admin.dev_*_grant`, `action_type` equal to `admin.dev_invariant_repair`, `created_by` under `dev-shortcuts/*`) and exits non-zero if any count is positive. It is the canonical gate that must pass before any production deploy. It also runs as a periodic check in the heavyweight pentest suite to detect residue from any future testing shortcut that might have leaked into the production DB.
 
 The production build must:
 
@@ -897,7 +897,7 @@ All seeded personas share one fixed test password, defined once in `src/testkit/
 
 ### 16.3 Acting as a persona
 
-`/dev/switch?as=<slug>` looks the persona up by slug through the same email-verified session query the auth middleware uses, mints a real session JWT, and writes a `dev_switch_persona` audit row. An unknown slug returns 404 (anti-enumeration). Switching while already signed in replaces the current session.
+`/dev/switch?as=<slug>` looks the persona up by slug through the same email-verified session query the auth middleware uses, mints a real session JWT, and writes a `testkit.persona_switch` audit row. An unknown slug returns 404 (anti-enumeration). Switching while already signed in replaces the current session.
 
 ### 16.4 Seeing captured email
 
@@ -937,7 +937,7 @@ On the staging host the harness is seeded after a deploy with `./deploy_to_aws.s
 
 ### 16.8 Provenance and the cutover audit
 
-Every harness write carries a stable marker (`reason_code = 'dev_persona_seed.tier_grant'`, `audit_entries.action_type` in `dev_persona_seed` or `dev_switch_persona`, `created_by = 'dev-shortcuts/personas'`). `scripts/audit-dev-shortcuts.sh` counts these against a production database and exits non-zero on any residue (§9.5), so the harness is provably absent from production.
+Every harness write carries a stable marker (`reason_code = 'dev_persona_seed.tier_grant'`, `audit_entries.action_type` in `testkit.persona_seed` or `testkit.persona_switch`, `created_by = 'dev-shortcuts/personas'`). `scripts/audit-dev-shortcuts.sh` counts these against a production database and exits non-zero on any residue (§9.5), so the harness is provably absent from production.
 
 ---
 

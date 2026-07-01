@@ -2720,6 +2720,7 @@ VALUES
 --   audit_retention_days            Audit log retention window
 --   reconciliation_expiry_days      Resolved reconciliation issue TTL
 --   email_outbox_paused             0=outbox worker draining, 1=paused (admin toggle)
+--   payments_paused                 0=membership purchases open, 1=paused (admin kill-switch)
 --   event_registration_reminder_days Days before event start to send registration reminder
 --   member_cleanup_grace_days       Grace days after soft-delete before PII purge job runs
 --   payment_retention_days          Payment record compliance retention window
@@ -2872,6 +2873,15 @@ VALUES
    'email_outbox_paused', '0',
    '2000-01-01T00:00:00.000Z',
    'Admin pause toggle for the transactional email outbox worker (0 = draining, 1 = paused).',
+   NULL
+  ),
+
+  (
+   'seed-payments-paused',
+   '2000-01-01T00:00:00.000Z',
+   'payments_paused', '0',
+   '2000-01-01T00:00:00.000Z',
+   'Admin kill-switch for membership purchases (0 = open, 1 = paused).',
    NULL
   ),
 

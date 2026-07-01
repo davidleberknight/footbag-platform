@@ -197,7 +197,7 @@ describe('curatorMediaService.uploadPhoto', () => {
     const audit = db.prepare(`SELECT * FROM audit_entries WHERE entity_id = ?`).get(result.mediaId) as Record<string, unknown>;
     expect(audit.actor_type).toBe('admin');
     expect(audit.actor_member_id).toBe(ADMIN_ID);
-    expect(audit.action_type).toBe('upload_curated_media');
+    expect(audit.action_type).toBe('media.curated_uploaded');
     expect(audit.entity_type).toBe('media_item');
     db.close();
   });
@@ -380,7 +380,7 @@ describe('curatorMediaService.uploadVideo', () => {
     const audit = db.prepare(`SELECT * FROM audit_entries WHERE entity_id = ?`).get(result.mediaId) as Record<string, unknown>;
     expect(audit.actor_type).toBe('admin');
     expect(audit.actor_member_id).toBe(ADMIN_ID);
-    expect(audit.action_type).toBe('upload_curated_media');
+    expect(audit.action_type).toBe('media.curated_uploaded');
     db.close();
   });
 
@@ -541,7 +541,7 @@ describe('curatorMediaService.editMedia', () => {
     db.close();
   });
 
-  it('writes audit entry with edit_curated_media action_type', async () => {
+  it('writes audit entry with media.curated_edited action_type', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'before', tags: [] });
@@ -549,7 +549,7 @@ describe('curatorMediaService.editMedia', () => {
     await svc.editMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId, caption: 'after' });
 
     const db = openDb();
-    const audit = db.prepare(`SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'edit_curated_media'`).get(r.mediaId) as Record<string, unknown>;
+    const audit = db.prepare(`SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'media.curated_edited'`).get(r.mediaId) as Record<string, unknown>;
     expect(audit).toBeDefined();
     expect(audit.actor_member_id).toBe(ADMIN_ID);
     db.close();
@@ -625,7 +625,7 @@ describe('curatorMediaService.editMedia — sidecar-backed', () => {
     const row = db2.prepare(`SELECT caption FROM media_items WHERE id = ?`).get(mediaId) as { caption: string };
     expect(row.caption).toBe(newCaption);
     const audit = db2.prepare(
-      `SELECT entity_id, entity_type, action_type FROM audit_entries WHERE entity_id = ? AND action_type = 'edit_curated_url_reference'`,
+      `SELECT entity_id, entity_type, action_type FROM audit_entries WHERE entity_id = ? AND action_type = 'media.curated_url_reference_edited'`,
     ).get(sidecarFilename) as Record<string, string>;
     expect(audit).toBeDefined();
     expect(audit.entity_type).toBe('curated_sidecar');
@@ -742,14 +742,14 @@ describe('curatorMediaService.deleteMedia', () => {
     expect(storage.deletes.some((k) => k.endsWith('-poster-thumb.jpg'))).toBe(true);
   });
 
-  it('writes audit entry with delete_curated_media action_type', async () => {
+  it('writes audit entry with media.curated_deleted action_type', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: [] });
     await svc.deleteMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId });
 
     const db = openDb();
-    const audit = db.prepare(`SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'delete_curated_media'`).get(r.mediaId) as Record<string, unknown>;
+    const audit = db.prepare(`SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'media.curated_deleted'`).get(r.mediaId) as Record<string, unknown>;
     expect(audit).toBeDefined();
     expect(audit.actor_member_id).toBe(ADMIN_ID);
     db.close();
@@ -822,7 +822,7 @@ describe('curatorMediaService.deleteMedia — sidecar-backed', () => {
     const row = db2.prepare(`SELECT id FROM media_items WHERE id = ?`).get(mediaId);
     expect(row).toBeUndefined();
     const audit = db2.prepare(
-      `SELECT entity_id, entity_type, action_type FROM audit_entries WHERE entity_id = ? AND action_type = 'delete_curated_url_reference'`,
+      `SELECT entity_id, entity_type, action_type FROM audit_entries WHERE entity_id = ? AND action_type = 'media.curated_url_reference_deleted'`,
     ).get(sidecarFilename) as Record<string, string>;
     expect(audit).toBeDefined();
     expect(audit.entity_type).toBe('curated_sidecar');
@@ -1160,7 +1160,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
     expect(tagDisplays).toContain('#curated');
     expect(tagDisplays).toContain('#around-the-world');
     const audit = db.prepare(
-      `SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'upload_curated_url_reference'`,
+      `SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'media.curated_url_reference_added'`,
     ).get(result.filename) as Record<string, unknown> | undefined;
     expect(audit).toBeDefined();
     expect(audit!.actor_member_id).toBe(ADMIN_ID);
@@ -2182,7 +2182,7 @@ describe('curatorMediaService.finalizeTranscodeForJob', () => {
       expect(row.source_filename).toBe('clip.mp4');
       const audit = db.prepare(`SELECT * FROM audit_entries WHERE entity_id = ?`).get(result.mediaId) as Record<string, unknown>;
       expect(audit.actor_member_id).toBe(ADMIN_ID);
-      expect(audit.action_type).toBe('upload_curated_media');
+      expect(audit.action_type).toBe('media.curated_uploaded');
     } finally { db.close(); }
   });
 

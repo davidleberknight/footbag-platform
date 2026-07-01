@@ -1,7 +1,7 @@
 /**
  * Production first-admin bootstrap: a signed-in member claiming with the
  * operator-provisioned SSM token receives is_admin=1 plus the Tier 2
- * invariant grant plus the grant_admin_bootstrap audit row atomically, and
+ * invariant grant plus the admin.bootstrap_grant audit row atomically, and
  * the token parameter is deleted so the bootstrap closes. Wrong tokens,
  * an unprovisioned parameter, and a second claim all return the same
  * non-revealing result; unauthenticated visitors never reach the form.
@@ -83,7 +83,7 @@ describe('bootstrap claim', () => {
     const tier = db.prepare('SELECT tier_status FROM member_tier_current WHERE member_id = ?').get('boot-claimer') as { tier_status?: string } | undefined;
     expect(tier?.tier_status).toBe('tier2');
     const audit = db.prepare(
-      `SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = 'boot-claimer' AND action_type = 'grant_admin_bootstrap'`,
+      `SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = 'boot-claimer' AND action_type = 'admin.bootstrap_grant'`,
     ).get() as { n: number };
     expect(audit.n).toBe(1);
 
@@ -118,7 +118,7 @@ describe('bootstrap claim', () => {
     const tier = db.prepare('SELECT tier_status FROM member_tier_current WHERE member_id = ?').get('boot-second') as { tier_status?: string } | undefined;
     expect(tier?.tier_status).not.toBe('tier2');
     const audit = db.prepare(
-      `SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = 'boot-second' AND action_type = 'grant_admin_bootstrap'`,
+      `SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = 'boot-second' AND action_type = 'admin.bootstrap_grant'`,
     ).get() as { n: number };
     expect(audit.n).toBe(0);
   });

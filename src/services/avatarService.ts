@@ -26,7 +26,7 @@
  *   media_items, media_tags, tags, audit_entries.
  *
  * Side effects:
- *   - audit_entries append (upload_member_media, mediaType avatar)
+ *   - audit_entries append (media.member_uploaded, mediaType avatar)
  *   - storage adapter puts (thumb + display)
  *
  * Service shape: factory `createAvatarService({ storage, imageProcessor })`
@@ -153,9 +153,9 @@ export function createAvatarService(deps: AvatarServiceDeps) {
 
         // Audit the state change inside the same transaction so a failed append
         // rolls back the whole avatar swap. Matches the member-photo path's
-        // 'upload_member_media' taxonomy (mediaType distinguishes avatar/photo).
+        // 'media.member_uploaded' taxonomy (mediaType distinguishes avatar/photo).
         appendAuditEntry({
-          actionType: 'upload_member_media',
+          actionType: 'media.member_uploaded',
           category: 'media',
           actorType: 'member',
           actorMemberId: memberId,

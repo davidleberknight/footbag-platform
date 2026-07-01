@@ -375,7 +375,7 @@ export function applyPurchaseGrantInTx(
  * audit search by action_type catches the full bootstrap event
  * (admin-flag + tier grant rows, both written in the same transaction by
  * the caller). The production-bootstrap reason_code falls through to the
- * canonical `grant_admin_bootstrap` action_type.
+ * canonical `admin.bootstrap_grant` action_type.
  */
 export function applyAdminTier2InvariantGrant(
   memberId: string,
@@ -434,17 +434,19 @@ export function applyAdminTier2InvariantGrantInTx(
   //   route to distinctive action_types so the audit trail can be partitioned
   //   and zero-checked before production deploy.
   // Target: remove both branches at production go-live; only the production
-  //   bootstrap path (grant_admin_bootstrap action_type) remains.
+  //   bootstrap path (admin.bootstrap_grant action_type) remains.
   let actionType: string;
   let category: 'admin' | 'tier_change';
   if (reasonCode === 'dev_admin_invariant_repair') {
-    actionType = 'dev_admin_invariant_repair';
+    // The namespaced audit action_type and the tier-grant reason_code that
+    // selects it are separate vocabularies and intentionally differ in value.
+    actionType = 'admin.dev_invariant_repair';
     category = 'tier_change';
   } else if (reasonCode === 'dev_admin_register_allowlist.admin_tier2') {
-    actionType = 'grant_admin_dev_register_allowlist';
+    actionType = 'admin.dev_register_allowlist_grant';
     category = 'admin';
   } else {
-    actionType = 'grant_admin_bootstrap';
+    actionType = 'admin.bootstrap_grant';
     category = 'admin';
   }
   audit({

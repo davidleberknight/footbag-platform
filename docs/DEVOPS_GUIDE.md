@@ -1287,7 +1287,7 @@ The production platform launches with zero admins; the single-shot bootstrap tok
    shred -u /tmp/admin-token
    ```
    (`scripts/admin-bootstrap-token.sh --target production --profile <prod-profile> provision` automates this safely.)
-2. Hand the token to the intended first admin out-of-band. They register a normal account, sign in, and submit the token at `/admin/bootstrap-claim`. On a match the platform writes `is_admin=1` plus the Tier 2 invariant grant plus the `grant_admin_bootstrap` audit row atomically, then deletes the parameter.
+2. Hand the token to the intended first admin out-of-band. They register a normal account, sign in, and submit the token at `/admin/bootstrap-claim`. On a match the platform writes `is_admin=1` plus the Tier 2 invariant grant plus the `admin.bootstrap_grant` audit row atomically, then deletes the parameter.
 3. Verify closure: `aws ssm get-parameter --name /footbag/production/app/bootstrap/admin_token` must return ParameterNotFound. If the grant succeeded but deletion failed, an `admin.bootstrap_token_delete_failed` operational error is raised; delete the parameter by hand.
 
 ### 10.13 Host env verification
@@ -2534,7 +2534,7 @@ Future dev-shortcut scripts follow the admin-seed shape. The acceptance bar:
 - Lives at `src/dev-bootstrap/<additional-mechanism>.ts`. Compiles via the project `tsc` (no Dockerfile changes; `dist/` already ships).
 - Imports `src/dev-bootstrap/seedConfig.ts` for the env-guard and shared marker conventions. Adds its own mechanism-specific exports (env-var name, seed file paths, marker constants).
 - Reads from `FOOTBAG_DEV_<MECHANISM>_JSON` if set; otherwise from `.local/dev-<mechanism>.json`. Missing both is fatal (exit 1): silent no-ops mask operator mistakes.
-- Writes marker columns under the `dev_admin_*` namespace with `created_by = 'dev-shortcuts/<mechanism>'` and an `audit_entries.action_type = 'grant_admin_dev_<mechanism>'`.
+- Writes marker columns under the `dev_admin_*` namespace with `created_by = 'dev-shortcuts/<mechanism>'` and an `audit_entries.action_type = 'admin.dev_<mechanism>_grant'`.
 - Is idempotent on the marker; reports conflicts without modifying; exits 0 / 1 / 2 as the admin seed does.
 - Adds a `--seed-<mechanism>` action to `scripts/manage-dev-admin-seed.sh` (or shares the `--seed-dev-admins` umbrella, running every dev-shortcut script whose staging file exists).
 - Wires deploy transport in `scripts/deploy-code.sh` and `scripts/deploy-rebuild.sh` (cat-pipe of the compact JSON) and staging-side exec in `scripts/internal/deploy-code-remote.sh` and `scripts/internal/deploy-rebuild-remote.sh` (stdin-piped `docker compose exec`).
@@ -2571,9 +2571,9 @@ There is no automated unseed action. Re-rebuild the staging database (`./deploy_
 
 ```sql
 SELECT COUNT(*) FROM member_tier_grants WHERE created_by LIKE 'dev-shortcuts/%';
-SELECT COUNT(*) FROM audit_entries     WHERE action_type LIKE 'grant_admin_dev_%';
+SELECT COUNT(*) FROM audit_entries     WHERE action_type LIKE 'admin.dev_%_grant';
 SELECT COUNT(*) FROM member_tier_grants WHERE reason_code LIKE 'dev_admin_%';
-SELECT COUNT(*) FROM audit_entries     WHERE action_type = 'dev_admin_invariant_repair';
+SELECT COUNT(*) FROM audit_entries     WHERE action_type = 'admin.dev_invariant_repair';
 ```
 
 All four counts must be zero before any production deploy. `scripts/audit-dev-shortcuts.sh` runs these queries and exits non-zero if any return > 0; suitable as a CI gate at cutover. The `dev_admin_invariant_repair` marker comes from the dev-only `FOOTBAG_DEV_ADMIN_GRANT_TIER2` invariant-repair pass (see `docs/DEV_ONBOARDING.md` §1.14.3). The `dev_admin_register_allowlist.admin_tier2` marker comes from the dev/staging email-allowlist bootstrap (the unified handler in `src/dev-bootstrap/runtime.ts`); production-first-admin uses a different reason_code and is documented in §20.8. The env-config fail-fast guard prevents any of the dev/staging shortcuts from being set in production, so a non-zero count on production indicates an env-gate bypass and warrants investigation.

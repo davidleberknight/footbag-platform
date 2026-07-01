@@ -21,8 +21,8 @@
  * the cutover audit confirms these are zero-residue in any production DB,
  * since the harness seeds only in development and staging):
  *   - member_tier_grants.reason_code = 'dev_persona_seed.tier_grant'
- *   - audit_entries.action_type      = 'dev_persona_seed'    (seed)
- *   - audit_entries.action_type      = 'dev_switch_persona'  (cookie issuance)
+ *   - audit_entries.action_type      = 'testkit.persona_seed'    (seed)
+ *   - audit_entries.action_type      = 'testkit.persona_switch'  (cookie issuance)
  *   - created_by / source            = 'dev-shortcuts/personas'
  *
  * These markers are non-sensitive and live here rather than in seedConfig.ts:
@@ -63,10 +63,10 @@ import type {
 export const PERSONA_SEED_REASON_CODE = 'dev_persona_seed.tier_grant';
 export const PERSONA_SEED_REASON_TEXT =
   'TEST PERSONA HARNESS. Not a real tier purchase. Remove before any production deploy.';
-export const PERSONA_SEED_AUDIT_ACTION_TYPE = 'dev_persona_seed';
-export const PERSONA_SWITCH_AUDIT_ACTION_TYPE = 'dev_switch_persona';
-export const PERSONA_LOGIN_AUDIT_ACTION_TYPE = 'dev_login_persona';
-export const PERSONA_REFRESH_AUDIT_ACTION_TYPE = 'dev_persona_refresh';
+export const PERSONA_SEED_AUDIT_ACTION_TYPE = 'testkit.persona_seed';
+export const PERSONA_SWITCH_AUDIT_ACTION_TYPE = 'testkit.persona_switch';
+export const PERSONA_LOGIN_AUDIT_ACTION_TYPE = 'testkit.persona_login';
+export const PERSONA_REFRESH_AUDIT_ACTION_TYPE = 'testkit.persona_refresh';
 export const PERSONA_SEED_CREATED_BY = 'dev-shortcuts/personas';
 
 /**

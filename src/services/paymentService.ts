@@ -34,6 +34,10 @@
  *   - Monotonic state transitions: enforced both by service code and by
  *     trg_payments_status_monotonicity. Every status change writes a
  *     payment_status_transitions row in the same transaction.
+ *   - Payment kill-switch: startMembershipPurchase throws
+ *     ServiceUnavailableError when payments_paused=1 (runtime config), before
+ *     any eligibility check, rate-limit token, or createCheckoutSession call,
+ *     so an admin halts purchases without a redeploy.
  *   - Payment row written as 'pending' AFTER adapter.createCheckoutSession, in
  *     one INSERT already carrying stripe_checkout_session_id and, when Stripe
  *     created the PaymentIntent eagerly, stripe_payment_intent_id. Stripe may
@@ -340,6 +344,15 @@ async function startMembershipPurchase(
   tier: unknown,
   returnTo: unknown,
 ): Promise<StartPurchaseResult> {
+  // Platform payment kill-switch: an admin halts all membership purchases
+  // without a redeploy by setting payments_paused=1 in runtime config. Checked
+  // before eligibility, the throttle bucket, or the checkout-session call, so a
+  // paused platform opens no Stripe session and reveals no eligibility state.
+  if (readIntConfig('payments_paused', 0) === 1) {
+    throw new ServiceUnavailableError(
+      'Membership purchases are temporarily unavailable. Please try again later.',
+    );
+  }
   if (!isPurchasableTier(tier)) {
     throw new ValidationError("tier must be 'tier1' or 'tier2'");
   }

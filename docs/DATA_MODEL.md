@@ -407,14 +407,14 @@ Config values are admin-configurable. Numeric limits and time windows are stored
 #### Audit log
 `audit_entries` is an append-only, privacy-safe ledger. IP addresses and user-agent strings are **never** stored. UPDATE and DELETE are blocked by DB triggers; rows are permanent. Actor context uses `actor_type` + `actor_member_id` (NULL for system actors).
 
-**`action_type` catalog.** The `action_type` column is application-controlled (no CHECK enum). The naming convention is dotted `domain.event` (e.g. `auth.register`, `payment.succeeded`); a small set of earlier names without the dot are grandfathered as-is because renaming shipped events would orphan their existing audit rows. The convention binds every new event.
+**`action_type` catalog.** The `action_type` column is application-controlled (no CHECK enum). Every value is a dotted `domain.event` (e.g. `auth.register`, `payment.succeeded`); the convention binds every event.
 
 Emitted values, grouped by namespace:
 
 - **`auth.*`**: `register`, `register_rate_limited`, `register_notification_failed`, `email_verified`, `login_rate_limited`, `password_change`, `password_change_notification_failed`, `password_reset`, `password_reset_notification_failed`.
 - **`claim.*`**: `legacy_account` (legacy-account claim completed), `historical_person` (direct historical-record claim completed).
 - **`legacy.*`**: `auto_link_candidate_staged`, `auto_link_candidate_confirmed`, `auto_link_candidate_declined`, `auto_link_candidate_expired`, `auto_link_candidate_failed`, `auto_link_reported_incorrect`, `auto_link_revert`, `cross_source_candidate_offered`, `cross_source_candidate_confirmed`, `cross_source_candidate_declined`, `mailbox_link_token_issued`, `mailbox_link_token_consumed`, `mailbox_link_token_expired`, `mailbox_link_email_enqueue_failed`, `registration_conflict_prompted`, `registration_conflict_disputed`, `claim_initiate_notification_failed`, `claim_tier_grant`.
-- **`wizard.*`**: `start`, `task.detour_paused`, `club_affiliations.confirmed`, `club_affiliations.declined`, `club_affiliations.promoted`.
+- **`wizard.*`**: `start`, `task.started`, `task.skipped`, `task.completed`, `task.not_applicable`, `task.detour_paused`, `club_affiliations.confirmed`, `club_affiliations.declined`, `club_affiliations.promoted`.
 - **`club.*`**: `created`, `member_joined`, `member_left`, `primary_swapped`, `marked_inactive`, `reactivated`, `coleader_stepped_down`, `hashtag_updated`, `active_player_grant_failed`.
 - **`tier.*`**: `purchase_grant`, `legacy_claim_grant`, `governance_set`, `governance_removed`, `auto_link_revert`, `admin_override`.
 - **`payment.*`**: `checkout_started`, `succeeded`, `failed`, `refunded`, `canceled`, `compliance_anonymize_failed`.
@@ -422,9 +422,10 @@ Emitted values, grouped by namespace:
 - **`support.*`**: `contact_request_submitted`, `contact_request_resolved`, `contact_request_resolve_notification_failed`.
 - **`roster.*`**: `list`, `summary`, `export`.
 - **`member.*`**: `profile_updated`, `search`, `search_rate_limited`, `pii_purged`, `deceased_pii_scrubbed`, `pii_erasure_failed`.
-- **`admin.*`**: `role_granted`, `role_revoked` (steady-state admin-role grant and revoke via A_Manage_Admin_Role).
+- **`admin.*`**: `role_granted`, `role_revoked` (steady-state admin-role grant and revoke via A_Manage_Admin_Role), `bootstrap_grant` (production single-shot SSM-token first-admin), `dev_register_allowlist_grant`, `dev_seed_grant`, `dev_invariant_repair` (dev/staging admin provisioning and Tier 2 invariant repair).
 - **`admin.club_cleanup.*`**: parameterized by the cleanup action taken.
-- **Grandfathered (no namespace)**: `onboarding_task_started`, `onboarding_task_skipped`, `onboarding_task_completed`, `onboarding_task_not_applicable`, `upload_member_media`, `upload_curated_media`, `edit_member_media`, `upload_curated_url_reference`, `grant_admin_bootstrap`, `grant_admin_dev_seed`, `grant_admin_dev_register_allowlist`, `dev_admin_invariant_repair`, `dev_persona_seed`, `dev_switch_persona`.
+- **`media.*`**: `member_uploaded`, `curated_uploaded`, `member_edited`, `curated_edited`, `member_deleted`, `curated_deleted`, `curated_url_reference_added`, `curated_url_reference_edited`, `curated_url_reference_deleted`, `member_gallery_created`, `curated_gallery_created`, `member_gallery_updated`, `curated_gallery_updated`, `member_gallery_deleted`, `curated_gallery_deleted`.
+- **`testkit.*`**: `persona_seed`, `persona_switch`, `persona_login`, `persona_refresh` (dev/staging persona-harness audit markers).
 
 Reserved names for designed surfaces that do not emit yet (account lifecycle, voting and recognition, content moderation) follow the same convention when they land: `auth.account_deleted`, `auth.account_restored`, `member.deceased_marked`, `member.deceased_reverted`, `vote.cast`, `vote.eligibility_snapshot_taken`, `vote.ballot_tallied`, `hof.nomination_submitted`, `hof.affidavit_submitted`, `media.flagged`, `media.deleted`.
 

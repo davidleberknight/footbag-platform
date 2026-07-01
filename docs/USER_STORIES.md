@@ -2497,6 +2497,7 @@ Success Criteria:
 - There is a single System Parameters admin view that shows all supported configuration settings grouped into clear sections (for example: Membership and Pricing, Donations and Payments, Email and Notifications, Data Retention and Cleanup, Grace Periods, System Health and Alarms, Session Timeout).
 - All Administrator-configurable system parameters have normative default values defined in the Configurable Parameters subsection of this document. The initial database creation process must load those defaults into the corresponding tables. Defaults reflect IFPA rules where applicable, and otherwise reflect privacy, security, and legal-retention requirements.
 - The Membership and Pricing section allows an admin to view and adjust: Tier 1 IFPA Member price (USD). Tier 2 IFPA Organizer Member price (USD).
+- The Donations and Payments section allows an admin to view and toggle a "Pause payments" emergency switch (default: off) that stops new membership purchases from starting a Stripe Checkout session while existing payments and webhooks continue to process.
 - The Email and Notifications section allows an admin to view and adjust: Maximum email retry attempts for the outbox / notification sender (default: 5 attempts with exponential backoff; after max attempts the item is moved to a dead-letter queue/folder visible to admins). Time between outbox scans / notification runs (configurable; default 30 seconds via `outbox_poll_interval_seconds`) for SYS_Send_Email. "Pause sending" emergency toggle (default: off) that stops the worker from sending new outbox items while keeping newly enqueued items pending. Days-before-event for registration reminder emails in M_Register_For_Event (default: 7 days before event start). Two administrator-configurable days-before-Active-Player-expiry reminder offsets (defaults: 30 and 7 days). Day-of Active Player expiry notification (T+0) is built in and not separately configurable.
 - All parameters on this screen: Show current values and defaults, with short helper text explaining how each value is used (for example “Used by recurring donations job; do not set below X days without board approval”). Enforce safe ranges and validation so that admins cannot set obviously invalid values (for example negative days, zero retry count, or unparseable expressions). Are audit-logged when changed, including old value, new value, admin ID, and timestamp, and these changes appear in A_View_Audit_Logs / A_View_System_Health where appropriate.
 - Changing any of these parameters does not require code deployment: the updated values are read from the SystemConfig data store and automatically picked up by the relevant jobs, flows, and admin views the next time they run.
@@ -2531,6 +2532,10 @@ Seed these defaults into the database-backed configuration store during initial 
 
 - `tier1_price_cents = 1000` (Tier 1 IFPA Member dues; integer cents; valid `> 0`)
 - `tier2_price_cents = 5000` (Tier 2 IFPA Organizer Member dues; integer cents; valid `> 0`)
+
+### Donations and Payments
+
+- `payments_paused = 0` (admin-only emergency kill switch that halts new membership purchases without a redeployment; DB literal `0/1`)
 
 ### Active Player Windows / Lifecycle (IFPA-derived)
 

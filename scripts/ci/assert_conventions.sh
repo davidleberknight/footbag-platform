@@ -713,6 +713,36 @@ if [ -n "$(printf '%s' "$emdash_hits" | tr -d '[:space:]')" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: every audit action_type is a lowercase, dotted, domain-prefixed value.
+# Reason: action_type is a closed vocabulary that downstream queries, metric
+# filters, and the cutover residue audit match on; a value without a namespace
+# splits those matchers. Production writes are validated at runtime by
+# assertCanonicalActionType in appendAuditEntry; this gate is the build-time
+# backstop for every action_type literal in src/, including the persona and
+# dev-admin audit-marker constants that reach the DB through a raw-SQL path.
+echo "[conventions] check: audit action_type literals are dotted (src/**)"
+action_type_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+root = pathlib.Path('src')
+dotted = re.compile(r'^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$')
+pats = [
+    re.compile(r"actionType\s*[:=]\s*'([^']+)'"),
+    re.compile(r"_AUDIT_ACTION_TYPE\s*=\s*'([^']+)'"),
+]
+for f in sorted(root.rglob('*.ts')):
+    for i, line in enumerate(f.read_text().splitlines(), 1):
+        for pat in pats:
+            for m in pat.finditer(line):
+                if not dotted.match(m.group(1)):
+                    print(f"{f}:{i}: audit action_type '{m.group(1)}' is not lowercase dotted domain.event")
+PYEOF
+)
+if [ -n "$action_type_hits" ]; then
+  echo "$action_type_hits" >&2
+  echo "  FAIL: audit action_type must be lowercase dotted domain.event (every value namespaced)" >&2
+  violations=$((violations + 1))
+fi
+
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2
   exit 1

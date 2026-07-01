@@ -748,7 +748,7 @@ Impact:
 
 Decision:
 
-Layer-boundary rules and data invariants that can be checked mechanically are enforced at merge by a convention gate (`scripts/ci/assert_conventions.sh` and its delegated checkers), not left to human review. The gate covers template discipline (no branching on raw domain enums, no multi-variable URL assembly, no inline data-island serialization), controller discipline (no direct SQL execution, no direct cookie emission outside the cookie helpers), data-layer discipline (positional SQL parameters only, the canonical UTC timestamp form, presence of every documented append-only trigger), service discipline (failure audit rows route through the operational-error helper), supply-chain discipline (every GitHub Actions reference pinned to a commit SHA), comment hygiene (no doc-path references or delivery-epoch labels in code or template comments), deploy-image discipline (every runtime read resolving under the repository root has a matching Dockerfile COPY), and the visual-token and template restrictions of §4.8. Checks that require judgment, or that range over a growing unenumerable set such as service file-header JSDoc accuracy and completeness, are not gated; they are carried by the adversarial bug-hunt review.
+Layer-boundary rules and data invariants that can be checked mechanically are enforced at merge by a convention gate (`scripts/ci/assert_conventions.sh` and its delegated checkers), not left to human review. The gate covers template discipline (no branching on raw domain enums, no multi-variable URL assembly, no inline data-island serialization), controller discipline (no direct SQL execution, no direct cookie emission outside the cookie helpers), data-layer discipline (positional SQL parameters only, the canonical UTC timestamp form, presence of every documented append-only trigger), service discipline (failure audit rows route through the operational-error helper), audit-log discipline (every `action_type` is a lowercase dotted `domain.event`), supply-chain discipline (every GitHub Actions reference pinned to a commit SHA), comment hygiene (no doc-path references or delivery-epoch labels in code or template comments), deploy-image discipline (every runtime read resolving under the repository root has a matching Dockerfile COPY), and the visual-token and template restrictions of §4.8. Checks that require judgment, or that range over a growing unenumerable set such as service file-header JSDoc accuracy and completeness, are not gated; they are carried by the adversarial bug-hunt review.
 
 Rationale:
 
@@ -778,7 +778,7 @@ Trade-offs:
 
 Impact:
 
-- Code that branches on a raw enum in a template, assembles a multi-variable URL in a view, executes SQL from a controller, emits a cookie outside the helpers, writes a non-canonical timestamp or a named SQL parameter, drops a documented append-only trigger, records a failure audit row without the operational-error helper, or references a GitHub Action by a mutable tag, fails CI and must be expressed through the canonical pattern.
+- Code that branches on a raw enum in a template, assembles a multi-variable URL in a view, executes SQL from a controller, emits a cookie outside the helpers, writes a non-canonical timestamp or a named SQL parameter, drops a documented append-only trigger, records a failure audit row without the operational-error helper, writes a non-namespaced audit `action_type`, or references a GitHub Action by a mutable tag, fails CI and must be expressed through the canonical pattern.
 
 - Service-contract documentation correctness is owned by the bug-hunt review, which flags any write-path service missing or drifting from its file-header JSDoc.
 
@@ -1190,7 +1190,7 @@ Rationale:
 
 - Bootstrap expresses operator intent through environment-isolated mechanisms. Dev and staging use a workstation-supplied email allowlist (gitignored on the workstation; injected as `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` by the deploy pipeline) that auto-promotes matching registrations. Production uses a single-shot SSM-stored claim token consumed via an in-app endpoint by an already-registered member. The two mechanisms share no env vars and no code paths beyond the shared service primitive that writes the resulting `is_admin=1` plus Tier 2 grant.
 
-- The audit log is the authoritative grant trail in both cases. Steady-state grants record `actor_type='admin'`; bootstrap grants record `actor_type='system'`. The action_type is mechanism-specific so audits can be partitioned per source: `grant_admin_bootstrap` for the production SSM-token path, `grant_admin_dev_register_allowlist` for the dev/staging email-allowlist, `grant_admin_dev_seed` for the dev/staging direct-insert seed.
+- The audit log is the authoritative grant trail in both cases. Steady-state grants record `actor_type='admin'`; bootstrap grants record `actor_type='system'`. The action_type is mechanism-specific so audits can be partitioned per source: `admin.bootstrap_grant` for the production SSM-token path, `admin.dev_register_allowlist_grant` for the dev/staging email-allowlist, `admin.dev_seed_grant` for the dev/staging direct-insert seed.
 
 Requirements:
 

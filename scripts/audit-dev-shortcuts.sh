@@ -41,11 +41,11 @@ echo "dev-shortcuts audit (${DB_FILE}):"
 c1=$(run_count "reason_code dev_admin_*" \
   "SELECT COUNT(*) FROM member_tier_grants WHERE reason_code LIKE 'dev_admin_%';")
 
-c2=$(run_count "action_type grant_admin_dev_*" \
-  "SELECT COUNT(*) FROM audit_entries WHERE action_type LIKE 'grant_admin_dev_%';")
+c2=$(run_count "action_type admin.dev_*_grant" \
+  "SELECT COUNT(*) FROM audit_entries WHERE action_type LIKE 'admin.dev_%_grant';")
 
 c3=$(run_count "action_type invariant_repair" \
-  "SELECT COUNT(*) FROM audit_entries WHERE action_type = 'dev_admin_invariant_repair';")
+  "SELECT COUNT(*) FROM audit_entries WHERE action_type = 'admin.dev_invariant_repair';")
 
 c4=$(run_count "created_by dev-shortcuts/*" \
   "SELECT COUNT(*) FROM member_tier_grants WHERE created_by LIKE 'dev-shortcuts/%';")
@@ -53,8 +53,8 @@ c4=$(run_count "created_by dev-shortcuts/*" \
 c5=$(run_count "reason_code dev_persona_seed" \
   "SELECT COUNT(*) FROM member_tier_grants WHERE reason_code = 'dev_persona_seed.tier_grant';")
 
-c6=$(run_count "action_type dev_persona/switch" \
-  "SELECT COUNT(*) FROM audit_entries WHERE action_type IN ('dev_persona_seed','dev_switch_persona');")
+c6=$(run_count "action_type testkit.persona_seed/switch" \
+  "SELECT COUNT(*) FROM audit_entries WHERE action_type IN ('testkit.persona_seed','testkit.persona_switch');")
 
 total=$((c1 + c2 + c3 + c4 + c5 + c6))
 

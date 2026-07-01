@@ -1241,7 +1241,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           }
           appliedTagIds = applyTagsForCurator(mediaId, input.tags, now);
           appendAuditEntry({
-            actionType: 'upload_curated_media',
+            actionType: 'media.curated_uploaded',
             category: 'media',
             actorType: 'admin',
             actorMemberId: input.adminMemberId,
@@ -1362,7 +1362,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           }
           appliedTagIds = applyTagsForCurator(mediaId, input.tags, now);
           appendAuditEntry({
-            actionType: 'upload_curated_media',
+            actionType: 'media.curated_uploaded',
             category: 'media',
             actorType: 'admin',
             actorMemberId: input.adminMemberId,
@@ -1464,7 +1464,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         );
         appliedTagIds = applyTagsForCurator(mediaId, tags, now);
         appendAuditEntry({
-          actionType: 'upload_curated_media',
+          actionType: 'media.curated_uploaded',
           category: 'media',
           actorType: 'admin',
           actorMemberId: job.admin_member_id,
@@ -1658,7 +1658,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId, systemMemberId);
         }
         appendAuditEntry({
-          actionType: 'upload_curated_url_reference',
+          actionType: 'media.curated_url_reference_added',
           category: 'media',
           actorType: 'admin',
           actorMemberId: input.adminMemberId,
@@ -1722,7 +1722,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // the DB write is a UX optimization that produces the same state the
       // seeder would on its next run.
       let auditEntityId = input.mediaId;
-      let auditActionType: 'edit_curated_media' | 'edit_curated_url_reference' = 'edit_curated_media';
+      let auditActionType: 'media.curated_edited' | 'media.curated_url_reference_edited' = 'media.curated_edited';
       if (isSidecarBacked) {
         const sidecarFilePath = await resolveSidecarForRow(getCuratedRootDir(), row);
         if (!sidecarFilePath) {
@@ -1776,7 +1776,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         const sidecarFilename = path.basename(sidecarFilePath);
         await writeUrlSidecarFile(sidecarDir, sidecarFilename, formatUrlSidecarJson(updated));
 
-        auditActionType = 'edit_curated_url_reference';
+        auditActionType = 'media.curated_url_reference_edited';
         auditEntityId = sidecarFilename;
       }
 
@@ -1874,7 +1874,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
         media.deleteMediaItem.run(input.mediaId);
         appendAuditEntry({
-          actionType: isSidecarBacked ? 'delete_curated_url_reference' : 'delete_curated_media',
+          actionType: isSidecarBacked ? 'media.curated_url_reference_deleted' : 'media.curated_deleted',
           category: 'media',
           actorType: 'admin',
           actorMemberId: input.adminMemberId,
@@ -2189,7 +2189,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // next save, while a rollback after a successful DB write would
     // corrupt the user's apparent edit. Throws ValidationError on
     // bad input or unauthorized actor; NotFoundError on unknown
-    // gallery. Writes an `update_curated_gallery` / `update_member_gallery`
+    // gallery. Writes an `media.curated_gallery_updated` / `media.member_gallery_updated`
     // audit row inside the same transaction as the write.
     async updateGallery(input: CuratorGalleryUpdateInput): Promise<void> {
       const { actorMemberId, actorIsAdmin, galleryId, updates } = input;
@@ -2247,8 +2247,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         rewriteGalleryExternalLinks(galleryId, validated.externalLinks, now, actorMemberId);
         appendAuditEntry({
           actionType: existing.is_system === 1
-            ? 'update_curated_gallery'
-            : 'update_member_gallery',
+            ? 'media.curated_gallery_updated'
+            : 'media.member_gallery_updated',
           category: 'media',
           actorType: actorIsAdmin ? 'admin' : 'member',
           actorMemberId,
@@ -2285,7 +2285,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // generated). For FH-owned, writes the JSON sidecar after commit.
     // Throws ValidationError on bad input or unauthorized actor;
     // ConflictError when UNIQUE(owner, name) is already taken. Writes a
-    // `create_curated_gallery` / `create_member_gallery` audit row inside
+    // `media.curated_gallery_created` / `media.member_gallery_created` audit row inside
     // the same transaction as the insert.
     async createGallery(
       input: CuratorGalleryCreateInput,
@@ -2373,8 +2373,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             rewriteGalleryExternalLinks(galleryId, validated.externalLinks, now, actorMemberId);
             appendAuditEntry({
               actionType: isFhOwned
-                ? 'create_curated_gallery'
-                : 'create_member_gallery',
+                ? 'media.curated_gallery_created'
+                : 'media.member_gallery_created',
               category: 'media',
               actorType: actorIsAdmin ? 'admin' : 'member',
               actorMemberId,
@@ -2464,8 +2464,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         media.deleteMemberGalleryById.run(galleryId);
         appendAuditEntry({
           actionType: existing.is_system === 1
-            ? 'delete_curated_gallery'
-            : 'delete_member_gallery',
+            ? 'media.curated_gallery_deleted'
+            : 'media.member_gallery_deleted',
           category: 'media',
           actorType: actorIsAdmin ? 'admin' : 'member',
           actorMemberId,
@@ -2585,7 +2585,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           appliedTagIds = applyTagsForMember(mediaId, input.slug, input.tags, now);
           ensureDefaultPersonalGalleryTx(input.memberId, input.slug, now);
           appendAuditEntry({
-            actionType: 'upload_member_media',
+            actionType: 'media.member_uploaded',
             category: 'media',
             actorType: 'member',
             actorMemberId: input.memberId,
@@ -2685,7 +2685,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           media.setMediaItemExternalUrl.run(normalizedExternalUrlEdit, now, input.mediaId, input.memberId);
         }
         appendAuditEntry({
-          actionType: 'edit_member_media',
+          actionType: 'media.member_edited',
           category: 'media',
           actorType: 'member',
           actorMemberId: input.memberId,
@@ -2746,7 +2746,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
         media.deleteMediaItem.run(input.mediaId);
         appendAuditEntry({
-          actionType: 'delete_member_media',
+          actionType: 'media.member_deleted',
           category: 'media',
           actorType: 'member',
           actorMemberId: input.memberId,
@@ -2865,7 +2865,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         appliedTagIds = applyTagsForMember(mediaId, input.slug, input.tags, now);
         ensureDefaultPersonalGalleryTx(input.memberId, input.slug, now);
         appendAuditEntry({
-          actionType: 'upload_member_media',
+          actionType: 'media.member_uploaded',
           category: 'media',
           actorType: 'member',
           actorMemberId: input.memberId,

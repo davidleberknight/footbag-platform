@@ -176,13 +176,13 @@ describe('memberOnboardingService.skipTask', () => {
     expect(legacy!.ctaHref).toBe('/register/wizard/legacy_claim');
   });
 
-  it('emits one audit row with action_type=onboarding_task_skipped', () => {
+  it('emits one audit row with action_type=wizard.task.skipped', () => {
     svc.startTaskList(MEMBER_SKIP_AUDIT);
     svc.skipTask(MEMBER_SKIP_AUDIT, 'club_affiliations');
     const audits = readAuditRowsForMember(MEMBER_SKIP_AUDIT);
     expect(audits).toHaveLength(1);
     const a = audits[0];
-    expect(a.action_type).toBe('onboarding_task_skipped');
+    expect(a.action_type).toBe('wizard.task.skipped');
     expect(a.actor_type).toBe('member');
     expect(a.actor_member_id).toBe(MEMBER_SKIP_AUDIT);
     expect(a.entity_type).toBe('member_onboarding_task');
@@ -213,7 +213,7 @@ describe('memberOnboardingService.completeTask', () => {
     expect(widget.find((t) => t.taskType === 'club_affiliations')).toBeUndefined();
 
     const audits = readAuditRowsForMember(MEMBER_COMPLETE)
-      .filter((a) => a.action_type === 'onboarding_task_completed');
+      .filter((a) => a.action_type === 'wizard.task.completed');
     expect(audits).toHaveLength(1);
     expect(audits[0].entity_id).toBe(target.id);
     expect(JSON.parse(audits[0].metadata_json)).toEqual({
@@ -237,9 +237,9 @@ describe('memberOnboardingService.startTask (skip-resume-complete cycle)', () =>
     const audits = readAuditRowsForMember(MEMBER_CYCLE)
       .filter((a) => a.entity_id === target.id);
     expect(audits.map((a) => a.action_type)).toEqual([
-      'onboarding_task_skipped',
-      'onboarding_task_started',
-      'onboarding_task_completed',
+      'wizard.task.skipped',
+      'wizard.task.started',
+      'wizard.task.completed',
     ]);
     expect(new Set(audits.map((a) => a.entity_id)).size).toBe(1);
   });

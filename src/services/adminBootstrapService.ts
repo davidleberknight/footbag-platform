@@ -3,7 +3,7 @@
  *
  * Owns the single-shot SSM-token claim: a signed-in member submits the
  * operator-provisioned token; on a constant-time match the member receives
- * is_admin=1 plus the Tier 2 invariant grant plus the grant_admin_bootstrap
+ * is_admin=1 plus the Tier 2 invariant grant plus the admin.bootstrap_grant
  * audit row in one transaction. The grant is single-shot because it fires only
  * while no admin exists, so a concurrent or later claim that finds an admin
  * already present grants nothing and returns the same non-revealing result;
@@ -79,7 +79,7 @@ async function claimBootstrapAdmin(
     // on the external SSM-token deletion winning the race.
     if (registration.grantFirstAdmin.run(now, memberId).changes === 0) return;
     // The tier primitive writes both the Tier 2 ledger row and the
-    // grant_admin_bootstrap audit row (its action-type routing treats every
+    // admin.bootstrap_grant audit row (its action-type routing treats every
     // non-dev reason code as the production bootstrap).
     applyAdminTier2InvariantGrantInTx(
       memberId,

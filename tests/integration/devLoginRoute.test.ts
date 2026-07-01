@@ -83,16 +83,16 @@ describe('GET /dev/login', () => {
     expect(res.status).toBe(400);
   });
 
-  it('writes a dev_login_persona audit row for both the eligible and rejected outcomes', async () => {
+  it('writes a testkit.persona_login audit row for both the eligible and rejected outcomes', async () => {
     await request(createApp()).get('/dev/login?as=login_ok');
     await request(createApp()).get('/dev/login?as=login_unverified');
     const db = new BetterSqlite3(dbPath, { readonly: true });
     try {
       const ok = db.prepare(
-        `SELECT COUNT(*) c FROM audit_entries WHERE action_type = 'dev_login_persona' AND entity_id = ?`,
+        `SELECT COUNT(*) c FROM audit_entries WHERE action_type = 'testkit.persona_login' AND entity_id = ?`,
       ).get('login_ok') as { c: number };
       const blocked = db.prepare(
-        `SELECT COUNT(*) c FROM audit_entries WHERE action_type = 'dev_login_persona' AND entity_id = ?`,
+        `SELECT COUNT(*) c FROM audit_entries WHERE action_type = 'testkit.persona_login' AND entity_id = ?`,
       ).get('login_unverified') as { c: number };
       expect(ok.c).toBeGreaterThan(0);
       expect(blocked.c).toBeGreaterThan(0);

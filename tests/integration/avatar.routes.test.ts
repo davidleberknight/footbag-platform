@@ -153,7 +153,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     expect(res.headers.location).toBe(`/members/${OWN_SLUG}/edit`);
   });
 
-  it('valid upload writes an upload_member_media audit row with mediaType avatar', async () => {
+  it('valid upload writes an media.member_uploaded audit row with mediaType avatar', async () => {
     const app = createApp();
     const validJpeg = await sharp({
       create: { width: 256, height: 256, channels: 3, background: { r: 1, g: 2, b: 3 } },
@@ -170,7 +170,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     try {
       rows = db.prepare(
         `SELECT metadata_json FROM audit_entries
-          WHERE action_type = 'upload_member_media'
+          WHERE action_type = 'media.member_uploaded'
             AND actor_member_id = ?
             AND entity_type = 'media_item'`,
       ).all(OWN_ID) as Array<{ metadata_json: string }>;

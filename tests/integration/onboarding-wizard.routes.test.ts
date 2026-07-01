@@ -196,7 +196,7 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
-    const beforeAudits = countAuditEntries(memberId, 'onboarding_task_completed');
+    const beforeAudits = countAuditEntries(memberId, 'wizard.task.completed');
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/skip')
       .set('Cookie', cookieFor(memberId))
@@ -207,7 +207,7 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     // legacy_claim is a required decision: the "nothing to claim" control
     // completes it rather than leaving it skipped.
     expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
-    expect(countAuditEntries(memberId, 'onboarding_task_completed')).toBe(beforeAudits + 1);
+    expect(countAuditEntries(memberId, 'wizard.task.completed')).toBe(beforeAudits + 1);
     // Member has no legacy_member_id linkage -> listWizardCardsForMember
     // returns []; club_affiliations is universal, so the GET renders the
     // find-or-create-your-club wrap-up landing and the task stays pending.
@@ -244,7 +244,7 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     expect(getTaskState(memberId, 'personal_details')).toBe('completed');
     expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
     expect(getTaskState(memberId, 'club_affiliations')).toBe('skipped');
-    expect(countAuditEntries(memberId, 'onboarding_task_skipped')).toBe(1);
+    expect(countAuditEntries(memberId, 'wizard.task.skipped')).toBe(1);
   });
 
   it('skip on unknown taskType -> 404, no state changes', async () => {

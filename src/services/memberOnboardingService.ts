@@ -331,15 +331,15 @@ function startTaskList(memberId: string): void {
 }
 
 function startTask(memberId: string, taskType: string): void {
-  transitionTask(memberId, taskType, 'pending', 'onboarding_task_started');
+  transitionTask(memberId, taskType, 'pending', 'wizard.task.started');
 }
 
 function skipTask(memberId: string, taskType: string): void {
-  transitionTask(memberId, taskType, 'skipped', 'onboarding_task_skipped');
+  transitionTask(memberId, taskType, 'skipped', 'wizard.task.skipped');
 }
 
 function completeTask(memberId: string, taskType: string): void {
-  transitionTask(memberId, taskType, 'completed', 'onboarding_task_completed');
+  transitionTask(memberId, taskType, 'completed', 'wizard.task.completed');
 }
 
 function markTaskNotApplicable(memberId: string, taskType: string): void {
@@ -351,7 +351,7 @@ function markTaskNotApplicable(memberId: string, taskType: string): void {
   if (taskType === 'personal_details') {
     throw new Error(`personal_details cannot be marked not_applicable`);
   }
-  transitionTask(memberId, taskType, 'not_applicable', 'onboarding_task_not_applicable');
+  transitionTask(memberId, taskType, 'not_applicable', 'wizard.task.not_applicable');
 }
 
 /**

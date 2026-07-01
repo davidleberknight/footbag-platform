@@ -259,7 +259,7 @@ describe('seedPersona — detection markers', () => {
     ).get(p.memberId) as { c: number };
     expect(grant.c).toBe(1);
     const audit = db.prepare(
-      `SELECT COUNT(*) c FROM audit_entries WHERE entity_id = ? AND action_type = 'dev_persona_seed'`,
+      `SELECT COUNT(*) c FROM audit_entries WHERE entity_id = ? AND action_type = 'testkit.persona_seed'`,
     ).get(p.memberId) as { c: number };
     expect(audit.c).toBe(1);
   });
