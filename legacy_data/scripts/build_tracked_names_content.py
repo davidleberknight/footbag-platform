@@ -145,11 +145,18 @@ def main() -> None:
     # The second gate is a safety net for drift between the reconciliation
     # audit and the canonical CSVs (e.g. when a W-wave promotes a row to
     # red_additions but the reconciliation audit governance_state isn't
-    # updated in the same change).
+    # updated in the same change). Compare on the alphanumeric-normalized slug so
+    # spelling / spacing variance between the reconciliation corpus and the
+    # canonical convention (legover vs leg_over, hopover vs hop_over, da_da vs
+    # dada, punctuation) still collapses a published slug onto its canonical form
+    # rather than leaking an already-canonical name onto this surface.
+    def _slug_key(s: str) -> str:
+        return re.sub(r'[^a-z0-9]', '', (s or '').lower())
+    canonical_keys = {_slug_key(s) for s in canonical_slugs}
     unpublished = [
         r for r in recon
         if not r['governance_state'].startswith('1')
-        and r['slug'].strip() not in canonical_slugs
+        and _slug_key(r['slug']) not in canonical_keys
     ]
 
     by_source: dict[str, list[dict]] = defaultdict(list)
