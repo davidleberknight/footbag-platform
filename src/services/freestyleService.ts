@@ -262,7 +262,6 @@ import {
 import {
   OBSERVATIONAL_UNIVERSE,
   OBSERVATIONAL_UNIVERSE_STATS,
-  DOCTRINE_BLOCKING_QUESTIONS,
   type ObservationalUniverseRow,
 } from '../content/freestyleObservationalUniverse';
 import {
