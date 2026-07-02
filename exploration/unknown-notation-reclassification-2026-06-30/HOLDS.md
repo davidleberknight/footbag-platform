@@ -14,8 +14,18 @@ P = estimated probability the row completes without waiting for Red.
   Quantum stack, +3. Notation shipped as quantum prefix + no-plant symposium-merged quantum
   + the butterfly body with parity mirrored from canonical quantum_butterfly; bracket count
   6 = ADD, parser computes it exactly, landing/route/add-analysis tests green.
+- `gyro_diving_clipper` — **RULED 2026-07-02** (curator micro-ruling session): ADD corrected
+  3 → 4 and notation authored; the sweep-era 3 undercounted the base.
+- `witchdoctor` — **RULED 2026-07-02**: it is the far form; 5 stands, notation authored with
+  [XDEX] on the mirage dex; footbag.org's near reading (4) preserved as a divergence.
+- `sole_survivor` — **RULED 2026-07-02**: merged with the structurally identical
+  spinning-symposium-whirl; the folk name survived and took the notation and aliases.
+- `liquifier` — **AUTHORED 2026-07-02**: the splicing chain was defined from the registry's
+  own components (the gyro event then a reverse-direction dex, +2) and recorded in the
+  registry note as the durable home; notation = that chain ahead of the unchanged blender
+  body; bracket count 6 = ADD, parser exact.
 
-## Held (10)
+## Held (6)
 
 | Row (ADD) | The one missing fact | Class | P(no Red) |
 |---|---|---|---|
@@ -32,14 +42,12 @@ P = estimated probability the row completes without waiting for Red.
 
 ## Reading
 
-- **Expected completions without Red: ~6 of the 10 held.** Three are single curator calls
-  (sole_survivor, gyro_diving_clipper, witchdoctor), one needs a one-line set definition
-  (liquifier), and the four terraging rows rise or fall together on one chain question that
-  the curator has even odds of settling from the PassBack reading.
-- **Only two rows genuinely wait on Red** (paradox_blur, bill-and-ted), and both are already
-  inside the sent Wave 3 letter — no new ask required.
+- The 2026-07-02 curator micro-ruling session cleared the three single-call rows, the
+  splicing definition cleared liquifier the same day, and the four terraging rows re-routed
+  to Red as a follow-up rider (the registry/notation/footbag.org/Red four-way inconsistency
+  is not derivable from the record).
+- **All six remaining holds wait on Red**: paradox_blur and bill-and-ted (already in the
+  Wave 3 letter) plus the four terraging rows (the new rider). Nothing on this list is
+  curator-completable anymore.
 - **No row is parser-limited**: the parser handles every candidate chain; the gaps are facts,
   not syntax.
-- Fastest batch order if the curator sits down once: sole_survivor merge → gyro_diving_clipper
-  ADD → witchdoctor far-form → liquifier splicing chain → terraging chain. That single
-  sitting clears 8 of the 10.

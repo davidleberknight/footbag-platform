@@ -50,7 +50,11 @@ describe('mechanical notation backfill (clean operator on notated base)', () => 
     });
   }
 
-  it('gyro-diving-clipper is intentionally NOT backfilled (held for curator review)', () => {
-    expect(opNotation('gyro-diving-clipper')).toBeUndefined();
+  it('gyro-diving-clipper carries its curator-ruled notation with bracket count matching the corrected ADD', () => {
+    // The curator resolved the former hold: the sweep-era 3 undercounted the
+    // base, so the row is 4 ADD with the gyro spin as a scored body event.
+    const notation = opNotation('gyro-diving-clipper');
+    expect(notation).toBe('SET > (back) SPIN [BOD] > DIVE [BOD] > SAME CLIP [XBD] [DEL]');
+    expect((notation!.match(ADD_TOKEN) ?? []).length).toBe(4);
   });
 });

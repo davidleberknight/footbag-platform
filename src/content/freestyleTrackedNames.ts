@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1390;
+export const TRACKED_UNPUBLISHED_TOTAL = 1381;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -306,11 +306,13 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Miraging Symposium Mirage (Merlin)', slug: 'miraging_symposium_mirage_merlin' },
     { displayName: 'Moshing Butterfly (Cripwalk)', slug: 'moshing_butterfly_cripwalk' },
     { displayName: 'Neutron DLO (Cataclysm)', slug: 'neutron_dlo_cataclysm' },
+    { displayName: 'Neutron Drifter (Irish Spring) (Tapping Gyro Drifter)', slug: 'neutron_drifter_irish_spring_tapping_gyro_drifter' },
     { displayName: 'Neutron Torque (Irish Cream)', slug: 'neutron_torque_irish_cream' },
     { displayName: 'Nuclear Butterfly (Matador)', slug: 'nuclear_butterfly_matador' },
     { displayName: 'Nuclear DDD (Cold Fusion) (Geesha)', slug: 'nuclear_ddd_cold_fusion_geesha' },
     { displayName: 'Nuclear DLO (Terminator)', slug: 'nuclear_dlo_terminator' },
     { displayName: 'Nuclear Drifter (69)', slug: 'nuclear_drifter_69' },
+    { displayName: 'Nuclear Osis (Nucleosis) (Aeon Flux) (Paradox Flux)', slug: 'nuclear_osis_nucleosis_aeon_flux_paradox_flux' },
     { displayName: 'Nuclear ss Butterfly (Barfry)', slug: 'nuclear_ss_butterfly_barfry' },
     { displayName: 'Nuclear ss Dyno (Godzilla)', slug: 'nuclear_ss_dyno_godzilla' },
     { displayName: 'Nuclear ss Guay', slug: 'nuclear_ss_guay' },
@@ -779,7 +781,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Hopover Swirl Dragon', slug: 'hopover_swirl_dragon' },
     { displayName: 'Icon', slug: 'icon', operationalNotation: 'Clip >> (front) Spin (BOD) >> Same Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Ill Frenzy', slug: 'ill_frenzy', operationalNotation: 'Toe > (rooted) Same In (DEX)(BOD) > Op In (DEX) >> Op Out (DEX)(XDEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Irish Spring', slug: 'irish_spring', operationalNotation: 'Toe > Op Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Jacknife', slug: 'jacknife', operationalNotation: 'Clip > Op In (DEX) >> Dive (BOD) >> Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Joan', slug: 'joan', operationalNotation: 'Toe > Same In (DEX) > Op Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Johny Quest', slug: 'johny_quest', operationalNotation: 'Toe > Op Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
@@ -807,13 +808,11 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Maverick', slug: 'maverick', operationalNotation: 'Toe > Same In (DEX) >> (back) Spin (BOD) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Miraging Dragon', slug: 'miraging_dragon' },
     { displayName: 'Miraging Symple Butterfly', slug: 'miraging_symple_butterfly' },
-    { displayName: 'Moby Dick', slug: 'moby_dick', operationalNotation: 'Clip >> (back) Spin (BOD) >> Same In (DEX) > Op Back Whirl (DEX) > (back) Spin (BOD) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Moirius', slug: 'moirius', operationalNotation: 'Clip >> (back) Spin (BOD) >> (no plant while) Same In (DEX)(BOD) > Op Back Whirl (DEX) > (back) Spin (BOD) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Muerto', slug: 'muerto', operationalNotation: 'Toe > Same Out (DEX) >> Same In (DEX) > (front) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'MXZYPTLK', slug: 'mxzyptlk' },
     { displayName: 'Nemesis Swirl', slug: 'nemesis_swirl' },
     { displayName: 'Neutron Double Legover', slug: 'neutron_double_legover' },
-    { displayName: 'Neutron Drifter', slug: 'neutron_drifter' },
     { displayName: 'Neutron Mirage', slug: 'neutron_mirage' },
     { displayName: 'Neutron Smasher', slug: 'neutron_smasher', operationalNotation: 'Toe > Op Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Neutron Smasher / Johny Quest', slug: 'neutron_smasher_johny_quest' },
@@ -822,7 +821,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Nuclear Illusion (same side)', slug: 'nuclear_illusion_same_side' },
     { displayName: 'Nuclear Legover (same side)', slug: 'nuclear_legover_same_side' },
     { displayName: 'Nuclear Mirage (same side)', slug: 'nuclear_mirage_same_side' },
-    { displayName: 'Nuclear Osis', slug: 'nuclear_osis' },
     { displayName: 'Nuclear Pickup (same side)', slug: 'nuclear_pickup_same_side' },
     { displayName: 'Null Butterfly', slug: 'null_butterfly' },
     { displayName: 'Nullwalk', slug: 'nullwalk', operationalNotation: 'Clip > Op In (DEX) > Same Out (DEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
@@ -1000,10 +998,8 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Alpine Magellan', slug: 'alpine_magellan' },
     { displayName: 'Alpine Paste', slug: 'alpine_paste' },
     { displayName: 'Alpine Pigbeater', slug: 'alpine_pigbeater' },
-    { displayName: 'Alpine Sidewalk', slug: 'alpine_sidewalk' },
     { displayName: 'Alpine Smog', slug: 'alpine_smog' },
     { displayName: 'Alpine Smudge', slug: 'alpine_smudge' },
-    { displayName: 'Alpine Super Mario', slug: 'alpine_super_mario' },
     { displayName: 'Anonymous', slug: 'anonymous' },
     { displayName: 'Atomic DSO', slug: 'atomic_dso' },
     { displayName: 'Atomic Ducking far Mirage', slug: 'atomic_ducking_far_mirage' },
@@ -1046,7 +1042,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Butterfy near Osis', slug: 'butterfy_near_osis' },
     { displayName: 'Calf Stall w/ leg in "Whirl" position', slug: 'calf_stall_w_leg_in_whirl_position' },
     { displayName: 'Cardinal Swirl, Tripstein', slug: 'cardinal_swirl_tripstein' },
-    { displayName: 'Cheese Processor', slug: 'cheese_processor' },
     { displayName: 'Clipper Diving near Whirl', slug: 'clipper_diving_near_whirl' },
     { displayName: 'Clipper Ducking far Blender', slug: 'clipper_ducking_far_blender' },
     { displayName: 'Clipper Ducking far Drifter', slug: 'clipper_ducking_far_drifter' },
@@ -1121,10 +1116,8 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Illusioning Symp. Illusioning Legover', slug: 'illusioning_symp_illusioning_legover' },
     { displayName: 'In(-Out) Dex', slug: 'in_out_dex' },
     { displayName: 'Inside Stall moved to Clipper Stall', slug: 'inside_stall_moved_to_clipper_stall' },
-    { displayName: 'Jackknife', slug: 'jackknife' },
     { displayName: 'Janiwalker ("johnny walker")', slug: 'janiwalker_johnny_walker', operationalNotation: 'Clip > Op In (DEX) > Same In (DEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Kilo', slug: 'kilo' },
-    { displayName: 'King Koopa', slug: 'king_koopa' },
     { displayName: 'Lawn Moir', slug: 'lawn_moir' },
     { displayName: 'Legover, Switch', slug: 'legover_switch' },
     { displayName: 'Mama Curve', slug: 'mama_curve' },
@@ -1140,7 +1133,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Miraging Symp. Eggbeater', slug: 'miraging_symp_eggbeater' },
     { displayName: 'Miraging Symp. Illusion', slug: 'miraging_symp_illusion' },
     { displayName: 'Miraging Symp.Mirage', slug: 'miraging_symp_mirage' },
-    { displayName: 'Mobiusscrew', slug: 'mobiusscrew' },
     { displayName: 'Monster', slug: 'monster' },
     { displayName: 'Mortal Kombat', slug: 'mortal_kombat' },
     { displayName: 'Motorfly', slug: 'motorfly' },
@@ -1434,7 +1426,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Zoid', slug: 'zoid' },
   ] },
   { sourceLabel: 'footbagmoves|passback', names: [
-    { displayName: 'Gyro Torquescrew', slug: 'gyro_torquescrew' },
     { displayName: 'Illusioning Legover', slug: 'illusioning_legover' },
     { displayName: 'Stepping Far Butterfly', slug: 'stepping_far_butterfly' },
     { displayName: 'Stepping Far Butterfly Swirl', slug: 'stepping_far_butterfly_swirl' },
