@@ -1,5 +1,15 @@
 # Footbag Freestyle Frontier Decision Packet (June 2026)
 
+> **SUPERSEDED IN PART (2026-07-02).** The current decision map is
+> `../red-reduction-audit-2026-07-02/AUDIT.md` (Parts A and C). Since this packet was written:
+> Dragon and Refraction are identified and canonical; weaving resolved via the shipped mirror
+> rule (single-modifier layer + 14 stacks promoted); pogo adjudicated +1; atomic/X-Dex shipped;
+> the down-family question became the four-cell grid packet
+> (`../dod-ddd-evidence-pass-2026-07-02/RED_PACKET_A1_REVISED.md`); Nuclear Osis = Aeon Flux is
+> documented by FootbagMoves' own dual-titled row (curator confirm pending); the positional
+> mapping is ratified; and the Red Wave 3 letter (five questions) was sent 2026-07-02. The five
+> governance micro-calls and the Clipper Symposium Whirl identification remain open here.
+
 A single consultation document for the remaining freestyle-dictionary blockers. Every routine
 promotion, alias, and notation authoring proceeds mechanically once these land; this packet
 holds only items that need a doctrine ruling, an identification, or a governance call.
