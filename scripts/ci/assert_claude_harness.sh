@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+# Harness self-check: the .claude harness (CLAUDE.md, rules, skills, hooks, agents,
+# settings.json) is production configuration, so CI verifies it stays internally
+# consistent the same way it verifies code. A dangling skill reference, an unwired
+# or non-executable hook, invalid settings JSON, a reference to a deleted doc, an
+# explicit-only skill that can still auto-fire, an oversized skill body, or a
+# broadly-allowed sqlite3 all ship silently otherwise.
+#
+# This is the must-have subset. Each check runs independently and the script
+# aggregates failures so one run reports every problem, then exits non-zero if any
+# check failed.
+set -uo pipefail
+cd "$(dirname "$0")/../.."
+
+fail=0
+self="scripts/ci/assert_claude_harness.sh"
+SETTINGS=".claude/settings.json"
+
+# Items owned by the freestyle maintainer and tracked in IMPLEMENTATION_PLAN.md. They are
+# real findings this script would otherwise flag, held here as commented exceptions so the
+# build stays green until that lane's cleanup lands. Remove each entry when it does:
+#   - footbag-freestyle-dictionary/SKILL.md still needs its detailed reference split out (>500 lines).
+#   - freestyle-dictionary-surface/SKILL.md still names the removed club-leadership-surface skill.
+FREESTYLE_PENDING_OVERSIZE=".claude/skills/footbag-freestyle-dictionary/SKILL.md"
+FREESTYLE_PENDING_MISSING_REF=".claude/skills/club-leadership-surface/SKILL.md"
+
+# Harness prose files scanned for path references (concrete, single-file paths only).
+harness_md() {
+  { echo CLAUDE.md
+    echo PROJECT_SUMMARY_CONCISE.md
+    find .claude -name '*.md'
+  } | sort -u
+}
+
+# --- Check 1: settings.json is valid JSON ---
+if jq empty "$SETTINGS" >/dev/null 2>&1; then
+  echo "[harness] settings.json is valid JSON"
+else
+  echo "[harness] FAIL: $SETTINGS is not valid JSON" >&2
+  fail=1
+fi
+
+# --- Check 2: every wired hook points to an existing, executable file ---
+if jq empty "$SETTINGS" >/dev/null 2>&1; then
+  bad_hooks=""
+  while IFS= read -r cmd; do
+    [ -n "$cmd" ] || continue
+    path=$(printf '%s' "$cmd" | sed 's#^"\$CLAUDE_PROJECT_DIR"/##')
+    if [ ! -f "$path" ]; then
+      bad_hooks="${bad_hooks}  missing: ${path}"$'\n'
+    elif [ ! -x "$path" ]; then
+      bad_hooks="${bad_hooks}  not executable: ${path}"$'\n'
+    fi
+  done < <(jq -r '.hooks | .. | .command? // empty' "$SETTINGS")
+  if [ -n "$bad_hooks" ]; then
+    echo "[harness] FAIL: wired hook(s) missing or not executable:" >&2
+    printf '%s' "$bad_hooks" >&2
+    fail=1
+  else
+    echo "[harness] all wired hooks exist and are executable"
+  fi
+fi
+
+# --- Check 3: no live harness/canonical file references a deleted doc ---
+# exploration/ holds frozen historical design docs that legitimately cite docs
+# deleted later; they are archives, not the live surface, so they are excluded.
+DELETED_DOCS='SERVICE_CATALOG\.md|VIEW_CATALOG\.md'
+if refs=$(git grep -lE "$DELETED_DOCS" -- ":!$self" ':!exploration' 2>/dev/null); then
+  echo "[harness] FAIL: reference(s) to a deleted doc (SERVICE_CATALOG.md / VIEW_CATALOG.md):" >&2
+  printf '  %s\n' $refs >&2
+  fail=1
+else
+  echo "[harness] no references to deleted docs"
+fi
+
+# --- Check 4: explicit-only skills carry disable-model-invocation ---
+bad_invocation=""
+for f in .claude/skills/*/SKILL.md; do
+  [ -f "$f" ] || continue
+  fm=$(awk 'NR==1&&/^---[[:space:]]*$/{f=1;next} f&&/^---[[:space:]]*$/{exit} f{print}' "$f")
+  if printf '%s' "$fm" | grep -qiE 'invoke only|only when the user explicitly|only on explicit'; then
+    if ! printf '%s' "$fm" | grep -qE '^disable-model-invocation:[[:space:]]*true'; then
+      bad_invocation="${bad_invocation}  ${f}"$'\n'
+    fi
+  fi
+done
+if [ -n "$bad_invocation" ]; then
+  echo "[harness] FAIL: explicit-only skill(s) missing 'disable-model-invocation: true':" >&2
+  printf '%s' "$bad_invocation" >&2
+  fail=1
+else
+  echo "[harness] explicit-only skills carry disable-model-invocation"
+fi
+
+# --- Check 5: each SKILL.md stays under the line ceiling or has a supporting reference file ---
+CEILING=500
+bad_size=""
+for f in .claude/skills/*/SKILL.md; do
+  [ -f "$f" ] || continue
+  [ "$f" = "$FREESTYLE_PENDING_OVERSIZE" ] && continue
+  lines=$(wc -l < "$f")
+  dir=$(dirname "$f")
+  supporting=$(find "$dir" -maxdepth 1 -name '*.md' ! -name 'SKILL.md' | head -1)
+  if [ "$lines" -gt "$CEILING" ] && [ -z "$supporting" ]; then
+    bad_size="${bad_size}  ${f} (${lines} lines, no supporting reference file)"$'\n'
+  fi
+done
+if [ -n "$bad_size" ]; then
+  echo "[harness] FAIL: SKILL.md over ${CEILING} lines without a supporting file:" >&2
+  printf '%s' "$bad_size" >&2
+  fail=1
+else
+  echo "[harness] all SKILL.md within ${CEILING} lines or backed by a supporting file"
+fi
+
+# --- Check 6: sqlite3 is never auto-allowed without -readonly ---
+sqlite_bad=$(jq -r '(.permissions.allow // [])[]' "$SETTINGS" 2>/dev/null \
+  | grep -iE 'sqlite3' | grep -v -- '-readonly' || true)
+if [ -n "$sqlite_bad" ]; then
+  echo "[harness] FAIL: sqlite3 allowed without -readonly:" >&2
+  printf '  %s\n' $sqlite_bad >&2
+  fail=1
+else
+  echo "[harness] sqlite3 is not auto-allowed without -readonly"
+fi
+
+# --- Check 7: concrete .claude/ rule/skill/hook/agent references from harness files resolve ---
+# Extract single-file paths (globs and brace-expansions naturally excluded: the char
+# class stops at '*' and '{'). Scoped to .claude/ paths: doc references in rule prose
+# are frequently illustrative placeholders (docs/FOO.md), so a docs/*.md existence
+# check would be noise; the deleted-doc check above covers the concrete doc case.
+missing_refs=""
+while IFS= read -r ref; do
+  [ -n "$ref" ] || continue
+  [ "$ref" = "$FREESTYLE_PENDING_MISSING_REF" ] && continue
+  [ -e "$ref" ] || missing_refs="${missing_refs}  ${ref}"$'\n'
+done < <(harness_md | xargs grep -rhoE \
+  '\.claude/(rules|skills|hooks|agents)/[A-Za-z0-9_/.-]+\.(md|sh)' \
+  2>/dev/null | sort -u)
+if [ -n "$missing_refs" ]; then
+  echo "[harness] FAIL: harness file(s) reference a path that does not exist:" >&2
+  printf '%s' "$missing_refs" >&2
+  fail=1
+else
+  echo "[harness] all concrete rule/skill/hook/agent/doc references resolve"
+fi
+
+# --- Check 8: the allow list never regains a mutation-capable command head ---
+# xargs/find/echo/awk/sed can delete or write files despite reading in their common
+# form (xargs rm, find -delete, echo > f, awk/sed program-text writes), and
+# WebFetch(domain:*) means every domain. The read-only auto-approve hook covers the
+# safe forms of these commands, so an allow entry buys nothing and reopens the hole.
+allow_bad=$(jq -r '(.permissions.allow // [])[]' "$SETTINGS" 2>/dev/null \
+  | grep -E '^Bash\((xargs|find|echo|awk|sed)([: *)]|$)|^WebFetch\(domain:\*\)$' || true)
+if [ -n "$allow_bad" ]; then
+  echo "[harness] FAIL: mutation-capable or unscoped allow entr(y/ies):" >&2
+  printf '  %s\n' "$allow_bad" >&2
+  fail=1
+else
+  echo "[harness] allow list carries no mutation-capable heads or unscoped WebFetch"
+fi
+
+# --- Check 9: no harness file cites a memory-store path ---
+# The memory store is machine-local and prunable; a rule or skill depending on a
+# memory entry either needs the fact promoted into the repo or stated inline.
+memory_refs=$(harness_md | xargs grep -lE '(^|[^A-Za-z0-9_./-])memory/[A-Za-z0-9_-]+\.md' 2>/dev/null || true)
+if [ -n "$memory_refs" ]; then
+  echo "[harness] FAIL: harness file(s) reference a memory-store entry (promote the fact or state it inline):" >&2
+  printf '  %s\n' $memory_refs >&2
+  fail=1
+else
+  echo "[harness] no harness file references a memory-store path"
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo "[harness] FAIL: one or more harness checks failed." >&2
+  exit 1
+fi
+echo "[harness] pass"

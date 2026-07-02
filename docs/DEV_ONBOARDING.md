@@ -607,6 +607,8 @@ claude        # then run /login and complete the browser OAuth sign-in
 
 Always start `claude` from the repository root (`~/GIT/footbag-platform`), not a subdirectory or your home directory, so it loads the project's `CLAUDE.md` and the path-scoped rules under `.claude/`. On Windows, Claude Code runs inside WSL Linux; the Cursor IDE runs on Windows and connects to it.
 
+For how the harness fits together — what loads when, where rules, skills, hooks, and permissions live, and how to change any of it safely — see `docs/CLAUDE_CODE_GUIDE.md`.
+
 ### 1.11 Optional: exercise Safe Browsing in dev
 
 Default dev behavior: stub `SafeBrowsingAdapter` with the canonical Google

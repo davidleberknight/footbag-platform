@@ -1,5 +1,6 @@
 ---
 name: browser-qa
+disable-model-invocation: true
 description: Browser automation for visual layout review or QA verification. Use only when the human explicitly names a page or check to run. Never run unsolicited or assume a broad test suite is wanted.
 ---
 

@@ -27,27 +27,28 @@ terraform/    AWS infrastructure
 tests/        Integration tests
 ```
 
-## Source-of-truth order for active work
+## Authority order and read order
 
-Read the minimum the task requires. Default: active-slice block + code + path-scoped rules. Load broader docs only as needed.
+Two different orders — do not conflate them. Both live only here; rules, skills, `PROJECT_SUMMARY_CONCISE.md`, and agents link here and never restate either.
 
-1. Explicit human decisions in the current task
-2. Active-slice block in `IMPLEMENTATION_PLAN.md` — current scope, out-of-scope, accepted shortcuts, known drift
-3. Current code — implemented behavior; may contain accepted shortcuts; check the implementation plan's known deviation entries if drift is detected. Current code is not necessarily correct, may have bugs or drift from canonical docs, so always ask the human if unsure.
-4. Path-scoped layer (load it explicitly): the `.claude/rules/*.md` files, file-header JSDoc on services, and per-subtree `CLAUDE.md` files that match the paths the task will touch. These auto-attach when you Read or Edit an in-glob file, but auto-attach does not fire on grep/Bash or on reasoning about a path you have not opened, so Read the matching rules yourself before writing. Covers per-file rule detail for the path you are in.
-5. When needed, targeted sections of:
-  - `docs/USER_STORIES.md` — intended behavior, success criteria.
-  - `docs/DATA_MODEL.md` — schema semantics; verify against `database/schema.sql`
-  - `docs/TESTING.md` — how to derive, layer, and verify tests for any surface; mandatory before writing or extending tests
-6. `docs/DESIGN_DECISIONS.md` — long-term rationale; read when entering a new code area, or to understand the design details about a technical topic in the code; do not read unless you have a good reason, to save tokens.
+### Authority order — who wins when sources conflict
 
-**Note:** `docs/DATA_GOVERNANCE.md` is mandatory before any change touching members, historical persons, search, auth, contact fields, exports, stats, or privacy boundaries.
+1. An explicit human decision in the current task.
+2. The IFPA governing documents (`ifpa/BYLAWS.md`, `ifpa/IFPAMembershipStructure_2026.md`, `ifpa/ArticlesOfIncorporation.md`, `ifpa/rules/**`) for membership, tiers, Active-Player status, voting eligibility, and published-rules content — `docs/USER_STORIES.md` defers to them.
+3. Clear design intent: `docs/DESIGN_DECISIONS.md`, `docs/USER_STORIES.md`, `docs/DATA_MODEL.md`, the path-scoped `.claude/rules/*`, and service file-header JSDoc. `docs/DATA_GOVERNANCE.md` is mandatory before any change touching members, historical persons, search, auth, contact fields, exports, stats, or privacy.
+4. Current code, `database/schema.sql`, and infrastructure — authoritative for *implemented behavior* only, never for design intent.
+
+`IMPLEMENTATION_PLAN.md`'s active-slice block governs current scope and records accepted, tracked deviations. Prefer design intent over code in general; but when code conflicts with design intent and no tracked deviation explains it, do not silently pick a side — stop and ask the human. It may be a code bug, a stale doc, or an untracked deliberate deviation, and only the human decides.
+
+### Read order — what to load first, to save tokens (not an authority ranking)
+
+Read the minimum the task requires. Default: the active-slice block in `IMPLEMENTATION_PLAN.md`, then current code, then the path-scoped layer — the `.claude/rules/*.md` files, service file-header JSDoc, and per-subtree `CLAUDE.md` files matching the paths the task touches. Read the matching rules yourself; auto-attach fires only on Read or Edit of an in-glob file, not on grep/Bash. Load broader docs only as the task needs them: targeted sections of `docs/USER_STORIES.md` (intended behavior, success criteria), `docs/DATA_MODEL.md` (schema semantics; verify against `database/schema.sql`), `docs/TESTING.md` (mandatory before writing or extending tests), and `docs/DESIGN_DECISIONS.md` (long-term rationale) last.
 
 ## Non-negotiable rules
 
 1. Never edit documentation, `.github/`, or `.claude/` files without explicit human approval.
 2. Never take a destructive or risky action without explicit human approval.
-3. **Asking the human is the last resort, not the first move.** Resolve every answer through the source-of-truth order before asking; if analysis makes it certain, do not ask — act on it. Code is reality, not authority for design intent: clear design intent (`docs/DESIGN_DECISIONS.md`, `docs/USER_STORIES.md`, `docs/DATA_MODEL.md`, the path-scoped rules and service contracts) outranks current code. When a question genuinely survives: **exactly one decision per message**, in **plain self-contained English** with no internal references the human was not given (section numbers, gate/finding codes, prior-message labels; a finding ID in a file the human is reading, like a `BUGS.md` row, is fine paired with its title), **full context inline**, and **one recommended answer derived from design intent and verified against the docs and code, never guessed** (pros and cons when the trade-offs are real). Ask in prose; reserve the multiple-choice tool (AskUserQuestion) for when the human asks to pick. Read-only investigation needs no permission. A bare "y" / "go" from the human takes the recommended answer. Full standard: `.claude/rules/asking.md`.
+3. **Asking the human is the last resort, not the first move.** Resolve every answer through the authority order before asking; if analysis makes it certain, do not ask — act on it. Code is reality, not authority for design intent: clear design intent (`docs/DESIGN_DECISIONS.md`, `docs/USER_STORIES.md`, `docs/DATA_MODEL.md`, the path-scoped rules and service contracts) outranks current code. When a question genuinely survives: **exactly one decision per message**, in **plain self-contained English** with no internal references the human was not given (section numbers, gate/finding codes, prior-message labels; a finding ID in a file the human is reading, like a `BUGS.md` row, is fine paired with its title), **full context inline**, and **one recommended answer derived from design intent and verified against the docs and code, never guessed** (pros and cons when the trade-offs are real). Ask in prose; reserve the multiple-choice tool (AskUserQuestion) for when the human asks to pick. Read-only investigation needs no permission. A bare "y" / "go" from the human takes the recommended answer. Full standard: `.claude/rules/asking.md`.
 4. If unclear, escalate to the human. Never guess or silently choose among materially different interpretations. If you can see two or more interpretations for a task, then name them clearly, stop and ask. Push back when you should.
 5. Never add schema, service methods, or behavioral code without grounding in a user story, design decision, or explicit human direction in the current task. If no acceptance criteria or human approval exist for the behavior, stop and ask. Think before coding; do not assume or add unscoped features, and strive for simplicity over complexity; this requires analysis before jumping in. Prefer surgical changes over sweeping edits.
 6. Code comments and human-readable text in code follow `.claude/rules/comments.md` (plain-words self-contained WHY; no sprint/slice/phase labels, dates, caller refs, or doc references; deviations use "Current:"/"Target:" and are recorded in `IMPLEMENTATION_PLAN.md`).
@@ -60,9 +61,10 @@ Read the minimum the task requires. Default: active-slice block + code + path-sc
 - Plan Mode for sequencing / dependency / architecture work; otherwise the IP active-slice block is enough.
 - In plan mode, ask and resolve clarifying questions (one at a time per Non-negotiable rule 3) and exhaust all material doubt before finalizing the plan and calling ExitPlanMode. Follow-on clarifying questions during implementation, after the plan is approved, are acceptable; the bar is to resolve everything needed to finalize the plan, not to forbid all later questions.
 
-Verification defaults: confirm what success looks like for the task, prefer route/integration verification first, and verify with `npm test` and `npm run build`.  If the user asks to "run all tests" consider  ./run_all_tests.sh
+Verification defaults: confirm what success looks like for the task, prefer route/integration verification first, and verify with `npm test` and `npm run build`.  If the user asks to "run all tests" consider  ./run_all_tests.sh  Doc-only or comment-only changes are verified by re-reading, not `npm test`/`npm run build`.
 
 - Do not use browser automation or MCP tools unless the human explicitly asks.
+- No emojis in your output.
 - Make surgical changes scoped to the current slice: no speculative abstraction, flexibility, or scope creep; no refactoring unrelated code, unnecessary formatting or comment changes. 
 - Use the Explore sub-agent for broad codebase searches; use the Plan sub-agent for sequencing or architecture tasks. Both protect the main context window.
 - For read-only exploration prefer the Grep/Glob/Read tools; they never require permission. Read-only Bash inspection, including pipelines and loops, is permitted and should not prompt. Reserve the single-command preference for state-changing commands, where each subcommand is approved separately.

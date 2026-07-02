@@ -101,6 +101,19 @@ jobs:
       - name: Run convention gate
         run: bash scripts/ci/assert_conventions.sh
 
+  harness:
+    name: Harness self-check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Run harness self-check
+        run: bash scripts/ci/assert_claude_harness.sh
+
+      - name: Run hook fixture tests
+        run: bash scripts/ci/test_hooks.sh
+
   unit-tests:
     name: Unit tests
     runs-on: ubuntu-latest
@@ -225,7 +238,7 @@ jobs:
 
   ci-complete:
     name: Type-check and test
-    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, unit-tests, integration-tests, db-load-smoke, e2e, codeql, terraform]
+    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, harness, unit-tests, integration-tests, db-load-smoke, e2e, codeql, terraform]
     runs-on: ubuntu-latest
     if: always()
 
@@ -237,6 +250,7 @@ jobs:
              [ "${{ needs.dependency-audit.result }}" != "success" ] || \
              [ "${{ needs.secret-scan.result }}" != "success" ] || \
              [ "${{ needs.conventions.result }}" != "success" ] || \
+             [ "${{ needs.harness.result }}" != "success" ] || \
              [ "${{ needs.unit-tests.result }}" != "success" ] || \
              [ "${{ needs.integration-tests.result }}" != "success" ] || \
              [ "${{ needs.db-load-smoke.result }}" != "success" ] || \
@@ -249,6 +263,7 @@ jobs:
             echo "  dependency-audit: ${{ needs.dependency-audit.result }}"
             echo "  secret-scan: ${{ needs.secret-scan.result }}"
             echo "  conventions: ${{ needs.conventions.result }}"
+            echo "  harness: ${{ needs.harness.result }}"
             echo "  unit-tests: ${{ needs.unit-tests.result }}"
             echo "  integration-tests: ${{ needs.integration-tests.result }}"
             echo "  db-load-smoke: ${{ needs.db-load-smoke.result }}"

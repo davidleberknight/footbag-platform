@@ -15,15 +15,21 @@ Memory audit: lesson = <one sentence>; checked entries <list of MEMORY.md entrie
 The audit has five steps:
 
 1. State the lesson in one sentence.
-2. Read `MEMORY.md` end-to-end. Identify any existing entry that touches the same surface area. If overlap exists, UPDATE the existing entry or SKIP; do not add a new entry.
+2. Read `MEMORY.md` end-to-end, and grep the harness for the lesson's keywords — root and nested `CLAUDE.md`, `.claude/rules/*`, `.claude/hooks/*`, and committed `docs/*`. If an existing memory, rule, hook, or doc already states or enforces it, UPDATE that home or SKIP; never add a duplicate note.
 3. Confirm the lesson is not one of these exclusions:
    - One-incident observation.
    - Code, file path, naming convention, or repo structure re-derivable from the codebase.
    - Ephemeral task state or in-progress work.
-   - Anything CLAUDE.md or `.claude/rules/` already covers.
+   - Anything already stated or enforced by root or nested `CLAUDE.md`, any `.claude/rules/*`, any `.claude/hooks/*`, or any committed doc under `docs/` (for example DEVOPS_GUIDE, DEV_ONBOARDING, TESTING, DESIGN_DECISIONS, USER_STORIES, DATA_GOVERNANCE, DATA_MODEL). If a rule, hook, or doc could hold the lesson but does not yet, promote it there instead of saving — memory is only for machine-local or Claude-product facts with no repo home.
+   - Implementation status or dated progress (which belongs in `IMPLEMENTATION_PLAN.md`, never in memory).
+   - A `docs/` filename cited as live truth in the body: docs get deleted and the note goes stale, so state the concept in words; needing to name a doc is itself a signal to promote, not save.
    - Generic engineering principle (YAGNI, separation of concerns, "don't over-engineer").
 4. Announce the audit in the response, before the Write or Edit call, in the exact format above.
 5. If any check fails, do not save.
+
+## Pruning
+
+The store is not append-only. On any `audit-memory` run, and opportunistically whenever you touch memory, delete entries that now duplicate a rule/hook/doc, cite a deleted doc, or record one-off status.
 
 ## Enforcement
 

@@ -74,7 +74,7 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]].*)?[[:s
 fi
 
 # Output redirection from a read-only inspector creates or truncates files.
-if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])(cat|grep|rg|head|tail|find|ls|tree|stat|file|wc)([[:space:]][^|;&]*)?[[:space:]]>{1,2}[[:space:]]'; then
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])(cat|grep|rg|head|tail|find|ls|tree|stat|file|wc|echo|printf|awk|sed|jq|sort|uniq|cut|tr|diff)([[:space:]][^|;&]*)?[[:space:]]>{1,2}[[:space:]]'; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",

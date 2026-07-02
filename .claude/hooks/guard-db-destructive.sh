@@ -51,3 +51,18 @@ if printf '%s' "$COMMAND" | grep -Eqi '(DROP[[:space:]]+TABLE|DROP[[:space:]]+IN
   }'
   exit 0
 fi
+
+# Writable SQLite beyond the obvious destructive verbs: write DML/DDL, ATTACH, VACUUM INTO, or a
+# write dot-command. Belt-and-suspenders for the main session — a non-readonly sqlite3 also prompts
+# because settings only auto-approve `sqlite3 -readonly`, and hooks do not run in subagents. Ask,
+# never silently allow.
+if printf '%s' "$COMMAND" | grep -Eqi 'sqlite3.*(INSERT[[:space:]]+INTO|UPDATE[[:space:]]+|REPLACE[[:space:]]+INTO|CREATE[[:space:]]+(TABLE|INDEX|VIEW|TRIGGER|VIRTUAL)|ALTER[[:space:]]+TABLE|ATTACH([[:space:]]+DATABASE)?[[:space:]]|VACUUM[[:space:]]+INTO|\.(read|import|restore|output|save|backup|clone|dump)[[:space:]])'; then
+  jq -n '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason: "Potentially writable SQLite operation (write DML/DDL, ATTACH, VACUUM INTO, or a write dot-command). Confirm before proceeding."
+    }
+  }'
+  exit 0
+fi

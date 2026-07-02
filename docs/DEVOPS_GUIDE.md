@@ -179,6 +179,7 @@ table is the single reference; later sections operate each row but do not redefi
 | Purpose | local feature work and debugging | production-like validation, migration/restore/rotation rehearsal | live footbag.org service |
 | Compute | local Docker Compose | single Lightsail `nano_3_0` (512 MB) | single Lightsail `medium_3_0` (4 GB) |
 | Data policy | synthetic / fixture data | anonymized production-derived data only | real user data |
+| DB reset tolerance | full reset any time (rebuilt from CSV/fixtures) | full reset tolerated during cutovers; no backfill/migration step needed | never — real user data must be preserved |
 | `SES_ADAPTER` | `stub` | `stub` (deploy forces; boot-fails on `live`) | `live` (boot-fails if not `live`) |
 | `PAYMENT_ADAPTER` | `stub` | `stub` (seeded where absent; `live` allowed for rehearsal) | `live` (boot-fails on `stub`) |
 | `MEDIA_STORAGE_ADAPTER` | `local` | `s3` | `s3` |

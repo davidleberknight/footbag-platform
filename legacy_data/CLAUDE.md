@@ -32,6 +32,13 @@ Key rules:
 - Identity lock files are frozen except through the patch toolchain.
 - Unknown data stays unknown. Never fabricate results.
 
+## Local-only inputs and their scripting
+
+Two crucial legacy inputs sit outside version control and are never committed here; never name their machine-local paths in committed text.
+
+- **The static footbag.org mirror** (`mirror_footbag_org/`): a separate, gitignored resource not committed in this repo, produced by `create_mirror_footbag_org.py` (`create_mirror.sh`) and consumed by the results pipeline (`run_pipeline.sh`), the clubs extractor (`scripts/extract_clubs.py`), and name-variant mining. It is the highest-priority source for 1997-present results and also preserves rendered legacy content pages (including the related-links directory), so it is a content-preservation layer: a legacy content domain the mirror captures is not automatically an uncatalogued loss risk even when it is absent from the dump. It is a static snapshot — refresh it before regenerating canonical output, or a stale crawl silently drops recently-completed events (see the canonical-ahead-of-mirror caveat under Pipeline invariants).
+- **The legacy footbag.org database dump**: reached read-only through a symlink to a separate footbag.org repository clone (not part of this repo, never written to). It is the complete database export from the current site, as per-module backup SQL files, and spans far more than member and results data — members and admins (`member_data_scripts/extract_legacy_members.py`, `extract_legacy_admins.py`), memberships and payments, committees and board, groups, votes, mailing lists, and site content such as member tips and moves metadata (`scripts/extract_footbag_org_member_tips.py`, `extract_footbag_org_moves_metadata.py`), plus the sealed legacy archive (`legacy_archive/scripts/ingest.py`). Extractors only read it. Delivery status (which modules have arrived, which are pending) is tracked in `IMPLEMENTATION_PLAN.md`; the machine-local symlink path lives only in the operator's memory.
+
 ## Runbook routing
 
 Use the runbooks instead of improvising:

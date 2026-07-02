@@ -30,13 +30,7 @@ Do not use this skill for:
 
 ## Source-of-truth order
 
-When sources conflict, evaluate in this order:
-
-1. explicit human decisions in the current task
-2. `docs/USER_STORIES.md` for functional requirements; and for membership tiers, Active Player status, voting eligibility, or published rules content, the IFPA governing documents (`ifpa/BYLAWS.md`, `ifpa/IFPAMembershipStructure_2026.md`, `ifpa/ArticlesOfIncorporation.md`, `ifpa/rules/**`), which USER_STORIES defers to as the authority of record — a doc contradicting them on membership or voting drifts toward the governing document, and any genuine governance change is routed to IFPA, not edited in
-3. the top active-slice/status block in `IMPLEMENTATION_PLAN.md` for current scope and out-of-scope boundaries
-4. current local repository code and configuration for implemented behavior
-5. derived local documentation (`DATA_MODEL`, etc.), the path-scoped `.claude/rules/*` files, the `.claude/skills/*` procedures, and per-service file-header JSDoc — the authoritative home for service ownership, required patterns, invariants, and side-effects. These rule and skill files are canonical and are drift-checked like any doc.
+Use the authority order and read order in root `CLAUDE.md`; do not restate them here. For membership, tiers, Active-Player status, voting eligibility, or published-rules content, the IFPA governing documents are the authority of record and `docs/USER_STORIES.md` defers to them; a genuine governance change is routed to IFPA, not edited in.
 
 When code, plan, and derived docs disagree, surface the drift explicitly. Do not flatten the disagreement into one invented source of truth.
 

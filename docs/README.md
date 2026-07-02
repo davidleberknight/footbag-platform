@@ -26,6 +26,7 @@ Design and specification documents for the footbag-platform modernization projec
 - What does a service own? → the service's file-header JSDoc
 - How do I build, deploy, or recover? → `DEVOPS_GUIDE.md`
 - How do I set up the project and iterate locally? → `DEV_ONBOARDING.md`
+- How is the repo set up for Claude Code, and how do I change that setup safely? → `CLAUDE_CODE_GUIDE.md`
 
 ## What does not belong here
 

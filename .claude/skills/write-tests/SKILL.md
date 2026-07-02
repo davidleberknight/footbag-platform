@@ -52,7 +52,7 @@ Do not invent behavior not in the acceptance criteria.
 
 ## Step 4: Plan test cases
 
-Read `docs/TESTING.md` §4 for the project's test design principles. The baseline case list below applies to every route and is the floor; risk-classified surfaces (per TESTING.md §3) layer additional adversarial cases on top per `.claude/rules/testing.md`.
+Read `docs/TESTING.md` §4 for the project's test design principles. When you need to confirm the surface under test traces to a deployed user story, use the deployed-surface enumeration rule (`.claude/rules/deployed-surface.md`). The baseline case list below applies to every route and is the floor; risk-classified surfaces (per TESTING.md §3) layer additional adversarial cases on top per `.claude/rules/testing.md`.
 
 Baseline case list:
 

@@ -1,0 +1,52 @@
+---
+paths:
+  - ".claude/**"
+  - "CLAUDE.md"
+  - "PROJECT_SUMMARY_CONCISE.md"
+  - "docs/CLAUDE_CODE_GUIDE.md"
+---
+
+# Claude Code harness governance
+
+How to change the harness itself (`CLAUDE.md`, `.claude/rules/*`, `.claude/skills/*`, `.claude/hooks/*`, `.claude/agents/*`, `.claude/settings.json`). The harness is production code: treat a change to it with the same rigor as a code change.
+
+## Changing the harness
+
+- Plan Mode first for any non-trivial harness change; state the evidence (what's broken or missing) before proposing the edit.
+- Every harness edit needs explicit human approval, shown as literal before/after. Hooks and settings changes are security-sensitive — never land them silently.
+- New or changed hooks ship with a fixture test; new deterministic rules ship with (or note) the CI check that enforces them (`scripts/ci/assert_claude_harness.sh`).
+- Run `doc-sync` after a change that alters documented behavior.
+
+## Source-of-truth order has one home
+
+The authority order and the read order live only in root `CLAUDE.md`. Rules, skills, `PROJECT_SUMMARY_CONCISE.md`, and agents link to it; none restate it. A second copy drifts.
+
+## Team-portability
+
+`.claude/` is committed and must work identically on every platform (Linux/macOS/Windows/WSL2). Platform-specific approval-reduction (sandbox blocks, OS-specific hooks, path shims) is a per-developer opt-in in each developer's user-scope `~/.claude/settings.json`, never in the repo's `.claude/settings.json`. Permission rules cannot carry conditionals anyway.
+
+## Permission safety (`settings.json`)
+
+- Precedence is deny > ask > allow. Keep the committed `settings.json` pretty-printed and reviewable.
+- No broad wildcard allow on a mutating or network command head. Claude Code checks each part of a compound command against the rules, but a rule sees only the command prefix — a mutating flag later in the arguments (`find … -delete`, `curl -X POST`) is invisible to it, which is what the guard hooks are for. Route network reads through domain-scoped `WebFetch(domain:…)` allows, not `curl` and not `WebFetch(domain:*)` (that means all domains). Require `sqlite3 -readonly` for automatic approval of SQLite.
+- Prefer the read-only auto-approve hook plus narrow, exact allows over blanket interpreter allows (`Bash(python*)`, `Bash(node*)`, `Bash(npx*)` are effectively `Bash(*)`).
+- A new destructive command is guarded by a `permissions.ask`/`deny` entry, not only a hook — project permissions inherit into subagents, and hooks must be treated as main-session-only (see below). Reserve hooks for guards that a static rule cannot express (a positional `find -delete`, a `curl -X POST` flag anywhere in the args).
+
+## Subagent safety
+
+Project `permissions.*` rules inherit into subagents. Whether hooks fire for a subagent's tool calls is not documented by Anthropic and has varied across versions — never rely on it; treat hooks as main-session protection only. So `settings.json` is the subagent-safety layer: mirror every statically-expressible guard into `permissions.deny`/`ask`. A phantom permission prompt for a safe command inside a subagent is a config gap — diagnose it, never silently approve. Read-only subagents (auditor, researcher) keep read-only tools and a non-mutating posture.
+
+## Skill authoring (`.claude/skills/**`)
+
+- A specific description (what it does and when to use it), kept short — it loads into every session's context; an explicit trigger and an explicit stop condition.
+- `allowed-tools` only restricts what a skill may use; it never widens permissions or bypasses prompts. A skill that needs more permission gets a reviewed `settings.json` entry, never a frontmatter grant.
+- `disable-model-invocation: true` for any explicit-only or side-effect-heavy skill, so it never auto-fires and its description leaves always-loaded context.
+- Keep `SKILL.md` under ~500 lines; move long reference material into plain supporting files in the skill's folder (these are reference files, not skills — no frontmatter, no command).
+- Link the authority order; never restate it. No dated implementation status in a skill body — that belongs in `IMPLEMENTATION_PLAN.md`.
+
+## Hook authoring (`.claude/hooks/**`)
+
+- Emit valid PreToolUse JSON (`hookSpecificOutput.permissionDecision` of allow/deny/ask), or exit 0 to defer to the normal flow.
+- Choose the failure mode deliberately: security gates fail closed; informational checks fail open.
+- Prefer exec-form over interpolating untrusted strings into a shell; review each guard for bypass via command/process substitution, redirection, pipes, `xargs`, quoting, and multiline input.
+- Every hook has a fixture test (pipe a synthetic event on stdin) and is wired in `settings.json`. Policy changes need human approval.

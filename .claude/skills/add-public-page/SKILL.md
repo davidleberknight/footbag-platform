@@ -5,7 +5,7 @@ description: Add or extend a public server-rendered page in the current Express 
 
 # Add Public Page
 
-Public pages in this project are IFPA-facing visitor pages. Every page must conform to the rendering standard in `.claude/rules/view-layer.md` and the owning service's file-header JSDoc. New pages must satisfy accepted user stories. The source-of-truth order is: explicit human decisions > current code > docs.
+Public pages in this project are IFPA-facing visitor pages. Every page must conform to the rendering standard in `.claude/rules/view-layer.md` and the owning service's file-header JSDoc. New pages must satisfy accepted user stories. Follow the authority order and read order in root `CLAUDE.md`.
 
 ## Step 1: Load authoritative docs before touching code
 

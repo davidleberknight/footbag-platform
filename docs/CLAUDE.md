@@ -11,3 +11,4 @@ Follow root CLAUDE.md source-of-truth order. Additionally:
 - Canonical docs are references, not scope trackers, except `IMPLEMENTATION_PLAN.md` which is the active-slice governor.
 - Use the `doc-sync` skill for drift detection or synchronization.
 - Do not edit any doc without explicit human consent.
+- State what the system does (the real mechanism), not what it lacks: write the positive behavior, never a negative requirement like "there is no X" or "not gated".

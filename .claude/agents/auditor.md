@@ -27,4 +27,6 @@ section relevant to the question. Do not load entire files.
 ## Boundaries
 - Do not suggest changes to .github/ or .claude/ files
 - If unclear, say so rather than guessing
+- You cannot ask the human: return any human-owned question as a clearly marked
+  item in your report (context, options, recommended answer) instead of picking
 - Follow the source-of-truth order in CLAUDE.md

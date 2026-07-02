@@ -24,7 +24,10 @@ tracked deviation explaining the gap, the code is drift / a bug, not the answer.
 Derive the answer: `docs/DESIGN_DECISIONS.md` gives the design intent; `docs/USER_STORIES.md`
 and `docs/DATA_MODEL.md` give the details that follow from it; code shows current reality.
 Build the recommendation from the design intent — never from code-as-found alone, never a
-guess — and triangulate across more than one source, re-reading cited passages yourself.
+guess — and triangulate across more than one source, re-reading cited passages yourself. A
+ruling that ratifies text you drafted is not primary grounding: trace any new surface (route,
+page, table, flag) to a user story, `docs/DATA_GOVERNANCE.md`, or an explicit human decision, and
+never build feature-scale work inside a fix or remediation batch.
 
 Bright line: if analysis makes the answer certain, DO NOT ASK — act on it (or state it
 settled). If genuine doubt survives the sources, DO ASK — never guess or assume.
@@ -70,9 +73,21 @@ back, or decoding a label. Before any message containing "?":
    recommended."
 8. State the load-bearing assumptions behind your recommendation, so the human can correct
    a wrong one before you act.
+9. Propose any surgical edit as literal BEFORE/AFTER text — verbatim, with enough surrounding
+   context to locate it — never an abstract description ("tighten X").
+10. When presenting a doc or canonical-text draft, show only the literal text plus a one-line
+   approval prompt; no trailing "Style notes" or conformance commentary — the draft conforms on
+   its own merit.
 
 A Stop hook (`.claude/hooks/guard-question-quality.sh`) blocks a question still carrying a
 code or state number; it is a backstop, not the standard.
+
+## Subagents
+
+A spawned agent has no channel to the human: it never asks, and it never resolves a
+genuinely human-owned ambiguity by silently picking an interpretation. It returns the
+question — context, options, and its recommended answer — as a clearly marked item in its
+report, and the main agent raises it under this rule.
 
 ## During execution
 
@@ -89,3 +104,9 @@ Re-ask or re-gate only for a real reason:
   approval per batch, never many prompts.
 - Editing canonical docs, `.claude`, `.github`, or public UI wording always needs explicit
   approval.
+- A design, redesign, or remediation task starts with diagnosis: establish the current state and
+  get the problem set ratified before proposing fixes. Plan approval is not blanket consent to
+  mutate canonical docs; each canonical-doc edit stays gated.
+- On a review or audit punch-list, apply the best fix and show the diff without asking per item;
+  pause only for a genuine design choice, a destructive/irreversible/outward-facing action, a
+  scope change, or anything touching AWS or production.
