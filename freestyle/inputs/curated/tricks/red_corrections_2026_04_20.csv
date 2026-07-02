@@ -3142,3 +3142,5 @@ locomotion,operational_notation,,CLIP > OP IN [DEX] >> OP OUT [DEX] > SAME OUT [
 locomotion,trick_family,,motion,loader-19 override: base_trick motion is the family anchor for motion compounds.
 motion-sickness,operational_notation,,CLIP >> (back) SPIN [BOD] >> OP OUT [DEX] > SAME OUT [DEX] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],FootbagMoves notation in canonical bracket form; spinning prefix + motion body; bracket count 6 = ADD.
 motion-sickness,trick_family,,motion,loader-19 override: base_trick motion is the family anchor for motion compounds.
+id,trick_family,,dod,loader-19 override: base_trick fusion defaults trick_family to fusion; fusion is a dod-family member.
+cold-fusion,trick_family,,dod,loader-19 override: base_trick fusion defaults trick_family to fusion; fusion is a dod-family member.
