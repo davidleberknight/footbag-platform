@@ -34,6 +34,8 @@ process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
 process.env.MEDIA_STORAGE_ADAPTER = 'local';
 process.env.PAYMENT_ADAPTER = 'live';
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
+process.env.CAPTCHA_ADAPTER = 'live'; // production boot rejects the captcha stub
+process.env.TURNSTILE_SITE_KEY = '1x00000000000000000000AA'; // required with the live adapter; its secret resolves lazily and is never touched here
 delete process.env.ALLOW_CURATED_SIDECAR_WRITES;
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
