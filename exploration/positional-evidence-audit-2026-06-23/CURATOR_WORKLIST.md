@@ -4,6 +4,12 @@ Read-only output of the configuration resolver. No aliases or canonicals written
 
 Reproduce: `python3 exploration/positional-evidence-audit-2026-06-23/resolver.py`. CSV: `curator_worklist.csv`.
 
+> **PARTIALLY EXECUTED (2026-07-02).** The ss/os-to-near/far mapping was curator-ratified and
+> the batch ran: the seven DISTINCT_VARIANT_CANDIDATE rows are promoted as `<base> (same side)`
+> canonicals with their resolver-derived configurations, and 12 of the 18 `(ss)` record names
+> now resolve. Still open from this list: the five AMBIGUOUS_MULTI_COMPONENT rows (which
+> component the qualifier targets) and the NO_NOTATION `Pixie DSO (ss)` row.
+
 ## Status counts
 
 | resolver_status | count | curator action |
