@@ -1,5 +1,14 @@
 # Undefined Operator Inventory (2026-06-20)
 
+> **SUPERSEDED IN PART (2026-07-02).** No longer undefined: zulu and weaving (registered ducking
+> sets, mirror rule shipped), motion (defined by FootbagMoves' own bare notation; registered at
+> 5 ADD with locomotion and motion sickness promoted), alpine (= the ducking prefix, nine
+> convergent PassBack pairs), screw (= a +1 inserted back-whirl dex), and blazing's ADD (+1 by
+> eight-row arithmetic; only its movement definition remains open). Still genuinely undefined
+> and now in the Red Wave 3 letter: blazing (structure), flailing, slapping, blistering,
+> xbd-rake/crossbody, arctic, solestice, blink/twisting, motorfly, eagle. Proofs:
+> `../red-reduction-audit-2026-07-02/AUDIT.md` Part A.1.
+
 Genuine undefined operator tokens remaining in the Emerging Vocabulary notation-blocked bucket
 after Pass 1 (known-token reclassification) and Pass 2 (typo normalization). Each is a folk
 operator the parser cannot resolve: the real curator definition backlog, ranked by frequency.
