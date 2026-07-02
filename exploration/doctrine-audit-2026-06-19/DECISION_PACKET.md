@@ -30,6 +30,12 @@ holds only items that need a doctrine ruling, an identification, or a governance
 ## Section A. Doctrine questions
 
 ### A1. DOD / DDD  (~25 tricks)
+
+> **Superseded 2026-07-02** by `exploration/dod-ddd-evidence-pass-2026-07-02/RED_PACKET_A1_REVISED.md`.
+> Distinctness is no longer the live question (evidence strongly favors distinct, all three
+> original ruling options below are stale). The unresolved issue is base identification when
+> dex-inserting operators (atomic, quantum, symposium, shooting, nuclear) have altered the JOB.
+
 **Question.** Is DOD (Double-Over-Down) the same structure as DDD (Down-Double-Down), or two
 distinct canonical bases? And is "down" a base or a naming layer?
 
