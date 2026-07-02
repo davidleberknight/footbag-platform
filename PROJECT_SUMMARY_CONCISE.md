@@ -107,6 +107,7 @@ This project uses a documentation suite. The AI should treat it as a modular kno
 - **Project Summary** - human-oriented big picture and solution architecture; its §1 maps the full document suite.
 - **Design Decisions** - rationale and non-negotiable design commitments / trade-offs.
 - **Data Model** - canonical persisted entities, relationships, schema conventions, storage structure.
+- **Data Governance** - privacy boundaries, sensitivity tiers, and data-handling rules for members, historical persons, search, exports, and stats.
 
 ### Implementation contracts (enforcement-site)
 

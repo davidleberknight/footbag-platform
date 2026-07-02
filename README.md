@@ -39,7 +39,6 @@ Sneak Preview on AWS staging: [https://doye1nvv64qep.cloudfront.net/events/event
 - [docs/DATA_GOVERNANCE.md](docs/DATA_GOVERNANCE.md) (security, privacy, and historical data publication policy).
 - [SECURITY.md](SECURITY.md) for vulnerability reporting (**do not use public issues**).
 - See [CLAUDE.md](CLAUDE.md) for Claude Code's standard operating rules.
-- See [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md) for how the repository is set up for Claude Code and how to change that setup safely.
 - Talk to Dave.
 
 ## Reporting Bugs and Issues
@@ -73,6 +72,7 @@ Each bug fix lands with a regression test in the same PR; the issue closes when 
 
 ## Project Documentation
 
+- [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md): how the Claude Code harness works, why it is built that way, and how it meets Anthropic best practice. Required reading before contributing with Claude Code: the harness governs what AI-written code must follow and what it is allowed to do.
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md): data model and schema semantics.
 - [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md): architectural decisions and rationale.
 - [docs/DEV_ONBOARDING.md](docs/DEV_ONBOARDING.md): developer setup and onboarding.
