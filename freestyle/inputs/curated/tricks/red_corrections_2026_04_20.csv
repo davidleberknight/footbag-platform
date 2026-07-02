@@ -3108,3 +3108,37 @@ atomic-reverse-swirl,operational_notation,,TOE > OP OUT [DEX] > OP BACK SWIRL [D
 atomic-reverse-swirl,trick_family,,swirl,loader-19 override: base_trick rev-swirl defaults trick_family to rev-swirl; rev_swirl is a swirl member.
 irish-cream,operational_notation,,TOE > OP OUT [DEX] >> (back) SPIN [BOD] >> SAME IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],Chassis: tapping prefix (TOE > OP OUT [DEX] >>) + mobius body; bracket count 6 = ADD.
 irish-cream,trick_family,,torque,loader-19 override: base_trick mobius defaults trick_family to mobius; mobius is a torque member.
+fairy-weaving-butterfly,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL] (same foot),Mirror of fairy-ducking-butterfly plus the non-scoring (same foot) annotation; bracket-count==ADD (5).
+fairy-weaving-butterfly,trick_family,,butterfly,loader-19 override: base_trick weaving-butterfly defaults trick_family to it; butterfly family member.
+fairy-weaving-clipper,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP CLIP [XBD] [DEL] (same foot),Mirror of fairy-ducking-clipper plus the non-scoring (same foot) annotation; bracket-count==ADD (4).
+fairy-weaving-clipper,trick_family,,clipper_stall,loader-19 override: base_trick weaving-clipper defaults trick_family to it; clipper_stall family member.
+fairy-weaving-mirage,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP TOE [DEL] (same foot),Mirror of fairy-ducking-mirage plus the non-scoring (same foot) annotation; bracket-count==ADD (4).
+fairy-weaving-mirage,trick_family,,mirage,loader-19 override: base_trick weaving-mirage defaults trick_family to it; mirage family member.
+fairy-weaving-osis,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL] (same foot),Mirror of fairy-ducking-osis plus the non-scoring (same foot) annotation; bracket-count==ADD (5).
+fairy-weaving-osis,trick_family,,osis,loader-19 override: base_trick weaving-osis defaults trick_family to it; osis family member.
+pixie-weaving-butterfly,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL] (same foot),Mirror of pixie-ducking-butterfly plus the non-scoring (same foot) annotation; bracket-count==ADD (5).
+pixie-weaving-butterfly,trick_family,,butterfly,loader-19 override: base_trick weaving-butterfly defaults trick_family to it; butterfly family member.
+pixie-weaving-mirage,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] > OP IN [DEX] > OP TOE [DEL] (same foot),Mirror of pixie-ducking-mirage plus the non-scoring (same foot) annotation; bracket-count==ADD (4).
+pixie-weaving-mirage,trick_family,,mirage,loader-19 override: base_trick weaving-mirage defaults trick_family to it; mirage family member.
+pixie-weaving-osis,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL] (same foot),Mirror of pixie-ducking-osis plus the non-scoring (same foot) annotation; bracket-count==ADD (5).
+pixie-weaving-osis,trick_family,,osis,loader-19 override: base_trick weaving-osis defaults trick_family to it; osis family member.
+pixie-weaving-symposium-mirage,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL] (same foot),Mirror of pixie-ducking-symposium-mirage plus the non-scoring (same foot) annotation; bracket-count==ADD (5).
+pixie-weaving-symposium-mirage,trick_family,,mirage,loader-19 override: base_trick symposium-mirage defaults trick_family to it; mirage family member.
+pixie-weaving-whirl,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP CLIP [XBD] [DEL] (same foot),Mirror of pixie-ducking-whirl plus the non-scoring (same foot) annotation; bracket-count==ADD (5).
+pixie-weaving-whirl,trick_family,,whirl,loader-19 override: base_trick weaving-whirl defaults trick_family to it; whirl family member.
+stepping-weaving-butterfly,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL] (same foot),Mirror of stepping-ducking-butterfly plus the non-scoring (same foot) annotation; bracket-count==ADD (5).
+stepping-weaving-butterfly,trick_family,,butterfly,loader-19 override: base_trick weaving-butterfly defaults trick_family to it; butterfly family member.
+stepping-weaving-mirage,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > SAME IN [DEX] > SAME TOE [DEL] (same foot),Mirror of stepping-ducking-mirage plus the non-scoring (same foot) annotation; bracket-count==ADD (4).
+stepping-weaving-mirage,trick_family,,mirage,loader-19 override: base_trick weaving-mirage defaults trick_family to it; mirage family member.
+weaving-symposium-mirage,operational_notation,,TOE > DUCK [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL] (same foot),Mirror of ducking-symposium-mirage plus the non-scoring (same foot) annotation; bracket-count==ADD (4).
+weaving-symposium-mirage,trick_family,,mirage,loader-19 override: base_trick symposium-mirage defaults trick_family to it; mirage family member.
+weaving-reverse-guay,operational_notation,,SET > DUCK [BOD] > SAME IN [DEX] > OP INSIDE [DEL] (same foot),Mirror of ducking-reverse-guay plus the non-scoring (same foot) annotation; bracket-count==ADD (3).
+weaving-reverse-guay,trick_family,,inside-stall,loader-19 override: base_trick guay defaults trick_family to guay; guay is an inside-stall member.
+weaving-eclipse,operational_notation,,TOE > DUCK [BOD] JUMP [BOD] > SAME INSIDE [DEL] > SAME TOE [DEL] (same foot),Mirror of ducking-eclipse plus the non-scoring (same foot) annotation; jump-class double-delay terminal; bracket-count==ADD (4).
+blurry-whirling-swirl,operational_notation,,CLIP > OP IN [DEX] > OP IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],footbag.org JOB (showmove/240) copied verbatim; bracket count 6 = ADD.
+blurry-whirling-swirl,trick_family,,swirl,loader-19 override: base_trick whirling-swirl defaults trick_family to it; whirling swirl is a swirl-family member.
+motion,operational_notation,,TOE >> SAME OUT [DEX] >> SAME OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],FootbagMoves bare Motion notation in canonical bracket form; bracket count 5 = ADD.
+locomotion,operational_notation,,CLIP > OP IN [DEX] >> OP OUT [DEX] > SAME OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],FootbagMoves notation in canonical bracket form; stepping prefix + motion body; bracket count 6 = ADD.
+locomotion,trick_family,,motion,loader-19 override: base_trick motion is the family anchor for motion compounds.
+motion-sickness,operational_notation,,CLIP >> (back) SPIN [BOD] >> OP OUT [DEX] > SAME OUT [DEX] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],FootbagMoves notation in canonical bracket form; spinning prefix + motion body; bracket count 6 = ADD.
+motion-sickness,trick_family,,motion,loader-19 override: base_trick motion is the family anchor for motion compounds.

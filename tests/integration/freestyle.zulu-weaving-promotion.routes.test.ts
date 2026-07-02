@@ -93,12 +93,14 @@ describe('Zulu / Weaving promoted compounds leave the Emerging Vocabulary', () =
     }
   });
 
-  it('a still-held multi-modifier composition (fairy_weaving_mirage) remains tracked', async () => {
+  it('a still-held multi-modifier composition (tapping_weaving_mirage) remains tracked', async () => {
     const { TRACKED_UNPUBLISHED_NAMES } = await import('../../src/content/freestyleTrackedNames');
     const tracked = new Set<string>();
     for (const group of TRACKED_UNPUBLISHED_NAMES) {
       for (const name of group.names) tracked.add(name.slug);
     }
-    expect(tracked.has('fairy_weaving_mirage')).toBe(true);
+    // A weaving stack whose ducking mirror is not yet canonical stays tracked;
+    // stacks whose mirror exists promote via the mirror rule and leave this list.
+    expect(tracked.has('tapping_weaving_mirage')).toBe(true);
   });
 });

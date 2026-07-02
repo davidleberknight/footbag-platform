@@ -126,7 +126,7 @@ KNOWN_TOKENS = {
     "far", "near", "op", "os", "reverse", "rev", "same", "ss", "double", "triple", "down", "up",
     "set", "kick", "side", "front", "back", "inside", "outside", "cross", "body", "in", "out",
     "dex", "xbd", "bs", "dod", "ddd", "plo", "dlo", "dso", "pdx", "bod", "del", "uns", "xdex", "symp",
-    "inward", "outward", "wo", "crossbody", "hopover", "ps", "twirl", "arctic", "pinching", "pincher",
+    "inward", "outward", "wo", "crossbody", "hopover", "ps", "twirl", "arctic", "alpine", "pinching", "pincher",
     "muted", "flying",
 }
 # Folk operators that are undefined but recur often enough to be worth investigating;

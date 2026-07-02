@@ -9776,7 +9776,7 @@ export const freestyleService = {
       // known notation abbreviations leaked into a name (not unknown operators)
       'dex','xbd','bs','dod','ddd','plo','dlo','dso','pdx','bod','del','uns','xdex','symp','inward','outward','wo',
       // documented sets, known concepts, and abbreviations confirmed settled in audit
-      'crossbody','hopover','ps','twirl','arctic','pinching','pincher','muted','flying',
+      'crossbody','hopover','ps','twirl','arctic','alpine','pinching','pincher','muted','flying',
     ]);
     // Source-data spelling typos that resolve to a known operator (Pass 2): they
     // are not new frontier operators, so normalize before the known-token check.
