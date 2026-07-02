@@ -407,7 +407,9 @@ describe('GET /freestyle/add-analysis — interpretation notes + cross-links', (
   it('renders the cross-links inventory', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toContain('href="/freestyle/tricks"');
-    expect(res.text).toContain('href="/freestyle/glossary#symbolic-notation"');
+    // Both glossary cross-links must target anchors that exist in
+    // glossary.hbs: the notation section and the ADD Accounting heading.
+    expect(res.text).toContain('href="/freestyle/glossary#section-notation"');
     expect(res.text).toContain('href="/freestyle/glossary#traditional-reference"');
     expect(res.text).toContain('href="/freestyle/history"');
   });

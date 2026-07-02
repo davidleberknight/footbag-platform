@@ -155,6 +155,28 @@ describe('assertFirstClassConvergence — flat derivation path', () => {
     expect(result.diagnostic).toContain('awaiting');
   });
 
+  it('a NaN base ADD reports coverage-pending (derivation impossible), never NaN arithmetic', () => {
+    // A non-numeric adds column on the base row reaches the rule as
+    // Number('garbage') = NaN. That is the "non-numeric ADD" impossible-
+    // derivation case: the rule must report the derivation as not
+    // derivable, not carry NaN into the computed-vs-official comparison
+    // and mislabel the row governance-blocked with a NaN diagnostic.
+    const result = assertFirstClassConvergence(
+      'paradox_mirage',
+      {
+        canonical_name: 'paradox mirage',
+        adds: 3,
+        base_trick: 'mirage',
+        notation: 'PARADOX MIRAGE',
+      },
+      ['paradox'],
+      modifierTable,
+      Number.NaN,
+    );
+    expect(result.status).toBe('coverage-pending');
+    expect(result.diagnostic).toBe('computed ADD not derivable');
+  });
+
   it('a slug whose flat derivation under-counts is reported governance-blocked', () => {
     // Pretend "ghost" = some-modifier + base; official says 9 but math
     // says 5. Should not pass H5 even with a resolved-formula entry.

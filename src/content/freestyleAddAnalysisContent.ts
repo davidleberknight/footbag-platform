@@ -581,8 +581,8 @@ const CLOSING_PARAGRAPHS: readonly string[] = [
 
 const CROSS_LINKS: readonly AddAnalysisCrossLink[] = [
   { label: 'Trick Dictionary',                 href: '/freestyle/tricks' },
-  { label: 'Glossary §7: Symbolic Notation', href: '/freestyle/glossary#symbolic-notation' },
-  { label: 'Glossary §10: Traditional Reference', href: '/freestyle/glossary#traditional-reference' },
+  { label: 'Glossary: Trick Naming & Notation', href: '/freestyle/glossary#section-notation' },
+  { label: 'Glossary: ADD Accounting',          href: '/freestyle/glossary#traditional-reference' },
   { label: 'Freestyle History',                href: '/freestyle/history' },
 ];
 

@@ -5155,7 +5155,9 @@ function deriveComputedAdd(
   modifierSlugs: readonly string[],
   modifierTable: Map<string, { add_bonus: number; add_bonus_rotational: number }>,
 ): number | null {
-  if (baseAdd === null) return null;
+  // Non-finite covers NaN from a non-numeric adds column: the documented
+  // "non-numeric ADD" impossible-derivation case, not an arithmetic input.
+  if (baseAdd === null || !Number.isFinite(baseAdd)) return null;
   const isRotational = baseTrick !== null && FIRST_CLASS_ROTATIONAL_BASES.has(baseTrick);
   let total = baseAdd;
   for (const slug of modifierSlugs) {

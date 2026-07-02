@@ -1222,7 +1222,9 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
     expect(res.text).toContain('class="notation-glossary-link"');
-    expect(res.text).toMatch(/<a href="\/freestyle\/glossary#notation">Token reference/);
+    // The deeplink targets the glossary's notation section anchor, which
+    // must exist in glossary.hbs (a missing anchor lands at the page top).
+    expect(res.text).toMatch(/<a href="\/freestyle\/glossary#section-notation">Token reference/);
   });
 
   it('uses the refined per-token tooltip for OP (O1c)', async () => {
