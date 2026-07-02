@@ -205,6 +205,12 @@ services:
       # Unused in stub mode (stub adapter uses its own whsec_stub secret);
       # required by env.ts boot only when PAYMENT_ADAPTER=live.
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # The worker never serves the claim/registration surface, but it boots
+      # the same env.ts contract, and env.ts refuses a FOOTBAG_ENV=production
+      # boot on the captcha stub. Same passthrough as web so a production
+      # worker sees the operator's CAPTCHA_ADAPTER=live.
+      CAPTCHA_ADAPTER: ${CAPTCHA_ADAPTER:-stub}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?set in .env or launch via npm run compose:dev (worker<->web auth)}
       SES_FEEDBACK_WEBHOOK_KEY: ${SES_FEEDBACK_WEBHOOK_KEY:-dev-ses-feedback-key-not-for-prod}
     volumes:

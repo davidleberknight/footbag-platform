@@ -42,6 +42,10 @@ function productionEnv(): NodeJS.ProcessEnv {
     AWS_REGION: 'us-east-1',
     PAYMENT_ADAPTER: 'live',
     STRIPE_WEBHOOK_SECRET: 'whsec_live_placeholder',
+    // Production boot requires the real CAPTCHA adapter (env.ts fails fast
+    // on the stub under FOOTBAG_ENV=production).
+    CAPTCHA_ADAPTER: 'live',
+    TURNSTILE_SITE_KEY: 'turnstile-site-key',
     INTERNAL_EVENT_SECRET: 'internal-secret',
   };
 }

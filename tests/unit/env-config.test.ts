@@ -154,6 +154,52 @@ describe('env config: dev defaults apply when NODE_ENV is not production', () =>
     expect(config.captchaAdapter).toBe('live');
     expect(config.turnstileSiteKey).toBe('0xSITEKEY');
   });
+
+  it('throws when CAPTCHA_ADAPTER defaults to stub under FOOTBAG_ENV=production', async () => {
+    // The stub answers "you are human" for every request, so a production
+    // boot that forgot CAPTCHA_ADAPTER=live must fail at startup, not run
+    // login and registration with no CAPTCHA.
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.FOOTBAG_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'live';
+    process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
+    process.env.AWS_REGION = 'us-east-1';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
+    delete process.env.CAPTCHA_ADAPTER;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /CAPTCHA_ADAPTER must be 'live' when FOOTBAG_ENV=production/,
+    );
+  });
+
+  it('accepts the captcha stub under FOOTBAG_ENV=staging (prod-mode)', async () => {
+    // Staging runs prod-mode for hardening parity but stays on the stub by
+    // design; the production CAPTCHA gate must not fire there.
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.FOOTBAG_ENV = 'staging';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
+    delete process.env.CAPTCHA_ADAPTER;
+    const { config } = await import('../../src/config/env');
+    expect(config.captchaAdapter).toBe('stub');
+  });
 });
 
 describe('env config: prod-mode fail-fast (staging runtime)', () => {
@@ -733,6 +779,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'live';
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_live_realvalue';
+    process.env.CAPTCHA_ADAPTER = 'live';
+    process.env.TURNSTILE_SITE_KEY = 'turnstile-site-key';
     const { config } = await import('../../src/config/env');
     expect(config.stripeWebhookSecret).toBe('whsec_live_realvalue');
   });
@@ -885,6 +933,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'live';
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
+    process.env.CAPTCHA_ADAPTER = 'live';
+    process.env.TURNSTILE_SITE_KEY = 'turnstile-site-key';
     process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS = '   ';
     // Empty/whitespace value is treated as unset (deploy pipeline writes an
     // empty value when the workstation's .local/initial-admins.txt is empty;

@@ -241,10 +241,11 @@ function loadConfig(): AppConfig {
       `CAPTCHA_ADAPTER must be 'live' or 'stub', got: ${rawCaptchaAdapter}`,
     );
   } else {
-    // Default off (stub) everywhere, including prod-mode: dev and staging run the
-    // stub ("you are human"); production opts into the real Turnstile by setting
-    // CAPTCHA_ADAPTER=live explicitly. Not prod-required, because staging runs
-    // prod-mode yet must stay on the stub.
+    // Default off (stub) for dev and staging: both run the stub ("you are
+    // human"), and staging must stay on it even though it runs prod-mode.
+    // Production requires the real Turnstile: a FOOTBAG_ENV=production boot
+    // with the stub fails fast at the production CAPTCHA gate further down,
+    // after footbagEnv is derived.
     captchaAdapter = 'stub';
   }
   const turnstileSiteKey = process.env.TURNSTILE_SITE_KEY ?? null;
@@ -651,6 +652,18 @@ function loadConfig(): AppConfig {
         'SESSION_SECRET appears to contain the .env.example placeholder ("changeme"). Generate a fresh value with: openssl rand -hex 32',
       );
     }
+  }
+
+  // The real CAPTCHA must be on in production: with the stub, login and
+  // registration answer "you are human" for every request and only the
+  // in-process rate limiter stands between an attacker and credential
+  // stuffing. FOOTBAG_ENV (the deployment environment), not NODE_ENV, is
+  // the discriminator, because staging runs prod-mode for hardening parity
+  // yet stays on the stub by design.
+  if (footbagEnv === 'production' && captchaAdapter !== 'live') {
+    throw new Error(
+      `CAPTCHA_ADAPTER must be 'live' when FOOTBAG_ENV=production (got '${captchaAdapter}'); set CAPTCHA_ADAPTER=live and TURNSTILE_SITE_KEY in the production host env`,
+    );
   }
 
   return {

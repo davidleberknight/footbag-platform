@@ -247,6 +247,11 @@ const PRODUCTION_FIXTURE: Record<string, string> = {
   MEDIA_STORAGE_ADAPTER: 's3',
   MEDIA_STORAGE_S3_BUCKET: 'footbag-production-media',
   PAYMENT_ADAPTER: 'live',
+  // Production requires the real CAPTCHA (env.ts fails fast on the stub
+  // under FOOTBAG_ENV=production); the compose file passes both values
+  // through from the host env file.
+  CAPTCHA_ADAPTER: 'live',
+  TURNSTILE_SITE_KEY: '0xSTUBPRODSITEKEY',
   INTERNAL_EVENT_SECRET: 'a'.repeat(48),
   SES_FEEDBACK_WEBHOOK_KEY: 'b'.repeat(48),
   WORKER_INTERNAL_URL: 'http://worker:3100',
