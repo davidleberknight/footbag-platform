@@ -22,6 +22,9 @@ description: Findings-only synchronization audit that checks whether all canonic
 - **bug-hunt**: deployed-code defects (security/correctness), recorded in `BUGS.md`.
 - **design-bug-hunt**: design-spec defects that become production bugs, with recommended
   fixes and owners, recorded in `BUGS.md`.
+- **freestyle-bug-hunt**: freestyle-domain invariant violations (dictionary layers, ADD
+  math, naming/slug/hashtag conventions, trick-tag invariant, propagation), recorded in
+  `BUGS.md`. Freestyle DOC drift still belongs here; domain-rule violations go there.
 
 Overlap with the two bug-hunt skills is accepted and expected. The differentiator is the
 lens: this skill asks "is everything in sync and current," stops at reporting drift, and
@@ -161,16 +164,26 @@ what is covered so far and let the maintainer decide whether to continue.
 ## Initial read order
 
 For a comprehensive audit, read (subset for a scoped ask per Scaling). This list is a
-floor, not a closed set: first ENUMERATE every candidate file, then account for each one
-in the coverage ledger as read, scoped-out, or not-applicable. Enumerate `docs/*.md`, the
-root `*.md` files, every `CLAUDE.md` in the tree, `.claude/rules/*.md`, `.claude/skills/*`,
-and `ifpa/**`. A canonical doc, governing document, or subtree contract that exists but is
-named nowhere below is itself a coverage gap to record, not a file to skip silently.
+floor, not a closed set: first ENUMERATE every candidate file — all tracked `**/*.md`
+plus `.claude/rules/*.md`, `.claude/skills/*`, and `ifpa/**` — then account for each one
+in the coverage ledger as read, scoped-out, or not-applicable. A canonical doc, governing
+document, or subtree contract that exists but is named nowhere below is itself a coverage
+gap to record, not a file to skip silently.
 
 1. `CLAUDE.md` plus every per-subtree `CLAUDE.md` (`docs/`, `database/`, `tests/`,
    `freestyle/`, `legacy_data/`, `src/db/`, `src/services/`, `src/public/`) — each states a
    path-scoped contract that overlaps DD, service JSDoc, and the rules; the same rule in
    many places is many places to drift.
+
+   The tracked-`**/*.md` enumeration (`git ls-files '*.md'`) reaches beyond the lists
+   below: the `legacy_data/` docs (README, runbooks, gap reports), `freestyle/*.md`,
+   `docs/BUG_REPORT.md`, `docs/CLAUDE_CODE_GUIDE.md`, `docs/README.md`,
+   `database/README.md`, `src/dev-bootstrap/README.md`, and the `.github/` templates are
+   all in the universe. Standing scoped-out buckets, recorded in the ledger with this
+   reason rather than silently skipped: the `exploration/` working corpus (its go-live
+   disposition is a tracked `IMPLEMENTATION_PLAN.md` item; references INTO it from live
+   docs still get the broken-reference check) and gitignored local-only files (`BUGS.md`,
+   `AWS_PROJECT_SPECIFICS.md`, `.local/`).
 2. `.claude/rules/doc-governance.md`
 3. `.claude/skills/doc-sync/SKILL.md`, `.claude/skills/bug-hunt/SKILL.md`,
    `.claude/skills/design-bug-hunt/SKILL.md`

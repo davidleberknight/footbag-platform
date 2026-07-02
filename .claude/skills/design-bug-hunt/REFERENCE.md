@@ -268,6 +268,12 @@ Find bugs in:
 * staging test data derived from legacy data
 * production database becoming the source of truth
 
+**Gate-index accuracy and completeness (mandatory in this phase).** The go-live blocker index in `docs/MIGRATION_PLAN.md` §22 (gate families G/EX/WM/OR/GV/LEG/PC/R) and the §25 validation-gate table are themselves audited surfaces:
+
+* Accuracy: every artifact a gate references — a script, route, table, column, count, section, or Terraform resource — must resolve against the current repo. A gate pointing at a renamed script, a retired route, or a count the data no longer supports is a broken gate, and a broken gate is a P0/P1 finding because it silently passes or blocks go-live on wrong evidence.
+* Completeness: every migration/cutover risk the plan itself names (the rollback posture, operational-readiness, and open-issues sections) must map to a gate; a named risk with no gate is a missing-gate finding. Cross-check the `IMPLEMENTATION_PLAN.md` "Release gates" section stays consistent with §22 rather than forking it.
+* Consistency: §22 index rows and §25 detail rows must agree with each other, and every go-live-relevant `[DEVIATION]` unblock condition in `IMPLEMENTATION_PLAN.md` must map to a gate that enforces it (for example, a hand-edited override CSV deviation maps to its retirement gate).
+
 Critical migration principle:
 
 The Python legacy pipeline, mirror data, the legacy data dump, and CSVs are pre-go-live transition machinery. They must not become indefinite runtime dependencies unless a canonical design explicitly says so. Flag any design that implies continuing dependency on migration inputs after go-live.
@@ -279,10 +285,12 @@ Review deployment and runtime artifacts as design evidence.
 Inspect:
 
 * Dockerfiles
-* Docker Compose files
-* Terraform
-* GitHub Actions
-* deploy scripts
+* Docker Compose files and the committed `docker/env/*.env` runtime env files
+* Terraform (staging, production, and shared root modules)
+* GitHub Actions (`.github/workflows/ci.yml` and its job list)
+* deploy scripts and `run_all_tests.sh`
+* `ops/systemd/*` units and timers
+* `.githooks/`
 * environment templates
 * config docs
 * adapter interfaces
@@ -347,7 +355,7 @@ Find bugs where the design lacks deterministic verification for:
 * every backup/restore/rollback claim
 * every rate-limit/abuse-control claim
 
-Flag missing tests as design bugs only when the absence of a specified verification gate makes the design unsafe, unverifiable, or likely to regress.
+A testing gap is a bug: a design-critical invariant with no specified deterministic verification is a design bug outright — record it with severity calibrated to the surface it leaves unguarded, naming the exact missing gate and the invariant it would pin. Only vague coverage complaints with no named invariant are excluded.
 
 ### Phase 11: Scenario simulation
 
@@ -389,6 +397,8 @@ Required scenarios:
 28. Rollback occurs after some users have used the new platform.
 29. Production DB diverges from staging despite green tests.
 30. Backups exist but restore procedure has never been tested.
+31. A curated media item is published carrying a tag that resolves to no active trick.
+32. A trick promotion updates the dictionary row but not the galleries, records, or browse surfaces that project it (a propagation miss).
 
 For each scenario, record:
 
@@ -444,7 +454,7 @@ Before recording a finding, try to disprove it.
 For each candidate finding:
 
 1. Search the repo for the relevant term, role, table, route, service, view, test, and design-decision id.
-2. Check whether `IMPLEMENTATION_PLAN.md` records it as current deviation or known gap.
+2. Check whether `IMPLEMENTATION_PLAN.md` records it as a tracked item — a `[DEVIATION]`, `[BLOCKED]`, `[BUG]`, or `[KANBAN]`/`[PRE-KANBAN]` entry (inline under the owner sections; there is no dedicated deviations block). The check is bidirectional: a tracked entry whose described state no longer matches the repo is itself a finding (stale plan entry), even though the behavior it once tracked is not.
 3. Check whether the user story explicitly defers it.
 4. Check whether a design decision intentionally excludes it.
 5. Check whether the view-layer rule or a service's JSDoc says the area is intentionally partial.
@@ -746,6 +756,15 @@ Always check these project-specific risks.
 * CSRF origins
 * rollback behavior
 * legacy archive host
+
+### Freestyle and curated media (design layer)
+
+* the standing surface-propagation rule in `IMPLEMENTATION_PLAN.md` (every freestyle change propagates to all affected surfaces before its slice is done) treated as a design rule with verification
+* the curated-media pipeline's pre-go-live lifecycle boundary and the post-go-live handoff to the persistent production DB as source of truth
+* the trick-tag invariant as a designed control with a deterministic gate
+* `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md` conformance of the publication design
+* naming/slug/hashtag conventions specified well enough to implement without guessing
+* deep domain sweeps hand off to the `freestyle-bug-hunt` skill; this checklist covers only whether the DESIGN of these controls is complete, consistent, and testable
 
 ### DevOps and parity
 

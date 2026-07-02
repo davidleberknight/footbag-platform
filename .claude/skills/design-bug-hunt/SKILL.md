@@ -43,6 +43,8 @@ When a finding is a design/specification problem that will cause future implemen
 
 Overlap with `bug-hunt` is intentional and accepted. The two skills sweep overlapping surface from different perspectives — `bug-hunt` from deployed-code reality, this skill from design/specification intent — and that redundancy is a feature: each vantage point catches what the other misses. Do not suppress a real design finding merely because `bug-hunt` might also surface a related code finding. The boundary is by nature, not by territory: a finding that reduces purely to deployed-code behavior with no design-spec defect goes to `bug-hunt`; everything with a specification-layer defect stays here.
 
+A third neighbor, `freestyle-bug-hunt`, owns the freestyle-domain invariants (dictionary layer separation, ADD math, slot governance, naming/slug/hashtag conventions, the trick-tag invariant, cross-surface propagation). This skill still audits the DESIGN quality of freestyle stories and contracts (the high-risk checklist has a freestyle section); a finding whose substance is a freestyle domain-rule violation hands off there.
+
 ## Absolute rules
 
 1. Do not implement code.
@@ -80,7 +82,7 @@ Start with the repo guidance and source-of-truth rules.
 Read:
 
 1. `CLAUDE.md`
-2. all path-scoped rules in `.claude/rules/*.md` (doc-governance, testing, service-layer, controller-conventions, template-conventions, view-layer, db-layer, db-write-safety, adapter-conventions, comments, memory)
+2. all path-scoped rules in `.claude/rules/*.md` — enumerate the directory fresh and read every rule; the set changes, so never trust an embedded list
 3. the `.claude/skills/*` procedures (this skill, `bug-hunt`, and any domain skill bearing on the area under review)
 4. `PROJECT_SUMMARY_CONCISE.md`
 5. `IMPLEMENTATION_PLAN.md`
@@ -413,7 +415,7 @@ Do not record:
 
 ## Design-specific high-risk checklist
 
-Always check these project-specific risks; the full checklist is in this skill's `REFERENCE.md`, grouped by: identity and onboarding; membership, tiers, and flags; clubs; groups and committees; events and results; voting; media and archive; email, DNS, and retained legacy; and DevOps and parity.
+Always check these project-specific risks; the full checklist is in this skill's `REFERENCE.md`, grouped by: identity and onboarding; membership, tiers, and flags; clubs; groups and committees; events and results; voting; media and archive; email, DNS, and retained legacy; freestyle and curated media (design layer); and DevOps and parity.
 
 ## Final instruction
 

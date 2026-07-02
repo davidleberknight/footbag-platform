@@ -51,9 +51,12 @@ classification table; they never become findings (Hard constraint 8).
 
 ### Phase 3: Deployed-story conformance (docs vs code)
 For each complete- or partial-deployed story, check each success criterion against code,
-tests, schema, and the service and view-layer contracts (JSDoc + view-layer rule). Check whether `IMPLEMENTATION_PLAN.md`
-records an accepted deviation. Record any mismatch with its drift direction; do not assert
-a fix.
+tests, schema, and the service and view-layer contracts (JSDoc + view-layer rule). Check
+whether `IMPLEMENTATION_PLAN.md` tracks the gap as a `[DEVIATION]`-tagged entry (inline
+under the owner sections; there is no dedicated deviations block). The check is
+bidirectional: a `[DEVIATION]` or `[BUG]` entry describing a state the repo no longer has
+is itself drift, direction: the plan entry is stale. Record any mismatch with its drift
+direction; do not assert a fix.
 
 ### Phase 4: Canonical-doc internal consistency
 Per doc, check for contradictory statements, duplicated definitions with different
@@ -121,17 +124,22 @@ opt-in/out semantics. Do not print raw PII.
 
 ### Phase 8: Testing and CI sync
 `docs/TESTING.md`, `.claude/rules/testing.md`, `package.json`, `run_all_tests.sh`,
-`.github/workflows/**`, `tests/**` vs story success criteria and catalog enforcement
-claims: documented command missing from scripts (or vice versa), CI not matching the docs,
-a deterministic check the docs claim that does not exist, a check that exists with no doc,
-tests asserting behavior documented nowhere or contradicting canonical design.
+`.github/workflows/**`, `scripts/ci/**`, `tests/**` (including the e2e and axe
+accessibility specs and the opt-in pentest harness under `scripts/pentest/`) vs story
+success criteria and catalog enforcement claims: documented command missing from scripts
+(or vice versa), CI not matching the docs (diff the workflow's actual job list against
+the docs' claims and `run_all_tests.sh`'s gate list), a deterministic check the docs claim
+that does not exist, a check that exists with no doc, tests asserting behavior documented
+nowhere or contradicting canonical design.
 
 ### Phase 9: DevOps, deployment, and parity sync
-`DEVOPS_GUIDE.md` and DD DevOps sections vs Dockerfiles, Compose, `terraform/**`,
-`.github/workflows/**`, deploy scripts, `ops/**`, `.env.example`, config modules, and
-adapter factories: dev/staging/prod parity, secrets handling, boot-time fail-fast,
-backups/restore/rollback, health endpoints, image worker, SES/S3/CloudFront/Stripe/KMS/
-Parameter Store assumptions, TLS/cookie/CSRF/host-pinning config, and staging smoke tests.
+`DEVOPS_GUIDE.md` and DD DevOps sections vs Dockerfiles, Compose, the committed
+`docker/env/*.env` files, `terraform/**`, `.github/workflows/**`, `.githooks/`, deploy
+scripts, `ops/**` (systemd units and timers, incl. cadence vs documented recovery
+objectives), `.env.example`, config modules, and adapter factories: dev/staging/prod
+parity, secrets handling, boot-time fail-fast, backups/restore/rollback, health endpoints,
+image worker, SES/S3/CloudFront/Stripe/KMS/Parameter Store assumptions,
+TLS/cookie/CSRF/host-pinning config, and staging smoke tests.
 
 ### Phase 10: Migration and go-live sync
 `docs/MIGRATION_PLAN.md`, `legacy_data/CLAUDE.md`, `IMPLEMENTATION_PLAN.md`,
@@ -141,6 +149,14 @@ rollback, legacy-credential exclusion, identity mapping, email/DNS transition, r
 archive scope. Legacy feeds, mirror data, the legacy dump, and curated CSVs are pre-go-live
 inputs only; flag any design implying continued runtime dependency on them after go-live.
 Python pipeline code is out of scope unless the user included it.
+
+**Gate-index sync (mandatory).** The go-live blocker index (`MIGRATION_PLAN.md` §22) and
+the validation-gate table (§25) are audited surfaces: every artifact a gate references —
+script, route, table, column, count, section, Terraform resource — must still resolve
+against the repo (spot-derive counts read-only where cheap); §22 rows and §25 rows must
+agree; and the `IMPLEMENTATION_PLAN.md` "Release gates" section must stay a consistent
+subset pointer to §22, not a fork. A gate citing a renamed or retired artifact is drift at
+the severity of the decision it gates.
 
 ### Phase 11: Terminology and reference sync
 Build a glossary-like scratch map of key terms (member, legacy member, historical person,
@@ -193,7 +209,7 @@ Conversion to a title or prose is downstream `doc-sync` work.
 
 ### Phase 12: Active refutation
 Before recording any finding, try to prove it false. Search all relevant terms and alternate
-names. Check `IMPLEMENTATION_PLAN.md` for an accepted deviation, doc-governance for the rule,
+names. Check `IMPLEMENTATION_PLAN.md` for a tracked `[DEVIATION]` entry, doc-governance for the rule,
 whether the doc is design-intent vs status, whether the story is future/not-deployed, whether
 the code is a bootstrap stub, whether the issue is purely an implementation defect (belongs
 to `bug-hunt`) or a design-spec defect with a needed fix (belongs to `design-bug-hunt`) or a

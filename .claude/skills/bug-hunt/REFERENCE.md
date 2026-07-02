@@ -4,7 +4,7 @@ Detailed reference for the bug-hunt skill, factored out of SKILL.md to stay unde
 
 ## Bug categories — catalog (§4.4)
 
-The primary (security/correctness) sweep categories §4.4.1–§4.4.42, followed by the secondary design-pattern-divergence and hygiene sweep §4.4B. SKILL.md §4.4 frames the two sweeps and refers to these category numbers.
+The primary (security/correctness) sweep categories §4.4.1–§4.4.48, followed by the secondary design-pattern-divergence and hygiene sweep §4.4B. SKILL.md §4.4 frames the two sweeps and refers to these category numbers.
 
 #### 4.4.1 Logic errors
 
@@ -84,7 +84,7 @@ For each: assert that the response status code, body shape, and body length are 
 
 #### 4.4.10 Rate-limit misses
 
-- Routes that mutate state (POST `/login`, `/register`, `/password/forgot`, `/verify/resend`, `/members/:slug/edit/password`, `/members/:slug/contact-admin`, `/members/:slug/media/upload`, etc.) should call `rateLimitHit(key, max, windowMin)` from `src/services/rateLimitService.ts`.
+- Routes that mutate state (POST `/login`, `/register`, `/password/forgot`, `/verify/resend`, `/members/:slug/edit/password`, `/members/:slug/contact-admin`, `/members/:slug/media/upload`, etc.) should call the rate-limit hit function from `src/services/rateLimitService.ts` (exported as `hit`; call sites conventionally alias it to `rateLimitHit`).
 - A missing limiter on a state-changing route is a high-severity finding.
 - The audit row should record only the threshold-crossing event (per M_Login A7: no per-attempt audit, no IP stored). Verify the limiter implementation respects this.
 
@@ -96,7 +96,7 @@ For each: assert that the response status code, body shape, and body length are 
 
 #### 4.4.12 Cache-Control regressions
 
-- Authenticated responses must carry `Cache-Control: private, no-store` (set by app.ts middleware at lines ~218-222). Any controller that overwrites this header on an authenticated response is a bug.
+- Authenticated responses must carry `Cache-Control: private, no-store` plus `X-Robots-Tag: noindex` (set by the authenticated-response middleware in `src/app.ts`; locate it fresh, line numbers drift). Any controller that overwrites these headers on an authenticated response is a bug.
 - Token-bearing GET / POST-422 responses (e.g. `GET /password/reset/:token`) must NOT be cacheable. The `password-reset.routes.test.ts` already pins this; verify no other token-bearing route was added without the same protection.
 
 #### 4.4.13 Schema / data-integrity bugs
@@ -120,8 +120,8 @@ Any swallow on a security-critical notification is a finding. The pattern is: a 
 #### 4.4.15 Dev-shortcut leaks
 
 - Every `FOOTBAG_DEV_*` env var read in `src/` outside `src/testkit/`, `src/dev-bootstrap/`, and `src/config/env.ts` is suspect. Verify each one is gated by `config.footbagEnv === 'development'` (or `'staging'` where appropriate) AND has a boot-time fail-fast guard in `src/config/env.ts`.
-- The `Dockerfile dist-rm` rule strips `dist/testkit/` and `dist/dev-bootstrap/` from production builds. Verify no source file outside `src/testkit/` / `src/dev-bootstrap/` has a direct import of a `seed`/`runtime` symbol from `src/dev-bootstrap/` (the import would fail at runtime in production).
-- The `scripts/audit-dev-shortcuts.sh` pre-deploy gate queries four marker prefixes; verify the boot orchestrator at `src/app.ts` doesn't bypass them.
+- The Dockerfile strip rule removes `dist/testkit/`, `dist/dev-bootstrap/`, AND `dist/internal-qc/` from production builds (all three service Dockerfiles; the internal-QC strip is a tracked `[DEVIATION]` in `IMPLEMENTATION_PLAN.md` until the QC subsystem retires). Verify no source file outside those trees has a direct import of a stripped symbol (the import would fail at runtime in production).
+- The `scripts/audit-dev-shortcuts.sh` pre-deploy gate runs a set of audit-marker queries (six at last count — read the script, do not trust this number); verify the boot orchestrator at `src/app.ts` doesn't bypass them and that the marker set still covers every dev-shortcut write path.
 
 #### 4.4.16 Other patterns worth a sweep
 
@@ -321,6 +321,7 @@ These project-specific rules are bug sources even when not obvious from generic 
 - Active Player is separate from membership tier and expires from the most recent qualifying event or vouch; older events must never shorten it.
 - Legacy media archive is read-only/static; new uploads use the new media model.
 - Outbound email comes from the new website/AWS path; inbound email goes through Google-managed services. Alias/group behavior must be explicitly scoped before implementation.
+- Freestyle-dictionary and curated-media DOMAIN invariants (layer separation, ADD math, slot governance, naming/slug/hashtag conventions, the trick-tag invariant, cross-surface propagation) are owned by the `freestyle-bug-hunt` skill; hand those candidates there and keep the generic §4.4 sweep on the freestyle routes here.
 
 #### 4.4.37 Legacy migration and archive-boundary bugs
 
@@ -361,7 +362,7 @@ Every rendered user-visible navigation target should be mechanically checked. A 
 
 #### 4.4.40 Script credential-handling and password-leak convention violations
 
-This project already has a deliberate pattern for avoiding password leaks in scripts. The bug hunt must derive that pattern from the existing safe scripts before judging new or inconsistent scripts. Do not merely search for the word `password`; trace how the credential is obtained, transported, logged, passed to child processes, and cleaned up.
+The canonical convention is `.claude/rules/script-secret-safety.md` (stdin/no-argv transport, restricted temp files, no echo/logging), with `scripts/ci/check_script_credentials.sh` as the existing deterministic gate — audit both: scripts against the rule, and the gate's patterns against the rule's full surface (a convention the gate does not check is a coverage finding). Where the rule is silent, derive the expectation from the existing safe scripts (the rule names the canonical model script). Do not merely search for the word `password`; trace how the credential is obtained, transported, logged, passed to child processes, and cleaned up.
 
 A script credential-handling violation is a real security bug when any script, package command, CI step, or helper that handles a password/token/key fails to preserve the project standard.
 
@@ -412,11 +413,71 @@ When a missing check is found, record it in `BUGS.md` under **Testing and CI/CD 
 
 A service that reads a file or directory at runtime is correct only if the deploy image contains that path. The web/worker/image Dockerfiles copy a specific subset of the working tree (compiled `dist`, `src/views`, `src/public`, `ifpa`), NOT the whole repo. A runtime read of a path outside that subset resolves to a missing file in staging/production even though it works locally and is committed to git.
 
+- `scripts/ci/check_runtime_data_paths_copied.sh` is the existing deterministic gate for this class; verify its coverage against the patterns below (a read shape the gate misses is a coverage finding), then sweep manually for what it cannot see.
 - Enumerate every runtime filesystem read in `src/`: `readFileSync`, `readdirSync`, `existsSync`, and any `resolve(...)` / `path.join(...)` that builds a data path (CSV, JSON sidecar, content directory, generated artifact). The search recipe in §4.5A lists the patterns.
 - Resolve each path as it would be in the container (compiled code runs from `/app/dist`, so `resolve(__dirname, '../..')` is `/app`, and `process.cwd()` is `/app`), then confirm a matching `COPY` line exists in `docker/web/Dockerfile` (and the worker/image Dockerfiles where that service runs). A read of a path no Dockerfile copies is a finding.
 - `exploration/`, `legacy_data/`, and other scratch/working trees are especially suspect: committed but never shipped. Production data must come from a shipped location (a `src`/`dist`-adjacent data dir, `ifpa/`, or the database), not a scratch tree.
 - Fail-safe masking: a service that returns empty/null when its data files are missing HIDES this bug (no crash, no 500, no log; the feature renders empty in production while passing every local test). Treat a missing-data fallback over a non-shipped path as Medium (silent feature break), or High when the surface is security/privacy-relevant.
 - Example signal: a service computes `resolve(PROJECT_ROOT, 'exploration', '...')` or `path.join(process.cwd(), 'legacy_data', ...)` and reads CSV/JSON from it, but no Dockerfile `COPY` ships that directory.
+
+#### 4.4.43 Infrastructure-as-code security and gate integrity
+
+The terraform tree (staging, production, shared), the Docker/compose files, and `.githooks/` are deployed configuration; a misconfiguration there is a production bug visible statically. CI validates syntax (`terraform fmt`/`validate`), not security posture — posture is this category.
+
+- IAM: wildcard actions/resources, user policies broader than the role's task, missing scope-down (a go-live gate tracks IAM scope-down; audit against it).
+- Storage/CDN: public-access posture on buckets, CloudFront origin-access and cache-policy correctness for authenticated paths, missing `prevent_destroy` on the snapshots bucket (a named go-live gate).
+- Host exposure: Lightsail public port openings vs the documented front-door architecture; SSH exposure vs the pre-cutover revert checklist.
+- Secrets: SSM parameter types (SecureString vs String), KMS key policy breadth, secret values or real identifiers in `*.tfvars`, committed plan/state artifacts (`*.tfplan`, `.terraform/*.tfstate` local files are a leak surface — flag any that are tracked or contain secrets).
+- Parity: staging vs production module drift beyond the accepted differences (a go-live gate tracks the parity audit); docker/env files diverging from the documented runtime contract.
+- Systemd/timers under `ops/` count as infra here for exposure and dependency posture; their logic correctness is §4.4.44.
+
+#### 4.4.44 Operational script and systemd correctness
+
+Complements §4.4.40, which is credentials-only. A logic bug in a deploy, backup, reset, or validation script can destroy data or silently no-op a safety gate.
+
+- Destructive scripts (DB rebuilds, resets, cleanups) must guard: explicit target confirmation, refusal against production, refuse-to-shrink/refuse-on-unexpected-state checks. A destructive path reachable without its guard is High+.
+- Shell strictness and failure behavior: missing `set -euo pipefail` (or deliberate, documented relaxation), unquoted expansions on paths that can carry spaces, `cd` without failure check before destructive operations, pipelines that mask non-zero exits.
+- Lifecycle completeness: temp files and remote artifacts cleaned via `trap` on all exit paths — a script must not depend on a human remembering a teardown step.
+- Remote halves: quoting/interpolation of locally-expanded variables into ssh/remote shells; a remote command that silently runs against the wrong host or path.
+- Idempotency: re-running a deploy/backup/install script must not corrupt state.
+- Systemd units/timers: cadence and dependencies match the documented operational intent (backup cadence, service ordering, restart policy); a timer that silently stops matching the DEVOPS-documented recovery objective is a finding.
+
+#### 4.4.45 Client-side JavaScript defects
+
+`src/public/js/**` ships to browsers and is part of the deployed attack and correctness surface; templates-only sweeps miss it.
+
+- DOM XSS: `innerHTML`/`insertAdjacentHTML`/attribute injection fed by data that originates from user content (member names, tags, media titles), even when it arrives via a JSON data island.
+- CSP compliance: the scripts must load and run under the app's CSP (no inline eval patterns, no dynamic script injection from non-allowlisted origins).
+- Endpoint wiring: every fetch/XHR/form-augmentation target resolves to a real route with the expected method and gates; a JS-constructed URL is the client-side twin of §4.4.39.
+- Progressive enhancement: the control a script enhances must degrade to a working no-JS path where the view-layer rule requires one; a delete-confirm or navigation script that becomes the ONLY path to a state change is a finding.
+- Secret/PII hygiene: no tokens or private data parked in localStorage/sessionStorage or leaked to console.
+
+#### 4.4.46 Static accessibility and a11y-gate coverage
+
+A WCAG 2.1 AA gate is in the go-live blocker index, and the e2e suite carries an axe accessibility spec — so accessibility is a deployed, gated requirement, not polish. Static review covers what a template shows directly:
+
+- Template-level defects: images without meaningful `alt`, form inputs without labels, missing `lang`, heading-order jumps, landmark-less page shells, controls conveyed by color alone, focus traps in JS-driven controls (§4.4.45 overlap).
+- Harness coverage: the axe e2e spec's page set vs the deployed public surface — a deployed page class the a11y harness never renders is a Testing/CI gap finding tied to the go-live gate.
+- Live-browser verification (actual axe runs, screen-reader behavior) stays out of scope; static template review and harness-coverage auditing are in.
+
+#### 4.4.47 Performance and capacity defects (narrow)
+
+A load/performance check is in the go-live gate set, so capacity is gated; this category stays narrow — concrete user-visible or gate-relevant impact only, never style-level perf nits.
+
+- A hot deployed query (per-request path on a public page) with no supporting index in `database/schema.sql`.
+- N+1 render patterns: a template/service pair issuing a query per row for a list the page always renders.
+- Unbounded result sets on deployed routes: list/search endpoints without pagination caps (overlaps §4.4.33 where abuse-relevant; here the ordinary-user page-weight case counts too).
+- Synchronous heavy work on the request path that belongs in a worker (image/video processing, large file reads).
+- Do NOT flag: micro-optimizations, "could be cached", stream-vs-buffer preferences, or anything without a concrete deployed path and plausible real-data volume.
+
+#### 4.4.48 Claude-harness guard coverage
+
+`.claude/` is production configuration (per `.claude/rules/claude-harness-governance.md`), and CI runs a harness self-check plus hook fixture tests. Audit the guard LAYERS, not just the files:
+
+- Subagent-safety mirroring: every statically-expressible guard a hook enforces must have a `permissions.deny`/`ask` twin in `.claude/settings.json`, because hooks must be treated as main-session-only. A hook-only guard on a destructive class is a finding.
+- Hook bypass review: each guard hook against command/process substitution, redirection, pipes, `xargs`, quoting, and multiline input; a bypass is High.
+- Fixture coverage: every wired hook has a fixture test in the CI hook-test script; a guard change without a fixture is a finding.
+- Self-check coverage: conventions the harness-governance rule states that `scripts/ci/assert_claude_harness.sh` does not yet verify are coverage findings (report; do not edit the harness).
 
 ### 4.4B Design-pattern divergence and code hygiene (secondary sweep)
 
@@ -475,7 +536,7 @@ Extends §4.4.16 with the design-hygiene framing; cross-referenced to avoid drif
 
 #### 4.4B.6 Comment and in-code-doc hygiene
 
-- **Every comment must be audited, not sampled.** For each code file read, review every comment and JSDoc for validity, accuracy, pertinence, and usefulness. A comment that is technically true but irrelevant, cryptic, or misleadingly incomplete is a finding when it would steer a maintainer or agent wrong.
+- **Every comment must be audited, not sampled.** For each code file read — including `scripts/**` shell/TS/Python files, which the comments rule covers the same as `src/` — review every comment and JSDoc for validity, accuracy, pertinence, and usefulness. A comment that is technically true but irrelevant, cryptic, or misleadingly incomplete is a finding when it would steer a maintainer or agent wrong.
 - **Stale / bogus comment**: a comment that describes behavior the code no longer has. This IS a finding (it misleads the next reader); report it with the divergent line.
 - **Plain-English self-contained rule:** comments must be readable without opening another document, remembering a past slice, or decoding project shorthand. The reader should understand the long-term reason or contract from the comment itself.
 - **Forbidden human-readable text content** per `.claude/rules/comments.md` — applies to BOTH code comments AND human-readable string values in code (governance `reason:` fields, editorial/content strings, labels, descriptions): sprint / slice / phase labels, dated change-markers, caller references, historical change notes, external doc anchors, temporary-status notes, and implementation-timeline language. Human-readable text must be plain words explaining the WHY to a human; the only permitted planning-style content is known-deviation text that is ALSO documented in `IMPLEMENTATION_PLAN.md` and is limited to developer bootstrapping from the current implementation toward the long-term target. (Example shapes: a dated refactor marker in a comment; a `reason:` data string mentioning a slice; a comment saying a behavior is temporary without self-contained current/target contract.)
@@ -495,6 +556,7 @@ Committed-test rule violations only. Coverage *gaps* (a surface that lacks a tes
 - A test constructing a writable path from `process.cwd()` / project root instead of `os.tmpdir()` with the `footbag-test-` prefix.
 - A `logger.error()` produced by a test without an `expectLoggedError(pattern)` opt-in.
 - Mocking the DB or framework internals (Express, Handlebars, JWT, argon2) instead of using the real SQLite test DB and stub adapters.
+- **Behavior-mirroring or unfalsifiable tests.** A committed test that asserts the code does exactly what the code currently does rather than what the design intends (forbidden by `docs/TESTING.md` §2.4 — "worse than no test"), a test that cannot fail (tautological assertion, assertion on a value the test itself constructed), or a test that pins behavior contradicting canonical design. The last shape is also a signal the CODE may be wrong — cross-check against the design source before classifying.
 - **Test comment referencing any doc or hunt-finding id.** Test comments (file headers, describe/it text, inline) must NEVER reference a doc or a finding id — no `BUG_HUNT` / `B##` / `Regression for B##` / `(B##)`, no `DD §` / `US §` / `SC §` / `DATA_GOVERNANCE §`, no `docs/*.md` or bare `*.md` filenames. Test comments state the long-term contract in plain words only (this is stricter than src: in tests, even a section shorthand alongside prose is a finding). Reproduction: `rg -n 'BUG_HUNT|Regression for B[0-9]|\(B[0-9]|\bDD §|\bUS §|\bSC §|docs/|[A-Z_]{4,}\.md' tests/` then keep only comment-line hits.
 
 #### 4.4B.8 Service JSDoc contract consistency sweep
@@ -569,6 +631,22 @@ rg -n "href=|action=|button|data-href|data-url|redirect|returnTo|\*Href|urlFor|r
 # Runtime filesystem reads vs shipped image (deploy-asset availability, §4.4.42)
 rg -n "readFileSync|readdirSync|existsSync|resolve\(|path\.join\(" src/ | rg -n "exploration|legacy_data|curated|\.csv|\.json|process\.cwd"
 rg -n "^COPY" docker/*/Dockerfile
+
+# Infrastructure-as-code posture (§4.4.43)
+rg -n "\\*|AdministratorAccess|public|0\.0\.0\.0/0|prevent_destroy|SecureString|type\s*=" terraform/ --glob '*.tf'
+find terraform -name '*.tfplan' -o -name '*.tfstate*' -o -name '*.tfvars'
+rg -n "ports|firewall|instance_public_ports" terraform/
+
+# Operational scripts and systemd (§4.4.44)
+rg -n "set -e|set -euo|pipefail|trap |rm -rf|DROP TABLE|DELETE FROM|--force" scripts/ --glob '*.sh'
+cat ops/systemd/*.service ops/systemd/*.timer
+
+# Client-side JS (§4.4.45)
+rg -n "innerHTML|insertAdjacentHTML|outerHTML|document\.write|eval\(|localStorage|sessionStorage|fetch\(|XMLHttpRequest" src/public/js/
+
+# Static accessibility (§4.4.46)
+rg -n "<img(?![^>]*alt=)|<input(?![^>]*(aria-label|id=))|role=|aria-" src/views/ --pcre2
+rg -ln "axe|a11y|accessibility" tests/e2e/
 ```
 
 For every high-signal hit, trace provenance:
@@ -588,9 +666,9 @@ When a missing check is found, classify it as one of:
 - **Nightly/deep guard:** valuable but slower, fuzzier, or broader than a normal PR check.
 - **Manual staging gate:** requires staging credentials, live AWS, real DNS/email/payment provider, or production-like infrastructure; record as a Lead if static review cannot verify it.
 
-### 5.2 Baseline deterministic guards to look for
+### 5.2 Baseline deterministic guards to verify
 
-Audit `package.json`, `scripts/`, `.github/workflows/`, `tsconfig*`, ESLint config, Dockerfile, and CI scripts for these checks:
+The repo already carries a committed gate set: the `scripts/ci/` checkers (conventions, harness self-check, hook fixtures, append-only triggers, action pinning, script credentials, live-fetch guard, synthetic identifiers, runtime-data-path COPY check, loader row counts), the GitHub Actions workflow jobs (type-check, lint, dependency audit, secret scan, conventions, harness, unit, integration, db-load smoke, e2e, CodeQL, terraform validate), and `run_all_tests.sh` as the local runner. For each class below, first locate the existing gate and audit its COVERAGE against the class — read the gate's implementation; presence is not coverage — then record a finding only for the class (or the part of a class) no gate pins:
 
 - TypeScript compile check with no emit.
 - ESLint or equivalent rule checks for application and tests.
@@ -615,9 +693,9 @@ Audit `package.json`, `scripts/`, `.github/workflows/`, `tsconfig*`, ESLint conf
 - Service JSDoc contract consistency checks.
 - No `src/` runtime filesystem read (readFileSync / existsSync / resolve / path.join data path) targets a directory that no Dockerfile `COPY` ships into the deploy image (catches the deploy-asset-availability class in §4.4.42).
 
-### 5.3 Security automation to look for
+### 5.3 Security automation to verify
 
-Use this as the CI/CD and supply-chain checklist. Treat secrets/PII/password-leak automation as mandatory, not optional polish:
+Use this as the CI/CD and supply-chain checklist, applying the same verify-the-existing-gate rule as §5.2 (CodeQL, gitleaks with `.gitleaks.toml`, audit-ci, action pinning, and terraform validate are already committed; the opt-in deep layer is the pentest harness under `scripts/pentest/` with its ZAP/probe scripts). Treat secrets/PII/password-leak automation as mandatory, not optional polish:
 
 - CodeQL or equivalent SAST for TypeScript/JavaScript.
 - Semgrep or custom static rules for project-specific conventions when CodeQL is too generic.
