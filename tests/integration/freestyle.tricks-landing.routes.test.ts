@@ -335,11 +335,12 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     expect(res.text).toMatch(/Which named moves, sets, or twists does it use\?/);
   });
 
-  it('large counts are thousands-separated in the visible badge (Emerging vocabulary)', async () => {
+  it('the unconfirmed-names badge renders a locale-grouped count (Emerging vocabulary)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    // The intake-queue total is well above 999, so the unconfirmed-names badge
-    // must render a comma-grouped number in the visible label.
-    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d{1,3}(?:,\d{3})+<\/span> unconfirmed names<\/span>/);
+    // The visible label carries a formatted number: comma-grouped when the
+    // intake-queue total exceeds 999, a plain 1-3 digit number below that.
+    // The queue shrinks as names are promoted, so the magnitude is not pinned.
+    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d{1,3}(?:,\d{3})*<\/span> unconfirmed names<\/span>/);
   });
 
   it('no portal-card badge renders a bare number with no noun (old behavior)', async () => {

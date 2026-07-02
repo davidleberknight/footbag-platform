@@ -539,13 +539,8 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Nuclear Butterfly (Matador)", "slug": "nuclear-butterfly-matador", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Nuclear DDD (Cold Fusion) (Geesha)", "slug": "nuclear-ddd-cold-fusion-geesha", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear Drifter (69)", "slug": "nuclear-drifter-69", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Nuclear far Butterfly", "slug": "nuclear-far-butterfly", "source": "PB", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Nuclear far Mirage", "slug": "nuclear-far-mirage", "source": "PB", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Nuclear near Butterfly", "slug": "nuclear-near-butterfly", "source": "PB", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear Osis", "slug": "nuclear-osis", "source": "FM", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Nuclear ss Butterfly", "slug": "nuclear-ss-butterfly", "source": "FM", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear ss Butterfly (Barfry)", "slug": "nuclear-ss-butterfly-barfry", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Nuclear ss Dyno", "slug": "nuclear-ss-dyno", "source": "FM", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear ss Dyno (Godzilla)", "slug": "nuclear-ss-dyno-godzilla", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear ss Guay", "slug": "nuclear-ss-guay", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear ss Illusion", "slug": "nuclear-ss-illusion", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
@@ -604,7 +599,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Blurry Drifter (Stepping Paradox Drifter)", "slug": "blurry-drifter-stepping-paradox-drifter", "source": "FB", "ecosystem": "stepping", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Blurry Symposium Whirl (Stepping Paradox Symposium Whirl)", "slug": "blurry-symposium-whirl-stepping-paradox-symposium-whirl", "source": "FB", "ecosystem": "stepping", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Blurry Whirling Swirl (Stepping Paradox Whirling Swirl)", "slug": "blurry-whirling-swirl-stepping-paradox-whirling-swirl", "source": "FB", "ecosystem": "stepping", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Stepping Ducking Far Double Over Down", "slug": "stepping-ducking-far-double-over-down", "source": "FM", "ecosystem": "stepping", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Stepping far Symp. Double Down", "slug": "stepping-far-symp-double-down", "source": "PB", "ecosystem": "stepping", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Stepping near Double Down", "slug": "stepping-near-double-down", "source": "PB", "ecosystem": "stepping", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Blurry Illusioning Paradox Symposium Eggbeater", "slug": "blurry-illusioning-paradox-symposium-eggbeater", "source": "FM", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
@@ -616,7 +610,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Blurry Symposium Whirling XBD Rake", "slug": "blurry-symposium-whirling-xbd-rake", "source": "FM", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Clipper far Symp. Double Down", "slug": "clipper-far-symp-double-down", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Clipper near Symp. Double Down", "slug": "clipper-near-symp-double-down", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Clipper set ss Symposium Double Over Down", "slug": "clipper-set-ss-symposium-double-over-down", "source": "FM", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Flailing ss Symposium Double Over Down", "slug": "flailing-ss-symposium-double-over-down", "source": "FM", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Furious Symposium Eggbeater (Walrus)", "slug": "furious-symposium-eggbeater-walrus", "source": "SG", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Furious Symposium Mirage (Rage)", "slug": "furious-symposium-mirage-rage", "source": "SG", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
@@ -634,7 +627,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Pogo Paradox Whirling Swirl (Pogo Op Whirling Swirl)", "slug": "pogo-paradox-whirling-swirl-pogo-op-whirling-swirl", "source": "FB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Pogo ss Symposium Mirage", "slug": "pogo-ss-symposium-mirage", "source": "SG", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Symp. Illusioning Illusioning Mirage", "slug": "symp-illusioning-illusioning-mirage", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Symposium Down Double Down", "slug": "symposium-down-double-down", "source": "FM", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Symposium Furious Legover", "slug": "symposium-furious-legover", "source": "SG", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Toe far Symp. Double Down", "slug": "toe-far-symp-double-down", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Toe near Symp. Double Down", "slug": "toe-near-symp-double-down", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
@@ -657,9 +649,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Furious DLO (Nebula)", "slug": "furious-dlo-nebula", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Furious Whirl (Genesis)", "slug": "furious-whirl-genesis", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Nuclear DLO (Terminator)", "slug": "nuclear-dlo-terminator", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Nuclear Double Over Down", "slug": "nuclear-double-over-down", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear ss Reverse Whirl", "slug": "nuclear-ss-reverse-whirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Nuclear ss Whirl", "slug": "nuclear-ss-whirl", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear ss Whirl (Hurl)", "slug": "nuclear-ss-whirl-hurl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Pogo DLO", "slug": "pogo-dlo", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Rooting/Rooted", "slug": "rooting-rooted", "source": "FB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
@@ -674,7 +664,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Alpine Smudge", "slug": "alpine-smudge", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unresolved-directional-syntax", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Alpine Super Mario", "slug": "alpine-super-mario", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Arctic Butterfly", "slug": "arctic-butterfly", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Barfry", "slug": "barfry", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Barraging far Motion", "slug": "barraging-far-motion", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Blacula", "slug": "blacula", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "BS Fury", "slug": "bs-fury", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
@@ -1083,7 +1072,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 1006,
+    "total": 995,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1091,24 +1080,24 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 153,
-    "lexicalArchive": 851,
+    "promotionFrontier": 143,
+    "lexicalArchive": 850,
     "intakeBuckets": {
       "promotion_ready": {
         "names": 4,
         "distinctStructures": 4
       },
       "doctrine_pending": {
-        "names": 31,
-        "distinctStructures": 31
+        "names": 27,
+        "distinctStructures": 27
       },
       "unresolved_candidate": {
-        "names": 118,
-        "distinctStructures": 118
+        "names": 112,
+        "distinctStructures": 112
       },
       "alias": {
-        "names": 445,
-        "distinctStructures": 445
+        "names": 444,
+        "distinctStructures": 444
       },
       "equivalence": {
         "names": 0,
@@ -1128,23 +1117,23 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       }
     },
     "ready": 2,
-    "frontier": 119,
-    "doctrineBlocked": 43,
-    "folkUnresolved": 518,
+    "frontier": 113,
+    "doctrineBlocked": 39,
+    "folkUnresolved": 517,
     "parserUnresolved": 324,
     "promotionReadyPct": 12,
     "doctrineBlockedPct": 4,
-    "folkUnresolvedPct": 51,
-    "parserUnresolvedPct": 32,
+    "folkUnresolvedPct": 52,
+    "parserUnresolvedPct": 33,
     "canonicalCoveragePct": 21,
     "sources": {
       "SG": 531,
-      "FM": 224,
-      "PB": 177,
+      "FM": 216,
+      "PB": 174,
       "FB": 69,
       "MULTI": 5
     },
-    "foldedJunk": 150,
+    "foldedJunk": 149,
     "generatedOn": "2026-07-02"
   };
 
