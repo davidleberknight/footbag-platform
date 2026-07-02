@@ -76,12 +76,8 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Pixie Miraging Symposium Miraging Legover", "slug": "pixie-miraging-symposium-miraging-legover", "source": "FM", "ecosystem": "pixie", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "pixie(+1) + miraging(+1) + symposium(+1) + miraging(+1) + legover(2) = 6", "semanticJob": "PIXIE MIRAGING SYMPOSIUM MIRAGING LEGOVER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Spinning far Miraging Symp. Miraging Refraction", "slug": "spinning-miraging-symposium-miraging-refraction", "source": "PB", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "7", "decomposition": "spinning(+1) + miraging(+1) + symposium(+1) + miraging(+1) + refraction(3) = 7", "semanticJob": "SPINNING MIRAGING SYMPOSIUM. MIRAGING REFRACTION", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Spyro Gyro", "slug": "spyro-gyro", "source": "FM", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "2", "decomposition": "gyro(+1) + spyro(1) = 2", "semanticJob": "SPYRO GYRO", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Far Reverse Guay", "slug": "reverse-guay", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "2", "decomposition": "guay(2) = 2", "semanticJob": "REVERSE GUAY", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Toe near Barrage", "slug": "toe-barrage", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "barrage(3) = 3", "semanticJob": "TOE BARRAGE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Terraging Opposite Clipper", "slug": "terraging-clipper", "source": "FB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "low", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "TERRAGING CLIPPER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Terraging Same Clipper", "Terraging Clipper"], "layer": "frontier"},
   {"name": "Terraging Same Clipper", "slug": "terraging-clipper", "source": "FB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "low", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "TERRAGING CLIPPER", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Atomic Reverse Swirl", "slug": "atomic-reverse-swirl", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + swirl(3) = 4", "semanticJob": "ATOMIC REVERSE SWIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Atomic Gyro Torque", "slug": "atomic-gyro-torque", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "atomic(+1) + gyro(+1) + torque(4) = 6", "semanticJob": "ATOMIC GYRO TORQUE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "84 / Wiggle Walk", "slug": "84-wiggle-walk", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Aeon Flux / Nucleosis", "slug": "aeon-flux-nucleosis", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Arctic Butterfly (Arc Walk)", "slug": "arctic-butterfly-arc-walk", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
@@ -1080,7 +1076,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Leaning Torque", "slug": "leaning-torque", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Miraging Dragon", "slug": "miraging-dragon", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Nemesis Swirl", "slug": "nemesis-swirl", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Neutron Torque", "slug": "neutron-torque", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Paradon Reverse Swirl", "slug": "paradon-reverse-swirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Phasing Blender", "slug": "phasing-blender", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Phasing near Swirl", "slug": "phasing-near-swirl", "source": "PB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
@@ -1131,7 +1126,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 1054,
+    "total": 1049,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1139,12 +1134,12 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 176,
-    "lexicalArchive": 876,
+    "promotionFrontier": 172,
+    "lexicalArchive": 875,
     "intakeBuckets": {
       "promotion_ready": {
-        "names": 8,
-        "distinctStructures": 8
+        "names": 4,
+        "distinctStructures": 4
       },
       "doctrine_pending": {
         "names": 46,
@@ -1167,8 +1162,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 1
       },
       "low_confidence": {
-        "names": 407,
-        "distinctStructures": 407
+        "names": 406,
+        "distinctStructures": 406
       },
       "doctrine_unresolved": {
         "names": 26,
@@ -1176,24 +1171,24 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       }
     },
     "ready": 2,
-    "frontier": 124,
+    "frontier": 120,
     "doctrineBlocked": 72,
     "folkUnresolved": 526,
-    "parserUnresolved": 330,
+    "parserUnresolved": 329,
     "promotionReadyPct": 12,
     "doctrineBlockedPct": 7,
     "folkUnresolvedPct": 50,
     "parserUnresolvedPct": 31,
     "canonicalCoveragePct": 21,
     "sources": {
-      "SG": 547,
-      "FM": 229,
-      "PB": 200,
+      "SG": 545,
+      "FM": 228,
+      "PB": 198,
       "FB": 70,
       "MULTI": 8
     },
-    "foldedJunk": 161,
-    "generatedOn": "2026-07-01"
+    "foldedJunk": 160,
+    "generatedOn": "2026-07-02"
   };
 
 export const DOCTRINE_BLOCKING_QUESTIONS: Record<string, string> =

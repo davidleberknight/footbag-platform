@@ -9769,7 +9769,7 @@ export const freestyleService = {
       'pogo','terraging','terrage','blurry','blurrier','blurriest','furious','barraging','sailing','shooting',
       'frantic','nuclear','atomic','quantum','illusioning','miraging','whirling','swirling','gyro','flailing',
       'surfing','slicing','splicing','warping','railing','rooted','floating','tapping','backside','inspinning',
-      'spinning','stepping','ducking','diving','symposium','paradox','fairy','pixie','blistering',
+      'spinning','stepping','ducking','diving','symposium','paradox','fairy','pixie','blistering','zulu','weaving',
       // directionals / structurals
       'far','near','op','os','reverse','rev','same','ss','double','triple','down','up','set','kick','side',
       'front','back','inside','outside','cross','body','in','out',

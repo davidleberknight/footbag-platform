@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1455;
+export const TRACKED_UNPUBLISHED_TOTAL = 1452;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -64,7 +64,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Atomic Mirage (Atom Smasher)', slug: 'atomic_mirage_atom_smasher' },
     { displayName: 'Atomic Miraging Butterfly (Smash Walk)', slug: 'atomic_miraging_butterfly_smash_walk' },
     { displayName: 'Atomic Pickup (Scrambled Eggbeater)', slug: 'atomic_pickup_scrambled_eggbeater' },
-    { displayName: 'Atomic Reverse Swirl', slug: 'atomic_reverse_swirl' },
     { displayName: 'Atomic Symposium Mirage (Witch Doctor)', slug: 'atomic_symposium_mirage_witch_doctor' },
     { displayName: 'Atomic Symposium Whirl (Gary Coleman)', slug: 'atomic_symposium_whirl_gary_coleman' },
     { displayName: 'Atomic Torque (Silo)', slug: 'atomic_torque_silo' },
@@ -311,6 +310,7 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Miraging Symposium Mirage (Merlin)', slug: 'miraging_symposium_mirage_merlin' },
     { displayName: 'Moshing Butterfly (Cripwalk)', slug: 'moshing_butterfly_cripwalk' },
     { displayName: 'Neutron DLO (Cataclysm)', slug: 'neutron_dlo_cataclysm' },
+    { displayName: 'Neutron Torque (Irish Cream)', slug: 'neutron_torque_irish_cream' },
     { displayName: 'Nuclear Butterfly (Matador)', slug: 'nuclear_butterfly_matador' },
     { displayName: 'Nuclear DDD (Cold Fusion) (Geesha)', slug: 'nuclear_ddd_cold_fusion_geesha' },
     { displayName: 'Nuclear DLO (Terminator)', slug: 'nuclear_dlo_terminator' },
@@ -797,7 +797,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Hurl', slug: 'hurl', operationalNotation: 'Clip > Same Out (DEX) >> Same Front Whirl (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Icon', slug: 'icon', operationalNotation: 'Clip >> (front) Spin (BOD) >> Same Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Ill Frenzy', slug: 'ill_frenzy', operationalNotation: 'Toe > (rooted) Same In (DEX)(BOD) > Op In (DEX) >> Op Out (DEX)(XDEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Irish Cream', slug: 'irish_cream', operationalNotation: 'Toe > Op Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > (back) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Irish Spring', slug: 'irish_spring', operationalNotation: 'Toe > Op Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Jacknife', slug: 'jacknife', operationalNotation: 'Clip > Op In (DEX) >> Dive (BOD) >> Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Joan', slug: 'joan', operationalNotation: 'Toe > Same In (DEX) > Op Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
@@ -840,7 +839,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Neutron Mirage', slug: 'neutron_mirage' },
     { displayName: 'Neutron Smasher', slug: 'neutron_smasher', operationalNotation: 'Toe > Op Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Neutron Smasher / Johny Quest', slug: 'neutron_smasher_johny_quest' },
-    { displayName: 'Neutron Torque', slug: 'neutron_torque' },
     { displayName: 'Nobius', slug: 'nobius', operationalNotation: 'Clip > (back) Spin (BOD) > Same In (DEX) >> (back) Spin (BOD) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Nuclear Double Over Down', slug: 'nuclear_double_over_down' },
     { displayName: 'Nuclear Ducking Mirage', slug: 'nuclear_ducking_mirage' },
@@ -1058,7 +1056,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Atomic far Symp. Double Down', slug: 'atomic_far_symp_double_down' },
     { displayName: 'Atomic far Symp. Whirl', slug: 'atomic_far_symp_whirl' },
     { displayName: 'Atomic far Whirl', slug: 'atomic_far_whirl' },
-    { displayName: 'Atomic Gyro Torque', slug: 'atomic_gyro_torque' },
     { displayName: 'Atomic near Butterfly', slug: 'atomic_near_butterfly' },
     { displayName: 'Atomic near Mirage', slug: 'atomic_near_mirage' },
     { displayName: 'ATW, Around the World', slug: 'atw_around_the_world' },

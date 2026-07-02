@@ -68,6 +68,10 @@ ROTATIONAL_BASES = {"whirl", "mirage", "torque", "swirl"}
 # than a silent skip.
 SET_TOKENS = {
     "atomic", "pixie", "fairy", "pogo", "rooted", "furious", "barraging",
+    # Registered set operators from the freestyle_trick_modifiers registry
+    # (modifier_type='set'); weights come from the registry, this set only
+    # routes the token to the set role bucket.
+    "floating", "railing", "sailing", "splicing", "surfing", "warping",
     # Phase 2: policy-bearing tokens still classify by primary role.
     "quantum", "nuclear", "shooting",
 }
@@ -76,7 +80,7 @@ ROTATION_TOKENS = {
 }
 MODIFIER_TOKENS = {
     "ducking", "stepping", "symposium", "paradox", "tapping",
-    "blazing", "weaving", "miraging", "diving",
+    "blazing", "weaving", "zulu", "miraging", "diving",
     "blurry", "terraging", "xdex", "backside",
 }
 # D2: direction-structural shorthand. Distinct from rotation (which

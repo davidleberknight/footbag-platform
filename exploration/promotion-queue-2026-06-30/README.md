@@ -1,5 +1,17 @@
 # Promotion queue — 2026-06-30 (corrected after canonical-overlap verification)
 
+> **SUPERSEDED IN PART (2026-07-02 doctrine-state reconciliation).** This queue predates the
+> atomic/X-Dex ADD migration and the pogo=+1 adjudication, so several holds are stale:
+> `atomic-ducking-mirage`, `atomic-swirl`, `atomic-symposium-whirl`, `atomic-whirl` are already
+> canonical (promoted with that migration); `atomic-reverse-swirl` and `reverse-guay` are now
+> promoted; the PB rows `atomic-gyro-torque` (= folk **Irish Cream**, now canonical with that
+> alias), `toe-barrage` (PB tech name for Terrage; the pre-existing `toe near barrage -> barrage`
+> alias was rebound to terrage by curator ruling same day), and `pogo-far-mirage` (PB's decomposition of
+> the standalone folk trick Pogo) are PassBack technical names, not new tricks. The two
+> double-miraging stacks remain doctrine-blocked (same-operator-twice zero-precedent). See the
+> 2026-07-02 session's four-bucket verification table and
+> `../dragon-refraction-evidence-2026-07-02/NOTE.md`.
+
 > **CORRECTION (verification pass).** The first cut of this queue (255 "Ready" rows, a 73-row
 > "first batch") was **invalidated by canonical-overlap verification.** Applying the freestyle
 > skill's mandatory pre-promotion gates (alias-collapse, folk-overlap registry, DO-NOT-RE-PROMOTE
