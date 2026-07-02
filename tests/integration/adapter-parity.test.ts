@@ -1018,7 +1018,7 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     // x-amz-checksum-crc32 of an empty body, which the browser cannot match.
     const realClient = new S3Client({
       region: 'us-east-1',
-      credentials: { accessKeyId: 'AKIAFAKEACCESSKEY', secretAccessKey: 'fakesecret' },
+      credentials: { accessKeyId: 'TESTONLYFAKEKEYID', secretAccessKey: 'fakesecret' },
       requestChecksumCalculation: 'WHEN_REQUIRED',
     });
     const adapter = createS3MediaStorageAdapter({
