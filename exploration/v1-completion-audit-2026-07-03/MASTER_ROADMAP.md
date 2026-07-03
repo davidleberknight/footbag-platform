@@ -197,6 +197,23 @@ beginner freestyle and modern combinations"; Mirage — "the first dexterity tha
 almost everything that follows"; Whirling Swirl — "the whirl and swirl are coordinated,
 not sequential".
 
+**The Family Teaching Contract (the family-page skeleton).** Every foundational family
+page renders the same eleven sections, in this order, so Osis, Mirage, Whirl,
+Butterfly, Torque, Blender, and Down all read as one encyclopedia rather than eleven
+separate authors: (1) why should I care (the hook, in the hero); (2) what is it
+physically; (3) why is it important; (4) structural model (the variant grid and the
+ruling behind it); (5) how to recognize one (recognition cues, distinct from
+execution); (6) how to think about it (a reusable mental tool); (7) common
+misconceptions; (8) famous descendants (the named compounds that build on it); (9)
+reference notation (the formal form, below the explanation, never leading); (10) where
+to go next; (11) one memorable takeaway. The contract is enforced in code, not only in
+prose: the `FamilyTeaching` interface in `src/content/freestyleGlossaryFamilyCards.ts`
+is its schema and `family-detail.hbs` renders the sections in this fixed order. A
+family opts in by supplying the block, and its glossary card shows a compact
+projection (physical description, significance, and a link to the full article); a
+family with no block renders the compact projection unchanged. Down is the first fully
+authored exemplar.
+
 **Four-audience review — the page-acceptance standard.** Answering the ten questions
 is necessary but not sufficient. A Version 1.0 page — and every important page — is
 finished only when four independent readers would each say yes, because accessibility,
