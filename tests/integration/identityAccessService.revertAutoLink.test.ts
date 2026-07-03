@@ -208,6 +208,42 @@ describe('identityAccessService.revertAutoLink', () => {
     expect(lm.claimed_by_member_id).toBeNull();
   });
 
+  it('preserves honor flags when a separate historical-person link survives the revert', () => {
+    const memberId = nextId('mem');
+    const legacyId = nextId('legmem');
+    const hpId = nextId('hp');
+
+    const db = open();
+    insertMember(db, { id: memberId, login_email: `${memberId}@example.com`, real_name: 'Honored Player' });
+    insertLegacyMember(db, { legacy_member_id: legacyId, real_name: 'Honored Player' });
+    // A direct-HP link to an honored record NOT tied to the legacy row: it must
+    // outlive the legacy-claim revert and keep backing the member's honor.
+    insertHistoricalPerson(db, {
+      person_id: hpId, person_name: 'Honored Player', legacy_member_id: null, hof_member: 1,
+    });
+    // The member holds both a legacy claim and the surviving honored HP link.
+    db.prepare('UPDATE members SET legacy_member_id = ?, historical_person_id = ?, is_hof = 1 WHERE id = ?')
+      .run(legacyId, hpId, memberId);
+    db.prepare("UPDATE legacy_members SET claimed_by_member_id = ?, claimed_at = '2026-01-01T00:00:00.000Z' WHERE legacy_member_id = ?")
+      .run(memberId, legacyId);
+    db.close();
+
+    const result = svc.revertAutoLink(memberId, 'audit-preserve-hof', {
+      actorType: 'member',
+      actorMemberId: memberId,
+    });
+    expect(result.status).toBe('reverted');
+
+    const after = memberRow(memberId);
+    expect(after.legacy_member_id).toBeNull();      // legacy claim reverted
+    expect(after.historical_person_id).toBe(hpId);  // direct-HP link preserved
+    expect(after.is_hof).toBe(1);                   // honor from the surviving HP kept
+
+    const audits = listAuditEntries(memberId, 'legacy.auto_link_revert');
+    const meta = JSON.parse(String(audits[audits.length - 1].metadata_json)) as Record<string, unknown>;
+    expect(meta.cleared_derived_honors).toBe(false);
+  });
+
   it('returns already_reverted on second call against same member', () => {
     const { memberId } = setupClaimed({ withHpBackLink: true });
 
@@ -317,5 +353,82 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
       const meta = JSON.parse(String(rows[0].metadata_json)) as Record<string, unknown>;
       expect(meta.work_queue_item_id).toBe(itemId);
     }
+  });
+
+  it('scrubs copied legacy PII on dispute revert but preserves member-entered fields and honors', () => {
+    seedAdmin();
+    const memberId = nextId('mem');
+    const legacyId = nextId('legmem');
+
+    // Member defaults leave bio/region/birth_date/address empty (so the claim
+    // copies them) but city='Testville' and country='US' are the member's own
+    // values (so the claim's fill-if-empty leaves them, and the revert must
+    // not clear them).
+    const db = open();
+    insertMember(db, { id: memberId, login_email: `${memberId}@example.com`, real_name: 'PII Player' });
+    insertLegacyMember(db, {
+      legacy_member_id: legacyId,
+      real_name: 'PII Player',
+      legacy_user_id: 'legacy-user-pii',
+      legacy_email: 'pii@oldsite.test',
+      bio: 'legacy bio text',
+      birth_date: '1980-05-15',
+      street_address: '1 Old Road',
+      postal_code: 'A1B2C3',
+      city: 'Oldtown',
+      region: 'ON',
+      country: 'CA',
+      ifpa_join_date: '2001-01-01',
+      first_competition_year: 1999,
+      is_hof: 1,
+      is_bap: 1,
+    });
+    db.close();
+
+    // Real claim path fills the empty member fields from the legacy row.
+    svc.claimLegacyAccount(memberId, legacyId);
+    const claimed = memberRow(memberId);
+    expect(claimed.bio).toBe('legacy bio text');       // copied (was empty)
+    expect(claimed.birth_date).toBe('1980-05-15');     // copied
+    expect(claimed.street_address).toBe('1 Old Road'); // copied
+    expect(claimed.region).toBe('ON');                 // copied
+    expect(claimed.city).toBe('Testville');            // member value kept
+    expect(claimed.country).toBe('US');                // member value kept
+    expect(claimed.is_hof).toBe(1);
+
+    const requesterId = nextId('req');
+    const db2 = open();
+    insertMember(db2, { id: requesterId, login_email: `${requesterId}@example.com` });
+    db2.close();
+    const itemId = insertQueueItem({ entityId: requesterId, isDispute: true });
+
+    const result = svc.revertClaimForDispute(ADMIN_ID, itemId, memberId, 'dispute upheld');
+    expect(result.status).toBe('reverted');
+
+    const after = memberRow(memberId);
+    // Copied legacy PII is scrubbed.
+    expect(after.legacy_member_id).toBeNull();
+    expect(after.legacy_user_id).toBeNull();
+    expect(after.legacy_email).toBeNull();
+    expect(after.bio).toBe('');
+    expect(after.birth_date).toBeNull();
+    expect(after.street_address).toBeNull();
+    expect(after.postal_code).toBeNull();
+    expect(after.region).toBeNull();
+    expect(after.ifpa_join_date).toBeNull();
+    expect(after.first_competition_year).toBeNull();
+    // Member-entered values survive.
+    expect(after.city).toBe('Testville');
+    expect(after.country).toBe('US');
+    // Honor flags came from the reverted claim (no other honored link remains),
+    // so they are dropped -- the disputed record's HoF/BAP status must not
+    // linger on this member (and keep their profile publicly visible).
+    expect(after.is_hof).toBe(0);
+    expect(after.is_bap).toBe(0);
+
+    const audits = listAuditEntries(memberId, 'legacy.auto_link_revert');
+    const meta = JSON.parse(String(audits[audits.length - 1].metadata_json)) as Record<string, unknown>;
+    expect(meta.scrubbed_legacy_fields).toBe(true);
+    expect(meta.cleared_derived_honors).toBe(true);
   });
 });

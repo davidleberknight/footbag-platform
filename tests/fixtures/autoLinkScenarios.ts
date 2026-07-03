@@ -255,6 +255,76 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     },
   },
 
+  // ── 7a. DOB tie-breaker resolves the multi-candidate tie (high) ────────
+  {
+    id: 'sc-dob-resolves',
+    slug: 'sc_dob_resolves',
+    description: 'Two HPs share the name; a matching member/legacy birth_date narrows to the provenance HP.',
+    expected: 'high',
+    expectedVerifyRedirect: '/register/wizard/legacy_claim',
+    driver: 'verify',
+    seed: (db) => {
+      insertLegacyMember(db, {
+        legacy_member_id: 'lm-sc-dob',
+        legacy_email: 'sc-dob@example.com',
+        birth_date: '1990-04-12',
+      });
+      insertHistoricalPerson(db, {
+        person_id: 'hp-sc-dob-a',
+        person_name: 'Casey Rivers',
+        legacy_member_id: 'lm-sc-dob',
+      });
+      insertHistoricalPerson(db, {
+        person_id: 'hp-sc-dob-b',
+        person_name: 'Casey Rivers',
+      });
+      insertMember(db, {
+        id: 'sc-dob-resolves',
+        slug: 'sc_dob_resolves',
+        login_email: 'sc-dob@example.com',
+        real_name: 'Casey Rivers',
+        birth_date: '1990-04-12',
+        email_verified_at: null,
+      });
+      return 'sc-dob-resolves';
+    },
+  },
+
+  // ── 7b. DOB mismatch does NOT disambiguate the tie (low_multi) ─────────
+  {
+    id: 'sc-dob-mismatch',
+    slug: 'sc_dob_mismatch',
+    description: 'Two HPs share the name; a differing member/legacy birth_date leaves the tie unresolved.',
+    expected: 'low_multiple_name_candidates',
+    expectedVerifyRedirect: '/register/wizard/legacy_claim',
+    driver: 'verify',
+    seed: (db) => {
+      insertLegacyMember(db, {
+        legacy_member_id: 'lm-sc-dobmis',
+        legacy_email: 'sc-dobmis@example.com',
+        birth_date: '1988-02-02',
+      });
+      insertHistoricalPerson(db, {
+        person_id: 'hp-sc-dobmis-a',
+        person_name: 'Jordan Banks',
+        legacy_member_id: 'lm-sc-dobmis',
+      });
+      insertHistoricalPerson(db, {
+        person_id: 'hp-sc-dobmis-b',
+        person_name: 'Jordan Banks',
+      });
+      insertMember(db, {
+        id: 'sc-dob-mismatch',
+        slug: 'sc_dob_mismatch',
+        login_email: 'sc-dobmis@example.com',
+        real_name: 'Jordan Banks',
+        birth_date: '1995-09-09',
+        email_verified_at: null,
+      });
+      return 'sc-dob-mismatch';
+    },
+  },
+
   // ── 8. low hp_mismatch (decoy path) ────────────────────────────────────
   {
     id: 'sc-low-decoy',

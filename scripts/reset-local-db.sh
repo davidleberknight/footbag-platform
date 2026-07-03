@@ -55,25 +55,12 @@ CLUB_MEMBERS_SEED_CSV="legacy_data/seed/club_members.csv"
 VENV="scripts/.venv"
 REQUIREMENTS="scripts/requirements.txt"
 
-# The canonical event inputs under legacy_data/event_results/canonical_input/
-# are committed real competitor data, so a fresh clone has them and the preflight
-# below passes. The fallback here stages the committed synthetic fixtures only if
-# canonical_input is somehow absent. The stager carries an absolute real-data
-# guard and runs only when canonical_input is absent, so an operator's real tree
-# is never overwritten. Guarded on the stager's own presence so a minimal
-# script-only scaffold still reaches the preflight error path.
-_STAGER="scripts/ci/stage_loader_smoke_fixtures.sh"
-if [[ ! -f "${CANONICAL_INPUT_DIR}/events.csv" && -f "${_STAGER}" ]]; then
-  echo "  → canonical_input absent; staging committed synthetic fixtures..."
-  bash "${_STAGER}"
-fi
-
 # Preflight: required local files. This script does NOT regenerate canonical
-# inputs or extract from the mirror; it loads existing artifacts, auto-staging
-# the committed fixtures above when canonical_input is absent. The seed CSVs
-# (clubs.csv, club_members.csv) are produced by legacy_data/scripts/extract_*.py
-# and committed under legacy_data/seed/. Reaching the error below means the
-# stager was absent or refused because a real legacy_data tree is present.
+# inputs or extract from the mirror; it loads existing committed artifacts. The
+# canonical event inputs under legacy_data/event_results/canonical_input/ are
+# committed real competitor data, so a fresh clone has them and the preflight
+# below passes. The seed CSVs (clubs.csv, club_members.csv) are produced by
+# legacy_data/scripts/extract_*.py and committed under legacy_data/seed/.
 _missing=()
 for _f in "${CANONICAL_INPUT_DIR}/events.csv" \
           "${CANONICAL_INPUT_DIR}/event_disciplines.csv" \
@@ -90,7 +77,7 @@ if [[ ${#_missing[@]} -gt 0 ]]; then
   for _f in "${_missing[@]}"; do echo "  MISSING: ${_f}" >&2; done
   echo "" >&2
   echo "Recommendation:" >&2
-  echo "  - This script auto-stages the committed synthetic fixtures when canonical_input/ is absent; reaching this error means the stager (scripts/ci/stage_loader_smoke_fixtures.sh) is missing, or it refused because a real legacy_data tree is present. To rebuild from fixtures, move the real tree aside and re-run this script." >&2
+  echo "  - The canonical inputs under legacy_data/event_results/canonical_input/ are committed real data; a missing file means an incomplete checkout. Restore them with 'git checkout -- legacy_data/event_results/canonical_input legacy_data/seed'." >&2
   echo "  - Maintainers rebuilding from real data: 'bash scripts/deploy-local-data.sh --from-csv' (or --soup-to-nuts to refresh CSVs from the mirror)." >&2
   exit 1
 fi

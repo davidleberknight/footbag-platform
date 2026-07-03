@@ -378,86 +378,6 @@ export interface PublicClubDetail extends PublicClubSummary {
   // An inactive club is hidden from the directory but still reachable by direct
   // link; the detail page shows a warning so it does not look like an active one.
   isInactive: boolean;
-  // TEMP-DEVIATION: club-classification QC panel.
-  // Current: populated unconditionally on every club detail page; surfaces the
-  //   classifier's category, confidence, R1-R10 rule firings, rule inputs,
-  //   combination-gate signals (structural + context modifier), pipeline-
-  //   context summary, and decision path for human QC review.
-  // Target: remove this field entirely (and the templates that render it) once
-  //   the admin queue migration replaces the QC workflow and no environment
-  //   relies on inline QC output.
-  qcPanel?: ClubClassificationEvidence;
-}
-
-// TEMP-DEVIATION: ClubClassificationRule + ClubClassificationEvidence types.
-// Current: back the QC panel only; rule firings + inputs + combination-gate
-//   signals + pipeline context are pre-shaped at the service layer so
-//   templates render flat.
-// Target: delete these types when qcPanel is removed (see field comment above).
-export interface ClubClassificationRule {
-  id: 'R1'|'R2'|'R3'|'R4'|'R5'|'R6'|'R7'|'R8'|'R9'|'R10';
-  label: string;
-  predicate: string;
-  fired: boolean;
-  stage: 'pre_populate' | 'onboarding_visible';
-}
-
-export interface ClubClassificationInputRow {
-  label: string;        // human-readable: "Member most recently active"
-  value: string;        // pre-shaped: "2021" or "never" or "yes"
-}
-
-// Combination-gate signals surfaced alongside the R1-R10 rule table.
-// `isPresent` is null when the legacy_data pipeline has not yet emitted the
-// signal for the parent bootstrap row; the QC panel renders such cells as
-// "(pipeline not yet emitting)" so curators see the gap without confusion.
-export type ClubClassificationSignalKind = 'structural' | 'modifier';
-
-export interface ClubClassificationSignal {
-  key: 'listed_contact' | 'affiliation' | 'hosting' | 'roster' | 'mirror_text'
-     | 'tier_signal' | 'recent_activity' | 'geographic_alignment';
-  kind: ClubClassificationSignalKind;
-  label: string;
-  isPresent: boolean | null;
-  // Pre-shaped display state so the template never derives it from the
-  // tri-state isPresent: 'present' | 'absent' | 'unemitted' plus the
-  // matching human label ('observed' / 'not observed' /
-  // '(pipeline not yet emitting)').
-  stateKey: 'present' | 'absent' | 'unemitted';
-  stateLabel: string;
-  evidenceText?: string;
-}
-
-export interface ClubClassificationGateOutput {
-  classification: 'strong' | 'weak' | 'none' | null; // null when no signals emitted
-  matchedGateLabel?: string;
-  rationaleText?: string;
-}
-
-export interface ClubPipelineContext {
-  affiliationsTotal: number;
-  affiliationsPendingCount: number;
-}
-
-export interface ClubClassificationEvidence {
-  category: 'pre_populate' | 'onboarding_visible' | 'dormant' | 'junk';
-  categoryLabel: string;
-  confidenceScore: number | null;
-  bootstrapEligible: boolean;
-  rules: ClubClassificationRule[];
-  decisionPath: string;                 // technical: "onboarding_visible (matched R8, R10)"
-  summaryTagline: string;               // short narrative for at-a-glance card
-  narrativeWhy: string;                 // long narrative for diagnostic
-  lastMemberActivityYear: number | null; // for at-a-glance stats line
-  contactSignalSubstituteApplied: boolean;
-  inputs: ClubClassificationInputRow[]; // ordered, human-labeled pairs
-  // Combination-gate display: present once the legacy_data pipeline emits
-  // per-signal evidence into `club_bootstrap_leader_signals`. Absent until
-  // then; the panel template hides these sections when undefined so existing
-  // rows continue to render unchanged.
-  signals?: ClubClassificationSignal[];
-  gateOutput?: ClubClassificationGateOutput;
-  pipelineContext?: ClubPipelineContext;
 }
 
 // Single shaping site for the vitality signals. Pure function over the
@@ -622,7 +542,6 @@ function toPublicClubDetail(
   vitality: ClubVitalitySignals,
   members: ClubMemberSummary[],
   leaders: ClubLeader[],
-  qcPanel?: ClubClassificationEvidence,
 ): PublicClubDetail {
   const summary = toPublicClubSummary(row, vitality);
   const detail: PublicClubDetail = {
@@ -643,17 +562,15 @@ function toPublicClubDetail(
     viewGalleryHref: null,
     isInactive: row.status === 'inactive',
   };
-  if (qcPanel) detail.qcPanel = qcPanel;
   return detail;
 }
 
 // TEMP-DEVIATION: AffiliationRow (shape returned by db.ts listMembersByClubId).
 // Current: the club detail path splits historical affiliations into leader /
-//   contact / member buckets using this row, and the QC panel reads its
-//   member list from the same source.
+//   contact / member buckets using this row.
 // Target: replace with the permanent roster model once bootstrap leader rows
 //   cover the full club set (both pre_populate and onboarding_visible cohorts
-//   loaded) and the QC panel is removed.
+//   loaded).
 interface AffiliationRow {
   person_id: string | null;
   person_name: string;
@@ -731,148 +648,6 @@ function affiliationRowToClubLeader(row: AffiliationRow): ClubLeader {
   };
   if (row.person_id) leader.personId = row.person_id;
   return leader;
-}
-
-// TEMP-DEVIATION: ClassificationEvidenceRow (db.ts getClassificationEvidenceByClubId shape).
-// Current: carries classifier output for the QC panel only; not part of the
-//   permanent club data model.
-// Target: delete this type and its backing db.ts statement when the QC panel
-//   is removed (see qcPanel field comment above).
-interface ClassificationEvidenceRow {
-  classification: 'pre_populate' | 'onboarding_visible' | 'dormant' | 'junk';
-  confidence_score: number | null;
-  bootstrap_eligible: number;
-  r1: number; r2: number; r3: number; r4: number; r5: number;
-  r6: number; r7: number; r8: number; r9: number; r10: number;
-  contact_signal_substitute_applied: number;
-  last_hosted_year: number | null;
-  max_affiliated_member_last_year: number | null;
-  contact_member_last_year: number | null;
-  created_year: number | null;
-  last_updated_year: number | null;
-  unique_member_names: number | null;
-  linkable_member_count: number | null;
-  ever_hosted: number;
-}
-
-// TEMP-DEVIATION: toClassificationEvidence shapes the QC panel view-model.
-// Current: rule labels (R1..R10) match the legacy classifier script that
-//   populates legacy_club_candidates, so the QC panel reflects the same rule
-//   names operators see when running the classifier offline.
-// Target: delete this function when the QC panel is removed.
-function toClassificationEvidence(row: ClassificationEvidenceRow): ClubClassificationEvidence {
-  // Rule spec: label is a short identifier (table column); humanClause is the
-  // sentence fragment used in narrative prose ("a member was competing in 2020+").
-  const ruleSpecs: Array<{
-    id: ClubClassificationRule['id'];
-    label: string;
-    predicate: string;
-    humanClause: string;
-    stage: ClubClassificationRule['stage'];
-    fired: number;
-  }> = [
-    { id: 'R1',  label: 'Recently hosted',             predicate: 'last_hosted_year >= 2020',                                humanClause: 'hosted an event in 2020 or later',                                    stage: 'pre_populate',       fired: row.r1  },
-    { id: 'R2',  label: 'Recent edit + ever hosted',   predicate: 'last_updated_year >= 2020 AND ever_hosted',               humanClause: 'page was updated in 2020+ and the club has hosted at least one event', stage: 'pre_populate',       fired: row.r2  },
-    { id: 'R3',  label: 'Recent edit + active contact',predicate: 'last_updated_year >= 2020 AND contact_competed_2020+',    humanClause: 'page was updated in 2020+ and the listed contact has been competing',  stage: 'pre_populate',       fired: row.r3  },
-    { id: 'R4',  label: 'Active contact + ever hosted',predicate: 'contact_competed_2020+ AND ever_hosted',                  humanClause: 'the listed contact has been competing and the club has hosted before', stage: 'pre_populate',       fired: row.r4  },
-    { id: 'R5',  label: 'Active contact',              predicate: 'contact_competed_2020+',                                  humanClause: 'the listed contact was competing in 2020 or later',                    stage: 'onboarding_visible', fired: row.r5  },
-    { id: 'R6',  label: 'Ever hosted',                 predicate: 'ever_hosted',                                             humanClause: 'the club has hosted at least one event',                                stage: 'onboarding_visible', fired: row.r6  },
-    { id: 'R7',  label: 'Edited after creation',       predicate: 'last_updated_year >= 2016 AND last_updated > created',    humanClause: 'the page was edited in 2016 or later, after it was first created',     stage: 'onboarding_visible', fired: row.r7  },
-    { id: 'R8',  label: 'Any member active',           predicate: 'max_affiliated_member_last_year >= 2020',                 humanClause: 'at least one affiliated member was competing in 2020 or later',        stage: 'onboarding_visible', fired: row.r8  },
-    { id: 'R9',  label: 'Recently created',            predicate: 'created_year >= 2022',                                    humanClause: 'the club page was created in 2022 or later',                            stage: 'onboarding_visible', fired: row.r9  },
-    { id: 'R10', label: 'Substantial roster',          predicate: 'unique_member_names >= 10 OR linkable_member_count >= 3', humanClause: 'the roster has 10+ unique names or 3+ identified players',              stage: 'onboarding_visible', fired: row.r10 },
-  ];
-  const rules: ClubClassificationRule[] = ruleSpecs.map((s) => ({
-    id: s.id, label: s.label, predicate: s.predicate, stage: s.stage, fired: s.fired === 1,
-  }));
-
-  const firedIds = rules.filter((r) => r.fired).map((r) => r.id);
-  const firedPrePopulate = ruleSpecs.filter((s) => s.stage === 'pre_populate' && s.fired === 1);
-  const firedOnboarding  = ruleSpecs.filter((s) => s.stage === 'onboarding_visible' && s.fired === 1);
-
-  let decisionPath: string;
-  switch (row.classification) {
-    case 'pre_populate':
-      decisionPath = `pre_populate (matched ${firedIds.filter((id) => ['R1','R2','R3','R4'].includes(id)).join(', ') || 'none?'})`;
-      break;
-    case 'onboarding_visible':
-      decisionPath = `onboarding_visible (matched ${firedIds.filter((id) => ['R5','R6','R7','R8','R9','R10'].includes(id)).join(', ') || 'none?'})`;
-      break;
-    case 'dormant':
-      decisionPath = 'dormant (no rules fired, has description)';
-      break;
-    case 'junk':
-      decisionPath = 'junk (no rules fired, no description)';
-      break;
-  }
-
-  const categoryLabels: Record<ClassificationEvidenceRow['classification'], string> = {
-    pre_populate:       'Pre-populate',
-    onboarding_visible: 'Onboarding-visible',
-    dormant:            'Dormant',
-    junk:               'Junk',
-  };
-
-  // Pre-shape the narrative explaining why this category landed.
-  // narrativeWhy = the long form (diagnostic); summaryTagline = the short
-  // form (at-a-glance card).
-  const joinClauses = (specs: typeof firedPrePopulate): string =>
-    specs.map((s) => `${s.humanClause} (${s.id})`).join('; ');
-
-  let narrativeWhy: string;
-  let summaryTagline: string;
-  switch (row.classification) {
-    case 'pre_populate':
-      narrativeWhy = `Pre-populate because ${joinClauses(firedPrePopulate)}.`;
-      summaryTagline = 'Strong signals of recent activity; cut over to a live club at launch.';
-      break;
-    case 'onboarding_visible': {
-      const why  = `Onboarding-visible because ${joinClauses(firedOnboarding)}.`;
-      const not  = firedPrePopulate.length === 0
-        ? ' Not Pre-populate because none of the recent-hosting or active-contact signals (R1–R4) fired.'
-        : '';
-      narrativeWhy = why + not;
-      summaryTagline = 'Surfaced for member onboarding because activity signals are weaker than pre-populate but still present.';
-      break;
-    }
-    case 'dormant':
-      narrativeWhy = 'Dormant: no activity rule fired; description is present so the club is searchable in the onboarding wizard but not surfaced by default.';
-      summaryTagline = 'No recent activity signals. Reachable by name search only.';
-      break;
-    case 'junk':
-      narrativeWhy = 'Junk: no activity rule fired and no description present. Invisible to all non-admin surfaces.';
-      summaryTagline = 'No activity signals and no description. Suppressed.';
-      break;
-  }
-
-  // Pre-shape rule inputs with human-readable labels. Ordered as a reader
-  // would scan: activity signals first, then page-edit history, then roster.
-  const yearOrDash = (v: number | null): string => v == null ? '—' : String(v);
-  const numOrDash  = (v: number | null): string => v == null ? '—' : String(v);
-  const inputs: ClubClassificationInputRow[] = [
-    { label: 'Last hosted an event',              value: row.last_hosted_year == null ? 'never' : String(row.last_hosted_year) },
-    { label: 'Has ever hosted',                   value: row.ever_hosted === 1 ? 'yes' : 'no' },
-    { label: 'Member most recently active',       value: yearOrDash(row.max_affiliated_member_last_year) },
-    { label: 'Listed contact last competed',      value: yearOrDash(row.contact_member_last_year) },
-    { label: 'Page created',                      value: yearOrDash(row.created_year) },
-    { label: 'Page last updated',                 value: yearOrDash(row.last_updated_year) },
-    { label: 'Unique member names',               value: numOrDash(row.unique_member_names) },
-    { label: 'Members identified as known players', value: numOrDash(row.linkable_member_count) },
-  ];
-
-  return {
-    category:          row.classification,
-    categoryLabel:     categoryLabels[row.classification],
-    confidenceScore:   row.confidence_score,
-    bootstrapEligible: row.bootstrap_eligible === 1,
-    rules,
-    decisionPath,
-    summaryTagline,
-    narrativeWhy,
-    lastMemberActivityYear: row.max_affiliated_member_last_year,
-    contactSignalSubstituteApplied: row.contact_signal_substitute_applied === 1,
-    inputs,
-  };
 }
 
 // ── Clubs index ────────────────────────────────────────────────────────────────
@@ -1309,42 +1084,11 @@ export class ClubService {
       const memberCount = memberCountRows.find((r) => r.club_id === row.club_id)?.member_count ?? 0;
       const vitality = computeVitality(row, leaders.length, memberCount);
 
-      // TEMP-DEVIATION: classification evidence panel. Optional row; absent
-      // when the candidate is not in legacy_club_candidates (e.g., dev fresh
-      // clone with no enrichment CSVs loaded). Service tolerates absence.
-      // Also tolerates SCHEMA DRIFT — dev DBs that predate the r1-r10 +
-      // rule-input columns surface as "no such column" from better-sqlite3
-      // at prepare time; treat that as absent rather than 500. Removed when
-      // A_Periodic_Club_Cleanup admin queue ships and absorbs this surface
-      // entirely.
-      let qcPanel: ClubClassificationEvidence | undefined;
-      try {
-        const evidenceRow = clubs.getClassificationEvidenceByClubId.get(row.club_id) as
-          | ClassificationEvidenceRow
-          | undefined;
-        qcPanel = evidenceRow ? toClassificationEvidence(evidenceRow) : undefined;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (!msg.includes('no such column') && !msg.includes('no such table')) throw err;
-        qcPanel = undefined;
-      }
-      if (qcPanel) {
-        // Augment the classifier-as-built evidence with combination-gate +
-        // pipeline-context surfaces. Per-signal data (structural + modifier)
-        // remains absent until the legacy_data pipeline emits rows into
-        // `club_bootstrap_leader_signals`; the panel template hides those
-        // sections when the fields are undefined.
-        qcPanel.pipelineContext = {
-          affiliationsTotal:        affiliationRows.length,
-          affiliationsPendingCount: affiliationRows.filter((r) => r.resolution_status === 'pending').length,
-        };
-      }
-
       // Leader identities are member-visible like the roster: the anonymous
       // public never receives leader names. Gated here at the data level so
       // no template branch can leak them. Vitality above still counts the
       // full leader set; its chips render only in the curator panel.
-      const club = toPublicClubDetail(row, vitality, members, isAuthenticated ? leaders : [], qcPanel);
+      const club = toPublicClubDetail(row, vitality, members, isAuthenticated ? leaders : []);
 
       // Leaderless = no live co-leader. Bootstrap/affiliation provisional
       // entries are historical display, not operational leadership, so they do

@@ -166,6 +166,15 @@ export interface PersonaLegacySpec {
    */
   competingNameCandidates?: number;
   /**
+   * Seeds the same date of birth on the member row and the legacy_members row,
+   * so the auto-link classifier's date-of-birth tie-breaker fires. Paired with
+   * competingNameCandidates, a matching birth date narrows a tied same-name
+   * candidate set down to the provenance person (resolving what would otherwise
+   * be a multiple-candidate review). The classifier compares member against
+   * legacy only; historical_persons carries no birth date.
+   */
+  birthDate?: string;
+  /**
    * Sets legacy_members.legacy_is_admin=1 on this persona's legacy row. With
    * `linked: true` it seeds the claimed-legacy-admin case: the legacy admin flag
    * must never confer a live admin role, so the member's own is_admin stays 0.
@@ -417,6 +426,7 @@ export function seedPersona(
       legacy_member_id: legacyMemberId,
       real_name: legacyDisplayName,
       ...(legacyEmail ? { legacy_email: legacyEmail } : {}),
+      ...(spec.legacy.birthDate ? { birth_date: spec.legacy.birthDate } : {}),
       ...(spec.legacy.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
     });
     personId = insertHistoricalPerson(db, {
@@ -483,6 +493,7 @@ export function seedPersona(
     ...(spec.honors?.board ? { is_board: 1 as const } : {}),
     ...deletionFields,
     ...(opts.passwordHash ? { password_hash: opts.passwordHash } : {}),
+    ...(spec.legacy?.birthDate ? { birth_date: spec.legacy.birthDate } : {}),
     ...(spec.legacy?.linked ? { legacy_member_id: legacyMemberId } : {}),
   });
 

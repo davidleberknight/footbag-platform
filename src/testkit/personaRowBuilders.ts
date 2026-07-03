@@ -62,6 +62,7 @@ export interface MemberOverrides {
   legacy_member_id?: string | null;
   first_competition_year?: number | null;
   bio?: string;
+  birth_date?: string | null;
   searchable?: 0 | 1;
   password_version?: number;
 }
@@ -96,19 +97,19 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
       login_email, login_email_normalized, email_verified_at,
       password_hash, password_changed_at, password_version,
       real_name, display_name, display_name_normalized,
-      bio, city, country,
+      bio, birth_date, city, country,
       is_admin, is_system, is_board, is_hof, hof_inducted_year, is_bap, is_deceased, deceased_at, deceased_note,
       searchable,
       deleted_at, deletion_requested_at, deletion_grace_expires_at, personal_data_purged_at,
       show_competitive_results, show_first_competition_year, gender, show_gender, legacy_member_id, first_competition_year,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, slug,
     email, emailNormalized, emailVerifiedAt,
     passwordHash, passwordChanged, o.password_version ?? 1,
     name, display, display.toLowerCase(),
-    o.bio ?? '', o.city === null ? null : (o.city ?? 'Testville'), o.country === null ? null : (o.country ?? 'US'),
+    o.bio ?? '', o.birth_date ?? null, o.city === null ? null : (o.city ?? 'Testville'), o.country === null ? null : (o.country ?? 'US'),
     o.is_admin ?? 0, o.is_system ?? 0, o.is_board ?? 0, o.is_hof ?? 0, o.hof_inducted_year ?? null, o.is_bap ?? 0, o.is_deceased ?? 0, o.deceased_at ?? null, o.deceased_note ?? null,
     o.searchable ?? 1,
     o.deleted_at ?? null, o.deletion_requested_at ?? null, o.deletion_grace_expires_at ?? null, purged,
@@ -978,7 +979,8 @@ export interface LegacyClubCandidateOverrides {
   lifecycle_state?: 'archived' | 'junk_confirmed' | null;
   confidence_score?: number | null;
   bootstrap_eligible?: 0 | 1;
-  // TEMP-DEVIATION: club-classification QC panel evidence fields.
+  // Classifier evidence columns on legacy_club_candidates (rule firings and
+  // rule inputs), read by the club-cleanup classification logic.
   r1?: 0 | 1;
   r2?: 0 | 1;
   r3?: 0 | 1;

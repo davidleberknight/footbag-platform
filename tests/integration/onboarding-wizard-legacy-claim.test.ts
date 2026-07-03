@@ -143,6 +143,66 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
   });
 
+  it('auto-links when the login email matches the legacy secondary email (legacy_email2)', async () => {
+    const stamp = Date.now();
+    const primary   = `primary2-${stamp}@example.com`;
+    const secondary = `secondary2-${stamp}@example.com`;
+    const legacyId = insertLegacyMember(db, {
+      legacy_member_id: `LM-FAST2-${stamp}`,
+      legacy_email: primary,
+      legacy_email2: secondary,
+      real_name: 'Fast Two',
+    });
+    const memberId = insertMember(db, {
+      slug: `fast2_${stamp}`,
+      login_email: secondary,
+      real_name: 'Fast Two',
+    });
+
+    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
+    const res = await request(createApp())
+      .post('/register/wizard/legacy_claim/find')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ identifier: secondary });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/club_affiliations');
+    expect(getMember(memberId)!.legacy_member_id).toBe(legacyId);
+    expect(getLegacyMember(legacyId)!.claimed_by_member_id).toBe(memberId);
+    expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
+  });
+
+  it('auto-links when the login email matches the legacy tertiary email (legacy_email3)', async () => {
+    const stamp = Date.now();
+    const primary  = `primary3-${stamp}@example.com`;
+    const tertiary = `tertiary3-${stamp}@example.com`;
+    const legacyId = insertLegacyMember(db, {
+      legacy_member_id: `LM-FAST3-${stamp}`,
+      legacy_email: primary,
+      legacy_email3: tertiary,
+      real_name: 'Fast Three',
+    });
+    const memberId = insertMember(db, {
+      slug: `fast3_${stamp}`,
+      login_email: tertiary,
+      real_name: 'Fast Three',
+    });
+
+    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
+    const res = await request(createApp())
+      .post('/register/wizard/legacy_claim/find')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ identifier: tertiary });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/club_affiliations');
+    expect(getMember(memberId)!.legacy_member_id).toBe(legacyId);
+    expect(getLegacyMember(legacyId)!.claimed_by_member_id).toBe(memberId);
+    expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
+  });
+
   it('merge: fill-if-empty bio from legacy', async () => {
     const stamp = Date.now();
     const email = `merge-bio-${stamp}@example.com`;

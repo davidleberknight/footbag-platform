@@ -2161,19 +2161,21 @@ function initiateLegacyClaim(
   if (!row) return { kind: 'no_match' };
 
   // Email-equality fast path. The requesting member proved control of
-  // login_email at registration verify; if that email equals the legacy row's
-  // legacy_email, no second token-email is required. Run the merge inline.
-  // Reachable only after a positive lookup, so a non-matching attacker still
-  // gets the silent `no_match` outcome above and cannot distinguish branches.
-  // Skipped silently when legacy_email is NULL (stub rows in dev where the
+  // login_email at registration verify; if that email equals any of the
+  // legacy row's addresses (primary or either secondary), no second
+  // token-email is required. Run the merge inline. Reachable only after a
+  // positive lookup, so a non-matching attacker still gets the silent
+  // `no_match` outcome above and cannot distinguish branches. Skipped
+  // silently when the row carries no addresses (stub rows in dev where the
   // legacy data dump has not been loaded).
   const member = legacyClaim.findClaimingMember.get(requestingMemberId) as ClaimingMemberRow | undefined;
-  if (
-    row.legacy_email &&
-    member?.email_verified_at &&
-    member.login_email_normalized &&
-    member.login_email_normalized === normalizeEmail(row.legacy_email)
-  ) {
+  const controlsLegacyEmail =
+    Boolean(member?.email_verified_at) &&
+    member?.login_email_normalized != null &&
+    [row.legacy_email, row.legacy_email2, row.legacy_email3].some(
+      (legacyEmail) => legacyEmail != null && member.login_email_normalized === normalizeEmail(legacyEmail),
+    );
+  if (controlsLegacyEmail) {
     transaction(() => {
       // Email-equality fast path: mailbox control of the modern address is
       // proven by registration verification and it matches the legacy email.
@@ -2429,9 +2431,17 @@ function lookupHistoricalPersonForClaim(
   // surname or any declared former surname must match. Mismatch blocks the
   // claim entirely; callers should not render the confirm page.
   if (!surnameMatchesWithAnchors(requestingMemberId, member.real_name, hp.person_name)) {
-    throw new ValidationError(
-      'Your name does not match this historical record. If you believe this is your identity, contact an administrator.',
+    // Record the same forensic block row the merge path writes, so a surname
+    // mismatch caught here leaves an impersonation-attempt trail too. This
+    // lookup runs outside any transaction, so the row is written inline rather
+    // than after a rollback.
+    const message =
+      'Your name does not match this historical record. If you believe this is your identity, contact an administrator.';
+    recordHistoricalPersonClaimBlocked(
+      requestingMemberId,
+      new SurnameMismatchError(message, hp.person_id, hp.person_name),
     );
+    throw new ValidationError(message);
   }
 
   // If the HP has a legacy_member_id back-link, the claim will transitively
@@ -3200,9 +3210,43 @@ function revertAutoLinkInTx(
     if (legacyMemberId !== null) {
       legacyMembers.clearMemberLegacyLink.run(now, actor.actorMemberId, memberId);
       legacyMembers.clearClaim.run(legacyMemberId);
+      // Un-linking alone would strand the linked record's PII (birth date,
+      // address, bio, join date) on the member row. The legacy_members row
+      // still holds the values the claim merge copied, so pass them in and
+      // clear only the fields that still match -- data the member entered
+      // themselves is preserved.
+      const legacyRow = legacyMembers.findByLegacyMemberId.get(legacyMemberId) as LegacyMemberRow | undefined;
+      if (legacyRow) {
+        legacyMembers.scrubClaimedLegacyFields.run(
+          legacyRow.legacy_user_id,
+          legacyRow.legacy_email,
+          legacyRow.bio ?? '',
+          legacyRow.birth_date,
+          legacyRow.street_address,
+          legacyRow.postal_code,
+          legacyRow.city,
+          legacyRow.region,
+          legacyRow.country,
+          legacyRow.ifpa_join_date,
+          legacyRow.first_competition_year,
+          now,
+          actor.actorMemberId,
+          memberId,
+        );
+      }
     }
     if (clearedHp) {
       legacyMembers.clearMemberHistoricalPersonId.run(now, actor.actorMemberId, memberId);
+    }
+
+    // The honor flags are a denormalized cache of the claimed record. When the
+    // revert leaves the member linked to no honored record, drop them so the
+    // reverted claim cannot strand a HoF/BAP badge -- and the public profile
+    // visibility it grants -- on a member who no longer holds the honor. A
+    // surviving direct-HP link keeps its honors.
+    const retainsHonoredLink = member.historical_person_id !== null && !clearedHp;
+    if (!retainsHonoredLink) {
+      legacyMembers.clearDerivedHonors.run(now, actor.actorMemberId, memberId);
     }
 
     applyAutoLinkRevertGrantInTx(actor.actorMemberId, memberId, {
@@ -3223,6 +3267,8 @@ function revertAutoLinkInTx(
         original_claim_audit_id: originalClaimAuditId,
         legacy_member_id:        legacyMemberId,
         cleared_historical_person_id: clearedHp,
+        scrubbed_legacy_fields:  legacyMemberId !== null,
+        cleared_derived_honors:  !retainsHonoredLink,
       },
     });
 

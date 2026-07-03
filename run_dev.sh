@@ -54,6 +54,7 @@ kill_port 3100
 RESET=0
 FROM_CSV=0
 SOUP_TO_NUTS=0
+ALL_DATA=0
 SEED_TEST_PERSONAS=0
 NO_MEDIA=0
 NO_PERSONAS=0
@@ -62,6 +63,7 @@ for arg in "$@"; do
     --reset)               RESET=1 ;;
     --from-csv)            FROM_CSV=1 ;;
     --soup-to-nuts)        SOUP_TO_NUTS=1 ;;
+    --all-data)            ALL_DATA=1 ;;
     --seed-test-personas)  SEED_TEST_PERSONAS=1 ;;
     --no-media)            NO_MEDIA=1 ;;
     --no-personas)         NO_PERSONAS=1 ;;
@@ -94,6 +96,15 @@ DB rebuild modes (mutually exclusive; opt-in only):
                    per axis with --no-media / --no-personas. Requires
                    legacy_data/mirror_footbag_org/ to be present.
                    Calls scripts/deploy-local-data.sh --soup-to-nuts.
+  --all-data       The --from-csv build PLUS the legacy member-data intake:
+                   extract the footbag.org dump into the git-ignored intermediate
+                   CSV and validate/preview it. The member LOAD is deferred (the
+                   identity reconciliation is not implemented yet), so member data
+                   is not applied; a notice says so and the run still succeeds.
+                   Requires the gitignored membership roster AND either the
+                   footbag.org dump or a prior intermediate CSV. Seeds personas by
+                   default (opt out with --no-personas).
+                   Calls scripts/deploy-local-data.sh --all-data.
 
 Opt-outs (valid only in the mode that turns the axis on by default):
   --no-media       Skip the curator media seed (exports CURATOR_SEED=no).
@@ -120,8 +131,8 @@ USAGE
 done
 
 # Mutex: at most one rebuild mode.
-if (( RESET + FROM_CSV + SOUP_TO_NUTS > 1 )); then
-  echo "ERROR: --reset, --from-csv, and --soup-to-nuts are mutually exclusive." >&2
+if (( RESET + FROM_CSV + SOUP_TO_NUTS + ALL_DATA > 1 )); then
+  echo "ERROR: --reset, --from-csv, --soup-to-nuts, and --all-data are mutually exclusive." >&2
   exit 1
 fi
 
@@ -137,8 +148,8 @@ if (( SOUP_TO_NUTS == 0 )); then
       exit 1
     fi
   done
-  if (( NO_PERSONAS == 1 && FROM_CSV == 0 )); then
-    echo "ERROR: --no-personas is only meaningful with --from-csv or --soup-to-nuts (personas are off by default otherwise)." >&2
+  if (( NO_PERSONAS == 1 && FROM_CSV == 0 && ALL_DATA == 0 )); then
+    echo "ERROR: --no-personas is only meaningful with --from-csv, --all-data, or --soup-to-nuts (personas are off by default otherwise)." >&2
     exit 1
   fi
 fi
@@ -146,7 +157,7 @@ fi
 # Personas ride along with any explicit DB rebuild (--from-csv or --soup-to-nuts)
 # so a freshly rebuilt local DB is never left without the test catalog. Opt out
 # with --no-personas. The seed runner is idempotent (it skips existing slugs).
-if (( FROM_CSV == 1 || SOUP_TO_NUTS == 1 )); then
+if (( FROM_CSV == 1 || SOUP_TO_NUTS == 1 || ALL_DATA == 1 )); then
   (( NO_PERSONAS == 1 )) || SEED_TEST_PERSONAS=1
 fi
 
@@ -187,6 +198,9 @@ if (( SOUP_TO_NUTS == 1 )); then
 elif (( FROM_CSV == 1 )); then
   echo "→ Full enrichment rebuild from canonical CSVs (deploy-parity)..."
   bash scripts/deploy-local-data.sh --from-csv
+elif (( ALL_DATA == 1 )); then
+  echo "→ Full enrichment rebuild + legacy member-data intake (member load deferred)..."
+  bash scripts/deploy-local-data.sh --all-data
 elif [[ "$RESET" == "1" ]]; then
   echo "→ Resetting local DB..."
   bash scripts/reset-local-db.sh

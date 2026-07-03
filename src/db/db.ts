@@ -935,29 +935,6 @@ export const clubs = {
       COALESCE(hp.person_name, NULLIF(lm.real_name, ''), NULLIF(lm.display_name, '')) COLLATE NOCASE
   `); },
 
-  // Current: exposes raw classification evidence (score, R1-R10 firings, rule inputs)
-  //          for the dev+staging QC panel on /clubs/:key.
-  // Target: remove when the admin club-cleanup queue ships and the QC panel is no
-  //         longer needed on the public clubs route.
-  get getClassificationEvidenceByClubId() { return db.prepare(`
-    SELECT
-      classification,
-      confidence_score,
-      bootstrap_eligible,
-      r1, r2, r3, r4, r5, r6, r7, r8, r9, r10,
-      contact_signal_substitute_applied,
-      last_hosted_year,
-      max_affiliated_member_last_year,
-      contact_member_last_year,
-      created_year,
-      last_updated_year,
-      unique_member_names,
-      linkable_member_count,
-      ever_hosted
-    FROM legacy_club_candidates
-    WHERE mapped_club_id = ?
-    LIMIT 1
-  `); },
 };
 
 // ---------------------------------------------------------------------------
@@ -7448,6 +7425,54 @@ export const legacyMembers = {
       updated_at           = ?,
       updated_by           = ?,
       version              = version + 1
+    WHERE id = ?
+  `); },
+
+  // Undo the personal fields the claim merge copied from the claimed
+  // legacy_members row when a claim is reverted, so a disputed or mistaken
+  // link leaves none of the linked record's PII (birth date, address, bio,
+  // join date) on the member row. The merge is fill-if-empty, so a field is
+  // cleared only where it still equals the value copied from the legacy row
+  // (passed as parameters); a value the member entered themselves is left
+  // untouched. HoF/BAP honors are deliberately preserved -- the honor record
+  // outlives the personal data.
+  get scrubClaimedLegacyFields() { return db.prepare(`
+    UPDATE members
+    SET
+      legacy_user_id         = CASE WHEN legacy_user_id = ? THEN NULL ELSE legacy_user_id END,
+      legacy_email           = CASE WHEN legacy_email = ? THEN NULL ELSE legacy_email END,
+      bio                    = CASE WHEN bio = ? THEN '' ELSE bio END,
+      birth_date             = CASE WHEN birth_date = ? THEN NULL ELSE birth_date END,
+      street_address         = CASE WHEN street_address = ? THEN NULL ELSE street_address END,
+      postal_code            = CASE WHEN postal_code = ? THEN NULL ELSE postal_code END,
+      city                   = CASE WHEN city = ? THEN NULL ELSE city END,
+      region                 = CASE WHEN region = ? THEN NULL ELSE region END,
+      country                = CASE WHEN country = ? THEN NULL ELSE country END,
+      ifpa_join_date         = CASE WHEN ifpa_join_date = ? THEN NULL ELSE ifpa_join_date END,
+      first_competition_year = CASE WHEN first_competition_year = ? THEN NULL ELSE first_competition_year END,
+      updated_at             = ?,
+      updated_by             = ?,
+      version                = version + 1
+    WHERE id = ?
+  `); },
+
+  // Drop the denormalized honor flags on a claim revert. members.is_hof /
+  // is_bap / hof_inducted_year are only ever written by the claim merge (from
+  // the claimed legacy row or its historical_persons record), so when a revert
+  // leaves the member linked to no honored record the flags came from the
+  // reverted claim and must go -- otherwise a reverted (often disputed) claim
+  // strands a HoF/BAP badge, and the public profile visibility it confers, on a
+  // member who no longer holds the honor. The caller skips this when a separate
+  // historical-person link survives the revert and still backs the honor.
+  get clearDerivedHonors() { return db.prepare(`
+    UPDATE members
+    SET
+      is_hof            = 0,
+      is_bap            = 0,
+      hof_inducted_year = NULL,
+      updated_at        = ?,
+      updated_by        = ?,
+      version           = version + 1
     WHERE id = ?
   `); },
 

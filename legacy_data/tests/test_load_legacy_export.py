@@ -21,6 +21,7 @@ Run from repo root:
 """
 import csv
 import sqlite3
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -293,3 +294,39 @@ def test_intra_export_email_collision_is_excluded_and_reported(tmp_path: Path) -
     assert "excluded[email_conflict]:" in result.stdout
     ids = {r["legacy_member_id"] for r in query(db, "SELECT legacy_member_id FROM legacy_members")}
     assert ids == {"700"}
+
+
+def _run_loader_env(db: str, export: str, env_overrides: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    env = dict(os.environ)
+    env.update(env_overrides)
+    cmd = [sys.executable, str(LOADER), "--export", export, "--db", db, "--apply"]
+    return subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT, env=env)
+
+
+@pytest.mark.parametrize(
+    "db, env_overrides",
+    [
+        ("database/footbag.db", {"NODE_ENV": "production"}),
+        ("database/footbag.db", {"FOOTBAG_ENV": "production"}),
+        ("database/footbag.db", {"FOOTBAG_ENV": "staging"}),
+        ("/srv/footbag/production/footbag.db", {}),
+    ],
+)
+def test_production_guard_refuses_before_any_work(db: str, env_overrides: dict[str, str], tmp_path: Path) -> None:
+    # The export need not exist: the guard fires immediately after arg parsing,
+    # before any file is opened or any row is read.
+    result = _run_loader_env(db, str(tmp_path / "nonexistent.csv"), env_overrides)
+    assert result.returncode != 0
+    assert "refusing to load" in result.stderr
+
+
+def test_no_guard_on_a_plain_local_target(tmp_path: Path) -> None:
+    # Without the deployed-environment signals, the same invocation clears the
+    # guard and fails later for an ordinary reason (missing export), proving the
+    # guard discriminates on environment rather than refusing every load.
+    result = _run_loader_env(
+        str(tmp_path / "local.db"),
+        str(tmp_path / "nonexistent.csv"),
+        {"NODE_ENV": "", "FOOTBAG_ENV": ""},
+    )
+    assert "refusing to load" not in result.stderr

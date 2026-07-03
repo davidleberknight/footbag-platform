@@ -161,11 +161,10 @@ fi
 # Reason: scripts/ci/stage_*.sh files populate paths that on a workstation
 # may hold real data (legacy mirror, canonical CSVs, uploaded media). The
 # .claude/rules/testing.md "Fixture-staging scripts" rule mandates a real-
-# data detection that runs before any destructive operation; the canonical
-# reference is scripts/ci/stage_loader_smoke_fixtures.sh, which carries
-# `# REAL-DATA GUARD` in its header. A new stager omitting the marker has
-# not declared the guard. The 2026-05-09 incident (60 GB mirror lost to
-# --force) is the precedent.
+# data detection that runs before any destructive operation, declared by a
+# `# REAL-DATA GUARD` header marker. A stager omitting the marker has not
+# declared the guard. The 2026-05-09 incident (60 GB mirror lost to --force)
+# is the precedent. No such stager exists today; this check guards any future one.
 echo "[conventions] check: # REAL-DATA GUARD marker in scripts/ci/stage_*.sh"
 missing=""
 for f in scripts/ci/stage_*.sh; do

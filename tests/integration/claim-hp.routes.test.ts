@@ -199,6 +199,23 @@ describe('GET /history/:personId/claim', () => {
     expect(res.text).not.toContain('does not match');
   });
 
+  it('surname mismatch on the lookup path writes a claim.historical_person_blocked audit row', async () => {
+    const app = createApp();
+    await request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', otherCookie());
+    const row = testDb.prepare(
+      `SELECT metadata_json FROM audit_entries
+        WHERE action_type = 'claim.historical_person_blocked'
+          AND actor_member_id = ?
+          AND entity_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1`,
+    ).get(OTHER_ID, OTHER_ID) as { metadata_json: string } | undefined;
+    expect(row).toBeDefined();
+    const meta = JSON.parse(row!.metadata_json) as Record<string, unknown>;
+    expect(meta.reason).toBe('surname_mismatch');
+    expect(meta.person_id).toBe(HP_NO_LEGACY);
+  });
+
   it('HP already claimed by another member -> uniform claim-unavailable page', async () => {
     const app = createApp();
     const res = await request(app).get(`/history/${HP_TAKEN}/claim`).set('Cookie', claimerCookie());

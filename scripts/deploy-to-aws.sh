@@ -54,6 +54,15 @@ DATA SOURCE (opt-in DB rebuild; mutually exclusive)
                                bare deploy is code-only. Seeds the persona
                                catalog by default on staging; opt out with
                                --no-personas.
+  --all-data                   The --from-csv build PLUS the legacy member-data
+                               intake: extract the footbag.org dump into the
+                               git-ignored intermediate CSV and validate/preview
+                               it. The member LOAD is deferred (identity
+                               reconciliation not implemented yet), so member
+                               data is not applied or deployed; a notice says so.
+                               Requires the gitignored membership roster AND
+                               either the footbag.org dump or a prior
+                               intermediate CSV.
   --soup-to-nuts               Full clean rebuild from the legacy mirror
                                (legacy_data/mirror_footbag_org/). Drops
                                the DB file, regenerates canonical_input
@@ -146,6 +155,7 @@ NO_PERSONAS_FLAG="no"    # --no-personas: opt OUT of soup-to-nuts persona seed
 DRY_RUN="no"
 FROM_CSV="no"        # explicit alias for default rebuild source
 SOUP_TO_NUTS="no"    # full clean rebuild from legacy mirror
+ALL_DATA="no"        # --from-csv build + legacy member-data intake (member load deferred)
 # CUTOVER-REMOVE: --seed-test-personas flag.
 # Current: post-deploy seeds the canonical persona catalog into dev/staging
 #   only; not part of the production path. Signal only, no JSON payload.
@@ -185,6 +195,7 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     -n|--dry-run)          DRY_RUN="yes" ;;
     --from-csv)            FROM_CSV="yes" ;;
     --soup-to-nuts)        SOUP_TO_NUTS="yes" ;;
+    --all-data)            ALL_DATA="yes" ;;
     --seed-test-personas)  SEED_TEST_PERSONAS="yes" ;;
     --no-media)            NO_MEDIA_FLAG="yes" ;;
     --no-personas)         NO_PERSONAS_FLAG="yes" ;;
@@ -197,18 +208,22 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
   esac
 done
 
-# --from-csv / --soup-to-nuts are valid only with the default rebuild mode.
-if [[ "$FROM_CSV" == "yes" && "$SOUP_TO_NUTS" == "yes" ]]; then
-  echo "ERROR: --from-csv and --soup-to-nuts are mutually exclusive." >&2
+# --from-csv / --soup-to-nuts / --all-data are valid only with the default rebuild mode.
+_rebuild_modes=0
+[[ "$FROM_CSV" == "yes" ]]     && _rebuild_modes=$((_rebuild_modes + 1))
+[[ "$SOUP_TO_NUTS" == "yes" ]] && _rebuild_modes=$((_rebuild_modes + 1))
+[[ "$ALL_DATA" == "yes" ]]     && _rebuild_modes=$((_rebuild_modes + 1))
+if (( _rebuild_modes > 1 )); then
+  echo "ERROR: --from-csv, --soup-to-nuts, and --all-data are mutually exclusive." >&2
   exit 1
 fi
-if [[ "$SOUP_TO_NUTS" == "yes" || "$FROM_CSV" == "yes" ]]; then
+if [[ "$SOUP_TO_NUTS" == "yes" || "$FROM_CSV" == "yes" || "$ALL_DATA" == "yes" ]]; then
   if [[ "$MODE" == "reuse" ]]; then
-    echo "ERROR: --from-csv / --soup-to-nuts conflict with -r/--reuse-local-db (cannot rebuild and reuse simultaneously)." >&2
+    echo "ERROR: --from-csv / --soup-to-nuts / --all-data conflict with -r/--reuse-local-db (cannot rebuild and reuse simultaneously)." >&2
     exit 1
   fi
   if [[ "$MODE" == "keep" ]]; then
-    echo "ERROR: --from-csv / --soup-to-nuts conflict with -k/--keep-staging-db (rebuild has no effect when staging DB is untouched). Use ./run_dev.sh --soup-to-nuts to rebuild locally without deploying." >&2
+    echo "ERROR: --from-csv / --soup-to-nuts / --all-data conflict with -k/--keep-staging-db (rebuild has no effect when staging DB is untouched). Use ./run_dev.sh --all-data to rebuild locally without deploying." >&2
     exit 1
   fi
 fi
@@ -233,8 +248,8 @@ if [[ "$SOUP_TO_NUTS" != "yes" ]]; then
       exit 1
     fi
   done
-  if [[ "$NO_PERSONAS_FLAG" == "yes" && "$FROM_CSV" != "yes" ]]; then
-    echo "ERROR: --no-personas is only meaningful with --from-csv or --soup-to-nuts (personas are off by default otherwise)." >&2
+  if [[ "$NO_PERSONAS_FLAG" == "yes" && "$FROM_CSV" != "yes" && "$ALL_DATA" != "yes" ]]; then
+    echo "ERROR: --no-personas is only meaningful with --from-csv, --all-data, or --soup-to-nuts (personas are off by default otherwise)." >&2
     exit 1
   fi
 fi
@@ -244,7 +259,7 @@ fi
 # with --no-personas. Staging-only (CUTOVER-REMOVE): auto-enable ONLY on staging,
 # re-enforcing the wrapper's allowlist (which scans literal --seed-* flags and
 # cannot see this implicit enable). The seed runner is idempotent.
-if [[ "$FROM_CSV" == "yes" || "$SOUP_TO_NUTS" == "yes" ]]; then
+if [[ "$FROM_CSV" == "yes" || "$SOUP_TO_NUTS" == "yes" || "$ALL_DATA" == "yes" ]]; then
   if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-staging" ]]; then
     [[ "$NO_PERSONAS_FLAG" == "yes" ]] || SEED_TEST_PERSONAS="yes"
   else
@@ -312,7 +327,7 @@ case "$MODE" in
   reuse)  REBUILD_LOCAL="no";  REPLACE_STAGING="yes"; ;;
   keep)   REBUILD_LOCAL="no";  REPLACE_STAGING="no";  ;;
   "")
-    if [[ "$FROM_CSV" == "yes" || "$SOUP_TO_NUTS" == "yes" ]]; then
+    if [[ "$FROM_CSV" == "yes" || "$SOUP_TO_NUTS" == "yes" || "$ALL_DATA" == "yes" ]]; then
       REBUILD_LOCAL="yes"; REPLACE_STAGING="yes"
     else
       REBUILD_LOCAL="no";  REPLACE_STAGING="no"
@@ -506,6 +521,9 @@ if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
     echo "      legacy_data/event_results/canonical_input/, legacy_data/inputs/name_variants.csv,"
     echo "      legacy_data/seed/. Commit or revert before deploying again."
   fi
+elif [[ "$ALL_DATA" == "yes" ]]; then
+  echo "==> Step 1 (local DB rebuild + member intake, load deferred): scripts/deploy-local-data.sh --all-data"
+  run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --all-data
 else
   echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --from-csv"
   run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --from-csv

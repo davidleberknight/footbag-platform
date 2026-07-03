@@ -169,6 +169,21 @@ def main() -> None:
                     help="perform the writes; without this flag the loader is a dry run")
     args = ap.parse_args()
 
+    # Production guard: refuse before any read or write when the target smells
+    # like a deployed environment. Positive guards only, no force flag -- the
+    # real-data member load is a maintainer-machine cutover step and never runs
+    # against production or staging (mirrors the reset-local-db.sh SEC-DB01
+    # semantics).
+    node_env = os.environ.get("NODE_ENV", "")
+    footbag_env = os.environ.get("FOOTBAG_ENV", "")
+    db_abspath = os.path.abspath(args.db)
+    if node_env == "production" or footbag_env in ("production", "staging") or db_abspath.startswith("/srv/footbag/"):
+        fail(
+            "refusing to load: this loader is maintainer-machine only and never "
+            "runs against production or staging. Guard tripped by "
+            f"NODE_ENV={node_env!r} / FOOTBAG_ENV={footbag_env!r} / --db={args.db!r}."
+        )
+
     export_path = Path(args.export)
     if not export_path.exists():
         fail(f"export file not found: {export_path}")

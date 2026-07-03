@@ -98,7 +98,6 @@ committed as the curated, seed, and identity inputs below.
 |---|---|---|---|
 | `membership/inputs/membership_input_normalized.csv` | **gitignored** | `membership/scripts/01_build_membership_enrichment.py` (phase C) | IFPA member roster (real member PII); operator handoff, not regenerable |
 | `event_results/canonical_input/*.csv` (5 files) | committed | `reset-local-db.sh`, `run_pipeline.sh` canonical loaders | real committed competitor event data (event results and historical persons, `legacy_email` empty); the maintainer regenerates it from the mirror |
-| `tests/fixtures/canonical_input/*.csv` (5 files) | committed | `reset-local-db.sh` fallback, staged only if `canonical_input/` is absent | PII-free synthetic stand-in used only by that fallback; the default build loads the committed real data |
 | `seed/clubs.csv`, `seed/club_members.csv`, `seed/clubs_url_verdicts.csv` | committed | `load_clubs_seed.py`, `load_club_members_seed.py` | mirror-derived club seed (names and locations; `contact_email` empty) |
 | `inputs/name_variants.csv` | committed | `load_name_variants_seed.py` | name-variant pairs (generated; only HIGH rows load) |
 | `inputs/identity_lock/*.csv` | committed (older `Persons_Truth_Final_v*` / `Placements_ByPerson_v*` snapshots are gitignored; the latest of each is whitelisted) | `pipeline/identity/build_name_variants.py` | frozen identity lock (patch-toolchain only) |

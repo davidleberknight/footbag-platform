@@ -335,6 +335,21 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
       'auto-link disambiguation (multiple-candidate review path)',
     ],
   },
+  {
+    slug: 'legacy_dob_disambiguated',
+    displayName: 'Dana Datematch',
+    realName: 'Dana Datematch',
+    tier: 'tier0',
+    dimension: 'Auto-link confidence',
+    purpose: 'Two same-name historical-person matches, but the member and the legacy account share a date of birth: the tie-breaker narrows the competing set to the provenance person and auto-links instead of asking to disambiguate.',
+    testingUsage: 'Confirm a shared member/legacy date of birth resolves an otherwise-tied same-name candidate set to a single auto-link.',
+    legacy: { autoLinkConfidence: 'high', competingNameCandidates: 1, birthDate: '1990-04-12' },
+    onboardingTasks: { personal_details: 'completed', legacy_claim: 'in_progress_paused' },
+    coverageNotes: [
+      'email anchor with multiple same-name candidates plus a matching date of birth',
+      'auto-link date-of-birth tie-breaker resolves the candidate set',
+    ],
+  },
 
   // ── Club affiliations ─────────────────────────────────────────────────────
   {

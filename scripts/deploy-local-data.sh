@@ -47,6 +47,18 @@ Modes (exactly one required):
                   enrichment. Delegates to scripts/reset-local-db.sh.
                   Use --from-csv if you need phase C/D/E/F/G populated.
 
+  --all-data      The --from-csv build (no mirror) PLUS the legacy member-data
+                  intake: extract the footbag.org dump into the git-ignored
+                  intermediate CSV and validate/preview it. The member LOAD is
+                  deferred (the identity reconciliation in
+                  legacy_data/member_data_scripts/reconcile_legacy_members.py is
+                  not implemented yet), so the member data is not applied; a
+                  notice says so and the run still succeeds.
+                  Requires: the gitignored membership roster
+                            (legacy_data/membership/inputs/membership_input_normalized.csv)
+                            AND either the footbag.org dump or a prior
+                            intermediate CSV.
+
   --help, -h      Show this message.
 
 Options:
@@ -66,7 +78,7 @@ MODE=""
 DRY_RUN="no"
 for arg in "$@"; do
   case "$arg" in
-    --soup-to-nuts|--from-csv|--db-only)
+    --soup-to-nuts|--from-csv|--db-only|--all-data)
       if [[ -n "$MODE" ]]; then
         echo "ERROR: only one mode may be specified (got '$MODE' and '$arg')" >&2
         exit 1
@@ -196,8 +208,62 @@ run_db_only() {
   run_or_print bash "${SCRIPT_DIR}/reset-local-db.sh"
 }
 
+run_all_data() {
+  echo "==> deploy-local-data: --all-data"
+
+  # Preflight A: the gitignored IFPA membership roster (real member data,
+  # operator handoff) that the enrichment build requires.
+  local roster="${REPO_ROOT}/legacy_data/membership/inputs/membership_input_normalized.csv"
+  if [[ ! -f "$roster" ]]; then
+    echo "ERROR: membership roster not found at ${roster}" >&2
+    echo "       This is the gitignored IFPA membership roster (real member data);" >&2
+    echo "       obtain it from the maintainer. --from-csv / --db-only build without it." >&2
+    exit 1
+  fi
+
+  # Preflight B: a legacy member-data source -- either the footbag.org dump (to
+  # extract) or a prior intermediate CSV (to validate/preview).
+  local py="${REPO_ROOT}/legacy_data/footbag_venv/bin/python"
+  [[ -x "$py" ]] || py="python3"
+  local dump_root
+  dump_root="$("$py" -c 'import sys; sys.path.insert(0, "legacy_data/member_data_scripts"); from _dump_parser import resolve_dump_root; r = resolve_dump_root(); print(r or "")' 2>/dev/null || true)"
+  local intermediate="${REPO_ROOT}/legacy_data/member_data_scripts/out/legacy_members_final.csv"
+  if [[ -z "$dump_root" && ! -f "$intermediate" ]]; then
+    echo "ERROR: no legacy member-data source." >&2
+    echo "       Need either the footbag.org dump (repo-root symlink or FOOTBAG_LEGACY_DUMP_ROOT)" >&2
+    echo "       or a prior intermediate CSV at ${intermediate}." >&2
+    exit 1
+  fi
+
+  # The enrichment build, identical to --from-csv (no mirror). This builds the
+  # database (historical_persons included) that the member extract reads.
+  run_from_csv
+
+  # The legacy member intake. Extraction needs the dump; the LOAD is deferred:
+  # the pre-apply identity reconciliation (reconcile_legacy_members.py) is not
+  # implemented, so this produces / validates the intermediate CSV but does NOT
+  # apply the member data.
+  local runner="${REPO_ROOT}/legacy_data/member_data_scripts/run_legacy_members.sh"
+  if [[ -n "$dump_root" ]]; then
+    echo "==> member intake: extract dump -> intermediate CSV"
+    run_or_print bash "$runner" --extract
+  else
+    echo "==> member intake: no dump; using the existing intermediate CSV"
+  fi
+  echo "==> member intake: validate + preview (no write)"
+  run_or_print bash "$runner" --load --dry-run
+
+  echo ""
+  echo "NOTE: member data was NOT loaded. The pre-apply identity reconciliation"
+  echo "      is not implemented, so the member load is deferred. Pick it up in"
+  echo "      legacy_data/member_data_scripts/reconcile_legacy_members.py (see"
+  echo "      IMPLEMENTATION_PLAN.md, 'Legacy-site dump intake', sub-item (3))."
+  echo "      --all-data has built the enrichment DB and the intermediate CSV."
+}
+
 case "$MODE" in
   --soup-to-nuts) run_soup_to_nuts ;;
   --from-csv)     run_from_csv ;;
   --db-only)      run_db_only ;;
+  --all-data)     run_all_data ;;
 esac

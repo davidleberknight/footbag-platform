@@ -2025,46 +2025,6 @@ section.home-media { padding-top: 0; }
   margin-top: 32px;
 }
 
-/* Curator classification diagnostic (temporary surface). Plain readable
-   styling only; these rules leave together with the diagnostic section on
-   the club detail template. */
-.club-qc-panel {
-  margin-top: 32px;
-  padding: 16px 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-light);
-  font-size: 0.9rem;
-}
-.club-qc-panel-banner { margin: 0 0 12px; color: var(--text-muted); font-size: 0.85rem; }
-.club-qc-panel-heading { margin: 0 0 6px; font-size: 1.05rem; }
-.club-qc-panel-subheading { margin: 18px 0 6px; font-size: 0.95rem; }
-.club-qc-narrative { margin: 0 0 8px; }
-.club-qc-panel-summary dt,
-.club-qc-inputs dt,
-.club-qc-pipeline-context dt { margin-top: 6px; font-weight: 600; }
-.club-qc-panel-summary dd,
-.club-qc-inputs dd,
-.club-qc-pipeline-context dd { margin: 0; color: var(--text-muted); }
-.club-qc-warning { font-weight: 600; }
-.club-qc-rule-table { width: 100%; margin: 6px 0 4px; border-collapse: collapse; }
-.club-qc-rule-table th,
-.club-qc-rule-table td {
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  font-weight: 400;
-}
-.club-qc-rule--fired .club-qc-rule-fired-cell { color: var(--primary-dk); font-weight: 600; }
-.club-qc-rule--not-fired .club-qc-rule-fired-cell { color: var(--text-subtle); }
-.club-qc-signals { list-style: none; margin: 0; padding: 0; }
-.club-qc-signal { padding: 3px 0; }
-.club-qc-signal-label { font-weight: 600; }
-.club-qc-signal-state { margin-left: 6px; }
-.club-qc-signal-evidence { margin-left: 6px; color: var(--text-muted); font-size: 0.85rem; }
-.club-qc-gate-output { margin: 8px 0 0; }
-
-
 .club-country-nav {
   margin: 24px 0 32px;
 }
