@@ -14,8 +14,9 @@ audit removed everything answerable from the written record; the first follow-up
 ## With Red
 
 1. **Blurry expansion predicate** — when does a blurry-named trick carry the paradox
-   term? The largest gate (~43 rows at audit count, plus ten deferred blurry-form
-   aliases). The question is asked with the source-split evidence: footbag.org JOBs
+   term? The largest gate (64 rows gated `blurry_expansion` in the current universe,
+   plus ten deferred blurry-form aliases and 5 active canonical blurry rows flagged
+   `approximate` in ADD status). The question is asked with the source-split evidence: footbag.org JOBs
    carry `[PDX]` where PassBack's stepping-only technical names omit it (Bedwetter,
    Blizzard, Blurrage, Spike Hammer), with Ripwalk the only both-sources-agree
    no-paradox case — so is the paradox term physical content footbag.org records and
@@ -34,8 +35,8 @@ audit removed everything answerable from the written record; the first follow-up
    changes ride on it.
 3. **Operator structural definitions** — the ADDs are already evidenced (proofs in
    `OPERATOR_DERIVATIONS.md`); the ask is what each movement IS:
-   - **blazing** — structure/notation for the nine backfills (+1 is proven by
-     arithmetic);
+   - **blazing** — structure/notation for the eight canonical compounds (+1 is
+     proven by arithmetic over all eight in `OPERATOR_DERIVATIONS.md`);
    - **flailing** — confirm/deny: flail = symposium illusion is documented; is
      flailing its prefix form?
    - **slapping** — confirm/deny: FootbagMoves defines bare Slap; is slapping its
@@ -47,15 +48,22 @@ audit removed everything answerable from the written record; the first follow-up
    later).
 5. **The terraging chain rider** — the registry's +3, the shipped two-dex clipper
    notations, footbag.org's 3-bracket terrage, and Red's ruled 4 cannot all be
-   reconciled from the record; ridden to Red by curator ruling. **Send-confirmation
+   reconciled from the record; ridden to Red by curator ruling. Two rows sit in the
+   `terraging_chain` gate in the current universe; the curator session rode four
+   terrage rows to Red (the other two resolve in the alias and parser layers), so
+   the letter carries four and the EV gate holds two. **Send-confirmation
    caveat:** the committed audit refers to an email draft that was never committed,
    so nothing in the repository proves this rider actually reached Red — confirm it
    was sent (or send it) before treating it as pending with him.
 6. **The rider list** (one combined section in the letter):
-   - same-operator-twice scoring (three rows);
+   - same-operator-twice scoring (four rows gated `repeated_operator`);
    - jani-walker structure (also decides Sidewinder = fairy gyro jani-walker);
    - the general osis-suffix rule (would accelerate the per-row curator path);
-   - arctic (undefined operator);
+   - arctic (undefined operator: the parser does not recognize the arctic modifier
+     token, so Arctic Butterfly and Arctic Whirl sit in the authoring queue but
+     cannot author until the movement is defined — the ask is to define it; the
+     "Arctic (frigidosis Pixie)" archive row is a folk reading, not a usable
+     structure);
    - solestice (an undefined "osis flapper" operator);
    - blink / twisting (degenerate structures with no exemplar — Blink, Toe Spinning
      Toe, and the "What!?" name hang on them);
@@ -67,6 +75,12 @@ audit removed everything answerable from the written record; the first follow-up
      the structured name two operators at 5);
    - slicing (Lawn Moir's base reading, if its FootbagMoves-notation authoring
      attempt fails).
+
+   Solestice, Double Dyno / Double Whip, and Stepping Ducking Blurry Whirl are
+   records-only questions (each blocks one world-record badge, none gates a
+   dictionary row); their live tracking home is the unresolved-world-record-videos
+   item in `IMPLEMENTATION_PLAN.md`, and the letter is only the delivery vehicle, so
+   they are not double-tracked as dictionary gates here.
 
 ## With the curator
 

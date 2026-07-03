@@ -73,6 +73,51 @@ Follows the curator working order where it applies; each step names its owner.
 12. **Close-out audit** (James, small): re-run the completion checklist; confirm
     every OPEN in `COMPLETION_CRITERIA.md` is either done or recorded as post-V1.
 
+## 2a. Curator reprioritization — finish the public encyclopedia first (2026-07-03)
+
+The roadmap is a dependency graph, not a fixed order. The curator has reprioritized
+to complete the public freestyle encyclopedia as fully as practical before any
+repository-wide work, and this reordering was verified free of dependency
+violations. The execution order is now:
+
+1. **Public-honesty fixes** (was step 4) — the coming-soon tiles, the sole-survivor
+   video, the records-page framing. The sole-survivor clip waits on a curator
+   sourcing action (and a fresh DB build); the tile removal and the records sentence
+   proceed independently.
+2. **Foundational editorial pass** (part of step 9) — Osis, Down family, Whirling
+   Swirl, Swirling Whirl, per `PHASE1_FOUNDATIONAL_EDITORIAL.md`.
+3. **History rewrite + reference shelf** (rest of step 9).
+4. **Unknown-notation batch** (was step 5) — the 26 notation-less active tricks;
+   author the derivable subset, record deferred status for the Red-blocked remainder
+   (arctic, blazing structure, rake-based rows).
+5. **Blurry footbag.org-JOB authorable subset** (was step 6) — the rows that author
+   under source priority regardless of Red's answer; the remainder stays gated.
+6. **Glossary / encyclopedia de-dup fixes** (was steps 7-8) — fixes 2 and 4, then 1
+   then 3.
+7. **Discoverability and cross-link pass** (from `ENCYCLOPEDIA_AUDIT.md`).
+8. **Only then repository-wide work** — pipeline doc-sync (step 2), exploration
+   consolidation (step 3), hygiene (step 10), skills trim (step 11).
+
+Why it is safe: no freestyle item depends on the deferred repository work.
+Exploration consolidation is better done AFTER the content work — it repoints the
+references doctrine docs and skills make into `exploration/`, so doing it last avoids
+repointing mid-flight — and the pipeline doc-sync gates no content authoring. The
+only external inputs inside the freestyle track are curator actions (the
+sole-survivor clip, the history sources), not repository tasks.
+
+Interactions to manage (soft, not blockers):
+- Coming-soon tiles (item 1) and the history rewrite (item 3) share the
+  landing/history surface: item 1 removes the vaporware for honesty now; item 3
+  rebuilds real pages and tiles. Treating removal as the honest interim state avoids
+  remove-then-readd churn.
+- The Down-family editorial rewrite (item 2) and the family-card de-dup fix 4 (item
+  6) both edit `freestyleGlossaryFamilyCards.ts`, but item 2 rewrites the definition
+  prose and the mislabeled one-family ruling while fix 4 derives the kind/tier
+  fields; fix 4 must preserve item 2's prose (the render-oracle regression catches
+  content loss).
+- Items 4 and 5 promote rows and shift the gate counts; each slice re-syncs its own
+  counts under the surface-propagation rule.
+
 ## 3. Parallelizable work
 
 - Steps 4, 5, 6 are independent of steps 2, 3 (different files).
