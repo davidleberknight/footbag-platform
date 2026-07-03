@@ -30,6 +30,19 @@ G. **Editorial floor met**: foundational-page pass per
 H. **Everything else parked ON PURPOSE**: EV promotion frontier, queued set pages,
    Movement Systems audit, admin dictionary editor — each carried as a recorded
    post-V1 item, never as silent absence.
+I. **The Hour Test passes (site-level final gate).** A person browses the site for an
+   uninterrupted hour as an interested freestyler — no code, no database, no CSVs,
+   just browsing — and never hits a point where they want to stop and edit something:
+   "this is confusing", "I expected a link", "why isn't this explained", "where do I
+   click now", "this sentence is awkward". Whatever the browse surfaces gets fixed,
+   and the hour is repeated until it runs clean. Manual by nature, and the thing that
+   separates a technically complete encyclopedia from a genuinely polished one.
+J. **Three-persona acceptance passes (per-page final gate).** Every foundational and
+   important page passes the three-persona review defined in section 2a: a novice
+   understands it (accessibility), an intermediate player learns from it (education),
+   and an expert trusts it (authority) — all three, independently. This is the
+   per-page companion to the Hour Test's site-level browse; together they are the
+   release bar for editorial completion.
 
 ## 2. Ordered implementation roadmap (shortest path to done)
 
@@ -73,50 +86,127 @@ Follows the curator working order where it applies; each step names its owner.
 12. **Close-out audit** (James, small): re-run the completion checklist; confirm
     every OPEN in `COMPLETION_CRITERIA.md` is either done or recorded as post-V1.
 
-## 2a. Curator reprioritization — finish the public encyclopedia first (2026-07-03)
+## 2a. Execution frame — the Editorial Release Phase (curator-set, 2026-07-03)
 
-The roadmap is a dependency graph, not a fixed order. The curator has reprioritized
-to complete the public freestyle encyclopedia as fully as practical before any
-repository-wide work, and this reordering was verified free of dependency
-violations. The execution order is now:
+Work is no longer executed as a numbered roadmap. This is the Editorial Release
+Phase: every slice must directly improve what a public visitor sees, and internal
+cleanup, repository work, and pipeline documentation are intentionally deferred until
+editorial completion. The numbered sections of this document remain the
+dependency-and-owner reference; this section governs execution order. Work runs in
+four phases, A → B → C → D.
 
-1. **Public-honesty fixes** (was step 4) — the coming-soon tiles, the sole-survivor
-   video, the records-page framing. The sole-survivor clip waits on a curator
-   sourcing action (and a fresh DB build); the tile removal and the records sentence
-   proceed independently.
-2. **Foundational editorial pass** (part of step 9) — Osis, Down family, Whirling
-   Swirl, Swirling Whirl, per `PHASE1_FOUNDATIONAL_EDITORIAL.md`.
-3. **History rewrite + reference shelf** (rest of step 9).
-4. **Unknown-notation batch** (was step 5) — the 26 notation-less active tricks;
-   author the derivable subset, record deferred status for the Red-blocked remainder
-   (arctic, blazing structure, rake-based rows).
-5. **Blurry footbag.org-JOB authorable subset** (was step 6) — the rows that author
-   under source priority regardless of Red's answer; the remainder stays gated.
-6. **Glossary / encyclopedia de-dup fixes** (was steps 7-8) — fixes 2 and 4, then 1
-   then 3.
-7. **Discoverability and cross-link pass** (from `ENCYCLOPEDIA_AUDIT.md`).
-8. **Only then repository-wide work** — pipeline doc-sync (step 2), exploration
-   consolidation (step 3), hygiene (step 10), skills trim (step 11).
+**Phase A — Public Encyclopedia Polish (highest priority; the pages every visitor
+sees). This is editorial completion, and it is the release bar. It runs as four
+ordered sub-phases — polishing toward a finished encyclopedia rather than patching
+one — plus a running usability pass.**
 
-Why it is safe: no freestyle item depends on the deferred repository work.
-Exploration consolidation is better done AFTER the content work — it repoints the
-references doctrine docs and skills make into `exploration/`, so doing it last avoids
-repointing mid-flight — and the pipeline doc-sync gates no content authoring. The
-only external inputs inside the freestyle track are curator actions (the
-sole-survivor clip, the history sources), not repository tasks.
+- **A1 — Foundational content (highest value).** Osis, Down family, Whirling Swirl,
+  Swirling Whirl, per `PHASE1_FOUNDATIONAL_EDITORIAL.md`. These become the exemplars
+  for how every trick and family page should read. Each must answer the
+  foundational-page rubric below, not just carry better prose.
+- **A2 — History (the biggest content gap).** Rewrite the history page; add BAP,
+  Hall of Fame, and FB World; add the timeline; add references; link to records and
+  to historical people. This replaces most of the "Coming Soon" concept with real
+  content.
+- **A3 — Encyclopedia connectivity (where it starts to feel finished).** Glossary,
+  deep links, "see also", family links, operator links, movement links, notation
+  links, history links. The single biggest quality-of-life improvement for readers.
+- **A4 — Public-honesty pass (final polish).** Remove any remaining "Coming Soon";
+  missing videos; broken links; records-page framing; badge cleanup. Done last, so
+  it polishes a finished encyclopedia: A2 has already given the Coming-Soon tiles
+  real destinations, so this is cleanup of the residue, not a remove-versus-replace
+  call.
+
+**Usability pass — the advancing intermediate player (run early; feeds A1 and A3).**
+Read the encyclopedia not as curator or database author, and not as a stranger to the
+sport, but as its real audience: an advancing intermediate freestyler who can already
+do Mirage, Legover, Butterfly, and maybe Whirl, and wants to understand freestyle
+more deeply. Browse from the landing page through families, trick pages, and links,
+and ask at each page — do I understand why this trick is important, can I visualize
+the motion, do I know where to go next, and are there dead ends? Every five-second
+hesitation gets written down. This surfaces editorial improvements no audit or
+roadmap finds; its log seeds the A1 and A3 work.
+
+**Foundational-page rubric — eight questions (the teaching model).** Every
+foundational page — and, by their example, every trick and family page — answers, in
+order: (1) What is it? (2) How is it performed? (3) Why is it important? (4) How does
+it relate to other tricks? (5) What does it generate? (6) What common
+misunderstandings exist? (7) Where should I go next? (8) What makes this one
+interesting? The eighth is what turns documentation into an encyclopedia — the
+memorable takeaway a reader leaves with. Per page — Osis: a terminal movement, not a
+clipper entry; one of the most influential terminal movements in freestyle, anchoring
+the Torque and Blender families and appearing inside hundreds of advanced
+combinations. Down: define what "down" means physically; the four structural variants
+share one underlying terminal movement, which is why Red confirmed they are one
+structural family; link Barfly, DOD, DDD, Paradon. Whirling Swirl: a simultaneous
+whirl and swirl — despite the name suggesting a sequence, they occur as one
+coordinated action. Swirling Whirl: the opposite naming convention highlights the
+same coordinated execution from a different perspective; the name alone does not
+indicate execution order.
+
+**Three-persona review — the page-acceptance standard.** Answering the eight
+questions is necessary but not sufficient. A foundational page — and every important
+page — is finished only when three independent readers would each say yes, because
+accessibility, education, and authority are different tests a page can pass singly
+while failing another:
+
+- **Novice — Accessibility ("Can I understand this?").** Just discovered freestyle.
+  Asks: what is this, can I understand the first paragraph, what do these words mean,
+  can I picture it, where do I go next. Watches for jargon, unexplained terms, dead
+  ends, intimidation. Success: "I want to keep reading." The page reads easily,
+  defines its terminology, links well, never dead-ends.
+- **Intermediate — Education ("Can I learn from this?").** Knows the basics, wants to
+  improve. Asks: why is this trick important, how does it relate to other tricks,
+  what should I learn first, what misconception did this clear up, what to practice
+  next. Watches for progression, relationships, conceptual understanding, navigation.
+  Success: "I learned something useful." The page explains significance, shows
+  relationships, gives correct progression, suggests next reading.
+- **Expert / historian / curator — Authority ("Can I trust this?").** Years of play.
+  Asks: is this historically accurate, is the doctrine consistent, is terminology
+  correct, are aliases handled properly, are sources represented honestly, does it
+  match community understanding, were controversial points acknowledged. Watches for
+  subtle inaccuracies, historical omissions, doctrinal inconsistency, misleading
+  wording, unsupported claims. Success: "I trust this encyclopedia." The page is
+  historically honest, structurally correct, fair to its sources, doctrine-consistent,
+  and free of unsupported assertions.
+
+The rule: a page is finished only when the novice understands it, the intermediate
+player learns from it, and the expert respects it — all three, independently. This is
+the per-page acceptance test at the release bar; the Hour Test (checklist gate I) is
+its site-level companion — the three-persona review certifies each page, the Hour Test
+certifies the whole browse. The usability pass now running is the intermediate lens;
+the novice and expert lenses are applied when each A1 page is built and accepted.
+
+**Phase B — Dictionary completion.** Unknown notation (the 26 notation-less active
+tricks); the no-Red blurry footbag.org subset; remaining deterministic authoring;
+remaining aliases. Author the derivable rows; record deferred status per row for the
+Red-blocked remainder (arctic, blazing structure, rake-based).
+
+**Phase C — Architecture.** De-dup; authority modules; reference ownership;
+exploration consolidation.
+
+**Phase D — Repository.** PRE-KANBAN; skills trim; pipeline docs; cleanup; backup
+pruning.
+
+Dependency check: the phase order is safe. Phase A depends on nothing in B, C, or D.
+The A1 → A2 → A3 → A4 sub-order is deliberate: the foundational pages set the model
+the connectivity pass links into; the history build gives the "Coming Soon" tiles
+real destinations before the honesty pass removes the residue (so remove-versus-
+replace never has to be decided); and connectivity precedes the final polish so links
+point at stable homes. Phase C's exploration consolidation stays after the editorial
+and dictionary work, so the references doctrine docs and skills make into
+`exploration/` are repointed once, not mid-flight. Phase D is the previously-deferred
+repository track. The only cross-cutting inputs are curator content decisions inside
+Phase A — the sole-survivor clip, and the Hall of Fame / FB World / BAP history
+sources, including the BAP shred-clip tagging pass — curator work, not cross-phase
+blockers.
 
 Interactions to manage (soft, not blockers):
-- Coming-soon tiles (item 1) and the history rewrite (item 3) share the
-  landing/history surface: item 1 removes the vaporware for honesty now; item 3
-  rebuilds real pages and tiles. Treating removal as the honest interim state avoids
-  remove-then-readd churn.
-- The Down-family editorial rewrite (item 2) and the family-card de-dup fix 4 (item
-  6) both edit `freestyleGlossaryFamilyCards.ts`, but item 2 rewrites the definition
-  prose and the mislabeled one-family ruling while fix 4 derives the kind/tier
-  fields; fix 4 must preserve item 2's prose (the render-oracle regression catches
-  content loss).
-- Items 4 and 5 promote rows and shift the gate counts; each slice re-syncs its own
-  counts under the surface-propagation rule.
+- The A1 Down-family and Osis editorial rewrites edit `freestyleGlossaryFamilyCards.ts`
+  prose; the Phase C family-card de-dup later derives that card's kind/tier fields
+  and must preserve the A1 prose (the render-oracle regression catches content loss).
+- Phase B promotions shift the gate counts; each slice re-syncs its own counts under
+  the surface-propagation rule.
 
 ## 3. Parallelizable work
 
