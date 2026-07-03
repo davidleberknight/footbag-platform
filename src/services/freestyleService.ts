@@ -131,6 +131,8 @@ import {
   OperatorReferenceEntry,
   OPERATOR_REFERENCE_ENTRIES,
   getOperatorReferenceEntry,
+  TIER1_OPERATOR_DEFINITIONS,
+  getTier1OperatorDefinition,
 } from '../content/freestyleOperatorReference';
 import {
   OPERATOR_INDEX_AXES,
@@ -1140,8 +1142,13 @@ const MODIFIER_EXECUTION_NOTES: Readonly<Record<string, string>> = {
   muted:  'An active leg held in the air for an entire component without planting. Mostly used for dexes, but applies to other components too.',
 };
 
+// The definition line for an operator row or stub. Tier-1 operators have one
+// canonical definition (the operator reference owns it); a feel card's movement
+// line, an intermediate reference entry's one-line meaning, and the execution
+// notes are the fallbacks for operators without one.
 function operatorDescriptor(slug: string): string | null {
-  return operatorFeelCard(slug)?.feel
+  return getTier1OperatorDefinition(slug)?.definition
+    ?? operatorFeelCard(slug)?.feel
     ?? getOperatorReferenceEntry(slug)?.oneLineMeaning
     ?? MODIFIER_EXECUTION_NOTES[slug]
     ?? null;
@@ -3715,6 +3722,11 @@ export interface FreestyleGlossaryContent {
   // subsection. Authoritative source for what each intermediate operator
   // means and how it decomposes; equivalence-chain tokens deep-link here.
   intermediateOperators: readonly OperatorReferenceEntry[];
+  // Canonical Tier-1 definition lines keyed by slug, from the operator
+  // reference. The body-modifier reference partial renders each definition
+  // from this record instead of authoring its own copy; the per-term extras
+  // (formula, panel links, family notes) stay in the template.
+  tier1Definitions: Readonly<Record<string, string>>;
   // Foundational tricks
   // and set-modifier grids rendered as compact symbolic objects inside §10.
   // Same view-model shape as the landing's coreTricks for partial reuse.
@@ -4006,6 +4018,9 @@ export interface FreestyleOperatorsContent {
   // has), not operators a player applies, so they sit apart from the index as
   // peers. Sourced from the canonical component-flag labels.
   notationVocabulary: { token: string; meaning: string }[];
+  // The canonical paradox definition line, rendered as the lead of the page
+  // tail's Paradox note so the tail never authors a second definition.
+  paradoxDefinition: string;
 }
 
 // Data-driven detail page for a known modifier that has no hand-authored
@@ -9609,6 +9624,9 @@ export const freestyleService = {
       content: {
         operatorBoard:         this.getOperatorBoard('glossary'),
         intermediateOperators: OPERATOR_REFERENCE_ENTRIES,
+        tier1Definitions: Object.fromEntries(
+          TIER1_OPERATOR_DEFINITIONS.map(d => [d.slug, d.definition]),
+        ),
         coreTricks,
         setModifiers,
         notationExamples: {
@@ -10057,6 +10075,7 @@ export const freestyleService = {
           { token: '[XBD]',  meaning: 'cross-body delay' },
           { token: '[XDEX]', meaning: 'conditional +1 X-Dex component' },
         ],
+        paradoxDefinition: getTier1OperatorDefinition('paradox')?.definition ?? '',
       },
     };
   },

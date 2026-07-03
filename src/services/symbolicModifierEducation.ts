@@ -2,7 +2,6 @@
  * symbolicModifierEducation.ts
  *
  * Hand-authored educational pages for modifier-family teaching surfaces.
- * Pilot scope: spinning only.
  *
  * Design philosophy:
  *   - These are TEACHING SURFACES, not symbolic report generators.
@@ -16,11 +15,16 @@
  *     diving/weaving/zulu for ducking).
  *
  * Adding new modifiers: register an object in MODIFIER_PAGE_CONTENT.
- * Only spinning exists so far, so the pedagogy framework can be validated
- * before extension to paradox + ducking.
+ *
+ * Definition authority: a Tier-1 operator's "What it is" line is canonical in
+ * the operator reference (TIER1_OPERATOR_DEFINITIONS) and is derived at build
+ * time, never authored here. Everything pedagogical on these pages (subtitle,
+ * why-it-exists, notation teaching, progression, confusions, execution notes)
+ * stays authored locally.
  */
 import type { FreestyleTrickRow } from '../db/db';
 import { glossaryHrefForTerm } from './glossaryAnchors';
+import { getTier1OperatorDefinition } from '../content/freestyleOperatorReference';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -62,7 +66,10 @@ export interface ModifierEducationInput {
   pageTitle:            string;
   pageSubtitle:         string;     // sits below the H1; one-line frame
   // ── Concept-first frozen template (the standard for operator pages) ──
-  definition?:          string;     // What it is
+  // What it is. Tier-1 operators leave this unset: their canonical definition
+  // line comes from the operator reference at build time. A local value is
+  // only for operators without a Tier-1 canonical definition.
+  definition?:          string;
   whyItExists?:         string;     // Why it exists (the structural distinction it records, not difficulty)
   howItChangesBase?:    string;     // How <Operator> changes the base trick (operator-first; modifies, never replaces)
   jobNotation?:         string;     // How it is written in JOB notation, and what the notation records
@@ -155,8 +162,6 @@ const SPINNING_CONTENT: ModifierEducationInput = {
   displayName: 'Spinning',
   pageTitle:   'Spinning',
   pageSubtitle: 'A body-rotation operator: a full-body rotation carried through the dex, with the underlying dexterity unchanged.',
-  definition:
-    'Spinning is a body-rotation operator. It adds a full-body rotation that the body carries through the dexterity, while the underlying dexterity itself is unchanged. It is a +1 body modifier, recorded as a rotational body event.',
   whyItExists:
     'Spinning exists to distinguish tricks that incorporate a full-body rotational event. The underlying trick remains the same; the operator records that the body rotates while performing it. This rotational event is significant enough to score independently as [BOD].',
   howItChangesBase:
@@ -302,8 +307,6 @@ const PARADOX_CONTENT: ModifierEducationInput = {
   displayName: 'Paradox',
   pageTitle:   'Paradox',
   pageSubtitle: 'An operator that changes the relationship between the body, the support leg, and the dexterity.',
-  definition:
-    'Paradox is an operator that changes the relationship between the body, the support leg, and the dexterity. The body switches sides relative to the dex, so the support leg and the dexterity end up on opposite sides of the centreline. It is a +1 body modifier, and it is not defined by any single entry formula.',
   whyItExists:
     'Paradox exists to distinguish tricks whose dexterity is performed from the opposite body relationship. The dexterity itself is unchanged; what changes is how the body and support leg are positioned relative to it. That structural relationship is significant enough to score independently as [PDX].',
   howItChangesBase:
@@ -448,8 +451,6 @@ const DUCKING_CONTENT: ModifierEducationInput = {
   displayName: 'Ducking',
   pageTitle:   'Ducking',
   pageSubtitle: 'A body operator: the player passes beneath the bag, changing the bag\'s path relative to the body, while the underlying trick is unchanged.',
-  definition:
-    'Ducking is a body operator in which the player passes beneath the bag, changing the path the bag takes relative to the body while the underlying trick is preserved. The base trick remains recognizable; ducking is the body movement added around it. It is a +1 body modifier.',
   whyItExists:
     'Ducking exists to record a body movement that changes how the player and the bag interact. The underlying dexterity is unchanged; the operator records that the player passes beneath the bag while performing it. This body event is significant enough to score independently as [BOD]: it contributes DUCK [BOD], not another dexterity, delay, or body relationship.',
   howItChangesBase:
@@ -596,8 +597,6 @@ const SYMPOSIUM_CONTENT: ModifierEducationInput = {
   displayName: 'Symposium',
   pageTitle:   'Symposium',
   pageSubtitle: 'A no-plant discipline: the support leg stays off the ground through the dexterity.',
-  definition:
-    'Symposium is a no-plant discipline applied to a dexterity. The support leg stays off the ground and the setting foot does not replant while the dex is performed. It is a +1 body modifier.',
   whyItExists:
     'Symposium exists to distinguish tricks performed without replanting the support foot. The dexterity itself is unchanged; the operator records that the support leg stays off the ground through the dex. This no-plant discipline is significant enough to score independently as [BOD].',
   howItChangesBase:
@@ -718,8 +717,6 @@ const GYRO_CONTENT: ModifierEducationInput = {
   displayName: 'Gyro',
   pageTitle:   'Gyro',
   pageSubtitle: 'A rotational operator that changes the body\'s orientation during a trick, while the underlying dexterity stays the same.',
-  definition:
-    'Gyro is a rotational operator: it changes the orientation of the body during a trick while the underlying dexterity stays the same. The rotation is approximately a half turn, where a full spin is a complete turn, so the two leave the body in a different orientation at the moment the dexterity is performed. Gyro, spinning, and inspinning are closely related rotational operators that all contribute the same rotational body event, SPIN [BOD], and differ in the orientation the rotation produces. It is a +1 body modifier.',
   whyItExists:
     'Gyro exists to distinguish tricks whose body rotation leaves the body in a different orientation than a full spin at the moment the dexterity is performed. The dexterity itself is unchanged; the operator records that the body turns through an approximate half rotation rather than a full one. This rotational event is significant enough to score independently as [BOD].',
   howItChangesBase:
@@ -861,8 +858,6 @@ const DIVING_CONTENT: ModifierEducationInput = {
   displayName: 'Diving',
   pageTitle:   'Diving',
   pageSubtitle: 'A body operator: the bag passes over the player, changing the bag\'s path relative to the body, while the underlying trick is unchanged.',
-  definition:
-    'Diving is a body operator in which the bag passes over the player, changing the path the bag takes relative to the body while the underlying trick is preserved. It is the complement of ducking: in ducking the player passes beneath the bag, and in diving the bag passes over the player. The base trick remains recognizable; diving is the body movement added around it. It is a +1 body modifier.',
   whyItExists:
     'Diving exists to record a body movement that changes how the player and the bag interact. The underlying dexterity is unchanged; the operator records that the bag passes over the player while performing it. This body event is significant enough to score independently as [BOD]: it contributes DIVE [BOD], not another dexterity, delay, or body relationship.',
   howItChangesBase:
@@ -1012,8 +1007,6 @@ const TAPPING_CONTENT: ModifierEducationInput = {
   displayName: 'Tapping',
   pageTitle:   'Tapping',
   pageSubtitle: 'A +1 modifier that adds a quick tap ahead of the base trick, leaving the underlying trick recognizable.',
-  definition:
-    'Tapping is a +1 modifier that adds a quick tap ahead of the base trick. The base trick remains recognizable; tapping prepends a short toe-set tap before it, and the trick then runs unchanged. It sits with the other midtime-body modifiers, the spins and the head movements, as a productive +1 treatment across many bases. The tap is a quick dexterity movement, written in the notation as a leading toe-set dex, and it contributes +1.',
   whyItExists:
     'Tapping exists to distinguish tricks that prepend a quick tap before the base. The base is unchanged; the operator records the short tap performed ahead of it, scored independently as a +1 modifier.',
   howItChangesBase:
@@ -1349,7 +1342,9 @@ export function buildModifierFamilyPage(
     displayName:        input.displayName,
     pageTitle:          input.pageTitle,
     pageSubtitle:       input.pageSubtitle,
-    definition:         input.definition,
+    // The canonical Tier-1 definition wins; a local value only covers operators
+    // the operator reference does not define.
+    definition:         getTier1OperatorDefinition(input.slug)?.definition ?? input.definition,
     whyItExists:        input.whyItExists,
     howItChangesBase:   input.howItChangesBase,
     jobNotation:        input.jobNotation,

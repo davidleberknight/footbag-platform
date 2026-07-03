@@ -5,6 +5,14 @@
  * compound/quantifier operators that sit between Tier-1 board primitives
  * (PIX, AT, SPIN, etc.) and the curator-authored equivalence-chain layer.
  *
+ * This module is also the single authority for each Tier-1 operator's
+ * canonical definition line (TIER1_OPERATOR_DEFINITIONS below). The operators
+ * index rows, the modifier teaching pages' "What it is" text, and the
+ * glossary's body-modifier reference all derive their definition sentence
+ * from that record; they never author a competing definition. Pedagogy
+ * (feel cards, progressions, confusions, execution notes) stays local to
+ * each surface.
+ *
  * Two decomposition layers are documented per operator where authority exists:
  *
  *   - Operational layer: set-notation sequence (CLIP > OP IN [DEX] > etc.)
@@ -28,8 +36,9 @@
 
 export type OperatorReferenceCategory =
   | 'set'              // a complete set treatment (atomic, blurry, etc.)
-  | 'body'             // a body modifier (currently none in this file; Tier-1
-                       //  body operators live on the operator board)
+  | 'body'             // a body modifier with a reference entry (inspinning);
+                       //  Tier-1 body operators carry only a definition line
+                       //  here (TIER1_OPERATOR_DEFINITIONS), not a full entry
   | 'compound-set'     // a set treatment that decomposes into other operators
   | 'compound-body'    // a body operator that decomposes into other operators
   | 'quantifier';      // a quantifier-style operator (double)
@@ -170,4 +179,78 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
 export function getOperatorReferenceEntry(slug: string): OperatorReferenceEntry | null {
   const normalized = slug.trim().toLowerCase();
   return OPERATOR_REFERENCE_ENTRIES.find(e => e.slug === normalized) ?? null;
+}
+
+/**
+ * Canonical definition line for one Tier-1 operator. The definition is the
+ * structural what-it-is sentence, including the operator's contribution weight;
+ * it is authored exactly once, here, and every surface that states what the
+ * operator IS renders this string. Surfaces keep their own pedagogy (feel,
+ * intuition, progression, confusions) locally; only the definition derives.
+ */
+export interface Tier1OperatorDefinition {
+  slug:       string;
+  definition: string;
+}
+
+// The Tier-1 operators taught on the operators index and the modifier teaching
+// pages. Intermediate operators (atomic, blurry, nuclear, ...) instead carry a
+// full OperatorReferenceEntry above, whose oneLineMeaning is their definition.
+export const TIER1_OPERATOR_DEFINITIONS: readonly Tier1OperatorDefinition[] = [
+  {
+    slug: 'paradox',
+    definition:
+      'Paradox is a hip pivot between two dexes on the same set: it changes the side ' +
+      'relationship between the support leg and the dexterity, so the body switches sides ' +
+      'around the dex without changing the set foot. It is a +1 body modifier.',
+  },
+  {
+    slug: 'spinning',
+    definition:
+      'Spinning is a body-rotation operator: a full-body 360° rotation carried through ' +
+      'the dex moment, with the underlying dexterity unchanged. It is a +1 body modifier, ' +
+      'recorded as a rotational body event.',
+  },
+  {
+    slug: 'gyro',
+    definition:
+      'Gyro is a rotational operator: an approximate half rotation (180°) where spinning ' +
+      'is a full turn, leaving the body in a different orientation at the moment the ' +
+      'dexterity is performed. It is a +1 body modifier.',
+  },
+  {
+    slug: 'ducking',
+    definition:
+      'Ducking is a body operator: the player passes beneath the bag near the apex, so the ' +
+      'bag passes around the head and neck while the underlying trick is unchanged. It is a ' +
+      '+1 body modifier.',
+  },
+  {
+    slug: 'diving',
+    definition:
+      'Diving is a body operator: the bag passes over the player, the complement of ducking, ' +
+      'while the underlying trick is unchanged. It is a +1 body modifier.',
+  },
+  {
+    slug: 'tapping',
+    definition:
+      'Tapping is a +1 modifier that adds a quick tap ahead of the base trick: a short ' +
+      'toe-set dex is prepended, and the base then runs unchanged.',
+  },
+  {
+    slug: 'symposium',
+    definition:
+      'Symposium is a no-plant leg discipline: the support leg stays off the ground and the ' +
+      'setting foot does not replant while the dex is performed. It is a +1 body modifier.',
+  },
+];
+
+/**
+ * Look up the canonical Tier-1 definition line by slug. Returns null when the
+ * operator is not Tier-1 (intermediate operators use their reference entry's
+ * oneLineMeaning instead).
+ */
+export function getTier1OperatorDefinition(slug: string): Tier1OperatorDefinition | null {
+  const normalized = slug.trim().toLowerCase();
+  return TIER1_OPERATOR_DEFINITIONS.find(d => d.slug === normalized) ?? null;
 }
