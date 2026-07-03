@@ -1,5 +1,11 @@
 # Doctrine frontier — minimum decision set, 2026-07-02
 
+> **D2 PARTIALLY ANSWERED (Red follow-up, same day):** the downs are ruled one family — a
+> single structural decomposition with set/foot variants (the grid's axes). The
+> embedded-base labeling rule for operator compounds (D2's Q2) remains open; the three
+> shipped base-label tension rows stay deferred on it. See
+> `../dod-ddd-evidence-pass-2026-07-02/RED_PACKET_A1_REVISED.md`.
+
 Read-only audit of every held trick after the Day-2 promotions, **excluding** parser
 limitations and missing-notation backfills (authoring work, not doctrine). Derived fresh from
 the regenerated `freestyleObservationalUniverse.ts` (1049 rows: ready 2 / frontier 120 /

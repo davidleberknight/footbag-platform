@@ -1,5 +1,9 @@
 # Down-family adversarial audit: falsification pass on the 2x2 topology grid
 
+> **RED RULED (2026-07-02):** the downs are one family, a single structural decomposition
+> with set/foot variants — the reading this audit failed to falsify. The section-5
+> embedded-base assignment rule remains the one deferred piece.
+
 Date: 2026-07-02. Companion to `RED_PACKET_A1_REVISED.md` (rewritten same day around this
 result) and `PASSBACK_SOURCING_REPORT.md`.
 

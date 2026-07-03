@@ -499,7 +499,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Illusioning Legover (Eggbeater)", "slug": "illusioning-legover-eggbeater", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Illusioning Osis (Flux)", "slug": "illusioning-osis-flux", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Sailing DOD", "slug": "sailing-dod", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Atomic Double Over Down", "slug": "atomic-double-over-down", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Atomic far Symp. Double Down", "slug": "atomic-far-symp-double-down", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Atomic os Symposium Double Over Down", "slug": "atomic-os-symposium-double-over-down", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Blurry Barrage", "slug": "blurry-barrage", "source": "FM", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
@@ -1067,7 +1066,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 990,
+    "total": 989,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1075,7 +1074,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 141,
+    "promotionFrontier": 140,
     "lexicalArchive": 847,
     "intakeBuckets": {
       "promotion_ready": {
@@ -1083,8 +1082,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 4
       },
       "doctrine_pending": {
-        "names": 27,
-        "distinctStructures": 27
+        "names": 26,
+        "distinctStructures": 26
       },
       "unresolved_candidate": {
         "names": 110,
@@ -1113,7 +1112,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     },
     "ready": 2,
     "frontier": 112,
-    "doctrineBlocked": 39,
+    "doctrineBlocked": 38,
     "folkUnresolved": 516,
     "parserUnresolved": 321,
     "promotionReadyPct": 12,
@@ -1123,7 +1122,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "canonicalCoveragePct": 21,
     "sources": {
       "SG": 531,
-      "FM": 214,
+      "FM": 213,
       "PB": 172,
       "FB": 69,
       "MULTI": 4
@@ -1134,7 +1133,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
 
 export const DOCTRINE_BLOCKING_QUESTIONS: Record<string, string> =
   {
-    "dod-ddd": "How do Double-Down and Double-Over-Down terminals score? (policy unruled)",
+    "dod-ddd": "Down-family compounds: which frame names the embedded base? (labeling only; the downs are ruled one family, a single structural decomposition with set/foot variants, and scoring is unaffected)",
     "weaving": "Weaving is an undefined folk operator; movement structure unruled.",
     "shooting": "Shooting is an undefined folk operator; structural reading unruled.",
     "other": "Operator weight or definition pending (fairy / pixie weight; folk operators)."

@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1381;
+export const TRACKED_UNPUBLISHED_TOTAL = 1380;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -647,7 +647,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Arachnophobia', slug: 'arachnophobia', operationalNotation: 'Clip > Op In (DEX) >> Dive (BOD) >> Same In (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Arctic Butterfly', slug: 'arctic_butterfly' },
     { displayName: 'Arcwalk', slug: 'arcwalk', operationalNotation: 'Frigidosis > Same In (DEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
-    { displayName: 'Atomic Double Over Down', slug: 'atomic_double_over_down' },
     { displayName: 'Atomic Ducking Double Legover', slug: 'atomic_ducking_double_legover' },
     { displayName: 'Atomic Illusion (same side)', slug: 'atomic_illusion_same_side' },
     { displayName: 'Atomic Motion', slug: 'atomic_motion' },

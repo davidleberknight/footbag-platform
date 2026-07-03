@@ -1,5 +1,14 @@
 # A1 final: the down/barfly family is one four-cell topology grid
 
+> **RED RULED (Wave 3 follow-up, 2026-07-02):** "The downs are part of the same family,
+> it's essentially the same move with different sets/from different feet. I'd say single
+> structural decomposition." Q1 is thereby settled in the packet's own frame: DOD, DDD,
+> Paradon, and Barfly are variants of ONE down-family structural decomposition,
+> distinguished by the set and the performing foot — the grid's two axes. Q2 (which frame
+> names the embedded base of an operator compound) remains DEFERRED; the three
+> base-label-vs-trace rows in the adversarial audit's section 5 stay as they are, and no
+> row is relabeled where that frame rule matters.
+
 Date: 2026-07-02 (rewritten same day after the adversarial audit; the earlier draft of this
 file framed base identification as the open question and treated cell 4 as unnamed. Both
 are superseded by `DOWN_FAMILY_ADVERSARIAL_AUDIT.md`). Supersedes

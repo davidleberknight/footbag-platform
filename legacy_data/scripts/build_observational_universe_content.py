@@ -66,7 +66,7 @@ INTAKE_BUCKETS = [
 # Public-facing (renders on /freestyle/observational): no individual names, no
 # internal ruling identifiers (per the no-individual-names-on-freestyle-views rule).
 BLOCKING_QUESTION = {
-    "dod-ddd":  "How do Double-Down and Double-Over-Down terminals score? (policy unruled)",
+    "dod-ddd":  "Down-family compounds: which frame names the embedded base? (labeling only; the downs are ruled one family, a single structural decomposition with set/foot variants, and scoring is unaffected)",
     "weaving":  "Weaving is an undefined folk operator; movement structure unruled.",
     "shooting": "Shooting is an undefined folk operator; structural reading unruled.",
     "other":    "Operator weight or definition pending (fairy / pixie weight; folk operators).",
