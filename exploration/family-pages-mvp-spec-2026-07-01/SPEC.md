@@ -14,9 +14,21 @@ A per-family landing page gives each first-class family a stable URL that answer
 
 ## 2. Coverage — which families get a page
 
-MVP = the curated **first-class family parents**: the families above the `FAMILY_PARENT_MIN_DESCENDANTS` threshold in `src/content/freestyleFamilyTiers.ts` — osis, whirl, legover, mirage, butterfly, illusion, swirl, pickup, blender, torque, double_leg_over, barfly, eggbeater, double_over_down, inside_stall (15).
+> **Updated for the Down umbrella (expert ruling integrated 2026-07-02).** The downs are
+> one family — a single structural decomposition with set/foot variants — represented at
+> the display layer as a `down` roster root whose variant branches are barfly,
+> double_over_down, paradon, and down_double_down (the `dod` sub-label folds into
+> double_over_down). The roster is now 26 entries = 18 roots + 8 branches, 17 Family
+> Parents. Everything below derives from the same two modules as before
+> (`freestyleFamilyTiers.ts` + `freestylePublicFamilies.ts`), so the enumerator picks the
+> umbrella up automatically; the notes in this section are the umbrella-specific behavior
+> to be aware of, not extra machinery.
 
-**Minor lineages** (eclipse, flail, barrage, paradon, dyno, butterfly_swirl, dada_curve, flurry) stay as `?view=family` anchors for MVP; a thin page for them is a later extension — note it, do not build it. The page set is deliberately aligned with the existing `?view=family` grouping so navigation stays consistent.
+MVP = the curated **first-class family parents**: the families above the `FAMILY_PARENT_MIN_DESCENDANTS` threshold in `src/content/freestyleFamilyTiers.ts` — osis, whirl, legover, mirage, butterfly, illusion, swirl, pickup, blender, torque, double_leg_over, drifter, barfly, eggbeater, double_over_down, inside_stall, **down** (17; the original draft of this list omitted drifter, which clears the threshold at 14).
+
+**The `down` page is an umbrella**: it has no raw `trick_family` rows of its own; its membership is the union of its variant branches (45 active tricks), exactly what `rawFamilyLabelsUnder('down')` in `freestylePublicFamilies.ts` returns and what the `?view=family` Down section and `?family=down` filter already render. The page should group members by variant (barfly / double-over-down / paradon / down-double-down) rather than by the standard complexity rungs alone, mirroring the ruling's set-by-foot variant framing. Barfly and double_over_down are themselves parents and keep their own pages, each presenting as a branch of Down (`PUBLIC_FAMILY_PARENT_LABEL`).
+
+**Minor lineages** (eclipse, flail, barrage, paradon, dyno, down_double_down, butterfly_swirl, dada_curve, flurry) stay as `?view=family` anchors for MVP; a thin page for them is a later extension — note it, do not build it. Paradon and down_double_down are minor-tier *variants of Down*: they 404 as their own pages for MVP but their tricks all render on the `down` page, so no down-family trick is page-less. The page set is deliberately aligned with the existing `?view=family` grouping so navigation stays consistent.
 
 ## 3. Route / controller / service / view — mirrors `/freestyle/sets/:slug`
 
