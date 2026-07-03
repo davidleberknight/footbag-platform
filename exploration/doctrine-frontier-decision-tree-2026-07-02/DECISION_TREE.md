@@ -6,6 +6,11 @@
 > shipped base-label tension rows stay deferred on it. See
 > `../dod-ddd-evidence-pass-2026-07-02/RED_PACKET_A1_REVISED.md`.
 
+> **D3 EXECUTED (curator ratification + batch, 2026-07-02):** the positional-token mapping
+> (FM "ss/os" = PB "near/far" = platform SAME/OP) was ratified and the per-row batch ran:
+> seven same-side configurations promoted, 12 of the 18 held record names now resolve, and
+> the five ambiguous same-side cases plus Pixie DSO stay held.
+
 Read-only audit of every held trick after the Day-2 promotions, **excluding** parser
 limitations and missing-notation backfills (authoring work, not doctrine). Derived fresh from
 the regenerated `freestyleObservationalUniverse.ts` (1049 rows: ready 2 / frontier 120 /
