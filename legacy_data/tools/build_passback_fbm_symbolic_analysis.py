@@ -2,7 +2,7 @@
 """PassBack + FootbagMoves symbolic-corpus analysis (Phase A: mechanical).
 
 Reads:
-  - exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_MASTER.csv (679 rows, FM+PB combined)
+  - freestyle/inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv (679 rows, FM+PB combined)
   - exploration/passback-intake/passback_trick_sources.csv (283 PB rows, augments SG-MASTER)
   - exploration/footbagmoves-federation/OPERATOR_INVENTORY.csv (55 operators with curator status)
 
@@ -28,7 +28,7 @@ from pathlib import Path
 # --- paths -----------------------------------------------------------------
 
 REPO = Path(__file__).resolve().parents[2]
-SG_MASTER = REPO / "exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_MASTER.csv"
+SG_MASTER = REPO / "freestyle/inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv"
 PB_TRICKS = REPO / "exploration/passback-intake/passback_trick_sources.csv"
 OP_INV    = REPO / "exploration/footbagmoves-federation/OPERATOR_INVENTORY.csv"
 OUT_DIR   = REPO / "exploration/passback-fbm-symbolic-analysis"

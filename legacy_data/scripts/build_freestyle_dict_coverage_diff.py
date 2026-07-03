@@ -2,6 +2,11 @@
 """
 build_freestyle_dict_coverage_diff.py
 
+Frozen with the legacy_data tree: every file input it reads is a legacy_data
+artifact (the retired footbag.org scrape twin, the trick-dictionary comparison
+QC output, the curated external-name mappings), so it is not part of the living
+freestyle pipeline under freestyle/ and deliberately stays here.
+
 Reconciliation/audit report — what external freestyle sources contain vs how
 those tricks map into our canonical ontology.
 

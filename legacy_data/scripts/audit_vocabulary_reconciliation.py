@@ -7,12 +7,14 @@ PassBack) and the live freestyle_tricks table, classifying each unique
 name into one of nine governance states.
 
 Sources of record:
-- exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_MASTER.csv
+- freestyle/inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv
 - database/footbag.db  (freestyle_tricks)
 
 Output:
-- exploration/vocabulary-reconciliation-audit-2026-05-21/RECONCILIATION.csv
-  (one row per unique name)
+- freestyle/inputs/observational/RECONCILIATION.csv
+  (one row per unique name; a live input of the freestyle content
+  generators and hand-maintained between audit runs, so rerunning this
+  script overwrites those hand edits)
 - prints an aggregate stats block for the audit report.
 
 State derivation is HEURISTIC (priority-ordered, first match) and
@@ -29,9 +31,11 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-MASTER = REPO / 'exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_MASTER.csv'
+MASTER = REPO / 'freestyle/inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv'
 DB = REPO / 'database/footbag.db'
-OUTDIR = REPO / 'exploration/vocabulary-reconciliation-audit-2026-05-21'
+# The reconciliation CSV is a live input of the freestyle content generators,
+# so the maintained copy lives under freestyle/inputs/.
+OUTDIR = REPO / 'freestyle/inputs/observational'
 
 
 def norm(s: str) -> str:
@@ -189,7 +193,7 @@ def main() -> None:
     fc_ready_unpub = [c for c in recon if c['publication_status'] == 'first_class_ready'
                       and not c['in_db']]
     print(f"\nHigh-ROI publication candidates (first_class_ready, not in DB): {len(fc_ready_unpub)}")
-    print(f"\nWrote: {OUTDIR.name}/RECONCILIATION.csv")
+    print(f"\nWrote: {(OUTDIR / 'RECONCILIATION.csv').relative_to(REPO)}")
 
 
 if __name__ == '__main__':

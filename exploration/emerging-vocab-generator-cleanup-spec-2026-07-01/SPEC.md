@@ -8,7 +8,7 @@ The Emerging Vocabulary page had two disagreeing classifiers. The render fix mad
 
 ## Problem — where the stale classification is stamped
 
-`legacy_data/scripts/build_observational_universe_content.py`:
+`freestyle/scripts/build_observational_universe_content.py`:
 - `doctrine_blocker(name)` (≈ line 87) returns a cluster key (`weaving` / `dod-ddd` / undefined-operator) or `None`, using `COHERENT_DOCTRINE_CLUSTERS` (≈ line 53) to split structure-known clusters from undefined-operator ones.
 - `main()` (≈ line 250) assigns `section`/`cluster`/`intakeBucket` from that: `None` → `frontier`; a coherent cluster → `doctrine` + `doctrine_pending`; an undefined operator → `doctrine` + `doctrine_unresolved`; plus `folk` / `parser`.
 - The header comment claims "the SERVICE owns sectioning / sampling / labeling," yet the generator stamps `section`. That split is exactly the drift.
@@ -73,7 +73,7 @@ Once the primary-blocker field drives everything, the old `section` (as a displa
 - **No page redesign** — the rendered page must not visibly change; only the classification's source moves from the service to the generated data.
 
 ## Appendix — key references
-- Generator: `legacy_data/scripts/build_observational_universe_content.py` (`doctrine_blocker`, `main()` row assignment, `row()` builder, `COHERENT_DOCTRINE_CLUSTERS`).
+- Generator: `freestyle/scripts/build_observational_universe_content.py` (`doctrine_blocker`, `main()` row assignment, `row()` builder, `COHERENT_DOCTRINE_CLUSTERS`).
 - Model to port: `exploration/frontier-reclassification-2026-06-30/classify_frontier.py` + `README.md` (precedence, flags, doctrine basis).
 - Render source of truth (the oracle): `getObservationalLayerPage` / `classifyFrontier` in `src/services/freestyleService.ts`; view `src/views/freestyle/observational.hbs`; test `tests/integration/freestyle.observational.routes.test.ts`.
 - Generated content: `src/content/freestyleObservationalUniverse.ts` (`ObservationalUniverseRow`).

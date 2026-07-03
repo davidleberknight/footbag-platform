@@ -5,7 +5,7 @@ Standalone curator-run tool. NOT a pipeline stage — not wired into
 run_pipeline.sh. Reversible, idempotent.
 
 Source of truth:
-  exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_MASTER.csv
+  freestyle/inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv
 Target:
   database/footbag.db  (freestyle_tricks)
 
@@ -51,7 +51,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-MASTER = REPO / 'exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_MASTER.csv'
+MASTER = REPO / 'freestyle/inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv'
 DB = REPO / 'database/footbag.db'
 
 

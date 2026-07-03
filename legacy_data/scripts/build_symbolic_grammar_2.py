@@ -34,7 +34,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DB = ROOT / "database" / "footbag.db"
-SG1_MASTER = ROOT / "exploration" / "footbagmoves-federation" / "SYMBOLIC_GRAMMAR_MASTER.csv"
+SG1_MASTER = ROOT / "freestyle" / "inputs" / "observational" / "SYMBOLIC_GRAMMAR_MASTER.csv"
 SG1_FAMILY = ROOT / "exploration" / "footbagmoves-federation" / "SYMBOLIC_GRAMMAR_FAMILY_SUMMARY.csv"
 GG_FAMILY = ROOT / "exploration" / "freestyle-notation-grammar" / "SYMBOLIC_FAMILY_REGISTRY.csv"
 GG_DECOMP = ROOT / "exploration" / "freestyle-notation-grammar" / "SYMBOLIC_DECOMPOSITION_REGISTRY.csv"

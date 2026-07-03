@@ -1,0 +1,1 @@
+`RECONCILIATION.csv` moved to `freestyle/inputs/observational/` (live generator input, hand-maintained via `sed` after promotion waves; that copy is the maintained one — `legacy_data/scripts/audit_vocabulary_reconciliation.py` now writes it there too).

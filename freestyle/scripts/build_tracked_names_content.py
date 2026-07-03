@@ -8,9 +8,9 @@ records a symbolic / operational notation for a name, that notation is
 carried verbatim alongside the name.
 
 Sources:
-  - exploration/vocabulary-reconciliation-audit-2026-05-21/RECONCILIATION.csv
+  - freestyle/inputs/observational/RECONCILIATION.csv
       the unpublished name set + primary documenting source
-  - exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_MASTER.csv
+  - freestyle/inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv
       the `symbolic_notation_raw` operational notation, verbatim
 
 Notation rules (deliberate constraints):
@@ -34,8 +34,11 @@ from collections import defaultdict
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-RECON = REPO / 'exploration/vocabulary-reconciliation-audit-2026-05-21/RECONCILIATION.csv'
-MASTER = REPO / 'exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_MASTER.csv'
+FREESTYLE = Path(__file__).resolve().parents[1]
+# Both source CSVs live under freestyle/inputs/ so this generator reads nothing
+# outside the self-contained freestyle tree.
+RECON = FREESTYLE / 'inputs/observational/RECONCILIATION.csv'
+MASTER = FREESTYLE / 'inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv'
 OUT = REPO / 'src/content/freestyleTrackedNames.ts'
 # Live platform DB. The authoritative canonical/alias gate: a slug active in
 # freestyle_tricks, or registered in freestyle_trick_aliases, must never appear
@@ -47,8 +50,8 @@ DB = REPO / 'database/footbag.db'
 # governance_state. Filtering against these as a second gate prevents
 # stale rows from leaking onto the observational page when the
 # reconciliation audit is out of sync with the canonical CSVs.
-TRICKS_CSV = REPO / 'freestyle/inputs/noise/tricks.csv'
-RED_ADD_CSV = REPO / 'freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv'
+TRICKS_CSV = FREESTYLE / 'inputs/noise/tricks.csv'
+RED_ADD_CSV = FREESTYLE / 'inputs/curated/tricks/red_additions_2026_04_20.csv'
 
 SOURCE_PRIORITY = ['footbagmoves', 'fborg', 'passback', 'curator']
 SOURCE_LABEL = {
@@ -188,7 +191,7 @@ def main() -> None:
         '// freestyleTrackedNames.ts',
         '// ============================',
         '// GENERATED FILE — do not hand-edit.',
-        '// Regenerate: python3 legacy_data/scripts/build_tracked_names_content.py',
+        '// Regenerate: python3 freestyle/scripts/build_tracked_names_content.py',
         '//',
         '// Documented freestyle trick names tracked in the project vocabulary',
         '// corpus that are NOT yet canonically published, grouped by',

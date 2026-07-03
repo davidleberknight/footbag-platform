@@ -24,7 +24,7 @@ from collections import Counter
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-MASTER = REPO / 'exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_MASTER.csv'
+MASTER = REPO / 'freestyle/inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv'
 DB = REPO / 'database/footbag.db'
 
 

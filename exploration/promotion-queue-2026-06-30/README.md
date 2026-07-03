@@ -22,7 +22,7 @@
 
 ## Root cause and fix
 
-The universe generator (`legacy_data/scripts/build_observational_universe_content.py`) has a
+The universe generator (`freestyle/scripts/build_observational_universe_content.py`) has a
 canonical dual-gate meant to drop any observational row whose slug is now a published canonical.
 Its docstring promises "a promoted slug leaves this surface on the next regen." But the gate did an
 **exact** string match while observational slugs are hyphenated (`reverse-swirling-osis`) and DB
@@ -88,7 +88,7 @@ source edits are the generator bug-fix and the regenerated `freestyleObservation
 `python3 exploration/promotion-queue-2026-06-30/build_promotion_pipeline.py` (from repo root) reads
 the de-staled universe + the frontier artifact + live `freestyle_tricks`, applies the overlap filter,
 and regenerates `PROMOTION_QUEUE.csv` (+ the unknown reclassification). Regenerate the universe first
-with `python3 legacy_data/scripts/build_observational_universe_content.py` if the DB has changed.
+with `python3 freestyle/scripts/build_observational_universe_content.py` if the DB has changed.
 
 Columns: `slug, source_bucket, ADD, family_operator_group, flags, missing_parent_slug,
 recommended_wave, rationale, next_action`.

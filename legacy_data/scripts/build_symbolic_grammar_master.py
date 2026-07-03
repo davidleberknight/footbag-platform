@@ -7,11 +7,13 @@ Reads:
 - legacy_data/out/footbagmoves_inventory.csv  (573 rows; 377 with operational notation)
 - freestyle/tools/trick_video_discovery/passback_review_queue.csv (106 rows; alternate-notation style)
 
-Writes (all under exploration/footbagmoves-federation/):
-- SYMBOLIC_GRAMMAR_MASTER.xlsx
-- SYMBOLIC_GRAMMAR_MASTER.csv
-- SYMBOLIC_GRAMMAR_UNRESOLVED_TOKENS.csv
-- SYMBOLIC_GRAMMAR_FAMILY_SUMMARY.csv
+Writes:
+- exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_MASTER.xlsx
+- freestyle/inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv
+  (a live input of the freestyle content generators, so it lives in the
+  self-contained freestyle tree)
+- exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_UNRESOLVED_TOKENS.csv
+- exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_FAMILY_SUMMARY.csv
 
 Constraints (per task brief):
 - NO mutation of IFPA dictionary tables.
@@ -44,7 +46,9 @@ FM_INVENTORY = ROOT / "legacy_data" / "out" / "footbagmoves_inventory.csv"
 PASSBACK_QUEUE = ROOT / "freestyle" / "tools" / "trick_video_discovery" / "passback_review_queue.csv"
 OUT_DIR = ROOT / "exploration" / "footbagmoves-federation"
 MASTER_XLSX = OUT_DIR / "SYMBOLIC_GRAMMAR_MASTER.xlsx"
-MASTER_CSV = OUT_DIR / "SYMBOLIC_GRAMMAR_MASTER.csv"
+# The CSV twin is read by the freestyle content generators, so the maintained
+# copy lives under freestyle/inputs/ (self-contained freestyle tree).
+MASTER_CSV = ROOT / "freestyle" / "inputs" / "observational" / "SYMBOLIC_GRAMMAR_MASTER.csv"
 UNRESOLVED_CSV = OUT_DIR / "SYMBOLIC_GRAMMAR_UNRESOLVED_TOKENS.csv"
 FAMILY_CSV = OUT_DIR / "SYMBOLIC_GRAMMAR_FAMILY_SUMMARY.csv"
 

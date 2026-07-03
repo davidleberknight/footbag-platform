@@ -1,7 +1,7 @@
 // freestyleTrackedNames.ts
 // ============================
 // GENERATED FILE — do not hand-edit.
-// Regenerate: python3 legacy_data/scripts/build_tracked_names_content.py
+// Regenerate: python3 freestyle/scripts/build_tracked_names_content.py
 //
 // Documented freestyle trick names tracked in the project vocabulary
 // corpus that are NOT yet canonically published, grouped by

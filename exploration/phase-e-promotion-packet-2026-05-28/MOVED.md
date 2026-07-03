@@ -1,0 +1,1 @@
+`promotion_candidates_clean.csv`, `promotion_candidates_curator_confirm.csv`, and `promotion_candidates_deferred.csv` moved to `freestyle/inputs/observational/` (live generator inputs; that copy is the maintained one — `build_review_packet.py` here still targets this directory and would recreate stale copies if rerun).

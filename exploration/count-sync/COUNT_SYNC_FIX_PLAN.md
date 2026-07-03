@@ -13,7 +13,7 @@ The public page is right; the drift was in the offline topology/coverage trackin
 
 ## Fix 2 - regenerate the observational snapshot (Page B)
 ```bash
-python3 legacy_data/scripts/build_observational_universe_content.py   # rewrites src/content/freestyleObservationalUniverse.ts
+python3 freestyle/scripts/build_observational_universe_content.py    # rewrites src/content/freestyleObservationalUniverse.ts
 npm run build                                                         # tsc must pass
 ```
 Refreshes `canonicalPublished` / `canonicalCoveragePct` / `total` / `generatedOn` and re-applies the live-DB canonical dual-gate; the Page A "Emerging vocab" cross-reference (same constant) updates with it. Row membership is unchanged (0 overlap). Never hand-edit the content module; the generator is its only writer.
