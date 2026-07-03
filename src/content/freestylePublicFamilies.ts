@@ -8,7 +8,7 @@
  * This is intentionally distinct from the raw `freestyle_tricks.trick_family`
  * labels (~87 distinct values, many singletons / alias-ish), which are NOT all
  * surfaced publicly. This curated set IS the family system the By-family browse
- * renders directly: the 20 roots plus the 4 derived branches below, and nothing
+ * renders directly: the 18 roots plus the 8 derived branches below, and nothing
  * else.
  *
  * The landing menu shows THIS curated set: a human-chosen browse roster of the
@@ -61,10 +61,14 @@ export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
   { slug: 'drifter',           label: 'Drifter' },
   { slug: 'barrage',           label: 'Barrage' },
   { slug: 'dada_curve',        label: 'Dada-Curve' },
-  { slug: 'barfly',            label: 'Barfly' },
+  // Down is the expert-ruled umbrella for the whole down lineage: one family, a
+  // single structural decomposition whose variants differ by the set and the
+  // performing foot. It carries no raw trick_family rows of its own; its four
+  // variant branches below hold the members, and the browse aggregates them
+  // into the Down section (a root with no direct members aggregates its
+  // branches).
+  { slug: 'down',              label: 'Down' },
   { slug: 'dyno',              label: 'Dyno' },
-  { slug: 'paradon',           label: 'Paradon' },
-  { slug: 'double_over_down',  label: 'Double-Over-Down' },
   { slug: 'flurry',            label: 'Flurry' },
   { slug: 'flail',             label: 'Flail' },
   { slug: 'butterfly_swirl',   label: 'Butterfly-Swirl' },
@@ -79,6 +83,13 @@ export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
   { slug: 'blender',           label: 'Blender',         parent: 'osis' },
   { slug: 'double_leg_over',   label: 'Double Legover',  parent: 'legover' },
   { slug: 'eggbeater',         label: 'Eggbeater',       parent: 'legover' },
+  // The four down-family variants (the set x performing-foot cells of the one
+  // ruled decomposition). Kept as first-class branches so the variant labels
+  // stay browsable; their trick_family data is untouched.
+  { slug: 'barfly',            label: 'Barfly',           parent: 'down' },
+  { slug: 'double_over_down',  label: 'Double-Over-Down', parent: 'down' },
+  { slug: 'paradon',           label: 'Paradon',          parent: 'down' },
+  { slug: 'down_double_down',  label: 'Down-Double-Down', parent: 'down' },
 ];
 
 /**
@@ -102,13 +113,14 @@ export const SUBLABEL_FAMILY_OF: ReadonlyMap<string, string> = new Map<string, s
   ['paradox_illusion',    'illusion'],
   ['reverse_drifter',     'drifter'],
   ['high_plains_drifter', 'drifter'],
+  ['dod',                 'double_over_down'], // the same down-family cell under a second raw label (fusion cluster)
 ]);
 
 const FAMILY_SLUG_SET: ReadonlySet<string> = new Set(PUBLIC_DISPLAY_FAMILIES.map(f => f.slug));
 
 /**
  * Resolve a raw trick_family label to the public family it renders under, or null
- * when the label is not a family (route-out). The 20 roots and 4 branches resolve
+ * when the label is not a family (route-out). The 18 roots and 8 branches resolve
  * to themselves; sub-labels fold to the family whose terminal they conserve.
  */
 export function resolveDisplayFamily(label: string): string | null {
@@ -117,25 +129,25 @@ export function resolveDisplayFamily(label: string): string | null {
 }
 
 /**
- * The 24 families in display order: the 20 roots first, then the 4 derived
+ * The 26 families in display order: the 18 roots first, then the 8 derived
  * branches, mirroring the glossary's roster-then-descendant-lineage ordering.
  * Drives the top-level section order of the By-family browse.
  */
 export const PUBLIC_FAMILY_ORDER: readonly string[] = PUBLIC_DISPLAY_FAMILIES.map(f => f.slug);
 
-/** slug → display label for the 24 families. */
+/** slug → display label for the 26 families. */
 export const PUBLIC_FAMILY_LABEL: ReadonlyMap<string, string> = new Map(
   PUBLIC_DISPLAY_FAMILIES.map(f => [f.slug, f.label] as const),
 );
 
-/** slug → parent family label for the 4 derived branches; absent for roots. */
+/** slug → parent family label for the derived branches; absent for roots. */
 export const PUBLIC_FAMILY_PARENT_LABEL: ReadonlyMap<string, string> = new Map(
   PUBLIC_DISPLAY_FAMILIES
     .filter((f): f is PublicDisplayFamily & { parent: string } => Boolean(f.parent))
     .map(f => [f.slug, PUBLIC_DISPLAY_FAMILIES.find(p => p.slug === f.parent)!.label] as const),
 );
 
-/** slug → parent root slug for the 4 derived branches; absent for roots. */
+/** slug → parent root slug for the derived branches; absent for roots. */
 export const PUBLIC_FAMILY_PARENT_OF: ReadonlyMap<string, string> = new Map(
   PUBLIC_DISPLAY_FAMILIES
     .filter((f): f is PublicDisplayFamily & { parent: string } => Boolean(f.parent))
@@ -151,4 +163,23 @@ export const PUBLIC_FAMILY_PARENT_OF: ReadonlyMap<string, string> = new Map(
 export function familyWithAncestors(slug: string): string[] {
   const parent = PUBLIC_FAMILY_PARENT_OF.get(slug);
   return parent ? [slug, parent] : [slug];
+}
+
+/**
+ * Every raw trick_family label whose rows belong to the given display family:
+ * the family itself, its branches, and the sub-labels that fold into any of
+ * those. Drives the umbrella aggregation for a root with no direct members
+ * (the Down family): its browse section, its ?family= filter, and its landing
+ * chip count all read this set.
+ */
+export function rawFamilyLabelsUnder(familySlug: string): string[] {
+  const display = new Set<string>([familySlug]);
+  for (const f of PUBLIC_DISPLAY_FAMILIES) {
+    if (f.parent === familySlug) display.add(f.slug);
+  }
+  const raw = new Set<string>(display);
+  for (const [sub, family] of SUBLABEL_FAMILY_OF) {
+    if (display.has(family)) raw.add(sub);
+  }
+  return [...raw];
 }

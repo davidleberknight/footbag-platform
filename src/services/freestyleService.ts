@@ -181,6 +181,7 @@ import {
   PUBLIC_DISPLAY_FAMILIES,
   resolveDisplayFamily,
   familyWithAncestors,
+  rawFamilyLabelsUnder,
   PUBLIC_FAMILY_ORDER,
   PUBLIC_FAMILY_LABEL,
   PUBLIC_FAMILY_PARENT_LABEL,
@@ -7900,12 +7901,23 @@ export const freestyleService = {
       freestyleTricks.listAllWithPending.all() as FreestyleTrickRowWithStatus[],
     );
 
-    // Apply optional family filter (driven by ?family= hashtag click).
-    const activeFamily = family && allRowsUnfiltered.some(r => r.trick_family === family)
+    // Apply optional family filter (driven by ?family= hashtag click). An
+    // umbrella root with no raw rows of its own (the Down family) filters as
+    // the set of raw labels its branches and their sub-labels carry.
+    const umbrellaLabels = family && !allRowsUnfiltered.some(r => r.trick_family === family)
+      ? new Set(rawFamilyLabelsUnder(family))
+      : null;
+    const umbrellaActive = Boolean(
+      umbrellaLabels && umbrellaLabels.size > 1
+      && allRowsUnfiltered.some(r => r.trick_family && umbrellaLabels.has(r.trick_family)),
+    );
+    const activeFamily = family && (allRowsUnfiltered.some(r => r.trick_family === family) || umbrellaActive)
       ? family
       : null;
     const allRows = activeFamily
-      ? allRowsUnfiltered.filter(r => r.trick_family === activeFamily)
+      ? allRowsUnfiltered.filter(r =>
+          r.trick_family === activeFamily
+          || (umbrellaActive && r.trick_family != null && umbrellaLabels!.has(r.trick_family)))
       : allRowsUnfiltered;
 
     // Status lookup for shaping (drives isExternalOnly / statusBadge).
@@ -8112,7 +8124,23 @@ export const freestyleService = {
         familyMap.set(fslug, bucket);
       }
     }
-    // Section ordering: the 24 public families, the 20 roots first then the 4
+    // Umbrella aggregation: a roster root with no direct member rows (the Down
+    // family, whose members all carry a variant-branch trick_family) renders as
+    // the union of its branches' members, so the one-family section exists
+    // while every variant keeps its own section and label.
+    for (const fam of PUBLIC_DISPLAY_FAMILIES) {
+      if (fam.parent || familyMap.has(fam.slug)) continue;
+      const aggregated: FreestyleTrickRowWithStatus[] = [];
+      const seen = new Set<string>();
+      for (const branch of PUBLIC_DISPLAY_FAMILIES) {
+        if (branch.parent !== fam.slug) continue;
+        for (const row of familyMap.get(branch.slug) ?? []) {
+          if (!seen.has(row.slug)) { seen.add(row.slug); aggregated.push(row); }
+        }
+      }
+      if (aggregated.length > 0) familyMap.set(fam.slug, aggregated);
+    }
+    // Section ordering: the 26 public families, the 18 roots first then the 8
     // derived branches. Only these render; any label that is not a family
     // resolved to null above and never entered familyMap.
     const FAMILY_ORDER = PUBLIC_FAMILY_ORDER;
@@ -8904,6 +8932,14 @@ export const freestyleService = {
       if (!isTrickRow(r)) continue;
       const f = (r.trick_family ?? '').trim();
       if (f) familyTrickCounts.set(f, (familyTrickCounts.get(f) ?? 0) + 1);
+    }
+    // Umbrella roots with no raw rows (the Down family) count the union of
+    // their contained raw labels, matching what their ?family= filter shows.
+    for (const fam of PUBLIC_DISPLAY_FAMILIES) {
+      if (fam.parent || familyTrickCounts.has(fam.slug)) continue;
+      const total = rawFamilyLabelsUnder(fam.slug)
+        .reduce((sum, label) => sum + (familyTrickCounts.get(label) ?? 0), 0);
+      if (total > 0) familyTrickCounts.set(fam.slug, total);
     }
 
     // Display tier (current editorial standard, reversible): split the rendered

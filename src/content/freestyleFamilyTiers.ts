@@ -69,10 +69,15 @@ export function classifyFamilyTier(slug: string, descendantCount: number): Famil
  */
 export const FAMILY_DESCENDANT_COUNTS: ReadonlyMap<string, number> = new Map([
   ['osis', 84], ['whirl', 74], ['legover', 71], ['mirage', 69], ['butterfly', 48],
+  // Down aggregates its four variant branches plus the dod sub-label per the
+  // expert ruling (one family, a single structural decomposition with set/foot
+  // variants): barfly + double_over_down (+ dod) + paradon + down_double_down.
+  ['down', 45],
   ['illusion', 34], ['swirl', 29], ['pickup', 27], ['blender', 22], ['torque', 22],
   ['double_leg_over', 16], ['drifter', 14], ['barfly', 13], ['eggbeater', 13],
   ['double_over_down', 12], ['inside_stall', 11],
   ['eclipse', 9], ['flail', 9], ['barrage', 8], ['paradon', 6], ['dyno', 5],
+  ['down_double_down', 5],
   ['butterfly_swirl', 5], ['dada_curve', 4], ['flurry', 3],
 ]);
 

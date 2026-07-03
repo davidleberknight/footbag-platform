@@ -94,6 +94,25 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [],
   },
   {
+    slug:              'down',
+    displayName:       'Down',
+    kind:              'root-terminal',
+    // Representative chassis: the double-over-down cell. The family's four
+    // variants share the two-outward-dex motif; the set and the performing
+    // foot select the variant.
+    canonicalFormula:  'TOE > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
+    familyAnchorAdds:  4,
+    commonDescendants: ['fusion', 'scorpions tail', 'superfly', 'dolomite', 'nemesis'],
+    siblingFamilies:   ['barfly', 'double_over_down', 'paradon', 'down_double_down'],
+    notableCompounds:  ['shooting star', 'venom', 'blurriest', 'cold fusion'],
+    observationalNotes: [
+      {
+        title: 'One decomposition, four variants',
+        body:  'The downs are expert-ruled one family: essentially the same move performed from different sets and different feet, a single structural decomposition. Its four named variants (barfly, double-over-down, paradon, down-double-down) are the cells of that set-by-foot grid, each a 4-ADD base; every variant keeps its own browsable section under this family.',
+      },
+    ],
+  },
+  {
     slug:              'mirage',
     displayName:       'Mirage',
     kind:              'root-terminal',

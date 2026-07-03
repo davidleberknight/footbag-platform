@@ -28,7 +28,7 @@ export interface TopologyHistogramRow {
   tier:  TopologyHistogramTier;
 }
 
-/** How tricks END: the two terminal surface roots, then the 24 first-class families by recursive descendants. */
+/** How tricks END: the two terminal surface roots, then the 26 first-class families by recursive descendants. */
 export const FAMILY_HISTOGRAM: readonly TopologyHistogramRow[] = [
   { label: 'Clipper Stall',    count: 328, tier: 'surface' },
   { label: 'Toe Stall',        count: 252, tier: 'surface' },
@@ -37,6 +37,10 @@ export const FAMILY_HISTOGRAM: readonly TopologyHistogramRow[] = [
   { label: 'Legover',          count: 71,  tier: 'family' },
   { label: 'Mirage',           count: 69,  tier: 'family' },
   { label: 'Butterfly',        count: 48,  tier: 'family' },
+  // The Down umbrella aggregates its four variant branches plus the dod
+  // sub-label per the expert ruling (one family, a single structural
+  // decomposition with set/foot variants).
+  { label: 'Down',             count: 45,  tier: 'family' },
   { label: 'Illusion',         count: 34,  tier: 'family' },
   { label: 'Swirl',            count: 29,  tier: 'family' },
   { label: 'Pickup',           count: 27,  tier: 'family' },
@@ -54,6 +58,7 @@ export const FAMILY_HISTOGRAM: readonly TopologyHistogramRow[] = [
   { label: 'Paradon',          count: 6,   tier: 'family' },
   { label: 'Butterfly-Swirl',  count: 5,   tier: 'family' },
   { label: 'Dyno',             count: 5,   tier: 'family' },
+  { label: 'Down-Double-Down', count: 5,   tier: 'family' },
   { label: 'Dada-Curve',       count: 4,   tier: 'family' },
   { label: 'Flurry',           count: 3,   tier: 'family' },
 ];

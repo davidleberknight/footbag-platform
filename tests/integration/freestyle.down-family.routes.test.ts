@@ -54,6 +54,39 @@ beforeAll(async () => {
     operational_notation: null,
     aliases_json: '["diving down double-down"]',
   });
+  // Down umbrella fixture: two members per variant label (a family section
+  // renders only above one row), covering a variant branch (barfly), the dod
+  // sub-label that folds into the double-over-down branch, and paradon.
+  insertFreestyleTrick(db, {
+    slug: 'barfly', canonical_name: 'barfly',
+    adds: '4', base_trick: 'barfly', trick_family: 'barfly',
+    category: 'compound', review_status: 'expert_reviewed', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'blurriest', canonical_name: 'blurriest',
+    adds: '5', base_trick: 'barfly', trick_family: 'barfly',
+    category: 'compound', review_status: 'expert_reviewed', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'fusion', canonical_name: 'fusion',
+    adds: '5', base_trick: 'dod', trick_family: 'dod',
+    category: 'compound', review_status: 'expert_reviewed', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'cold_fusion', canonical_name: 'cold fusion',
+    adds: '6', base_trick: 'fusion', trick_family: 'dod',
+    category: 'compound', review_status: 'expert_reviewed', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'paradon', canonical_name: 'paradon',
+    adds: '4', base_trick: 'paradon', trick_family: 'paradon',
+    category: 'compound', review_status: 'expert_reviewed', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'dolomite', canonical_name: 'dolomite',
+    adds: '5', base_trick: 'paradon', trick_family: 'paradon',
+    category: 'compound', review_status: 'expert_reviewed', is_active: 1,
+  });
   db.close();
   createApp = await importApp();
 });
@@ -133,6 +166,49 @@ describe('Down-family detail pages — first-class JOB + ADD', () => {
     expect(res.status).toBe(200);
     // alias should render in the "Also known as" row via aliases_json
     expect(res.text).toMatch(/diving down double-down/i);
+  });
+});
+
+describe('Down umbrella family (the one ruled structural decomposition)', () => {
+  it('the Down root section renders in the family view, aggregating its variant branches', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    expect(res.status).toBe(200);
+    // The umbrella root has no raw trick_family rows of its own; its section
+    // is the union of the variant branches' members.
+    const downIdx = res.text.indexOf('id="family-down"');
+    expect(downIdx).toBeGreaterThan(-1);
+    const nextSection = res.text.indexOf('id="family-', downIdx + 1);
+    const section = res.text.slice(downIdx, nextSection === -1 ? undefined : nextSection);
+    for (const member of ['barfly', 'fusion', 'paradon']) {
+      expect(section).toContain(`data-trick-slug="${member}"`);
+    }
+  });
+
+  it('variant branches keep their own presentation alongside the umbrella, tier deciding the form', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    // Parent-tier variants render as full sections; minor-tier variants render
+    // in the Minor Lineages band with a working ?family= link. Both remain
+    // reachable, and all aggregate into the Down section.
+    expect(res.text).toContain('id="family-barfly"');
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\?family=paradon"/);
+  });
+
+  it('the dod sub-label folds into the Double-Over-Down branch section', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const dodIdx = res.text.indexOf('id="family-double_over_down"');
+    expect(dodIdx).toBeGreaterThan(-1);
+    const nextSection = res.text.indexOf('id="family-', dodIdx + 1);
+    const section = res.text.slice(dodIdx, nextSection === -1 ? undefined : nextSection);
+    expect(section).toContain('data-trick-slug="fusion"');
+    expect(section).toContain('data-trick-slug="cold_fusion"');
+  });
+
+  it('?family=down filters to the union of the contained raw labels', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?family=down');
+    expect(res.status).toBe(200);
+    for (const member of ['barfly', 'blurriest', 'fusion', 'cold_fusion', 'paradon', 'dolomite']) {
+      expect(res.text).toContain(`data-trick-slug="${member}"`);
+    }
   });
 });
 

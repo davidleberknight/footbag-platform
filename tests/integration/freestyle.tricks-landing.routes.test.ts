@@ -260,7 +260,9 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     const res = await request(createApp()).get('/freestyle/tricks');
     // First-class Family Parents only (current editorial standard); minor
     // lineages live in their own band inside the By-family view.
-    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">16<\/span> families/);
+    // 17 Family Parents: the 16 long-standing parents plus the Down umbrella
+    // (expert-ruled one family aggregating its four variant branches).
+    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">17<\/span> families/);
     for (const slug of ['mirage', 'osis', 'drifter']) {
       expect(res.text, `family link ${slug}`).toMatch(new RegExp(`href="/freestyle/tricks\\?family[^"]*${slug}"`));
     }
