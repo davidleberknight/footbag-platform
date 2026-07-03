@@ -114,6 +114,12 @@ publicRouter.get('/freestyle/insights',    freestyleController.insights);
 publicRouter.get('/freestyle/learn',       freestyleController.symbolicLearn);
 publicRouter.get('/freestyle/progression/walking-family', freestyleController.walkingProgression);
 publicRouter.get('/freestyle/modifier/:slug', freestyleController.modifierFamily);
+// Family detail pages: first-class Family Parents only (anything else 404s
+// in the service). The bare /freestyle/families path redirects to the
+// dictionary's By-family browse; no standalone hub. Registered before the
+// /freestyle/tricks/:slug and /freestyle catch-alls.
+publicRouter.get('/freestyle/families/:slug', freestyleController.familyDetail);
+publicRouter.get('/freestyle/families',       freestyleController.familiesHub);
 publicRouter.get('/freestyle/tricks/:slug', freestyleController.trick);
 publicRouter.get('/freestyle',             freestyleController.landing);
 

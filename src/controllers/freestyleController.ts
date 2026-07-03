@@ -254,6 +254,36 @@ export const freestyleController = {
     }
   },
 
+  /**
+   * GET /freestyle/families/:slug — Family detail page. Anti-enumeration:
+   * only curated first-class Family Parents render; minor lineages and
+   * unknown slugs → 404.
+   */
+  familyDetail(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const rawSlug = typeof req.params['slug'] === 'string' ? req.params['slug'] : '';
+      const vm = freestyleService.getFamilyDetailPage(rawSlug);
+      if (!vm) {
+        res.status(404).render('errors/not-found', {
+          seo:  { title: 'Page Not Found' },
+          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
+        });
+        return;
+      }
+      res.render('freestyle/family-detail', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
+  /**
+   * GET /freestyle/families — no standalone hub; the dictionary's By-family
+   * browse is the family index.
+   */
+  familiesHub(_req: Request, res: Response): void {
+    res.redirect(302, '/freestyle/tricks?view=family');
+  },
+
   /** GET /freestyle/compositional-sets — systematic dictionary-hub exploration */
   compositionalSets(_req: Request, res: Response, next: NextFunction): void {
     try {

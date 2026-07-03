@@ -138,6 +138,13 @@ function collectPublicPaths(): string[] {
     paths.add(`/freestyle/modifier/${slug}`);
   }
 
+  // Freestyle: every first-class family-detail page (parallels the set and
+  // modifier pages; minor lineages have no page and are excluded). The bare
+  // /freestyle/families redirect is intentionally not listed.
+  for (const slug of freestyleService.listSitemapFamilySlugs()) {
+    paths.add(`/freestyle/families/${slug}`);
+  }
+
   // Media: every named gallery (curator and member). Individual media-item
   // pages are not enumerated: they are high-volume and already reachable from
   // these gallery pages and the /media/browse surfaces listed above.

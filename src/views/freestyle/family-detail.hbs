@@ -1,0 +1,180 @@
+{{!--
+  Family detail page.
+  One page per curated first-class trick family. A projection of existing
+  family content (glossary family card, family invariant, evolution
+  narrative, operator-rung member grouping) onto one stable URL; no new
+  family doctrine is authored here. Self-contained: no partials. Any
+  section whose source is absent is omitted, never rendered empty. An
+  umbrella family (Down) groups members by variant instead of by operator
+  depth alone.
+--}}
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <p class="hero-eyebrow">{{page.eyebrow}}</p>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{content.descendantCountLabel}}</p>
+    <p class="hero-hashtag">{{content.hashtag}}</p>
+  </div>
+</div>
+
+<div class="wrapper">
+<article data-family-slug="{{content.slug}}" aria-label="{{content.displayName}} family">
+
+  {{#if content.branchParent}}
+  <p class="trick-family-branch-of mt-4">Branch of the <a href="{{content.branchParent.href}}">{{content.branchParent.name}}</a> family.</p>
+  {{/if}}
+
+  <section class="content-section" aria-label="Overview">
+    <div class="section-heading">
+      <h2>Overview</h2>
+    </div>
+    <p>{{content.orientation}}</p>
+    {{#if content.overview}}
+    <dl class="glossary-family-card-fields">
+      <dt>Canonical formula</dt>
+      <dd><code>{{content.overview.canonicalFormula}}</code></dd>
+      <dt>Family anchor</dt>
+      <dd>
+        {{#if content.anchorTrick}}<a href="{{content.anchorTrick.href}}">{{content.anchorTrick.displayName}}</a>{{else}}{{content.displayName}}{{/if}}
+        <span class="glossary-family-card-anchor-adds">{{content.overview.anchorAddsLabel}}</span>
+      </dd>
+    </dl>
+    {{/if}}
+  </section>
+
+  {{#if content.sharedStructure}}
+  <section class="content-section" aria-label="Shared structure">
+    <div class="section-heading">
+      <h2>Shared structure</h2>
+    </div>
+    <p class="trick-family-shared-structure">Shared terminal structure: <code>{{content.sharedStructure}}</code></p>
+  </section>
+  {{/if}}
+
+  {{#if content.hasEvolution}}
+  <section class="content-section trick-family-evolution" aria-label="How it branches">
+    <div class="section-heading">
+      <h2>How it branches</h2>
+      <p class="section-intro">How the movement-language expands through this family.</p>
+    </div>
+    <ol class="trick-family-evolution-steps">
+      {{#each content.evolutionSteps}}
+      <li class="trick-family-evolution-step">
+        <h3 class="trick-family-evolution-axis">{{branchAxis}}</h3>
+        <p class="trick-family-evolution-prose">{{prose}}</p>
+        {{#if exemplarLinks.length}}
+        <p class="trick-family-evolution-exemplars">
+          Exemplars:
+          {{#each exemplarLinks}}<a href="{{href}}">{{label}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+        </p>
+        {{/if}}
+      </li>
+      {{/each}}
+    </ol>
+  </section>
+  {{/if}}
+
+  {{#if content.hasMembers}}
+  <section class="content-section" aria-label="Member tricks">
+    <div class="section-heading">
+      <h2>Member tricks</h2>
+      <span class="section-count">{{content.memberCount}}</span>
+    </div>
+    {{#if content.isUmbrella}}
+    {{#if content.variantIntro}}<p class="section-intro">{{content.variantIntro}}</p>{{/if}}
+    {{#each content.variantGroups}}
+    <div class="trick-family-rung" id="variant-{{slug}}">
+      <h3 class="family-rung-header">{{name}} <span class="section-count">{{memberCount}}</span></h3>
+      {{#if pageHref}}<p class="trick-family-cross-link"><a href="{{pageHref}}">{{name}} family page &rarr;</a></p>{{/if}}
+      <ul class="set-detail-trick-list">
+        {{#each members}}
+        <li class="set-detail-trick">
+          <a href="{{href}}">{{displayName}}</a>
+          <span class="set-detail-trick-add">({{addsLabel}})</span>
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/each}}
+    {{else}}
+    {{#each content.rungGroups}}
+    <div class="trick-family-rung">
+      {{#if ../content.showRungLabels}}<h3 class="family-rung-header">{{label}}</h3>{{/if}}
+      <ul class="set-detail-trick-list">
+        {{#each members}}
+        <li class="set-detail-trick">
+          <a href="{{href}}">{{displayName}}</a>
+          <span class="set-detail-trick-add">({{addsLabel}})</span>
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/each}}
+    {{/if}}
+  </section>
+  {{/if}}
+
+  {{#if content.siblingFamilies.length}}
+  <section class="content-section" aria-label="Related families">
+    <div class="section-heading">
+      <h2>Related families</h2>
+    </div>
+    <ul class="set-detail-link-list">
+      {{#each content.siblingFamilies}}
+      <li><a href="{{href}}">{{name}}</a></li>
+      {{/each}}
+    </ul>
+  </section>
+  {{/if}}
+
+  {{#if content.notableCompounds.length}}
+  <section class="content-section" aria-label="Notable compounds">
+    <div class="section-heading">
+      <h2>Notable compounds</h2>
+    </div>
+    <p>
+      {{#each content.notableCompounds}}{{#unless @first}} &middot; {{/unless}}<span class="glossary-family-card-compound">{{this}}</span>{{/each}}
+    </p>
+  </section>
+  {{/if}}
+
+  <section class="content-section" aria-label="Where to go next">
+    <div class="section-heading">
+      <h2>Where to go next</h2>
+    </div>
+    <ul class="set-detail-cross-links">
+      <li><a href="{{content.crossLinks.familyBrowseHref}}">Browse This Family in the Dictionary</a></li>
+      <li><a href="{{content.crossLinks.glossaryHref}}">Glossary Family Card</a></li>
+      <li><a href="{{content.crossLinks.movementSystemsHref}}">Movement Systems View</a></li>
+      {{#if content.familyCrossLink}}
+      <li><a href="{{content.familyCrossLink.href}}">{{content.familyCrossLink.label}}</a></li>
+      {{/if}}
+    </ul>
+  </section>
+
+  {{#if content.observationalNotes.length}}
+  <section class="content-section" aria-label="Observational notes">
+    <div class="section-heading">
+      <h2>Observational notes</h2>
+    </div>
+    {{#each content.observationalNotes}}
+    <details class="glossary-family-card-observational">
+      <summary class="glossary-family-card-observational-summary">
+        <span class="glossary-family-card-observational-title">{{title}}</span>
+        <span class="glossary-layer-badge glossary-layer-badge--observational">observational</span>
+      </summary>
+      <p class="glossary-family-card-observational-body">{{body}}</p>
+    </details>
+    {{/each}}
+  </section>
+  {{/if}}
+
+</article>
+</div>
