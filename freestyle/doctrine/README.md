@@ -6,6 +6,22 @@ they establish, and the evidence chains behind them, written as permanent docume
 evidence passes) that produced these consolidations; a consumed exploration document
 carries a banner pointing at its successor here and remains in place as history.
 
+## Promotion governance principle (curator-set)
+
+The goal is not to eliminate expert judgment but to minimize the need for NEW expert
+judgment. Every ruling should reduce the future decision space by creating reusable
+precedent: a question put to the rules expert or the curator is well-formed when its
+answer settles a class of cases, not one row. When expert input is unavailable,
+promotion proceeds by documentary evidence, structural derivation from canonical
+exemplars, and established precedent — with the burden of proof on keeping a case
+blocked rather than on releasing it. A case none of those resolve stays in Emerging
+Vocabulary, visibly and honestly, until sufficient evidence exists; parking a name
+there is a correct outcome, not a failure. Frequency of attestation is evidence,
+never authority, and a derivation is only as good as its written proof: every
+evidence-derived ruling records the proof and its adversarial checks (the pattern in
+`OPERATOR_DERIVATIONS.md`) so a future ruling that changes it has a chain to amend
+instead of an unexplained edit.
+
 ## Authority relationship
 
 - `src/content/freestyleOperatorReference.ts` is the canonical home for every
