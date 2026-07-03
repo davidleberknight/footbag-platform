@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1380;
+export const TRACKED_UNPUBLISHED_TOTAL = 1370;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -238,11 +238,10 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Frantic ss Mirage', slug: 'frantic_ss_mirage' },
     { displayName: 'Furious Barfly (Nemesis)', slug: 'furious_barfly_nemesis' },
     { displayName: 'Furious Butterfly (Jani Walker)', slug: 'furious_butterfly_jani_walker' },
-    { displayName: 'Furious Butterfly Swirl (Tsunami)', slug: 'furious_butterfly_swirl_tsunami' },
     { displayName: 'Furious DLO (Nebula)', slug: 'furious_dlo_nebula' },
-    { displayName: 'Furious Drifter', slug: 'furious_drifter' },
     { displayName: 'Furious Eggbeater (Clown Face)', slug: 'furious_eggbeater_clown_face' },
-    { displayName: 'Furious Symposium Eggbeater (Walrus)', slug: 'furious_symposium_eggbeater_walrus' },
+    { displayName: 'Furious Illusion (Fission)', slug: 'furious_illusion_fission' },
+    { displayName: 'Furious Mirage (Fury)', slug: 'furious_mirage_fury' },
     { displayName: 'Furious Symposium Mirage (Rage)', slug: 'furious_symposium_mirage_rage' },
     { displayName: 'Furious Whirl (Genesis)', slug: 'furious_whirl_genesis' },
     { displayName: 'Fusing Butterfly', slug: 'fusing_butterfly' },
@@ -410,9 +409,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Pixie Zulu Symposium Mirage', slug: 'pixie_zulu_symposium_mirage' },
     { displayName: 'Pixie Zulu Whirl', slug: 'pixie_zulu_whirl' },
     { displayName: 'Pogo Clipper', slug: 'pogo_clipper' },
-    { displayName: 'Pogo Da Da Curve', slug: 'pogo_da_da_curve' },
-    { displayName: 'Pogo DLO', slug: 'pogo_dlo' },
-    { displayName: 'Pogo Motion', slug: 'pogo_motion' },
     { displayName: 'Pogo ss Clipper', slug: 'pogo_ss_clipper' },
     { displayName: 'Pogo ss Flail', slug: 'pogo_ss_flail' },
     { displayName: 'Pogo ss Illusion', slug: 'pogo_ss_illusion' },
@@ -429,7 +425,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Quantum Flail (Backside Toe Blizzard)', slug: 'quantum_flail_backside_toe_blizzard' },
     { displayName: 'Quantum Gyro Mirage (Quagmire)', slug: 'quantum_gyro_mirage_quagmire' },
     { displayName: 'Quantum Pickup (Leg Eater)', slug: 'quantum_pickup_leg_eater' },
-    { displayName: 'Quantum Reverse Guay', slug: 'quantum_reverse_guay' },
     { displayName: 'Quantum Symposium Mirage (Conniption City)', slug: 'quantum_symposium_mirage_conniption_city' },
     { displayName: 'Quantum Torque (Quark)', slug: 'quantum_torque_quark' },
     { displayName: 'Quasi Butterfly (Paradox Ripwalk)', slug: 'quasi_butterfly_paradox_ripwalk' },
@@ -567,7 +562,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Symposium DDD (Shaft)', slug: 'symposium_ddd_shaft' },
     { displayName: 'Symposium DLO (Nova)', slug: 'symposium_dlo_nova' },
     { displayName: 'Symposium DOD (Blacula)', slug: 'symposium_dod_blacula' },
-    { displayName: 'Symposium Furious Legover', slug: 'symposium_furious_legover' },
     { displayName: 'Symposium Illusion (Flail)', slug: 'symposium_illusion_flail' },
     { displayName: 'Symposium Paradon (Dolomite)', slug: 'symposium_paradon_dolomite' },
     { displayName: 'Symposium Reverse Whirling XBD Rake', slug: 'symposium_reverse_whirling_xbd_rake' },
@@ -764,8 +758,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Frootie Legover', slug: 'frootie_legover' },
     { displayName: 'Frootie Mirage', slug: 'frootie_mirage' },
     { displayName: 'Frozen Butterfly', slug: 'frozen_butterfly' },
-    { displayName: 'Furious Illusion', slug: 'furious_illusion' },
-    { displayName: 'Furious Mirage', slug: 'furious_mirage' },
     { displayName: 'Furnace', slug: 'furnace', operationalNotation: 'Inside > Jump (BOD >> Same Back Swirl (DEX) > Same Dragon (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'low' },
     { displayName: 'Fusing Mirage', slug: 'fusing_mirage' },
     { displayName: 'Fyro Double Legover', slug: 'fyro_double_legover' },
@@ -1064,7 +1056,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'DLO ("dee-ell-oh"), Double Legover', slug: 'dlo_dee_ell_oh_double_legover' },
     { displayName: 'DOD/Double Over Down', slug: 'dod_double_over_down' },
     { displayName: 'Double Down', slug: 'double_down' },
-    { displayName: 'Double Down near Osis', slug: 'double_down_near_osis' },
     { displayName: 'Double Dyno', slug: 'double_dyno' },
     { displayName: 'Double Whip', slug: 'double_whip' },
     { displayName: 'double-dex "Pixie', slug: 'double_dex_pixie' },
@@ -1215,7 +1206,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Stepping far Symp. Whirl', slug: 'stepping_far_symp_whirl' },
     { displayName: 'Stepping near Butterfly', slug: 'stepping_near_butterfly' },
     { displayName: 'Stepping near Butterfly Swirl', slug: 'stepping_near_butterfly_swirl' },
-    { displayName: 'Stepping near Double Down', slug: 'stepping_near_double_down' },
     { displayName: 'Stepping near Drifter', slug: 'stepping_near_drifter' },
     { displayName: 'Stepping near Legover', slug: 'stepping_near_legover' },
     { displayName: 'Stepping near Torque', slug: 'stepping_near_torque' },
