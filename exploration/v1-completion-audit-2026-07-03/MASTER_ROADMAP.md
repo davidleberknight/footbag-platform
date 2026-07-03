@@ -37,12 +37,12 @@ I. **The Hour Test passes (site-level final gate).** A person browses the site f
    click now", "this sentence is awkward". Whatever the browse surfaces gets fixed,
    and the hour is repeated until it runs clean. Manual by nature, and the thing that
    separates a technically complete encyclopedia from a genuinely polished one.
-J. **Three-persona acceptance passes (per-page final gate).** Every foundational and
-   important page passes the three-persona review defined in section 2a: a novice
-   understands it (accessibility), an intermediate player learns from it (education),
-   and an expert trusts it (authority) — all three, independently. This is the
-   per-page companion to the Hour Test's site-level browse; together they are the
-   release bar for editorial completion.
+J. **Four-audience acceptance passes (per-page final gate).** Every foundational and
+   important page passes the four-audience review defined in section 2a: a novice
+   understands it (accessibility), an advancing player learns from it (education), an
+   expert trusts it (authority), and an editor would recommend it (engagement) — all
+   four, independently. This is the per-page companion to the Hour Test's site-level
+   browse; together they are the release bar for editorial completion.
 
 ## 2. Ordered implementation roadmap (shortest path to done)
 
@@ -100,10 +100,18 @@ sees). This is editorial completion, and it is the release bar. It runs as four
 ordered sub-phases — polishing toward a finished encyclopedia rather than patching
 one — plus a running usability pass.**
 
-- **A1 — Foundational content (highest value).** Osis, Down family, Whirling Swirl,
-  Swirling Whirl, per `PHASE1_FOUNDATIONAL_EDITORIAL.md`. These become the exemplars
-  for how every trick and family page should read. Each must answer the
-  foundational-page rubric below, not just carry better prose.
+- **A1 — Foundational pages (Tier 1, highest teaching value).** The four foundation
+  pages become the model pages for the whole encyclopedia: **Down**, **Swirling
+  Whirl**, **Osis**, **Whirling Swirl**. Recommended build order: Down first (it fails
+  both reader lenses while being doctrinally correct — the widest gap), then Swirling
+  Whirl (no prose at all today), then Osis (made the model page, resolving the polarity
+  contradiction as part of the rewrite — the page asserts a same-side catch that its
+  own notation and the open positional doctrine both contradict), then Whirling Swirl
+  (already strong; align it to the model). Each teaches first, answers the ten-question
+  rubric, leaves one memorable takeaway, and passes the four-audience review, drawing
+  on `PHASE1_FOUNDATIONAL_EDITORIAL.md` and the ranked fixes in `HESITATION_LOG.md`.
+  Foundation-card connectivity is Tier-3 (A3) work and explanation-before-notation is a
+  standing principle — neither is folded into A1.
 - **A2 — History (the biggest content gap).** Rewrite the history page; add BAP,
   Hall of Fame, and FB World; add the timeline; add references; link to records and
   to historical people. This replaces most of the "Coming Soon" concept with real
@@ -125,30 +133,77 @@ more deeply. Browse from the landing page through families, trick pages, and lin
 and ask at each page — do I understand why this trick is important, can I visualize
 the motion, do I know where to go next, and are there dead ends? Every five-second
 hesitation gets written down. This surfaces editorial improvements no audit or
-roadmap finds; its log seeds the A1 and A3 work.
+roadmap finds; its log seeds the A1 and A3 work. Its findings are scheduled by their
+phase tag (A1–A4), not by a flat severity ranking: history (A2) is completed before
+connectivity (A3) even when a connectivity finding scores as the single highest-value
+fix, because history is what makes this an encyclopedia rather than a dictionary. So
+the recon's top-ranked item — repointing the "12 Foundations" cards at their trick
+pages — is A3 work that waits for A2, not a queue-jump.
 
-**Foundational-page rubric — eight questions (the teaching model).** Every
-foundational page — and, by their example, every trick and family page — answers, in
-order: (1) What is it? (2) How is it performed? (3) Why is it important? (4) How does
-it relate to other tricks? (5) What does it generate? (6) What common
-misunderstandings exist? (7) Where should I go next? (8) What makes this one
-interesting? The eighth is what turns documentation into an encyclopedia — the
-memorable takeaway a reader leaves with. Per page — Osis: a terminal movement, not a
-clipper entry; one of the most influential terminal movements in freestyle, anchoring
-the Torque and Blender families and appearing inside hundreds of advanced
-combinations. Down: define what "down" means physically; the four structural variants
-share one underlying terminal movement, which is why Red confirmed they are one
-structural family; link Barfly, DOD, DDD, Paradon. Whirling Swirl: a simultaneous
-whirl and swirl — despite the name suggesting a sequence, they occur as one
-coordinated action. Swirling Whirl: the opposite naming convention highlights the
-same coordinated execution from a different perspective; the name alone does not
-indicate execution order.
+**Before A1 — the north star: teach first, reference second, documentation third.**
+Do not optimize a page for completeness; optimize it for understanding. A page
+succeeds if the reader closes it remembering one important idea and immediately knowing
+where to go next — even if every technical detail is not visible above the fold.
+Teaching comes first, reference material (notation, tables) second, exhaustive
+documentation third. This is the lens through which the rubric, the memorable takeaway,
+and the four-audience review are all applied; the tiers below are ordered by teaching
+value, not by fix count.
 
-**Three-persona review — the page-acceptance standard.** Answering the eight
-questions is necessary but not sufficient. A foundational page — and every important
-page — is finished only when three independent readers would each say yes, because
-accessibility, education, and authority are different tests a page can pass singly
-while failing another:
+**Foundational-page rubric — ten questions (teaching is the primary requirement).**
+The real distinction is not missing notation or missing links: some pages merely
+describe mechanics, and the best pages teach. Teaching is the primary requirement for
+a foundational page. Every foundational page — and, by their example, every trick and
+family page — answers, in this order: (1) Why should I care? (2) What question brought
+the reader here? (3) What is it physically? (4) Why is it important? (5) How is it
+performed? (6) Where does it appear? (7) What does it generate or lead to? (8) Common
+misunderstandings. (9) What should I learn next? (10) What makes this trick
+interesting or memorable? Questions 1-2 are the opening hook; question 10 is the
+takeaway. Notation is reference material: it supports the explanation and never leads
+it. Per page — Osis: a terminal movement, not a clipper entry; one of the most
+influential terminal movements in freestyle, anchoring the Torque and Blender
+families. Down: what a "down" is physically, first; the four structural variants share
+one underlying terminal movement, which is why Red confirmed they are one structural
+family; link Barfly, DOD, DDD, Paradon. Whirling Swirl: a simultaneous whirl and swirl
+— not sequential. Swirling Whirl: the same coordinated execution from the opposite
+perspective; the name alone does not indicate execution order.
+
+**The opening — answer, then justify, then define.** A reader arrives with a question,
+not a request for a definition, so a foundational page opens in three moves, in this
+order — backwards from traditional documentation, but natural for an encyclopedia: (1)
+**answer the reader's question** — their perspective, the motivation that brought them;
+(2) **explain why the subject matters** — the encyclopedia's perspective, its
+importance; (3) only then **explain what it is** — the definition. Motivation and
+importance are kept distinct, not merged: the first frames the page from the reader's
+seat, the second asserts the encyclopedia's judgment. Osis, worked: the reader's
+question is "why does everyone keep talking about Osis?"; the importance is "Osis
+became one of the most influential terminal movements in freestyle because it anchors
+the Torque and Blender families and appears throughout advanced combinations"; the
+definition (a spin that ends behind the back) follows. Per-page motivating questions:
+Osis — "why does everyone keep talking about Osis?"; Down — "what exactly is a Down?";
+Whirling Swirl — "which dex happens first?"; Swirling Whirl — "how is this different
+from Whirling Swirl?"; Butterfly — "why is Butterfly considered fundamental?"; Mirage
+— "why is Mirage the first dex everyone learns?". This opening is the twin of rubric
+question 8: the hook opens, the takeaway closes.
+
+**The memorable takeaway — "would I quote this?" (rubric question 10).** Every
+foundational page must leave the reader remembering one important thing — a sentence a
+player would quote when explaining the trick to someone else. A page with no memorable
+line is probably accurate but forgettable; this is the gap between describing a trick
+and teaching it. Model takeaways: Osis — "Osis became one of freestyle's defining
+movements because Torque and Blender — and hundreds of advanced combinations — grow
+directly from it"; Down — "the Down family looks like four different tricks, but
+they're really four variations of the same ending"; Butterfly — "the bridge between
+beginner freestyle and modern combinations"; Mirage — "the first dexterity that unlocks
+almost everything that follows"; Whirling Swirl — "the whirl and swirl are coordinated,
+not sequential".
+
+**Four-audience review — the page-acceptance standard.** Answering the ten questions
+is necessary but not sufficient. A Version 1.0 page — and every important page — is
+finished only when four independent readers would each say yes, because accessibility,
+education, authority, and engagement are different tests a page can pass singly while
+failing another: a page can be perfectly accurate yet dull, or engaging yet quietly
+wrong. This is the editorial standard for the encyclopedia, not merely "technically
+correct":
 
 - **Novice — Accessibility ("Can I understand this?").** Just discovered freestyle.
   Asks: what is this, can I understand the first paragraph, what do these words mean,
@@ -166,16 +221,45 @@ while failing another:
   correct, are aliases handled properly, are sources represented honestly, does it
   match community understanding, were controversial points acknowledged. Watches for
   subtle inaccuracies, historical omissions, doctrinal inconsistency, misleading
-  wording, unsupported claims. Success: "I trust this encyclopedia." The page is
-  historically honest, structurally correct, fair to its sources, doctrine-consistent,
-  and free of unsupported assertions.
+  wording, unsupported claims. Success: "I trust this encyclopedia." This lens has two
+  facets, and both must pass: (a) a **doctrine-and-fact check** — every claim verified
+  against `freestyle/doctrine/*` and the source-priority order (Red > curated >
+  footbag.org > scraped), so the page is structurally correct, fair to its sources,
+  doctrine-consistent, and free of unsupported assertions; and (b) an
+  **editorial-authority review** — read the page as a named long-time freestyler
+  (Red, Vasek, Lon, Ken) and ask not about ADDs or doctrine but about judgment: is the
+  emphasis correct, is the history fair, is anything misleading, is anything
+  oversimplified, is something important omitted? The veteran's "that's not quite
+  right" catches a class of issues neither the reader lenses nor the fact-check will.
+- **Editor — Engagement ("Is this page worth reading?").** Asks: does it have a
+  compelling opening, does every paragraph earn its place, is there unnecessary
+  repetition, does it leave the reader with one memorable idea, would I recommend this
+  page to another player? Watches for dullness, bloat, a buried point, structure that
+  wanders. Success: "I'd send this to someone." A correct page can still be dull or
+  poorly structured; this lens is what separates technically complete from worth
+  reading, and it is why the four-audience standard replaces "technically correct".
 
-The rule: a page is finished only when the novice understands it, the intermediate
-player learns from it, and the expert respects it — all three, independently. This is
-the per-page acceptance test at the release bar; the Hour Test (checklist gate I) is
-its site-level companion — the three-persona review certifies each page, the Hour Test
-certifies the whole browse. The usability pass now running is the intermediate lens;
-the novice and expert lenses are applied when each A1 page is built and accepted.
+The rule: a page is finished only when the novice understands it (approachable), the
+advancing player learns from it (structure and progression), the expert trusts it
+(accurate and editorially balanced), and the editor would recommend it (engaging,
+concise, memorable, worth reading) — all four, independently. Correctness,
+comprehension, and engagement are separate dimensions; a V1.0 page satisfies all four.
+This is the per-page acceptance test at the release bar; the Hour Test (checklist gate
+I) is its site-level companion — the four-audience review certifies each page, the Hour
+Test certifies the whole browse. The reconnaissance already ran the novice,
+intermediate, and expert lenses (`exploration/v1-usability-firstvisit-2026-07-03/HESITATION_LOG.md`);
+the editor lens is applied as each A1 page is written and accepted.
+
+**Flow principle — every click should make the reader feel smarter.** The
+reconnaissance's highest-severity issues are not missing content but missing
+transitions: a foundation card opens a silent video instead of the explanation, the
+Down family offers notation with no physical description, swirling-whirl shows
+autogenerated structure with no human words, the history landing says "Coming Soon"
+over an already-rich history page. These are failures of flow, not knowledge. So
+across Phase A, every click should leave the reader feeling smarter than the page they
+came from; a click that lands on a dead end, boilerplate, or something less
+explanatory than its origin is a candidate for improvement. Primarily an A3 test, but
+every link built in A1 and A2 is held to it too.
 
 **Phase B — Dictionary completion.** Unknown notation (the 26 notation-less active
 tricks); the no-Red blurry footbag.org subset; remaining deterministic authoring;
