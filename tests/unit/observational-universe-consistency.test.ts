@@ -48,4 +48,50 @@ describe('observational universe snapshot internal consistency', () => {
       expect(KNOWN_SECTIONS.has(r.section), `alias row ${r.slug} has no section`).toBe(true);
     }
   });
+
+  // ---- Nine-state ladder guards ----
+  // The generator stamps every row with exactly one evState; the stats block
+  // carries the per-state counts and the progress metric. A regeneration (or
+  // hand edit) that breaks the partition or the arithmetic fails here.
+  const LADDER = [
+    'ready', 'authoring', 'doctrine', 'governance', 'identification',
+    'parser', 'undefined_operator', 'folk', 'alias',
+  ];
+
+  it('every row carries one of the nine ladder states, a holdKind, and a flags array', () => {
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      expect(LADDER.includes(r.evState), `unknown evState "${r.evState}" on ${r.slug}`).toBe(true);
+      expect(typeof r.holdKind).toBe('string');
+      expect(r.holdKind.length).toBeGreaterThan(0);
+      expect(Array.isArray(r.flags)).toBe(true);
+    }
+  });
+
+  it('STATS.evStates matches the row-derived counts and partitions the universe', () => {
+    let sum = 0;
+    for (const s of LADDER) {
+      const derived = OBSERVATIONAL_UNIVERSE.filter(r => r.evState === s).length;
+      expect(STATS.evStates[s], `evStates.${s} disagrees with the rows`).toBe(derived);
+      sum += derived;
+    }
+    expect(sum).toBe(OBSERVATIONAL_UNIVERSE.length);
+  });
+
+  it('an alias-bucket row is always in the alias state, and vice versa', () => {
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      const isArchive = ALIAS.has(r.intakeBucket);
+      expect(r.evState === 'alias', `${r.slug}: alias state and archive bucket must coincide`)
+        .toBe(isArchive);
+    }
+  });
+
+  it('STATS.evProgress is (ready + authoring) over the non-alias universe, pct rounded', () => {
+    const ready = OBSERVATIONAL_UNIVERSE.filter(r => r.evState === 'ready').length;
+    const authoring = OBSERVATIONAL_UNIVERSE.filter(r => r.evState === 'authoring').length;
+    const alias = OBSERVATIONAL_UNIVERSE.filter(r => r.evState === 'alias').length;
+    expect(STATS.evProgress.numerator).toBe(ready + authoring);
+    expect(STATS.evProgress.denominator).toBe(OBSERVATIONAL_UNIVERSE.length - alias);
+    expect(STATS.evProgress.pct).toBe(
+      Math.round((100 * STATS.evProgress.numerator) / STATS.evProgress.denominator));
+  });
 });

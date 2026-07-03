@@ -1,13 +1,14 @@
 {{!--
-  /freestyle/observational — Emerging Vocabulary frontier map (EV2/EV3 hybrid).
+  /freestyle/observational — Emerging Vocabulary distance-to-canonical ladder.
 
-  Status-first, ADD-ordered. Observational layer ONLY: provisional ADD /
-  decomposition are observationally extrapolated, NEVER canonical; cards carry
-  a tracked tag (not a canonical hashtag), no detail-page link, no media. The
-  page reads as a curator work queue: Ready for Authoring first (lowest derived
-  ADD first), then frontier-health metrics, then Needs Authoring, then the
-  doctrine and curator holds, then the long-tail folk / alias / ecosystem behind
-  disclosure.
+  Observational layer ONLY: provisional ADD / decomposition are observationally
+  extrapolated, NEVER canonical; cards carry a tracked tag (not a canonical
+  hashtag), no detail-page link, no media. The page renders the nine-state
+  ladder the generator stamps on every row (evState), closest to canonical
+  publication first: ready for curation, needs authoring, awaiting doctrine,
+  awaiting curator review, awaiting identification, awaiting parser resolution,
+  undefined operator, folk / unrecoverable, then the alias archive. Every count
+  comes from the generated data; the template computes nothing.
 --}}
 <div class="hero hero-sm">
   <div>
@@ -33,16 +34,16 @@
     </p>
     {{else}}
 
-    {{! ── Section A — Ready for Authoring (FIRST; grouped by derived ADD) ── }}
+    {{! ── Step 1 — Ready for Curation (closest to canonical; grouped by derived ADD) ── }}
     {{#if content.readyTotal}}
-    <section class="observed-section" id="promotion-ready" aria-label="Ready for authoring">
+    <section class="observed-section" id="ready-for-curation" aria-label="Ready for curation">
       <div class="section-heading">
-        <h2>Ready for Authoring</h2>
+        <h2>Ready for Curation</h2>
         <span class="section-count">{{content.readyTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        Every token resolves to a settled operator and the derived ADD is clean, so
-        these can go to a curator as-is. Ordered by derived ADD, lowest first.
+        Every part of these names is understood and the derived ADD is complete, so a
+        curator can review and publish them as-is. Ordered by derived ADD, lowest first.
       </p>
       {{#each content.readyGroups}}
       <div class="observed-eco-group">
@@ -55,8 +56,8 @@
     </section>
     {{/if}}
 
-    {{! ── Frontier-health metrics (under the ready list, not above it) ── }}
-    <div class="observed-stats" aria-label="Frontier health">
+    {{! ── Ladder overview (one tile per step, closest to canonical first) ── }}
+    <div class="observed-stats" aria-label="Distance to canonical publication">
       {{#each content.stats}}
       <div class="observed-stat">
         <span class="observed-stat-value">{{value}}</span>
@@ -65,6 +66,7 @@
       </div>
       {{/each}}
     </div>
+    <p class="observed-stats-note fw-600">{{content.progressHeadline}}</p>
     <p class="observed-stats-note text-muted">{{content.statsNote}}</p>
     {{#if content.sources.length}}
     <p class="observed-source-strip" aria-label="Sources represented on this page">
@@ -76,18 +78,18 @@
     {{/if}}
     <p class="observational-layer-note">{{content.layerNote}}</p>
 
-    {{! ── Section B — Needs Authoring (grouped by derived ADD) ── }}
-    {{#if content.frontierTotal}}
+    {{! ── Step 2 — Needs Authoring (one authoring pass away; grouped by derived ADD) ── }}
+    {{#if content.authoringTotal}}
     <section class="observed-section" id="needs-authoring" aria-label="Needs authoring">
       <div class="section-heading">
         <h2>Needs Authoring</h2>
-        <span class="section-count">{{content.frontierTotal}}</span>
+        <span class="section-count">{{content.authoringTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        Structure is understood, but the notation or decomposition is not yet authored,
-        one small judgment from promotion-ready. Grouped by derived ADD.
+        The movement is understood, but the notation or decomposition write-up is not done
+        yet: one authoring pass separates these from curator review. Grouped by derived ADD.
       </p>
-      {{#each content.frontierGroups}}
+      {{#each content.authoringGroups}}
       <div class="observed-eco-group">
         <h3 class="observed-eco-heading">{{label}} <span class="text-muted">({{count}})</span></h3>
         <div class="observed-card-grid">
@@ -98,68 +100,43 @@
     </section>
     {{/if}}
 
-    {{! ── Section C — Doctrine & curator holds (classifier clusters) ── }}
-    {{#if content.doctrineTotal}}
-    <section class="observed-section" id="doctrine-blocked" aria-label="Doctrine and curator holds">
-      <div class="section-heading">
-        <h2>Doctrine &amp; Curator Holds</h2>
-        <span class="section-count">{{content.doctrineTotal}}</span>
-      </div>
-      <p class="observed-section-intro">
-        The names that rest on an open question rather than an authoring step. Weaving is the one
-        movement operator still awaiting a ruling: its definition is given, but the notation-token
-        grammar is unresolved. The curator reviews are editorial or identity calls, not doctrine:
-        the down-family (DOD / DDD) per-trick verification, the blurry compounds held on the pending
-        blurry packet, and open identity questions such as Nuclear Osis and Aeon Flux.
-        Side and direction variants are not here: the notation already records which side a move uses.
-        Each cluster states what it is actually waiting on.
-      </p>
-      <div class="observed-cluster-grid">
-        {{#each content.doctrineClusters}}
-        <div class="observed-cluster">
-          <div class="observed-cluster-head">
-            <h3>{{label}}</h3>
-            <span class="observed-cluster-count">{{count}}</span>
-          </div>
-          <p class="observed-cluster-q">{{blockingQuestion}}</p>
-          {{#if sampleNames.length}}
-          <p class="observed-cluster-samples text-muted">e.g. {{#each sampleNames}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}</p>
-          {{/if}}
-        </div>
-        {{/each}}
-      </div>
-    </section>
-    {{/if}}
+    {{! ── Steps 3-5 — the holds, most binding first ── }}
+    {{> observed-summary-section section=content.doctrineHold title="Awaiting Doctrine" anchor="awaiting-doctrine"}}
+    {{> observed-summary-section section=content.curatorHold title="Awaiting Curator Review" anchor="awaiting-curator-review"}}
+    {{> observed-summary-section section=content.identificationHold title="Awaiting Identification" anchor="awaiting-identification"}}
 
-    {{#if content.externalEntries.total}}
+    {{! ── Steps 6-9 — the long tail, collapsed by default ── }}
+    {{#if content.parserHold.total}}
     <details class="observed-disclosure">
-      <summary class="observed-disclosure-summary">External / unadjudicated (database-tracked) <span class="text-muted">({{content.externalEntries.total}})</span></summary>
-      {{> observed-summary-section section=content.externalEntries title="Tracked in the database, not yet adjudicated" anchor="external-unadjudicated"}}
+      <summary class="observed-disclosure-summary">Awaiting parser resolution <span class="text-muted">({{content.parserHold.total}})</span></summary>
+      {{> observed-summary-section section=content.parserHold title="Documented execution, decomposition unresolved" anchor="awaiting-parser-resolution"}}
     </details>
     {{/if}}
 
-    {{! ── Long tail (collapsed by default) ── }}
-    {{#if content.undefinedOps.total}}
+    {{#if content.undefinedOperatorHold.total}}
     <details class="observed-disclosure">
-      <summary class="observed-disclosure-summary">Undefined operator <span class="text-muted">({{content.undefinedOps.total}})</span></summary>
-      {{> observed-summary-section section=content.undefinedOps title="Blocked on an undefined operator" anchor="undefined-operator"}}
+      <summary class="observed-disclosure-summary">Undefined operator <span class="text-muted">({{content.undefinedOperatorHold.total}})</span></summary>
+      {{> observed-summary-section section=content.undefinedOperatorHold title="Blocked on an undefined operator" anchor="undefined-operator"}}
     </details>
     {{/if}}
 
     <details class="observed-disclosure">
-      <summary class="observed-disclosure-summary">Folk names <span class="text-muted">({{content.folk.total}})</span></summary>
-      {{> observed-summary-section section=content.folk title="Community names, structure not yet recovered" anchor="folk-names"}}
-    </details>
-
-    <details class="observed-disclosure">
-      <summary class="observed-disclosure-summary">Parser ambiguity <span class="text-muted">({{content.parser.total}})</span></summary>
-      {{> observed-summary-section section=content.parser title="Documented execution, decomposition unresolved" anchor="parser-ambiguity"}}
+      <summary class="observed-disclosure-summary">Folk / unrecoverable <span class="text-muted">({{content.folkHold.total}})</span></summary>
+      {{> observed-summary-section section=content.folkHold title="Community names, structure not yet recovered" anchor="folk-names"}}
     </details>
 
     <details class="observed-disclosure">
       <summary class="observed-disclosure-summary">Alias / duplicate archive <span class="text-muted">({{content.aliasArchive.total}})</span></summary>
       {{> observed-summary-section section=content.aliasArchive title="Resolves to an existing trick" anchor="alias-archive"}}
     </details>
+
+    {{! ── Database-tracked pending names (outside the generated universe; never double-counted) ── }}
+    {{#if content.externalEntries.total}}
+    <details class="observed-disclosure">
+      <summary class="observed-disclosure-summary">External / unadjudicated (database-tracked) <span class="text-muted">({{content.externalEntries.total}})</span></summary>
+      {{> observed-summary-section section=content.externalEntries title="Tracked in the database, not yet adjudicated" anchor="external-unadjudicated"}}
+    </details>
+    {{/if}}
 
     {{#if content.ecosystemMatrix.length}}
     <details class="observed-disclosure">
@@ -173,7 +150,7 @@
             {{#each content.ecosystemMatrix}}
             <tr>
               <td class="observed-matrix-eco">{{label}}</td>
-              <td>{{ready}}</td><td>{{frontier}}</td><td>{{doctrine}}</td><td>{{unresolved}}</td>
+              <td>{{ready}}</td><td>{{authoring}}</td><td>{{holds}}</td><td>{{unresolved}}</td>
               <td class="fw-600">{{total}}</td>
             </tr>
             {{/each}}

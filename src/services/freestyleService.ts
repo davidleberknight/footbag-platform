@@ -555,37 +555,6 @@ function isDexlessBodyAtom(r: { category: string | null; base_trick: string | nu
   return r.category === 'body' && r.base_trick === r.slug;
 }
 
-// An active trick that carries no operational_notation cannot be dex-counted, but
-// "no op-notation" is not itself a frontier reason. This classifies such a trick
-// by its REAL blocker so the dictionary groups by why a row is stuck, not by which
-// notation field happens to be populated. Token-driven + curator-extensible.
-export type NotationBlocker =
-  | 'undefined-operator' | 'governance' | 'documented' | 'needs-authoring' | 'identification';
-const NB_UNDEFINED_OPERATORS = new Set([
-  'blazing','symple','slapping','fusing','phasing','slaying','sonic','twinspinning',
-  'frootie','fyro','leaning','twisted','twisting','wonton','wrecking','snapping','zipper',
-]);
-function classifyNotationBlocker(
-  r: { slug: string; canonical_name: string | null; notation: string | null },
-): NotationBlocker {
-  const name = (r.canonical_name ?? r.slug).toLowerCase();
-  const toks: string[] = name.match(/[a-z]+/g) ?? [];
-  // an undefined folk operator in the name is the blocker, whatever else is present
-  if (toks.some(t => NB_UNDEFINED_OPERATORS.has(t))) return 'undefined-operator';
-  // weaving and zulu are now defined ducking sets, not doctrine blocks; with their
-  // notation authored they sit in 'documented'. Atomic / quantum / nuclear are
-  // resolved too (X-Dex is a separate +1 scored only where the notation carries
-  // [XDEX]), so those rows just need their notation authored.
-  // down-family / DOD is a governance / verification call
-  if (toks.includes('down') || toks.includes('dod') || toks.includes('ddd')) return 'governance';
-  // The movement (JOB) notation and ADD are already written; only the symbolic
-  // operational notation is pending. That is a documentation-completeness gap, not
-  // unwritten work, so it must not sit in the "needs authoring" bucket.
-  if ((r.notation ?? '').trim().length > 0) return 'documented';
-  // no notation of any kind written yet: genuinely needs authoring.
-  return 'needs-authoring';
-}
-
 function buildFreestyleByNumbers(
   trickRows: readonly FreestyleTrickRow[],
   linkRows: readonly FreestyleTrickModifierLinkRow[],
@@ -611,8 +580,11 @@ function buildFreestyleByNumbers(
   const histTop = (hist: readonly TopologyHistogramRow[], n: number): FreestyleByNumbersBar[] =>
     hist.slice(0, n).map(h => bar(h.label, h.count));
 
+  // Same resolved-notation source as the dex-count browse view (core-atom
+  // spec, then the published-formula overlay, then the DB column), so the
+  // landing histogram and the view it links into always agree.
   const dexCount = (r: FreestyleTrickRow): string => {
-    const op = r.operational_notation;
+    const op = resolveOperationalNotationRaw(r.slug, r.operational_notation);
     if (!op || !op.trim()) return isDexlessBodyAtom(r) ? '0' : 'Unknown';
     const n = (op.match(/\[DEX\]/g) ?? []).length;
     return n >= 3 ? '3+' : String(n);
@@ -651,8 +623,10 @@ function buildFreestyleByNumbers(
   const cards: FreestyleByNumbersCard[] = [
     { key: 'difficulty', eyebrow: 'How layered are tricks?', title: 'Difficulty',
       viewKey: 'add', footnote: null, bars: ordered(add, ['1', '2', '3', '4', '5', '6', '7', '8']) },
+    // No "Unknown" bar: the dex-count browse view renders only dex-countable
+    // tricks, and the card note carries the derived pending-notation count.
     { key: 'dexterity', eyebrow: 'How many dexes define tricks?', title: 'Dexterity',
-      viewKey: 'dex-count', footnote: null, bars: ordered(dex, ['0', '1', '2', '3+', 'Unknown']) },
+      viewKey: 'dex-count', footnote: null, bars: ordered(dex, ['0', '1', '2', '3+']) },
     { key: 'entry', eyebrow: 'How do tricks begin?', title: 'Entry sets',
       viewKey: 'sets', footnote: null, bars: top(entry, 20) },
     { key: 'terminal', eyebrow: 'How do tricks finish?', title: 'Family endings',
@@ -2872,9 +2846,10 @@ export interface SetDetailCrossLinks {
 
 // Dex-count grouped browse view. Buckets active dictionary tricks by the number of [DEX] tokens
 // in their operational_notation field. Pedagogical axis: "How many dex
-// moves does this trick involve?". Tricks without op_notation fall into an
-// "Unknown" bucket. Uses the shared dictionary-trick-card partial; card
-// shapes are identical to the ADD view.
+// moves does this trick involve?". A trick without operational notation is not
+// dex-countable and does not render in this view (an unresolved bucket is not
+// canonical browse content); it stays visible in the other browse views with
+// the incomplete badge until its notation is authored.
 // A labelled ADD sub-band within a browse section whose secondary sort is ADD
 // (dex-count, movement-system axis, topology neighborhood). The label makes the
 // otherwise-invisible secondary ordering legible — readers see "3 ADD / 4 ADD"
@@ -2885,9 +2860,9 @@ export interface FreestyleAddBand {
 }
 
 export interface FreestyleTrickDexCountGroup {
-  dexCount: number | null;     // null = not dex-countable (no op_notation); grouped below by real blocker
-  dexLabel: string;            // pre-shaped: '0 dex events' … '3+ dex events', then blocker-type labels (Needs authoring, Operational notation pending, Blocked: undefined operator / weaving / governance / identification)
-  bucketId: string;            // pre-shaped section anchor: 'dex-0' … 'dex-3', then 'dex-needs-authoring', 'dex-documented', 'dex-undefined-operator', 'dex-governance', 'dex-identification'. Avoids Handlebars 0-is-falsy footgun in the template.
+  dexCount: number;            // 0, 1, 2, or 3 (the 3+ bucket)
+  dexLabel: string;            // pre-shaped: '0 dex events' … '3+ dex events'
+  bucketId: string;            // pre-shaped section anchor: 'dex-0' … 'dex-3'. Avoids Handlebars 0-is-falsy footgun in the template.
   cards: DictionaryTrickCard[];
   // The same cards, partitioned into ADD-labelled sub-bands (ADD ascending).
   // The template renders these so the secondary ADD ordering carries a header.
@@ -3939,18 +3914,10 @@ export interface ObservationalEcosystemRow {
   ecosystem:  string;
   label:      string;
   ready:      number;
-  frontier:   number;
-  doctrine:   number;
+  authoring:  number;
+  holds:      number;
   unresolved: number;
   total:      number;
-}
-
-export interface ObservationalDoctrineCluster {
-  key:              string;
-  label:            string;
-  count:            number;
-  blockingQuestion: string;
-  sampleNames:      readonly string[];
 }
 
 export interface ObservationalSummaryRow {
@@ -3965,32 +3932,42 @@ export interface ObservationalSummarySection {
   fullList:    readonly ObservationalSummaryRow[];
 }
 
+// Page organization: the nine-state distance-to-canonical ladder emitted by the
+// generator (row field evState). Sections render in ladder order, closest to
+// canonical publication first; every universe row appears in exactly one section.
 export interface FreestyleObservationalContent {
   stats:               readonly ObservationalStat[];
   statsNote:           string;
+  /** Headline progress figure, rendered verbatim from the generated
+   *  evProgress metric (never computed at request time). */
+  progressHeadline:    string;
   layerNote:           string;
-  /** Section A — clean mechanical promotions, grouped by ecosystem. */
+  /** Ladder step 1 — ready for curation: fully resolved, grouped by derived ADD. */
   readyTotal:          number;
   readyGroups:         readonly ObservationalEcosystemGroup[];
-  /** Section B — per-ecosystem frontier matrix + curator-confirm cards. */
-  ecosystemMatrix:     readonly ObservationalEcosystemRow[];
-  frontierTotal:       number;
-  frontierGroups:      readonly ObservationalEcosystemGroup[];
-  /** Section C — doctrine bottleneck clusters. */
-  doctrineTotal:       number;
-  doctrineClusters:    readonly ObservationalDoctrineCluster[];
-  /** Section D — folk names: community names with no recoverable structure. */
-  folk:                ObservationalSummarySection;
-  /** Names blocked on an undefined folk operator (own category, not folk). */
-  undefinedOps:        ObservationalSummarySection;
-  /** Section E — parser ambiguity: documented execution, unresolved decomposition. */
-  parser:              ObservationalSummarySection;
-  /** Alias / Duplicate archive — names that resolve to an existing trick. */
+  /** Ladder step 2 — needs authoring: one authoring pass away, grouped by derived ADD. */
+  authoringTotal:      number;
+  authoringGroups:     readonly ObservationalEcosystemGroup[];
+  /** Ladder step 3 — awaiting doctrine: rests on an open expert ruling. */
+  doctrineHold:        ObservationalSummarySection;
+  /** Ladder step 4 — awaiting curator review: editorial / verification calls. */
+  curatorHold:         ObservationalSummarySection;
+  /** Ladder step 5 — awaiting identification: which movement the name is. */
+  identificationHold:  ObservationalSummarySection;
+  /** Ladder step 6 — awaiting parser resolution: no single decomposition yet. */
+  parserHold:          ObservationalSummarySection;
+  /** Ladder step 7 — undefined operator: folk term with no settled definition. */
+  undefinedOperatorHold: ObservationalSummarySection;
+  /** Ladder step 8 — folk / unrecoverable: no recoverable structure yet. */
+  folkHold:            ObservationalSummarySection;
+  /** Ladder step 9 — alias / duplicate archive: resolves to an existing trick. */
   aliasArchive:        ObservationalSummarySection;
   /** External / unadjudicated rows tracked in the database (is_active=0 +
    *  review_status='pending'). Excluded from canonical browse; their home is
-   *  this Emerging Vocabulary surface. */
+   *  this Emerging Vocabulary surface. The generator excludes every
+   *  database-tracked slug from the universe, so these never double-count. */
   externalEntries:     ObservationalSummarySection;
+  ecosystemMatrix:     readonly ObservationalEcosystemRow[];
   sources:             readonly { badge: string; label: string }[];
   canonicalReferences: readonly { label: string; href: string }[];
   generatedOn:         string;
@@ -8492,33 +8469,45 @@ export const freestyleService = {
 
     // ---- Dex-count groups (?view=dex-count) ---------------------------
     // Bucket active dictionary tricks by the number of [DEX] tokens in
-    // their operational_notation. Tricks without op_notation fall into
-    // a separate "Unknown" bucket. The four-tier ladder (0 / 1 / 2 / 3+)
+    // their operational_notation. The four-tier ladder (0 / 1 / 2 / 3+)
     // matches the dex-count distribution observed in the canonical DB:
     // most named tricks fall in 1- or 2-dex; 3+ is the deep-compound tail.
+    // Dex events are counted from the SAME resolved notation the row renders
+    // (curator core-atom spec, then the published-formula overlay, then the DB
+    // column), so a first-class trick whose chain lives in the overlay is
+    // counted like any other. A trick with no notation from ANY source cannot
+    // be dex-counted, so it does NOT render in this view at all: an unresolved
+    // bucket is not canonical browse content. Those rows are notation-backfill
+    // work; they stay visible in every other browse view carrying the
+    // incomplete badge, and the view intro states how many are pending so the
+    // count is derived, never stale.
     const countDexEvents = (row: FreestyleTrickRowWithStatus): number | null => {
-      const opNotation = row.operational_notation;
+      const opNotation = resolveOperationalNotationRaw(row.slug, row.operational_notation);
       if (!opNotation) return isDexlessBodyAtom(row) ? 0 : null;
       const matches = opNotation.match(/\[DEX\]/g);
       return matches ? matches.length : 0;
     };
-    const dexBuckets = new Map<number | null, AddBucketEntry[]>();
+    const dexBuckets = new Map<number, AddBucketEntry[]>();
+    let dexNotationPending = 0;
     for (const row of allRows) {
       if (!isTrickRow(row)) continue;
       if (row.is_active !== 1) continue;
       const raw = countDexEvents(row);
+      if (raw === null) {
+        dexNotationPending += 1;
+        continue;
+      }
       // Bucket 3 and 4+ together for the "3+ dex events" label.
-      const bucketKey: number | null = raw === null ? null : raw >= 3 ? 3 : raw;
+      const bucketKey = raw >= 3 ? 3 : raw;
       const bucket = dexBuckets.get(bucketKey) ?? [];
       bucket.push({ row, indexRow: shapeTrickIndexRow(row, ctx) });
       dexBuckets.set(bucketKey, bucket);
     }
     const dexCountGroups: FreestyleTrickDexCountGroup[] = [];
     const buildDexGroup = (
-      dexCount: number | null,
+      dexCount: number,
       dexLabel: string,
       entries: AddBucketEntry[],
-      bucketIdOverride?: string,
     ): FreestyleTrickDexCountGroup => {
       // Ordering within a dex bucket: ADD ascending, then alphabetical.
       const sorted = entries.slice().sort((a, b) => {
@@ -8527,17 +8516,16 @@ export const freestyleService = {
         if (aa !== ba) return aa - ba;
         return byCanonicalNameAlpha(a.indexRow, b.indexRow);
       });
-      const bucketId = bucketIdOverride ?? (dexCount === null ? 'dex-unknown' : `dex-${dexCount}`);
       const cards = sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx));
       return {
         dexCount,
         dexLabel,
-        bucketId,
+        bucketId: `dex-${dexCount}`,
         cards,
         addBands: bandCardsByAdd(sorted.map((e, i) => ({ adds: e.row.adds, card: cards[i]! }))),
       };
     };
-    const dexNumericKeys = [...dexBuckets.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b);
+    const dexNumericKeys = [...dexBuckets.keys()].sort((a, b) => a - b);
     for (const k of dexNumericKeys) {
       const label =
         k === 0 ? '0 dex events' :
@@ -8545,30 +8533,6 @@ export const freestyleService = {
         k === 2 ? '2 dex events' :
         '3+ dex events';
       dexCountGroups.push(buildDexGroup(k, label, dexBuckets.get(k) ?? []));
-    }
-    // Rows with no operational_notation cannot be dex-counted, but "no op-notation"
-    // is not a frontier reason. Group them by their REAL blocker (undefined operator,
-    // Red doctrine, governance, stale, needs-authoring, identification) so the page is
-    // organized by why a row is stuck, not by which notation field is populated.
-    if (dexBuckets.has(null)) {
-      const byBlocker = new Map<NotationBlocker, AddBucketEntry[]>();
-      for (const e of dexBuckets.get(null) ?? []) {
-        const b = classifyNotationBlocker(e.row);
-        const list = byBlocker.get(b) ?? [];
-        list.push(e);
-        byBlocker.set(b, list);
-      }
-      const BLOCKER_GROUPS: ReadonlyArray<readonly [NotationBlocker, string, string]> = [
-        ['needs-authoring',     'dex-needs-authoring',     'Needs authoring (no notation written yet)'],
-        ['documented',          'dex-documented',          'Operational notation pending (movement notation and ADD already written)'],
-        ['undefined-operator',  'dex-undefined-operator',  'Blocked: undefined operator'],
-        ['governance',          'dex-governance',          'Blocked: curator / governance'],
-        ['identification',      'dex-identification',       'Blocked: identification'],
-      ];
-      for (const [b, id, label] of BLOCKER_GROUPS) {
-        const entries = byBlocker.get(b);
-        if (entries && entries.length) dexCountGroups.push(buildDexGroup(null, label, entries, id));
-      }
     }
 
     // Load modifier reference table (still shaped; rendering currently disabled)
@@ -9024,27 +8988,17 @@ export const freestyleService = {
     // Tracking & Expansion. Count governance:
     // each card's count = buckets / groups, NOT trick rows (since the same
     // trick appears in multiple axes — would mislead).
-    const dexChipLabel = (dexCount: number | null): string =>
-      dexCount === null ? 'Unresolved'
-      : dexCount === 0  ? '0 dex'
-      : dexCount === 1  ? '1 dex'
-      : dexCount === 2  ? '2 dex'
+    const dexChipLabel = (dexCount: number): string =>
+      dexCount === 0 ? '0 dex'
+      : dexCount === 1 ? '1 dex'
+      : dexCount === 2 ? '2 dex'
       : '3+ dex';
-    // Landing-card chips only: the detail page keeps the richer no-op-notation
-    // blocker buckets (needs-authoring / stale / undefined-operator / …), but on
-    // the landing summary they collapse into ONE "Unresolved" chip so the card
-    // never shows a row of repeated labels. The detail page is unchanged.
-    const dexLandingChips: { label: string; href: string; count: number }[] = (() => {
-      const numeric = dexCountGroups
-        .filter(g => g.dexCount !== null)
-        .map(g => ({ label: dexChipLabel(g.dexCount), href: `/freestyle/tricks?view=dex-count#${g.bucketId}`, count: g.cards.length }));
-      const unresolved = dexCountGroups.filter(g => g.dexCount === null);
-      const unresolvedCount = unresolved.reduce((s, g) => s + g.cards.length, 0);
-      if (unresolvedCount > 0 && unresolved[0]) {
-        numeric.push({ label: 'Unresolved', href: `/freestyle/tricks?view=dex-count#${unresolved[0].bucketId}`, count: unresolvedCount });
-      }
-      return numeric;
-    })();
+    const dexLandingChips: { label: string; href: string; count: number }[] =
+      dexCountGroups.map(g => ({
+        label: dexChipLabel(g.dexCount),
+        href:  `/freestyle/tricks?view=dex-count#${g.bucketId}`,
+        count: g.cards.length,
+      }));
     const axisChipLabel = (axisKey: string, axisName: string): string => {
       switch (axisKey) {
         case 'set-uptime':          return 'Set/Uptime';
@@ -9268,8 +9222,15 @@ export const freestyleService = {
 
     // Per-view section intros (service-shaped; the static cross-link affordances
     // stay in the template). These were inline template copy before.
+    // The pending-notation sentence is derived from the same pass that built
+    // the buckets, so the count can never go stale; it renders only when
+    // something is actually pending.
     const dexCountIntro =
-      'Tricks grouped by how many dexterity moves they involve, where you circle a leg around the bag.';
+      'Tricks grouped by how many dexterity moves they involve, where you circle a leg around the bag.' +
+      (dexNotationPending > 0
+        ? ` ${dexNotationPending} canonical ${dexNotationPending === 1 ? 'trick awaits' : 'tricks await'} ` +
+          'notation authoring and cannot be counted yet; they appear in the other browse views with an incomplete badge.'
+        : '');
     const setsIntro =
       'Tricks grouped by the set or body modifier they use. Each section answers: which tricks use this set or modifier?';
 
@@ -9886,213 +9847,95 @@ export const freestyleService = {
       fullList:    externalRows.map(r => ({ name: r.canonical_name, source: 'external' })),
     };
 
-    // Three-layer ontology (publication-integrity doctrine): a mature canonical
-    // ontology, a substantial governed expansion frontier, and a broader lexical
-    // archive. The frontier counts distinct mechanically-coherent candidate
-    // structures; the archive (aliases, duplicates, single-source noise, unresolved
-    // doctrine) is documented vocabulary, never counted as candidate tricks.
-    // Frontier-health metrics, classified by what each name is actually waiting
-    // on. Each row maps to exactly one category, derived from the universe's
-    // fields plus the curator-hold routing below. Weaving is the one genuine
-    // doctrine blocker on this frontier: its definition is given, but the
-    // notation-token grammar is unresolved. Blurry compounds are held on the
-    // pending blurry-modifier ADD packet, and the Nuclear-Osis / Aeon-Flux pair
-    // is an open identity question, so both are curator reviews, not authoring.
-    type FrontierCategory =
-      | 'red' | 'governance' | 'identification' | 'undefined' | 'notation'
-      | 'authoring' | 'ready' | 'folk' | 'alias';
-    // Names whose only blocker is a folk operator whose weight/structure is not
-    // yet defined (shared with the dex-count view's NB_UNDEFINED_OPERATORS so the
-    // two surfaces agree), plus the two named structure-identification questions.
-    const IDENTIFICATION_NAMED = new Set(['dragon', 'refraction']);
-    // Curator holds decided ahead of the generator's section label: blurry
-    // compounds are held on the pending blurry-modifier ADD packet, and the
-    // Nuclear-Osis / Aeon-Flux pair is an open identity question.
-    const BLURRY_PACKET_TOKENS = new Set(['blurry', 'blurrier', 'blurriest']);
-    const isNuclearOsisIdentity = (name: string): boolean => {
-      const lead = name.split('(')[0].toLowerCase();
-      return lead.includes('nuclear') && lead.includes('osis');
-    };
-    // Parser failure classes that are genuine notation gaps (ambiguous terminal,
-    // compression, directional syntax), distinct from an undefined operator.
-    const PARSER_AMBIGUITY_CLASSES = new Set([
-      'ambiguous-terminal-mechanic', 'compression-ambiguity',
-      'unresolved-directional-syntax', 'parser-ambiguity',
-    ]);
-    const hasToken = (name: string, set: ReadonlySet<string>): boolean =>
-      (name.split('(')[0].toLowerCase().match(/[a-z]+/g) ?? []).some(t => set.has(t));
-    // A row flagged `unknown-modifier-token` is only genuinely notation-blocked
-    // when its name still contains an undefined operator. Many such flags are
-    // STALE: the token has since become a settled operator, a base atom, a
-    // directional, or a known notation abbreviation. This curated vocabulary
-    // (curator-extensible; add a token as its operator settles) detects those, so
-    // a row whose every token now resolves leaves the notation-blocked count.
-    const KNOWN_FRONTIER_TOKENS: ReadonlySet<string> = new Set([
-      // core atoms + surfaces
-      'toe','stall','clipper','clip','around','world','atw','orbit','legover','leg','over','pickup',
-      'mirage','illusion','butterfly','osis','whirl','swirl','sole',
-      // family bases + settled folk compounds
-      'blender','torque','drifter','dyno','barfly','eclipse','flail','guay','eggbeater','dada','curve','da',
-      'paradon','flurry','blur','fog','smoke','smog','haze','fury','nemesis','royale','mobius','bubba',
-      'witchdoctor','spyro','hatchet','smear','magellan','infinity','flapper','bar','rake','scoop','neutron',
-      // sets / operators
-      'pogo','terraging','terrage','blurry','blurrier','blurriest','furious','barraging','sailing','shooting',
-      'frantic','nuclear','atomic','quantum','illusioning','miraging','whirling','swirling','gyro','flailing',
-      'surfing','slicing','splicing','warping','railing','rooted','floating','tapping','backside','inspinning',
-      'spinning','stepping','ducking','diving','symposium','paradox','fairy','pixie','blistering','zulu','weaving',
-      // directionals / structurals
-      'far','near','op','os','reverse','rev','same','ss','double','triple','down','up','set','kick','side',
-      'front','back','inside','outside','cross','body','in','out',
-      // known notation abbreviations leaked into a name (not unknown operators)
-      'dex','xbd','bs','dod','ddd','plo','dlo','dso','pdx','bod','del','uns','xdex','symp','inward','outward','wo',
-      // documented sets, known concepts, and abbreviations confirmed settled in audit
-      'crossbody','hopover','ps','twirl','arctic','alpine','pinching','pincher','muted','flying',
-    ]);
-    // Source-data spelling typos that resolve to a known operator (Pass 2): they
-    // are not new frontier operators, so normalize before the known-token check.
-    const TOKEN_TYPO_FIXES: ReadonlyMap<string, string> = new Map([
-      ['butterfy', 'butterfly'], ['baragging', 'barraging'], ['royall', 'royale'], ['eggbeating', 'eggbeater'],
-    ]);
-    const nameResolvesToKnownTokens = (name: string): boolean => {
-      const tokens = name.split('(')[0].toLowerCase().match(/[a-z]+/g) ?? [];
-      if (tokens.length === 0) return false;
-      return tokens.every(t => t.length <= 1 || KNOWN_FRONTIER_TOKENS.has(TOKEN_TYPO_FIXES.get(t) ?? t));
-    };
-    // Promotion-ready means the derivation is COMPLETE: a numeric ADD and a
-    // decomposition both present, so the row can go to curation as-is. This is
-    // judged on the authored evidence, never on the generator's stale section
-    // label, so a fully-derived row is a candidate whichever section it carries.
-    // Everything else with a settled structure is "needs authoring": the
-    // structure is understood but its ADD / decomposition write-up is not done.
-    const isFullyDerived = (r: ObservationalUniverseRow): boolean =>
-      /^[0-9]+$/.test(r.provisionalAdd) && r.decomposition.trim().length > 0;
-    const classifyFrontier = (r: ObservationalUniverseRow): FrontierCategory => {
-      if (isAliasArchive(r)) return 'alias';
-      // Curator/identity holds are decided before the section label, so a held
-      // row is a curator item wherever the generator filed it.
-      if (hasToken(r.name, BLURRY_PACKET_TOKENS)) return 'governance';
-      if ((r.name.match(/\(/g)?.length ?? 0) >= 2) return 'identification';
-      if (isNuclearOsisIdentity(r.name)) return 'identification';
-      if (r.section === 'doctrine') {
-        if (r.cluster === 'weaving') return 'red';
-        if (r.cluster === 'dod-ddd') return 'governance';                    // verification / governance
-        return 'identification';
-      }
-      if (r.section === 'ready' || r.section === 'frontier') {
-        return isFullyDerived(r) ? 'ready' : 'authoring';
-      }
-      if (r.failureClass === 'unknown-modifier-token') {
-        // Every token now resolves to a settled operator: not blocked. Route to
-        // candidate when the derivation is complete, else needs-authoring.
-        if (nameResolvesToKnownTokens(r.name)) {
-          return isFullyDerived(r) ? 'ready' : 'authoring';
-        }
-        // A non-resolving name is not "notation pending": its blocker is an
-        // undefined operator (definition/weight not settled), a named structure
-        // identification, or an opaque folk name with no recoverable structure.
-        if (hasToken(r.name, NB_UNDEFINED_OPERATORS)) return 'undefined';
-        if (hasToken(r.name, IDENTIFICATION_NAMED)) return 'identification';
-        return 'folk';
-      }
-      // Genuine notation gaps (ambiguous terminal, compression, directional syntax)
-      // are parser-ambiguity; everything else is an unresolved folk name.
-      if (PARSER_AMBIGUITY_CLASSES.has(r.failureClass)) return 'notation';
-      return 'folk';
-    };
-    const catCount = new Map<FrontierCategory, number>();
-    for (const r of universe) {
-      const c = classifyFrontier(r);
-      catCount.set(c, (catCount.get(c) ?? 0) + 1);
-    }
-    const cc = (c: FrontierCategory) => catCount.get(c) ?? 0;
-    const nonAlias = universe.length - cc('alias');
-    const pctReady = nonAlias ? Math.round(((cc('ready') + cc('authoring')) / nonAlias) * 100) : 0;
+    // Nine-state distance-to-canonical ladder. The generator stamps every
+    // universe row with exactly one evState, computed once at generation time;
+    // this method only reads that field. Sections, health tiles, the ecosystem
+    // matrix, and every rendered count derive from the same generated data, so
+    // the page and the data cannot disagree.
+    type EvState =
+      | 'ready' | 'authoring' | 'doctrine' | 'governance' | 'identification'
+      | 'parser' | 'undefined_operator' | 'folk' | 'alias';
+    const inState = (s: EvState): ObservationalUniverseRow[] =>
+      universe.filter(r => r.evState === s);
+    const cc = (s: EvState): number => stats.evStates[s] ?? 0;
+    const progress = stats.evProgress;
+    const progressHeadline =
+      `${progress.pct}% of the non-alias frontier (${progress.numerator} of ` +
+      `${progress.denominator} names) is a candidate or one authoring step away.`;
 
-    // Long-tail content summaries partitioned by the SAME reason classifier as the
-    // metrics, so the listed names match the counts and no name appears under two
-    // headings. Folk is only genuine community names with no recoverable structure;
-    // undefined operators and parser ambiguity are their own lists, not folded in.
-    const inCategory = (c: FrontierCategory): ObservationalUniverseRow[] =>
-      universe.filter(r => classifyFrontier(r) === c);
-    const folk = summarizeRows(inCategory('folk'),
-      'Community names with no recoverable structure yet: the name is in use, but it is not yet ' +
-      'known which trick it refers to. Aliases, misspellings, undefined operators, and parser ' +
-      'gaps are listed under their own headings, not here.');
-    const undefinedOps = summarizeRows(inCategory('undefined'),
-      'Names that carry a folk operator whose weight or structure is not yet defined. They cannot ' +
-      'be authored until that operator is settled; defining the operator unblocks every name using it.');
-    const parser = summarizeRows(inCategory('notation'),
-      'Names whose execution is documented but the parser cannot yet resolve a single decomposition: ' +
-      'an ambiguous terminal, a compression, or directional syntax. Not folk names and not aliases.');
+    // Ladder steps 3 to 8: summary sections in ladder order. Each intro states
+    // what the names in it are waiting on, in plain words. The doctrine copy
+    // names the currently open expert questions: the blurry paradox predicate,
+    // the terraging chain value, the cross-body rake base, repeated-operator
+    // scoring, and the side conventions for foundational positions.
+    const doctrineHold = summarizeRows(inState('doctrine'),
+      'These names rest on an open expert ruling rather than an authoring step. The open ' +
+      'questions: when a blurry-named trick carries the extra paradox element, how the ' +
+      'terraging chain is valued, what the cross-body rake base is structurally, how a ' +
+      'repeated operator inside one compound is scored, and the side conventions for ' +
+      'foundational positions. Answering one question releases its whole cluster.');
+    const curatorHold = summarizeRows(inState('governance'),
+      'Structure understood; each needs an editorial or verification call from a curator, ' +
+      'not an expert ruling. Most are down-family names awaiting a per-trick check of ' +
+      'which embedded base the name describes.');
+    const identificationHold = summarizeRows(inState('identification'),
+      'The name is documented, but which movement it refers to is not yet confirmed. ' +
+      'Several carry two or more competing folk names for what may be the same trick, ' +
+      'so the identity call comes before any authoring.');
+    const parserHold = summarizeRows(inState('parser'),
+      'Execution is documented, but the name cannot yet be resolved to a single ' +
+      'decomposition: an ambiguous ending, a compressed name, or unclear direction ' +
+      'syntax. Not folk names and not aliases.');
+    const undefinedOperatorHold = summarizeRows(inState('undefined_operator'),
+      'These names carry a folk movement term whose weight or structure is not yet ' +
+      'defined. They cannot be authored until that term is settled; defining the ' +
+      'operator unblocks every name that uses it.');
+    const folkHold = summarizeRows(inState('folk'),
+      'Community names with no recoverable structure yet: the name is in use, but it is ' +
+      'not yet known which trick it refers to. Misspellings, undefined operators, and ' +
+      'parser gaps are listed under their own headings, not here.');
+
+    // Health tiles, one per ladder step 1 to 8, in ladder order. Aliases and
+    // duplicates are intentionally NOT a tile: a name that resolves to an
+    // existing trick is not frontier work, so it lives only in the lookup
+    // archive section and never inflates the frontier counts.
     const statBlocks: ObservationalStat[] = [
-      { label: 'Canonical candidates', value: String(cc('ready')),          hint: 'every token resolves to a known operator with a clean derived ADD; ready for curation, not auto-published' },
-      { label: 'Needs authoring',      value: String(cc('authoring')),      hint: 'structure understood; the movement notation or decomposition is not yet written' },
-      { label: 'Doctrine unresolved',  value: String(cc('red')),            hint: 'a movement operator still awaiting a ruling. Weaving is the one such blocker: its definition is given but the notation-token grammar is unresolved, so its rows cannot be authored yet' },
-      { label: 'Curator / governance', value: String(cc('governance')),     hint: 'a verification, precedent, or insertion-convention call, not a doctrine ruling (DOD / DDD)' },
-      { label: 'Undefined operator',   value: String(cc('undefined')),      hint: 'the name carries a folk operator whose weight or structure is not yet defined; it cannot be authored until that operator is settled' },
-      { label: 'Identification',       value: String(cc('identification')), hint: 'a named structure whose identity is not yet confirmed' },
-      { label: 'Parser ambiguity',     value: String(cc('notation')),       hint: 'an ambiguous terminal, a compression, or directional syntax the parser cannot yet resolve' },
-      { label: 'Folk names',           value: String(cc('folk')),           hint: 'community names with no recoverable structure yet' },
-      // Aliases / duplicates are intentionally NOT a frontier-health metric: a name
-      // that resolves to an existing trick is not frontier work. They live only in
-      // the lookup archive below, so they never inflate the frontier counts.
+      { label: 'Ready for curation',         value: String(cc('ready')),              hint: 'fully resolved; a curator can review and publish these as-is' },
+      { label: 'Needs authoring',            value: String(cc('authoring')),          hint: 'structure understood; the notation write-up is the one remaining step' },
+      { label: 'Awaiting doctrine',          value: String(cc('doctrine')),           hint: 'rests on an open expert ruling: the blurry paradox question, the terraging chain value, the cross-body rake base, or repeated-operator scoring' },
+      { label: 'Awaiting curator review',    value: String(cc('governance')),         hint: 'needs an editorial or verification call, chiefly the down-family per-trick base check' },
+      { label: 'Awaiting identification',    value: String(cc('identification')),     hint: 'which movement the name refers to is not yet confirmed' },
+      { label: 'Awaiting parser resolution', value: String(cc('parser')),             hint: 'documented execution, but the notation resolves to no single reading yet' },
+      { label: 'Undefined operator',         value: String(cc('undefined_operator')), hint: 'carries a folk movement term with no settled definition; defining it unblocks every name that uses it' },
+      { label: 'Folk / unrecoverable',       value: String(cc('folk')),               hint: 'community names with no recoverable structure yet' },
     ];
 
     const sources = Object.keys(stats.sources).map(badge => ({
       badge, label: observedSourceLabel(badge),
     }));
 
-    // Sections A/B/C are partitioned by the SAME frontier classifier as the
-    // tiles, so every section count matches its tile and no name appears under
-    // two headings. A: candidates ready for curation. B: structure understood,
-    // notation not yet authored. C: the doctrine and curator holds.
-    const readyRows = inCategory('ready');
-    const readyCards = readyRows.map(shape);
+    // Ladder steps 1 and 2: full card sections, grouped by derived ADD.
+    const readyRows = inState('ready');
     const readyGroups = groupByAdd(readyRows);
-
-    const frontierRows = inCategory('authoring');
-    const frontierCards = frontierRows.map(shape);
-    const frontierGroups = groupByAdd(frontierRows);
+    const authoringRows = inState('authoring');
+    const authoringGroups = groupByAdd(authoringRows);
 
     const ecoKeys = new Set<string>();
     for (const r of universe) ecoKeys.add(r.ecosystem || '(unclassified)');
     const ecosystemMatrix: ObservationalEcosystemRow[] = [...ecoKeys].map(eco => {
       const ofEco = universe.filter(r => (r.ecosystem || '(unclassified)') === eco);
-      const inCat = (cats: FrontierCategory[]) => ofEco.filter(r => cats.includes(classifyFrontier(r))).length;
+      const inCat = (states: EvState[]) =>
+        ofEco.filter(r => states.includes(r.evState as EvState)).length;
       return {
         ecosystem:  eco,
         label:      observedEcosystemLabel(eco),
         ready:      inCat(['ready']),
-        frontier:   inCat(['authoring']),
-        doctrine:   inCat(['red', 'governance', 'identification', 'undefined']),
-        unresolved: inCat(['notation', 'folk']),
+        authoring:  inCat(['authoring']),
+        holds:      inCat(['doctrine', 'governance', 'identification', 'undefined_operator']),
+        unresolved: inCat(['parser', 'folk']),
         total:      ofEco.length,
       };
     }).sort((a, b) => (b.ready - a.ready) || (b.total - a.total));
-
-    // Section C — doctrine and curator holds, as classifier-derived clusters so
-    // the labels and counts match the tiles. Weaving is the one genuine doctrine
-    // blocker (definition given, notation-token grammar unresolved). The curator
-    // review cluster gathers the editorial and identity holds.
-    const holdClusters: { cats: FrontierCategory[]; label: string; status: string }[] = [
-      { cats: ['red'], label: 'Doctrine blocked',
-        status: 'Weaving is the one movement operator still awaiting a ruling: its definition is given, but the notation-token grammar is unresolved, so its rows cannot be authored yet.' },
-      { cats: ['governance', 'identification'], label: 'Needs curator review',
-        status: 'Structure understood; each needs an editorial or identity call, not a doctrine ruling: down-family (DOD / DDD) per-trick verification, blurry compounds held on the pending blurry packet, and open identity questions such as Nuclear Osis / Aeon Flux.' },
-    ];
-    const doctrineClusters: ObservationalDoctrineCluster[] = holdClusters
-      .map(hc => {
-        const rows = universe.filter(r => hc.cats.includes(classifyFrontier(r)));
-        return {
-          key:              hc.cats[0],
-          label:            hc.label,
-          count:            rows.length,
-          blockingQuestion: hc.status,
-          sampleNames:      rows.slice(0, 6).map(r => r.name),
-        };
-      })
-      .filter(c => c.count > 0);
-    const doctrineTotal = doctrineClusters.reduce((n, c) => n + c.count, 0);
 
     return {
       seo: {
@@ -10105,7 +9948,9 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_observational',
         title:      'Emerging Vocabulary',
-        intro:      'A mature canonical ontology with a substantial, governed expansion frontier. This surface tracks the promotion frontier (mechanically coherent candidate structures on track to canonical) above the broader lexical archive of historical and community vocabulary. Every reading here is observationally extrapolated, never canonical.',
+        // Orientation first: this page is the not-yet-official side of the
+        // canonical line, and its sections are a distance-to-publication ladder.
+        intro:      'The waiting room of the freestyle dictionary. Nothing on this page is an official trick yet: these are community-documented names on their way toward the canonical dictionary, and the sections below order them by how close each one is to publication, closest first. The official vocabulary lives in the Trick Dictionary.',
       },
       navigation: {
         breadcrumbs: [
@@ -10116,31 +9961,32 @@ export const freestyleService = {
       content: {
         stats: statBlocks,
         statsNote:
-          `The promotion frontier, classified by why each name is unresolved. ` +
-          `${cc('ready')} are candidates ready for curation and ${cc('authoring')} need their notation authored; ` +
-          `${cc('red')} await an expert ruling (the weaving operator) and ${cc('governance')} a curator or governance call; ` +
-          `${cc('undefined')} carry an undefined folk operator, ${cc('identification')} a named structure to identify, and ` +
-          `${cc('notation')} a parser ambiguity. The remaining ${cc('folk')} are folk names with no recoverable structure, and ` +
-          `${cc('alias')} resolve to existing tricks (archived). ` +
-          `${pctReady}% of the non-alias frontier is a candidate or one authoring step away. ` +
+          `The frontier, ordered by distance to canonical publication. ` +
+          `${cc('ready')} ${cc('ready') === 1 ? 'name is' : 'names are'} ready for curation and ${cc('authoring')} need one authoring pass; ` +
+          `${cc('doctrine')} rest on an open expert ruling and ${cc('governance')} on a curator call; ` +
+          `${cc('identification')} await identification, ${cc('parser')} a parser resolution, and ` +
+          `${cc('undefined_operator')} a settled operator definition. The remaining ${cc('folk')} are folk names ` +
+          `with no recoverable structure, and ${cc('alias')} resolve to existing tricks (archived). ` +
           `Nothing here duplicates a published canonical trick.`,
+        progressHeadline,
         layerNote:
           'These are community-documented freestyle trick names being canonicalized. ' +
           'Provisional ADD and decomposition are observationally extrapolated: they ' +
           'are NOT canonical, carry a tracked tag rather than a hashtag, and have no ' +
           'detail page until a curator promotes them.',
-        readyTotal:    readyCards.length,
+        readyTotal:     readyRows.length,
         readyGroups,
-        ecosystemMatrix,
-        frontierTotal: frontierCards.length,
-        frontierGroups,
-        doctrineTotal,
-        doctrineClusters,
-        folk,
-        undefinedOps,
-        parser,
+        authoringTotal: authoringRows.length,
+        authoringGroups,
+        doctrineHold,
+        curatorHold,
+        identificationHold,
+        parserHold,
+        undefinedOperatorHold,
+        folkHold,
         aliasArchive,
         externalEntries,
+        ecosystemMatrix,
         sources,
         canonicalReferences: [
           { label: 'Trick Dictionary (canonical)', href: '/freestyle/tricks' },

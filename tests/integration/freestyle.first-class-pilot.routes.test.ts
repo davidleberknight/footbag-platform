@@ -274,22 +274,21 @@ describe('First-class trick pilot — notation card is universal', () => {
 });
 
 describe('First-class trick pilot — two-line JOB+ADD row', () => {
-  it.each(PILOT_SLUGS)('renders the line-2 JOB+ADD notation for %s in /freestyle/tricks?view=dex-count', async (slug) => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+  it.each(PILOT_SLUGS)('renders the line-2 JOB+ADD notation for %s in the dictionary browse', async (slug) => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // The pilot slug's row carries the line-2 notation block (JOB + ADD).
     const cardIdx = res.text.indexOf(`data-trick-slug="${slug}"`);
-    expect(cardIdx, `row for ${slug} not found in dex-count view`).toBeGreaterThan(0);
+    expect(cardIdx, `row for ${slug} not found in the ADD view`).toBeGreaterThan(0);
     const cardEnd = res.text.indexOf('</article>', cardIdx);
     const cardRegion = res.text.slice(cardIdx, cardEnd);
     expect(cardRegion).toContain('class="dict-trick-row-notation"');
   });
 
   it('non-first-class rows render the SAME two-line contract (no first-class visual distinction)', async () => {
-    // 2026-05-27: the two-line row dissolved the first-class secondary-row
-    // visual distinction — every row (first-class or not) renders the same
-    // line-2 JOB+ADD notation. mobius (non-first-class) is the control.
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    // Every row (first-class or not) renders the same line-2 JOB+ADD
+    // notation. mobius (non-first-class) is the control.
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     const cardIdx = res.text.indexOf('data-trick-slug="mobius"');
     expect(cardIdx).toBeGreaterThan(0);
     const cardEnd = res.text.indexOf('</article>', cardIdx);

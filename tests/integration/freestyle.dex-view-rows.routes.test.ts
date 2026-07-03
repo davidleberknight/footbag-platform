@@ -6,7 +6,11 @@
  *   Line 1 (.dict-trick-row-head): name · hashtag · optional ≡ interpretation · optional media
  *   Line 2 (.dict-trick-row-notation): JOB: <op notation> · ADD: <formula | bare N>
  *
- * Dex-bucket grouping headers (0 / 1 / 2 / 3+ dex events, Unknown) are preserved.
+ * Dex-bucket grouping headers (0 / 1 / 2 / 3+ dex events) are the ONLY sections:
+ * a trick without operational notation is not dex-countable and does not render
+ * in this view at all (no unresolved / unknown / blocker bucket exists). Such
+ * rows stay visible in the other browse views with the INCOMPLETE badge, and
+ * the view intro reports how many are pending, derived from the same data.
  * The shared dict-card / green ADD chip do NOT appear on rows.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -50,24 +54,22 @@ beforeAll(async () => {
     { slug: 'fairy-legover', canonical_name: 'fairy legover', adds: '3', base_trick: 'legover', trick_family: 'legover', category: 'compound', notation: 'FAIRY LEGOVER', operational_notation: 'TOE > SAME OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     // 3+ dex
     { slug: 'triple-dex-fixture', canonical_name: 'triple dex fixture', adds: '4', base_trick: 'triple-dex-fixture', trick_family: 'triple-dex-fixture', category: 'compound', notation: 'TRIPLE DEX', operational_notation: 'TOE > OP IN [DEX] > OP IN [DEX] > OP IN [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
-    // Unknown (no notation)
+    // No operational notation: not dex-countable, so never rendered in this view.
     { slug: 'mystery-trick', canonical_name: 'mystery trick', adds: '3', base_trick: 'mystery-trick', trick_family: 'mystery-trick', category: 'compound', notation: '', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
     // Dex-less body atoms: a body primitive that is its own base (a hop, a standalone
     // body element) has zero dexterity events even with no notation, so it buckets as
     // 0 dex, not Unknown.
     { slug: 'hop-over', canonical_name: 'hop over', adds: '2', base_trick: 'hop-over', trick_family: 'hop-over', category: 'body', notation: 'HOP OVER', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'spyro', canonical_name: 'spyro', adds: '1', base_trick: 'spyro', trick_family: 'spyro', category: 'body', notation: 'SPYRO', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
-    // Boundary: body category but NOT its own base + no notation stays Unknown — it is a
-    // dex-bearing body compound pending notation, not a dex-less primitive.
+    // Boundary: body category but NOT its own base + no notation is dex-uncountable —
+    // a dex-bearing body compound pending notation, not a dex-less primitive, so it
+    // never buckets as 0 dex and never renders in this view.
     { slug: 'body-compound-fixture', canonical_name: 'body compound fixture', adds: '3', base_trick: 'legover', trick_family: 'legover', category: 'body', notation: '', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
-    // No-op-notation tricks are grouped by their REAL blocker, not by which
-    // notation field is populated. One fixture per blocker reason:
+    // No-op-notation tricks across the old blocker spectrum: all of them are
+    // simply absent from the dex view (notation-backfill work lives elsewhere):
     { slug: 'authoring-fixture', canonical_name: 'big apple sauce', adds: '4', base_trick: 'torque', trick_family: 'torque', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'blazing-fixture', canonical_name: 'blazing mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
-    // weaving is the only remaining Red-doctrine block: the operator itself is still unruled.
     { slug: 'weaving-fixture', canonical_name: 'weaving mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
-    // atomic / quantum / nuclear on an X-Dex receiver is resolved by the receiver rule,
-    // never Red-doctrine; with JOB notation already written it is documentation-pending.
     { slug: 'atomic-xdex-fixture', canonical_name: 'atomic torque', adds: '5', base_trick: 'torque', trick_family: 'torque', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'down-gov-fixture', canonical_name: 'down double down', adds: '4', base_trick: 'down', trick_family: 'down', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'stale-fixture', canonical_name: 'blurry whirl', adds: '5', base_trick: 'whirl', trick_family: 'whirl', category: 'compound', notation: 'JOB CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
@@ -98,8 +100,7 @@ function rowFor(html: string, slug: string): string {
 }
 
 // HTML of one dex bucket: from its section anchor up to the next dex-bucket
-// anchor (buckets render 0/1/2/3+ then the no-op-notation blocker groups, so the
-// last group runs to the end).
+// anchor (buckets render 0/1/2/3+; the last one runs to the end).
 function sectionFor(html: string, bucketId: string): string {
   const start = html.indexOf(`id="${bucketId}"`);
   expect(start, `section ${bucketId} not found`).toBeGreaterThanOrEqual(0);
@@ -107,64 +108,65 @@ function sectionFor(html: string, bucketId: string): string {
   return next === -1 ? html.slice(start) : html.slice(start, next);
 }
 
+// The seeded active trick-kind rows that carry no operational notation and are
+// not dex-less body atoms; they are dex-uncountable and stay out of this view.
+const NOTATION_PENDING_SLUGS = [
+  'mystery-trick', 'body-compound-fixture', 'authoring-fixture', 'blazing-fixture',
+  'weaving-fixture', 'atomic-xdex-fixture', 'down-gov-fixture', 'stale-fixture',
+];
+
 describe('Dex view — two-line row contract', () => {
-  it('renders the service-shaped dex-count intro (section copy not hardcoded in the template)', async () => {
+  it('renders the service-shaped dex-count intro with the derived pending-notation count', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="browse-view-intro"');
     expect(res.text).toMatch(/grouped by how many dexterity moves they involve/i);
+    // The pending count is derived from the same pass that built the buckets,
+    // so it always equals the number of dex-uncountable seeded rows.
+    expect(res.text).toContain(
+      `${NOTATION_PENDING_SLUGS.length} canonical tricks await notation authoring`);
+    expect(res.text).toMatch(/appear in the other browse views with an incomplete badge/);
   });
 
-  it('200 + dex buckets, with no-op-notation rows grouped by real blocker (not notation field)', async () => {
+  it('renders ONLY the four dex buckets: the unresolved bucket is gone', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     expect(res.text).toContain('<h2>0 dex events</h2>');
     expect(res.text).toContain('<h2>3+ dex events</h2>');
-    // The old notation-field labels are gone.
+    // No unresolved / unknown / blocker section of any kind renders in the dex view.
+    expect(res.text).not.toContain('id="dex-unknown"');
+    expect(res.text).not.toContain('id="dex-needs-authoring"');
+    expect(res.text).not.toContain('id="dex-documented"');
+    expect(res.text).not.toContain('id="dex-undefined-operator"');
+    expect(res.text).not.toContain('id="dex-governance"');
+    expect(res.text).not.toContain('id="dex-identification"');
     expect(res.text).not.toContain('Unknown / no notation');
-    expect(res.text).not.toContain('JOB notation set, operational notation pending');
-    expect(res.text).not.toContain('No notation yet');
-    // No-op-notation rows are grouped by their blocker reason.
-    expect(res.text).toMatch(/id="dex-needs-authoring"/);
-    expect(res.text).toMatch(/id="dex-undefined-operator"/);
-    expect(res.text).toMatch(/id="dex-governance"/);
-    // Rows that already carry movement (JOB) notation are documentation-complete:
-    // only the symbolic operational notation is pending, so they sit here, not in
-    // "needs authoring" (which is for rows with no notation written at all).
-    expect(res.text).toMatch(/id="dex-documented"/);
   });
 
-  it('classifies each no-op-notation trick by its real blocker; modifiers excluded', async () => {
+  it('a trick without operational notation never renders in the dex view; modifiers excluded', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    expect(sectionFor(res.text, 'dex-undefined-operator')).toContain('data-trick-slug="blazing-fixture"');
-    // weaving is now a defined ducking set, no longer a doctrine block; with JOB notation
-    // written it is documentation-pending like any other settled operator.
-    expect(sectionFor(res.text, 'dex-documented')).toContain('data-trick-slug="weaving-fixture"');
-    // an atomic / X-Dex-receiver row that already carries JOB notation is
-    // documentation-complete: only the operational notation is pending.
-    expect(sectionFor(res.text, 'dex-documented')).toContain('data-trick-slug="atomic-xdex-fixture"');
-    expect(sectionFor(res.text, 'dex-governance')).toContain('data-trick-slug="down-gov-fixture"');
-    // a settled-operator row with JOB notation but no op-notation is documentation-pending.
-    expect(sectionFor(res.text, 'dex-documented')).toContain('data-trick-slug="stale-fixture"');
-    // mystery-trick has no notation of any kind: genuinely needs authoring.
-    expect(sectionFor(res.text, 'dex-needs-authoring')).toContain('data-trick-slug="mystery-trick"');
+    for (const slug of NOTATION_PENDING_SLUGS) {
+      expect(res.text, `${slug} must not render in the dex view`)
+        .not.toContain(`data-trick-slug="${slug}"`);
+    }
     // A modifier never appears in the trick dex-count view.
     expect(res.text).not.toContain('data-trick-slug="ducking"');
   });
 
-  it('landing dex-count card collapses every blocker bucket into ONE Unresolved chip', async () => {
-    // The detail page keeps the richer no-op-notation blocker buckets, but the
-    // default landing summary card must not echo one chip per bucket. With five
-    // distinct blocker buckets in the seed, the landing chip row shows the four
-    // numeric dex chips plus a single "Unresolved" chip — never repeated labels.
+  it('notation-pending tricks stay browsable in the ADD view carrying the INCOMPLETE badge', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    // mystery-trick has no notation of any kind: visible, badged incomplete.
+    const row = rowFor(res.text, 'mystery-trick');
+    expect(row).toContain('dict-badge-incomplete');
+  });
+
+  it('landing dex-count card shows only the numeric dex chips (no Unresolved chip)', async () => {
     const html = (await request(await createApp()).get('/freestyle/tricks')).text;
     // Numeric dex chips still render on the landing card.
     expect(html).toMatch(/dict-landing-card-chip" href="[^"]*dex-count#dex-0">0 dex/);
     expect(html).toMatch(/dict-landing-card-chip" href="[^"]*dex-count#dex-3">3\+ dex/);
-    // Exactly one Unresolved chip stands in for every blocker bucket.
-    const unresolved = html.match(/dict-landing-card-chip" href="[^"]*dex-count#[^"]*">Unresolved/g) ?? [];
-    expect(unresolved).toHaveLength(1);
-    // The collapsed-away "Unknown" label never appears on a dex-count landing chip.
+    // Neither an Unresolved nor an Unknown chip renders: the dex view has no such bucket.
+    expect(html).not.toMatch(/dict-landing-card-chip" href="[^"]*dex-count#[^"]*">Unresolved/);
     expect(html).not.toMatch(/dict-landing-card-chip" href="[^"]*dex-count#[^"]*">Unknown/);
   });
 
@@ -220,12 +222,10 @@ describe('Dex view — two-line row contract', () => {
     expect(rowFor(res.text, 'fairy-legover')).toMatch(/fairy\(\+1\) \+ legover\(2\)/);
   });
 
-  it('hop-over (dex-less body atom) buckets as 0 dex, never a no-op-notation blocker bucket', async () => {
+  it('hop-over (dex-less body atom) buckets as 0 dex even with no notation', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     const zero = sectionFor(res.text, 'dex-0');
-    const authoring = sectionFor(res.text, 'dex-needs-authoring');
     expect(zero, 'hop-over should sit in the 0-dex bucket').toContain('data-trick-slug="hop-over"');
-    expect(authoring, 'hop-over should not sit in a no-notation blocker bucket').not.toContain('data-trick-slug="hop-over"');
   });
 
   it('spyro is modifier-kind, so it never appears in the trick browse (no dex bucket at all)', async () => {
@@ -233,12 +233,9 @@ describe('Dex view — two-line row contract', () => {
     expect(res.text).not.toContain('data-trick-slug="spyro"');
   });
 
-  it('a body trick that is NOT its own base is dex-uncountable, grouped by blocker not bucket 0', async () => {
+  it('a body trick that is NOT its own base is dex-uncountable: absent from the view, not bucket 0', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    const zero = sectionFor(res.text, 'dex-0');
-    const authoring = sectionFor(res.text, 'dex-needs-authoring');
-    expect(authoring).toContain('data-trick-slug="body-compound-fixture"');
-    expect(zero).not.toContain('data-trick-slug="body-compound-fixture"');
+    expect(res.text).not.toContain('data-trick-slug="body-compound-fixture"');
   });
 
   it('operational notation appears ONLY inside the JOB slot (no loose bracket tokens)', async () => {

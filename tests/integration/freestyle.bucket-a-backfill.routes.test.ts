@@ -163,7 +163,7 @@ describe('Bucket A backfill — first-class browse-card rendering (15 slugs)', (
     '%s no longer renders "JOB: canonical decomposition pending" on its browse card',
     async (slug) => {
       const app = await createApp();
-      const res = await request(app).get('/freestyle/tricks?view=dex-count');
+      const res = await request(app).get('/freestyle/tricks?view=add');
       expect(res.status).toBe(200);
       const card = cardFor(slug, res.text);
       expect(card).not.toContain('dict-trick-row-pending-value');
@@ -175,7 +175,7 @@ describe('Bucket A backfill — first-class browse-card rendering (15 slugs)', (
     '%s renders the JOB row with its derived operationalNotation verbatim',
     async (slug, expectedJob) => {
       const app = await createApp();
-      const res = await request(app).get('/freestyle/tricks?view=dex-count');
+      const res = await request(app).get('/freestyle/tricks?view=add');
       const card = cardFor(slug, res.text);
       expect(card).toMatch(/class="dict-trick-row-label">JOB</);
       expect(card).toContain(expectedJob);
@@ -257,7 +257,7 @@ describe('Bucket A backfill — Bucket B/C/D rows untouched', () => {
     '%s (bucket %s) still renders the honest INCOMPLETE badge after the Bucket A backfill',
     async (slug) => {
       const app = await createApp();
-      const res = await request(app).get('/freestyle/tricks?view=dex-count');
+      const res = await request(app).get('/freestyle/tricks?view=add');
       const card = cardFor(slug, res.text);
       expect(card).toContain('dict-badge-incomplete');
       expect(card).toContain('>INCOMPLETE<');

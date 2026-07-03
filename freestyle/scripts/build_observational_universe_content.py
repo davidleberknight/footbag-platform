@@ -8,7 +8,11 @@ build_tracked_names_content.py → freestyleTrackedNames.ts pattern (generated T
 content, schema-free, reversible — no DB).
 
 The module is the DATA spine (one row per unresolved observational name +
-overall stats). The SERVICE owns sectioning / sampling / labeling.
+overall stats), and it carries the classification: every row is stamped with
+one of the nine Emerging Vocabulary ladder states (evState) plus a finer hold
+kind and orthogonal flags, all computed HERE, once. The service reads those
+fields and owns only sampling / presentation; it never re-derives the state at
+request time, so the generated data and the rendered page cannot disagree.
 
 Overlap-safe by construction: the source CSVs already exclude in_db /
 governance_state∈{1,2} / alias-to-canon rows, so nothing here collides with a
@@ -99,6 +103,157 @@ def doctrine_blocker(name: str) -> str | None:
         if folk in n:
             return "other"
     return None
+# ── Emerging Vocabulary nine-state ladder ────────────────────────────────────
+# Every emitted row lands in exactly ONE of these states. The order is the
+# distance-to-canonical ladder (closest to publication first); the public page
+# renders its sections, health tiles, and counts straight from this field, so
+# the classification lives here, at generation time, and nowhere else.
+EV_STATES = [
+    "ready",               # fully resolved; a curator can review and publish as-is
+    "authoring",           # structure understood; the notation write-up is pending
+    "doctrine",            # rests on an open expert ruling, not an authoring step
+    "governance",          # needs a curator editorial / verification call
+    "identification",      # which movement the name refers to is unconfirmed
+    "parser",              # documented execution; notation resolves to no single reading
+    "undefined_operator",  # carries a folk operator with no settled definition
+    "folk",                # community name with no recoverable structure yet
+    "alias",               # resolves to an existing trick; lookup archive, not frontier
+]
+
+# Folk operators with no settled definition or weight. A name carrying one of
+# these cannot be authored until the operator itself is defined; defining the
+# operator unblocks every name that uses it. Curator-tunable.
+EV_UNDEFINED_OPERATORS = {
+    "blazing", "symple", "slapping", "fusing", "phasing", "slaying", "sonic",
+    "twinspinning", "frootie", "fyro", "leaning", "twisted", "twisting",
+    "wonton", "wrecking", "snapping", "zipper",
+}
+# Named structures whose identity (which movement the name refers to) is the
+# open question, not their operators.
+EV_IDENTIFICATION_NAMED = {"dragon", "refraction"}
+# Open expert-ruling gates. Blurry-named compounds wait on the ruling that
+# decides when a blurry name carries the extra paradox element; terraging waits
+# on the ruling reconciling its chain value; the cross-body rake base has no
+# settled structural definition; a repeated operator inside one compound has no
+# scoring rule yet. Weaving and zulu are NOT here: their compounds author
+# mechanically as the matching ducking compound, so they are authoring work.
+EV_BLURRY_TOKENS = {"blurry", "blurrier", "blurriest"}
+# Parser failure classes that are genuine notation gaps (ambiguous terminal,
+# compression, directional syntax), distinct from an undefined operator.
+EV_PARSER_CLASSES = {
+    "ambiguous-terminal-mechanic", "compression-ambiguity",
+    "unresolved-directional-syntax", "parser-ambiguity",
+}
+# Source-data spelling typos that resolve to a known operator; they are not new
+# frontier operators, so normalize before the known-token check.
+EV_TYPO_FIXES = {
+    "butterfy": "butterfly", "baragging": "barraging",
+    "royall": "royale", "eggbeating": "eggbeater",
+}
+# X-Dex receiver bases: a "far" qualifier on one of these fires a conditional
+# +1 that must be confirmed in the stored decomposition.
+EV_XDEX_RECEIVERS = {"mirage", "illusion", "whirl", "torque", "drifter"}
+# Side qualifiers (never blocking on their own; the notation encodes the side).
+EV_POSITIONAL = {"ss", "near", "far", "op", "os"}
+# Intake buckets that make a row archive material rather than frontier work.
+EV_ALIAS_BUCKETS = {"alias", "duplicate_variant"}
+
+
+def ev_resolves_known(name: str) -> bool:
+    """Every token of the name resolves to a settled operator / atom / directional."""
+    toks = name_tokens(name)
+    if not toks:
+        return False
+    return all(len(t) <= 1 or EV_TYPO_FIXES.get(t, t) in KNOWN_TOKENS for t in toks)
+
+
+def ev_fully_derived(r: dict) -> bool:
+    """Derivation complete: numeric provisional ADD and a decomposition present."""
+    return bool(re.fullmatch(r"[0-9]+", r["provisionalAdd"] or "")
+                and (r["decomposition"] or "").strip())
+
+
+def ev_classify(r: dict) -> tuple[str, str]:
+    """One (state, holdKind) per row, most-binding gate first."""
+    name = r["name"]
+    toks = name_tokens(name)
+    lead = name.split("(")[0].lower()
+    if r["intakeBucket"] in EV_ALIAS_BUCKETS:
+        return "alias", "alias"
+    # Open expert-ruling gates outrank everything but the alias archive.
+    if any(t in EV_BLURRY_TOKENS for t in toks):
+        return "doctrine", "blurry_expansion"
+    if "terraging" in toks or "terrage" in toks:
+        return "doctrine", "terraging_chain"
+    if "rake" in toks and ("xbd" in toks or "crossbody" in toks
+                           or ("x" in toks and "body" in toks)):
+        return "doctrine", "crossbody_rake_base"
+    ing_ops = [t for t in toks if t.endswith("ing") and t in KNOWN_TOKENS]
+    if any(ing_ops.count(t) >= 2 for t in set(ing_ops)):
+        return "doctrine", "repeated_operator"
+    # Multi-alias parentheticals are an identity question: which movement (and
+    # which of the competing folk names) the row actually is.
+    if name.count("(") >= 2:
+        return "identification", "identity"
+    if "nuclear" in lead and "osis" in lead:
+        return "identification", "identity"
+    if r["section"] == "doctrine":
+        if r["cluster"] == "weaving":
+            # Weaving itself is settled (compounds author as the matching ducking
+            # compound); the row is undefined-operator work only when another
+            # unsettled operator rides the same name, else it is authoring work.
+            und = [t for t in toks if t in EV_UNDEFINED_OPERATORS]
+            if und:
+                return "undefined_operator", und[0]
+            return "authoring", "authoring"
+        if r["cluster"] == "dod-ddd":
+            # Down-family names need a per-trick curator verification of which
+            # embedded base the name describes, not an expert ruling.
+            return "governance", "down_family_verification"
+        return "identification", "identity"
+    if r["section"] in ("ready", "frontier"):
+        return ("ready", "ready") if ev_fully_derived(r) else ("authoring", "authoring")
+    if r["failureClass"] == "unknown-modifier-token":
+        # Many of these flags are stale: when every token now resolves to a
+        # settled operator the row is not blocked, only unauthored.
+        if ev_resolves_known(name):
+            return ("ready", "ready") if ev_fully_derived(r) else ("authoring", "authoring")
+        und = [t for t in toks if t in EV_UNDEFINED_OPERATORS]
+        if und:
+            return "undefined_operator", und[0]
+        if any(t in EV_IDENTIFICATION_NAMED for t in toks):
+            return "identification", "identity"
+        return "folk", "folk"
+    if r["failureClass"] in EV_PARSER_CLASSES:
+        return "parser", "parser"
+    return "folk", "folk"
+
+
+def ev_flags(r: dict, state: str) -> list[str]:
+    """Orthogonal, stackable row flags (a row may carry several or none)."""
+    name = r["name"]
+    toks = name_tokens(name)
+    low = name.lower()
+    flags: list[str] = []
+    if any(t in EV_POSITIONAL for t in toks) or "opposite" in low or "same side" in low:
+        flags.append("positional_variant")
+    if r["intakeBucket"] in ("duplicate_variant", "alias", "equivalence", "low_confidence"):
+        flags.append("duplicate_or_alias_candidate")
+    verification = False
+    if state == "governance":
+        verification = True            # per-trick down-family check owed
+    if state == "identification" and name.count("(") >= 2:
+        verification = True            # competing identities to reconcile
+        if "duplicate_or_alias_candidate" not in flags:
+            flags.append("duplicate_or_alias_candidate")
+    if state == "ready" and "far" in toks and "paradox" not in toks and "pdx" not in toks \
+            and any(t in EV_XDEX_RECEIVERS for t in toks):
+        verification = True            # far X-Dex +1 to confirm in the decomposition
+    if verification:
+        flags.append("verification_needed")
+    return flags
+
+
 # corpus → short source badge (reuses the template's PB/FM/SG/FB chip vocab)
 SOURCE_BADGE = {
     "stanford": "SG", "passback": "PB", "footbagmoves": "FM",
@@ -293,11 +448,18 @@ def main() -> None:
             s = (c.get("canonical_name", "") or "").strip()
             if s:
                 canonical_slugs.add(s)
-    # ── live-DB gate (authoritative) ── exclude active canonical tricks + aliases.
+    # ── live-DB gate (authoritative) ── exclude EVERY database-tracked slug
+    # (active or not) plus aliases. An active row renders in the canonical
+    # browse; an inactive row is either a pending external entry (rendered from
+    # the database in the Emerging Vocabulary external section) or a deliberate
+    # adjudicated hold. Either way the database is that name's home, so the
+    # generated universe must never also carry it; otherwise a pending database
+    # row would appear twice on the Emerging Vocabulary page (once as a
+    # universe row, once in the external section).
     if DB.exists():
         con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
         try:
-            for (s,) in con.execute("SELECT slug FROM freestyle_tricks WHERE is_active = 1"):
+            for (s,) in con.execute("SELECT slug FROM freestyle_tricks"):
                 if s:
                     canonical_slugs.add(s.strip())
             for (s,) in con.execute("SELECT alias_slug FROM freestyle_trick_aliases"):
@@ -400,6 +562,14 @@ def main() -> None:
     for r in rows:
         r["layer"] = "frontier" if r["intakeBucket"] in FRONTIER_BUCKETS else "archive"
 
+    # ── nine-state ladder classification ── stamped after every bucket
+    # reassignment above so the state reflects the row's final intake bucket.
+    for r in rows:
+        state, hold = ev_classify(r)
+        r["evState"] = state
+        r["holdKind"] = hold
+        r["flags"] = ev_flags(r, state)
+
     # ── stats (headline scale of the governed universe) ──
     canonical = sum(1 for c in classified if c["governance_state"].startswith("1"))
     total = len(rows)
@@ -451,6 +621,22 @@ def main() -> None:
     def pct(x: int) -> int:
         return round(100 * x / total) if total else 0
 
+    # ── nine-state ladder counts + the generated progress metric ──
+    # The page's headline progress figure is (ready + authoring) over the
+    # non-alias universe: the share of genuine frontier names that are a
+    # candidate or one authoring step away. Computed here so the rendered
+    # number can never drift from the row data.
+    ev_states = {s: 0 for s in EV_STATES}
+    for r in rows:
+        ev_states[r["evState"]] += 1
+    ev_denominator = len(rows) - ev_states["alias"]
+    ev_numerator = ev_states["ready"] + ev_states["authoring"]
+    ev_progress = {
+        "numerator": ev_numerator,
+        "denominator": ev_denominator,
+        "pct": round(100 * ev_numerator / ev_denominator) if ev_denominator else 0,
+    }
+
     classified_total = len(classified)
     stats = {
         "total": total,
@@ -472,6 +658,8 @@ def main() -> None:
         "promotionFrontier": promotion_frontier,
         "lexicalArchive": lexical_archive,
         "intakeBuckets": intake_buckets,
+        "evStates": ev_states,
+        "evProgress": ev_progress,
         "ready": by_section["ready"],
         "frontier": by_section["frontier"],
         "doctrineBlocked": by_section["doctrine"],
@@ -530,6 +718,18 @@ def main() -> None:
         "  layer: string;\n"
         "  /** Folded wording/source variants of this slug (on the surviving row). */\n"
         "  lexicalVariants: string[];\n"
+        "  /** Nine-state Emerging Vocabulary ladder (distance to canonical, closest\n"
+        "   *  first): ready | authoring | doctrine | governance | identification |\n"
+        "   *  parser | undefined_operator | folk | alias. Every row is in exactly\n"
+        "   *  one state; the page sections, tiles, and counts read this field. */\n"
+        "  evState: string;\n"
+        "  /** Finer hold label inside the state (e.g. blurry_expansion,\n"
+        "   *  terraging_chain, down_family_verification, identity, or the\n"
+        "   *  undefined operator's own token). */\n"
+        "  holdKind: string;\n"
+        "  /** Orthogonal, stackable row flags: positional_variant |\n"
+        "   *  duplicate_or_alias_candidate | verification_needed. */\n"
+        "  flags: string[];\n"
         "}\n\n"
         "export interface ObservationalUniverseStats {\n"
         "  /** Intake-queue size: promotion-packet rows (a work subset, NOT the universe, NOT unique tricks). */\n"
@@ -550,6 +750,11 @@ def main() -> None:
         "  lexicalArchive: number;\n"
         "  /** Per-bucket name + distinct-structure counts (8 intake buckets). */\n"
         "  intakeBuckets: Record<string, { names: number; distinctStructures: number }>;\n"
+        "  /** Row count per nine-state ladder state; sums to `total`. */\n"
+        "  evStates: Record<string, number>;\n"
+        "  /** Headline progress: (ready + authoring) over the non-alias universe.\n"
+        "   *  pct = round(100 * numerator / denominator). */\n"
+        "  evProgress: { numerator: number; denominator: number; pct: number };\n"
         "  ready: number;\n"
         "  frontier: number;\n"
         "  doctrineBlocked: number;\n"
@@ -587,6 +792,9 @@ def main() -> None:
     print(f"  promotion-ready={stats['promotionReadyPct']}%  "
           f"doctrine-blocked={stats['doctrineBlockedPct']}%  "
           f"canonical-coverage={stats['canonicalCoveragePct']}%")
+    print("  ladder: " + "  ".join(f"{s}={ev_states[s]}" for s in EV_STATES))
+    print(f"  progress: {ev_progress['numerator']}/{ev_progress['denominator']} "
+          f"= {ev_progress['pct']}% (ready or one authoring step away, non-alias)")
 
 
 if __name__ == "__main__":

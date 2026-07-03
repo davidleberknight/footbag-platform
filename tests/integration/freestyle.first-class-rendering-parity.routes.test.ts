@@ -254,7 +254,7 @@ function cardFor(slug: string, html: string): string {
 describe('First-class rendering parity — osis golden', () => {
   it('osis renders JOB + ADD rows in the first-class summary', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     const card = cardFor('osis', res.text);
     // Line-2 notation present (JOB + ADD)
@@ -272,7 +272,7 @@ describe('First-class rendering parity — osis golden', () => {
 describe('First-class rendering parity — tautological-chain suppression', () => {
   it('paradox-mirage no longer renders a tautological ≡ chain reading', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const card = cardFor('paradox_mirage', res.text);
     // The chain reading "paradox mirage" must NOT appear inside the
     // dict-trick-row-interpretation (chain row). It may legitimately appear
@@ -284,14 +284,14 @@ describe('First-class rendering parity — tautological-chain suppression', () =
 
   it('symposium-mirage no longer renders a tautological ≡ chain reading', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const card = cardFor('symposium_mirage', res.text);
     expect(card).not.toMatch(/data-token-slug="symposium"[\s\S]+data-token-slug="mirage"/);
   });
 
   it('atomic-butterfly no longer renders a tautological ≡ chain reading', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const card = cardFor('atomic_butterfly', res.text);
     expect(card).not.toMatch(/data-token-slug="atomic"[\s\S]+data-token-slug="butterfly"/);
   });
@@ -300,7 +300,7 @@ describe('First-class rendering parity — tautological-chain suppression', () =
 describe('First-class rendering parity — informative chain preserved', () => {
   it('ripwalk preserves its non-tautological folk-name chain (stepping butterfly)', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const card = cardFor('ripwalk', res.text);
     // Folk-name resolution is legitimate: canonical "ripwalk" ≢
     // structural form "stepping butterfly". Chain row should still
@@ -323,7 +323,7 @@ describe('First-class rendering parity — honest incomplete-state', () => {
     ['atomic_butterfly', 'atomic(+1) + butterfly(3)'],
   ])('%s renders ADD breakdown + honest INCOMPLETE badge for the unauthored JOB', async (slug, expectedAddText) => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const card = cardFor(slug, res.text);
     // Honest incomplete-state badge for missing Job notation
     expect(card).toContain('dict-badge-incomplete');
@@ -336,7 +336,7 @@ describe('First-class rendering parity — honest incomplete-state', () => {
 describe('First-class rendering parity — no fake formulas, no pending pill', () => {
   it('none of the first-class slugs render the pendingDecomposition pill', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     for (const slug of ['osis', 'paradox_mirage', 'symposium_mirage', 'atomic_butterfly', 'ripwalk']) {
       const card = cardFor(slug, res.text);
       expect(card).not.toContain('class="dict-trick-row-pending"');
@@ -346,7 +346,7 @@ describe('First-class rendering parity — no fake formulas, no pending pill', (
 
   it('first-class cards never substitute the canonical name as a fake Job line', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     // Look at the four compounds whose Job notation is genuinely absent.
     // Their first-class summary partial must not render a JOB row with a
     // <code> value (which would mean a curator-published chain). It must
@@ -364,7 +364,7 @@ describe('First-class rendering parity — no fake formulas, no pending pill', (
 
   it('osis JOB-row source is the curator content module, not a derived stub', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const card = cardFor('osis', res.text);
     // The osis atomic flag-decomposition is curator-authored
     // ('SET > SPIN [BOD] > OP CLIP [XBD] [DEL]'). The Job row in
@@ -376,7 +376,7 @@ describe('First-class rendering parity — no fake formulas, no pending pill', (
 describe('First-class rendering parity — slug/alias variations do not suppress data', () => {
   it('ripwalk renders its ADD breakdown even though notation column ("STEPPING BUTTERFLY") shadows the canonical name', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const card = cardFor('ripwalk', res.text);
     // Ripwalk has notation="STEPPING BUTTERFLY" in the DB. The ADD
     // breakdown from RESOLVED_FORMULAS must still wire through; an
@@ -412,7 +412,7 @@ describe('First-class cohort expansion — Tier 1 atom parity', () => {
     ['swirl',      'SET &gt; OP BACK SWIRL [DEX] &gt; OP CLIP [XBD] [DEL]', 'xbody(1) + dex(1) + stall(1)'],
   ])('%s renders JOB + ADD rows in the first-class summary (full parity)', async (slug, expectedJobText, expectedAddText) => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const card = cardFor(slug, res.text);
     expect(card).toContain('dict-trick-row-notation');
     expect(card).toMatch(/class="dict-trick-row-label">JOB</);
@@ -427,7 +427,7 @@ describe('First-class cohort expansion — Tier 1 atom parity', () => {
 describe('First-class cohort expansion — Tier 1 compound (pendulum)', () => {
   it('pendulum renders full parity (curator op-notation + resolved formula)', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const card = cardFor('pendulum', res.text);
     // Curator-authored op-notation in DB → line-2 JOB value populated.
     expect(card).toMatch(/class="dict-trick-row-label">JOB</);
@@ -449,7 +449,7 @@ describe('First-class cohort expansion — Tier 2 new promotions', () => {
     ['paradox_symposium_whirl', 'paradox(+1) + symposium(+1) + whirl(3)'],
   ])('%s renders ADD breakdown + honest INCOMPLETE badge', async (slug, expectedAddSubstring) => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const card = cardFor(slug, res.text);
     expect(card).toContain('dict-badge-incomplete');
     expect(card).toContain('>INCOMPLETE<');
@@ -458,7 +458,7 @@ describe('First-class cohort expansion — Tier 2 new promotions', () => {
 
   it('eggbeater renders its folk-name chain (≡ atomic legover) plus ADD breakdown', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const card = cardFor('eggbeater', res.text);
     // Folk-name chain reading is non-tautological ("atomic legover" ≢
     // "eggbeater") so it survives the first-class tautological filter.
@@ -478,7 +478,7 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
   // dict-trick-row-notation; a slug not in any tier does not.
   it('every Tier 1 + Tier 2 cohort member renders a first-class summary row', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const cohort = [
       // Tier 1 — 12 elite (11 atoms + pendulum)
       'osis', 'toe_stall', 'clipper_stall', 'mirage', 'whirl', 'butterfly',
@@ -544,7 +544,7 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
     // Seed a control row to verify the negative case. Use a slug
     // outside both tiers.
     const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     // mirage is Tier 1; we just confirmed it renders. Now confirm that
     // a sample non-cohort slug (osis IS in cohort; use butterfly's
     // immediate non-cohort sibling). For this DB, seed a row that

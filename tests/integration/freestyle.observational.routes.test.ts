@@ -1,13 +1,14 @@
 /**
  * Emerging Vocabulary — observational governance surface (/freestyle/observational).
  *
- * The page derives mechanically from the generated observational universe
- * (src/content/freestyleObservationalUniverse.ts), which is overlap-safe by
- * construction (in_db=false, governance_state∉{1,2}). It renders as a
- * governance surface: a statistics banner, a Ready-for-Promotion section
- * grouped by ecosystem with confidence cards, doctrine-bottleneck clusters,
- * and summarized folk-name / parser-uncertainty sections with full lists
- * behind disclosure.
+ * The page renders the nine-state distance-to-canonical ladder stamped on the
+ * generated observational universe (src/content/freestyleObservationalUniverse.ts,
+ * row field evState): ready for curation, needs authoring, awaiting doctrine,
+ * awaiting curator review, awaiting identification, awaiting parser resolution,
+ * undefined operator, folk / unrecoverable, alias archive. Every row is in
+ * exactly one state; every rendered count comes from the generated data (the
+ * service re-derives nothing at request time), and the nine sections partition
+ * the universe exactly.
  *
  * Layer-separation contract (asserted below): observational entries carry a
  * tracked tag, NOT a canonical hashtag; they NEVER link to a canonical trick
@@ -33,7 +34,7 @@ const { dbPath } = setTestEnv('3220');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
-  // The frontier sections are content-module-driven. The external/unadjudicated
+  // The ladder sections are content-module-driven. The external/unadjudicated
   // section reads the DB, so seed a couple of in-DB external placeholders
   // (is_active=0 + review_status='pending') to exercise it.
   const db = createTestDb(dbPath);
@@ -57,57 +58,163 @@ async function page(): Promise<string> {
   return res.text;
 }
 
-describe('GET /freestyle/observational — governance surface', () => {
+// The nine ladder states, closest to canonical publication first.
+const LADDER_STATES = [
+  'ready', 'authoring', 'doctrine', 'governance', 'identification',
+  'parser', 'undefined_operator', 'folk', 'alias',
+] as const;
+
+const stateCount = (s: string): number =>
+  OBSERVATIONAL_UNIVERSE.filter(r => r.evState === s).length;
+
+describe('GET /freestyle/observational — nine-state ladder surface', () => {
   it('returns 200', async () => {
     const res = await request(await createApp()).get('/freestyle/observational');
     expect(res.status).toBe(200);
   });
 
-  it('renders the reason-based frontier-health categories (status-first, not Red-centric)', async () => {
+  it('opens with the orientation line: this is the not-yet-official side of the canonical line', async () => {
+    const html = await page();
+    expect(html).toContain('waiting room of the freestyle dictionary');
+    expect(html).toContain('Nothing on this page is an official trick yet');
+    expect(html).toMatch(/how close each one is to publication/);
+  });
+
+  // ── The single-source-of-truth contract ──
+  it('the nine states partition the universe: counts sum to the total with zero overlap', async () => {
+    // Every row carries exactly one of the nine ladder states.
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      expect(LADDER_STATES.includes(r.evState as (typeof LADDER_STATES)[number]),
+        `unknown evState "${r.evState}" on ${r.slug}`).toBe(true);
+    }
+    const sum = LADDER_STATES.reduce((n, s) => n + stateCount(s), 0);
+    expect(sum).toBe(OBSERVATIONAL_UNIVERSE.length);
+    expect(OBSERVATIONAL_UNIVERSE_STATS.total).toBe(OBSERVATIONAL_UNIVERSE.length);
+  });
+
+  it('every rendered section count equals the generated per-state count (no hardcoded magnitudes)', async () => {
+    const html = await page();
+    // Full card sections carry <h2> + section-count.
+    const sectionCount = (title: string): number => {
+      const m = html.match(new RegExp(`<h2>${title}</h2>\\s*<span class="section-count">(\\d+)</span>`));
+      expect(m, `section "${title}" with count not found`).not.toBeNull();
+      return Number(m![1]);
+    };
+    // Disclosure sections carry the count in the summary line.
+    const disclosureCount = (label: string): number => {
+      const m = html.match(new RegExp(`${label} <span class="text-muted">\\((\\d+)\\)</span>`));
+      expect(m, `disclosure "${label}" with count not found`).not.toBeNull();
+      return Number(m![1]);
+    };
+    expect(sectionCount('Ready for Curation')).toBe(stateCount('ready'));
+    expect(sectionCount('Needs Authoring')).toBe(stateCount('authoring'));
+    expect(sectionCount('Awaiting Doctrine')).toBe(stateCount('doctrine'));
+    expect(sectionCount('Awaiting Curator Review')).toBe(stateCount('governance'));
+    expect(sectionCount('Awaiting Identification')).toBe(stateCount('identification'));
+    expect(disclosureCount('Awaiting parser resolution')).toBe(stateCount('parser'));
+    expect(disclosureCount('Undefined operator')).toBe(stateCount('undefined_operator'));
+    expect(disclosureCount('Folk / unrecoverable')).toBe(stateCount('folk'));
+    expect(disclosureCount('Alias / duplicate archive')).toBe(stateCount('alias'));
+  });
+
+  it('the health tiles render one tile per ladder step 1-8, values from the generated data', async () => {
     const html = await page();
     expect(html).toContain('observed-stats');
-    expect(html).toContain('observed-stat-value');
-    for (const label of ['Canonical candidates', 'Needs authoring', 'Doctrine unresolved',
-                         'Curator / governance', 'Undefined operator', 'Identification',
-                         'Parser ambiguity', 'Folk names']) {
-      expect(html).toContain(label);
+    const tile = (label: string): number => {
+      const m = html.match(new RegExp(
+        `<span class="observed-stat-value">(\\d+)</span>\\s*<span class="observed-stat-label">${label}</span>`));
+      expect(m, `tile "${label}" not found`).not.toBeNull();
+      return Number(m![1]);
+    };
+    expect(tile('Ready for curation')).toBe(stateCount('ready'));
+    expect(tile('Needs authoring')).toBe(stateCount('authoring'));
+    expect(tile('Awaiting doctrine')).toBe(stateCount('doctrine'));
+    expect(tile('Awaiting curator review')).toBe(stateCount('governance'));
+    expect(tile('Awaiting identification')).toBe(stateCount('identification'));
+    expect(tile('Awaiting parser resolution')).toBe(stateCount('parser'));
+    expect(tile('Undefined operator')).toBe(stateCount('undefined_operator'));
+    expect(tile('Folk / unrecoverable')).toBe(stateCount('folk'));
+    // Aliases are NOT a frontier-health tile: a name that resolves to an existing
+    // trick is not frontier work, so it lives only in the archive section.
+    expect(html).not.toMatch(/observed-stat-label">Alias/);
+  });
+
+  it('renders the generator-computed progress metric, and its math checks out', async () => {
+    const html = await page();
+    const p = OBSERVATIONAL_UNIVERSE_STATS.evProgress;
+    // The generated metric is internally consistent with the row data.
+    expect(p.numerator).toBe(stateCount('ready') + stateCount('authoring'));
+    expect(p.denominator).toBe(OBSERVATIONAL_UNIVERSE.length - stateCount('alias'));
+    expect(p.pct).toBe(Math.round((100 * p.numerator) / p.denominator));
+    // The page renders exactly the generated numbers.
+    expect(html).toContain(
+      `${p.pct}% of the non-alias frontier (${p.numerator} of ${p.denominator} names) ` +
+      'is a candidate or one authoring step away.');
+  });
+
+  it('sections render in ladder order, closest to canonical first', async () => {
+    const html = await page();
+    const anchors = [
+      'id="ready-for-curation"', 'id="needs-authoring"', 'id="awaiting-doctrine"',
+      'id="awaiting-curator-review"', 'id="awaiting-identification"',
+      'id="awaiting-parser-resolution"', 'id="undefined-operator"',
+      'id="folk-names"', 'id="alias-archive"',
+    ];
+    const positions = anchors.map(a => html.indexOf(a));
+    for (let i = 0; i < anchors.length; i++) {
+      expect(positions[i], `${anchors[i]} missing`).toBeGreaterThan(-1);
     }
-    // Aliases are NOT a frontier-health metric: a name that resolves to an existing
-    // trick is not frontier work, so it never inflates the metrics strip.
-    expect(html).not.toContain('Aliases / duplicates');
+    for (let i = 1; i < anchors.length; i++) {
+      expect(positions[i]!, `${anchors[i]} out of ladder order`).toBeGreaterThan(positions[i - 1]!);
+    }
+  });
+
+  it('groups Ready for Curation + Needs Authoring by derived ADD (lowest first, extrapolated label)', async () => {
+    const html = await page();
+    expect(html).toContain('observed-eco-group');
+    // ADD-group headings carry the derived ADD (or the trailing ADD Unknown group).
+    expect(html).toMatch(/observed-eco-heading">(\d+ ADD|ADD Unknown)/);
+    // Provisional ADD stays labelled extrapolated, never canonical.
+    expect(html).toMatch(/ADD \d+ \(extrapolated\)/);
+    // Within each card section, numeric ADD groups ascend (ADD Unknown sorts last).
+    for (const [from, to] of [
+      ['id="ready-for-curation"', 'id="needs-authoring"'],
+      ['id="needs-authoring"', 'id="awaiting-doctrine"'],
+    ] as const) {
+      const block = html.slice(html.indexOf(from), html.indexOf(to));
+      const heads = [...block.matchAll(/observed-eco-heading">(\d+ ADD|ADD Unknown)/g)].map(m => m[1]!);
+      expect(heads.length, `${from} has no ADD groups`).toBeGreaterThan(0);
+      const nums = heads.filter(h => h !== 'ADD Unknown').map(h => Number.parseInt(h, 10));
+      expect(nums).toEqual([...nums].sort((a, b) => a - b));
+      if (heads.includes('ADD Unknown')) {
+        expect(heads[heads.length - 1]).toBe('ADD Unknown');
+      }
+    }
+  });
+
+  // ── Doctrine-hold copy reflects the CURRENT open questions ──
+  it('the doctrine section names the live gates and drops the stale weaving framing', async () => {
+    const html = await page();
+    // The current expert-ruling gates.
+    expect(html).toMatch(/blurry-named trick carries the extra paradox element/);
+    expect(html).toMatch(/terraging chain/);
+    expect(html).toMatch(/cross-body rake base/);
+    expect(html).toMatch(/repeated operator inside one compound/);
+    expect(html).toMatch(/side conventions for foundational positions/);
+    // The page must not claim weaving as the one open doctrine blocker:
+    // weaving compounds author mechanically from their ducking mirrors.
+    expect(html).not.toMatch(/Weaving is the one movement operator still awaiting a ruling/);
+    expect(html).not.toContain('Doctrine &amp; Curator Holds');
     // No rendered category names the rules expert directly.
     expect(html).not.toContain('Red doctrine');
-    // The stale "Doctrine Blocked = awaiting a curator or Red ruling" metric is gone.
-    expect(html).not.toContain('Doctrine Blocked');
-    expect(html).not.toContain('awaiting a curator or Red ruling');
-    // The vague "Unknown / Notation blocked" framing is gone; names are classified by reason.
-    expect(html).not.toContain('Notation blocked');
-    expect(html).toMatch(/\d+%/);
+    expect(html).not.toContain('Awaiting Ruling');
   });
 
-  it('does not present the frontier as names waiting on Red', async () => {
+  it('curator review and identification are separate ladder steps with their own framing', async () => {
     const html = await page();
-    // The doctrine-unresolved slice (Weaving) is a small share, reported in the note.
-    expect(html).toMatch(/\d+ await an expert ruling/);
-    // Canonical candidates remain a distinct frontier-health category.
-    expect(html).toContain('Canonical candidates');
-  });
-
-  it('empties the stale Unknown bucket: undefined operators and parser ambiguity are their own reasons', async () => {
-    const html = await page();
-    // No vague "Unknown" / "Notation blocked" bucket survives.
-    expect(html).not.toContain('Notation blocked');
-    // Undefined-operator names get an honest, named home rather than "Unknown".
-    expect(html).toContain('Undefined operator');
-    expect(html).toContain('Parser ambiguity');
-  });
-
-  it('makes Ready for Authoring the first content section, above the metric strip', async () => {
-    const html = await page();
-    const readyIdx = html.indexOf('id="promotion-ready"');
-    const metricsIdx = html.indexOf('observed-stats');
-    expect(readyIdx).toBeGreaterThan(-1);
-    expect(readyIdx).toBeLessThan(metricsIdx);
+    expect(html).toMatch(/editorial or verification call/);
+    expect(html).toMatch(/down-family names awaiting a per-trick check/);
+    expect(html).toMatch(/which movement it refers to is not yet confirmed/);
   });
 
   it('keeps the count framing honest and the intake buckets reconciled', async () => {
@@ -119,67 +226,13 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(sum).toBe(OBSERVATIONAL_UNIVERSE_STATS.total);
   });
 
-  it('groups Ready for Authoring + Needs Authoring by derived ADD (lowest first, Unknown last)', async () => {
-    const html = await page();
-    expect(html).toContain('id="promotion-ready"');
-    expect(html).toContain('id="needs-authoring"');
-    expect(html).toContain('observed-eco-group');
-    // ADD-group headings replace ecosystem headings.
-    expect(html).toMatch(/observed-eco-heading">\d+ ADD/);
-    // Provisional ADD stays labelled extrapolated, never canonical.
-    expect(html).toMatch(/ADD \d+ \(extrapolated\)/);
-    // Lowest ADD precedes higher ADD inside Ready for Authoring.
-    const block = html.slice(html.indexOf('id="promotion-ready"'), html.indexOf('observed-stats'));
-    const nums = [...block.matchAll(/observed-eco-heading">(\d+) ADD/g)].map(m => Number(m[1]));
-    expect(nums.length).toBeGreaterThan(0);
-    expect(nums).toEqual([...nums].sort((a, b) => a - b));
-  });
-
-  it('separates the one doctrine blocker (weaving grammar) from the curator holds', async () => {
-    const html = await page();
-    expect(html).toContain('id="doctrine-blocked"');
-    expect(html).toContain('observed-cluster');
-    expect(html).toContain('Doctrine &amp; Curator Holds');
-    // Weaving is the single genuine doctrine blocker: definition given, grammar unresolved.
-    expect(html).toMatch(/Weaving is the one movement operator still awaiting a ruling/);
-    expect(html).toMatch(/notation-token grammar is unresolved/);
-    // The curator holds are editorial or identity calls, not a doctrine ruling.
-    expect(html).toContain('Needs curator review');
-    expect(html).toMatch(/per-trick verification/);
-    // The pending blurry packet and the Nuclear Osis / Aeon Flux identity are curator holds.
-    expect(html).toMatch(/blurry compounds held on the pending/i);
-    expect(html).toMatch(/Nuclear Osis and Aeon Flux/);
-    // Side / direction variants are explicitly not doctrine: the notation encodes the side.
-    expect(html).toMatch(/Side and direction variants are not here/);
-    // The stale "no operator awaits a ruling / weaving settled" contradiction is gone.
-    expect(html).not.toMatch(/No movement operator now awaits an expert ruling/);
-    expect(html).not.toMatch(/defined ducking\s+sets with notation pending/);
-  });
-
-  it('eliminates the generic Awaiting Ruling category', async () => {
-    const html = await page();
-    // The category is retired; the ready section is now Ready for Authoring, and its
-    // count matches the "Canonical candidates" health tile (one model, one population).
-    expect(html).not.toContain('Awaiting Ruling');
-    expect(html).toContain('Ready for Authoring');
-  });
-
-  it('surfaces the Alias / Duplicate archive collapsed, with the ecosystem matrix demoted to a disclosure', async () => {
+  it('surfaces the alias archive and long-tail steps collapsed, with the ecosystem matrix demoted', async () => {
     const html = await page();
     expect(html).toContain('Alias / duplicate archive');
-    expect(html).toContain('id="alias-archive"');
     expect(html).toContain('observed-disclosure');
-    // The ecosystem matrix is now a collapsible, not a primary section.
-    expect(html).toContain('observed-matrix');
-  });
-
-  it('renders folk, undefined-operator, and parser-ambiguity sections with full lists behind disclosure', async () => {
-    const html = await page();
-    expect(html).toContain('id="folk-names"');
-    expect(html).toContain('id="undefined-operator"');
-    expect(html).toContain('id="parser-ambiguity"');
     expect(html).toContain('observed-fulllist');
     expect(html).toContain('Show all');
+    expect(html).toContain('observed-matrix');
   });
 
   // ── Overlap-safety / layer-separation guard ──
@@ -206,7 +259,7 @@ describe('GET /freestyle/observational — governance surface', () => {
   });
 
   // ── External / unadjudicated in-DB entries (Emerging Vocabulary home) ──
-  it('surfaces in-DB external/unadjudicated rows in their own section', async () => {
+  it('surfaces in-DB external/unadjudicated rows in their own section, outside the ladder counts', async () => {
     const html = await page();
     expect(html).toContain('External / unadjudicated (database-tracked)');
     expect(html).toContain('id="external-unadjudicated"');
@@ -215,5 +268,7 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(html).toContain('pending quasar');
     // They carry the tracked tag, never a canonical trick-detail link.
     expect(html).not.toMatch(/href="\/freestyle\/tricks\/pending-zorblax"/);
+    // And they are not universe rows, so the ladder never double-counts them.
+    expect(OBSERVATIONAL_UNIVERSE.some(r => r.slug === 'pending-zorblax')).toBe(false);
   });
 });

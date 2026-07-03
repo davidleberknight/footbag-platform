@@ -31,7 +31,9 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Two active tricks at different ADD values + one modifier.
+  // Two active tricks at different ADD values + one modifier. Both carry
+  // operational notation so the dex-count view (which renders only
+  // dex-countable tricks) has real buckets to group and jump into.
   insertFreestyleTrick(db, {
     slug:           'mirage',
     canonical_name: 'mirage',
@@ -39,6 +41,7 @@ beforeAll(async () => {
     base_trick:     'mirage',
     trick_family:   'mirage',
     category:       'dex',
+    operational_notation: 'SET > OP IN [DEX] > OP TOE [DEL]',
   });
   insertFreestyleTrick(db, {
     slug:           'whirl',
@@ -47,6 +50,7 @@ beforeAll(async () => {
     base_trick:     'whirl',
     trick_family:   'whirl',
     category:       'dex',
+    operational_notation: 'SET > OP IN [DEX] > OP CLIP [XBD] [DEL]',
   });
   insertFreestyleTrickModifier(db, {
     slug:          'paradox',
@@ -95,6 +99,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, {
     slug: 'double-spinning-whirl', canonical_name: 'double-spinning whirl', adds: '5',
     base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
+    operational_notation: 'CLIP > SPIN [BOD] > SPIN [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]',
   });
   insertFreestyleTrickModifierLink(db, 'spinning-whirl', 'spinning');
   insertFreestyleTrickModifierLink(db, 'inspinning-whirl', 'inspinning');
@@ -321,9 +326,8 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
   it('By dex-count sorts entries structurally (ADD ascending) within a bucket', async () => {
     const html = (await request(createApp()).get('/freestyle/tricks?view=dex-count')).text;
     const at = (slug: string) => html.indexOf(`data-trick-slug="${slug}"`);
-    // Seed tricks have no operational notation and no blocker token -> all in the
-    // dex-needs-authoring bucket, ordered by ADD asc: mirage(2) before whirl(3)
-    // before double-spinning-whirl(5).
+    // The three notated seeds share the 1-dex bucket, ordered by ADD asc:
+    // mirage(2) before whirl(3) before double-spinning-whirl(5).
     expect(at('mirage')).toBeGreaterThan(-1);
     expect(at('whirl')).toBeGreaterThan(at('mirage'));
     expect(at('double-spinning-whirl')).toBeGreaterThan(at('whirl'));

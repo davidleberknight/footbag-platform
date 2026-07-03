@@ -223,7 +223,7 @@ describe('Clipper-Stall family retirement (Family View)', () => {
 
 describe('Unresolved-compound pill', () => {
   it('renders the pending pill on each curator-flagged folk-derived row (shared-card view)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // For each unresolved slug seeded into the fixture, the rendered
     // card must carry the pending-pill marker. tomahawk is not in
@@ -240,7 +240,7 @@ describe('Unresolved-compound pill', () => {
   });
 
   it('does NOT render the pill on non-flagged rows', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     // Sanity rows that should NOT carry the pill. tomahawk is explicitly
     // included to verify it is absent from UNRESOLVED_COMPOUNDS.
     for (const slug of ['whirl', 'paradox_whirl', 'osis', 'torque', 'blender', 'drifter', 'tomahawk']) {
@@ -256,7 +256,7 @@ describe('Unresolved-compound pill', () => {
   });
 
   it('renders the pill text "decomposition under review" in italics', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/<span class="dict-trick-row-pending"[^>]*><em>decomposition under review<\/em><\/span>/);
   });
 });

@@ -9,13 +9,14 @@
  *   1 dex event   — single-dex tricks (mirage, illusion, fairy)
  *   2 dex events  — most named compounds
  *   3+ dex events — deep compounds
- *   then the no-op-notation rows grouped by real blocker (Needs authoring,
- *   Operational notation pending, Blocked: undefined operator / doctrine (weaving) /
- *   governance / identification)
+ *
+ * Those four buckets are the whole view: a trick without operational notation
+ * is not dex-countable and does not render here at all. It stays visible in
+ * the other browse views with the INCOMPLETE badge, and the view intro
+ * reports the derived pending count.
  *
  * Uses the shared dictionary-trick-card partial; card shapes identical
- * to the ADD view. Phase 4.1 of the audit-driven roadmap; backed by
- * Wave Alpha's operational_notation backfill coverage.
+ * to the ADD view.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -67,7 +68,7 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
 
-  // No op_notation — Unknown bucket
+  // No op_notation — not dex-countable, so absent from this view entirely
   insertFreestyleTrick(db, {
     slug: 'mystery-trick', canonical_name: 'mystery trick', adds: '3',
     base_trick: 'mystery-trick', trick_family: 'mystery-trick', category: 'compound',
@@ -104,26 +105,29 @@ describe('GET /freestyle/tricks?view=dex-count', () => {
     expect(addRes.text).not.toContain('how many dexterity moves they involve');
   });
 
-  it('groups tricks into the expected dex buckets', async () => {
+  it('groups tricks into the four dex buckets only (no unresolved bucket)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     // Bucket headings (pre-shaped labels)
     expect(res.text).toContain('<h2>0 dex events</h2>');
     expect(res.text).toContain('<h2>1 dex event</h2>');
     expect(res.text).toContain('<h2>2 dex events</h2>');
     expect(res.text).toContain('<h2>3+ dex events</h2>');
-    // mystery-trick is an active canonical trick with no blocker token: it groups
-    // by blocker as "Needs authoring", not by its missing notation field.
-    expect(res.text).toMatch(/<h2>Needs authoring/);
+    // mystery-trick cannot be dex-counted, so no unresolved section renders for it.
+    expect(res.text).not.toMatch(/<h2>Needs authoring/);
+    expect(res.text).not.toContain('id="dex-unknown"');
+    expect(res.text).not.toContain('id="dex-needs-authoring"');
+    // The intro reports the derived pending count instead.
+    expect(res.text).toContain('1 canonical trick awaits notation authoring');
   });
 
-  it('places each seeded trick in the right bucket via section id', async () => {
+  it('places each seeded trick in the right bucket via section id; uncountable rows absent', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    // Section ids match #dex-{count} and the no-op-notation blocker buckets.
+    // Section ids match #dex-{count}.
     expect(res.text).toMatch(/id="dex-0"[^>]*>[\s\S]*?data-trick-slug="toe-stall"/);
     expect(res.text).toMatch(/id="dex-1"[^>]*>[\s\S]*?data-trick-slug="mirage"/);
     expect(res.text).toMatch(/id="dex-2"[^>]*>[\s\S]*?data-trick-slug="eggbeater-fixture"/);
     expect(res.text).toMatch(/id="dex-3"[^>]*>[\s\S]*?data-trick-slug="ripwalk-deep"/);
-    expect(res.text).toMatch(/id="dex-needs-authoring"[^>]*>[\s\S]*?data-trick-slug="mystery-trick"/);
+    expect(res.text).not.toContain('data-trick-slug="mystery-trick"');
   });
 
   it('does NOT render dex-count sections on the ADD view (avoids cross-view leakage)', async () => {
