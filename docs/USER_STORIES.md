@@ -137,6 +137,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
   - [7.3 Content Moderation](#73-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
     - [A_Upload_Curated_Media](#a_upload_curated_media)
+    - [A_Manage_Curated_Gallery](#a_manage_curated_gallery)
     - [A_Create_News_Item](#a_create_news_item)
     - [A_Moderate_News_Item](#a_moderate_news_item)
     - [A_Archive_Club](#a_archive_club)
@@ -780,7 +781,7 @@ Stuck recovery:
 
 - If the platform surfaces no candidate, the member's declared anchors do not resolve a candidate, and the mailbox-link round-trip is not viable (old mailbox unreachable, declared address malformed in the export, etc.), the member can invoke the admin help request affordance: a self-serve form collects an identity statement plus any evidence (free-text statement, attachments, references to known board / club members who can vouch). The request enters an admin queue per A_Review_Member_Link_Help_Requests.
 
-All claim, declaration, mailbox-link, dispute, and revert events are audit-logged with the evidence-strength tag and the original-claim audit row identifier where applicable. A name-only confirmation (a medium-confidence staged candidate, or a direct historical-record claim passing only the surname rule) records the floor tier `declared_anchor_only`; an email anchor records `currently_controls_modern_email_matching_legacy` only when it is the member's verified login email; a declared old email records the floor tier until its mailbox-control round-trip completes.
+All claim, declaration, mailbox-link, dispute, and revert events are audit-logged with the evidence-strength tag and the original-claim audit row identifier where applicable. A name-only confirmation (a medium-confidence staged candidate, or a direct historical-record claim passing only the surname rule) records the floor tier `declared_anchor_only`; an email anchor records `currently_controls_modern_email_matching_legacy` only when it is the member's verified login email; a declared old email records the floor tier until its mailbox-control round-trip completes; a claim an admin approves through the link-help request path records `admin_vetted_evidence`.
 
 ### M_Complete_Onboarding_Wizard
 
@@ -836,7 +837,7 @@ Success Criteria:
 
 - Member profile creation and editing (photo, bio, contact preferences).
 - Avatar upload: JPEG or PNG up to 5 MB, with the same image dimension limits as M_Upload_Photo (at least 200×200, at most 16.8 megapixels (4096×4096 pixels), aspect within 4:1). A rejected image re-renders the profile-edit form with a clear inline error.
-- **Name display:** Display name is set at registration and cannot be changed. The surname constraint is enforced at registration: display name must share a surname with `real_name` (suffix-stripped: Jr, Sr, II, III, IV). Contact IFPA admin for corrections.
+- **Name display:** Display name is set at registration and cannot be changed. The surname constraint is enforced at registration: display name must share a surname with `real_name` (suffix-stripped: Jr, Sr, II, III, IV, PhD, MD). Contact IFPA admin for corrections.
 - City, country, and email are mandatory fields; phone is optional.
 - **Contact fields and per-field visibility:** `phone` and `whatsapp` are optional, both editable here (`whatsapp` format-validated, rendered as a chat link). Each contact field (contact email, phone, WhatsApp) has its own visibility toggle, default off. When toggled on, the field is shown to authenticated members only (Sensitivity 2), never on public surfaces. Holding a club co-leader or event organizer role forces that member's contact email visible to authenticated members and locks its toggle on while the role is held (see DATA_GOVERNANCE §3). Changes are audit-logged.
 - **Gender (competition eligibility):** editable (Male / Female / Prefer not to say; stored `male` / `female` / `undisclosed`). Owner-and-admin by default; a member may opt in via a "Show my gender on my public profile" toggle (default off) to make it visible to signed-in members on the member profile, in member search, and on club rosters. Only Male / Female render when opted in (Prefer not to say stays hidden), and it is never shown to an unauthenticated visitor. Used only for gender-gated event-category eligibility (see M_Register_For_Event). The value and the visibility toggle are both editable here; changes are audit-logged.
@@ -2276,7 +2277,7 @@ Success Criteria, Upload:
 - The resulting media_items row has uploader_member_id set to the system member id (the row where is_system=1). Admin actor is not stored on the media_items row.
 - Admin can specify a caption (plain text, max 500 characters; same security validation as M_Upload_Photo), source attribution (sourceId referencing an existing media_sources row, or a new source created inline by the admin), and clip ranges (startSeconds, endSeconds) for video reference media.
 - Admin assigns the upload to a category subdirectory under /curated/. The admin UI accepts an existing category or a new category name; entering a name not yet used creates the subdirectory on next deploy. Filesystem-driven; any /curated/{name}/ subdirectory is a valid category.
-- Admin can specify tags at upload time. Standardized event/club hashtags auto-link to the corresponding gallery per §1.1. Freeform tags appear on /tags/{tag} pages. The `#curated` tag is auto-applied by the curator pipeline as the FH/admin uploader marker; it is reserved for system use and rejected if supplied by the admin in the input. Per-category default tag stacks are also auto-applied (e.g. /curated/freestyle_tricks/ adds `#freestyle #trick`; /curated/demos/ adds `#demo`). Filtering by `#curated` returns the all-FH gallery.
+- Admin can specify tags at upload time. Standardized event/club hashtags auto-link to the corresponding gallery per §1.1. Freeform tags are browsable via the tag gallery at /media/browse?tag=<tag>. The `#curated` tag is auto-applied by the curator pipeline as the FH/admin uploader marker; it is reserved for system use and rejected if supplied by the admin in the input. Per-category default tag stacks are also auto-applied (e.g. /curated/freestyle_tricks/ adds `#freestyle #trick`; /curated/freestyle_demos/ adds `#demo`). Filtering by `#curated` returns the all-FH gallery.
 - Tag autocomplete is category-aware: /curated/freestyle_tricks/ uploads autocomplete trick-slugs from the freestyle dictionary (`freestyle_tricks.slug`); admin sees a warning if a tricklike tag matches no known dictionary slug, but the upload still completes. Alias-shaped trick tags (matching `freestyle_trick_aliases.alias_slug`) are canonicalized to the parent trick's slug before insertion; the saved tag set shows the canonical form.
 - Admin can specify an optional external URL on each uploaded item (media_items.external_url; e.g. link to creator page, source article, related event). Validated at the service boundary per DD §3.17. Persists on the row and on the file-paired sidecar (DD §1.13). The upload form works without JavaScript for photo and URL-reference uploads; admin S3-mode video uploads require JavaScript (the noscript banner warns).
 - Admin can specify gallery assignment: detached (no gallery) or attached to a system-member-owned gallery. Curator-gallery management is out of scope for this story; for the initial phase, all curator content uploaded via this path is detached.
@@ -2310,11 +2311,48 @@ Success Criteria, Category creation:
 
 - Admin enters a new category name during upload (e.g. `tutorials`, `news`); the seeder creates `/curated/{name}/` on next deploy.
 - Filesystem is the source of truth for category existence; no code-side whitelist of valid categories. Category names follow a slug convention (lowercase, alphanumeric plus underscore or hyphen).
-- The new category's default tag stack is `#curated #{name}` plus admin-selected tags. Per-category tag-autocomplete dictionaries are configured separately as new categories require them; the default fallback is no autocomplete.
+- The `#curated` marker is auto-applied to every FH upload regardless of category; a category may additionally define its own default concept-tag stack (as `/curated/freestyle_tricks/` adds `#freestyle #trick`), applied on top of `#curated` plus admin-selected tags. A new category with no defined stack gets only `#curated` plus admin-selected tags. Per-category tag-autocomplete dictionaries are configured separately as new categories require them; the default fallback is no autocomplete.
 
 Audit:
 
 - An audit_log entry is appended for every upload, edit, and delete, recording admin actor, timestamp, action type, source filename (delete only), and affected media_id, parallel to A_Moderate_Media, A_Override_Member_Data, and A_Fix_Event_Results.
+
+### A_Manage_Curated_Gallery
+
+Access: Only admins can create, edit, delete, or organize the named galleries the platform attributes to the system member account (the platform's curator identity, see DD §2.8). Members and visitors do not see these controls.
+
+Story: As an admin, I can manage the system member account's named galleries — creating them, editing their name, description, sort order, and the include and exclude tag sets that define their contents, and deleting them — so that curator media is organized into browsable collections without requiring a member to own them.
+
+A named gallery is a saved tag query, not a fixed list of items: its membership is computed at request time by matching each media item's tags against the gallery's include set (every include tag must be present) minus its exclude set. Curator content joins a gallery by carrying the gallery's include tags, not by being individually attached, so the same item can appear in several galleries.
+
+Success Criteria, List:
+
+- The gallery list is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
+- The list shows every system-member-owned named gallery with its name and defining tags, and offers create, edit, and delete actions. An empty state is shown when no galleries exist.
+
+Success Criteria, Create:
+
+- Admin supplies a short id slug, a display name, an optional description, a sort order, and the include and exclude tag sets. The stored gallery id is `gallery_` followed by the slug; an id that collides with an existing gallery is rejected with an inline error and the submitted values preserved.
+- Include and exclude tags follow the same tag rules as elsewhere; the system-managed uploader namespace (`#by_*`) cannot be supplied. Invalid input re-renders the form with the error and the submitted values.
+- A catch-all gallery (one meant to collect everything not already in another gallery) must list every other source gallery's tag in its exclude set, or its contents double-list; defining the tag sets correctly is the admin's responsibility.
+- On success the gallery is created owned by the system member account; the DB write is the contract. Before go-live, where sidecar writes are enabled, create additionally writes the gallery's `/curated/galleries/` sidecar (DD §1.13) so the git-tracked authoring source stays in step. After go-live the persistent DB is the source of truth and no sidecar is written.
+
+Success Criteria, Edit:
+
+- The edit form has the same admin gate as the list. Editing a gallery that does not exist (or is not system-member-owned) returns 404.
+- Editable fields are name, description, sort order, the include and exclude tag sets, and optional external links (each link URL validated at the service boundary per DD §3.17). The form previews the gallery's current contents so the admin can see the effect of a tag change.
+- Tag sets are rewritten atomically: the saved include and exclude sets are replaced by the submitted sets in a single transaction. The DB write is the contract. Invalid input re-renders the form with the error and the submitted values.
+- Before go-live, where sidecar writes are enabled, edit additionally writes through to the gallery's `/curated/galleries/` sidecar (DD §1.13) so the authoring source stays in step; after go-live the persistent DB is the source of truth and no sidecar is written.
+
+Success Criteria, Delete:
+
+- The delete action has the same admin gate as the list. Deleting a gallery that does not exist (or is not system-member-owned) returns 404.
+- Deletion is hard delete: the gallery row is removed; this DB write is the contract. It removes only the collection, never the media items the gallery listed — those are defined by their own tags and remain. Before go-live, where sidecar writes are enabled, delete additionally unlinks the gallery's `/curated/galleries/` sidecar (DD §1.13); after go-live the persistent DB is the source of truth and no sidecar is touched.
+- The admin sees a confirmation gate before the operation runs. Deletion is permanent; there is no soft-delete or restore.
+
+Audit:
+
+- An audit_log entry is appended for every gallery create, edit, and delete, recording admin actor, timestamp, action type, and affected gallery id, parallel to A_Upload_Curated_Media and the other admin curator actions.
 
 ### A_Create_News_Item
 
@@ -2429,7 +2467,7 @@ Success Criteria:
 
 ### A_Send_Mailing_List_Email
 
-Access: Only Admins and Event Organizers can send email to general mailing lists from the platform. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2 or Tier 3 member, as defined in M_Send_Announce_Email. Group-scoped alias sending is handled via `M_Email_Group`, not via this story; admins retain the ability to send to a group's associated auto-sync `MailingList` via this story for exceptional platform-level notifications.
+Access: Only Admins can send email to general mailing lists from the platform. Event Organizer email is scoped to an organizer's own event participants and is handled via `EO_Email_Participants`, not via this story. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2 or Tier 3 member, as defined in M_Send_Announce_Email. Group-scoped alias sending is handled via `M_Email_Group`, not via this story; admins retain the ability to send to a group's associated auto-sync `MailingList` via this story for exceptional platform-level notifications.
 
 Story: As an admin, I can send announcements to a platform-configured mailing list so that I communicate with the community.
 
@@ -2635,6 +2673,7 @@ Success Criteria:
 - Refresh button with auto-refresh toggle (default: every 5 minutes).
 - No direct links to AWS consoles (including CloudWatch), CLI tooling, or infrastructure controls are exposed in the Application Administrator UI.
 - Health view shows at least: Email delivery status (bounce and complaint rates). Email outbox status: pending, sent, failed, and dead-letter counts (for a configurable recent window), plus whether “pause sending” is currently enabled. Backup job status (last run time and success or failure). Origin availability / maintenance mode status (normal vs maintenance page), including current origin 5xx rate (or equivalent) and when the maintenance page was last served. Storage usage (e.g., S3 usage and trends).
+- Behind the aggregate outbox figures, admins can open a per-message outbound-email log: one row per message showing recipient, template, and delivery status (pending, sent, failed, or dead-lettered). Where a message has a body, it is shown as the underlying template with its data-merge fields left clearly unpopulated, so the log conveys what was sent without exposing the recipient's rendered personal data. The log is read-only.
 - Monthly cost projection vs budget (current spend and projected end-month spend).
 
 ### A_View_Audit_Logs
@@ -2785,7 +2824,7 @@ Story: The system automatically opens votes at their configured open_datetime so
 Success Criteria:
 
 - System runs a job (at minimum hourly) that checks all votes in `draft` status with open_datetime <= now (UTC).
-- For each such vote, the job transitions vote.status to `open` and writes eligibility snapshot rows to `vote_eligibility_snapshot` (same logic as A_Open_Vote).
+- For each such vote, the job transitions vote.status to `open` and writes eligibility snapshot rows to `vote_eligibility_snapshot` (same logic as A_Create_Vote).
 - The system sends notification to all eligible members that the vote is now open (if configured).
 - Each transition is audit-logged: vote_id, old status, new status, eligible member count, job run timestamp.
 - An admin-alerts email is sent for each automatically opened vote.

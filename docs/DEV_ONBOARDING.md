@@ -927,7 +927,7 @@ Adapters
 
 ### 2.6 Repo map
 
-The layered shape is the right mental map. The tree below shows the original events slice; the current `src/` keeps the same layout at much larger scale (about 35 controllers, 76 services, and 11 adapters under `src/adapters/`, plus the admin, member, media, freestyle, clubs, net, and other sections).
+The layered shape is the right mental map. The tree below shows the original events slice; the current `src/` keeps the same layout at much larger scale (about 38 controllers, 83 services, and 11 adapters under `src/adapters/`, plus the admin, member, media, freestyle, clubs, net, and other sections).
 
 .
 ├─ src/
@@ -1329,7 +1329,7 @@ Notes on `operator_cidrs`:
 git check-ignore -v terraform/staging/terraform.tfvars
 ```
 
-Expected output: `.gitignore:97:*.tfvars  terraform/staging/terraform.tfvars`. If that command produces no output, the file is not ignored; stop and fix `.gitignore` before proceeding.
+Expected output: a line showing `.gitignore` matched the `*.tfvars` pattern for `terraform/staging/terraform.tfvars` (the exact line number varies as `.gitignore` changes). If that command produces no output, the file is not ignored; stop and fix `.gitignore` before proceeding.
 
 #### 3. CloudFront origin — use DNS, not raw IP, and use the two-pass apply
 
@@ -2813,148 +2813,28 @@ Rollback: `usermod -s /bin/bash ec2-user` and restore the authorized_keys file f
 
 ### 7.4 Reliability and recovery
 
-The staging deploy workflow exists, but durable recovery does not. Close it with four one-time operations: provision dedicated backup credentials, deploy a scheduled backup producer, emit a backup-age metric for alerting, and rehearse a full restore drill. The goal is to move from "we can redeploy" to "we can recover," and it is a prerequisite for implementing `scripts/deploy-migrate.sh`.
+The staging deploy workflow exists, but durable recovery does not. Close it with three one-time operations: install the shipped backup timer, enable the backup-age alarm, and rehearse a full restore drill. The goal is to move from "we can redeploy" to "we can recover," and it is a prerequisite for implementing `scripts/deploy-migrate.sh`.
 
-#### Provision dedicated backup credentials
+#### Install the backup timer
 
-The backup producer must not use the operator's credentials or the app-runtime role. Create a dedicated IAM user with `s3:PutObject` on the snapshots bucket only, plus `cloudwatch:PutMetricData` for the freshness metric added below.
+The backup producer is the committed `scripts/backup-db.sh`, placed on the host at `/srv/footbag/scripts/backup-db.sh` by the normal deploy rsync. It runs under the app's assumed-role AWS profile (the same `/root/.aws` chain the app uses — there is no separate backup IAM user or credentials file), reads `BACKUP_S3_BUCKET` and `FOOTBAG_ENV` from `/srv/footbag/env`, WAL-checkpoints and `.backup`-snapshots the live SQLite file, runs an integrity check, gzips the snapshot, and uploads it to `s3://<snapshots-bucket>/routine/YYYY/MM/DD/footbag-<timestamp>.db.gz` with bounded retry. Each run emits two CloudWatch metrics in the `Footbag/<env>` namespace: `BackupAgeMinutes` (minutes since the previous successful backup) and `BackupConsecutiveFailures` (raised after three consecutive failed runs).
 
-1. Declare the backup user and scoped policy in `terraform/staging/iam.tf`:
+The systemd pair lives in the repo at `ops/systemd/footbag-backup.service` and `ops/systemd/footbag-backup.timer` (every 5 minutes, `Persistent=true`, giving a ~5-minute recovery-point objective). Install them with the shipped helper, which stages the units over SSH, reloads systemd, enables the timer, and runs one backup immediately so a missing prerequisite fails loudly at install time:
 
-   ```hcl
-   resource "aws_iam_user" "backup_writer" {
-     name = "${local.prefix}-backup-writer"
-   }
+```bash
+scripts/install-backup-timer.sh --target staging
+```
 
-   data "aws_iam_policy_document" "backup_writer" {
-     statement {
-       actions = ["s3:PutObject", "s3:ListBucket"]
-       resources = [
-         aws_s3_bucket.snapshots.arn,
-         "${aws_s3_bucket.snapshots.arn}/*",
-       ]
-     }
+Verify:
 
-     statement {
-       actions   = ["cloudwatch:PutMetricData"]
-       resources = ["*"]
+```bash
+ssh footbag-staging
+sudo systemctl status footbag-backup.timer
+sudo journalctl -u footbag-backup.service --no-pager | tail
+aws s3 ls --recursive "s3://<snapshots-bucket>/routine/" | tail
+```
 
-       condition {
-         test     = "StringEquals"
-         variable = "cloudwatch:namespace"
-         values   = ["Footbag"]
-       }
-     }
-   }
-
-   resource "aws_iam_user_policy" "backup_writer" {
-     user   = aws_iam_user.backup_writer.name
-     policy = data.aws_iam_policy_document.backup_writer.json
-   }
-   ```
-
-2. `terraform plan` and `terraform apply`.
-
-3. Create an access key for the user and install it on the host in a root-only credentials file:
-
-   ```bash
-   aws iam create-access-key --user-name footbag-staging-backup-writer
-   # Record AccessKeyId and SecretAccessKey in the operator vault.
-
-   ssh footbag-staging
-   set +o history   # keep the pasted key values out of the host ~/.bash_history
-   sudo bash -c 'cat > /root/.aws/credentials-backup <<EOF
-   [backup]
-   aws_access_key_id = <AccessKeyId>
-   aws_secret_access_key = <SecretAccessKey>
-   EOF'
-   sudo chmod 600 /root/.aws/credentials-backup
-   set -o history
-   ```
-
-   Rotate this key on the same 90-day cadence as other access keys per `docs/DEVOPS_GUIDE.md` §10.7.
-
-#### Deploy the backup producer (systemd timer)
-
-A systemd timer is preferred over cron because it integrates with journalctl and handles missed runs via `Persistent=true`. Backups run every 5 minutes; the snapshots bucket holds versioned objects so a 5-minute cadence gives a ~5-minute RPO.
-
-1. Install the backup script on the host at `/usr/local/sbin/footbag-backup.sh`:
-
-   ```bash
-   sudo tee /usr/local/sbin/footbag-backup.sh > /dev/null <<'EOF'
-   #!/bin/bash
-   set -euo pipefail
-
-   export AWS_SHARED_CREDENTIALS_FILE=/root/.aws/credentials-backup
-   export AWS_PROFILE=backup
-   BUCKET="<your-snapshots-bucket-name>"
-   DB_PATH="${FOOTBAG_DB_PATH:-/srv/footbag/db/footbag.db}"
-   TS="$(date -u +%Y%m%dT%H%M%SZ)"
-   OUT="/tmp/footbag-${TS}.db"
-
-   sqlite3 "$DB_PATH" ".backup $OUT"
-   sqlite3 "$OUT" 'PRAGMA integrity_check;' | grep -q '^ok$' || { echo "integrity check failed"; exit 1; }
-   aws s3 cp "$OUT" "s3://${BUCKET}/snapshots/${TS}.db"
-   aws cloudwatch put-metric-data \
-     --namespace "Footbag" \
-     --metric-name BackupAgeMinutes \
-     --value 0 \
-     --unit Count \
-     --dimensions Environment=staging
-   rm -f "$OUT"
-   EOF
-   sudo chmod +x /usr/local/sbin/footbag-backup.sh
-   ```
-
-2. Install the systemd service unit at `/etc/systemd/system/footbag-backup.service`:
-
-   ```bash
-   sudo tee /etc/systemd/system/footbag-backup.service > /dev/null <<'EOF'
-   [Unit]
-   Description=footbag.org SQLite snapshot producer
-   After=network-online.target
-
-   [Service]
-   Type=oneshot
-   ExecStart=/usr/local/sbin/footbag-backup.sh
-   User=root
-   EOF
-   ```
-
-3. Install the timer unit at `/etc/systemd/system/footbag-backup.timer`:
-
-   ```bash
-   sudo tee /etc/systemd/system/footbag-backup.timer > /dev/null <<'EOF'
-   [Unit]
-   Description=footbag.org backup schedule
-
-   [Timer]
-   OnCalendar=*:0/5
-   Persistent=true
-   AccuracySec=1min
-   Unit=footbag-backup.service
-
-   [Install]
-   WantedBy=timers.target
-   EOF
-   ```
-
-4. Enable and start the timer:
-
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now footbag-backup.timer
-   ```
-
-5. Verify:
-
-   ```bash
-   sudo systemctl status footbag-backup.timer
-   sudo journalctl -u footbag-backup.service --no-pager | tail
-   aws s3 ls "s3://<snapshots-bucket>/snapshots/" | tail
-   ```
-
-   Expect the timer active, the service journal showing a recent successful run, and the bucket listing new objects every 5 minutes.
+Expect the timer active, the service journal showing a recent successful run, and the bucket listing new objects every 5 minutes.
 
 #### Enable the backup-age alarm
 
@@ -2964,7 +2844,7 @@ Without a freshness alarm, a silent backup failure can go unnoticed until the ne
 
    ```bash
    sudo systemctl start footbag-backup.service
-   aws cloudwatch list-metrics --namespace Footbag
+   aws cloudwatch list-metrics --namespace Footbag/staging
    ```
 
 2. Enable the alarm in `terraform/staging/terraform.tfvars`:
@@ -3000,11 +2880,12 @@ Rehearse this before any migration-related work. Completing the drill is a gate 
    sudo systemctl stop footbag
    ```
 
-3. Pick a known-good snapshot and copy it down:
+3. Pick a known-good snapshot and copy it down (snapshots are gzipped under `routine/`):
 
    ```bash
-   SNAPSHOT=$(aws s3 ls s3://<snapshots-bucket>/snapshots/ | awk '{print $4}' | tail -1)
-   aws s3 cp "s3://<snapshots-bucket>/snapshots/${SNAPSHOT}" /tmp/restore.db
+   KEY=$(aws s3 ls --recursive s3://<snapshots-bucket>/routine/ | awk '{print $4}' | sort | tail -1)
+   aws s3 cp "s3://<snapshots-bucket>/${KEY}" /tmp/restore.db.gz
+   gunzip -f /tmp/restore.db.gz   # yields /tmp/restore.db
    ```
 
 4. Verify snapshot integrity:
@@ -3645,7 +3526,7 @@ One-time setup. Run after `terraform/staging` apply has provisioned the Paramete
 Prerequisites:
 
 - Stripe account with test mode enabled and IFPA's billing details configured
-- access to the Parameter Store paths `/footbag/staging/stripe/api_key` and `/footbag/staging/stripe/webhook_secret`
+- access to the Parameter Store secret `/footbag/staging/secrets/stripe_secret_key` (its shell is declared in `terraform/staging/ssm.tf` with a placeholder value you overwrite). The webhook signing secret is not in Parameter Store — it is the `STRIPE_WEBHOOK_SECRET` entry in the host env file `/srv/footbag/env`.
 - staging origin reachable on a public HTTPS URL (CloudFront enabled per §7.2)
 
 Procedure:
@@ -3659,7 +3540,7 @@ Procedure:
    # `aws` process arguments (visible to any `ps` reader); shred the file afterward.
    printf %s '<test-secret-key>' > /tmp/ssm-val && chmod 600 /tmp/ssm-val
    aws ssm put-parameter \
-     --name /footbag/staging/stripe/api_key \
+     --name /footbag/staging/secrets/stripe_secret_key \
      --value file:///tmp/ssm-val \
      --type SecureString \
      --overwrite
@@ -3667,17 +3548,11 @@ Procedure:
    ```
 
 3. In the Stripe Dashboard, go to **Developers > Webhooks > Add endpoint**. Set the endpoint URL to the staging webhook route (e.g. `https://<staging-cloudfront-domain>/webhooks/stripe`). Subscribe to the event types listed in DD §6.1 (one-time payment events, subscription lifecycle events, refund events).
-4. Copy the signing secret from the new webhook endpoint and store it:
+4. Copy the signing secret from the new webhook endpoint. It is delivered as the `STRIPE_WEBHOOK_SECRET` entry in the host env file `/srv/footbag/env` (read by the app at boot and forwarded into the container by Docker Compose), not Parameter Store. Set it with the shipped helper, which replaces-or-appends the entry safely rather than hand-editing the file:
 
    ```bash
-   # <signing-secret> is a placeholder — paste the real webhook signing secret in its place.
-   printf %s '<signing-secret>' > /tmp/ssm-val && chmod 600 /tmp/ssm-val
-   aws ssm put-parameter \
-     --name /footbag/staging/stripe/webhook_secret \
-     --value file:///tmp/ssm-val \
-     --type SecureString \
-     --overwrite
-   shred -u /tmp/ssm-val
+   # Sets STRIPE_WEBHOOK_SECRET (and, with PAYMENT_ADAPTER=live, flips payments on) in /srv/footbag/env.
+   scripts/activate-payments.sh --help
    ```
 
 5. Restart the staging app so the new Parameter Store values are loaded at boot:
@@ -3693,34 +3568,29 @@ Validation gate: one synthetic webhook delivery succeeds end-to-end and a corres
 
 ### 8.16 Turnstile activation (staging)
 
-One-time setup. Run after `terraform/staging` apply has provisioned the Parameter Store paths, and after the Turnstile integration code (client widget on the five protected forms, server-side `siteverify` call before any DB read per DD §8.3) is shipped to staging.
+One-time setup. Run after the Turnstile integration code (client widget on the five protected forms, server-side `siteverify` call before any DB read per DD §8.3) is shipped to staging. Turnstile uses one Parameter Store secret and one host env var (below); neither is created by `terraform apply`.
 
 Prerequisites:
 
 - Cloudflare account with permission to manage Turnstile sites
-- access to the Parameter Store paths `/footbag/staging/turnstile/site_key` and `/footbag/staging/turnstile/secret_key`
+- permission to write the Parameter Store secret `/footbag/staging/secrets/turnstile_secret_key` (read by the live captcha adapter's `siteverify` call) and to set the public `TURNSTILE_SITE_KEY` entry in `/srv/footbag/env`
 - staging origin reachable on a public HTTPS URL
 
 Procedure:
 
 1. In the Cloudflare dashboard, go to **Turnstile > Add site**. Set the hostname to the staging public hostname. Choose Managed mode (the Cloudflare-recommended default per DD §8.3). Save.
 2. Cloudflare displays the site key (public, embedded in HTML) and the secret key (private, used by `siteverify`). Copy both.
-3. Store the values in Parameter Store:
+3. Set the site key and store the secret key. The site key is public and is delivered as the `TURNSTILE_SITE_KEY` entry in `/srv/footbag/env` (read at boot, forwarded into the container by Docker Compose) — it is not a Parameter Store value. The secret key is read from Parameter Store by the live captcha adapter at `/footbag/staging/secrets/turnstile_secret_key`; Terraform does not declare this parameter, so create it directly under the project KMS key:
 
    ```bash
-   aws ssm put-parameter \
-     --name /footbag/staging/turnstile/site_key \
-     --value <site-key> \
-     --type String \
-     --overwrite
-
-   # <secret-key> is a placeholder — paste the real Turnstile secret key in its place.
-   # (The site_key above is public and stays inline; only the secret key needs file:// handling.)
+   # Public site key: set TURNSTILE_SITE_KEY in /srv/footbag/env (delivered to the container by the deploy).
+   # Secret key -> Parameter Store, KMS-encrypted. <secret-key> is a placeholder for the real key.
    printf %s '<secret-key>' > /tmp/ssm-val && chmod 600 /tmp/ssm-val
    aws ssm put-parameter \
-     --name /footbag/staging/turnstile/secret_key \
+     --name /footbag/staging/secrets/turnstile_secret_key \
      --value file:///tmp/ssm-val \
      --type SecureString \
+     --key-id alias/footbag-staging \
      --overwrite
    shred -u /tmp/ssm-val
    ```

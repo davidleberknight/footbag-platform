@@ -11,6 +11,7 @@ Design and specification documents for the footbag-platform modernization projec
 - [`DATA_MODEL.md`](DATA_MODEL.md): canonical entities, relationships, schema conventions, DB-vs-app boundaries
 - [`DATA_GOVERNANCE.md`](DATA_GOVERNANCE.md): privacy boundaries, sensitivity tiers, and data-handling rules (members, historical persons, search, exports, erasure)
 - [`USER_STORIES.md`](USER_STORIES.md): functional scope and acceptance criteria
+- [`TESTING.md`](TESTING.md): test strategy, risk-classification rubric, coverage expectations, and verification gates
 - [`DIAGRAMS.md`](DIAGRAMS.md): architecture and data-flow diagrams
 - [`GLOSSARY.md`](GLOSSARY.md): cross-document terminology
 - [`DEVOPS_GUIDE.md`](DEVOPS_GUIDE.md): build, deploy, operate, recover, and infrastructure procedures
@@ -24,6 +25,7 @@ Design and specification documents for the footbag-platform modernization projec
 - What entities exist and how are they related? → `DATA_MODEL.md` + `database/schema.sql`
 - What does a public page/route look like? → the owning service's file-header JSDoc + `.claude/rules/view-layer.md`
 - What does a service own? → the service's file-header JSDoc
+- How is the system tested? → `TESTING.md`
 - How do I build, deploy, or recover? → `DEVOPS_GUIDE.md`
 - How do I set up the project and iterate locally? → `DEV_ONBOARDING.md`
 - How is the repo set up for Claude Code, and how do I change that setup safely? → `CLAUDE_CODE_GUIDE.md`

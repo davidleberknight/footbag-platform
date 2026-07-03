@@ -143,7 +143,7 @@ Cost: \$2/month S3 storage. No RDS, no per-connection charges, no IOPS fees.
 
 Prepared Statement Performance: Statements compiled once at startup eliminates repeated SQL parsing overhead. Official SQLite-recommended pattern. better-sqlite3 auto-resets statements after execution for immediate reuse.
 
-Single Module Organization: All queries visible in one file (~200-500 lines for 50-100 queries). Easy to grep for "WHERE email". Descriptive names enable IDE autocomplete. Manageable for small volunteer team. Repository classes would add value at 500+ queries with large team, but add unnecessary complexity here.
+Single Module Organization: All queries visible in one file. Easy to grep for "WHERE email". Descriptive names enable IDE autocomplete. Manageable for small volunteer team. Repository classes would add value at 500+ queries with large team, but add unnecessary complexity here.
 
 **Trade-offs:**
 
@@ -161,7 +161,7 @@ Synchronous Transactions Only: Cannot span async operations. Services must batch
 
 **Impact:**
 
-Database Module: Single db.ts exports connection with PRAGMAs, prepared statements grouped by domain (members, events, registrations, etc.), transaction helper. Statements ordered: reads, writes, counts. Complex queries include inline SQL comments. Module is ~200-500 lines.
+Database Module: Single db.ts exports connection with PRAGMAs, prepared statements grouped by domain (members, events, registrations, etc.), transaction helper. Statements ordered: reads, writes, counts. Complex queries include inline SQL comments.
 
 Service Layer: Import db module, call queries.memberByEmail.get(email), wrap multi-step operations in transaction(() =\> {...}). Catch specific error codes, throw meaningful business errors. Never call db.prepare() or write inline SQL.
 
@@ -1730,7 +1730,7 @@ Requirements:
 
 - URL-path redaction in request logs covers every token-bearing route (email-verify, password-reset, data-export, account-claim, and any future token-in-path additions). The redactor is a single helper module, and any new token-in-path route registers its pattern with the helper so logs cannot leak a usable token via path emission.
 
-Impact: Token generation/validation logic is centralized in an AuthService helper to avoid copy/paste drift across flows (verification, reset, onboarding).
+Impact: Token generation/validation logic is centralized in the `identityAccessService` helper to avoid copy/paste drift across flows (verification, reset, onboarding).
 
 ## 3.9 Security, Privacy, and Historical Record Governance
 
@@ -1805,12 +1805,12 @@ Requirements:
 
 - Hosts set the integer in `/srv/footbag/env`; `docker-compose.prod.yml` passes it through with the named-range string as the fallback default. The dev compose defaults to 1 (nginx only).
 - `scripts/verify-staging-env.sh` warns (advisory, non-fatal) when the value is missing or non-integer.
-- The count changes only when the proxy chain changes: at the DNS handover milestone the legacy front-door hop retires and production drops from 3 to 2. The deploy checklist carries the change.
+- The count changes only when the proxy chain changes. Under the clean DNS cutover the chain is CloudFront then nginx at go-live and at every later milestone, so the count stays 2; any future chain change carries a deploy-checklist line updating the integer.
 - Trust-proxy tests exercise the compiled trust function with crafted multi-entry XFF chains, pinning: correct count resolves the real client; named ranges resolve the edge address (the coarse-bucket fallback); a count larger than the chain hands `req.ip` control to the viewer (why the count drops when a hop retires).
 
 Trade-offs:
 
-- A count larger than the real chain lets a client prepend forged XFF entries and choose its `req.ip`; a count smaller resolves to an intermediate hop. The advisory check and the handover checklist line exist because the integer tracks topology by hand.
+- A count larger than the real chain lets a client prepend forged XFF entries and choose its `req.ip`; a count smaller resolves to an intermediate hop. The advisory check and the deploy-checklist line exist because the integer tracks topology by hand.
 - An unset value silently coarsens per-IP rate limiting to per-edge buckets rather than failing loudly; the advisory check is the detection surface.
 
 Impact:
@@ -3602,6 +3602,45 @@ Impact:
   accidentally using a production secret) becomes a boot-time
   configuration error rather than a silent acceptance of
   inappropriate webhook events.
+
+## 6.11 DNS Cutover
+
+Decision:
+
+Go-live is a clean DNS switch executed by the legacy-site webmaster on his own authoritative bind9 zone: `www.footbag.org` becomes a CNAME to the production CloudFront distribution, and the apex `footbag.org` becomes an A record to a small platform-run always-on redirector instance with a static IP that 301-redirects every apex request to `www` over its own TLS certificate. `www` is the canonical host. The legacy site leaves the live path at the switch: no reverse proxy or front door on the legacy server, and no legacy TLS certificate. Rollback is the webmaster reverting the `www`/apex records to the legacy origin under a pre-lowered low TTL. The Route 53 apex/`www` alias records (`enable_apex_alias_records`) and the SES domain-auth records (`ses_enable_domain_auth`) are gated off by default; they apply only at an optional, deferred, post-stability zone migration to Route 53, at which point the apex becomes a Route 53 ALIAS to the distribution and the redirector retires.
+
+Rationale:
+
+- A clean switch removes the legacy server from the live path entirely: no legacy TLS certificate to maintain, no critical-path dependency on legacy hardware, and CloudFront sees client IPs directly (the proxy chain stays CloudFront then nginx, two hops, with no third front-door hop at any milestone).
+- The apex cannot be a CNAME (RFC 1034) and bind9 has no ALIAS/ANAME record type; pointing the apex directly at CloudFront without Route 53 requires CloudFront Anycast static IPs at a flat monthly fee disproportionate for a nonprofit. A small always-on redirector instance with a static IP is the one robust apex mechanism that keeps the zone authoritative on bind9.
+- The redirector's failure blast radius is apex-only entry points; `www`, where all canonical URLs live, rides CloudFront's availability.
+- The simplest rollback for a DNS-switch cutover is a DNS revert: with the `www`/apex TTL pre-lowered to 60 seconds, resolvers return to the legacy origin within minutes, and the legacy backup serves read-only because the member write-freeze is permanent.
+- Mail is decoupled from the web switch: MX routing is independent of A/AAAA changes, inbound moves to Google Workspace as its own earlier step, and the web cutover never touches MX.
+- Outbound authentication is flexible by design: the apex SPF authorizes every legitimate sender (SES, Google, the webmaster's own sending host), starting softfail with DMARC in monitor-only mode and tightening only after the verified sender list and clean aggregate reports prove no legitimate mail would be quarantined.
+- Historical content is served from the platform-controlled `archive.footbag.org` on its own CloudFront distribution and us-east-1 certificate (the Legacy Archive decision, §6.4), so no legacy subdomain is needed for it.
+
+Requirements:
+
+- The production distribution carries `footbag.org` and `www.footbag.org` as alternate domain names with a matching ACM certificate in us-east-1; the archive distribution carries `archive.footbag.org` with its own us-east-1 certificate.
+- The webmaster is the records-actor: he hand-applies the maintainer-supplied records to his zone — the ACM validation CNAMEs (permanent; renewals depend on them), the SES DKIM CNAMEs, the custom MAIL FROM subdomain records, the SPF amendment, the DMARC record, the Google MX record, the `archive.footbag.org` CNAME, the `www` CNAME, and the apex A record.
+- Any CAA record on the zone must authorize Amazon's certificate authorities before certificate issuance is attempted.
+- The apex redirector serves HTTPS with a valid `footbag.org` certificate and returns 301 to the same path on `www`.
+- A pre-cutover smoke test proves the CloudFront path (via a test subdomain and `curl --resolve` against a current edge IP) and the apex redirect before the switch; the switch is gated on the smoke re-running green on the day.
+- The cold legacy backup stays restorable through the rollback window plus the dispute-lookup period.
+
+Trade-offs:
+
+- One more always-on instance (the redirector) to run and patch; accepted to keep bind9 authoritative and avoid the Anycast fee.
+- Apex URLs cost one redirect hop; `www` is the canonical host everywhere.
+- A DNS revert is not instantaneous for clients that cached the new records; the low-TTL choreography bounds this to minutes.
+- Hand-applied records on an externally operated zone are a manual failure mode; mitigated by an enumerated record inventory with a per-record verification command.
+
+Impact:
+
+- `terraform/production/route53.tf` alias records and `terraform/production/ses.tf` domain-auth records stay gated off until the optional Route 53 handover; the apex redirector gets its own Terraform.
+- The DNS cutover runbook in `docs/DEVOPS_GUIDE.md` scripts the webmaster-executed switch, not a Terraform apply; Terraform-applied DNS appears only in the optional handover procedure.
+- `TRUST_PROXY` is 2 in staging and production from go-live, with no topology change at any later milestone.
+- MIGRATION_PLAN sequences the cutover (§29.12) and the mail disposition (§29.12a) against this decision.
 
 # 7. DevOps
 

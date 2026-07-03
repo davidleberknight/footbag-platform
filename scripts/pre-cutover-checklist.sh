@@ -135,11 +135,12 @@ else
   run_step "QC-ABSENCE" bash scripts/validate-qc-absence.sh
 fi
 
-# NOTE: no DNS step here. The front-door flip changes no DNS records (the
-# webmaster flips the reverse proxy); TTL choreography belongs to the DNS
-# handover milestone via scripts/dns-ttl-preflight.sh --phase handover. The
-# email-day MX/TXT TTL pre-shrink is the webmaster's manual action on his
-# authoritative zone, not a step this script runs.
+# NOTE: no DNS step here. The go-live flip is the webmaster's manual switch
+# of apex/www on his own authoritative zone, including its T-48h TTL
+# pre-shrink — his manual actions, not steps this script runs.
+# scripts/dns-ttl-preflight.sh --phase handover applies only at the later,
+# optional Route 53 handover milestone. The email-day MX/TXT TTL pre-shrink
+# is likewise the webmaster's manual action on his authoritative zone.
 
 echo
 echo "=== pre-cutover summary ==="

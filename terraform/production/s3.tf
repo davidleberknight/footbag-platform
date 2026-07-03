@@ -263,9 +263,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
 # Lives in us-west-2 (backup region). Object Lock is enabled at creation
 # (it cannot be retrofitted): the pre-flip cutover snapshot and replicated
 # routine backups become undeletable for the default retention window, which
-# covers the 48h rollback window plus operator-review headroom. The 30-day
-# window is kept short to satisfy GDPR storage limitation for backups that
-# contain personal data. GOVERNANCE mode (not COMPLIANCE) so an operator with
+# covers the 48h rollback window plus disaster-recovery restore headroom. The
+# 90-day window keeps snapshots recoverable well past the rollback window.
+# GOVERNANCE mode (not COMPLIANCE) so an operator with
 # s3:BypassGovernanceRetention can still recover from a mistaken upload and can
 # honor a lawful erasure request; COMPLIANCE would make both impossible for the
 # full window. If this bucket already exists without
@@ -283,7 +283,7 @@ resource "aws_s3_bucket_object_lock_configuration" "dr" {
   rule {
     default_retention {
       mode = "GOVERNANCE"
-      days = 30
+      days = 90
     }
   }
 }

@@ -84,19 +84,17 @@ When reviewing DD drift, cite the design sources as evidence. Do NOT cite curren
 
 ## Team-member names
 
-Do not reference internal team members by name in **technical / design project docs**: MIGRATION_PLAN, DEV_ONBOARDING, DATA_MODEL, DESIGN_DECISIONS, USER_STORIES, PROJECT_SUMMARY_CONCISE, DEVOPS_GUIDE, GLOSSARY, DIAGRAMS, PROJECT_SUMMARY. Use role-based labels. The one exception is the MIGRATION_PLAN coordination sections, where the legacy-site webmaster, the IFPA secretary, and the project manager are named directly (see below).
+Use role-based labels for internal team members in the **design docs** — DEV_ONBOARDING, DATA_MODEL, DESIGN_DECISIONS, USER_STORIES, PROJECT_SUMMARY_CONCISE, DEVOPS_GUIDE, GLOSSARY, DIAGRAMS, PROJECT_SUMMARY. These describe the design, not who is doing the work, so they name no one:
 
 - "James" / "James Leberknight" → "the historical-pipeline and freestyle maintainer" (owns all legacy work).
 - "Dave" / "David" / "David Leberknight" → "the primary maintainer" / "the project maintainer".
-- Email addresses / GitHub handles follow the same rule.
-
-**Meta / governance docs** (README, CONTRIBUTING, CODE_OF_CONDUCT, GOVERNANCE) may name the maintainer for attribution and contact. Attribution is not sprint tracking.
-
-**`IMPLEMENTATION_PLAN.md` is the one technical-doc exception**: owner tracking by first name (Steve, Julie, Dave, James) is expected and correct in it. It is the single unified plan of record covering platform, migration, data-pipeline, and freestyle work; there is no separate historical-pipeline plan.
-
-**The MIGRATION_PLAN coordination sections name the people who hold the facts and decisions.** In those sections (§14, §19, §20a, §20b), the legacy-site webmaster (Steve), the IFPA secretary (Julie), and the project manager (Dave) may be named directly, because the sections describe who supplies which facts and who decides what. Outside those coordination sections, the name rules above still apply, and for legacy data use "the legacy data" / "the legacy data import", never possessive constructions like "Steve's dump". Steve's address `brat@footbag.org` is authoritatively listed in DD §5.5.
+- GitHub handles and contact emails follow the same rule; the canonical contact addresses live in DESIGN_DECISIONS and are not restated as literals elsewhere.
 
 When replacing, preserve role/context: "James's sprint" means "the historical-pipeline sprint," not "a sprint." Translate semantically; do not delete.
+
+**MIGRATION_PLAN and `IMPLEMENTATION_PLAN.md` name people directly.** Both are coordination and plan-of-record docs about who supplies which facts and who does what, so the project's people are named by first name throughout them: the legacy-site webmaster (Steve), the IFPA secretary (Julie), the primary maintainer / project manager (Dave), the historical-pipeline and freestyle maintainer (James), and the tester (Caroline). For legacy data still use "the legacy data" / "the legacy data import", not possessive constructions like "Steve's dump" — the neutral framing is about data ownership, not naming.
+
+**Meta / governance docs** (README, CONTRIBUTING, CODE_OF_CONDUCT, GOVERNANCE) may name the maintainer for attribution and contact. Attribution is not sprint tracking.
 
 ## Tests describe long-term contracts
 

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # scripts/dns-ttl-preflight.sh -- T-48h DNS TTL drop for the zone handover.
-# The front-door cutover itself changes NO DNS records (the webmaster flips a
-# reverse proxy), so this script is NOT part of the flip checklist; it serves
-# the one milestone that actually moves DNS:
+# The go-live cutover is the webmaster's manual switch of apex/www on his own
+# authoritative bind9 zone; its TTL pre-shrink is his manual action there, not
+# this script, which drives Route 53 (not authoritative until the handover).
+# So this script is NOT part of the flip checklist; it serves the one
+# milestone that moves DNS in Route 53:
 #
 #   --phase handover  DNS handover milestone: drops TTL on the apex A/AAAA +
 #                     www records ahead of the zone move to Route 53.
@@ -45,7 +47,7 @@ done
 
 case "${PHASE}" in
   handover) DEFAULT_RECORDS="footbag.org.,www.footbag.org." ;;
-  *) echo "--phase handover is required (the front-door flip changes no DNS records; the MX/TXT TTL is the webmaster's manual action on his zone)" >&2; exit 2 ;;
+  *) echo "--phase handover is required (the go-live flip is the webmaster's manual switch on his own zone; the MX/TXT TTL is likewise his manual action there)" >&2; exit 2 ;;
 esac
 
 if [[ "${MOCK}" -eq 1 ]]; then

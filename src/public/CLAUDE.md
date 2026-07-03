@@ -7,8 +7,10 @@ Static assets served by Express at the repo root URL path `/`.
 ```
 src/public/
   css/     Site-wide stylesheet(s)
+  fonts/   Self-hosted web fonts (woff2) referenced by the stylesheet
   img/     Static site images — SVG maps, logos, icons, decorative assets
   js/      Client-side JavaScript — progressive enhancement only, no build step
+  video/   Static video assets (e.g. the Sideline demo clips)
 ```
 
 ## img/ — static site images

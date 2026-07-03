@@ -522,15 +522,15 @@ The orchestrator's `CLAIM-SAFETY` gate re-runs the integration suite against the
 
 ### 6.7 DNS cutover sequence runbook
 
-The DNS cutover swaps `footbag.org` and `www.footbag.org` from the legacy origin to the CloudFront distribution attached to the production certificate. The sequence is gated on §6.6 having passed; once started it is operator-driven and runs to completion before any further write traffic is taken. This sequence swaps only the apex and `www` A/AAAA records; it does not touch MX. The `@footbag.org` MX move to Google is a separate, earlier step (§6.8 MX-to-Google mail cutover; MIGRATION_PLAN §29.12a) completed before T-0, so the apex swap is MX-neutral. Retained `*.footbag.org` subdomains (including the `ifpa.` mail host) keep their existing records and must not be altered or clobbered by the apply.
+The DNS cutover repoints `www.footbag.org` (a CNAME to the CloudFront distribution attached to the production certificate) and the apex `footbag.org` (an A record to the platform's apex redirector, which 301-redirects to `www`) away from the legacy origin. The sequence is gated on §6.6 having passed; once started it is webmaster-executed and operator-coordinated, and runs to completion before any further write traffic is taken. This sequence changes only the apex and `www` records; it does not touch MX. The `@footbag.org` MX move to Google is a separate, earlier step (§6.8 MX-to-Google mail cutover; MIGRATION_PLAN §29.12a) completed before T-0, so the apex swap is MX-neutral. Retained `*.footbag.org` subdomains (including the `ifpa.` mail host) keep their existing records and must not be altered or clobbered by the apply.
 
 The numerics below (60s TTL pre-shrink, T+24h TTL restore, T-0 to T+1h rollback window) are the generic-procedure defaults used for staging dry-runs and any cutover without its own overrides. For production footbag.org: the go-live cutover is the `www`/apex DNS switch itself (MIGRATION_PLAN §29.12), so this runbook applies at cutover, and it governs again later at the post-stability Route 53 zone migration, where MIGRATION_PLAN §29.12 additionally requires a fresh zone snapshot first so mail and retained-subdomain records copy faithfully into Route 53. Where MIGRATION_PLAN §29.12 and this section disagree, MIGRATION_PLAN §29.12 wins for footbag.org.
 
 Sequence:
 
-**T-48 hours -- TTL drop.** Run `scripts/dns-ttl-preflight.sh` (or apply the equivalent Terraform change) to lower the TTL on the apex and `www` records on the *legacy* zone to 60 seconds. Both A/AAAA records are covered. Record the timestamp + resolver-observed TTL in the cutover log. From this point, any rollback before T-0 propagates within one minute.
+**T-48 hours -- TTL drop.** The webmaster lowers the TTL on the apex and `www` records to 60 seconds on his own authoritative zone (it stays on his infrastructure at go-live). This is his manual action, not `scripts/dns-ttl-preflight.sh`, which operates on Route 53 and is reserved for the later, optional DNS-handover milestone. Record the prior TTL: the old value must have fully expired before T-0 (a 24-hour prior TTL needs at least 24 hours of lead — verify, don't assume; 48 hours covers the common cases). Verify the drop is actually served: `dig @<webmaster-authoritative-NS> footbag.org A +noall +answer` and the same for `www` must show TTL 60. Record the timestamp + authoritative-observed TTL in the cutover log. From this point, any revert propagates within about a minute.
 
-**T-0 -- record swap.** Replace the legacy-origin A/AAAA records with `aws_route53_record` ALIAS entries pointing at the production CloudFront distribution (Z2FDTNDATAQYW2 for CloudFront). Apply via Terraform from `terraform/production/`. Record the apply timestamp and the Route 53 ChangeInfo id (`aws route53 get-change --id <id>` returns `INSYNC` when Route 53's authoritative servers have propagated; this typically lands in 30-60 seconds).
+**T-0 -- the switch.** On his own zone the webmaster points the records at the new platform: `www.footbag.org` becomes a CNAME to the production distribution's `cloudfront.net` endpoint, and the apex `footbag.org` becomes an A record to the apex redirector's static IP; the legacy origin goes dark. No Terraform apply: the Route 53 apex/`www` alias records (gated by `enable_apex_alias_records`) stay off until the later, optional handover. Never delete-then-recreate a record — replace each in a single change, so no interim negative answer can be cached (negative caching follows the zone's SOA, not the record's 60s TTL). Record the change timestamp and verify immediately against the authoritative servers: `dig @<webmaster-authoritative-NS> www.footbag.org CNAME +short` returns the distribution endpoint and `dig @<webmaster-authoritative-NS> footbag.org A +short` returns the redirector IP.
 
 **T+1 hour -- propagation check across three resolvers.** Run from the operator workstation:
 
@@ -542,17 +542,17 @@ for resolver in 1.1.1.1 8.8.8.8 9.9.9.9; do
 done
 ```
 
-All three should return CloudFront edge IPs (the `aws-cloudfront-net` block) and not the legacy origin. If one resolver still returns the legacy IP after one hour, re-check the TTL on the *legacy* zone's authoritative servers; some upstream resolvers honor the long-cached SOA negative-cache window beyond the record TTL. A single straggler that resolves correctly via the others is tolerable; broad divergence is a rollback trigger.
+For `www` all three should return CloudFront edge IPs (the `aws-cloudfront-net` block); for the apex, the redirector's static IP — neither should return the legacy origin. If one resolver still returns the legacy IP after one hour, re-check the TTL on the *legacy* zone's authoritative servers; some upstream resolvers honor the long-cached SOA negative-cache window beyond the record TTL. A single straggler that resolves correctly via the others is tolerable; broad divergence is a rollback trigger.
 
-**T+1 hour -- end-to-end verification.** `curl -sf https://footbag.org/health/live` and `curl -sf https://www.footbag.org/health/live` from at least one network outside the operator's primary ISP. Both must return HTTP 200 with the production cert presented. A 4xx/5xx from the new origin is a rollback trigger.
+**T+1 hour -- end-to-end verification.** `curl -sf https://www.footbag.org/health/live` must return HTTP 200 with the production cert presented, and `curl -sfI https://footbag.org/` must return 301 with `Location: https://www.footbag.org/` over a valid certificate, from at least one network outside the operator's primary ISP. A 4xx/5xx from the new origin is a rollback trigger.
 
 **T+1 hour -- retained-subdomain check.** Confirm every retained `*.footbag.org` subdomain (per `MIGRATION_PLAN.md` §19 item 16) still resolves to the legacy host and was not altered by the apply. Do not print any private operator-only subdomain into shared logs or output.
 
-**T+24 hours -- TTL restore.** With the cutover stable, raise the TTL on the (now Route 53-managed) apex + `www` records to the long-term default (3600s). Re-apply Terraform; record the timestamp.
+**T+24 hours -- TTL restore.** With the cutover stable, the webmaster raises the apex + `www` TTL back to the long-term default (3600s) on his zone (it stays on his infrastructure until the later, optional Route 53 handover). Record the timestamp.
 
-Rollback (anywhere from T-0 to T+1 hour): apply the prior Terraform state pinning the legacy-origin A/AAAA records. With TTLs at 60s, world resolves to the legacy origin inside two minutes. Past T+1 hour, rollback is still possible but accumulates the cost of any writes that landed on the new origin while DNS was diverging; consult the rollback decision framework in `MIGRATION_PLAN.md` §27 before triggering.
+Rollback (anywhere from T-0 to T+1 hour): the webmaster reverts the apex and `www` records to the legacy origin on his zone. With TTLs at 60s the world resolves back within about two minutes — but not instantly everywhere: clients and resolvers that cached the new records lag by up to their cached TTL. Past T+1 hour, rollback is still possible but accumulates the cost of any writes that landed on the new origin while DNS was diverging; consult the rollback decision framework in `MIGRATION_PLAN.md` §27 before triggering.
 
-Dry-run note: dry-run the full sequence against the staging zone before production. Staging uses `staging.footbag.org` (or whatever the staging zone resolves to in `terraform/staging/route53.tf`); the same sequence applies and exercises the same Terraform pathways. A green dry-run confirms the Terraform module, the AWS profile permissions, and the propagation-check tooling all work before they're load-bearing on production.
+Dry-run note: rehearse before production, but the pathways differ — staging exercises Route 53/Terraform (`terraform/staging/route53.tf`, when enabled), while the production go-live is a manual switch on the webmaster's bind9 zone. A staging dry-run therefore proves the propagation-check tooling and the smoke suite, not the production change mechanism. The production-faithful rehearsal is the test-subdomain rehearsal (MIGRATION_PLAN §29.12): the webmaster applies a test-subdomain record on his own zone by the same manual process he will use at T-0.
 
 ### 6.8 External DNS/mail upstream coordination runbook
 
@@ -601,11 +601,11 @@ Skeleton (detailed provider click-paths are filled in when the step is first exe
 1. Provision every active `@footbag.org` mailbox or alias on Google from the confirmed inventory; send a test message to each and confirm receipt.
 2. Update the `footbag.org` SPF record to authorize both AWS SES (outbound) and Google (inbound); publish Google's required DNS records alongside the SES DKIM CNAMEs.
 3. Pre-shrink the `footbag.org` MX TTL (coordinate via the §6.8 upstream handoff if the zone is upstream-owned).
-4. Repoint the `footbag.org` MX to Google. Optionally keep the legacy mail server as a transient lower-priority backup MX until Google delivery is confirmed.
+4. Repoint the `footbag.org` MX to Google (current Google guidance is the single record `smtp.google.com`, priority 1). No backup MX to the legacy server: split delivery hides failures, and rollback is the MX revert below.
 5. Verify inbound end-to-end to every provisioned address from an external account; confirm DMARC alignment holds.
-6. Once confirmed, withdraw legacy `@footbag.org` delivery and remove the backup MX.
+6. Once confirmed, withdraw legacy `@footbag.org` delivery.
 
-Rollback: if Google inbound fails verification, revert the `footbag.org` MX to the legacy mail server (authoritative until step 6). The web cutover (§6.7) is independent and unaffected. Never modify the `ifpa.footbag.org` MX during this step.
+Rollback: if Google inbound fails verification, revert the `footbag.org` MX to the legacy mail server (still running until step 6). The web cutover (§6.7) is independent and unaffected. Never modify the `ifpa.footbag.org` MX during this step.
 
 ### 6.9 Environment bring-up sequence
 
@@ -1066,7 +1066,7 @@ The application-side switch is `PAYMENT_ADAPTER` in `/srv/footbag/env`; everythi
 
    (`file://` hygiene keeps the key out of shell history; delete the temp file after.) The live adapter resolves the key lazily on the first payment operation and rejects the `TODO-` placeholder loudly, so a deploy that skips this step fails the first checkout, never silently.
 
-2. **Webhook endpoint (Stripe Dashboard).** Create a webhook endpoint pointing at `https://footbag.org/payments/webhook` (the environment's `PUBLIC_BASE_URL` + `/payments/webhook`), subscribed to: `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `checkout.session.expired`. Other event types are acknowledged and ignored; recurring-donation support adds its subscription and invoice events. Copy the endpoint's signing secret (`whsec_...`).
+2. **Webhook endpoint (Stripe Dashboard).** Create a webhook endpoint pointing at `https://www.footbag.org/payments/webhook` (the environment's `PUBLIC_BASE_URL` + `/payments/webhook`), subscribed to: `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `checkout.session.expired`. Other event types are acknowledged and ignored; recurring-donation support adds its subscription and invoice events. Copy the endpoint's signing secret (`whsec_...`).
 
 3. **Host env (`/srv/footbag/env`).** Set `PAYMENT_ADAPTER=live` and `STRIPE_WEBHOOK_SECRET=whsec_...`. The boot guard rejects a `whsec_stub`-prefixed webhook secret in production, and live mode refuses to boot without a webhook secret at all. `SECRETS_ADAPTER=live` must already be set so the SSM key lookup works.
 
@@ -1448,7 +1448,7 @@ Rules:
 
 Milestone-gated variables (default off; flip at the DNS-handover milestone, when the zone moves to Route 53):
 
-- `enable_apex_alias_records`: creates the apex/www ALIAS records to CloudFront in Route 53. Before handover the zone is authoritative on the webmaster's bind9 (not Route 53), where the webmaster points the apex at the distribution during the go-live cutover; these Route 53 records apply only once Route 53 serves the zone.
+- `enable_apex_alias_records`: creates the apex/www ALIAS records to CloudFront in Route 53. Before handover the zone is authoritative on the webmaster's bind9 (not Route 53), where the webmaster points `www` at the distribution and the apex at the platform's apex redirector during the go-live cutover; these Route 53 records apply only once Route 53 serves the zone (the redirector retires then).
 - `ses_enable_domain_auth`: provisions the SES domain identity, DKIM, and SPF/DMARC records in Route 53. Requires a zone Route 53 actually serves.
 
 ### 11.5 Emergency console changes
@@ -1752,7 +1752,7 @@ Use this when the change requires rebuilding and replacing the host DB from scra
 ./deploy_to_aws.sh --from-csv
 ```
 
-This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB. `--from-csv` rebuilds from the canonical CSVs without mirror access, but it still requires the operator's gitignored membership roster (it runs the full enrichment pipeline) — it is not a committed-data-only path. Pass `--soup-to-nuts` instead to rebuild from the legacy mirror and turn on the full seed set (curated media, personas, dev-admins; opt out per axis with `--no-media` / `--no-personas` / `--no-dev-admins`); that path regenerates committed canonical_input, name_variants, and seed files as a side effect, so the working tree may show diffs after the run.
+This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB. `--from-csv` rebuilds from the canonical CSVs without mirror access, but it still requires the operator's gitignored membership roster (it runs the full enrichment pipeline) — it is not a committed-data-only path. Pass `--soup-to-nuts` instead to rebuild from the legacy mirror and turn on the full seed set (curated media, personas; opt out per axis with `--no-media` / `--no-personas` — dev-admins are seeded unconditionally); that path regenerates committed canonical_input, name_variants, and seed files as a side effect, so the working tree may show diffs after the run.
 
 For schema changes against a target with non-disposable data (production), follow the migration runbook in §15.3 instead of Option B.
 

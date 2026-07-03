@@ -4,14 +4,14 @@
 # The hosted zone must exist before apply (import it; Console edits are not
 # the canonical path).
 #
-# Gated default-off: under the front-door arrangement the legacy server
-# proxies the apex and the webmaster holds DNS; these alias records apply
-# only at the DNS-handover milestone. Flip var.enable_apex_alias_records
-# then.
+# Gated default-off: the webmaster holds the authoritative zone and switches
+# apex/www there at go-live (www to CloudFront, the apex to the platform's
+# apex redirector); these Route 53 alias records apply only at the later,
+# optional DNS-handover milestone. Flip var.enable_apex_alias_records then.
 # =============================================================================
 
 variable "enable_apex_alias_records" {
-  description = "Create the apex/www alias records to CloudFront. Off until the DNS-handover milestone (the webmaster's proxy fronts the apex before then)."
+  description = "Create the apex/www alias records to CloudFront. Off until the optional DNS-handover milestone (the webmaster's zone serves apex/www before then; the apex points at the platform's apex redirector)."
   type        = bool
   default     = false
 }

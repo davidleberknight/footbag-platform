@@ -67,6 +67,24 @@ variable "ses_dmarc_rua_email" {
   default     = ""
 }
 
+variable "ses_dmarc_policy" {
+  description = <<-EOT
+    DMARC policy stage for the _dmarc TXT record. The rollout is staged:
+    monitor-only (none) with the report mailbox first, then quarantine once
+    the sender list is confirmed and the aggregate reports run clean, then
+    reject. At the optional Route 53 handover, set this to the stage the
+    hand-applied zone record has already reached so Terraform reconciles
+    without regressing the policy.
+  EOT
+  type        = string
+  default     = "none"
+
+  validation {
+    condition     = contains(["none", "quarantine", "reject"], var.ses_dmarc_policy)
+    error_message = "ses_dmarc_policy must be one of: none, quarantine, reject."
+  }
+}
+
 resource "aws_ses_email_identity" "sender" {
   email = var.ses_sender_identity
 }
@@ -165,9 +183,10 @@ resource "aws_route53_record" "spf" {
 }
 
 # ── DMARC ────────────────────────────────────────────────────────────────────
-# Starts at p=quarantine with aggregate reports enabled so the platform
-# learns about failures without instantly dropping legitimate mail.
-# Tighten to p=reject after a week of clean reports. aspf=r (relaxed) so the
+# Staged rollout: monitor-only (p=none) with aggregate reports first, so the
+# platform learns about failures without dropping legitimate mail; quarantine
+# once the sender list is confirmed and the reports run clean; reject last.
+# var.ses_dmarc_policy carries the current stage. aspf=r (relaxed) so the
 # custom MAIL FROM subdomain (mail.<domain>) Return-Path aligns; adkim=s stays
 # strict because the domain DKIM signs d=<domain>, matching the From: domain.
 
@@ -178,7 +197,7 @@ resource "aws_route53_record" "dmarc" {
   type    = "TXT"
   ttl     = 600
   records = [
-    "v=DMARC1; p=quarantine; rua=mailto:${var.ses_dmarc_rua_email}; adkim=s; aspf=r; pct=100"
+    "v=DMARC1; p=${var.ses_dmarc_policy}; rua=mailto:${var.ses_dmarc_rua_email}; adkim=s; aspf=r; pct=100"
   ]
 
   # DMARC aggregate reports are useless without a destination, so the reporting

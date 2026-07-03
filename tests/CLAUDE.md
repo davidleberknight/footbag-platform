@@ -98,4 +98,4 @@ CI on every push and PR is defined in `.github/workflows/ci.yml`.
 
 ## Coverage
 
-Measured with `@vitest/coverage-v8`. Thresholds are set in `vitest.config.ts` and ratchet up as coverage improves. Target: 100%.
+Measured with `@vitest/coverage-v8`. Thresholds are set in `vitest.config.ts` and ratchet up as coverage improves, never down. Overall coverage is an aspirational best-effort goal, not a fixed number; catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) target 100%.

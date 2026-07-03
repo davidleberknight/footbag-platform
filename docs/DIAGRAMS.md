@@ -40,7 +40,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ║  │   128 MB    │→│   512 MB    │ │   384 MB    │ │ 896 MB │         ║
 ║  │Reverse proxy│ │ Controllers │ │Email outbox │ │ Sharp  │         ║
 ║  │TLS to origin│ │ Services    │ │Daily jobs   │ │ Photo  │         ║
-║  │TLS terminus │ │ db.ts       │ │Transcode    │ │ proc.  │         ║
+║  │TLS terminus │ │ db.ts       │ │Transcode    │ │ ffmpeg │         ║
 ║  └─────────────┘ └─────────────┘ └─────────────┘ └────────┘         ║
 ║                        │                │              │            ║
 ║                        └────────────────┘              │            ║
@@ -167,7 +167,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 └─────────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│  AuthService                                                        │
+│  identityAccessService                                              │
 │  3. memberByEmail.get(email) → row or null  [excludes deceased]     │
 │  4. Not found?  → generic 'invalid credentials' error               │
 │     (same message as wrong password — prevents enumeration)         │
@@ -179,14 +179,13 @@ Visual aids for understanding the system design. Six diagrams cover production i
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Generate JWT  (signed via  kms:Sign  — key never leaves KMS)       │
-│                                                                     │
+│    (kid: the key ID for rotation, rides in the JOSE header)         │
 │  {                                                                  │
 │    sub:             "uuid",        // member id                     │
 │    passwordVersion: 4,             // incremented on pwd change     │
 │    role:            "member",      // routing hint ("admin" if so)  │
 │    iat:             1234567890,    // issued-at timestamp           │
 │    exp:             1234654290,    // +24 hours                     │
-│    kid:             "kms-key-id"   // active key ID for rotation    │
 │  }                                                                  │
 │                                                                     │
 │  Set-Cookie: footbag_session=<JWT>                                  │
@@ -224,7 +223,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
   Browser:  POST /account/password  { currentPassword, newPassword }
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│  AuthService  (inside a db transaction)                             │
+│  identityAccessService  (inside a db transaction)                   │
 │  1. Verify currentPassword  (same argon2id check as login)          │
 │  2. Hash newPassword with argon2id                                  │
 │  3. transaction(() => {                                             │
@@ -435,7 +434,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  • Same four Docker containers  (nginx · web · worker · image)      │
 │  • Same SQLite schema (schema.sql bootstrap, no migrations)         │
 │  • Same db.ts module with all prepared statements                   │
-│  • Same service layer code  (AuthService, EventService, etc.)       │
+│  • Same service layer code  (identityAccessService, etc.)           │
 │  • Same controllers and Handlebars templates                        │
 │  • Same test suite; CI contract tests verify stub correctness       │
 └─────────────────────────────────────────────────────────────────────┘

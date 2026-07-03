@@ -22,16 +22,7 @@ A lot of functionality is done and deployed on AWS. This is the baseline for ong
 
 Sneak Preview on AWS staging: [https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open](https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open)
 
-- The legacy-data pipeline (from a mirror of live site) is done, including major clean up of historical event results data.
-- We have received the initial data dump from the live footbag.org webmaster, processing in progress...
-- Technical and Functional requirements specs are complete, refer to User Stories and Design Decisions.
-- The Freestyle Dictionary is done, and that's a big deal. Check it out.
-- The Media sharing system works.
-- The Onboarding Wizard works, used to clean up dirty club data, and link up legacy member data to new logins.
-- We have Stripe payment adapters invoking Stripe directly (but no real-money tests yet).
-- We can seed the full range of user personas and access them on staging for robust testing.
-- Test suites are robust and include pen tests, e2e, and more.
-- Claude Code skills, rules, hooks and md files efficiently guide AI coding and documentation tasks, but of course, the human in the loop is essential to get the job done correctly. 
+- Soon we will begin planning the final sprint, looking to go live!
 
 ## Contributing
 
@@ -45,24 +36,7 @@ Sneak Preview on AWS staging: [https://doye1nvv64qep.cloudfront.net/events/event
 
 This tracker is for **invited testers and project contributors**, not for general footbag.org end-user support. End-user questions about the legacy footbag.org site or the upcoming modernized site belong with the IFPA contact channel, not here.
 
-The repository source is public (Apache-2.0). The triage board is private and visible only to invited collaborators.
-
 Full guide: [docs/BUG_REPORT.md](docs/BUG_REPORT.md).
-
-### Where to file
-
-Open the [Issues tab → New issue](https://github.com/davidleberknight/footbag-platform/issues/new/choose) and pick a form.
-
-### Which form to pick
-
-- **Bug report**: general application bug.
-- **Staging bug**: bug observed on staging (AWS-touching).
-- **Migration or onboarding bug**: registration, email verification, legacy-claim, or onboarding-wizard flow.
-- **Docs or policy issue**: documentation drift or IFPA-Board-sensitive change.
-
-Each form prompts the minimum information needed to triage and write a regression test for the fix.
-
-### Privacy
 
 **Do not file security vulnerabilities in public issues.** Use the private disclosure path in [SECURITY.md](SECURITY.md) instead.
 

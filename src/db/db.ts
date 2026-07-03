@@ -8387,7 +8387,7 @@ export interface OfficialRosterRow {
 
 export interface OfficialRosterExportRow extends OfficialRosterRow {
   login_email: string | null;
-  email_visibility: 'private' | 'members' | 'public';
+  email_visibility: 'private' | 'members';
 }
 
 export interface OfficialRosterSummaryRow {

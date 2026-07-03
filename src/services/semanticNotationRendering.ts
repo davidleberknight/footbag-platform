@@ -112,8 +112,8 @@ const MODIFIERS: ReadonlySet<string> = new Set([
   'miraging',
   'whirling',
   'illusioning',
-  // Count-bearing / quantifier operators. Distinct rendering for these is not
-  // yet implemented; they classify as operators for now.
+  // Current: count-bearing / quantifier tokens render identically to operators.
+  // Target: render count / quantifier semantics distinctly.
   'double',
   'triple',
   'surging',

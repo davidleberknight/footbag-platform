@@ -78,7 +78,7 @@ This project's knowledge base has two layers. **Canonical documents** hold durab
 
 **Diagrams:** Visual aids to understand system design including system context, infrastructure topology, the data model, data flow diagrams, and security boundaries.
 
-**Implementation Plan:** Active-slice / current-sprint tracker for the project. Source of Truth for current scope, accepted shortcuts, known drift, sprint-level sequencing, and developer track assignments. Unlike the canonical docs above, which describe design intent, this document carries all implementation-status language; the canonical docs do not describe status.
+**Implementation Plan** (listed here for orientation; not a canonical document): Active-slice / current-sprint tracker for the project. Source of Truth for current scope, accepted shortcuts, known drift, sprint-level sequencing, and developer track assignments. Unlike the canonical docs above, which describe design intent, this document carries all implementation-status language; the canonical docs do not describe status.
 
 ## 1.2 Implementation Contracts
 

@@ -376,7 +376,7 @@ All emails are written to `outbox_emails` first; a background worker sends them 
 At least one of `recipient_email`, `recipient_member_id`, or `mailing_list_id` must be non-NULL (enforced by a `CHECK` constraint).
 
 #### Voting receipt tokens
-`body_text` for voting confirmation emails contains a plaintext receipt token. The sender worker **must** scrub `body_text` after successful delivery while retaining the ballot row's `receipt_token_hash`. See APP-019.
+The sender worker scrubs `outbox_emails.body_text` (sets it to `NULL`) on every successful delivery, so no message body is retained in the outbox after send. This blanket scrub is load-bearing for voting confirmation emails, whose `body_text` carries a plaintext receipt token; the ballot row's `receipt_token_hash` is retained. See APP-019.
 
 #### Email archives
 `email_archives` stores a record of bulk sends (mailing list blasts, event participant emails, announcements). `CHECK` constraints enforce that mailing-list sends reference a list and event-participant sends reference an event.
@@ -729,6 +729,9 @@ Append-only ledger recording that an Active Player expiry reminder was sent to a
 - `show_first_competition_year` (`INTEGER`, default 0): opt-in toggle controlling whether "Competing since {year}" appears on the member's public profile. Default 0 means legacy imports and HP-claim transfers do not auto-show the year; only explicit member action sets it to 1.
 - `show_competitive_results` (`INTEGER`, default 1): controls whether competition results appear on the member's public profile. Own-profile view always shows results to the owner regardless of toggle state.
 - `show_gender` (`INTEGER`, default 0): opt-in toggle controlling whether the member's `gender` is shown to authenticated members on the member profile, in member search, and on club rosters. Default 0 keeps gender owner-and-admin only; only explicit member action sets it to 1. Only `'male'` / `'female'` render when set.
+- `email_visibility` (`TEXT`, default `'private'`, `CHECK (email_visibility IN ('private','members'))`): controls whether the member's contact email is shown to authenticated members. `'private'` (default) keeps it owner-and-admin only; `'members'` shows it to authenticated members; never shown to unauthenticated visitors. Gated in `memberService`.
+- `phone_visible` (`INTEGER`, default 0, `CHECK (phone_visible IN (0,1))`): opt-in toggle; when 1, the member's phone is shown to authenticated members. Default 0 keeps it owner-and-admin only.
+- `whatsapp_visible` (`INTEGER`, default 0, `CHECK (whatsapp_visible IN (0,1))`): opt-in toggle; when 1, the member's WhatsApp contact is shown to authenticated members. Default 0 keeps it owner-and-admin only.
 
 #### Display name and slug
 
@@ -1336,7 +1339,7 @@ The stage-and-confirm surface for auto-link (per `M_Claim_Legacy_Account`): batc
 
 ### 4.32 Pipeline-produced canonical content (out of this enumeration)
 
-The freestyle trick dictionary (`freestyle_tricks` and related tables), the Net team-appearance tables (`net_team` and related), and the cross-sport records tables (`freestyle_records`, `consecutive_kicks_records`) are populated from the historical-data pipeline and read read-only by `FreestyleService`, `NetService`, and `RecordsService` for the public `/freestyle/*`, `/net/*`, and `/records` surfaces. Their schema semantics are owned by the legacy_data track (`legacy_data/CLAUDE.md`); the freestyle taxonomy is governed as reversible/observational and is intentionally not hardened in this document. `given_name_variants` is a name-matching utility alongside §4.28.
+The freestyle trick dictionary (`freestyle_tricks` and related tables), the Net team-appearance tables (`net_team` and related), and the cross-sport records tables (`freestyle_records`, `consecutive_kicks_records`), and the six symbolic-grammar tables (`symbolic_*`, backing the public `/freestyle/learn` surface) are populated from the historical-data pipeline and read read-only by `FreestyleService`, `NetService`, `RecordsService`, and `SymbolicGrammarService` for the public `/freestyle/*`, `/net/*`, `/records`, and `/freestyle/learn` surfaces. Their schema semantics are owned by the legacy_data track (`legacy_data/CLAUDE.md`); the freestyle taxonomy is governed as reversible/observational and is intentionally not hardened in this document. `given_name_variants` is a name-matching utility alongside §4.28.
 
 #### `freestyle_trick_tips` (legacy Footbag.org community tips)
 
@@ -1537,7 +1540,7 @@ The DB does not CHECK `reason_code` semantics; the application is the primary va
 
 ### APP-019 — Ballot receipt token scrubbing
 
-**After successfully delivering a voting confirmation email that contains a plaintext receipt token in `outbox_emails.body_text`, the sender worker must set `outbox_emails.body_text = NULL`.** The `ballots.receipt_token_hash` is the persistent record; the plaintext is transient and must not be retained in the outbox after delivery. The schema column is nullable specifically to support this scrub (see DD §5.4).
+**After successfully delivering any email, the sender worker sets `outbox_emails.body_text = NULL`, so no message body is retained in the outbox after delivery.** This blanket scrub is load-bearing for voting confirmation emails, whose `body_text` carries a plaintext receipt token: the `ballots.receipt_token_hash` is the persistent record, and the plaintext must not be retained after delivery. The schema column is nullable specifically to support this scrub (see DD §5.4).
 
 ---
 

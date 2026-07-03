@@ -126,8 +126,8 @@ export interface AppConfig {
   initialAdminFile: string;
   // Value for Express's `trust proxy` setting. Hosts set the exact
   // X-Forwarded-For hop count of the proxy chain in front of the app
-  // (nginx + CloudFront = 2; plus the legacy front-door proxy while it
-  // carries the apex = 3) so req.ip resolves to the real client. Unset in
+  // (nginx + CloudFront = 2; the clean-cutover chain has no additional
+  // front-door hop) so req.ip resolves to the real client. Unset in
   // production falls back to the named IP ranges, which fail closed: the
   // trust walk stops at CloudFront's public edge address, so req.ip becomes
   // the edge IP and per-IP rate limiting coarsens to per-edge buckets.
@@ -597,8 +597,8 @@ function loadConfig(): AppConfig {
   const sseHeartbeatSeconds = parseIntEnv('SSE_HEARTBEAT_SECONDS', 15, 5, 60);
 
   // Hosts set the exact integer hop count of the proxy chain in front of
-  // the app (nginx + CloudFront = 2; plus the legacy front-door proxy while
-  // it carries the apex = 3); only the exact count makes req.ip resolve to
+  // the app (nginx + CloudFront = 2; the clean-cutover chain has no
+  // additional front-door hop); only the exact count makes req.ip resolve to
   // the real client, which per-IP rate limiting keys on. Unset in production
   // falls back to the named ranges, which fail closed: the trust walk stops
   // at CloudFront's public edge address, so req.ip becomes the edge IP and

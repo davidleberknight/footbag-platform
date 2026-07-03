@@ -1,7 +1,7 @@
 /**
  * Long-term contract: scripts/reset-local-db.sh refuses to run against any
  * environment that smells like staging or production. Positive guards only;
- * no --force / CI=true escape hatch. SEC-DB01.
+ * no --force / CI=true escape hatch.
  *
  * Strategy: spawn the script via bash with the env condition under test and
  * assert exit code 2 + diagnostic on stderr. Tests do not run the seed pipeline
@@ -35,7 +35,7 @@ function run(envOverrides: Record<string, string>, cwd: string = REPO_ROOT) {
   });
 }
 
-describe('scripts/reset-local-db.sh — environment refusal gate (SEC-DB01)', () => {
+describe('scripts/reset-local-db.sh — environment refusal gate', () => {
   it('refuses with exit 2 when NODE_ENV=production', () => {
     const r = run({ NODE_ENV: 'production', FOOTBAG_DB_PATH: '/tmp/should-never-be-reached.db' });
     expect(r.status).toBe(2);
