@@ -1,3 +1,5 @@
+> This doctrine now lives at `freestyle/doctrine/POSITIONAL_IDENTITY.md`; this frozen original remains as history.
+
 # Positional Identity by Configuration
 
 Replacement identity doctrine for positional trick names. Supersedes the

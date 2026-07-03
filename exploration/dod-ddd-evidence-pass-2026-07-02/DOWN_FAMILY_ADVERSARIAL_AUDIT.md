@@ -1,3 +1,5 @@
+> **SUPERSEDED as doctrine by `freestyle/doctrine/DOWN_FAMILY.md`** (this audit remains the dated evidence history).
+
 # Down-family adversarial audit: falsification pass on the 2x2 topology grid
 
 > **RED RULED (2026-07-02):** the downs are one family, a single structural decomposition

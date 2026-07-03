@@ -1,3 +1,5 @@
+> **SUPERSEDED as doctrine by `freestyle/doctrine/POSITIONAL_IDENTITY.md`** (this contract note remains the dated history; the resolver implementation stays beside it).
+
 # Configuration resolver — contract (2026-06-23)
 
 The positional configuration resolver classifies a positional trick name by its

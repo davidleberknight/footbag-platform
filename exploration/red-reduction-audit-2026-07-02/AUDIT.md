@@ -1,3 +1,7 @@
+> **SUPERSEDED in part:** the Part A.1 operator proofs are consolidated in
+> `freestyle/doctrine/OPERATOR_DERIVATIONS.md`, and Part C is superseded as the live open-question
+> list by `freestyle/doctrine/RED_QUEUE.md`. This audit remains the dated evidence history.
+
 # Red Reduction Audit — 2026-07-02
 
 Evidence and decision audit only. **No canonical data, registry, alias, or code changes were

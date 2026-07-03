@@ -1,3 +1,5 @@
+> **SUPERSEDED as doctrine by `freestyle/doctrine/POSITIONAL_IDENTITY.md`** (this audit remains the dated evidence history).
+
 # Held-out positional foundations audit (2026-06-23)
 
 Read-only analysis of 7 foundational bases. No authoring, no staging. Goal: resolve

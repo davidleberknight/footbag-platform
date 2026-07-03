@@ -1,3 +1,5 @@
+> The positional-identity doctrine (including the qualifier clauses this policy's companion notes carried) now lives at `freestyle/doctrine/POSITIONAL_IDENTITY.md`; this frozen policy remains as history.
+
 # Canonicalization Policy — Freestyle Ontology
 
 **Status:** BINDING. Codifies current consensus for freestyle dictionary ontology and adjudication decisions. Revisions require explicit human approval and a corresponding audit-log entry (topic_type = POLICY) in `red_corrections_pt*.csv`.

@@ -1,3 +1,5 @@
+> This doctrine now lives at `freestyle/doctrine/POSITIONAL_IDENTITY.md`; this frozen original remains as history.
+
 # Relative-Side Targeting Rule
 
 Companion to RELATIVE_SIDE_RELATIONSHIPS.md. That note establishes that a side

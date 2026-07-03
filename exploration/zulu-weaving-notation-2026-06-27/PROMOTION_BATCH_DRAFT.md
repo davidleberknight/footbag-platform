@@ -1,3 +1,5 @@
+> **SUPERSEDED as doctrine by `freestyle/doctrine/MIRROR_RULE.md`** (this draft remains the dated evidence history).
+
 # Zulu / Weaving — first promotion batch, mirrored JOB notation draft
 
 Status: PROMOTED. The full single-modifier base layer is canonical: 24 compounds

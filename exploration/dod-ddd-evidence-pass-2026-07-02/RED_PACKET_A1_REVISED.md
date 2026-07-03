@@ -1,3 +1,5 @@
+> **SUPERSEDED as doctrine by `freestyle/doctrine/DOWN_FAMILY.md`** (this packet remains the dated evidence history).
+
 # A1 final: the down/barfly family is one four-cell topology grid
 
 > **RED RULED (Wave 3 follow-up, 2026-07-02):** "The downs are part of the same family,

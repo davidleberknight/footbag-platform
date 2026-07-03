@@ -1,3 +1,5 @@
+> This doctrine now lives at `freestyle/doctrine/POSITIONAL_IDENTITY.md`; this frozen original remains as history.
+
 # Relative-Side Relationships
 
 Doctrine note. Records only what is strongly evidenced from the corpus and notation
