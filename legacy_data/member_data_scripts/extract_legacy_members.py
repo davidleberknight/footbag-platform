@@ -28,6 +28,9 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _dump_parser import parse_create_columns, parse_value_tuples  # noqa: E402
+
 # Never mapped, retained, logged, emitted, or written.
 CREDENTIAL_COLUMNS = {"MemberPassword", "MemberSession"}
 
@@ -54,67 +57,9 @@ OUTPUT_FIELDS = [
 # to the committee tables once their rows are delivered.
 BOARD_IFPA_TIER_CODES: frozenset[str] = frozenset()
 
-_ESCAPES = {"0": "\0", "b": "\b", "n": "\n", "r": "\r", "t": "\t",
-            "Z": "\x1a", "\\": "\\", "'": "'", '"': '"'}
-
-
 def parse_member_columns(sql: str) -> list[str]:
     """Ordered column names from `CREATE TABLE members (...)`."""
-    m = re.search(r"CREATE TABLE `members` \((.*?)\n\) ENGINE", sql, re.S)
-    if not m:
-        raise SystemExit("error: `CREATE TABLE members` not found in dump")
-    cols = []
-    for line in m.group(1).splitlines():
-        cm = re.match(r"\s*`([A-Za-z0-9_]+)`\s", line)
-        if cm:
-            cols.append(cm.group(1))
-    return cols
-
-
-def parse_value_tuples(blob: str):
-    """Yield value tuples (lists; None for NULL) from a string that starts at
-    an INSERT's first `(` and runs to its terminating top-level `;`."""
-    i, n = 0, len(blob)
-    while i < n:
-        while i < n and blob[i] not in "(;":   # between tuples
-            i += 1
-        if i >= n or blob[i] == ";":            # end of this INSERT
-            return
-        i += 1                                  # past '('
-        row: list = []
-        while i < n and blob[i] != ")":
-            while i < n and blob[i] in " ,\n\r\t":
-                i += 1
-            if i >= n or blob[i] == ")":
-                break
-            if blob[i] == "'":                  # quoted string
-                i += 1
-                buf = []
-                while i < n:
-                    c = blob[i]
-                    if c == "\\" and i + 1 < n:
-                        buf.append(_ESCAPES.get(blob[i + 1], blob[i + 1]))
-                        i += 2
-                        continue
-                    if c == "'":
-                        if i + 1 < n and blob[i + 1] == "'":  # '' -> '
-                            buf.append("'")
-                            i += 2
-                            continue
-                        i += 1
-                        break
-                    buf.append(c)
-                    i += 1
-                row.append("".join(buf))
-            else:                               # NULL or number
-                j = i
-                while j < n and blob[j] not in ",)":
-                    j += 1
-                tok = blob[i:j].strip()
-                row.append(None if tok.upper() == "NULL" else tok)
-                i = j
-        i += 1                                  # past ')'
-        yield row
+    return parse_create_columns(sql, "members")
 
 
 def iter_member_rows(sql: str, columns: list[str]):

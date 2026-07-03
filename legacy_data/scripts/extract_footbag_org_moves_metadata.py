@@ -28,10 +28,18 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import os
 import re
 from pathlib import Path
 
-DEFAULT_SOURCE = Path("/home/james/projects/legacy_SG_clone/moves2/backups/latest.sql")
+# The dump root is operator-supplied, never a committed machine path: the
+# FOOTBAG_LEGACY_DUMP_ROOT environment variable, else the git-ignored
+# footbag.org symlink at the repo root.
+_DUMP_ROOT = Path(
+    os.environ.get("FOOTBAG_LEGACY_DUMP_ROOT")
+    or Path(__file__).resolve().parents[2] / "footbag.org"
+)
+DEFAULT_SOURCE = _DUMP_ROOT / "moves2" / "backups" / "latest.sql"
 DEFAULT_OUT = (
     Path(__file__).resolve().parents[2]
     / "freestyle" / "inputs" / "footbag_org_moves_metadata.ndjson"

@@ -5,34 +5,23 @@ Reads the canonical members CSV (emitted by `extract_legacy_members.py`) and the
 legacy `admins` table mysqldump, and rewrites the CSV with `legacy_is_admin` set
 to 1 for every account whose admin row has `AdminValid = 1` (keyed
 `AdminID = MemberID`). `AdminRealm` is audit metadata only and never promotes a
-live platform role here. Reuses the Phase 1 mysqldump tuple parser. Reads the
-dump read-only; writes only the output CSV.
+live platform role here. Uses the shared mysqldump parser. Reads the dump
+read-only; writes only the output CSV.
 """
 from __future__ import annotations
 
 import argparse
 import csv
-import importlib.util
 import re
+import sys
 from pathlib import Path
 
-_EM = Path(__file__).resolve().parent / "extract_legacy_members.py"
-_spec = importlib.util.spec_from_file_location("extract_legacy_members", _EM)
-_elm = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_elm)
-parse_value_tuples = _elm.parse_value_tuples
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _dump_parser import parse_create_columns, parse_value_tuples  # noqa: E402
 
 
 def parse_admins_columns(sql: str) -> list[str]:
-    m = re.search(r"CREATE TABLE `admins` \((.*?)\n\) ENGINE", sql, re.S)
-    if not m:
-        raise SystemExit("error: `CREATE TABLE admins` not found in dump")
-    cols = []
-    for line in m.group(1).splitlines():
-        cm = re.match(r"\s*`([A-Za-z0-9_]+)`\s", line)
-        if cm:
-            cols.append(cm.group(1))
-    return cols
+    return parse_create_columns(sql, "admins")
 
 
 def valid_admin_ids(admins_sql: Path) -> set[str]:
