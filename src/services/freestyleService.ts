@@ -3260,6 +3260,25 @@ export interface FamilyDetailEvolutionStep {
   exemplarLinks: { label: string; href: string }[];
 }
 
+// Reader-facing teaching flow for a family page (the model family-page shape).
+// Prose fields are authored on the glossary family card; the service shapes the
+// see-it-in compounds into display-and-href pairs, dropping any that do not
+// resolve to a live trick so the section never renders a dead link.
+export interface FamilyDetailTeaching {
+  hook: string;
+  physicalDescription: string;
+  importance: string;
+  variantsIntro: string;
+  variants: { name: string; entry: string }[];
+  variantsRuling: string;
+  howToRecognize: string[];
+  howToThink: string;
+  misconceptions: string[];
+  seeItIn: { name: string; href: string }[];
+  notationIntro: string;
+  takeaway: string;
+}
+
 export interface FreestyleFamilyDetailContent {
   slug: string;
   displayName: string;
@@ -3289,6 +3308,9 @@ export interface FreestyleFamilyDetailContent {
   siblingFamilies: { name: string; href: string }[];
   notableCompounds: string[];
   observationalNotes: { title: string; body: string }[];
+  // Reader-facing teaching flow; null for a family with no authored teaching,
+  // in which case the page renders the compact projection instead.
+  teaching: FamilyDetailTeaching | null;
   familyCrossLink: { label: string; href: string } | null;
   crossLinks: {
     familyBrowseHref: string;      // /freestyle/tricks?view=family#family-{slug}
@@ -3692,6 +3714,10 @@ export interface GlossaryFamilyCardView extends GlossaryFamilyCard {
   lineageLabel: string;
   tierKey:      FamilyTier;
   tierLabel:    string;
+  // Compact teaching projection for the glossary card: the plain-language
+  // physical description and the significance hook, plus a link to the full
+  // family article. Null for a family with no authored teaching.
+  teachingBrief: { physicalDescription: string; significance: string; articleHref: string | null } | null;
 }
 
 // Family cards that are not in the public roster carry an explicit lineage parent
@@ -3709,7 +3735,16 @@ function shapeGlossaryFamilyCard(card: GlossaryFamilyCard): GlossaryFamilyCardVi
   const lineageLabel = parentSlug
     ? `Branch lineage (${PUBLIC_FAMILY_LABEL.get(parentSlug) ?? parentSlug})`
     : 'Root lineage';
-  return { ...card, lineageLabel, tierKey: tier, tierLabel: FAMILY_TIER_LABEL[tier] };
+  const teachingBrief = card.teaching
+    ? {
+        physicalDescription: card.teaching.physicalDescription,
+        significance:        card.teaching.hook,
+        articleHref: isOfficialFamilyParent(card.slug) && PUBLIC_FAMILY_LABEL.has(card.slug)
+          ? `/freestyle/families/${card.slug}`
+          : null,
+      }
+    : null;
+  return { ...card, lineageLabel, tierKey: tier, tierLabel: FAMILY_TIER_LABEL[tier], teachingBrief };
 }
 
 // A lineage sub-group within a tier ("Root lineages", "Branches of Osis").
@@ -10266,6 +10301,31 @@ export const freestyleService = {
     const anchorRow = memberRows.find(r => r.slug === slug) ?? null;
     const descendantCount = FAMILY_DESCENDANT_COUNTS.get(slug) ?? group.cards.length;
 
+    const rowBySlug = new Map(allRows.map(r => [r.slug, r]));
+    const teaching: FamilyDetailTeaching | null = card?.teaching
+      ? {
+          hook:                card.teaching.hook,
+          physicalDescription: card.teaching.physicalDescription,
+          importance:          card.teaching.importance,
+          variantsIntro:       card.teaching.variantsIntro,
+          variants:            card.teaching.variants.map(v => ({ name: v.name, entry: v.entry })),
+          variantsRuling:      card.teaching.variantsRuling,
+          howToRecognize:      [...card.teaching.howToRecognize],
+          howToThink:          card.teaching.howToThink,
+          misconceptions:      [...card.teaching.misconceptions],
+          seeItIn: card.teaching.seeItIn
+            .map(s => {
+              const row = rowBySlug.get(s);
+              return row && row.is_active === 1
+                ? { name: row.canonical_name, href: `/freestyle/tricks/${s}` }
+                : null;
+            })
+            .filter((x): x is { name: string; href: string } => x !== null),
+          notationIntro:       card.teaching.notationIntro,
+          takeaway:            card.teaching.takeaway,
+        }
+      : null;
+
     const familyLabelOf = (s: string): string =>
       PUBLIC_FAMILY_LABEL.get(s)
       ?? resolveFamilyDisplayName(s)
@@ -10351,6 +10411,7 @@ export const freestyleService = {
         siblingFamilies,
         notableCompounds:   [...(card?.notableCompounds ?? [])],
         observationalNotes: (card?.observationalNotes ?? []).map(n => ({ title: n.title, body: n.body })),
+        teaching,
         familyCrossLink:    group.crossLink,
         crossLinks: {
           familyBrowseHref:    `/freestyle/tricks?view=family#family-${slug}`,

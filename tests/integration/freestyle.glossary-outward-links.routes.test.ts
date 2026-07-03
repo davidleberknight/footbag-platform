@@ -67,6 +67,20 @@ describe('GET /freestyle/glossary — standardized outward-link phrasings', () =
     expect(res.text).toContain('href="/freestyle/tricks/whirl"');
   });
 
+  it('a family card with teaching shows a compact projection and links the full article', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const startIdx = res.text.indexOf('id="term-down"');
+    expect(startIdx).toBeGreaterThan(-1);
+    const endIdx = res.text.indexOf('</article>', startIdx);
+    const card = res.text.slice(startIdx, endIdx);
+    // The plain-language physical description leads; notation no longer stands alone.
+    expect(card).toContain('A down is a finishing movement');
+    // Links to the full family article, not the anchor trick slug that 404s.
+    expect(card).toContain('href="/freestyle/families/down"');
+    expect(card).toContain('Read the Full Family Article');
+    expect(card).not.toContain('href="/freestyle/tricks/down"');
+  });
+
   it('"Browse {Name} tricks →" replaces "See tricks using {Name} →" on modifier feel-cards', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/Browse \w[\w\s-]*tricks\s*&rarr;/i);

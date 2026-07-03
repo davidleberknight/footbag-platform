@@ -200,6 +200,68 @@ describe('GET /freestyle/families/down — umbrella family groups members by var
   });
 });
 
+describe('GET /freestyle/families/down — the teaching flow (model family page)', () => {
+  it('leads the hero with the teaching hook, not the descendant count', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/down');
+    expect(res.text).toContain('look like four different tricks. They are not.');
+    expect(res.text).not.toContain('documented descendants');
+  });
+
+  it('explains what a down physically is, in plain words, before the notation', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/down');
+    expect(res.text).toContain('What is a Down?');
+    expect(res.text).toContain('A down is a finishing movement');
+    const physicalAt = res.text.indexOf('A down is a finishing movement');
+    const notationAt = res.text.indexOf('Notation reference');
+    expect(physicalAt).toBeGreaterThan(-1);
+    expect(notationAt).toBeGreaterThan(physicalAt);
+  });
+
+  it('states the one-family ruling as prose, not inside an observational badge', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/down');
+    expect(res.text).toContain('By expert ruling the downs are a single structural decomposition');
+    expect(res.text).not.toContain('One decomposition, four variants');
+    expect(res.text).not.toContain('glossary-layer-badge--observational');
+  });
+
+  it('renders the four-variant grid with what selects each variant', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/down');
+    expect(res.text).toContain('Toe set, setting-side leg');
+    expect(res.text).toContain('Clipper set, other leg');
+  });
+
+  it('renders the recognition cues, distinct from execution', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/down');
+    expect(res.text).toContain('How to recognize one');
+    expect(res.text).toContain('Look for the double dex');
+  });
+
+  it('renders the common misconceptions, including the finish-not-start lesson', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/down');
+    expect(res.text).toContain('Common misconceptions');
+    expect(res.text).toContain('named for how the trick finishes, not how it starts');
+  });
+
+  it('links famous compounds that build on the family and drops ones with no live trick', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/down');
+    expect(res.text).toContain('See it in famous tricks');
+    expect(res.text).toContain('href="/freestyle/tricks/fusion"');
+    expect(res.text).not.toContain('href="/freestyle/tricks/dolomite"');
+  });
+
+  it('closes with the memorable takeaway', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/down');
+    expect(res.text).toContain('stop seeing four different tricks and start seeing one family');
+  });
+
+  it('does not leak the teaching sections onto a family without authored teaching (whirl)', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/whirl');
+    expect(res.text).not.toContain('Notation reference');
+    expect(res.text).not.toContain('Common misconceptions');
+    expect(res.text).toContain('Overview');
+  });
+});
+
 describe('GET /freestyle/families/:slug — route ordering', () => {
   it('renders the family template, not the trick shell, for a family slug', async () => {
     const res = await request(await createApp()).get('/freestyle/families/whirl');

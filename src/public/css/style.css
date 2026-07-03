@@ -6647,6 +6647,14 @@ a.trick-hero-meta-chip--media:hover {
   background: var(--danger-border);
   color: var(--earth-bronze);
 }
+.glossary-family-card-teaching {
+  margin: 2px 0 10px 0;
+  line-height: 1.5;
+}
+.glossary-family-card-teaching-significance {
+  margin-top: 4px;
+  font-weight: 600;
+}
 .glossary-family-card-fields {
   display: grid;
   grid-template-columns: 150px 1fr;
@@ -8995,6 +9003,24 @@ a.dict-trick-row-hashtag--media:hover {
   margin: 4px 0 6px 0;
   font-size: 0.88rem;
   color: var(--text-subtle);
+  line-height: 1.5;
+}
+.family-teaching-list {
+  margin: 6px 0 4px 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+.family-teaching-list li {
+  margin: 4px 0;
+  line-height: 1.55;
+}
+.family-teaching-takeaway {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--primary);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
   line-height: 1.5;
 }
 .trick-family-branch-of {

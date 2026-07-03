@@ -20,6 +20,12 @@
     <span class="glossary-family-card-lineage-chip">{{lineageLabel}}</span>
     <span class="glossary-family-card-tier-chip glossary-family-card-tier-chip--{{tierKey}}">{{tierLabel}}</span>
   </header>
+  {{#if teachingBrief}}
+  <div class="glossary-family-card-teaching">
+    <p>{{teachingBrief.physicalDescription}}</p>
+    <p class="glossary-family-card-teaching-significance">{{teachingBrief.significance}}</p>
+  </div>
+  {{/if}}
   <dl class="glossary-family-card-fields">
     <dt>Canonical formula</dt>
     <dd><code>{{canonicalFormula}}</code></dd>
@@ -61,5 +67,9 @@
   {{/each}}
   {{/if}}
 
+  {{#if teachingBrief.articleHref}}
+  <p class="glossary-family-card-outward"><a class="glossary-outward-link" href="{{teachingBrief.articleHref}}">Read the Full Family Article &rarr;</a></p>
+  {{else}}
   <p class="glossary-family-card-outward"><a class="glossary-outward-link" href="/freestyle/tricks/{{slug}}">View full ontology &rarr;</a></p>
+  {{/if}}
 </article>
