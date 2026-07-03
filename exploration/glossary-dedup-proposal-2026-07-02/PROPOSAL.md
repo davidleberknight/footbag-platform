@@ -26,7 +26,17 @@ to the owner. Mirrors the shipped single-authority pattern for operator doctrine
 
 ## The five drift-riskiest overlaps (fix first, in order)
 
-1. **Operator definitions authored twice** — operatorReference vs symbolicModifierEducation both fully define Paradox/Spinning/Ducking/Diving. Fix: modifier pages import their definition sentence from the reference module.
+1. **Operator definitions authored twice** — symbolicModifierEducation fully defines
+   Paradox/Spinning/Ducking/Diving alongside a second authoring on the operators page.
+   PREMISE CORRECTED at implementation start (2026-07-02): freestyleOperatorReference
+   covers only the intermediate operators (atomic, miraging, blurry, quantum, nuclear,
+   barraging, inspinning, whirling, double) — the Tier-1 body operators live on the
+   operator board/index modules, so THAT pairing (board/index + glossary vs
+   symbolicModifierEducation) is the drift seam, and the fix design must pick the
+   authority for Tier-1 definitions first (likely extending the single-authority rule
+   downward: one module feeds both the operators page and the modifier pages' definition
+   fields). Blurry/inspinning/whirling teaching pages, if added later, DO pair with
+   operatorReference directly.
 2. **ADD rules authored twice** — glossary's hardcoded table vs freestyleAddAnalysisContent enumerate the same component contributions. Fix: generate the glossary table from the module.
 3. **Notation tokens authored three times** — glossary (~435 hardcoded lines) vs operators' inline vocabulary vs the jobs article. Fix: one token module; the operators glosses stay terser by design but derive from it.
 4. **Family definitions on two rosters** — glossaryFamilyCards is glossary-only beside publicFamilies/familyTiers. Fix: derive card kind/tier fields from the roster modules (the Down umbrella just exercised this seam).
