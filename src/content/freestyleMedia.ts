@@ -38,8 +38,6 @@ export const FREESTYLE_MEDIA_STRUCTURE: FreestyleMediaSectionDef[] = [
     folders: [
       { galleryId: 'gallery_passback_tutorials', label: 'All PassBack Tutorials' },
       { galleryId: 'gallery_passback_how_to', label: 'How to Footbag Freestyle' },
-      { galleryId: 'gallery_passback_beginner', label: 'Beginner PassBack Tutorials' },
-      { galleryId: 'gallery_passback_advanced', label: 'Advanced PassBack Tutorials' },
     ],
   },
   {

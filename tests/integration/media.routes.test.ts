@@ -343,25 +343,25 @@ describe('GET /media/member-galleries (member galleries list page)', () => {
 
 describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
   beforeAll(() => {
-    // Seed the Beginner PassBack gallery with one item so that folder resolves
-    // to a live, linked gallery. Use a gallery other than the curated-tricks
-    // one, whose exact item count later named-gallery tests assert on.
+    // Seed the (consolidated) All PassBack Tutorials gallery with one item so that
+    // folder resolves to a live, linked gallery. Use a gallery other than the
+    // curated-tricks one, whose exact item count later named-gallery tests assert on.
     const db = openDb();
-    const pbbTagId = 'tag-test-passback-beginner';
+    const pbtTagId = 'tag-test-passback-tutorials';
     db.prepare(`
       INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, '#passback_beginner', '#passback_beginner', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(pbbTagId, TS, TS);
+      VALUES (?, '#passback_tutorials', '#passback_tutorials', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run(pbtTagId, TS, TS);
     insertNamedGallery(db, {
-      id: 'gallery_passback_beginner',
+      id: 'gallery_passback_tutorials',
       ownerId: SYSTEM_ID,
-      name: 'Beginner PassBack Tutorials',
-      description: 'Foundational PassBack tutorials.',
+      name: 'PassBack Tutorials',
+      description: 'All PassBack tutorials.',
     });
-    insertGalleryCriteria(db, 'gallery_passback_beginner', [CURATED_TAG_ID, pbbTagId]);
-    const vid = insertVideo(db, { id: 'media_video_pbb01', platform: 'youtube', caption: 'How to Learn a Footbag Trick' });
+    insertGalleryCriteria(db, 'gallery_passback_tutorials', [CURATED_TAG_ID, pbtTagId]);
+    const vid = insertVideo(db, { id: 'media_video_pbt01', platform: 'youtube', caption: 'How to Learn a Footbag Trick' });
     attachTag(db, vid, CURATED_TAG_ID, '#curated');
-    attachTag(db, vid, pbbTagId, '#passback_beginner');
+    attachTag(db, vid, pbtTagId, '#passback_tutorials');
 
     // Seed the Foundations gallery with one item so its folder card links.
     const demoTagId = 'tag-test-demo-mosaic';
@@ -382,7 +382,7 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     db.close();
   });
 
-  it('renders the shared folder structure including the PassBack beginner/advanced split', async () => {
+  it('renders the shared folder structure with a single consolidated PassBack Tutorials pair', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/media');
     expect(res.status).toBe(200);
@@ -392,8 +392,6 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
       'Foundations of Freestyle',
       'All PassBack Tutorials',
       'How to Footbag Freestyle',
-      'Beginner PassBack Tutorials',
-      'Advanced PassBack Tutorials',
       'Tricks of the Trade',
       'Anz Trikz',
       'Shred Global',
@@ -411,12 +409,17 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     ]) {
       expect(res.text).toContain(label);
     }
+    // The Beginner/Advanced PassBack split is retired; neither card appears.
+    expect(res.text).not.toContain('Beginner PassBack Tutorials');
+    expect(res.text).not.toContain('Advanced PassBack Tutorials');
+    expect(res.text).not.toContain('gallery_passback_beginner');
+    expect(res.text).not.toContain('gallery_passback_advanced');
   });
 
   it('links folders whose gallery has items and marks unseeded folders coming soon', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/media');
-    expect(res.text).toContain('href="/media/gallery_passback_beginner"');
+    expect(res.text).toContain('href="/media/gallery_passback_tutorials"');
     expect(res.text).toContain('href="/media/gallery_foundations_of_freestyle"');
     expect(res.text).toContain('Coming soon');
   });
