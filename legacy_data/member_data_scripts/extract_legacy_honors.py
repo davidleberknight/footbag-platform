@@ -16,6 +16,13 @@ attaches to the account a resolved person is linked to. Reads the DB and rosters
 read-only; writes only the output CSV. Honorees that resolve to a person with no
 legacy account, or that do not resolve at all, are reported for M12 / admin
 follow-up (a wrong flag mis-grants a membership tier at claim).
+
+The person -> legacy_member_id link comes from the database, where only the
+already-attributed accounts carry it. Run after the reconciliation has proposed
+more account links but before those links are written, pass --proposed-links to
+overlay the proposed person -> account links on top of the database ones, so an
+honoree whose account was linked only by a proposal still carries the honor to
+that account in the output.
 """
 from __future__ import annotations
 
@@ -99,8 +106,26 @@ def bap_legacy_ids(bap_csv: Path, name2pids, pid2legacy, variant2canon) -> dict:
             "unmatched": unmatched, "person_no_legacy": person_no_legacy}
 
 
-def apply_honors(members_csv: Path, db: Path, hof_csv: Path, bap_csv: Path, out_csv: Path) -> dict:
+def overlay_proposed_links(pid2legacy: dict, proposed_csv: Path) -> int:
+    """Extend the person -> legacy_member_id map with the reconciliation's
+    proposed links, so an honoree linked to an account only by a proposal (not
+    yet written to the database) still carries its honor to that account. Returns
+    the number of proposed links overlaid. Reads the proposals only."""
+    n = 0
+    with proposed_csv.open(encoding="utf-8", newline="") as fh:
+        for r in csv.DictReader(fh):
+            hp = (r.get("historical_person_id") or "").strip()
+            lm = (r.get("legacy_member_id") or "").strip()
+            if hp and lm:
+                pid2legacy[hp] = lm
+                n += 1
+    return n
+
+
+def apply_honors(members_csv: Path, db: Path, hof_csv: Path, bap_csv: Path, out_csv: Path,
+                 proposed_links: Path | None = None) -> dict:
     name2pids, pid2legacy, variant2canon = _person_indexes(db)
+    overlaid = overlay_proposed_links(pid2legacy, proposed_links) if proposed_links else 0
     hof = hof_legacy_ids(hof_csv, pid2legacy)
     bap = bap_legacy_ids(bap_csv, name2pids, pid2legacy, variant2canon)
     hof_ids, bap_ids = hof["flagged"], bap["flagged"]
@@ -127,6 +152,7 @@ def apply_honors(members_csv: Path, db: Path, hof_csv: Path, bap_csv: Path, out_
             w.writerow(r)
 
     return {
+        "proposed_links_overlaid": overlaid,
         "hof_flagged": hof_hits,
         "hof_person_no_legacy": hof["person_no_legacy"],
         "hof_no_person": hof["no_person"],
@@ -145,14 +171,23 @@ def main() -> None:
                     default=Path("legacy_data/inputs/hof.csv"))
     ap.add_argument("--bap-csv", type=Path,
                     default=Path("legacy_data/inputs/bap_data_updated.csv"))
+    ap.add_argument("--proposed-links", type=Path, default=None,
+                    help="Stage B proposed account-to-person links to overlay before "
+                         "flagging (re-run after reconciliation; pre-apply)")
     ap.add_argument("--out", required=True, type=Path)
     args = ap.parse_args()
-    for p in (args.members_csv, args.db, args.hof_csv, args.bap_csv):
+    required = [args.members_csv, args.db, args.hof_csv, args.bap_csv]
+    if args.proposed_links is not None:
+        required.append(args.proposed_links)
+    for p in required:
         if not p.is_file():
             raise SystemExit(f"error: not found: {p}")
 
-    s = apply_honors(args.members_csv, args.db, args.hof_csv, args.bap_csv, args.out)
+    s = apply_honors(args.members_csv, args.db, args.hof_csv, args.bap_csv, args.out,
+                     proposed_links=args.proposed_links)
     print(f"extract_legacy_honors -> {args.out}")
+    if args.proposed_links is not None:
+        print(f"  proposed links overlaid before flagging: {s['proposed_links_overlaid']}")
     print(f"  is_hof flagged (person_id ID-join):  {s['hof_flagged']}")
     print(f"    HoF person resolved, no legacy:    {s['hof_person_no_legacy']}")
     print(f"    HoF honoree unresolved (no pid):   {s['hof_no_person']}")

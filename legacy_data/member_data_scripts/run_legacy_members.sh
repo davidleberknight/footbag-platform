@@ -25,12 +25,17 @@
 # Stages (composable):
 #   --extract          dump -> out/legacy_members_final.csv. Needs the dump and a
 #                      built database carrying historical_persons.
-#   --load             validate + preview, run Stage A / Stage B / the QC gate,
-#                      then stop before applying (apply is not wired yet).
+#   --load             validate + preview, run Stage A / Stage B / the QC gate /
+#                      the honors re-run, then stop before applying (read-only).
 #   --from-csv PATH    use PATH as the intermediate CSV (implies --load; for an
 #                      out-of-band copy, no dump needed).
 #
 # Modifiers:
+#   --apply            with --load, perform the real writes after the gate passes:
+#                      load the reconciled member rows, then apply the proposed
+#                      historical-person links. Refused against production /
+#                      staging / /srv/footbag by the underlying writers. Without
+#                      it, --load writes nothing.
 #   --dry-run          validate + preview and stop cleanly (no write attempted).
 #   --strict-honors    honor validation becomes a hard gate (final production load).
 #   --db PATH          target database (default: $FOOTBAG_DB_PATH or database/footbag.db).
@@ -46,14 +51,17 @@ PY="${HERE}/../footbag_venv/bin/python"
 MDS="legacy_data/member_data_scripts"
 OUT_DIR="${MDS}/out"
 DEFAULT_CSV="${OUT_DIR}/legacy_members_final.csv"
+PROPOSED_LINKS_CSV="${OUT_DIR}/stage_b_proposed_links.csv"
+RECONCILED_CSV="${OUT_DIR}/legacy_members_reconciled.csv"
 
 usage() {
   cat >&2 <<'USAGE'
-Usage: run_legacy_members.sh [--extract] [--load | --from-csv PATH] [--dry-run] [--strict-honors] [--db PATH]
+Usage: run_legacy_members.sh [--extract] [--load | --from-csv PATH] [--apply] [--dry-run] [--strict-honors] [--db PATH]
 
   --extract          Extract the legacy dump into the git-ignored intermediate CSV (maintainer-only; needs the dump + a built DB).
-  --load             Validate + preview, run reconciliation (Stage A, Stage B, QC gate), then stop before applying (apply not wired yet).
+  --load             Validate + preview, run reconciliation (Stage A, Stage B, QC gate, honors re-run), then stop before applying (read-only).
   --from-csv PATH    Use an out-of-band CSV copy (implies --load; no dump needed).
+  --apply            With --load, perform the real writes after the gate passes (reconciled members, then proposed links). Refused on production/staging.
   --dry-run          Validate + preview and stop cleanly (no write attempted).
   --strict-honors    Make honor validation a hard gate (final production load).
   --db PATH          Target database (default: $FOOTBAG_DB_PATH or database/footbag.db).
@@ -62,6 +70,7 @@ USAGE
 
 DO_EXTRACT=0
 DO_LOAD=0
+DO_APPLY=0
 DRY_RUN=0
 STRICT_HONORS=0
 CSV=""
@@ -72,6 +81,7 @@ while [[ $# -gt 0 ]]; do
     --extract)       DO_EXTRACT=1; shift ;;
     --load)          DO_LOAD=1; shift ;;
     --from-csv)      DO_LOAD=1; CSV="${2:-}"; shift 2 ;;
+    --apply)         DO_APPLY=1; shift ;;
     --dry-run)       DRY_RUN=1; shift ;;
     --strict-honors) STRICT_HONORS=1; shift ;;
     --db)            DB="${2:-}"; shift 2 ;;
@@ -195,14 +205,57 @@ BLOCKED
     exit 1
   fi
 
-  # Apply is intentionally NOT wired. A passing gate means the proposed links are
-  # reviewed and non-duplicating, but writing them and the member rows into the
-  # database is a separate, human-approved step. Nothing is written here.
+  # Honors backfill, re-run over the proposed links. The extract-time honors pass
+  # only saw the accounts already linked in the database, so an honoree linked to
+  # an account by a Stage B proposal was missed. Re-running with those proposals
+  # overlaid produces the reconciled member CSV the later apply will load, with
+  # is_hof / is_bap carried to the newly-linked accounts. Reads only; writes only
+  # the reconciled CSV artifact -- no database write, and the proposed links are
+  # not written to the database here.
+  echo "==> reconcile: honors backfill over the proposed links"
+  "${PY}" "${MDS}/extract_legacy_honors.py" \
+    --members-csv "${CSV}" --db "${DB}" \
+    --proposed-links "${PROPOSED_LINKS_CSV}" --out "${RECONCILED_CSV}"
+
+  if [[ "${DO_APPLY}" -eq 0 ]]; then
+    # Read-only by default: a passing gate means the proposed links are reviewed
+    # and non-duplicating, but writing them and the reconciled member rows is a
+    # separate, explicit --apply step. Nothing is written here.
+    echo ""
+    echo "run_legacy_members --load: reconciliation complete and the QC gate passed."
+    echo "  Artifacts for review are under ${OUT_DIR}/ (Stage A review, Stage B"
+    echo "  proposed links, Stage B link review, and the reconciled member CSV with"
+    echo "  honors carried to the proposed links). Re-run with --apply to write."
+    exit 0
+  fi
+
+  # --apply: two guarded, individually-atomic writes. The member load runs first
+  # so the account rows the links reference exist; the link writer then validates,
+  # writes its audit CSV and rollback SQL before its transaction, and applies the
+  # links. Both writers refuse production / staging / /srv/footbag targets and
+  # enforce foreign keys. These are two separate connections, so two transactions,
+  # not one -- rollback is preserved by the pre-written rollback SQL and by the
+  # member-first ordering.
+  echo "==> apply: snapshot legacy_members for rollback (read-only, pre-write)"
+  "${PY}" "${MDS}/snapshot_legacy_members.py" \
+    --members-csv "${RECONCILED_CSV}" --db "${DB}" \
+    --audit-out "${OUT_DIR}/apply_members_audit.csv" \
+    --rollback-out "${OUT_DIR}/apply_members_rollback.sql"
+
+  echo "==> apply: load reconciled members (writes legacy_members; preserves claim state)"
+  "${PY}" "${MDS}/load_legacy_export.py" --export "${RECONCILED_CSV}" --db "${DB}" --apply
+
+  echo "==> apply: proposed historical-person links (writes historical_persons.legacy_member_id)"
+  "${PY}" "${MDS}/apply_reconciled_links.py" \
+    --proposed-links "${PROPOSED_LINKS_CSV}" --db "${DB}" \
+    --audit-out "${OUT_DIR}/apply_links_audit.csv" \
+    --rollback-out "${OUT_DIR}/apply_links_rollback.sql" --apply
+
   echo ""
-  echo "run_legacy_members --load: reconciliation complete and the QC gate passed."
-  echo "  Artifacts for review are under ${OUT_DIR}/ (Stage A review, Stage B"
-  echo "  proposed links, Stage B link review). Apply is not wired yet, so no"
-  echo "  member rows or historical-person links were written."
+  echo "run_legacy_members --load --apply: complete. Wrote the reconciled member"
+  echo "  rows and the proposed historical-person links. Rollback SQL:"
+  echo "    members: ${OUT_DIR}/apply_members_rollback.sql"
+  echo "    links:   ${OUT_DIR}/apply_links_rollback.sql"
   exit 0
 fi
 

@@ -239,10 +239,12 @@ run_all_data() {
   # database (historical_persons included) that the member extract reads.
   run_from_csv
 
-  # The legacy member intake. Extraction needs the dump; the LOAD is deferred:
-  # the pre-apply identity reconciliation (reconcile_legacy_members.py) is not
-  # implemented, so this produces / validates the intermediate CSV but does NOT
-  # apply the member data.
+  # The legacy member intake. Extraction needs the dump. This build only previews
+  # the load (--load --dry-run): it produces / validates the intermediate CSV but
+  # does NOT apply the member data. A full --load runs the identity reconciliation
+  # (Stage A duplicate-account review, Stage B historical-person link proposals,
+  # the QC gate, and the honors backfill over those proposals); applying the
+  # result is a separate, human-approved step that is not wired yet.
   local runner="${REPO_ROOT}/legacy_data/member_data_scripts/run_legacy_members.sh"
   if [[ -n "$dump_root" ]]; then
     echo "==> member intake: extract dump -> intermediate CSV"
@@ -254,11 +256,11 @@ run_all_data() {
   run_or_print bash "$runner" --load --dry-run
 
   echo ""
-  echo "NOTE: member data was NOT loaded. The pre-apply identity reconciliation"
-  echo "      is not implemented, so the member load is deferred. Pick it up in"
-  echo "      legacy_data/member_data_scripts/reconcile_legacy_members.py (see"
-  echo "      IMPLEMENTATION_PLAN.md, 'Legacy-site dump intake', sub-item (3))."
-  echo "      --all-data has built the enrichment DB and the intermediate CSV."
+  echo "NOTE: member data was NOT loaded. This build only previews the intake"
+  echo "      (validate + dry-run). A full --load runs the identity reconciliation"
+  echo "      and QC gate; applying the member data is a separate, human-approved"
+  echo "      step that is not wired yet. --all-data has built the enrichment DB"
+  echo "      and the intermediate CSV."
 }
 
 case "$MODE" in

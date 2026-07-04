@@ -209,6 +209,9 @@ def main() -> None:
         return (row.get(header) or "").strip() if header else ""
 
     conn = sqlite3.connect(db_path)
+    # Enforce foreign keys so a bad reference fails loudly rather than writing a
+    # dangling row. Set before any transaction (the pragma is a no-op inside one).
+    conn.execute("PRAGMA foreign_keys=ON")
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     table_exists = cur.execute(
