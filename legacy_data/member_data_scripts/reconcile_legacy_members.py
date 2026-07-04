@@ -30,9 +30,11 @@ Stages:
     candidate Stage B set aside for review. Review inventory is counted, never
     fatal on its own. It reads only; it writes nothing.
 
-The load stays blocked until the apply path is wired: run_legacy_members.sh
---load calls the QC gate here, but nothing yet produces the Stage A / Stage B
-artifacts ahead of it or applies the proposed links, so --apply stays refused.
+run_legacy_members.sh --load runs Stage A, Stage B, and the QC gate here and
+re-runs the honors backfill over the proposals, all read-only. run_legacy_members.sh
+--load --apply then loads the reconciled members and applies the proposed links,
+each write guarded and individually reversible; without --apply the flow stays
+read-only.
 
 Name normalization is the canonical AliasResolver.normalize_name (NFKD
 accent-fold, lowercase, separators-to-space, in-word punctuation strip) shared by

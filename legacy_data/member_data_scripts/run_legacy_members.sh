@@ -9,14 +9,15 @@
 # which is the shareable artifact: a developer without the dump loads a copy
 # handed to them out of band via --from-csv.
 #
-# The apply (writing the member data into the database) is NOT wired yet: the
-# source dump is dirty (many people hold several accounts; emails are shared
-# across accounts), so a real load must first run the identity reconciliation and
-# a pre-apply QC gate. Those now run inside --load: it builds the Stage A
-# duplicate-account review, the Stage B historical-person link proposals, and
-# runs the QC gate over them. On a gate pass --load stops cleanly WITHOUT writing
-# — applying the reviewed proposals and the member rows is a separate,
-# human-approved step that is deliberately not wired. On a gate failure it aborts.
+# Writing the member data into the database is guarded behind an explicit --apply
+# flag. The source dump is dirty (many people hold several accounts; emails are
+# shared across accounts), so --load first runs the identity reconciliation (the
+# Stage A duplicate-account review, the Stage B historical-person link proposals)
+# and a pre-apply QC gate, then re-runs the honors backfill over the proposals.
+# Without --apply, --load stops read-only after a passing gate. With --apply, it
+# snapshots legacy_members for rollback, loads the reconciled members, and applies
+# the proposed links -- each write refuses production/staging and is individually
+# reversible. A gate failure aborts before any write.
 #
 # This script does NOT modify the underlying per-step scripts
 # (extract_legacy_members.py, load_legacy_export.py, validate_*.py, ...): they
