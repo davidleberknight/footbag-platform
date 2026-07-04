@@ -214,6 +214,37 @@ projection (physical description, significance, and a link to the full article);
 family with no block renders the compact projection unchanged. Down is the first fully
 authored exemplar.
 
+**The contract is frozen.** The eleven sections are stable editorial architecture: do
+not add, remove, or reorder them while authoring individual pages. Any future change
+must improve every family page simultaneously, never serve one page. Stability
+milestone: when four consecutive foundational pages can be authored without modifying
+the contract, the editorial architecture is considered stable. The stress-test
+sequence is Osis (a terminal movement that became a family), Whirling Swirl
+(simultaneous actions), Swirling Whirl (perspective naming), and Mirage (a foundational
+dex); if the contract holds for those four, it holds almost everywhere.
+
+**Two authoring rules the contract enforces on every page:**
+- **Describe the movement independent of its entry.** Never describe a movement by how
+  it is usually entered when the movement itself is independent of the entry. Describe
+  the movement first (for a terminal movement, its ending); discuss common entries
+  afterward, as entries, not as the definition.
+- **State only what is unquestionably true.** Where a doctrine point is unresolved (for
+  example an osis catch-side the rules have not fixed), state only what is settled and
+  do not imply a starting surface or catch-side that has not been ruled. This is
+  stronger than wording around the gap: the page simply does not assert the unruled
+  thing.
+
+**Frozen questions, not answers: the structural-model slot flexes by archetype.** The
+contract fixes the eleven questions, never how a family answers them. Section 4
+(structural model) is whatever best explains why that family exists, and families fall
+into at least two archetypes: a **variant tree** (one movement, a fixed set of named
+variants, like Down's four set-by-foot cells) and a **generative tree** (one movement
+and many descendants that build on it, like Osis, whose Torque, Blender, Mobius, and
+Spender each add something before the same osis ending). The template renders section
+4 as prose, showing the variant grid only for a variant tree, so both archetypes fill
+the same slot without forcing one family into the other's shape. Do not force every
+family into the same structural explanation.
+
 **Four-audience review — the page-acceptance standard.** Answering the ten questions
 is necessary but not sufficient. A Version 1.0 page — and every important page — is
 finished only when four independent readers would each say yes, because accessibility,
