@@ -217,6 +217,36 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     siblingFamilies:   ['whirl', 'butterfly', 'swirl'],
     notableCompounds:  ['torque (≡ miraging osis)', 'blender (≡ whirling osis)'],
     observationalNotes: [],
+    teaching: {
+      hook: 'Everyone keeps talking about Osis because so much of the advanced vocabulary grows out of it.',
+      physicalDescription:
+        'Osis is a terminal movement: a spin that resolves into a clipper stall. It is defined by that ending, not by the way the player enters it.',
+      importance:
+        'Osis is one of the most generative bases in freestyle. It began as a single terminal movement and became a family: add a dexterity on the way in and you get Torque or Blender, and from there Mobius, Spender, Paradox Torque, and many more grow out of the same ending.',
+      variantsIntro:
+        'Osis is a destination. Advanced tricks that end in an osis are best understood by asking what was added before the osis, rather than treating each trick as unrelated.',
+      variants: [],
+      variantsRuling:
+        'Torque is an osis reached by adding a miraging dex on the way in; Blender, a whirling dex. That shared ending underneath a whole branch is why osis is called a base.',
+      howToRecognize: [
+        'The spin.',
+        'The clipper finish.',
+        'Ignore how the trick started.',
+        'If removing the modifiers leaves an osis ending, you have identified the base.',
+      ],
+      howToThink:
+        'Think of osis as an ending you arrive at, not a trick you perform one way. When you meet Torque, Blender, or Mobius, ask what got added on the way into the osis. Naming the osis ending first, then the addition, keeps the whole branch organized.',
+      misconceptions: [
+        'Osis is defined by its terminal movement, not by a particular entry or teaching progression.',
+        'The clipper entry some players learn first is one way in, not the definition.',
+        'Torque and Blender are not separate from osis; they are osis with a dexterity added.',
+      ],
+      seeItIn: ['torque', 'blender', 'mobius', 'spender', 'paradox_torque'],
+      notationIntro:
+        'For readers interested in the formal notation, an osis is a spin into a clipper. In many tricks that clipper is reached across the body. The notation leaves both the spin direction and the catch side open, because they vary and the catch side has not been ruled; what is fixed is the spin resolving into the clipper.',
+      takeaway:
+        'Once you recognize an osis ending, you will begin recognizing an entire branch of advanced freestyle.',
+    },
   },
   {
     slug:              'illusion',

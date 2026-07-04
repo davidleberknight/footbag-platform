@@ -46,21 +46,23 @@
     <p>{{content.teaching.importance}}</p>
   </section>
 
-  {{#if content.teaching.variants.length}}
-  <section class="content-section" aria-label="The variants">
+  <section class="content-section" aria-label="Structural model">
     <div class="section-heading">
-      <h2>The variants</h2>
+      <h2>Structural model</h2>
     </div>
     <p>{{content.teaching.variantsIntro}}</p>
+    {{#if content.teaching.variants.length}}
     <dl class="glossary-family-card-fields">
       {{#each content.teaching.variants}}
       <dt>{{name}}</dt>
       <dd>{{entry}}</dd>
       {{/each}}
     </dl>
+    {{/if}}
+    {{#if content.teaching.variantsRuling}}
     <p>{{content.teaching.variantsRuling}}</p>
+    {{/if}}
   </section>
-  {{/if}}
   {{else}}
   <section class="content-section" aria-label="Overview">
     <div class="section-heading">

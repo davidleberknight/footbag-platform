@@ -224,8 +224,9 @@ describe('GET /freestyle/families/down — the teaching flow (model family page)
     expect(res.text).not.toContain('glossary-layer-badge--observational');
   });
 
-  it('renders the four-variant grid with what selects each variant', async () => {
+  it('renders the four-variant grid under the structural-model section', async () => {
     const res = await request(await createApp()).get('/freestyle/families/down');
+    expect(res.text).toContain('Structural model');
     expect(res.text).toContain('Toe set, setting-side leg');
     expect(res.text).toContain('Clipper set, other leg');
   });
@@ -259,6 +260,45 @@ describe('GET /freestyle/families/down — the teaching flow (model family page)
     expect(res.text).not.toContain('Notation reference');
     expect(res.text).not.toContain('Common misconceptions');
     expect(res.text).toContain('Overview');
+  });
+});
+
+describe('GET /freestyle/families/osis — a generative-tree teaching page (contract stress test)', () => {
+  it('leads with the hook and defines osis by its ending, not its entry', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/osis');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('so much of the advanced vocabulary grows out of it');
+    expect(res.text).toContain('a spin that resolves into a clipper stall');
+    expect(res.text).toContain('defined by that ending, not by the way the player enters it');
+  });
+
+  it('renders the structural model as a generative tree: prose, no variant grid', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/osis');
+    expect(res.text).toContain('Structural model');
+    expect(res.text).toContain('Osis is a destination');
+    expect(res.text).toContain('why osis is called a base');
+  });
+
+  it('makes recognition visual and entry-independent', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/osis');
+    expect(res.text).toContain('How to recognize one');
+    expect(res.text).toContain('If removing the modifiers leaves an osis ending');
+  });
+
+  it('keeps misconceptions timeless and confines the doctrine gap to the notation reference', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/osis');
+    expect(res.text).toContain('defined by its terminal movement, not by a particular entry');
+    const misconStart  = res.text.indexOf('Common misconceptions');
+    const notationStart = res.text.indexOf('Notation reference');
+    expect(misconStart).toBeGreaterThan(-1);
+    expect(notationStart).toBeGreaterThan(misconStart);
+    expect(res.text.slice(misconStart, notationStart)).not.toContain('has not been ruled');
+    expect(res.text.slice(notationStart)).toContain('has not been ruled');
+  });
+
+  it('closes with the tightened takeaway', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/osis');
+    expect(res.text).toContain('begin recognizing an entire branch of advanced freestyle');
   });
 });
 
