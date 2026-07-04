@@ -85,17 +85,19 @@
  *   - audit_entries append (auth, claim, bootstrap, candidate staged /
  *     confirmed / declined / expired, claim blocked, revert, dispute opened /
  *     revert applied, help request submitted / approved / rejected,
- *     registration conflict prompted / disputed, mailbox link issued /
- *     consumed / expired, cross-source offered / confirmed / declined)
- *   - outbox_emails enqueue (verification, reset, password-change confirmation,
- *     claim email, resend, mailbox-control link to a declared old email)
+ *     registration conflict prompted / disputed, registration duplicate email,
+ *     mailbox link issued / consumed / expired, cross-source offered /
+ *     confirmed / declined)
+ *   - outbox_emails enqueue (verification, account-exists notice on a duplicate
+ *     registration, reset, password-change confirmation, claim email, resend,
+ *     mailbox-control link to a declared old email)
  *   - work_queue_items insert (member_link_help_request intake with
  *     admin-alerts fan-out)
  *
  * Service shape: singleton object (no external adapters beyond db.ts and the KMS-backed
  * JwtSigningAdapter resolved via getJwtSigningAdapter()).
  */
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes } from 'crypto';
 import argon2 from 'argon2';
 import { hashPassword } from '../lib/passwordHash';
 import { auth, registration, legacyClaim, legacyMembers, account, workQueue, autoLinkStagedCandidates, declaredAnchors, accountTokens, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow, AutoLinkStagedCandidateRow } from '../db/db';
@@ -352,15 +354,6 @@ export interface LinkHistoryContent {
     /** Dev-mode operator note (no_match / target_rate_limited explainer). */
     outcomeNote?: string;
   };
-  /** Anti-enumeration "identifier didn't match" inline notice. */
-  noMatchNotice: boolean;
-  /**
-   * Echo-back of the identifier the user typed, surfaced inside the
-   * no-match notice so they can see what was actually tried (helps spot
-   * typos and confirm what the server received). Capped to 80 chars at the
-   * controller boundary; null when no echo is available.
-   */
-  noMatchTried: string | null;
   /** Banner shown when user arrived via ?from=register or ?reason=low_confidence. */
   lowConfidenceBanner: boolean;
   /**
@@ -387,13 +380,6 @@ export interface LinkHistoryContent {
   /** Same-name collision against already-claimed records; renders the
    * "is one of these you?" prompt with the dispute affordance. */
   conflictPrompt: { records: RegistrationConflictRecord[] } | null;
-  /**
-   * Flag for a static "Your clubs (coming soon)" placeholder in the claim flow,
-   * per `M_Review_Legacy_Club_Data_During_Claim`. The club-bootstrap pipeline
-   * that would surface real suggestions is not built, and no claim-flow template
-   * consumes this flag yet.
-   */
-  showClubsComingSoon: boolean;
 }
 
 export interface ClaimConfirmContent {
@@ -441,6 +427,18 @@ function getDummyArgonHash(): Promise<string> {
   return _dummyHashPromise;
 }
 
+// Anti-enumeration timing equaliser for the single-use-token email flows
+// (password-reset request, verify-email resend). The exists branch generates a
+// token (random bytes + sha256) before enqueuing its email; the not-found
+// branch must not return early having done nothing, or the wall-clock gap leaks
+// whether the email is registered. Mirrors the login phantom-verify: reproduce
+// the token-generation work and discard it. The two sub-millisecond DB inserts
+// the real path adds are constant-time and below HTTP-observable noise.
+function burnTokenIssuanceTiming(): void {
+  const raw = randomBytes(32).toString('base64url');
+  createHash('sha256').update(raw).digest('hex');
+}
+
 async function verifyMemberCredentials(
   email: string,
   password: string,
@@ -486,9 +484,17 @@ async function attemptLogin(
   const normalized = normalizeEmail(email);
   const maxAttempts = readIntConfig('login_rate_limit_max_attempts', 10);
   const windowMinutes = readIntConfig('login_rate_limit_window_minutes', 15);
+  // Per (email, IP) bucket: throttles one attacker hammering one account.
   const rl = rateLimitHit(`login:${normalized}:${ip}`, maxAttempts, windowMinutes);
-  if (!rl.allowed) {
+  // Per-account bucket independent of IP: caps distributed credential-stuffing of
+  // a single account from many IPs, which the per-IP bucket cannot see. Always
+  // hit so the count accrues on every attempt regardless of the per-IP outcome.
+  const accountMaxAttempts = readIntConfig('login_account_rate_limit_max_attempts', 30);
+  const accountWindowMinutes = readIntConfig('login_account_rate_limit_window_minutes', 60);
+  const accountRl = rateLimitHit(`login-account:${normalized}`, accountMaxAttempts, accountWindowMinutes);
+  if (!rl.allowed || !accountRl.allowed) {
     const emailHash = createHash('sha256').update(normalized).digest('hex');
+    const retryAfterSeconds = Math.max(rl.retryAfterSeconds ?? 0, accountRl.retryAfterSeconds ?? 0);
     appendAuditEntry({
       actionType: 'auth.login_rate_limited',
       category: 'auth',
@@ -497,14 +503,15 @@ async function attemptLogin(
       entityType: 'login_attempt',
       entityId: emailHash,
       metadata: {
-        retryAfterSeconds: rl.retryAfterSeconds,
-        windowMinutes,
-        maxAttempts,
+        retryAfterSeconds,
+        bucket: !rl.allowed ? 'email_ip' : 'account',
+        windowMinutes: !rl.allowed ? windowMinutes : accountWindowMinutes,
+        maxAttempts: !rl.allowed ? maxAttempts : accountMaxAttempts,
       },
     });
     throw new RateLimitedError(
       'Too many failed login attempts. Please try again later.',
-      rl.retryAfterSeconds,
+      retryAfterSeconds,
     );
   }
   return verifyMemberCredentials(email, password);
@@ -562,6 +569,34 @@ function validateSlug(slug: string, realName: string): void {
   if (surname && !slug.includes(surname)) {
     throw new ValidationError('Profile URL must contain your last name.');
   }
+}
+
+/**
+ * When registration hits an already-registered email, notify the real account
+ * address out of band instead of revealing the collision to the submitter. The
+ * notice offers sign-in and password-reset links; the person who submitted the
+ * form gets the identical "check your email" response either way. Strict
+ * enqueue so an outbox outage fails the same way the new-account verify enqueue
+ * does (503 on both branches), never a status difference that leaks existence.
+ */
+function enqueueAccountExistsNotice(existing: { id: string; login_email: string }, now: string): void {
+  const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
+  emailService.send({
+    template: 'account_exists_notice',
+    params: { loginUrl: `${baseUrl}/login`, resetUrl: `${baseUrl}/password/forgot` },
+    recipientEmail: existing.login_email,
+    recipientMemberId: existing.id,
+    idempotencyKey: `account_exists_notice:${existing.id}:${now}`,
+    strict: true,
+  });
+  appendAuditEntry({
+    actionType: 'auth.register_duplicate_email',
+    category: 'auth',
+    actorType: 'system',
+    actorMemberId: null,
+    entityType: 'member',
+    entityId: existing.id,
+  });
 }
 
 async function registerMember(
@@ -633,19 +668,27 @@ async function registerMember(
     throw new ValidationError('Passwords do not match.');
   }
 
-  const emailExists = registration.checkEmailExists.get(normalizedEmail) as { exists_flag: number } | undefined;
-  if (emailExists) {
-    throw new ValidationError('An account with this email already exists. Please log in or reset your password.');
-  }
-
+  // Hash before the existence check so the new-account and already-registered
+  // paths pay the same argon2 cost. Anti-enumeration: registration returns the
+  // identical "check your email" response whether or not the email is already
+  // registered; an existing address instead receives an out-of-band notice
+  // (with sign-in / reset links), so the submitter learns nothing.
   const id = `member_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
   const hash = await hashPassword(password);
   const now = new Date().toISOString();
 
+  const existingAccount = registration.findForDuplicateNotice.get(normalizedEmail) as
+    | { id: string; login_email: string }
+    | undefined;
+  if (existingAccount) {
+    enqueueAccountExistsNotice(existingAccount, now);
+    return { status: 'registered' };
+  }
+
   // Insert with race-defensive catch:
-  //   - UNIQUE on login_email_normalized: concurrent registration won the
-  //     race; return the same silent_duplicate shape so the response is
-  //     observationally identical to the pre-check happy path.
+  //   - UNIQUE on login_email_normalized: a registration raced the pre-check;
+  //     enqueue the account-exists notice and return the identical response so
+  //     the outcome is observationally the same as the pre-check duplicate path.
   //   - UNIQUE on slug: another insert claimed the slug we picked; regenerate
   //     and retry up to MAX_SLUG_RETRIES times. Bounded retry; the slug
   //     suffix space is large so collisions resolve quickly.
@@ -675,7 +718,14 @@ async function registerMember(
       if (!isUniqueConstraintError(err)) throw err;
       const msg = String((err as Error).message ?? '');
       if (msg.includes('login_email_normalized')) {
-        throw new ValidationError('An account with this email already exists. Please log in or reset your password.');
+        // A concurrent registration or an existing account claimed this email
+        // between the pre-check and the insert. Same enumeration-safe outcome:
+        // notify the real address out of band, return the identical response.
+        const raced = registration.findForDuplicateNotice.get(normalizedEmail) as
+          | { id: string; login_email: string }
+          | undefined;
+        if (raced) enqueueAccountExistsNotice(raced, now);
+        return { status: 'registered' };
       }
       if (msg.includes('slug')) {
         if (userProvidedSlug) {
@@ -1065,10 +1115,9 @@ interface IdentityLinksRow {
  * login_email), `findAutoLinkCandidates` (by real_name), and
  * `account.findIdentityLinks` — no new DB statements.
  *
- * `sentNotice`, `noMatchNotice`, and `lowConfidenceBanner` are HTTP-context
- * inputs from the controller (driven by `?sent=1`, `?nomatch=1`, and
- * `?from=register | ?reason=low_confidence`). They're threaded in here so
- * the template stays logic-light.
+ * `sentNotice` and `lowConfidenceBanner` are HTTP-context inputs from the
+ * controller (driven by `?sent=1` and `?from=register | ?reason=low_confidence`).
+ * They're threaded in here so the template stays logic-light.
  *
  * Returns null when the member is not found (controller renders 404).
  */
@@ -1104,8 +1153,6 @@ function getLinkHistoryView(
     fromRegister: boolean;
     reasonIsLowConfidence: boolean;
     sentOutcome: 'enqueued' | 'no_match' | 'target_rate_limited' | null;
-    noMatchNotice: boolean;
-    noMatchTried: string | null;
   },
 ): LinkHistoryContent | null {
   const member = legacyClaim.findClaimingMember.get(memberId) as ClaimingMemberRow | undefined;
@@ -1358,8 +1405,6 @@ function getLinkHistoryView(
       show: opts.sentOutcome !== null,
       outcomeNote,
     },
-    noMatchNotice: opts.noMatchNotice,
-    noMatchTried: opts.noMatchTried,
     // Low-confidence banner is only meaningful when we have NO actionable
     // candidate to offer. Once a candidate appears (manual-id search hit, an
     // auto-link suggestion, a name-variant HP review) the banner contradicts
@@ -1374,7 +1419,6 @@ function getLinkHistoryView(
       && (opts.fromRegister || opts.reasonIsLowConfidence)
       && !candidates.some((c) => c.claimMode !== 'already_linked'),
     autoLinkDriftNotice: false,
-    showClubsComingSoon: true,
   };
 }
 
@@ -1489,7 +1533,12 @@ async function resendVerifyEmail(email: string): Promise<void> {
   const row = auth.findUnverifiedMemberByEmail.get(normalized) as
     | { id: string }
     | undefined;
-  if (!row) return;
+  if (!row) {
+    // Reach the same token-generation work the exists branch performs, so the
+    // response time does not leak whether an unverified member matches.
+    burnTokenIssuanceTiming();
+    return;
+  }
   try {
     await issueAndEnqueueVerifyEmail(row.id, email.trim());
   } catch {
@@ -2077,6 +2126,39 @@ function claimTokenTtlHours(): number {
   return readIntConfig('account_claim_expiry_hours', 24);
 }
 
+// Direct historical-person claim rate-limit knobs (admin-configurable via
+// system_config_current). The per-member cap gives a legitimate claimant
+// explicit feedback; the per-IP cap throttles an authenticated attacker
+// scripting claim attempts across many person ids from one source.
+function hpClaimMaxPerMember(): number {
+  return readIntConfig('hp_claim_rate_limit_max_per_member', 5);
+}
+function hpClaimMaxPerIp(): number {
+  return readIntConfig('hp_claim_rate_limit_max_per_ip', 10);
+}
+function hpClaimWindowMinutes(): number {
+  return readIntConfig('hp_claim_rate_limit_window_minutes', 60);
+}
+
+/**
+ * Throttle the direct historical-person claim (the confirm step). Every
+ * sibling claim and auth surface is rate-limited; this is the one direct-claim
+ * entry point that was not, letting an authenticated attacker script rapid
+ * claim attempts across many person ids. Per-member and per-IP buckets, each
+ * throwing RateLimitedError so the controller maps to HTTP 429.
+ */
+function enforceHistoricalPersonClaimLimit(requestingMemberId: string, ip: string): void {
+  const windowMinutes = hpClaimWindowMinutes();
+  const ipRl = rateLimitHit(`hpclaim-ip:${ip}`, hpClaimMaxPerIp(), windowMinutes);
+  if (!ipRl.allowed) {
+    throw new RateLimitedError('Too many claim attempts. Please try again later.', ipRl.retryAfterSeconds);
+  }
+  const memberRl = rateLimitHit(`hpclaim:${requestingMemberId}`, hpClaimMaxPerMember(), windowMinutes);
+  if (!memberRl.allowed) {
+    throw new RateLimitedError('Too many claim attempts. Please try again later.', memberRl.retryAfterSeconds);
+  }
+}
+
 /**
  * Possible outcomes of `initiateLegacyClaim`. The HTTP response surface is
  * identical for `enqueued`, `no_match`, and `target_rate_limited` (anti-
@@ -2367,6 +2449,23 @@ export interface HistoricalPersonClaimLookup {
 function normalizedSurnamesMatch(a: string | null, b: string | null): boolean {
   if (!a || !b) return false;
   return surnameKey(a) === surnameKey(b);
+}
+
+/**
+ * Country signal for a cross-source candidate offer. Country is NOT a gate:
+ * people move, so a member's current country legitimately differs from the
+ * country on their old account or competition record, and a mismatch must
+ * never block a real person's "might be you" offer. It is a soft signal --
+ * an agreement corroborates the match, a mismatch weighs against it (recorded
+ * on the offer for admin review), and a missing country on either side is
+ * neutral. Country names are canonical English, so a plain case / whitespace
+ * fold compares them (accents are not folded the way names are).
+ */
+type CountrySignal = 'agree' | 'mismatch' | 'unknown';
+function countryAgreementSignal(a: string | null, b: string | null): CountrySignal {
+  if (!a || !b) return 'unknown';
+  const fold = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+  return fold(a) === fold(b) ? 'agree' : 'mismatch';
 }
 
 function extractFirstName(name: string): string {
@@ -2816,6 +2915,9 @@ async function requestPasswordReset(email: string): Promise<PasswordResetRequest
   }
   const row = auth.findMemberByEmail.get(normalized) as MemberAuthRow | undefined;
   if (!row) {
+    // Reach the same token-generation work the exists branch performs, so the
+    // response time does not leak whether an account matches.
+    burnTokenIssuanceTiming();
     return { responseSent: true };
   }
   const ttlHours = readIntConfig('password_reset_expiry_hours', 1);
@@ -3026,8 +3128,6 @@ async function getLinkHistoryViewForWizard(
     fromRegister: true,
     reasonIsLowConfidence: false,
     sentOutcome: opts.submitted && opts.hpPersonId === null ? 'enqueued' : null,
-    noMatchNotice: false,
-    noMatchTried: null,
   });
   if (!view) return null;
 
@@ -3239,12 +3339,20 @@ function revertAutoLinkInTx(
       legacyMembers.clearMemberHistoricalPersonId.run(now, actor.actorMemberId, memberId);
     }
 
-    // The honor flags are a denormalized cache of the claimed record. When the
-    // revert leaves the member linked to no honored record, drop them so the
-    // reverted claim cannot strand a HoF/BAP badge -- and the public profile
-    // visibility it grants -- on a member who no longer holds the honor. A
-    // surviving direct-HP link keeps its honors.
-    const retainsHonoredLink = member.historical_person_id !== null && !clearedHp;
+    // The honor flags are a denormalized cache of the claimed record(s). The
+    // revert always clears the legacy link, so a HoF/BAP flag survives only if
+    // the still-linked historical person carries the honor itself. A surviving
+    // but unhonored HP -- an unrelated record claimed alongside the reverted
+    // legacy account -- no longer backs the flag, so the honors, and the public
+    // badge and tier they confer, must drop with the reverted claim rather than
+    // strand on a member who no longer holds them.
+    let retainsHonoredLink = false;
+    if (member.historical_person_id !== null && !clearedHp) {
+      const survivingHp = legacyClaim.findHistoricalPersonById.get(member.historical_person_id) as
+        | { hof_member: number; bap_member: number }
+        | undefined;
+      retainsHonoredLink = Boolean(survivingHp?.hof_member) || Boolean(survivingHp?.bap_member);
+    }
     if (!retainsHonoredLink) {
       legacyMembers.clearDerivedHonors.run(now, actor.actorMemberId, memberId);
     }
@@ -3411,11 +3519,13 @@ export interface CrossSourceCandidate {
   displayName: string;
   personId: string | null;
   legacyMemberId: string | null;
+  evidenceTier: EvidenceStrength;
+  countrySignal: CountrySignal;
 }
 
 function findCrossSourceCandidateAfterHpClaim(memberId: string, personId: string): CrossSourceCandidate | null {
   const member = legacyClaim.findClaimingMember.get(memberId) as
-    | { legacy_member_id: string | null; real_name: string; login_email_normalized: string | null }
+    | { legacy_member_id: string | null; real_name: string; login_email_normalized: string | null; country: string | null }
     | undefined;
   if (!member || member.legacy_member_id) return null;
 
@@ -3423,12 +3533,24 @@ function findCrossSourceCandidateAfterHpClaim(memberId: string, personId: string
   if (!hp) return null;
 
   // Real anchors only: the member's verified login email and declared old
-  // emails. A hit must also agree on surname (current or declared former)
-  // and be unclaimed; anything ambiguous offers nothing.
-  const emails: string[] = [];
-  if (member.login_email_normalized) emails.push(member.login_email_normalized);
-  emails.push(...getDeclaredAnchorValues(memberId).oldEmails);
-  for (const email of emails) {
+  // emails they have proven control of. A hit must agree on surname (current
+  // or declared former) and be unclaimed; country is a soft signal recorded on
+  // the offer, not a gate -- a mover's current country differs from their old
+  // record and must still be offered. The login email is proof the member
+  // controls that mailbox now, so a match through it proposes the modern-email
+  // tier. A declared old email can seed an offer only after the member proves
+  // control of it via the mailbox round-trip: an unverified old email is not
+  // sufficient to confirm a claim, so it is never used as a cross-source
+  // anchor; a verified one carries the mailbox-control tier.
+  const anchors: Array<{ email: string; tier: EvidenceStrength }> = [];
+  if (member.login_email_normalized) {
+    anchors.push({ email: member.login_email_normalized, tier: 'currently_controls_modern_email_matching_legacy' });
+  }
+  for (const declared of getDeclaredAnchorValues(memberId).oldEmailsDetailed) {
+    if (!declared.verified) continue;
+    anchors.push({ email: declared.value, tier: 'mailbox_control_via_link_click' });
+  }
+  for (const { email, tier } of anchors) {
     try {
       const lookup = lookupLegacyAccount(memberId, email);
       if (lookup.kind !== 'single') continue;
@@ -3440,6 +3562,8 @@ function findCrossSourceCandidateAfterHpClaim(memberId: string, personId: string
         displayName: lookup.result.displayName ?? row.display_name ?? row.real_name ?? 'Unknown',
         personId: null,
         legacyMemberId: row.legacy_member_id,
+        evidenceTier: tier,
+        countrySignal: countryAgreementSignal(member.country, row.country),
       };
     } catch {
       // Non-revealing on lookup errors; try the next anchor.
@@ -3450,14 +3574,16 @@ function findCrossSourceCandidateAfterHpClaim(memberId: string, personId: string
 
 function findCrossSourceCandidateAfterLegacyClaim(memberId: string, _legacyMemberId: string): CrossSourceCandidate | null {
   const member = legacyClaim.findClaimingMember.get(memberId) as
-    | { historical_person_id: string | null; real_name: string }
+    | { historical_person_id: string | null; real_name: string; country: string | null }
     | undefined;
   if (!member || member.historical_person_id) return null;
 
   // Name candidates from the member's own name plus declared former
   // surnames (the variant machinery covers spelling differences). The
   // candidate must be unclaimed and agree on surname via the same gate the
-  // direct claim enforces; multiple survivors offer nothing.
+  // direct claim enforces; multiple survivors offer nothing. Country is a
+  // soft signal recorded on the offer, not a gate. The match rests on a name
+  // anchor, not proven mailbox control, so the offer proposes the floor tier.
   const firstName = member.real_name.trim().split(/\s+/)[0] ?? '';
   const queries = [member.real_name];
   if (firstName) {
@@ -3466,14 +3592,15 @@ function findCrossSourceCandidateAfterLegacyClaim(memberId: string, _legacyMembe
     }
   }
   const seen = new Set<string>();
-  const survivors: Array<{ personId: string; personName: string }> = [];
+  const survivors: Array<{ personId: string; personName: string; country: string | null }> = [];
   for (const c of queries.flatMap((q) => findAutoLinkCandidates(q))) {
     if (seen.has(c.personId)) continue;
     seen.add(c.personId);
     const taken = legacyClaim.findMemberClaimingHp.get(c.personId) as { id: string } | undefined;
     if (taken) continue;
     if (!surnameMatchesWithAnchors(memberId, member.real_name, c.personName)) continue;
-    survivors.push({ personId: c.personId, personName: c.personName });
+    const hpRow = legacyClaim.findHistoricalPersonById.get(c.personId) as HistoricalPersonClaimRow | undefined;
+    survivors.push({ personId: c.personId, personName: c.personName, country: hpRow?.country ?? null });
   }
   if (survivors.length !== 1) return null;
   return {
@@ -3481,6 +3608,8 @@ function findCrossSourceCandidateAfterLegacyClaim(memberId: string, _legacyMembe
     displayName: survivors[0].personName,
     personId: survivors[0].personId,
     legacyMemberId: null,
+    evidenceTier: 'declared_anchor_only',
+    countrySignal: countryAgreementSignal(member.country, survivors[0].country),
   };
 }
 
@@ -3529,8 +3658,12 @@ function offerCrossSourceCandidate(memberId: string): { offered: boolean; candid
         candidate!.legacyMemberId,
         candidate!.personId,
         'medium',
-        JSON.stringify(['cross_source_anchor_agreement']),
-        'declared_anchor_only',
+        JSON.stringify(
+          candidate!.countrySignal === 'agree'
+            ? ['cross_source_anchor_agreement', 'country_agreement']
+            : ['cross_source_anchor_agreement'],
+        ),
+        candidate!.evidenceTier,
         'cross_source',
         expiresAt,
       );
@@ -3546,6 +3679,7 @@ function offerCrossSourceCandidate(memberId: string): { offered: boolean; candid
           candidate_id:         candidateId,
           legacy_member_id:     candidate!.legacyMemberId,
           historical_person_id: candidate!.personId,
+          country_signal:       candidate!.countrySignal,
         },
       });
     });
@@ -3574,7 +3708,10 @@ function confirmCrossSourceLegacyCandidate(
   if (!row || row.member_id !== memberId || row.source_pass !== 'cross_source' || !row.legacy_member_id) {
     return { status: 'not_found' };
   }
-  claimLegacyAccount(memberId, row.legacy_member_id, 'declared_anchor_only');
+  // Carry the tier the offer was staged with (login-email control, or verified
+  // old-email mailbox control); a cross-source offer is never staged from an
+  // unverified old email, so it always rests on proven mailbox control.
+  claimLegacyAccount(memberId, row.legacy_member_id, row.proposed_evidence_strength as EvidenceStrength);
   return { status: 'confirmed' };
 }
 
@@ -4023,4 +4160,4 @@ function rejectLinkHelpRequest(
   });
 }
 
-export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors };
+export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors, enforceHistoricalPersonClaimLimit };

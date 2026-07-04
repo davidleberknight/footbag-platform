@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Stop hook: block a question to the human that still carries internal shorthand the
-# reader was not given (section signs, gate/finding codes, operational-state numbers), so
-# the rewrite happens before the human sees it. Backstop for .claude/rules/asking.md.
+# reader was not given -- section signs, operational-state numbers, pointers to a
+# documentation file, or a gate/finding code used as a bare label -- so the rewrite
+# happens before the human sees it. Backstop for .claude/rules/asking.md.
 # Fail-open: any parse problem or missing tool lets the turn through untouched.
 set -euo pipefail
 input="$(cat)"
@@ -38,13 +39,23 @@ PY
 # Only enforce on messages that ask the human something.
 printf '%s' "$msg" | grep -q '?' || exit 0
 
-# Banned references inside a question to the human.
-# Narrow to unambiguous internal-only markers (section signs, cutover-state numbers).
-# A bare letter+digit code is NOT flagged: it may be a shared finding ID the human has
-# (e.g. a BUGS.md row). The asking rule, not this hook, judges given-vs-not-given.
-banned='(§|\bState [0-6]\b)'
-if printf '%s' "$msg" | grep -Eq "$banned"; then
-  reason='Your question carries internal shorthand the human was not given (a section number, gate/finding code, or operational-state number). Rewrite it per .claude/rules/asking.md: plain self-contained English, full context inline, one recommended answer, no codes.'
+# Banned references inside a question to the human. Three families, any one blocks:
+#   1. a section sign, or an operational-state number ("State" + a digit) -- internal
+#      markers the reader was never handed;
+#   2. a pointer to a documentation file (docs/..., .claude/..., or a bare *.md) --
+#      a question must stand on its own, never send the reader off to read a doc;
+#   3. a gate or finding code used as a LABEL -- bold-wrapped, or the leading token on
+#      a line before a colon or dash. An explained inline mention is deliberately left
+#      alone: only the asking rule and the model can judge whether the reader has that
+#      code, and a blunt presence match over-blocks (it fires on questions that merely
+#      discuss the codes).
+core='(§|\bState [0-9]\b)'
+docref='(docs/[[:alnum:]_./-]+|\.claude/[[:alnum:]_./-]+|\b[[:alnum:]_-]+\.md\b)'
+labelcode='(\*\*[[:space:]]*(UX-)?[A-Z]{1,3}[0-9]+|^[[:space:]]*([-*][[:space:]]+|[0-9]+\.[[:space:]]+)?(UX-)?[A-Z]{1,3}[0-9]+[[:space:]]*(:|-|—))'
+if printf '%s' "$msg" | grep -Eq "$core" \
+  || printf '%s' "$msg" | grep -Eq "$docref" \
+  || printf '%s' "$msg" | grep -Eq "$labelcode"; then
+  reason='Your question carries a reference the reader was not given: a section number, an operational-state number, a pointer to a documentation file, or a gate or finding code used as a bare label. Rewrite it in plain self-contained English -- full context inline, one recommended answer, and the first time you name any code, explain it in words rather than leading with the bare label.'
   printf '{"decision":"block","reason":%s}\n' "$(python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$reason")"
   exit 0
 fi

@@ -26,7 +26,7 @@ import {
   readFlash,
   clearFlash,
 } from '../lib/flashCookie';
-import { getTierStatus } from '../services/membershipTieringService';
+import { mayCreateClub } from '../services/tierPredicates';
 import { config } from '../config/env';
 import { getCaptchaAdapter } from '../adapters/captchaAdapter';
 
@@ -63,6 +63,15 @@ interface ClubAffiliationsCardContent {
   canCreateClub?:  boolean;
   clubsBrowseHref?: string;
   memberCountry?:  string;
+  // Detour links route through the wizard so the optional club task pauses
+  // (in_progress_paused) before the member leaves for the clubs surface, and
+  // the dashboard can offer "Resume onboarding".
+  detourBrowseHref?:  string;
+  detourCountryHref?: string;
+  detourCreateHref?:  string;
+  // Permanent dismissal of the optional club task (distinct from "skip", which
+  // the dashboard keeps offering to resume).
+  dismissHref?:    string;
 }
 
 interface PersonalDetailsContent {
@@ -237,7 +246,7 @@ function renderClubAffiliationsCard(
   const capHitFlash = readClubCapHitFlash(req, res);
   const capHitNotice = capHitFlash
     ? {
-        message: `You are already at the two current-club limit, so ${capHitFlash.clubName} was not added. Mark one of your current clubs as former to add it.`,
+        message: `You are already at the two current-club limit, so ${capHitFlash.clubName} was not added. Leave one of your current clubs to add it.`,
         manageClubsHref: dashboardHrefFor(req),
       }
     : null;
@@ -267,12 +276,13 @@ function renderClubAffiliationsCard(
       isWrapUp:       stage === 'wrap_up',
       noLegacyAffiliationFound:
         stage === 'wrap_up' && !memberOnboardingService.memberHadClubSuggestionMaterial(memberId),
-      canCreateClub:  (() => {
-        const tier = getTierStatus(memberId);
-        return tier != null && tier.tier_status !== 'tier0';
-      })(),
+      canCreateClub:  mayCreateClub(memberId),
       clubsBrowseHref: countrySlug ? `/clubs/${countrySlug}` : '/clubs',
       memberCountry,
+      detourBrowseHref:  '/register/wizard/club_affiliations/detour?to=join',
+      detourCountryHref: '/register/wizard/club_affiliations/detour?to=country',
+      detourCreateHref:  '/register/wizard/club_affiliations/detour?to=create',
+      dismissHref:       '/register/wizard/club_affiliations/dismiss',
     },
   } satisfies PageViewModel<ClubAffiliationsCardContent>);
 }
@@ -434,6 +444,11 @@ export const memberOnboardingController = {
   getComplete(req: Request, res: Response, next: NextFunction): void {
     try {
       const memberId = req.user!.userId;
+      // Materialize the task rows first, mirroring getTask: a member who reaches
+      // this page with zero task rows has an empty outstanding set that would
+      // otherwise read as "all done" and render a false completion page while the
+      // gate still blocks every capability route.
+      memberOnboardingService.startTaskList(memberId);
       // Don't lie: if any task is still outstanding (pending or paused mid-flow),
       // route the member to the next one instead of telling them everything is
       // handled. Uses the same outstanding-task source the gate middleware uses.
@@ -458,6 +473,52 @@ export const memberOnboardingController = {
     await dispatch(req, res, next, taskType, {
       action: () => memberOnboardingService.processTaskSkip(req.user!.userId, taskType),
     });
+  },
+
+  // Detour out of the optional club task to join or create a club. The pause is
+  // recorded in the onboarding service (the club task becomes in_progress_paused
+  // and the dashboard offers "Resume onboarding") before redirecting to the
+  // plain clubs surface, so the clubs controller never owns onboarding logic.
+  getClubDetour(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const memberId = req.user!.userId;
+      const to = req.query.to;
+      let dest: string;
+      let targetStory: string;
+      let sourceCard: string;
+      if (to === 'create') {
+        dest = '/clubs/create';
+        targetStory = 'M_Create_Club';
+        sourceCard = 'create_club';
+      } else if (to === 'country') {
+        const country = memberService.getPersonalDetailsPrefill(memberId).country ?? null;
+        const slug = country ? country.toLowerCase().replace(/\s+/g, '_') : null;
+        dest = slug ? `/clubs/${slug}` : '/clubs';
+        targetStory = 'M_Join_Club';
+        sourceCard = 'clubs_in_country';
+      } else {
+        dest = '/clubs';
+        targetStory = 'M_Join_Club';
+        sourceCard = 'browse_clubs';
+      }
+      memberOnboardingService.transitionToDetourPaused(memberId, 'club_affiliations', targetStory, sourceCard);
+      res.redirect(303, dest);
+    } catch (err) {
+      logger.error('onboarding club detour error', { error: err instanceof Error ? err.message : String(err) });
+      next(err);
+    }
+  },
+
+  // Permanently dismiss the optional club task so the dashboard stops offering
+  // it (distinct from "skip", which stays resumable). Returns to the dashboard.
+  postClubDismiss(req: Request, res: Response, next: NextFunction): void {
+    try {
+      memberOnboardingService.dismissClubAffiliationsTask(req.user!.userId);
+      res.redirect(303, dashboardHrefFor(req));
+    } catch (err) {
+      logger.error('onboarding club dismiss error', { error: err instanceof Error ? err.message : String(err) });
+      next(err);
+    }
   },
 
   async postLegacyClaimFind(req: Request, res: Response, next: NextFunction): Promise<void> {

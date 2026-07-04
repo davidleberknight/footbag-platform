@@ -297,6 +297,27 @@ export function accountVerifyEmail(input: { verifyUrl: string; ttlHours: number 
   };
 }
 
+/**
+ * Notice sent to an existing account's address when someone submits the
+ * registration form with that already-registered email. It goes only to the
+ * address owner, who is the sole party able to act on it; the person who
+ * submitted the form receives the identical "check your email" web response
+ * whether or not the email is registered, so registration reveals nothing about
+ * account existence.
+ */
+export function accountExistsNoticeEmail(input: { loginUrl: string; resetUrl: string }): EmailContent {
+  return {
+    subject: 'Someone tried to register with your IFPA Footbag email',
+    bodyText:
+      'Someone just tried to create an IFPA Footbag account with this email address, which already has an account.\n\n' +
+      'If this was you, there is no need to register again, you can sign in:\n\n' +
+      `${input.loginUrl}\n\n` +
+      'If you have forgotten your password, you can reset it:\n\n' +
+      `${input.resetUrl}\n\n` +
+      'If this was not you, no action is needed and your account is unchanged.',
+  };
+}
+
 /** Legacy-account claim confirmation carrying the review-and-confirm link. */
 export function legacyClaimConfirmEmail(input: { confirmUrl: string; ttlHours: number }): EmailContent {
   return {

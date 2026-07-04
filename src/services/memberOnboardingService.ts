@@ -24,9 +24,9 @@
  *   - Club promotion and leadership confirmation (ClubService).
  *
  * Serves (all auth-required; an unauthenticated request redirects to /login?returnTo=...):
- *   - GET /register/wizard/:taskType and the per-action POST sub-paths (/submit, /skip, and the
- *     legacy_claim sub-actions). Unknown :taskType renders 404. GET /register/wizard/complete is
- *     the terminal page.
+ *   - GET /register/wizard/:taskType and the per-action sub-paths (the /submit and /skip POSTs, the
+ *     club_affiliations /dismiss POST and /detour GET, and the legacy_claim sub-actions). Unknown
+ *     :taskType renders 404. GET /register/wizard/complete is the terminal page.
  *
  * Required patterns:
  *   - State-changing wizard POSTs follow post-redirect-get: a 303 to the next-task GET or to
@@ -122,10 +122,15 @@ function writeViabilitySignal(
   );
 }
 
+// The task order is the documented wizard sequence: the legacy-account claim
+// first (where a verified member lands after email verification), then the
+// optional club affiliation, then the personal details. This order is the
+// single source of truth -- both the sequential advance and the gate /
+// completion redirects derive their "what's next" from this index.
 export const TASK_CATALOG = [
-  'personal_details',
   'legacy_claim',
   'club_affiliations',
+  'personal_details',
 ] as const;
 export type OnboardingTaskType = typeof TASK_CATALOG[number];
 
@@ -154,6 +159,7 @@ export interface DashboardTaskItem {
   sourceCard:  string | null;
   ctaLabel: string;
   ctaHref:  string | null;
+  dismissHref: string | null;
 }
 
 export interface DashboardTaskWidget {
@@ -178,15 +184,6 @@ export class NotImplementedError extends ServiceError {
 const TASK_TYPE_INDEX: Record<string, number> = Object.fromEntries(
   TASK_CATALOG.map((t, i) => [t, i]),
 );
-
-// Display order for the dashboard task widget, following the story sequence
-// (legacy account claim, club affiliations, optional metadata). Kept separate
-// from TASK_TYPE_INDEX, which the wizard's sequential advance depends on.
-const DASHBOARD_DISPLAY_ORDER: Record<string, number> = {
-  legacy_claim: 0,
-  club_affiliations: 1,
-  personal_details: 2,
-};
 
 function assertTaskType(taskType: string): asserts taskType is OnboardingTaskType {
   if (!(taskType in TASK_TYPE_INDEX)) {
@@ -352,6 +349,18 @@ function markTaskNotApplicable(memberId: string, taskType: string): void {
     throw new Error(`personal_details cannot be marked not_applicable`);
   }
   transitionTask(memberId, taskType, 'not_applicable', 'wizard.task.not_applicable');
+}
+
+/**
+ * Member-initiated permanent dismissal of the optional club task. Unlike a skip
+ * (which the dashboard keeps offering to resume), a dismiss marks the task
+ * not_applicable so it no longer surfaces. Idempotent, and scoped to the
+ * optional club task only.
+ */
+function dismissClubAffiliationsTask(memberId: string): void {
+  const state = getTaskState(memberId, 'club_affiliations');
+  if (state === 'completed' || state === 'not_applicable') return;
+  markTaskNotApplicable(memberId, 'club_affiliations');
 }
 
 /**
@@ -544,17 +553,21 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
       sourceCard,
       ctaLabel,
       ctaHref,
+      // Only the optional club task can be permanently dismissed from the
+      // dashboard; the required tasks have no dismiss path.
+      dismissHref: taskType === 'club_affiliations'
+        ? '/register/wizard/club_affiliations/dismiss'
+        : null,
     };
     if      (state === 'in_progress_paused') widget.paused.push(item);
     else if (state === 'skipped')            widget.skipped.push(item);
     else if (state === 'pending')            widget.pending.push(item);
   }
 
-  // The dashboard lists outstanding tasks in the story order (legacy account
-  // claim, then club affiliations, then optional metadata), independent of the
-  // internal TASK_CATALOG index that the wizard's sequential advance relies on.
+  // The dashboard lists outstanding tasks in the wizard's task order, the same
+  // order the sequential advance and the completion redirects follow.
   const sortByDisplayOrder = (a: DashboardTaskItem, b: DashboardTaskItem) =>
-    (DASHBOARD_DISPLAY_ORDER[a.taskType] ?? 99) - (DASHBOARD_DISPLAY_ORDER[b.taskType] ?? 99);
+    (TASK_TYPE_INDEX[a.taskType] ?? 99) - (TASK_TYPE_INDEX[b.taskType] ?? 99);
   widget.pending.sort(sortByDisplayOrder);
   widget.paused.sort(sortByDisplayOrder);
   widget.skipped.sort(sortByDisplayOrder);
@@ -605,6 +618,7 @@ export interface WizardLeadershipCard {
   isLeadership: true;
   isDisambiguation: false;
   questionLabel: string;
+  consequencesNote: string;
   candidateId: string;       // club_bootstrap_leaders.id
   clubId: string;
   clubName: string;
@@ -754,7 +768,8 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
       isMembership:        false as const,
       isLeadership:        true as const,
       isDisambiguation:    false as const,
-      questionLabel:       `Were you a contact for ${r.club_name}?`,
+      questionLabel:       `Were you a member of ${r.club_name}?`,
+      consequencesNote:    `The old footbag.org site listed you as a contact for ${r.club_name}. Confirming makes you a co-leader of the club, brings it back to active if it is inactive, and grants you a one-time Active Player period. If you already co-lead another club, you will be added as a member instead.`,
       candidateId:         r.candidate_id,
       clubId:              r.club_id,
       clubName:            r.club_name,
@@ -1140,24 +1155,15 @@ export type WizardActionResult<TFormState = unknown> =
   | { kind: 'validation_error'; formState: TFormState; message: string }
   | WizardRateLimitedArm;
 
-function nextTaskAfter(
-  memberId: string,
-  currentTaskType: OnboardingTaskType,
-): OnboardingTaskType | null {
-  const widget = getTaskWidget(memberId);
-  const currentIdx = TASK_TYPE_INDEX[currentTaskType];
-  for (const item of widget) {
-    if (TASK_TYPE_INDEX[item.taskType] > currentIdx) return item.taskType;
-  }
-  return null;
-}
-
 function advanceAfter(
   memberId: string,
-  currentTaskType: OnboardingTaskType,
+  _currentTaskType: OnboardingTaskType,
 ): WizardAdvanceArm {
   startTaskList(memberId);
-  return { kind: 'advance', nextTaskType: nextTaskAfter(memberId, currentTaskType) };
+  // One sequencing algorithm for the whole wizard: the next task is simply the
+  // lowest-index task still outstanding, so the advance and the gate /
+  // completion redirects can never disagree about what comes next.
+  return { kind: 'advance', nextTaskType: nextOutstandingTaskType(memberId) };
 }
 
 async function processLegacyClaimSubmit(
@@ -1233,6 +1239,15 @@ function advanceOrOfferCrossSource(memberId: string): WizardActionResult<never> 
   return advanceAfter(memberId, 'legacy_claim');
 }
 
+function parseMatchedAnchors(json: string): string[] {
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? (parsed as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 function processLegacyClaimAutoLinkConfirm(
   memberId: string,
   personId: string,
@@ -1253,6 +1268,11 @@ function processLegacyClaimAutoLinkConfirm(
   let personName: string;
   let evidenceStrength: 'currently_controls_modern_email_matching_legacy' | 'declared_anchor_only';
   let confidence: 'high' | 'medium';
+  // A match anchored on a declared old email the member has not proven control
+  // of cannot confirm a claim: the mailbox round-trip is mandatory for an
+  // old-email anchor. The verified form ('declared_old_email_verified') and the
+  // login-email and name anchors are unaffected.
+  let matchedViaUnverifiedOldEmail = false;
   if (stagedRow) {
     confidence = stagedRow.confidence;
     personName = '';
@@ -1262,6 +1282,22 @@ function processLegacyClaimAutoLinkConfirm(
       stagedRow.proposed_evidence_strength === 'currently_controls_modern_email_matching_legacy'
         ? 'currently_controls_modern_email_matching_legacy'
         : 'declared_anchor_only';
+    // Re-derive the member's current best anchor rather than trusting the frozen
+    // staged row: verifying the old email after the card was staged flips the
+    // anchor to the verified form and must unblock this card. The frozen staged
+    // value is a conservative fallback only when the current match is
+    // inconclusive.
+    const current = identityAccessService.getAutoLinkClassificationForMember(memberId);
+    const currentAnchor =
+      current.confidence === 'high' || current.confidence === 'medium'
+        ? current.anchorSource
+        : undefined;
+    matchedViaUnverifiedOldEmail =
+      currentAnchor === 'declared_old_email'
+        ? true
+        : currentAnchor === undefined
+          ? parseMatchedAnchors(stagedRow.matched_anchors_json).includes('declared_old_email')
+          : false;
   } else {
     const classification = identityAccessService.getAutoLinkClassificationForMember(memberId);
     if (classification.confidence !== 'high' && classification.confidence !== 'medium') {
@@ -1279,6 +1315,14 @@ function processLegacyClaimAutoLinkConfirm(
       classification.confidence === 'high' && classification.anchorSource === 'login_email'
         ? 'currently_controls_modern_email_matching_legacy'
         : 'declared_anchor_only';
+    matchedViaUnverifiedOldEmail = classification.anchorSource === 'declared_old_email';
+  }
+  if (matchedViaUnverifiedOldEmail) {
+    return {
+      kind: 'validation_error',
+      formState: null,
+      message: 'We matched this record to an old email address you have not confirmed yet. Open the verification link we sent to that address, then come back to confirm this match. If you can no longer reach that mailbox, use a different match or ask an admin to link it for you.',
+    };
   }
   try {
     // Merge and the wizard task transition run in one transaction: a partial
@@ -1459,7 +1503,9 @@ function processTaskSkip(
 function claimHistoricalPersonAndCompleteTask(
   memberId: string,
   personId: string,
+  ip: string,
 ): void {
+  identityAccessService.enforceHistoricalPersonClaimLimit(memberId, ip);
   try {
     transaction(() => {
       identityAccessService.claimHistoricalPersonInTx(memberId, personId);
@@ -1723,6 +1769,7 @@ export const memberOnboardingService = {
   processCrossSourceLegacyConfirm,
   processLegacyClaimTokenConfirm,
   processTaskSkip,
+  dismissClubAffiliationsTask,
   claimHistoricalPersonAndCompleteTask,
   getTaskState,
   isOnboardingComplete,

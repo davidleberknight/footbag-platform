@@ -20,6 +20,7 @@ import {
   insertLegacyMember,
   insertHistoricalPerson,
   createTestSessionJwt,
+  completeOnboarding,
 } from '../fixtures/factories';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-claim-hp-${Date.now()}.db`);
@@ -249,6 +250,43 @@ describe('GET /history/:personId/claim', () => {
 
 // ── POST /history/:personId/claim/confirm ────────────────────────────────────
 
+// Self-serve claiming is wizard-bounded: the wizard's legacy_claim task is the
+// single self-serve claim surface. Once onboarding is complete this direct
+// route no longer applies a claim; it routes the member to the admin
+// link-request form, so a completed member links a further record only by
+// admin request.
+describe('claiming is closed once onboarding is complete (wizard-bounded)', () => {
+  it('GET by a completed member routes to the admin link-request form, not the confirm page', async () => {
+    const id = insertMember(testDb, {
+      slug: 'hpc_completed_get', real_name: 'Erin Mockingbird', display_name: 'Erin Mockingbird',
+      login_email: 'hpc-completed-get@example.com',
+    });
+    completeOnboarding(testDb, id);
+    const res = await request(createApp())
+      .get(`/history/${HP_NO_LEGACY}/claim`)
+      .set('Cookie', `footbag_session=${createTestSessionJwt({ memberId: id })}`);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/members/hpc_completed_get/contact-admin?category=identity_link_issue');
+  });
+
+  it('POST confirm by a completed member routes to the admin form and applies no claim', async () => {
+    const id = insertMember(testDb, {
+      slug: 'hpc_completed_post', real_name: 'Erin Mockingbird', display_name: 'Erin Mockingbird',
+      login_email: 'hpc-completed-post@example.com',
+    });
+    completeOnboarding(testDb, id);
+    const res = await request(createApp())
+      .post(`/history/${HP_NO_LEGACY}/claim/confirm`)
+      .set('Cookie', `footbag_session=${createTestSessionJwt({ memberId: id })}`)
+      .type('form').send({});
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/members/hpc_completed_post/contact-admin?category=identity_link_issue');
+    const row = testDb.prepare('SELECT historical_person_id FROM members WHERE id = ?')
+      .get(id) as { historical_person_id: string | null };
+    expect(row.historical_person_id).toBeNull();
+  });
+});
+
 describe('POST /history/:personId/claim/confirm — scenario D (HP-only)', () => {
   it('successful HP-only claim sets historical_person_id and merges HP fields', async () => {
     const app = createApp();
@@ -474,5 +512,25 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
     const row = testDb.prepare('SELECT historical_person_id FROM members WHERE id = ?')
       .get(claimantId) as { historical_person_id: string | null };
     expect(row.historical_person_id).toBeNull();
+  });
+});
+
+describe('POST /history/:personId/claim/confirm — rate limiting', () => {
+  it('throttles rapid claim confirms: the sixth attempt returns 429 with Retry-After', async () => {
+    const app = createApp();
+    const post = () =>
+      request(app)
+        .post(`/history/${HP_NO_LEGACY}/claim/confirm`)
+        .set('Cookie', otherCookie())
+        .type('form')
+        .send({});
+    // A surname-mismatched member confirming the same HP is rejected 422 each
+    // time; the per-member claim bucket (default 5) trips on the sixth attempt.
+    let res = await post();
+    for (let i = 0; i < 5; i++) {
+      res = await post();
+    }
+    expect(res.status).toBe(429);
+    expect(res.headers['retry-after']).toBeDefined();
   });
 });

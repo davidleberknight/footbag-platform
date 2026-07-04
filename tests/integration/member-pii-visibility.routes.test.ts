@@ -42,12 +42,15 @@ afterAll(() => {
 
 const cookieFor = (id: string) => `footbag_session=${createTestSessionJwt({ memberId: id })}`;
 
+// City and country are mandatory profile fields; the pre-filled edit form always
+// carries them, so the helper supplies valid values by default while these cases
+// exercise the contact-PII fields.
 function editOwner(fields: Record<string, string>): request.Test {
   return request(createApp())
     .post(`/members/${OWNER_SLUG}/edit`)
     .set('Cookie', cookieFor(OWNER_ID))
     .type('form')
-    .send(fields);
+    .send({ city: 'Portland', country: 'USA', ...fields });
 }
 
 describe('per-field contact-PII visibility', () => {
@@ -89,7 +92,7 @@ describe('per-field contact-PII visibility', () => {
       .post(`/members/${COLEAD_SLUG}/edit`)
       .set('Cookie', cookieFor(COLEAD_ID))
       .type('form')
-      .send({ emailVisibility: 'private' })
+      .send({ city: 'Portland', country: 'USA', emailVisibility: 'private' })
       .expect(303);
 
     const row = db.prepare('SELECT email_visibility FROM members WHERE id = ?').get(COLEAD_ID) as { email_visibility: string };

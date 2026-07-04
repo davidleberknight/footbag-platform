@@ -365,7 +365,10 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
       .set('Cookie', cookieFor(MEMBER_LEADERSHIP));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Leadership Wizard Club');
-    expect(res.text).toContain('Were you a contact for');
+    // The leadership card asks the intuitive membership question and states the
+    // co-leader / club-revival / Active-Player consequences of confirming.
+    expect(res.text).toContain('Were you a member of');
+    expect(res.text).toContain('makes you a co-leader');
     // No signals seeded -> classification falls back to 'none' (plain-language label).
     expect(res.text).toContain('Uncertain match');
     expect(res.text).toContain('value="leadership"');
@@ -389,8 +392,39 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
     // of club name; the Beta leadership card renders first even though
     // Alpha is alphabetically earlier.
     expect(res.text).toContain('Beta Club (leadership)');
-    expect(res.text).toContain('Were you a contact for');
-    expect(res.text).not.toContain('Were you a member of');
+    // The leadership card is identified by its co-leader consequences note; the
+    // membership card ("Match strength") is not rendered yet (one card at a time).
+    expect(res.text).toContain('makes you a co-leader');
+    expect(res.text).not.toContain('Match strength');
+  });
+});
+
+describe('club_affiliations detour + dismiss', () => {
+  const taskState = (memberId: string): string =>
+    (testDb.prepare(
+      `SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'`,
+    ).get(memberId) as { state: string } | undefined)?.state ?? 'missing';
+
+  it('detour to create pauses the club task and redirects to the create-club surface', async () => {
+    const id = insertMember(testDb, { slug: 'wiz_detour_create', login_email: 'wiz-detour-create@example.com' });
+    // First GET materializes the task list (task pending).
+    await request(createApp()).get('/register/wizard/club_affiliations').set('Cookie', cookieFor(id));
+    const res = await request(createApp())
+      .get('/register/wizard/club_affiliations/detour?to=create')
+      .set('Cookie', cookieFor(id));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/clubs/create');
+    expect(taskState(id)).toBe('in_progress_paused');
+  });
+
+  it('dismiss marks the optional club task not_applicable so it stops surfacing', async () => {
+    const id = insertMember(testDb, { slug: 'wiz_dismiss', login_email: 'wiz-dismiss@example.com' });
+    await request(createApp()).get('/register/wizard/club_affiliations').set('Cookie', cookieFor(id));
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/dismiss')
+      .set('Cookie', cookieFor(id));
+    expect(res.status).toBe(303);
+    expect(taskState(id)).toBe('not_applicable');
   });
 });
 
@@ -403,8 +437,10 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .send({ kind: 'membership', candidateId: membershipAffId, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(res.status).toBe(303);
-    // No more cards remaining -> advance to wizard complete (club_affiliations is the last task).
-    expect(res.headers.location).toBe('/register/wizard/complete');
+    // No more club cards remaining -> advance to the next pending task. This
+    // member has not completed legacy_claim, so the wizard routes there next
+    // (the documented order is legacy_claim, then club, then personal_details).
+    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
     expect(readAffiliationStatus(membershipAffId)).toBe('confirmed_current');
     expect(readTaskState(MEMBER_MEMBERSHIP)).toBe('completed');
 
@@ -447,7 +483,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .send({ kind: 'leadership', candidateId: leadershipCblId, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/complete');
+    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
     expect(readBootstrapStatus(leadershipCblId)).toBe('claimed');
     expect(readTaskState(MEMBER_LEADERSHIP)).toBe('completed');
 
@@ -483,7 +519,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .send({ kind: 'membership', candidateId: multiAffAlpha, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(second.status).toBe(303);
-    expect(second.headers.location).toBe('/register/wizard/complete');
+    expect(second.headers.location).toBe('/register/wizard/legacy_claim');
     expect(readTaskState(MEMBER_MULTI)).toBe('completed');
   });
 
@@ -666,7 +702,10 @@ describe('POST /register/wizard/club_affiliations/submit — unpromoted-candidat
       .set('Cookie', cookieFor(MEMBER_NOPROMOTE));
     expect(wrapUp.status).toBe(200);
     expect(wrapUp.text).toContain('Find or create your club');
-    expect(wrapUp.text).toContain('Creating a club requires IFPA Membership (Tier 1)');
+    // A fresh Tier 0 member has never held Active Player, so the wrap-up offers
+    // the first-club bootstrap (create grants the one-time period) rather than
+    // the Tier-1 requirement notice.
+    expect(wrapUp.text).toContain('Create a New Club');
 
     const skip = await request(createApp())
       .post('/register/wizard/club_affiliations/skip')

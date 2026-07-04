@@ -41,6 +41,7 @@ function def<P>(classification: EmailPiiClass, build: (params: P) => EmailBody):
 // message the admin email viewer may reveal.
 const TEMPLATES = {
   account_verify:                def('restricted',   emailContent.accountVerifyEmail),
+  account_exists_notice:         def('restricted',   emailContent.accountExistsNoticeEmail),
   password_reset_request:        def('restricted',   emailContent.passwordResetRequestEmail),
   password_reset_confirm:        def('internal',     (_p: Empty) => emailContent.passwordResetConfirmEmail()),
   password_changed:              def('internal',     (_p: Empty) => emailContent.passwordChangedEmail()),

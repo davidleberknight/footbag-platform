@@ -7,7 +7,7 @@
  *   - showCompetitiveResults toggle
  *   - Bio at exactly 1000 chars (max)
  *   - Bio exceeding 1000 chars (rejected)
- *   - All fields empty (accepted)
+ *   - Mandatory city/country rejected when blank
  *   - Phone whitespace trimming
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -48,16 +48,28 @@ beforeAll(async () => {
   });
   db.close();
   createApp = await importApp();
+  // Fully onboard the member so the completion gate is a no-op: these tests
+  // exercise profile-edit validation and the removed anchor route, not wizard
+  // routing, and an incomplete member would be redirected to the wizard before
+  // the route resolves.
+  const onboarding = (await import('../../src/services/memberOnboardingService')).memberOnboardingService;
+  onboarding.startTaskList(MEMBER_ID);
+  onboarding.completeTask(MEMBER_ID, 'personal_details');
+  onboarding.completeTask(MEMBER_ID, 'legacy_claim');
 });
 
 afterAll(() => cleanupTestDb(dbPath));
 
+// City and country are mandatory profile fields, and the edit form pre-fills
+// them from the stored values, so a genuine save always carries them. These
+// cases exercise other fields, so the helper supplies valid city/country by
+// default; a case that needs to blank them overrides the default explicitly.
 function postEdit(fields: Record<string, string>): request.Test {
   return request(createApp())
     .post(`/members/${MEMBER_SLUG}/edit`)
     .set('Cookie', ownCookie())
     .type('form')
-    .send(fields);
+    .send({ city: 'Portland', country: 'USA', ...fields });
 }
 
 // ── Legacy-claim anchors removed from Edit Profile ───────────────────────────
@@ -196,25 +208,31 @@ describe('bio validation', () => {
   });
 });
 
-// ── All fields empty ──────────────────────────────────────────────────────────
+// ── Mandatory city/country ────────────────────────────────────────────────────
 
-describe('all fields empty', () => {
-  it('accepts empty submission without error', async () => {
-    const res = await postEdit({
-      bio: '',
-      city: '',
-      region: '',
-      country: '',
-      phone: '',
-      emailVisibility: '',
-      firstCompetitionYear: '',
-      showCompetitiveResults: '1',
-    });
-    expect(res.status).toBe(303);
+describe('mandatory city/country', () => {
+  it('rejects a submission that blanks both city and country, preserving the stored values', async () => {
+    // Establish a complete profile first.
+    await postEdit({ city: 'Portland', country: 'USA' });
+    // A submission that clears both mandatory fields is rejected, and the write
+    // does not run, so the prior values survive.
+    const res = await postEdit({ city: '', country: '' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('City and country are required');
     const row = readMember();
-    expect(row.bio).toBe('');
-    expect(row.city).toBeNull();
-    expect(row.country).toBeNull();
+    expect(row.city).toBe('Portland');
+    expect(row.country).toBe('USA');
+  });
+
+  it('rejects a submission that blanks only the country', async () => {
+    await postEdit({ city: 'Portland', country: 'USA' });
+    const res = await postEdit({ city: 'Seattle', country: '' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Country is required');
+    const row = readMember();
+    // The rejected save leaves the earlier complete profile untouched.
+    expect(row.city).toBe('Portland');
+    expect(row.country).toBe('USA');
   });
 });
 

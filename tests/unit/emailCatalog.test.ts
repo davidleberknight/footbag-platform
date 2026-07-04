@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import * as emailContent from '../../src/services/emailContent';
 import {
   accountVerifyEmail,
+  accountExistsNoticeEmail,
   legacyClaimConfirmEmail,
   passwordChangedEmail,
   passwordResetRequestEmail,
@@ -42,6 +43,7 @@ interface CatalogEntry {
 const CATALOG: CatalogEntry[] = [
   // identityAccessService — transactional security mail.
   { builder: accountVerifyEmail as never, sample: { verifyUrl: 'https://x/verify/t', ttlHours: 24 }, templateKey: 'account_verify', services: ['identityAccessService'] },
+  { builder: accountExistsNoticeEmail as never, sample: { loginUrl: 'https://x/login', resetUrl: 'https://x/password/forgot' }, templateKey: 'account_exists_notice', services: ['identityAccessService'] },
   { builder: legacyClaimConfirmEmail as never, sample: { confirmUrl: 'https://x/claim/t', ttlHours: 24 }, templateKey: 'legacy_claim_confirm', services: ['identityAccessService'] },
   { builder: passwordChangedEmail as never, sample: undefined, templateKey: 'password_changed', services: ['identityAccessService'] },
   { builder: passwordResetRequestEmail as never, sample: { resetUrl: 'https://x/reset/t', ttlHours: 1 }, templateKey: 'password_reset_request', services: ['identityAccessService'] },

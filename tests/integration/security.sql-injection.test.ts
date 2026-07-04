@@ -167,7 +167,9 @@ describe('POST /members/:slug/edit — SQL injection in bio', () => {
         .type('form')
         .send({
           bio: payload,
-          // Required form fields for profile-edit.
+          // Mandatory profile fields; the save must succeed so the bio persists.
+          city: 'Portland',
+          country: 'USA',
           firstCompetitionYear: '',
           showCompetitiveResults: 'on',
         });

@@ -9,6 +9,11 @@
         <li class="onboarding-task-row">
           <span class="onboarding-task-label">{{taskLabel}}</span>
           <a href="{{ctaHref}}" class="btn btn-primary onboarding-task-cta">{{ctaLabel}}</a>
+          {{#if dismissHref}}
+            <form method="POST" action="{{dismissHref}}">
+              <button type="submit" class="btn-link text-muted">Dismiss</button>
+            </form>
+          {{/if}}
         </li>
       {{/each}}
     </ul>
@@ -32,6 +37,11 @@
         <li class="onboarding-task-row onboarding-task-row-skipped">
           <span class="onboarding-task-label text-muted">{{taskLabel}}</span>
           <a href="{{ctaHref}}" class="btn btn-outline onboarding-task-cta">{{ctaLabel}}</a>
+          {{#if dismissHref}}
+            <form method="POST" action="{{dismissHref}}">
+              <button type="submit" class="btn-link text-muted">Dismiss</button>
+            </form>
+          {{/if}}
         </li>
       {{/each}}
     </ul>

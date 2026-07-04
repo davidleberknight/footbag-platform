@@ -144,8 +144,14 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
     expect(getTaskState(memberId, 'club_affiliations')).toBe('pending');
   });
 
-  it('GET /register/wizard/complete renders the completion page', async () => {
+  it('GET /register/wizard/complete renders the completion page when nothing is outstanding', async () => {
     const memberId = insertMember(testDb, { slug: `wiz_done_get_${Date.now()}`, login_email: `wiz-done-get-${Date.now()}@example.com` });
+    // The complete page renders only when no task is outstanding: both required
+    // tasks completed and the optional club task resolved. A member with no task
+    // rows is not done and is routed to a task instead.
+    insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
+    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'completed');
+    insertOnboardingTask(testDb, memberId, 'club_affiliations', 'skipped');
     const res = await request(createApp())
       .get('/register/wizard/complete')
       .set('Cookie', cookieFor(memberId));
@@ -186,6 +192,33 @@ describe('POST /register/wizard/personal_details/submit — collects details and
     expect(row.gender).toBe('male');
     expect(row.first_competition_year).toBe(2010);
     expect(row.show_competitive_results).toBe(1);
+  });
+
+  it('rejects an impossible calendar date (Feb 30) rather than rolling it forward and storing it', async () => {
+    const stamp = Date.now();
+    const memberId = insertMember(testDb, { slug: `wiz_pd_baddate_${stamp}`, login_email: `wiz-pd-baddate-${stamp}@example.com` });
+    await request(createApp())
+      .get('/register/wizard/personal_details')
+      .set('Cookie', cookieFor(memberId));
+
+    const res = await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({
+        city: 'Eugene',
+        region: 'Oregon',
+        country: 'USA',
+        birthDate: '2023-02-30',
+        gender: 'male',
+      });
+    // A calendar-invalid date is rejected: the submit does not advance, the task
+    // stays outstanding, and no rolled-forward value is persisted.
+    expect(res.status).not.toBe(303);
+    expect(getTaskState(memberId, 'personal_details')).toBe('pending');
+    const row = testDb.prepare('SELECT birth_date FROM members WHERE id = ?')
+      .get(memberId) as { birth_date: string | null };
+    expect(row.birth_date).toBeNull();
   });
 });
 

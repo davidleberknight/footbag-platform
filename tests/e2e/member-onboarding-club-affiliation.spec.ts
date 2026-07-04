@@ -95,7 +95,7 @@ test('leadership card: renders role and signal checklist', async ({ browser, bas
 
   await wizard.goto('club_affiliations');
   const question = await wizard.clubMembershipQuestion.textContent();
-  expect(question).toMatch(/Were you a contact for/i);
+  expect(question).toMatch(/Were you a member of/i);
   await expect(wizard.signalChecklist).toBeVisible();
   await expect(wizard.clubYesRadio).toBeVisible();
 

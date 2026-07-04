@@ -4637,6 +4637,7 @@ export interface MemberProfileRow {
   is_admin: number;
   is_hof: number;
   is_bap: number;
+  is_board: number;
   first_competition_year: number | null;
   show_competitive_results: number;
   show_first_competition_year: number;
@@ -4711,6 +4712,7 @@ export const account = {
       m.is_admin,
       m.is_hof,
       m.is_bap,
+      m.is_board,
       m.first_competition_year,
       m.show_competitive_results,
       m.show_first_competition_year,
@@ -4730,7 +4732,6 @@ export const account = {
       ON mi.id = m.avatar_media_id
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = m.historical_person_id
-      AND m.legacy_member_id IS NOT NULL
     WHERE m.slug = ?
       AND m.personal_data_purged_at IS NULL
   `); },
@@ -4970,7 +4971,6 @@ export const account = {
     FROM members_active AS m
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = m.historical_person_id
-      AND m.legacy_member_id IS NOT NULL
     WHERE m.id = ?
       AND m.personal_data_purged_at IS NULL
   `); },
@@ -5025,6 +5025,17 @@ export const registration = {
     FROM members
     WHERE login_email_normalized = ?
       AND personal_data_purged_at IS NULL
+  `); },
+
+  // The existing account behind a duplicate registration, so the "account
+  // already exists" notice reaches the real registered address. Matches any
+  // non-purged member (verified or not), the same set checkEmailExists gates.
+  get findForDuplicateNotice() { return db.prepare(`
+    SELECT id, login_email
+    FROM members
+    WHERE login_email_normalized = ?
+      AND personal_data_purged_at IS NULL
+    LIMIT 1
   `); },
 
   get checkSlugExists() { return db.prepare(`
@@ -7251,7 +7262,7 @@ export const legacyClaim = {
   // signal used by the email-equality fast path in initiateLegacyClaim.
   get findClaimingMember() { return db.prepare(`
     SELECT id, slug, real_name, legacy_member_id, historical_person_id,
-           login_email_normalized, email_verified_at, birth_date
+           login_email_normalized, email_verified_at, birth_date, country
     FROM members
     WHERE id = ?
       AND deleted_at IS NULL

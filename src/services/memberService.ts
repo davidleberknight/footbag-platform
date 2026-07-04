@@ -89,6 +89,7 @@ import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { getTierStatus, type MemberTier, type UnderlyingTier } from './membershipTieringService';
 import { getStatus as getActivePlayerStatus } from './activePlayerService';
+import { mayCreateClub } from './tierPredicates';
 import { mediaService, type ProfileMediaView } from './mediaService';
 import { formatDateDisplay } from './dateFormat';
 
@@ -289,8 +290,8 @@ export interface OwnProfileContent {
   claimedLegacyIdentities?: ClaimedLegacyIdentityView[];
   /** Onboarding-task widget for the personal dashboard. Null when the
    * member has no onboarding-task rows yet (pre-task-list bootstrap state).
-   * Per M_Complete_Onboarding_Wizard the widget surfaces pending, paused
-   * (detoured), and completed tasks with pre-shaped CTA labels. */
+   * The widget surfaces the member's outstanding onboarding tasks with
+   * pre-shaped CTA labels; a completed task is removed from it. */
   dashboardTasks?: DashboardTaskWidget | null;
   myClubs?: MyClubsView;
   /** Thumbnail preview of the member's own uploaded media. */
@@ -454,6 +455,7 @@ function buildMemberHeroData(row: MemberProfileRow): PlayerHeroData {
     honorificNickname:    row.historical_bap_nickname ?? undefined,
     isHof:                Boolean(row.is_hof),
     isBap:                Boolean(row.is_bap),
+    isBoard:              Boolean(row.is_board),
     hofInductionYear:     row.historical_hof_induction_year ?? undefined,
     bapInductionYear:     row.historical_bap_induction_year ?? undefined,
     historicalPersonName: resolveHistoricalName(row),
@@ -781,7 +783,7 @@ export const memberService = {
         profileBase: `/members/${slug}`,
         eventGroups,
         membership:   buildTierStatusView(row.id, slug),
-        identity:     buildIdentityLinkView(row.id, slug),
+        identity:     buildIdentityLinkView(row.id),
         quickActions: buildQuickActions(slug),
         search,
         comingSoon:   COMING_SOON_FEATURES,
@@ -877,7 +879,11 @@ export const memberService = {
     avatarSuccess?: string,
   ): PageViewModel<ProfileEditContent> {
     const row = fetchMemberBySlug(slug);
-    const cta = buildIdentityCta(row.legacy_member_id !== null, row.historical_person_id !== null, slug);
+    const cta = buildIdentityCta(
+      row.legacy_member_id !== null,
+      row.historical_person_id !== null,
+      memberOnboardingService.isOnboardingComplete(row.id),
+    );
     return {
       seo:  { title: 'Edit Profile' },
       page: { sectionKey: 'members', pageKey: 'member_profile_edit', title: 'Edit Profile' },
@@ -974,6 +980,20 @@ export const memberService = {
     if (bio.length > MAX_BIO) {
       throw new ValidationError(`Bio must be ${MAX_BIO} characters or fewer.`);
     }
+    // City and country are mandatory profile fields. This edit path is reachable
+    // during onboarding (it is ungated), so without this check a member could
+    // save a profile with the required location fields blank. The edit form
+    // pre-fills both from the stored values, so a genuine save always carries
+    // them; only a deliberately-blanked submission is rejected here.
+    if (!city || !country) {
+      throw new ValidationError(
+        !city && !country
+          ? 'City and country are required.'
+          : !city
+            ? 'City is required.'
+            : 'Country is required.',
+      );
+    }
 
     // Validate links (network I/O) before the transaction; the write is sync.
     const validatedLinks = await validateMemberLinks(input.links);
@@ -1011,7 +1031,15 @@ export const memberService = {
           i,
         );
       });
-      memberOnboardingService.completeTaskIfOutstanding(row.id, 'personal_details');
+      // Complete the required onboarding task only when the profile now carries
+      // every field the wizard's personal_details step requires. City and
+      // country are validated as required above; date of birth is collected only
+      // by the wizard step, so a member who reached this page without completing
+      // that step — birth_date still unset — stays on the task instead of
+      // finishing onboarding with mandatory data missing.
+      if (city && country && row.birth_date) {
+        memberOnboardingService.completeTaskIfOutstanding(row.id, 'personal_details');
+      }
       auditProfileUpdate(row.id, [
         'bio', 'city', 'region', 'country', 'phone', 'whatsapp', 'emailVisibility',
         'phoneVisible', 'whatsappVisible', 'searchable',
@@ -1107,6 +1135,12 @@ export const memberService = {
       const parsed = new Date(rawDob + 'T00:00:00Z');
       if (isNaN(parsed.getTime())) {
         throw new ValidationError('Date of birth is not a valid date.');
+      }
+      // JS Date silently rolls an impossible day-of-month forward (Feb 30 -> Mar 1)
+      // rather than returning NaN, so re-serialize the parsed UTC date and reject
+      // when it does not round-trip to the submitted string.
+      if (parsed.toISOString().slice(0, 10) !== rawDob) {
+        throw new ValidationError('Date of birth is not a valid calendar date.');
       }
       if (parsed.getFullYear() < 1900) {
         throw new ValidationError('Date of birth must be after 1900.');
@@ -1436,7 +1470,7 @@ function buildQuickActions(slug: string): QuickAction[] {
 
 const COMING_SOON_FEATURES: ComingSoonFeature[] = [
   { label: 'My Events',           description: 'View your upcoming registrations and past event history.' },
-  { label: 'Payments & Donations', description: 'View your payment history and donation receipts.' },
+  { label: 'Donations', description: 'View your donation receipts.' },
   { label: 'Voting & HoF',        description: 'Participate in active IFPA votes and Hall of Fame nominations.' },
   { label: 'Email Subscriptions', description: 'Manage your email notifications and preferences.' },
 ];
@@ -1473,9 +1507,11 @@ function buildMyClubsView(memberId: string): MyClubsView {
   const tier = getTierStatus(memberId);
   const hasTier1Benefits = tier != null && tier.tier_status !== 'tier0';
   // Volunteering to co-lead follows the Tier-1-benefits rule (Tier 1+ OR an
-  // active Active-Player period), which is broader than the tier-only gate
-  // used for club creation above.
+  // active Active-Player period).
   const volunteerBenefits = hasTier1Benefits || getActivePlayerStatus(memberId).is_active_player === 1;
+  // Creating a club uses the bootstrap eligibility: Tier 1 benefits, or a Tier 0
+  // member who has never held Active Player (create grants the one-time period).
+  const canCreateClubBenefits = mayCreateClub(memberId);
   const coLeadsAnyClub = clubLeaders.memberCoLeadsAnyClub.get(memberId) != null;
 
   const clubViews: MyClubsClubView[] = rows.map((r) => {
@@ -1523,14 +1559,14 @@ function buildMyClubsView(memberId: string): MyClubsView {
   return {
     clubs: clubViews,
     canAddClub: rows.length < 2,
-    canCreateClub: hasTier1Benefits && !coLeadsAnyClub,
+    canCreateClub: canCreateClubBenefits && !coLeadsAnyClub,
     canSwapPrimary: rows.length === 2,
     browseClubsHref: '/clubs',
-    createClubHref: hasTier1Benefits && !coLeadsAnyClub ? '/clubs/create' : null,
+    createClubHref: canCreateClubBenefits && !coLeadsAnyClub ? '/clubs/create' : null,
     swapPrimaryHref: rows.length === 2 ? '/clubs/swap-primary' : null,
-    // A club-less member below Tier 1 cannot create a club; surface the
-    // requirement instead of hiding the create path entirely.
-    showCreateTierNote: rows.length === 0 && !hasTier1Benefits,
+    // A club-less member ineligible to create a club (a lapsed-AP Tier 0 member)
+    // sees the requirement instead of the create path being hidden entirely.
+    showCreateTierNote: rows.length === 0 && !canCreateClubBenefits,
     nearbySuggestions,
   };
 }
@@ -1590,8 +1626,13 @@ async function validateMemberLinks(
 function buildIdentityCta(
   legacyLinked: boolean,
   hpLinked: boolean,
-  _slug?: string,
+  onboardingComplete: boolean,
 ): IdentityLinkView['cta'] {
+  // Self-serve identity linking is wizard-bounded. Once onboarding is complete
+  // there is no self-serve claim path; a member links a further legacy account
+  // or historical record through the admin help request (the Contact IFPA admin
+  // link on this page), so the claim CTA is not offered here.
+  if (onboardingComplete) return null;
   if (legacyLinked && hpLinked) return null;
   // CTA target is the onboarding wizard's legacy_claim task, which renders
   // the unified candidate list and manual-id input for whichever linkage is
@@ -1605,7 +1646,7 @@ function buildIdentityCta(
   return { href, label };
 }
 
-function buildIdentityLinkView(memberId: string, slug: string): IdentityLinkView {
+function buildIdentityLinkView(memberId: string): IdentityLinkView {
   const row = runSqliteRead('findIdentityLinks', () =>
     account.findIdentityLinks.get(memberId),
   ) as IdentityLinksRow | undefined;
@@ -1625,6 +1666,6 @@ function buildIdentityLinkView(memberId: string, slug: string): IdentityLinkView
         ? `/history/${encodeURIComponent(row.historical_person_id)}`
         : null,
     },
-    cta: buildIdentityCta(legacyLinked, hpLinked, slug),
+    cta: buildIdentityCta(legacyLinked, hpLinked, memberOnboardingService.isOnboardingComplete(memberId)),
   };
 }

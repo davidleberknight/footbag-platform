@@ -123,6 +123,28 @@ describe('requireOnboardingComplete — membership gate', () => {
     expect(res.status).not.toBe(303);
   });
 
+  it('club detail / country browse (GET /clubs/:key) stays reachable mid-onboarding', async () => {
+    // The wizard club wrap-up links members to /clubs/{country}, so the gate
+    // must not fence the single-segment club/country read; fencing it bounces
+    // the member back to the wizard the link came from.
+    const memberId = insertMember(testDb, { slug: 'gate_club_detail' });
+    const res = await request(createApp())
+      .get('/clubs/some-country-or-club')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.headers.location ?? '').not.toContain('/register/wizard/');
+  });
+
+  it('club create (GET /clubs/create) stays fenced mid-onboarding', async () => {
+    // The single-segment browse exemption must not leak the create capability,
+    // which shares the /clubs/<segment> shape.
+    const memberId = insertMember(testDb, { slug: 'gate_club_create_fenced' });
+    const res = await request(createApp())
+      .get('/clubs/create')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toContain('/register/wizard/');
+  });
+
   it('own profile stays reachable mid-onboarding (whitelisted)', async () => {
     const memberId = insertMember(testDb, { slug: 'gate_own_profile' });
     const res = await request(createApp())
@@ -142,5 +164,19 @@ describe('requireOnboardingComplete — membership gate', () => {
       .set('Cookie', cookieFor(adminId));
     expect(res.headers.location ?? '').not.toContain('/register/wizard/');
     expect(res.status).not.toBe(303);
+  });
+});
+
+describe('wizard complete page — no false completion on zero task rows', () => {
+  it('a member with zero task rows is routed to an outstanding task, not shown the complete page', async () => {
+    // With no task rows materialized, the outstanding set is empty and would read
+    // as "all done" — a false completion page while the gate still blocks every
+    // capability route. The complete handler must materialize the task list first.
+    const memberId = insertMember(testDb, { slug: 'complete_zero_rows' });
+    const res = await request(createApp())
+      .get('/register/wizard/complete')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toContain('/register/wizard/');
   });
 });

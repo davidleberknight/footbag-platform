@@ -71,7 +71,7 @@ describe('Oversized payloads', () => {
       .post(`/members/${MEMBER_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: atMax, firstCompetitionYear: '', showCompetitiveResults: 'on' });
+      .send({ bio: atMax, city: 'Portland', country: 'USA', firstCompetitionYear: '', showCompetitiveResults: 'on' });
     expect(res.status).toBeLessThan(400);
   });
 
@@ -157,7 +157,7 @@ describe('Unicode adversarial input', () => {
         .post(`/members/${MEMBER_SLUG}/edit`)
         .set('Cookie', ownCookie())
         .type('form')
-        .send({ bio: p.bio, firstCompetitionYear: '', showCompetitiveResults: 'on' });
+        .send({ bio: p.bio, city: 'Portland', country: 'USA', firstCompetitionYear: '', showCompetitiveResults: 'on' });
       expect(saveRes.status).toBeLessThan(500);
 
       // Fetch profile edit form; the server must render without error.

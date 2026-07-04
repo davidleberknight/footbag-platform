@@ -33,6 +33,7 @@ import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
 import { getResolvableTrickSlugs } from './freestyleResolvableSlugs';
 import { identityAccessService } from './identityAccessService';
+import { memberOnboardingService } from './memberOnboardingService';
 
 interface HistoricalPlayer {
   personId: string;
@@ -202,17 +203,20 @@ export const historyService = {
     });
 
     // Claim eligibility for the authenticated viewer (scenarios D and E).
-    // Show the CTA when: viewer is signed in, viewer has no HP linked yet,
-    // HP is unclaimed (the `linkedRow` above already redirected claimed HPs),
-    // and the viewer's current OR declared-former surname matches the HP's
-    // person_name surname (same predicate the claim execution gate uses).
-    // A record marked deceased is not self-claimable: a living member cannot
-    // claim a deceased person's identity, so the CTA is suppressed regardless
-    // of surname match.
+    // Self-serve claiming is wizard-bounded: the CTA appears only while the
+    // viewer is still completing onboarding, so this page routes an onboarding
+    // member into the claim flow rather than offering a second, standing claim
+    // path. Once onboarding is complete there is no self-serve claim CTA; a
+    // member links a further identity through the admin help request. The other
+    // conditions: viewer is signed in, viewer has no HP linked yet, HP is
+    // unclaimed (the `linkedRow` above already redirected claimed HPs), and the
+    // viewer's current OR declared-former surname matches the HP's person_name
+    // surname (same predicate the claim execution gate uses). A record marked
+    // deceased is not self-claimable, so the CTA is suppressed regardless.
     const hpIsDeceased = Boolean(p['is_deceased']);
     let canClaim = false;
     let claimHref: string | null = null;
-    if (viewerMemberId && !hpIsDeceased) {
+    if (viewerMemberId && !hpIsDeceased && !memberOnboardingService.isOnboardingComplete(viewerMemberId)) {
       const viewerRow = runSqliteRead('findClaimingMemberForHpCta', () =>
         legacyClaim.findClaimingMember.get(viewerMemberId),
       ) as { id: string; real_name: string; historical_person_id: string | null } | undefined;

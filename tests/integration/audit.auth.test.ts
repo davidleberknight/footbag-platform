@@ -119,9 +119,10 @@ describe('audit_entries — register', () => {
     expect(exists?.ok).toBe(1);
   });
 
-  it('duplicate-email POST /register → 422 validation error, no new audit row', async () => {
+  it('duplicate-email POST /register → enumeration-safe 303, no auth.register row, one auth.register_duplicate_email row', async () => {
     const app = createApp();
-    const before = readAudits({ action_type: 'auth.register' }).length;
+    const beforeRegister = readAudits({ action_type: 'auth.register' }).length;
+    const beforeDuplicate = readAudits({ action_type: 'auth.register_duplicate_email' }).length;
     const res = await request(app)
       .post('/register')
       .type('form')
@@ -132,9 +133,13 @@ describe('audit_entries — register', () => {
         realName: 'Someone Else',
         displayName: 'Someone Else',
       });
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('already exists');
-    expect(readAudits({ action_type: 'auth.register' }).length).toBe(before);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/check-email');
+    expect(res.text).not.toContain('already exists');
+    // No new account was created, so no auth.register row; the duplicate attempt
+    // is recorded under its own action_type against the existing member.
+    expect(readAudits({ action_type: 'auth.register' }).length).toBe(beforeRegister);
+    expect(readAudits({ action_type: 'auth.register_duplicate_email' }).length).toBe(beforeDuplicate + 1);
   });
 });
 

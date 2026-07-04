@@ -33,6 +33,10 @@
  *   - HoF/BAP grant on a Tier 3 member writes `governance_set` updating
  *     `new_underlying_tier_status = tier2`; otherwise writes a plain Tier 2 grant.
  *   - Refund does not write a `revoke` row.
+ *   - A legacy-claim grant never lowers the member's tier: a member's claimed
+ *     bases are evaluated together, so a lower later source never discards a
+ *     higher tier an earlier claimed source conferred (a floor guard mirroring
+ *     the purchase grant). A marker row is still written for every claim.
  *   - Admin-role grant requires the target currently hold Tier 2 or Tier 3
  *     (checked at request time); it sets `is_admin=1`, appends an admin-actor
  *     audit row, and subscribes the member to `admin-alerts`, all in one
@@ -647,16 +651,25 @@ export function applyHonorGrant(
  * logic: every claim produces a marker row even when the resulting tier does
  * not change.
  *
- * Maps the legacy standing to a tier by precedence (first match wins):
+ * Maps this claim's legacy standing to a tier by precedence (first match wins):
  *   - HoF or BAP, or ever paid Tier 2 → `tier2`
  *   - bought Tier 1 Lifetime, or Tier 1 Annual active at cutover → `tier1`
  *   - none of these → `tier0`
  * An account with only honors grants on honors alone, one outcome of the same
  * mapping. Board / Tier 3 is a separate concern and is not granted here.
  *
+ * A claim never lowers the member's tier. When a member claims more than one
+ * source (e.g. a paid legacy account and, separately, their own competition
+ * record with no back-link), the bases are evaluated together in precedence
+ * order, so a later source that maps lower must not discard the higher tier an
+ * earlier claimed source already conferred. The current tier already reflects
+ * every prior claim grant (`member_tier_current` is last-write-wins), so the
+ * granted tier is the higher of this claim's mapped tier and the current tier —
+ * the same floor guard `applyPurchaseGrant` uses.
+ *
  * Caller owns the transaction so the grant is atomic with the merge writes.
- * Tier 0 grants are written even when current is already Tier 0, so the
- * ledger carries a marker row for every claim. AP is ended only on an
+ * A marker row is written for every claim even when the resulting tier does not
+ * change, so the ledger carries one row per claim. AP is ended only on an
  * actual upgrade out of Tier 0 (same rule as `applyPurchaseGrant`).
  */
 export function applyLegacyClaimGrantInTx(
@@ -668,12 +681,16 @@ export function applyLegacyClaimGrantInTx(
   const now = new Date().toISOString();
   const current = getCurrent(memberId);
   const { hasHof, hasBap, everPaidTier2, everPaidTier1Lifetime, tier1AnnualActive } = standings;
-  const targetTier: MemberTier =
+  const claimBasisTier: MemberTier =
     (hasHof || hasBap || everPaidTier2) ? 'tier2'
       : (everPaidTier1Lifetime || tier1AnnualActive) ? 'tier1'
         : 'tier0';
+  // Never write below the member's current tier: an earlier claimed source may
+  // already entitle them to a higher tier this claim's basis alone would discard.
+  const grantTier: MemberTier =
+    TIER_RANK[claimBasisTier] > TIER_RANK[current.tier_status] ? claimBasisTier : current.tier_status;
 
-  if (current.tier_status === 'tier0' && targetTier !== 'tier0') {
+  if (current.tier_status === 'tier0' && grantTier !== 'tier0') {
     endOnTierUpgrade(memberId, now);
   }
 
@@ -682,9 +699,9 @@ export function applyLegacyClaimGrantInTx(
     memberId,
     changeType:       'grant',
     oldTier:          current.tier_status,
-    newTier:          targetTier,
-    oldUnderlying:    null,
-    newUnderlying:    null,
+    newTier:          grantTier,
+    oldUnderlying:    current.underlying_tier_status,
+    newUnderlying:    grantTier === 'tier3' ? current.underlying_tier_status : null,
     reasonCode:       'legacy.claim_tier_grant',
     reasonText:       null,
     relatedPaymentId: null,
@@ -701,7 +718,8 @@ export function applyLegacyClaimGrantInTx(
     metadata: {
       ...metadata,
       from:                     current.tier_status,
-      to:                       targetTier,
+      to:                       grantTier,
+      claim_basis_tier:         claimBasisTier,
       has_hof:                  hasHof,
       has_bap:                  hasBap,
       ever_paid_tier2:          everPaidTier2,

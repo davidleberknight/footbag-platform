@@ -33,6 +33,7 @@ export interface PlayerHeroData {
   honorificNickname?: string;
   isHof: boolean;
   isBap: boolean;
+  isBoard?: boolean;
   hofInductionYear?: number;
   bapInductionYear?: number;
   historicalPersonName?: string | null;

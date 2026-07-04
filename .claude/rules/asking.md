@@ -80,7 +80,8 @@ back, or decoding a label. Before any message containing "?":
    its own merit.
 
 A Stop hook (`.claude/hooks/guard-question-quality.sh`) blocks a question still carrying a
-code or state number; it is a backstop, not the standard.
+section sign, a state number, a documentation-file pointer, or a code used as a bare label;
+it is a backstop, not the standard.
 
 ## Subagents
 

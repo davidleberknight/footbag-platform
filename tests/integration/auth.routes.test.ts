@@ -198,6 +198,54 @@ describe('POST /login — DB-backed auth', () => {
       restoreDb.close();
     }
   });
+
+  it('per-account login bucket engages independently of the per-(email,IP) bucket', async () => {
+    // Tune the per-account cap (3) below the per-(email,IP) cap (10) so the
+    // per-account bucket is the one that trips. Without a per-account bucket,
+    // all these single-IP attempts would stay under the 10-attempt per-(email,IP)
+    // limit and return 200; the 429 proves the account-scoped bucket exists and
+    // is enforced separately (it is keyed on the account only, not email+IP).
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'login_account_rate_limit_max_attempts', '3', ?, 'Test per-account bucket', NULL)
+    `).run(
+      'test-login-account-rl-tune',
+      '2026-05-22T00:00:02.000Z',
+      '2026-05-22T00:00:02.000Z',
+    );
+    tuneDb.close();
+    try {
+      const ACCOUNT_EMAIL = 'account-bucket-test@example.com';
+      for (let i = 0; i < 3; i++) {
+        const ok = await request(app)
+          .post('/login')
+          .type('form')
+          .send({ email: ACCOUNT_EMAIL, password: 'wrong-password' });
+        expect(ok.status, `attempt ${i + 1} under the per-account cap`).toBe(200);
+      }
+      const blocked = await request(app)
+        .post('/login')
+        .type('form')
+        .send({ email: ACCOUNT_EMAIL, password: 'wrong-password' });
+      expect(blocked.status).toBe(429);
+      expect(blocked.text).toContain('Too many failed login attempts');
+      expect(blocked.headers['retry-after']).toBeDefined();
+    } finally {
+      const restoreDb = new BetterSqlite3(TEST_DB_PATH);
+      restoreDb.prepare(`
+        INSERT INTO system_config
+          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+        VALUES (?, ?, 'login_account_rate_limit_max_attempts', '30', ?, 'Test restore', NULL)
+      `).run(
+        'test-login-account-rl-restore',
+        '2026-05-22T00:00:03.000Z',
+        '2026-05-22T00:00:03.000Z',
+      );
+      restoreDb.close();
+    }
+  });
 });
 
 describe('POST /login — returnTo open-redirect defenses (isSafePath)', () => {

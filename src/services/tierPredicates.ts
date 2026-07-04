@@ -17,7 +17,7 @@
  */
 import { account } from '../db/db';
 import { getTierStatus } from './membershipTieringService';
-import { getStatus as getActivePlayerStatus } from './activePlayerService';
+import { getStatus as getActivePlayerStatus, hasEverHeldActivePlayer } from './activePlayerService';
 import { NotFoundError } from './serviceErrors';
 
 interface IsAdminRow {
@@ -44,6 +44,20 @@ export function hasTier1Benefits(memberId: string): boolean {
   if (tier === null) return false;
   if (tier !== 'tier0') return true;
   return getActivePlayerStatus(memberId).is_active_player === 1;
+}
+
+/**
+ * Create-club eligibility. A member may create a club if they hold Tier 1
+ * benefits (Tier 1+, admin, or a Tier 0 member with an active Active Player
+ * period), OR are a Tier 0 member who has never held Active Player — for whom
+ * creating a first club grants the one-time Active Player period on create (the
+ * same bootstrap as a first club join). Only a lapsed-AP Tier 0 member (the
+ * one-time grant already spent, now inactive) is denied.
+ */
+export function mayCreateClub(memberId: string): boolean {
+  if (hasTier1Benefits(memberId)) return true;
+  if (safeTierStatus(memberId) !== 'tier0') return false;
+  return !hasEverHeldActivePlayer(memberId);
 }
 
 export function isTier2Plus(memberId: string): boolean {

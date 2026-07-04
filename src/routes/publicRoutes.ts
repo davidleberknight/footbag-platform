@@ -27,7 +27,7 @@ import { ifpaController } from '../controllers/ifpaController';
 import { legalController } from '../controllers/legalController';
 import { tagSuggestController } from '../controllers/tagSuggestController';
 import { requireAuth } from '../middleware/auth';
-import { requireTier1Benefits } from '../middleware/requireTier';
+import { requireTier1Benefits, requireMayCreateClub } from '../middleware/requireTier';
 import { requireOnboardingComplete } from '../middleware/requireOnboardingComplete';
 
 export const publicRouter = Router();
@@ -42,7 +42,7 @@ publicRouter.get(['/forum', '/forum/*', '/forums', '/forums/*'], legacyRedirectC
 publicRouter.get('/clubs',                  clubController.index);
 publicRouter.post('/clubs/swap-primary',    requireAuth, clubController.postSwapPrimary);
 publicRouter.get('/clubs/create',           requireAuth, clubController.getCreate);
-publicRouter.post('/clubs/create',          requireAuth, requireTier1Benefits(), clubController.postCreate);
+publicRouter.post('/clubs/create',          requireAuth, requireMayCreateClub(), clubController.postCreate);
 publicRouter.get('/clubs/:key',             clubController.byKey);
 publicRouter.post('/clubs/:key/join',           requireAuth, clubController.postJoin);
 publicRouter.post('/clubs/:key/leave',          requireAuth, clubController.postLeave);
@@ -240,6 +240,8 @@ publicRouter.post('/register/wizard/legacy_claim/claim/confirm',        requireA
 publicRouter.post('/register/wizard/legacy_claim/anchors/add',          requireAuth, memberOnboardingController.postAddAnchor);
 publicRouter.post('/register/wizard/legacy_claim/anchors/remove',       requireAuth, memberOnboardingController.postRemoveAnchor);
 publicRouter.post('/register/wizard/club_affiliations/submit',          requireAuth, memberOnboardingController.postClubAffiliationsSubmit);
+publicRouter.get('/register/wizard/club_affiliations/detour',           requireAuth, memberOnboardingController.getClubDetour);
+publicRouter.post('/register/wizard/club_affiliations/dismiss',         requireAuth, memberOnboardingController.postClubDismiss);
 publicRouter.post('/register/wizard/:taskType/skip',                    requireAuth, memberOnboardingController.postSkip);
 publicRouter.get('/register/wizard/complete',                           requireAuth, memberOnboardingController.getComplete);
 publicRouter.get('/register/wizard/:taskType',                          requireAuth, memberOnboardingController.getTask);

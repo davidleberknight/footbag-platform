@@ -56,12 +56,15 @@ function readLinks(memberId: string): Array<Record<string, unknown>> {
   return rows;
 }
 
+// City and country are mandatory profile fields; the pre-filled edit form
+// always carries them, so the helper supplies valid defaults while these cases
+// exercise the external-links behavior.
 function postEdit(slug: string, memberId: string, fields: Record<string, unknown>): request.Test {
   return request(createApp())
     .post(`/members/${slug}/edit`)
     .set('Cookie', cookie(memberId))
     .type('form')
-    .send(fields);
+    .send({ city: 'Portland', country: 'USA', ...fields });
 }
 
 beforeAll(async () => {

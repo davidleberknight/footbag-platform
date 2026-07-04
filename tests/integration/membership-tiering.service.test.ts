@@ -318,8 +318,13 @@ describe('applyHonorGrant', () => {
   });
 
   it('HoF grant on a Tier 3 member words the honor as setting the underlying tier', () => {
+    // A Tier 3 member is the only precondition this asserts; reach it with one
+    // governance grant. Two same-member tier grants can share a wall-clock
+    // millisecond, and member_tier_current breaks that created_at tie by grant
+    // id, which is random within a millisecond (UUIDv7 random tail) — so a
+    // purchase-then-governance setup resolves the current tier nondeterministically.
+    // Real flows never write two tier grants for one member a millisecond apart.
     const id = freshMember();
-    mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier1'), 'tier1');
     mts.setGovernanceTier3(ADMIN_ID, id);
 
     mts.applyHonorGrant(ADMIN_ID, id, 'hof');
@@ -522,6 +527,41 @@ describe('applyAutoLinkRevertGrantInTx', () => {
     expect(mts.getTierStatus(id)).toEqual({
       tier_status: 'tier3',
       underlying_tier_status: 'tier2',
+    });
+  });
+});
+
+describe('applyLegacyClaimGrantInTx tier floor guard', () => {
+  it('a second lower-basis claim does not lower a tier an earlier claim conferred', () => {
+    const id = freshMember();
+    // First source: a paid Tier 2 legacy account.
+    mts.applyLegacyClaimGrantInTx(id, id, { hasHof: false, hasBap: false, everPaidTier2: true, everPaidTier1Lifetime: false, tier1AnnualActive: false }, {});
+    expect(mts.getTierStatus(id).tier_status).toBe('tier2');
+
+    // Second source: the member's own competition record with no legacy
+    // back-link, so its standings map to tier0. The union of claimed bases is
+    // still Tier 2; the lower later source must not discard it.
+    mts.applyLegacyClaimGrantInTx(id, id, { hasHof: false, hasBap: false, everPaidTier2: false, everPaidTier1Lifetime: false, tier1AnnualActive: false }, {});
+
+    expect(mts.getTierStatus(id).tier_status).toBe('tier2');
+    // The marker row is still written every claim, floored to the current tier.
+    expect(tierGrants(id).at(-1)).toMatchObject({
+      change_type: 'grant',
+      old_tier_status: 'tier2',
+      new_tier_status: 'tier2',
+      reason_code: 'legacy.claim_tier_grant',
+    });
+  });
+
+  it('still applies a genuine upgrade (a Tier 0 member claims a Tier 2 basis)', () => {
+    const id = freshMember();
+    mts.applyLegacyClaimGrantInTx(id, id, { hasHof: false, hasBap: false, everPaidTier2: true, everPaidTier1Lifetime: false, tier1AnnualActive: false }, {});
+    expect(mts.getTierStatus(id).tier_status).toBe('tier2');
+    expect(tierGrants(id).at(-1)).toMatchObject({
+      change_type: 'grant',
+      old_tier_status: 'tier0',
+      new_tier_status: 'tier2',
+      reason_code: 'legacy.claim_tier_grant',
     });
   });
 });

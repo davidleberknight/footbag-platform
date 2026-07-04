@@ -2741,6 +2741,8 @@ VALUES
 --   login_rate_limit_max_attempts   Max failed login attempts before account lockout
 --   login_rate_limit_window_minutes Sliding window (minutes) for failed login counting
 --   login_cooldown_minutes          Lockout duration (minutes) after rate-limit exceeded
+--   login_account_rate_limit_max_attempts    Max login attempts per account across all IPs per window (distributed credential-stuffing cap)
+--   login_account_rate_limit_window_minutes  Sliding window (minutes) for the per-account login cap
 --   password_reset_rate_limit_max_attempts  Max password reset requests per window
 --   password_reset_rate_limit_window_minutes Window for password reset rate limiting
 --   password_change_rate_limit_max_attempts  Max authenticated password-change attempts per window
@@ -2751,6 +2753,9 @@ VALUES
 --   legacy_claim_init_rate_limit_max_per_target  Max legacy-claim emails per target legacy_member_id per window (silent)
 --   legacy_claim_init_rate_limit_max_per_ip      Max legacy-claim initiate attempts per source IP per window (silent)
 --   legacy_claim_init_rate_limit_window_minutes  Sliding window for legacy-claim initiate rate limiting
+--   hp_claim_rate_limit_max_per_member  Max direct historical-person claim confirms per member per window
+--   hp_claim_rate_limit_max_per_ip      Max direct historical-person claim confirms per source IP per window
+--   hp_claim_rate_limit_window_minutes  Sliding window for direct historical-person claim rate limiting
 --   jwt_expiry_hours                Main site session JWT lifetime (hours)
 --   photo_upload_rate_limit_per_hour Max photo uploads per member per hour
 --   video_submission_rate_limit_per_hour Max video submissions per member per hour
@@ -2956,6 +2961,24 @@ VALUES
   ),
 
   (
+   'seed-login-account-rate-limit-max-attempts',
+   '2000-01-01T00:00:00.000Z',
+   'login_account_rate_limit_max_attempts', '30',
+   '2000-01-01T00:00:00.000Z',
+   'Max login attempts per account across all source IPs within the window, capping distributed credential-stuffing of one account (default: 30).',
+   NULL
+  ),
+
+  (
+   'seed-login-account-rate-limit-window-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'login_account_rate_limit_window_minutes', '60',
+   '2000-01-01T00:00:00.000Z',
+   'Sliding window in minutes for the per-account login cap (default: 60).',
+   NULL
+  ),
+
+  (
    'seed-password-reset-rate-limit-max-attempts',
    '2000-01-01T00:00:00.000Z',
    'password_reset_rate_limit_max_attempts', '5',
@@ -3042,6 +3065,33 @@ VALUES
    'legacy_claim_init_rate_limit_window_minutes', '60',
    '2000-01-01T00:00:00.000Z',
    'Sliding window in minutes for legacy-claim initiate rate limiting (default: 60).',
+   NULL
+  ),
+
+  (
+   'seed-hp-claim-rate-limit-max-per-member',
+   '2000-01-01T00:00:00.000Z',
+   'hp_claim_rate_limit_max_per_member', '5',
+   '2000-01-01T00:00:00.000Z',
+   'Max direct historical-person claim confirms per requesting member per window (default: 5).',
+   NULL
+  ),
+
+  (
+   'seed-hp-claim-rate-limit-max-per-ip',
+   '2000-01-01T00:00:00.000Z',
+   'hp_claim_rate_limit_max_per_ip', '10',
+   '2000-01-01T00:00:00.000Z',
+   'Max direct historical-person claim confirms per source IP per window (default: 10).',
+   NULL
+  ),
+
+  (
+   'seed-hp-claim-rate-limit-window-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'hp_claim_rate_limit_window_minutes', '60',
+   '2000-01-01T00:00:00.000Z',
+   'Sliding window in minutes for direct historical-person claim rate limiting (default: 60).',
    NULL
   ),
 

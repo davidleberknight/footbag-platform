@@ -62,14 +62,6 @@
       {{/if}}
     {{/if}}
 
-    {{#if content.noMatchNotice}}
-      <p class="form-notice" role="alert">
-        That identifier didn't match an eligible record.
-        {{#if content.noMatchTried}} You tried: <code>{{content.noMatchTried}}</code>.{{/if}}
-        Try another, or pick a suggested match below if any are listed.
-      </p>
-    {{/if}}
-
     {{#if content.candidates.length}}
       <h2>Suggested matches</h2>
       <ul class="candidate-list">

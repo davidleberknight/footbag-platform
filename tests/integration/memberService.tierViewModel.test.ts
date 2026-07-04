@@ -153,7 +153,7 @@ describe('getOwnProfile().content.comingSoon', () => {
     const labels = vm.content.comingSoon!.map((f) => f.label);
     expect(labels).toEqual([
       'My Events',
-      'Payments & Donations',
+      'Donations',
       'Voting & HoF',
       'Email Subscriptions',
     ]);

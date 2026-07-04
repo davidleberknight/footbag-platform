@@ -88,6 +88,61 @@ expect "$H" 'echo hello' defer
 expect "$H" 'cat a.txt | wc -l' defer
 expect "$H" 'find src -name "*.ts"' defer
 
+H=guard-full-suite-vitest.sh
+
+# A full-suite vitest run (no tests/ path, no --exclude) must ask so the operator
+# takes the standard `npm test` path; targeted and excluded runs, and npm scripts,
+# defer.
+expect "$H" 'npx vitest run' ask
+expect "$H" 'vitest run' ask
+expect "$H" 'node_modules/.bin/vitest run' ask
+expect "$H" 'LOG_LEVEL=info npx vitest run -t "a name"' ask
+expect "$H" 'npx vitest run tests/integration/x.test.ts' defer
+expect "$H" "npx vitest run --exclude 'tests/smoke/**'" defer
+expect "$H" 'npm test' defer
+expect "$H" 'npm run test:integration' defer
+expect "$H" './run_all_tests.sh' defer
+expect "$H" 'npx tsc -p tsconfig.json' defer
+
+# guard-question-quality.sh is a Stop hook, not a PreToolUse hook: it reads the
+# last assistant message from a transcript file and blocks a question that carries
+# internal shorthand the reader was never handed. Drive it with a synthetic
+# one-message transcript and assert block-vs-defer.
+Q=guard-question-quality.sh
+expect_q() {
+  local text="$1" want="$2" tr ev out got
+  tr="$(mktemp)"
+  jq -cn --arg t "$text" '{type:"assistant",message:{content:[{type:"text",text:$t}]}}' > "$tr"
+  ev="$(jq -cn --arg p "$tr" '{transcript_path:$p,stop_hook_active:false}')"
+  out="$(printf '%s' "$ev" | ".claude/hooks/$Q")"
+  if printf '%s' "$out" | grep -q '"block"'; then got=block; else got=defer; fi
+  rm -f "$tr"
+  if [ "$got" != "$want" ]; then
+    echo "[hooks] FAIL ($Q): want $want, got $got: $text" >&2
+    fail=1
+  fi
+}
+
+# Assemble the gate- and finding-style code tokens at runtime, so the committed
+# fixture holds no literal code of the shape the hook flags; each becomes a real
+# code shape only when the test runs.
+gate="OR$(( 6 + 12 ))"
+finding="UX-C$(( 1 + 2 ))"
+
+# Blocked: a question carrying internal shorthand the reader was not given.
+expect_q 'Should I apply the fix from the section marked §4.2 now?' block
+expect_q 'Do we cut over at State 4 or wait?' block
+expect_q 'Should I read docs/MIGRATION_PLAN.md before deciding?' block
+expect_q "**${gate}** -- run this gate now or defer?" block
+expect_q "- ${finding}: is this the real blocker?" block
+# Deferred: a self-contained question, or a code merely mentioned inline (not a label).
+expect_q 'Should I open a follow-up for the ledger tiebreak, yes or no?' defer
+expect_q "We could fold this into ${gate} later; ship the fix now?" defer
+expect_q 'Should the S3 bucket stay private?' defer
+expect_q 'I applied the fix and verified it end to end.' defer
+# Not a question at all: never enforced.
+expect_q 'State 4 is where the cutover lands.' defer
+
 if [ "$fail" -ne 0 ]; then
   echo "[hooks] FAIL: one or more hook fixtures failed." >&2
   exit 1

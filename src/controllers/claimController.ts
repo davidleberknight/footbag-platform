@@ -4,7 +4,7 @@ import {
   ClaimHpConfirmContent,
 } from '../services/identityAccessService';
 import { memberOnboardingService } from '../services/memberOnboardingService';
-import { ValidationError } from '../services/serviceErrors';
+import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { logger } from '../config/logger';
 import { PageViewModel } from '../types/page';
 
@@ -30,6 +30,19 @@ function renderHpClaimUnavailable(res: Response, personId: string): void {
   });
 }
 
+// Self-serve claiming is wizard-bounded: it is the way a member finishes
+// onboarding. Once onboarding is complete there is no self-serve claim path;
+// a member who needs to link a legacy account or a historical record does so by
+// requesting it from an admin. A completed member reaching this route is routed
+// to that request form rather than applying a claim.
+function claimingIsClosed(req: Request): boolean {
+  return memberOnboardingService.isOnboardingComplete(req.user!.userId);
+}
+function redirectToAdminLinkRequest(req: Request, res: Response): void {
+  const memberSlug = req.user!.slug ?? req.user!.userId;
+  res.redirect(303, `/members/${encodeURIComponent(memberSlug)}/contact-admin?category=identity_link_issue`);
+}
+
 export const claimController = {
   /**
    * GET /history/:personId/claim, render the HP-claim confirmation page
@@ -40,6 +53,10 @@ export const claimController = {
   getClaimHp(req: Request, res: Response, next: NextFunction): void {
     const personId = req.params.personId ?? '';
     try {
+      if (claimingIsClosed(req)) {
+        redirectToAdminLinkRequest(req, res);
+        return;
+      }
       const lookupResult = identityAccessService.lookupHistoricalPersonForClaim(req.user!.userId, personId);
       if (!lookupResult) {
         logger.info('hp claim unavailable: lookup returned null', {
@@ -102,6 +119,10 @@ export const claimController = {
    */
   postClaimHpConfirm(req: Request, res: Response, next: NextFunction): void {
     const personId = req.params.personId ?? '';
+    if (claimingIsClosed(req)) {
+      redirectToAdminLinkRequest(req, res);
+      return;
+    }
     if (!personId) {
       res.status(422).render('history/claim-hp-confirm', {
         ...HP_FORM_VM,
@@ -110,9 +131,22 @@ export const claimController = {
       return;
     }
     try {
-      memberOnboardingService.claimHistoricalPersonAndCompleteTask(req.user!.userId, personId);
+      memberOnboardingService.claimHistoricalPersonAndCompleteTask(req.user!.userId, personId, req.ip ?? 'unknown');
       res.redirect(303, `/members/${req.user!.slug}`);
     } catch (err) {
+      if (err instanceof RateLimitedError) {
+        res.status(429)
+          .set('Retry-After', String(err.retryAfterSeconds ?? 60))
+          .render('history/claim-hp-confirm', {
+            ...HP_FORM_VM,
+            content: {
+              personId,
+              error: err.message,
+              cancelHref: `/history/${encodeURIComponent(personId)}`,
+            },
+          } satisfies PageViewModel<ClaimHpConfirmContent>);
+        return;
+      }
       if (err instanceof ValidationError) {
         res.status(422).render('history/claim-hp-confirm', {
           ...HP_FORM_VM,

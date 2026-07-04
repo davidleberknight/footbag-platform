@@ -64,7 +64,7 @@ describe('memberService write-path atomicity', () => {
       bio: 'NEW BIO',
       city: 'NewCity',
       region: '',
-      country: '',
+      country: 'NewCountry',
       phone: '',
       emailVisibility: 'private',
       firstCompetitionYear: '',

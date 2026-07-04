@@ -244,6 +244,43 @@ describe('identityAccessService.revertAutoLink', () => {
     expect(meta.cleared_derived_honors).toBe(false);
   });
 
+  it('clears honor flags when the surviving historical-person link does not itself carry the honor', () => {
+    const memberId = nextId('mem');
+    const legacyId = nextId('legmem');
+    const hpId = nextId('hp');
+
+    const db = open();
+    insertMember(db, { id: memberId, login_email: `${memberId}@example.com`, real_name: 'Cased Player' });
+    // The honor comes from the legacy account being reverted.
+    insertLegacyMember(db, { legacy_member_id: legacyId, real_name: 'Cased Player', is_hof: 1 });
+    // An unrelated historical person claimed alongside the legacy account, with
+    // no honor of its own: it survives the revert but must not keep the flag.
+    insertHistoricalPerson(db, {
+      person_id: hpId, person_name: 'Cased Player', legacy_member_id: null,
+      hof_member: 0, bap_member: 0,
+    });
+    db.prepare('UPDATE members SET legacy_member_id = ?, historical_person_id = ?, is_hof = 1 WHERE id = ?')
+      .run(legacyId, hpId, memberId);
+    db.prepare("UPDATE legacy_members SET claimed_by_member_id = ?, claimed_at = '2026-01-01T00:00:00.000Z' WHERE legacy_member_id = ?")
+      .run(memberId, legacyId);
+    db.close();
+
+    const result = svc.revertAutoLink(memberId, 'audit-strand-hof', {
+      actorType: 'member',
+      actorMemberId: memberId,
+    });
+    expect(result.status).toBe('reverted');
+
+    const after = memberRow(memberId);
+    expect(after.legacy_member_id).toBeNull();      // legacy claim reverted
+    expect(after.historical_person_id).toBe(hpId);  // unrelated HP link preserved
+    expect(after.is_hof).toBe(0);                   // baseless honor dropped
+
+    const audits = listAuditEntries(memberId, 'legacy.auto_link_revert');
+    const meta = JSON.parse(String(audits[audits.length - 1].metadata_json)) as Record<string, unknown>;
+    expect(meta.cleared_derived_honors).toBe(true);
+  });
+
   it('returns already_reverted on second call against same member', () => {
     const { memberId } = setupClaimed({ withHpBackLink: true });
 

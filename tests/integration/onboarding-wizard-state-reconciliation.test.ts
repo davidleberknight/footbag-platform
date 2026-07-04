@@ -44,23 +44,53 @@ function getTaskState(memberId: string, taskType: string): string | null {
   return row?.state ?? null;
 }
 
-describe('A1: profile-edit save completes the personal_details task', () => {
-  it('saving the profile-edit form transitions personal_details to completed', async () => {
+describe('A1: profile-edit save gates the personal_details task on the mandatory fields', () => {
+  it('does not complete personal_details when the saved profile blanks city and country', async () => {
     const stamp = Date.now();
     const memberId = insertMember(testDb, {
-      slug: `state_a1_${stamp}`,
-      login_email: `state-a1-${stamp}@example.com`,
+      slug: `state_a1n_${stamp}`,
+      login_email: `state-a1n-${stamp}@example.com`,
       real_name:   'A One',
+      birth_date:  '1990-05-15',
     });
     svc.startTaskList(memberId);
     expect(getTaskState(memberId, 'personal_details')).toBe('pending');
 
     const res = await request(createApp())
-      .post(`/members/state_a1_${stamp}/edit`)
+      .post(`/members/state_a1n_${stamp}/edit`)
       .set('Cookie', cookieFor(memberId))
       .type('form')
       .send({
         bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private',
+        firstCompetitionYear: '1992',
+        showCompetitiveResults: '1',
+      });
+    // City and country are mandatory, so a blank-mandatory-field save is rejected
+    // outright rather than silently completing an incomplete profile.
+    expect(res.status).toBe(422);
+
+    // A rejected save must not flip the required onboarding task to completed, or
+    // a member becomes a full member with city and country missing.
+    expect(getTaskState(memberId, 'personal_details')).toBe('pending');
+  });
+
+  it('completes personal_details when city and country are saved and a date of birth is on file', async () => {
+    const stamp = Date.now();
+    const memberId = insertMember(testDb, {
+      slug: `state_a1y_${stamp}`,
+      login_email: `state-a1y-${stamp}@example.com`,
+      real_name:   'A One',
+      birth_date:  '1990-05-15',
+    });
+    svc.startTaskList(memberId);
+    expect(getTaskState(memberId, 'personal_details')).toBe('pending');
+
+    const res = await request(createApp())
+      .post(`/members/state_a1y_${stamp}/edit`)
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({
+        bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private',
         firstCompetitionYear: '1992',
         showCompetitiveResults: '1',
       });
@@ -188,7 +218,9 @@ describe('A6 + A7: skipped tasks land in the skipped bucket, not the in-sequence
     const r2 = await request(createApp())
       .post('/register/wizard/club_affiliations/skip')
       .set('Cookie', cookie).type('form').send({});
-    expect(r2.headers.location).toBe('/register/wizard/complete');
+    // Skipping club advances to the remaining pending task (personal details),
+    // never back into a skipped task, and without bouncing through /complete.
+    expect(r2.headers.location).toBe('/register/wizard/personal_details');
   });
 
   it('getDashboardTaskWidget puts skipped rows in the skipped bucket (not pending)', () => {

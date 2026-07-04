@@ -93,6 +93,45 @@ describe('declared old email feeds the batch classifier', () => {
   });
 });
 
+describe('mandatory old-email proof: an unverified old-email match cannot confirm a claim', () => {
+  it('refuses the auto-link confirm until the old email is proven, then allows it', async () => {
+    insertLegacyMember(db, {
+      legacy_member_id: 'LM-oldproof', legacy_email: 'proof-old@old.example.com',
+      real_name: 'Proof Person', display_name: 'Proof Person',
+    });
+    insertHistoricalPerson(db, {
+      person_id: 'HP-oldproof', person_name: 'Proof Person', legacy_member_id: 'LM-oldproof',
+    });
+    const memberId = insertMember(db, {
+      id: 'mem-oldproof', slug: 'mem_oldproof',
+      login_email: 'proof-new@example.com',
+      real_name: 'Proof Person', display_name: 'Proof Person',
+    });
+    declareOldEmail(memberId, 'proof-old@old.example.com');
+    await ops.operationsPlatformService.runBatchAutoLink();
+
+    const linkedId = () =>
+      (db.prepare('SELECT historical_person_id FROM members WHERE id = ?').get(memberId) as
+        { historical_person_id: string | null }).historical_person_id;
+
+    // The card is staged, but the old email is only asserted: confirming is refused.
+    const refused = onboarding.memberOnboardingService.processLegacyClaimAutoLinkConfirm(memberId, 'HP-oldproof');
+    expect(refused.kind).toBe('validation_error');
+    expect(String((refused as { message: string }).message).toLowerCase()).toContain('old email');
+    expect(linkedId()).toBeNull();
+
+    // Prove control of the old email (the mailbox link-click round-trip), then
+    // the same confirm succeeds.
+    db.prepare(
+      `UPDATE member_declared_anchors SET verified_via_link_click_at = '2026-01-01T00:00:00.000Z'
+         WHERE member_id = ? AND anchor_type = 'old_email'`,
+    ).run(memberId);
+    const ok = onboarding.memberOnboardingService.processLegacyClaimAutoLinkConfirm(memberId, 'HP-oldproof');
+    expect(ok.kind).not.toBe('validation_error');
+    expect(linkedId()).toBe('HP-oldproof');
+  });
+});
+
 describe('former surname on the direct historical-person claim', () => {
   it('a declared former surname passes the surname rule; no blocked event is recorded', () => {
     insertHistoricalPerson(db, { person_id: 'HP-former-1', person_name: 'Frida Maidenname' });
@@ -228,25 +267,36 @@ describe('registration-time conflict prompt', () => {
 });
 
 describe('cross-source offer after a one-source claim', () => {
-  function seedHpAndLegacy(tag: string): { memberId: string } {
+  function seedHpAndLegacy(
+    tag: string,
+    opts: { memberCountry?: string | null; legacyCountry?: string | null } = {},
+  ): { memberId: string } {
     insertHistoricalPerson(db, { person_id: `HP-xs-${tag}`, person_name: `Xavier Source${tag}` });
     insertLegacyMember(db, {
       legacy_member_id: `LM-xs-${tag}`, legacy_email: `xs-${tag}@example.com`,
       real_name: `Xavier Source${tag}`, display_name: `Xavier Source${tag}`,
+      country: opts.legacyCountry ?? null,
     });
     const memberId = insertMember(db, {
       id: `mem-xs-${tag}`, slug: `mem_xs_${tag}`,
       login_email: `xs-${tag}@example.com`,
       real_name: `Xavier Source${tag}`, display_name: `Xavier Source${tag}`,
+      country: opts.memberCountry ?? 'US',
     });
     return { memberId };
+  }
+
+  function offeredMeta(memberId: string): Record<string, unknown> {
+    return JSON.parse(
+      String(audits(memberId, 'legacy.cross_source_candidate_offered')[0].metadata_json),
+    ) as Record<string, unknown>;
   }
 
   it('claiming the HP stages a legacy offer; confirming applies the legacy claim with the cross-source event', async () => {
     const { memberId } = seedHpAndLegacy('a');
     // Direct historical-record claim (the HP has no legacy back-link, so the
     // claim covers one source only); the post-confirm offer hook runs here.
-    onboarding.memberOnboardingService.claimHistoricalPersonAndCompleteTask(memberId, 'HP-xs-a');
+    onboarding.memberOnboardingService.claimHistoricalPersonAndCompleteTask(memberId, 'HP-xs-a', '198.51.100.1');
     // Settle the earlier wizard task so the legacy_claim GET renders instead
     // of redirecting to the next outstanding task.
     db.prepare(`UPDATE member_onboarding_tasks SET state = 'completed', completed_at = '2026-01-01T00:00:00.000Z' WHERE member_id = ? AND task_type = 'personal_details'`).run(memberId);
@@ -259,6 +309,9 @@ describe('cross-source offer after a one-source claim', () => {
     expect(offers).toHaveLength(1);
     expect(offers[0].legacy_member_id).toBe('LM-xs-a');
     expect(offers[0].historical_person_id).toBeNull();
+    // The offer was found through the member's verified login email, so it
+    // proposes the modern-email evidence tier, not the asserted-only floor.
+    expect(offers[0].proposed_evidence_strength).toBe('currently_controls_modern_email_matching_legacy');
     expect(audits(memberId, 'legacy.cross_source_candidate_offered')).toHaveLength(1);
 
     const page = await request(createApp())
@@ -282,7 +335,7 @@ describe('cross-source offer after a one-source claim', () => {
 
   it('declining the offer is terminal and emits the cross-source declined event', async () => {
     const { memberId } = seedHpAndLegacy('b');
-    onboarding.memberOnboardingService.claimHistoricalPersonAndCompleteTask(memberId, 'HP-xs-b');
+    onboarding.memberOnboardingService.claimHistoricalPersonAndCompleteTask(memberId, 'HP-xs-b', '198.51.100.1');
     const offer = stagedRows(memberId).find((r) => r.source_pass === 'cross_source')!;
 
     const decline = await request(createApp())
@@ -296,6 +349,28 @@ describe('cross-source offer after a one-source claim', () => {
     // The pair never re-offers.
     const again = identity.identityAccessService.offerCrossSourceCandidate(memberId);
     expect(again.offered).toBe(false);
+  });
+
+  it('a country difference still offers (a member may have moved) but records the mismatch as a negative signal', () => {
+    const { memberId } = seedHpAndLegacy('mismatch', { memberCountry: 'US', legacyCountry: 'Canada' });
+    onboarding.memberOnboardingService.claimHistoricalPersonAndCompleteTask(memberId, 'HP-xs-mismatch', '198.51.100.1');
+
+    const offers = stagedRows(memberId).filter((r) => r.source_pass === 'cross_source');
+    // Country is not a gate: the offer still stages so a member who moved is
+    // never silently denied. The mismatch is captured as a negative signal.
+    expect(offers).toHaveLength(1);
+    expect(JSON.parse(String(offers[0].matched_anchors_json))).not.toContain('country_agreement');
+    expect(offeredMeta(memberId).country_signal).toBe('mismatch');
+  });
+
+  it('a matching country records the positive country signal on the offer', () => {
+    const { memberId } = seedHpAndLegacy('agree', { memberCountry: 'US', legacyCountry: 'US' });
+    onboarding.memberOnboardingService.claimHistoricalPersonAndCompleteTask(memberId, 'HP-xs-agree', '198.51.100.1');
+
+    const offers = stagedRows(memberId).filter((r) => r.source_pass === 'cross_source');
+    expect(offers).toHaveLength(1);
+    expect(JSON.parse(String(offers[0].matched_anchors_json))).toContain('country_agreement');
+    expect(offeredMeta(memberId).country_signal).toBe('agree');
   });
 });
 

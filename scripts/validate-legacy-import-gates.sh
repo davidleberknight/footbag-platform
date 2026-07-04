@@ -9,10 +9,10 @@
 #   G1: no email value is shared across accounts, taken across the three
 #       legacy email columns (legacy_email/legacy_email2/legacy_email3)
 #   G2: legacy_user_id unique where non-NULL
-#   G3: legacy_banned presence + non-null ratio
+#   G3: import_source provenance populated on every legacy_members row
 #   G4: profile/contact field shape (null ratios for real_name, country)
 #   G5: legacy_member_id format + uniqueness + completeness
-#   G6: tier-mapping inputs present (legacy tier columns populated)
+#   G6: tier-mapping fallback readiness (at least one HoF or BAP honor flag present)
 #
 # Reads FOOTBAG_DB_PATH (default: ./database/footbag.db). No FOOTBAG_ENV
 # guard; suitable on any environment.
@@ -75,9 +75,9 @@ else
   emit_gate G2 FAIL "${g2_dupes} duplicate legacy_user_id value(s) found"
 fi
 
-# G3: legacy_banned reliability proxy. We don't carry a separate banned column;
-# the gate checks that the import-source field is populated so admin review
-# can fall back to the import provenance when banned data is missing.
+# G3: import-source provenance. The gate checks that every legacy_members row
+# carries a populated import_source value, so a row missing it can be routed to
+# admin review rather than silently trusted.
 g3_total=$(q "SELECT COUNT(*) FROM legacy_members;")
 g3_with_source=$(q "SELECT COUNT(*) FROM legacy_members WHERE import_source IS NOT NULL AND import_source <> '';")
 if [[ "${g3_total}" -eq 0 ]]; then

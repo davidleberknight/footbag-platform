@@ -20,6 +20,7 @@ import {
   insertTag,
   insertMemberClubAffiliation,
   insertLegacyClubCandidate,
+  insertActivePlayerGrant,
   createMemberAtTier,
   createTestSessionJwt,
   completeOnboarding,
@@ -35,8 +36,10 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 // cross-test state pollution (creating a club makes the member a leader).
 const HAPPY_ID        = 'cc-happy';
 const HAPPY_SLUG      = 'cc_happy';
-const TIER0_ID        = 'cc-tier0';
-const TIER0_SLUG      = 'cc_tier0';
+const TIER0_LAPSED_ID   = 'cc-tier0-lapsed';
+const TIER0_LAPSED_SLUG = 'cc_tier0_lapsed';
+const TIER0_NEVER_ID    = 'cc-tier0-never';
+const TIER0_NEVER_SLUG  = 'cc_tier0_never';
 const LEADER_ID       = 'cc-leader';
 const LEADER_SLUG     = 'cc_leader';
 const CAPPED_ID       = 'cc-capped';
@@ -77,13 +80,23 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   createMemberAtTier(db, { id: HAPPY_ID, slug: HAPPY_SLUG, tier: 'tier1' });
-  createMemberAtTier(db, { id: TIER0_ID, slug: TIER0_SLUG, tier: 'tier0' });
+  // A lapsed-AP Tier 0 member: the one-time Active Player period was spent and
+  // has expired, so the create-club bootstrap no longer applies -> denied.
+  createMemberAtTier(db, { id: TIER0_LAPSED_ID, slug: TIER0_LAPSED_SLUG, tier: 'tier0' });
+  insertActivePlayerGrant(db, {
+    member_id: TIER0_LAPSED_ID,
+    change_type: 'grant',
+    reason_code: 'club_join_one_time_active_player_grant',
+    new_active_player_expires_at: '2020-01-01T00:00:00.000Z',
+  });
+  // A never-AP Tier 0 member: eligible for the first-club bootstrap.
+  createMemberAtTier(db, { id: TIER0_NEVER_ID, slug: TIER0_NEVER_SLUG, tier: 'tier0' });
   createMemberAtTier(db, { id: VALID_ERR_ID, slug: VALID_ERR_SLUG, tier: 'tier1' });
   createMemberAtTier(db, { id: DUP_ID, slug: DUP_SLUG, tier: 'tier1' });
   createMemberAtTier(db, { id: TAG_COLL_ID, slug: TAG_COLL_SLUG, tier: 'tier1' });
   createMemberAtTier(db, { id: SLUG_DERIVE_ID, slug: SLUG_DERIVE_SLUG, tier: 'tier1' });
   createMemberAtTier(db, { id: WQ_ID, slug: WQ_SLUG, tier: 'tier1' });
-  for (const mid of [HAPPY_ID, TIER0_ID, VALID_ERR_ID, DUP_ID, TAG_COLL_ID, SLUG_DERIVE_ID, WQ_ID]) {
+  for (const mid of [HAPPY_ID, TIER0_LAPSED_ID, TIER0_NEVER_ID, VALID_ERR_ID, DUP_ID, TAG_COLL_ID, SLUG_DERIVE_ID, WQ_ID]) {
     completeOnboarding(db, mid);
   }
 
@@ -167,14 +180,34 @@ describe('POST /clubs/create', () => {
     expect(res.headers.location).toContain('/login');
   });
 
-  it('returns 403 for Tier 0 member', async () => {
+  it('returns 403 for a lapsed-AP Tier 0 member', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/clubs/create')
-      .set('Cookie', authCookie(TIER0_ID))
+      .set('Cookie', authCookie(TIER0_LAPSED_ID))
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send(formData());
     expect(res.status).toBe(403);
+  });
+
+  it('lets a never-AP Tier 0 member create a first club, granting the one-time Active Player period', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/clubs/create')
+      .set('Cookie', authCookie(TIER0_NEVER_ID))
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send(formData({ name: 'Bootstrap Footbag', city: 'Boulder', slug: 'boulder' }));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/clubs/club_boulder');
+
+    // The create granted the one-time Active Player period, so the member is
+    // now an active player (and thus holds Tier 1 benefits).
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const ap = db.prepare(
+      `SELECT is_active_player FROM member_active_player_current WHERE member_id = ?`,
+    ).get(TIER0_NEVER_ID) as { is_active_player: number };
+    db.close();
+    expect(ap.is_active_player).toBe(1);
   });
 
   it('creates club on success and redirects to club page', async () => {

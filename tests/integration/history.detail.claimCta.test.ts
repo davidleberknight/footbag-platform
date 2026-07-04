@@ -23,6 +23,7 @@ import {
   insertMember,
   insertHistoricalPerson,
   createTestSessionJwt,
+  completeOnboarding,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3093');
@@ -158,6 +159,30 @@ describe('GET /history/:personId — conditional Claim CTA', () => {
       .set('Cookie', cookieFor('mem-viewer-former'));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Claim This Identity');
+  });
+
+  it('surname match but onboarding complete: no CTA (self-serve claiming is wizard-bounded)', async () => {
+    // The claim CTA is part of finishing onboarding. A completed member links a
+    // further identity through the admin help request, not this page, so the CTA
+    // is suppressed even though the surname matches.
+    const db = new BetterSqlite3(dbPath);
+    const id = 'mem-viewer-complete';
+    insertMember(db, {
+      id,
+      slug: 'viewer_complete',
+      real_name: 'Chris Smith',
+      display_name: 'Chris Smith',
+      login_email: 'complete@example.com',
+    });
+    completeOnboarding(db, id);
+    db.close();
+
+    const res = await request(createApp())
+      .get(`/history/${HP_HONOR}`)
+      .set('Cookie', cookieFor(id));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Pat Smith');
+    expect(res.text).not.toContain('Claim This Identity');
   });
 
   it('authenticated viewer who already has historical_person_id set: no CTA', async () => {

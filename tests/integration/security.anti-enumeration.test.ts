@@ -164,8 +164,8 @@ describe('POST /verify/resend — response shape identical for exists/unverified
 
 // ── POST /register (duplicate email) ──────────────────────────────────────────
 
-describe('POST /register — duplicate email returns 422 with actionable error', () => {
-  it('fresh registration → 303; duplicate email → 422 with login/reset guidance', async () => {
+describe('POST /register — duplicate email is indistinguishable from a fresh registration', () => {
+  it('fresh registration and duplicate email both return the identical 303, no existence leak', async () => {
     const app = createApp();
 
     const fresh = await request(app)
@@ -191,8 +191,10 @@ describe('POST /register — duplicate email returns 422 with actionable error',
         password: 'AnotherPass1!',
         confirmPassword: 'AnotherPass1!',
       });
-    expect(duplicate.status).toBe(422);
-    expect(duplicate.text).toContain('already exists');
-    expect(duplicate.text).toContain('log in');
+    // Same status and redirect as the fresh registration; the response must
+    // never reveal that the email is already registered.
+    expect(duplicate.status).toBe(fresh.status);
+    expect(duplicate.headers.location).toBe(fresh.headers.location);
+    expect(duplicate.text).not.toContain('already exists');
   });
 });

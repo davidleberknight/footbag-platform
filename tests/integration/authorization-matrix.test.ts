@@ -70,6 +70,16 @@ function hasTier1Benefits(p: PersonaSpec): boolean {
   return Boolean(p.isAdmin) || p.tier !== 'tier0';
 }
 
+/**
+ * Create-club bootstrap eligibility: Tier-1 benefits, OR a Tier 0 member who
+ * has never held Active Player (creating a first club grants the one-time
+ * period). The tier-candidate set below carries no Active-Player spec, so every
+ * Tier 0 candidate is never-AP and thus eligible for the first-club bootstrap.
+ */
+function mayCreateClub(p: PersonaSpec): boolean {
+  return hasTier1Benefits(p) || p.tier === 'tier0';
+}
+
 function isLoginRedirect(res: { status: number; headers: Record<string, unknown> }): boolean {
   const loc = res.headers['location'];
   return res.status === 302 && typeof loc === 'string' && loc.startsWith('/login');
@@ -253,7 +263,7 @@ describe('owner gate — club content edit (adjacent-owner BOLA)', () => {
   });
 });
 
-describe('tier gate — POST /clubs/create (Tier-1 benefits)', () => {
+describe('tier gate — POST /clubs/create (create-club bootstrap eligibility)', () => {
   // The onboarding gate redirects not-yet-onboarded members off /clubs paths
   // before the tier gate runs, and the Active-Player personas turn on time;
   // both are held out so each cell isolates the tier decision.
@@ -264,20 +274,20 @@ describe('tier gate — POST /clubs/create (Tier-1 benefits)', () => {
       !p.activePlayer,
   );
 
-  it('lets Tier-1+ members past the gate and 403s under-tiered members', async () => {
+  it('lets eligible members past the gate and 403s ineligible members', async () => {
     for (const p of tierCandidates) {
       const res = await request(createApp())
         .post('/clubs/create')
         .set('Cookie', cookies.get(p.slug)!)
         .send({});
       const cell = `${p.slug} -> POST /clubs/create`;
-      if (hasTier1Benefits(p)) {
+      if (mayCreateClub(p)) {
         // Past the tier gate: the empty body fails business validation (422),
         // never the 403 the gate would emit.
-        expect(res.status, `${cell} (tier allow → past gate)`).not.toBe(403);
+        expect(res.status, `${cell} (eligible → past gate)`).not.toBe(403);
         expect(isLoginRedirect(res), `${cell} (not a login redirect)`).toBe(false);
       } else {
-        expect(res.status, `${cell} (under-tier deny)`).toBe(403);
+        expect(res.status, `${cell} (ineligible deny)`).toBe(403);
       }
     }
   });

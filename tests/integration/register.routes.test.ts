@@ -153,7 +153,7 @@ describe('POST /register', () => {
     expect(outboxRows[0].recipient_member_id).toBe(member!.id);
   });
 
-  it('duplicate email → 422 with inline error and login/reset guidance', async () => {
+  it('duplicate email → identical 303 response, no new member, out-of-band account-exists notice', async () => {
     const app = createApp();
 
     const res = await request(app)
@@ -165,9 +165,28 @@ describe('POST /register', () => {
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('already exists');
-    expect(res.text).toContain('log in');
+    // Anti-enumeration: identical to a fresh registration, with no "already
+    // exists" leak in the response.
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/check-email');
+    expect(res.text).not.toContain('already exists');
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    // No second member row was created for the duplicate email.
+    const memberCount = db.prepare(
+      `SELECT COUNT(*) AS c FROM members WHERE login_email_normalized = ?`,
+    ).get('existing@example.com') as { c: number };
+    // The existing address received an out-of-band account-exists notice
+    // (not a verification link).
+    const notice = db.prepare(
+      `SELECT recipient_member_id, template_key FROM outbox_emails
+         WHERE recipient_email = ? AND template_key = 'account_exists_notice'`,
+    ).all('existing@example.com') as Array<{ recipient_member_id: string | null; template_key: string }>;
+    db.close();
+
+    expect(memberCount.c).toBe(1);
+    expect(notice).toHaveLength(1);
+    expect(notice[0].recipient_member_id).toBe('member-existing-001');
   });
 
   it('short password → 422 with error', async () => {
@@ -678,6 +697,14 @@ describe('POST /register — verify-email enqueue failure', () => {
 describe('POST /register → /register/check-email', () => {
   it('renders the verification email link via simulated email card (dev SES_ADAPTER=stub)', async () => {
     const app = createApp();
+    // Drain any pending outbox backlog accumulated by earlier tests: the
+    // simulated-card page drains a bounded worker batch, so this registration's
+    // own verification email must not sit behind more pending rows than one
+    // drain clears. Clearing the queue keeps this card render deterministic
+    // regardless of how many prior registrations left mail queued.
+    const reset = new BetterSqlite3(TEST_DB_PATH);
+    reset.prepare(`DELETE FROM outbox_emails WHERE status = 'pending'`).run();
+    reset.close();
     // Use a fresh cookie jar with supertest agent so the redirect stays in-session.
     const agent = request.agent(app);
     const post = await agent

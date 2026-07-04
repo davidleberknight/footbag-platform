@@ -57,7 +57,7 @@ function countMembersBySlug(slug: string): number {
 }
 
 describe('POST /register race against email UNIQUE constraint', () => {
-  it('two concurrent same-email registrations: one succeeds (303), the loser gets 422; exactly one members row inserted', async () => {
+  it('two concurrent same-email registrations: both return the identical 303; exactly one members row inserted', async () => {
     const app = createApp();
     const sharedEmail = 'race-email@example.com';
     const post = (realName: string, displayName: string) =>
@@ -77,10 +77,12 @@ describe('POST /register race against email UNIQUE constraint', () => {
       post('Bob Smith', 'Bob Smith'),
     ]);
 
-    // One wins (303 to check-email), the other gets duplicate error (422).
-    // Neither should 500.
+    // Both return the identical enumeration-safe 303 to check-email: one insert
+    // wins, the loser hits the login_email UNIQUE constraint and takes the same
+    // account-exists notice path rather than leaking a duplicate error. Neither
+    // should 500.
     const statuses = [resA.status, resB.status].sort();
-    expect(statuses).toEqual([303, 422]);
+    expect(statuses).toEqual([303, 303]);
 
     // Exactly one member row exists for the shared email.
     expect(countMembersByEmail(sharedEmail)).toBe(1);

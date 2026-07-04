@@ -244,6 +244,64 @@ describe('GET /members/:memberKey — profile view', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Also known as Linked Historical in competition records');
   });
+
+  it('a history-only claimant (historical-person link, no legacy account) shows the historical name and HoF induction year', async () => {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    const CASEC_ID = 'member-casec';
+    const CASEC_SLUG = 'member_casec';
+    const hp = insertHistoricalPerson(db, {
+      person_name: 'Casey Halloffamer', hof_member: 1, hof_induction_year: 2015,
+    });
+    insertMember(db, {
+      id: CASEC_ID, slug: CASEC_SLUG, display_name: 'Casey C',
+      login_email: 'casec@example.com',
+    });
+    completeOnboarding(db, CASEC_ID);
+    // Historical-person link only, no legacy account claimed: the profile read
+    // must still surface the historical name and honor year.
+    db.prepare('UPDATE members SET historical_person_id = ?, is_hof = 1 WHERE id = ?').run(hp, CASEC_ID);
+    db.close();
+
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${CASEC_SLUG}`)
+      .set('Cookie', otherCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Also known as Casey Halloffamer in competition records');
+    expect(res.text).toContain('Member of the Footbag Hall of Fame (2015)');
+  });
+
+  it('shows the IFPA Board line on a board member profile', async () => {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    const BOARD_ID = 'member-board';
+    const BOARD_SLUG = 'member_board';
+    insertMember(db, {
+      id: BOARD_ID, slug: BOARD_SLUG, display_name: 'Board Member',
+      login_email: 'boardmember@example.com',
+    });
+    completeOnboarding(db, BOARD_ID);
+    db.prepare('UPDATE members SET is_board = 1 WHERE id = ?').run(BOARD_ID);
+    db.close();
+
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${BOARD_SLUG}`)
+      .set('Cookie', otherCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Member of the IFPA Board of Directors');
+  });
+
+  it('own profile links to the shipped Payment History page and no longer lists it as coming soon', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${OWN_SLUG}`)
+      .set('Cookie', ownCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`href="/members/${OWN_SLUG}/payments"`);
+    expect(res.text).toContain('Payment History');
+    // The coming-soon card no longer promises payment history as unbuilt.
+    expect(res.text).not.toContain('Payments &amp; Donations');
+  });
 });
 
 // ── GET /members/:memberKey/edit ────────────────────────────────────────────────
@@ -294,14 +352,17 @@ describe('GET /members/:memberKey/edit — edit form', () => {
     expect(res.text).toContain('Edit Profile');
   });
 
-  it('unlinked member: renders link-history wizard CTA', async () => {
+  it('unlinked but onboarding-complete member: self-serve link CTA is hidden (wizard-bounded)', async () => {
+    // Self-serve legacy claiming is wizard-bounded: once onboarding is complete
+    // there is no self-serve link path (a further link is an admin request), so
+    // even an unlinked completed member sees no wizard CTA here.
     const app = createApp();
     const res = await request(app)
       .get(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('href="/register/wizard/legacy_claim"');
-    expect(res.text).toContain('Link your legacy account, results, and clubs');
+    expect(res.text).not.toContain('href="/register/wizard/legacy_claim"');
+    expect(res.text).not.toContain('Link your legacy account, results, and clubs');
   });
 
   it('fully-linked member: link-history CTA is hidden', async () => {
@@ -364,7 +425,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/edit`)
       .type('form')
-      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private' });
+      .send({ bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private' });
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe(`/login?returnTo=%2Fmembers%2F${OWN_SLUG}%2Fedit`);
   });
@@ -375,7 +436,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', otherCookie())
       .type('form')
-      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private' });
+      .send({ bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private' });
     expect(res.status).toBe(404);
   });
 
@@ -399,9 +460,9 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .type('form')
       .send({
         bio:             '',
-        city:            '',
+        city:            'Portland',
         region:          '',
-        country:         '',
+        country:         'US',
         phone:           '',
         emailVisibility: 'bad-value',
       });
@@ -455,7 +516,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private', gender: 'female' });
+      .send({ bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private', gender: 'female' });
     expect(res.status).toBe(303);
     expect(genderOf(OWN_ID)).toBe('female');
   });
@@ -467,7 +528,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private' });
+      .send({ bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private' });
     expect(res.status).toBe(303);
     expect(genderOf(OWN_ID)).toBe('male');
   });
@@ -479,7 +540,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private', gender: 'nonsense' });
+      .send({ bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private', gender: 'nonsense' });
     expect(res.status).toBe(303);
     expect(genderOf(OWN_ID)).toBe('undisclosed');
   });
@@ -499,7 +560,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     tuneDb.close();
     try {
       const app = createApp();
-      const validBody = { bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private' };
+      const validBody = { bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private' };
       for (let i = 0; i < 2; i++) {
         const ok = await request(app)
           .post(`/members/${OWN_SLUG}/edit`)
@@ -584,7 +645,7 @@ describe('gender public visibility', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private', gender: 'male', showGender: '1' });
+      .send({ bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private', gender: 'male', showGender: '1' });
     expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     const row = db.prepare('SELECT gender, show_gender FROM members WHERE id = ?').get(OWN_ID) as { gender: string; show_gender: number };

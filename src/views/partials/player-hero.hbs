@@ -7,6 +7,9 @@
     {{else if heroData.isBap}}
       <p class="hero-subtitle">Member of the Footbag Big Add Posse{{#if heroData.bapInductionYear}} ({{heroData.bapInductionYear}}){{/if}}</p>
     {{/if}}
+    {{#if heroData.isBoard}}
+      <p class="hero-subtitle">Member of the IFPA Board of Directors</p>
+    {{/if}}
     {{#if heroData.isHistoricalOnly}}
       {{#unless heroData.isHof}}{{#unless heroData.isBap}}
         <p class="hero-subtitle">Historical player record</p>

@@ -84,6 +84,7 @@
 
           {{#if content.card.isLeadership}}
             <p class="text-muted">Listed as: {{content.card.roleLabel}}</p>
+            <p class="notice-card notice-card--info mt-2">{{content.card.consequencesNote}}</p>
             {{#if content.card.clubDescription}}<p class="text-muted fs-sm mt-2">{{content.card.clubDescription}}</p>{{/if}}
             {{#if content.card.clubExternalUrl}}
               <p class="fs-sm mt-1">{{externalLink content.card.clubExternalUrl label="Club website"}}</p>
@@ -128,7 +129,7 @@
             <button type="submit" class="btn btn-primary">Save Answers</button>
           </form>
 
-          <p class="text-muted fs-sm mt-4">Not the right club? <a href="{{content.clubsBrowseHref}}">Browse all clubs</a> to find yours; you can come back to finish onboarding from your dashboard.</p>
+          <p class="text-muted fs-sm mt-4">Not the right club? <a href="{{content.detourCountryHref}}">Browse all clubs</a> to find yours; you can come back to finish onboarding from your dashboard.</p>
         </div>
 
         <p class="text-muted fs-sm mt-6">Reviewing these clubs is optional. You can finish later from your profile.</p>
@@ -145,9 +146,9 @@
           <p>We did not link a club to your account. Joining or leading a club is optional, but it is a great way to connect with players near you.</p>
         {{/if}}
         <p>Find your local club on the clubs page and join it there{{#if content.canCreateClub}}, or create a new club if yours is not listed{{/if}}.</p>
-        <p class="mt-4"><a href="/clubs" class="btn btn-outline">Browse Clubs</a> {{#if content.memberCountry}}<a href="{{content.clubsBrowseHref}}" class="btn btn-outline">Clubs in {{content.memberCountry}}</a>{{/if}}</p>
+        <p class="mt-4"><a href="{{content.detourBrowseHref}}" class="btn btn-outline">Browse Clubs</a> {{#if content.memberCountry}}<a href="{{content.detourCountryHref}}" class="btn btn-outline">Clubs in {{content.memberCountry}}</a>{{/if}}</p>
         {{#if content.canCreateClub}}
-          <p class="mt-2"><a href="/clubs/create" class="btn btn-primary">Create a New Club</a></p>
+          <p class="mt-2"><a href="{{content.detourCreateHref}}" class="btn btn-primary">Create a New Club</a></p>
         {{else}}
           <div class="notice-card notice-card--warn mt-4">
             <p class="m-0">Creating a club requires IFPA Membership (Tier 1) because you become the club's first co-leader. You can upgrade from your profile page and come back any time.</p>
@@ -158,6 +159,9 @@
       <p class="text-muted fs-sm mt-6">Joining or leading a club is optional. You can do this any time from your profile.</p>
       <form method="POST" action="{{content.skipHref}}" class="mt-2">
         <button type="submit" class="btn-link text-muted">Skip for Now</button>
+      </form>
+      <form method="POST" action="{{content.dismissHref}}" class="mt-2">
+        <button type="submit" class="btn-link text-muted">Dismiss This Step</button>
       </form>
     {{/if}}
 

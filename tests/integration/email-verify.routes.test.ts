@@ -84,7 +84,7 @@ describe('POST /register → check-email + outbox enqueue', () => {
     expect(searchable.n).toBe(0);
   });
 
-  it('duplicate registration produces no new outbox row (silent dedup)', async () => {
+  it('duplicate registration enqueues an account-exists notice, not a second verification email', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
       realName: 'Dup One',
@@ -101,10 +101,14 @@ describe('POST /register → check-email + outbox enqueue', () => {
     });
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const rows = db.prepare(
-      `SELECT id FROM outbox_emails WHERE recipient_email = ?`,
-    ).all('verify-dup@example.com') as Array<{ id: string }>;
+      `SELECT template_key FROM outbox_emails WHERE recipient_email = ? ORDER BY created_at`,
+    ).all('verify-dup@example.com') as Array<{ template_key: string }>;
     db.close();
-    expect(rows).toHaveLength(1);
+    // The first registration enqueued one verification email; the duplicate
+    // enqueued an out-of-band account-exists notice (not a second verify link),
+    // so the address owner is helped without revealing anything to the submitter.
+    const templates = rows.map((r) => r.template_key);
+    expect(templates).toEqual(['account_verify', 'account_exists_notice']);
   });
 });
 

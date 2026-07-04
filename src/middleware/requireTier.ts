@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import {
   hasTier1Benefits,
+  mayCreateClub,
   isTier2Plus,
   isTier3,
 } from '../services/tierPredicates';
@@ -37,6 +38,10 @@ function makeRequireTier(predicate: (memberId: string) => boolean) {
 
 export function requireTier1Benefits() {
   return makeRequireTier(hasTier1Benefits);
+}
+
+export function requireMayCreateClub() {
+  return makeRequireTier(mayCreateClub);
 }
 
 export function requireTier2Plus() {
