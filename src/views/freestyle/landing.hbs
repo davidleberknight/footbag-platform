@@ -126,7 +126,7 @@
           {{else}}
             <div class="tricks-mosaic-media tricks-mosaic-empty" aria-hidden="true"></div>
           {{/if}}
-          <figcaption class="tricks-mosaic-label">{{label}}</figcaption>
+          <figcaption class="tricks-mosaic-label">{{#if trickHref}}<a href="{{trickHref}}" class="tricks-mosaic-learn">{{label}}</a>{{else}}{{label}}{{/if}}</figcaption>
         </figure>
       {{/each}}
     </div>

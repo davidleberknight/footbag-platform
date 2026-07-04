@@ -142,7 +142,7 @@ import {
 import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
-import { TRICKS_MOSAIC } from '../content/freestyleTricksMosaic';
+import { TRICKS_MOSAIC, isFoundationLinkReady } from '../content/freestyleTricksMosaic';
 import { TERMINAL_DERIVED_COHORTS, TERMINAL_OF_MEMBER } from '../content/freestyleTerminalCohorts';
 import { loadSiteVideo, loadMosaicVideo } from './siteMediaService';
 import {
@@ -524,6 +524,9 @@ export interface FreestyleMosaicCell {
   href: string | null;
   mp4Url: string | null;
   posterUrl: string | null;
+  // "Learn" destination: the atom's family page (family parents) or trick page;
+  // null when the destination is not yet worth linking (isFoundationLinkReady).
+  trickHref: string | null;
 }
 
 // "Freestyle by the Numbers" landing band: six summary cards, each a different
@@ -11232,6 +11235,13 @@ export const freestyleService = {
         href: clip ? `/media/gallery_foundations_of_freestyle/${clip.mediaId}` : null,
         mp4Url: clip?.mp4Url ?? null,
         posterUrl: clip?.posterUrl ?? null,
+        // Learn link to the atom's own page, shown only when the destination
+        // teaches something worthwhile; family parents link to their family page.
+        trickHref: isFoundationLinkReady(atom.slug)
+          ? (isOfficialFamilyParent(atom.slug)
+              ? `/freestyle/families/${atom.slug}`
+              : `/freestyle/tricks/${atom.slug}`)
+          : null,
       };
     });
 

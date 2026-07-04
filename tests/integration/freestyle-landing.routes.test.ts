@@ -65,6 +65,25 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     expect(res.text).toContain('tricks-mosaic-section--placeholder');
   });
 
+  it('links each link-ready foundation caption to its page: family parents to the family page, standalone atoms to the trick page', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    // Foundations that are their own family parent route to the family page.
+    for (const slug of ['mirage', 'osis', 'whirl', 'swirl', 'butterfly', 'legover', 'illusion', 'pickup']) {
+      expect(res.text, slug).toContain(`href="/freestyle/families/${slug}" class="tricks-mosaic-learn"`);
+    }
+    // Standalone-atom foundations route to their trick page.
+    for (const slug of ['toe_stall', 'clipper_stall', 'around_the_world']) {
+      expect(res.text, slug).toContain(`href="/freestyle/tricks/${slug}" class="tricks-mosaic-learn"`);
+    }
+  });
+
+  it('defers the Learn link for the one stub destination (orbit), so no caption points at an empty page', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).not.toContain('href="/freestyle/tricks/orbit"');
+    // Orbit's cell still renders (labelled), just without a Learn link.
+    expect(res.text).toContain('>Orbit<');
+  });
+
   it('Freestyle Media section is a single invite into the consolidated media page', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).toContain('Browse Freestyle Media');
