@@ -7342,25 +7342,14 @@ export const legacyMembers = {
     )
   `); },
 
-  get findByIdentifier() { return db.prepare(`
-    SELECT
-      legacy_member_id,
-      legacy_user_id, legacy_email, legacy_email2, legacy_email3,
-      real_name, display_name,
-      bio, birth_date, street_address, postal_code,
-      city, region, country,
-      ifpa_join_date, first_competition_year,
-      is_hof, is_bap, legacy_is_admin,
-      claimed_by_member_id, claimed_at
-    FROM legacy_members
-    WHERE claimed_by_member_id IS NULL
-      AND (legacy_member_id = ? OR legacy_user_id = ?
-           OR legacy_email = ? OR legacy_email2 = ? OR legacy_email3 = ?)
-    LIMIT 1
-  `); },
-
-  // Sibling of findByIdentifier without LIMIT 1 so the service can detect
-  // ambiguity (e.g. duplicate legacy_email after the legacy-site data dump).
+  // Returns every unclaimed legacy row matching the identifier (member id, user
+  // id, or any of the three emails) so the service can detect ambiguity, e.g. a
+  // duplicate email address across accounts. Legacy emails are stored lowercase
+  // (the loader lowercases them at write) and the service lowercases the lookup
+  // value, so the plain email indexes are used with an equality seek. A
+  // COLLATE NOCASE predicate here would defeat those BINARY indexes and force a
+  // full table scan per lookup, which is O(members x rows) at the cutover batch
+  // auto-link.
   get findAllByIdentifier() { return db.prepare(`
     SELECT
       legacy_member_id,
@@ -7374,9 +7363,9 @@ export const legacyMembers = {
     FROM legacy_members
     WHERE claimed_by_member_id IS NULL
       AND (legacy_member_id = ? OR legacy_user_id = ?
-           OR legacy_email = ? COLLATE NOCASE
-           OR legacy_email2 = ? COLLATE NOCASE
-           OR legacy_email3 = ? COLLATE NOCASE)
+           OR legacy_email = ?
+           OR legacy_email2 = ?
+           OR legacy_email3 = ?)
   `); },
 
   get findByLegacyMemberId() { return db.prepare(`

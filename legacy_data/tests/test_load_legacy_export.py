@@ -330,3 +330,17 @@ def test_no_guard_on_a_plain_local_target(tmp_path: Path) -> None:
         {"NODE_ENV": "", "FOOTBAG_ENV": ""},
     )
     assert "refusing to load" not in result.stderr
+
+
+def test_legacy_email_is_stored_lowercase(tmp_path: Path) -> None:
+    # The claim lookup seeks the plain email indexes with a lowercased lookup
+    # value, so the stored email must be lowercase regardless of the case the
+    # legacy export carried. The loader lowercases on write.
+    db = make_db(tmp_path)
+    export = write_export(tmp_path, [export_row("800", Email="MiXeD.Case@Example.COM")])
+    result = run_loader(db, export)
+    assert result.returncode == 0, result.stderr
+
+    rows = query(db, "SELECT legacy_email FROM legacy_members WHERE legacy_member_id = '800'")
+    assert len(rows) == 1
+    assert rows[0]["legacy_email"] == "mixed.case@example.com"

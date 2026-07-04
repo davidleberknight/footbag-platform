@@ -355,9 +355,12 @@ def main() -> None:
         real_name = field(row, "real_name") or field(row, "display_name")
         values_common = (
             field(row, "legacy_user_id") or None,
-            field(row, "legacy_email") or None,
-            field(row, "legacy_email2") or None,
-            field(row, "legacy_email3") or None,
+            # Store legacy emails lowercase so the claim / auto-link lookup can
+            # use the plain email indexes (the service lowercases the lookup
+            # value); a stored mixed-case address would never match.
+            field(row, "legacy_email").lower() or None,
+            field(row, "legacy_email2").lower() or None,
+            field(row, "legacy_email3").lower() or None,
             real_name or None,
             display_name or None,
             normalize(display_name) if display_name else None,

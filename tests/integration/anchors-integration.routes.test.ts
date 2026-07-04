@@ -91,6 +91,32 @@ describe('declared old email feeds the batch classifier', () => {
     const meta = JSON.parse(String((audits(memberId, 'legacy.auto_link_candidate_staged'))[0].metadata_json)) as Record<string, unknown>;
     expect(meta.matched_anchors).toContain('declared_old_email');
   });
+
+  it('matches a mixed-case declared old email against a lowercase-stored legacy email', async () => {
+    // Legacy emails are stored lowercase and the declared old email is
+    // lowercased on the way in, so a member who types their old address in a
+    // different case than it was stored still matches at batch time.
+    insertLegacyMember(db, {
+      legacy_member_id: 'LM-anchor-case', legacy_email: 'old-case@old.example.com',
+      real_name: 'Case Batcher', display_name: 'Case Batcher',
+    });
+    insertHistoricalPerson(db, {
+      person_id: 'HP-anchor-case', person_name: 'Case Batcher', legacy_member_id: 'LM-anchor-case',
+    });
+    const memberId = insertMember(db, {
+      id: 'mem-anchor-case', slug: 'mem_anchor_case',
+      login_email: 'new-case@example.com',
+      real_name: 'Case Batcher', display_name: 'Case Batcher',
+    });
+    declareOldEmail(memberId, 'OLD-Case@Old.Example.com');
+
+    await ops.operationsPlatformService.runBatchAutoLink();
+
+    const rows = stagedRows(memberId);
+    expect(rows).toHaveLength(1);
+    const meta = JSON.parse(String((audits(memberId, 'legacy.auto_link_candidate_staged'))[0].metadata_json)) as Record<string, unknown>;
+    expect(meta.matched_anchors).toContain('declared_old_email');
+  });
 });
 
 describe('mandatory old-email proof: an unverified old-email match cannot confirm a claim', () => {
