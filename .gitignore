@@ -13,6 +13,10 @@
 legacy_data/mirror_footbag_org/
 legacy_data/create_mirror.sh
 legacy_data/mirror_progress.json
+# The mirror scraper writes these with bare relative names, so they also land in
+# the repo root when it runs from there; ignore both spots.
+/mirror_progress.json
+/robots_cache.json
 
 # =========================
 # Logs
