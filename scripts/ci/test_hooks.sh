@@ -82,11 +82,41 @@ expect "$H" 'sort -o out.txt in.txt' ask
 expect "$H" 'curl -X POST https://example.com' ask
 expect "$H" 'curl -d @payload https://example.com' ask
 
+# sed writing or executing without -i: w/W write-command, s///w write-flag, e exec.
+expect "$H" 'sed -i "s/a/b/" f.txt' ask
+expect "$H" 'sed --in-place "s/a/b/" f.txt' ask
+expect "$H" "sed -n 'w out.txt' f.txt" ask
+expect "$H" "sed 's/a/b/w out.txt' f.txt" ask
+expect "$H" "sed '3e touch x' f.txt" ask
+# tree writing to a file.
+expect "$H" 'tree -o out.txt src' ask
+expect "$H" 'tree --output out.txt src' ask
+# sed in-place in attached / bundled spellings the -i prefix rule misses.
+expect "$H" 'sed -i.bak "s/a/b/" f.txt' ask
+expect "$H" "sed -i's/a/b/' f.txt" ask
+expect "$H" "sed -ni 's/a/b/' f.txt" ask
+expect "$H" 'sed --in-place=bak "s/a/b/" f' ask
+
 # Plain reads and pipelines with no file write must defer.
 expect "$H" 'grep -rn "foo" src/' defer
 expect "$H" 'echo hello' defer
 expect "$H" 'cat a.txt | wc -l' defer
 expect "$H" 'find src -name "*.ts"' defer
+# Read-only sed transforms (print, substitute-to-stdout) are not a write.
+expect "$H" "sed -n '1,5p' f.txt" defer
+expect "$H" "sed 's/a/b/g' f.txt" defer
+expect "$H" "sed 's/w/x/' f.txt" defer
+
+H=guard-find-exec.sh
+
+# find running a command per match — -exec/-execdir and interactive -ok/-okdir — is
+# hard-denied; a plain read-only find defers.
+expect "$H" 'find . -exec rm {} \;' deny
+expect "$H" 'find . -execdir rm {} \;' deny
+expect "$H" 'find . -ok rm {} \;' deny
+expect "$H" 'find . -okdir rm {} \;' deny
+expect "$H" 'find src -name "*.ts"' defer
+expect "$H" 'find . -delete' defer
 
 H=guard-full-suite-vitest.sh
 
@@ -103,6 +133,95 @@ expect "$H" 'npm test' defer
 expect "$H" 'npm run test:integration' defer
 expect "$H" './run_all_tests.sh' defer
 expect "$H" 'npx tsc -p tsconfig.json' defer
+
+H=allow-readonly-bash.sh
+
+# Plain read-only commands, pipelines, and loops auto-approve.
+expect "$H" 'grep -rn "foo" src/' allow
+expect "$H" 'cat a.txt | wc -l' allow
+expect "$H" 'find footbag.org -path "*/backups/latest.sql"' allow
+expect "$H" 'for f in a b c; do cat "$f"; done' allow
+expect "$H" 'git status' allow
+
+# Read-only command substitution auto-approves (the case that regressed to a prompt).
+expect "$H" 'echo "size $(wc -c < f.txt)"' allow
+expect "$H" 'cat "$(dirname "$p")/x"' allow
+expect "$H" 'grep foo "$(git rev-parse --show-toplevel)/README.md"' allow
+
+# Substitution hiding a write or a non-read-only head must NOT auto-approve (defer;
+# a substitution-hidden rm is not matched by the settings rm ask-rule, so this bail
+# is load-bearing).
+expect "$H" 'echo "$(rm -rf x)"' defer
+expect "$H" 'X=$(git push) echo done' defer
+expect "$H" 'echo "$(cat a > b)"' defer
+expect "$H" 'echo "$(a $(b))"' defer
+expect "$H" 'echo "$((1 + 2))"' defer
+expect "$H" 'echo "$(grep -E "(a|b)" f)"' defer
+
+# Top-level writes and mutating heads still fall through (sibling guards ask/deny).
+expect "$H" 'echo x > notes.txt' defer
+expect "$H" 'rm file.txt' defer
+
+# A backslash-escaped quote must NOT open a phantom quoted region that swallows a
+# following separator; the real command after it has to be vetted (and fall through).
+# `grep "a\"; rm x"` is genuinely one quoted argument and stays read-only.
+expect "$H" 'grep foo\" ; rm x' defer
+expect "$H" 'grep foo\" ; ./evil.sh' defer
+expect "$H" 'cat a\" && bash evil.sh' defer
+expect "$H" 'grep "a\"; rm x"' allow
+
+# In-place sed in any spelling is a write and must fall through (guard then asks).
+expect "$H" 'sed -i.bak "s/a/b/" f.txt' defer
+expect "$H" "sed -ni 's/a/b/' f.txt" defer
+# ...while a read-only sed transform still auto-approves.
+expect "$H" "sed -n '1,5p' f.txt" allow
+expect "$H" "sed 's/a/b/g' f.txt" allow
+
+# Command-runner heads must NOT auto-approve the command they run: env/command exec
+# their argument, so a prefix rule never sees the real head. These must fall through.
+expect "$H" 'env rm -rf /tmp/x' defer
+expect "$H" 'command rm -rf /tmp/x' defer
+# A read-only wrapper is stripped and the wrapped command is vetted, so a wrapped
+# read-only command still auto-approves and a wrapped mutation still falls through.
+expect "$H" 'timeout 30 grep -rn foo src/' allow
+expect "$H" 'nice grep foo f' allow
+expect "$H" 'nice -n 10 grep foo f' allow
+expect "$H" 'time grep foo f' allow
+expect "$H" 'command ls -la' allow
+expect "$H" 'command -v git' allow
+expect "$H" 'command -V cat' allow
+
+# Write via a file operand on an otherwise read-only head must fall through.
+expect "$H" 'uniq in.txt out.txt' defer
+expect "$H" 'xxd a.bin out.bin' defer
+expect "$H" 'tree -o out.txt src' defer
+# ...while their read-only forms still auto-approve.
+expect "$H" 'uniq in.txt' allow
+expect "$H" 'uniq -c sorted.txt' allow
+expect "$H" 'tree src' allow
+
+# Exec/write flags riding mid-arguments on a read-only git subcommand or ripgrep
+# must fall through (a prefix rule cannot see them): --output writes, --upload-pack /
+# --open-files-in-pager / rg --pre execute a command.
+expect "$H" 'git log --output=/tmp/pwned -1' defer
+expect "$H" 'git ls-remote --upload-pack=touch repo' defer
+expect "$H" 'git grep --open-files-in-pager=touch foo' defer
+expect "$H" 'rg --pre=/tmp/evil.sh foo src/' defer
+# ...while ordinary read-only git and rg still auto-approve.
+expect "$H" 'git log --oneline -5' allow
+expect "$H" 'git diff HEAD~1' allow
+expect "$H" 'rg -n foo src/' allow
+
+# Control constructs: a command hidden behind a conditional, grouping, or negation
+# is still vetted (must not skip a mutation), while a read-only conditional allows.
+expect "$H" 'if [[ -f x ]]; then echo hi; else echo bye; fi' allow
+expect "$H" 'if grep -q foo f; then echo yes; fi' allow
+expect "$H" '( grep foo x )' allow
+expect "$H" '( rm -rf x )' defer
+expect "$H" '{ rm x; }' defer
+expect "$H" '! rm x' defer
+expect "$H" 'case $x in a) rm y;; esac' defer
+expect "$H" 'if rm x; then echo hi; fi' defer
 
 # guard-question-quality.sh is a Stop hook, not a PreToolUse hook: it reads the
 # last assistant message from a transcript file and blocks a question that carries

@@ -113,15 +113,15 @@ The second premise in practice: enforcement that does not depend on the agent ch
 - guards production operations;
 - guards destructive database commands;
 - guards dangerous git history rewrites;
-- hard-denies `find -exec` and `-execdir`;
-- asks about mutating flags that ride on otherwise read-only commands (`find -delete`, `sort -o`);
+- hard-denies `find` command-execution predicates (`-exec`, `-execdir`, `-ok`, `-okdir`);
+- asks about mutating flags that ride on otherwise read-only commands (`find -delete`, `sort -o`, `tree -o`, `sed -i` and `sed`'s `w`/`e` write/exec commands);
 - auto-approves genuinely read-only Bash, with deny and ask decisions from the guards always beating this allow.
 
 A Stop hook blocks low-quality questions to the human.
 
 Read-only is not the same as safe: an allowed read of a secret file plus an allowed network fetch is an exfiltration chain. That is why secret-bearing paths are denied to Bash outright (`guard-secret-reads.sh`), since the Read-tool deny rules do not bind shell commands, and why WebFetch is domain-scoped rather than open.
 
-**Fail mode is chosen per hook:** security gates fail closed and deny on doubt. The read-only auto-approver fails open, falling back to the normal permission prompt, and refuses to reason about command substitution, redirects, or backticks, so it never approves a command it cannot fully parse.
+**Fail mode is chosen per hook:** security gates fail closed and deny on doubt. The read-only auto-approver only ever grants: it emits allow for a command it can prove read-only and otherwise stays silent so the normal prompt decides. It splits the command into segments and checks each head against a read-only allowlist, stripping control keywords, grouping, and negation so a command hidden behind them (`( rm x )`, `! rm x`) is still checked, and stripping read-only wrappers (`timeout`, `nice`, `command -v`) so the wrapped command is what gets vetted. Command-runner heads that execute their argument (`env`, `command CMD`) are not treated as read-only, and a head is rejected when an exec or write flag rides mid-arguments where a prefix rule cannot see it (`git --output`, `git ls-remote --upload-pack`, `rg --pre`, `sed -i`, a second file operand). It accepts a command substitution only when its content is a single simple read-only command, and stays silent on nested substitution, arithmetic, backticks, process substitution, or a write redirect; when it neutralizes separators inside quotes it honors backslash escaping, so a backslash-escaped quote cannot smuggle a live command past the segment split. Because deny and ask always beat allow, a write that slips past it is still caught by its guard.
 
 **Static guards are mirrored into permissions.** Anything a static permission rule can express is put in `settings.json`; hooks cover only the positional cases a rule cannot express, such as a `find -delete` or a `curl -X POST` flag anywhere in the arguments (see Layer Activation and Subagent Behavior for why this split protects subagents).
 

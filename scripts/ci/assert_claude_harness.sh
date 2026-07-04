@@ -172,6 +172,23 @@ else
   echo "[harness] no harness file references a memory-store path"
 fi
 
+# --- Check 10: the hook fixture suite passes ---
+# Existence and executability (Check 2) do not prove a guard still makes the right
+# decision. The fixtures pipe synthetic tool events through each hook and assert the
+# permission decision, so a regression in a guard or the read-only auto-approver
+# (a reopened bypass, an over-block) fails the build here.
+if [ -x scripts/ci/test_hooks.sh ]; then
+  if scripts/ci/test_hooks.sh >/dev/null 2>&1; then
+    echo "[harness] hook fixture suite passes"
+  else
+    echo "[harness] FAIL: hook fixture suite (scripts/ci/test_hooks.sh) failed; run it directly for detail" >&2
+    fail=1
+  fi
+else
+  echo "[harness] FAIL: scripts/ci/test_hooks.sh missing or not executable" >&2
+  fail=1
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "[harness] FAIL: one or more harness checks failed." >&2
   exit 1

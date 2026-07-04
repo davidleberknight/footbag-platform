@@ -48,6 +48,44 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])find([[:space:]].*)?[[:s
   exit 0
 fi
 
+# sed writing or executing without -i: the `w`/`W` commands and the `s///w file`
+# flag write a file, and GNU sed's `e` command runs a shell command. `sed` is on the
+# read-only allow-list (its common form only reads), so these need an explicit ask.
+# The -i / --in-place form is also in settings.json ask, mirrored here for subagents.
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])sed([[:space:]].*)?[[:space:]](-[a-zA-Z]*i([[:space:]]|=|$|[.'"'"'"/])|--in-place)'; then
+  jq -n '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason: "sed -i / --in-place edits a file. Confirm before running."
+    }
+  }'
+  exit 0
+fi
+if printf '%s' "$COMMAND" | grep -Eq "(^|[;&|[:space:]])sed([[:space:]]|$).*([[:space:]']([wW]|[0-9,~+]*e)[[:space:]]|s[/|,#].*[/|,#][gpimw0-9]*w[[:space:]])"; then
+  jq -n '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason: "sed with a w/W write-command, s///w write-flag, or e exec-command detected. Confirm before running."
+    }
+  }'
+  exit 0
+fi
+
+# tree writing its output to a file (-o / --output) — like sort -o, a write via a
+# flag that the redirect guard cannot see. `tree` is on the read-only allow-list.
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])tree([[:space:]].*)?[[:space:]](-o([[:space:]]|$)|--output)'; then
+  jq -n '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason: "tree -o / --output writes a file. Confirm before running."
+    }
+  }'
+  exit 0
+fi
+
 # curl with state-changing HTTP methods — -X POST/PUT/DELETE/PATCH can appear
 # anywhere in a long curl invocation, so again not expressible as a static rule.
 if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]].*)?[[:space:]](-X[[:space:]]+(POST|PUT|DELETE|PATCH)|--request[[:space:]]+(POST|PUT|DELETE|PATCH))([[:space:]]|$)'; then
