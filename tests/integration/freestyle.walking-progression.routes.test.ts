@@ -33,7 +33,7 @@ const EXPECTED_STEPS_IN_ORDER = [
   { slug: 'ripwalk',    adds: '4', name: 'ripwalk' },
   { slug: 'dimwalk',    adds: '4', name: 'dimwalk' },
   { slug: 'sidewalk',   adds: '4', name: 'sidewalk' },
-  { slug: 'dada-curve', adds: '4', name: 'dada curve' },
+  { slug: 'dada_curve', adds: '4', name: 'dada curve' },
   { slug: 'matador',    adds: '5', name: 'matador' },
   { slug: 'phoenix',    adds: '5', name: 'phoenix' },
 ];
@@ -46,8 +46,8 @@ beforeAll(async () => {
       slug:           step.slug,
       canonical_name: step.name,
       adds:           step.adds,
-      base_trick:     step.slug === 'dada-curve' ? null : 'butterfly',
-      trick_family:   step.slug === 'dada-curve' ? 'dada-curve' : 'butterfly',
+      base_trick:     step.slug === 'dada_curve' ? null : 'butterfly',
+      trick_family:   step.slug === 'dada_curve' ? 'dada_curve' : 'butterfly',
       category:       'compound',
     });
   }
@@ -62,6 +62,18 @@ describe('GET /freestyle/progression/walking-family', () => {
     const res = await request(createApp()).get('/freestyle/progression/walking-family');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Walking-family progression');
+  });
+
+  it('resolves the full curated chain rather than the fail-safe (dada_curve slug matches the dictionary)', async () => {
+    // The curated chain is all-or-nothing: a single step slug that does not
+    // exist in the dictionary collapses the whole page to the fail-safe notice.
+    // The dada_curve step is the one whose slug must match the canonical
+    // underscore form; a hyphenated slug silently breaks the entire page.
+    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('temporarily unavailable');
+    expect(res.text).toContain('step-5-dada_curve');
+    expect(res.text).toContain('href="/freestyle/tricks/dada_curve"');
   });
 
   it('renders all 7 steps in fixed order', async () => {

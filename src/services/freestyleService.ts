@@ -1739,7 +1739,7 @@ export interface FreestyleTrickContent {
     steps: {
       branchAxis:    string;
       prose:         string;
-      exemplarLinks: { slug: string; label: string; href: string }[];
+      exemplarLinks: { slug: string; label: string; href: string | null }[];
     }[];
   } | null;
   // L6: progressive-reading staircase. simple parent → topology
@@ -3173,6 +3173,10 @@ export interface FreestyleMinorLineage {
 export interface FreestyleFamilyGroup {
   familySlug: string;
   familyName: string;         // capitalized family name (e.g. "Whirl")
+  // Pre-shaped family-anchor link. Points at the family page when the family has
+  // one, otherwise at the anchor trick's detail page, or null when neither
+  // resolves.
+  familyAnchorHref: string | null;
   members: FreestyleTrickIndexRow[];
   // Shared symbolic trick cards, with anchor-first ordering.
   // Anchor = the family's base trick (slug === familySlug) when present.
@@ -3256,7 +3260,7 @@ export interface FamilyDetailVariantGroup {
 export interface FamilyDetailEvolutionStep {
   branchAxis: string;
   prose: string;
-  exemplarLinks: { label: string; href: string }[];
+  exemplarLinks: { label: string; href: string | null }[];
 }
 
 // Reader-facing teaching flow for a family page (the model family-page shape).
@@ -6001,9 +6005,22 @@ function buildFamilyGroup(
     if (last && last.rung === band.rung) last.cards.push(cards[i]!);
     else rungGroups.push({ rung: band.rung, label: band.label, cards: [cards[i]!] });
   });
+  // Family-anchor link target. When a dedicated family page exists, the family
+  // name links there: the family page is the primary explanation of the family
+  // and links on to the member tricks, so it is the natural intermediate step.
+  // A family group with no family page of its own falls back to its anchor
+  // trick's detail page; null when neither resolves, so the sub-label renders the
+  // name as plain text rather than a dead link.
+  const familyAnchorHref =
+    (isOfficialFamilyParent(familySlug) && PUBLIC_FAMILY_LABEL.has(familySlug))
+      ? `/freestyle/families/${familySlug}`
+      : rows.some(r => r.slug === familySlug)
+        ? `/freestyle/tricks/${familySlug}`
+        : null;
   return {
     familySlug,
     familyName,
+    familyAnchorHref,
     members,
     cards,
     crossLink: FAMILY_CROSS_LINKS[familySlug] ?? null,
@@ -7752,6 +7769,9 @@ export const freestyleService = {
             // movement-language-history surface; NOT a list.
             const entry = getTrickFamilyEvolution(slug);
             if (entry === null) return null;
+            // An exemplar slug that has no resolvable trick page renders as
+            // plain text rather than a dead link.
+            const resolvable = getResolvableTrickSlugs();
             return {
               steps: entry.narrativeSteps.map(s => ({
                 branchAxis: s.branchAxis,
@@ -7759,7 +7779,7 @@ export const freestyleService = {
                 exemplarLinks: s.exemplarSlugs.map(es => ({
                   slug:  es,
                   label: es.replace(/[-_]/g, ' '),
-                  href:  `/freestyle/tricks/${es}`,
+                  href:  resolvable.has(es) ? `/freestyle/tricks/${es}` : null,
                 })),
               })),
             };
@@ -7895,7 +7915,9 @@ export const freestyleService = {
       startDate: r.start_date.substring(0, 10),
       city:      r.city,
       country:   r.country,
-      href:      `/events/${r.tag_normalized}`,
+      // tag_normalized is the standardized hashtag form (#event_{year}_{slug});
+      // the public event route keys on the bare form without the leading '#'.
+      href:      `/events/${r.tag_normalized.replace('#', '')}`,
     }));
 
     // Competition formats: static beginner prose, live event prevalence.
@@ -9348,6 +9370,17 @@ export const freestyleService = {
    * stays reversible without code changes.
    */
   getAddAnalysisPage(): PageViewModel<AddAnalysisContent> {
+    // The PassBack-vs-IFPA disagreement rows are hand-authored against IFPA
+    // names; a few reference a name with no canonical trick page. Drop the slug
+    // on those so the template renders the name as plain text, not a dead link.
+    const resolvable = getResolvableTrickSlugs();
+    const content: AddAnalysisContent = {
+      ...FREESTYLE_ADD_ANALYSIS_CONTENT,
+      passbackAddDisagreements: FREESTYLE_ADD_ANALYSIS_CONTENT.passbackAddDisagreements.map(r => ({
+        ...r,
+        ifpaSlug: r.ifpaSlug && resolvable.has(r.ifpaSlug) ? r.ifpaSlug : null,
+      })),
+    };
     return {
       seo: {
         title:       'ADD Analysis (Freestyle)',
@@ -9366,7 +9399,7 @@ export const freestyleService = {
           { label: 'ADD Analysis' },
         ],
       },
-      content: FREESTYLE_ADD_ANALYSIS_CONTENT,
+      content,
     };
   },
 
@@ -10170,12 +10203,15 @@ export const freestyleService = {
     const card = [...ROOT_TERMINAL_FAMILIES, ...BRANCH_FAMILIES]
       .find(c => c.slug === slug) ?? null;
     const evolution = getTrickFamilyEvolution(slug);
+    // An exemplar slug that has no resolvable trick page renders as plain text
+    // rather than a dead link.
+    const resolvableExemplars = getResolvableTrickSlugs();
     const evolutionSteps: FamilyDetailEvolutionStep[] = (evolution?.narrativeSteps ?? []).map(s => ({
       branchAxis: s.branchAxis,
       prose:      s.prose,
       exemplarLinks: s.exemplarSlugs.map(es => ({
         label: es.replace(/[-_]/g, ' '),
-        href:  `/freestyle/tricks/${es}`,
+        href:  resolvableExemplars.has(es) ? `/freestyle/tricks/${es}` : null,
       })),
     }));
 

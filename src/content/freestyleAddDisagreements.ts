@@ -32,8 +32,12 @@
  */
 
 export interface AddDisagreementRow {
-  /** IFPA canonical slug (resolves to /freestyle/tricks/{slug}). */
-  ifpaSlug:        string;
+  /**
+   * IFPA canonical slug. The static rows always carry a slug; the page service
+   * nulls it when the slug has no resolvable trick page, so the row renders as
+   * plain text instead of a dead link.
+   */
+  ifpaSlug:        string | null;
   /** IFPA canonical display name. */
   ifpaName:        string;
   /** IFPA canonical structural formula (when present). */

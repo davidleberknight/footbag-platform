@@ -37,10 +37,15 @@ describe('GET /freestyle with no tricks or records loaded', () => {
     expect(res.text).not.toContain('>Trick Records<');
   });
 
-  it('renders the History timeline items as coming-soon placeholders', async () => {
+  it('links the History tiles to live history-page sections, never a coming-soon placeholder', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('Coming soon');
     expect(res.text).toContain('History Timeline');
+    expect(res.text).toContain('Historical Milestones');
+    expect(res.text).toContain('Evolution of Vocabulary');
+    expect(res.text).toContain('href="/freestyle/history#competition"');
+    expect(res.text).toContain('href="/freestyle/history#institutions"');
+    expect(res.text).toContain('href="/freestyle/history#vocabulary"');
+    expect(res.text).not.toContain('Coming soon');
   });
 
   it('still renders the always-available banner destinations', async () => {

@@ -184,6 +184,16 @@ describe('GET /freestyle/competition', () => {
     expect(res.text).toContain('Test Freestyle Open');
   });
 
+  it('links recent events to their canonical event page, not a fragment', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/competition');
+    // The stored hashtag form carries a leading '#'; the public event route keys
+    // on the bare form. Interpolating the tag raw produced '/events/#event_...',
+    // a dead in-page fragment instead of a link to the event page.
+    expect(res.text).not.toContain('href="/events/#');
+    expect(res.text).toMatch(/href="\/events\/event_[a-z0-9_]+"/);
+  });
+
   it('does NOT count doubles discipline in singles competition table', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/competition');

@@ -63,6 +63,12 @@ beforeAll(async () => {
     add_bonus_rotational: 1, modifier_type: 'body', notes: '',
   });
   insertFreestyleTrickModifierLink(db, 'paradox_whirl', 'paradox');
+  // A whirl family-evolution exemplar that resolves to a real trick page, so the
+  // evolution block exercises both the linked and the plain-text branches.
+  insertFreestyleTrick(db, {
+    slug: 'blender', canonical_name: 'blender', adds: '4',
+    trick_family: 'blender', category: 'compound', is_active: 1,
+  });
 
   // Down family: one trick per variant cell. fusion carries the raw 'dod'
   // label, which folds into the double-over-down variant at display time.
@@ -143,6 +149,18 @@ describe('GET /freestyle/families/:slug — family detail page', () => {
   it('renders the evolution narrative for a family that has one (whirl)', async () => {
     const res = await request(await createApp()).get('/freestyle/families/whirl');
     expect(res.text).toContain('How it branches');
+  });
+
+  it('links evolution exemplars that resolve, and renders unresolvable ones as plain text', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/whirl');
+    // blender is seeded -> a real trick page -> link.
+    expect(res.text).toContain('href="/freestyle/tricks/blender"');
+    // blistering and pogo have no trick row -> plain text, never a dead link.
+    expect(res.text).not.toContain('href="/freestyle/tricks/blistering"');
+    expect(res.text).not.toContain('href="/freestyle/tricks/pogo"');
+    // ...but their labels still render in the branch prose/exemplars.
+    expect(res.text).toContain('blistering');
+    expect(res.text).toContain('pogo');
   });
 
   it('omits the evolution section cleanly for a family without an entry (swirl)', async () => {

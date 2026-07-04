@@ -184,6 +184,30 @@ describe('Down umbrella family (the one ruled structural decomposition)', () => 
     }
   });
 
+  it('the Down umbrella family-anchor links to the family page, not a missing trick page', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const downIdx = res.text.indexOf('id="family-down"');
+    expect(downIdx).toBeGreaterThan(-1);
+    const nextSection = res.text.indexOf('id="family-', downIdx + 1);
+    const section = res.text.slice(downIdx, nextSection === -1 ? undefined : nextSection);
+    // Down has no trick row of its own; its family-anchor must point at the
+    // family page, not a dead /freestyle/tricks/down page.
+    expect(section).toContain('href="/freestyle/families/down"');
+    expect(section).not.toContain('href="/freestyle/tricks/down"');
+  });
+
+  it('an official family parent that also has its own trick row still links its anchor to the family page', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const bIdx = res.text.indexOf('id="family-barfly"');
+    expect(bIdx).toBeGreaterThan(-1);
+    const nextSection = res.text.indexOf('id="family-', bIdx + 1);
+    const section = res.text.slice(bIdx, nextSection === -1 ? undefined : nextSection);
+    // barfly has both a trick row and a family page; the anchor routes to the
+    // family page (the primary explanation), never bypassing it to the trick.
+    const anchor = section.match(/class="trick-family-anchor-link"[^>]*href="([^"]*)"/);
+    expect(anchor?.[1]).toBe('/freestyle/families/barfly');
+  });
+
   it('variant branches keep their own presentation alongside the umbrella, tier deciding the form', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=family');
     // Parent-tier variants render as full sections; minor-tier variants render

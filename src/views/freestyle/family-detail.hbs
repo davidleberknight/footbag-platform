@@ -106,7 +106,7 @@
         {{#if exemplarLinks.length}}
         <p class="trick-family-evolution-exemplars">
           Exemplars:
-          {{#each exemplarLinks}}<a href="{{href}}">{{label}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+          {{#each exemplarLinks}}{{#if href}}<a href="{{href}}">{{label}}</a>{{else}}{{label}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}
         </p>
         {{/if}}
       </li>

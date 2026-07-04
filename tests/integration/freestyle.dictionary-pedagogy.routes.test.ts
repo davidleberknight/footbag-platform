@@ -164,15 +164,16 @@ describe('Dictionary browse — family-anchor sub-label', () => {
     expect(res.text).toMatch(/class="trick-family-anchor-label"[^>]*>\s*Family-anchor:\s*</);
   });
 
-  it('sub-label cross-links the anchor name to the trick-detail page', async () => {
+  it('sub-label links an official family parent to its family page', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    // Each family's anchor name links to /freestyle/tricks/{familySlug}.
-    // The fixture seeded whirl/butterfly/mirage/osis/swirl/rev-whirl as
-    // anchor tricks so each family's section carries an anchor link.
+    // Whirl has a dedicated family page, so the anchor name links there (the
+    // primary explanation of the family) rather than bypassing it to the
+    // representative trick.
     const startIdx = res.text.indexOf('id="family-whirl"');
     const endIdx = res.text.indexOf('</section>', startIdx);
     const region = res.text.slice(startIdx, endIdx);
-    expect(region).toMatch(/class="trick-family-anchor-link"[^>]*href="\/freestyle\/tricks\/whirl"/);
+    expect(region).toMatch(/class="trick-family-anchor-link"[^>]*href="\/freestyle\/families\/whirl"/);
+    expect(region).not.toMatch(/class="trick-family-anchor-link"[^>]*href="\/freestyle\/tricks\/whirl"/);
   });
 
   it('sub-label uses the family display name (not the slug) for the link text', async () => {

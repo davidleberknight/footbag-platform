@@ -137,7 +137,7 @@ describe('Glossary §8 — walking-family progression', () => {
     const res = await request(app).get('/freestyle/glossary');
     const compounds = [
       'butterfly', 'ripwalk', 'dimwalk', 'sidewalk',
-      'dada-curve', 'matador', 'phoenix',
+      'dada_curve', 'matador', 'phoenix',
     ];
     for (const slug of compounds) {
       expect(

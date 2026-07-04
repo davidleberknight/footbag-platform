@@ -214,7 +214,7 @@
         <tbody>
           {{#each content.passbackAddDisagreements}}
           <tr>
-            <td><a href="/freestyle/tricks/{{ifpaSlug}}">{{ifpaName}}</a></td>
+            <td>{{#if ifpaSlug}}<a href="/freestyle/tricks/{{ifpaSlug}}">{{ifpaName}}</a>{{else}}{{ifpaName}}{{/if}}</td>
             <td>{{#if ifpaFormula}}<code>{{ifpaFormula}}</code>{{else}}<em class="passback-add-no-formula">&mdash;</em>{{/if}}</td>
             <td class="passback-add-claim-cell">{{passbackAdd}}</td>
             <td>{{#if curatorNote}}{{curatorNote}}{{else}}<em class="passback-add-no-note">Outside-source dex count; IFPA structural ADD per reviewed row</em>{{/if}}</td>

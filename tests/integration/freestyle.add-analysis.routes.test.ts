@@ -20,15 +20,22 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3110');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
-  // The page reads only curator-authored content; no DB seeding required.
-  // We still need a schema-loaded test DB so the app can boot.
+  // The page is curator-authored content; the only DB-dependent part is the
+  // PassBack-vs-IFPA disagreement table, whose IFPA-name links gate on trick
+  // resolvability. Seed one disagreement-row trick so the resolvable branch is
+  // exercised; the unresolvable names stay unseeded and must render as text.
   const db = createTestDb(dbPath);
+  insertFreestyleTrick(db, {
+    slug: 'butterfly', canonical_name: 'butterfly', adds: '3',
+    trick_family: 'butterfly', category: 'core', is_active: 1,
+  });
   db.close();
   createApp = await importApp();
 });
@@ -587,18 +594,22 @@ describe('GET /freestyle/add-analysis — outside-source ADD framing subsection'
     }
   });
 
-  it('every disagreement row carries an outside-source dex_count value and links to the canonical detail page', async () => {
+  it('every disagreement row carries an outside-source dex_count value, and IFPA names link only when resolvable', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     // Pull the table region
     const tableMatch = res.text.match(/<table class="passback-add-disagreement-table">[\s\S]*?<\/table>/);
     expect(tableMatch).not.toBeNull();
     const table = tableMatch![0];
-    // Every row carries an <a> linking to /freestyle/tricks/{slug}
-    const rowLinks = table.match(/<a href="\/freestyle\/tricks\/[a-z_]+"/g) ?? [];
-    expect(rowLinks.length).toBeGreaterThanOrEqual(60); // 68 rows × 1 link each (allow some tolerance)
-    // Every row carries a PB-claim cell
+    // Every row carries a PB-claim cell (one per row, whether or not the IFPA
+    // name links).
     const claimCells = table.match(/class="passback-add-claim-cell"/g) ?? [];
-    expect(claimCells.length).toBe(rowLinks.length);
+    expect(claimCells.length).toBeGreaterThanOrEqual(60); // ~68 disagreement rows
+    // IFPA names link only for slugs with a resolvable trick page. The fixture
+    // seeds butterfly, so at least one row links; unresolvable slugs render as
+    // plain text rather than a dead link.
+    const rowLinks = table.match(/<a href="\/freestyle\/tricks\/[a-z_]+"/g) ?? [];
+    expect(rowLinks.length).toBeGreaterThanOrEqual(1);
+    expect(rowLinks.length).toBeLessThanOrEqual(claimCells.length);
   });
 
   it('framing prose stays within the lexicon — no forbidden phrases', async () => {
@@ -679,5 +690,22 @@ describe('GET /freestyle/add-analysis — public pedagogy cleanup', () => {
     expect(res.text).not.toContain('Settled compound formula reference');
     expect(res.text).toContain('>Edge cases</h3>');
     expect(res.text).not.toContain('Edge cases mentioned briefly');
+  });
+});
+
+describe('GET /freestyle/add-analysis — PassBack disagreement links gate on trick resolvability', () => {
+  it('links a disagreement row whose IFPA slug resolves to a trick page', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toContain('href="/freestyle/tricks/butterfly"');
+  });
+
+  it('renders IFPA names with no canonical trick page as plain text, never a dead link', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    for (const slug of ['foot_stall', 'paradox_osis', 'paradox_legover', 'symposium_osis']) {
+      expect(res.text, `dead link for ${slug}`).not.toContain(`href="/freestyle/tricks/${slug}"`);
+    }
+    // The names themselves still appear in the table.
+    expect(res.text).toContain('foot stall');
+    expect(res.text).toContain('paradox osis');
   });
 });

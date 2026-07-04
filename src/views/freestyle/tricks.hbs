@@ -362,8 +362,9 @@
     {{! Family-anchor sub-label. Names
         the canonical family-anchor trick so readers connect the
         glossary's "family-anchor trick" vocabulary to the dictionary
-        surface. Links to the anchor's trick-detail page. }}
-    <p class="trick-family-anchor-sublabel"><span class="trick-family-anchor-label">Family-anchor:</span> <a class="trick-family-anchor-link" href="/freestyle/tricks/{{familySlug}}">{{familyName}}</a></p>
+        surface. The name links to the family page when one exists (the
+        primary explanation of the family), otherwise to the anchor trick. }}
+    <p class="trick-family-anchor-sublabel"><span class="trick-family-anchor-label">Family-anchor:</span> {{#if familyAnchorHref}}<a class="trick-family-anchor-link" href="{{familyAnchorHref}}">{{familyName}}</a>{{else}}<span class="trick-family-anchor-link">{{familyName}}</span>{{/if}}</p>
     {{! Family-level shared-terminal-structure invariant. Curator-authored per
         family slug; rendered between the heading and the card stack.
         Source: src/content/freestyleFamilyInvariants.ts. }}

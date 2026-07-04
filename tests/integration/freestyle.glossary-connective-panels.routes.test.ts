@@ -235,11 +235,12 @@ describe('GET /freestyle/glossary — inside-delay stationary-transition case st
   it('renders all four neighborhood tricks with detail-page links', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('href="/freestyle/tricks/wrap"');
-    expect(res.text).toContain('href="/freestyle/tricks/walk-over"');
-    expect(res.text).toContain('href="/freestyle/tricks/hop-over"');
+    expect(res.text).toContain('href="/freestyle/tricks/walk_over"');
+    expect(res.text).toContain('href="/freestyle/tricks/hop_over"');
     expect(res.text).toContain('href="/freestyle/tricks/eclipse"');
-    // step-over is an alias of walk-over — surfaced as text, never its own link.
+    // step-over is an alias of walk-over, surfaced as text, never its own link.
     expect(res.text).not.toContain('href="/freestyle/tricks/step-over"');
+    expect(res.text).not.toContain('href="/freestyle/tricks/step_over"');
   });
 
   it('is badged observational and disclaims canonical-family change', async () => {

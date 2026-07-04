@@ -96,7 +96,7 @@ describe('GET /freestyle/glossary — witchdoctor worked example (preserved from
     // wrapped in <a>; "+ symposium" follows the closing </a> tag.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/<strong>\s*<a href="\/freestyle\/tricks\/witchdoctor">witchdoctor<\/a>\s*<\/strong>/i);
-    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/atom-smasher">atom-smasher<\/a>\s*\+ symposium/i);
+    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/atom_smasher">atom-smasher<\/a>\s*\+ symposium/i);
     expect(res.text).toContain('atomic symposium mirage');
   });
 

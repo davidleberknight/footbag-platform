@@ -37,7 +37,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'ripwalk',    canonical_name: 'ripwalk',    adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'dimwalk',    canonical_name: 'dimwalk',    adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'sidewalk',   canonical_name: 'sidewalk',   adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'dada-curve', canonical_name: 'dada curve', adds: '4', base_trick: null,        trick_family: 'dada-curve', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'dada_curve', canonical_name: 'dada curve', adds: '4', base_trick: null,        trick_family: 'dada_curve', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'matador',    canonical_name: 'matador',    adds: '5', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'phoenix',    canonical_name: 'phoenix',    adds: '5', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
 
@@ -228,5 +228,23 @@ describe('modifier-family pages — glossaryHref deep-links to §13 panel anchor
     const res = await request(createApp()).get('/freestyle/modifier/ducking');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/glossary#glossary-panel-ducking"');
+  });
+});
+
+describe('glossary trick links use canonical underscore slugs (no dead hyphenated links)', () => {
+  // The X-Dex term, the equivalence readings, and the whirl-mirror-pair note
+  // hand-author these trick links in the template; a hyphenated slug never
+  // resolves. Each of these must render as the canonical underscore slug.
+  const UNDERSCORE_TARGETS = [
+    'atom_smasher', 'atomic_miraging_butterfly', 'dada_curve', 'double_leg_over',
+    'gyro_ducking_symposium_torque', 'gyro_whirl', 'hop_over', 'paradox_whirl',
+    'quantum_illusion', 'quantum_mirage', 'rev_whirl', 'spinning_whirl', 'walk_over',
+  ];
+
+  it('links the formerly-hyphenated template tricks by their canonical underscore slug', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    for (const slug of UNDERSCORE_TARGETS) {
+      expect(res.text, `${slug} should link by its canonical underscore slug`).toContain(`href="/freestyle/tricks/${slug}"`);
+    }
   });
 });

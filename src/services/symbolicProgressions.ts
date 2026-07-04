@@ -108,7 +108,7 @@ const WALKING_FAMILY_STEPS: WalkingProgressionStepInput[] = [
     isAnchor: false,
   },
   {
-    slug:          'dada-curve',
+    slug:          'dada_curve',
     modifierAdded: 'no modifier; no foot plant',
     rationale:
       'The same kick-and-recovery shape as ripwalk, executed with the supporting foot stationary throughout. No stepping action, no pixie compaction, no modifier at all: the body absorbs the full wing arc without the help of a relocated base.',

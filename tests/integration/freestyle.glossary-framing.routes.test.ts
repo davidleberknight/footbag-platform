@@ -465,7 +465,7 @@ describe('Glossary — L3 folk/structural projections + equivalence mechanism', 
   it('uses the live-verified canonical-surface examples (both directions)', async () => {
     const html = await glossary();
     expect(html).toContain('href="/freestyle/tricks/gauntlet"');
-    expect(html).toContain('href="/freestyle/tricks/gyro-ducking-symposium-torque"');
+    expect(html).toContain('href="/freestyle/tricks/gyro_ducking_symposium_torque"');
     expect(html).toMatch(/stepping-ducking-paradox-torque/);
     expect(html).toMatch(/alpine-big-apple/);
   });
