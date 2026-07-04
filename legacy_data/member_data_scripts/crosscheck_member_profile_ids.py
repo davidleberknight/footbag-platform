@@ -61,8 +61,6 @@ def main() -> None:
     ap.add_argument("--db", type=Path, default=repo_root / "database/footbag.db")
     ap.add_argument("--club-members-csv", type=Path,
                     default=repo_root / "legacy_data/seed/club_members.csv")
-    ap.add_argument("--member-profiles-csv", type=Path,
-                    default=repo_root / "legacy_data/seed/member_profiles.csv")
     ap.add_argument("--out", type=Path,
                     default=repo_root / "legacy_data/reports/member_id_profile_url_crosscheck.md")
     args = ap.parse_args()
@@ -79,9 +77,6 @@ def main() -> None:
 
     b_profile = ids_from_csv(args.club_members_csv, "mirror_member_id")
     profile_sources = ["club rosters (club_members.csv)"]
-    if args.member_profiles_csv.is_file():
-        b_profile |= ids_from_csv(args.member_profiles_csv, "mirror_member_id")
-        profile_sources.append("mirror profile pages (member_profiles.csv)")
 
     gaps = compare_id_sets(a_account, b_profile, c_hp)
     profile_orphans = gaps["profile_orphans"]     # profile URL exists, no member account

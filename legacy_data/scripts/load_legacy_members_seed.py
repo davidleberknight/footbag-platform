@@ -6,12 +6,9 @@ historical_persons.legacy_member_id -> legacy_members(legacy_member_id).
 The legacy-site data dump will supersede these rows with full profile
 fields and flip import_source from 'mirror' to 'legacy_site_data'.
 
-Phase 1: legacy_member_id (PK), display_name, display_name_normalized,
-imported_at, import_source='mirror'. Other columns left NULL.
-
-Phase 2 (when member_profiles.csv exists): enriches rows with bio, city,
-country, and ifpa_join_date extracted from mirror profile HTML. Fill-if-
-empty semantics: only populates fields that are currently NULL.
+Seeds legacy_member_id (PK), display_name, display_name_normalized,
+imported_at, import_source='mirror'. Other columns are left NULL; the
+legacy-site data dump populates the full profile fields authoritatively.
 
 Sources:
   legacy_data/seed/club_members.csv                       (2,372 unique
@@ -47,7 +44,6 @@ from _seed_env_guard import refuse_if_deployed_target
 
 CLUB_MEMBERS_CSV = Path(__file__).parent.parent / "seed" / "club_members.csv"
 PERSONS_CSV = Path(__file__).parent.parent / "event_results" / "canonical_input" / "persons.csv"
-PROFILES_CSV = Path(__file__).parent.parent / "seed" / "member_profiles.csv"
 
 
 def now_iso() -> str:
@@ -72,7 +68,6 @@ def main() -> None:
     )
     ap.add_argument("--club-members-csv", default=str(CLUB_MEMBERS_CSV))
     ap.add_argument("--persons-csv", default=str(PERSONS_CSV))
-    ap.add_argument("--profiles-csv", default=str(PROFILES_CSV))
     args = ap.parse_args()
 
     refuse_if_deployed_target(args.db)
@@ -84,7 +79,6 @@ def main() -> None:
 
     club_members_csv = Path(args.club_members_csv)
     persons_csv = Path(args.persons_csv)
-    profiles_csv = Path(args.profiles_csv)
     if not club_members_csv.exists():
         print(f"ERROR: {club_members_csv} not found; "
               f"run extract_club_members.py first.", file=sys.stderr)
@@ -135,48 +129,12 @@ def main() -> None:
             )
             inserted += cur.rowcount
 
-    # Phase 2: enrich existing rows with mirror profile data (bio, city, country,
-    # ifpa_join_date). Fill-if-empty: only populate fields that are currently NULL.
-    enriched = 0
-    if profiles_csv.exists():
-        profile_rows = load_csv(profiles_csv)
-        with con:
-            for r in profile_rows:
-                mid = r.get("mirror_member_id", "").strip()
-                if not mid:
-                    continue
-                bio = r.get("bio", "").strip() or None
-                city = r.get("city", "").strip() or None
-                country = r.get("country", "").strip() or None
-                join_date = r.get("ifpa_join_date", "").strip() or None
-                if not any([bio, city, country, join_date]):
-                    continue
-                cur = con.execute(
-                    """
-                    UPDATE legacy_members
-                       SET bio            = COALESCE(bio, ?),
-                           city           = COALESCE(city, ?),
-                           country        = COALESCE(country, ?),
-                           ifpa_join_date = COALESCE(ifpa_join_date, ?),
-                           version        = version + 1
-                     WHERE legacy_member_id = ?
-                       AND (bio IS NULL OR city IS NULL OR country IS NULL OR ifpa_join_date IS NULL)
-                    """,
-                    (bio, city, country, join_date, mid),
-                )
-                enriched += cur.rowcount
-    else:
-        print(f"INFO: {profiles_csv} not found; skipping profile enrichment. "
-              f"Run extract_member_profiles.py to generate it.")
-
     con.close()
 
     print(
         f"Done. legacy_members rows inserted: {inserted} "
         f"(sources considered: {len(rows_by_id)} unique IDs)"
     )
-    if profiles_csv.exists():
-        print(f"Profile enrichment: {enriched} rows updated with mirror profile data.")
 
 
 if __name__ == "__main__":

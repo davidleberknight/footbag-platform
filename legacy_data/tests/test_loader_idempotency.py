@@ -796,8 +796,7 @@ def test_club_members_seed_loader_idempotent(tmp_path: Path) -> None:
         ["legacy_data/scripts/load_clubs_seed.py", "--db", str(db),
          "--clubs-csv", str(clubs), "--verdicts-csv", str(verdicts)],
         ["legacy_data/scripts/load_legacy_members_seed.py", "--db", str(db),
-         "--club-members-csv", str(members), "--persons-csv", str(no_persons),
-         "--profiles-csv", str(tmp_path / "no_profiles.csv")],
+         "--club-members-csv", str(members), "--persons-csv", str(no_persons)],
     ):
         setup = run(setup_args)
         assert setup.returncode == 0, f"setup failed: {setup_args[0]}\nstderr: {setup.stderr}"
@@ -830,9 +829,6 @@ def test_legacy_members_seed_loader_idempotent(tmp_path: Path) -> None:
         "--db", str(db),
         "--club-members-csv", str(members),
         "--persons-csv", str(persons),
-        # Point profiles at a nonexistent tmp path so the loader never reads the
-        # real seed tree (it logs an INFO skip when profiles are absent).
-        "--profiles-csv", str(tmp_path / "no_profiles.csv"),
     ]
     n = assert_idempotent(db, loader, "legacy_members")
     assert n >= 1

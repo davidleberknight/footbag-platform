@@ -5,10 +5,8 @@ test_load_legacy_members_seed.py
 Contract tests for the mirror-derived dev-seed loader
 (legacy_data/scripts/load_legacy_members_seed.py):
 
-  * Phase-2 profile enrichment updates a seeded row in place, bumps `version`,
-    and does NOT crash (the loader previously wrote nonexistent updated_at /
-    updated_by columns, which raised `no such column: updated_at` the moment a
-    member_profiles.csv was present).
+  * the loader seeds a mirror row (name only, import_source='mirror', version=1)
+    from the club-roster and persons sources.
   * the production/staging guard refuses before any work when the target smells
     like a deployed environment, and passes through on a plain local target.
 
@@ -56,9 +54,9 @@ def run_loader(db: str, extra: list[str], env_overrides: dict[str, str] | None =
     return subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT, env=env)
 
 
-# ── Phase 2 enrichment: the B1 regression ───────────────────────────────────
+# ── Phase-1 mirror seeding ───────────────────────────────────────────────────
 
-def test_phase2_enrichment_bumps_version_and_does_not_crash(tmp_path: Path) -> None:
+def test_seeds_mirror_row_name_only(tmp_path: Path) -> None:
     db = make_db(tmp_path)
 
     club_members = write_csv(
@@ -72,42 +70,20 @@ def test_phase2_enrichment_bumps_version_and_does_not_crash(tmp_path: Path) -> N
         [],  # no gap-fill needed
     )
 
-    # Phase 1: seed the row (no profiles CSV yet).
-    r1 = run_loader(str(db), [
+    r = run_loader(str(db), [
         "--club-members-csv", str(club_members),
         "--persons-csv", str(persons),
-        "--profiles-csv", str(tmp_path / "absent-profiles.csv"),
     ])
-    assert r1.returncode == 0, r1.stderr
-    with sqlite3.connect(db) as con:
-        row = con.execute(
-            "SELECT version, bio, city, country, ifpa_join_date "
-            "FROM legacy_members WHERE legacy_member_id = 'm1'"
-        ).fetchone()
-    assert row is not None, "Phase-1 row should exist"
-    assert row[0] == 1 and row[1] is None  # version=1, bio NULL
-
-    # Phase 2: enrich with a real profiles CSV. Pre-fix this crashed.
-    profiles = write_csv(
-        tmp_path / "member_profiles.csv",
-        ["mirror_member_id", "bio", "city", "country", "ifpa_join_date"],
-        [{"mirror_member_id": "m1", "bio": "kicks bags", "city": "Portland",
-          "country": "USA", "ifpa_join_date": "1999-01-01"}],
-    )
-    r2 = run_loader(str(db), [
-        "--club-members-csv", str(club_members),
-        "--persons-csv", str(persons),
-        "--profiles-csv", str(profiles),
-    ])
-    assert r2.returncode == 0, r2.stderr
-    assert "no such column" not in (r2.stderr + r2.stdout)
+    assert r.returncode == 0, r.stderr
 
     with sqlite3.connect(db) as con:
         row = con.execute(
-            "SELECT version, bio, city, country, ifpa_join_date "
+            "SELECT display_name, import_source, version, bio, city, country, ifpa_join_date "
             "FROM legacy_members WHERE legacy_member_id = 'm1'"
         ).fetchone()
-    assert row == (2, "kicks bags", "Portland", "USA", "1999-01-01"), row
+    # Name only, tagged as the mirror stand-in; profile fields stay NULL for the
+    # real member load to populate authoritatively.
+    assert row == ("Jane Roe", "mirror", 1, None, None, None, None), row
 
 
 # ── Production/staging guard ─────────────────────────────────────────────────
