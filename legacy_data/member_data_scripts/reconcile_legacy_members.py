@@ -37,9 +37,15 @@ artifacts ahead of it or applies the proposed links, so --apply stays refused.
 Name normalization is the canonical AliasResolver.normalize_name (NFKD
 accent-fold, lowercase, separators-to-space, in-word punctuation strip) shared by
 every identity-resolution stage, so a name that groups here groups the same way
-downstream. De-duplication considers only member_valid=1 rows; a full date of
-birth is month, day, and year all present (the extractor emits birth_date only in
-that case).
+downstream. A full date of birth is month, day, and year all present (the
+extractor emits birth_date only in that case).
+
+The account universe both stages may propose from is member_valid=1 minus the
+accounts the member loader drops as an email or user-id conflict: an account whose
+email or user id is shared with another account. A shared email is an ambiguous
+identity, so every account in a collision is held (not only the ones the loader
+drops after the first) and routed to a held-out review CSV. Aligning the universe
+this way means a proposal never references an account the load will not import.
 """
 from __future__ import annotations
 
@@ -66,6 +72,14 @@ DEFAULT_STAGE_B_PROPOSED_CSV = Path(
 DEFAULT_STAGE_B_REVIEW_CSV = Path(
     "legacy_data/member_data_scripts/out/stage_b_link_review.csv"
 )
+DEFAULT_EXCLUDED_ACCOUNTS_CSV = Path(
+    "legacy_data/member_data_scripts/out/reconciliation_excluded_accounts.csv"
+)
+
+# The email columns the member loader checks for cross-account collisions. In the
+# current dump only the primary is populated, but the loader drops on any of the
+# three, so the reconciliation must consider all three to stay aligned with it.
+EMAIL_COLS = ("legacy_email", "legacy_email2", "legacy_email3")
 
 
 def _norm_email(s: str | None) -> str:
@@ -78,6 +92,90 @@ def _full_dob(row: dict[str, str]) -> str:
 
 def _valid_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
     return [r for r in rows if (r.get("member_valid") or "").strip() == "1"]
+
+
+def collision_excluded_accounts(valid_rows: list[dict[str, str]]) -> dict[str, dict[str, object]]:
+    """member_valid=1 accounts that share an email or a user id with another such
+    account -- the accounts the member loader drops as an email or user-id
+    conflict, so it never lands them in legacy_members. A shared email is an
+    ambiguous identity, so every account in a collision is held (not just the ones
+    the loader drops after the first): reconciliation must not propose a link for
+    any of them, or the link write would reference an account the loader excluded.
+    Returns {legacy_member_id: {"reason": str, "partners": [ids]}}."""
+    email_ids: dict[str, set[str]] = defaultdict(set)
+    uid_ids: dict[str, set[str]] = defaultdict(set)
+    for r in valid_rows:
+        mid = (r.get("legacy_member_id") or "").strip()
+        if not mid:
+            continue
+        for col in EMAIL_COLS:
+            e = _norm_email(r.get(col))
+            if e:
+                email_ids[e].add(mid)
+        uid = (r.get("legacy_user_id") or "").strip()
+        if uid:
+            uid_ids[uid].add(mid)
+
+    email_excluded: dict[str, set[str]] = defaultdict(set)
+    for ids in email_ids.values():
+        if len(ids) > 1:
+            for mid in ids:
+                email_excluded[mid].update(ids - {mid})
+    uid_excluded: dict[str, set[str]] = defaultdict(set)
+    for ids in uid_ids.values():
+        if len(ids) > 1:
+            for mid in ids:
+                uid_excluded[mid].update(ids - {mid})
+
+    excluded: dict[str, dict[str, object]] = {}
+    for mid in set(email_excluded) | set(uid_excluded):
+        reasons = []
+        partners: set[str] = set()
+        if mid in email_excluded:
+            reasons.append("email_collision")
+            partners |= email_excluded[mid]
+        if mid in uid_excluded:
+            reasons.append("user_id_collision")
+            partners |= uid_excluded[mid]
+        excluded[mid] = {"reason": "+".join(reasons), "partners": sorted(partners)}
+    return excluded
+
+
+def reconcilable_rows(rows: list[dict[str, str]]) -> tuple[list[dict[str, str]], dict[str, dict[str, object]]]:
+    """The account universe Stage A and Stage B may propose from: member_valid=1
+    minus the email / user-id collision accounts the member loader excludes.
+    Returns (kept_rows, excluded) so a caller can also report what was held out."""
+    valid = _valid_rows(rows)
+    excluded = collision_excluded_accounts(valid)
+    kept = [r for r in valid if (r.get("legacy_member_id") or "").strip() not in excluded]
+    return kept, excluded
+
+
+EXCLUDED_ACCOUNT_FIELDS = [
+    "legacy_member_id", "reason", "real_name", "legacy_email", "legacy_user_id", "collision_partners",
+]
+
+
+def write_excluded_accounts_csv(rows: list[dict[str, str]],
+                                excluded: dict[str, dict[str, object]], out_path: Path) -> int:
+    """Write the accounts reconciliation held out (and why), so the held-out set
+    is reviewable rather than silent."""
+    by_id = {(r.get("legacy_member_id") or "").strip(): r for r in rows}
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=EXCLUDED_ACCOUNT_FIELDS, lineterminator="\n")
+        w.writeheader()
+        for mid in sorted(excluded):
+            r = by_id.get(mid, {})
+            w.writerow({
+                "legacy_member_id": mid,
+                "reason": excluded[mid]["reason"],
+                "real_name": r.get("real_name") or "",
+                "legacy_email": _norm_email(r.get("legacy_email")),
+                "legacy_user_id": r.get("legacy_user_id") or "",
+                "collision_partners": " ".join(excluded[mid]["partners"]),  # type: ignore[arg-type]
+            })
+    return len(excluded)
 
 
 # ---------------------------------------------------------------------------
@@ -99,10 +197,7 @@ class DuplicateGroup:
     """A candidate cluster of accounts that one review signal put together.
 
     same_person_recommended is a recommendation for the reviewer, never an
-    applied merge: True for a name + full-DOB match and for a shared email under
-    a single name; False (with exclusion_reason 'different_name_shared_email')
-    for a shared email spanning different names, which is a shared / family
-    mailbox that must not be merged.
+    applied merge: True for a name + full-DOB match.
     """
     signal: str
     match_key: str
@@ -113,17 +208,18 @@ class DuplicateGroup:
 
 
 def build_stage_a_groups(rows: list[dict[str, str]]) -> list[DuplicateGroup]:
-    """Group member_valid=1 accounts by the two approved duplicate signals.
+    """Group reconcilable accounts that share a normalized name + full date of
+    birth -- the strongest same-person duplicate-account signal in the dump.
 
-    Returns only clusters of more than one account, each carrying a stable id.
-    Pure and deterministic: it reads nothing, writes nothing, and merges nothing.
+    Runs over the reconcilable universe (member_valid=1 minus the email / user-id
+    collision accounts the loader drops); shared-email accounts are held out to
+    the collision-excluded review CSV instead. Returns only clusters of more than
+    one account, each carrying a stable id. Pure and deterministic: it reads
+    nothing, writes nothing, and merges nothing.
     """
-    valid = _valid_rows(rows)
+    valid, _ = reconcilable_rows(rows)
     groups: list[DuplicateGroup] = []
 
-    # Signal 1: same normalized name + full date of birth. A shared birth date
-    # under one name across several accounts is the strongest same-person signal
-    # available in the dump.
     by_name_dob: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
     for r in valid:
         nm = normalize_name(r.get("real_name") or "")
@@ -137,26 +233,6 @@ def build_stage_a_groups(rows: list[dict[str, str]]) -> list[DuplicateGroup]:
                 match_key=f"{nm}|{dob}",
                 same_person_recommended=True,
                 exclusion_reason="",
-                accounts=sorted(accts, key=lambda r: r.get("legacy_member_id") or ""),
-            ))
-
-    # Signal 2: shared primary email. One name behind the address is a
-    # same-person candidate; several names behind it is a shared / family
-    # mailbox -- surfaced for review but never recommended as one person.
-    by_email: dict[str, list[dict[str, str]]] = defaultdict(list)
-    for r in valid:
-        e = _norm_email(r.get("legacy_email"))
-        if e:
-            by_email[e].append(r)
-    for e, accts in sorted(by_email.items()):
-        if len(accts) > 1:
-            names = {normalize_name(r.get("real_name") or "") for r in accts}
-            single_name = len(names) == 1
-            groups.append(DuplicateGroup(
-                signal="shared_email",
-                match_key=e,
-                same_person_recommended=single_name,
-                exclusion_reason="" if single_name else "different_name_shared_email",
                 accounts=sorted(accts, key=lambda r: r.get("legacy_member_id") or ""),
             ))
 
@@ -195,32 +271,34 @@ def write_stage_a_review_csv(groups: list[DuplicateGroup], out_path: Path) -> in
     return n
 
 
-def stage_a_duplicate_accounts(csv_path: Path, out_path: Path) -> dict[str, object]:
+def stage_a_duplicate_accounts(csv_path: Path, out_path: Path,
+                               excluded_out: Path | None = None) -> dict[str, object]:
     """Read the intermediate CSV, build the duplicate-account review groups, and
-    write the review CSV. Returns a summary of counts. Writes only the review
-    artifact -- no database write, no account merge."""
+    write the review CSV plus the held-out (collision-excluded) accounts CSV.
+    Returns a summary of counts. Writes only review artifacts -- no database
+    write, no account merge."""
     with Path(csv_path).open(encoding="utf-8", newline="") as f:
         rows = list(csv.DictReader(f))
     groups = build_stage_a_groups(rows)
     review_rows = write_stage_a_review_csv(groups, Path(out_path))
+    kept, excluded = reconcilable_rows(rows)
+    if excluded_out is not None:
+        write_excluded_accounts_csv(rows, excluded, Path(excluded_out))
 
     name_dob = [g for g in groups if g.signal == "name_dob"]
-    email = [g for g in groups if g.signal == "shared_email"]
-    email_same = [g for g in email if g.same_person_recommended]
-    email_excluded = [g for g in email if not g.same_person_recommended]
     return {
         "valid": len(_valid_rows(rows)),
+        "reconcilable": len(kept),
+        "collision_excluded": len(excluded),
         "name_dob_groups": len(name_dob),
         "name_dob_accounts": sum(len(g.accounts) for g in name_dob),
-        "shared_email_groups": len(email),
-        "shared_email_same_person": len(email_same),
-        "shared_email_excluded_different_name": len(email_excluded),
         "review_rows": review_rows,
         "out_path": str(out_path),
+        "excluded_out": str(excluded_out) if excluded_out is not None else "",
     }
 
 
-def run_stage_a(csv_path: Path, out_path: Path) -> int:
+def run_stage_a(csv_path: Path, out_path: Path, excluded_out: Path) -> int:
     if not csv_path.exists():
         print(
             f"error: intermediate CSV not found at {csv_path}.\n"
@@ -228,14 +306,13 @@ def run_stage_a(csv_path: Path, out_path: Path) -> int:
             file=sys.stderr,
         )
         return 1
-    s = stage_a_duplicate_accounts(csv_path, out_path)
-    print(f"member_valid=1: {s['valid']}")
+    s = stage_a_duplicate_accounts(csv_path, out_path, excluded_out)
+    print(f"member_valid=1: {s['valid']}  "
+          f"(reconcilable: {s['reconcilable']}, held out on email/user-id collision: {s['collision_excluded']})")
     print(f"name+full-DOB duplicate groups: {s['name_dob_groups']}  "
           f"(accounts: {s['name_dob_accounts']})")
-    print(f"shared-email groups: {s['shared_email_groups']}  "
-          f"(same-person candidates: {s['shared_email_same_person']}, "
-          f"different-name excluded: {s['shared_email_excluded_different_name']})")
     print(f"review CSV: {out_path}  ({s['review_rows']} rows)  -- review only, no accounts merged")
+    print(f"held-out accounts CSV: {excluded_out}  ({s['collision_excluded']} accounts)")
     return 0
 
 
@@ -366,9 +443,12 @@ def build_stage_b(
     """Propose dump-account -> historical_person links by the approved precedence.
 
     Returns (proposed_links, review_rows). Pure and deterministic: it creates no
-    historical persons, auto-links nothing ambiguous, and writes nothing.
+    historical persons, auto-links nothing ambiguous, and writes nothing. The
+    account universe excludes the email / user-id collision accounts the member
+    loader drops, so a proposal never references an account the load will not
+    import.
     """
-    valid = _valid_rows(accounts)
+    valid, _ = reconcilable_rows(accounts)
     acct_by_id: dict[str, dict[str, str]] = {}
     for a in valid:
         lid = (a.get("legacy_member_id") or "").strip()
@@ -664,6 +744,8 @@ def main() -> None:
                     help="Stage B proposed-link CSV output path (git-ignored out/ by default)")
     ap.add_argument("--review-out", type=Path, default=DEFAULT_STAGE_B_REVIEW_CSV,
                     help="Stage B link-review CSV output path (git-ignored out/ by default)")
+    ap.add_argument("--excluded-out", type=Path, default=DEFAULT_EXCLUDED_ACCOUNTS_CSV,
+                    help="Stage A held-out (email/user-id collision) accounts CSV (git-ignored out/ by default)")
     ap.add_argument("--db", type=Path, default=None,
                     help="built database, read-only for Stage B historical_persons and the QC gate")
     args = ap.parse_args()
@@ -671,7 +753,7 @@ def main() -> None:
     if args.profile:
         sys.exit(profile(args.csv))
     if args.stage_a:
-        sys.exit(run_stage_a(args.csv, args.out))
+        sys.exit(run_stage_a(args.csv, args.out, args.excluded_out))
     if args.stage_b:
         sys.exit(run_stage_b(args.csv, args.db, args.proposed_out, args.review_out))
     if args.qc_gate:

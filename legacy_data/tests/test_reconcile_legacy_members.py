@@ -67,36 +67,70 @@ def test_name_plus_full_dob_groups_as_one_same_person_candidate() -> None:
     assert ids(nd[0]) == ["10", "11"]
     assert nd[0].same_person_recommended is True
     assert nd[0].exclusion_reason == ""
-    # The distinct emails must not have formed a shared-email group.
-    assert groups_by_signal(groups, "shared_email") == []
 
 
-def test_shared_email_under_different_names_is_excluded() -> None:
-    groups = rec.build_stage_a_groups([
+# ---------------------------------------------------------------------------
+# Account-universe alignment: reconciliation excludes the same email / user-id
+# collision accounts the member loader drops, so it never proposes an account
+# the load will not import.
+# ---------------------------------------------------------------------------
+
+def test_shared_email_accounts_are_held_out_of_the_reconcilable_universe() -> None:
+    # Two accounts sharing an email are ambiguous identities the loader drops as
+    # an email conflict; reconciliation holds BOTH out (not just the one the
+    # loader drops after the first), and a non-sharing account stays reconcilable.
+    rows = [
         row("20", real_name="Anna Smith", legacy_email="fam@x.com"),
         row("21", real_name="Bob Smith", legacy_email="fam@x.com"),
-    ])
-    se = groups_by_signal(groups, "shared_email")
-    assert len(se) == 1
-    assert ids(se[0]) == ["20", "21"]
-    assert se[0].same_person_recommended is False
-    assert se[0].exclusion_reason == "different_name_shared_email"
+        row("22", real_name="Cy Solo", legacy_email="solo@x.com"),
+    ]
+    kept, excluded = rec.reconcilable_rows(rows)
+    assert {r["legacy_member_id"] for r in kept} == {"22"}
+    assert set(excluded) == {"20", "21"}
+    assert excluded["20"]["reason"] == "email_collision"
+    assert excluded["20"]["partners"] == ["21"]
 
 
-def test_shared_email_under_one_name_is_a_same_person_candidate() -> None:
-    # No date of birth on either account: the shared email + single name is how a
-    # no-DOB duplicate is caught.
-    groups = rec.build_stage_a_groups([
-        row("30", real_name="Carl Jones", birth_date="", legacy_email="cj@x.com"),
-        row("31", real_name="Carl Jones", birth_date="", legacy_email="CJ@x.com"),
-    ])
-    se = groups_by_signal(groups, "shared_email")
-    assert len(se) == 1
-    assert ids(se[0]) == ["30", "31"]
-    assert se[0].same_person_recommended is True
-    assert se[0].exclusion_reason == ""
-    # No full DOB, so no name+DOB group.
-    assert groups_by_signal(groups, "name_dob") == []
+def test_user_id_collision_accounts_are_held_out() -> None:
+    rows = [
+        row("30", real_name="Dee One", legacy_email="d1@x.com", legacy_user_id="dupe"),
+        row("31", real_name="Ed Two", legacy_email="d2@x.com", legacy_user_id="dupe"),
+    ]
+    kept, excluded = rec.reconcilable_rows(rows)
+    assert kept == []
+    assert set(excluded) == {"30", "31"}
+    assert "user_id_collision" in excluded["30"]["reason"]
+
+
+def test_reconciliation_does_not_propose_a_link_to_a_held_out_account() -> None:
+    # A held-out (shared-email) account matches a person by name + full DOB, but
+    # because it is excluded it is never proposed -- so the link write can never
+    # reference an account the loader will not import.
+    accounts = [
+        row("40", real_name="Held Out", birth_date="1990-01-01", legacy_email="shared@x.com"),
+        row("41", real_name="Other Name", birth_date="1991-02-02", legacy_email="shared@x.com"),
+        row("42", real_name="Clean Match", birth_date="1980-03-03", legacy_email="clean@x.com"),
+    ]
+    hps = [
+        hp("hp_held", "Held Out"),      # would match account 40 by name -- but 40 is held out
+        hp("hp_clean", "Clean Match"),  # matches account 42 (reconcilable)
+    ]
+    proposed, review = rec.build_stage_b(accounts, hps)
+    proposed_ids = {r["legacy_member_id"] for r in proposed}
+    assert "40" not in proposed_ids
+    assert "41" not in proposed_ids
+    assert proposed_ids == {"42"}       # only the non-conflicting account is proposed
+
+
+def test_non_conflicting_accounts_still_propose_normally() -> None:
+    accounts = [
+        row("50", real_name="Uno One", birth_date="1970-01-01", legacy_email="u1@x.com"),
+        row("51", real_name="Dos Two", birth_date="", legacy_email="u2@x.com"),
+    ]
+    hps = [hp("hp_uno", "Uno One"), hp("hp_dos", "Dos Two")]
+    proposed, _ = rec.build_stage_b(accounts, hps)
+    signals_by_hp = {r["historical_person_id"]: r["match_signal"] for r in proposed}
+    assert signals_by_hp == {"hp_uno": "name_dob", "hp_dos": "name_email"}
 
 
 def test_partial_or_absent_dob_is_not_a_name_dob_signal() -> None:
@@ -113,17 +147,16 @@ def test_partial_or_absent_dob_is_not_a_name_dob_signal() -> None:
 
 def test_only_member_valid_rows_are_analyzed() -> None:
     # An invalid row that duplicates the valid pair must not join the group or
-    # form one of its own.
+    # form one of its own. Distinct emails so the pair is not held out as a
+    # collision.
     groups = rec.build_stage_a_groups([
-        row("50", real_name="Erin Fox", birth_date="1988-03-03", legacy_email="e@x.com"),
-        row("51", real_name="Erin Fox", birth_date="1988-03-03", legacy_email="e@x.com"),
-        row("52", real_name="Erin Fox", birth_date="1988-03-03", legacy_email="e@x.com", member_valid="0"),
+        row("50", real_name="Erin Fox", birth_date="1988-03-03", legacy_email="e1@x.com"),
+        row("51", real_name="Erin Fox", birth_date="1988-03-03", legacy_email="e2@x.com"),
+        row("52", real_name="Erin Fox", birth_date="1988-03-03", legacy_email="e3@x.com", member_valid="0"),
     ])
     nd = groups_by_signal(groups, "name_dob")
     assert len(nd) == 1
-    assert ids(nd[0]) == ["50", "51"]  # 52 excluded
-    se = groups_by_signal(groups, "shared_email")
-    assert ids(se[0]) == ["50", "51"]  # 52 excluded
+    assert ids(nd[0]) == ["50", "51"]  # 52 excluded (member_valid=0)
 
 
 def test_no_duplicates_yields_no_groups() -> None:
@@ -134,9 +167,10 @@ def test_no_duplicates_yields_no_groups() -> None:
     assert groups == []
 
 
-def test_stage_a_writes_review_only_and_never_merges(tmp_path: Path) -> None:
-    # Two same-person accounts plus a shared-mailbox pair: Stage A must emit each
-    # account as its own review row (no merge), and take no database.
+def test_stage_a_writes_review_and_held_out_csvs_and_never_merges(tmp_path: Path) -> None:
+    # A same-person name+DOB pair plus a shared-mailbox pair: the duplicate pair
+    # lands in the review CSV (each its own row, no merge); the shared-email pair
+    # is held out to the excluded CSV. No database is touched.
     in_csv = tmp_path / "in.csv"
     fields = ["member_valid", "legacy_member_id", "legacy_user_id", "real_name",
               "birth_date", "legacy_email", "city", "region", "country"]
@@ -152,29 +186,27 @@ def test_stage_a_writes_review_only_and_never_merges(tmp_path: Path) -> None:
             w.writerow({k: r[k] for k in fields})
 
     out_csv = tmp_path / "out" / "review.csv"
-    summary = rec.stage_a_duplicate_accounts(in_csv, out_csv)
+    excluded_csv = tmp_path / "out" / "excluded.csv"
+    summary = rec.stage_a_duplicate_accounts(in_csv, out_csv, excluded_csv)
 
     assert summary["valid"] == 4
+    assert summary["reconcilable"] == 2        # 70, 71
+    assert summary["collision_excluded"] == 2  # 80, 81 share fam@x.com
     assert summary["name_dob_groups"] == 1
-    assert summary["shared_email_groups"] == 1
-    assert summary["shared_email_same_person"] == 0
-    assert summary["shared_email_excluded_different_name"] == 1
-    # Two review rows per group (no accounts collapsed).
-    assert summary["review_rows"] == 4
+    assert summary["review_rows"] == 2
 
     with out_csv.open(encoding="utf-8", newline="") as f:
         review = list(csv.DictReader(f))
-    assert [c for c in review[0].keys()] == rec.REVIEW_FIELDS
+    assert list(review[0].keys()) == rec.REVIEW_FIELDS
+    assert {r["legacy_member_id"] for r in review} == {"70", "71"}
+    assert all(r["signal"] == "name_dob" for r in review)
+    assert all(r["same_person_recommended"] == "yes" for r in review)
 
-    # Every input account survives as its own row with its own id -- recommended,
-    # not merged.
-    assert {r["legacy_member_id"] for r in review} == {"70", "71", "80", "81"}
-    name_dob = [r for r in review if r["signal"] == "name_dob"]
-    assert {r["legacy_member_id"] for r in name_dob} == {"70", "71"}
-    assert all(r["same_person_recommended"] == "yes" for r in name_dob)
-    shared = [r for r in review if r["signal"] == "shared_email"]
-    assert all(r["same_person_recommended"] == "no" for r in shared)
-    assert all(r["exclusion_reason"] == "different_name_shared_email" for r in shared)
+    with excluded_csv.open(encoding="utf-8", newline="") as f:
+        held = list(csv.DictReader(f))
+    assert list(held[0].keys()) == rec.EXCLUDED_ACCOUNT_FIELDS
+    assert {r["legacy_member_id"] for r in held} == {"80", "81"}
+    assert all(r["reason"] == "email_collision" for r in held)
 
 
 # ---------------------------------------------------------------------------
