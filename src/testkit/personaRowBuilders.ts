@@ -265,9 +265,12 @@ export function insertLegacyMember(db: BetterSqlite3.Database, o: LegacyMemberOv
   `).run(
     legacyId,
     o.legacy_user_id ?? null,
-    o.legacy_email ?? null,
-    o.legacy_email2 ?? null,
-    o.legacy_email3 ?? null,
+    // Legacy emails are stored lowercase, mirroring the real loader: the claim
+    // lookup seeks the plain (binary) email indexes with a lowercased lookup
+    // value, so a mixed-case stored address would never match.
+    o.legacy_email ? o.legacy_email.toLowerCase() : null,
+    o.legacy_email2 ? o.legacy_email2.toLowerCase() : null,
+    o.legacy_email3 ? o.legacy_email3.toLowerCase() : null,
     name,
     display,
     display.toLowerCase(),
