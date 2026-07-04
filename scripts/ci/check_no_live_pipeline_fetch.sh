@@ -16,8 +16,9 @@ HOSTS='footbag\.org|footbaghalloffame\.net|bigaddposse\.com'
 FETCH='urlopen|requests\.(get|post|head|put|delete)'
 # Mirror crawler (builds the mirror), opt-in honor-roster drift check (never wired
 # into CI), the gated pre-cutover move scrape (--live), the one-time demo-media
-# downloader. Everything else must read committed inputs.
-ALLOW='create_mirror_footbag_org\.py|diff_live_honor_rosters\.py|18_scrape_footbag_org_moves\.py|acquire_footbag_org_demos\.py'
+# downloader, the opt-in authenticated groups crawl (settings + membership).
+# Everything else must read committed inputs.
+ALLOW='create_mirror_footbag_org\.py|diff_live_honor_rosters\.py|18_scrape_footbag_org_moves\.py|acquire_footbag_org_demos\.py|scrape_footbag_org_groups\.py'
 
 offenders=""
 while IFS= read -r f; do

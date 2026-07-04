@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+"""Opt-in live crawl of footbag.org member groups (settings + membership).
+
+Logs into footbag.org with member credentials, then walks a range of group
+IDs fetching two pages per group:
+
+  - /groups/editgroupinfo/<id>  — the group's settings form
+  - /groups/home/<id>           — the group's member list
+
+Writes two CSVs: one row per group for settings, one row per (group, member)
+for membership. A group ID that 404s, redirects to a "no such group" page, or
+requires access the logged-in account doesn't have is recorded as skipped and
+the crawl continues.
+
+Scope and guarantees:
+
+  - Read-only against footbag.org. Never posts, edits, or deletes anything on
+    the live site; only GETs the two pages per group.
+  - Opt-in. NOT wired into run_pipeline.sh or any other pipeline mode; run it
+    explicitly.
+  - Credentials are never accepted as command-line arguments (they would land
+    in shell history and be visible to any local user via `ps`). Pass
+    --username or let it prompt; the password always comes from an
+    interactive getpass prompt.
+  - The settings and member-list parsers are best-effort: they read whatever
+    labeled form fields / member links are present rather than assuming fixed
+    columns, because the exact page markup was not available to verify while
+    writing this script. Inspect the first few rows of output against the
+    real pages and adjust `parse_group_settings` / `parse_group_members` if a
+    field is missing or misparsed.
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import getpass
+import logging
+import sys
+import time
+from pathlib import Path
+
+import requests
+from bs4 import BeautifulSoup
+
+BASE_URL = "http://www.footbag.org"
+LOGIN_URL = BASE_URL + "/members/home"
+DELAY_SECONDS = 0.5  # polite delay between requests to the live site
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger("scrape_footbag_org_groups")
+
+
+def login(session: requests.Session, username: str, password: str) -> None:
+    init_resp = session.get(BASE_URL + "/members/", timeout=10)
+    init_resp.raise_for_status()
+
+    payload = {
+        "MemberID": username.split("@")[0],  # alias part only, matches the site's login form
+        "MemberPassword": password,
+        "login_retry": "1",
+    }
+    login_resp = session.post(LOGIN_URL, data=payload, timeout=15, allow_redirects=True)
+    login_resp.raise_for_status()
+
+    verify_resp = session.get(LOGIN_URL, timeout=10)
+    verify_resp.raise_for_status()
+    soup = BeautifulSoup(verify_resp.text, "html.parser")
+    title = soup.find("title")
+    title_text = title.get_text(strip=True).lower() if title else ""
+    if soup.find("form", {"name": "loginform"}) or "member sign-in" in title_text:
+        raise RuntimeError("Login failed — still seeing the sign-in page.")
+    log.info("Login successful")
+
+
+def looks_like_missing_group(soup: BeautifulSoup) -> bool:
+    text = soup.get_text(" ", strip=True).lower()
+    return any(
+        phrase in text
+        for phrase in ("no such group", "group not found", "does not exist", "invalid group")
+    )
+
+
+def parse_group_settings(group_id: int, soup: BeautifulSoup) -> dict | None:
+    """Best-effort extraction of the editgroupinfo settings form as a flat dict.
+
+    Reads every labeled input/select/textarea inside the page's <form>. Field
+    names come from each element's `name` attribute (falls back to any
+    associated <label> text), so the columns in the output CSV reflect
+    whatever fields the live form actually has.
+    """
+    form = soup.find("form")
+    if form is None:
+        return None
+
+    fields: dict[str, str] = {}
+    for el in form.find_all(["input", "select", "textarea"]):
+        name = el.get("name")
+        if not name:
+            continue
+        if el.name == "textarea":
+            value = el.get_text(strip=True)
+        elif el.name == "select":
+            selected = el.find("option", selected=True) or el.find("option")
+            value = selected.get_text(strip=True) if selected else ""
+        else:
+            input_type = (el.get("type") or "text").lower()
+            if input_type in ("checkbox", "radio"):
+                if not el.has_attr("checked"):
+                    continue
+                value = el.get("value", "on")
+            else:
+                value = el.get("value", "")
+        fields[name] = value
+
+    return {"group_id": group_id, **fields}
+
+
+def parse_group_members(group_id: int, soup: BeautifulSoup) -> list[dict]:
+    """Best-effort extraction of the member list on the groups/home page.
+
+    Collects every link to a member profile (`/members/profile/<id>`) on the
+    page, using the link text as the display name.
+    """
+    members = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if "/members/profile/" not in href:
+            continue
+        name = a.get_text(strip=True)
+        if not name:
+            continue
+        profile_id = href.rstrip("/").rsplit("/", 1)[-1]
+        members.append({
+            "group_id": group_id,
+            "member_name": name,
+            "member_profile_id": profile_id,
+            "member_profile_url": href,
+        })
+    return members
+
+
+def fetch_group(session: requests.Session, group_id: int) -> tuple[dict | None, list[dict], str | None]:
+    """Returns (settings_row_or_None, member_rows, skip_reason_or_None)."""
+    settings_resp = session.get(f"{BASE_URL}/groups/editgroupinfo/{group_id}", timeout=15)
+    if settings_resp.status_code == 404:
+        return None, [], "editgroupinfo 404"
+    settings_resp.raise_for_status()
+    settings_soup = BeautifulSoup(settings_resp.text, "html.parser")
+    if looks_like_missing_group(settings_soup):
+        return None, [], "no such group"
+
+    time.sleep(DELAY_SECONDS)
+
+    home_resp = session.get(f"{BASE_URL}/groups/home/{group_id}", timeout=15)
+    if home_resp.status_code == 404:
+        members = []
+    else:
+        home_resp.raise_for_status()
+        home_soup = BeautifulSoup(home_resp.text, "html.parser")
+        members = [] if looks_like_missing_group(home_soup) else parse_group_members(group_id, home_soup)
+
+    settings = parse_group_settings(group_id, settings_soup)
+    return settings, members, None
+
+
+def write_settings_csv(path: Path, rows: list[dict]) -> None:
+    fieldnames: list[str] = ["group_id"]
+    for row in rows:
+        for key in row:
+            if key not in fieldnames:
+                fieldnames.append(key)
+    with path.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def write_members_csv(path: Path, rows: list[dict]) -> None:
+    with path.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["group_id", "member_name", "member_profile_id", "member_profile_url"])
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--start", type=int, default=1, help="First group ID to crawl (default: 1)")
+    parser.add_argument("--end", type=int, default=170, help="Last group ID to crawl, inclusive (default: 170)")
+    parser.add_argument("--username", default=None, help="footbag.org username/email; prompted if omitted")
+    parser.add_argument("--settings-out", type=Path, default=Path("group_settings.csv"))
+    parser.add_argument("--members-out", type=Path, default=Path("group_members.csv"))
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    username = args.username or input("footbag.org username/email: ")
+    password = getpass.getpass("footbag.org password: ")
+
+    session = requests.Session()
+    session.headers.update({"User-Agent": "FootbagGroupScrape/1.0 (IFPA internal use)"})
+    login(session, username, password)
+
+    settings_rows: list[dict] = []
+    member_rows: list[dict] = []
+    skipped: list[tuple[int, str]] = []
+
+    for group_id in range(args.start, args.end + 1):
+        try:
+            settings, members, skip_reason = fetch_group(session, group_id)
+        except requests.RequestException as e:
+            skipped.append((group_id, f"fetch failed: {e}"))
+            log.warning("group %d: fetch failed: %s", group_id, e)
+            time.sleep(DELAY_SECONDS)
+            continue
+
+        if skip_reason:
+            skipped.append((group_id, skip_reason))
+            log.info("group %d: skipped (%s)", group_id, skip_reason)
+        else:
+            if settings:
+                settings_rows.append(settings)
+            member_rows.extend(members)
+            log.info("group %d: %d member(s)", group_id, len(members))
+
+        time.sleep(DELAY_SECONDS)
+
+    write_settings_csv(args.settings_out, settings_rows)
+    write_members_csv(args.members_out, member_rows)
+
+    log.info(
+        "Done: %d group(s) with settings, %d member row(s), %d skipped. Wrote %s and %s",
+        len(settings_rows), len(member_rows), len(skipped), args.settings_out, args.members_out,
+    )
+    if skipped:
+        log.info("Skipped IDs: %s", ", ".join(f"{gid} ({reason})" for gid, reason in skipped))
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
