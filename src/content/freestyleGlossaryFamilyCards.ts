@@ -127,6 +127,35 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
         body:  'Network analysis of 22 years of Sick3 sequences shows whirl as the central attractor of the freestyle trick network: sequences converge on it as a stable resolution point. Blurry whirl functions as the most common opening element; the transition blurry whirl → whirl is the most documented two-trick structure in the corpus.',
       },
     ],
+    teaching: {
+      hook: 'Whirl became the trick freestyle is built around, because it ends exactly where it begins and lets a combo keep going.',
+      physicalDescription:
+        'A whirl is a clipper-to-clipper move: from a clipper, the leg circles the bag over the top and brings it back to a clipper. It is one of the first rotational moves a player owns, and one they never stop using.',
+      importance:
+        'Whirl became the hub because it starts and ends in the same position, a clipper: you can enter it from almost anything that lands in a clipper and leave it into almost anything that starts from one. That points at something larger about advanced freestyle. Many tricks are valuable not simply because they are hard, but because they leave the player in a position where the next trick is possible. Whirl became central because it returns the player to one of the most reusable positions in the sport, which is a large part of why the clipper became the language advanced freestyle is built on.',
+      variantsIntro:
+        'Whirl is a base other tricks build on. Add an operator on the way in and you get its family: paradox whirl, gyro whirl, spinning whirl, symposium whirl. The whirl underneath stays the same; the operator is what changes.',
+      variants: [],
+      variantsRuling: '',
+      howToRecognize: [
+        'From a clipper, back to a clipper.',
+        'One circling dex in between.',
+        'The bag comes over the top and returns.',
+        'Strip the operators and a plain whirl is what remains.',
+      ],
+      howToThink:
+        'Treat whirl as the return point. It became the center of freestyle because it loops back to where it started, so when a combo needs to keep going it often passes through a whirl. Learning it, you start to see the shape of how combos connect.',
+      misconceptions: [
+        'Whirl is common, but common does not mean basic: it is the hub the rest of the vocabulary connects through.',
+        'A whirl is not defined by what comes before it; many combos end in the same whirl.',
+        'The harder whirl-family tricks are not separate from whirl; they are a whirl with an operator added.',
+      ],
+      seeItIn: ['blurry_whirl', 'paradox_whirl', 'gyro_whirl', 'spinning_whirl', 'symposium_whirl'],
+      notationIntro:
+        'For readers interested in the formal notation, a whirl runs from a clipper through one circling dex back to a clipper: CLIP > OP IN [DEX] > OP CLIP [XBD] [DEL] (3 ADD).',
+      takeaway:
+        'Whirl is the trick freestyle organized itself around, because it always returns you to where the next move can begin.',
+    },
   },
   {
     slug:              'butterfly',
@@ -373,6 +402,35 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     siblingFamilies:   ['whirl', 'osis'],
     notableCompounds:  ['paradox whirling swirl', 'spyro gyro (≡ gyro butterfly swirl)'],
     observationalNotes: [],
+    teaching: {
+      hook: 'Swirl is the whirl run the other way, and it shows one of the ways freestyle grows: by varying a move you already know.',
+      physicalDescription:
+        'A swirl is a clipper-to-clipper move like the whirl, but the leg takes the bag around the back instead of over the top. Same start, same finish, opposite path.',
+      importance:
+        'Swirl illustrates one of the ways freestyle expanded. Once players understood a movement, they naturally explored what happened when they changed one dimension of it, and here that dimension is the direction of the circle. Taking a known move and reversing it, rather than inventing something new from scratch, is one of the most productive ways the vocabulary has grown, and the swirl is a clean early example. Its own family, butterfly swirl, spinning swirl, and symposium swirl, is that same habit applied again.',
+      variantsIntro:
+        'Swirl is the whirl\'s shape with the circling reversed: from a clipper, the leg takes the bag around the back and returns to a clipper. Like the whirl, it is a base others build on, so its family is swirl with an operator added.',
+      variants: [],
+      variantsRuling: '',
+      howToRecognize: [
+        'From a clipper, back to a clipper, like a whirl.',
+        'But the bag travels around the back, not over the top.',
+        'One circling dex, reversed.',
+        'If it looks like a whirl going the other way, it is a swirl.',
+      ],
+      howToThink:
+        'See swirl as variation in action. It is a whirl with one dimension changed, and that habit, taking a move you know and changing a single thing about it, is how much of the vocabulary you will ever learn came to be. Recognizing the whirl and swirl pair is the start of seeing freestyle as a system you can extend, not just a set of tricks to memorize.',
+      misconceptions: [
+        'Swirl is not a harder whirl; it is the same clipper-to-clipper shape circled the other way.',
+        'A swirl is not defined by its entry; the direction of the circle is what makes it a swirl.',
+        'Learning the whirl does not cover the swirl; the reversed direction is its own skill, even though the frame is shared.',
+      ],
+      seeItIn: ['butterfly_swirl', 'spinning_swirl', 'symposium_swirl'],
+      notationIntro:
+        'For readers interested in the formal notation, a swirl runs from a clipper through one back-circling dex to a clipper: CLIP > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL] (3 ADD). It differs from the whirl only in that circling dex.',
+      takeaway:
+        'Swirl is the whirl run the other way, and it shows how freestyle grows: by taking a movement you already know and varying it.',
+    },
   },
   {
     slug:              'rev_whirl',

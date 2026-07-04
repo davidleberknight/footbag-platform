@@ -134,9 +134,9 @@ describe('GET /freestyle/families/:slug — family detail page', () => {
   });
 
   it('renders the glossary-card overview fields (canonical formula + anchor ADD)', async () => {
-    const res = await request(await createApp()).get('/freestyle/families/whirl');
+    const res = await request(await createApp()).get('/freestyle/families/drifter');
     expect(res.text).toContain('Canonical formula');
-    expect(res.text).toContain('CLIP &gt; OP IN [DEX] &gt; OP CLIP [XBD] [DEL]');
+    expect(res.text).toContain('SET &gt; OP IN [DEX] &gt; SAME CLIP [XBD] [DEL]');
     expect(res.text).toContain('3 ADD');
   });
 
@@ -255,8 +255,8 @@ describe('GET /freestyle/families/down — the teaching flow (model family page)
     expect(res.text).toContain('stop seeing four different tricks and start seeing one family');
   });
 
-  it('does not leak the teaching sections onto a family without authored teaching (whirl)', async () => {
-    const res = await request(await createApp()).get('/freestyle/families/whirl');
+  it('does not leak the teaching sections onto a family without authored teaching (drifter)', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/drifter');
     expect(res.text).not.toContain('Notation reference');
     expect(res.text).not.toContain('Common misconceptions');
     expect(res.text).toContain('Overview');
@@ -341,6 +341,35 @@ describe('GET /freestyle/families/butterfly — the flow lesson (cultural transf
   it('closes on the link-movement takeaway', async () => {
     const res = await request(await createApp()).get('/freestyle/families/butterfly');
     expect(res.text).toContain('starts being movement you can link together');
+  });
+});
+
+describe('GET /freestyle/families/whirl — the connector (why it became central)', () => {
+  it('explains why whirl became the hub, not merely that it is common', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('starts and ends in the same position, a clipper');
+    expect(res.text).toContain('leave the player in a position where the next trick is possible');
+  });
+
+  it('closes on the return-to-where-the-next-move-begins takeaway', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/whirl');
+    expect(res.text).toContain('always returns you to where the next move can begin');
+  });
+});
+
+describe('GET /freestyle/families/swirl — variation as a creative force', () => {
+  it('frames swirl as a pattern of expansion, not a claim about the inventor', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/swirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Swirl illustrates one of the ways freestyle expanded');
+    expect(res.text).toContain('changed one dimension of it');
+    expect(res.text).not.toContain('marks the moment');
+  });
+
+  it('closes on the grow-by-varying-what-you-know takeaway', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/swirl');
+    expect(res.text).toContain('by taking a movement you already know and varying it');
   });
 });
 
