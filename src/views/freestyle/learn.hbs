@@ -22,6 +22,26 @@
 
     <p class="learn-intro">{{content.pageIntro}}</p>
 
+    {{! Start-here path: the six foundational pages in learning order, the beginner
+        on-ramp above the more advanced pathways. }}
+    <section class="learn-foundational-path" aria-label="Start here: the six foundations">
+      <div class="section-heading">
+        <h2>{{content.foundationalPath.heading}}</h2>
+      </div>
+      <p class="learn-section-intro">{{content.foundationalPath.intro}}</p>
+      <ol class="learn-path-steps">
+        {{#each content.foundationalPath.steps}}
+        <li class="learn-path-step">
+          <span class="learn-path-step-num">{{step}}</span>
+          <div class="learn-path-step-body">
+            <a class="learn-path-step-name" href="{{href}}">{{name}}</a>
+            <p class="learn-path-step-lesson">{{lesson}}</p>
+          </div>
+        </li>
+        {{/each}}
+      </ol>
+    </section>
+
     {{! Operator board — symbolic-onboarding surface. Anchors the educational pathways below in the same compositional vocabulary they teach. }}
     {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
 

@@ -438,7 +438,7 @@ describe('ADD Analysis discoverability — inbound links', () => {
     expect(slice).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('freestyle history ADD System section links to ADD analysis', async () => {
+  it('freestyle history difficulty section links to ADD analysis', async () => {
     const res = await request(createApp()).get('/freestyle/history');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/add-analysis"');

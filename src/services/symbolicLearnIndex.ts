@@ -28,15 +28,48 @@ export interface LearnIndexSection {
   entries:      LearnIndexEntry[];
 }
 
+/** One step in the beginner start-here path: an ordered walk of the foundational pages. */
+export interface FoundationalPathStep {
+  step:   number;
+  name:   string;
+  lesson: string;
+  href:   string;
+}
+export interface FoundationalPath {
+  heading: string;
+  intro:   string;
+  steps:   readonly FoundationalPathStep[];
+}
+
 export interface SymbolicLearnIndexContent {
   pageHeading:   string;
   pageIntro:     string;
+  // The beginner start-here path: the six foundational pages in reading order,
+  // rendered before the more advanced pathways below.
+  foundationalPath: FoundationalPath;
   // Operator-board orientation strip rendered before the section list, as the
   // symbolic-onboarding surface for the educational pathways index.
   operatorBoard: OperatorBoardData;
   sections:      LearnIndexSection[];
   layerSource:   'observational';
 }
+
+// The six foundational pages, in learning order: each teaches one idea the rest of
+// the sport is built on, walking from the simplest dexterity to how the vocabulary
+// is organized. Order and lessons are the curator-set foundational curriculum.
+const FOUNDATIONAL_PATH: FoundationalPath = {
+  heading: 'Start here: the six foundations',
+  intro:
+    'New to freestyle? Read these six pages in order. Each teaches one idea the rest of the sport is built on, and together they are the shortest path from your first dexterity to how the whole vocabulary fits together.',
+  steps: [
+    { step: 1, name: 'Mirage',    lesson: 'The simplest dexterity, and the idea most of freestyle is built from.',  href: '/freestyle/families/mirage' },
+    { step: 2, name: 'Butterfly', lesson: 'Your first linked movement: two dexterities flowing as one.',            href: '/freestyle/families/butterfly' },
+    { step: 3, name: 'Whirl',     lesson: 'The connector a combo keeps returning to.',                              href: '/freestyle/families/whirl' },
+    { step: 4, name: 'Osis',      lesson: 'The terminal ending a whole branch of tricks grows from.',               href: '/freestyle/families/osis' },
+    { step: 5, name: 'Swirl',     lesson: 'How the vocabulary grows: by varying a move you already know.',          href: '/freestyle/families/swirl' },
+    { step: 6, name: 'Down',      lesson: 'How tricks are organized: four famous names, one family.',               href: '/freestyle/families/down' },
+  ],
+};
 
 const PROGRESSIONS_SECTION: LearnIndexSection = {
   heading:    'Progressions',
@@ -106,6 +139,7 @@ export function buildSymbolicLearnIndex(operatorBoard: OperatorBoardData): Symbo
     pageHeading: 'Educational pathways through freestyle footbag',
     pageIntro:
       'Guided progression paths for exploring freestyle movement: how a modifier feels, how a family of tricks builds up step by step, how a glossary term shows up across the catalog. The trick dictionary remains the main reference; these are companions for learning.',
+    foundationalPath: FOUNDATIONAL_PATH,
     operatorBoard,
     sections: [
       PROGRESSIONS_SECTION,

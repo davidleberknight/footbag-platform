@@ -1,4 +1,4 @@
-{{! /freestyle/history — editorial history, pioneers, eras }}
+{{! /freestyle/history — the encyclopedia's introduction: how freestyle became a language }}
 
 <div class="hero hero-sm">
   <div>
@@ -16,267 +16,52 @@
 
 <div class="wrapper">
 
-  {{! ── Two-Phase Story (opening framing) ──────────────────────────────── }}
+  {{! ── Thesis + opening ─────────────────────────────────────────────── }}
   <section class="content-section">
-    <div class="section-heading">
-      <h2>The Two-Phase Story</h2>
-    </div>
-    <p>
-      Freestyle footbag has two distinct histories. The first is
-      <strong>vocabulary building</strong> &mdash; roughly 1985 to 2008, the years
-      in which the named tricks, the family structures, and the modifier
-      conventions were established by a generation of innovators. The second
-      is <strong>vocabulary maturation</strong> &mdash; 2008 to today, the years
-      in which that vocabulary was deepened, recombined, and pushed against
-      the limits of human biomechanics, without fundamentally new trick
-      structures emerging.
-    </p>
-    <p>
-      The competitive sport reflects both phases. Early-era players invented
-      the language; modern-era players write longer, more layered sentences in
-      it. The <a href="/freestyle/combo-analysis#run-quality">ADD scoring system</a>
-      encodes the difficulty of those sentences additively &mdash; a base
-      trick's value plus the value of each modifier layered on top. Today's
-      ADD-22 sequences and modern modifier-stacking architectures are the
-      natural extensions of structures that took three decades to build.
-    </p>
+    <p class="history-thesis">{{content.thesis}}</p>
+    {{#each content.intro}}<p>{{this}}</p>{{/each}}
   </section>
 
-  {{! ── Hero/intro media panel — placed after the opening story so the
-      narrative leads, not an archival-imagery caveat. ── }}
-  {{#if content.heroMedia}}
-  <section class="content-section history-media history-media--hero">
-    {{#if content.heroMedia.media}}
-    <div class="video-embed">
-      {{> video-facade media=content.heroMedia.media}}
+  {{! ── The narrative, one section per idea, each evidence for the thesis ── }}
+  {{#each content.sections}}
+  <section id="{{id}}" class="content-section">
+    <div class="section-heading">
+      <h2>{{heading}}</h2>
     </div>
+    {{#each paragraphs}}<p>{{this}}</p>{{/each}}
+    {{#if links.length}}
+    <ul class="history-link-list">
+      {{#each links}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
+    </ul>
     {{/if}}
-    {{#if content.heroMedia.caption}}<p class="history-media-caption">{{content.heroMedia.caption}}</p>{{/if}}
-    {{#if content.heroMedia.placeholderNote}}<p class="history-media-placeholder">{{content.heroMedia.placeholderNote}}</p>{{/if}}
+  </section>
+  {{/each}}
+
+  {{! ── Sources on this site ──────────────────────────────────────────── }}
+  {{#if content.references.length}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Where these facts come from</h2>
+      <p class="section-intro">
+        This history is drawn from the encyclopedia's own pages. Follow them for the fuller record.
+      </p>
+    </div>
+    <ul class="history-link-list">
+      {{#each content.references}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
+    </ul>
   </section>
   {{/if}}
 
-  {{! ── Competitive Eras ──────────────────────────────────────────────────────── }}
+  {{! ── Where to go next ──────────────────────────────────────────────── }}
+  {{#if content.whereNext.length}}
   <section class="content-section">
     <div class="section-heading">
-      <h2>Competitive Eras</h2>
-      <p class="section-intro">
-        Five overlapping chapters in the sport's competitive life &mdash; each shaped by
-        the players, technology, and cultural energy of its time.
-      </p>
+      <h2>Where to go next</h2>
     </div>
-    {{#each content.eras}}
-    <div>
-      <h3>{{period}}: {{label}}</h3>
-      <p>{{summary}}</p>
-      {{#if keyFigures.length}}
-      <p class="detail-muted">Key figures: {{#each keyFigures}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}</p>
-      {{/if}}
-    </div>
-    {{/each}}
+    <ul class="history-link-list">
+      {{#each content.whereNext}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
+    </ul>
   </section>
-
-  {{! ── Evolution of Difficulty ────────────────────────────────────────── }}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>Evolution of Difficulty</h2>
-      <p class="section-intro">
-        A more focused lens on the same history: how the sport's working
-        difficulty grammar grew, decade by decade.
-      </p>
-    </div>
-    <div class="evolution-strip">
-      {{#each content.evolution}}
-      <div class="evolution-card">
-        <div class="evolution-period">{{period}}</div>
-        <h3 class="evolution-label">{{label}}</h3>
-        <p>{{summary}}</p>
-      </div>
-      {{/each}}
-    </div>
-  </section>
-
-  {{! ── How combos grew ───────────────────────────────────────────────── }}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>How Combos Grew</h2>
-      <p class="section-intro">
-        The story of how multi-trick sequences evolved from isolated kicks
-        into the linked, density-driven runs that define modern competition.
-      </p>
-    </div>
-    {{#each content.comboEvolution}}<p>{{this}}</p>{{/each}}
-    <p class="detail-muted">
-      Run-quality terms used here &mdash; <strong>guiltless</strong>, <strong>fearless</strong>,
-      <strong>density</strong> &mdash; are defined on the
-      <a href="/freestyle/combo-analysis#run-quality">Combo Analysis page</a>. The
-      <em>modifier stacking</em> vocabulary the prose discusses is anchored in the
-      <a href="/freestyle/tricks?view=movement-system">movement-system browse view</a>.
-    </p>
-    <p class="history-combo-architecture-note">
-      The vocabulary players use to talk about combos &mdash; <em>setup tricks</em>,
-      <em>resolution tricks</em>, <em>recovery patterns</em>,
-      <em>concentration vs breadth</em>, <em>launch nodes</em> and <em>attractors</em>
-      &mdash; emerged from this period as players started to think about runs
-      structurally rather than as random collections of hard tricks.
-    </p>
-  </section>
-
-  {{! ── From routines to guiltless: how judging evolved ──────────────── }}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>From Routines to Guiltless: How Judging Evolved</h2>
-      <p class="section-intro">
-        Why a 1985 freestyle routine and a 2025 fearless run can both be the
-        peak of their era, and how the language for "good" expanded along the way.
-      </p>
-    </div>
-    {{#each content.earlyRoutineEvolution}}<p>{{this}}</p>{{/each}}
-    <p class="detail-muted">
-      See the <a href="/freestyle/combo-analysis#run-quality">run-quality vocabulary</a>
-      for the definitions of Tiltless, Guiltless, Tripless, Fearless, Beastly, and Godly.
-    </p>
-  </section>
-
-  {{! ── Pioneers ────────────────────────────────────────────────────────────── }}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>Founders &amp; Pioneers</h2>
-    </div>
-    <p class="section-intro">
-      The early BAP (Big ADD Posse) inductees of the early 1990s were establishing
-      freestyle's visual identity, trick taxonomy, and competition culture in the
-      years before the ADD table was widely standardized. They built the language
-      the sport still speaks, and the contests, friendships, and recordings that
-      kept it alive.
-    </p>
-
-    {{#if content.pioneersMedia}}
-    <div class="history-media">
-      {{#if content.pioneersMedia.media}}
-      <div class="video-embed">
-        {{> video-facade media=content.pioneersMedia.media}}
-      </div>
-      {{/if}}
-      {{#if content.pioneersMedia.caption}}<p class="history-media-caption">{{content.pioneersMedia.caption}}</p>{{/if}}
-      {{#if content.pioneersMedia.placeholderNote}}<p class="history-media-placeholder">{{content.pioneersMedia.placeholderNote}}</p>{{/if}}
-    </div>
-    {{/if}}
-    <div class="records-table-wrap">
-      <table class="records-table records-table-sm">
-        <thead>
-          <tr>
-            <th>Player</th>
-            <th>Contribution</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.pioneers}}
-          <tr>
-            <td>
-              {{#if profileHref}}
-                <a href="{{profileHref}}">{{name}}</a>
-              {{else}}
-                {{name}}
-              {{/if}}
-              {{#if recognitions.length}}
-              {{#each recognitions}}<span class="pioneer-recognition" title="Recognition: {{this}}">{{this}}</span>{{/each}}
-              {{/if}}
-            </td>
-            <td>{{note}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  {{! ── ADD System ───────────────────────────────────────────────────────────── }}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>The ADD System</h2>
-    </div>
-    {{#each content.addSystem}}
-    <p>{{this}}</p>
-    {{/each}}
-    <p class="history-add-system-decomposition-note">
-      ADD treats a trick as a decomposable structure. The system assigns
-      a weight to each base trick and to each modifier; the total is the
-      sum. This isn't just a scoring convention &mdash; it's the same logic
-      that lets the dictionary describe a compound trick like
-      <em>mobius</em> as "gyro torque" and have the ADD add up (4 + 1 = 5).
-    </p>
-    <p>
-      See the <a href="/freestyle/tricks">Trick Dictionary</a> for ADD values and modifier relationships,
-      and <a href="/freestyle/insights">Freestyle Insights</a> for data-driven difficulty analysis.
-      For a mechanical walkthrough of how ADD values are constructed, with worked examples
-      and discrepancy case studies, see
-      <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
-    </p>
-  </section>
-
-  {{! ── Regional Shift ──────────────────────────────────────────────────────── }}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>The Geographic Shift</h2>
-    </div>
-    <p>{{content.regionalShift}}</p>
-    <p>
-      See <a href="/freestyle/competition">Freestyle Competition</a> for podium counts and career records.
-    </p>
-  </section>
-
-  {{! ── Modern Era ────────────────────────────────────────────────────────────── }}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>The Modern Game</h2>
-    </div>
-    <p>{{content.modernEra}}</p>
-
-    {{#if content.modernEraMedia}}
-    <div class="history-media">
-      {{#if content.modernEraMedia.media}}
-      <div class="video-embed">
-        {{> video-facade media=content.modernEraMedia.media}}
-      </div>
-      {{/if}}
-      {{#if content.modernEraMedia.caption}}<p class="history-media-caption">{{content.modernEraMedia.caption}}</p>{{/if}}
-      {{#if content.modernEraMedia.placeholderNote}}<p class="history-media-placeholder">{{content.modernEraMedia.placeholderNote}}</p>{{/if}}
-    </div>
-    {{/if}}
-  </section>
-
-  {{! ── Movement Language as the Modern Vocabulary (closing framing) ──────
-      Frames the platform's recent formal-language work as the natural
-      modern phase of the same vocabulary the early players built. }}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>Movement Language as the Modern Vocabulary</h2>
-    </div>
-    <p>
-      The competitive sport's evolution has been mirrored by the maturation of
-      its <em>vocabulary</em>. Today freestyle is documented across four formal
-      layers: the <strong>canonical</strong>
-      <a href="/freestyle/tricks">trick dictionary</a> (which tricks exist and
-      what their ADD values are), the <strong>educational</strong>
-      <a href="/freestyle/glossary">glossary</a> (what each trick means and how
-      it relates to others), the <strong>symbolic</strong> layer of named
-      compounds and equivalence chains (<em>mobius = gyro torque</em>), and the
-      <strong>operational</strong> notation that compresses a trick to its
-      structural skeleton (<em>paradox = CLIP &gt; OP IN [DEX]</em>).
-    </p>
-    <p>
-      These layers describe the same sport at different levels of analysis
-      &mdash; a movement that was originally inherited as kinesthetic practice
-      and is now legible to readers who weren't present when it was being
-      built. The continued refinement of this language is its own form of
-      evolution.
-    </p>
-  </section>
-
-  <p class="source-note">
-    Based on analysis of 774 documented competitive events (1980&ndash;2026) and 395 Sick 3 format sequences.
-    Player descriptions draw from competition records and community documentation.
-  </p>
+  {{/if}}
 
 </div>

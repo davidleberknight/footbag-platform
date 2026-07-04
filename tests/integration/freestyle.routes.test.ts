@@ -1459,19 +1459,20 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
     expect(res.text).toContain('id="section-run-architecture"');
   });
 
-  it('history page deep-links to the live #run-quality anchor on combo-analysis', async () => {
-    // 2026-05-17: history.hbs #run-quality links rewired from glossary to
-    // combo-analysis after the §10 relocation. The old #1-add-system--run-quality
-    // anchor was already retired in the Coherence Cleanup Slice.
+  it('history page links to the ADD analysis and Insights pages as its difficulty evidence', async () => {
     const res = await request(createApp()).get('/freestyle/history');
-    expect(res.text).toContain('href="/freestyle/combo-analysis#run-quality"');
+    expect(res.text).toContain('href="/freestyle/add-analysis"');
+    expect(res.text).toContain('href="/freestyle/insights"');
+    // The narrative history page no longer routes readers through a run-quality anchor.
+    expect(res.text).not.toContain('/freestyle/combo-analysis#run-quality');
     expect(res.text).not.toContain('/freestyle/glossary#run-quality');
-    expect(res.text).not.toContain('#1-add-system--run-quality');
   });
 
-  it('history "How Combos Grew" links to movement-system browse view', async () => {
+  it('history page links to the whirl family page and the operators reference', async () => {
     const res = await request(createApp()).get('/freestyle/history');
-    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
+    expect(res.text).toContain('href="/freestyle/families/whirl"');
+    expect(res.text).toContain('href="/freestyle/operators"');
+    expect(res.text).not.toContain('href="/freestyle/tricks?view=movement-system"');
   });
 
   it('glossary §11 source-families list carries verified outbound hyperlinks', async () => {
@@ -1537,16 +1538,9 @@ describe('Glossary improvements + history refresh', () => {
   //   #6 §7 operator-notation framing paragraph
   //   #7 §12 "About this glossary" closing
   //
-  // History recommendations implemented:
-  //   #1 §1 Two-Phase Story opening
-  //   #2 §4 ADD System additive-accounting sentence
-  //   #3 §5 combo-architecture vocabulary mention
-  //   #4 §7 Movement Language Maturation new sub-section
-  //
-  // Deferred (depend on unimplemented surfaces):
-  //   History combo-analysis cross-link (page not built)
-  //   History v7 evolution-report cross-link (no public route)
-  //   Glossary recs #5 (attribution) + #9 (regional variation) — editorial review
+  // The history assertions here now cover the narrative History page (thesis,
+  // the composition and structure sections, the institutions, and the onward
+  // links); the earlier condensed-history assertions were retired with that page.
 
   it('glossary §1 carries the vocabulary-stabilization framing paragraph', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
@@ -1650,53 +1644,47 @@ describe('Glossary improvements + history refresh', () => {
     expect(res.text).toMatch(/footbag community built informally/);
   });
 
-  it('history page renders the Two-Phase Story opening before Competitive Eras', async () => {
+  it('history page opens with the thesis and the language framing', async () => {
     const res = await request(createApp()).get('/freestyle/history');
-    expect(res.text).toContain('The Two-Phase Story');
-    const twoPhaseIdx = res.text.indexOf('The Two-Phase Story');
-    const erasIdx = res.text.indexOf('Competitive Eras');
-    expect(twoPhaseIdx).toBeGreaterThan(0);
-    expect(erasIdx).toBeGreaterThan(twoPhaseIdx);
-    expect(res.text).toMatch(/vocabulary building/);
-    expect(res.text).toMatch(/vocabulary maturation/);
+    expect(res.text).toContain('class="history-thesis"');
+    expect(res.text).toMatch(/expanded the shared vocabulary/);
+    expect(res.text).toMatch(/Freestyle footbag is a language/);
+    // The prior two-phase framing is fully replaced by the narrative page.
+    expect(res.text).not.toContain('The Two-Phase Story');
   });
 
-  it('history ADD System section carries the additive-accounting note', async () => {
+  it('history page frames difficulty as a moving ceiling measured in ADD', async () => {
     const res = await request(createApp()).get('/freestyle/history');
-    expect(res.text).toContain('history-add-system-decomposition-note');
-    expect(res.text).toMatch(/ADD treats a trick as a decomposable structure/);
-    expect(res.text).toMatch(/<em>mobius<\/em>\s+as\s+"gyro torque"/);
+    expect(res.text).toContain('id="difficulty"');
+    expect(res.text).toMatch(/Difficulty became a moving ceiling/);
+    expect(res.text).toMatch(/measured in ADD/);
+    expect(res.text).not.toContain('history-add-system-decomposition-note');
   });
 
-  it('history "How Combos Grew" mentions combo-architecture vocabulary', async () => {
+  it('history page explains the vocabulary expanding by composition', async () => {
     const res = await request(createApp()).get('/freestyle/history');
-    expect(res.text).toContain('history-combo-architecture-note');
-    expect(res.text).toMatch(/setup tricks/);
-    expect(res.text).toMatch(/resolution tricks/);
-    expect(res.text).toMatch(/concentration vs breadth/);
+    expect(res.text).toContain('id="vocabulary"');
+    expect(res.text).toMatch(/expanded by composition/);
+    expect(res.text).toMatch(/the most productive operators/);
+    expect(res.text).not.toContain('history-combo-architecture-note');
   });
 
-  it('history renders Movement Language as the Modern Vocabulary section after Modern Game', async () => {
+  it('history page ends on the naming to notation to classification arc', async () => {
     const res = await request(createApp()).get('/freestyle/history');
-    expect(res.text).toContain('Movement Language as the Modern Vocabulary');
-    const modernGameIdx  = res.text.indexOf('The Modern Game');
-    const movementLangIdx = res.text.indexOf('Movement Language as the Modern Vocabulary');
-    expect(modernGameIdx).toBeGreaterThan(0);
-    expect(movementLangIdx).toBeGreaterThan(modernGameIdx);
-    expect(res.text).toMatch(/four formal\s+layers/);
-    expect(res.text).toMatch(/<em>mobius = gyro torque<\/em>/);
-    expect(res.text).toMatch(/<em>paradox = CLIP &gt; OP IN \[DEX\]<\/em>/);
+    expect(res.text).toContain('id="this-encyclopedia"');
+    expect(res.text).toMatch(/This encyclopedia is the latest step/);
+    const vocabIdx = res.text.indexOf('id="vocabulary"');
+    const endIdx   = res.text.indexOf('id="this-encyclopedia"');
+    expect(vocabIdx).toBeGreaterThan(0);
+    expect(endIdx).toBeGreaterThan(vocabIdx);
+    expect(res.text).not.toContain('Movement Language as the Modern Vocabulary');
   });
 
-  it('Movement Language section links to dictionary + glossary', async () => {
+  it('history page links onward to the learning path, dictionary, and glossary', async () => {
     const res = await request(createApp()).get('/freestyle/history');
-    const movementLangIdx = res.text.indexOf('Movement Language as the Modern Vocabulary');
-    const sourceNoteIdx   = res.text.indexOf('class="source-note"');
-    expect(movementLangIdx).toBeGreaterThan(0);
-    expect(sourceNoteIdx).toBeGreaterThan(movementLangIdx);
-    const slice = res.text.slice(movementLangIdx, sourceNoteIdx);
-    expect(slice).toContain('href="/freestyle/tricks"');
-    expect(slice).toContain('href="/freestyle/glossary"');
+    expect(res.text).toContain('href="/freestyle/learn"');
+    expect(res.text).toContain('href="/freestyle/tricks"');
+    expect(res.text).toContain('href="/freestyle/glossary"');
   });
 });
 

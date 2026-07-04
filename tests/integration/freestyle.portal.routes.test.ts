@@ -3,7 +3,7 @@
  *
  * Covers:
  *   GET /freestyle/competition  — results-derived competition history
- *   GET /freestyle/history      — editorial history, pioneers, eras
+ *   GET /freestyle/history      — the encyclopedia's introduction: how freestyle became a language
  *   GET /freestyle              — two-band landing (Start Here / Go Deeper)
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -248,80 +248,78 @@ describe('GET /freestyle/history', () => {
     expect(res.status).toBe(200);
   });
 
-  it('shows page title', async () => {
+  it('shows the page heading and browser title', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/history');
+    // The displayed h1 is the narrative headline; the browser <title> keeps the
+    // stable "Freestyle History" label for search and bookmarks.
+    expect(res.text).toContain('How Freestyle Became a Language');
     expect(res.text).toContain('Freestyle History');
   });
 
-  it('shows Competitive Eras section with known eras', async () => {
+  it('opens with the thesis and the language framing', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/history');
-    expect(res.text).toContain('Competitive Eras');
-    // Era labels per the post-2026-05-10 editorial refinement (softened from
-    // the prior absolutist phrasing). Foundation Era is preserved; the others
-    // gained more historically-grounded names.
-    expect(res.text).toContain('Foundation Era');
-    expect(res.text).toContain('Codifying the Language');
-    expect(res.text).toContain('Technical Acceleration');
-    expect(res.text).toContain('European Center of Gravity');
-    expect(res.text).toContain('Refinement &amp; Reconnection');
+    expect(res.text).toContain('class="history-thesis"');
+    expect(res.text).toMatch(/expanded the shared vocabulary/);
+    expect(res.text).toMatch(/Freestyle footbag is a language/);
   });
 
-  it('shows era dates', async () => {
+  it('renders the narrative sections with their anchors', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/history');
-    expect(res.text).toContain('1980');
-    expect(res.text).toContain('2000');
+    expect(res.text).toContain('id="origins"');
+    expect(res.text).toContain('id="vocabulary"');
+    expect(res.text).toContain('id="structure"');
+    expect(res.text).toContain('id="institutions"');
+    expect(res.text).toContain('id="this-encyclopedia"');
+    expect(res.text).toMatch(/The vocabulary expanded by composition/);
+    expect(res.text).toMatch(/Institutions preserved and spread the language/);
   });
 
-  it('shows Founders & Pioneers section with known names', async () => {
+  it('names the founders as historical record', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/history');
-    expect(res.text).toContain('Founders');
-    expect(res.text).toContain('Kenny Shults');
-    expect(res.text).toContain('Eric Wulff');
+    expect(res.text).toContain('Marshall');
+    expect(res.text).toContain('Stalberger');
   });
 
-  it('links pioneers with known person IDs to /history/:personId', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
-    // Kenny Shults and Eric Wulff have profileHrefs in the service constants
-    expect(res.text).toContain('/history/2a6a7c9e-1d8a-4f9a-a8f5-6f3a3c1e9b0f'); // Kenny Shults
-    expect(res.text).toContain('/history/e8b82661-4428-5e51-a786-29bf7a23728f'); // Eric Wulff
-  });
-
-  it('shows ADD System section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
-    expect(res.text).toContain('ADD System');
-    expect(res.text).toContain('modifier');
-  });
-
-  it('shows Geographic Shift section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
-    expect(res.text).toContain('Geographic Shift');
-    expect(res.text).toContain('European');
-  });
-
-  it('mentions Václav Klouda in context', async () => {
+  it('presents Klouda as evidence of an internationalized field', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/history');
     expect(res.text).toContain('Klouda');
+    expect(res.text).toMatch(/Czech Republic/);
   });
 
-  it('shows source note with event count', async () => {
+  it('integrates the recognition institutions with links', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/history');
-    expect(res.text).toContain('774 documented competitive events');
+    expect(res.text).toContain('Hall of Fame');
+    expect(res.text).toContain('Big Add Posse');
+    expect(res.text).toContain('href="/hof"');
+    expect(res.text).toContain('href="/bap"');
   });
 
-  it('contains cross-links to competition and tricks pages', async () => {
+  it('contains cross-links to competition, insights, and the dictionary', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/history');
     expect(res.text).toContain('/freestyle/competition');
+    expect(res.text).toContain('/freestyle/insights');
     expect(res.text).toContain('/freestyle/tricks');
+  });
+
+  it('grounds the notation section in Ben Job\'s structural proposal', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/history');
+    expect(res.text).toContain('Ben Job');
+    expect(res.text).toContain('By the Way, Not the Name');
+    expect(res.text).toContain('href="/freestyle/notation-article"');
+  });
+
+  it('points the reader onward to the learning path', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/history');
+    expect(res.text).toContain('href="/freestyle/learn"');
   });
 });
 

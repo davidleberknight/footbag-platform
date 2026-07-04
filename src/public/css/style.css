@@ -3429,69 +3429,24 @@ section.home-media { padding-top: 0; }
   scroll-margin-top: 80px;
 }
 
-/* ── Freestyle history: pioneer recognition badge ─────────────────────── */
-.pioneer-recognition {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 1px 7px;
-  font-size: 0.78em;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--accent);
-  background: rgba(26, 90, 138, 0.08);
-  border: 1px solid rgba(26, 90, 138, 0.2);
-  border-radius: var(--radius-md);
-  vertical-align: middle;
-}
-
-/* ── Freestyle history: media panels + evolution strip ────────────────── */
-.history-media {
-  margin: 16px 0;
-}
-.history-media--hero { margin-top: 0; }
-.history-media-caption {
-  font-size: 0.95rem;
-  color: var(--text-muted);
-  margin-top: 8px;
-  line-height: 1.5;
-}
-.history-media-placeholder {
-  font-size: 0.92rem;
+/* ── Freestyle history: narrative thesis + on-site link lists ─────────── */
+.history-thesis {
+  font-family: var(--font-body);
+  font-size: 1.18rem;
+  line-height: 1.55;
   font-style: italic;
-  color: var(--text-muted);
-  background: rgba(0, 0, 0, 0.03);
-  padding: 10px 12px;
-  border-left: 3px solid var(--text-muted);
-  border-radius: var(--radius-2xs);
-  margin-top: 8px;
-  line-height: 1.5;
+  color: var(--secondary);
+  border-left: 3px solid var(--primary);
+  padding: 6px 0 6px 18px;
+  margin: 0 0 20px 0;
 }
-.evolution-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-  margin-top: 12px;
+.history-link-list {
+  list-style: disc;
+  padding-left: 22px;
+  margin: 8px 0 0 0;
 }
-.evolution-card {
-  padding: 14px 16px;
-  background: rgba(0, 0, 0, 0.02);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius-2xs);
-  line-height: 1.5;
-}
-.evolution-period {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  font-variant: small-caps;
-  letter-spacing: 0.04em;
-}
-.evolution-label {
-  margin: 4px 0 8px 0;
-  font-size: 1.05rem;
-  color: var(--primary);
-}
-.evolution-card p {
-  margin: 0;
+.history-link-list li {
+  padding: 2px 0;
   font-size: 0.95rem;
 }
 
@@ -7477,6 +7432,49 @@ a.trick-hero-meta-chip--media:hover {
 }
 .symbolic-learn-index .learn-section {
   margin-bottom: 26px;
+}
+.learn-foundational-path {
+  margin-bottom: 30px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+.learn-path-steps {
+  list-style: none;
+  margin: 12px 0 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.learn-path-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.learn-path-step-num {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  color: var(--white);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.learn-path-step-body {
+  flex: 1 1 auto;
+}
+.learn-path-step-name {
+  font-weight: 600;
+}
+.learn-path-step-lesson {
+  margin: 2px 0 0 0;
+  color: var(--text-subtle);
+  line-height: 1.45;
 }
 .symbolic-learn-index .learn-section-heading {
   font-size: 1.05rem;
@@ -12366,12 +12364,6 @@ a.dict-trick-row-hashtag--media:hover {
 /* Prose notes and framing paragraphs. */
 .add-analysis-derivation-line {
   margin: 8px 0 0;
-}
-.history-combo-architecture-note,
-.history-add-system-decomposition-note {
-  margin: 12px 0;
-  color: var(--text-muted);
-  line-height: 1.6;
 }
 .glossary-operator-notation-framing,
 .glossary-about-framing {

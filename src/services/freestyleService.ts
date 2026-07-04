@@ -143,6 +143,7 @@ import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
 import { TRICKS_MOSAIC, isFoundationLinkReady } from '../content/freestyleTricksMosaic';
+import { HISTORY_NARRATIVE, type HistoryNarrative } from '../content/freestyleHistoryNarrative';
 import { TERMINAL_DERIVED_COHORTS, TERMINAL_OF_MEMBER } from '../content/freestyleTerminalCohorts';
 import { loadSiteVideo, loadMosaicVideo } from './siteMediaService';
 import {
@@ -295,16 +296,11 @@ import {
   InsightsTransition,
   InsightsSequence,
   InsightsDiversePlayer,
-  FreestyleHistoryPioneer,
-  FreestyleHistoryEra,
   INSIGHTS_MOST_USED,
   INSIGHTS_CONNECTORS,
   INSIGHTS_TRANSITIONS,
   INSIGHTS_SEQUENCES,
   INSIGHTS_DIVERSE_PLAYERS,
-  HISTORY_PIONEERS,
-  HISTORY_ERAS,
-  HISTORY_ADD_SYSTEM,
 } from '../content/freestyleEditorial';
 
 // ---------------------------------------------------------------------------
@@ -4136,48 +4132,6 @@ export interface ModifierStubContent {
   // Operator -> base-atom cross-link (spinning -> spin), the reverse of the
   // atom's "See also" link, so the relationship is discoverable from either page.
   baseAtom:         { label: string; href: string } | null;
-}
-
-export interface FreestyleHistoryEvolutionEntry {
-  period: string;
-  label: string;
-  summary: string;
-}
-
-export interface FreestyleHistoryMediaPanel {
-  // Either a YouTube video (preferred when an existing curated reference is
-  // available) OR a placeholder caption when no asset is yet curated.
-  // Templates render the video when `media` is non-null; otherwise they
-  // render the placeholder hook with the caption text.
-  media:           VideoMedia | null;
-  caption:         string;
-  placeholderNote: string | null;  // shown when media is null
-}
-
-export interface FreestyleHistoryContent {
-  eras: FreestyleHistoryEra[];
-  pioneers: FreestyleHistoryPioneer[];
-  addSystem: string[];
-  regionalShift: string;
-  modernEra: string;
-  // History-page editorial refinement.
-  // "Evolution of difficulty" framing — not a new ontology layer; an editorial
-  // pass through the same eras with a difficulty-arc lens.
-  evolution: FreestyleHistoryEvolutionEntry[];
-  // Combo-evolution narrative: how multi-trick
-  // sequences grew from isolated kicks into linked dexterity combinations
-  // through to modern density-driven runs. Editorial paragraphs.
-  comboEvolution: string[];
-  // Early-routine → guiltless framing: how judging and audience expectations
-  // evolved from "creative routine" to ADD-aware combo-density baselines,
-  // while keeping creativity and execution in the picture.
-  earlyRoutineEvolution: string[];
-  // Media slots. Each is null-safe so the template can render a placeholder
-  // hook when no curated asset is available. Prefer existing curated/media
-  // assets already in the platform; do NOT invent new YouTube IDs here.
-  heroMedia:        FreestyleHistoryMediaPanel | null;
-  pioneersMedia:    FreestyleHistoryMediaPanel | null;
-  modernEraMedia:   FreestyleHistoryMediaPanel | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -8142,19 +8096,19 @@ export const freestyleService = {
     };
   },
 
-  getFreestyleHistoryPage(): PageViewModel<FreestyleHistoryContent> {
+  getFreestyleHistoryPage(): PageViewModel<HistoryNarrative> {
     return {
       seo: {
         title: 'Freestyle History',
         description:
-          'The evolution of competitive freestyle footbag: pioneers, eras, the ADD system, ' +
-          'and the shift from North American origins to European dominance.',
+          'How freestyle footbag evolved from a handful of tricks into a movement language, ' +
+          'with names, notation, classification, and the institutions that preserved it.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_history',
-        title:      'Freestyle History',
-        intro:      'Four decades of freestyle footbag: how the moves, the names, and the competitive sport took shape.',
+        title:      'How Freestyle Became a Language',
+        intro:      'The story of how four decades of players turned a handful of tricks into the movement language this encyclopedia documents.',
       },
       navigation: {
         breadcrumbs: [
@@ -8162,84 +8116,7 @@ export const freestyleService = {
           { label: 'History' },
         ],
       },
-      content: {
-        eras:          HISTORY_ERAS,
-        pioneers:      HISTORY_PIONEERS,
-        addSystem:     HISTORY_ADD_SYSTEM,
-        regionalShift:
-          'Early freestyle innovation was driven largely by North American players. From the mid-2000s ' +
-          'onward the competitive center of gravity shifted toward Europe, both in performance and in ' +
-          'participation density. Václav Klouda (Czech Republic) has accumulated 109 podium finishes: ' +
-          'more than any other player in the dataset. Damian Gielnicki, Mariusz Wilk, Stefan Siegert, ' +
-          'Honza Weber, and Andreas Nawrath form a European technical cluster whose work produced both ' +
-          'the highest-ADD sequences on record and some of the most diverse trick vocabularies in the data.',
-        modernEra:
-          'Modern freestyle is a refined, recombinational sport. The trick grammar settled into recognizable ' +
-          'form by the late 2000s; today\'s competitive edge sits in how the established vocabulary is ' +
-          'sequenced, executed, and made musical. Within the existing palette, the space of meaningful ' +
-          'combinations is enormous: players continue to find new arrangements, new transitions, and new ' +
-          'expressive possibilities inside it. The question hasn\'t become "what trick is left to invent?" ' +
-          'so much as "how cleanly, how creatively, and how consistently can this language be played?"',
-        evolution: [
-          {
-            period: '1980s',
-            label:  'Clipper & Mirage',
-            summary: 'The foundational vocabulary: clipper-set tricks, mirage and its dex variants, the early whirl and butterfly motifs. Routines were judged on execution and creativity rather than a difficulty score.',
-          },
-          {
-            period: 'Early 1990s',
-            label:  'Paradox & Symposium',
-            summary: 'Modifiers entered the formal vocabulary. Paradox, symposium, and the body-position grammar that lets the same base trick branch into many distinct named compounds.',
-          },
-          {
-            period: 'Mid-1990s to 2000s',
-            label:  'ADD & Modifier Stacking',
-            summary: 'The ADD system named what players had been doing intuitively. Modifier stacking (paradox + symposium, ducking + paradox) made multi-modifier compounds the heart of competitive routines.',
-          },
-          {
-            period: '2000s',
-            label:  'Blurry & Fearless',
-            summary: 'The blurry modifier reshaped the top of the difficulty curve, anchoring runs that pushed past 5 ADD. "Fearless" runs (every trick at 5 ADD or more) became the marker of a top-tier performance.',
-          },
-          {
-            period: '2010s to present',
-            label:  'Consistency & Execution',
-            summary: 'New-trick invention slowed; competitive depth grew. The frontier moved from "what new structure exists?" to "how cleanly can the established vocabulary be performed under pressure?" Sequencing, transitions, and routine architecture became the differentiators.',
-          },
-        ],
-        comboEvolution: [
-          'In the earliest period of the sport, freestyle wasn\'t really about combos at all. Players showed individual tricks within an open-floor performance, with kicks and stalls strung loosely between them. A "combo" was something audiences and judges noticed when it happened: not yet a structural unit you built and named.',
-          'Through the late 1980s and into the early 1990s, players began linking dexterity tricks intentionally. Two-trick chains became the working unit: a clipper-set dex into a body trick, or a mirage into a butterfly. The community started naming patterns rather than just patches of execution.',
-          'The paradox-and-symposium era of the mid-1990s expanded what a single trick could carry (modifiers gave you a way to layer body positions onto a base), and that, in turn, gave linking new richness. A run could now move from one well-defined compound to another, instead of dropping back to a base trick between every difficulty spike.',
-          'The 2000s were the blurry/fearless density era. The blurry modifier reshaped the top of the curve, and "fearless" runs (every trick at 5 ADD or higher) became the marker of a top-tier performance. The combo question shifted from "how many tricks?" to "how high a sustained density can you hold across a run?"',
-          'Modern competitive freestyle reads as a flow-and-execution sport. Trick vocabulary settled years ago; the differentiators are sequencing, transitions, musicality, and consistency over a full routine\'s length. "Guiltless" (≥3 ADD per trick) and "fearless" (≥5 ADD per trick) are baseline expectations at the top tier rather than highlights. The art now is in how the established palette is played.',
-        ],
-        earlyRoutineEvolution: [
-          'Early freestyle judging was about routines first. Players choreographed a run, set it to music or mood, and were judged on creativity, execution, and the energy a performance carried. Difficulty mattered, but as a felt quality the judges and audience read together: not yet as a number.',
-          'The ADD system, formalized in the early 1990s, gave the community a shared scale for that felt quality. Routines didn\'t stop being creative; they got a second axis. Players could now talk about a run\'s difficulty independently of its choreography, and the run-quality vocabulary in the glossary (Tiltless, Guiltless, Tripless, Fearless, Beastly, Godly) emerged to describe routines by the floor of difficulty they sustained.',
-          'Today the vocabulary still works on both axes. Creative routines remain a competition format and an art form. Alongside them, ADD-aware difficulty standards (guiltless or fearless throughout, transitions held under pressure) describe what serious competitive runs look like at the top. The two ways of judging haven\'t replaced each other: they share the same competitive culture.',
-        ],
-        // History-page visuals are reserved for archival imagery (BAP / Hall
-        // of Fame photos and similar). Until those assets are curated, every
-        // media slot here renders without media rather than borrowing from
-        // landing-page video — the landing page already carries the modern
-        // routine references, and duplicating them here was crowding the
-        // historically-spread tone this page should carry.
-        heroMedia: {
-          media:   null,
-          caption: '',
-          placeholderNote:
-            'Archival imagery, event photos, and historical routine footage from the 1980s–2000s ' +
-            'are being curated separately. This slot will carry era-spanning visuals once that ' +
-            'curation lands; for now the page tells the story in text and links to player profiles.',
-        },
-        pioneersMedia: {
-          media:   null,
-          caption: '',
-          placeholderNote: 'Archival photos and event footage from the 1980s–1990s pioneers era are being curated. Player profile pages link to documented competition records in the meantime.',
-        },
-        modernEraMedia: null,
-      },
+      content: HISTORY_NARRATIVE,
     };
   },
 
@@ -9383,6 +9260,7 @@ export const freestyleService = {
             { label: 'By modifier / set', note: 'grouped by the layers added' },
           ],
           links: [
+            { label: 'Start with the six foundations', href: '/freestyle/learn' },
             { label: 'What is an ADD?', href: '/freestyle/glossary#section-add-accounting' },
             { label: 'How trick names work', href: '/freestyle/glossary#section-notation' },
             { label: 'How to read the dictionary', href: '/freestyle/glossary#section-reading-the-dictionary' },
