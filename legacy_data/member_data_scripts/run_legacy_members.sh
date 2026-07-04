@@ -9,13 +9,14 @@
 # which is the shareable artifact: a developer without the dump loads a copy
 # handed to them out of band via --from-csv.
 #
-# The apply (writing the member data into the database) is BLOCKED: the source
-# dump is dirty (many people hold several accounts; emails are shared across
-# accounts), so a real load must first run the identity reconciliation and a
-# pre-apply QC gate. That reconciliation is not implemented — it is blocked on
-# the matching rules being confirmed (see IMPLEMENTATION_PLAN.md, "Legacy-site
-# dump intake", sub-item (3) Identity reconciliation). Until it lands, --load
-# validates and previews but refuses to write, with a clear error.
+# The apply (writing the member data into the database) is NOT wired yet: the
+# source dump is dirty (many people hold several accounts; emails are shared
+# across accounts), so a real load must first run the identity reconciliation and
+# a pre-apply QC gate. Those now run inside --load: it builds the Stage A
+# duplicate-account review, the Stage B historical-person link proposals, and
+# runs the QC gate over them. On a gate pass --load stops cleanly WITHOUT writing
+# — applying the reviewed proposals and the member rows is a separate,
+# human-approved step that is deliberately not wired. On a gate failure it aborts.
 #
 # This script does NOT modify the underlying per-step scripts
 # (extract_legacy_members.py, load_legacy_export.py, validate_*.py, ...): they
@@ -24,8 +25,8 @@
 # Stages (composable):
 #   --extract          dump -> out/legacy_members_final.csv. Needs the dump and a
 #                      built database carrying historical_persons.
-#   --load             validate the intermediate CSV and preview the load; then
-#                      REFUSE the write until reconciliation lands (clear error).
+#   --load             validate + preview, run Stage A / Stage B / the QC gate,
+#                      then stop before applying (apply is not wired yet).
 #   --from-csv PATH    use PATH as the intermediate CSV (implies --load; for an
 #                      out-of-band copy, no dump needed).
 #
@@ -51,7 +52,7 @@ usage() {
 Usage: run_legacy_members.sh [--extract] [--load | --from-csv PATH] [--dry-run] [--strict-honors] [--db PATH]
 
   --extract          Extract the legacy dump into the git-ignored intermediate CSV (maintainer-only; needs the dump + a built DB).
-  --load             Validate + preview the load, then refuse the write (identity reconciliation not built; see IMPLEMENTATION_PLAN.md).
+  --load             Validate + preview, run reconciliation (Stage A, Stage B, QC gate), then stop before applying (apply not wired yet).
   --from-csv PATH    Use an out-of-band CSV copy (implies --load; no dump needed).
   --dry-run          Validate + preview and stop cleanly (no write attempted).
   --strict-honors    Make honor validation a hard gate (final production load).
@@ -164,36 +165,45 @@ if [[ "${DO_LOAD}" -eq 1 ]]; then
     exit 0
   fi
 
-  # Pre-apply identity reconciliation + QC gate. Currently a stub that refuses;
-  # implementing reconcile_legacy_members.py (its --qc-gate) un-blocks the apply
-  # automatically. The dump is dirty (people hold several accounts; emails are
-  # shared), so writing before reconciliation would land un-reviewed duplicates
-  # and mis-linked historical persons.
-  if ! "${PY}" "${MDS}/reconcile_legacy_members.py" --qc-gate --csv "${CSV}" --db "${DB}"; then
+  # Pre-apply identity reconciliation. The dump is dirty (people hold several
+  # accounts; emails are shared), so build the review and proposal artifacts and
+  # run the QC gate over them before any write. Stage A groups duplicate accounts
+  # for review; Stage B proposes historical-person links and sets the ambiguous
+  # ones aside; the QC gate fails if the proposals would duplicate a link or
+  # auto-apply a set-aside candidate. All three read only and write git-ignored
+  # artifacts under out/; none writes to the database.
+  echo "==> reconcile: Stage A duplicate-account review"
+  "${PY}" "${MDS}/reconcile_legacy_members.py" --stage-a --csv "${CSV}"
+
+  echo "==> reconcile: Stage B historical-person link proposals"
+  "${PY}" "${MDS}/reconcile_legacy_members.py" --stage-b --csv "${CSV}" --db "${DB}"
+
+  echo "==> reconcile: QC gate"
+  if ! "${PY}" "${MDS}/reconcile_legacy_members.py" --qc-gate; then
     cat >&2 <<'BLOCKED'
 
 run_legacy_members --load: REFUSING TO APPLY.
 
-  The pre-apply identity reconciliation and QC gate are not implemented, so the
-  dirty dump (people with several accounts; shared emails) cannot be loaded
-  without landing un-reviewed duplicates and mis-linked historical persons.
+  The pre-apply QC gate failed: the Stage B proposed links would duplicate a
+  historical-person link or auto-apply a candidate set aside for review. Nothing
+  was written.
 
-  Pick it up in ONE file:
-      legacy_data/member_data_scripts/reconcile_legacy_members.py
-  Run it with --profile to see the real duplicate / date-of-birth patterns,
-  confirm the matching-rule decisions (a)-(e), and implement the stages + QC
-  gate. Full spec: IMPLEMENTATION_PLAN.md -> "Legacy-site dump intake" ->
-  sub-item (3) Identity reconciliation. The load un-blocks automatically once
-  the QC gate passes.
-
-  Available now:  --extract  (produce the intermediate CSV)
-                  --load --dry-run  (validate + preview without writing)
+  Review the git-ignored artifacts under legacy_data/member_data_scripts/out/
+  (the Stage A duplicate-account review, the Stage B proposed links, and the
+  Stage B link review), resolve the flagged rows, and re-run --load.
 BLOCKED
     exit 1
   fi
 
-  echo "==> load: apply"
-  "${PY}" "${MDS}/load_legacy_export.py" --export "${CSV}" --db "${DB}" --apply
+  # Apply is intentionally NOT wired. A passing gate means the proposed links are
+  # reviewed and non-duplicating, but writing them and the member rows into the
+  # database is a separate, human-approved step. Nothing is written here.
+  echo ""
+  echo "run_legacy_members --load: reconciliation complete and the QC gate passed."
+  echo "  Artifacts for review are under ${OUT_DIR}/ (Stage A review, Stage B"
+  echo "  proposed links, Stage B link review). Apply is not wired yet, so no"
+  echo "  member rows or historical-person links were written."
+  exit 0
 fi
 
 echo "run_legacy_members: done."
