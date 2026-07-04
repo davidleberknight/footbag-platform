@@ -40,6 +40,11 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Resolve the sibling helper whether this file is run as a script, spawned as a
+# subprocess, or spec-loaded by a test (importlib does not add the script's dir).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _seed_env_guard import refuse_if_deployed_target
+
 CLUB_MEMBERS_CSV = Path(__file__).parent.parent / "seed" / "club_members.csv"
 PERSONS_CSV = Path(__file__).parent.parent / "event_results" / "canonical_input" / "persons.csv"
 PROFILES_CSV = Path(__file__).parent.parent / "seed" / "member_profiles.csv"
@@ -69,6 +74,8 @@ def main() -> None:
     ap.add_argument("--persons-csv", default=str(PERSONS_CSV))
     ap.add_argument("--profiles-csv", default=str(PROFILES_CSV))
     args = ap.parse_args()
+
+    refuse_if_deployed_target(args.db)
 
     db_path = Path(args.db)
     if not db_path.exists():
@@ -151,12 +158,11 @@ def main() -> None:
                            city           = COALESCE(city, ?),
                            country        = COALESCE(country, ?),
                            ifpa_join_date = COALESCE(ifpa_join_date, ?),
-                           updated_at     = ?,
-                           updated_by     = 'mirror_profile_enrichment'
+                           version        = version + 1
                      WHERE legacy_member_id = ?
                        AND (bio IS NULL OR city IS NULL OR country IS NULL OR ifpa_join_date IS NULL)
                     """,
-                    (bio, city, country, join_date, ts, mid),
+                    (bio, city, country, join_date, mid),
                 )
                 enriched += cur.rowcount
     else:

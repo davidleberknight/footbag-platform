@@ -33,6 +33,11 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Resolve the sibling helper whether this file is run as a script, spawned as a
+# subprocess, or spec-loaded by a test (importlib does not add the script's dir).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _seed_env_guard import refuse_if_deployed_target
+
 CSV_PATH = Path(__file__).parent.parent / "seed" / "clubs.csv"
 # URL safety verdicts produced at data-prep time by `npm run verify:seed-urls`.
 # Stamping these here means the deployed/booting app never makes a URL callout;
@@ -186,6 +191,19 @@ def main() -> None:
     ap.add_argument("--clubs-csv", default=str(CSV_PATH))
     ap.add_argument("--verdicts-csv", default=str(VERDICTS_PATH))
     args = ap.parse_args()
+
+    refuse_if_deployed_target(args.db)
+
+    # Cutover builds set CLUBS_SEED=no so this dev-convenience loader (all 311
+    # seed clubs) does not run, leaving Phase H
+    # (clubs/scripts/06_cutover_pre_populated_clubs.py) as the sole creator of
+    # live `clubs` rows at cutover. Mirrors the CURATOR_SEED default-yes convention.
+    if os.environ.get("CLUBS_SEED", "yes") == "no":
+        print(
+            "Skipping clubs seed (CLUBS_SEED=no); Phase H "
+            "(06_cutover_pre_populated_clubs.py) is the sole live-club creator at cutover."
+        )
+        return
 
     db_path = Path(args.db)
     if not db_path.exists():
