@@ -35,13 +35,13 @@ export const TRICKS_MOSAIC: readonly MosaicAtom[] = [
  * Editorial policy: a foundation cell exposes a "Learn" link to its page only when
  * that page rewards the click. Defer only bare stub destinations that do not reward
  * curiosity; a foundation that resolves to a real page (including a compact family
- * page) is always linked. Today only orbit is withheld: it is a standalone atom whose
- * trick page is a stub. When its page is authored to a useful level, remove it here
- * and the link appears. This is an editorial rule, not business logic, so it lives
- * beside the foundation data.
+ * page) is always linked. All twelve foundations currently resolve to a real page, so
+ * none are withheld; the rule stands here so a future stub can be deferred by adding
+ * its slug. This is an editorial rule, not business logic, so it lives beside the
+ * foundation data.
  */
 export function isFoundationLinkReady(slug: string): boolean {
-  const STUB_DESTINATIONS = new Set(['orbit']);
+  const STUB_DESTINATIONS = new Set<string>();
   return !STUB_DESTINATIONS.has(slug);
 }
 
