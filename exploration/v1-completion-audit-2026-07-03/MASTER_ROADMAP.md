@@ -421,6 +421,15 @@ Interactions to manage (soft, not blockers):
   open questions resolve.
 - History Timeline / Milestones / Evolution-of-Vocabulary as real pages (if the
   tiles were removed rather than built in step 4).
+- Related-topology panel slug-keying gap. The allow-list
+  `SYMBOLIC_TOPOLOGY_PANEL_SLUGS` in `symbolicTrickPanels.ts` keys two entries by
+  hyphenated slugs, `dada-curve` and `spinning-whirl`, that never match the
+  canonical underscore trick slugs (`dada_curve`, `spinning_whirl`). Both trick
+  pages silently render without their related-topology panel: an optional
+  trick-detail panel, not a broken link or dead page, so not a V1 blocker.
+  Fix: re-key both entries to the underscore form, and realign the
+  self-consistent hyphenated fixture in the symbolic-topology-panel test.
+  Surfaced during the V1 release-polish walking-family slug fix.
 
 ---
 
