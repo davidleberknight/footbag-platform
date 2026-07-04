@@ -9074,14 +9074,22 @@ export const freestyleService = {
             {
               label:        'By family',
               href:         '/freestyle/tricks?view=family',
-              // First-class Family Parents (current editorial standard). Minor
-              // lineages render in their own band inside the By-family view;
-              // every family stays reachable via ?family={slug} either way.
+              // First-class Family Parents (current editorial standard). Each
+              // family-name chip opens that family's encyclopedia page when it
+              // has one, otherwise the ?family={slug} filtered list; the card
+              // label and the Open link still open the full By-family browse.
+              // Minor lineages render in their own band inside that browse.
               count:        familyParentRoster.length,
               countDisplay: fmtCount(familyParentRoster.length),
               countSuffix:  'families',
               lensQuestion: 'What core movement pattern does the trick build on?',
-              chips:        familyParentRoster.map(f => ({ label: f.label, href: `/freestyle/tricks?family=${f.slug}`, count: familyTrickCounts.get(f.slug) ?? 0 })),
+              chips:        familyParentRoster.map(f => ({
+                label: f.label,
+                href:  (isOfficialFamilyParent(f.slug) && PUBLIC_FAMILY_LABEL.has(f.slug))
+                  ? `/freestyle/families/${f.slug}`
+                  : `/freestyle/tricks?family=${f.slug}`,
+                count: familyTrickCounts.get(f.slug) ?? 0,
+              })),
             },
             {
               label:        'By modifier',

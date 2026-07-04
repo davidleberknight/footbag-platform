@@ -261,18 +261,23 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     expect(res.text).toContain('dict-landing-card-chip-count');
   });
 
-  it('By family lists the first-class Family Parents as ?family= jump-links', async () => {
+  it('By family lists the first-class Family Parents, each opening its family page', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     // First-class Family Parents only (current editorial standard); minor
     // lineages live in their own band inside the By-family view.
     // 17 Family Parents: the 16 long-standing parents plus the Down umbrella
     // (expert-ruled one family aggregating its four variant branches).
     expect(res.text).toMatch(/<span class="dict-landing-card-count-num">17<\/span> families/);
+    // Each family-name chip opens that family's encyclopedia page, not the
+    // filtered trick list, so the landing no longer bypasses the family article.
     for (const slug of ['mirage', 'osis', 'drifter']) {
-      expect(res.text, `family link ${slug}`).toMatch(new RegExp(`href="/freestyle/tricks\\?family[^"]*${slug}"`));
+      expect(res.text, `family-page link ${slug}`).toContain(`href="/freestyle/families/${slug}"`);
     }
-    // eclipse is a minor lineage, not a first-class landing-card chip.
-    expect(res.text).not.toMatch(/href="\/freestyle\/tricks\?family[^"]*eclipse"/);
+    // The card label and the Open link still open the full By-family browse.
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view[^"]*family"/);
+    // eclipse is a minor lineage, not a first-class landing-card chip at all.
+    expect(res.text).not.toContain('href="/freestyle/families/eclipse"');
+    expect(res.text).not.toMatch(/dict-landing-card-chip" href="\/freestyle\/tricks\?family[^"]*eclipse"/);
   });
 
   it('By family view renders a jump index linking to in-page family-section anchors', async () => {
