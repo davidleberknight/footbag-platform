@@ -138,6 +138,35 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     siblingFamilies:   ['whirl', 'osis', 'mirage'],
     notableCompounds:  ['ripwalk', 'dimwalk', 'parkwalk'],
     observationalNotes: [],
+    teaching: {
+      hook: 'Butterfly is where freestyle starts to feel like freestyle: the trick where players stop stringing together isolated moves and start linking movement.',
+      physicalDescription:
+        'A Butterfly links two dexterities into one flight: one leg passes the bag outward, the other passes it back inward, and it lands on a clipper. For many players, Butterfly is the first trick that feels less like an isolated move and more like connected freestyle.',
+      importance:
+        'Butterfly matters less for its mechanics than for what it changes in a player. Learning Butterfly is often the moment freestyle stops feeling like individual tricks and starts feeling like continuous movement, which is why players often call it the beginning of real freestyle.',
+      variantsIntro:
+        'Butterfly is two dexterities linked into a single clipper catch. That linking is the point: it is the first place a player builds one movement out of two, which is the pattern the rest of freestyle is made of.',
+      variants: [],
+      variantsRuling: '',
+      howToRecognize: [
+        'Two dexterities, not one.',
+        'The legs alternate, one out and one in, in one continuous motion.',
+        'It lands on a clipper.',
+        'If you see two linked dexes flowing into a clipper, a butterfly is at the core.',
+      ],
+      howToThink:
+        'Think of Butterfly as your first combination. Everything harder is more of the same: more dexterities linked, more operators added, more flow held together.',
+      misconceptions: [
+        'Butterfly is not important for being flashy; it is important for teaching you to link movement.',
+        'A butterfly is not two separate tricks; it is one linked movement.',
+        'Getting a butterfly is not the finish line; it is the start of thinking in combinations.',
+      ],
+      seeItIn: ['atomic_butterfly', 'ducking_butterfly', 'stepping_butterfly'],
+      notationIntro:
+        'For readers interested in the formal notation, a butterfly links two dexterities into a clipper catch: SET > SAME OUT [DEX] > OP IN [DEX] > SAME CLIP [XBD] [DEL] (3 ADD). The two dex tokens are the linked motions; the clipper is the catch.',
+      takeaway:
+        'Butterfly is where freestyle stops being a list of tricks you can do and starts being movement you can link together.',
+    },
   },
   {
     slug:              'down',
@@ -206,6 +235,35 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
         body:  'Mirage and illusion are reverse-direction siblings: mirage takes an opposite-in dex, illusion takes the mirror reverse. Both terminate on an opposite-foot toe delay. The pair is the canonical example of direction-variant family symmetry.',
       },
     ],
+    teaching: {
+      hook: 'If you learn one dexterity first, it should be Mirage: the simplest complete dexterity movement, and the idea much of freestyle is built from.',
+      physicalDescription:
+        'A Mirage is the simplest complete dexterity movement. One leg circles the bag once before it is caught on a toe stall. That is the whole trick, which is why it is usually the first dexterity a player learns.',
+      importance:
+        'Much of freestyle grows from Mirage. Once you understand it, a large part of the harder material becomes combinations or modifications of the same idea: add an operator, change the surface, or stack it, and you have dozens of tricks that all rest on the mirage you already know.',
+      variantsIntro:
+        'Mirage is the basic dexterity that much of freestyle grows from. Once you understand it, many more complex tricks become combinations or modifications of the same idea rather than separate skills.',
+      variants: [],
+      variantsRuling: '',
+      howToRecognize: [
+        'One leg circles the bag.',
+        'One toe catch.',
+        'No extra dexterities.',
+        'Remove the modifiers and Mirage is what is left.',
+      ],
+      howToThink:
+        'Naming the mirage underneath a trick is usually most of the work. Use Mirage as your reference point: when a trick looks hard, ask what was done to a mirage to get there, which operator, which surface, or which addition.',
+      misconceptions: [
+        'Mirage is not just a beginner trick; experienced players build on it constantly.',
+        'A mirage is not defined by the set that launches it; the set can change while the mirage stays the same.',
+        'Learning fancier tricks does not leave Mirage behind, since those tricks are usually a Mirage with something added.',
+      ],
+      seeItIn: ['paradox_mirage', 'symposium_mirage', 'spinning_mirage'],
+      notationIntro:
+        'For readers interested in the formal notation, a mirage is a single dexterity caught on a toe stall: SET > OP IN [DEX] > OP TOE [DEL] (2 ADD). The one dex is the pass around the bag; the toe stall is the catch.',
+      takeaway:
+        'Once you can recognize the Mirage inside more advanced tricks, freestyle begins to look like one connected system instead of hundreds of unrelated names.',
+    },
   },
   {
     slug:              'osis',

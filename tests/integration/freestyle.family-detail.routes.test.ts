@@ -245,7 +245,7 @@ describe('GET /freestyle/families/down — the teaching flow (model family page)
 
   it('links famous compounds that build on the family and drops ones with no live trick', async () => {
     const res = await request(await createApp()).get('/freestyle/families/down');
-    expect(res.text).toContain('See it in famous tricks');
+    expect(res.text).toContain('Common descendants');
     expect(res.text).toContain('href="/freestyle/tricks/fusion"');
     expect(res.text).not.toContain('href="/freestyle/tricks/dolomite"');
   });
@@ -299,6 +299,48 @@ describe('GET /freestyle/families/osis — a generative-tree teaching page (cont
   it('closes with the tightened takeaway', async () => {
     const res = await request(await createApp()).get('/freestyle/families/osis');
     expect(res.text).toContain('begin recognizing an entire branch of advanced freestyle');
+  });
+});
+
+describe('GET /freestyle/families/mirage — the reduction lesson (foundational dexterity)', () => {
+  it('answers why to learn Mirage first, with a pictureable physical description', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/mirage');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('the simplest complete dexterity movement');
+    expect(res.text).toContain('One leg circles the bag once before it is caught on a toe stall');
+    expect(res.text).toContain('Much of freestyle grows from Mirage');
+  });
+
+  it('teaches recognition by reduction', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/mirage');
+    expect(res.text).toContain('How to recognize one');
+    expect(res.text).toContain('Remove the modifiers and Mirage is what is left');
+    expect(res.text).toContain('Naming the mirage underneath a trick is usually most of the work');
+  });
+
+  it('corrects the beginner-trick misconception and closes on the connected-system takeaway', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/mirage');
+    expect(res.text).toContain('not just a beginner trick');
+    expect(res.text).toContain('one connected system instead of hundreds of unrelated names');
+  });
+});
+
+describe('GET /freestyle/families/butterfly — the flow lesson (cultural transformation)', () => {
+  it('frames Butterfly by the experience, not a universal learning-order claim', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/butterfly');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('For many players, Butterfly is the first trick that feels less like an isolated move');
+  });
+
+  it('teaches the transformation from isolated tricks to continuous movement', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/butterfly');
+    expect(res.text).toContain('stops feeling like individual tricks and starts feeling like continuous movement');
+    expect(res.text).toContain('the beginning of real freestyle');
+  });
+
+  it('closes on the link-movement takeaway', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/butterfly');
+    expect(res.text).toContain('starts being movement you can link together');
   });
 });
 
