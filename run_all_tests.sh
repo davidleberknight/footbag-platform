@@ -465,8 +465,13 @@ gate_audit() {
 # Legacy-data pipeline suite (pytest). Carries the only regression coverage for
 # the member pipeline's production/staging refusal guards, the credential-header
 # abort, claim-state preservation, and the loader exclusion rules — so it runs
-# on every full local pass. Hermetic: every test writes only to pytest tmp_path
-# fixtures; the run_all fingerprint guard would abort if that ever changed.
+# on every full local pass. Every test writes only to pytest tmp_path fixtures,
+# but pytest itself would otherwise write into legacy_data/ (a .pytest_cache
+# directory there, since its rootdir resolves to legacy_data, plus __pycache__
+# bytecode), tripping the real-data fingerprint guard. PYTHONDONTWRITEBYTECODE
+# suppresses the bytecode writes and -p no:cacheprovider disables the pytest
+# cache, so the gate leaves legacy_data/ byte-for-byte untouched. Any change to
+# this invocation must preserve that (verify with the fingerprint guard).
 gate_python_pipeline() {
   if ! command -v python3 >/dev/null 2>&1; then
     echo "  python3 absent — skipping."
@@ -476,7 +481,7 @@ gate_python_pipeline() {
     echo "  pytest not importable — skipping (pip install pytest to enable)."
     return 77
   fi
-  python3 -m pytest legacy_data/tests/ -q
+  PYTHONDONTWRITEBYTECODE=1 python3 -m pytest legacy_data/tests/ -q -p no:cacheprovider
 }
 
 # =============================================================================

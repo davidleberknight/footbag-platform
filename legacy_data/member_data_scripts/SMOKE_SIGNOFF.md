@@ -20,7 +20,7 @@ collision hold-out, Stage B same-name review routing).
 |---|---|
 | Smoke date (UTC) | 2026-07-05T07:12:24Z |
 | Dump SHA-256 (`members/backups/latest.sql`) | `fd9f2a4ff19493a2d9ea29b06210d9138da313ee2681cd6fe9c59e6ece264e6a` |
-| Code version | working tree at git `1d8e8bb8` plus the uncommitted onboarding-review remediations (whole-group collision hold-out, Stage B same-name review routing, tier-column rollback capture, stale-extract abort). Re-stamp this to the commit hash once those land. |
+| Code version | git `749af1b8` ("Harden legacy member migration safety": whole-group collision hold-out, Stage B same-name review routing, tier-column rollback capture, stale-extract abort) |
 | Schema SHA-256 (`database/schema.sql`) | `60fe3efbb54969fc09f01d91f1d3062bb0e66c68e7cf68816d59bf3568347261` |
 | Rows imported (`import_source='legacy_site_data'`) | 25,346 |
 | Accounts held out on email/user-id collision | 311 (entire groups, at both the reconciler and the loader) |
