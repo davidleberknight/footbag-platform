@@ -117,14 +117,24 @@ else
   emit_gate G5 FAIL "${g5_malformed} legacy_member_id values are NULL or empty"
 fi
 
-# G6: tier-mapping inputs. Honors-only fallback (HoF or BAP flags) is the
-# current operative mapping (MIGRATION_PLAN §3). Confirm at least one row
-# carries the HoF or BAP signal; absent that the fallback would be vacuous.
+# G6: tier-mapping inputs. The claim-time tier grant reads the HoF/BAP honor
+# flags plus the three derived tier-status columns. Confirm at least one row
+# carries an honor flag (absent that the honors fallback is vacuous), and that
+# the paid-tier derivation populated the code-derived flags (ever-paid Tier 2 /
+# Tier 1 lifetime): honors present with zero paid flags means a stale
+# pre-derivation intermediate CSV was loaded and the extract must be re-run.
+# The annual-active flag is reported but not required: it stays zero until the
+# extract runs with the cutover date supplied.
 g6_honors=$(q "SELECT COUNT(*) FROM legacy_members WHERE is_hof = 1 OR is_bap = 1;")
-if [[ "${g6_honors}" -gt 0 ]]; then
-  emit_gate G6 PASS "${g6_honors} legacy_members carry HoF or BAP honor flag (tier-mapping fallback ready)"
-else
+g6_tier2=$(q "SELECT COUNT(*) FROM legacy_members WHERE legacy_ever_paid_tier2 = 1;")
+g6_t1life=$(q "SELECT COUNT(*) FROM legacy_members WHERE legacy_ever_paid_tier1_lifetime = 1;")
+g6_t1annual=$(q "SELECT COUNT(*) FROM legacy_members WHERE legacy_tier1_annual_active_at_cutover = 1;")
+if [[ "${g6_honors}" -eq 0 ]]; then
   emit_gate G6 FAIL "no legacy_members carry HoF or BAP honor flag; tier-mapping fallback produces zero upgrades"
+elif [[ $((g6_tier2 + g6_t1life)) -eq 0 ]]; then
+  emit_gate G6 FAIL "honor flags present (${g6_honors}) but zero paid-tier flags; re-run the member extract so the tier-status derivation populates"
+else
+  emit_gate G6 PASS "${g6_honors} honor-flagged; paid-tier flags: ${g6_tier2} ever-paid Tier 2, ${g6_t1life} Tier 1 lifetime, ${g6_t1annual} Tier 1 annual active"
 fi
 
 if [[ "${fail}" -eq 0 ]]; then

@@ -3525,7 +3525,7 @@ CREATE TABLE legacy_members (
   legacy_tier1_annual_active_at_cutover INTEGER NOT NULL DEFAULT 0 CHECK (legacy_tier1_annual_active_at_cutover IN (0,1)),
 
   -- Import audit
-  import_source TEXT,                 -- 'mirror' | 'legacy_site_data' | null pre-integration
+  import_source TEXT,                 -- 'mirror' | 'legacy_site_data' | 'system_fixture' (platform-seeded stub) | null pre-integration
   imported_at   TEXT NOT NULL,
   version       INTEGER NOT NULL DEFAULT 1,
 

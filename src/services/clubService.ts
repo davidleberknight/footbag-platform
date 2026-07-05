@@ -893,6 +893,20 @@ export class ClubService {
     });
   }
 
+  /**
+   * Browse href for a member's free-text country: the country page when any
+   * active club resolves to it, otherwise the all-clubs index. A free-text
+   * country that matches no country page must never become a 404 link.
+   */
+  countryBrowseHref(country: string | null): string {
+    if (!country || !country.trim()) return '/clubs';
+    return runSqliteRead('clubService.countryBrowseHref', () => {
+      const slug = slugifyCountry(country);
+      const rows = clubs.listActive.all() as PublicClubRow[];
+      return rows.some((row) => slugifyCountry(row.country) === slug) ? `/clubs/${slug}` : '/clubs';
+    });
+  }
+
   getPublicCountryPage(countrySlug: string, isAuthenticated: boolean): PageViewModel<CountryPageContent> {
     return runSqliteRead('clubService.getPublicCountryPage', () => {
       const rows = clubs.listActive.all() as PublicClubRow[];

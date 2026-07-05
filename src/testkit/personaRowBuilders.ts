@@ -60,6 +60,7 @@ export interface MemberOverrides {
   gender?: 'male' | 'female' | 'undisclosed' | null;
   show_gender?: 0 | 1;
   legacy_member_id?: string | null;
+  historical_person_id?: string | null;
   first_competition_year?: number | null;
   bio?: string;
   birth_date?: string | null;
@@ -91,6 +92,13 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
     }
   }
 
+  if (o.historical_person_id) {
+    const existing = db.prepare(`SELECT 1 FROM historical_persons WHERE person_id = ?`).get(o.historical_person_id);
+    if (!existing) {
+      insertHistoricalPerson(db, { person_id: o.historical_person_id, person_name: name });
+    }
+  }
+
   db.prepare(`
     INSERT INTO members (
       id, slug,
@@ -101,9 +109,9 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
       is_admin, is_system, is_board, is_hof, hof_inducted_year, is_bap, is_deceased, deceased_at, deceased_note,
       searchable,
       deleted_at, deletion_requested_at, deletion_grace_expires_at, personal_data_purged_at,
-      show_competitive_results, show_first_competition_year, gender, show_gender, legacy_member_id, first_competition_year,
+      show_competitive_results, show_first_competition_year, gender, show_gender, legacy_member_id, historical_person_id, first_competition_year,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, slug,
     email, emailNormalized, emailVerifiedAt,
@@ -113,7 +121,7 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
     o.is_admin ?? 0, o.is_system ?? 0, o.is_board ?? 0, o.is_hof ?? 0, o.hof_inducted_year ?? null, o.is_bap ?? 0, o.is_deceased ?? 0, o.deceased_at ?? null, o.deceased_note ?? null,
     o.searchable ?? 1,
     o.deleted_at ?? null, o.deletion_requested_at ?? null, o.deletion_grace_expires_at ?? null, purged,
-    o.show_competitive_results ?? 1, o.show_first_competition_year ?? 0, o.gender ?? null, o.show_gender ?? 0, o.legacy_member_id ?? null, o.first_competition_year ?? null,
+    o.show_competitive_results ?? 1, o.show_first_competition_year ?? 0, o.gender ?? null, o.show_gender ?? 0, o.legacy_member_id ?? null, o.historical_person_id ?? null, o.first_competition_year ?? null,
     TS, SYS, TS, SYS,
   );
   return id;

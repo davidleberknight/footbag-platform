@@ -16,6 +16,7 @@ import {
   PersonalDetailsFormState,
 } from '../services/memberOnboardingService';
 import { memberService } from '../services/memberService';
+import { clubService } from '../services/clubService';
 import { logger } from '../config/logger';
 import { handleControllerError } from '../lib/controllerErrors';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
@@ -188,6 +189,9 @@ async function renderLegacyClaim(
     anchorVerification === 'sent' || anchorVerification === 'verified' || anchorVerification === 'invalid'
       ? anchorVerification
       : null;
+  const anchorSaved = req.query.anchor;
+  data.anchorSavedNotice =
+    anchorSaved === 'saved' || anchorSaved === 'removed' ? anchorSaved : null;
   if (validationMessage) data.validationMessage = validationMessage;
   res.status(statusOverride ?? 200).render('register/wizard/legacy-claim', {
     seo:  { title: 'Find your past records and clubs' },
@@ -256,9 +260,7 @@ function renderClubAffiliationsCard(
   const stage = memberOnboardingService.getClubAffiliationStage(memberId);
   const prefill = memberService.getPersonalDetailsPrefill(memberId);
   const memberCountry = prefill.country ?? null;
-  const countrySlug = memberCountry
-    ? memberCountry.toLowerCase().replace(/\s+/g, '_')
-    : null;
+  const clubsBrowseHref = clubService.countryBrowseHref(memberCountry);
 
   res.status(opts.statusOverride ?? 200).render('register/wizard/club-affiliations', {
     seo:  { title: 'Club affiliations' },
@@ -277,7 +279,7 @@ function renderClubAffiliationsCard(
       noLegacyAffiliationFound:
         stage === 'wrap_up' && !memberOnboardingService.memberHadClubSuggestionMaterial(memberId),
       canCreateClub:  mayCreateClub(memberId),
-      clubsBrowseHref: countrySlug ? `/clubs/${countrySlug}` : '/clubs',
+      clubsBrowseHref,
       memberCountry,
       detourBrowseHref:  '/register/wizard/club_affiliations/detour?to=join',
       detourCountryHref: '/register/wizard/club_affiliations/detour?to=country',
@@ -492,8 +494,7 @@ export const memberOnboardingController = {
         sourceCard = 'create_club';
       } else if (to === 'country') {
         const country = memberService.getPersonalDetailsPrefill(memberId).country ?? null;
-        const slug = country ? country.toLowerCase().replace(/\s+/g, '_') : null;
-        dest = slug ? `/clubs/${slug}` : '/clubs';
+        dest = clubService.countryBrowseHref(country);
         targetStory = 'M_Join_Club';
         sourceCard = 'clubs_in_country';
       } else {
@@ -742,7 +743,7 @@ export const memberOnboardingController = {
         String(req.body.anchorType ?? ''),
         String(req.body.anchorValue ?? ''),
       );
-      res.redirect(303, '/register/wizard/legacy_claim');
+      res.redirect(303, '/register/wizard/legacy_claim?anchor=saved');
     } catch (err) {
       if (err instanceof ValidationError) {
         await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, err.message);
@@ -755,7 +756,7 @@ export const memberOnboardingController = {
   postRemoveAnchor(req: Request, res: Response, next: NextFunction): void {
     try {
       identityAccessService.removeAnchor(req.user!.userId, String(req.body.anchorId ?? ''));
-      res.redirect(303, '/register/wizard/legacy_claim');
+      res.redirect(303, '/register/wizard/legacy_claim?anchor=removed');
     } catch (err) {
       next(err);
     }

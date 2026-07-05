@@ -29,7 +29,8 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
   db.exec(SCHEMA_SQL);
 
   // Minimum legacy_members fixture: real_name + country + import_source +
-  // honor flag so G1-G6 + G6-tiers pass.
+  // honor flag + a derived paid-tier flag so G1-G6 + G6-tiers pass (the
+  // honors gate requires the paid-tier derivation to have populated).
   const lmInsert = db.prepare(`
     INSERT INTO legacy_members (
       legacy_member_id, legacy_user_id, legacy_email,
@@ -38,9 +39,10 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
       bio, birth_date, street_address, postal_code,
       ifpa_join_date, first_competition_year,
       is_hof, is_bap, legacy_is_admin,
+      legacy_ever_paid_tier2, legacy_ever_paid_tier1_lifetime,
       import_source, imported_at,
       version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, '', NULL, NULL, NULL, NULL, NULL, ?, ?, 0, 'mirror', '2025-01-01T00:00:00.000Z', 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, '', NULL, NULL, NULL, NULL, NULL, ?, ?, 0, ?, ?, 'mirror', '2025-01-01T00:00:00.000Z', 1)
   `);
   for (let i = 1; i <= 5; i++) {
     lmInsert.run(
@@ -49,6 +51,8 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
       'TestCity', 'US',
       i === 1 ? 1 : 0,  // is_hof on row 1 (honors-only fallback signal)
       i === 2 ? 1 : 0,  // is_bap on row 2
+      i === 1 ? 1 : 0,  // ever-paid Tier 2 on row 1 (paid-tier derivation signal)
+      i === 3 ? 1 : 0,  // Tier 1 lifetime on row 3
     );
   }
 

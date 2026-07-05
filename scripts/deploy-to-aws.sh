@@ -57,9 +57,10 @@ DATA SOURCE (opt-in DB rebuild; mutually exclusive)
   --all-data                   The --from-csv build PLUS the legacy member-data
                                intake: extract the footbag.org dump into the
                                git-ignored intermediate CSV and validate/preview
-                               it. The member LOAD is deferred (identity
-                               reconciliation not implemented yet), so member
-                               data is not applied or deployed; a notice says so.
+                               it. Preview-only by design: a deploy never applies
+                               or ships real member data. The real member load is
+                               a local maintainer step (run_dev.sh --all-data),
+                               never a deploy step.
                                Requires the gitignored membership roster AND
                                either the footbag.org dump or a prior
                                intermediate CSV.
@@ -155,7 +156,7 @@ NO_PERSONAS_FLAG="no"    # --no-personas: opt OUT of soup-to-nuts persona seed
 DRY_RUN="no"
 FROM_CSV="no"        # explicit alias for default rebuild source
 SOUP_TO_NUTS="no"    # full clean rebuild from legacy mirror
-ALL_DATA="no"        # --from-csv build + legacy member-data intake (member load deferred)
+ALL_DATA="no"        # --from-csv build + member-intake preview (a deploy never ships real member data)
 # CUTOVER-REMOVE: --seed-test-personas flag.
 # Current: post-deploy seeds the canonical persona catalog into dev/staging
 #   only; not part of the production path. Signal only, no JSON payload.
@@ -522,7 +523,7 @@ if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
     echo "      legacy_data/seed/. Commit or revert before deploying again."
   fi
 elif [[ "$ALL_DATA" == "yes" ]]; then
-  echo "==> Step 1 (local DB rebuild + member intake, load deferred): scripts/deploy-local-data.sh --all-data"
+  echo "==> Step 1 (local DB rebuild + member-intake preview; no member data is deployed): scripts/deploy-local-data.sh --all-data"
   run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --all-data
 else
   echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --from-csv"

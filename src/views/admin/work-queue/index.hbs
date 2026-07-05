@@ -54,8 +54,13 @@
             <form method="POST" action="/admin/work-queue/{{id}}/link-help/approve" class="form-block">
               <div class="form-field">
                 <label for="link_help_target_{{id}}">Legacy account id to link</label>
-                <input id="link_help_target_{{id}}" name="target_legacy_member_id" required maxlength="200" />
+                <input id="link_help_target_{{id}}" name="target_legacy_member_id" maxlength="200" />
               </div>
+              <div class="form-field">
+                <label for="link_help_target_hp_{{id}}">Historical person id to link</label>
+                <input id="link_help_target_hp_{{id}}" name="target_historical_person_id" maxlength="200" />
+              </div>
+              <p class="card-meta">Enter exactly one target: the legacy account id, or the historical person id for a competition-record link.</p>
               <button type="submit" class="btn btn-primary btn-sm">Approve and Link</button>
             </form>
             <form method="POST" action="/admin/work-queue/{{id}}/link-help/reject" class="form-block">

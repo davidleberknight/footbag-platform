@@ -87,6 +87,13 @@ FIELD_ALIASES: dict[str, list[str]] = {
     "is_hof":           ["is_hof", "hof", "ishof", "halloffame"],
     "is_bap":           ["is_bap", "bap", "isbap"],
     "legacy_is_admin":  ["legacy_is_admin", "admin", "isadmin", "is_admin"],
+    # Tier-status-at-cutover flags, derived upstream by the extractor from the
+    # member record's IFPA tier code and expiration; the claim-time tier grant
+    # reads them. Exact-name only: these never appear in a webmaster export
+    # under another spelling, only in the extractor's canonical CSV.
+    "legacy_ever_paid_tier2":                ["legacy_ever_paid_tier2"],
+    "legacy_ever_paid_tier1_lifetime":       ["legacy_ever_paid_tier1_lifetime"],
+    "legacy_tier1_annual_active_at_cutover": ["legacy_tier1_annual_active_at_cutover"],
 }
 REQUIRED_FIELDS = ["legacy_member_id", "member_valid"]
 # At least one of these must be non-empty for a row to count as having a
@@ -332,6 +339,8 @@ def main() -> None:
             (SELECT first_year FROM historical_persons WHERE legacy_member_id = ?),
             first_competition_year),
           is_hof = ?, is_bap = ?, legacy_is_admin = ?,
+          legacy_ever_paid_tier2 = ?, legacy_ever_paid_tier1_lifetime = ?,
+          legacy_tier1_annual_active_at_cutover = ?,
           import_source = 'legacy_site_data', imported_at = ?, version = version + 1
         WHERE legacy_member_id = ?
     """
@@ -341,10 +350,12 @@ def main() -> None:
           real_name, display_name,
           display_name_normalized, city, region, country, bio, birth_date,
           street_address, postal_code, ifpa_join_date, first_competition_year,
-          is_hof, is_bap, legacy_is_admin, import_source, imported_at
+          is_hof, is_bap, legacy_is_admin,
+          legacy_ever_paid_tier2, legacy_ever_paid_tier1_lifetime,
+          legacy_tier1_annual_active_at_cutover, import_source, imported_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
           (SELECT first_year FROM historical_persons WHERE legacy_member_id = ?),
-          ?, ?, ?, 'legacy_site_data', ?)
+          ?, ?, ?, ?, ?, ?, 'legacy_site_data', ?)
     """
 
     if args.apply:
@@ -379,6 +390,9 @@ def main() -> None:
             truthy(field(row, "is_hof")),
             truthy(field(row, "is_bap")),
             truthy(field(row, "legacy_is_admin")),
+            truthy(field(row, "legacy_ever_paid_tier2")),
+            truthy(field(row, "legacy_ever_paid_tier1_lifetime")),
+            truthy(field(row, "legacy_tier1_annual_active_at_cutover")),
             ts,
         )
         if existing:

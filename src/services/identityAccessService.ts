@@ -29,9 +29,11 @@
  *     wizard's "is one of these you?" card; the dispute affordance files a
  *     help request
  *   - Member link help requests: structured intake into the admin work
- *     queue (one open item per member); admin approve applies the link with
- *     admin-vetted evidence and resolves the item atomically; reject
- *     records the reason
+ *     queue (one open item per member); admin approve applies the link
+ *     (exactly one target type: a legacy account or a historical-person
+ *     record) with admin-vetted evidence and resolves the item atomically;
+ *     admin-vetted evidence bypasses the self-serve surname gate, never the
+ *     deceased or already-claimed integrity gates; reject records the reason
  *   - Revert of a confirmed claim by its claim-audit id (idempotent), and
  *     the admin dispute revert that pairs claim.dispute_opened with
  *     claim.revert_applied in one transaction; covers legacy-linked and
@@ -377,6 +379,9 @@ export interface LinkHistoryContent {
   helpRequestNotice?: boolean;
   /** Mailbox-verification round-trip notice ('sent' | 'verified' | 'invalid'). */
   anchorVerificationNotice?: 'sent' | 'verified' | 'invalid' | null;
+  /** Banner after an anchor add/remove redirected back: confirms the save and
+   * the match re-check without leaking whether anything matched. */
+  anchorSavedNotice?: 'saved' | 'removed' | null;
   /** Same-name collision against already-claimed records; renders the
    * "is one of these you?" prompt with the dispute affordance. */
   conflictPrompt: { records: RegistrationConflictRecord[] } | null;
@@ -2644,7 +2649,15 @@ function claimHistoricalPersonInTxInner(
     throw new ValidationError('This historical record has already been claimed by another member.');
   }
 
-  if (!surnameMatchesWithAnchors(requestingMemberId, member.real_name, hp.person_name)) {
+  // The surname gate constrains self-serve claiming. Admin-vetted evidence
+  // means an administrator verified the member's identity against the record,
+  // which subsumes the automated name check (the admin legacy-account link
+  // path carries no name gate either); the deceased and already-claimed
+  // integrity gates above still apply to every caller.
+  if (
+    evidenceStrength !== 'admin_vetted_evidence' &&
+    !surnameMatchesWithAnchors(requestingMemberId, member.real_name, hp.person_name)
+  ) {
     // Typed throw: this fn runs inside the caller's transaction, so an audit
     // row written here would roll back with the claim. Callers record the
     // claim.historical_person_blocked event AFTER the rollback via
@@ -4083,29 +4096,46 @@ function loadOpenLinkHelpItem(workQueueItemId: string): { id: string; entity_id:
   return row;
 }
 
+export interface LinkHelpApproveTarget {
+  legacyMemberId?: string;
+  historicalPersonId?: string;
+}
+
 /**
- * Admin approval: applies the legacy link with admin-vetted evidence and
- * resolves the queue item, atomically. The claim gates (already linked,
- * target claimed by another) throw the same errors as the member path; the
- * queue row stays open on failure so the admin can correct the target.
+ * Admin approval: applies the link with admin-vetted evidence and resolves
+ * the queue item, atomically. The target is exactly one of a legacy account
+ * or a historical-person record; both reuse the member-path claim
+ * transactions, so the field-level merge and tier-grant rules are identical
+ * to a wizard claim. The claim gates (already linked, target claimed by
+ * another) throw the same errors as the member path; the queue row stays
+ * open on failure so the admin can correct the target.
  */
 function approveLinkHelpRequest(
   adminMemberId: string,
   workQueueItemId: string,
-  targetLegacyMemberId: string,
+  target: LinkHelpApproveTarget,
 ): void {
   enforceWorkQueueResolveLimit(adminMemberId);
-  const target = targetLegacyMemberId.trim();
-  if (!target) {
-    throw new ValidationError('A target legacy account id is required to approve.');
+  const legacyId = target.legacyMemberId?.trim() ?? '';
+  const personId = target.historicalPersonId?.trim() ?? '';
+  if ((legacyId && personId) || (!legacyId && !personId)) {
+    throw new ValidationError(
+      'Enter exactly one link target: a legacy account id or a historical person id.',
+    );
   }
   const item = loadOpenLinkHelpItem(workQueueItemId);
   const now = new Date().toISOString();
   transaction(() => {
-    claimLegacyAccountInTx(item.entity_id, target, 'admin_vetted_evidence');
+    if (legacyId) {
+      claimLegacyAccountInTx(item.entity_id, legacyId, 'admin_vetted_evidence');
+    } else {
+      claimHistoricalPersonInTx(item.entity_id, personId, 'admin_vetted_evidence');
+    }
     workQueue.resolve.run(
       now, adminMemberId, 'approved',
-      `Approved: linked to legacy account ${target}.`,
+      legacyId
+        ? `Approved: linked to legacy account ${legacyId}.`
+        : `Approved: linked to historical person ${personId}.`,
       now, adminMemberId, workQueueItemId,
     );
     appendAuditEntry({
@@ -4118,7 +4148,9 @@ function approveLinkHelpRequest(
       reasonText:    null,
       metadata: {
         work_queue_item_id: workQueueItemId,
-        legacy_member_id:   target,
+        ...(legacyId
+          ? { legacy_member_id: legacyId }
+          : { historical_person_id: personId }),
         evidence_strength:  'admin_vetted_evidence',
         original_payload:   item.reason_text,
       },

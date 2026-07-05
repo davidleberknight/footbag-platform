@@ -344,3 +344,54 @@ def test_legacy_email_is_stored_lowercase(tmp_path: Path) -> None:
     rows = query(db, "SELECT legacy_email FROM legacy_members WHERE legacy_member_id = '800'")
     assert len(rows) == 1
     assert rows[0]["legacy_email"] == "mixed.case@example.com"
+
+
+TIER_HEADERS = EXPORT_HEADERS + [
+    "legacy_ever_paid_tier2",
+    "legacy_ever_paid_tier1_lifetime",
+    "legacy_tier1_annual_active_at_cutover",
+]
+
+
+def test_tier_status_columns_load_on_insert_and_update(tmp_path: Path) -> None:
+    # The extractor-derived tier-status flags land on both write paths: a new
+    # row INSERTs with them, and a mirror pre-seeded row (flags 0) UPDATEs to
+    # the derived values. The claim-time tier grant reads these columns.
+    db = make_db(tmp_path)
+    seed_mirror_row(db, "900")
+    export = write_export(
+        tmp_path,
+        [
+            export_row("900", **{"legacy_ever_paid_tier2": "1"}),
+            export_row("901", **{
+                "legacy_ever_paid_tier1_lifetime": "1",
+                "legacy_tier1_annual_active_at_cutover": "1",
+            }),
+        ],
+        headers=TIER_HEADERS,
+    )
+    result = run_loader(db, export)
+    assert result.returncode == 0, result.stderr
+
+    updated = query(db, "SELECT * FROM legacy_members WHERE legacy_member_id = '900'")[0]
+    assert updated["legacy_ever_paid_tier2"] == 1
+    assert updated["legacy_ever_paid_tier1_lifetime"] == 0
+    assert updated["legacy_tier1_annual_active_at_cutover"] == 0
+
+    inserted = query(db, "SELECT * FROM legacy_members WHERE legacy_member_id = '901'")[0]
+    assert inserted["legacy_ever_paid_tier2"] == 0
+    assert inserted["legacy_ever_paid_tier1_lifetime"] == 1
+    assert inserted["legacy_tier1_annual_active_at_cutover"] == 1
+
+
+def test_tier_status_columns_default_zero_without_headers(tmp_path: Path) -> None:
+    # An export that carries no tier columns (the pre-derivation shape) loads
+    # with every flag 0, so a claim degrades to honors alone.
+    db = make_db(tmp_path)
+    export = write_export(tmp_path, [export_row("910")])
+    result = run_loader(db, export)
+    assert result.returncode == 0, result.stderr
+    row = query(db, "SELECT * FROM legacy_members WHERE legacy_member_id = '910'")[0]
+    assert row["legacy_ever_paid_tier2"] == 0
+    assert row["legacy_ever_paid_tier1_lifetime"] == 0
+    assert row["legacy_tier1_annual_active_at_cutover"] == 0

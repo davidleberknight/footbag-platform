@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -43,8 +44,23 @@ OUTPUT_FIELDS = [
     "real_name", "display_name", "city", "region", "country",
     "bio", "birth_date", "street_address", "postal_code", "ifpa_join_date",
     "is_hof", "is_bap", "legacy_is_admin",
+    "legacy_ever_paid_tier2", "legacy_ever_paid_tier1_lifetime",
+    "legacy_tier1_annual_active_at_cutover",
     "legacy_was_board_at_cutover", "legacy_board_underlying_paid_tier",
 ]
+
+# The legacy site's IFPA tier code-set, taken from the site's own admin PHP
+# (the tier-conversion routine and the event auto-join routine), not inferred
+# from the dump's data values. `MemberIFPATier` is 0, 1, or 2:
+#   0 = never paid.
+#   1 = Tier 1. The site's one-time tier conversion granted every ever-paid
+#       member Tier 1 lifetime (MemberIFPAExpiration = -1, even if lapsed at
+#       conversion time); event auto-join afterwards issued Tier 1 annual with
+#       a real future MemberIFPAExpiration epoch.
+#   2 = Tier 2 (MemberIFPAExpiration2 = -1 lifetime, else annual).
+TIER1_CODE = "1"
+TIER2_CODE = "2"
+LIFETIME_EXPIRATION = "-1"
 
 # The IFPA-tier code(s) in the member dump that denote board / Tier 3 governance
 # status at cutover. The committee-membership tables are the authoritative board
@@ -113,6 +129,44 @@ def _street(rec: dict) -> str:
     return ", ".join(p for p in parts if p)
 
 
+def derive_ever_paid_tier2(ifpa_tier_code: str) -> str:
+    """'1' when the member holds the Tier-2 code. Tier-2 standing at cutover
+    implies having paid; any other code carries no flag. This is accepted as
+    underinclusive: a member who once paid Tier 2 but no longer holds the code
+    claims on their remaining flags or honors instead."""
+    return "1" if (ifpa_tier_code or "").strip() == TIER2_CODE else "0"
+
+
+def derive_ever_paid_tier1_lifetime(ifpa_tier_code: str, expiration_raw: str) -> str:
+    """'1' when the member holds Tier 1 with the lifetime expiration sentinel
+    (-1). The site's tier conversion granted lifetime Tier 1 to every ever-paid
+    member, so this flag is the ever-paid-Tier-1 signal."""
+    code = (ifpa_tier_code or "").strip()
+    exp = (expiration_raw or "").strip()
+    return "1" if code == TIER1_CODE and exp == LIFETIME_EXPIRATION else "0"
+
+
+def derive_tier1_annual_active_at_cutover(
+    ifpa_tier_code: str, expiration_raw: str, cutover_epoch: int | None,
+) -> str:
+    """'1' when the member holds Tier 1 annual (a real expiration epoch, not
+    the -1 lifetime sentinel and not 0/none) that is still unexpired at the
+    cutover moment. Without a cutover date the derivation is inert and no row
+    is flagged (nothing is guessed); a lapsed annual carries no flag and the
+    member claims on honors alone."""
+    if cutover_epoch is None:
+        return "0"
+    if (ifpa_tier_code or "").strip() != TIER1_CODE:
+        return "0"
+    try:
+        exp = int((expiration_raw or "").strip())
+    except ValueError:
+        return "0"
+    if exp <= 0:
+        return "0"
+    return "1" if exp > cutover_epoch else "0"
+
+
 def derive_board_at_cutover(ifpa_tier_code: str, board_codes: frozenset[str]) -> tuple[str, str]:
     """Map a member's IFPA tier code to the two board-at-cutover fields:
     (legacy_was_board_at_cutover, legacy_board_underlying_paid_tier).
@@ -128,15 +182,17 @@ def derive_board_at_cutover(ifpa_tier_code: str, board_codes: frozenset[str]) ->
     return "0", ""
 
 
-def map_record(rec: dict) -> dict:
+def map_record(rec: dict, cutover_epoch: int | None = None) -> dict:
     """Map a members row to the canonical loader-input fields."""
     first = _prefer_unicode(rec, "MemberFirstName", "MemberFirstNameUnicode")
     middle = _prefer_unicode(rec, "MemberMiddleName", "MemberMiddleNameUnicode")
     last = _prefer_unicode(rec, "MemberLastName", "MemberLastNameUnicode")
     real_name = " ".join(p for p in (first, middle, last) if p)
     alias = _val(rec, "MemberAlias")
+    tier_code = _val(rec, "MemberIFPATier")
+    expiration = _val(rec, "MemberIFPAExpiration")
     was_board, board_underlying = derive_board_at_cutover(
-        _val(rec, "MemberIFPATier"), BOARD_IFPA_TIER_CODES)
+        tier_code, BOARD_IFPA_TIER_CODES)
     return {
         "legacy_member_id": _val(rec, "MemberID"),
         "member_valid":     _val(rec, "MemberValid"),
@@ -158,17 +214,41 @@ def map_record(rec: dict) -> dict:
         "is_hof":           "",
         "is_bap":           "",
         "legacy_is_admin":  "",
+        "legacy_ever_paid_tier2":            derive_ever_paid_tier2(tier_code),
+        "legacy_ever_paid_tier1_lifetime":   derive_ever_paid_tier1_lifetime(tier_code, expiration),
+        "legacy_tier1_annual_active_at_cutover":
+            derive_tier1_annual_active_at_cutover(tier_code, expiration, cutover_epoch),
         "legacy_was_board_at_cutover":       was_board,
         "legacy_board_underlying_paid_tier": board_underlying,
     }
 
 
-def extract(members_sql: Path, out_csv: Path) -> dict:
+def parse_cutover_date(cutover_date: str | None) -> int | None:
+    """A YYYY-MM-DD cutover date becomes the start-of-day UTC epoch that annual
+    expirations are compared against; None keeps the annual derivation inert."""
+    if not cutover_date:
+        return None
+    try:
+        dt = datetime.strptime(cutover_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        raise SystemExit(
+            f"error: invalid cutover date {cutover_date!r} (expected YYYY-MM-DD)"
+        )
+    return int(dt.timestamp())
+
+
+def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None) -> dict:
     sql = members_sql.read_text(encoding="utf-8", errors="replace")
     columns = parse_member_columns(sql)
+    cutover_epoch = parse_cutover_date(cutover_date)
 
     examined = 0
     board_at_cutover = 0
+    tier_flags = {
+        "legacy_ever_paid_tier2": 0,
+        "legacy_ever_paid_tier1_lifetime": 0,
+        "legacy_tier1_annual_active_at_cutover": 0,
+    }
     distinct_ids: set[str] = set()
     email_pop = {"legacy_email": 0, "legacy_email2": 0, "legacy_email3": 0}
 
@@ -177,10 +257,13 @@ def extract(members_sql: Path, out_csv: Path) -> dict:
         w = csv.DictWriter(fh, fieldnames=OUTPUT_FIELDS, lineterminator="\n")
         w.writeheader()
         for rec in iter_member_rows(sql, columns):
-            mapped = map_record(rec)
+            mapped = map_record(rec, cutover_epoch)
             examined += 1
             if mapped["legacy_was_board_at_cutover"] == "1":
                 board_at_cutover += 1
+            for col in tier_flags:
+                if mapped[col] == "1":
+                    tier_flags[col] += 1
             if mapped["legacy_member_id"]:
                 distinct_ids.add(mapped["legacy_member_id"])
             for col in email_pop:
@@ -193,6 +276,8 @@ def extract(members_sql: Path, out_csv: Path) -> dict:
         "rows_examined": examined,
         "distinct_member_id": len(distinct_ids),
         "email_population": email_pop,
+        "tier_flags": tier_flags,
+        "cutover_epoch": cutover_epoch,
         "board_at_cutover": board_at_cutover,
     }
 
@@ -203,13 +288,19 @@ def main() -> None:
                     help="path to the members mysqldump (members/backups/latest.sql)")
     ap.add_argument("--out", required=True, type=Path,
                     help="output canonical CSV path")
+    ap.add_argument("--cutover-date", default=os.environ.get("FOOTBAG_CUTOVER_DATE") or None,
+                    help="go-live write-freeze date (YYYY-MM-DD) that Tier-1 annual "
+                         "expirations are compared against; defaults to the "
+                         "FOOTBAG_CUTOVER_DATE env var. Without it the annual-active "
+                         "derivation is inert and flags no row.")
     args = ap.parse_args()
 
     if not args.members_sql.is_file():
         raise SystemExit(f"error: members dump not found: {args.members_sql}")
 
-    stats = extract(args.members_sql, args.out)
+    stats = extract(args.members_sql, args.out, args.cutover_date)
     ep = stats["email_population"]
+    tf = stats["tier_flags"]
     print(f"extract_legacy_members -> {args.out}")
     print(f"  columns in dump:        {stats['columns_in_dump']}")
     print(f"  rows examined:          {stats['rows_examined']}")
@@ -217,6 +308,11 @@ def main() -> None:
     print(f"  MemberEmail populated:  {ep['legacy_email']}")
     print(f"  MemberEmail2 populated: {ep['legacy_email2']}")
     print(f"  MemberEmail3 populated: {ep['legacy_email3']}")
+    print(f"  ever-paid Tier 2:       {tf['legacy_ever_paid_tier2']}")
+    print(f"  Tier 1 lifetime:        {tf['legacy_ever_paid_tier1_lifetime']}")
+    annual_note = "" if stats["cutover_epoch"] is not None else \
+        "  (derivation inert: no --cutover-date / FOOTBAG_CUTOVER_DATE)"
+    print(f"  Tier 1 annual active:   {tf['legacy_tier1_annual_active_at_cutover']}{annual_note}")
     board_note = "" if BOARD_IFPA_TIER_CODES else "  (derivation inert: no IFPA-tier board code configured)"
     print(f"  board at cutover:       {stats['board_at_cutover']}{board_note}")
     print("  (no filtering applied; the loader filters + pulls back)")

@@ -5,7 +5,7 @@
 IP Item 3a — pre-populated clubs cutover.
 
 For each `legacy_club_candidates` row with `bootstrap_eligible = 1` (the
-59 `category=pre_populate` rows from the §10.1 classifier), ensure the
+41 `category=pre_populate` rows from the §10.1 classifier), ensure the
 matching live `clubs` row exists and set `legacy_club_candidates.mapped_club_id`
 to that `clubs.id`. The mapping is the audit link that lets bootstrap
 leaders (item 3b) attach by FK to `clubs.id`.
@@ -19,7 +19,7 @@ Scope (per IP constraints):
 
 Idempotent: re-running produces no changes after the first successful
 application. Relies on `load_clubs_seed.py` having already created the
-59 matching `clubs` rows (via `scripts/reset-local-db.sh`); on a clean
+41 matching `clubs` rows (via `scripts/reset-local-db.sh`); on a clean
 install that hasn't seeded clubs, the script falls back to inserting
 full club + tag rows using the legacy seed CSV.
 

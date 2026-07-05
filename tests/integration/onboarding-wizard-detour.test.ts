@@ -150,7 +150,7 @@ describe('memberOnboardingService.getDashboardTaskWidget', () => {
     expect(paused.ctaHref).toBe('/register/wizard/club_affiliations');
 
     const pendingLegacy = widget.pending.find((t) => t.taskType === 'legacy_claim')!;
-    expect(pendingLegacy.taskLabel).toBe('Find your past records');
+    expect(pendingLegacy.taskLabel).toBe('Find your past records and clubs');
     expect(pendingLegacy.ctaLabel).toBe('Continue Onboarding');
     expect(pendingLegacy.ctaHref).toBe('/register/wizard/legacy_claim');
 

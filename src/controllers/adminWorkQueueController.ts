@@ -67,8 +67,12 @@ export const adminWorkQueueController = {
   async linkHelpApprove(req: Request, res: Response, next: NextFunction): Promise<void> {
     const queueItemId = req.params['id'] ?? '';
     const targetLegacyMemberId = String(req.body?.target_legacy_member_id ?? '');
+    const targetHistoricalPersonId = String(req.body?.target_historical_person_id ?? '');
     try {
-      identityAccessService.approveLinkHelpRequest(req.user!.userId, queueItemId, targetLegacyMemberId);
+      identityAccessService.approveLinkHelpRequest(req.user!.userId, queueItemId, {
+        legacyMemberId: targetLegacyMemberId,
+        historicalPersonId: targetHistoricalPersonId,
+      });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, queueItemId);
       res.redirect(303, '/admin/work-queue');
     } catch (err) {

@@ -5,6 +5,9 @@
  *   - deploy_to_aws.sh wrapper preflight: --help short-circuit, missing
  *     credential file, missing SSH alias.
  *   - scripts/reset-local-db.sh preflight: missing canonical_input CSVs.
+ *   - scripts/deploy-local-data.sh member-intake dispatch: --all-data previews
+ *     by default, applies only with --apply-members; the AWS deploy path never
+ *     passes --apply-members (a deploy must never ship real member data).
  *   - legacy_data/run_pipeline.sh: identity-lock CSV missing path.
  *   - freestyle/loaders/20_link_footbag_org_sources.py:
  *     graceful skip when scraped_footbag_moves.csv is absent.
@@ -272,6 +275,147 @@ describe('deploy_to_aws.sh wrapper', () => {
       }
     },
   );
+});
+
+// ── deploy-local-data.sh member-intake dispatch ──────────────────────────────
+//
+// Contract: the member load writes real member data (emails, dates of birth),
+// so it is opt-in. --all-data alone previews the intake (the runner gets
+// --load --dry-run); only --all-data --apply-members runs the real load (the
+// runner gets --load --apply). The AWS deploy path never passes the opt-in.
+
+describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
+  // Minimal repo scaffold so --all-data passes its preflights and reaches the
+  // member-intake dispatch under --dry-run: the gitignored membership roster,
+  // a prior intermediate member CSV (so no dump is needed), and the committed
+  // canonical_input CSVs the embedded --from-csv build checks for. --dry-run
+  // makes every run_or_print step print instead of execute, so the assertion
+  // reads which runner invocation WOULD run.
+  function scaffoldAllDataRoot(): string {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-deploy-local-'));
+    fs.mkdirSync(path.join(tmpRoot, 'scripts'), { recursive: true });
+    fs.copyFileSync(
+      path.join(REPO_ROOT, 'scripts/deploy-local-data.sh'),
+      path.join(tmpRoot, 'scripts/deploy-local-data.sh'),
+    );
+    const ci = path.join(tmpRoot, 'legacy_data/event_results/canonical_input');
+    fs.mkdirSync(ci, { recursive: true });
+    for (const f of [
+      'events',
+      'event_disciplines',
+      'event_results',
+      'event_result_participants',
+      'persons',
+    ]) {
+      fs.writeFileSync(path.join(ci, `${f}.csv`), 'header\n');
+    }
+    const membership = path.join(tmpRoot, 'legacy_data/membership/inputs');
+    fs.mkdirSync(membership, { recursive: true });
+    fs.writeFileSync(path.join(membership, 'membership_input_normalized.csv'), 'header\n');
+    const mds = path.join(tmpRoot, 'legacy_data/member_data_scripts/out');
+    fs.mkdirSync(mds, { recursive: true });
+    fs.writeFileSync(path.join(mds, 'legacy_members_final.csv'), 'header\n');
+    return tmpRoot;
+  }
+
+  it('--all-data without --apply-members previews the member load (runner gets --load --dry-run)', () => {
+    const tmpRoot = scaffoldAllDataRoot();
+    try {
+      const r = run('bash', ['scripts/deploy-local-data.sh', '--all-data', '--dry-run'], {
+        cwd: tmpRoot,
+      });
+      expect(r.status).toBe(0);
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      expect(combined).toMatch(/run_legacy_members\.sh --load --dry-run/);
+      expect(combined).not.toMatch(/run_legacy_members\.sh --load --apply/);
+      expect(combined).toMatch(/member data was NOT loaded/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('--all-data --apply-members runs the real member load (runner gets --load --apply)', () => {
+    const tmpRoot = scaffoldAllDataRoot();
+    try {
+      const r = run(
+        'bash',
+        ['scripts/deploy-local-data.sh', '--all-data', '--apply-members', '--dry-run'],
+        { cwd: tmpRoot },
+      );
+      expect(r.status).toBe(0);
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      expect(combined).toMatch(/run_legacy_members\.sh --load --apply/);
+      expect(combined).not.toMatch(/run_legacy_members\.sh --load --dry-run/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('--apply-members outside --all-data exits 1 (no other mode carries the member intake)', () => {
+    const r = run('bash', ['scripts/deploy-local-data.sh', '--from-csv', '--apply-members'], {});
+    expect(r.status).toBe(1);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/--apply-members is only meaningful with --all-data/);
+  });
+
+  it('--all-data --cutover-clubs exports CLUBS_SEED=no so the dev clubs seed skips', () => {
+    const tmpRoot = scaffoldAllDataRoot();
+    try {
+      const r = run(
+        'bash',
+        ['scripts/deploy-local-data.sh', '--all-data', '--cutover-clubs', '--dry-run'],
+        { cwd: tmpRoot },
+      );
+      expect(r.status).toBe(0);
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      expect(combined).toMatch(/CLUBS_SEED=no/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('--all-data without --cutover-clubs keeps the dev clubs seed on', () => {
+    const tmpRoot = scaffoldAllDataRoot();
+    try {
+      const r = run('bash', ['scripts/deploy-local-data.sh', '--all-data', '--dry-run'], {
+        cwd: tmpRoot,
+      });
+      expect(r.status).toBe(0);
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      expect(combined).not.toMatch(/CLUBS_SEED=no/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('--cutover-clubs outside --all-data exits 1 (the cutover build is the --all-data path)', () => {
+    const r = run('bash', ['scripts/deploy-local-data.sh', '--from-csv', '--cutover-clubs'], {});
+    expect(r.status).toBe(1);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/--cutover-clubs is only meaningful with --all-data/);
+  });
+
+  it('deploy-to-aws.sh --all-data plan dispatches deploy-local-data.sh WITHOUT --apply-members', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--all-data', '-ny'], {
+      input: 'fake-pw\n',
+    });
+    expect(r.status).toBe(0);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/deploy-local-data\.sh --all-data/);
+    expect(combined).not.toMatch(/--apply-members/);
+  });
+
+  it('deploy-to-aws.sh source never references --apply-members (static guard)', () => {
+    // The strongest pin on the standing decision: the deploy entry point has
+    // no code path that could apply real member data, under any flag.
+    const content = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-to-aws.sh'), 'utf8');
+    expect(content).not.toMatch(/--apply-members/);
+  });
+
+  it('run_dev.sh --all-data passes --apply-members to deploy-local-data.sh (static guard)', () => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, 'run_dev.sh'), 'utf8');
+    expect(content).toMatch(/deploy-local-data\.sh --all-data --apply-members/);
+  });
 });
 
 // ── reset-local-db.sh preflight ───────────────────────────────────────────────

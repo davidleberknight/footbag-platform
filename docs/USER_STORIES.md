@@ -742,6 +742,7 @@ Declared-anchor entry:
 
 - Within the wizard's claim task, which is the surface for declaring anchors (reached during onboarding and afterward from the profile's legacy-claim link, see M_Edit_Profile), the member can declare optional anchors: one or more former surnames and one or more old email addresses. Anchors are self-asserted; no proof required for the declaration itself. Anchors are always private (member-and-admin only) per M_Edit_Profile.
 - When the member declares a new anchor, the platform re-runs candidate matching against the new value synchronously within the same wizard task; any resulting cards surface in-screen without requiring a sign-out or sign-in cycle. Declared anchors persist; subsequent matching also runs at sign-in for cases where the platform later receives new data (cross-source candidates appearing post-claim, mirror updates, etc.).
+- The old-email entry field carries plain helper copy telling the member that matching the email they used on the old footbag.org helps confirm their legacy claim is really them. Saving or removing an anchor confirms the save and the re-check with a state-independent notice; neither the helper copy nor the notice ever states whether a given value matched.
 
 Email-matching surface:
 
@@ -796,6 +797,7 @@ Success Criteria:
 - The `club_affiliations` task is universal (always rendered), like `legacy_claim`. Its content covers Stages 1A, 1B, and the wrap-up landing, plus a no-match exit that links to `M_Create_Club`. The wizard asks Stage 1 club questions only about the member's own mirror-suggested affiliations; a member with no suggested affiliation has no Stage 1 card and lands directly on the wrap-up landing, which states that no legacy club affiliation was found and routes the member to join an existing club or create their own.
 - On submission, the underlying state is written via the owning service and the `member_onboarding_tasks` row transitions to `completed`.
 - `gender`, `first_competition_year`, and `show_competitive_results` are collected as fields within the `personal_details` task. The task is required to become a member and is completed by saving its fields: city, country, and date of birth are required; region is optional; gender defaults to `undisclosed`.
+- The date-of-birth field carries plain helper copy saying it is used to match the member's old footbag.org records and stays private, never shown publicly. It serves as a private matching anchor that disambiguates same-name legacy candidates (posture per DATA_GOVERNANCE) and never alters an anti-enumeration response.
 - Applicability is computed against the claiming member's own account state, not against any historical-persons record the member has claimed. `members.is_deceased` and `historical_persons.is_deceased` are two independent fields: claiming a historical record never propagates the record's deceased flag to the living member's account, and the member runs the wizard normally.
 - The optional `club_affiliations` task offers a `Skip for now` action that transitions its `member_onboarding_tasks` row to `skipped`. The required tasks complete instead of skipping: `personal_details` by saving its fields, and `legacy_claim` by an explicit decision (claiming a record, or choosing nothing to claim). While a required task is outstanding, the member is routed to the wizard from the member, club, and admin capability surfaces; browse pages, the member's own profile, and the wizard's own affordances stay reachable. Each task transition emits an `audit_entries` row.
 - The dashboard task widget (rendered on the personal-home view) queries `MemberOnboardingService.getDashboardTaskWidget(memberId)` and lists outstanding tasks (`pending` or `skipped`) ordered by catalog position, each with a `Resume` button that opens the same task UI used at registration (identical service contract regardless of entry point). Completing a task removes it from the widget. When no outstanding tasks remain, or when none are applicable, the widget renders nothing on the dashboard (no empty-state banner, no "all done" message). Skip-resume cycles emit one audit row per transition.
@@ -2564,6 +2566,20 @@ Success Criteria:
 - Granting the admin role automatically subscribes the member to the Admin mailing list used for admin alerts.
 - Revoking the admin role automatically unsubscribes the member from the Admin mailing list, without changing any of their other email subscriptions.
 
+### A_Bootstrap_First_Admin
+
+Access: In development and staging, a register-time email allowlist; in production, any signed-in member holding the operator-provisioned single-shot token.
+
+Story: As the platform operator, I can bootstrap the first administrator account, so that a fresh deployment (or one that has lost every admin) reaches the governed steady state where A_Manage_Admin_Role takes over.
+
+Success Criteria:
+
+- Development and staging: an environment allowlist (`FOOTBAG_DEV_INITIAL_ADMIN_EMAILS`) grants the admin role at registration. A production process configured with the allowlist refuses to start, and the deploy pipeline refuses to write the value onto a production host, so the mechanism cannot exist in production.
+- Production: an operator provisions a single-shot token in the platform's parameter store; a signed-in member submitting the matching token receives the admin role, the Tier 2 invariant grant, and an audit row, in one transaction.
+- The claim fires only while no admin exists; once an admin is present the path grants nothing. Every failure shape (absent token, mismatch, malformed, already closed) returns the same non-revealing result, and the claim is rate-limited per IP and per member.
+- The token parameter is deleted after a successful grant; the same path is the break-glass recovery after total admin loss.
+- Steady-state admin grants and revocations remain owned by A_Manage_Admin_Role.
+
 ## 7.7 Configurable Parameters
 
 Seed these defaults into the database-backed configuration store during initial database creation. Admins may change values only within validated ranges; all changes must be audit-logged. Story text may reference these defaults but must not redefine them. IFPA-derived values reflect the IFPA Memberships document (authoritative source). For membership pricing, the keys below are `system_config.config_key` literals.
@@ -2799,6 +2815,32 @@ Success Criteria:
 - The job does not affect Tier 1, Tier 2, or Tier 3 members because Active Player applies only to Tier 0.
 - Each Active Player expiry action writes an audit-log entry including member ID, previous Active Player expiry date, processing date, reason `active_player_expired`, and timestamp.
 - All reminder sending and automatic Active Player expiry processing performed by this job are logged to CloudWatch (or equivalent monitoring), including counts and failure metrics.
+
+### SYS_Batch_Auto_Link
+
+Access: Operator-run cutover job under the system role.
+
+Story: The system stages auto-link candidates for every unlinked member after a legacy data import, so that members who registered before their legacy data arrived get the same confirm-a-card claim experience as members who register after it.
+
+Success Criteria:
+
+- The job evaluates every member without a linked legacy account or historical person against the imported legacy data, using the same classifier and evidence rules as sign-in matching (per M_Claim_Legacy_Account).
+- It only stages candidates for members to confirm later in the wizard's claim task: it mutates no live identity tables and sends no email.
+- Re-running the job stages no duplicate candidate for the same member/target pair, and a candidate the member declined is not re-staged without new signal.
+- Each staged candidate carries its staged audit event, and the run is recorded with its status and counts so an operator can see when it ran and what it did.
+
+### SYS_Staged_Candidate_Expiry
+
+Access: This scheduled process runs under the system role.
+
+Story: The system expires stale staged auto-link candidates daily, so that a member who never acted on a suggested match is not confronted with it indefinitely while re-staging stays possible when the evidence still holds.
+
+Success Criteria:
+
+- A daily job resolves open staged candidates past the administrator-configurable expiry window (default 365 days, keyed by `auto_link_staged_expiry_days`) to expired, without member action.
+- Each expiry writes an audit entry identifying the candidate and the member; no identity table is touched.
+- The sweep is idempotent: re-running it produces no further state change for already-resolved candidates.
+- If the candidate's anchors still match when staging next runs, the candidate may be staged again; expiry never blocks a future re-stage the way a decline does.
 
 ### SYS_Send_Email
 

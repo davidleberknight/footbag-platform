@@ -17,7 +17,7 @@ cd "${REPO_ROOT}"
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/deploy-local-data.sh <mode> [--dry-run]
+Usage: bash scripts/deploy-local-data.sh <mode> [--dry-run] [--apply-members] [--cutover-clubs]
 
 Modes (exactly one required):
   --soup-to-nuts  Full rebuild from the legacy mirror. Drops the DB file,
@@ -49,11 +49,15 @@ Modes (exactly one required):
 
   --all-data      The --from-csv build (no mirror) PLUS the legacy member-data
                   intake: extract the footbag.org dump into the git-ignored
-                  intermediate CSV and validate/preview it. The member LOAD is
-                  deferred (the identity reconciliation in
-                  legacy_data/member_data_scripts/reconcile_legacy_members.py is
-                  not implemented yet), so the member data is not applied; a
-                  notice says so and the run still succeeds.
+                  intermediate CSV, then validate and preview the member load
+                  (--load --dry-run). By default no member data is applied; a
+                  notice says so and the run still succeeds. With
+                  --apply-members the intake instead runs the full load
+                  (--load --apply): identity reconciliation, QC gate, rollback
+                  snapshot, then the reconciled member rows and
+                  historical-person links are written to the local DB. Local
+                  maintainer machines only — the writers refuse
+                  production/staging targets.
                   Requires: the gitignored membership roster
                             (legacy_data/membership/inputs/membership_input_normalized.csv)
                             AND either the footbag.org dump or a prior
@@ -63,6 +67,15 @@ Modes (exactly one required):
 
 Options:
   --dry-run       Print what would be executed without running anything.
+  --apply-members Apply the member load for real (only with --all-data).
+                  Without it the intake stays a validate + dry-run preview.
+                  The AWS deploy path never passes this flag: a deploy must
+                  never ship real member data.
+  --cutover-clubs Cutover club set (only with --all-data): exports CLUBS_SEED=no
+                  so the dev-convenience clubs seed (all 311 seed clubs) is
+                  skipped and the cutover pre-populated-clubs step is the sole
+                  creator of live clubs rows. Without it a build carries the
+                  full dev club set.
 
 This script orchestrates LOCAL DB preparation only. For AWS staging deploy,
 see scripts/deploy-rebuild.sh.
@@ -76,6 +89,8 @@ fi
 
 MODE=""
 DRY_RUN="no"
+APPLY_MEMBERS="no"
+CUTOVER_CLUBS="no"
 for arg in "$@"; do
   case "$arg" in
     --soup-to-nuts|--from-csv|--db-only|--all-data)
@@ -87,6 +102,12 @@ for arg in "$@"; do
       ;;
     --dry-run)
       DRY_RUN="yes"
+      ;;
+    --apply-members)
+      APPLY_MEMBERS="yes"
+      ;;
+    --cutover-clubs)
+      CUTOVER_CLUBS="yes"
       ;;
     --help|-h)
       usage
@@ -106,6 +127,27 @@ if [[ -z "$MODE" ]]; then
   echo "" >&2
   usage >&2
   exit 1
+fi
+
+# --apply-members writes real member data, which only the --all-data intake
+# carries; anywhere else it is almost certainly a mistake, so fail loud.
+if [[ "$APPLY_MEMBERS" == "yes" && "$MODE" != "--all-data" ]]; then
+  echo "ERROR: --apply-members is only meaningful with --all-data" >&2
+  exit 1
+fi
+
+# --cutover-clubs shapes the cutover build, which is the --all-data path;
+# anywhere else it is almost certainly a mistake, so fail loud.
+if [[ "$CUTOVER_CLUBS" == "yes" && "$MODE" != "--all-data" ]]; then
+  echo "ERROR: --cutover-clubs is only meaningful with --all-data" >&2
+  exit 1
+fi
+if [[ "$CUTOVER_CLUBS" == "yes" ]]; then
+  # Inherited by the clubs seed loader through reset-local-db.sh: the
+  # dev-convenience seed skips, and the cutover pre-populated-clubs step is
+  # the sole creator of live clubs rows.
+  export CLUBS_SEED=no
+  echo "==> cutover clubs: CLUBS_SEED=no (dev clubs seed skipped; cutover pre-populated clubs only)"
 fi
 
 run_or_print() {
@@ -239,12 +281,15 @@ run_all_data() {
   # database (historical_persons included) that the member extract reads.
   run_from_csv
 
-  # The legacy member intake. Extraction needs the dump. This build only previews
-  # the load (--load --dry-run): it produces / validates the intermediate CSV but
-  # does NOT apply the member data. A full --load runs the identity reconciliation
-  # (Stage A duplicate-account review, Stage B historical-person link proposals,
-  # the QC gate, and the honors backfill over those proposals); applying the
-  # result is a separate, human-approved step that is not wired yet.
+  # The legacy member intake. Extraction needs the dump. The identity
+  # reconciliation (Stage A duplicate-account review, Stage B historical-person
+  # link proposals, the QC gate, and the honors backfill over those proposals)
+  # runs inside the runner's --load path. Without --apply-members this build
+  # only previews the load (--load --dry-run) and writes nothing; with it, the
+  # full load (--load --apply) snapshots legacy_members for rollback, loads the
+  # reconciled members, and applies the proposed historical-person links. The
+  # writers refuse production/staging targets, so a real apply can only land on
+  # a local database.
   local runner="${REPO_ROOT}/legacy_data/member_data_scripts/run_legacy_members.sh"
   if [[ -n "$dump_root" ]]; then
     echo "==> member intake: extract dump -> intermediate CSV"
@@ -252,15 +297,26 @@ run_all_data() {
   else
     echo "==> member intake: no dump; using the existing intermediate CSV"
   fi
-  echo "==> member intake: validate + preview (no write)"
-  run_or_print bash "$runner" --load --dry-run
+  if [[ "$APPLY_MEMBERS" == "yes" ]]; then
+    echo "==> member intake: reconcile + apply (writes member data to the local DB)"
+    run_or_print bash "$runner" --load --apply
 
-  echo ""
-  echo "NOTE: member data was NOT loaded. This build only previews the intake"
-  echo "      (validate + dry-run). A full --load runs the identity reconciliation"
-  echo "      and QC gate; applying the member data is a separate, human-approved"
-  echo "      step that is not wired yet. --all-data has built the enrichment DB"
-  echo "      and the intermediate CSV."
+    echo ""
+    echo "NOTE: member data WAS applied to the local database: the reconciled"
+    echo "      legacy_members rows are loaded and the historical-person links"
+    echo "      written, with a rollback snapshot under"
+    echo "      legacy_data/member_data_scripts/out/."
+  else
+    echo "==> member intake: validate + preview (no write)"
+    run_or_print bash "$runner" --load --dry-run
+
+    echo ""
+    echo "NOTE: member data was NOT loaded. This build previews the intake"
+    echo "      (validate + dry-run). Re-run with --apply-members to run the"
+    echo "      identity reconciliation and apply the member data to the local"
+    echo "      DB. The AWS deploy path never applies it: a deploy must never"
+    echo "      ship real member data."
+  fi
 }
 
 case "$MODE" in

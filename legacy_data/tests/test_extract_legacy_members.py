@@ -48,22 +48,36 @@ CREATE TABLE `members` (
   `MemberAlias` varchar(80) NOT NULL DEFAULT '',
   `MemberSession` text,
   `MemberIFPAJoined` int(11) NOT NULL DEFAULT '0',
-  `MemberIFPATier` varchar(20) DEFAULT NULL
+  `MemberIFPATier` varchar(20) DEFAULT NULL,
+  `MemberIFPAExpiration` int(11) NOT NULL DEFAULT '0',
+  `MemberIFPAExpiration2` int(11) NOT NULL DEFAULT '0'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 INSERT INTO `members` VALUES """ + ",".join([
-    # 1: ASCII member, both emails, full address, birth date, IFPA join epoch
+    # 1: ASCII member, both emails, full address, birth date, IFPA join epoch;
+    #    Tier-2 lifetime (tier 2, expiration2 -1)
     "(11983,1,'SECRET_HASH_DO_NOT_LEAK','Steve','','Blough','','','',"
     "'steve@example.com','steve2@example.com','','Boulder','','Colorado','',"
     "'80301','United States','','123 Main St','Apt 4',6,15,1985,"
-    "'O''Brien fan','sblough','SESSION_TOKEN_DO_NOT_LEAK',1268000000,'2')",
-    # 2: Unicode name + city, only email3, no birth date, no IFPA join
+    "'O''Brien fan','sblough','SESSION_TOKEN_DO_NOT_LEAK',1268000000,'2',0,-1)",
+    # 2: Unicode name + city, only email3, no birth date, no IFPA join;
+    #    Tier-1 lifetime (tier 1, expiration -1)
     "(12000,1,'pw2','','José','','Núñez','','','','',"
     "'jose@example.com','','Düsseldorf','','','','','','','',0,0,0,"
-    "'','jose','sess2',0,'1')",
+    "'','jose','sess2',0,'1',-1,0)",
     # 3: invalid (MemberValid=0) with NULL birth parts — must still be emitted
     "(99999,0,'pw3','Junk','','User','','','','junk@example.com','','',"
-    "'','','','','','','','','',NULL,NULL,NULL,'','junkuser','sess3',0,NULL)",
+    "'','','','','','','','','',NULL,NULL,NULL,'','junkuser','sess3',0,NULL,NULL,NULL)",
+    # 4: Tier-1 annual with an unexpired expiration (epoch 2030-01-01)
+    "(12500,1,'pw4','Anna','','Nual','','','','annual@example.com','','',"
+    "'','','','','','','','','',0,0,0,'','annual_user','sess4',0,'1',1893456000,0)",
+    # 5: Tier-1 annual lapsed (epoch 2008-01-10) — no flag; claims on honors alone
+    "(12600,1,'pw5','Lars','','Lapsed','','','','lapsed@example.com','','',"
+    "'','','','','','','','','',0,0,0,'','lapsed_user','sess5',0,'1',1200000000,0)",
 ]) + ";\n"
+
+# The go-live write-freeze moment the annual-expiration comparison uses; fixture
+# row 4 expires after it, row 5 before it.
+CUTOVER_DATE = "2026-08-01"
 
 
 def _run(tmp_path):
@@ -131,17 +145,17 @@ def test_birth_and_ifpa_dates(tmp_path):
 def test_no_filtering_invalid_row_emitted(tmp_path):
     _, rows, by_id, _ = _run(tmp_path)
     # The extractor does NOT filter; the MemberValid=0 row is emitted verbatim.
-    assert len(rows) == 3
+    assert len(rows) == 5
     assert by_id["99999"]["member_valid"] == "0"
     assert by_id["99999"]["real_name"] == "Junk User"
 
 
 def test_dump_level_counts(tmp_path):
     stats, _, _, _ = _run(tmp_path)
-    assert stats["rows_examined"] == 3
-    assert stats["distinct_member_id"] == 3
+    assert stats["rows_examined"] == 5
+    assert stats["distinct_member_id"] == 5
     assert stats["email_population"] == {
-        "legacy_email": 2,    # 11983 + 99999
+        "legacy_email": 4,    # 11983 + 99999 + 12500 + 12600
         "legacy_email2": 1,   # 11983
         "legacy_email3": 1,   # 12000
     }
@@ -169,3 +183,89 @@ def test_derive_board_at_cutover_maps_configured_code():
     assert elm.derive_board_at_cutover("2", codes) == ("0", "")
     assert elm.derive_board_at_cutover("", codes) == ("0", "")
     assert elm.derive_board_at_cutover("3", frozenset()) == ("0", "")
+
+
+def test_derive_ever_paid_tier2():
+    # Only the Tier-2 code flags; every other code (including Tier 1 and the
+    # never-paid 0) carries no flag.
+    assert elm.derive_ever_paid_tier2("2") == "1"
+    assert elm.derive_ever_paid_tier2(" 2 ") == "1"
+    assert elm.derive_ever_paid_tier2("1") == "0"
+    assert elm.derive_ever_paid_tier2("0") == "0"
+    assert elm.derive_ever_paid_tier2("") == "0"
+    assert elm.derive_ever_paid_tier2(None) == "0"
+
+
+def test_derive_ever_paid_tier1_lifetime():
+    # Tier 1 with the -1 lifetime sentinel flags; a real expiration epoch is
+    # annual (not lifetime), and Tier 2 / never-paid codes never flag here.
+    assert elm.derive_ever_paid_tier1_lifetime("1", "-1") == "1"
+    assert elm.derive_ever_paid_tier1_lifetime("1", "1893456000") == "0"
+    assert elm.derive_ever_paid_tier1_lifetime("1", "0") == "0"
+    assert elm.derive_ever_paid_tier1_lifetime("1", "") == "0"
+    assert elm.derive_ever_paid_tier1_lifetime("2", "-1") == "0"
+    assert elm.derive_ever_paid_tier1_lifetime("0", "-1") == "0"
+
+
+def test_derive_tier1_annual_active_at_cutover():
+    cutover = elm.parse_cutover_date(CUTOVER_DATE)
+    # Unexpired annual flags; lapsed, lifetime (-1), none (0), non-numeric, and
+    # non-Tier-1 codes never flag.
+    assert elm.derive_tier1_annual_active_at_cutover("1", "1893456000", cutover) == "1"
+    assert elm.derive_tier1_annual_active_at_cutover("1", "1200000000", cutover) == "0"
+    assert elm.derive_tier1_annual_active_at_cutover("1", "-1", cutover) == "0"
+    assert elm.derive_tier1_annual_active_at_cutover("1", "0", cutover) == "0"
+    assert elm.derive_tier1_annual_active_at_cutover("1", "not-a-number", cutover) == "0"
+    assert elm.derive_tier1_annual_active_at_cutover("2", "1893456000", cutover) == "0"
+    # Without a cutover date the derivation is inert: nothing is guessed.
+    assert elm.derive_tier1_annual_active_at_cutover("1", "1893456000", None) == "0"
+
+
+def test_parse_cutover_date():
+    import pytest
+    assert elm.parse_cutover_date(None) is None
+    assert elm.parse_cutover_date("") is None
+    # 2026-08-01T00:00:00Z
+    assert elm.parse_cutover_date("2026-08-01") == 1785542400
+    with pytest.raises(SystemExit):
+        elm.parse_cutover_date("08/01/2026")
+
+
+def test_tier_flags_without_cutover_date(tmp_path):
+    # The code-derived flags (Tier 2, Tier 1 lifetime) populate with no cutover
+    # date; the annual-active flag stays inert on every row.
+    stats, rows, by_id, _ = _run(tmp_path)
+    assert by_id["11983"]["legacy_ever_paid_tier2"] == "1"
+    assert by_id["11983"]["legacy_ever_paid_tier1_lifetime"] == "0"
+    assert by_id["12000"]["legacy_ever_paid_tier1_lifetime"] == "1"
+    assert by_id["12000"]["legacy_ever_paid_tier2"] == "0"
+    assert by_id["99999"]["legacy_ever_paid_tier2"] == "0"
+    assert by_id["99999"]["legacy_ever_paid_tier1_lifetime"] == "0"
+    for r in rows:
+        assert r["legacy_tier1_annual_active_at_cutover"] == "0"
+    assert stats["cutover_epoch"] is None
+    assert stats["tier_flags"] == {
+        "legacy_ever_paid_tier2": 1,
+        "legacy_ever_paid_tier1_lifetime": 1,
+        "legacy_tier1_annual_active_at_cutover": 0,
+    }
+
+
+def test_tier_flags_with_cutover_date(tmp_path):
+    dump = tmp_path / "members.sql"
+    dump.write_text(FIXTURE_SQL, encoding="utf-8")
+    out = tmp_path / "export.csv"
+    stats = elm.extract(dump, out, cutover_date=CUTOVER_DATE)
+    by_id = {r["legacy_member_id"]: r for r in csv.DictReader(out.open(encoding="utf-8"))}
+    # The unexpired annual flags; the lapsed annual and the lifetime rows do not.
+    assert by_id["12500"]["legacy_tier1_annual_active_at_cutover"] == "1"
+    assert by_id["12600"]["legacy_tier1_annual_active_at_cutover"] == "0"
+    assert by_id["12000"]["legacy_tier1_annual_active_at_cutover"] == "0"
+    # A lapsed annual carries no flag at all: the member claims on honors alone.
+    assert by_id["12600"]["legacy_ever_paid_tier2"] == "0"
+    assert by_id["12600"]["legacy_ever_paid_tier1_lifetime"] == "0"
+    assert stats["tier_flags"] == {
+        "legacy_ever_paid_tier2": 1,
+        "legacy_ever_paid_tier1_lifetime": 1,
+        "legacy_tier1_annual_active_at_cutover": 1,
+    }

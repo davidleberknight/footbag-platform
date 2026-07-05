@@ -259,11 +259,20 @@ def ensure_fh_member(con: sqlite3.Connection, ts: str) -> str:
     con.execute(
         """INSERT OR IGNORE INTO legacy_members
              (legacy_member_id, real_name, display_name, display_name_normalized,
-              country, is_hof, is_bap, imported_at, version)
+              country, is_hof, is_bap, import_source, imported_at, version)
            VALUES
              (:lid, 'Footbag Hacky', 'Footbag Hacky', 'footbag hacky',
-              'USA', 0, 0, :ts, 1)""",
+              'USA', 0, 0, 'system_fixture', :ts, 1)""",
         {"lid": hacky_legacy_id, "ts": ts},
+    )
+    # Provenance heal for a stub row created before the seeder stamped it: the
+    # pre-cutover gates require import_source on every row, and no import ever
+    # produces or overwrites this platform-seeded fixture.
+    con.execute(
+        """UPDATE legacy_members SET import_source = 'system_fixture'
+           WHERE legacy_member_id = :lid
+             AND (import_source IS NULL OR import_source = '')""",
+        {"lid": hacky_legacy_id},
     )
     con.execute(
         "UPDATE members SET legacy_member_id = :lid WHERE id = :mid AND legacy_member_id IS NULL",

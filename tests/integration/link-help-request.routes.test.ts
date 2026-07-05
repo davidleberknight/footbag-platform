@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertLegacyMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertLegacyMember, insertHistoricalPerson, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3089');
 
@@ -141,6 +141,20 @@ describe('member intake', () => {
   });
 });
 
+describe('member factory historical-person linkage', () => {
+  it('insertMember with an unseen historical_person_id auto-creates the historical_persons row', () => {
+    _n += 1;
+    const memberId = `lh-hp-fact-${_n}`;
+    insertMember(db, {
+      id: memberId, slug: `lh_hp_fact_${_n}`,
+      login_email: `${memberId}@example.com`, historical_person_id: `hp-fact-${_n}`,
+    });
+    const hp = db.prepare('SELECT person_id FROM historical_persons WHERE person_id = ?')
+      .get(`hp-fact-${_n}`) as Record<string, unknown> | undefined;
+    expect(hp?.person_id).toBe(`hp-fact-${_n}`);
+  });
+});
+
 describe('admin review', () => {
   it('approve applies the legacy link with admin-vetted evidence and resolves the item', async () => {
     const memberId = seedRequester();
@@ -194,6 +208,99 @@ describe('admin review', () => {
       .send({ target_legacy_member_id: 'LM-does-not-exist' });
     expect(res.status).toBe(422);
     expect(openItems(memberId)[0].status).toBe('open');
+  });
+
+  it('approve links a historical-person record; admin vetting bypasses the surname gate', async () => {
+    const memberId = seedRequester();
+    // The requester's surname does not match the record: a self-serve claim
+    // would be blocked by the surname gate, and the admin path is the designed
+    // recovery, so the fixture exercises exactly that mismatch.
+    const personId = insertHistoricalPerson(db, {
+      person_id: `hp-${memberId}`, person_name: 'Different Surname', hof_member: 1,
+    });
+    await request(createApp())
+      .post('/register/wizard/legacy_claim/help-request')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ statement: 'The competition record is mine.' });
+    const item = openItems(memberId)[0];
+
+    const res = await request(createApp())
+      .post(`/admin/work-queue/${item.id}/link-help/approve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ target_historical_person_id: personId });
+    expect(res.status).toBe(303);
+
+    const mem = db.prepare('SELECT historical_person_id FROM members WHERE id = ?').get(memberId) as Record<string, unknown>;
+    expect(mem.historical_person_id).toBe(personId);
+
+    const resolved = openItems(memberId)[0];
+    expect(resolved.status).toBe('resolved');
+    expect(resolved.decision_label).toBe('approved');
+
+    const approveAudits = audits(memberId, 'support.help_request_approved');
+    expect(approveAudits).toHaveLength(1);
+    const metadata = JSON.parse(String(approveAudits[0].metadata_json)) as Record<string, unknown>;
+    expect(metadata.historical_person_id).toBe(personId);
+    expect(metadata.evidence_strength).toBe('admin_vetted_evidence');
+  });
+
+  it('approve requires exactly one target: both or neither is a 422 and the item stays open', async () => {
+    const memberId = seedRequester();
+    await request(createApp())
+      .post('/register/wizard/legacy_claim/help-request')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ statement: 'Mine.' });
+    const item = openItems(memberId)[0];
+
+    const neither = await request(createApp())
+      .post(`/admin/work-queue/${item.id}/link-help/approve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+    expect(neither.status).toBe(422);
+    expect(neither.text).toContain('exactly one link target');
+
+    const both = await request(createApp())
+      .post(`/admin/work-queue/${item.id}/link-help/approve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ target_legacy_member_id: 'LM-x', target_historical_person_id: 'hp-x' });
+    expect(both.status).toBe(422);
+    expect(both.text).toContain('exactly one link target');
+
+    expect(openItems(memberId)[0].status).toBe('open');
+  });
+
+  it('approve of a historical person already claimed by another member leaves the item open', async () => {
+    const memberId = seedRequester();
+    const personId = insertHistoricalPerson(db, {
+      person_id: `hp-held-${memberId}`, person_name: 'Held Record',
+    });
+    _n += 1;
+    insertMember(db, {
+      id: `lh-holder-${_n}`, slug: `lh_holder_${_n}`,
+      login_email: `lh-holder-${_n}@example.com`, historical_person_id: personId,
+    });
+
+    await request(createApp())
+      .post('/register/wizard/legacy_claim/help-request')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ statement: 'That record is mine.' });
+    const item = openItems(memberId)[0];
+
+    const res = await request(createApp())
+      .post(`/admin/work-queue/${item.id}/link-help/approve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ target_historical_person_id: personId });
+    expect(res.status).toBe(422);
+    expect(openItems(memberId)[0].status).toBe('open');
+    const mem = db.prepare('SELECT historical_person_id FROM members WHERE id = ?').get(memberId) as Record<string, unknown>;
+    expect(mem.historical_person_id).toBeNull();
   });
 
   it('reject requires a reason, resolves the item, and writes the rejected audit event', async () => {

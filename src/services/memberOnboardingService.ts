@@ -171,7 +171,7 @@ export interface DashboardTaskWidget {
 
 const TASK_LABELS: Record<OnboardingTaskType, string> = {
   personal_details:         'Personal details',
-  legacy_claim:             'Find your past records',
+  legacy_claim:             'Find your past records and clubs',
   club_affiliations:        'Club affiliation',
 };
 

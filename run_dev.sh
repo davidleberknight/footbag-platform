@@ -98,13 +98,16 @@ DB rebuild modes (mutually exclusive; opt-in only):
                    Calls scripts/deploy-local-data.sh --soup-to-nuts.
   --all-data       The --from-csv build PLUS the legacy member-data intake:
                    extract the footbag.org dump into the git-ignored intermediate
-                   CSV and validate/preview it. The member LOAD is deferred (the
-                   identity reconciliation is not implemented yet), so member data
-                   is not applied; a notice says so and the run still succeeds.
+                   CSV, run the identity reconciliation, and APPLY the member
+                   load to the local DB (real member rows and historical-person
+                   links, with a rollback snapshot). This is the local path for
+                   exercising onboarding matching and legacy claims against real
+                   data. The AWS deploy path (deploy-to-aws.sh --all-data) stays
+                   preview-only: a deploy never ships real member data.
                    Requires the gitignored membership roster AND either the
                    footbag.org dump or a prior intermediate CSV. Seeds personas by
                    default (opt out with --no-personas).
-                   Calls scripts/deploy-local-data.sh --all-data.
+                   Calls scripts/deploy-local-data.sh --all-data --apply-members.
 
 Opt-outs (valid only in the mode that turns the axis on by default):
   --no-media       Skip the curator media seed (exports CURATOR_SEED=no).
@@ -199,8 +202,8 @@ elif (( FROM_CSV == 1 )); then
   echo "→ Full enrichment rebuild from canonical CSVs (deploy-parity)..."
   bash scripts/deploy-local-data.sh --from-csv
 elif (( ALL_DATA == 1 )); then
-  echo "→ Full enrichment rebuild + legacy member-data intake (member load deferred)..."
-  bash scripts/deploy-local-data.sh --all-data
+  echo "→ Full enrichment rebuild + legacy member-data intake (member load applied locally)..."
+  bash scripts/deploy-local-data.sh --all-data --apply-members
 elif [[ "$RESET" == "1" ]]; then
   echo "→ Resetting local DB..."
   bash scripts/reset-local-db.sh

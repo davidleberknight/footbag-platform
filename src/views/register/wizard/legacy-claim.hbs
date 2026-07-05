@@ -17,6 +17,12 @@
       <p class="form-success-banner" role="status">Your request has been sent to an administrator. We'll email you once it has been reviewed.</p>
     {{/if}}
 
+    {{#if (eq content.anchorSavedNotice 'saved')}}
+      <p class="form-success-banner" role="status">Saved. We re-checked for matches with your updated details.</p>
+    {{else if (eq content.anchorSavedNotice 'removed')}}
+      <p class="form-success-banner" role="status">Removed. We re-checked for matches with your updated details.</p>
+    {{/if}}
+
     {{#if (eq content.anchorVerificationNotice 'sent')}}
       <p class="form-success-banner" role="status">If that address can receive mail, a confirmation link is on its way. Open it while signed in to this account.</p>
     {{else if (eq content.anchorVerificationNotice 'verified')}}
@@ -46,7 +52,7 @@
     {{/if}}
 
     {{#if content.lowConfidenceBanner}}
-      <p class="form-notice" role="status">We searched for a confident match and didn't find one. Try searching by your old footbag.org member id, username, or the email address you used there.</p>
+      <p class="form-notice" role="status">We didn't find a confident match for your name. If you had an account on the old footbag.org, try searching below by your old member ID, username, or email. If you never had one, you can continue without linking.</p>
     {{/if}}
 
     {{#if content.autoLinkDriftNotice}}
@@ -55,7 +61,7 @@
 
     {{#if content.sentNotice.show}}
       <div class="form-success-banner" role="status">
-        If an eligible legacy record was found, a confirmation link has been sent to its legacy email address. Open that link in this same browser, while you are still signed in, to complete the claim. The link expires in 24 hours.
+        If an eligible legacy record was found, a confirmation link has been sent to the email address on the old account. Open that link in this same browser, while you are still signed in, to complete the claim. The link expires in 24 hours.
       </div>
       {{#if content.sentNotice.outcomeNote}}
         <p class="form-notice" role="status">{{content.sentNotice.outcomeNote}}</p>
@@ -109,6 +115,7 @@
                 <button type="submit" class="btn btn-primary">This Is Me, Link My History</button>
               </form>
             {{else if (eq this.claimMode 'hp_review_page')}}
+              <p class="text-muted fs-sm">This record was found by name match, and same-name coincidences happen. Only claim it if these results are really yours.</p>
               <p class="candidate-card-action"><a href="/history/{{this.personId}}/claim" class="btn btn-primary">Claim This Record</a></p>
             {{else if (eq this.claimMode 'already_linked')}}
               {{#if this.alreadyLinkedSinceDisplay}}
@@ -149,7 +156,7 @@
         <label for="oldEmail">Email address used on the old footbag.org site</label>
         <input type="email" id="oldEmail" name="anchorValue" placeholder="your-old-email@example.com" />
         <input type="hidden" name="anchorType" value="old_email" />
-        <small class="form-hint">If you used a different email on footbag.org, enter it here to help us find your account.</small>
+        <small class="form-hint">If you used a different email on the old footbag.org, enter it here. Matching the email you used there helps confirm your legacy claim is really you.</small>
       </div>
       <button type="submit" class="btn btn-outline">Add Old Email</button>
     </form>
@@ -167,7 +174,7 @@
     <h2 class="mt-6">Know your old footbag.org ID or username?</h2>
     <form method="POST" action="/register/wizard/legacy_claim/find" class="login-form">
       <div class="form-field">
-        <label for="identifier">Old footbag.org member ID, username, or email, or historical-record ID</label>
+        <label for="identifier">Old footbag.org member ID, username, or email, or competition-record ID</label>
         <input type="text" id="identifier" name="identifier" required />
       </div>
       {{#if content.turnstileSiteKey}}
