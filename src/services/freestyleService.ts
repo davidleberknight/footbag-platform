@@ -3285,6 +3285,7 @@ export interface FamilyDetailTeaching {
 export interface FreestyleFamilyDetailContent {
   slug: string;
   displayName: string;
+  displayArticle: string;          // 'a' | 'an'; shapes the "What is a/an <Name>?" heading
   hashtag: string;                 // '#' + slug; identity token, never a link
   tierLabel: string;               // 'Family Parent'
   descendantCountLabel: string;    // pre-shaped: 'NN documented descendants'
@@ -10166,6 +10167,9 @@ export const freestyleService = {
       PUBLIC_FAMILY_LABEL.get(slug)
       ?? resolveFamilyDisplayName(slug)
       ?? (slug.charAt(0).toUpperCase() + slug.slice(1));
+    // Indefinite article for the "What is a/an <Name>?" heading: vowel-initial
+    // family names (Illusion, Osis) read "an", everything else "a".
+    const displayArticle = /^[aeiou]/i.test(displayName) ? 'an' : 'a';
 
     const allRows = runSqliteRead('freestyleTricks.listAllWithPending', () =>
       freestyleTricks.listAllWithPending.all() as FreestyleTrickRowWithStatus[],
@@ -10302,6 +10306,7 @@ export const freestyleService = {
       content: {
         slug,
         displayName,
+        displayArticle,
         hashtag:              `#${slug}`,
         tierLabel:            FAMILY_TIER_LABEL['family-parent'],
         descendantCountLabel: `${descendantCount} documented descendants`,
