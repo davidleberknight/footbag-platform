@@ -46,3 +46,5 @@ instead of an unexplained edit.
   with their proofs and the explicit boundary of what is not proven.
 - `RED_RULINGS.md` — the ledger of expert rulings in effect and where each lives.
 - `RED_QUEUE.md` — the open questions awaiting the rules expert or the curator.
+- `AUTHORITY.md` — the single authoritative source for each public freestyle
+  datum, the ADD-authority order, and the duplications still to consolidate.
