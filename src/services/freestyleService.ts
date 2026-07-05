@@ -6967,8 +6967,13 @@ export const freestyleService = {
     );
     const matchSlugs = new Set<string>([slug, ...aliasSlugs]);
     const recordTrickName = publicRows.find(r => r.trick_name && matchSlugs.has(trickNameToSlug(r.trick_name)))?.trick_name;
-    const trickName = recordTrickName
-      ?? (dictRow ? dictRow.canonical_name.replace(/\b\w/g, c => c.toUpperCase()) : null);
+    // Display form of the canonical name for a dictionary trick (separators to
+    // spaces, then title-cased, so "clipper-stall" reads "Clipper Stall"); null
+    // for a record-only page that has no dictionary row.
+    const canonicalDisplayName = dictRow
+      ? dictRow.canonical_name.replace(/[-_\s]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+      : null;
+    const trickName = recordTrickName ?? canonicalDisplayName;
 
     if (!trickName) {
       throw new NotFoundError(`No freestyle trick found for slug: ${slug}`);
@@ -6980,11 +6985,15 @@ export const freestyleService = {
       (freestyleTrickTips.listForTrick.all(slug) as { tip_text: string }[]),
     ).map(r => ({ text: r.tip_text }));
 
-    // The hero title and breadcrumb show the plain trick name. A trailing side
-    // qualifier ("(op)", "(ss)", ...) is structural identity kept on the slug and
-    // on `trickName` (the record-lookup key below), but it reads as jargon in a
-    // heading, so it is stripped for display only.
-    const displayTrickName = stripDisplaySideQualifier(trickName);
+    // The hero title and breadcrumb show the canonical trick name. When this is a
+    // dictionary trick the canonical name wins: a matched competition record may
+    // carry a folk name, an abbreviation, or the name of a specific variant (the
+    // op-side "Infinity" for butterfly), and it still lists on the page, but it
+    // must never retitle the canonical trick. Only a record-only page (no
+    // dictionary row) falls back to the record-derived name. A trailing side
+    // qualifier ("(op)", "(ss)", ...) stays on the slug and on `trickName` (the
+    // record-lookup key) but reads as jargon in a heading, so it is stripped here.
+    const displayTrickName = stripDisplaySideQualifier(canonicalDisplayName ?? trickName);
 
     // All records for this trick (current + superseded), ordered by value DESC
     const allTrickRows = runSqliteRead('freestyleRecords.listAllByTrickName', () =>

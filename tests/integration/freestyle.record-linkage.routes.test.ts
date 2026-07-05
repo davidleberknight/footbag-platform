@@ -71,6 +71,19 @@ beforeAll(async () => {
     record_type: 'trick_consecutive', display_name: 'Resolved-Side Holder', value_numeric: 50,
   });
 
+  // A canonical trick can have a higher-value record whose name is a specific
+  // variant's folk name, reachable through a curated alias (the op-side
+  // "Infinity" for butterfly, matched via the infinity->butterfly alias). The
+  // record must still list on the page, but the canonical name must title it: a
+  // variant's name never retitles the base trick (not all butterflies are
+  // infinities).
+  insertFreestyleTrick(db, { slug: 'winged', canonical_name: 'winged', category: 'compound', adds: '3' });
+  insertFreestyleTrickAlias(db, 'infinity_variant', 'winged', 'infinity variant');
+  insertFreestyleRecord(db, {
+    trick_name: 'Infinity Variant', record_type: 'trick_consecutive',
+    display_name: 'Variant Holder', value_numeric: 200,
+  });
+
   db.close();
   createApp = await importApp();
 });
@@ -124,6 +137,16 @@ describe('Record-to-trick linkage', () => {
     expect(res.text).toContain('<h1>Resolved Catch</h1>');
     // The side is established, so it stays: real information, not jargon.
     expect(res.text).toMatch(/<p class="hero-subtitle">Resolved Catch \(ss\)<\/p>/);
+  });
+
+  it('titles a canonical page by its canonical name, not a higher-value variant record matched via an alias', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/winged');
+    expect(res.status).toBe(200);
+    // The variant record (higher value, matched through the alias) still lists...
+    expect(res.text).toContain('Variant Holder');
+    // ...but the canonical name titles the page, not the variant's folk name.
+    expect(res.text).toContain('<h1>Winged</h1>');
+    expect(res.text).not.toContain('<h1>Infinity Variant</h1>');
   });
 
   it('links the hashtag to the gallery for a record-only-video trick, resolving the alias to canonical', async () => {
