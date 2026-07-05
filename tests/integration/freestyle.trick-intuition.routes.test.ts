@@ -36,6 +36,10 @@ beforeAll(async () => {
     { slug: 'illusion',  canonical_name: 'illusion',  adds: '2', base_trick: 'illusion',  trick_family: 'illusion',  category: 'compound', notation: '[set] > leggy out dex > op toe', is_active: 1 },
     { slug: 'mobius',    canonical_name: 'mobius',    adds: '5', base_trick: 'torque',    trick_family: 'torque',    category: 'compound', notation: '[clip] > spin bod > leggy in dex > spin bod > op clip', is_active: 1 },
     { slug: 'whirling',  canonical_name: 'whirling',  adds: 'modifier', base_trick: 'whirling', trick_family: 'whirl', category: 'modifier', notation: 'whirling', is_active: 1 },
+    { slug: 'clipper_stall',    canonical_name: 'clipper stall',    adds: '2', base_trick: 'clipper_stall',    trick_family: 'clipper_stall',    category: 'surface', notation: 'SET > OP CLIP [XBD] [DEL]', is_active: 1 },
+    { slug: 'around_the_world', canonical_name: 'around the world', adds: '2', base_trick: 'around_the_world', trick_family: 'around_the_world', category: 'dex',  notation: '[set] > dex > toe', is_active: 1 },
+    { slug: 'orbit',            canonical_name: 'orbit',            adds: '2', base_trick: 'orbit',            trick_family: 'orbit',            category: 'dex',  notation: '[set] > dex > toe', is_active: 1 },
+    { slug: 'pickup',           canonical_name: 'pickup',           adds: '2', base_trick: 'pickup',           trick_family: 'pickup',           category: 'dex',  notation: '[set] > op in dex > ss toe', is_active: 1 },
   ]) {
     insertFreestyleTrick(db, seed);
   }
@@ -78,6 +82,30 @@ describe('Movement intuition — flagship pages render the section', () => {
     const res = await request(createApp()).get('/freestyle/tricks/illusion');
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/a reverse miraging motion/);
+  });
+
+  it('clipper_stall renders the how-to intuition (foundation destination)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/clipper_stall');
+    expect(res.text).toContain('class="content-section trick-intuition"');
+    expect(res.text).toMatch(/catching leg tucked behind the support leg/);
+  });
+
+  it('around_the_world renders the how-to intuition', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/around_the_world');
+    expect(res.text).toContain('class="content-section trick-intuition"');
+    expect(res.text).toMatch(/circle one leg all the way around the bag/);
+  });
+
+  it('orbit renders the how-to intuition, anchored to around-the-world', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/orbit');
+    expect(res.text).toContain('class="content-section trick-intuition"');
+    expect(res.text).toMatch(/the same circling motion as an around-the-world/);
+  });
+
+  it('pickup renders the how-to intuition (scoop from below)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/pickup');
+    expect(res.text).toContain('class="content-section trick-intuition"');
+    expect(res.text).toMatch(/scooping it up from below/);
   });
 
   it('mobius renders the physical prose', async () => {

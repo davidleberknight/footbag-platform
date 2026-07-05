@@ -61,6 +61,30 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
     attribution: '',
   },
   {
+    slug: 'clipper_stall',
+    prose:
+      'Delay the footbag on the inside surface of the foot with the catching leg tucked behind the support leg, so the catch sits across the body on your support side, sole turned inward. Bend the support leg deeply and lean slightly over it for balance, and let the bag settle still in the pocket on the inside of the foot for a beat before the next move. Because so many tricks both finish in a clipper and start again from one, learning to hold it comfortably and settled is worth the time.',
+    attribution: '',
+  },
+  {
+    slug: 'around_the_world',
+    prose:
+      'From a toe delay, set the footbag up in front of you and circle one leg all the way around the bag, passing it around and back down to a toe delay. The leg makes a full loop around the footbag while the bag hangs roughly in place. It can be circled inside-to-outside or outside-to-inside, and both directions are worth the same. Keep your eyes on the bag through the whole circle so the toe arrives back underneath it cleanly.',
+    attribution: '',
+  },
+  {
+    slug: 'orbit',
+    prose:
+      'Orbit circles one leg around the footbag once between two toe delays, the same circling motion as an around-the-world. From a toe delay, set the bag and pass the leg around it, then catch it again on a toe delay. If you can already do an around-the-world, you have most of an orbit: it is the same loop of the leg around the bag, and the two names describe the same movement.',
+    attribution: '',
+  },
+  {
+    slug: 'pickup',
+    prose:
+      'A pickup swings the support leg inward and under the footbag, scooping it up from below, then catches it on the toe of the same foot that set it. The scoop from underneath is what makes it a pickup, and it is why the pickup feels different from a mirage even though the two are worth the same. Set the bag a comfortable height, bring the leg under it, and let the foot rise into the catch rather than reaching over the top.',
+    attribution: '',
+  },
+  {
     slug: 'illusioning_flail',
     prose:
       'Set the bag and circle an outward leg-swing under and then over it while the bag is on its way down rather than on its rise, so the swing rides the bag\'s downtime. Without replanting the support foot, immediately take a second outward swing with the body suspended in the air, and catch on a toe delay. It reads as two low, flowing outward circles, the second one stolen mid-float.',
