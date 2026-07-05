@@ -19,12 +19,11 @@ footbag-domain rules, not web-engineering rules.
 
 ## Relationship to the other audit skills
 
-- **bug-hunt** owns generic security/correctness on every deployed route, including the
-  freestyle routes (auth gates, XSS, caching, error handling). Do not duplicate that sweep.
-- **design-bug-hunt** owns specification-layer defects, including the design quality of
-  freestyle stories and contracts.
-- **extended-doc-sync** owns doc-to-doc and doc-to-code synchronization, including the
-  freestyle docs.
+- **bug-hunt** owns everything generic on the freestyle surfaces: security/correctness on
+  every deployed route (auth gates, XSS, caching, error handling), specification-layer
+  defects including the design quality of freestyle stories and contracts, and doc-to-doc
+  / doc-to-code synchronization including the freestyle docs. Do not duplicate those
+  sweeps.
 - **This skill** owns the freestyle domain layer: dictionary/media invariants,
   cross-surface propagation, naming conventions, and generated-content integrity.
 
@@ -91,7 +90,7 @@ In scope:
   `curated/freestyle_*/**`, gallery JSON, tags, source tiers.
 - The freestyle docs (`docs/Freestyle_Footbag_Glossary.md`,
   `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md`) and the freestyle governance skills, as
-  contracts to audit code against (deep doc-to-doc sync stays with extended-doc-sync).
+  contracts to audit code against (deep doc-to-doc sync stays with bug-hunt).
 - Deterministic QC/test coverage for every category in `REFERENCE.md`: a missing
   mandatory-class check is a first-class finding, not advice.
 
@@ -145,15 +144,16 @@ doctrine judgment calls; editorial voice and wording of curator-authored prose; 
 
 ## Output specification
 
-Single sink: `BUGS.md` at the repo root — the same file bug-hunt and design-bug-hunt use.
+Single sink: `BUGS.md` at the repo root — the same file bug-hunt uses.
 Freestyle findings go in a dedicated **Freestyle bugs (domain invariants)** group, placed
-after the Design bugs group. The group follows the established discipline:
+after the bug-hunt skill's groups and before Leads. The group follows the established
+discipline:
 
 - Ephemeral entries: remove each finding once its fix lands; no closures, dates, or
   RESOLVED markers.
 - Own sub-sequence `FBH-###` with a `Next freestyle finding ID:` pointer at the top of the
   group; never reuse or renumber. A separate counter prevents contention with the `B-###`
-  and `DBH-###` sequences, which different runs and owners produce.
+  sequence, which a different skill and owner produce.
 - This skill owns only the Freestyle group; never edit the other groups.
 
 Per-finding format:

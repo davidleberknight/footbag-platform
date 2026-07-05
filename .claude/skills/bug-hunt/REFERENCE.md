@@ -1,10 +1,21 @@
-# Bug Hunt — detailed reference
+# Bug Hunt — implementation-layer and verification-layer reference
 
-Detailed reference for the bug-hunt skill, factored out of SKILL.md to stay under Anthropic's 500-line ceiling; SKILL.md points here at the relevant step.
+Detailed reference for the bug-hunt skill, factored out of SKILL.md to stay under Anthropic's 500-line ceiling; SKILL.md points here at the relevant step. The design-layer method lives in the sibling `DESIGN.md`, the documentation-synchronization method in the sibling `DOCSYNC.md`.
+
+## Contents
+
+- Bug categories — catalog (§4.4.1–§4.4.48): the implementation-layer (security/correctness) sweep classes
+- Design-pattern divergence and code hygiene (§4.4B.1–§4.4B.8): the documentation/hygiene sweep classes
+- Cross-cutting observations
+- External security calibration references
+- High-signal static search recipes (§4.5A)
+- Testing and CI/CD verification punch list — detail (§5.1–§5.6): the verification-layer sweep
+
+The §-numbers are stable category identifiers cited in `BUGS.md` finding `Class` fields; they are not sections of SKILL.md.
 
 ## Bug categories — catalog (§4.4)
 
-The primary (security/correctness) sweep categories §4.4.1–§4.4.48, followed by the secondary design-pattern-divergence and hygiene sweep §4.4B. SKILL.md §4.4 frames the two sweeps and refers to these category numbers.
+The implementation-layer (security/correctness) sweep categories §4.4.1–§4.4.48, followed by the documentation/hygiene sweep §4.4B. SKILL.md Phases D and E frame the two sweeps and refer to these category numbers.
 
 #### 4.4.1 Logic errors
 
@@ -162,7 +173,7 @@ These are the service-JSDoc / DATA_GOVERNANCE / USER_STORIES non-negotiables. A 
 
 A deployed story that fails its own success criteria is a bug even when the code "works" mechanically.
 
-- Build the traceability matrix from §1.0 before this pass.
+- Build the traceability matrix (SKILL.md Phase B) before this pass.
 - For each Complete and deployed story, verify all acceptance/success criteria against routes, controllers, services, templates, DB writes, audit rows, and permission gates.
 - For each Partial and deployed story, verify that the missing criteria are explicitly documented as accepted deviations.
 - If a discrepancy may be a bad user story rather than bad code, ask one maintainer question instead of guessing.
@@ -481,7 +492,7 @@ A load/performance check is in the go-live gate set, so capacity is gated; this 
 
 ### 4.4B Design-pattern divergence and code hygiene (secondary sweep)
 
-This is a **separate, lower-priority sweep** run after the §4.4 security/correctness sweep. Its findings go in their own `BUGS.md` group (see §4.6) so they never drown the security findings. **Severity**: most §4.4B findings are **Low** or **Medium**. Escalate to **High** only when the divergence produces an actual behavioral or security failure (for example, a template that branches on a raw `role` value and thereby exposes an admin-only control to a non-admin viewer — that is an authorization leak, not a style nit).
+This is a **separate, lower-priority sweep** run after the §4.4 security/correctness sweep. Its findings go in their own `BUGS.md` group (see the SKILL.md output specification) so they never drown the security findings. **Severity**: most §4.4B findings are **Low** or **Medium**. Escalate to **High** only when the divergence produces an actual behavioral or security failure (for example, a template that branches on a raw `role` value and thereby exposes an admin-only control to a non-admin viewer — that is an authorization leak, not a style nit).
 
 Ground every §4.4B finding in the canonical pattern it violates: `.claude/rules/{controller-conventions,template-conventions,view-layer,service-layer,db-layer}.md`, service file-header JSDoc. Cite the rule.
 
@@ -548,10 +559,10 @@ Extends §4.4.16 with the design-hygiene framing; cross-referenced to avoid drif
 
 #### 4.4B.7 Test-code rule violations
 
-Committed-test rule violations only. Coverage *gaps* (a surface that lacks a test) stay in §5; this category is for committed tests that break a hard testing rule.
+Committed-test rule violations only. Coverage *gaps* (a surface that lacks a test) stay in the §5 punch list at the end of this file; this category is for committed tests that break a hard testing rule.
 
 - `.skip`, `.todo`, or `xit` in committed test code (quarantine has its own tagged process).
-- Status-only assertions where a body assertion is required (extends §2.1).
+- Status-only assertions where a body assertion is required (see Cross-cutting observations below).
 - **Real or real-looking PII** in fixtures, snapshots, seed data, or any test/data string value — real footbag-community-figure names, real maintainer names (team members), and real emails. Use clearly-synthetic names; preserve only the variant relationship a scenario exercises (diacritic, long/short, surname-split). Per the `DATA_GOVERNANCE` synthetic-only rule. Reproduction: cross-reference person-name string literals against real community / maintainer identities; high-signal fields are `creator:`, `person_name:`, `real_name:`, `display_name:`, and the name-variant fixtures in `tests/fixtures/` + `src/content/`.
 - A test constructing a writable path from `process.cwd()` / project root instead of `os.tmpdir()` with the `footbag-test-` prefix.
 - A `logger.error()` produced by a test without an `expectLoggedError(pattern)` opt-in.
@@ -577,6 +588,33 @@ For every `src/services/*.ts` file, inspect the file-header JSDoc and any export
 - **Forbidden content:** no sprint/slice/phase labels, dated change markers, temporary-status notes, or document references. The only permitted temporary language is a known developer-bootstrapping deviation with self-contained `Current:` and `Target:` lines, and only when that same deviation is accepted in `IMPLEMENTATION_PLAN.md`.
 
 Report service-JSDoc findings under `Design-divergence and hygiene` unless the incorrect documentation directly masks a security/correctness failure; then report the concrete failure in the severity section and include the JSDoc drift as contributing evidence.
+
+## Cross-cutting observations
+
+Patterns that recur across multiple sites. Useful to scan once before per-file work.
+
+1. **Status-only assertions on static surfaces** (`expect(res.status).toBe(200)`). The five public static routes (`/sideline`, `/hof`, `/bap`, `/legal`, `/ifpa`) now carry a body assertion on the happy path, so a regression to an empty or wrong template breaks the test. Remaining: loose patches of freestyle browse-view tests may still be status-only; audit them for the same gap. The fix is small (one body assertion per route) but spread across many files.
+
+2. **KMS-failure pattern applies to any signing-dependent recovery path.** The pattern: if `signJwt` throws between a DB commit and the cookie issuance, the user is locked out of all sessions with no working cookie. Recovery must route to a separate JWT-issuing flow (password reset). When future signing surfaces land, copy this pattern.
+
+3. **Anti-enumeration assertion shape is reusable.** `security.anti-enumeration.test.ts` uses status-equality + length-ratio (0.95-1.05). The same shape applies to any new surface where exists/not-exists must be indistinguishable (Stripe Checkout for unknown vs known customer; legacy mass-claim lookup; future contact-finder). Helper is reusable as-is; no refactor needed when future enumeration-sensitive surfaces arrive.
+
+## External security calibration references
+
+Do not turn the hunt into a compliance exercise, and do not browse unless the kickoff prompt explicitly asks. Use these public standards as calibration lenses for what classes of bugs to look for:
+
+- **OWASP Secure Code Review Guide / Cheat Sheet:** manual review should inspect application logic, data flow, and implementation details that automated tools miss.
+- **OWASP ASVS:** the mental checklist for authentication, session management, access control, validation/encoding, cryptography, error handling/logging, data protection, communications, business logic, file/resources, API, and configuration verification.
+- **OWASP WSTG:** the adversarial "how would this be tested from outside?" companion; the hunt stays static unless the prompt authorizes runtime testing.
+- **NIST SSDF SP 800-218:** verify that source review and security checks trace to secure-development practices — code review, threat modeling, dependency/configuration review, vulnerability response readiness.
+- **CISA Secure by Design:** favor findings that eliminate whole vulnerability classes or unsafe defaults, not just individual symptoms.
+- **MITRE CWE Top 25:** the final sanity check for high-frequency weakness classes: XSS, SQL injection, CSRF, missing/incorrect authorization, path traversal, command/code injection, unrestricted upload, deserialization, sensitive information exposure, missing authentication, SSRF, user-controlled key authorization bypass, resource exhaustion.
+- **OWASP CI/CD Security Cheat Sheet and DevSecOps guidance:** the automation lens for SAST, DAST, dependency/SCA, IaC/container, secrets, pipeline-permission, and workflow-tampering checks.
+- **OWASP Secrets Management and Logging guidance:** the calibration lens for hardcoded secrets, secret transport, redaction, password handling, and sensitive data in logs, diagnostics, artifacts, and audit metadata.
+- **GitHub CodeQL/code scanning, secret scanning, push protection, and dependency-review guidance:** the repo-native baseline for semantic vulnerability scanning, blocking committed secrets, and dependency risk review.
+- **OpenSSF Scorecard / SCM best practices:** the repository-health and supply-chain lens for branch protection, pinned actions, token permissions, maintainer permissions, dependency update hygiene, risky workflow patterns.
+
+These references never override project rules; they prevent blind spots.
 
 ## High-signal static search recipes (§4.5A)
 
@@ -655,7 +693,7 @@ A grep hit alone is never a finding.
 
 ## Testing and CI/CD verification improvement punch list — detail (§5.1–§5.6)
 
-SKILL.md §5 frames this punch list; the classification rule and the guard/automation/coverage checklists are here.
+SKILL.md's verification-layer sweep (Phase F) frames this punch list; the classification rule and the guard/automation/coverage checklists are here.
 
 ### 5.1 Classification rule
 

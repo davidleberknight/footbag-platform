@@ -42,7 +42,7 @@ The first premise in practice: the always-loaded layer is a table of contents, a
 - *Lazily:* a nested `CLAUDE.md` loads when a file in its subtree is opened; a rule with a `paths:` glob attaches only when a matching file is Read or Edited, never on a grep, a Bash command, or reasoning about an unopened path.
 - *On demand:* canonical documents under `docs/`, a skill's full body (loaded when invoked, then resident for the session), and individual memory entries.
 
-**In this repository:** detail lives where it loads only when relevant. A convention for editing controllers is a `paths:`-scoped rule, not a line in the root `CLAUDE.md`. A skill's long reference material moves into a `REFERENCE.md` beside it so the `SKILL.md` body stays under the roughly 500-line ceiling; `bug-hunt`, `design-bug-hunt`, and `extended-doc-sync` are split this way.
+**In this repository:** detail lives where it loads only when relevant. A convention for editing controllers is a `paths:`-scoped rule, not a line in the root `CLAUDE.md`. A skill's long reference material moves into sidecar reference files beside it so the `SKILL.md` body stays under the roughly 500-line ceiling; `bug-hunt` (with `REFERENCE.md`, `DESIGN.md`, and `DOCSYNC.md`) is split this way.
 
 **Official grounding:** Anthropic's progressive-disclosure model, the instruction to keep `CLAUDE.md` minimal ("would removing this line cause a mistake? if not, cut it"), and the roughly 500-line `SKILL.md` ceiling.
 

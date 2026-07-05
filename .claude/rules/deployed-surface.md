@@ -1,6 +1,6 @@
 # Deployed-surface enumeration
 
-Single home for two things several review workflows share: how to determine what the running application actually deploys, and the one taxonomy for classifying every user story by deployment status. The test-writing, bug-hunt, design-bug-hunt, and extended doc-sync skills cite this rule by name instead of each restating it, because a restated copy drifts.
+Single home for two things several review workflows share: how to determine what the running application actually deploys, and the one taxonomy for classifying every user story by deployment status. The test-writing and bug-hunt skills cite this rule by name instead of each restating it, because a restated copy drifts.
 
 ## Derive the deployed surface fresh every run
 
