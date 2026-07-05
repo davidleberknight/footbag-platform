@@ -36,11 +36,22 @@ Safety contract (in order):
 A legacy account can carry up to three email addresses (a primary plus two
 secondary); all three are imported and all three participate in claim matching.
 An address that appears, in any of the three columns, on more than one row
-identifies two different accounts: those collisions are excluded and reported
-for adjudication. The email columns are non-unique in the schema (one address
+identifies two different accounts -- an ambiguous identity. The ENTIRE collision
+group is held out (no member of it is imported) and reported for adjudication
+before the final production load; importing any one of them would silently
+assign the shared address to an arbitrary account and let the claim flow hand
+that account's identity to whoever controls the mailbox. The same
+hold-the-whole-group rule applies to legacy_user_id collisions
+(single-column). The email columns are non-unique in the schema (one address
 may be primary on one account and secondary on another), so cross-account email
 uniqueness is enforced here and by the validation gate, not by the DB.
-legacy_user_id uniqueness stays single-column.
+
+The three tier-status columns (legacy_ever_paid_tier2,
+legacy_ever_paid_tier1_lifetime, legacy_tier1_annual_active_at_cutover) are
+REQUIRED headers: the extractor always emits them, so an export without them is
+a stale artifact generated before tier derivation existed, and applying it
+would silently zero every member's paid-tier evidence. The loader aborts
+instead.
 
 Usage:
   python legacy_data/member_data_scripts/load_legacy_export.py --export /path/to/export.csv [--db path] [--apply]
@@ -96,6 +107,14 @@ FIELD_ALIASES: dict[str, list[str]] = {
     "legacy_tier1_annual_active_at_cutover": ["legacy_tier1_annual_active_at_cutover"],
 }
 REQUIRED_FIELDS = ["legacy_member_id", "member_valid"]
+# The extractor always emits the three tier-status columns; an export missing
+# them predates tier derivation, and loading it would silently zero every
+# member's paid-tier evidence. Abort instead of degrading.
+TIER_FIELDS = [
+    "legacy_ever_paid_tier2",
+    "legacy_ever_paid_tier1_lifetime",
+    "legacy_tier1_annual_active_at_cutover",
+]
 # At least one of these must be non-empty for a row to count as having a
 # usable identity. A secondary email is identity-bearing too.
 IDENTITY_FIELDS = ["real_name", "display_name", "legacy_user_id",
@@ -159,6 +178,17 @@ def resolve_headers(headers: list[str]) -> dict[str, str]:
             f"export is missing required column(s) {missing}. "
             f"Export headers seen: {headers}. If the export uses different "
             "spellings, add them to FIELD_ALIASES in this loader deliberately."
+        )
+
+    missing_tier = [f for f in TIER_FIELDS if f not in mapping]
+    if missing_tier:
+        fail(
+            f"export is missing the tier-status column(s) {missing_tier}. "
+            "The extractor always emits these, so this export is a stale "
+            "artifact generated before tier derivation existed; applying it "
+            "would silently zero every member's paid-tier evidence. Re-run "
+            "the extract (run_legacy_members.sh --extract) and reconcile "
+            "before loading. Nothing was read or written."
         )
 
     mapped_headers = set(mapping.values())
@@ -294,33 +324,44 @@ def main() -> None:
         importable.append(row)
 
     # Cross-column email collision: an address appearing in any of the three
-    # email columns on more than one row identifies two accounts. The colliding
-    # rows after the first are excluded and reported. Comparison is
-    # case-insensitive, matching how the platform resolves claims. This is the
-    # loader's defense-in-depth behind the validation gate.
+    # email columns on more than one account identifies two different accounts,
+    # which is an ambiguous identity. The ENTIRE collision group is held out --
+    # importing any member of it would silently assign the shared address to one
+    # arbitrary account, and the claim flow's email-equality fast path would then
+    # hand that account's identity to whichever person controls the mailbox. The
+    # held-out group is adjudicated before the final production load (the
+    # reconciliation step holds the same groups out of person-linking, so the two
+    # universes stay aligned). Comparison is case-insensitive, matching how the
+    # platform resolves claims. This is the loader's defense-in-depth behind the
+    # validation gate.
     email_cols = ("legacy_email", "legacy_email2", "legacy_email3")
-    seen_emails: dict[str, str] = {}
+    email_owners: dict[str, set[str]] = {}
+    for row in importable:
+        pk = field(row, "legacy_member_id")
+        for value in {field(row, c).lower() for c in email_cols if field(row, c)}:
+            email_owners.setdefault(value, set()).add(pk)
+    email_colliding = {pk for owners in email_owners.values() if len(owners) > 1 for pk in owners}
     kept: list[dict[str, str]] = []
     for row in importable:
-        row_emails = {field(row, c).lower() for c in email_cols if field(row, c)}
-        if any(value in seen_emails for value in row_emails):
+        if field(row, "legacy_member_id") in email_colliding:
             excluded["email_conflict"].append(field(row, "legacy_member_id"))
             continue
-        for value in row_emails:
-            seen_emails[value] = field(row, "legacy_member_id")
         kept.append(row)
     importable = kept
 
-    # legacy_user_id uniqueness stays single-column.
-    seen_user_ids: dict[str, str] = {}
-    kept = []
+    # legacy_user_id collisions hold out the whole group the same way
+    # (single-column comparison).
+    uid_owners: dict[str, set[str]] = {}
     for row in importable:
         value = field(row, "legacy_user_id")
-        if value and value in seen_user_ids:
+        if value:
+            uid_owners.setdefault(value, set()).add(field(row, "legacy_member_id"))
+    uid_colliding = {pk for owners in uid_owners.values() if len(owners) > 1 for pk in owners}
+    kept = []
+    for row in importable:
+        if field(row, "legacy_member_id") in uid_colliding:
             excluded["user_id_conflict"].append(field(row, "legacy_member_id"))
             continue
-        if value:
-            seen_user_ids[value] = field(row, "legacy_member_id")
         kept.append(row)
     importable = kept
 

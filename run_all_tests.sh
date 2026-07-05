@@ -3,8 +3,9 @@
 #
 # Runs every CI gate that is SAFE to run on a developer workstation: type-check,
 # lint, dependency audit, convention gate, secret scan, unit + integration
-# (vitest), e2e (Playwright), and terraform fmt/validate. Prints a per-gate pass/fail summary and exits non-zero if any
-# gate fails.
+# (vitest), the legacy-data pipeline suite (pytest), e2e (Playwright), and
+# terraform fmt/validate. Prints a per-gate pass/fail summary and exits non-zero
+# if any gate fails.
 #
 # SAFE BY DESIGN — never touches real data:
 #   - It NEVER invokes the loader-pipeline scripts (scripts/reset-local-db.sh,
@@ -26,7 +27,7 @@
 #     (boots a throwaway stack; the OWASP ZAP leg needs Docker, else it skips).
 #
 # Usage:
-#   ./run_all_tests.sh              # full safe suite: build, lint, audit, conventions, secret-scan, unit, integration, e2e, terraform
+#   ./run_all_tests.sh              # full safe suite: build, lint, audit, conventions, secret-scan, unit, integration, python-pipeline, e2e, terraform
 #   ./run_all_tests.sh --quick      # fast loop: skips e2e + terraform
 #   ./run_all_tests.sh --with-smoke # additionally run the staging-AWS smoke suite (needs RUN_STAGING_SMOKE=1)
 #   ./run_all_tests.sh --pentest    # additionally run the heavyweight pentest harness (boots a stack; ZAP leg needs Docker)
@@ -461,6 +462,23 @@ gate_audit() {
   return "$rc"
 }
 
+# Legacy-data pipeline suite (pytest). Carries the only regression coverage for
+# the member pipeline's production/staging refusal guards, the credential-header
+# abort, claim-state preservation, and the loader exclusion rules — so it runs
+# on every full local pass. Hermetic: every test writes only to pytest tmp_path
+# fixtures; the run_all fingerprint guard would abort if that ever changed.
+gate_python_pipeline() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "  python3 absent — skipping."
+    return 77
+  fi
+  if ! python3 -c "import pytest" >/dev/null 2>&1; then
+    echo "  pytest not importable — skipping (pip install pytest to enable)."
+    return 77
+  fi
+  python3 -m pytest legacy_data/tests/ -q
+}
+
 # =============================================================================
 # GATE SEQUENCE — ADD NEW SUITES HERE.
 # Each line is one gate: `run_gate <label> <command...>`. To extend coverage as
@@ -477,6 +495,7 @@ run_gate conventions bash scripts/ci/assert_conventions.sh
 run_gate secret-scan gate_secret_scan
 run_gate unit        npm run test:unit
 run_gate integration npm run test:integration
+run_gate python-pipeline gate_python_pipeline
 
 if (( QUICK == 0 )); then
   run_gate e2e        gate_e2e

@@ -8,9 +8,12 @@ Contract tests for Stage A of the legacy-member identity reconciliation
   * accounts sharing a normalized name + full date of birth group as one
     same-person candidate, and the canonical normalizer folds accents so
     spelling variants of one name land together
-  * a shared primary email under one name is a same-person candidate; under
-    different names it is a shared / family mailbox, surfaced but never
-    recommended as one person
+  * a shared email or user id holds the ENTIRE collision group out of the
+    reconcilable universe (mirroring the member loader), listed with partners
+    in the excluded-accounts CSV for adjudication
+  * Stage B proposes a link only for a single same-named account with a full
+    DOB or an email; several same-named accounts always route to review,
+    whichever of them carries a DOB or email
   * only member_valid=1 rows are analyzed
   * a partial / absent date of birth is not a name+DOB signal (full only)
   * every account stays its own review row: Stage A recommends, it never merges,
@@ -382,7 +385,7 @@ def test_ambiguous_name_dob_candidates_go_to_review_not_proposed() -> None:
     proposed, review = rec.build_stage_b(accounts, hps)
     assert proposed == []
     assert {r["legacy_member_id"] for r in review} == {"8", "9"}
-    assert all(r["reason"] == "multiple_full_dob_candidates" for r in review)
+    assert all(r["reason"] == "multiple_accounts_same_name" for r in review)
     assert all(r["historical_person_id"] == "hp_fox" for r in review)
 
 
@@ -397,7 +400,36 @@ def test_ambiguous_name_email_candidates_go_to_review_not_proposed() -> None:
     proposed, review = rec.build_stage_b(accounts, hps)
     assert proposed == []
     assert {r["legacy_member_id"] for r in review} == {"10", "11"}
-    assert all(r["reason"] == "multiple_email_candidates" for r in review)
+    assert all(r["reason"] == "multiple_accounts_same_name" for r in review)
+
+
+def test_single_dob_among_several_same_named_accounts_goes_to_review() -> None:
+    # Two accounts share the matched name and exactly one carries a full DOB.
+    # DOB-presence is a completeness signal, not identity evidence (the person
+    # record holds no DOB to corroborate against), so nothing auto-selects: the
+    # whole group routes to a human.
+    accounts = [
+        row("14", real_name="Gil Ors", birth_date="1966-07-07", legacy_email="g1@x.com"),
+        row("15", real_name="Gil Ors", birth_date="", legacy_email="g2@x.com"),
+    ]
+    hps = [hp("hp_ors", "Gil Ors")]
+    proposed, review = rec.build_stage_b(accounts, hps)
+    assert proposed == []
+    assert {r["legacy_member_id"] for r in review} == {"14", "15"}
+    assert all(r["reason"] == "multiple_accounts_same_name" for r in review)
+
+
+def test_single_email_among_several_same_named_accounts_goes_to_review() -> None:
+    # Same principle when the sole distinguishing attribute is an email.
+    accounts = [
+        row("16", real_name="Hal Ude", birth_date="", legacy_email="h1@x.com"),
+        row("17", real_name="Hal Ude", birth_date="", legacy_email=""),
+    ]
+    hps = [hp("hp_ude", "Hal Ude")]
+    proposed, review = rec.build_stage_b(accounts, hps)
+    assert proposed == []
+    assert {r["legacy_member_id"] for r in review} == {"16", "17"}
+    assert all(r["reason"] == "multiple_accounts_same_name" for r in review)
 
 
 def test_multiple_persons_same_name_go_to_review() -> None:

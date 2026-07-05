@@ -9,19 +9,23 @@ never writes to the database.
 
 Stages:
   * Stage A -- intra-dump duplicate accounts (implemented). Groups member_valid=1
-    accounts by two review signals: same normalized name + full date of birth,
-    and shared primary email. Same email under a single name is a same-person
-    candidate; same email under different names is a shared / family mailbox and
-    is never recommended as the same person. Each account stays its own row; the
-    review CSV is an adjudication aid, not a merge.
+    accounts by one review signal: same normalized name + full date of birth.
+    Shared-email and shared-user-id accounts are not grouped here: every account
+    in such a collision group is held out of the reconcilable universe entirely
+    (see below) and listed with its name and partners in the excluded-accounts
+    CSV, where the adjudicator distinguishes a duplicate account (same name) from
+    a shared family mailbox (different names). Each account stays its own row;
+    the review CSV is an adjudication aid, not a merge.
   * Stage B -- dump account to historical_persons linking (implemented). Proposes
-    a link for each account whose evidence resolves to exactly one historical
-    person, by precedence: a verified id crosswalk (the person already names a
-    valid account), then a unique normalized name + full date of birth, then a
-    unique normalized name + email. historical_persons carry no date of birth or
-    email, so the match is on the normalized name and the account's DOB or email
-    is the corroborating attribute that picks a single account. Anything not
-    uniquely resolved goes to the review CSV; no historical person is created.
+    a link only when the evidence resolves to exactly one historical person AND
+    exactly one dump account: a verified id crosswalk (the person already names a
+    valid account), or a unique normalized name borne by a single account that
+    carries a full date of birth or an email. historical_persons carry no date of
+    birth or email, so when SEVERAL accounts share the matched name there is
+    nothing to corroborate against -- a DOB or email on one of them is a
+    completeness signal, not identity evidence, and the whole group goes to the
+    review CSV. Anything not uniquely resolved goes to the review CSV; no
+    historical person is created.
   * QC gate -- the pre-apply check (implemented). Reads the Stage A and Stage B
     artifacts and fails if applying the proposals would break an identity
     invariant: the same historical person proposed for two accounts, the same
@@ -43,11 +47,11 @@ downstream. A full date of birth is month, day, and year all present (the
 extractor emits birth_date only in that case).
 
 The account universe both stages may propose from is member_valid=1 minus the
-accounts the member loader drops as an email or user-id conflict: an account whose
-email or user id is shared with another account. A shared email is an ambiguous
-identity, so every account in a collision is held (not only the ones the loader
-drops after the first) and routed to a held-out review CSV. Aligning the universe
-this way means a proposal never references an account the load will not import.
+email / user-id collision accounts. A shared email or user id is an ambiguous
+identity, so the ENTIRE collision group is held out and routed to the held-out
+review CSV -- the same hold-the-whole-group rule the member loader applies, so a
+proposal never references an account the load will not import, and the two
+universes stay aligned by construction.
 """
 from __future__ import annotations
 
@@ -98,11 +102,10 @@ def _valid_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
 
 def collision_excluded_accounts(valid_rows: list[dict[str, str]]) -> dict[str, dict[str, object]]:
     """member_valid=1 accounts that share an email or a user id with another such
-    account -- the accounts the member loader drops as an email or user-id
-    conflict, so it never lands them in legacy_members. A shared email is an
-    ambiguous identity, so every account in a collision is held (not just the ones
-    the loader drops after the first): reconciliation must not propose a link for
-    any of them, or the link write would reference an account the loader excluded.
+    account. A shared email or user id is an ambiguous identity, so the ENTIRE
+    collision group is held: the member loader excludes the same whole groups from
+    legacy_members, and reconciliation must not propose a link for any of them, or
+    the link write would reference an account the loader excluded.
     Returns {legacy_member_id: {"reason": str, "partners": [ids]}}."""
     email_ids: dict[str, set[str]] = defaultdict(set)
     uid_ids: dict[str, set[str]] = defaultdict(set)
@@ -492,19 +495,20 @@ def build_stage_b(
             review.extend(_link_review_rows("multiple_persons_same_name", name, hp_list, acct_list))
             continue
         hp = hp_list[0]
-        dob_accts = [a for a in acct_list if _full_dob(a)]
-        if len(dob_accts) == 1:
-            proposed.append(_proposed_link_row(hp, dob_accts[0], "name_dob"))
+        if len(acct_list) > 1:
+            # Several dump accounts share the matched name. A full DOB or an
+            # email on one of them is a completeness signal, not identity
+            # evidence (there is no reference DOB or email on the person to
+            # corroborate against), so nothing here may auto-select: the whole
+            # group goes to a human.
+            review.extend(_link_review_rows("multiple_accounts_same_name", name, [hp], acct_list))
             continue
-        if len(dob_accts) > 1:
-            review.extend(_link_review_rows("multiple_full_dob_candidates", name, [hp], dob_accts))
+        acct = acct_list[0]
+        if _full_dob(acct):
+            proposed.append(_proposed_link_row(hp, acct, "name_dob"))
             continue
-        email_accts = [a for a in acct_list if _norm_email(a.get("legacy_email"))]
-        if len(email_accts) == 1:
-            proposed.append(_proposed_link_row(hp, email_accts[0], "name_email"))
-            continue
-        if len(email_accts) > 1:
-            review.extend(_link_review_rows("multiple_email_candidates", name, [hp], email_accts))
+        if _norm_email(acct.get("legacy_email")):
+            proposed.append(_proposed_link_row(hp, acct, "name_email"))
             continue
         # A name match with neither a full DOB nor an email is too weak to
         # propose: leave it for a human.

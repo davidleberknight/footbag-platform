@@ -39,14 +39,19 @@ DEFAULT_AUDIT_CSV = Path("legacy_data/member_data_scripts/out/apply_members_audi
 DEFAULT_ROLLBACK_SQL = Path("legacy_data/member_data_scripts/out/apply_members_rollback.sql")
 
 # Exactly the columns load_legacy_export.py's UPDATE writes -- restoring these
-# reverts the load. The claim columns and the paid-history columns are not in
-# this set, so the rollback leaves them untouched.
+# reverts the load, including the three tier-status columns the loader derives
+# (a rollback that skipped them would leave post-apply tier evidence sitting on
+# pre-apply profile data). The claim columns (claimed_by_member_id, claimed_at)
+# are not in this set, so the rollback leaves claim state untouched.
 RESTORE_COLUMNS = [
     "legacy_user_id", "legacy_email", "legacy_email2", "legacy_email3",
     "real_name", "display_name", "display_name_normalized",
     "city", "region", "country", "bio", "birth_date", "street_address",
     "postal_code", "ifpa_join_date", "first_competition_year",
-    "is_hof", "is_bap", "legacy_is_admin", "import_source", "imported_at", "version",
+    "is_hof", "is_bap", "legacy_is_admin",
+    "legacy_ever_paid_tier2", "legacy_ever_paid_tier1_lifetime",
+    "legacy_tier1_annual_active_at_cutover",
+    "import_source", "imported_at", "version",
 ]
 
 AUDIT_FIELDS = ["legacy_member_id", "action"]
@@ -117,7 +122,12 @@ def write_rollback_sql(updates, inserts, out_path: Path) -> int:
         f.write("-- Rollback for the reconciled legacy_members load: restores the "
                 "prior row for each\n-- overwritten account and deletes each newly "
                 "inserted account. Claim columns\n-- (claimed_by_member_id, "
-                "claimed_at) are not restored, so claim state is preserved.\n")
+                "claimed_at) are not restored, so claim state is preserved.\n"
+                "-- Apply the links rollback (apply_links_rollback.sql) BEFORE this "
+                "file: it un-links\n-- historical_persons rows that reference "
+                "accounts this file deletes. The pragma\n-- below makes a "
+                "wrong-order apply fail loudly instead of leaving dangling links.\n")
+        f.write("PRAGMA foreign_keys=ON;\n")
         f.write("BEGIN;\n")
         for mid, vals in updates:
             assignments = ", ".join(f"{c} = {_sql_literal(vals[c])}" for c in RESTORE_COLUMNS)

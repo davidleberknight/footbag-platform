@@ -9,7 +9,7 @@ Contract pinned here:
 
   • The curator manifest (`embedded_coverage.csv`) parses into
     {embedded_trick_slug: [host_trick_slug, ...]}, and ships seeded with the
-    orbit→around-the-world and illusion→mirage edges.
+    orbit→around_the_world and illusion→mirage edges.
   • A core trick with no dedicated primary but an embedded edge classifies as
     EMBEDDED_ONLY, NOT CORE_GAP (orbit). Without the edge it stays CORE_GAP
     (regression guard: the bucket only moves because of embedded coverage).
@@ -49,7 +49,7 @@ mod = _load_module()
 
 def test_manifest_parses_seeded_edges():
     embedded = mod.load_embedded_coverage()
-    assert embedded.get("orbit") == ["around-the-world"]
+    assert embedded.get("orbit") == ["around_the_world"]
     assert embedded.get("illusion") == ["mirage"]
 
 

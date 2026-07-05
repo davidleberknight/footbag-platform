@@ -145,6 +145,20 @@ def test_rollback_sql_round_trips(tmp_path):
     assert link_of(db, "hp_new") is None
 
 
+def test_rollback_sql_enforces_foreign_keys_and_states_the_apply_order(tmp_path):
+    # The links rollback runs BEFORE the members rollback (it un-links persons
+    # that reference accounts the members rollback deletes); the file says so
+    # and carries its own foreign-key pragma so a wrong-order apply fails
+    # loudly instead of leaving dangling links.
+    db = make_db(tmp_path)
+    proposed = write_proposed(tmp_path, [("hp_new", "200", "name_dob")])
+    run(db, proposed, tmp_path, apply=False)
+    rb = (tmp_path / "rb.sql").read_text()
+    assert "PRAGMA foreign_keys=ON;" in rb
+    assert rb.index("PRAGMA foreign_keys=ON;") < rb.index("BEGIN;")
+    assert "BEFORE apply_members_rollback.sql" in rb
+
+
 def _errs(tmp_path, hp_rows, links):
     db = make_db(tmp_path, hp_rows=hp_rows)
     con = sqlite3.connect(db)

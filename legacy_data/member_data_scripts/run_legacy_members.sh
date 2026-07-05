@@ -254,9 +254,11 @@ BLOCKED
 
   echo ""
   echo "run_legacy_members --load --apply: complete. Wrote the reconciled member"
-  echo "  rows and the proposed historical-person links. Rollback SQL:"
-  echo "    members: ${OUT_DIR}/apply_members_rollback.sql"
-  echo "    links:   ${OUT_DIR}/apply_links_rollback.sql"
+  echo "  rows and the proposed historical-person links. Rollback SQL, apply in"
+  echo "  THIS order (links first, then members; both together restore the"
+  echo "  pre-apply state):"
+  echo "    1. links:   ${OUT_DIR}/apply_links_rollback.sql"
+  echo "    2. members: ${OUT_DIR}/apply_members_rollback.sql"
   exit 0
 fi
 

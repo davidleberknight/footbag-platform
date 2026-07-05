@@ -185,7 +185,11 @@ def write_rollback_sql(changes, out_path: Path) -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8", newline="") as f:
         f.write("-- Rollback for apply_reconciled_links: restores each linked "
-                "person's prior legacy_member_id.\n")
+                "person's prior legacy_member_id.\n"
+                "-- Apply this file BEFORE apply_members_rollback.sql: reverting "
+                "the member load first\n-- would delete accounts these links "
+                "still reference.\n")
+        f.write("PRAGMA foreign_keys=ON;\n")
         f.write("BEGIN;\n")
         for pid, old, _new, _sig in changes:
             f.write(f"UPDATE historical_persons SET legacy_member_id = {_sql_str(old)} "

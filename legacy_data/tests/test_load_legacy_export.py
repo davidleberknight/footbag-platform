@@ -7,6 +7,9 @@ Contract tests for the legacy-site export loader
 
   * credential-bearing export columns abort BEFORE any write (poisoned fixture)
   * missing required headers abort with the header list
+  * an export missing the tier-status columns aborts as a stale artifact
+  * a shared email or user id holds out the ENTIRE collision group (no member
+    of the group is imported; a non-colliding account in the same file loads)
   * source-validity filter excludes per rule with honest counts
   * linkage exception pull-back imports excluded rows referenced by
     historical_persons
@@ -38,6 +41,11 @@ EXPORT_HEADERS = [
     "MemberID", "MemberValid", "UserName", "Email", "RealName", "DisplayName",
     "City", "State", "Country", "Bio", "BirthDate", "Address", "Zip",
     "JoinDate", "HoF", "BAP", "Admin",
+    # The extractor always emits the three tier-status columns; the loader
+    # aborts on an export without them (a stale pre-tier-derivation artifact).
+    "legacy_ever_paid_tier2",
+    "legacy_ever_paid_tier1_lifetime",
+    "legacy_tier1_annual_active_at_cutover",
 ]
 
 
@@ -283,17 +291,54 @@ def test_default_invocation_is_a_dry_run(tmp_path: Path) -> None:
     assert rows[0]["n"] == 0
 
 
-def test_intra_export_email_collision_is_excluded_and_reported(tmp_path: Path) -> None:
+def test_intra_export_email_collision_holds_out_the_entire_group(tmp_path: Path) -> None:
+    # A shared address is an ambiguous identity: NO member of the collision
+    # group is imported (importing the first would silently hand the shared
+    # mailbox one arbitrary identity, and mailbox control alone completes a
+    # claim). A non-colliding account in the same export still loads.
     db = make_db(tmp_path)
     export = write_export(tmp_path, [
         export_row("700", Email="same@legacy.example.com"),
         export_row("701", Email="same@legacy.example.com"),
+        export_row("702"),
     ])
     result = run_loader(db, export)
     assert result.returncode == 0, result.stderr
     assert "excluded[email_conflict]:" in result.stdout
+    assert "700" in result.stdout and "701" in result.stdout
     ids = {r["legacy_member_id"] for r in query(db, "SELECT legacy_member_id FROM legacy_members")}
-    assert ids == {"700"}
+    assert ids == {"702"}
+
+
+def test_cross_column_email_collision_holds_out_the_entire_group(tmp_path: Path) -> None:
+    # The shared address sits in the primary column on one account and a
+    # secondary column on the other; the group is still held out whole.
+    db = make_db(tmp_path)
+    headers = EXPORT_HEADERS + ["legacy_email2"]
+    export = write_export(tmp_path, [
+        export_row("710", Email="shared@legacy.example.com"),
+        export_row("711", **{"legacy_email2": "SHARED@legacy.example.com"}),
+        export_row("712"),
+    ], headers=headers)
+    result = run_loader(db, export)
+    assert result.returncode == 0, result.stderr
+    ids = {r["legacy_member_id"] for r in query(db, "SELECT legacy_member_id FROM legacy_members")}
+    assert ids == {"712"}
+
+
+def test_user_id_collision_holds_out_the_entire_group(tmp_path: Path) -> None:
+    db = make_db(tmp_path)
+    export = write_export(tmp_path, [
+        export_row("720", UserName="sharedhandle"),
+        export_row("721", UserName="sharedhandle"),
+        export_row("722"),
+    ])
+    result = run_loader(db, export)
+    assert result.returncode == 0, result.stderr
+    assert "excluded[user_id_conflict]:" in result.stdout
+    assert "720" in result.stdout and "721" in result.stdout
+    ids = {r["legacy_member_id"] for r in query(db, "SELECT legacy_member_id FROM legacy_members")}
+    assert ids == {"722"}
 
 
 def _run_loader_env(db: str, export: str, env_overrides: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -346,13 +391,6 @@ def test_legacy_email_is_stored_lowercase(tmp_path: Path) -> None:
     assert rows[0]["legacy_email"] == "mixed.case@example.com"
 
 
-TIER_HEADERS = EXPORT_HEADERS + [
-    "legacy_ever_paid_tier2",
-    "legacy_ever_paid_tier1_lifetime",
-    "legacy_tier1_annual_active_at_cutover",
-]
-
-
 def test_tier_status_columns_load_on_insert_and_update(tmp_path: Path) -> None:
     # The extractor-derived tier-status flags land on both write paths: a new
     # row INSERTs with them, and a mirror pre-seeded row (flags 0) UPDATEs to
@@ -368,7 +406,6 @@ def test_tier_status_columns_load_on_insert_and_update(tmp_path: Path) -> None:
                 "legacy_tier1_annual_active_at_cutover": "1",
             }),
         ],
-        headers=TIER_HEADERS,
     )
     result = run_loader(db, export)
     assert result.returncode == 0, result.stderr
@@ -384,14 +421,17 @@ def test_tier_status_columns_load_on_insert_and_update(tmp_path: Path) -> None:
     assert inserted["legacy_tier1_annual_active_at_cutover"] == 1
 
 
-def test_tier_status_columns_default_zero_without_headers(tmp_path: Path) -> None:
-    # An export that carries no tier columns (the pre-derivation shape) loads
-    # with every flag 0, so a claim degrades to honors alone.
+def test_export_without_tier_columns_aborts_as_a_stale_artifact(tmp_path: Path) -> None:
+    # The extractor always emits the three tier-status columns, so an export
+    # without them predates tier derivation; loading it would silently zero
+    # every member's paid-tier evidence. The loader aborts and writes nothing.
     db = make_db(tmp_path)
-    export = write_export(tmp_path, [export_row("910")])
+    stale_headers = [h for h in EXPORT_HEADERS if not h.startswith("legacy_ever_paid")
+                     and h != "legacy_tier1_annual_active_at_cutover"]
+    export = write_export(tmp_path, [export_row("910")], headers=stale_headers)
     result = run_loader(db, export)
-    assert result.returncode == 0, result.stderr
-    row = query(db, "SELECT * FROM legacy_members WHERE legacy_member_id = '910'")[0]
-    assert row["legacy_ever_paid_tier2"] == 0
-    assert row["legacy_ever_paid_tier1_lifetime"] == 0
-    assert row["legacy_tier1_annual_active_at_cutover"] == 0
+    assert result.returncode != 0
+    assert "tier-status column" in result.stderr
+    assert "stale" in result.stderr
+    rows = query(db, "SELECT legacy_member_id FROM legacy_members")
+    assert rows == []

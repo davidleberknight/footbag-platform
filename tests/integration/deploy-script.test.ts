@@ -416,6 +416,21 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
     const content = fs.readFileSync(path.join(REPO_ROOT, 'run_dev.sh'), 'utf8');
     expect(content).toMatch(/deploy-local-data\.sh --all-data --apply-members/);
   });
+
+  it('deploy-rebuild.sh refuses to ship a DB carrying real imported member rows (static guard)', () => {
+    // The shipped database file is the one physical path real member data
+    // could ride to staging or production. The pre-rsync guard counts
+    // legacy_members rows with the real-import provenance mark and aborts if
+    // any exist, with no bypass flag; this pin fails if the guard is removed
+    // or moved after the ship step.
+    const content = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-rebuild.sh'), 'utf8');
+    expect(content).toMatch(/REAL-MEMBER-DATA GUARD/);
+    expect(content).toMatch(/import_source='legacy_site_data'/);
+    expect(content).toMatch(/refusing to ship/);
+    expect(content.indexOf("import_source='legacy_site_data'")).toBeLessThan(
+      content.indexOf('rsync -av --delete'),
+    );
+  });
 });
 
 // ── reset-local-db.sh preflight ───────────────────────────────────────────────

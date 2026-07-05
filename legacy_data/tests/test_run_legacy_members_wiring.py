@@ -16,8 +16,9 @@ test_reconcile_legacy_members.py):
   * the --dry-run clean exit precedes reconciliation, so a --load --dry-run
     (how the --all-data data build previews the member intake) never reaches
     Stage A / Stage B / the QC gate;
-  * apply is not wired: no load --apply remains, and a passing gate stops
-    cleanly without writing;
+  * apply is opt-in and ordered: --apply snapshots members first, then loads
+    the reconciled members, then applies the proposed links; without --apply a
+    passing gate stops cleanly without writing;
   * the reconciliation runs inside the --load block.
 """
 from pathlib import Path

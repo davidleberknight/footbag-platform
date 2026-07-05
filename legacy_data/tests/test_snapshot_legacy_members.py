@@ -50,7 +50,11 @@ def make_db(tmp_path):
 
 def reconciled_csv(tmp_path, rows):
     p = tmp_path / "reconciled.csv"
-    fields = ["legacy_member_id", "member_valid", "real_name", "display_name", "is_hof", "is_bap"]
+    # The loader requires the tier-status columns (their absence marks a stale
+    # pre-tier-derivation artifact), so the fixture always carries them.
+    fields = ["legacy_member_id", "member_valid", "real_name", "display_name", "is_hof", "is_bap",
+              "legacy_ever_paid_tier2", "legacy_ever_paid_tier1_lifetime",
+              "legacy_tier1_annual_active_at_cutover"]
     with p.open("w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
         w.writeheader()
@@ -187,3 +191,43 @@ def test_guard_refuses_deployed_target(tmp_path):
     r = run_snapshot(db, csv_path, tmp_path, env_extra={"FOOTBAG_ENV": "production"})
     assert r.returncode != 0
     assert "refusing to snapshot" in r.stderr
+
+
+def test_rollback_restores_the_tier_status_columns(tmp_path):
+    # End to end against the real loader: a load that flips a tier flag must
+    # roll back to the pre-load flag values, or a reverted load leaves
+    # post-apply tier evidence sitting on pre-apply profile data.
+    db = make_db(tmp_path)
+    csv_path = reconciled_csv(tmp_path, [
+        {"legacy_member_id": "100", "member_valid": "1", "real_name": "New Name",
+         "display_name": "New Name", "legacy_ever_paid_tier2": "1",
+         "legacy_tier1_annual_active_at_cutover": "1"},
+    ])
+    run_snapshot(db, csv_path, tmp_path)
+    assert run_loader_apply(db, csv_path).returncode == 0
+
+    after_load = rows_by_id(db)["100"]
+    assert after_load["legacy_ever_paid_tier2"] == 1
+    assert after_load["legacy_tier1_annual_active_at_cutover"] == 1
+
+    con = sqlite3.connect(db)
+    con.executescript((tmp_path / "m_rb.sql").read_text())
+    con.close()
+
+    restored = rows_by_id(db)["100"]
+    assert restored["legacy_ever_paid_tier2"] == 0
+    assert restored["legacy_ever_paid_tier1_lifetime"] == 0
+    assert restored["legacy_tier1_annual_active_at_cutover"] == 0
+
+
+def test_rollback_sql_enforces_foreign_keys_and_states_the_apply_order(tmp_path):
+    # The emitted file carries its own foreign-key pragma so a wrong-order
+    # manual apply (members before links) fails loudly instead of leaving
+    # historical_persons rows pointing at deleted accounts.
+    db = make_db(tmp_path)
+    csv_path = reconciled_csv(tmp_path, [{"legacy_member_id": "100", "member_valid": "1", "real_name": "New"}])
+    run_snapshot(db, csv_path, tmp_path)
+    rb = (tmp_path / "m_rb.sql").read_text()
+    assert "PRAGMA foreign_keys=ON;" in rb
+    assert rb.index("PRAGMA foreign_keys=ON;") < rb.index("BEGIN;")
+    assert "apply_links_rollback.sql" in rb  # names the file to run first

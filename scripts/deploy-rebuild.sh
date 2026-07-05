@@ -172,6 +172,22 @@ sqlite3 "$LOCAL_DB" \
   exit 1
 }
 
+# REAL-MEMBER-DATA GUARD: deploy is preview-only for member data by design; the
+# real member import (import_source='legacy_site_data') is a maintainer-machine
+# cutover operation and must never ride a shipped database file to staging or
+# production. If a maintainer applied the real member load to this working DB
+# (run_dev.sh --all-data --apply-members), refuse to ship it; rebuild the DB
+# (or run without SKIP_DB_REBUILD) so the deploy carries only the mirror
+# pre-seed. No flag or env var bypasses this check.
+real_member_rows=$(sqlite3 "$LOCAL_DB" \
+  "SELECT COUNT(*) FROM legacy_members WHERE import_source='legacy_site_data';")
+if [[ "$real_member_rows" != "0" ]]; then
+  echo "ERROR: refusing to ship $LOCAL_DB: it contains $real_member_rows real imported" >&2
+  echo "  member row(s) (legacy_members.import_source='legacy_site_data'). Production" >&2
+  echo "  deployment never applies member data; rebuild the local DB before deploying." >&2
+  exit 1
+fi
+
 # Curator seed: build the curated media set fresh from /curated/**/*.meta.json
 # sidecars into an ephemeral, curated-only build dir, and refresh media_items
 # rows against the local DB before shipping. The build dir is the ONLY media the
