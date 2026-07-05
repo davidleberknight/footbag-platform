@@ -45,6 +45,32 @@ beforeAll(async () => {
     value_numeric: 99,
   });
 
+  // Either-side catch: the terminal delay is an ambiguous SAME/OP, so the trick
+  // is genuinely caught on either side (osis is the canonical case). A record's
+  // side qualifier must NOT surface in the hero subtitle, because it would
+  // assert a single side the trick does not have.
+  insertFreestyleTrick(db, {
+    slug: 'either_catch', canonical_name: 'either-catch', category: 'compound', adds: '3',
+    operational_notation: 'SET > (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL]',
+  });
+  insertFreestyleTrickAlias(db, 'either_catch_ss', 'either_catch', 'either catch (ss)');
+  insertFreestyleRecord(db, {
+    trick_name: 'Either Catch (ss)', sort_name: 'Either Catch (ss)',
+    record_type: 'trick_consecutive', display_name: 'Either-Side Holder', value_numeric: 50,
+  });
+
+  // Resolved catch (OP CLIP): the side IS established, so the record's side
+  // qualifier is real information and stays in the hero subtitle.
+  insertFreestyleTrick(db, {
+    slug: 'resolved_catch', canonical_name: 'resolved-catch', category: 'compound', adds: '3',
+    operational_notation: 'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
+  });
+  insertFreestyleTrickAlias(db, 'resolved_catch_ss', 'resolved_catch', 'resolved catch (ss)');
+  insertFreestyleRecord(db, {
+    trick_name: 'Resolved Catch (ss)', sort_name: 'Resolved Catch (ss)',
+    record_type: 'trick_consecutive', display_name: 'Resolved-Side Holder', value_numeric: 50,
+  });
+
   db.close();
   createApp = await importApp();
 });
@@ -78,6 +104,26 @@ describe('Record-to-trick linkage', () => {
     // and record lookups still keep it).
     expect(res.text).toContain('<h1>Clipper Stall</h1>');
     expect(res.text).not.toContain('<h1>Clipper Stall (ss)</h1>');
+  });
+
+  it('drops the side qualifier from the hero subtitle when the catch is either-side (SAME/OP)', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/either_catch');
+    expect(res.status).toBe(200);
+    // The record still links through (its holder is listed), but a trick caught
+    // on either side has no single side to assert, so the subtitle never shows
+    // "(ss)"/"(op)".
+    expect(res.text).toContain('Either-Side Holder');
+    expect(res.text).toContain('<h1>Either Catch</h1>');
+    expect(res.text).not.toMatch(/hero-subtitle[^>]*>[^<]*\((?:ss|op)\)/);
+  });
+
+  it('keeps the side qualifier in the hero subtitle when the catch side is resolved', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/resolved_catch');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Resolved-Side Holder');
+    expect(res.text).toContain('<h1>Resolved Catch</h1>');
+    // The side is established, so it stays: real information, not jargon.
+    expect(res.text).toMatch(/<p class="hero-subtitle">Resolved Catch \(ss\)<\/p>/);
   });
 
   it('links the hashtag to the gallery for a record-only-video trick, resolving the alias to canonical', async () => {

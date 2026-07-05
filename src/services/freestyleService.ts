@@ -4197,8 +4197,8 @@ const FAMILY_NOTES: Record<string, string> = {
     'most common entry point into the compound vocabulary.',
   osis:
     'The osis spawns two major named sub-families: torque (miraging osis) and blender ' +
-    '(whirling osis). These in turn anchor their own clusters (paradox torque and mobius' +
-    'on the torque side, paradox blender and spender on the blender side), making the osis' +
+    '(whirling osis). These in turn anchor their own clusters (paradox torque and mobius ' +
+    'on the torque side, paradox blender and spender on the blender side), making the osis ' +
     'one of the most generative bases in the advanced trick vocabulary.',
   mirage:
     'The mirage is the foundational 2-ADD dex base. Compounds include smear (pixie ' +
@@ -6997,6 +6997,28 @@ export const freestyleService = {
     const sortName = allTrickRows[0]?.sort_name ?? null;
     const topValue = currentRows[0]?.value_numeric ?? 0;
 
+    // Hero subtitle (the record's display name). A trick whose terminal catch is
+    // an ambiguous SAME/OP delay is genuinely either-side: osis is the canonical
+    // case, caught same-side or opposite-side with equal validity, and its own
+    // notation says so (`... SAME/OP CLIP [DEL]`). A record's "(ss)"/"(op)" side
+    // qualifier on such a trick asserts a single side the trick does not have, so
+    // it is dropped from the subtitle here; where the catch side is resolved the
+    // qualifier is kept, because there the side is real information. The
+    // SAME/OP-before-[DEL]-within-one-segment test isolates the terminal catch,
+    // so a resolved catch after an either-side entry dex (butterfly's
+    // `SAME/OP OUT [DEX] > OP CLIP [DEL]`) is correctly treated as side-resolved.
+    const catchSideIsEitherSide = /SAME\/OP[^>]*\[DEL\]/.test(dictRow?.operational_notation ?? '');
+    const heroSubtitle: string | null = (() => {
+      if (!sortName) return null;
+      // Resolved catch side: leave the subtitle exactly as before, side
+      // qualifier and all. Only the genuinely either-side tricks are touched.
+      if (!catchSideIsEitherSide) return sortName;
+      const shown = stripDisplaySideQualifier(sortName);
+      // A subtitle that then only repeats the heading (osis, once its false side
+      // qualifier is gone) adds nothing, so suppress it.
+      return shown && shown !== displayTrickName ? shown : null;
+    })();
+
     // Load all tricks and all modifiers for composition computation in shapeDictEntry
     const allDictRows = runSqliteRead('freestyleTricks.listAll', () =>
       freestyleTricks.listAll.all() as FreestyleTrickRow[],
@@ -7332,7 +7354,7 @@ export const freestyleService = {
 
         return {
           trickName,
-          sortName,
+          sortName: heroSubtitle,
           slug,
           pronunciation: dictRow?.pronunciation ?? null,
           trickTag,
