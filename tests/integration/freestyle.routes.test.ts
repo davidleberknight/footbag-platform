@@ -306,6 +306,12 @@ describe('GET /freestyle/records', () => {
     expect(res.text).not.toContain('href="/history/"');
   });
 
+  it('notes that some record names are not in the current dictionary when a record is unlinked', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/records');
+    expect(res.text).toMatch(/not match a[\s\S]*trick in the current dictionary/i);
+  });
+
   it('does not show provisional records', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/records');

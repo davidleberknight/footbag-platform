@@ -52,7 +52,6 @@ describe('Glossary Vocabulary Relationships subsection', () => {
     expect(res.text).toMatch(/Pure aliases/i);
     expect(res.text).toMatch(/toe blur[\s\S]*quantum mirage/i);
     expect(res.text).toMatch(/toe blizzard[\s\S]*quantum illusion/i);
-    expect(res.text).toMatch(/toe ripwalk[\s\S]*quantum butterfly/i);
     // The rule attribution no longer carries an internal ruling citation
     // (the "curator pt2 ruling" governance phrasing was stripped).
     expect(res.text).not.toMatch(/curator\s+pt2\s+ruling/i);

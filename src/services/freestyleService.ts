@@ -390,6 +390,10 @@ export interface FreestyleRecordsContent {
   groups: FreestyleRecordGroup[];
   totalRecords: number;
   totalHolders: number;
+  // True when at least one record's trick name has no matching dictionary
+  // entry, so its name renders without a link; drives an honest note that
+  // some historical record names are not in the current dictionary.
+  hasUnlinkedRecords: boolean;
 }
 
 export interface FreestyleTrickSearchResult {
@@ -4253,9 +4257,14 @@ function resolveOperationalNotationRaw(
 ): string | null {
   const coreAtomSpec = CORE_TRICK_SPEC.find(s => s.slug === slug);
   if (coreAtomSpec?.operationalNotation) return coreAtomSpec.operationalNotation;
+  // The database operational_notation is the single source of truth for a trick's
+  // execution notation: it is loaded from the curator CSVs and carries the migrated
+  // bracket form, so it always bracket-matches the published ADD. The resolved-formula
+  // module supplies notation only as a fallback for the few rows whose DB notation is
+  // not yet filled; it is never allowed to shadow a populated DB row.
+  if (dbRaw) return dbRaw;
   const resolved = RESOLVED_FORMULAS_BY_SLUG.get(slug);
-  if (resolved?.operationalNotation) return resolved.operationalNotation;
-  return dbRaw ?? null;
+  return resolved?.operationalNotation ?? null;
 }
 
 /** Resolve the Tier-4 ADD-analysis disclosure for a trick slug. Returns
@@ -6036,11 +6045,18 @@ function shapeDictEntry(
   row: FreestyleTrickRow,
   allTricks: FreestyleTrickRow[],
   allModifiers: FreestyleTrickModifierRow[],
+  aliasesFromTable: string[],
 ): FreestyleTrickDictEntry {
-  let aliases: string[] = [];
-  try {
-    aliases = row.aliases_json ? (JSON.parse(row.aliases_json) as string[]) : [];
-  } catch { /* ignore malformed JSON */ }
+  // Prefer the canonical freestyle_trick_aliases table (the same source the
+  // browse listing reads) so every surface resolves aliases identically; fall
+  // back to the deprecated aliases_json column only for rows the table does not
+  // yet cover.
+  let aliases: string[] = [...aliasesFromTable];
+  if (aliases.length === 0 && row.aliases_json) {
+    try {
+      aliases = JSON.parse(row.aliases_json) as string[];
+    } catch { /* ignore malformed JSON */ }
+  }
 
   const isModifier = row.category === 'modifier';
   const hasBase    = !!(row.base_trick && row.base_trick !== row.canonical_name);
@@ -6810,6 +6826,7 @@ export const freestyleService = {
 
     const groups = groupByType(rows);
     const holderSet = new Set(rows.map(r => r.person_id ?? r.holder_name));
+    const hasUnlinkedRecords = groups.some(g => g.records.some(r => r.trickHref == null));
 
     return {
       seo: {
@@ -6833,6 +6850,7 @@ export const freestyleService = {
         groups,
         totalRecords: rows.length,
         totalHolders: holderSet.size,
+        hasUnlinkedRecords,
       },
     };
   },
@@ -7042,7 +7060,13 @@ export const freestyleService = {
       freestyleTrickModifiers.listAllModifierLinks.all() as FreestyleModifierLinkPairRow[],
     );
 
-    const dictEntry = dictRow ? shapeDictEntry(dictRow, allDictRows, allModifierRows) : null;
+    const aliasTextsFromTable = dictRow
+      ? runSqliteRead('freestyleTrickAliases.getAliasTextsForTrick', () =>
+          (freestyleTrickAliases.getAliasTextsForTrick.all(dictRow.slug) as { alias_text: string }[])
+            .map(a => a.alias_text),
+        )
+      : [];
+    const dictEntry = dictRow ? shapeDictEntry(dictRow, allDictRows, allModifierRows, aliasTextsFromTable) : null;
 
     // Family-context resolution. The family block must agree
     // with the family-view browse: resolve each row to the public family it

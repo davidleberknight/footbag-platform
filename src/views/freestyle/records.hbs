@@ -18,10 +18,17 @@
 
   <p>
     A consecutive record is the most times a player has landed a single
-    trick in a row without a miss &mdash; a test of focus and endurance as
+    trick in a row without a miss. It is a test of focus and endurance as
     much as skill. The records below are the documented bests, grouped by
     type.
   </p>
+
+  {{#if content.hasUnlinkedRecords}}
+  <p class="text-muted fs-sm">
+    A few of these record names come from older sources and do not match a
+    trick in the current dictionary, so those names are shown without a link.
+  </p>
+  {{/if}}
 
   {{#if content.groups}}
     {{#each content.groups}}

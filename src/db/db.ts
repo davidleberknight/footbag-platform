@@ -2264,6 +2264,15 @@ export const freestyleTrickAliases = {
     SELECT alias_slug FROM freestyle_trick_aliases WHERE trick_slug = ?
   `); },
 
+  // Display alias texts for one canonical trick, from the canonical alias table.
+  // The trick-detail "Also known as" line reads these so it resolves aliases
+  // identically to the browse listing (which reads the same table), instead of
+  // the deprecated aliases_json column that drifts out of sync.
+  get getAliasTextsForTrick() { return db.prepare(`
+    SELECT alias_text FROM freestyle_trick_aliases WHERE trick_slug = ?
+    ORDER BY alias_text COLLATE NOCASE
+  `); },
+
   // alias_slug -> canonical trick_slug for every alias, in one round trip. Lets
   // the browse-row media-coverage build fold a record whose trick_name slugifies
   // to an alias onto the canonical trick the rows are keyed by.

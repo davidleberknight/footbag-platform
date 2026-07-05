@@ -3418,11 +3418,11 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     name:        'gyro diving clipper',
     operator:    'gyro',
     base:        'diving-clipper',
-    baseAdd:     2,
-    totalAdd:    3,
-    derivation:  'gyro(+1) + diving-clipper(2) = 3 ADD',
-    operationalNotation: 'CLIP > (back) SPIN [BOD] > DIVE [BOD] > SAME CLIP [DEL]',  // gyro chassis on canonical diving-clipper; bracket count 3 matches ADD.
-    provenance:  'Clean Tier-1 sweep. gyro on canonical diving-clipper; bracket count 3 matches ADD. Observational (SG).',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'gyro(+1) + diving-clipper(3) = 4 ADD',
+    operationalNotation: 'SET > (back) SPIN [BOD] > DIVE [BOD] > SAME CLIP [XBD] [DEL]',  // gyro chassis on canonical diving-clipper; the cross-body clipper catch carries [XBD], so bracket count 4 matches ADD.
+    provenance:  'gyro on canonical diving-clipper (3 ADD); the cross-body clipper catch carries [XBD], so the total is 4. Observational (SG).',
   },
   {
     slug:        'bill_ted_s_excellent_adventure',

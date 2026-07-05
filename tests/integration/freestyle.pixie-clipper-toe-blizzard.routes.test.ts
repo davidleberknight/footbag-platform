@@ -186,8 +186,9 @@ describe('toe-blizzard alias of quantum-illusion (Red pt2 EQUIVALENCE)', () => {
   it('quantum-illusion detail page surfaces toe-blizzard as an alternate name', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/quantum_illusion');
     expect(res.status).toBe(200);
-    // shapeDictEntry reads aliases from aliases_json (deprecated path but
-    // still active); the rendered page surfaces alternate names.
-    expect(res.text).toMatch(/toe_blizzard/i);
+    // The detail page resolves aliases from the canonical freestyle_trick_aliases
+    // table (the same source the browse listing reads), so it surfaces the alias
+    // display text rather than the raw underscore slug.
+    expect(res.text).toMatch(/toe.blizzard/i);
   });
 });
