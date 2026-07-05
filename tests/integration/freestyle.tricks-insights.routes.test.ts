@@ -599,10 +599,14 @@ describe('GET /freestyle/tricks/:slug — pathways cross-link block', () => {
     const app = createApp();
     // legover in the fixture has no family siblings (per existing test seeds).
     const res = await request(app).get('/freestyle/tricks/legover');
-    // The pathways block still renders; the empty-pathway gets the
-    // trick-pathway--empty modifier and a "no X yet" / placeholder text.
+    // The pathways block still renders and the empty family pathway gets the
+    // trick-pathway--empty modifier.
     expect(res.text).toContain('class="content-section trick-pathways"');
     expect(res.text).toMatch(/trick-pathway[^"]*--family[^"]*trick-pathway--empty/);
+    // A family-less trick states that plainly, not "no attribution yet" (which
+    // wrongly implies unfinished work on a complete foundational trick).
+    expect(res.text).toContain('This trick is not part of a named family.');
+    expect(res.text).not.toContain('attribution yet');
   });
 });
 

@@ -139,9 +139,9 @@ describe('GET /freestyle/families/:slug — family detail page', () => {
     expect(res.text).toContain('>1 operator<');
   });
 
-  it('renders the glossary-card overview fields (canonical formula + anchor ADD)', async () => {
+  it('renders the canonical formula and anchor ADD (in the notation reference for an authored family)', async () => {
     const res = await request(await createApp()).get('/freestyle/families/drifter');
-    expect(res.text).toContain('Canonical formula');
+    expect(res.text).toContain('Notation reference');
     expect(res.text).toContain('SET &gt; OP IN [DEX] &gt; SAME CLIP [XBD] [DEL]');
     expect(res.text).toContain('3 ADD');
   });
@@ -273,11 +273,78 @@ describe('GET /freestyle/families/down — the teaching flow (model family page)
     expect(res.text).toContain('stop seeing four different tricks and start seeing one family');
   });
 
-  it('does not leak the teaching sections onto a family without authored teaching (drifter)', async () => {
-    const res = await request(await createApp()).get('/freestyle/families/drifter');
-    expect(res.text).not.toContain('Notation reference');
-    expect(res.text).not.toContain('Common misconceptions');
-    expect(res.text).toContain('Overview');
+  // Every page-worthy family now carries authored teaching, so no rendered
+  // family exercises the compact-projection fallback; the {{#if content.teaching}}
+  // gate stays in the template for any future sub-threshold family.
+});
+
+describe('GET /freestyle/families/illusion — the teaching flow (direction-pair page)', () => {
+  it('leads the hero with the direction-is-structural hook', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/illusion');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('a direction is not a detail: it is a different trick');
+  });
+
+  it('explains what an illusion physically is, in plain words, before the notation', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/illusion');
+    expect(res.text).toContain('An Illusion is a single dexterity caught on a toe stall');
+    const physicalAt = res.text.indexOf('An Illusion is a single dexterity caught on a toe stall');
+    const notationAt = res.text.indexOf('Notation reference');
+    expect(physicalAt).toBeGreaterThan(-1);
+    expect(notationAt).toBeGreaterThan(physicalAt);
+  });
+
+  it('renders recognition cues and the direction-is-structural misconception', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/illusion');
+    expect(res.text).toContain('How to recognize one');
+    expect(res.text).toContain('Common misconceptions');
+    expect(res.text).toContain('the reversed direction is what makes Illusion its own trick');
+  });
+
+  it('closes with the memorable takeaway', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/illusion');
+    expect(res.text).toContain('a reversed movement is a new trick, not a variation of the old one');
+  });
+});
+
+describe('GET /freestyle/families/:slug — newly authored teaching pages render the flow', () => {
+  const AUTHORED: ReadonlyArray<readonly [string, string]> = [
+    ['legover', 'the leg-over motion enters freestyle'],
+    ['pickup', 'scoops under the bag instead of circling over the top'],
+    ['torque', 'an osis with a dexterity added in front'],
+    ['blender', 'another osis reached by adding a dexterity in front'],
+    ['barfly', 'Barfly is one of the downs'],
+    ['double_over_down', 'the one down whose name is its structure'],
+    ['drifter', 'a clipper reached by adding a dexterity in front'],
+    ['double_leg_over', 'a legover done twice'],
+    ['eggbeater', 'the legover in its atomic form'],
+    ['inside_stall', 'a catch surface of its own'],
+  ];
+  it.each(AUTHORED)('renders the teaching flow for %s', async (slug, hook) => {
+    const res = await request(await createApp()).get(`/freestyle/families/${slug}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(hook);
+    expect(res.text).toContain('Common misconceptions');
+    expect(res.text).toContain('Notation reference');
+  });
+});
+
+describe('GET /freestyle/families/:slug — the "What is a/an <Name>" heading uses the correct article', () => {
+  it('uses "an" for a vowel-initial family name (Illusion)', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/illusion');
+    expect(res.text).toContain('What is an Illusion?');
+    expect(res.text).not.toContain('What is a Illusion?');
+  });
+
+  it('uses "an" for a vowel-initial family name (Osis)', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/osis');
+    expect(res.text).toContain('What is an Osis?');
+    expect(res.text).not.toContain('What is a Osis?');
+  });
+
+  it('uses "a" for a consonant-initial family name (Whirl)', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/whirl');
+    expect(res.text).toContain('What is a Whirl?');
   });
 });
 
