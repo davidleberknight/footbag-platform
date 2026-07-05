@@ -144,9 +144,10 @@ const WORK_QUEUE_CATEGORY_LABELS: Record<string, string> = {
 };
 
 const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
-  member_contact_request:   'Member contact request',
-  auto_link_match:          'Auto-link match',
-  member_link_help_request: 'Member link help request',
+  member_contact_request:    'Member contact request',
+  auto_link_match:           'Auto-link match',
+  member_link_help_request:  'Member link help request',
+  claim_dob_mismatch_review: 'Birth-date conflict on a claimed legacy account',
 };
 
 export interface WorkQueueViewItem {

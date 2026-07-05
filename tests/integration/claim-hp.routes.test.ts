@@ -77,10 +77,12 @@ beforeAll(async () => {
   testDb = createTestDb(TEST_DB_PATH);
   insertMember(testDb, { id: CLAIMER_ID, slug: CLAIMER_SLUG,
     real_name: CLAIMER_NAME, display_name: CLAIMER_NAME,
-    login_email: 'hpc-claimer@example.com', country: null });
+    login_email: 'hpc-claimer@example.com', country: null,
+    birth_date: '1980-01-01' });
   insertMember(testDb, { id: OTHER_ID, slug: OTHER_SLUG,
     real_name: OTHER_NAME, display_name: OTHER_NAME,
-    login_email: 'hpc-other@example.com' });
+    login_email: 'hpc-other@example.com',
+    birth_date: '1980-01-01' });
 
   // Scenario D: HP-only, no legacy_member.
   insertHistoricalPerson(testDb, {
@@ -338,6 +340,7 @@ describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed l
     const scenarioEClaimerId = insertMember(testDb, {
       slug: 'scenario_e', real_name: 'David Mockingbird', display_name: 'David Mockingbird',
       login_email: 'scenario-e@example.com', country: null,
+      birth_date: '1980-01-01',
     });
     const scenarioECookie = `footbag_session=${createTestSessionJwt({ memberId: scenarioEClaimerId })}`;
 
@@ -412,6 +415,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
     const secondClaimerId = insertMember(testDb, {
       slug: 'hpc_second', real_name: 'Jamie Mockingbird', display_name: 'Jamie Mockingbird',
       login_email: 'hpc-second@example.com',
+      birth_date: '1980-01-01',
     });
     const secondCookie = `footbag_session=${createTestSessionJwt({ memberId: secondClaimerId })}`;
     const app = createApp();
@@ -445,6 +449,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
     const freshClaimerId = insertMember(testDb, {
       slug: 'hpc_deceased_adv', real_name: 'Jamie Mockingbird', display_name: 'Jamie Mockingbird',
       login_email: 'hpc-deceased-adv@example.com',
+      birth_date: '1980-01-01',
     });
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: freshClaimerId })}`;
     const app = createApp();
@@ -500,6 +505,7 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
     const claimantId = insertMember(testDb, {
       slug: 'hpc_dec_claimant_post', real_name: 'Casey Mockingbird', display_name: 'Casey Mockingbird',
       login_email: 'hpc-dec-post@example.com',
+      birth_date: '1980-01-01',
     });
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
     const app = createApp();

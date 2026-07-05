@@ -397,7 +397,7 @@ The platform targets four environments. Each has parity contracts that tests ver
 - *Local development.* Runs on the maintainer workstation via `./run_dev.sh`. SQLite at `./database/footbag.db`. Local stub adapters (JWT signing stub, SES outbox stub, media storage local-disk stub). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=development`.
 - *CI.* Runs every test job (typecheck, lint, dependency audit, secret scan, conventions, harness self-check, unit, integration, db-load smoke, e2e, CodeQL static analysis, terraform) against ephemeral SQLite. No real AWS. Adapters are the same local stubs the workstation uses.
 - *Staging.* The real AWS staging account (KMS, SES, S3, SSM, Lightsail). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=staging`. The staging smoke suite (`tests/smoke/`) runs here, gated by `RUN_STAGING_SMOKE=1`.
-- *Production.* The real AWS production account. `src/testkit/`, `src/dev-bootstrap/`, and the `src/internal-qc/` QC subsystem are excluded from the production image at build time (when `INCLUDE_DEV_SHORTCUTS=0` the Dockerfile strips all three subtrees and replaces `dist/routes/internalRoutes.js` with a null stub); boot-time guards in `src/config/env.ts` fail-fast if any `FOOTBAG_DEV_*` env var is set; `scripts/audit-dev-shortcuts.sh` returns zero against the production DB. `src/testkit/` and `src/dev-bootstrap/` are both permanent in source (build-excluded from prod, never deleted); `src/internal-qc/` is build-excluded now with its source subtree removed at QC retirement.
+- *Production.* The real AWS production account. `src/testkit/`, `src/dev-bootstrap/`, and the `src/internal-qc/` QC subsystem are excluded from the production image at build time (when `INCLUDE_DEV_SHORTCUTS=0` the Dockerfile strips all three subtrees and replaces `dist/routes/internalRoutes.js` with a null stub); boot-time guards in `src/config/env.ts` fail-fast if any `FOOTBAG_DEV_*` env var is set; `scripts/audit-dev-shortcuts.sh` returns zero against the production DB. `src/testkit/` and `src/dev-bootstrap/` are both permanent in source (build-excluded from prod, never deleted); `src/internal-qc/` is temporary: build-excluded from production, and its source subtree is deleted when the QC subsystem retires.
 
 ### 7.2 Adapter parity tests are mandatory
 
@@ -531,11 +531,36 @@ The db-load smoke CI job (§5.3) runs the loader pipeline against fixed fixtures
 
 Migration tests use synthetic legacy records that model edge cases without exposing real personal data. Where operator-controlled validation requires access to real legacy data (per `docs/MIGRATION_PLAN.md`), the data is minimized, gitignored, access-controlled, and redacted in test output. Raw legacy PII is never committed as test fixtures, never appears in snapshots, screenshots, or traces, and never appears in CI artifacts.
 
-Two data tiers run the suite. The committed synthetic fixtures cover the great majority of it: `npm test`, the `db-load-smoke` loader gate, and routine route, service, and e2e tests run on them with no real data. A small subset needs real, maintainer-only member data — the gitignored membership roster (`legacy_data/membership/inputs/membership_input_normalized.csv`) and, for the legacy-import validation class, the legacy-site member dump. The persona-crawl gate (`--with-persona-crawl` / `npm run test:persona-crawl`) is the current example: it exercises a fully onboarded profile from the full operator load and skips on a fixture-only clone. A tester who must run a real-data test obtains access to that maintainer-owned PII handoff from the maintainer who holds the legacy-data distribution; the data stays minimized and access-controlled, and never lands in a committed fixture, snapshot, trace, or CI artifact.
+Two data tiers run the suite. The committed synthetic fixtures cover the great majority of it: `npm test`, the `db-load-smoke` loader gate, and routine route, service, and e2e tests run on them with no real data. A small subset needs real, maintainer-only member data — the gitignored membership roster (`legacy_data/membership/inputs/membership_input_normalized.csv`) and, for the legacy-import validation class, the legacy-site member dump. The persona-crawl gate (`--with-persona-crawl` / `npm run test:persona-crawl`) is one such test: it exercises a fully onboarded profile from the full operator load and skips on a fixture-only clone. A tester who must run a real-data test obtains access to that maintainer-owned PII handoff from the maintainer who holds the legacy-data distribution; the data stays minimized and access-controlled, and never lands in a committed fixture, snapshot, trace, or CI artifact.
 
 ### 8.6 Migration tests verify the migration plan, not the loader
 
 A loader-pipeline test that asserts only what the loader implementation happens to do is insufficient if the migration plan says the loader should do something different. The migration plan is the intent; the loader is the implementation. Tests verify intent. If loader behavior diverges from the migration plan, the test fails and the loader is fixed, or the migration plan is escalated to the maintainer for review and possible update.
+
+### 8.7 Edge-case verification against the real import
+
+The synthetic-fixture suite proves the code; only the real import proves the data.
+After an operator load, human verification runs on two complementary levels:
+
+- **Whole-population invariants, queried not sampled.** Aggregate reconciliation
+  against the source dump (loaded row counts equal source counts minus the held-out
+  and excluded cohorts, exactly), and read-only property queries over every row (no
+  claimed account without its claim audit row, no historical-person link pointing at
+  a missing account, every stored email lowercased). A property that must hold for
+  all rows is checked with a query over all rows; samples never prove universals.
+- **Stratified behavioral sampling.** The claim surface's risk classes come from the
+  data itself: linked accounts with an email, paid-tier evidence, honorees, same-name
+  groups disambiguated only by birth date, accounts with no email, bare collision
+  stubs, and historical persons with no account. The read-only
+  `legacy_data/member_data_scripts/sample_legacy_claim_strata.py` samples each
+  stratum deterministically into a git-ignored CSV stating who to register as, with
+  which email, and the expected wizard behavior; the tester registers in dev with the
+  row's email, reads captured mail on `GET /dev/outbox`, and confirms the wizard does
+  exactly what the row says. Adversarial picks extend the strata: mojibake and
+  accented names, implausible and near-miss birth dates, and the enumeration probe (a
+  real identity and an absent one must be indistinguishable from outside).
+- Deceased-member suppression is exercised via the seeded persona only; those flows
+  are never rehearsed against a real person's record.
 
 ---
 
@@ -824,7 +849,7 @@ Deferral does not mean these test classes are unimportant. It means the strategy
 
 ### 15.2 Strategic anti-patterns
 
-Operational anti-patterns (no DB mocking, no framework mocking, no timestamp leakage, no global state leakage between files, no silent skips, no "tested manually," no tests on the dev DB) are enumerated in `.claude/rules/testing.md` and apply to every test. This section adds the strategic anti-patterns that follow from the playbook discipline.
+Operational anti-patterns (no DB mocking, no framework mocking, no timestamp leakage, no global state leakage between files, no silent skips, no "tested manually," no tests on the dev DB) are enumerated in `.claude/rules/testing.md` and apply to every test. (The "tested manually" anti-pattern bars substituting a manual check for a required automated regression test; the operator-driven exploration this document prescribes is an additive layer whose findings land as regression tests.) This section adds the strategic anti-patterns that follow from the playbook discipline.
 
 - *Tests that assert what the code does rather than what the user story says.* A test that documents implementation behavior without anchoring to a success criterion blesses accidental behavior and provides false confidence.
 - *Playwright tests for every business-rule branch.* Business rules are covered by unit and integration tests; Playwright is for browser-only assertions and business-critical happy paths plus the minimal negative cases that only a browser can reveal.
@@ -922,7 +947,7 @@ The stub payment adapter registers the checkout pass-through when `PAYMENT_ADAPT
    - **Cancel**: payment is canceled, no tier change, redirect to the cancel page.
    - **Decline payment**: payment fails, no tier change, redirect to the cancel page in its failure variant.
 
-Live Stripe checkout-session creation and the `stripe listen` / `trigger` loop are the production-only go-live verification (§7.7) once the live adapter ships; they are out of the dev/staging harness.
+Live Stripe checkout-session creation and the `stripe listen` / `trigger` loop belong to the production-only go-live verification (§7.7) and are out of the dev/staging harness.
 
 ### 16.6 Staging loop
 
@@ -1069,12 +1094,12 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 ### 17.9 Charters: not-yet-deployed surfaces
 
-These surfaces have no routes yet; each gains a full charter when it lands. The dimension emphasis is fixed now so the charter is ready:
+Each of these surfaces gains its full charter when its routes land; the dimension emphasis is fixed in advance so the charter is ready:
 
 - **Voting** (A_Create_Vote, A_Cancel_Vote, A_Publish_Vote_Results, M_View_Vote_Options, M_Vote, M_Verify_Vote_And_View_Results, SYS_Open_Vote, SYS_Close_Vote): dims 5, 9, 10, 11, 12, 15. Eligibility-snapshot and ballot immutability, open and close windows, one-vote idempotency, a verifiable receipt, and eligibility by inclusion list, tier, or honor flag.
 - **Groups** (A_Create_Group, A_Edit_Group_Properties, A_Archive_Group, A_Reassign_Group_Owner, GO_Edit_Group, GO_Manage_Members, GO_Manage_CoOwners, GO_Moderate_Email_Queue, M_View_Group, M_Join_Group, M_Leave_Group, M_View_Group_Files, M_Upload_Group_File): dims 5, 9, 14. Owner and co-owner authorization, private-group privacy, the sole-owner handoff race, and the group-versus-club distinction.
 - **Event organizer** (EO_View_Participants, EO_Close_Registration, EO_Export_Participants, EO_Email_Participants, EO_Upload_Results, EO_Play_Routine_Music, EO_Manage_CoOrganizers): dims 5, 9, 16. Organizer and co-organizer authorization, registration windows, results upload, and participant-export privacy.
-- **System and background jobs** (SYS_Check_Active_Player_Expiry, SYS_Send_Email, SYS_Cleanup_Expired_Tokens, SYS_Cleanup_Soft_Deleted_Records, SYS_Process_Recurring_Donations, SYS_Reconcile_Payments_Nightly, the backup jobs): dims 10, 12, 13. Injected-clock determinism, idempotent re-runs, and operational-error alerting. The Active-Player expiry job runs under an injected now, while the live `is_active_player` gate compares the stored expiry to the SQL clock, so its fixtures use runtime-relative offsets per §10.8. The email-sending path (SYS_Send_Email) is exercised today; its layered charter (content builders, per-email enqueue, the shared drain and idempotency mechanics, and the catalog firing sweep) lives in §5.9.
+- **System and background jobs** (SYS_Check_Active_Player_Expiry, SYS_Send_Email, SYS_Cleanup_Expired_Tokens, SYS_Cleanup_Soft_Deleted_Records, SYS_Process_Recurring_Donations, SYS_Reconcile_Payments_Nightly, the backup jobs): dims 10, 12, 13. Injected-clock determinism, idempotent re-runs, and operational-error alerting. The Active-Player expiry job runs under an injected now, while the live `is_active_player` gate compares the stored expiry to the SQL clock, so its fixtures use runtime-relative offsets per §10.8. The email-sending path (SYS_Send_Email) carries its layered charter (content builders, per-email enqueue, the shared drain and idempotency mechanics, and the catalog firing sweep) in §5.9.
 
 ---
 

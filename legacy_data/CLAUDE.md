@@ -213,6 +213,11 @@ DB load order:
 3. `07_load_bootstrap_leaders.py`
    - Loads `club_bootstrap_leaders`.
    - FK: `club_id -> clubs.id` via `mapped_club_id`.
+4. `07a_load_bootstrap_leader_signals.py`
+   - Loads `club_bootstrap_leader_signals`.
+5. `08_resolve_event_host_clubs.py`
+   - Resolves `events.host_club_id` by matching canonical host-club names
+     against live `clubs` rows; federation and unmatched hosts stay NULL.
 
 Club loaders are idempotent, but not uniformly DELETE + INSERT: `07_load_bootstrap_leaders.py` and `07a_load_bootstrap_leader_signals.py` reseed with DELETE + INSERT, while `load_clubs_seed.py` and `06_cutover_pre_populated_clubs.py` are additive (`INSERT OR IGNORE`).
 

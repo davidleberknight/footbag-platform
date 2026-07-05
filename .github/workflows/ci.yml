@@ -75,6 +75,21 @@ jobs:
       - name: Audit dependencies (moderate+)
         run: npm run audit
 
+  # Reviews only the dependencies a PR adds or changes (the whole-tree audit
+  # above covers everything already installed). PR-event only: the action
+  # diffs the PR's base against its head, so it has nothing to compare on a
+  # plain branch push.
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Review changed dependencies
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest

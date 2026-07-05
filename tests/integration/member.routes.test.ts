@@ -352,17 +352,17 @@ describe('GET /members/:memberKey/edit — edit form', () => {
     expect(res.text).toContain('Edit Profile');
   });
 
-  it('unlinked but onboarding-complete member: self-serve link CTA is hidden (wizard-bounded)', async () => {
-    // Self-serve legacy claiming is wizard-bounded: once onboarding is complete
-    // there is no self-serve link path (a further link is an admin request), so
-    // even an unlinked completed member sees no wizard CTA here.
+  it('unlinked but onboarding-complete member: the claim-task link persists', async () => {
+    // The wizard's claim task is the sole claim and anchor surface, reached
+    // from the profile during onboarding and afterward alike, so an unlinked
+    // member keeps the link after completing onboarding.
     const app = createApp();
     const res = await request(app)
       .get(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie());
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('href="/register/wizard/legacy_claim"');
-    expect(res.text).not.toContain('Link your legacy account, results, and clubs');
+    expect(res.text).toContain('href="/register/wizard/legacy_claim"');
+    expect(res.text).toContain('Link your legacy account, results, and clubs');
   });
 
   it('fully-linked member: link-history CTA is hidden', async () => {

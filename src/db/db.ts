@@ -4975,6 +4975,18 @@ export const account = {
       AND m.personal_data_purged_at IS NULL
   `); },
 
+  // The wizard claim task's birth-date anchor only ever fills an absent
+  // value; the personal-details task owns subsequent edits.
+  get setBirthDateIfAbsent() { return db.prepare(`
+    UPDATE members
+    SET
+      birth_date = ?,
+      updated_at = ?,
+      updated_by = ?,
+      version    = version + 1
+    WHERE id = ? AND birth_date IS NULL
+  `); },
+
   get updateMemberPersonalDetails() { return db.prepare(`
     UPDATE members
     SET
@@ -8271,11 +8283,16 @@ export const workQueue = {
   // Clear member-authored free text on account erasure: the operational copy of
   // a member's contact-request message lives here (not the append-only audit
   // ledger), so the PII purge and deceased contact scrub must redact it.
-  get scrubContactTextForMember() { return db.prepare(`
+  // Erasure scrubs every work-queue row about the member, whatever the task
+  // type: contact requests, link-help requests (member-authored identity
+  // statements), and birth-date-conflict reviews (raw dates in detail_text)
+  // all carry member personal data, and over-scrubbing at erasure is the
+  // safe direction.
+  get scrubTextForMember() { return db.prepare(`
     UPDATE work_queue_items
     SET reason_text = '(removed on account erasure)', detail_text = NULL,
         updated_at = ?, updated_by = 'operations_purge', version = version + 1
-    WHERE entity_id = ? AND task_type = 'member_contact_request'
+    WHERE entity_id = ? AND entity_type = 'member'
   `); },
 
   // De-dupe probe for the batch auto-link pass: skip emitting a second open

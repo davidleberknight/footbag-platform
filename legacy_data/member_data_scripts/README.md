@@ -59,7 +59,16 @@ The Goldberg member-account data family lives here:
 - `extract_legacy_members.py` / `extract_legacy_admins.py` parse the `members`
   and admins dumps into credential-free loader-input CSVs.
 - `validate_legacy_export.py` gates the export before load.
+- `reconcile_legacy_members.py` groups duplicate accounts and proposes
+  account-to-person links into git-ignored review CSVs for human adjudication;
+  it never merges accounts and never writes the database.
+- `snapshot_legacy_members.py` captures the pre-load state of every row the
+  member load could touch, as an audit CSV plus rollback SQL, so an applied
+  load can be fully reverted.
 - `load_legacy_export.py` loads the export CSV into `legacy_members`.
+- `apply_reconciled_links.py` applies the reconciliation's cleared
+  account-to-person links to `historical_persons.legacy_member_id` (dry-run
+  by default, writing its own audit CSV and rollback SQL).
 - `extract_legacy_honors.py` / `validate_legacy_honors.py` /
   `report_legacy_member_honors.py` / `diff_live_honor_rosters.py` derive,
   validate, report, and drift-check the Hall-of-Fame and Big-Add-Posse honor flags.

@@ -59,8 +59,8 @@ describe('legacy-claim matching microcopy', () => {
       .get('/register/wizard/personal_details')
       .set('Cookie', cookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Used to match your old footbag.org records.');
-    expect(res.text).toContain('never shown publicly');
+    expect(res.text).toContain('helps us match your old footbag.org account and competition records');
+    expect(res.text).toContain('only you and administrators can see it');
   });
 
   it('the region field carries the optional marker', async () => {

@@ -183,6 +183,9 @@ async function renderLegacyClaim(
   data.dashboardHref = dashboardHrefFor(req);
   data.turnstileSiteKey = config.turnstileSiteKey;
   data.declaredAnchors = identityAccessService.listDeclaredAnchors(memberId);
+  const birthDateOnFile = identityAccessService.getMemberBirthDate(memberId);
+  data.showBirthDateAnchorField = birthDateOnFile === null;
+  data.birthDateOnFileDisplay = birthDateOnFile;
   data.helpRequestNotice = req.query.help_request === 'sent';
   const anchorVerification = req.query.anchor_verification;
   data.anchorVerificationNotice =
@@ -423,14 +426,19 @@ export const memberOnboardingController = {
 
       const taskState = memberOnboardingService.getTaskState(memberId, taskType);
       if (taskState === 'completed' || taskState === 'not_applicable') {
-        // A completed legacy_claim still renders while open staged
-        // candidates remain (the cross-source follow-on offer surfaces here
-        // right after the first claim completes); otherwise completed tasks
-        // bounce to the next outstanding one.
-        const hasOpenOffers =
+        // A completed legacy_claim still renders in two cases: while open
+        // staged candidates remain (the cross-source follow-on offer
+        // surfaces here right after the first claim completes), and while a
+        // linkage is still missing (the claim task is the sole claim and
+        // anchor surface, reached from the profile's legacy-claim link after
+        // onboarding, so a member who chose "continue without linking" can
+        // return). Otherwise completed tasks bounce to the next outstanding
+        // one.
+        const stillRendersForMember =
           taskType === 'legacy_claim' &&
-          identityAccessService.listOpenStagedCandidates(memberId).length > 0;
-        if (!hasOpenOffers) {
+          (identityAccessService.listOpenStagedCandidates(memberId).length > 0 ||
+            memberOnboardingService.legacyClaimLinkageIncomplete(memberId));
+        if (!stillRendersForMember) {
           res.redirect(303, nextPendingHref(memberId));
           return;
         }
@@ -474,6 +482,16 @@ export const memberOnboardingController = {
     }
     await dispatch(req, res, next, taskType, {
       action: () => memberOnboardingService.processTaskSkip(req.user!.userId, taskType),
+      renderValidationError: async (result) => {
+        // Today only the legacy_claim decision can fail validation (the
+        // birth-date-on-file requirement); re-render its page with the
+        // message so the member sees why the click did not advance.
+        if (taskType === 'legacy_claim') {
+          await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, result.message);
+          return;
+        }
+        res.redirect(303, taskUrlFor(taskType));
+      },
     });
   },
 
@@ -554,17 +572,15 @@ export const memberOnboardingController = {
     const personId = String(req.body.personId ?? '').trim();
     await dispatch<LegacyClaimAutoLinkConfirmFormState>(req, res, next, 'legacy_claim', {
       action: () => memberOnboardingService.processLegacyClaimAutoLinkConfirm(req.user!.userId, personId),
-      renderValidationError: (_result) => {
-        // Per DD §5.2: state-changing POSTs always 303 to the receiving GET
-        // and carry transient state via signed flash. The auto-link validation
-        // error (surname mismatch, HP already claimed by another member, etc.)
-        // matches the user-facing semantics of classifier drift: "the auto-
-        // link attempt didn't go through; pick another candidate." Reuse the
-        // drift flash so the next GET renders the standing autoLinkDriftNotice
-        // banner inside the wizard chrome rather than dropping the member
-        // onto the standalone history/auto-link-confirm template.
-        writeWizardFlash(req, res, { kind: 'WIZARD_AUTO_LINK_DRIFT' });
-        res.redirect(303, taskUrlFor('legacy_claim'));
+      renderValidationError: async (result) => {
+        // A validation failure here carries a real, member-safe reason from
+        // the service (surname mismatch with its contact-an-administrator
+        // guidance, already claimed by another member, already linked,
+        // unverified old-email anchor, or the birth-date requirement).
+        // Render it inline on the wizard page so the member sees why the
+        // confirm did not go through; genuine classifier drift never reaches
+        // this branch (the service returns the drift flash for that).
+        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, result.message);
       },
     });
   },
@@ -573,9 +589,8 @@ export const memberOnboardingController = {
     const candidateId = String(req.body.candidateId ?? '').trim();
     await dispatch<null>(req, res, next, 'legacy_claim', {
       action: () => memberOnboardingService.processCrossSourceLegacyConfirm(req.user!.userId, candidateId),
-      renderValidationError: () => {
-        writeWizardFlash(req, res, { kind: 'WIZARD_AUTO_LINK_DRIFT' });
-        res.redirect(303, taskUrlFor('legacy_claim'));
+      renderValidationError: async (result) => {
+        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, result.message);
       },
     });
   },
@@ -639,8 +654,9 @@ export const memberOnboardingController = {
 
   async postLegacyClaimAutoLinkDecline(req: Request, res: Response, next: NextFunction): Promise<void> {
     const candidateId = String(req.body.candidateId ?? '').trim();
+    const personId = String(req.body.personId ?? '').trim();
     await dispatch<null>(req, res, next, 'legacy_claim', {
-      action: () => memberOnboardingService.processLegacyClaimAutoLinkDecline(req.user!.userId, candidateId),
+      action: () => memberOnboardingService.processLegacyClaimAutoLinkDecline(req.user!.userId, candidateId, personId),
       renderValidationError: () => {
         res.redirect(303, taskUrlFor('legacy_claim'));
       },
@@ -741,6 +757,22 @@ export const memberOnboardingController = {
       identityAccessService.declareAnchor(
         req.user!.userId,
         String(req.body.anchorType ?? ''),
+        String(req.body.anchorValue ?? ''),
+      );
+      res.redirect(303, '/register/wizard/legacy_claim?anchor=saved');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, err.message);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  async postAddBirthDateAnchor(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      identityAccessService.declareBirthDateAnchor(
+        req.user!.userId,
         String(req.body.anchorValue ?? ''),
       );
       res.redirect(303, '/register/wizard/legacy_claim?anchor=saved');

@@ -39,12 +39,29 @@ export class WizardPage {
     return this.page.getByRole('heading', { level: 1 });
   }
 
+  // The claim task's required birth-date entry (present until a date is on
+  // file; every resolving action is blocked server-side without one).
+  get birthDateAnchorInput() {
+    return this.page.locator('#birthDateAnchor');
+  }
+
+  // Satisfies the claim task's birth-date requirement when the entry form is
+  // showing; a no-op once a date is already on file (read-only line instead).
+  async ensureBirthDateOnFile(value = '1980-01-15'): Promise<void> {
+    if (await this.birthDateAnchorInput.count() === 0) return;
+    await this.birthDateAnchorInput.fill(value);
+    await this.page.getByRole('button', { name: 'Add Date of Birth' }).click();
+    await this.page.waitForURL(/\/register\/wizard\/legacy_claim/);
+  }
+
   // Advances past the current task using its own control. legacy_claim is
-  // completed by the continue-without-linking decision; club_affiliations is
-  // skipped. personal_details is required and cannot be advanced this way.
+  // completed by the continue-without-linking decision (which requires a
+  // birth date on file first); club_affiliations is skipped. personal_details
+  // is required and cannot be advanced this way.
   async skipCurrentTask(): Promise<void> {
     const url = this.page.url();
     if (url.includes('legacy_claim')) {
+      await this.ensureBirthDateOnFile();
       await this.continueWithoutLinkingButton.click();
     } else if (url.includes('club_affiliations')) {
       await this.skipClubButton.click();
@@ -64,6 +81,7 @@ export class WizardPage {
   }
 
   async submitIdentifier(identifier: string): Promise<void> {
+    await this.ensureBirthDateOnFile();
     await this.identifierInput.fill(identifier);
     await this.findButton.click();
     await this.page.waitForURL(/\/register\/wizard\//);

@@ -70,9 +70,12 @@ test('unauthenticated wizard access redirects to login with returnTo', async ({ 
   }
 });
 
-test('GET wizard task after all completed -> auto-transitions away', async ({ browser, baseURL }) => {
+test('GET wizard task after all completed and fully linked -> auto-transitions away', async ({ browser, baseURL }) => {
+  // A completed-but-unlinked member deliberately keeps the claim task
+  // renderable (it is the sole claim surface), so the transition-away
+  // contract requires a persona with both identity links in place.
   const db = openLiveDb();
-  const persona = seedAllTasksCompleted(db, { slug: `m_at_${Date.now()}` });
+  const persona = seedAllTasksCompleted(db, { slug: `m_at_${Date.now()}`, linked: true });
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);

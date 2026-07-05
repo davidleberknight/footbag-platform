@@ -17,8 +17,10 @@ const HP_FORM_VM = {
 // reason (HP not found, already claimed, surname mismatch, incompatible
 // legacy linkage, ...). Anti-enumeration: a single observable response
 // shape across every failure mode, with the specific reason captured in
-// the application log at the caller.
-function renderHpClaimUnavailable(res: Response, personId: string): void {
+// the application log at the caller. The contact-admin link is part of that
+// single shape (identical on every failure), so the page's own instruction
+// to contact an administrator carries a working control.
+function renderHpClaimUnavailable(res: Response, personId: string, memberSlug: string): void {
   res.status(200).render('history/claim-unavailable', {
     seo:  { title: 'Claim unavailable' },
     page: { sectionKey: 'members', pageKey: 'hp_claim_unavailable', title: 'Claim unavailable' },
@@ -26,15 +28,16 @@ function renderHpClaimUnavailable(res: Response, personId: string): void {
       cancelHref: personId
         ? `/history/${encodeURIComponent(personId)}`
         : '/members',
+      contactAdminHref: `/members/${encodeURIComponent(memberSlug)}/contact-admin?category=identity_link_issue`,
     },
   });
 }
 
-// Self-serve claiming is wizard-bounded: it is the way a member finishes
-// onboarding. Once onboarding is complete there is no self-serve claim path;
-// a member who needs to link a legacy account or a historical record does so by
-// requesting it from an admin. A completed member reaching this route is routed
-// to that request form rather than applying a claim.
+// Direct historical-record claims are wizard-window-bounded: once onboarding
+// is complete this route redirects to the admin request form. The wizard's
+// claim task remains the member's self-serve surface afterward for declaring
+// anchors and confirming platform-offered candidate cards; what closes here
+// is only the browse-a-record-and-claim-it path.
 function claimingIsClosed(req: Request): boolean {
   return memberOnboardingService.isOnboardingComplete(req.user!.userId);
 }
@@ -63,7 +66,7 @@ export const claimController = {
           personId,
           memberId: req.user!.userId,
         });
-        renderHpClaimUnavailable(res, personId);
+        renderHpClaimUnavailable(res, personId, req.user!.slug ?? req.user!.userId);
         return;
       }
       if (lookupResult.status === 'conflict') {
@@ -106,7 +109,7 @@ export const claimController = {
           memberId: req.user!.userId,
           reason: err.message,
         });
-        renderHpClaimUnavailable(res, personId);
+        renderHpClaimUnavailable(res, personId, req.user!.slug ?? req.user!.userId);
         return;
       }
       logger.error('hp claim lookup error', { error: err instanceof Error ? err.message : String(err) });

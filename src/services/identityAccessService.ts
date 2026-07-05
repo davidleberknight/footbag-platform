@@ -12,14 +12,23 @@
  *     staged audit event; nothing applies and no email is sent until the
  *     member confirms a wizard card. Decline is terminal and never
  *     re-staged; open candidates expire after a configurable window.
+ *     A classifier-produced card with no staged row declines just as
+ *     durably: the pair is staged and immediately resolved declined, so
+ *     the view suppresses it and the stager never re-offers it.
  *   - Staged-candidate resolution inside every claim transaction: any claim
  *     path that satisfies an open staged candidate marks it confirmed and
  *     emits the confirmed audit event.
- *   - Declared identity anchors (former surnames / old emails): rate-limited
- *     declare/remove, multi-anchor classifier matching, surname gates that
- *     honor former surnames, and the mailbox-control round-trip (single-use
- *     link to the declared address; a same-account click upgrades matches
- *     through that anchor to the hard-evidence tier)
+ *   - Declared identity anchors (former surnames / old emails / birth date):
+ *     rate-limited declare/remove, multi-anchor classifier matching, surname
+ *     gates that honor former surnames, and the mailbox-control round-trip
+ *     (single-use link to the declared address; a same-account click upgrades
+ *     matches through that anchor to the hard-evidence tier). The birth-date
+ *     anchor fills members.birth_date only when absent; it disambiguates tied
+ *     same-name candidates (identical narrows fully, a typo-shaped near-miss
+ *     narrows at medium), and every legacy claim records the member-versus-
+ *     legacy birth-date comparison outcome in its audit metadata, with a hard
+ *     mismatch raising a claim_dob_mismatch_review work-queue item. The
+ *     comparison never gates a claim.
  *   - Cross-source offers: after a one-source claim, the other source is
  *     searched via real anchors and a cross_source staged candidate is
  *     offered (same stage / confirm / decline / expire lifecycle, distinct
@@ -94,7 +103,8 @@
  *     registration, reset, password-change confirmation, claim email, resend,
  *     mailbox-control link to a declared old email)
  *   - work_queue_items insert (member_link_help_request intake with
- *     admin-alerts fan-out)
+ *     admin-alerts fan-out; claim_dob_mismatch_review on a hard birth-date
+ *     mismatch at claim confirmation)
  *
  * Service shape: singleton object (no external adapters beyond db.ts and the KMS-backed
  * JwtSigningAdapter resolved via getJwtSigningAdapter()).
@@ -117,6 +127,7 @@ import { config } from '../config/env';
 // first-admin (and break-glass recovery) path.
 import { applyDevStagingBootstrapAdmin } from '../dev-bootstrap/runtime';
 import { ConflictError, NotFoundError, RateLimitedError, ServiceError, ValidationError } from './serviceErrors';
+import { validateBirthDate, compareBirthDates } from '../lib/birthDate';
 import { isUniqueConstraintError } from './sqliteRetry';
 import { findAutoLinkCandidates } from './nameVariantsService';
 import { appendAuditEntry } from './auditService';
@@ -372,6 +383,10 @@ export interface LinkHistoryContent {
    */
   validationMessage?: string;
   declaredAnchors?: DeclaredAnchorView[];
+  /** Show the required birth-date entry form while no birth date is on file. */
+  showBirthDateAnchorField?: boolean;
+  /** The birth date on file, rendered read-only once present. */
+  birthDateOnFileDisplay?: string | null;
   /** Public Turnstile site key for the find-form CAPTCHA widget; null when the
    *  captcha is stubbed (dev + staging), so no widget renders there. */
   turnstileSiteKey?: string | null;
@@ -1289,7 +1304,10 @@ function getLinkHistoryView(
       const lookup = lookupLegacyAccount(memberId, member.login_email_normalized);
       if (lookup.kind === 'single') {
         const row = legacyMembers.findByLegacyMemberId.get(lookup.result.legacyMemberId) as LegacyMemberRow | undefined;
-        if (row && !seenLegacyIds.has(row.legacy_member_id)) {
+        // A declined pair covers this card too: the email-anchored card is
+        // the same candidate account, so re-offering it without new signal
+        // would undo the member's standing decline.
+        if (row && !seenLegacyIds.has(row.legacy_member_id) && !declinedTargets.has(row.legacy_member_id)) {
           seenLegacyIds.add(row.legacy_member_id);
           // Detect "both" via HP back-link to avoid duplicate cards.
           const backHp = legacyClaim.findHistoricalPersonByLegacyId.get(row.legacy_member_id) as HistoricalPersonClaimRow | undefined;
@@ -1470,14 +1488,21 @@ function classifyAutoLink(
     return { confidence: 'low', reason: 'no_name_candidate' };
   }
   if (candidates.length > 1) {
-    if (memberBirthDate && legacyMatch.birthDate && memberBirthDate === legacyMatch.birthDate) {
+    // Birth-date disambiguation among tied same-name candidates. An identical
+    // date narrows at full strength; a near-miss (a transposed day/month or a
+    // single component off by one, the common entry errors) still narrows but
+    // is capped at medium so the member's explicit confirmation is required.
+    const dobComparison = memberBirthDate && legacyMatch.birthDate
+      ? compareBirthDates(memberBirthDate, legacyMatch.birthDate)
+      : null;
+    if (dobComparison === 'identical' || dobComparison === 'near_miss') {
       const provenanceCandidate = candidates.find((c) => c.personId === hpProvenance.person_id);
       if (provenanceCandidate) {
         const narrowed = provenanceCandidate;
         if (!normalizedSurnamesMatch(realName, narrowed.personName)) {
           return { confidence: 'low', reason: 'hp_mismatch' };
         }
-        if (narrowed.matchKind === 'exact') {
+        if (narrowed.matchKind === 'exact' && dobComparison === 'identical') {
           return { confidence: 'high', personId: narrowed.personId, personName: narrowed.personName, anchorSource };
         }
         return {
@@ -1724,6 +1749,23 @@ function claimLegacyAccountInTxInner(
     throw new ValidationError('This legacy record has already been claimed by another account.');
   }
 
+  // Birth-date evidence comparison, read BEFORE the field transfer below
+  // fills an absent member birth date from the legacy row. The outcome is
+  // recorded permanently in the claim audit metadata and never gates the
+  // claim: mailbox control plus the surname rule remain the load-bearing
+  // evidence, and a legacy-side typo must not lock a member out.
+  const claimant = legacyClaim.findClaimingMember.get(requestingMemberId) as
+    | { birth_date: string | null }
+    | undefined;
+  const dobComparison: string =
+    claimant?.birth_date && row.birth_date
+      ? compareBirthDates(claimant.birth_date, row.birth_date)
+      : claimant?.birth_date
+        ? 'legacy_dob_absent'
+        : row.birth_date
+          ? 'member_dob_absent'
+          : 'both_dob_absent';
+
   const now = new Date().toISOString();
 
   const marked = legacyMembers.markClaimed.run(requestingMemberId, now, targetLegacyMemberId);
@@ -1807,8 +1849,31 @@ function claimLegacyAccountInTxInner(
       legacy_user_id:     row.legacy_user_id,
       transitive_hp_id:   hp?.person_id ?? null,
       evidence_strength:  evidenceStrength,
+      dob_comparison:     dobComparison,
     },
   });
+
+  // A hard birth-date mismatch on an otherwise-confirmed claim is the
+  // strongest available red flag for a wrong claim, so it goes to the admin
+  // review queue in the same transaction. Near-misses (typo-shaped) are
+  // recorded in the audit metadata above but do not raise a queue item. The
+  // raw dates live in detail_text (admin-only, scrubbed on PII purge), never
+  // in the append-only audit ledger.
+  if (dobComparison === 'mismatch') {
+    workQueueService.enqueue({
+      actorId:       requestingMemberId,
+      queueCategory: 'membership',
+      taskType:      'claim_dob_mismatch_review',
+      entityType:    'member',
+      entityId:      requestingMemberId,
+      priority:      5,
+      reasonText:    `Legacy account ${row.legacy_member_id} was claimed with a conflicting date of birth.`,
+      detailText:
+        `Claim confirmed with conflicting dates of birth: the member's entered date (${claimant?.birth_date}) ` +
+        `does not match the legacy record's date (${row.birth_date}) for legacy account ${row.legacy_member_id}. ` +
+        'Review the claim; if it looks wrong, use the link-help dispute revert.',
+    });
+  }
 
   // A claim through any path counts as confirmation of a matching staged
   // candidate; resolve it in the same transaction.
@@ -2027,6 +2092,49 @@ function declineStagedCandidate(
     return 'declined' as const;
   });
   return { status: outcome };
+}
+
+/**
+ * Decline a classifier-produced candidate that has no staged row yet. A
+ * member's decline is a standing decision whatever kind of card carried it,
+ * so the pair is staged (reusing the stager's validation and idempotency)
+ * and immediately resolved declined: the wizard view suppresses declined
+ * targets, and the stager never re-stages a declined pair without new
+ * signal. A card that drifted out from under the member resolves to
+ * not_applicable and the next render simply no longer offers it.
+ */
+function declineClassifierCandidate(
+  memberId: string,
+  personId: string,
+): { status: 'declined' | 'not_applicable' } {
+  if (!personId) return { status: 'not_applicable' };
+  const classification = getAutoLinkClassificationForMember(memberId);
+  if (
+    (classification.confidence !== 'high' && classification.confidence !== 'medium') ||
+    classification.personId !== personId
+  ) {
+    return { status: 'not_applicable' };
+  }
+  const staged = stageAutoLinkCandidate(memberId, classification, 'sign_in');
+  if (staged.status === 'staged') {
+    const declined = declineStagedCandidate(memberId, staged.candidateId);
+    return { status: declined.status === 'declined' ? 'declined' : 'not_applicable' };
+  }
+  if (staged.status === 'already_staged') {
+    // Race with a staging pass: decline the open row for this person.
+    const open = listOpenStagedCandidates(memberId).find(
+      (r) => r.historical_person_id === personId,
+    );
+    if (open) {
+      const declined = declineStagedCandidate(memberId, open.id);
+      return { status: declined.status === 'declined' ? 'declined' : 'not_applicable' };
+    }
+    return { status: 'not_applicable' };
+  }
+  if (staged.status === 'skipped_previously_declined') {
+    return { status: 'declined' };
+  }
+  return { status: 'not_applicable' };
 }
 
 /**
@@ -3771,7 +3879,7 @@ function declareAnchor(
     ? anchorValue.trim().toLowerCase()
     : anchorValue.trim();
   if (!trimmed) {
-    throw new ValidationError('Anchor value cannot be empty.');
+    throw new ValidationError('Enter a value to add.');
   }
   const id = `mda_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
   try {
@@ -3782,6 +3890,35 @@ function declareAnchor(
     }
     throw err;
   }
+}
+
+/**
+ * Declare the member's date of birth from the wizard claim task. The value
+ * is stored as the member's birth date (the personal-details task shows it
+ * pre-filled and owns later edits), so this only ever fills an absent value.
+ * The post-redirect GET re-runs candidate matching with the date present,
+ * which is what disambiguates tied same-name candidates.
+ */
+function declareBirthDateAnchor(memberId: string, rawValue: string): void {
+  anchorChangeRateLimit(memberId);
+  const value = validateBirthDate(rawValue.trim());
+  const now = new Date().toISOString();
+  const updated = account.setBirthDateIfAbsent.run(value, now, memberId, memberId);
+  if (updated.changes === 0) {
+    throw new ValidationError('A date of birth is already on file. You can edit it in the personal details step.');
+  }
+}
+
+/**
+ * The member's birth date on file, or null. Drives the wizard claim task's
+ * required birth-date field (form when absent, read-only display when
+ * present) and the task-resolution gate.
+ */
+function getMemberBirthDate(memberId: string): string | null {
+  const member = legacyClaim.findClaimingMember.get(memberId) as
+    | { birth_date: string | null }
+    | undefined;
+  return member?.birth_date ?? null;
 }
 
 function listDeclaredAnchors(memberId: string): DeclaredAnchorView[] {
@@ -4192,4 +4329,4 @@ function rejectLinkHelpRequest(
   });
 }
 
-export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors, enforceHistoricalPersonClaimLimit };
+export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, declineClassifierCandidate, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, declareBirthDateAnchor, getMemberBirthDate, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors, enforceHistoricalPersonClaimLimit };

@@ -62,7 +62,7 @@
  *   legacy_members (claim-state columns cleared on PII purge),
  *   erasure_log (append-only; one row per applied erasure shape),
  *   audit_entries,
- *   work_queue_items (member-authored contact-request free text redacted on PII purge and deceased scrub),
+ *   work_queue_items (every queue row about the member has its free text redacted on PII purge and deceased scrub, whatever the task type),
  *   historical_persons (read-only; surfaced in member search via the public-player
  *   name index, so search spans both live members and imported historical identities).
  *
@@ -76,6 +76,7 @@
 import { randomUUID, createHash } from 'crypto';
 import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, declaredAnchors, erasureLog, legacyMembers, memberPurge, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow, LegacyMemberRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
+import { validateBirthDate } from '../lib/birthDate';
 import { identityAccessService } from './identityAccessService';
 import { memberOnboardingService, type DashboardTaskWidget } from './memberOnboardingService';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
@@ -629,7 +630,7 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
     const anchors = declaredAnchors.deleteAllForMember.run(memberId);
     // Member-authored contact-request free text lives in work_queue_items, not
     // the audit ledger, so erasure must redact it here.
-    workQueue.scrubContactTextForMember.run(now, memberId);
+    workQueue.scrubTextForMember.run(now, memberId);
     erasureLog.insert.run(newErasureLogId(), now, 'operations_purge', memberId, 'account_pii_purge');
 
     appendAuditEntry({
@@ -691,7 +692,7 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
 
     const anchors = declaredAnchors.deleteAllForMember.run(memberId);
     // Contact-request free text is contact PII; redact it on the deceased scrub.
-    workQueue.scrubContactTextForMember.run(now, memberId);
+    workQueue.scrubTextForMember.run(now, memberId);
     erasureLog.insert.run(newErasureLogId(), now, 'operations_purge', memberId, 'deceased_contact_scrub');
 
     appendAuditEntry({
@@ -882,7 +883,6 @@ export const memberService = {
     const cta = buildIdentityCta(
       row.legacy_member_id !== null,
       row.historical_person_id !== null,
-      memberOnboardingService.isOnboardingComplete(row.id),
     );
     return {
       seo:  { title: 'Edit Profile' },
@@ -1129,26 +1129,7 @@ export const memberService = {
 
     let birthDate: string | null = null;
     if (rawDob) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDob)) {
-        throw new ValidationError('Date of birth must be in YYYY-MM-DD format.');
-      }
-      const parsed = new Date(rawDob + 'T00:00:00Z');
-      if (isNaN(parsed.getTime())) {
-        throw new ValidationError('Date of birth is not a valid date.');
-      }
-      // JS Date silently rolls an impossible day-of-month forward (Feb 30 -> Mar 1)
-      // rather than returning NaN, so re-serialize the parsed UTC date and reject
-      // when it does not round-trip to the submitted string.
-      if (parsed.toISOString().slice(0, 10) !== rawDob) {
-        throw new ValidationError('Date of birth is not a valid calendar date.');
-      }
-      if (parsed.getFullYear() < 1900) {
-        throw new ValidationError('Date of birth must be after 1900.');
-      }
-      if (parsed > new Date()) {
-        throw new ValidationError('Date of birth cannot be in the future.');
-      }
-      birthDate = rawDob;
+      birthDate = validateBirthDate(rawDob);
     }
 
     let firstCompetitionYear: number | null = null;
@@ -1626,13 +1607,10 @@ async function validateMemberLinks(
 function buildIdentityCta(
   legacyLinked: boolean,
   hpLinked: boolean,
-  onboardingComplete: boolean,
 ): IdentityLinkView['cta'] {
-  // Self-serve identity linking is wizard-bounded. Once onboarding is complete
-  // there is no self-serve claim path; a member links a further legacy account
-  // or historical record through the admin help request (the Contact IFPA admin
-  // link on this page), so the claim CTA is not offered here.
-  if (onboardingComplete) return null;
+  // The wizard's claim task is the sole claim and anchor surface, reachable
+  // from this profile link during onboarding and afterward alike, so the CTA
+  // persists whenever a linkage is missing.
   if (legacyLinked && hpLinked) return null;
   // CTA target is the onboarding wizard's legacy_claim task, which renders
   // the unified candidate list and manual-id input for whichever linkage is
@@ -1666,6 +1644,6 @@ function buildIdentityLinkView(memberId: string): IdentityLinkView {
         ? `/history/${encodeURIComponent(row.historical_person_id)}`
         : null,
     },
-    cta: buildIdentityCta(legacyLinked, hpLinked, memberOnboardingService.isOnboardingComplete(memberId)),
+    cta: buildIdentityCta(legacyLinked, hpLinked),
   };
 }

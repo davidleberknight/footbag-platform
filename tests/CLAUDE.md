@@ -30,7 +30,7 @@ const eventId  = insertEvent(db, { status: 'draft', title: 'Secret Draft' });
 const discId   = insertDiscipline(db, eventId, { name: 'Freestyle' });
 ```
 
-Available factories: `insertMember`, `insertTag`, `insertEvent`, `insertDiscipline`, `insertResultsUpload`, `insertResultEntry`, `insertResultParticipant`, `insertHistoricalPerson`, `insertClub`, `insertLegacyClubCandidate`, `insertLegacyPersonClubAffiliation`.
+The factory inventory lives in `tests/fixtures/factories.ts` (native factories plus the `src/testkit/personaRowBuilders.ts` re-exports); read the export list there — any enumerated subset here would go stale.
 
 Insert only the rows a given test suite needs. Do not assume rows from other test files exist. Keep seed data deterministic: no random values, no timestamps that vary between runs.
 
@@ -91,6 +91,8 @@ npm run test:all          # build + conventions + npm test + smoke + e2e
 npm run build             # tsc type-check; must pass before any PR
 ./run_all_tests.sh        # full local safe suite; --with-smoke / --with-persona-crawl opt in to the staging-AWS and dev-crawl tiers
 ```
+
+Targeted runners beyond these (`test:persona-crawl`, `test:e2e:smoke`, `test:e2e:a11y`, `test:pentest:heavy`) are listed in `package.json` and documented in `docs/TESTING.md`.
 
 ## CI
 

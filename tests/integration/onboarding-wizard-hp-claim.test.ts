@@ -71,6 +71,7 @@ describe('direct HP claim: surname match succeeds', () => {
     const stamp = Date.now();
     const memberId = insertMember(db, {
       slug: `hp_ok_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: `hp-ok-${stamp}@example.com`,
       real_name: 'Alice Smith',
     });
@@ -99,6 +100,7 @@ describe('direct HP claim: surname match succeeds', () => {
     const stamp = Date.now();
     const memberId = insertMember(db, {
       slug: `hp_country_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: `hp-country-${stamp}@example.com`,
       real_name: 'Bob Jones',
       country: null,
@@ -122,6 +124,7 @@ describe('direct HP claim: surname match succeeds', () => {
     const stamp = Date.now();
     const memberId = insertMember(db, {
       slug: `hp_hof_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: `hp-hof-${stamp}@example.com`,
       real_name: 'Carol Lee',
       is_hof: 0,
@@ -150,6 +153,7 @@ describe('direct HP claim: surname match succeeds', () => {
     const stamp = Date.now();
     const memberId = insertMember(db, {
       slug: `hp_year_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: `hp-year-${stamp}@example.com`,
       real_name: 'Dan Park',
       first_competition_year: null,
@@ -173,6 +177,7 @@ describe('direct HP claim: surname match succeeds', () => {
     const stamp = Date.now();
     const memberId = insertMember(db, {
       slug: `hp_year_win_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: `hp-year-win-${stamp}@example.com`,
       real_name: 'Eve Fox',
       first_competition_year: 2010,
@@ -219,6 +224,7 @@ describe('first-name variant warning', () => {
     const stamp = Date.now();
     const memberId = insertMember(db, {
       slug: `hp_fnw_ok_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: `hp-fnw-ok-${stamp}@example.com`,
       real_name: 'Bob Smith',
     });
@@ -264,6 +270,7 @@ describe('surname mismatch rejected', () => {
     const stamp = Date.now();
     const memberId = insertMember(db, {
       slug: `hp_nomatch_post_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: `hp-nomatch-post-${stamp}@example.com`,
       real_name: 'Alice Smith',
     });
@@ -293,6 +300,7 @@ describe('HP already claimed', () => {
 
     const firstId = insertMember(db, {
       slug: `hp_first_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: `hp-first-${stamp}@example.com`,
       real_name: 'Shared Person',
     });
@@ -305,6 +313,7 @@ describe('HP already claimed', () => {
 
     const secondId = insertMember(db, {
       slug: `hp_second_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: `hp-second-${stamp}@example.com`,
       real_name: 'Shared Person',
     });
@@ -329,6 +338,7 @@ describe('member already linked to an HP', () => {
 
     const memberId = insertMember(db, {
       slug: `hp_double_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: `hp-double-${stamp}@example.com`,
       real_name: 'First Hp',
     });
@@ -369,6 +379,7 @@ describe('transitive legacy claim through HP back-link', () => {
     });
     const memberId = insertMember(db, {
       slug: `hp_bt_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: `hp-bt-${stamp}@example.com`,
       real_name: 'Backlink Target',
     });
@@ -406,6 +417,7 @@ describe('transitive legacy claim through HP back-link', () => {
     });
     const memberId = insertMember(db, {
       slug: `hp_bc_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: `hp-bc-${stamp}@example.com`,
       real_name: 'Backlink Clash',
     });

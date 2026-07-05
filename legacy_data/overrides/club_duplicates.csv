@@ -3,3 +3,4 @@ keep_legacy_key,drop_legacy_key,reason
 944090321,zion-fr,"RNH Footbag (Rien N'est Hacky), Paris: confirmed duplicate; Phase H merges zion-fr into the canonical 944090321 row."
 memphis,1422386831,"Memphis Footworks: confirmed duplicate; Phase H merges 1422386831 into the canonical 'memphis' row."
 1379698765,1320083231,"Penn State Footbag Club: confirmed duplicate; Phase H merges 1320083231 into the canonical 1379698765 row."
+1751979051,1333657060,"Caracas Footbag Club: confirmed duplicate; two source keys for the same Caracas, Venezuela club; Phase H merges the junk-classified 1333657060 into the canonical 1751979051 row so its member affiliation surfaces in onboarding."

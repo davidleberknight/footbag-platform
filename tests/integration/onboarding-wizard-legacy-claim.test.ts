@@ -81,6 +81,7 @@ describe('captcha gate on legacy_claim/find', () => {
     });
     const memberId = insertMember(db, {
       slug: `cap_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Captcha Probe',
     });
@@ -117,6 +118,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     });
     const memberId = insertMember(db, {
       slug: `fast_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Fast Claim',
       bio: '',
@@ -155,6 +157,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     });
     const memberId = insertMember(db, {
       slug: `fast2_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: secondary,
       real_name: 'Fast Two',
     });
@@ -185,6 +188,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     });
     const memberId = insertMember(db, {
       slug: `fast3_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: tertiary,
       real_name: 'Fast Three',
     });
@@ -214,6 +218,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     });
     const memberId = insertMember(db, {
       slug: `merge_bio_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Bio Merge',
       bio: '',
@@ -240,6 +245,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     });
     const memberId = insertMember(db, {
       slug: `merge_name_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Active Name',
     });
@@ -266,6 +272,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     });
     const memberId = insertMember(db, {
       slug: `merge_country_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Country Merge',
       country: null,
@@ -293,6 +300,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     });
     const memberId = insertMember(db, {
       slug: `merge_hof_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Hof Merge',
       is_hof: 0,
@@ -320,6 +328,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     });
     const memberId = insertMember(db, {
       slug: `merge_bap_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Bap Merge',
       is_bap: 0,
@@ -346,6 +355,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     });
     const memberId = insertMember(db, {
       slug: `tier_grant_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Tier Grant',
     });
@@ -377,6 +387,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     });
     const memberId = insertMember(db, {
       slug: `tier_hof_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Tier Hof',
     });
@@ -418,6 +429,7 @@ describe('transitive HP claim through legacy back-link (Case E)', () => {
     });
     const memberId = insertMember(db, {
       slug: `trans_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Trans Claim',
     });
@@ -453,6 +465,7 @@ describe('transitive HP claim through legacy back-link (Case E)', () => {
     });
     const memberId = insertMember(db, {
       slug: `hp_merge_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Hp Merge',
       country: null,
@@ -487,6 +500,7 @@ describe('claim idempotency', () => {
     });
     const memberId = insertMember(db, {
       slug: `idemp_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Idemp Claim',
     });
@@ -541,6 +555,7 @@ describe('back-linked legacy already claimed', () => {
 
     const secondMemberId = insertMember(db, {
       slug: `clash_second_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Clash Legacy',
     });
@@ -572,6 +587,7 @@ describe('claim audit trail', () => {
     });
     const memberId = insertMember(db, {
       slug: `audit_${stamp}`,
+      birth_date: '1980-01-01',
       login_email: email,
       real_name: 'Audit Claim',
     });

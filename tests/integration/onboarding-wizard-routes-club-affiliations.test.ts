@@ -365,9 +365,10 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
       .set('Cookie', cookieFor(MEMBER_LEADERSHIP));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Leadership Wizard Club');
-    // The leadership card asks the intuitive membership question and states the
-    // co-leader / club-revival / Active-Player consequences of confirming.
-    expect(res.text).toContain('Were you a member of');
+    // The leadership card asks the leadership question (a Yes records
+    // co-leadership, not plain membership) and states the co-leader /
+    // club-revival / Active-Player consequences of confirming.
+    expect(res.text).toContain('Were you a leader or organizer of');
     expect(res.text).toContain('makes you a co-leader');
     // No signals seeded -> classification falls back to 'none' (plain-language label).
     expect(res.text).toContain('Uncertain match');

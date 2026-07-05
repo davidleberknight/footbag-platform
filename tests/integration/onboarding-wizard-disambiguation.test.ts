@@ -166,8 +166,8 @@ describe('GET /register/wizard/club_affiliations — disambiguation card renderi
       .set('Cookie', cookieFor(MEMBER_LEADERSHIP));
     expect(res.status).toBe(200);
     // Leadership renders first (stage ordering). The leadership card asks the
-    // membership question and states the co-leader consequences.
-    expect(res.text).toContain('Were you a member of Leader Club Helsinki?');
+    // leadership question and states the co-leader consequences.
+    expect(res.text).toContain('Were you a leader or organizer of Leader Club Helsinki?');
     expect(res.text).toContain('makes you a co-leader');
     expect(res.text).not.toContain('Which clubs in Helsinki');
   });

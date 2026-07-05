@@ -82,6 +82,7 @@ beforeAll(async () => {
     login_email: AMBIG_EMAIL,
     real_name: 'Ambig Target',
     email_verified_at: null,
+    birth_date: '1980-01-01',
   });
 
   insertLegacyMember(db, { legacy_member_id: LM_SINGLE, legacy_email: 'single@example.com' });

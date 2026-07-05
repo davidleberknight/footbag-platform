@@ -256,6 +256,7 @@ test('wizard skip button is keyboard-reachable and activatable', { tag: ['@a11y'
   const wizard = new WizardPage(page);
 
   await wizard.goto('legacy_claim');
+  await wizard.ensureBirthDateOnFile();
 
   await wizard.skipButton.focus();
   await expect(wizard.skipButton).toBeFocused();

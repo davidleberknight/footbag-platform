@@ -87,6 +87,7 @@ beforeAll(async () => {
     login_email: MEMBER_EMAIL,
     display_name: 'Atomic Member',
     password_hash: await hashTestPassword(MEMBER_PASSWORD),
+    birth_date: '1980-01-01',
   });
   insertLegacyMember(db, {
     legacy_member_id: LEGACY_ID,
@@ -175,6 +176,7 @@ describe('claimLegacyAccount — two-actor race', () => {
       slug: MEMBER_B_SLUG,
       login_email: 'atomic-b@example.com',
       display_name: 'Atomic Member B',
+      birth_date: '1980-01-01',
     });
     db.close();
   });
@@ -396,6 +398,7 @@ describe('claimHistoricalPersonInTx / consumeAndClaimLegacyInTx — outer-rollba
       real_name: 'Atomic Fresh',
       display_name: 'Atomic Fresh',
       login_email: 'atomic-fresh@example.com',
+      birth_date: '1980-01-01',
     });
     insertHistoricalPerson(db, {
       person_id: HP_ID,
@@ -488,7 +491,7 @@ describe('consumeAndClaimLegacy — wrong-account guard', () => {
   beforeAll(async () => {
     svc = (await import('../../src/services/identityAccessService')).identityAccessService;
     const db = new BetterSqlite3(dbPath);
-    insertMember(db, { id: A_MEMBER, slug: 'wa_a', login_email: 'wa-a@example.com', display_name: 'WA Member A' });
+    insertMember(db, { id: A_MEMBER, slug: 'wa_a', login_email: 'wa-a@example.com', display_name: 'WA Member A', birth_date: '1980-01-01' });
     insertMember(db, { id: B_MEMBER, slug: 'wa_b', login_email: 'wa-b@example.com', display_name: 'WA Member B' });
     insertLegacyMember(db, {
       legacy_member_id: WA_LEGACY,

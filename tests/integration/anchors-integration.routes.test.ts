@@ -132,6 +132,7 @@ describe('mandatory old-email proof: an unverified old-email match cannot confir
       id: 'mem-oldproof', slug: 'mem_oldproof',
       login_email: 'proof-new@example.com',
       real_name: 'Proof Person', display_name: 'Proof Person',
+      birth_date: '1980-01-01',
     });
     declareOldEmail(memberId, 'proof-old@old.example.com');
     await ops.operationsPlatformService.runBatchAutoLink();
@@ -308,6 +309,7 @@ describe('cross-source offer after a one-source claim', () => {
       login_email: `xs-${tag}@example.com`,
       real_name: `Xavier Source${tag}`, display_name: `Xavier Source${tag}`,
       country: opts.memberCountry ?? 'US',
+      birth_date: '1980-01-01',
     });
     return { memberId };
   }

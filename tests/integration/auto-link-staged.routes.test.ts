@@ -72,6 +72,7 @@ function seedStaged(prefix: string, name: string): {
   const memberId = insertMember(db, {
     slug: `m_${tag.replace(/-/g, '_')}`, login_email: email,
     real_name: name, display_name: name,
+    birth_date: '1980-01-01',
   });
   const staged = identity.identityAccessService.stageAutoLinkCandidate(
     memberId,
@@ -210,16 +211,18 @@ describe('auto-link confirm drift banner', () => {
     const memberId = insertMember(db, {
       slug: 'autolink_drift',
       login_email: 'autolink-drift@example.com',
+      birth_date: '1980-01-01',
     });
 
-    // A confirm whose suggested match no longer resolves (here a stale form
-    // posting an empty personId) takes the drift fallback: 303 back to the task
-    // carrying the drift flash, never the standalone confirm template.
+    // A confirm whose suggested match no longer resolves (a stale form
+    // posting a person the classifier no longer produces) takes the drift
+    // fallback: 303 back to the task carrying the drift flash, never the
+    // standalone confirm template.
     const post = await request(createApp())
       .post('/register/wizard/legacy_claim/auto-link/confirm')
       .set('Cookie', cookieFor(memberId))
       .type('form')
-      .send({ personId: '' });
+      .send({ personId: 'HP-drifted-away' });
     expect(post.status).toBe(303);
     expect(post.headers.location).toBe('/register/wizard/legacy_claim');
 

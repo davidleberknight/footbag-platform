@@ -107,6 +107,7 @@ describe('A2: out-of-wizard HP claim completes the legacy_claim task', () => {
       slug: `state_a2_${stamp}`,
       login_email: `state-a2-${stamp}@example.com`,
       real_name:   'Foo Bar',
+      birth_date:  '1980-01-01',
     });
     const personId = insertHistoricalPerson(testDb, { person_name: 'Foo Bar' });
     svc.startTaskList(memberId);
@@ -206,6 +207,7 @@ describe('A6 + A7: skipped tasks land in the skipped bucket, not the in-sequence
     const memberId = insertMember(testDb, {
       slug: `state_a6_${stamp}`,
       login_email: `state-a6-${stamp}@example.com`,
+      birth_date:  '1980-01-01',
     });
     const cookie = cookieFor(memberId);
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookie);
@@ -291,6 +293,7 @@ describe('D4: legacy_claim search surfaces the validation message inline', () =>
     const memberId = insertMember(testDb, {
       slug: `state_d4_${stamp}`,
       login_email: `state-d4-${stamp}@example.com`,
+      birth_date:  '1980-01-01',
     });
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/find')

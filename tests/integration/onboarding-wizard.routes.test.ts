@@ -26,7 +26,7 @@ const OTHER_SLUG  = 'wiz_other';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertMember(db, { id: OWNER_ID, slug: OWNER_SLUG, login_email: 'wiz-owner@example.com' });
+  insertMember(db, { id: OWNER_ID, slug: OWNER_SLUG, login_email: 'wiz-owner@example.com', birth_date: '1980-01-01' });
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, login_email: 'wiz-other@example.com' });
   db.close();
   createApp = await importApp();
@@ -225,7 +225,7 @@ describe('POST /register/wizard/personal_details/submit — collects details and
 describe('POST /register/wizard/:taskType/skip — 303 advance to next task', () => {
   it('the legacy_claim "nothing to claim" decision completes the task and advances 303 to club_affiliations', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, { slug: `wiz_skip_lc_${stamp}`, login_email: `wiz-skip-lc-${stamp}@example.com` });
+    const memberId = insertMember(testDb, { slug: `wiz_skip_lc_${stamp}`, login_email: `wiz-skip-lc-${stamp}@example.com`, birth_date: '1980-01-01' });
     await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
@@ -328,7 +328,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
     const stamp = Date.now();
     const sharedEmail = `wiz-fast-${stamp}@example.com`;
     insertLegacyMember(testDb, { legacy_member_id: `LM-WIZ-FAST-${stamp}`, real_name: 'Wiz Fast', legacy_email: sharedEmail });
-    const memberId = insertMember(testDb, { slug: `wiz_fast_${stamp}`, login_email: sharedEmail });
+    const memberId = insertMember(testDb, { slug: `wiz_fast_${stamp}`, login_email: sharedEmail, birth_date: '1980-01-01' });
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/find')
@@ -344,7 +344,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
     const stamp = Date.now();
     const targetEmail = `wiz-enq-${stamp}@oldsite.example`;
     insertLegacyMember(testDb, { legacy_member_id: `LM-WIZ-ENQ-${stamp}`, real_name: 'Wiz Enq', legacy_email: targetEmail });
-    const memberId = insertMember(testDb, { slug: `wiz_enq_${stamp}`, login_email: `wiz-enq-req-${stamp}@example.com` });
+    const memberId = insertMember(testDb, { slug: `wiz_enq_${stamp}`, login_email: `wiz-enq-req-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
     const res = await agent
       .post('/register/wizard/legacy_claim/find')
@@ -375,7 +375,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
 
   it('no-match identifier -> 303 same step; follow-up GET surfaces the anti-enum banner', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, { slug: `wiz_nx_${stamp}`, login_email: `wiz-nx-${stamp}@example.com` });
+    const memberId = insertMember(testDb, { slug: `wiz_nx_${stamp}`, login_email: `wiz-nx-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
     const res = await agent
       .post('/register/wizard/legacy_claim/find')
@@ -395,7 +395,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
     const stamp = Date.now();
     const hpId = `hp-wiz-${stamp}`;
     insertHistoricalPerson(testDb, { person_id: hpId, person_name: 'Wiz HP Target' });
-    const memberId = insertMember(testDb, { slug: `wiz_hp_${stamp}`, login_email: `wiz-hp-${stamp}@example.com` });
+    const memberId = insertMember(testDb, { slug: `wiz_hp_${stamp}`, login_email: `wiz-hp-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
     const res = await agent
       .post('/register/wizard/legacy_claim/find')
@@ -443,6 +443,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
       const memberId = insertMember(testDb, {
         slug: `wiz_enqfail_${stamp}`,
         login_email: `wiz-enqfail-req-${stamp}@example.com`,
+        birth_date: '1980-01-01',
       });
 
       const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
@@ -507,7 +508,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
 
   it('per-member rate-limit exhaustion returns 429 with Retry-After', async () => {
     const stamp = Date.now() + 100;
-    const memberId = insertMember(testDb, { slug: `wiz_rl_${stamp}`, login_email: `wiz-rl-${stamp}@example.com` });
+    const memberId = insertMember(testDb, { slug: `wiz_rl_${stamp}`, login_email: `wiz-rl-${stamp}@example.com`, birth_date: '1980-01-01' });
     const cookie = cookieFor(memberId);
     const app = createApp();
     for (let i = 0; i < 5; i++) {
@@ -548,7 +549,7 @@ describe('POST /register/wizard/legacy_claim/claim/confirm — token confirmatio
     const legacyId = `LM-WIZ-TOK-${stamp}`;
     const legacyEmail = `wiz-tok-${stamp}@oldsite.example`;
     insertLegacyMember(testDb, { legacy_member_id: legacyId, real_name: 'Wiz Tok', legacy_email: legacyEmail, country: 'JP', is_hof: 1 });
-    const memberId = insertMember(testDb, { slug: `wiz_tok_${stamp}`, login_email: `wiz-tok-req-${stamp}@example.com` });
+    const memberId = insertMember(testDb, { slug: `wiz_tok_${stamp}`, login_email: `wiz-tok-req-${stamp}@example.com`, birth_date: '1980-01-01' });
     const token = await issueTokenFor(memberId, legacyEmail);
     const res = await request(createApp())
       .get(`/register/wizard/legacy_claim/claim/confirm/${token}`)
@@ -573,7 +574,7 @@ describe('POST /register/wizard/legacy_claim/claim/confirm — token confirmatio
     const legacyId = `LM-WIZ-CONS-${stamp}`;
     const legacyEmail = `wiz-cons-${stamp}@oldsite.example`;
     insertLegacyMember(testDb, { legacy_member_id: legacyId, real_name: 'Wiz Cons', legacy_email: legacyEmail });
-    const memberId = insertMember(testDb, { slug: `wiz_cons_${stamp}`, login_email: `wiz-cons-req-${stamp}@example.com` });
+    const memberId = insertMember(testDb, { slug: `wiz_cons_${stamp}`, login_email: `wiz-cons-req-${stamp}@example.com`, birth_date: '1980-01-01' });
     const token = await issueTokenFor(memberId, legacyEmail);
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/claim/confirm')
@@ -616,7 +617,7 @@ describe('last outstanding task -> 303 to /register/wizard/complete', () => {
 
 describe('per-member scoping: handlers read memberId from session, never URL/body', () => {
   it('member A POST cannot affect member B onboarding rows', async () => {
-    const memberAId = insertMember(testDb, { slug: `wiz_a_${Date.now()}`, login_email: `wiz-a-${Date.now()}@example.com` });
+    const memberAId = insertMember(testDb, { slug: `wiz_a_${Date.now()}`, login_email: `wiz-a-${Date.now()}@example.com`, birth_date: '1980-01-01' });
     const memberBId = insertMember(testDb, { slug: `wiz_b_${Date.now()}`, login_email: `wiz-b-${Date.now()}@example.com` });
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberAId));
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberBId));
@@ -642,7 +643,7 @@ describe('flash cookie behavior (adversarial)', () => {
 
   it('flash with hpPersonId pointing at a non-existent HP shows banner but no extra card', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, { slug: `wiz_fg_${stamp}`, login_email: `wiz-fg-${stamp}@example.com` });
+    const memberId = insertMember(testDb, { slug: `wiz_fg_${stamp}`, login_email: `wiz-fg-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
     const post = await agent
       .post('/register/wizard/legacy_claim/find')
@@ -660,7 +661,7 @@ describe('flash cookie behavior (adversarial)', () => {
 
   it('flash is not consumed by unrelated task GET; persists for next legacy_claim GET', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, { slug: `wiz_fb_${stamp}`, login_email: `wiz-fb-${stamp}@example.com` });
+    const memberId = insertMember(testDb, { slug: `wiz_fb_${stamp}`, login_email: `wiz-fb-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
     const post = await agent
       .post('/register/wizard/legacy_claim/find')
@@ -678,7 +679,7 @@ describe('flash cookie behavior (adversarial)', () => {
 
   it('flash is consumed (one-shot): second GET shows no banner', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, { slug: `wiz_oneshot_${stamp}`, login_email: `wiz-os-${stamp}@example.com` });
+    const memberId = insertMember(testDb, { slug: `wiz_oneshot_${stamp}`, login_email: `wiz-os-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
     const post = await agent
       .post('/register/wizard/legacy_claim/find')

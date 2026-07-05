@@ -130,6 +130,7 @@ describe('anti-enumeration: claim lookup returns identical response shape regard
     const noMatchId = insertMember(db, {
       slug: `ae_nomatch_${stamp}`,
       login_email: `ae-nomatch-${stamp}@example.com`,
+      birth_date: '1980-01-01',
     });
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(noMatchId));
     const noMatchAgent = request.agent(createApp());
@@ -149,6 +150,7 @@ describe('anti-enumeration: claim lookup returns identical response shape regard
     const matchId = insertMember(db, {
       slug: `ae_match_${stamp}`,
       login_email: `ae-match-${stamp}@example.com`,
+      birth_date: '1980-01-01',
     });
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(matchId));
     const matchAgent = request.agent(createApp());
@@ -174,6 +176,7 @@ describe('anti-enumeration: claim lookup returns identical response shape regard
     const claimedSeekerId = insertMember(db, {
       slug: `ae_seeker_${stamp}`,
       login_email: `ae-seeker-${stamp}@example.com`,
+      birth_date: '1980-01-01',
     });
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(claimedSeekerId));
     const claimedAgent = request.agent(createApp());

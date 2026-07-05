@@ -36,6 +36,10 @@
  *     anti-enumeration contract; a task the server determines is not_applicable is simply not
  *     rendered.
  *   - Per-task answers persist on submit; completing a task advances the sequence.
+ *   - The legacy_claim task requires a birth date on file before any resolving action
+ *     (confirm, search, token confirm, direct record claim, or the continue-without-linking
+ *     decision); the gate is task-level only and never applies to the admin link-help
+ *     apply path.
  *   - State-changing wizard POSTs are subject to the global Origin-pin CSRF middleware; a wizard
  *     POST is never added to that middleware's exemption list.
  *   - Every task page renders through the shared wizard layout primitive so all tasks present the
@@ -400,6 +404,20 @@ function ensureLegacyClaimReflectsState(memberId: string): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Whether the member still lacks a legacy-account or historical-person link.
+ * The claim task remains renderable after completion while either linkage is
+ * missing: it is the sole claim and anchor surface, reached from the
+ * profile's legacy-claim link after onboarding.
+ */
+function legacyClaimLinkageIncomplete(memberId: string): boolean {
+  const links = account.findLegacyAndHpIdsById.get(memberId) as
+    | { legacy_member_id: string | null; historical_person_id: string | null }
+    | undefined;
+  if (!links) return false;
+  return !links.legacy_member_id || !links.historical_person_id;
 }
 
 /**
@@ -768,7 +786,7 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
       isMembership:        false as const,
       isLeadership:        true as const,
       isDisambiguation:    false as const,
-      questionLabel:       `Were you a member of ${r.club_name}?`,
+      questionLabel:       `Were you a leader or organizer of ${r.club_name}?`,
       consequencesNote:    `The old footbag.org site listed you as a contact for ${r.club_name}. Confirming makes you a co-leader of the club, brings it back to active if it is inactive, and grants you a one-time Active Player period. If you already co-lead another club, you will be added as a member instead.`,
       candidateId:         r.candidate_id,
       clubId:              r.club_id,
@@ -1166,11 +1184,28 @@ function advanceAfter(
   return { kind: 'advance', nextTaskType: nextOutstandingTaskType(memberId) };
 }
 
+// The claim task requires a birth date on file before it can be resolved:
+// matching needs it, and every resolving action asks identically regardless
+// of match state, so the requirement reveals nothing about what matched.
+export const BIRTH_DATE_REQUIRED_MESSAGE =
+  'Enter your date of birth first, so we can match your records.';
+
+function birthDateMissing(memberId: string): boolean {
+  return identityAccessService.getMemberBirthDate(memberId) === null;
+}
+
 async function processLegacyClaimSubmit(
   memberId: string,
   identifier: string,
   ip: string,
 ): Promise<WizardActionResult<LegacyClaimSubmitFormState>> {
+  if (birthDateMissing(memberId)) {
+    return {
+      kind: 'validation_error',
+      formState: { identifier: identifier ?? '' },
+      message: BIRTH_DATE_REQUIRED_MESSAGE,
+    };
+  }
   if (!identifier) {
     return {
       kind: 'validation_error',
@@ -1252,6 +1287,13 @@ function processLegacyClaimAutoLinkConfirm(
   memberId: string,
   personId: string,
 ): WizardActionResult<LegacyClaimAutoLinkConfirmFormState> {
+  if (birthDateMissing(memberId)) {
+    return {
+      kind: 'validation_error',
+      formState: null,
+      message: BIRTH_DATE_REQUIRED_MESSAGE,
+    };
+  }
   if (!personId) {
     return {
       kind: 'validation_error',
@@ -1392,15 +1434,23 @@ function processCrossSourceLegacyConfirm(
 function processLegacyClaimAutoLinkDecline(
   memberId: string,
   candidateId: string,
+  personId: string,
 ): WizardActionResult<null> {
-  if (!candidateId) {
-    return { kind: 'validation_error', formState: null, message: 'Invalid request.' };
+  if (candidateId) {
+    identityAccessService.declineStagedCandidate(memberId, candidateId);
+    // Both outcomes re-render the task: 'declined' drops the card; 'not_found'
+    // (already resolved or foreign id) renders whatever cards remain, which is
+    // the same non-revealing UX.
+    return { kind: 'retry_same', flash: null };
   }
-  identityAccessService.declineStagedCandidate(memberId, candidateId);
-  // Both outcomes re-render the task: 'declined' drops the card; 'not_found'
-  // (already resolved or foreign id) renders whatever cards remain, which is
-  // the same non-revealing UX.
-  return { kind: 'retry_same', flash: null };
+  if (personId) {
+    // A classifier-produced card has no staged row yet; the decline is made
+    // just as durable by staging the pair and resolving it declined. Either
+    // outcome re-renders the task without the card.
+    identityAccessService.declineClassifierCandidate(memberId, personId);
+    return { kind: 'retry_same', flash: null };
+  }
+  return { kind: 'validation_error', formState: null, message: 'Invalid request.' };
 }
 
 function processLegacyClaimTokenConfirm(
@@ -1474,7 +1524,15 @@ function processTaskSkip(
   if (taskType === 'legacy_claim') {
     // The legacy decision is required; the wizard's "no past account / nothing
     // to claim" control posts here and is the explicit DECISION, which
-    // COMPLETES the task rather than skipping it.
+    // COMPLETES the task rather than skipping it. The decision, like every
+    // other resolution of this task, requires a birth date on file.
+    if (birthDateMissing(memberId)) {
+      return {
+        kind: 'validation_error',
+        formState: null,
+        message: BIRTH_DATE_REQUIRED_MESSAGE,
+      };
+    }
     completeTask(memberId, 'legacy_claim');
     return advanceAfter(memberId, 'legacy_claim');
   }
@@ -1505,6 +1563,9 @@ function claimHistoricalPersonAndCompleteTask(
   personId: string,
   ip: string,
 ): void {
+  if (birthDateMissing(memberId)) {
+    throw new ValidationError(BIRTH_DATE_REQUIRED_MESSAGE);
+  }
   identityAccessService.enforceHistoricalPersonClaimLimit(memberId, ip);
   try {
     transaction(() => {
@@ -1755,6 +1816,7 @@ export const memberOnboardingService = {
   completeTaskIfOutstanding,
   markTaskNotApplicable,
   ensureLegacyClaimReflectsState,
+  legacyClaimLinkageIncomplete,
   ensureClubAffiliationsReflectsState,
   memberHadClubSuggestionMaterial,
   transitionToDetourPaused,

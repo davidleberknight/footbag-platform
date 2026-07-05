@@ -335,12 +335,36 @@ export function seedMemberWithLeadershipCard(
 
 export function seedAllTasksCompleted(
   db: BetterSqlite3.Database,
-  opts: { slug?: string } = {},
+  opts: { slug?: string; linked?: boolean } = {},
 ): Persona {
   const memberId = `done-${rand()}`;
   const slug = opts.slug ?? `done_${rand()}`;
 
-  createMemberAtTier(db, { id: memberId, slug, tier: 'tier0', memberOverrides: { login_email: uniqueEmail('done') } });
+  // With linked, the persona carries both identity links (legacy account and
+  // historical person). A completed legacy_claim task with either link missing
+  // deliberately keeps rendering as the re-entry claim surface, so only a
+  // fully-linked persona exercises the transition-away-when-resolved contract.
+  let memberOverrides: Record<string, unknown> = { login_email: uniqueEmail('done') };
+  if (opts.linked) {
+    const legacyMemberId = `LM-DONE-${rand().toUpperCase()}`;
+    const personId = insertHistoricalPerson(db, {
+      person_id: `hp-done-${rand()}`,
+      legacy_member_id: legacyMemberId,
+      person_name: 'Done Linked Person',
+    });
+    memberOverrides = { ...memberOverrides, legacy_member_id: legacyMemberId, historical_person_id: personId };
+  }
+
+  createMemberAtTier(db, { id: memberId, slug, tier: 'tier0', memberOverrides });
+
+  if (opts.linked) {
+    insertLegacyMember(db, {
+      legacy_member_id: memberOverrides.legacy_member_id as string,
+      real_name: 'Done Linked Person',
+      claimed_by_member_id: memberId,
+      claimed_at: TS,
+    });
+  }
 
   const tasks = ['personal_details', 'legacy_claim', 'club_affiliations'];
   for (const taskType of tasks) {

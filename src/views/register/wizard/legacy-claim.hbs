@@ -91,12 +91,14 @@
                 <input type="hidden" name="personId" value="{{this.personId}}" />
                 <button type="submit" class="btn btn-primary">This Is Me, Link My History</button>
               </form>
-              {{#if this.stagedCandidateId}}
               <form method="POST" action="/register/wizard/legacy_claim/auto-link/decline" class="candidate-card-action">
+                {{#if this.stagedCandidateId}}
                 <input type="hidden" name="candidateId" value="{{this.stagedCandidateId}}" />
+                {{else}}
+                <input type="hidden" name="personId" value="{{this.personId}}" />
+                {{/if}}
                 <button type="submit" class="btn btn-outline">This Is Not Me</button>
               </form>
-              {{/if}}
             {{else if (eq this.claimMode 'cross_source_legacy')}}
               <form method="POST" action="/register/wizard/legacy_claim/cross-source/confirm" class="candidate-card-action">
                 <input type="hidden" name="candidateId" value="{{this.stagedCandidateId}}" />
@@ -130,6 +132,19 @@
     <h2>Help us find your record</h2>
     <p class="text-muted fs-sm">If you used a different email address or surname on footbag.org, tell us here and we'll look for matching records.</p>
 
+    {{#if content.showBirthDateAnchorField}}
+    <form method="POST" action="/register/wizard/legacy_claim/anchors/birth-date" class="card card-static mb-4">
+      <div class="form-field">
+        <label for="birthDateAnchor">Date of birth <span class="text-muted">(required)</span></label>
+        <input type="date" id="birthDateAnchor" name="anchorValue" required />
+        <small class="form-hint">Your date of birth helps us match your old footbag.org account and competition records, especially when more than one player shares your name. It is private: only you and administrators can see it.</small>
+      </div>
+      <button type="submit" class="btn btn-outline">Add Date of Birth</button>
+    </form>
+    {{else}}
+    <p class="text-muted fs-sm mb-4">Date of birth on file: {{content.birthDateOnFileDisplay}}. It is private: only you and administrators can see it.</p>
+    {{/if}}
+
     {{#if content.declaredAnchors.length}}
       <ul class="mb-4">
         {{#each content.declaredAnchors}}
@@ -154,7 +169,7 @@
     <form method="POST" action="/register/wizard/legacy_claim/anchors/add" class="card card-static mb-4">
       <div class="form-field">
         <label for="oldEmail">Email address used on the old footbag.org site</label>
-        <input type="email" id="oldEmail" name="anchorValue" placeholder="your-old-email@example.com" />
+        <input type="email" id="oldEmail" name="anchorValue" placeholder="your-old-email@example.com" required />
         <input type="hidden" name="anchorType" value="old_email" />
         <small class="form-hint">If you used a different email on the old footbag.org, enter it here. Matching the email you used there helps confirm your legacy claim is really you.</small>
       </div>
@@ -164,14 +179,14 @@
     <form method="POST" action="/register/wizard/legacy_claim/anchors/add" class="card card-static mb-6">
       <div class="form-field">
         <label for="formerSurname">Surname used on the old site</label>
-        <input type="text" id="formerSurname" name="anchorValue" placeholder="Your previous last name" />
+        <input type="text" id="formerSurname" name="anchorValue" placeholder="Your previous last name" required />
         <input type="hidden" name="anchorType" value="former_surname" />
         <small class="form-hint">If you used a different surname on footbag.org, enter it here to help us find your account.</small>
       </div>
       <button type="submit" class="btn btn-outline">Add Former Name</button>
     </form>
 
-    <h2 class="mt-6">Know your old footbag.org ID or username?</h2>
+    <h2 class="mt-6">Search for your old account or competition record</h2>
     <form method="POST" action="/register/wizard/legacy_claim/find" class="login-form">
       <div class="form-field">
         <label for="identifier">Old footbag.org member ID, username, or email, or competition-record ID</label>

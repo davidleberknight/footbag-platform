@@ -132,6 +132,8 @@ Always create test data through the factories in `tests/fixtures/factories.ts` (
 
 Do NOT roll your own temp path with `path.join(process.cwd(), …)`. `setTestEnv` puts DBs in `os.tmpdir()` so leaks (worker timeout, OOM, WAL race) land where the OS cleans up. Applies to allowlist files and any other transient test artifact.
 
+Three more hard invariants from `.claude/rules/testing.md` always apply: no `.skip` / `.todo` in committed tests; never lower a coverage threshold to admit new code; tests never write `legacy_data/` or `curated/` — `./run_all_tests.sh` is the safe local runner.
+
 ### `logger.error()` opt-in
 
 Any test that deliberately exercises an error path producing `logger.error()` calls `expectLoggedError(pattern)` from `tests/setup-env.ts` before the action that triggers it. A substring or RegExp matches the message arg. Without the opt-in, the global afterEach guard fails the test.

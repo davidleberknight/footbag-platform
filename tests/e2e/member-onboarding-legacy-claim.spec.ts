@@ -44,6 +44,7 @@ test('auto-link confirm advances to next task', { tag: ['@migration'] }, async (
   const wizard = new WizardPage(page);
 
   await wizard.goto('legacy_claim');
+  await wizard.ensureBirthDateOnFile();
 
   const linkButton = page.getByRole('button', { name: /this is me/i });
   await linkButton.click();

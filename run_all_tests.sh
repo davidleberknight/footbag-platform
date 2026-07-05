@@ -473,15 +473,20 @@ gate_audit() {
 # cache, so the gate leaves legacy_data/ byte-for-byte untouched. Any change to
 # this invocation must preserve that (verify with the fingerprint guard).
 gate_python_pipeline() {
-  if ! command -v python3 >/dev/null 2>&1; then
+  # Prefer the project venv: system python3 may lack pytest and the pipeline
+  # deps, and a workstation with the venv provisioned should run this gate,
+  # not SKIP it.
+  local py=python3
+  if [ -x scripts/.venv/bin/python ] && scripts/.venv/bin/python -c "import pytest" >/dev/null 2>&1; then
+    py=scripts/.venv/bin/python
+  elif ! command -v python3 >/dev/null 2>&1; then
     echo "  python3 absent — skipping."
     return 77
-  fi
-  if ! python3 -c "import pytest" >/dev/null 2>&1; then
-    echo "  pytest not importable — skipping (pip install pytest to enable)."
+  elif ! python3 -c "import pytest" >/dev/null 2>&1; then
+    echo "  pytest not importable — skipping (pip install pytest into scripts/.venv or system python3 to enable)."
     return 77
   fi
-  PYTHONDONTWRITEBYTECODE=1 python3 -m pytest legacy_data/tests/ -q -p no:cacheprovider
+  PYTHONDONTWRITEBYTECODE=1 "$py" -m pytest legacy_data/tests/ -q -p no:cacheprovider
 }
 
 # =============================================================================

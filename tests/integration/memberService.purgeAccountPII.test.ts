@@ -204,4 +204,36 @@ describe('memberService.purgeAccountPII', () => {
     d.close();
     expect(audits.n).toBe(1);
   });
+
+  it('scrubs the free text of every work-queue row about the member, whatever the task type', async () => {
+    seedClaimedMember('purge-queue');
+
+    const { workQueueService } = await import('../../src/services/workQueueService');
+    workQueueService.enqueue({
+      actorId:       'purge-queue',
+      queueCategory: 'membership',
+      taskType:      'claim_dob_mismatch_review',
+      entityType:    'member',
+      entityId:      'purge-queue',
+      priority:      5,
+      reasonText:    'Legacy account LM-x was claimed with a conflicting date of birth.',
+      detailText:    'member date 1980-01-01 vs legacy date 1962-01-28',
+    });
+    identityAccessService.submitLinkHelpRequest('purge-queue', {
+      statement: 'I believe record HP-x is mine.',
+    });
+
+    expect(memberService.purgeAccountPII('purge-queue').status).toBe('purged');
+
+    const d = db();
+    const rows = d.prepare(
+      "SELECT task_type, reason_text, detail_text FROM work_queue_items WHERE entity_id = 'purge-queue'",
+    ).all() as Array<{ task_type: string; reason_text: string | null; detail_text: string | null }>;
+    d.close();
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+    for (const row of rows) {
+      expect(row.reason_text, row.task_type).toBe('(removed on account erasure)');
+      expect(row.detail_text, row.task_type).toBeNull();
+    }
+  });
 });
