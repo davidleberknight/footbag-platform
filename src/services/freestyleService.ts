@@ -1318,7 +1318,7 @@ function shapeTrickPathways(args: {
     : {
         available: false,
         count: 0,
-        primaryText: 'No family attribution yet',
+        primaryText: 'This trick is not part of a named family.',
         secondaryText: null,
         href: null,
         hrefLabel: null,
