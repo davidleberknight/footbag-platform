@@ -104,6 +104,10 @@ export interface AddAnalysisContent {
   editorialTruthRule:       string;
   incompletenessNote:       string;
   spinNote:                 string;
+  bracketRuleNote:          string;
+  xdexNote:                 string;
+  delayNote:                string;
+  compositeNote:            string;
   componentClasses:         readonly AddAnalysisComponent[];
   workedExamples:           readonly AddAnalysisWorkedExample[];
   osisBranchFraming:        string;
@@ -228,6 +232,53 @@ const SPIN_NOTE =
   'separate [XDEX] component in the notation. Same word, three layers: the flag is part of the atom, ' +
   'the operator is added on top, and rotational character just describes the ' +
   'movement, not a separate scoring rule.';
+
+// The single load-bearing rule of the whole page: the bracketed notation IS the
+// ADD, itemized. Stated up front so every worked example below reads as a
+// verification of it rather than a separate fact.
+const BRACKET_RULE_NOTE =
+  "A trick's operational notation is written as a sequence of bracketed " +
+  'components, and the number of scoring brackets equals its published ADD. ' +
+  'Reading left to right, each one counts one: [DEX] a dexterity, [BOD] a body ' +
+  'movement such as a spin or a duck, [XBD] a cross-body traversal, [PDX] a ' +
+  'paradox, [DEL] a delay (the catch), [UNS] an unusual-surface catch, and ' +
+  '[XDEX] a cross-dex bonus. The notation is not just a description of the ' +
+  'movement; it is the score, spelled out. Wherever a page shows the notation ' +
+  'and the number together, the brackets and the number agree.';
+
+// The X-Dex is the most misread contributor, so it gets its own enumeration:
+// which sets can trigger it and which bases receive it. Documents the settled
+// rule; it does not compute or change any value.
+const XDEX_NOTE =
+  'The X-Dex is a single extra point that a few uptime sets can add, but only ' +
+  'under specific conditions. Four sets can trigger it: atomic, quantum, ' +
+  'sailing, and frantic. It applies to the dexterity that follows the set, and ' +
+  'only when that dex is a far move landing on a receiving base: a mirage, ' +
+  'illusion, whirl, torque, or drifter. It does not apply to swirl, barfly, or ' +
+  'the down family, and it never applies more than once. Where it fires, the ' +
+  'notation carries an [XDEX] bracket on that dex; where the conditions are not ' +
+  'met, there is no extra point. This is why an atomic trick and a quantum ' +
+  'trick built on the same base can still differ by one.';
+
+// Delays are the one bracket a reader tends to assume rather than count, so the
+// multiple-delay case (jump-class tricks) is named explicitly.
+const DELAY_NOTE =
+  'A delay is a controlled catch, written [DEL], and it counts one. Most tricks ' +
+  'end in a single delay, the stall that stops the bag. Some carry more than ' +
+  'one: a jump-class trick catches in mid-flight and again on landing, so it ' +
+  'shows two [DEL] brackets and counts both. The delay is where the trick ' +
+  'resolves, and like every other bracket it is counted, not assumed.';
+
+// Composite operators are the last thing a reader needs before the bracket
+// count adds up: names that are shorthand for a combination, scored as the sum
+// of their parts. States the settled decompositions; it does not derive them.
+const COMPOSITE_NOTE =
+  'A few operator names are shorthand for a combination, and they score as the ' +
+  'sum of their parts. Surging is spinning plus stepping, so it adds two. Blurry ' +
+  'is a stepping entry carrying a paradox. Nuclear is a paradox plus a downtime ' +
+  'illusion, adding two. Furious is another name for barraging, a two-dex set ' +
+  'that adds two. Reading the composite name back into its parts is what makes ' +
+  'the bracket count and the published ADD line up.';
 
 // ─────────────────────────────────────────────────────────────────────────
 // §2 Worked examples: 8 tricks, low to high
@@ -597,6 +648,10 @@ export const FREESTYLE_ADD_ANALYSIS_CONTENT: AddAnalysisContent = {
   editorialTruthRule:     EDITORIAL_TRUTH_RULE,
   incompletenessNote:     INCOMPLETENESS_NOTE,
   spinNote:               SPIN_NOTE,
+  bracketRuleNote:        BRACKET_RULE_NOTE,
+  xdexNote:               XDEX_NOTE,
+  delayNote:              DELAY_NOTE,
+  compositeNote:          COMPOSITE_NOTE,
   componentClasses:       COMPONENT_CLASSES,
   workedExamples:         WORKED_EXAMPLES,
   osisBranchFraming:      OSIS_BRANCH_FRAMING,

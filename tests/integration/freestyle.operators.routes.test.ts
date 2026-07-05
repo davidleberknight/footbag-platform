@@ -94,7 +94,9 @@ describe('GET /freestyle/operators — compact modifier index', () => {
       expect(res.text, `row ${slug}`).toContain(`id="operator-${slug}"`);
     }
     expect(res.text).toContain('href="/freestyle/modifier/paradox"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system#movement-paradox"');
+    // The movement-system view groups by axis, not per modifier, so the browse
+    // link lands on the view rather than a dead per-modifier anchor.
+    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
   });
 
   it('does not list set primitives as operator rows', async () => {

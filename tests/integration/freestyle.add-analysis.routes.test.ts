@@ -91,6 +91,33 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
     expect(res.text).toMatch(/Honest incompleteness/i);
     expect(res.text).toMatch(/pending breakdown refinement/);
   });
+
+  it('states the bracket-count rule that ties notation to the published ADD', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toMatch(/bracket-count rule/i);
+    expect(res.text).toMatch(/number of scoring brackets equals its published ADD/);
+  });
+
+  it('enumerates the X-Dex triggers and receivers', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toMatch(/The X-Dex/);
+    // the four triggering sets and the receiving bases, so a reader can predict
+    // where the extra point applies rather than memorising worked examples
+    expect(res.text).toMatch(/atomic, quantum, sailing, and frantic/);
+    expect(res.text).toMatch(/mirage, illusion, whirl, torque, or drifter/);
+  });
+
+  it('explains delays, including the multiple-delay jump class', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toMatch(/A delay is a controlled catch/);
+    expect(res.text).toMatch(/two \[DEL\] brackets/);
+  });
+
+  it('explains composite operators as the sum of their parts', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toMatch(/Composite operators/);
+    expect(res.text).toMatch(/Surging is spinning plus stepping/);
+  });
 });
 
 describe('GET /freestyle/add-analysis — component-contribution table', () => {

@@ -612,19 +612,17 @@ function buildFreestyleByNumbers(
   const trickKind = new Set(tricks.map(r => r.slug));
   const SET_SYSTEMS = new Set(['symposium', 'paradox', 'pixie', 'fairy', 'stepping', 'quantum', 'atomic', 'blurry', 'nuclear', 'furious']);
   const bodyMods = new Map<string, number>();
-  const allMods = new Map<string, number>();
   for (const l of linkRows) {
     if (!trickKind.has(l.trick_slug)) continue;
-    inc(allMods, l.modifier_slug);
     // Body = movement operators only; the set-system launchers belong to Entry,
-    // so Body and Components read as genuinely different lenses.
+    // so Body and Entry read as genuinely different lenses.
     if (!SET_SYSTEMS.has(l.modifier_slug)) inc(bodyMods, l.modifier_slug);
     if (SET_SYSTEMS.has(l.modifier_slug)) inc(entry, l.modifier_slug);   // entry = catch surfaces + set systems
   }
 
   const unknownDex = dex.get('Unknown') ?? 0;
   const cards: FreestyleByNumbersCard[] = [
-    { key: 'difficulty', eyebrow: 'How layered are tricks?', title: 'Difficulty',
+    { key: 'difficulty', eyebrow: 'How layered are tricks?', title: 'ADD',
       viewKey: 'add', footnote: null, bars: ordered(add, ['1', '2', '3', '4', '5', '6', '7', '8']) },
     // No "Unknown" bar: the dex-count browse view renders only dex-countable
     // tricks, and the card note carries the derived pending-notation count.
@@ -636,10 +634,8 @@ function buildFreestyleByNumbers(
       viewKey: 'family', footnote: null, bars: histTop(FAMILY_HISTOGRAM, 20) },
     { key: 'body', eyebrow: 'What body movements shape tricks?', title: 'Body movements',
       viewKey: 'movement-system', footnote: null, bars: top(bodyMods, 10) },
-    { key: 'component', eyebrow: 'What modifiers dominate?', title: 'Components',
-      viewKey: 'component', footnote: null, bars: top(allMods, 10) },
   ];
-  return { cards, note: `Counts shown out of ${N} tricks; ${unknownDex} pending notation.` };
+  return { cards, note: `Counts are out of ${N} active canonical tricks; ${unknownDex} still await a notation breakdown.` };
 }
 
 export interface FreestyleLandingContent {
@@ -1182,7 +1178,9 @@ function buildOperatorIndexAxes(
         status:     operatorStatus(slug),
         subFamilyLabel: axis.subFamilies?.find(sf => sf.firstSlug === slug)?.label ?? null,
         browseHref: movementSystemSlugs.has(slug)
-          ? `/freestyle/tricks?view=movement-system#movement-${slug}`
+          // The movement-system view groups by axis, so there is no per-modifier
+          // anchor to deep-link to; land on the view itself.
+          ? '/freestyle/tricks?view=movement-system'
           : slug === 'flying'
             // Flying is a movement neighborhood (the topology view), not a
             // movement-system axis; route its browse there.
@@ -9102,7 +9100,7 @@ export const freestyleService = {
     const landingGrid: DictionaryLandingGrid = {
       bands: [
         {
-          eyebrow: 'DIFFICULTY',
+          eyebrow: 'ADD',
           cards: [
             {
               label:        'By ADD',
@@ -10480,15 +10478,12 @@ export const freestyleService = {
 
     // Operator reference is only meaningful when the set has a registered
     // modifier (pixie/fairy/atomic/miraging/quantum/nuclear/stepping/surging).
-    // Other sets have no operator-page anchor; omit the field.
-    const REGISTERED_MODIFIER_SLUGS = new Set([
-      'pixie', 'fairy', 'atomic', 'miraging', 'quantum', 'nuclear', 'stepping', 'surging',
-    ]);
-    const operatorReferenceHref = REGISTERED_MODIFIER_SLUGS.has(set.slug)
-      ? `/freestyle/operators#${set.slug}`
-      // Ducking sets embed the ducking body component; point at the Ducking
-      // operator page rather than a set-named operator anchor.
-      : (set.slug === 'zulu' || set.slug === 'weaving')
+    // Set operators live on their own set pages; the Operators & Modifiers index
+    // covers the body operators only, so a set-named anchor there does not exist.
+    // Omit the cross-link for sets; only the ducking-embedding sets point out, at
+    // the Ducking operator page.
+    const operatorReferenceHref =
+      (set.slug === 'zulu' || set.slug === 'weaving')
         ? '/freestyle/modifier/ducking'
         : undefined;
 

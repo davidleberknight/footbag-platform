@@ -155,9 +155,11 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.text).not.toContain('href="/freestyle/sets/reference"');
   });
 
-  it('renders the operator-reference cross-link for sets with a registered modifier', async () => {
+  it('omits the operator-reference cross-link for a set with no operators-page entry', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/pixie');
-    expect(res.text).toContain('href="/freestyle/operators#pixie"');
+    // Set operators live on their own set pages, not the body-operator index, so
+    // pixie carries no operators anchor rather than a broken one.
+    expect(res.text).not.toContain('href="/freestyle/operators#pixie"');
   });
 
   it('does NOT render the operator-reference cross-link for holden-only sets without a modifier', async () => {

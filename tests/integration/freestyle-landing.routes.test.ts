@@ -100,16 +100,20 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Freestyle by the Numbers');
-    for (const title of ['Difficulty', 'Dexterity', 'Entry sets', 'Family endings', 'Body movements', 'Components']) {
+    for (const title of ['ADD', 'Dexterity', 'Entry sets', 'Family endings', 'Body movements']) {
       expect(res.text).toContain(title);
     }
+    // The Components card was dropped: it was a strict superset of Entry + Body
+    // and its only destination was the soft-retired component view.
+    expect(res.text).not.toContain('view=component');
     // each card is a gateway into its matching browse axis
-    for (const view of ['view=add', 'view=dex-count', 'view=family', 'view=sets', 'view=movement-system', 'view=component']) {
+    for (const view of ['view=add', 'view=dex-count', 'view=family', 'view=sets', 'view=movement-system']) {
       expect(res.text).toContain(`/freestyle/tricks?${view}`);
     }
-    // shared denominator note + Family endings leads with the catch-surface roots
-    expect(res.text).toContain('Counts shown out of');
-    expect(res.text).toContain('pending notation');
+    // shared denominator note states the counted population + Family endings
+    // leads with the catch-surface roots
+    expect(res.text).toContain('Counts are out of');
+    expect(res.text).toContain('active canonical tricks');
     expect(res.text).toContain('Clipper Stall');
     expect(res.text).toContain('Toe Stall');
   });
