@@ -16,9 +16,11 @@ import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
   insertMember,
   insertActivePlayerGrant,
+  insertMemberTierGrant,
   insertPayment,
 } from '../fixtures/factories';
 import { honorCongratulationEmail, tierChangeNoticeEmail } from '../../src/services/emailContent';
+import { uuidv7Hex } from '../../src/services/uuidv7';
 
 const { dbPath } = setTestEnv('3091');
 
@@ -319,11 +321,7 @@ describe('applyHonorGrant', () => {
 
   it('HoF grant on a Tier 3 member words the honor as setting the underlying tier', () => {
     // A Tier 3 member is the only precondition this asserts; reach it with one
-    // governance grant. Two same-member tier grants can share a wall-clock
-    // millisecond, and member_tier_current breaks that created_at tie by grant
-    // id, which is random within a millisecond (UUIDv7 random tail) — so a
-    // purchase-then-governance setup resolves the current tier nondeterministically.
-    // Real flows never write two tier grants for one member a millisecond apart.
+    // governance grant.
     const id = freshMember();
     mts.setGovernanceTier3(ADMIN_ID, id);
 
@@ -778,4 +776,30 @@ describe('audit log', () => {
 beforeEach(() => {
   // Intentionally empty: every test calls freshMember() to get an isolated
   // member id. Kept to surface intent in case future edits add per-test setup.
+});
+
+describe('member_tier_current — same-millisecond grant resolution', () => {
+  it('resolves two grants sharing a created_at for one member to the later-minted row', () => {
+    const memberId = freshMember();
+
+    // Two ids minted back-to-back: the shared generator's within-process
+    // monotonic same-millisecond counter makes the second strictly greater, so
+    // when created_at ties the (created_at, id) tiebreak in member_tier_current
+    // must resolve to the later-minted grant rather than order at random.
+    const first = `mtg_${uuidv7Hex()}`;
+    const second = `mtg_${uuidv7Hex()}`;
+    expect(second > first).toBe(true);
+
+    const sameInstant = '2024-06-01T00:00:00.000Z';
+    const db = new BetterSqlite3(dbPath);
+    insertMemberTierGrant(db, {
+      id: first, member_id: memberId, new_tier_status: 'tier1', created_at: sameInstant,
+    });
+    insertMemberTierGrant(db, {
+      id: second, member_id: memberId, new_tier_status: 'tier2', created_at: sameInstant,
+    });
+    db.close();
+
+    expect(mts.getTierStatus(memberId).tier_status).toBe('tier2');
+  });
 });

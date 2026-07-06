@@ -73,9 +73,10 @@ const VOUCH_RATE_LIMIT_MAX_DEFAULT = 5;
 const VOUCH_RATE_LIMIT_WINDOW_MINUTES_DEFAULT = 60;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-// UUIDv7-suffixed id. The 48-bit ms timestamp prefix gives lex-ordered
-// sort under the member_active_player_current view's (created_at, id)
-// tiebreaker. Same reasoning as membershipTieringService.newGrantId.
+// UUIDv7-suffixed id. The shared uuidv7Hex generator's 48-bit ms timestamp
+// prefix plus its within-process monotonic same-ms counter give lex-ordered,
+// insertion-order sort under the member_active_player_current view's
+// (created_at, id) tiebreaker.
 function newGrantId(): string {
   return `apg_${uuidv7Hex()}`;
 }

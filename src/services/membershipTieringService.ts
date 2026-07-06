@@ -106,13 +106,14 @@ export interface LegacyClaimStandings {
 }
 
 // UUIDv7-suffixed ID so back-to-back grants (same wall-clock ms) sort in
-// insertion order under the view's (created_at, id) tiebreaker. The view
-// definition in member_tier_current relies on id-string comparison when
-// created_at ties. UUIDv7 carries a 48-bit ms timestamp prefix that makes
-// any two ids generated in different ms lex-comparable; same-ms ids resolve
-// by the random tail, which is consistent across processes without shared
-// state (the web and worker containers can mint ids independently and
-// preserve sort order under merge).
+// insertion order under the view's (created_at, id) tiebreaker, which
+// member_tier_current relies on when created_at ties. The shared uuidv7Hex
+// generator carries a 48-bit ms timestamp prefix (any two ids minted in
+// different ms are lex-comparable) and, within one process, a monotonic
+// counter in the same-ms slot so same-ms mints stay strictly increasing and
+// resolve in insertion order. Two processes minting in the same ms order
+// arbitrarily, which never bites: each grant is its own transaction and real
+// tier changes for one member are seconds or more apart.
 function newGrantId(): string {
   return `mtg_${uuidv7Hex()}`;
 }

@@ -1824,10 +1824,6 @@ export class ClubService {
               : null,
           },
         });
-
-        // The one-time club-join Active Player grant co-commits with the new
-        // club and the creator's affiliation in this same transaction.
-        applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, affiliationId);
       });
     } catch (err) {
       if (isUniqueViolation(err)) {

@@ -703,10 +703,11 @@ describe('POST /register/wizard/club_affiliations/submit — unpromoted-candidat
       .set('Cookie', cookieFor(MEMBER_NOPROMOTE));
     expect(wrapUp.status).toBe(200);
     expect(wrapUp.text).toContain('Find or create your club');
-    // A fresh Tier 0 member has never held Active Player, so the wrap-up offers
-    // the first-club bootstrap (create grants the one-time period) rather than
-    // the Tier-1 requirement notice.
-    expect(wrapUp.text).toContain('Create a New Club');
+    // A fresh Tier 0 member has no Active Player, so creating a club requires
+    // Tier 1 benefits: the wrap-up shows the Tier-1 requirement notice instead
+    // of the create-club action.
+    expect(wrapUp.text).not.toContain('Create a New Club');
+    expect(wrapUp.text).toContain('Creating a club requires IFPA Membership (Tier 1)');
 
     const skip = await request(createApp())
       .post('/register/wizard/club_affiliations/skip')

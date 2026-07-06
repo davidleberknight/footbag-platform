@@ -71,13 +71,14 @@ function hasTier1Benefits(p: PersonaSpec): boolean {
 }
 
 /**
- * Create-club bootstrap eligibility: Tier-1 benefits, OR a Tier 0 member who
- * has never held Active Player (creating a first club grants the one-time
- * period). The tier-candidate set below carries no Active-Player spec, so every
- * Tier 0 candidate is never-AP and thus eligible for the first-club bootstrap.
+ * Create-club eligibility: Tier-1 benefits only (Tier 1+, admin, or a Tier 0
+ * member with a current Active Player period). A Tier 0 member without current
+ * Active Player status cannot create a club. The tier-candidate set below
+ * carries no Active-Player spec, so every Tier 0 candidate is without Active
+ * Player and thus cannot create.
  */
 function mayCreateClub(p: PersonaSpec): boolean {
-  return hasTier1Benefits(p) || p.tier === 'tier0';
+  return hasTier1Benefits(p);
 }
 
 function isLoginRedirect(res: { status: number; headers: Record<string, unknown> }): boolean {

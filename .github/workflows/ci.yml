@@ -206,7 +206,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install test dependencies
-        run: python3 -m pip install pytest pandas openpyxl
+        run: python3 -m pip install -r legacy_data/requirements.txt
 
       - name: Run the legacy-data pipeline suite
         # Hermetic (synthetic fixtures, no real dump). Carries the only

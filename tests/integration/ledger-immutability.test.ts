@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertActivePlayerVouch } from '../fixtures/factories';
+import { insertMember, insertActivePlayerVouch, insertMemberTierGrant } from '../fixtures/factories';
 import { assertAppendOnly } from '../fixtures/assertAppendOnly';
 import { isoDaysFromNow } from '../fixtures/clock';
 
@@ -49,6 +49,14 @@ beforeAll(() => {
     target_member_id: 'apv-target',
     new_active_player_expires_at: isoDaysFromNow(365),
   });
+
+  insertMember(db, { id: 'mtg-immutable-member' });
+  insertMemberTierGrant(db, {
+    id: 'mtg-immutable-1',
+    member_id: 'mtg-immutable-member',
+    new_tier_status: 'tier1',
+    created_at: SEED_TS,
+  });
   db.close();
 });
 
@@ -86,6 +94,15 @@ describe('ledger immutability', () => {
     const db = new BetterSqlite3(dbPath);
     try {
       assertAppendOnly(db, 'active_player_vouches', 'apv-immutable-1');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rejects UPDATE and DELETE on a member_tier_grants row', () => {
+    const db = new BetterSqlite3(dbPath);
+    try {
+      assertAppendOnly(db, 'member_tier_grants', 'mtg-immutable-1');
     } finally {
       db.close();
     }

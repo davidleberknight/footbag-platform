@@ -25,10 +25,12 @@
  *     matches through that anchor to the hard-evidence tier). The birth-date
  *     anchor fills members.birth_date only when absent; it disambiguates tied
  *     same-name candidates (identical narrows fully, a typo-shaped near-miss
- *     narrows at medium), and every legacy claim records the member-versus-
- *     legacy birth-date comparison outcome in its audit metadata, with a hard
- *     mismatch raising a claim_dob_mismatch_review work-queue item. The
- *     comparison never gates a claim.
+ *     narrows at medium), and every legacy-account claim records the member-
+ *     versus-legacy birth-date comparison outcome in its audit metadata, with a
+ *     hard mismatch raising a claim_dob_mismatch_review work-queue item. A
+ *     direct historical-record claim that resolves through to a legacy account
+ *     records the same comparison outcome but raises no review item, since the
+ *     flag is a legacy-account-claim behavior. The comparison never gates a claim.
  *   - Cross-source offers: after a one-source claim, the other source is
  *     searched via real anchors and a cross_source staged candidate is
  *     offered (same stage / confirm / decline / expire lifecycle, distinct
@@ -1755,7 +1757,7 @@ function claimLegacyAccountInTxInner(
   // claim: mailbox control plus the surname rule remain the load-bearing
   // evidence, and a legacy-side typo must not lock a member out.
   const claimant = legacyClaim.findClaimingMember.get(requestingMemberId) as
-    | { birth_date: string | null }
+    | { birth_date: string | null; slug: string; real_name: string }
     | undefined;
   const dobComparison: string =
     claimant?.birth_date && row.birth_date
@@ -1870,7 +1872,9 @@ function claimLegacyAccountInTxInner(
       reasonText:    `Legacy account ${row.legacy_member_id} was claimed with a conflicting date of birth.`,
       detailText:
         `Claim confirmed with conflicting dates of birth: the member's entered date (${claimant?.birth_date}) ` +
-        `does not match the legacy record's date (${row.birth_date}) for legacy account ${row.legacy_member_id}. ` +
+        `does not match the legacy record's date (${row.birth_date}) for legacy account ${row.legacy_member_id}` +
+        `${hp ? ` (linked historical record ${hp.person_id})` : ''}. ` +
+        `Member to review: id ${requestingMemberId}, profile /members/${claimant?.slug}. ` +
         'Review the claim; if it looks wrong, use the link-help dispute revert.',
     });
   }
@@ -2600,6 +2604,7 @@ interface ClaimingMemberRow {
   historical_person_id: string | null;
   login_email_normalized: string | null;
   email_verified_at: string | null;
+  birth_date: string | null;
 }
 
 export type HistoricalPersonClaimLookupResult =
@@ -2786,6 +2791,14 @@ function claimHistoricalPersonInTxInner(
   let everPaidTier1Lifetime = false;
   let tier1AnnualActive = false;
 
+  // Record-only birth-date evidence, mirroring the legacy-account claim path:
+  // when this historical record resolves through to a legacy account carrying a
+  // birth date, compare it against the member's own date and record the outcome
+  // in the claim audit metadata below. A direct claim with no legacy account
+  // behind it has no legacy date to compare. This path never enqueues a mismatch
+  // review; that flag is a legacy-account-claim behavior.
+  let dobComparison = 'no_legacy_account';
+
   // Transitive legacy claim when the HP is back-linked to a legacy account.
   if (hp.legacy_member_id) {
     if (member.legacy_member_id && member.legacy_member_id !== hp.legacy_member_id) {
@@ -2798,6 +2811,13 @@ function claimHistoricalPersonInTxInner(
       everPaidTier2 = Boolean(lm.legacy_ever_paid_tier2);
       everPaidTier1Lifetime = Boolean(lm.legacy_ever_paid_tier1_lifetime);
       tier1AnnualActive = Boolean(lm.legacy_tier1_annual_active_at_cutover);
+      dobComparison = member.birth_date && lm.birth_date
+        ? compareBirthDates(member.birth_date, lm.birth_date)
+        : member.birth_date
+          ? 'legacy_dob_absent'
+          : lm.birth_date
+            ? 'member_dob_absent'
+            : 'both_dob_absent';
     }
     if (lm && !lm.claimed_by_member_id) {
       const marked = legacyMembers.markClaimed.run(requestingMemberId, now, hp.legacy_member_id);
@@ -2883,6 +2903,7 @@ function claimHistoricalPersonInTxInner(
       first_name_variant:     !firstNamesMatch(member.real_name, hp.person_name),
       transitive_legacy_id:   hp.legacy_member_id ?? null,
       evidence_strength:      evidenceStrength,
+      dob_comparison:         dobComparison,
     },
   });
 

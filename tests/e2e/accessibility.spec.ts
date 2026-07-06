@@ -9,13 +9,13 @@
  * failure so one run reports the whole surface rather than stopping at the
  * first offending page.
  *
- * The scan excludes the colour-contrast rule: the only WCAG AA violations these
- * pages currently produce are colour-contrast failures rooted in the shared
- * theme palette (logo text, active nav, primary buttons, footer tagline), which
- * is a site-wide design-palette change rather than a per-page markup fix. This
- * gate therefore covers the automatable structural checks (form labels, ARIA,
- * landmarks, headings, page language) and the contrast pass is handled on its
- * own.
+ * The scan excludes the colour-contrast rule. The shared theme's chrome (logo
+ * text, active nav, primary and outline buttons, footer text) uses a deep-green
+ * interaction token that meets AA contrast; the remaining contrast question is
+ * in-text link colour, where darkening the link green for background contrast
+ * reduces its distinguishability from body text and calls for an underline
+ * treatment, handled on its own. This gate covers the automatable structural
+ * checks (form labels, ARIA, landmarks, headings, page language).
  *
  * Tagged @a11y so `--grep @a11y` runs the accessibility tier on its own, and
  * @smoke so it rides the quick smoke run over the high-traffic public pages.

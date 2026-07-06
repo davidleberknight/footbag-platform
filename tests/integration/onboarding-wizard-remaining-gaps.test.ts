@@ -22,6 +22,7 @@ import {
   createMemberAtTier,
   createTestSessionJwt,
 } from '../fixtures/factories';
+import { stableClubId } from '../../src/services/clubTag';
 
 const { dbPath } = setTestEnv('3213');
 
@@ -185,6 +186,57 @@ describe('Tier 0 leadership: current implementation promotes regardless of tier'
     const memberAsLeader = leaders.find((l) => l.member_id === memberId);
     expect(memberAsLeader).toBeDefined();
     expect(memberAsLeader!.role).toBe('co-leader');
+  });
+});
+
+describe('onboarding wizard leadership confirmation writes the stable club ID', () => {
+  it('the confirmed co-leader row lands under the stable club ID derived from the legacy club key', () => {
+    const stamp = Date.now();
+    const legacyClubKey = `wiz_clubkey_${stamp}`;
+    const expectedClubId = stableClubId(legacyClubKey);
+    const legacyId = `LM-WIZID-${stamp}`;
+    const memberId = `wizid-${stamp}`;
+
+    // The cutover creates the club row under the stable id for this legacy key;
+    // the bootstrap leader references that same club id, and the wizard
+    // confirmation must write the co-leader row under exactly that id.
+    insertClub(db, { id: expectedClubId });
+    createMemberAtTier(db, {
+      id: memberId,
+      slug: `wizid_${stamp}`,
+      tier: 'tier0',
+      memberOverrides: { legacy_member_id: legacyId },
+    });
+    insertHistoricalPerson(db, { legacy_member_id: legacyId, person_name: 'Wiz Id' });
+
+    const candidateId = insertClubBootstrapLeader(db, {
+      club_id: expectedClubId,
+      legacy_member_id: legacyId,
+      role: 'leader',
+      status: 'provisional',
+    });
+    insertClubBootstrapLeaderSignal(db, {
+      bootstrap_leader_id: candidateId, signal_type: 'listed_contact', is_present: 1,
+    });
+    insertClubBootstrapLeaderSignal(db, {
+      bootstrap_leader_id: candidateId, signal_type: 'affiliation', is_present: 1,
+    });
+
+    svc.startTaskList(memberId);
+    const leaderCard = svc.listWizardCardsForMember(memberId).find((c) => c.kind === 'leadership');
+    if (!leaderCard) throw new Error('Expected a leadership card for this setup');
+
+    svc.submitClubAffiliationsResponse(memberId, {
+      kind: 'leadership',
+      candidateId: leaderCard.candidateId,
+      userDecision: 'confirm',
+      activitySignal: 'active',
+    });
+
+    const row = db.prepare(
+      'SELECT club_id FROM club_leaders WHERE member_id = ?',
+    ).get(memberId) as { club_id: string } | undefined;
+    expect(row?.club_id).toBe(stableClubId(legacyClubKey));
   });
 });
 

@@ -256,7 +256,7 @@ describe('claim-time birth-date comparison in audit metadata', () => {
   });
 
   it('a hard mismatch records mismatch, raises the admin queue item, and never blocks the claim', () => {
-    const { memberId, legacyId } = claimFixture({
+    const { memberId, legacyId, hpId } = claimFixture({
       memberBirthDate: '1985-07-10',
       legacyBirthDate: '1962-01-28',
     });
@@ -268,6 +268,10 @@ describe('claim-time birth-date comparison in audit metadata', () => {
     expect(items[0].queue_category).toBe('membership');
     expect(String(items[0].detail_text)).toContain('1985-07-10');
     expect(String(items[0].detail_text)).toContain('1962-01-28');
+    // Enriched so an admin can adjudicate without hunting: a member profile
+    // pointer and the linked historical record.
+    expect(String(items[0].detail_text)).toContain(`/members/slug_${memberId}`);
+    expect(String(items[0].detail_text)).toContain(hpId);
     // The claim itself went through: the legacy row is marked claimed.
     const legacy = db.prepare('SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?')
       .get(legacyId) as { claimed_by_member_id: string | null };
@@ -294,6 +298,37 @@ describe('claim-time birth-date comparison in audit metadata', () => {
     });
     svc.claimLegacyAccount(memberId, legacyId);
     expect(claimAuditMetadata(memberId).dob_comparison).toBe('legacy_dob_absent');
+    expect(mismatchQueueItems(memberId)).toHaveLength(0);
+  });
+});
+
+describe('historical-record claim records the birth-date comparison (record-only)', () => {
+  function hpClaimMetadata(memberId: string): Record<string, unknown> {
+    const row = db.prepare(
+      "SELECT metadata_json FROM audit_entries WHERE action_type = 'claim.historical_person' AND actor_member_id = ? ORDER BY created_at DESC LIMIT 1",
+    ).get(memberId) as { metadata_json: string } | undefined;
+    expect(row, 'claim.historical_person audit row').toBeTruthy();
+    return JSON.parse(row!.metadata_json);
+  }
+
+  it('a mismatch through the transitive legacy account is recorded but raises no queue item', () => {
+    const { memberId, hpId } = claimFixture({
+      memberBirthDate: '1985-07-10',
+      legacyBirthDate: '1962-01-28',
+    });
+    svc.claimHistoricalPerson(memberId, hpId);
+    expect(hpClaimMetadata(memberId).dob_comparison).toBe('mismatch');
+    // Record-only: the historical-record path never enqueues the mismatch review.
+    expect(mismatchQueueItems(memberId)).toHaveLength(0);
+  });
+
+  it('an identical date through the transitive legacy account records identical', () => {
+    const { memberId, hpId } = claimFixture({
+      memberBirthDate: '1985-07-10',
+      legacyBirthDate: '1985-07-10',
+    });
+    svc.claimHistoricalPerson(memberId, hpId);
+    expect(hpClaimMetadata(memberId).dob_comparison).toBe('identical');
     expect(mismatchQueueItems(memberId)).toHaveLength(0);
   });
 });

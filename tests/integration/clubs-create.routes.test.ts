@@ -89,7 +89,7 @@ beforeAll(async () => {
     reason_code: 'club_join_one_time_active_player_grant',
     new_active_player_expires_at: '2020-01-01T00:00:00.000Z',
   });
-  // A never-AP Tier 0 member: eligible for the first-club bootstrap.
+  // A never-AP Tier 0 member: without Active Player, cannot create a club.
   createMemberAtTier(db, { id: TIER0_NEVER_ID, slug: TIER0_NEVER_SLUG, tier: 'tier0' });
   createMemberAtTier(db, { id: VALID_ERR_ID, slug: VALID_ERR_SLUG, tier: 'tier1' });
   createMemberAtTier(db, { id: DUP_ID, slug: DUP_SLUG, tier: 'tier1' });
@@ -190,24 +190,23 @@ describe('POST /clubs/create', () => {
     expect(res.status).toBe(403);
   });
 
-  it('lets a never-AP Tier 0 member create a first club, granting the one-time Active Player period', async () => {
+  it('returns 403 for a never-AP Tier 0 member and grants no Active Player period', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/clubs/create')
       .set('Cookie', authCookie(TIER0_NEVER_ID))
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send(formData({ name: 'Bootstrap Footbag', city: 'Boulder', slug: 'boulder' }));
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/clubs/club_boulder');
+    expect(res.status).toBe(403);
 
-    // The create granted the one-time Active Player period, so the member is
-    // now an active player (and thus holds Tier 1 benefits).
+    // Creating a club requires Tier 1 benefits and grants no Active Player
+    // period, so a no-history Tier 0 member remains inactive.
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const ap = db.prepare(
       `SELECT is_active_player FROM member_active_player_current WHERE member_id = ?`,
     ).get(TIER0_NEVER_ID) as { is_active_player: number };
     db.close();
-    expect(ap.is_active_player).toBe(1);
+    expect(ap.is_active_player).toBe(0);
   });
 
   it('creates club on success and redirects to club page', async () => {
