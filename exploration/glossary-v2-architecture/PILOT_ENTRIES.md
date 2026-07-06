@@ -73,7 +73,7 @@ great clipper-landing families · the clipper kick · essay: Read a Trick Like a
 ---
 
 ## Around the World
-**Tier 3 · Foundational Base · Insight home: the full-orbit dex**
+**Tier 3 · Foundational Base · Connective**
 
 **Line.** From a toe stall, the foot lifts and carries the bag in a complete circle
 all the way around the outside of the leg, then catches it again on the same toe. The
@@ -86,16 +86,10 @@ started.
 side of the body — which sets it apart from its neighbors mirage and illusion, whose
 dexterities travel to the *opposite* side. Its own direct partner is orbit: the same
 full circle traced the other way. Both are one dexterity landing back on toe, and both
-score two points.
-
-**Reveals.** Around the World is the cleanest possible example of what a dexterity
-*is*: a full loop of the bag around the leg, beginning and ending on the same stall.
-Everything more advanced is a variation on the loop — shorten it and send it across
-the body and you have a mirage; add a spin during it and you have a torque; land it
-crossed instead of open and you have a whirl. Learn to see Around the World as the
-whole orbit, and every other dex becomes a piece of that orbit, bent or cut or
-decorated. It is not the easiest trick because it is trivial. It is the easiest trick
-because it is the *complete* one, and the rest are edits of it.
+score two points. It is the cleanest picture of what a dexterity is — one full loop
+around the leg, beginning and ending on the same stall — which is why the more advanced
+dexes read as pieces of that loop: a mirage is the loop cut short and sent across the
+body, a whirl the loop landed crossed instead of open.
 
 **Explore.** Orbit (the same circle reversed) · Mirage (the half-orbit to the far
 side) · Toe Stall (where it begins and ends) · essay: The Mirror Law.
@@ -134,7 +128,7 @@ full-orbit cousin) · essay: The Mirror Law · Torque (a mirage carried onto an 
 ---
 
 ## Illusion
-**Tier 3 (reference) · Points to: direction is structural (Mirage)**
+**Tier 3 · Connective**
 
 **Line.** An illusion is a mirage run backwards. The foot takes the bag across to the
 opposite side and home to a toe stall, exactly as a mirage does, but the dexterity
@@ -144,12 +138,9 @@ foot performing them, they are opposite motions.
 **Relates.** Illusion is one half of freestyle's most important pair. Its mirror is
 the mirage; the two share everything but their direction, and each has grown its own
 descendants — tricks built by adding operators to an illusion rather than to a mirage.
-Both land on toe, both score two.
-
-**Reveals.** Illusion is where you first feel the Mirror Law bite: it is not a "kind
-of mirage," it is mirage's reversal, and reversal makes a new trick. → See *Mirage*
-and the essay *The Mirror Law* for why direction counts as structure and not
-decoration.
+Both land on toe, both score two. It is not a "kind of mirage" but mirage's reversal,
+and reversing a dex makes a new trick — the direction-is-structural idea that the Mirror
+Law (home: Mirage) states in full.
 
 **Explore.** Mirage (its mirror) · essay: The Mirror Law · tricks built on illusion
 (browse by base).
@@ -205,7 +196,7 @@ how a single distinction became two families.
 ---
 
 ## Orbit
-**Tier 3 (reference) · Points to: the full-orbit dex (Around the World)**
+**Tier 3 · Connective**
 
 **Line.** An orbit is Around the World traced the other way — the same complete circle
 of the bag around the leg, the same same-side toe-to-toe journey, run in reverse. If
@@ -215,11 +206,10 @@ Around the World is the loop drawn clockwise, orbit is the loop drawn counter.
 the mirror of mirage. The four of them — Around the World and orbit on the same side,
 mirage and illusion across the body — are the four two-point atoms, and they map out
 freestyle's two structural axes at once: which side the bag travels to, and which
-direction it circles.
-
-**Reveals.** Orbit completes a quietly beautiful square: two mirror pairs at the same
-difficulty, one pair same-side, one pair opposite-side. → See *Around the World* for
-the full-orbit idea, and *The Mirror Law* for why the reverse is its own trick.
+direction it circles. Together they complete a quiet square: two mirror pairs at the same
+difficulty, one same-side, one opposite-side — and orbit being its own trick rather than a
+backwards Around the World is the direction-is-structural idea the Mirror Law (home:
+Mirage) states in full.
 
 **Explore.** Around the World (its mirror) · Mirage and Illusion (the opposite-side
 pair) · essay: The Mirror Law.

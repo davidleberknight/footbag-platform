@@ -91,7 +91,7 @@ pacing finding (one revelation per cluster; do not stack three keystones in six 
 | Toe Stall | **home** | ✔ | receiving state (canonical) |
 | Clipper Stall | **home** | ✔ | receiving state (canonical, shared with Toe) |
 | Mirage | **home** | ✔ | direction is structural → Mirror Law |
-| Whirl | **home** | – | whirl/swirl: one distinction, two lineages |
+| Whirl | connective | – | clipper-context mirage; surface-frame worked example (home: Surface Frame) |
 | Blur | **home** | – | the algebra, rung 1 (name level) → Name vs Structure |
 | Torque | **home** | – | the algebra, rung 2 (formula level) |
 | Butterfly | **home** | ✔ | the algebra, rung 3 (family level) |
@@ -100,15 +100,17 @@ pacing finding (one revelation per cluster; do not stack three keystones in six 
 | Osis | connective | ✔ | (Core-atom; feeds Torque/Blender — insight lives at Torque) |
 | Orbit | connective | – | reverse ATW; Mirror Law link in Relates |
 | Illusion | connective | – | mirage reversed; direction-is-structural link in Relates |
-| Swirl | connective | – | whirl's mirror; two-lineages link in Relates |
+| Swirl | connective | – | whirl's mirror; surface-frame worked-example link in Relates |
 | Blender | connective | – | whirling osis, torque's twin; algebra link in Relates |
 | Barrage | connective | – | two-dex set; furious=barraging note in Relates |
 | Double Over Down | connective | – | down-family member; link to Double Down |
 
-Eight homes across fifteen entries, and three of those homes (Blur, Torque, Butterfly)
-are one insight at three depths (§3). **Foundational Skill and insight-home are
-independent properties** (§6): Toe Stall is both; ATW is a Skill but not a home; Whirl
-is a home but not a Skill.
+Seven homes across fifteen entries, and three of those homes (Blur, Torque, Butterfly)
+are one insight at three depths (§3). Whirl and Swirl are not homes: they are the
+clipper-world worked examples of the surface-frame insight (row 6), which is their home,
+not a standalone whirl/swirl keystone. **Foundational Skill and insight-home are
+independent properties** (§6): Toe Stall is both; ATW is a Skill but not a home; Blur is
+a home but not a Skill.
 
 ---
 
