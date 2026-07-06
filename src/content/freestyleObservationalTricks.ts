@@ -133,10 +133,11 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   // 'big-apple' is omitted: already canonical in freestyle_tricks
   // (adds=6, base_trick='torque'). Source PB readings are cited in the
   // canonical row's red_additions entry.
-  // 'bladerunner' is kept observational: a dex-count canonical publication
-  // created confusion in rendered dictionary surfaces, so the curator
-  // reverted it and keeps this row in Emerging Vocabulary until a
-  // canonical-bracket reading is authored.
+  // 'bladerunner' is omitted: canonical in freestyle_tricks (adds=4,
+  // base_trick='eggbeater'). Decomposes to atomic eggbeater = atomic(+1) +
+  // eggbeater(3) = 4; the X-Dex does not fire on the legover-family base.
+  // The FootbagMoves reading of 5 (recursive atomic naming) is
+  // non-authoritative.
   // 'bling-blang' is omitted: now canonical in freestyle_tricks.
   // 'blurrage' is omitted: promoted to canonical via the
   // doctrine-divergence pilot. IFPA-derived ADD 4 (stepping + barrage);
