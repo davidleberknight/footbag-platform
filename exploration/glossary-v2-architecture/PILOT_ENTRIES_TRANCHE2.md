@@ -133,18 +133,17 @@ live).
 ## Blurry
 **Operator (composite) · connective**
 
-**Line.** Blurry is a composite operator: a stepping entry that also carries a paradox.
-The name is shorthand for "stepping paradox," and it is the operator that turns a mirage
-into a blur.
+**Line.** Blurry is folk shorthand for a stepping-based operator — not a single fixed
+value. In some named tricks it resolves as stepping alone; in others as stepping plus
+paradox. It is the operator that turns a mirage into a blur.
 
-**Relates.** Because blurry bundles two operators, it is the first place a *name* hides a
-small formula: blur is blurry mirage, which unfolds to stepping + paradox + mirage (see
-Blur, and Name vs Structure). One caution the dictionary itself carries: blurry has two
-recorded readings. In the modifier registry it is stored as a flat one point ("blurry
-just implies stepping"), but in named tricks like blur it reads as the full
-stepping-plus-paradox composite (two points). So blur decomposes cleanly as a teaching
-example, while the exact weight of "blurry" in isolation is a doctrine detail, not a
-settled single number.
+**Relates.** Blurry is the first place a *name* hides a small formula, but the formula is
+not fixed: blur is blurry mirage, which unfolds to stepping + paradox + mirage, while
+ripwalk is blurry butterfly, where blurry is stepping alone (see Blur, and Name vs
+Structure). So the reader should always read the named trick's own decomposition rather
+than adding a fixed "blurry" value — the label compresses a stepping-based stack, and which
+stack depends on the trick. The exact weight of "blurry" in isolation is a doctrine detail,
+not a settled single number.
 
 **Explore.** Blur (blurry mirage — the front-door case of a name hiding a formula) ·
 Stepping and Paradox (the two operators inside it) · Mirage (the atom it modifies) ·
