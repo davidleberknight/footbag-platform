@@ -130,6 +130,11 @@ def load_additions(conn: sqlite3.Connection, additions_csv: Path, loaded_at: str
             aliases = parse_pipe_list(row.get("aliases"))
             modifier_links = parse_pipe_list(row.get("modifier_links"))
             trick_family = compute_trick_family(canonical_name, base_trick, category)
+            # base_trick is a slug reference to another trick, so it must use the
+            # same underscore form as the slugs it points at; the additions CSV
+            # sometimes carries the hyphenated spelling. Normalize the stored value
+            # (the family computation above already normalizes internally).
+            base_trick_slug = trick_name_to_slug(base_trick) if base_trick else None
 
             red_trick_slugs.append(slug)
 
@@ -137,7 +142,7 @@ def load_additions(conn: sqlite3.Connection, additions_csv: Path, loaded_at: str
                 "slug": slug,
                 "canonical_name": canonical_name,
                 "adds": adds,
-                "base_trick": base_trick,
+                "base_trick": base_trick_slug,
                 "trick_family": trick_family,
                 "category": category,
                 "description": description,
@@ -289,9 +294,19 @@ def load_corrections(conn: sqlite3.Connection, corrections_csv: Path, loaded_at:
                 skipped.append((slug, field, "trick not found"))
                 continue
 
+            # trick_family and base_trick are slug-valued relationship columns:
+            # additions and the curated loader generate them via trick_name_to_slug
+            # (lowercase, underscores), so a correction whose new_value carries
+            # hyphens (e.g. "clipper-stall") would write a drifted duplicate that
+            # splits a lineage or breaks a base-trick reference. Normalize it to the
+            # same canonical form the rest of the column uses.
+            write_value = new_value
+            if field in ("trick_family", "base_trick"):
+                write_value = trick_name_to_slug(new_value)
+
             conn.execute(
                 f"UPDATE freestyle_tricks SET {field} = ?, updated_at = ? WHERE slug = ?",
-                (new_value, loaded_at, slug),
+                (write_value, loaded_at, slug),
             )
 
             # Record divergence on prior source_links so the QC report surfaces it.
