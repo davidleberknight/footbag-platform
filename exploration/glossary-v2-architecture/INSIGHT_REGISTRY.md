@@ -27,31 +27,75 @@ list, and it is here.
 |---|---|---|---|---|---|
 | 1 | **Direction is structural** — reversing a dex makes a different trick, not a variant | Mirage *(flagship)* | Illusion, Orbit, Around the World, Whirl, Swirl | The Mirror Law | V1.1 |
 | 2 | **Side is structural** — same-side vs opposite-side is part of what a trick is, a second axis beside direction | Side *(planned — Core Concept)* | Mirage, ATW/Orbit vs Legover/Pickup | The Mirror Law | V1.1 |
-| 3 | **Stalls are receiving states, not tricks** — a trick is a journey between stalls; the difficulty is the trip, not the landing | Toe Stall *(flagship)*; Clipper Stall shares | every landing atom | — | V1.1 |
+| 3 | **Stalls are anchor states** — a stall is a stable place the bag rests; many tricks are journeys between stable contact states, and the difficulty is the trip, not the landing — though not every trick is stall-to-stall (kicks, pure body tricks, and dexterity-only sequences are not) | Toe Stall *(flagship)*; Clipper Stall shares | landing atoms | — | V1.1 |
 | 4 | **Every trick terminates in one of twelve core atoms** — a bounded alphabet under a sprawling vocabulary | Core Atoms *(planned — vocabulary section)* | all compound entries | — | V1.1 |
 | 5 | **The vocabulary is a small algebra wearing many names** — three rungs: a short name hides a structural name (rung 1) → a primitive-sounding name is a base plus an operator (rung 2) → a whole named family is one atom extended (rung 3) | Blur *(flagship, rung 1)*; Torque *(flagship, rung 2)*; Butterfly *(flagship, rung 3)* | Blender, Eggbeater, and most compounds | Name vs Structure | V1.1 |
-| 6 | **Whirl and swirl are one distinction, two lineages** — a single directional difference that seeded two entire families | Whirl *(flagship)* | Swirl | The Mirror Law (as illustration) | V1.1 |
+| 6 | **Surface frame changes meaning** — a dex is not interpreted in the abstract; its identity depends on the set surface, support leg, dexing leg, receiving surface, and same/opposite body relation | Surface Frame *(planned — Core Concept)* | Whirl, Swirl (worked examples); Mirage and Around the World as their toe-context analogues | — | V1.1 |
 | 7 | **A family can be one structure in several variants** — a family name can hide a single generative structure appearing in set/foot variants | Double Down *(flagship)* | Double Over Down, the down family members | — | V1.1 |
 | 8 | **Sets vs operators is a question of role, not mechanic** — the same movement is a set when it launches and an operator when it modifies | Set vs Operator *(planned — Core Concept)* | Barrage/furious, every operator entry | — | V1.1 |
-| 9 | **One operator can wear many names** — merges: furious = barraging, atomic = illusioning | Operator-naming *(planned)*; Barrage carries the furious=barraging thread meanwhile | Barrage, Blender, Fury | — | V1.1 (as Relates thread); full home V1.2 |
+| 9 | **One operator can wear many names** — a name-merge is valid only when structural identity *and* surface/leg-role frame match; a mere execution-flavor difference does not block a merge, a frame difference forbids one (furious = barraging; atomic = illusioning, identical in the same frame, differing only in leggier execution flavor) | Operator-naming *(planned)*; Barrage carries the furious=barraging thread meanwhile | Barrage, Blender, Fury | — | V1.1 (as Relates thread); full home V1.2 |
 | 10 | **The bracket count equals the ADD** — the notation audits its own arithmetic; the reader can verify it | Notation/ADD *(planned — notation section, late in the spine)* | ADD entries | Read a Trick Like an Expert | **V1.2** (notation entries are late; the essay is V1.2) |
 | 11 | **The vocabulary is bounded** — a ceiling at 8, and valid unnamed structures beyond it; freestyle is still open | Frontier *(planned — teaser entry)* | the 8-ADD ceiling tricks | The Frontier | V1.1 (teaser + essay) |
 
 ## Notes on shape
 
-- **Eleven insights, not twelve or "about a dozen."** The collapse of the three algebra
-  facets into one (row 5) is the whole reason this registry exists; do not re-split them.
-- **Insight homes cluster in the flagship + tranche-2 set.** Rows 1, 3, 5, 6, 7 are
-  fully home-validated by written pilot entries. Rows 2, 4, 8 need Core-Concept entries
-  (near-term, tranche 2 territory). Rows 9, 10, 11 have planned homes further out; row 10
-  is explicitly V1.2 because notation sits late in the dependency-graph order.
+- **Eleven insights, held by swap, not growth.** The standalone whirl/swirl insight was
+  retired and "Surface frame changes meaning" (row 6) added in its place: whirl/swirl are
+  not their own keystone, they are the clipper-world worked example of the broader
+  surface-frame axis. The collapse of the three algebra facets into one (row 5) remains a
+  hard rule; do not re-split them, and do not force a twelfth.
+- **Insight homes cluster in the flagship + tranche-2 set.** Rows 1, 3, 5, 7 are fully
+  home-validated by written pilot entries. Rows 2, 4, 6, 8 need Core-Concept entries
+  (near-term, tranche 2 territory) — row 6's home is a dedicated Surface Frame Core
+  Concept, with the existing Whirl and Swirl entries serving as its worked examples, not
+  its home. Rows 9, 10, 11 have planned homes further out; row 10 is explicitly V1.2
+  because notation sits late in the dependency-graph order.
 - **Foundational Physical Skills are not on this list.** Being a learner gateway (Toe
   Stall, Clipper Stall, ATW, Mirage, Butterfly, Osis) is a separate property from being
   an insight home. Some Skills are homes (Toe Stall, Mirage, Butterfly); some are not
   (ATW, Osis, Clipper... — Clipper shares row 3). Do not conflate the two lists.
 - **Mirror Law is an essay, not a registry row.** It is the public face of insights 1
-  and 2 (and illustrated by 6). The registry holds the insights; the essay assembles
-  them.
+  and 2 (direction and side). The registry holds the insights; the essay assembles them.
+  Surface frame (row 6) is a separate axis, not a mirror concept, so it is taught in its
+  own Core Concept entry rather than folded into the Mirror Law essay; the three geometry
+  axes (direction, side, surface frame) must be spaced in the reading order, never stacked
+  as consecutive reveals.
+
+## Surface frame (row 6) — mappings, the three levels, and a verification hold
+
+**Verification hold (before public prose).** The toe↔clipper mappings below are a
+structural claim about the vocabulary, recorded as ratified but **not yet checked against
+the operational notation.** Verify them against `freestyle_tricks.operational_notation`
+for whirl, swirl, mirage, and around-the-world before any public glossary prose on this
+insight is authored.
+
+**Corrected mappings (teach these):**
+- Whirl is the clipper-context Mirage.
+- Swirl is the clipper-context Around the World.
+- A dex's meaning is re-derived per surface context, not transferred mechanically; the
+  honest analogy is rarely the one a beginner expects.
+
+**Wrong analogies (do NOT teach):**
+- Mirage / Legover :: Whirl / Swirl — the wrong grid.
+- Swirl is a clipper Legover — false.
+
+**Direction stays a separate axis** — every trick has a direction mirror within its own
+surface context: Mirage / Illusion; Around the World / Orbit; Whirl / Whip; Swirl /
+Reverse Swirl.
+
+**Three levels of "different" (every sameness / merge judgment runs through this ladder):**
+1. **Structural identity** — same operator or trick in the same frame; a name-merge is
+   valid (row 9).
+2. **Surface frame** — set surface, support leg, dexing leg, receiving surface, and the
+   same/opposite body relation; a difference here is structural (row 6).
+3. **Execution flavor** — how a trick feels (leggier); not structural, never a separate
+   operator, preserved as a note.
+
+**Atomic / illusioning — the cautionary merge case.** Atomic and illusioning are
+structurally identical in the same surface/leg-role frame; illusioning preserves a leggier
+execution flavor (level 3). Do not reopen it as a separate operator, and do not use it to
+justify erasing a real surface-frame difference elsewhere. It is the canonical teaching
+example that separates the three levels.
 
 ## What this file is not
 
