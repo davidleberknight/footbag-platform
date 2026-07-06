@@ -159,24 +159,211 @@ Pipeline defects, deviations, and cleanup the cutover load and onboarding matchi
 
 **Surface propagation rule (definition of done for freestyle slices; a standing rule, not a task — do not delete when items close).** Any freestyle update — a promotion, a doctrine change, a classifier change, or a content backfill — must propagate to every affected surface before the slice is considered complete. A change is not complete merely because the source row was edited. Affected surfaces, as applicable: canonical trick data; aliases / duplicate archive; Emerging Vocabulary; the observational universe; tracked names; ADD analysis; trick detail pages; browse / search; operator / modifier pages; set pages; family surfaces; media / related-trick projections; metrics / counts / copy; generated content files (`src/content/freestyleObservationalUniverse.ts`, `freestyleTrackedNames.ts`, and their peers); and tests / QC gates. For every slice, explicitly verify one of: (1) all affected surfaces were updated and regenerated, or (2) a surface is intentionally unchanged, with the reason documented. This applies to human and AI work alike.
 
-**Current working order (curator-set) — the Editorial Release Phase.** Work is not a numbered roadmap: every slice must directly improve what a public visitor sees, and internal cleanup, repository work, and pipeline documentation are intentionally deferred until editorial completion. Four phases run in order — Phase A, public encyclopedia polish, the release bar, as four ordered sub-phases plus a running usability pass read as an advancing intermediate freestyler (A1 the four foundational model pages Down, Swirling Whirl, Osis, and Whirling Swirl, each teaching rather than merely describing; A2 history; A3 encyclopedia connectivity; A4 the public-honesty pass, last, so it polishes a finished encyclopedia); Phase B, dictionary completion; Phase C, architecture; Phase D, repository. Two release-bar gates before V1 is declared: every foundational and important page passes the four-audience review (a novice understands it, an advancing player learns from it, an expert trusts it — both the doctrine-and-fact check against `freestyle/doctrine/*` and the editorial-authority read as a long-time freestyler — and an editor would recommend it), and the site-level Hour Test (browse for an uninterrupted hour as an interested freestyler, fix whatever makes you want to stop and edit, repeat until the hour runs clean). The full phase definitions, the rubric, and the dependency reasoning are in `exploration/v1-completion-audit-2026-07-03/MASTER_ROADMAP.md` section 2a, which is authoritative for the detail.
+**State of freestyle (standing summary).** The freestyle encyclopedia is release-ready
+at Version 1; this block records where it stands so the section below carries only
+what genuinely remains.
+
+- *Implementation.* The dictionary (about 900 active canonical tricks, every one
+  terminating in a core atom, bracket-count equal to published ADD enforced per row),
+  the notation system (movement and execution notation with per-token roles), the
+  family system (display tiers over a stable roster), the operator/modifier system
+  (single authority in the operator reference, registry consistent), the glossary,
+  the set and compositional-set surfaces, search with alias and typo resolution,
+  records with source-recorded ADD explicitly distinguished from canonical ADD, and
+  the curated media galleries are all live and internally consistent.
+- *Scholarship.* The source-reconciliation series under
+  `freestyle/doctrine/reconciliation/` (FootbagMoves, PassBack, Stanford, and the
+  executive summary) is complete: across three outside lineages and over a thousand
+  compared readings, exactly one genuine contradiction surfaced (Bladerunner), and it
+  is resolved in the dictionary (canonical 4, the outside 5 recorded as
+  non-authoritative).
+- *Doctrine.* The first Red packet is sent and its answers are awaited; the remaining
+  first-edition doctrine papers (`freestyle/doctrine/papers/0..5`) are drafted,
+  committed, and deliberately unsent. Every unresolved doctrine question is isolated
+  where it cannot leak into published values: the blocked items below, the
+  Quantum-versus-Miraging question in Deferred, and the divergence registries in the
+  content layer.
+- *Promotion.* The major promotion arc is finished: everything independently
+  derivable from the sources is promoted, the clean no-cascade runway is exhausted,
+  and the curator's one-line-call queue is cleared. What remains unpromoted is
+  blocked on genuine doctrine questions, not implementation gaps.
+- *Release.* The adversarial release audit ran against the rendered site; its four
+  blockers and four should-fix items are fixed and re-verified against rendered
+  output; the full test suite is green. Version 1 is ready to freeze.
 
 - **[PRE-KANBAN] Author the missing freestyle-dictionary user stories (James drafts; Dave approves the canonical-doc edit).** The freestyle dictionary is the platform's largest deployed public surface — the mounted routes `/freestyle/tricks`, `/freestyle/tricks/:slug`, `/freestyle/search`, `/freestyle/sets`, `/freestyle/sets/:slug`, `/freestyle/glossary`, `/freestyle/operators`, `/freestyle/modifier/:slug`, `/freestyle/learn`, `/freestyle/observational`, `/freestyle/insights`, `/freestyle/notation-article`, `/freestyle/progression/*`, `/freestyle/competition`, `/freestyle/partnerships`, `/freestyle/leaders`, `/freestyle/history`, `/freestyle/about`, and `/freestyle/compositional-sets` in `src/routes/publicRoutes.ts` — but no `docs/USER_STORIES.md` story covers it: only `V_View_Tutorials` and `V_View_Trick_Reference_Videos` touch freestyle, and the deployed-surface rule (`.claude/rules/deployed-surface.md`) requires every deployed route to trace to a named story. Write the missing visitor stories in `docs/USER_STORIES.md` following the existing story pattern exactly: a `### V_...` header, an Access line, a `Story:` line in the form "As a visitor, I want to understand technical freestyle ... so that ...", then a `Success Criteria:` bullet list naming the concrete behaviors each page must satisfy. Scope the stories so each deployed dictionary surface (trick index and detail, sets, glossary, operators and modifiers, notation and insights, learning and progression, observational / emerging vocabulary) is covered by exactly one story or an explicitly shared story. James supplies the freestyle domain intent; the stories describe design intent, never implementation status. Editing `docs/USER_STORIES.md` is a canonical-doc change and needs Dave's explicit approval of the drafted text before it lands. Done when every mounted `/freestyle/*` route in `src/routes/publicRoutes.ts` traces to a named story in `docs/USER_STORIES.md` and the new stories carry success criteria in the existing format.
-- **[PRE-KANBAN] Source a replacement video for the sole survivor trick (curator).** This trick's only curated video went private, so its page has no demo (the embed is hidden by the `#unavailable_embed` tag). The clip was originally attached under the structural name spinning symposium whirl; that duplicate row has since been retired and merged into sole-survivor, which kept the notation and aliases, so the replacement belongs on sole-survivor's page. A curator needs to find a live replacement clip to restore coverage. Note: the records loader (`10_load_freestyle_records_to_sqlite.py`) is additive (INSERT OR IGNORE, no DELETE), so edits to existing record rows only take effect on a fresh database build, not an in-place rebuild.
-- **[BLOCKED] Link the remaining unresolved world-record videos to their tricks (Red/curator input needed).** Of the 165 record trick names, about ten still do not resolve to any active trick or alias, so those records badge nowhere (the spelling and folk variants are wired, the mechanical residual is exhausted, and the same-side positional records were resolved under the ratified positional mapping). Two small buckets remain, each blocked on a human decision. **With Red (all included in the Wave 3 letter's rider list):** "Solestice" (an undefined "osis flapper" operator), "Double Dyno" and "Double Whip" ("double" is a structural prefix, and the "(rev)" reading is ambiguous), "Toe Spinning Toe" and "Blink" (degenerate structures with no exemplar), and "Stepping Ducking Blurry Whirl" (the folk name reads four operators at 6 ADD, the structured name two operators at 5). **With the curator:** five "(ss)" records whose same-side qualifier is ambiguous between two components — "Double Leg Over", "Eggbeater", "Fairy Double Leg Over", "Pigbeater", and "Smog" — plus "Pixie DSO (ss)", blocked until its base trick has operational notation; the per-row evidence is on the positional curator worklist at `exploration/positional-evidence-audit-2026-06-23/CURATOR_WORKLIST.md`. Separately, three "Unique N-Dex"/"Unique N-ADD" entries are consecutive-dex record categories, not tricks, and correctly badge nowhere.
-- **[BLOCKED] Freestyle trick-promotion decisions (needs the curator and Red).** Everything independently derivable from the sources is promoted, and the curator's one-sitting micro-ruling session cleared the one-line-call queue (outcomes recorded at `exploration/curator-rulings-2026-07-02/RULINGS.md`); the live open-question list for what remains is `freestyle/doctrine/RED_QUEUE.md`. **With Red (the Wave 3 letter, see Blockers):** the blurry expansion predicate (when a blurry-named trick carries the paradox term, 64 rows plus ten deferred blurry-form aliases), the embedded-base labeling rule for down-family operator compounds (the one still-open half of the down question: Red has ruled the downs one family — a single structural decomposition with set/foot variants — which settles the grid itself; the three shipped base-label tension rows and any relabeling that depends on the frame stay deferred; evidence packet at `exploration/dod-ddd-evidence-pass-2026-07-02/RED_PACKET_A1_REVISED.md`), the structural definitions of blazing, flailing, slapping, and blistering (their ADDs are already evidenced), the cross-body rake base, the terraging chain rider, and the original rider list (repeated-operator scoring, jani-walker structure, the general osis-suffix rule, arctic, solestice, blink, motorfly). **With the curator, all that remains:** the POD-versus-Dimmier duplicate, which needs a video viewing to settle; the Kiwi source-internal contradiction; what Clipper Symposium Whirl is structurally; and the atomic-pickup alias target — "atomic pickup" is already omelette's alias carrying Red's own naming ruling (omelette = illusioning pickup, and illusioning later merged into atomic), while scrambled-eggbeater is the byte-identical structure, so rebinding it without an explicit call would silently overwrite Red-sourced naming. **Authoring-only remainder, no decisions needed:** operational notation for the nine promoted PassBack down-family folk tricks, and the five weaving stacks whose ducking mirror is not yet canonical (the fourteen whose ducking mirror was already canonical are promoted; each of the five authors when its ducking parent lands).
-- **[KANBAN] De-epoch the inline labels remaining in the freestyle test files.** The comments rule requires test filenames, `describe`/`it` text, and file-header comments to state the long-term contract in plain words, with no sprint, slice, phase, wave, person-epoch, or dated labels. The filename-level renames are done; remaining is the inline-only sweep: roughly 120 freestyle test files (about 23 unit and 100 integration) keep slice/wave/phase/date labels in body comments and `describe` text, for example `tests/unit/freestyleSymbolicEquivalences.test.ts` and `tests/unit/freestyleMovementSystems.test.ts`; this also covers the inline body comments left in the four just-renamed integration tests that still carry dated labels (`freestyle.dictionary-glossary-cross-links`, `freestyle.dictionary-glossary-regression`, `freestyle.glossary-content-expansion`, `freestyle.symbolic-notation-precedence`); the six `freestyleNotation.*-cohort` unit files are already clean. Leakage-prevention assertions that name the forbidden labels on purpose (a test asserting the rendered public HTML does not contain `Slice X` / `Wave-N`) are contract text and must stay. Some `Wave N` mentions refer to the rules-expert consultation rounds rather than a delivery sprint, so judge each. This item covers only the delivery-epoch labels (sprint, slice, phase, wave, person-epoch, dated) in the test filenames, `describe`/`it` text, and comments. It is kept separate from the freestyle reference-and-comment cleanup item below, which fixes a different defect in some of the same files, an embedded design-doc or section reference rather than a delivery label, and which is the home for the `src/content/freestyle*.ts` and `src/services/freestyleService.ts` source residue this note previously pointed at.
-- **[KANBAN] Strip the embedded design-doc references from freestyle and curator comments, and repoint the removed-plan references (James).** A repository sync pass found design-doc and section references embedded directly in freestyle and curator comments, plus stale pointers to the removed `legacy_data/IMPLEMENTATION_PLAN.md` (consolidated into this single root plan). The standard for every edit in this item: strip the bare reference rather than relocate it; replace it with verified plain English that states the point, read and confirmed against the cited design source rather than guessed; where a pointer genuinely aids a source comment, name the target section by its durable title, never its number, which rots silently on renumber; and in test files strip the reference outright, because the test-comment rule permits no doc or section reference at all, not even a title. Three parts. (1) Eight freestyle test files embed doc or section references (`DD §`, `US §`, `glossary §`, `doctrine lock §`), about 25 in total, 18 of them in `tests/integration/freestyle.routes.test.ts` and one or two each in `freestyle.trick-kind-filter.routes.test.ts`, `freestyle.trick-compressed-from.routes.test.ts`, `freestyle.glossary-equivalence-topology.routes.test.ts`, `freestyle.dictionary-glossary-regression.routes.test.ts`, `freestyle.dictionary-glossary-cross-links.routes.test.ts`, `freestyle.avalanche-spike-hammer.routes.test.ts`, and `freestyle.add-analysis.routes.test.ts`; some `glossary §` / `doctrine lock §` hits point at an in-repo freestyle structure rather than a canonical doc, so verify each one's target before rewording. (2) The freestyle content and service source carries the same embedded-reference and planning-jargon residue in `src/content/freestyle*.ts` and `src/services/freestyleService.ts`; reword to verified plain English, and keep every `phase` / `stage` / `slice` that names a real pipeline stage rather than a delivery sprint, since blanket-stripping those would corrupt accurate pipeline-stage descriptions. (3) Three exploration scratch files still cite the removed `legacy_data/IMPLEMENTATION_PLAN.md` (`exploration/symbolic-grammar-2/SYMBOLIC_GRAMMAR_2_DESIGN.md`, `exploration/freestyle-notation-grammar/GRAMMAR_GLOSSARY_V3.md`, `exploration/freestyle-media-ingestion-2026-05-29/ARCHITECTURE.md`); repoint each to the root `IMPLEMENTATION_PLAN.md` by name or drop it as superseded scratch, and fold this into the `exploration/` go-live disposition pass if that lands first. The operator-facing pointer in `legacy_data/run_pipeline.sh` is already repointed to `runbooks/rebuild-identity-pipeline.md`, the accurate target for its missing-identity-lock-CSV error. A bare `DD §` locator sitting beside a complete self-contained explanation in freestyle or curator source is tolerated by the comments rule and is out of scope here. Done when the eight test files and the named source files carry no embedded doc or section reference, the three exploration files no longer cite the removed plan, and `npm run build` stays green.
-- **[KANBAN] Decide the go-live disposition of the `exploration/` working corpus.** `exploration/` holds the freestyle working history (audit packets, decision packets, handoffs, curator notes) as roughly 1,000 tracked files across about 130 dated subfolders, committed at the repo root. Part of it is load-bearing: this plan and several `.claude/skills/*` cite exact files inside it (for example `exploration/doctrine-audit-2026-06-19/DECISION_PACKET.md` and `exploration/emerging-vocab-taxonomy-2026-06-20/UNDEFINED_OPERATOR_INVENTORY.md`), while most is superseded scratch. Before go-live there must be a plan for the directory: which packets are promoted into the canonical docs or the `freestyle/inputs/` and kept, which move into `exploration/_archive/`, and whether the corpus stays tracked at the repo root or moves out of the committed tree. Any relocation must repoint the citing references in this plan and in the skills in the same change so no path dangles.
-- **[KANBAN] Member Tips follow-ups: remap the unresolved recovered tips and mine the legacy text into the coaching fields.** The recovered footbag.org Member Tips are live on trick detail; the grouped review artifact `freestyle/reports/member_tips_unmatched.json` (gitignored) lists every non-published tip by bucket and slug so a curator can remap without re-running discovery. Remaining work: (a) author or promote the unresolved freestyle compounds (barraging-paradox-mirage, stepping-paradox-symposium-whirl, stepping-down-double-down, clipper-set-illusion, pixie-same-side-butterfly), after which their tips remap automatically; (b) resolve pogo (a frontier operator) and the atomic-double-over-down-versus-fusion identity question before remapping those two; (c) net tips wait for net technique pages; (d) highest-leverage: mine the recovered legacy descriptions (`freestyle/inputs/footbag_org_moves_metadata.ndjson`) and Member Tips to fill `execution_summary` / `learning_notes` / `prerequisite_notes` on the most-read trick pages (target the ~200 most-read pages, not all tricks), rather than just replacing `description`; (e) the v2 candidates (author attribution behind the public-individual-names governance decision, per-trick records surfacing, description reconciliation) stay deferred. Re-running loader `freestyle/loaders/27_load_trick_tips.py` requires a fresh DB build (it is wired into `run_freestyle.sh`).
-- **[KANBAN] Four tricks are deferred for Technique Notes because no honest source exists (not skipped work).** Phase B populated the coaching fields (`execution_summary` / `learning_notes` / `prerequisite_notes`) across the most-read trick set, but left these four blank on purpose, each with a specific unblock condition: `atomic_reverse_guay` — no instructional source; the available evidence is only the ADD / decomposition. `paradox_whirling_swirl` — structural identity is known, but there is no trustworthy execution description. `quantum_guay` and `quantum_legover` — the quantum modifier's physical mechanics are not documented well enough to coach; this is tied to the open "Quantum and Miraging: one set or two?" question in the Deferred / parked section. Unblock each by supplying a trustworthy execution source (a legacy footbag.org description, a recovered Member Tip, or curator prose), or for the quantum pair by settling the quantum modifier's mechanics; then author the three fields. Done when each of the four carries source-grounded Technique Notes, or is confirmed to have no authorable source and removed from this list.
-- **[KANBAN] Author the remaining Set Encyclopedia teaching pages (settled sets only).** Authoring proceeds set by set as each is settled, on the frozen set template in `src/services/symbolicSetEducation.ts` (rendered by `src/views/freestyle/set-detail.hbs`; `/freestyle/modifier/<set>` 301-redirects to `/freestyle/sets/<set>` once a set has an authored page). Gate before authoring any set page: the concept has a `src/content/freestyleCanonicalSets.ts` entry whose `source` is not `holden-only` and is not a frequency or purely historical artifact; a concept is a set or an operator by its compositional role (does it launch a trick or modify an existing one), not by the mechanic it embeds. Still queued (pass the gate, not yet authored): Atomic, Miraging, Quantum, Barraging (Furious), Nuclear. Held by the gate (document as cross-references, never author pages): Sailing, Shooting, and Railing (their set readings are `holden-only`), and Rooted and Splicing (set-type modifiers with no canonical-set entry). The intentionally held Zulu/Weaving frontier stays held: the five stacks whose ducking mirror is not yet canonical, folk names, and positional variants. Done when every queued set has a page on the template and the held concepts are documented as cross-references rather than pages.
-- **[KANBAN] Tag the BAP Individual Shred Collection clips by trick and set (human viewing pass).** The 72 curated player videos in the era-grouped BAP galleries are full multi-trick shred routines with no per-video trick data, so trick and set tags cannot be derived from metadata and must not be inferred; a curator watches each clip and applies the per-trick/set tags. The collection's remaining membership gaps (3 HOLD cases, 7 members with no known video, 1 rejected source) are intentional, not defects, and need no action.
+**Doctrine — blocked on external answers (the isolated unresolved set).**
 
+- **[BLOCKED] Trick-promotion decisions (Red Wave 3, sent; curator).** With Red:
+  the blurry expansion predicate (the largest gate, 64 rows plus ten deferred
+  blurry-form aliases), the embedded-base labeling frame for down-family compounds,
+  the structural definitions of blazing, flailing, slapping, and blistering, the
+  cross-body rake base, the terraging chain, and the rider list (repeated-operator
+  scoring, jani-walker, the osis-suffix rule, arctic, solestice, blink, motorfly).
+  With the curator: the POD-versus-Dimmier duplicate (needs a video viewing), the
+  Kiwi source-internal contradiction, Clipper Symposium Whirl's structure, and the
+  atomic-pickup alias target (rebinding it would silently overwrite Red-sourced
+  naming, so it waits for an explicit call). Authoring-only remainder needing no
+  decision: operational notation for the nine promoted PassBack down-family folk
+  tricks, and the five weaving stacks that author as their ducking parents land.
+  The live question list is `freestyle/doctrine/RED_QUEUE.md`.
+- **[BLOCKED] The last ~10 unresolved world-record trick names.** The mechanical
+  residual is exhausted; each survivor needs a human ruling. With Red (all in the
+  Wave 3 rider list): Solestice, Double Dyno, Double Whip, Toe Spinning Toe, Blink,
+  and Stepping Ducking Blurry Whirl. With the curator: five same-side records whose
+  qualifier is ambiguous between two components (Double Leg Over, Eggbeater, Fairy
+  Double Leg Over, Pigbeater, Smog) plus Pixie DSO, blocked until its base carries
+  operational notation; per-row evidence at
+  `exploration/positional-evidence-audit-2026-06-23/CURATOR_WORKLIST.md`. Three
+  "Unique N-Dex/N-ADD" entries are record categories, not tricks, and correctly
+  badge nowhere.
+- **[KANBAN] Decide the go-live disposition of the `exploration/` working corpus.** `exploration/` holds the freestyle working history (audit packets, decision packets, handoffs, curator notes) as roughly 1,000 tracked files across about 130 dated subfolders, committed at the repo root. Part of it is load-bearing: this plan and several `.claude/skills/*` cite exact files inside it (for example `exploration/doctrine-audit-2026-06-19/DECISION_PACKET.md` and `exploration/emerging-vocab-taxonomy-2026-06-20/UNDEFINED_OPERATOR_INVENTORY.md`), while most is superseded scratch. Before go-live there must be a plan for the directory: which packets are promoted into the canonical docs or the `freestyle/inputs/` and kept, which move into `exploration/_archive/`, and whether the corpus stays tracked at the repo root or moves out of the committed tree. Any relocation must repoint the citing references in this plan and in the skills in the same change so no path dangles.
 ### Freestyle hashtags and dictionary UX
 
 - **[DEVIATION] Count-bearing and quantifier tokens render as operators in the symbolic notation.** In `src/services/semanticNotationRendering.ts` the count / quantifier tokens (double, triple, surging, high) are grouped with operators and render identically, instead of carrying a rendering that distinguishes their count / quantifier semantics. Unblock: give these tokens their own rendering path so the symbolic notation renders count / quantifier semantics distinctly from operators.
 - **[DEVIATION] The PassBack galleries use compound difficulty tags instead of separate concept tags.** `#passback_advanced` and `#passback_beginner` intentionally fold a source and a difficulty into one tag to mark the two named galleries, while the intended design keeps separate `#passback` plus `#advanced` or `#beginner` tags. Unblock: split them, define and apply a consistent rule (anchored on the dictionary's ADD/difficulty signal) for which tricks are advanced or beginner, update the tag labels and tag classification so the difficulty tags are their own kind rather than defaulting to trick, and rebuild the two PassBack named galleries on the multi-tag criteria so their contents are preserved. Hard constraint: the visible two-gallery organization (the separate Beginner and Advanced PassBack galleries a visitor browses) stays. The tag split is a metadata change behind those same two galleries, or an additive UI refinement; it must not flatten the two galleries into one, drop the Beginner/Advanced grouping, or otherwise reduce the organization the visitor sees.
+
+### Freestyle — Post-V1 backlog (parked; nothing here blocks the Version 1 freeze)
+
+Real, scoped work deferred past the Version 1 release. Each item activates by being
+pulled back into the active section, not by sitting here.
+
+- **Author the remaining Set Encyclopedia teaching pages** (Atomic, Miraging,
+  Quantum, Barraging (Furious), Nuclear) on the frozen set template in
+  `src/services/symbolicSetEducation.ts` (rendered by
+  `src/views/freestyle/set-detail.hbs`; `/freestyle/modifier/<set>` 301-redirects to
+  `/freestyle/sets/<set>` once a set has an authored page). Gate before authoring
+  any set page: the concept has a `src/content/freestyleCanonicalSets.ts` entry
+  whose `source` is not `holden-only` and is not a frequency or purely historical
+  artifact; a concept is a set or an operator by its compositional role (does it
+  launch a trick or modify an existing one), not by the mechanic it embeds. Held by
+  the gate (document as cross-references, never author pages): Sailing, Shooting,
+  and Railing (their set readings are `holden-only`), and Rooted and Splicing
+  (set-type modifiers with no canonical-set entry). The intentionally held
+  Zulu/Weaving frontier stays held.
+- **Source a replacement demo video for sole survivor** (curator). The trick's only
+  curated video went private, so its page has no demo (the embed is hidden by the
+  `#unavailable_embed` tag); the clip was originally attached under the structural
+  name spinning symposium whirl, since merged into sole-survivor, so the
+  replacement belongs on sole-survivor's page. Note: the records loader
+  (`10_load_freestyle_records_to_sqlite.py`) is additive (INSERT OR IGNORE, no
+  DELETE), so record-row edits take effect only on a fresh database build.
+- **Tag the BAP Individual Shred Collection clips by trick and set (human viewing
+  pass).** The 72 curated player videos are full multi-trick shred routines with no
+  per-video trick data, so tags cannot be derived from metadata and must not be
+  inferred; a curator watches each clip and applies the tags. The collection's
+  membership gaps (3 HOLD cases, 7 members with no known video, 1 rejected source)
+  are intentional, not defects.
+- **Member Tips remainder.** The recovered footbag.org Member Tips are live on
+  trick detail, and the coaching fields on the most-read pages are populated; what
+  remains: (a) the tips whose compounds are unpromoted (barraging-paradox-mirage,
+  stepping-paradox-symposium-whirl, stepping-down-double-down,
+  clipper-set-illusion, pixie-same-side-butterfly) remap automatically when the
+  compounds land; (b) pogo and the atomic-double-over-down-versus-fusion identity
+  question resolve before those two remap; (c) net tips wait for net technique
+  pages; (d) author attribution, per-trick records surfacing, and description
+  reconciliation stay v2. The grouped review artifact is
+  `freestyle/reports/member_tips_unmatched.json` (gitignored); re-running loader
+  `freestyle/loaders/27_load_trick_tips.py` requires a fresh database build.
+- **Technique Notes for the four source-blocked tricks.** `atomic_reverse_guay`
+  (no instructional source), `paradox_whirling_swirl` (identity known, no
+  trustworthy execution description), and `quantum_guay` / `quantum_legover`
+  (the quantum modifier's mechanics are not documented well enough to coach; tied
+  to the Quantum-versus-Miraging question in Deferred). Each unblocks on a
+  trustworthy execution source (a legacy footbag.org description, a recovered
+  Member Tip, or curator prose), the quantum pair on the doctrine question.
+- **De-epoch the inline labels remaining in the freestyle test files.** The
+  comments rule requires test `describe`/`it` text and comments to state the
+  long-term contract with no sprint, slice, phase, wave, person-epoch, or dated
+  labels. The filename renames are done; roughly 120 freestyle test files (about
+  23 unit and 100 integration) keep such labels in body comments and `describe`
+  text. Leakage-prevention assertions that name the forbidden labels on purpose
+  are contract text and stay; some `Wave N` mentions name a rules-expert
+  consultation round rather than a delivery sprint, so judge each.
+- **Strip the embedded design-doc references from freestyle and curator comments,
+  and repoint the removed-plan references.** Strip each bare reference rather than
+  relocate it; replace with verified plain English confirmed against the cited
+  source; in test files strip outright (the test-comment rule permits no doc or
+  section reference at all). Three parts: (1) eight freestyle test files embed
+  about 25 doc or section references, 18 of them in
+  `tests/integration/freestyle.routes.test.ts`; (2) the same residue in
+  `src/content/freestyle*.ts` and `src/services/freestyleService.ts`, keeping
+  every `phase` / `stage` / `slice` that names a real pipeline stage; (3) three
+  exploration scratch files still cite the removed `legacy_data/`-scoped plan
+  (`exploration/symbolic-grammar-2/SYMBOLIC_GRAMMAR_2_DESIGN.md`,
+  `exploration/freestyle-notation-grammar/GRAMMAR_GLOSSARY_V3.md`,
+  `exploration/freestyle-media-ingestion-2026-05-29/ARCHITECTURE.md`); repoint
+  each to the root `IMPLEMENTATION_PLAN.md` or drop it as superseded scratch, and
+  fold into the `exploration/` disposition pass if that lands first. A bare `DD §`
+  locator beside a complete self-contained explanation in non-test source is
+  tolerated and out of scope.
+
+### Freestyle — Post-V1 vision (educational enhancements, not implementation tasks)
+
+Where the encyclopedia goes after Version 1: from a complete reference toward a
+teaching instrument. These are directions, not board cards; each becomes a
+[KANBAN] item only when scoped and pulled into the active section. The unifying
+idea: the encyclopedia's central discovery — that a trick's many names are
+projections of a small structural algebra — is currently used everywhere and
+taught almost nowhere.
+
+**A. Glossary layering (first-class design goal for V1.1).** Evolve the glossary
+from a flat reference into a layered teaching experience built on collapsible
+sections, each collapsed by default, so a beginner sees definitions, an
+intermediate player opens the comparisons, and an expert can spend an hour in the
+deep layers:
+
+- Core Definitions (today's glossary)
+- Similar Tricks
+- Structural Insights
+- Hidden Symmetries
+- Historical Evolution
+- Community Misconceptions
+- Frontier Questions
+- Read a Trick Like an Expert
+
+The collapsible architecture is the deliverable, not a styling detail: it is what
+lets one page serve three audiences without overwhelming any of them. "Name versus
+Structure" (why one trick has many names) belongs in this set as the front-door
+concept. This absorbs the direction of the previously parked glossary multi-layer
+rollout.
+
+**B. Foundational Bases (a pedagogical layer, not an ontology change).** Dedicated
+teaching pages for the positions everything routes through — Toe Stall, Clipper
+Stall, Around the World, Inside Stall, Rake, Pendulum — even though they are not
+among the largest generative families. The family system organizes by structural
+lineage; teaching importance follows where bodies actually start, and the corpus
+topology shows toe and clipper dominate both ends of the vocabulary. Each page:
+what it is, why everything routes through it, its mirror twin, what it unlocks,
+the three canonical next steps. A projection over existing data; `trick_family`
+and the family roster are untouched.
+
+**C. Teaching the algebra.** Make the structural model itself learnable: the
+Mirror Law (the vocabulary is closed under direction and side reversal; state it
+once, link every atom to its mirror), conserved terminal mechanics (why families
+emerge), the operator algebra and structural decomposition as things a reader can
+verify (guided notation walkthroughs that decode a real trick token by token, with
+the running ADD count as a self-checkable sum), and progression through operators
+(every compound is one operator away from something simpler).
+
+**D. Frontier as a story.** A public essay-grade surface for active research: the
+8-ADD ceiling and the three tricks at it, the two published 9-ADD claims and the
+stated reason each fails, the unnamed-but-valid structures the grammar permits,
+and the open doctrine questions — so readers see freestyle as an open field where
+the next contribution might be theirs.
+
+**E. History by mechanism.** A future rewrite of the history page around the
+recurring mechanisms of vocabulary evolution (direction-mirroring seeding paired
+lineages, naming-era succession, the folk-name/structural-name compression cycle,
+operator proliferation) rather than chronology, so the page answers why freestyle
+evolved, not just what happened.
+
+**F. Navigation for learners.** Progression ladders derived from the operator
+lattice (every trick page names its rung-below and rung-above), entry-side
+navigation ("what can I do from a clipper set?" — the set ecosystems as a browse
+axis), the Foundational Bases pages as beginner front doors, and a possible expert
+mode. This absorbs the direction of the previously parked symbolic-grammar UI
+rollout and the Movement Systems completeness audit.
 
 ---
 
@@ -192,7 +379,13 @@ Things we are waiting on from outside the immediate work.
 
 - **The legacy member data, from Steve.** The final source for the member table; processed by the "Legacy-site dump intake" block in James's section, which carries the dump's scale, contract, and build behavior. Still open: the committee/board table (`ifpa_committees`, `ifpa_committee_members` — see Steve's section), the final dump taken after the site is frozen, and agreement that the member IDs line up. Several features wait on the real data: linking club-only members to accounts, claiming a legacy account at registration, re-seeding name variants, and showing the public member list (the public member directory is not yet built; the membership hub is at `/ifpa`).
 - **The freestyle rules wording, from the IFPA.** The official wording for the Routine, Circle, Sick 3, and Shred 30 formats. It re-enables the rules buttons that were removed from the freestyle page.
-- **The remaining Wave 3 answers from rules expert Red Husted.** Still open: the blurry expansion predicate (the largest gate, 64 rows), the embedded-base labeling frame for down-family compounds, four operator structural definitions, the cross-body rake, the terraging chain, and the rider list. The terraging chain rider still needs send confirmation: the committed audit refers to an email draft that was never committed, so nothing in the repository proves that rider actually reached Red — confirm it was sent (or send it) before treating it as pending with him.
+- **The Wave 3 answers from rules expert Red Husted.** The Wave 3 packet is sent;
+  awaiting answers on: the blurry expansion predicate (the largest gate, 64 rows),
+  the embedded-base labeling frame for down-family compounds, four operator
+  structural definitions, the cross-body rake, the terraging chain, and the rider
+  list. The remaining first-edition doctrine papers are drafted and committed under
+  `freestyle/doctrine/papers/`, deliberately unsent until the curator decides their
+  recipients and timing.
 - **The data-review sign-off.** A confirmation that the legacy data is complete and the member list has been reviewed, recorded as an audit entry with James as the actor. Legacy-data pages must not go to production without it.
 
 ---
@@ -216,10 +409,8 @@ Real work, but nothing is being done on it now.
 - **Retire the inline preview card (consolidate on `GET /dev/outbox`).** The dev-only outbox route exists (`GET /dev/outbox` lists the full captured buffer newest-first, merging web-process captures with the worker's over the internal-secret IPC channel), and password-reset and legacy-claim links are already read from it; the registration check-email page still renders an inline preview card scoped to the session's own address. Retire that card and read its link from `/dev/outbox` too.
 - **Ballot retention/cleanup.** The soft-deleted-records cleanup job covers members and payments; it deliberately preserves ballots and never auto-deletes them, because destroying IFPA vote records is an IFPA governance decision rather than an operator action. Ballot retention/cleanup activates when the voting feature ships and the IFPA defines a destruction policy. (SYS_Cleanup_Soft_Deleted_Records)
 - **There is no in-app way to edit the trick dictionary.** The freestyle trick data is read-only while the site runs; only the pre-launch pipeline writes it. Once the live site is taking member writes, that rebuild-from-pipeline approach cannot run against production, so the dictionary cannot grow until there is an admin editing screen, probably modelled on the existing curator-media admin tools. A freestyle-curation mechanism following the same source-of-truth cutover pattern as curated media and the email templates (content curated before launch, then a switch to admin-UI authoring against the live DB at go-live, with no pipeline rebuild against production) is planned, so freestyle content can be curated post-go-live without a pipeline rebuild. The same read-only limitation applies to records, consecutive-kicks records, and events.
-- **Glossary version 4 multi-layer rollout.** Waiting on curator triage and a static-page rollout.
-- **Symbolic-grammar UI rollout.** Phase 1 waiting on approval.
 - **Local MP4 trick clips.** Need a way to ingest video files that are not embeds.
-- **Movement Systems completeness audit.** Inventory every first-class movement concept (Flying, Alpine, Zulu, Weaving, Tapping, and the like), decide whether each has a natural browse surface, then make one coherent taxonomy update instead of adding isolated categories. Gated behind the current freestyle doctrine work. Flying already has its canonical browse surface (the Movement Neighborhood topology view, populated from operational notation — the FLYING / DOUBLE KICK / DOUBLE KNEE body tokens — not name matching) and stays a platform-tracked movement concept, not a teaching-page concept; its peers (Alpine and the like) surface only via By Family and By ADD. Do not add a one-off Flying/airborne modifier or axis ahead of this audit; the neighborhood is a topology grouping, not a new modifier or movement-system axis.
+- **Movement Systems completeness audit.** Inventory every first-class movement concept (Flying, Alpine, Zulu, Weaving, Tapping, and the like), decide whether each has a natural browse surface, then make one coherent taxonomy update instead of adding isolated categories. Gated behind the current freestyle doctrine work. Flying already has its canonical browse surface (the Movement Neighborhood topology view, populated from operational notation — the FLYING / DOUBLE KICK / DOUBLE KNEE body tokens — not name matching) and stays a platform-tracked movement concept, not a teaching-page concept; its peers (Alpine and the like) surface only via By Family and By ADD. Do not add a one-off Flying/airborne modifier or axis ahead of this audit; the neighborhood is a topology grouping, not a new modifier or movement-system axis. Direction absorbed into the freestyle Post-V1 vision, navigation theme.
 - **Quantum and Miraging: one set or two? (curator / Red question).** Both are inward op-side counterparts of atomic (atomic is the outward-dex peer; the data records `REV(0) miraging = atomic`). They are currently treated as distinct first-class sets: Quantum is a terminating toe set (`TOE > OP IN [DEX] >` op-side), Miraging omits the terminal and generalizes the entry (`SET > OP IN [DEX] >`), and the platform records different compound families for each (Quantum to frantic; Miraging to drifter and double-leg-over). Their bare inward-dex skeletons are close enough that a future ruling may merge them the way Illusioning folded into Atomic. The Quantum and Miraging set detail pages cross-link each other noting the similarity. Until ruled, keep them distinct.
 - **Merging the two canonical result sets.** Combine the pre-1997 and post-1997 sets and retire the older one.
 - **Version stamps in the data outputs.** Add the build version, build date, and identity-lock version to the workbook and canonical files.
