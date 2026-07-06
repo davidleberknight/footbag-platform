@@ -199,11 +199,9 @@ Structure.
 > two are one insight home split across two positions; do not front-load the notation to
 > deliver the Reveal early.
 
-**Line.** ADD — "added difficulty" — is freestyle's difficulty score, and it is
-refreshingly literal: it counts the structural parts of a trick. One point for a dex,
-another for a second dex, another for each operator laid on. A bare stall is one point; a
-plain two-point atom is a dex landing on a stall; a barrage, with two dexes in one set, is
-three.
+**Line.** ADD ("added difficulty") is freestyle's difficulty score. ADD counts scoring
+components: dexterities, cross-body positions, delays, and other scored elements. The
+notation makes those components visible as bracketed parts.
 
 **Relates.** Because ADD is just a count of parts, it follows straight from composition
 (see Composition): read a trick's structure and you can read its score. This is why the

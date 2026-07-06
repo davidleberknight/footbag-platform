@@ -71,9 +71,10 @@ here.
 **Reason:** the premise the algebra Reveal builds on; correctly carries no Reveal of its own.
 
 ### ADD / notation checksum — insight home, Reveal (late)
-**Line.** ADD (added difficulty) is freestyle's difficulty score, and it is literal: it
-counts the structural parts of a trick. One point per dex, one per operator laid on. A bare
-stall is one point; a barrage, two dexes in one set, is three.
+**Line.** ADD ("added difficulty") is freestyle's difficulty score. ADD counts scoring
+components: dexterities, cross-body positions, delays, and other scored elements. The
+notation makes those components visible as bracketed parts. *(Curator fix applied: no longer
+implies every operator is worth exactly one point.)*
 **Relates.** Because ADD is a count of parts, it follows straight from composition: read a
 trick's structure and you can read its score. The same additive logic is what the notation,
 taught later, turns into something you can check yourself.
@@ -93,8 +94,10 @@ opposite leg, the legs crossing so the bag is handled on the far side.
 the shared signature of the atoms that land there (whirl, swirl, butterfly, osis) and their
 compounds. It is a body configuration, not a travel direction: whirl finishes cross-body on
 the opposite side, swirl cross-body on its own side, so it is a distinct axis from Side and
-from Surface Frame. In notation it is the scored cross-body bracket, exactly the extra point
-a whirl has over a mirage.
+from Surface Frame. In notation it appears as the scored cross-body bracket, one reason
+clipper-side atoms such as whirl score differently from toe-side relatives such as mirage.
+*(Curator fix applied: no longer overstates whirl = mirage + cross-body as a complete
+formula.)*
 **Reason:** closes the last prerequisite the compounds walk surfaced; grounded in notation.
 
 ---

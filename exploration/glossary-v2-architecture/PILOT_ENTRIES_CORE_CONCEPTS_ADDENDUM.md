@@ -25,10 +25,9 @@ why their compounds do too: torque and blender are both an osis carried to a cro
 clipper landing. It is a body *configuration*, not a travel direction: a whirl reaches
 across to the opposite side and a swirl stays on its own side, yet both finish cross-body,
 so cross-body is its own axis, separate from same-side versus opposite-side (see Side) and
-from which surface catches the bag (that meaning lives at Surface Frame). In the notation it
-is the `[XBD]` bracket, and because the bracket count is the score, the cross-body reach is a
-scored part of the trick — it is exactly the extra point a whirl has over a mirage, whose
-landing stays on the near-side toe (see ADD).
+from which surface catches the bag (that meaning lives at Surface Frame). In notation it
+appears as the scored cross-body bracket, one reason clipper-side atoms such as whirl score
+differently from toe-side relatives such as mirage (see ADD).
 
 **Explore.** Clipper Stall (the cross-body catch it defines) · Whirl and Osis (atoms that
 land cross-body) · Torque and Blender (their cross-body compounds) · ADD (why the cross-body
