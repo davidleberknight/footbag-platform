@@ -161,7 +161,9 @@ Pipeline defects, deviations, and cleanup the cutover load and onboarding matchi
 
 **State of freestyle (standing summary).** The freestyle encyclopedia is release-ready
 at Version 1; this block records where it stands so the section below carries only
-what genuinely remains.
+what genuinely remains. Freestyle is now in stewardship mode: Glossary V2 is the only
+sanctioned forward-build track; all other freestyle work is maintenance, doctrine
+response, or parked post-V1 research.
 
 - *Implementation.* The dictionary (about 900 active canonical tricks, every one
   terminating in a core atom, bracket-count equal to published ADD enforced per row),

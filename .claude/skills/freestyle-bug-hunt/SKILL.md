@@ -55,9 +55,14 @@ rule stays here.
 3. **Never propose schema hardening or taxonomy migrations.** The topology-governance
    reversible-governance doctrine (content modules over SQL while the ontology is in
    flight) is itself an invariant this skill enforces, not a gap it reports.
-4. **Respect the recorded freeze holds.** Areas the topology-governance skill marks as
-   frozen pending rules-expert answers (decomposition freezes, pending readings, curator
-   confirm flags) are held state, not drift.
+4. **Respect the recorded freeze holds, and doctrine uncertainty honestly shown.** Areas
+   marked frozen pending rules-expert answers (decomposition freezes, pending readings,
+   curator confirm flags) are held state, not drift; read `freestyle/doctrine/RED_QUEUE.md`
+   for the current open set. An entry that says a reading is provisional, or presents two
+   attested readings without picking one, is being honest, not buggy. A doctrine-adjacent
+   finding is valid only when the site asserts *certainty it should not* — publishing a
+   single confident value where the doctrine is openly unsettled, or contradicting a
+   settled ruling in `freestyle/doctrine/RED_RULINGS.md`.
 5. **Read-only DB access**: `sqlite3 -readonly` only, against the local build.
 6. **Loader internals out of scope by default.** Python loader code under `freestyle/` and
    `legacy_data/` is the freestyle maintainer's domain; audit its OUTPUTS (tables, content

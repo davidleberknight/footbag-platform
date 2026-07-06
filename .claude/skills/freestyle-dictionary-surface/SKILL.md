@@ -36,23 +36,11 @@ When future sessions encounter requests like "let's add a `family_galleries` tab
 
 ---
 
-## 2. Phase boundaries
+## 2. Status of the surfaces this skill governs
 
-### Currently in scope
+These are **live production surfaces**: the trick index and detail pages (`/freestyle/tricks`, `/freestyle/tricks/:slug`), family pages (`/freestyle/families`, `/freestyle/families/:slug`), sets, glossary, operators, and search all ship and passed the V1 release audit. This skill's contract rules apply to them now — they are not exploration, and there is no "when a production phase begins" caveat.
 
-- The existing `/freestyle/tricks/:slug` route (production)
-- Sandbox UX exploration in `exploration/freestyle-dictionary-ux/`
-
-### Currently NOT in scope
-
-- Family-page production routes (`/freestyle/families/:name`): exploration only as of 2026-05-07
-- Modifier-page production routes (`/freestyle/modifiers/:name`): never planned
-- Search disambiguation pages: exploration not started
-- Landing-page redesign: exploration not started
-- Schema changes (alias_kind column, secondary_family relation): explicitly deferred
-- Auth-gated dictionary depth: never; depth is layered, not gated
-
-If a request blurs these boundaries, escalate. Explicitly note the sandbox-vs-production status in the response. Questions to the human follow `.claude/rules/asking.md`.
+Not in scope, by design: modifier-page production routes (`/freestyle/modifiers/:name`, never planned); schema changes such as an `alias_kind` column or a `secondary_family` relation (projection over extension); auth-gated dictionary depth (never — depth is layered, not gated). Implementation status and forward sequencing live in `IMPLEMENTATION_PLAN.md`; this skill carries the durable UX contract only. The one active forward-build track is Glossary V2, whose design lives in `exploration/glossary-v2-architecture/`.
 
 ---
 
@@ -74,7 +62,7 @@ A trick-detail page shows its structural decomposition (`gyro + torque = 5 ADD �
 
 ### Single mapping site
 
-Mirroring the pattern from `club-leadership-surface` and the CD-1 caption rewrite: status enums, alias categories, media tier orderings all map to display values at **one** site in the service layer. Templates branch on field presence (`badgeLabel`, `showContact`, `decomposition_formula`), never on enum values for text rendering. New statuses or categories add a branch to the mapping function, not to templates or queries.
+The single-mapping-site pattern: status enums, alias categories, media tier orderings all map to display values at **one** site in the service layer. Templates branch on field presence (`badgeLabel`, `showContact`, `decomposition_formula`), never on enum values for text rendering. New statuses or categories add a branch to the mapping function, not to templates or queries.
 
 ### Search resolves all aliases; display surfaces only what helps
 
@@ -88,7 +76,7 @@ Galleries, browse views, related-trick lists are projections of `freestyle_trick
 
 ## 4. Canonical UX contract patterns
 
-The 2026-05-07 mockups (Whirl family + Mobius trick) established these patterns. They are validated in exploration; they are not yet production-shipped.
+These UX contract patterns (established via the Whirl family and Mobius trick mockups) govern the live dictionary surfaces.
 
 ### Multi-family membership = primary + modifier association
 
@@ -136,8 +124,8 @@ Validated examples from the alias audit (2026-05-07):
 |---|---|---|
 | Gyro Torque | mobius | gyro(+1) + torque(4) = 5 |
 | Atomic Legover | eggbeater | atomic(+1) + legover(2) = 3 |
-| Atomic Mirage | atom-smasher | atomic(+2 rot) + mirage(2) = 4 |
-| Blurry Mirage | blur | blurry(+2 rot) + mirage(2) = 4 |
+| Atomic Mirage | atom-smasher | atomic(+1) + mirage(2) + [XDEX](1) = 4 |
+| Blurry Mirage | blur | blurry(+2) + mirage(2) = 4 |
 | Blurry Butterfly | ripwalk | blurry(+1) + butterfly(3) = 4 |
 | Miraging Clipper | drifter | miraging(+1) + clipper(2) = 3 |
 | Miraging Legover | double-leg-over | miraging(+1) + legover(2) = 3 |
@@ -232,19 +220,9 @@ Surfacing `gyro 1 + torque 4 = 5 ✓` doesn't add information for a casual viewe
 
 ---
 
-## 6. Future direction (non-binding sequencing)
+## 6. Future direction
 
-Likely future work, in approximate order:
-
-1. **Family-page MVP** ← highest leverage; surfaces the ontology advantage; data exists
-2. **Trick-detail enrichment** (already partially built; progressive-disclosure layering)
-3. Alias-category surfacing (curator-asserted `alias_kind` or heuristics)
-4. Modifier-aggregator surface (`/freestyle/modifiers/:name`)
-5. Search disambiguation UX
-6. Landing-page redesign (multi-door)
-7. Curated learning paths ("if you know X, try Y")
-
-Each phase is independently shippable. None blocks the others. The dictionary's data and the existing canonical service shape `freestyleService.getFreestyleTrickPage` already support most of phase 1 and 2 with zero schema work.
+Forward sequencing for these surfaces (alias-category surfacing, a modifier-aggregator surface, search disambiguation, curated learning paths, and the Glossary V2 layering track) is tracked in `IMPLEMENTATION_PLAN.md`, not here. The dictionary's data and the existing `freestyleService.getFreestyleTrickPage` shape already support most enrichment with zero schema work — projection over extension.
 
 ---
 
@@ -259,7 +237,7 @@ Each phase is independently shippable. None blocks the others. The dictionary's 
 - **Per-relationship database tables** ("family_galleries", "secondary_families", "progression_paths"). Galleries and views are projections of ontology + tags, not new entity types.
 - **Inventing tricks, aliases, or relationships not in the dictionary.** Use real data only.
 - **Fragmenting depth across multiple URLs.** One trick = one URL; one family = one URL. Disclosure controls layered content, not routing.
-- **Coupling status enums to template-rendered text.** Single mapping site at the service layer (per `club-leadership-surface` pattern).
+- **Coupling status enums to template-rendered text.** Single mapping site at the service layer.
 - **Rendering broken links.** "Modifier association" text without a destination is acceptable; a link to a non-existent page is not.
 - **Linking a trick hashtag with no media, or making the name a link.** On a trick page the hashtag links to its gallery only when the trick has media, else a plain token (a clickable hashtag is the sole media signal); the name is never a link; a separate "Trick Detail" link opens the detail page. Rule: `.claude/rules/view-layer.md`.
 
@@ -269,20 +247,8 @@ Each phase is independently shippable. None blocks the others. The dictionary's 
 
 For design intent, not implementation:
 
-- `legacy_data/inputs/curated/tricks/CANONICALIZATION_POLICY.md`: ontology governance, alias policy §6, freeze philosophy §9
-- `.claude/skills/footbag-freestyle-dictionary/SKILL.md`: ontology layer rules (dictionary / modifiers / aliases / glossary / sequence / canonical results / media linkage / navigation layer)
+- `legacy_data/inputs/curated/tricks/CANONICALIZATION_POLICY.md`: ontology governance, alias policy, freeze philosophy
+- `.claude/skills/footbag-freestyle-dictionary/SKILL.md`: ontology layer rules (dictionary / modifiers / aliases / glossary / sequence / canonical results / media / navigation)
 - `.claude/skills/footbag-curated-media/SKILL.md`: media pipeline + tier semantics + source registry
-- `.claude/skills/club-leadership-surface/SKILL.md`: parallel pattern: read-only projection with privacy gate + single mapping site
-- `exploration/freestyle-dictionary-ux/EXPLORATION_CHARTER.md`: sandbox lane charter
-- `exploration/freestyle-dictionary-ux/FAMILY_PAGE_WHIRL_MOCK.md`: family-page pattern source
-- `exploration/freestyle-dictionary-ux/TRICK_DETAIL_MOBIUS_MOCK.md`: trick-detail pattern source
 
 For implementation specifics (current production routes, service signatures, template paths), consult the codebase at the time of work. Those details rot; the principles in this skill do not.
-
----
-
-## 9. Status
-
-**Exploration-derived. Not production-shipped.** The patterns in this skill emerged from sandbox mockups conducted 2026-05-07. The /freestyle/tricks/:slug production page exists and works at a thinner layout than the mockups; family pages do not yet exist.
-
-When a production phase begins, the skill becomes load-bearing for that work. Until then, it serves as anchor for future exploration sessions and as a defense against scope creep in adjacent surfaces.

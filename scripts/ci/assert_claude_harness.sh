@@ -16,14 +16,6 @@ fail=0
 self="scripts/ci/assert_claude_harness.sh"
 SETTINGS=".claude/settings.json"
 
-# Items owned by the freestyle maintainer and tracked in IMPLEMENTATION_PLAN.md. They are
-# real findings this script would otherwise flag, held here as commented exceptions so the
-# build stays green until that lane's cleanup lands. Remove each entry when it does:
-#   - footbag-freestyle-dictionary/SKILL.md still needs its detailed reference split out (>500 lines).
-#   - freestyle-dictionary-surface/SKILL.md still names the removed club-leadership-surface skill.
-FREESTYLE_PENDING_OVERSIZE=".claude/skills/footbag-freestyle-dictionary/SKILL.md"
-FREESTYLE_PENDING_MISSING_REF=".claude/skills/club-leadership-surface/SKILL.md"
-
 # Harness prose files scanned for path references (concrete, single-file paths only).
 harness_md() {
   { echo CLAUDE.md
@@ -97,7 +89,6 @@ CEILING=500
 bad_size=""
 for f in .claude/skills/*/SKILL.md; do
   [ -f "$f" ] || continue
-  [ "$f" = "$FREESTYLE_PENDING_OVERSIZE" ] && continue
   lines=$(wc -l < "$f")
   dir=$(dirname "$f")
   supporting=$(find "$dir" -maxdepth 1 -name '*.md' ! -name 'SKILL.md' | head -1)
@@ -132,7 +123,6 @@ fi
 missing_refs=""
 while IFS= read -r ref; do
   [ -n "$ref" ] || continue
-  [ "$ref" = "$FREESTYLE_PENDING_MISSING_REF" ] && continue
   [ -e "$ref" ] || missing_refs="${missing_refs}  ${ref}"$'\n'
 done < <(harness_md | xargs grep -rhoE \
   '\.claude/(rules|skills|hooks|agents)/[A-Za-z0-9_/.-]+\.(md|sh)' \

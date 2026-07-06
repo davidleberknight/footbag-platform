@@ -119,6 +119,13 @@ speculative issues recorded as bugs, no remediation in the same session.
   main session re-verifies every candidate against the cited lines. Subagents have no
   channel to the human; they return their questions with context and a recommendation, and
   the main session raises them under the asking rule.
+- **Rendered confirmation for visitor-facing claims.** A finding that asserts what a
+  *visitor sees* — a wrong rendered value, a dead link, leaked internal jargon, or a
+  contradiction between two pages — is CONFIRMED only against rendered output (render the
+  page against the running app), never against templates or content modules alone. Static
+  tracing *locates* a candidate; rendering *confirms* it. The hunt stays static-first;
+  only public-surface confirmation requires the render, because the render is the arbiter
+  for anything a visitor reads.
 - **No diagnose-and-remediate in one step.** Diagnose, report, stop. The maintainer gates
   per-finding remediation in a separate slice. No backwards-compat migration plans for
   dead-code findings.

@@ -134,31 +134,11 @@ A single-value column on `freestyle_tricks` expresses ONE axis only (the primary
 
 ---
 
-## Red-wave governance caution
+## Doctrine holds
 
-The Red Husted consultation is still in flight. As of 2026-05-15:
+Some structural readings are held open pending the rules expert's (Red Husted) answers, and some are settled. Before doctrine-adjacent topology work, read the two live files — `freestyle/doctrine/RED_QUEUE.md` for what is currently held, and `freestyle/doctrine/RED_RULINGS.md` for what is settled. **Never trust a hold list embedded in this skill or in memory; those two files are the only live truth,** and the specific set of open questions changes over time.
 
-- Wave 1 effectively answered by ruling batch (blurry / barraging / atomic / far/reverse / fairy / blistering / mobius rulings landed)
-- Wave 2 packet SENT 2026-05-15 with six grammar-level questions
-
-Areas where Wave-2 answers are gating canonical claims:
-
-- Blurry transitivity (`blurry whirl` vs `stepping paradox whirl`)
-- Barraging operator class (set primitive vs body modifier vs structural)
-- Atomic family scope (X-dex-from-toe character, hidden paradox)
-- Operator-vs-trick boundary (Fairy weight, surging structure, blazing)
-- Compression intent (when a long structural reading "is" the trick)
-- Hidden-vs-flat preservation (when to expand vs when to compress)
-
-Until Wave-2 answers integrate:
-
-- Do NOT freeze decompositions in any of these areas as canonical
-- Do NOT add SQL constraints that would lock the affected rows
-- Do NOT promote pending readings to default rendering on public surfaces
-- DO mark uncertain readings with `curatorConfirmPending: true` in chain registries
-- DO preserve alternate readings in commented form where Wave-2 may overrule
-
-See [[project_red_consultation_state]] for the live consultation state and [[project_semantic_compression_doctrine]] for the alpha doctrine that Wave-2 will sharpen.
+For any reading that RED_QUEUE.md shows is still open: do NOT freeze its decomposition as canonical, do NOT add a SQL constraint that would lock the affected rows, do NOT promote a pending reading to default public rendering; DO mark it `curatorConfirmPending: true` in chain registries and preserve alternate readings in commented form. This caution is timeless; the list of what it currently applies to is not, so take that list from RED_QUEUE.md.
 
 ---
 
@@ -167,7 +147,7 @@ See [[project_red_consultation_state]] for the live consultation state and [[pro
 Cross-references [[feedback_reversible_content_governance]]. The summary form:
 
 - **TypeScript content modules over SQL** while ontology is in flight. Allow-lists, chain registries, kind overrides, family memberships, category taxonomies, glossary anchor allow-lists: all curator-authored, all reversible by editing one file.
-- **No schema migrations** for taxonomy data until ontology stabilizes (post-Wave-2 + curator triage at minimum).
+- **No schema migrations** for taxonomy data until the ontology stabilizes and the curator ratifies it (the open questions in `RED_QUEUE.md` cleared, at minimum).
 - **No auto-derivation** of curator-authoritative classification from notation, formulas, or alias tables. Curator data is curator data; parser data is parser data. (Cross-references [[feedback_parser_editorial_separation]].)
 - **Restraint over feature throughput.** A wrong taxonomy commitment is worse than a missing one. When a slice is uncertain, surface the question to the curator; do not invent a default.
 

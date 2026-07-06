@@ -80,6 +80,21 @@ generated content files; tests and QC gates.
   or its gallery.
 - Method: for each sampled trick, walk every surface it should appear on and diff the
   facts shown. For each surface-level metric, recompute it read-only.
+- **Not a finding — "ADD (recorded)" differing from canonical ADD.** The records
+  surfaces (a trick's Consecutive Records table and `/freestyle/records`) show "ADD
+  (recorded)": the difficulty the recording source assigned when the record was logged,
+  historical evidence that may differ from the trick's current canonical ADD. This is
+  deliberate and captioned; sixteen tricks legitimately differ (e.g. Bladerunner:
+  canonical 4, recorded 5). Flag only a *missing or misleading caption/label* on those
+  surfaces, never the numeric difference itself. The canonical ADD on the trick page is
+  authoritative; the recorded value is a labeled source claim.
+- **Not a finding — a documented outside-source divergence.** Divergence-registry
+  entries, per-trick scoring notes, in-row provenance strings, and the reconciliation
+  series (`freestyle/doctrine/reconciliation/`) record outside sources' conflicting
+  numbers on purpose (the "record, don't adopt" policy). An outside source's differing
+  ADD, shown as that source's divergent claim, is scholarship, not a contradiction.
+  Flag only an *undocumented* divergence — a second value that appears with no
+  provenance, registry entry, or note explaining it.
 
 ### §F2 ADD-math violations
 
