@@ -578,16 +578,34 @@ systemctl daemon-reload
 # driver authenticates with the Docker daemon's own credential chain, so dockerd
 # is pointed at a least-privilege logs profile that assumes the Terraform-owned
 # logs-publisher role. Installed before the compose restart so container
-# (re)creation can attach the driver; a missing or broken profile fails loud
-# here rather than letting container creation crash-loop the stack. Neither the
-# profile name nor the region is a secret, so plain assignment is fine.
+# (re)creation can attach the driver; broken IAM fails loud here rather than
+# letting container creation crash-loop the stack. The deploy owns the host
+# profile stanza itself (idempotent append; operators never hand-edit
+# /root/.aws/config). Neither the profile name, the role ARN, nor the region
+# is a secret, so plain assignment is fine.
 LOGS_PROFILE="footbag-${FOOTBAG_ENV_VAL}-logs"
+LOGS_SOURCE_PROFILE="footbag-${FOOTBAG_ENV_VAL}-source-profile"
+if ! grep -qs "^\[profile ${LOGS_PROFILE}\]" /root/.aws/config; then
+  LOGS_ACCOUNT_ID=$(aws sts get-caller-identity --profile "$LOGS_SOURCE_PROFILE" --query Account --output text 2>/dev/null) || {
+    echo "    ERROR: source profile '$LOGS_SOURCE_PROFILE' cannot resolve the account id;" >&2
+    echo "           the host AWS bootstrap is incomplete (it installs that profile)." >&2
+    exit 1
+  }
+  install -d -m 0700 -o root -g root /root/.aws
+  {
+    printf '\n[profile %s]\n' "$LOGS_PROFILE"
+    printf 'role_arn = arn:aws:iam::%s:role/footbag-%s-logs-publisher\n' "$LOGS_ACCOUNT_ID" "$FOOTBAG_ENV_VAL"
+    printf 'source_profile = %s\n' "$LOGS_SOURCE_PROFILE"
+    printf 'region = %s\n' "$AWS_REGION_VAL"
+  } >> /root/.aws/config
+  echo "    Installed [profile $LOGS_PROFILE] stanza into /root/.aws/config."
+fi
 if ! aws sts get-caller-identity --profile "$LOGS_PROFILE" >/dev/null 2>&1; then
   echo "    ERROR: AWS profile '$LOGS_PROFILE' cannot assume the logs-publisher role." >&2
-  echo "           Fix before deploying: run terraform apply for this environment (it creates the" >&2
-  echo "           footbag-${FOOTBAG_ENV_VAL}-logs-publisher role and the CloudWatch log groups), then add a" >&2
-  echo "           [profile $LOGS_PROFILE] stanza to /root/.aws/config whose role_arn is that role and" >&2
-  echo "           whose source_profile is footbag-${FOOTBAG_ENV_VAL}-source-profile." >&2
+  echo "           This script installs the profile stanza itself, so the remaining cause is IAM state:" >&2
+  echo "           run terraform apply for this environment (it creates the footbag-${FOOTBAG_ENV_VAL}-logs-publisher" >&2
+  echo "           role and the CloudWatch log groups), then re-run this deploy. If the role already" >&2
+  echo "           exists, review the [profile $LOGS_PROFILE] stanza in /root/.aws/config for drift." >&2
   exit 1
 fi
 install -d -m 0755 -o root -g root /etc/systemd/system/docker.service.d

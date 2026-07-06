@@ -29,8 +29,8 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
   db.exec(SCHEMA_SQL);
 
   // Minimum legacy_members fixture: real_name + country + import_source +
-  // honor flag + a derived paid-tier flag so G1-G6 + G6-tiers pass (the
-  // honors gate requires the paid-tier derivation to have populated).
+  // honor flag + a derived paid-tier flag so G1-G6 pass (the honors gate
+  // requires the paid-tier derivation to have populated).
   const lmInsert = db.prepare(`
     INSERT INTO legacy_members (
       legacy_member_id, legacy_user_id, legacy_email,
@@ -194,7 +194,7 @@ describe('pre-cutover checklist orchestrator', () => {
     const r = runChecklist(dbPath, snapshotDir);
     expect(r.status, `stdout:\n${r.stdout}\nstderr:\n${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/READY: all gates PASS/);
-    for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G6-tiers', 'G11', 'DEV-ADMIN-AUDIT', 'SHOWCASE-PRESENCE', 'G20-SIGNOFF', 'PAYMENTS-BOOT', 'QC-ABSENCE']) {
+    for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G11', 'DEV-ADMIN-AUDIT', 'SHOWCASE-PRESENCE', 'G20-SIGNOFF', 'PAYMENTS-BOOT', 'QC-ABSENCE']) {
       expect(r.stdout).toMatch(new RegExp(`GATE: ${label}[^\\n]*PASS`));
     }
     // The integration / smoke / e2e suites report SKIP under --skip-tests,

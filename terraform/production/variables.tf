@@ -38,7 +38,7 @@ variable "route53_zone_id" {
   # first pass (enable_cloudfront = false) no zone is created or needed.
   validation {
     condition     = !var.enable_cloudfront || var.route53_zone_id != ""
-    error_message = "route53_zone_id is required when enable_cloudfront is true: a delegated Route 53 hosted zone must exist before the CloudFront apply, or ACM certificate validation hangs."
+    error_message = "route53_zone_id is required when enable_cloudfront is true: the referenced Route 53 hosted zone must exist so the ACM validation records can be written, or the apply hangs on certificate validation. Delegation is not required pre-cutover; the webmaster mirrors the validation CNAMEs into the authoritative zone."
   }
 }
 

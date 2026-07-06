@@ -193,6 +193,28 @@ jobs:
       - name: Assert per-table row counts
         run: python3 scripts/ci/assert_loader_row_counts.py --db ./database/footbag-ci.db
 
+  legacy-pytest:
+    name: Legacy-data pipeline pytest (safety-guard regression gate)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: python3 -m pip install pytest pandas openpyxl
+
+      - name: Run the legacy-data pipeline suite
+        # Hermetic (synthetic fixtures, no real dump). Carries the only
+        # regression coverage for the member pipeline's production/staging
+        # refusal guards, the credential-header abort, claim-state
+        # preservation, and the loader exclusion rules.
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m pytest legacy_data/tests/ -q -p no:cacheprovider
+
   e2e:
     name: E2E click-through
     runs-on: ubuntu-latest

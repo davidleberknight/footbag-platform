@@ -4,17 +4,14 @@ import { PageViewModel } from '../types/page';
 
 /**
  * Legacy-URL forwarding for in-flight emails: old footbag.org messages
- * (verification mails, forum-reply pointers, share links) keep circulating
- * for years after cutover, so their URL patterns must keep landing
- * somewhere meaningful.
+ * (verification mails, share links) keep circulating for years after
+ * cutover, so their URL patterns must keep landing somewhere meaningful.
  *
  *  - /members/profile/:legacyMemberId resolves in three branches: 301 to
  *    the live member's slug URL; a soft-landing claim page for an unclaimed
  *    legacy account (display name shown to signed-in visitors only); or the
  *    friendly not-routable page.
- *  - Legacy forum paths 301 to the member-gated archive mirror.
  */
-const ARCHIVE_BASE_URL = 'https://archive.footbag.org';
 
 interface LegacyLinkContent {
   branch: 'claimable' | 'not_routable';
@@ -63,11 +60,4 @@ export const legacyRedirectController = {
       next(err);
     }
   },
-
-  /** GET /forum/* and /forums/* — the posts live on the archive mirror. */
-  forum(req: Request, res: Response): void {
-    res.redirect(301, `${ARCHIVE_BASE_URL}${req.originalUrl}`);
-  },
 };
-
-export { ARCHIVE_BASE_URL };

@@ -228,8 +228,12 @@ cmd_ses_suppression() {
 }
 
 cmd_ses_bounces() {
-  banner "SES bounce/complaint events (requires feedback SNS topic + subscription; stub until wired)"
-  echo "Path H follow-up: wire SNS feedback topic and log table, then replace this stub."
+  banner "SES bounce/complaint events (ses_events rows written by the feedback webhook)"
+  node_run <<'JS'
+const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
+console.log('by type :', db.prepare(`SELECT event_type, COUNT(*) c FROM ses_events GROUP BY event_type`).all());
+console.log(db.prepare(`SELECT message_id, event_type, created_at, processed_at FROM ses_events ORDER BY processed_at DESC LIMIT 50`).all());
+JS
 }
 
 cmd_kms_probe() {

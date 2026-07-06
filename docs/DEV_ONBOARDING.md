@@ -111,7 +111,7 @@ This guide helps contributors do different things: understand how the platform i
   - [9.1 Why this path exists](#91-why-this-path-exists)
   - [9.2 Scope](#92-scope)
   - [9.3 Preconditions](#93-preconditions)
-  - [9.4 Domain acquisition and DNS delegation](#94-domain-acquisition-and-dns-delegation)
+  - [9.4 Domain ownership and DNS coordination](#94-domain-ownership-and-dns-coordination)
   - [9.5 Google Managed Services deliverability for noreply@footbag.org](#95-google-managed-services-deliverability-for-noreplyfootbagorg)
   - [9.6 SES production-access activation](#96-ses-production-access-activation)
   - [9.7 SES domain identity with DKIM](#97-ses-domain-identity-with-dkim)
@@ -3615,7 +3615,7 @@ Validation gate: all five forms gate correctly; fail-open path is tested and emi
 
 Path H activates KMS-backed JWT session signing, runtime AWS identity, and SES-backed transactional email on staging. Path I is the equivalent activation for production: it establishes a production AWS account posture with its own KMS signing key, runtime role, SES domain identity, and bounce/complaint handling, and stands up the production Lightsail host with the credential chain it needs. The shape of each step mirrors Path H; the names, ARNs, domain, and sender identity are production-scoped.
 
-Several production-only operations have no staging equivalent and are covered here in full: domain acquisition and DNS delegation, Google Managed Services deliverability for the canonical sender, the SES production-access support ticket, SES domain identity with DKIM, and the bounce/complaint webhook subscription.
+Several production-only operations have no staging equivalent and are covered here in full: domain ownership and DNS coordination, Google Managed Services deliverability for the canonical sender, the SES production-access support ticket, SES domain identity with DKIM, and the bounce/complaint webhook subscription.
 
 Like Path H, this is a one-time activation per environment, not part of the routine deploy workflow.
 
@@ -3624,7 +3624,7 @@ Like Path H, this is a one-time activation per environment, not part of the rout
 Production only. The work falls into two groups:
 
 **Production-only procedures authored here (§9.4 through §9.7, §9.10):**
-1. Domain acquisition and DNS delegation
+1. Domain ownership and DNS coordination
 2. Google Managed Services deliverability for `noreply@footbag.org`
 3. SES production-access activation (AWS support ticket)
 4. SES domain identity with DKIM
@@ -3649,38 +3649,34 @@ Before starting Path I, confirm:
 - Path H on staging is complete and behaviorally smoke-validated end-to-end (login → KMS JWT; register → outbox → SES → recipient inbox).
 - AWS account hardening from Path D applied to the production AWS account: root MFA enabled, named human operator identity in place, Terraform state bootstrapped for production.
 - A production Lightsail instance exists and is reachable over SSH using a named operator account.
-- IFPA has secured control of `footbag.org` (or the project's canonical public domain), including registrar-level ownership and access to configure authoritative DNS.
+- IFPA has secured control of `footbag.org` (or the project's canonical public domain), including registrar-level ownership; the webmaster coordination channel for authoritative-DNS record changes is in place (authoritative DNS stays on the webmaster's zone through cutover; see §9.4).
 - Operator vault access is arranged for the production KMS key material, source-profile access keys, and backup credentials.
 
-### 9.4 Domain acquisition and DNS delegation
+### 9.4 Domain ownership and DNS coordination
 
-Production cutover requires IFPA to own `footbag.org` at the registrar level and to delegate authoritative DNS to a provider the project operates. Two provider patterns are supported: Cloudflare (used for Email Routing in §9.5; recommended) and AWS Route 53 (used for ACM validation and CloudFront alias records).
+Production cutover requires IFPA to own `footbag.org` at the registrar level. Authoritative DNS stays on the webmaster's existing zone through cutover: the maintainer supplies each record value (the ACM validation CNAMEs, the SES DKIM CNAMEs and SPF amendment, and at cutover the `www` CNAME and apex A record) and the webmaster applies them by hand, per the hand-applied record inventory in the migration plan (MIGRATION_PLAN §29.12) and the external DNS/mail upstream coordination runbook (DEVOPS_GUIDE §6.8). No registrar NS change happens at go-live. Moving authoritative DNS to Route 53 is optional and strictly post-stability, run under the DNS cutover sequence runbook (DEVOPS_GUIDE §6.7) with a fresh zone snapshot first.
 
-1. Registrar ownership: IFPA confirms domain renewal and registrar credentials in the operator vault. Registrar choice is outside this runbook; the only requirement is that registrar-level NS record edits are possible.
+1. Registrar ownership: IFPA confirms domain renewal and registrar credentials in the operator vault. Registrar choice is outside this runbook; no NS edit is required for go-live.
 
-2. Pick the authoritative DNS provider:
-   - **Cloudflare**: free tier sufficient; needed anyway for Email Routing in §9.5. Create a Cloudflare account under an IFPA-owned email and add the `footbag.org` zone. Cloudflare returns two nameservers.
-   - **AWS Route 53**: the existing staging `acm.tf` and `route53.tf` templates use Route 53. Create a hosted zone in Route 53 in the production AWS account.
+2. Confirm the DNS coordination facts with the webmaster: the registrar, the authoritative provider, and whether keeping his zone authoritative is a go-live-only or durable requirement (the migration plan's open DNS question).
 
-   Mixing providers (Cloudflare for email + Route 53 for web) is possible but complicates ownership; prefer one provider authoritative for the whole zone.
+3. Create the `footbag.org` hosted zone in Route 53 in the production AWS account. It is the write target that Terraform's record templates and the ACM validation records reference (`route53_zone_id`); it is not authoritative and is never delegated pre-cutover.
 
-3. Delegate DNS at the registrar by setting the domain's NS records to the chosen provider's nameservers. Propagation takes up to 48 hours globally; typically completes within an hour.
-
-4. Confirm delegation:
+4. Confirm the authoritative zone and the coordination path:
 
    ```bash
    dig NS footbag.org +short
    ```
 
-   Expect the chosen provider's nameservers.
+   Expect the webmaster's nameservers, unchanged through cutover; and confirm the webmaster has acknowledged the record-handoff pattern in the coordination runbook.
 
-5. Record in operator notes: registrar used, renewal contact, DNS provider, zone ID (if Route 53).
+5. Record in operator notes: registrar used, renewal contact, webmaster contact and lead time, Route 53 zone ID.
 
 ### 9.5 Google Managed Services deliverability for noreply@footbag.org
 
 SES verifies a sender identity by sending a confirmation email to that address; the address must be deliverable. `@footbag.org` inbound is handled by Google Managed Services (DD §5.5), so `noreply@footbag.org` is made deliverable there for the verification step and for any replies to operational emails.
 
-1. In the Google Managed Services admin console for `footbag.org`, confirm the domain is verified and the `footbag.org` MX points to Google.
+1. In the Google Managed Services admin console for `footbag.org`, confirm the domain is verified. The `footbag.org` MX repoint to Google is the migration plan's discrete email-day step; this deliverability check, and the SES email-identity verification that depends on it, run after that repoint (the SES domain identity in §9.7 verifies via DNS records alone and does not wait on it).
 
 2. Create a route for `noreply@footbag.org`: either a mailbox or a forward to an operator inbox the project controls.
 
@@ -3723,9 +3719,7 @@ A domain identity (distinct from the email identity verified in Path H §8.8) al
    - Identity: `footbag.org`
    - Enable DKIM. Accept Easy DKIM defaults (three CNAME records).
 
-2. SES returns three CNAME records. Add them to the `footbag.org` zone:
-   - **Cloudflare**: paste the three CNAME records into the DNS tab. Leave proxy status set to DNS only (gray cloud); DKIM must resolve to the AWS values, not Cloudflare's proxy.
-   - **Route 53**: add them as standard CNAME records via Terraform or console.
+2. SES returns three CNAME records. Hand them to the webmaster for the authoritative `footbag.org` zone per the external DNS/mail upstream coordination runbook (DEVOPS_GUIDE §6.8). The Terraform templates for these records exist in `terraform/production/` behind `ses_enable_domain_auth`, which stays off until the optional post-stability Route 53 handover; pre-cutover the webmaster's hand-applied records are what SES sees.
 
 3. SES polls DNS and confirms verification within 72 hours (usually within 15 minutes). Poll:
 
@@ -3743,7 +3737,7 @@ A domain identity (distinct from the email identity verified in Path H §8.8) al
 
 Mirror Path H §8.6 through §8.9 with production-scoped names. Execute each Path H step against the production AWS account, substituting per the table in §9.2.
 
-Terraform: `terraform/production/` already exists, mirroring `terraform/staging/` and adding the ACM certificate, Route 53 records, SES domain identity, DR replication, and the maintenance bucket. Before the first plan, copy `terraform/production/terraform.tfvars.example` to `terraform.tfvars` and fill in the values that have no default (`aws_account_id`, `operator_cidrs`, `lightsail_origin_dns`, `route53_zone_id`, `ssh_public_key`, `alarm_email`), then run `terraform -chdir=terraform/production init` with AWS credentials that can reach the shared state bucket's `production/` key. The CloudFront and ACM resources require a real `domain_name` and a `route53_zone_id` whose zone Route 53 actually serves, so the first apply blocks on ACM DNS validation until the domain is delegated.
+Terraform: `terraform/production/` already exists, mirroring `terraform/staging/` and adding the ACM certificate, Route 53 records, SES domain identity, DR replication, and the maintenance bucket. Before the first plan, copy `terraform/production/terraform.tfvars.example` to `terraform.tfvars` and fill in the values that have no default (`aws_account_id`, `operator_cidrs`, `lightsail_origin_dns`, `route53_zone_id`, `ssh_public_key`, `alarm_email`), then run `terraform -chdir=terraform/production init` with AWS credentials that can reach the shared state bucket's `production/` key. The CloudFront and ACM resources require a real `domain_name` and a `route53_zone_id` referencing an existing Route 53 hosted zone; ACM validation completes once the validation CNAMEs are visible in the authoritative zone, which pre-cutover means the webmaster has applied them by hand (the ACM certificate runbook, DEVOPS_GUIDE §9.2.1).
 
 Exercise the source-profile → runtime-role chain locally with `aws sts get-caller-identity` before proceeding to §9.9.
 
@@ -3760,22 +3754,11 @@ Mirror Path H §8.8 and §8.9 against the production identity.
 
 Bounce and complaint rates determine SES sender reputation. Uncontrolled bounces get production access revoked. Subscribe an SNS topic to SES bounce and complaint notifications, and surface the events to the application's suppression list.
 
-1. Create the SNS topic in `terraform/production/sns.tf`:
+1. The SNS feedback topic, the bounce and complaint notification-topic wiring for the sender identity (and for the domain identity when `ses_enable_domain_auth` is on), and the HTTPS webhook subscription are all declared in `terraform/production/ses.tf`; create nothing by hand. Original headers are not included in the notifications, and the subscription resource is created only once the `ses_feedback_webhook_url` variable is set (step 3).
 
-   ```hcl
-   resource "aws_sns_topic" "ses_feedback" {
-     name = "${local.prefix}-ses-feedback"
-   }
-   ```
+2. In SES → Identities → the verified identity → Notifications, disable email feedback forwarding once the Terraform-applied bounce and complaint topics are attached. With SNS notifications enabled, SES will not also send bounce emails to the From address. (Delivery notifications: optional; noisy.)
 
-2. In SES → Identities → `footbag.org` (or the email identity) → Notifications, set:
-   - Bounce notifications: the `ses_feedback` topic.
-   - Complaint notifications: the `ses_feedback` topic.
-   - (Delivery notifications: optional; noisy.)
-   - Include original headers: enabled.
-   - Disable email feedback forwarding. With SNS enabled, SES will not also send bounce emails to the From address.
-
-3. Provision the webhook auth secret and wire the subscription with the shipped mechanism (not a hand-rolled handler): run `scripts/activate-ses-feedback.sh --target production` (`docs/DEVOPS_GUIDE.md` §10.11). It generates the dedicated `SES_FEEDBACK_WEBHOOK_KEY`, installs it into `/srv/footbag/env`, and prints the `ses_feedback_webhook_url` (the public `/webhooks/ses-feedback` route plus `?key=…`). Set that URL as the `ses_feedback` topic's subscription. This key must exist before `SES_ADAPTER=live` — the production process refuses to boot without it.
+3. Provision the webhook auth secret and wire the subscription with the shipped mechanism (not a hand-rolled handler): run `scripts/activate-ses-feedback.sh --target production` (`docs/DEVOPS_GUIDE.md` §10.11). It generates the dedicated `SES_FEEDBACK_WEBHOOK_KEY`, installs it into `/srv/footbag/env`, and prints the `ses_feedback_webhook_url` (the public `/webhooks/ses-feedback` route plus `?key=…`). Set that value as the `ses_feedback_webhook_url` Terraform variable (it is sensitive; never in committed tfvars) and apply — the apply creates the SNS subscription. This key must exist before `SES_ADAPTER=live` — the production process refuses to boot without it.
 
 4. SNS posts a subscription-confirmation message. The app does not auto-fetch the SubscribeURL (that would fetch an attacker-suppliable URL); it records it in an `email.sns_subscription_pending` audit row. Read `subscribe_url` from that row and confirm it once. The handler then marks hard-bounce (`bounceType=Permanent`) and complaint suppression on the recipient and appends an audit event per delivery.
 

@@ -578,7 +578,7 @@ Static taint analysis over `src/` is part of this gate: a pinned CodeQL (or Semg
 
 ### 9.2 Lightweight staging-safe pentest
 
-A small set of probes that run safely against staging without mutating data. Reports do not block deploy promotion (the staging smoke gate covers blocking conditions); the probes report security signal that the maintainer reviews.
+A small set of probes that run safely against staging without mutating data. Four of them — auth-gate enforcement, anti-enumeration response equivalence, the no-stack-trace probe, and the dev-shortcut absence probe — also run inside the post-deploy staging smoke and block deploy promotion there (§11.1). The remaining probes (security headers, contact-field leakage) and the wall-clock timing measurements report security signal that the maintainer reviews without blocking.
 
 Probes:
 
@@ -703,7 +703,7 @@ Not every test runs every time. This section defines the named gates, what runs 
 - *Pre-PR.* Full unit plus integration plus security regression. Sub-2min on a fresh checkout. Optional local git hook that runs `npm run test:pre-pr` before allowing push.
 - *CI on PR.* Same as pre-PR plus db-load smoke plus lightweight Playwright plus staging-safe security checks plus per-PR dependency review (`actions/dependency-review-action` over the PR diff, alongside the whole-tree `npm audit`). Sub-10min. Blocks merge.
 - *CI nightly or on-demand.* Mutation testing on the safety-critical short list (auth, privacy filters, migration matchers, role gates), dependency audit, header check across the route table, production-residue audit against the production DB. Reports, does not block.
-- *Post-deploy staging smoke.* Read-only health check, auth-gate enforcement, anti-enumeration timing, no-stack-trace probe, dev-shortcut absence probe. Sub-1min. Blocks deploy promotion on failure.
+- *Post-deploy staging smoke.* Read-only health check, auth-gate enforcement, anti-enumeration response equivalence, no-stack-trace probe, dev-shortcut absence probe. Sub-1min. Blocks deploy promotion on failure.
 - *On-demand heavyweight pentest.* Human invokes (`npm run test:pentest:heavy`). May include OWASP ZAP baseline, upload-abuse probes, internal-route probes, header checks, dependency scanning. Browser-driven attack flows are operator-invoked via the `browser-qa` skill. Never runs against production unless explicitly authorized.
 - *Periodic third-party pentest.* At major launches (per §9.4). Reports findings; findings produce regression tests at the cheapest appropriate layer.
 

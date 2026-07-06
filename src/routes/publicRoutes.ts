@@ -37,8 +37,6 @@ export const publicRouter = Router();
 publicRouter.use(requireOnboardingComplete);
 
 publicRouter.get('/',      homeController.home);
-// Legacy forum URLs live on the member-gated archive mirror.
-publicRouter.get(['/forum', '/forum/*', '/forums', '/forums/*'], legacyRedirectController.forum);
 publicRouter.get('/clubs',                  clubController.index);
 publicRouter.post('/clubs/swap-primary',    requireAuth, clubController.postSwapPrimary);
 publicRouter.get('/clubs/create',           requireAuth, clubController.getCreate);

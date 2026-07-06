@@ -271,6 +271,13 @@ SMOKE_BASE_URL="${SMOKE_BASE_URL:-$SMOKE_DEFAULT_URL}"
 if [[ "$SKIP_SMOKE" == "yes" ]]; then
   echo "==> Skipping post-deploy smoke check (SKIP_SMOKE=yes)"
 elif [[ -z "$SMOKE_BASE_URL" ]]; then
+  # A production deploy must never complete with smoke silently skipped: a
+  # first deploy that "succeeds" unverified is false confidence at cutover.
+  # Explicit SKIP_SMOKE=yes remains the operator's deliberate override.
+  if [[ "$FOOTBAG_ENV" == "production" ]]; then
+    echo "ERROR: no SMOKE_BASE_URL configured for production. Set SMOKE_BASE_URL to the production CloudFront URL (or SKIP_SMOKE=yes to skip deliberately)." >&2
+    exit 1
+  fi
   echo "==> Skipping post-deploy smoke check (no SMOKE_BASE_URL configured for FOOTBAG_ENV=$FOOTBAG_ENV)"
 else
   echo "==> Running smoke check against $SMOKE_BASE_URL ..."

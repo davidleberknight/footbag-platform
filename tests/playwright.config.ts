@@ -15,8 +15,13 @@ const REPO_ROOT = path.resolve(__dirname, '..');
  *
  * Single worker so SQLite WAL stays sequential and the per-test persona
  * seeders don't race the running app's writes.
+ *
+ * When PLAYWRIGHT_BASE_URL is set, the suite targets that deployed
+ * environment instead (the post-deploy browser smoke): the URL becomes
+ * baseURL and no local stack is booted.
  */
 const PORT = Number(process.env.E2E_PORT ?? 3000);
+const DEPLOYED_BASE_URL = process.env.PLAYWRIGHT_BASE_URL;
 
 export default defineConfig({
   testDir: 'e2e',
@@ -30,7 +35,7 @@ export default defineConfig({
   outputDir: path.resolve(__dirname, 'test-results'),
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
   use: {
-    baseURL: `http://127.0.0.1:${PORT}`,
+    baseURL: DEPLOYED_BASE_URL ?? `http://127.0.0.1:${PORT}`,
     headless: true,
     viewport: { width: 1280, height: 800 },
     trace: 'retain-on-failure',
@@ -44,13 +49,18 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'bash scripts/e2e/start-stack.sh',
-    cwd: REPO_ROOT,
-    url: `http://127.0.0.1:${PORT}/health/ready`,
-    reuseExistingServer: false,
-    timeout: 60_000,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  },
+  // Local runs boot the throwaway stack; a deployed-target run must not.
+  ...(DEPLOYED_BASE_URL
+    ? {}
+    : {
+        webServer: {
+          command: 'bash scripts/e2e/start-stack.sh',
+          cwd: REPO_ROOT,
+          url: `http://127.0.0.1:${PORT}/health/ready`,
+          reuseExistingServer: false,
+          timeout: 60_000,
+          stdout: 'pipe' as const,
+          stderr: 'pipe' as const,
+        },
+      }),
 });

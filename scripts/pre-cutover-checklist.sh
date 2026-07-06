@@ -79,13 +79,10 @@ run_step "G7" bash scripts/validate-club-candidates.sh
 # 4. G8: bootstrap leaders
 run_step "G8" bash scripts/validate-bootstrap-leaders.sh
 
-# 5. G6-tiers (explicit tier-mapping check, narrower than G1-G6 above)
-run_step "G6-tiers" bash scripts/validate-legacy-tiers.sh
-
-# 6. G11: name variants
+# 5. G11: name variants
 run_step "G11" bash scripts/validate-name-variants.sh
 
-# 7. Claim-safety integration suite + smoke/e2e. The integration suite
+# 6. Claim-safety integration suite + smoke/e2e. The integration suite
 # re-runs the claim-flow safety gates (anti-enumeration, rate limiting,
 # claim and auto-link, mailbox-control round-trip, admin help-request)
 # against the shipped working tree, since a deploy ships the working tree,
@@ -104,13 +101,13 @@ else
   results+=("GATE: E2E SKIP: --skip-tests passed")
 fi
 
-# 8. Dev-admin-shortcut audit (must be clean before production)
+# 7. Dev-admin-shortcut audit (must be clean before production)
 run_step "DEV-ADMIN-AUDIT" bash scripts/audit-dev-shortcuts.sh
 
-# 8a. Permanent showcase event + Footbag Hacky persona must be present
+# 7a. Permanent showcase event + Footbag Hacky persona must be present
 run_step "SHOWCASE-PRESENCE" bash scripts/validate-showcase-presence.sh
 
-# 9. G20 data-review sign-off: the historical-pipeline maintainer's audit
+# 8. G20 data-review sign-off: the historical-pipeline maintainer's audit
 #    row confirming legacy data is complete and member-list presentation is
 #    reviewed. Legacy-data surfaces must not ship without it.
 run_step "G20-SIGNOFF" bash -c '
@@ -124,11 +121,11 @@ run_step "G20-SIGNOFF" bash -c '
   fi
 '
 
-# 10. Live-payments boot readiness (env file names the live adapter and the
+# 9. Live-payments boot readiness (env file names the live adapter and the
 #    webhook secret; the Stripe key itself lives in SSM)
 run_step "PAYMENTS-BOOT" bash scripts/validate-payments-boot.sh
 
-# 11. Internal QC subsystem must be absent from the production image
+# 10. Internal QC subsystem must be absent from the production image
 if [[ "${MOCK_AWS}" -eq 1 ]]; then
   run_step "QC-ABSENCE" bash scripts/validate-qc-absence.sh --mock
 else

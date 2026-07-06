@@ -18,8 +18,8 @@
 #
 # Env (from /srv/footbag/env via the systemd unit):
 #   FOOTBAG_DB_DIR    host dir holding footbag.db   (default /srv/footbag/db)
-#   BACKUP_S3_BUCKET  primary snapshots bucket name (required; the
-#                     "<prefix>-db-snapshots" bucket from terraform)
+#   BACKUP_S3_BUCKET  primary snapshots bucket name (required; production
+#                     "<prefix>-db-snapshots", staging "<prefix>-snapshots")
 #   AWS_PROFILE       assumed-role source profile   (required by the aws CLI)
 #   AWS_REGION        bucket + metric region
 #   FOOTBAG_ENV       CloudWatch namespace suffix (Footbag/${FOOTBAG_ENV})

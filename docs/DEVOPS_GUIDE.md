@@ -861,9 +861,9 @@ Operator steps:
 3. Publish the DNS validation records. If `footbag.org`'s Route 53 zone is owned by the same account, declare the `aws_route53_record` validation records alongside the cert in the same module and re-apply. If the zone is upstream-owned, hand the records to the webmaster (see §6.8, external DNS/mail upstream coordination) and wait for confirmation that they are live.
 4. Poll cert status: `aws acm describe-certificate --region us-east-1 --certificate-arn <arn> --query 'Certificate.Status'`. Expected progression: `PENDING_VALIDATION` → `ISSUED`. If status sticks at `PENDING_VALIDATION` past one hour, re-verify the DNS validation records resolve (`dig _<token>.footbag.org CNAME`).
 5. Attach to the production CloudFront distribution. Update the `viewer_certificate` block on the distribution resource to reference the issued cert arn and set `ssl_support_method = "sni-only"`, `minimum_protocol_version = "TLSv1.2_2021"`. `terraform apply`.
-6. Post-attachment verification:
-   - `curl -vIk https://footbag.org/health/live` returns HTTP 200 and the TLS handshake reports the new cert's subject + SAN.
-   - `openssl s_client -connect www.footbag.org:443 -servername www.footbag.org </dev/null 2>/dev/null | openssl x509 -noout -subject -dates` shows both names and a `notAfter` consistent with ACM's 13-month validity.
+6. Post-attachment verification (pre-cutover the public apex and `www` DNS still point at the legacy host, so verify against the distribution directly, matching the pre-switch smoke in MIGRATION_PLAN §29.12):
+   - `curl -vIk --resolve www.footbag.org:443:<edge-ip> https://www.footbag.org/health/live` (an `<edge-ip>` from `dig +short <distribution>.cloudfront.net`) returns HTTP 200 and the TLS handshake reports the new cert's subject + SAN; the test subdomain, once the webmaster applies its record, verifies the same path without `--resolve`.
+   - `openssl s_client -connect <distribution>.cloudfront.net:443 -servername www.footbag.org </dev/null 2>/dev/null | openssl x509 -noout -subject -dates` shows both names and a `notAfter` consistent with ACM's 13-month validity.
    - CloudFront's `Status` reports `Deployed` (the in-flight `InProgress` state lasts 5-15 minutes after `terraform apply`).
 
 Rollback: re-apply the prior `viewer_certificate` block (the default CloudFront cert, or the previous cert arn) and `terraform apply`. The cert resource itself can stay; an unattached cert is benign and saves the next-attempt issuance round-trip.
@@ -925,18 +925,13 @@ For staging-mode testing without enumerating every tester, AWS provides `success
 
 #### SES production-access ticket procedure
 
-AWS support tickets to move SES out of sandbox have a typical 24-48h response window; file before the production sending need. This is part of first-time production activation; the onboarding home is `DEV_ONBOARDING.md` §9.6. The procedure is reproduced here as the operational reference.
+AWS support tickets to move SES out of sandbox have a typical 24-48h response window; file before the production sending need. This is part of first-time production activation; the onboarding home is `DEV_ONBOARDING.md` §9.6. The request procedure, its use-case template, and the quota verification live there; follow it there. It is deliberately not reproduced here.
 
-Operator steps:
+After approval:
 
-1. Confirm preconditions: sending domain is verified end-to-end on the target account; SPF, DKIM, DMARC records published; bounce/complaint SNS topic created and subscribed; outbound notification batch volume estimated.
-2. File via the AWS Support Center: open a "Service limit increase" ticket → service: SES → type: "Sending limits" → request "Move out of sandbox / production access." Include the estimated daily send volume, the use case (transactional notification batch for migration cutover + ongoing account-management mail), and a description of bounce/complaint handling.
-3. AWS may request a sample of email content. Provide the verification, password-reset, and notification-batch templates.
-4. Track the ticket; expect a response in 24-48h. Approval moves the account out of sandbox in the SES console (verify under "Account dashboard → Sending statistics → Sandbox: No").
-5. After approval, confirm the production env file sets `SES_ADAPTER=live` and restart the app. Production is the only environment with live SES delivery; dev and staging run `SES_ADAPTER=stub` and surface captured mail via the in-page simulated-email card (DD §5.6).
-6. Smoke-test end-to-end: trigger a verification email to an unverified address (one that would have been rejected in sandbox); confirm delivery.
-
-Record the ticket ID and approval timestamp in the operations log.
+1. Confirm the production env file sets `SES_ADAPTER=live` and restart the app. Production is the only environment with live SES delivery; dev and staging run `SES_ADAPTER=stub` and surface captured mail via the in-page simulated-email card (DD §5.6).
+2. Smoke-test end-to-end: trigger a verification email to an unverified address (one that would have been rejected in sandbox); confirm delivery.
+3. Record the ticket ID and approval timestamp in the operations log.
 
 #### Outbound email pipeline (stages, observable state)
 
@@ -2128,7 +2123,7 @@ For ad-hoc lifecycle work that does not require a deploy (e.g., fixing a caption
 Use this for corruption, bad deploy with data damage, or accidental destructive bug.
 
 1. Put the site in maintenance mode.
-2. Identify the restore point: routine snapshots live in the primary `BACKUP_S3_BUCKET` (the `<prefix>-db-snapshots` bucket) under `routine/YYYY/MM/DD/footbag-<timestamp>.db.gz`; list with `aws s3 ls s3://<bucket>/routine/`.
+2. Identify the restore point: routine snapshots live in the primary `BACKUP_S3_BUCKET` (production `<prefix>-db-snapshots`; staging `<prefix>-snapshots`) under `routine/YYYY/MM/DD/footbag-<timestamp>.db.gz`; list with `aws s3 ls s3://<bucket>/routine/`.
 3. Download the selected snapshot to the host and decompress it: `aws s3 cp s3://<bucket>/routine/YYYY/MM/DD/footbag-<timestamp>.db.gz /srv/footbag/db/restore.db.gz && gunzip /srv/footbag/db/restore.db.gz`.
 4. Run `PRAGMA integrity_check` on the decompressed file: `sqlite3 /srv/footbag/db/restore.db 'PRAGMA integrity_check;'` (expect `ok`).
 5. Replace the live DB file with the validated snapshot.

@@ -45,7 +45,7 @@ export const clubController = {
       if (err instanceof NotFoundError) {
         const legacyClubKey = clubService.findUnmappedLegacyClubKey(req.params.key ?? '');
         if (legacyClubKey) {
-          res.redirect(302, `https://archive.footbag.org/clubs/${encodeURIComponent(legacyClubKey)}`);
+          res.redirect(301, `https://archive.footbag.org/clubs/${encodeURIComponent(legacyClubKey)}`);
           return;
         }
       }
