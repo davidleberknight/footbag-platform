@@ -3903,6 +3903,9 @@ export interface FreestyleGlossaryContent {
   // side axes as three-layer entries (Line + collapsibles).
   directionConcept: GlossaryConceptCardVM;
   sideConcept:      GlossaryConceptCardVM;
+  // Core Concept card rendered in the Surfaces section: the cross-body body
+  // relationship that defines the clipper.
+  crossBodyConcept: GlossaryConceptCardVM;
 }
 
 /** A Core Concept glossary card: a Line always visible plus a "how it relates"
@@ -9805,6 +9808,8 @@ export const freestyleService = {
         // pre-shaped so the template branches on a boolean, not field presence.
         directionConcept: shapeGlossaryConcept('direction'),
         sideConcept:      shapeGlossaryConcept('side'),
+        // Core Concept card for the Surfaces section.
+        crossBodyConcept: shapeGlossaryConcept('cross-body'),
       },
     };
   },
