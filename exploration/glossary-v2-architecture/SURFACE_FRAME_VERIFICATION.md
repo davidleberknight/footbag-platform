@@ -74,17 +74,19 @@ Do not teach the mirage/legover grid.
 
 **The Surface Frame insight is SUPPORTED.** The core teaching — surface frame changes a
 dex's meaning — is strongly confirmed by whirl≈mirage, and the negative claims (swirl ≠
-clipper legover; the mirage/legover grid is wrong) both hold. Read the two swirl-family
+clipper legover; the mirage/legover grid is wrong) both hold. Read the two swirl-type
 specifics below through the refined curator clarification at the end of this note, which
 supersedes them:
 
 1. **The swirl / reverse-swirl notation observation stands as a data reading, not a
    verdict.** In the live notation the two differ by side (both `BACK SWIRL`, SAME vs OP),
-   while doctrine treats them as a direction pair within the swirl family. That gap is a
-   curator/doctrine verification item, **not** a reason to rewrite the row.
+   while doctrine treats them as a directionally-related pair. Swirl and reverse swirl are
+   two directions of a shared terminal-dex logic, **not one family** — direction reversal
+   generates a distinct family. That gap is a curator/doctrine verification item, **not**
+   a reason to rewrite the row.
 2. **Teach whirl≈mirage and swirl≈ATW at different strengths.** whirl≈mirage is an exact
    surface-swap; swirl≈ATW-like is a useful pedagogical analogy, not a mechanical identity.
-   The load-bearing swirl-family fact is that the dexing leg is the catching leg.
+   The load-bearing swirl-type terminal-dex fact is that the dexing leg is the catching leg.
 
 ## Proposed safe wording (for the eventual entry/essay)
 
@@ -92,19 +94,21 @@ supersedes them:
   cross-body on the clipper instead of on the toe. This is the cleanest proof that the
   surface frame is part of a trick's meaning.*
 - *Swirl is usefully thought of as the clipper world's version of Around the World — but
-  loosely: it is a swirl-family terminal dex, not a mechanical copy of ATW. What actually
-  defines the swirl family is that the same leg that performs the dex also catches the
-  bag, which is what sets it apart from the whirl and whip family.*
-- *Reverse swirl is swirl run the other way — the direction-reversed swirl-family terminal
-  dex — and, like whirl and swirl, it can be the ending of a longer sequence rather than a
-  trick on its own.*
+  loosely: it is a swirl-type terminal dex, not a mechanical copy of ATW. What actually
+  defines a swirl-type ending is that the same leg that performs the dex also catches the
+  bag, which is what sets it apart from whirl-type endings.*
+- *Reverse swirl is swirl's direction reverse. It shares the swirl-type terminal-dex logic
+  but is its own reverse-direction lineage, not a member of the swirl family — direction
+  reversal makes a distinct family. Like the others, it can be the ending of a longer
+  sequence rather than a trick on its own.*
 
 ## Registry changes made
 
 `INSIGHT_REGISTRY.md` row 6 was updated to: (a) present swirl≈ATW-like and rev-swirl as
 pedagogical analogies rather than exact ATW/Orbit equivalences; (b) state the load-bearing
-swirl-family rule that the dexing leg is the catching leg; and (c) mark the stored
-`rev_swirl` notation as a curator/doctrine verification item, not an automatic data fix.
+swirl-type terminal-dex rule that the dexing leg is the catching leg, with the family guard
+that direction reversal makes a distinct family; and (c) mark the stored `rev_swirl`
+notation as a curator/doctrine verification item, not an automatic data fix.
 The core insight wording — "surface frame changes meaning" — is unchanged and does not
 overclaim a perfect mapping. No production glossary content or dictionary row was touched.
 
@@ -114,14 +118,20 @@ The reverse-swirl question was refined in two steps; this is the settled reading
 not force swirl / reverse-swirl into a strict ATW / Orbit equivalence.**
 
 - **Keep (pedagogy):** swirl is usefully understood as a **clipper-context ATW-like
-  terminal dex**, and reverse swirl is the **direction-reversed swirl-family terminal
-  dex**. The ATW / Orbit reading is a teaching aid, not a mechanical identity.
-- **The load-bearing structural rule — this, not the analogy:** in the swirl family, **the
-  dexing leg is also the catching leg.** That is the feature that distinguishes
-  swirl-family endings from the nearby whirl / whip family. Swirl and reverse-swirl are
+  terminal dex**, and reverse swirl is its **direction-reversed counterpart**. The ATW /
+  Orbit reading is a teaching aid, not a mechanical identity.
+- **The load-bearing structural rule — this, not the analogy:** in swirl-type endings,
+  **the dexing leg is also the catching leg.** That is the feature that distinguishes
+  swirl-type endings from whirl-type endings (whirl / whip). Swirl and reverse swirl are
   also *terminal dexes* — they can end a longer sequence (`set > dex > … > swirl` /
   `… > reverse swirl`), so the point is how a terminal dex is read, not only about
   standalone atoms.
+- **Family guard (the correction that prompted this pass):** the shared terminal-dex logic
+  does **not** make swirl and reverse swirl one family. Direction reversal generates a
+  distinct family/lineage — reverse swirl is its own reverse-direction family, the Orbit
+  family is not the ATW family, and Whip is not the Whirl family — unless the dictionary
+  doctrine explicitly rules a direction pair one family. Surface-frame analogy does not
+  override family identity.
 - **The ATW / Orbit analogy is not exact enough to rewrite operational notation.** My
   earlier claim that the stored notation "must be reconciled to a same-side
   reversed-swirl to match clipper-Orbit" over-reached and is **withdrawn**.

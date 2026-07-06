@@ -73,14 +73,17 @@ insight is authored.
 - Whirl is the clipper-context Mirage (and Whip the clipper-context Illusion) — an *exact*
   surface-swap: the same op-side in-dex, caught cross-body instead of on the toe.
 - Swirl is usefully understood as a **clipper-context ATW-like terminal dex**, and reverse
-  swirl as the **direction-reversed swirl-family terminal dex** — a **pedagogical analogy,
-  not an exact ATW / Orbit equivalence.** Do not treat it as a mechanical identity, and do
-  not rewrite operational notation to force it.
-- **Swirl-family structural rule:** in the swirl family, **the dexing leg is also the
-  catching leg** — the feature that distinguishes swirl-family endings from the whirl /
-  whip family. Swirl and reverse swirl can be terminal dexes on a longer sequence
-  (`set > dex > … > swirl`), so the point is how a terminal dex is read, not only about
-  standalone atoms.
+  swirl as its **direction-reversed counterpart** — a **pedagogical analogy, not an exact
+  ATW / Orbit equivalence.** Do not treat it as a mechanical identity, and do not rewrite
+  operational notation to force it.
+- **Swirl-type terminal-dex rule:** in swirl-type endings, **the dexing leg is also the
+  catching leg** — the feature that distinguishes them from whirl-type endings (whirl /
+  whip). Swirl and reverse swirl share this terminal-dex logic as directionally-related
+  lineages, but **they are not one family:** direction reversal generates a distinct family
+  (reverse swirl is its own reverse-direction lineage, not a member of the swirl family;
+  likewise Orbit is not the ATW family, and Whip is not the Whirl family). They can be
+  terminal dexes on a longer sequence (`set > dex > … > swirl`), so the point is how a
+  terminal dex is read, not only about standalone atoms.
 - A dex's meaning is re-derived per surface context, not transferred mechanically; the
   honest analogy is rarely the one a beginner expects.
 
@@ -88,14 +91,17 @@ insight is authored.
 - Mirage / Legover :: Whirl / Swirl — the wrong grid.
 - Swirl is a clipper Legover — false.
 
-**Direction stays a separate axis** — every trick has a direction mirror within its own
-surface context: Mirage / Illusion; Around the World / Orbit; Whirl / Whip; Swirl /
-Reverse Swirl (a swirl-family direction reversal; the ATW / Orbit reading is a pedagogical
-aid, not an exact equivalence). *(Checked against operational notation — see
-`SURFACE_FRAME_VERIFICATION.md`. The stored `rev_swirl` notation is a curator / doctrine
-verification item, not an automatic data fix: do not rewrite the production row for the
-analogy's sake; the swirl-family signature to confirm is that the dexing leg is the
-catching leg.)*
+**Direction stays a separate axis** — every trick has a direction mirror: Mirage /
+Illusion; Around the World / Orbit; Whirl / Whip; Swirl / Reverse Swirl. These are
+direction pairs, **not one family each.** Direction reversal generates a distinct
+family/lineage — the Orbit family is not the ATW family, Whip is not the Whirl family,
+Reverse Swirl is not the Swirl family — unless the dictionary doctrine explicitly rules a
+pair one family. Surface-frame analogy does not override family identity. *(Checked against
+operational notation — see `SURFACE_FRAME_VERIFICATION.md`. The stored `rev_swirl` notation
+is a curator / doctrine verification item, not an automatic data fix: do not rewrite the
+production row for the analogy's sake; the swirl-type terminal-dex signature to confirm is
+that the dexing leg is the catching leg — a feature swirl and reverse swirl share as
+directionally-related lineages, not as one family.)*
 
 **Three levels of "different" (every sameness / merge judgment runs through this ladder):**
 1. **Structural identity** — same operator or trick in the same frame; a name-merge is
