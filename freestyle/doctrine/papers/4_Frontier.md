@@ -19,9 +19,10 @@ a real trick.
 - **Frequency is evidence, never authority.** Recurrence in a corpus documents
   that a name is used; it does not by itself promote the name to canon.
 - **The current ADD ceiling is 8.** Three canonical rows reach it. Nothing above
-  is cleanly attested; the single 9 signal in the corpus is one structure, and
-  the doctrine already decides it (see the worked example). "Not yet built" is a
-  status fact, never a gap.
+  is cleanly attested. Every published 9 reading was investigated, and each fails
+  one of two ways: it rests on an X-Dex application the settled rule forbids, or on
+  an operator the grammar has not defined. The doctrine already decides them (see
+  the worked examples). "Not yet built" is a status fact, never a gap.
 
 ## Open questions
 
@@ -52,15 +53,21 @@ a real trick.
 
 ## Worked examples
 
-- **Big Apple Sauce, the one 9 signal.** Spinning Paradox Miraging Symposium
+- **Big Apple Sauce, the X-Dex 9.** Spinning Paradox Miraging Symposium
   Torque is scored 9 by FootbagMoves and independently notated at 9, on the
   strength of an `[XDEX]` bracket. The platform publishes 8, because under the
   settled X-Dex rule that bonus cannot fire here: no qualifying set is present,
-  and the receiving dex follows a paradox dex. The lone 9 in the corpus is
+  and the receiving dex follows a paradox dex. This 9 is
   therefore not a discovery the encyclopedia is missing; it is a divergence the
   scoring rule already resolves. This is the whole ADD-ceiling question in one
   case: publishing a first 9 would mean reversing a settled rule, not filling a
   gap.
+- **Carousel, the undefined-operator 9.** Surging Ducking Paradox Symposium
+  Whirling Rake is likewise listed at 9, but its ninth point rests on the
+  `surging` operator, which the grammar has not defined. The platform publishes 8
+  and holds the ninth point pending a structural definition of surging — not a
+  settled rule this time, but the attestation premise: an undefined operator is
+  not a scored one.
 - **Thigh Catch, the unnamed-structure case.** A between-the-thighs catch is
   mechanically admissible — unusual-surface stalls are canonical vocabulary — but
   no tracked source attests it under any name. Under the attestation premise it
