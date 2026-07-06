@@ -148,7 +148,7 @@ Law (home: Mirage) states in full.
 ---
 
 ## Whirl
-**Tier 3 · Insight home: one directional distinction, two lineages**
+**Tier 3 · Connective**
 
 **Line.** A whirl sends the bag on a dexterity that finishes not on an open toe stall
 but on a *clipper* — a cross-body catch behind the leg. It is the moment a beginner
@@ -160,15 +160,10 @@ traversal, and the catch.
 the same way, on the same crossed clipper, and to the eye they rhyme. What separates
 them is the direction and shape of the dexterity that gets there — a whirl and a swirl
 are the same destination reached by mirrored routes. Whirl's other close relatives are
-the tricks it launches: torque, blender, and the long line of "whirling" compounds.
-
-**Reveals.** Whirl and swirl are one small distinction — a single difference in how
-the dex travels — and from that one distinction grew *two entire families*, each with
-dozens of members, each with its own compounds and champions and records. This is how
-freestyle actually expands: not by inventing wholly new moves, but by taking one move,
-mirroring or bending a single feature of it, and discovering that the variant is worth
-a lifetime of its own. The whirl/swirl split is the clearest fossil of that process in
-the whole vocabulary. Two lineages, one ancestor, one distinction between them.
+the tricks it launches: torque, blender, and the long line of "whirling" compounds. Its
+deeper reading — as the clipper-world worked example of how a surface frame changes a
+dex's meaning — is deferred until the reverse-swirl surface-frame verification is settled;
+until then whirl is taught as a connective atom, not an insight home.
 
 **Explore.** Swirl (its directional counterpart) · the whirl family · Torque and
 Blender (whirl-adjacent osis compounds) · essay: The Mirror Law.
@@ -176,20 +171,19 @@ Blender (whirl-adjacent osis compounds) · essay: The Mirror Law.
 ---
 
 ## Swirl
-**Tier 3 (reference) · Points to: one directional distinction, two lineages (Whirl)**
+**Tier 3 · Connective**
 
 **Line.** A swirl reaches the same crossed clipper landing as a whirl, but the
 dexterity that carries the bag there travels on a mirrored, back-circling path. Same
 finish, mirrored route. It is the trick most often confused with the whirl, and
 telling them apart by eye is a genuine milestone in learning to *read* freestyle.
 
-**Relates.** Swirl is whirl's mirror, and like the whirl it has founded a whole family
-of its own — the swirling compounds. The pair sit at the head of two parallel
-lineages that have run side by side for the sport's whole history.
-
-**Reveals.** Swirl is the second half of the clearest example of how one directional
-difference seeds two entire branches of freestyle. → See *Whirl* for the full story of
-how a single distinction became two families.
+**Relates.** Swirl is whirl's mirror, and like the whirl it heads its own line of
+compounds, the swirling tricks. The two sit side by side, the same crossed-clipper
+landing reached by mirrored routes. Its deeper reading — as the clipper-world companion
+to whirl in how a surface frame changes a dex's meaning — is deferred until the
+reverse-swirl surface-frame verification is settled; until then swirl is taught as a
+connective atom, not an insight home.
 
 **Explore.** Whirl (its mirror) · the swirl family · essay: The Mirror Law.
 
