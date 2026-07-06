@@ -7,6 +7,33 @@ tools:
   - Glob
   - Bash
 model: sonnet
+# Project settings.json hooks do not fire for a subagent's tool calls, so the Bash guard
+# chain and the read-only auto-approver are declared here to run for THIS agent's Bash
+# calls: restoring the secret-read block and destructive-command guards, and keeping
+# read-only research prompt-free. Mirrors the PreToolUse Bash chain in .claude/settings.json;
+# the settings rules remain the version-proof floor beneath these.
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/block-git-mutations.sh"
+        - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-secret-reads.sh"
+        - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-prod-ops.sh"
+        - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-db-destructive.sh"
+        - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-dangerous-git.sh"
+        - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-full-suite-vitest.sh"
+        - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-readonly-bash.sh"
+        - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-find-exec.sh"
+        - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/allow-readonly-bash.sh"
 ---
 
 # Read-Only Auditor

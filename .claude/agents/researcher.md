@@ -8,6 +8,10 @@ tools:
   - WebFetch
   - WebSearch
 model: sonnet
+# No PreToolUse hooks by design: this agent has no Bash, Edit, or Write tool, so there is
+# no shell command to vet and no file write to block. Its WebFetch is bounded by the
+# inherited domain-scoped permission rules. Contrast the auditor, which carries the Bash
+# guard chain because it has shell access.
 ---
 
 # Research Agent

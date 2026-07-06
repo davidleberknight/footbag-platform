@@ -18,6 +18,12 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 # matching so `cat .env.example` stays available.
 SCAN="$(printf '%s' "$COMMAND" | sed -E 's/\.env\.(example|sample|template)//g')"
 
+# A secret path can be split by quotes or backslashes (cat .e''nv, cat .en\v) so the raw
+# token never appears; append a quote/backslash-stripped copy as a second line so every
+# pattern below also matches the reassembled form. Both copies are line-matched by grep.
+SCAN="$SCAN
+$(printf '%s' "$SCAN" | tr -d "\"'\\\\")"
+
 deny() {
   jq -n --arg what "$1" '{
     hookSpecificOutput: {
@@ -54,6 +60,16 @@ if printf '%s' "$SCAN" | grep -Eq "(^|[[:space:]\"'=/])\.?secrets/"; then
 fi
 if printf '%s' "$SCAN" | grep -Eq "\.tfstate([^A-Za-z0-9_]|\$)|\.npmrc([^A-Za-z0-9_]|\$)|\.terraformrc([^A-Za-z0-9_]|\$)"; then
   deny "state/rc file that can carry credentials"
+fi
+
+# netrc, git credential store, and postgres passfile carry plaintext credentials.
+if printf '%s' "$SCAN" | grep -Eq "(^|[[:space:]\"'=/])\.(netrc|pgpass|git-credentials)([^A-Za-z0-9_]|\$)"; then
+  deny "netrc/pgpass/git-credentials secret file"
+fi
+
+# Cloud and agent config files that hold tokens or private keys.
+if printf '%s' "$SCAN" | grep -Eq "\.docker/config\.json|\.kube/config([^A-Za-z0-9_]|\$)|\.gnupg/|gcloud/(legacy_credentials|application_default_credentials)"; then
+  deny "cloud/credential config file"
 fi
 
 exit 0

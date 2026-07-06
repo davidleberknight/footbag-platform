@@ -47,6 +47,14 @@ expect "$H" 'openssl rsa -in server.key' deny
 expect "$H" 'cat ~/.aws/credentials' deny
 expect "$H" 'cat terraform.tfstate' deny
 expect "$H" 'cat ~/.npmrc' deny
+expect "$H" 'cat ~/.netrc' deny
+expect "$H" 'cat ~/.git-credentials' deny
+expect "$H" 'cat ~/.pgpass' deny
+expect "$H" 'cat ~/.docker/config.json' deny
+expect "$H" 'cat ~/.kube/config' deny
+# Quote/backslash token-splitting must not slip a secret read past the guard.
+expect "$H" "cat .e''nv" deny
+expect "$H" 'cat .en\v' deny
 
 # Harmless commands that merely resemble secret references must defer.
 expect "$H" 'cat .env.example' defer
@@ -56,6 +64,21 @@ expect "$H" "jq '.key' package.json" defer
 expect "$H" 'ls -la src' defer
 expect "$H" 'git status' defer
 expect "$H" 'npm run build' defer
+
+H=block-git-mutations.sh
+
+# The staging/commit/push/pull mutations are hard-denied, including behind a git global
+# option (git -C DIR commit, git -c k=v commit); read-only git defers.
+expect "$H" 'git add -A' deny
+expect "$H" 'git commit -m x' deny
+expect "$H" 'git push origin main' deny
+expect "$H" 'git pull' deny
+expect "$H" 'git -C . commit -m x' deny
+expect "$H" 'git -c user.email=e@x commit -m x' deny
+expect "$H" 'git --git-dir=/tmp/g push' deny
+expect "$H" 'git status' defer
+expect "$H" 'git log --oneline' defer
+expect "$H" 'git diff HEAD' defer
 
 H=guard-db-destructive.sh
 
@@ -115,6 +138,9 @@ expect "$H" 'find . -exec rm {} \;' deny
 expect "$H" 'find . -execdir rm {} \;' deny
 expect "$H" 'find . -ok rm {} \;' deny
 expect "$H" 'find . -okdir rm {} \;' deny
+# Quote- and backslash-obfuscated predicates must still be denied.
+expect "$H" "find . '-exec' rm {} \;" deny
+expect "$H" 'find . -exe\c rm {} \;' deny
 expect "$H" 'find src -name "*.ts"' defer
 expect "$H" 'find . -delete' defer
 
@@ -211,6 +237,32 @@ expect "$H" 'rg --pre=/tmp/evil.sh foo src/' defer
 expect "$H" 'git log --oneline -5' allow
 expect "$H" 'git diff HEAD~1' allow
 expect "$H" 'rg -n foo src/' allow
+
+# Approver self-sufficiency: heads that can write/exec via a predicate or flag must NOT
+# auto-approve, even when the sibling guard would also catch them (defense in depth).
+# Quote/backslash obfuscation of the find predicate is stripped before matching.
+expect "$H" 'find . -exec rm {} \;' defer
+expect "$H" "find . '-exec' rm {} \;" defer
+expect "$H" 'find . -delete' defer
+expect "$H" 'sort -o out.txt in.txt' defer
+expect "$H" 'date -s 2020-01-01' defer
+expect "$H" 'hostname evil' defer
+expect "$H" 'printenv' defer
+# Bash 5.2 function substitution executes a command inside ${...}; never auto-approve.
+expect "$H" 'echo "${ rm x; }"' defer
+expect "$H" 'echo "${| rm x; }"' defer
+# ...while the genuinely read-only forms of those same heads still auto-approve.
+expect "$H" 'find src -name "*.ts"' allow
+expect "$H" 'date +%s' allow
+expect "$H" 'hostname -I' allow
+expect "$H" 'git check-ignore -v src/app.ts' allow
+expect "$H" 'git check-attr -a src/app.ts' allow
+# Read-only git behind a global pager option still auto-approves; a mutation behind one
+# still falls through (and block-git-mutations denies it).
+expect "$H" 'git --no-pager diff HEAD' allow
+expect "$H" 'git --no-pager log --oneline -5' allow
+expect "$H" 'git -P show HEAD:src/app.ts' allow
+expect "$H" 'git --no-pager commit -m x' defer
 
 # Control constructs: a command hidden behind a conditional, grouping, or negation
 # is still vetted (must not skip a mutation), while a read-only conditional allows.

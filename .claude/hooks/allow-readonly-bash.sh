@@ -25,10 +25,10 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 # argument), and `xxd`/`uniq`/`tree`/`sort`/`sed` can write a file operand or flag;
 # those write/exec forms are handled below (dropped from this list, guarded, or
 # bailed on a mid-arg flag) so only their genuinely read-only uses reach `allow`.
-readonly_heads='ls cat head tail wc grep egrep fgrep rg find tree stat file echo printf pwd which type dirname basename realpath readlink sort uniq cut comm tr nl tac fold column jq date printenv id whoami hostname uname sed true false : diff cmp strings od hexdump base64 base32 cksum md5sum sha1sum sha224sum sha256sum sha384sum sha512sum shasum b2sum sum rev fmt expand unexpand paste join pr look seq numfmt tsort ps pgrep pidof df du free uptime groups users who w tty nproc arch getconf locale lscpu lsblk lsmem getent lsof cd pushd popd dirs test'
+readonly_heads='ls cat head tail wc grep egrep fgrep rg find tree stat file echo printf pwd which type dirname basename realpath readlink sort uniq cut comm tr nl tac fold column jq date id whoami hostname uname sed true false : diff cmp strings od hexdump base64 base32 cksum md5sum sha1sum sha224sum sha256sum sha384sum sha512sum shasum b2sum sum rev fmt expand unexpand paste join pr look seq numfmt tsort ps pgrep pidof df du free uptime groups users who w tty nproc arch getconf locale lscpu lsblk lsmem getent lsof cd pushd popd dirs test'
 
 # Git subcommands that only read. Anything else under git falls through.
-readonly_git='status log diff show blame rev-parse describe shortlog ls-files ls-tree cat-file for-each-ref reflog rev-list merge-base show-ref name-rev ls-remote var count-objects cherry whatchanged verify-commit verify-tag grep annotate range-diff show-branch'
+readonly_git='status log diff show blame rev-parse describe shortlog ls-files ls-tree cat-file for-each-ref reflog rev-list merge-base show-ref name-rev ls-remote var count-objects cherry whatchanged verify-commit verify-tag grep annotate range-diff show-branch check-ignore check-attr check-mailmap'
 
 contains() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
 
@@ -60,6 +60,10 @@ SCAN="$(printf '%s' "$COMMAND" | sed -E 's/&>>?[[:space:]]*\/dev\/null//g; s/[0-
 
 # Backtick command substitution is never reasoned about; fall through.
 case "$SCAN" in *'`'*) exit 0 ;; esac
+
+# Bash 5.2+ function substitution -- ${ cmd;} and ${| cmd;} -- runs a command inside a
+# ${...} that ordinary parameter expansion never would. Never reasoned about; fall through.
+case "$SCAN" in *'${ '*|*'${|'*|*"\${"$'\t'*) exit 0 ;; esac
 
 # Resolve `$( ... )` command substitutions fail-closed. Each accepted
 # substitution is replaced with an inert placeholder so the remaining
@@ -174,7 +178,17 @@ while IFS= read -r seg; do
 
   head="$1"
   if [ "$head" = git ]; then
-    contains "$readonly_git" "${2:-}" || exit 0
+    shift                                   # drop `git`
+    # Skip read-only global options that can precede the subcommand, so a common form
+    # like `git --no-pager diff` is vetted on `diff`. `-c`/`-C` are deliberately NOT
+    # skipped: they can change behavior or target another repo, so they fall through.
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --no-pager|-P|--paginate|--no-optional-locks|--literal-pathspecs) shift ;;
+        *) break ;;
+      esac
+    done
+    contains "$readonly_git" "${1:-}" || exit 0
     # An exec/write flag can ride mid-arguments on a read-only git subcommand
     # (`git log --output=f`, `git ls-remote --upload-pack=cmd`); a prefix rule
     # cannot see it, so bail here.
@@ -194,6 +208,26 @@ while IFS= read -r seg; do
       # a write; the w/W/e write/exec sed-commands live inside the script argument and
       # are caught by guard-readonly-bash (ask). Bail here so no in-place form allows.
       for a in "$@"; do case "$a" in -i*|-[!-]*i*|--in-place|--in-place=*) exit 0 ;; esac; done ;;
+    find)
+      # find action predicates run a command or write/delete a file. They ride anywhere
+      # in the args and can be quote- or backslash-obfuscated (find . '-exec' rm ...),
+      # which a sibling regex guard misses; strip quotes and backslashes per arg before
+      # matching so every spelling of the predicate is caught here.
+      for a in "$@"; do
+        b="$a"; b="${b//\'/}"; b="${b//\"/}"; b="${b//\\/}"
+        case "$b" in
+          -exec|-execdir|-ok|-okdir|-delete|-fprint|-fprintf|-fls) exit 0 ;;
+        esac
+      done ;;
+    sort)
+      # -o / --output makes sort truncate and write a file operand.
+      for a in "$@"; do case "$a" in -o|-o*|--output|--output=*) exit 0 ;; esac; done ;;
+    date)
+      # -s / --set writes the system clock.
+      for a in "$@"; do case "$a" in -s|-s*|--set|--set=*) exit 0 ;; esac; done ;;
+    hostname)
+      # `hostname` prints the name; `hostname NAME` (any non-flag operand) sets it.
+      shift; for a in "$@"; do case "$a" in -*) ;; *) exit 0 ;; esac; done ;;
     rg)
       for a in "$@"; do case "$a" in --pre|--pre=*|--pre-glob|--pre-glob=*) exit 0 ;; esac; done ;;
     tree)

@@ -179,6 +179,32 @@ else
   fail=1
 fi
 
+# --- Check 11: the machine-local settings file carries no dangerous broad allow ---
+# settings.local.json is gitignored and per-developer, so it is absent in CI and this check
+# runs only where the file exists (a developer's machine). It is where "always allow" clicks
+# accumulate, so it is exactly where an un-readonly sqlite3, an interpreter/shell wildcard
+# (effectively Bash(*)), or a broad container-exec allow hides from the committed-file checks.
+LOCAL=".claude/settings.local.json"
+if [ -f "$LOCAL" ] && jq empty "$LOCAL" >/dev/null 2>&1; then
+  local_allows=$(jq -r '(.permissions.allow // [])[]' "$LOCAL" 2>/dev/null)
+  local_bad=$( {
+    printf '%s\n' "$local_allows" | grep -iE 'sqlite3' | grep -iv -- '-readonly'
+    printf '%s\n' "$local_allows" | grep -E '^Bash\((xargs|find|echo|awk|sed)([: *)]|$)'
+    printf '%s\n' "$local_allows" | grep -E '^Bash\((python3?|node|nodejs|ruby|perl|bash|sh|zsh|deno|bun|npx|cd|eval|exec)([[:space:]:]\*)?\)$'
+    printf '%s\n' "$local_allows" | grep -E '^Bash\(docker[[:space:]]+(run|exec|cp)([[:space:]]|\*)'
+    printf '%s\n' "$local_allows" | grep -E '^WebFetch\(domain:\*\)$'
+  } 2>/dev/null | grep -v '^[[:space:]]*$' | sort -u || true )
+  if [ -n "$local_bad" ]; then
+    echo "[harness] FAIL: $LOCAL carries dangerous broad allow(s) — promote a safe scoped rule to $SETTINGS, or delete:" >&2
+    printf '  %s\n' $local_bad >&2
+    fail=1
+  else
+    echo "[harness] $LOCAL carries no dangerous broad allow"
+  fi
+else
+  echo "[harness] $LOCAL absent or empty (nothing to scan)"
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "[harness] FAIL: one or more harness checks failed." >&2
   exit 1
