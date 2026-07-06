@@ -215,6 +215,51 @@ are a possible V1.2 graduation, built from the same entry content only if it pro
 wants more room. The graph's own vocabulary — "hub," "gateway," "out-degree" — is a
 private design instrument and never reaches a template.
 
+### 6a. Anchor family pages (the Toe Stall / Clipper Stall ruling)
+
+**Ruling: Toe Stall and Clipper Stall get family-style pages, reachable from both the
+dictionary and family navigation — but in a special *anchor* variant, never the ordinary
+descendant-roster family template.**
+
+They qualify twice over: they are two of the twelve core atoms, and they are the
+foundational parents that almost the entire vocabulary grows from. That earns them a place
+in the visible top family / foundational layer — a placement granted here by **explicit
+curator override**, not by the ordinary family-promotion test. The override is specific to
+these two core-atom anchors and sets no precedent (see the ATW / Rake note below).
+
+The reason they cannot use the normal family page: an ordinary family page lists every
+descendant inline, and these two route so many downstream tricks that an inline roster
+would bury the page and teach nothing. The anchor variant answers *what this is and what
+grows from it* without dumping the descendant set.
+
+**Anchor page content (the variant's template):**
+
+- what the stall is;
+- why it anchors the vocabulary (its role as a foundational parent);
+- how it differs from an ordinary family (an anchor, not a tidy descendant list);
+- what *kinds* of tricks route through it — categories, not an enumeration;
+- a small, curated set of representative pathways;
+- links to the major families and example tricks that grow from it;
+- a link to the full filtered trick list, for the reader who wants the complete descendant
+  set.
+
+**Hard rule: do not render hundreds of descendants inline.** The complete set lives behind
+the filtered-list link; the page itself stays a curated, teachable overview. This is the
+same anti-duplication contract as §9 — teach the concept and link to the roster rather than
+embed it — applied to the two atoms whose rosters are largest.
+
+**ATW and Rake are not promoted with them.** Around the World and Rake remain lesser /
+minor families for now. They may earn teaching treatment later, but they are **not** moved
+into the top family layer on current descendant counts, and the Toe Stall / Clipper Stall
+override is not a precedent that promotes them. The two stalls are promoted because they
+are core-atom foundational parents; ATW and Rake are not.
+
+**Status: planning / doctrine only.** No code, no production data change, and no
+family-page rewrite yet. When implementation begins, the anchor variant is a page pattern
+distinct from the ordinary family template and from the possible `/freestyle/bases/:slug`
+Skill pages of §6; whether it shares a route with either is an implementation decision
+deferred to that slice.
+
 ---
 
 ## 7. The Explore block — the glossary as the start of a journey
