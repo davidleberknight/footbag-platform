@@ -4882,6 +4882,34 @@ section.home-media { padding-top: 0; }
 .community-tips-collapsible[open] > summary,
 .trick-technique-collapsible[open] > summary { border-bottom: 1px solid var(--border); }
 
+/* Core-atom glossary cards: per-entry three-layer disclosure (Line visible,
+   Relates and Reveal as collapsibles). Mirrors the caret idiom above. */
+.glossary-core-atom-collapsible {
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.glossary-core-atom-collapsible > summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+.glossary-core-atom-collapsible > summary::-webkit-details-marker { display: none; }
+.glossary-core-atom-collapsible > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+.glossary-core-atom-collapsible[open] > summary::before { transform: rotate(90deg); }
+.glossary-core-atom-collapsible > p {
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
 /* Technique Notes inner sub-blocks (Execution / Learning Notes / Before You Try
    This), each a compact labeled group inside the single disclosure. */
 .trick-technique-part {

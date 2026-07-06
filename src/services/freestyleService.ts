@@ -3908,10 +3908,10 @@ export interface LanguageOfFreestyleAtomCard {
   displayName:      string;
   adds:             string;        // pre-formatted, e.g. "2 ADD"
   detailHref:       string;
-  lead:             string;        // movement-physical
-  movementIntuition: string;       // embodied coaching cue (what it feels like)
-  foundationalNote: string;        // cultural / why-foundational
-  familyRole:       string;        // optional secondary; empty string ok
+  line:             string;        // always-visible physical-first description
+  relates:          string;        // "how it relates" collapsible body
+  hasReveal:        boolean;        // pre-shaped: only insight-home atoms carry a reveal
+  reveal:           string;        // "what it reveals" collapsible body ('' when hasReveal is false)
 }
 
 // ── Emerging Vocabulary governance surface ────────────────────────────────
@@ -9758,19 +9758,20 @@ export const freestyleService = {
             : ex.status,
         })),
         derivationAtlas:   DERIVATION_PILOT_ENTRIES,
-        // §1 Core trick atoms — beginner-facing pedagogical cards.
-        // Curator authoring principle: movement intuition
-        // leads; compositional pointers are secondary. Sourced from
-        // CORE_ATOM_EDUCATIONAL; href maps to canonical trick-detail.
+        // Core trick atoms — three-layer glossary entries. The Line is always
+        // visible; Relates and (for the four insight-home atoms) Reveal render as
+        // per-entry collapsibles. Sourced from CORE_ATOM_EDUCATIONAL; href maps to
+        // canonical trick-detail. hasReveal is pre-shaped so the template branches
+        // on a boolean, not on field presence.
         coreAtomEducationalCards: CORE_ATOM_EDUCATIONAL.map(c => ({
           slug:             c.slug,
           displayName:      c.displayName,
           adds:             `${c.adds} ADD`,
           detailHref:       `/freestyle/tricks/${c.slug}`,
-          lead:             c.lead,
-          movementIntuition: c.movementIntuition,
-          foundationalNote: c.foundationalNote,
-          familyRole:       c.familyRole,
+          line:             c.line,
+          relates:          c.relates,
+          hasReveal:        c.reveal !== undefined,
+          reveal:           c.reveal ?? '',
         })),
       },
     };

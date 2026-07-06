@@ -1,12 +1,13 @@
 /**
- * Integration tests for the §1 Core trick atoms band on GET /freestyle/glossary.
+ * Integration tests for the twelve core trick atoms band on GET /freestyle/glossary.
  *
- * The band renders the curator-authored CORE_ATOM_EDUCATIONAL cards. Each card
- * carries two distinct movement layers: `lead` (what the movement physically IS)
- * and `movementIntuition` (the embodied coaching cue — what it FEELS like to
- * perform). This suite locks in that the intuition layer is shaped through the
- * view-model and rendered, distinct from the descriptive lead. Cards come from
- * the static content module, so they render independent of fixture data.
+ * The band renders the curator-authored CORE_ATOM_EDUCATIONAL entries as
+ * three-layer cards: a `line` always visible, a "How it relates" collapsible on
+ * every atom, and a "What it reveals" collapsible only on the four insight-home
+ * atoms (toe stall, clipper stall, mirage, butterfly). Connective atoms carry no
+ * reveal; whirl and swirl are connective, with their surface-frame reveal
+ * deferred. This suite locks that structure. Cards come from the static content
+ * module, so they render independent of fixture data.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -38,30 +39,45 @@ async function glossary(): Promise<string> {
   return res.text;
 }
 
-describe('Glossary §1 — core trick atoms band', () => {
-  it('renders the core trick atoms band with atom cards', async () => {
+function card(html: string, slug: string): string {
+  const m = html.match(new RegExp(`id="atom-${slug}"[\\s\\S]*?</article>`));
+  expect(m, `${slug} atom card`).not.toBeNull();
+  return m![0];
+}
+
+describe('Glossary — core trick atoms band', () => {
+  it('renders the core trick atoms band with atom anchors', async () => {
     const html = await glossary();
     expect(html).toContain('id="core-trick-atoms"');
     expect(html).toContain('id="atom-toe_stall"');
     expect(html).toContain('id="atom-osis"');
   });
 
-  it('renders the embodied "Feels like" intuition cue, distinct from the lead', async () => {
+  it('renders each atom as a three-layer card: line visible, relates collapsible', async () => {
     const html = await glossary();
-    // The osis card carries a known intuition cue; assert it renders inside
-    // that card's intuition slot (not the descriptive lead).
-    const osis = html.match(/id="atom-osis"[\s\S]*?<\/article>/);
-    expect(osis, 'osis atom card').not.toBeNull();
-    expect(osis![0]).toContain('class="glossary-core-atom-intuition"');
-    expect(osis![0]).toContain('Feels like');
-    expect(osis![0]).toMatch(/Blind faith in your set/);
+    const cardCount    = (html.match(/class="glossary-core-atom-card"/g) ?? []).length;
+    const lineCount    = (html.match(/class="glossary-core-atom-lead"/g) ?? []).length;
+    const relatesCount = (html.match(/<summary>How it relates<\/summary>/g) ?? []).length;
+    expect(cardCount).toBe(12);
+    // every atom's Line is present (always visible) and every atom has a
+    // How-it-relates collapsible wired through
+    expect(lineCount).toBe(cardCount);
+    expect(relatesCount).toBe(cardCount);
   });
 
-  it('shapes the intuition line for every atom card (all cards wired through)', async () => {
+  it('carries a Reveal only on the four insight-home atoms, not the connective ones', async () => {
     const html = await glossary();
-    const cardCount      = (html.match(/class="glossary-core-atom-card"/g) ?? []).length;
-    const intuitionCount = (html.match(/class="glossary-core-atom-intuition"/g) ?? []).length;
-    expect(cardCount).toBeGreaterThan(0);
-    expect(intuitionCount).toBe(cardCount);
+    const revealCount = (html.match(/<summary>What it reveals<\/summary>/g) ?? []).length;
+    expect(revealCount).toBe(4); // toe stall, clipper stall, mirage, butterfly
+
+    // insight-home atom carries the reveal
+    expect(card(html, 'toe_stall')).toContain('What it reveals');
+    expect(card(html, 'butterfly')).toContain('What it reveals');
+
+    // connective atoms do not; whirl and swirl are connective per the sign-off
+    // (their surface-frame reveal is deferred)
+    expect(card(html, 'osis')).not.toContain('What it reveals');
+    expect(card(html, 'whirl')).not.toContain('What it reveals');
+    expect(card(html, 'swirl')).not.toContain('What it reveals');
   });
 });

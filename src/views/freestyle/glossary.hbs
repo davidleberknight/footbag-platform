@@ -240,11 +240,12 @@
     <div class="glossary-core-atoms-band" id="core-trick-atoms">
       <h3 class="section-heading">The twelve core trick atoms</h3>
       <p class="glossary-core-atoms-lede">
-        Every named freestyle trick is built on a small set of foundational
-        movements. These twelve are the core atoms &mdash; the
-        simplest tricks the rest of the vocabulary anchors on. Each card
-        below describes what the movement physically <em>is</em>, then why
-        it became part of the language.
+        Under freestyle's whole vocabulary sits a small, fixed alphabet of
+        core atoms: two resting stalls and ten single-dex moves the rest of
+        the vocabulary is spelled from. These twelve are the irreducible set
+        every trick decomposes into, not a ranking of the best tricks. Each
+        card opens with what the movement is; open a card's panels for how it
+        relates and, for a few, what it reveals.
       </p>
       <div class="glossary-core-atoms-grid">
         {{#each content.coreAtomEducationalCards}}
@@ -255,16 +256,16 @@
             </h4>
             <span class="glossary-core-atom-adds" aria-label="{{adds}}">{{adds}}</span>
           </header>
-          <p class="glossary-core-atom-lead">{{lead}}</p>
-          {{#if movementIntuition}}
-          <p class="glossary-core-atom-intuition">
-            <span class="glossary-core-atom-intuition-label">Feels like</span>
-            {{movementIntuition}}
-          </p>
-          {{/if}}
-          <p class="glossary-core-atom-foundational">{{foundationalNote}}</p>
-          {{#if familyRole}}
-          <p class="glossary-core-atom-family-role">{{familyRole}}</p>
+          <p class="glossary-core-atom-lead">{{line}}</p>
+          <details class="glossary-core-atom-collapsible">
+            <summary>How it relates</summary>
+            <p>{{relates}}</p>
+          </details>
+          {{#if hasReveal}}
+          <details class="glossary-core-atom-collapsible">
+            <summary>What it reveals</summary>
+            <p>{{reveal}}</p>
+          </details>
           {{/if}}
         </article>
         {{/each}}
