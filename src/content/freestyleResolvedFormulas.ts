@@ -105,10 +105,10 @@ export interface ResolvedFormula {
 
 export const RESOLVED_FORMULAS_FRAMING_PROSE =
   "Mechanically-derivable compound formulas: pure +1 operator stacks, " +
-  "pt-ruled compounds, positional modifiers (reverse=+0), folk-name " +
-  "resolutions with curator-locked decomposition, and the first multi-" +
+  "compounds with a settled scoring rule, positional modifiers (reverse=+0), " +
+  "folk-name resolutions with a confirmed decomposition, and the first multi-" +
   "operator chain. Each row's derivation is verifiable from the " +
-  "settled operator + base inventory; no curator-judgment cases.";
+  "settled operator + base inventory.";
 
 // Resolved formulas accumulator. All rows were classified
 // `curator_pending` in the formula-gap classification and the

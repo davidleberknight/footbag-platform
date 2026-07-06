@@ -1295,7 +1295,7 @@ function shapeTrickPathways(args: {
           ? `Top: ${topRecordHolder} (${topRecordValue} kicks)`
           : null,
         href: '#passback-records',
-        hrefLabel: 'Jump to Passback Records',
+        hrefLabel: 'Jump to Records',
       }
     : {
         available: false,
@@ -6160,7 +6160,7 @@ function shapeModifierEntry(row: FreestyleTrickModifierRow): FreestyleModifierEn
 const FEATURED_MEDIA_EMPTY_GENERIC =
   "Curated tutorial coming soon. Until then, see family-adjacent demonstrations below.";
 const FEATURED_MEDIA_EMPTY_WITH_RECORD =
-  "Curated tutorial coming soon. See the record-holder demonstration in Passback Records below.";
+  "Curated tutorial coming soon. See the record-holder demonstration in the records below.";
 
 function shapeUx2PilotFromRow(
   row: FreestyleTrickRowWithParse | undefined,
@@ -10680,7 +10680,7 @@ export const freestyleService = {
       stepping: 'Flagship set: clipper-entry +1; anchors blurry / barraging / shooting / leaning.',
       atomic:   'Flagship set: out-dex toe entry resolving to op-side; the outward-dex uptime set, anchors nuclear / fairy-atomic.',
       miraging: "Flagship set: in-dex uptime set; atomic's inward-dex peer, anchors drifter and the miraging cohort.",
-      quantum:  "Flagship set: atomic's in-dex sibling; the curator-canonical pt2 replacement for toe-prefix naming.",
+      quantum:  "Flagship set: atomic's in-dex sibling; the platform-canonical replacement for toe-prefix naming.",
     };
 
     // Pre-load trick rows + modifier-link rows ONCE for the whole encyclopedia

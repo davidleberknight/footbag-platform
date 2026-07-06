@@ -1421,8 +1421,8 @@ function getLinkHistoryView(
 
   return {
     memberSlug: member.slug,
-    skipHref: opts.fromRegister ? '/members' : null,
-    dashboardHref: '/members',
+    skipHref: opts.fromRegister ? '/register/wizard/legacy_claim/skip' : null,
+    dashboardHref: `/members/${member.slug}`,
     candidates,
     sentNotice: {
       show: opts.sentOutcome !== null,

@@ -589,7 +589,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     externalSourceLabel:     'Outside source',
     externalAdd:             '5',
     delta:                   '+1',
-    decompositionDifference: "FM names Bladerunner as \"Atomic Eggbeater\". IFPA's eggbeater is already atomic legover; FM's name applies atomic recursively, IFPA's official math doesn't.",
+    decompositionDifference: "An outside source names Bladerunner \"Atomic Eggbeater\". IFPA's eggbeater is already atomic legover, so that name applies atomic recursively; IFPA's official math does not.",
     pattern:                 'recursive operator application',
     ifpaStatusLine:          'settled (eggbeater = atomic legover)',
   },
@@ -610,7 +610,7 @@ const EDGE_CASES: readonly AddAnalysisEdgeCase[] = [
     trickName:  'Genesis (outside source: Furious Whirl)',
     trickSlug:  null,
     ifpaAdd:    '5',
-    briefNote:  "Genesis (FM-named \"Furious Whirl\" at 7 ADD) is +2 above IFPA's official 5. The +2 traces to FM's earlier rotational-escalation convention which IFPA retired (rotational bases get a flat +1 per modifier rather than progressive scaling).",
+    briefNote:  "Genesis (named \"Furious Whirl\" at 7 ADD by an outside source) is +2 above IFPA's official 5. The +2 traces to that source's earlier rotational-escalation convention which IFPA retired (rotational bases get a flat +1 per modifier rather than progressive scaling).",
   },
 ];
 

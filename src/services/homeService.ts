@@ -71,7 +71,7 @@ export const homeService = {
         },
         {
           label: 'Members',
-          href: '/members',
+          href: '/login',
           description: 'Manage your profile and participate in the footbag community.',
         },
         {

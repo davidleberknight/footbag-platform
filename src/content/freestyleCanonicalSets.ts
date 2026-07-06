@@ -511,7 +511,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'stepping', label: 'Stepping (single-dex base)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with pt8 platform ruling.',
+    sourceCitation: 'Holden compilation (2003); aligned with the platform ruling.',
     auditStatus: 'aligned',
     tier: 'compositional-system',
   },
@@ -597,7 +597,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'dex. Holden treats it as a basic single-dex set; the platform tracks it as a +2 ' +
       'compound.',
     equivalenceNotes: [
-      { reading: 'paradox + illusion compound', citation: 'Platform reading (pt14)' },
+      { reading: 'paradox + illusion compound', citation: 'Platform reading' },
       { reading: 'basic single-dex set',        citation: 'Holden reading' },
     ],
     derivedSystems: [

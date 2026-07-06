@@ -240,7 +240,7 @@ export const historyService = {
           title:      player.personName,
         },
         navigation: {
-          contextLinks: [{ label: 'Members', href: '/members' }],
+          contextLinks: [{ label: 'Hall of Fame', href: '/hof' }],
         },
         content: {
           personId:      player.personId,

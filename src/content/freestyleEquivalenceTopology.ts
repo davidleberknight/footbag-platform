@@ -122,9 +122,8 @@ export const EQUIVALENCE_TOPOLOGY: readonly EquivalenceTopologyEntry[] = [
     pattern:     'modifier-stack-vs-paradox-stack',
     summary:
       'Flurry admits two structurally distinct derivations that both ' +
-      'yield 4 ADD: a barraging-stack reading anchored at pt4, and a ' +
-      'paradox-stack reading published in the derivation atlas. Both ' +
-      'are pedagogically live.',
+      'yield 4 ADD: a barraging-stack reading and a paradox-stack ' +
+      'reading. Both are pedagogically live.',
     derivations: [
       {
         role:         'canonical-primary',

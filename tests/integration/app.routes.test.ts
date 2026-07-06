@@ -592,7 +592,7 @@ describe('GET /', () => {
     const res = await request(app).get('/');
     expect(res.text).toContain('href="/events"');
     expect(res.text).toContain('href="/clubs"');
-    expect(res.text).toContain('href="/members"');
+    expect(res.text).toContain('href="/login"');
   });
 
   it('links Media Galleries card to /media', async () => {

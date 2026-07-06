@@ -194,7 +194,7 @@ export const COMPOSITIONAL_SET_FAMILIES: readonly CompositionalSetFamily[] = [
       { name: 'Terraging',   notation: 'TOE > SAME IN [DEX] > SAME IN [DEX] >',                          statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Double Pixie.' },
       { name: 'Barraging',   notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',                           statusHint: 'platform-tracked', structuralNote: 'Holden parenthetical: High Stepping.' },
       { name: 'Sailing',     notation: 'TOE > SAME IN [DEX] > OP OUT [DEX] >',                           statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Pixie Illusion.' },
-      { name: 'Blurry',      notation: 'CLIP > OP IN [DEX] > OP OUT [DEX] > (op side)',                  statusHint: 'platform-tracked', structuralNote: 'Holden parenthetical: Stepping Paradox. Aligns with pt8 platform ruling.' },
+      { name: 'Blurry',      notation: 'CLIP > OP IN [DEX] > OP OUT [DEX] > (op side)',                  statusHint: 'platform-tracked', structuralNote: 'Holden parenthetical: Stepping Paradox. Aligns with the platform ruling.' },
       { name: 'Frantic',     notation: 'TOE > SAME IN [DEX] > OP IN [DEX] >',                            statusHint: 'holden-only',       structuralNote: 'Holden reads as: pixie-quantum.' },
       { name: 'Flailing',    notation: 'SET > (no plant while) OP OUT [BOD] [DEX] >',                    statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Symposium Reverse Miraging.' },
       { name: 'Fairy Atomic',notation: 'TOE > SAME OUT [DEX] > OP OUT [DEX] >',                          statusHint: 'holden-only',       structuralNote: null },
@@ -316,7 +316,7 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
       '+ paradox second dex (OP OUT [DEX]) layered on top',
       '=  blurry (compound set) =  CLIP > OP IN [DEX] > OP OUT [DEX] >',
     ],
-    sourceCitation:  'Per Holden\'s parenthetical (Blurry = Stepping Paradox) and the pt8 platform ruling. Aligned.',
+    sourceCitation:  'Per Holden\'s parenthetical (Blurry = Stepping Paradox) and the platform ruling. Aligned.',
     conflictNote:    null,
   },
   {
@@ -340,7 +340,7 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
       'Platform reading   =  spinning stepping  (per later compilation: a spin body modifier layered with a stepping CLIP-direction dex)',
       'Both readings share the SPIN [BOD] entry; they disagree on whether the terminal dex reads as miraging (SET-led) or stepping (CLIP-led).',
     ],
-    sourceCitation:  'Holden\'s compilation + later platform analysis (see project memory: passback-dictionary-intake).',
+    sourceCitation:  'Holden\'s compilation and later platform analysis.',
     conflictNote:    'Surfaced as a documented disagreement, not normalized. See §4 (Consistency audit) below for the full Holden / platform comparison.',
   },
 ];

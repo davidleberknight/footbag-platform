@@ -27,7 +27,7 @@ function renderHpClaimUnavailable(res: Response, personId: string, memberSlug: s
     content: {
       cancelHref: personId
         ? `/history/${encodeURIComponent(personId)}`
-        : '/members',
+        : '/',
       contactAdminHref: `/members/${encodeURIComponent(memberSlug)}/contact-admin?category=identity_link_issue`,
     },
   });
@@ -129,7 +129,7 @@ export const claimController = {
     if (!personId) {
       res.status(422).render('history/claim-hp-confirm', {
         ...HP_FORM_VM,
-        content: { error: 'Invalid claim request.', cancelHref: '/members' },
+        content: { error: 'Invalid claim request.', cancelHref: '/' },
       } satisfies PageViewModel<ClaimHpConfirmContent>);
       return;
     }

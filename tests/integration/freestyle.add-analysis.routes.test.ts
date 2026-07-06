@@ -497,7 +497,7 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
   it('renders the framing prose', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toMatch(/Mechanically-derivable compound formulas/);
-    expect(res.text).toMatch(/no curator-judgment cases/i);
+    expect(res.text).toMatch(/settled scoring rule/i);
   });
 
   it('renders all 24 Sprint-1 + Sprint-2 + Sprint-3 rows with trick-detail links', async () => {
