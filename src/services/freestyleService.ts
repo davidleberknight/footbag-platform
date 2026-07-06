@@ -150,6 +150,7 @@ import {
   CORE_ATOM_EDUCATIONAL,
   isCoreAtom,
 } from '../content/freestyleCoreAtomEducational';
+import { GLOSSARY_CORE_CONCEPTS_BY_KEY } from '../content/freestyleGlossaryCoreConcepts';
 import {
   getDoctrineDivergence,
 } from '../content/freestyleTrickDoctrine';
@@ -3898,6 +3899,33 @@ export interface FreestyleGlossaryContent {
   // src/content/freestyleCoreAtomEducational.ts. Each card carries a
   // detail-page href for navigation outward.
   coreAtomEducationalCards: readonly LanguageOfFreestyleAtomCard[];
+  // Core Concept cards rendered in the Dexterities section: the direction and
+  // side axes as three-layer entries (Line + collapsibles).
+  directionConcept: GlossaryConceptCardVM;
+  sideConcept:      GlossaryConceptCardVM;
+}
+
+/** A Core Concept glossary card: a Line always visible plus a "how it relates"
+ *  and (for insight-home concepts) a "what it reveals" collapsible. Unlike the
+ *  atom cards, concepts carry no operational-notation formula. */
+export interface GlossaryConceptCardVM {
+  line:      string;
+  relates:   string;
+  hasReveal: boolean;   // pre-shaped: only insight-home concepts carry a reveal
+  reveal:    string;    // '' when hasReveal is false
+}
+
+/** Shape a signed-off Core Concept entry into its card view-model. The key is
+ *  static content, so a miss is an internal invariant, not a user error. */
+function shapeGlossaryConcept(key: string): GlossaryConceptCardVM {
+  const c = GLOSSARY_CORE_CONCEPTS_BY_KEY.get(key);
+  if (!c) throw new Error(`glossary core concept not found: ${key}`);
+  return {
+    line:      c.line,
+    relates:   c.relates,
+    hasReveal: c.reveal !== undefined,
+    reveal:    c.reveal ?? '',
+  };
 }
 
 /** Glossary §1 pedagogical atom card shape. Distinct from
@@ -9773,6 +9801,10 @@ export const freestyleService = {
           hasReveal:        c.reveal !== undefined,
           reveal:           c.reveal ?? '',
         })),
+        // Core Concept cards for the Dexterities section. hasReveal is
+        // pre-shaped so the template branches on a boolean, not field presence.
+        directionConcept: shapeGlossaryConcept('direction'),
+        sideConcept:      shapeGlossaryConcept('side'),
       },
     };
   },

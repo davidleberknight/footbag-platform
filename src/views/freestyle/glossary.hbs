@@ -438,7 +438,13 @@
     </dl>
 
     <h3 class="section-heading">Direction</h3>
-    <p>The arc a dex travels relative to the body. Direction pairs naturally with set primitives: <em>in-direction</em> dexes follow <em>pixie</em> and <em>quantum</em>; <em>out-direction</em> dexes follow <em>atomic</em> and <em>fairy</em>.</p>
+    <div class="glossary-concept" id="concept-direction">
+      <p>{{content.directionConcept.line}}</p>
+      <details class="glossary-core-atom-collapsible">
+        <summary>How it relates</summary>
+        <p>{{content.directionConcept.relates}}</p>
+      </details>
+    </div>
     <dl class="glossary-term-list">
       <dt id="term-in-dex">In-dex</dt>
       <dd>A dex that travels <em>inward</em> &mdash; the bag arcs toward the body's center line. Paired with in-direction set primitives (pixie, quantum) and visible in compounds like <a href="/freestyle/tricks/dimwalk">Dimwalk</a> (pixie butterfly) and Toe Blur (<a href="/freestyle/tricks/quantum_mirage">quantum mirage</a>).</dd>
@@ -451,7 +457,19 @@
     </dl>
 
     <h3 class="section-heading">Relative-side relationships</h3>
-    <p>A side qualifier on a trick name describes the relationship between a dex and its reference (the plant or set foot), not a left/right body position. In notation it is the per-dex side marker.</p>
+    <div class="glossary-concept" id="concept-side">
+      <p>{{content.sideConcept.line}}</p>
+      <details class="glossary-core-atom-collapsible">
+        <summary>How it relates</summary>
+        <p>{{content.sideConcept.relates}}</p>
+      </details>
+      {{#if content.sideConcept.hasReveal}}
+      <details class="glossary-core-atom-collapsible">
+        <summary>What it reveals</summary>
+        <p>{{content.sideConcept.reveal}}</p>
+      </details>
+      {{/if}}
+    </div>
     <dl class="glossary-term-list">
       <dt id="term-same-side"><code>SAME</code> (near / same-side)</dt>
       <dd>The dex is on the same side of the body as the reference. This is the baseline, default form (<code>ss</code> is the abbreviation), and it is implied for clipper-led tricks.</dd>

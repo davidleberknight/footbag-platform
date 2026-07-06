@@ -45,6 +45,17 @@ function card(html: string, slug: string): string {
   return m![0];
 }
 
+// Scope collapsible counts to the atoms band. Other glossary sections (the
+// Dexterities Core Concept cards) reuse the same "How it relates" / "What it
+// reveals" summaries, so a page-wide count would include them.
+function atomsBand(html: string): string {
+  const start = html.indexOf('id="core-trick-atoms"');
+  const end = html.indexOf('id="section-surfaces"');
+  expect(start, 'core-trick-atoms band start').toBeGreaterThan(-1);
+  expect(end, 'section-surfaces boundary').toBeGreaterThan(start);
+  return html.slice(start, end);
+}
+
 describe('Glossary — core trick atoms band', () => {
   it('renders the core trick atoms band with atom anchors', async () => {
     const html = await glossary();
@@ -55,9 +66,10 @@ describe('Glossary — core trick atoms band', () => {
 
   it('renders each atom as a three-layer card: line visible, relates collapsible', async () => {
     const html = await glossary();
+    const band = atomsBand(html);
     const cardCount    = (html.match(/class="glossary-core-atom-card"/g) ?? []).length;
     const lineCount    = (html.match(/class="glossary-core-atom-lead"/g) ?? []).length;
-    const relatesCount = (html.match(/<summary>How it relates<\/summary>/g) ?? []).length;
+    const relatesCount = (band.match(/<summary>How it relates<\/summary>/g) ?? []).length;
     expect(cardCount).toBe(12);
     // every atom's Line is present (always visible) and every atom has a
     // How-it-relates collapsible wired through
@@ -67,7 +79,7 @@ describe('Glossary — core trick atoms band', () => {
 
   it('carries a Reveal only on the four insight-home atoms, not the connective ones', async () => {
     const html = await glossary();
-    const revealCount = (html.match(/<summary>What it reveals<\/summary>/g) ?? []).length;
+    const revealCount = (atomsBand(html).match(/<summary>What it reveals<\/summary>/g) ?? []).length;
     expect(revealCount).toBe(4); // toe stall, clipper stall, mirage, butterfly
 
     // insight-home atom carries the reveal

@@ -4910,6 +4910,11 @@ section.home-media { padding-top: 0; }
   margin-bottom: 0;
 }
 
+/* Core Concept card in a glossary subsection: a Line plus reused collapsibles. */
+.glossary-concept {
+  margin: 4px 0 16px;
+}
+
 /* Technique Notes inner sub-blocks (Execution / Learning Notes / Before You Try
    This), each a compact labeled group inside the single disclosure. */
 .trick-technique-part {
