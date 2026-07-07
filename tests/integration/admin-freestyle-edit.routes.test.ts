@@ -36,6 +36,7 @@ let db: BetterSqlite3.Database;
 
 const ADMIN_ID = 'aaaaaaaa-0000-0000-0000-00000000ed01';
 const MEMBER_ID = 'bbbbbbbb-0000-0000-0000-00000000ed02';
+const PERSONA_ADMIN_ID = 'member_persona_fse_edit';
 
 function cookieFor(memberId: string, role: 'admin' | 'member'): string {
   return `footbag_session=${createTestSessionJwt({ memberId, role })}`;
@@ -63,6 +64,9 @@ beforeAll(async () => {
   db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID, slug: 'fse_admin', display_name: 'FSE Admin', login_email: 'fse-admin@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: 'fse_member', display_name: 'FSE Member', login_email: 'fse-member@example.com' });
+  // A seeded-persona admin (id carries the persona prefix): a real admin by role,
+  // but the pre-go-live guard must refuse it from every freestyle write path.
+  insertMember(db, { id: PERSONA_ADMIN_ID, slug: 'fse_persona', display_name: 'FSE Persona', login_email: 'fse-persona@example.com', is_admin: 1 });
 
   insertFreestyleTrick(db, {
     slug: 'blurry_whirl',
@@ -754,5 +758,58 @@ describe('POST /admin/freestyle/tricks/:slug/modifiers/:modifierSlug/:applyOrder
     const audits = auditByAction('mod_host:ducking:2', 'freestyle.trick_modifier_link.deleted');
     expect(audits).toHaveLength(1);
     expect(audits[0].metadata_json).toContain('ducking');
+  });
+});
+
+// The pre-go-live persona guard must refuse a seeded-persona admin on EVERY
+// freestyle write path (the flag is on in the integration fixture). Each case
+// asserts 403 and, where checkable, that nothing was written.
+describe('freestyle write paths — seeded-persona admin is refused (403) on all seven', () => {
+  const persona = () => cookieFor(PERSONA_ADMIN_ID, 'admin');
+
+  it('refuses the scalar trick save', async () => {
+    const res = await post('/admin/freestyle/tricks/save_ok/edit', persona(),
+      validBody({ canonicalName: 'Persona Should Not Save' }));
+    expect(res.status).toBe(403);
+    expect(trickRow('save_ok').canonical_name).not.toBe('Persona Should Not Save');
+  });
+
+  it('refuses an alias add', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases', persona(),
+      { aliasText: 'Persona Alias', aliasType: 'common' });
+    expect(res.status).toBe(403);
+    expect(aliasRow('persona_alias')).toBeUndefined();
+  });
+
+  it('refuses an alias remove', async () => {
+    const res = await post('/admin/freestyle/tricks/blurry_whirl/aliases/bw/delete', persona(), {});
+    expect(res.status).toBe(403);
+    expect(aliasRow('bw')).toBeDefined();
+  });
+
+  it('refuses a source attach', async () => {
+    const res = await post('/admin/freestyle/tricks/source_host2/sources', persona(),
+      { sourceId: 'src_b' });
+    expect(res.status).toBe(403);
+    expect(sourceLink('source_host2', 'src_b')).toBeUndefined();
+  });
+
+  it('refuses a source detach', async () => {
+    const res = await post('/admin/freestyle/tricks/detach_host/sources/src_b/delete', persona(), {});
+    expect(res.status).toBe(403);
+    expect(sourceLink('detach_host', 'src_b')).toBeDefined();
+  });
+
+  it('refuses a modifier attach', async () => {
+    const res = await post('/admin/freestyle/tricks/mod_host/modifiers', persona(),
+      { modifierSlug: 'ducking', applyOrder: '5' });
+    expect(res.status).toBe(403);
+    expect(modifierLink('mod_host', 'ducking', 5)).toBeUndefined();
+  });
+
+  it('refuses a modifier detach', async () => {
+    const res = await post('/admin/freestyle/tricks/mod_host/modifiers/ducking/3/delete', persona(), {});
+    expect(res.status).toBe(403);
+    expect(modifierLink('mod_host', 'ducking', 3)).toBeDefined();
   });
 });

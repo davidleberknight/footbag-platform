@@ -36,7 +36,9 @@
  * triple already linked, while allowing the same modifier at a different order;
  * detachModifier is keyed on the full triple. Each write and its one audit entry
  * commit together in a single transaction; the trick slug identity key is not
- * editable.
+ * editable. Every write path first runs the pre-go-live persona guard, so a seeded
+ * test persona cannot author freestyle content in a developer checkout; in staging
+ * and production the guard is a no-op and the admin remains the audit actor.
  *
  * Persistence: reads and writes freestyle_tricks, freestyle_trick_aliases,
  * freestyle_trick_source_links, and freestyle_trick_modifier_links; reads
@@ -55,10 +57,12 @@ import {
   transaction,
 } from '../db/db';
 import { appendAuditEntry } from './auditService';
-import { NotFoundError, ValidationError } from './serviceErrors';
+import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { checkAddMatchesScoringBrackets } from '../lib/freestyleNotation';
 import { trickNameToSlug } from './freestyleRecordShaping';
+import { config } from '../config/env';
+import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 
 interface CurationTrickDbRow {
   slug: string;
@@ -296,6 +300,21 @@ const ALIAS_TYPE_LABELS: Record<string, string> = {
 const ALIAS_TYPES = ['common', 'abbreviation', 'historical', 'notation'];
 const ALIAS_TEXT_MAX = 200;
 
+// Pre-go-live guardrail, parallel to the curated-media one. It fires only where a
+// curator write touches the committed pre-go-live source of truth in a developer
+// checkout (config.allowCuratedSidecarWrites, which is on in dev and the
+// integration-test fixture and off in staging and production). There, a seeded
+// test persona must never author freestyle dictionary content; real maintainer
+// accounts carry ordinary member ids and pass. In staging and production this is
+// a no-op, so any admin may curate. The admin remains the audit actor of record.
+function assertActorMayCurateFreestyle(actorMemberId: string): void {
+  if (config.allowCuratedSidecarWrites && isSeededTestPersonaMemberId(actorMemberId)) {
+    throw new ForbiddenError(
+      'Freestyle dictionary content cannot be edited by a test persona in a pre-go-live developer checkout.',
+    );
+  }
+}
+
 export const freestyleCurationService = {
   getBrowsePage(filter: FreestyleBrowseFilterInput = {}): PageViewModel<FreestyleBrowseContent> {
     const query = (filter.query ?? '').trim();
@@ -497,6 +516,7 @@ export const freestyleCurationService = {
   // aliases, sources, and modifier links are untouched. Throws NotFoundError for
   // an unknown slug and ValidationError (with per-field messages) on bad input.
   updateTrickScalars(slug: string, input: FreestyleTrickScalarInput, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
     const current = freestyleTricks.getForCurationBySlug.get(slug) as CurationEditDbRow | undefined;
     if (!current) throw new NotFoundError(`No freestyle trick "${slug}"`);
 
@@ -584,6 +604,7 @@ export const freestyleCurationService = {
   // alias slug (the global primary key). The insert and its audit entry commit in
   // one transaction. source_id and notes are left unset in this surface.
   addAlias(trickSlug: string, input: FreestyleAliasInput, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
     const trick = freestyleTricks.getForCurationBySlug.get(trickSlug) as CurationEditDbRow | undefined;
     if (!trick) throw new NotFoundError(`No freestyle trick "${trickSlug}"`);
 
@@ -640,6 +661,7 @@ export const freestyleCurationService = {
   // the change is recoverable) commit in one transaction. Unknown or wrong-trick
   // alias is a NotFoundError (mapped to 404).
   removeAlias(trickSlug: string, aliasSlug: string, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
     const existing = freestyleTrickAliases.getByAliasSlug.get(aliasSlug) as FullAliasDbRow | undefined;
     if (!existing || existing.trick_slug !== trickSlug) {
       throw new NotFoundError(`No alias "${aliasSlug}" on trick "${trickSlug}"`);
@@ -672,6 +694,7 @@ export const freestyleCurationService = {
   // in this surface. The insert and its audit entry commit in one transaction.
   // Creating new registry sources is not part of this surface.
   attachSource(trickSlug: string, input: FreestyleSourceLinkInput, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
     const trick = freestyleTricks.getForCurationBySlug.get(trickSlug) as CurationEditDbRow | undefined;
     if (!trick) throw new NotFoundError(`No freestyle trick "${trickSlug}"`);
 
@@ -712,6 +735,7 @@ export const freestyleCurationService = {
   // its audit entry (carrying the removed link's fields for recovery) commit in
   // one transaction.
   detachSource(trickSlug: string, sourceId: string, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
     const link = freestyleTrickSourceLinks.getLink.get(trickSlug, sourceId) as SourceLinkKeyDbRow | undefined;
     if (!link) {
       throw new NotFoundError(`No source link "${sourceId}" on trick "${trickSlug}"`);
@@ -745,6 +769,7 @@ export const freestyleCurationService = {
   // apply order is allowed. The insert and its audit entry commit in one
   // transaction. The modifier registry itself is not edited here.
   attachModifier(trickSlug: string, input: FreestyleModifierLinkInput, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
     const trick = freestyleTricks.getForCurationBySlug.get(trickSlug) as CurationEditDbRow | undefined;
     if (!trick) throw new NotFoundError(`No freestyle trick "${trickSlug}"`);
 
@@ -787,6 +812,7 @@ export const freestyleCurationService = {
   // (mapped to 404) and an edit page can never detach a different link. The delete
   // and its audit entry commit in one transaction.
   detachModifier(trickSlug: string, modifierSlug: string, applyOrder: number, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
     const link = freestyleTrickModifierLinks.getLink.get(trickSlug, modifierSlug, applyOrder) as ModifierLinkKeyDbRow | undefined;
     if (!link) {
       throw new NotFoundError(`No modifier link "${modifierSlug}" at apply order ${applyOrder} on trick "${trickSlug}"`);
