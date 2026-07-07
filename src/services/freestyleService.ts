@@ -3727,17 +3727,32 @@ export interface GlossaryFamilyCardView extends GlossaryFamilyCard {
   teachingBrief: { physicalDescription: string; significance: string; articleHref: string | null } | null;
 }
 
-// Family cards that are not in the public roster carry an explicit lineage parent
-// + tier (they are sub-families/minor lineages, e.g. rev-whirl under whirl).
-const CARD_ONLY_FAMILY_LINEAGE: Readonly<Record<string, { parentSlug: string; tier: FamilyTier }>> = {
-  'rev-whirl': { parentSlug: 'whirl',     tier: 'minor-lineage' },
+// Family cards that are not in the public roster carry an explicit tier and, when
+// they genuinely descend from a family, a lineage parent. A null parentSlug means
+// an independent minor lineage that is NOT a branch of any family. Keys are card
+// slugs and MUST use the canonical lowercase-underscore slug form: this map is
+// looked up by card.slug, so a hyphenated key silently misses and the card falls
+// through to the family-parent default (the rev-whirl vs rev_whirl bug).
+//
+// rev_whirl is a direction reversal of whirl, and direction reversal generates a
+// DISTINCT lineage, not a branch: it demotes to a minor lineage with no parent, so
+// it renders as its own reversal lineage rather than under Whirl. blur (blurry
+// mirage) and phoenix are terminal-identity branches of their bases and do carry a
+// parent.
+const CARD_ONLY_FAMILY_LINEAGE: Readonly<Record<string, { parentSlug: string | null; tier: FamilyTier }>> = {
+  'rev_whirl': { parentSlug: null,        tier: 'minor-lineage' },
   'blur':      { parentSlug: 'mirage',    tier: 'minor-lineage' },
   'phoenix':   { parentSlug: 'butterfly', tier: 'minor-lineage' },
 };
 
 function shapeGlossaryFamilyCard(card: GlossaryFamilyCard): GlossaryFamilyCardView {
   const override   = CARD_ONLY_FAMILY_LINEAGE[card.slug];
-  const parentSlug = override?.parentSlug ?? PUBLIC_FAMILY_PARENT_OF.get(card.slug) ?? null;
+  // An override sets the lineage explicitly, including a null parent (an
+  // independent minor lineage). Only fall through to the roster parent when there
+  // is no override, so an explicit null parent is not overwritten.
+  const parentSlug = override
+    ? override.parentSlug
+    : PUBLIC_FAMILY_PARENT_OF.get(card.slug) ?? null;
   const tier       = override?.tier ?? familyTier(card.slug);
   const lineageLabel = parentSlug
     ? `Branch lineage (${PUBLIC_FAMILY_LABEL.get(parentSlug) ?? parentSlug})`
@@ -3772,7 +3787,9 @@ export interface FamilyCardTierGroup {
 }
 
 function familyCardParentSlug(slug: string): string | null {
-  return CARD_ONLY_FAMILY_LINEAGE[slug]?.parentSlug ?? PUBLIC_FAMILY_PARENT_OF.get(slug) ?? null;
+  const override = CARD_ONLY_FAMILY_LINEAGE[slug];
+  if (override) return override.parentSlug;
+  return PUBLIC_FAMILY_PARENT_OF.get(slug) ?? null;
 }
 
 function buildFamilyCardTierGroups(): FamilyCardTierGroup[] {

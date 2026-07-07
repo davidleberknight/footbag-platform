@@ -564,9 +564,11 @@ describe('Glossary family cards — lineage position and tier as independent lab
     // Branch lineage (Osis) + Family Parent.
     expect(cardSlice(html, 'torque')).toMatch(/Branch lineage \(Osis\)/);
     expect(cardSlice(html, 'torque')).toMatch(/Family Parent/);
-    // Root lineage + Family Parent (rev_whirl is its own terminal family by curator override).
+    // Root lineage + Minor Lineage. rev_whirl is an independent reversal lineage: not a
+    // Family Parent, and not a branch of whirl (direction reversal makes a distinct lineage).
     expect(cardSlice(html, 'rev_whirl')).toMatch(/Root lineage/);
-    expect(cardSlice(html, 'rev_whirl')).toMatch(/Family Parent/);
+    expect(cardSlice(html, 'rev_whirl')).toMatch(/Minor Lineage/);
+    expect(cardSlice(html, 'rev_whirl')).not.toMatch(/Branch lineage/);
     // Root lineage + Minor Lineage.
     expect(cardSlice(html, 'eclipse')).toMatch(/Root lineage/);
     expect(cardSlice(html, 'eclipse')).toMatch(/Minor Lineage/);
