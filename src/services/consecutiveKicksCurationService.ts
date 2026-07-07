@@ -24,6 +24,7 @@
  * Persistence: reads and writes consecutive_kicks_records. Appends
  * freestyle.consecutive_record.updated to audit_entries.
  */
+import { randomUUID } from 'node:crypto';
 import { consecutiveKicksRecords, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
@@ -70,6 +71,9 @@ export interface ConsecutiveEditFields {
 
 export interface ConsecutiveEditContent {
   id: string;
+  isNew: boolean;
+  formAction: string;
+  deleteHref: string;
   fields: ConsecutiveEditFields;
   backHref: string;
   saved: boolean;
@@ -206,9 +210,54 @@ export const consecutiveKicksCurationService = {
       page: { sectionKey: 'admin', pageKey: 'admin_consecutive_record_edit', title: 'Edit consecutive-kicks record' },
       content: {
         id: row.id,
+        isNew: false,
+        formAction: `/admin/freestyle/consecutive-records/${row.id}/edit`,
+        deleteHref: `/admin/freestyle/consecutive-records/${row.id}/delete`,
         fields,
         backHref:  '/admin/freestyle/consecutive-records',
         saved:     opts.saved === true,
+        fieldErrors,
+        errorList,
+        hasErrors: errorList.length > 0,
+      },
+    };
+  },
+
+  // The blank new-row form: the same edit template with empty field values and its
+  // post target pointing at the create route. `opts` re-renders the form with the
+  // admin's submitted values and per-field errors on a failed create.
+  getNewPage(opts: ConsecutiveEditPageOptions = {}): PageViewModel<ConsecutiveEditContent> {
+    const sub = opts.submitted;
+    const fields: ConsecutiveEditFields = {
+      sortOrder:  sub?.sortOrder ?? '',
+      section:    sub?.section ?? '',
+      subsection: sub?.subsection ?? '',
+      division:   sub?.division ?? '',
+      year:       sub?.year ?? '',
+      rank:       sub?.rank ?? '',
+      player1:    sub?.player1 ?? '',
+      player2:    sub?.player2 ?? '',
+      score:      sub?.score ?? '',
+      note:       sub?.note ?? '',
+      eventDate:  sub?.eventDate ?? '',
+      eventName:  sub?.eventName ?? '',
+      location:   sub?.location ?? '',
+    };
+
+    const fieldErrors = opts.fieldErrors ?? {};
+    const errorList = Object.values(fieldErrors);
+
+    return {
+      seo:  { title: 'Consecutive Kicks Records' },
+      page: { sectionKey: 'admin', pageKey: 'admin_consecutive_record_new', title: 'New consecutive-kicks record' },
+      content: {
+        id: '',
+        isNew: true,
+        formAction: '/admin/freestyle/consecutive-records',
+        deleteHref: '',
+        fields,
+        backHref:  '/admin/freestyle/consecutive-records',
+        saved:     false,
         fieldErrors,
         errorList,
         hasErrors: errorList.length > 0,
@@ -224,62 +273,28 @@ export const consecutiveKicksCurationService = {
     const current = consecutiveKicksRecords.getForCurationById.get(id) as ConsecutiveCurationDbRow | undefined;
     if (!current) throw new NotFoundError(`No consecutive-kicks record "${id}"`);
 
-    const fieldErrors: Record<string, string> = {};
-
-    const section = (input.section ?? '').trim();
-    if (!section) fieldErrors.section = 'Section is required.';
-    const subsection = (input.subsection ?? '').trim();
-    if (!subsection) fieldErrors.subsection = 'Subsection is required.';
-    const division = (input.division ?? '').trim();
-    if (!division) fieldErrors.division = 'Division is required.';
-
-    const sortRaw = (input.sortOrder ?? '').trim();
-    let sortOrder = current.sort_order;
-    if (!/^\d+$/.test(sortRaw) || parseInt(sortRaw, 10) < 1) {
-      fieldErrors.sortOrder = 'Display position must be a whole number of 1 or more.';
-    } else {
-      sortOrder = parseInt(sortRaw, 10);
-      const holder = consecutiveKicksRecords.getIdBySortOrder.get(sortOrder) as { id: string } | undefined;
-      if (holder && holder.id !== id) {
-        fieldErrors.sortOrder = `Display position ${sortOrder} is already used by another row.`;
-      }
-    }
-
-    const rank = wholeOrNull(input.rank, 'rank', 'Rank', fieldErrors);
-    const score = wholeOrNull(input.score, 'score', 'Score', fieldErrors);
-
-    const year = emptyToNull(input.year);
-    const player1 = emptyToNull(input.player1);
-    const player2 = emptyToNull(input.player2);
-    const note = emptyToNull(input.note);
-    const eventDate = emptyToNull(input.eventDate);
-    const eventName = emptyToNull(input.eventName);
-    const location = emptyToNull(input.location);
-
-    if (Object.keys(fieldErrors).length > 0) {
-      throw new ValidationError('Some fields need attention.', { fieldErrors });
-    }
+    const v = validateConsecutiveInput(input, id);
 
     const changedFields: string[] = [];
     const mark = (changed: boolean, name: string) => { if (changed) changedFields.push(name); };
-    mark(sortOrder !== current.sort_order, 'sort_order');
-    mark(section !== current.section, 'section');
-    mark(subsection !== current.subsection, 'subsection');
-    mark(division !== current.division, 'division');
-    mark(year !== (current.year ?? null), 'year');
-    mark(rank !== (current.rank ?? null), 'rank');
-    mark(player1 !== (current.player_1 ?? null), 'player_1');
-    mark(player2 !== (current.player_2 ?? null), 'player_2');
-    mark(score !== (current.score ?? null), 'score');
-    mark(note !== (current.note ?? null), 'note');
-    mark(eventDate !== (current.event_date ?? null), 'event_date');
-    mark(eventName !== (current.event_name ?? null), 'event_name');
-    mark(location !== (current.location ?? null), 'location');
+    mark(v.sortOrder !== current.sort_order, 'sort_order');
+    mark(v.section !== current.section, 'section');
+    mark(v.subsection !== current.subsection, 'subsection');
+    mark(v.division !== current.division, 'division');
+    mark(v.year !== (current.year ?? null), 'year');
+    mark(v.rank !== (current.rank ?? null), 'rank');
+    mark(v.player1 !== (current.player_1 ?? null), 'player_1');
+    mark(v.player2 !== (current.player_2 ?? null), 'player_2');
+    mark(v.score !== (current.score ?? null), 'score');
+    mark(v.note !== (current.note ?? null), 'note');
+    mark(v.eventDate !== (current.event_date ?? null), 'event_date');
+    mark(v.eventName !== (current.event_name ?? null), 'event_name');
+    mark(v.location !== (current.location ?? null), 'location');
 
     transaction(() => {
       consecutiveKicksRecords.updateForCuration.run(
-        sortOrder, section, subsection, division, year, rank,
-        player1, player2, score, note, eventDate, eventName, location, id,
+        v.sortOrder, v.section, v.subsection, v.division, v.year, v.rank,
+        v.player1, v.player2, v.score, v.note, v.eventDate, v.eventName, v.location, id,
       );
       appendAuditEntry({
         actionType:    'freestyle.consecutive_record.updated',
@@ -292,7 +307,130 @@ export const consecutiveKicksCurationService = {
       });
     });
   },
+
+  // Add one new row. Validates the same fields as an edit, generates the id,
+  // inserts, and appends one audit entry in a single transaction. Returns the new
+  // id so the controller can redirect to its edit page. Throws ValidationError
+  // (with per-field messages) on bad input.
+  createRow(input: ConsecutiveScalarInput, actorMemberId: string): string {
+    assertActorMayCurateFreestyle(actorMemberId);
+    const id = randomUUID();
+    const v = validateConsecutiveInput(input, id);
+
+    transaction(() => {
+      consecutiveKicksRecords.insertForCuration.run(
+        id, v.sortOrder, v.section, v.subsection, v.division, v.year, v.rank,
+        v.player1, v.player2, v.score, v.note, v.eventDate, v.eventName, v.location,
+      );
+      appendAuditEntry({
+        actionType:    'freestyle.consecutive_record.created',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_consecutive_record',
+        entityId:      id,
+        metadata:      { sortOrder: v.sortOrder, section: v.section, division: v.division },
+      });
+    });
+
+    return id;
+  },
+
+  // Hard delete one row by its stable id, then append one audit entry, in a single
+  // transaction. The audit metadata carries the row's section, division, and
+  // display position so the removal is recoverable. Throws NotFoundError for an
+  // unknown id.
+  deleteRow(id: string, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
+    const current = consecutiveKicksRecords.getForCurationById.get(id) as ConsecutiveCurationDbRow | undefined;
+    if (!current) throw new NotFoundError(`No consecutive-kicks record "${id}"`);
+
+    transaction(() => {
+      consecutiveKicksRecords.deleteById.run(id);
+      appendAuditEntry({
+        actionType:    'freestyle.consecutive_record.deleted',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_consecutive_record',
+        entityId:      id,
+        metadata:      {
+          sortOrder: current.sort_order,
+          section:   current.section,
+          division:  current.division,
+          player1:   current.player_1,
+          score:     current.score,
+        },
+      });
+    });
+  },
 };
+
+interface ValidatedConsecutive {
+  sortOrder: number;
+  section: string;
+  subsection: string;
+  division: string;
+  year: string | null;
+  rank: number | null;
+  player1: string | null;
+  player2: string | null;
+  score: number | null;
+  note: string | null;
+  eventDate: string | null;
+  eventName: string | null;
+  location: string | null;
+}
+
+// Shared field-shape validation for a consecutive-kicks create or edit. `selfId` is
+// the row's own id, so a display position it already holds is not counted as a
+// collision against another row. Throws ValidationError with per-field messages;
+// returns the normalized, typed values.
+function validateConsecutiveInput(input: ConsecutiveScalarInput, selfId: string): ValidatedConsecutive {
+  const fieldErrors: Record<string, string> = {};
+
+  const section = (input.section ?? '').trim();
+  if (!section) fieldErrors.section = 'Section is required.';
+  const subsection = (input.subsection ?? '').trim();
+  if (!subsection) fieldErrors.subsection = 'Subsection is required.';
+  const division = (input.division ?? '').trim();
+  if (!division) fieldErrors.division = 'Division is required.';
+
+  const sortRaw = (input.sortOrder ?? '').trim();
+  let sortOrder = 0;
+  if (!/^\d+$/.test(sortRaw) || parseInt(sortRaw, 10) < 1) {
+    fieldErrors.sortOrder = 'Display position must be a whole number of 1 or more.';
+  } else {
+    sortOrder = parseInt(sortRaw, 10);
+    const holder = consecutiveKicksRecords.getIdBySortOrder.get(sortOrder) as { id: string } | undefined;
+    if (holder && holder.id !== selfId) {
+      fieldErrors.sortOrder = `Display position ${sortOrder} is already used by another row.`;
+    }
+  }
+
+  const rank = wholeOrNull(input.rank, 'rank', 'Rank', fieldErrors);
+  const score = wholeOrNull(input.score, 'score', 'Score', fieldErrors);
+
+  if (Object.keys(fieldErrors).length > 0) {
+    throw new ValidationError('Some fields need attention.', { fieldErrors });
+  }
+
+  return {
+    sortOrder,
+    section,
+    subsection,
+    division,
+    year:      emptyToNull(input.year),
+    rank,
+    player1:   emptyToNull(input.player1),
+    player2:   emptyToNull(input.player2),
+    score,
+    note:      emptyToNull(input.note),
+    eventDate: emptyToNull(input.eventDate),
+    eventName: emptyToNull(input.eventName),
+    location:  emptyToNull(input.location),
+  };
+}
 
 function wholeOrNull(
   raw: string | undefined,

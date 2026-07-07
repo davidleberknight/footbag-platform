@@ -393,6 +393,50 @@ export const adminFreestyleController = {
       next(err);
     }
   },
+
+  // Blank new-row form (the same edit template with empty values).
+  consecutiveNew(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/consecutive-record-edit', consecutiveKicksCurationService.getNewPage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Create one consecutive-kicks row. Success redirects to the new row's edit page
+  // with the saved indicator; a validation failure re-renders the new form (422)
+  // with the submitted values and per-field errors.
+  consecutiveCreate(req: Request, res: Response, next: NextFunction): void {
+    const input = consecutiveInputFromBody(req.body);
+    try {
+      const id = consecutiveKicksCurationService.createRow(input, req.user!.userId);
+      res.redirect(303, `/admin/freestyle/consecutive-records/${id}/edit?saved=1`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/consecutive-record-edit', consecutiveKicksCurationService.getNewPage({
+          submitted: input,
+          fieldErrors: err.fieldErrors ?? {},
+        }));
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Hard-delete one consecutive-kicks row by its stable id. Success redirects to
+  // the browse; an unknown id is a 404.
+  consecutiveDelete(req: Request, res: Response, next: NextFunction): void {
+    try {
+      consecutiveKicksCurationService.deleteRow(String(req.params.id), req.user!.userId);
+      res.redirect(303, '/admin/freestyle/consecutive-records');
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
 };
 
 function recordInputFromBody(body: Record<string, unknown>): FreestyleRecordScalarInput {

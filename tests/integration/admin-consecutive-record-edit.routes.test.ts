@@ -67,6 +67,8 @@ beforeAll(async () => {
   insertConsecutiveKicksRecord(db, { id: 'ck_guard', sort_order: 102, section: 'Highest Official Scores', subsection: 'Singles 20K+', division: 'Open Singles', player_1: 'Guard Player', score: 25000 });
   // Holds display position 999, so editing another row to 999 collides.
   insertConsecutiveKicksRecord(db, { id: 'ck_other', sort_order: 999, section: 'Highest Official Scores', subsection: 'Singles 20K+', division: 'Open Singles', player_1: 'Other Player', score: 20000 });
+  // The row the delete test removes.
+  insertConsecutiveKicksRecord(db, { id: 'ck_del', sort_order: 888, section: 'Milestone Firsts', subsection: 'Firsts', division: 'Open Singles', player_1: 'Delete Player', score: 15000 });
 
   createApp = await importApp();
 });
@@ -93,6 +95,14 @@ function ckAudit(id: string) {
   return db.prepare(
     `SELECT metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = 'freestyle.consecutive_record.updated'`,
   ).all(id) as { metadata_json: string }[];
+}
+function ckAuditByAction(id: string, actionType: string) {
+  return db.prepare(
+    'SELECT metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = ?',
+  ).all(id, actionType) as { metadata_json: string }[];
+}
+function ckExists(id: string): boolean {
+  return db.prepare('SELECT 1 FROM consecutive_kicks_records WHERE id = ?').get(id) !== undefined;
 }
 
 describe('GET /admin/freestyle/consecutive-records — admin gate + grouped browse', () => {
@@ -209,5 +219,82 @@ describe('POST /admin/freestyle/consecutive-records/:id/edit — write gate', ()
     expect(res.status).toBe(403);
     expect(ckRow('ck_guard').player_1).toBe('Guard Player');
     expect(ckAudit('ck_guard')).toHaveLength(0);
+  });
+});
+
+describe('consecutive-kicks records — add new', () => {
+  it('shows a New Record button on the browse and a blank new form', async () => {
+    const browse = await get('/admin/freestyle/consecutive-records', admin());
+    expect(browse.text).toContain('/admin/freestyle/consecutive-records/new');
+    expect(browse.text).toContain('New Record');
+
+    const form = await get('/admin/freestyle/consecutive-records/new', admin());
+    expect(form.status).toBe(200);
+    expect(form.text).toContain('New consecutive-kicks record');
+    expect(form.text).toContain('action="/admin/freestyle/consecutive-records"'); // create target
+  });
+
+  it('creates a new row, writes one created audit row, and redirects to its edit page', async () => {
+    const res = await post('/admin/freestyle/consecutive-records', admin(),
+      bodyFor('250', { section: 'Milestone Firsts', division: 'Open Doubles', player1: 'New Player' }));
+    expect(res.status).toBe(303);
+    const loc = res.headers.location as string;
+    expect(loc).toMatch(/^\/admin\/freestyle\/consecutive-records\/[0-9a-f-]{36}\/edit\?saved=1$/);
+
+    const newId = loc.replace('/admin/freestyle/consecutive-records/', '').replace('/edit?saved=1', '');
+    const row = ckRow(newId);
+    expect(row.sort_order).toBe(250);
+    expect(row.player_1).toBe('New Player');
+
+    const audits = ckAuditByAction(newId, 'freestyle.consecutive_record.created');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('Open Doubles');
+  });
+
+  it('re-renders the new form at 422 on a display position already in use', async () => {
+    const res = await post('/admin/freestyle/consecutive-records', admin(), bodyFor('999', { player1: 'Dup Attempt' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('already used by another row');
+    expect(res.text).toContain('New consecutive-kicks record'); // still the new form
+    expect(res.text).toContain('Dup Attempt');                  // submitted value survives
+  });
+
+  it('refuses create for a non-admin (403), unauthenticated visitor (302), and seeded persona (403)', async () => {
+    const member = await post('/admin/freestyle/consecutive-records', cookieFor(MEMBER_ID, 'member'), bodyFor('260'));
+    expect(member.status).toBe(403);
+    const anon = await post('/admin/freestyle/consecutive-records', undefined, bodyFor('261'));
+    expect(anon.status).toBe(302);
+    const persona = await post('/admin/freestyle/consecutive-records', cookieFor(PERSONA_ADMIN_ID, 'admin'), bodyFor('262', { player1: 'Persona New' }));
+    expect(persona.status).toBe(403);
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM consecutive_kicks_records WHERE sort_order IN (260,261,262)`).get()).toEqual({ n: 0 });
+  });
+});
+
+describe('POST /admin/freestyle/consecutive-records/:id/delete — remove', () => {
+  it('refuses delete for a non-admin (403), unauthenticated visitor (302), and seeded persona (403), removing nothing', async () => {
+    const member = await post('/admin/freestyle/consecutive-records/ck_del/delete', cookieFor(MEMBER_ID, 'member'), {});
+    expect(member.status).toBe(403);
+    const anon = await post('/admin/freestyle/consecutive-records/ck_del/delete', undefined, {});
+    expect(anon.status).toBe(302);
+    const persona = await post('/admin/freestyle/consecutive-records/ck_del/delete', cookieFor(PERSONA_ADMIN_ID, 'admin'), {});
+    expect(persona.status).toBe(403);
+    expect(ckExists('ck_del')).toBe(true);
+  });
+
+  it('returns 404 deleting an unknown id', async () => {
+    const res = await post('/admin/freestyle/consecutive-records/nope_missing/delete', admin(), {});
+    expect(res.status).toBe(404);
+  });
+
+  it('hard-deletes the row, writes one deleted audit row, and redirects to the browse', async () => {
+    const res = await post('/admin/freestyle/consecutive-records/ck_del/delete', admin(), {});
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/freestyle/consecutive-records');
+    expect(ckExists('ck_del')).toBe(false);
+
+    const audits = ckAuditByAction('ck_del', 'freestyle.consecutive_record.deleted');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('Delete Player'); // recoverable metadata
+    expect(audits[0].metadata_json).toContain('Milestone Firsts');
   });
 });

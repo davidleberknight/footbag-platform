@@ -1,7 +1,12 @@
 <div class="hero hero-sm">
   <div>
+    {{#if content.isNew}}
+    <h1>New consecutive-kicks record</h1>
+    <p class="text-muted">Add a consecutive-kicks record.</p>
+    {{else}}
     <h1>Edit consecutive-kicks record</h1>
     <p class="text-muted">Editing record <code>{{content.id}}</code>.</p>
+    {{/if}}
   </div>
 </div>
 
@@ -16,7 +21,7 @@
     </div>
     {{/if}}
 
-    <form method="POST" action="/admin/freestyle/consecutive-records/{{content.id}}/edit" class="freestyle-edit-form">
+    <form method="POST" action="{{content.formAction}}" class="freestyle-edit-form">
       <fieldset>
         <p><label>Display position</label><br><input type="text" name="sortOrder" value="{{content.fields.sortOrder}}" /></p>
         <p><label>Section</label><br><input type="text" name="section" value="{{content.fields.section}}" /></p>
@@ -34,6 +39,12 @@
       </fieldset>
       <p><button type="submit" class="btn btn-primary btn-sm">Save</button></p>
     </form>
+
+    {{#unless content.isNew}}
+    <form method="POST" action="{{content.deleteHref}}" class="inline-form">
+      <button type="submit" class="btn btn-outline btn-sm">Delete Record</button>
+    </form>
+    {{/unless}}
 
     <p><a href="{{content.backHref}}" class="btn btn-outline btn-sm">Back to consecutive-kicks records</a></p>
   </section>

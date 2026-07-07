@@ -3123,6 +3123,23 @@ export const consecutiveKicksRecords = {
         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
     WHERE id = ?
   `); },
+
+  // Admin curation add: insert one new row. The service generates the id and
+  // validates the same fields as an edit; created_at and updated_at are stamped.
+  get insertForCuration() { return db.prepare(`
+    INSERT INTO consecutive_kicks_records
+      (id, sort_order, section, subsection, division, year, rank,
+       player_1, player_2, score, note, event_date, event_name, location,
+       created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+            strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  `); },
+
+  // Admin curation remove: hard delete one row by its stable id.
+  get deleteById() { return db.prepare(`
+    DELETE FROM consecutive_kicks_records WHERE id = ?
+  `); },
 };
 
 // ---------------------------------------------------------------------------
