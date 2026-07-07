@@ -2011,6 +2011,61 @@ export const freestyleRecords = {
     ORDER BY fr.achieved_date DESC
     LIMIT 5
   `); },
+
+  // Admin curation browse: every record regardless of confidence or superseded
+  // state (an admin curates provisional, disputed, and retired rows the public
+  // page hides), with the resolved holder name. Status-agnostic by design.
+  get listForCuration() { return db.prepare(`
+    SELECT
+      fr.id,
+      fr.record_type,
+      COALESCE(hp.person_name, fr.display_name) AS holder_name,
+      fr.trick_name,
+      fr.value_numeric,
+      fr.confidence,
+      fr.superseded_by
+    FROM freestyle_records AS fr
+    LEFT JOIN historical_persons AS hp ON hp.person_id = fr.person_id
+    ORDER BY fr.record_type ASC, fr.value_numeric DESC
+  `); },
+
+  // Admin curation edit page: the raw editable columns for one record, regardless
+  // of confidence or superseded state.
+  get getForCurationById() { return db.prepare(`
+    SELECT id, record_type, person_id, display_name, trick_name, sort_name,
+           adds_count, value_numeric, value_text, achieved_date, date_precision,
+           source, confidence, video_url, video_timecode, notes, superseded_by
+    FROM freestyle_records
+    WHERE id = ?
+  `); },
+
+  // The record types actually present in the data. The admin edit form constrains
+  // the record type to these (adding a new type is an add-new / design concern).
+  get listDistinctRecordTypes() { return db.prepare(`
+    SELECT DISTINCT record_type FROM freestyle_records
+    WHERE record_type IS NOT NULL AND record_type <> ''
+    ORDER BY record_type
+  `); },
+
+  // Admin curation scalar edit: update the editable columns of one record (id is
+  // the identity key and stays fixed). Stamps updated_at.
+  get updateForCuration() { return db.prepare(`
+    UPDATE freestyle_records
+    SET record_type = ?, person_id = ?, display_name = ?, trick_name = ?,
+        sort_name = ?, adds_count = ?, value_numeric = ?, value_text = ?,
+        achieved_date = ?, date_precision = ?, source = ?, confidence = ?,
+        video_url = ?, video_timecode = ?, notes = ?, superseded_by = ?,
+        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+    WHERE id = ?
+  `); },
+};
+
+// Historical-person existence and name lookup, used by freestyle-record curation
+// to validate a linked person id and resolve its name for the audit trail.
+export const historicalPersonLookup = {
+  get personNameById() { return db.prepare(`
+    SELECT person_name FROM historical_persons WHERE person_id = ?
+  `); },
 };
 
 export interface FreestyleLeaderRow {

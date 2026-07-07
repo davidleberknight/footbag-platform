@@ -6,6 +6,10 @@ import {
   FreestyleSourceLinkInput,
   FreestyleModifierLinkInput,
 } from '../services/freestyleCurationService';
+import {
+  freestyleRecordCurationService,
+  FreestyleRecordScalarInput,
+} from '../services/freestyleRecordCurationService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 
 export const adminFreestyleController = {
@@ -234,6 +238,81 @@ export const adminFreestyleController = {
       freestyleCurationService.detachModifier(slug, modifierSlug, applyOrder, req.user!.userId);
       res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
     } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Browse freestyle world-record rows (all rows, including superseded and
+  // low-confidence, which the public records page hides).
+  recordsIndex(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-records', freestyleRecordCurationService.getRecordBrowsePage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Edit page for one record; `?saved=1` (set by the post-save redirect) shows the
+  // saved indicator. An unknown record id is a 404.
+  recordEdit(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleRecordCurationService.getRecordEditPage(String(req.params.id), {
+        saved: req.query.saved === '1',
+      });
+      if (!vm) {
+        renderNotFound(res);
+        return;
+      }
+      res.render('admin/freestyle-record-edit', vm);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Save one record's editable fields. Success redirects back with a saved
+  // indicator; a validation failure re-renders the form (422) with the submitted
+  // values and per-field errors; an unknown record id is a 404.
+  recordUpdate(req: Request, res: Response, next: NextFunction): void {
+    const id = String(req.params.id);
+    const input: FreestyleRecordScalarInput = {
+      recordType:    str(req.body.recordType),
+      personId:      str(req.body.personId),
+      displayName:   str(req.body.displayName),
+      trickName:     str(req.body.trickName),
+      sortName:      str(req.body.sortName),
+      addsCount:     str(req.body.addsCount),
+      valueNumeric:  str(req.body.valueNumeric),
+      valueText:     str(req.body.valueText),
+      achievedDate:  str(req.body.achievedDate),
+      datePrecision: str(req.body.datePrecision),
+      source:        str(req.body.source),
+      confidence:    str(req.body.confidence),
+      videoUrl:      str(req.body.videoUrl),
+      videoTimecode: str(req.body.videoTimecode),
+      notes:         str(req.body.notes),
+      supersededBy:  str(req.body.supersededBy),
+    };
+
+    try {
+      freestyleRecordCurationService.updateRecord(id, input, req.user!.userId);
+      res.redirect(303, `/admin/freestyle/records/${id}/edit?saved=1`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        const vm = freestyleRecordCurationService.getRecordEditPage(id, {
+          submitted: input,
+          fieldErrors: err.fieldErrors ?? {},
+        });
+        if (!vm) {
+          renderNotFound(res);
+          return;
+        }
+        res.status(422).render('admin/freestyle-record-edit', vm);
+        return;
+      }
       if (err instanceof NotFoundError) {
         renderNotFound(res);
         return;

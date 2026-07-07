@@ -1,0 +1,55 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>Edit record</h1>
+    <p class="text-muted">Editing freestyle record <code>{{content.id}}</code>. Holder: {{content.holderName}}.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.saved}}
+    <p class="notice notice-info">Saved.</p>
+    {{/if}}
+    {{#if content.hasErrors}}
+    <div class="form-error-banner">
+      {{#each content.errorList}}<p>{{this}}</p>{{/each}}
+    </div>
+    {{/if}}
+
+    <form method="POST" action="/admin/freestyle/records/{{content.id}}/edit" class="freestyle-edit-form">
+      <fieldset>
+        <p><label>Record type</label><br>
+          <select name="recordType">
+            {{#each content.recordTypeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+          </select>
+        </p>
+        <p><label>Linked historical-person id (optional)</label><br><input type="text" name="personId" value="{{content.fields.personId}}" /></p>
+        <p><label>Display name (used when no person is linked)</label><br><input type="text" name="displayName" value="{{content.fields.displayName}}" /></p>
+        <p><label>Trick name</label><br><input type="text" name="trickName" value="{{content.fields.trickName}}" /></p>
+        <p><label>Structured sort name</label><br><input type="text" name="sortName" value="{{content.fields.sortName}}" /></p>
+        <p><label>Adds count</label><br><input type="text" name="addsCount" value="{{content.fields.addsCount}}" /></p>
+        <p><label>Value</label><br><input type="text" name="valueNumeric" value="{{content.fields.valueNumeric}}" /></p>
+        <p><label>Value text (optional)</label><br><input type="text" name="valueText" value="{{content.fields.valueText}}" /></p>
+        <p><label>Achieved date (YYYY-MM-DD)</label><br><input type="text" name="achievedDate" value="{{content.fields.achievedDate}}" /></p>
+        <p><label>Date precision</label><br>
+          <select name="datePrecision">
+            {{#each content.datePrecisionOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+          </select>
+        </p>
+        <p><label>Source</label><br><input type="text" name="source" value="{{content.fields.source}}" /></p>
+        <p><label>Confidence</label><br>
+          <select name="confidence">
+            {{#each content.confidenceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+          </select>
+        </p>
+        <p><label>Video URL</label><br><input type="text" name="videoUrl" value="{{content.fields.videoUrl}}" /></p>
+        <p><label>Video timecode</label><br><input type="text" name="videoTimecode" value="{{content.fields.videoTimecode}}" /></p>
+        <p><label>Notes</label><br><textarea name="notes" rows="2">{{content.fields.notes}}</textarea></p>
+        <p><label>Superseded by (record id of the newer record, optional)</label><br><input type="text" name="supersededBy" value="{{content.fields.supersededBy}}" /></p>
+      </fieldset>
+      <p><button type="submit" class="btn btn-primary btn-sm">Save</button></p>
+    </form>
+
+    <p><a href="{{content.backHref}}" class="btn btn-outline btn-sm">Back to records</a></p>
+  </section>
+</div>
