@@ -2537,6 +2537,31 @@ section.home-media { padding-top: 0; }
   border-bottom: 1px solid var(--bg-light);
   vertical-align: middle;
 }
+
+/* Admin freestyle-curation browse: filter row and the dictionary table. */
+.freestyle-admin-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.freestyle-admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.freestyle-admin-table th,
+.freestyle-admin-table td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.freestyle-admin-table th {
+  font-weight: 600;
+  color: var(--text-muted);
+}
 .cleanup-action-form {
   display: flex;
   gap: 4px;

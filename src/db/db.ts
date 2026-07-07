@@ -2204,6 +2204,16 @@ export const freestyleTricks = {
   get categoryBySlug() { return db.prepare(`
     SELECT category FROM freestyle_tricks WHERE slug = ?
   `); },
+
+  // Admin curation browse: every row regardless of is_active or review_status,
+  // because an admin curates inactive and pending rows the public dictionary
+  // hides. Status-agnostic by design (admin-only surface); search and status
+  // filters are applied above db.ts in freestyleCurationService.
+  get listForCuration() { return db.prepare(`
+    SELECT slug, canonical_name, adds, trick_family, is_active, review_status
+    FROM freestyle_tricks
+    ORDER BY is_active DESC, canonical_name ASC
+  `); },
 };
 
 export interface FreestyleTrickSearchRow {

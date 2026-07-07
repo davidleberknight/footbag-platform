@@ -8,6 +8,7 @@ import { adminClubLeadershipController } from '../controllers/adminClubLeadershi
 import { adminAdminRolesController } from '../controllers/adminAdminRolesController';
 import { adminAuditLogController } from '../controllers/adminAuditLogController';
 import { adminEmailLogController } from '../controllers/adminEmailLogController';
+import { adminFreestyleController } from '../controllers/adminFreestyleController';
 import { requireAuth } from '../middleware/auth';
 import { requireAdmin } from '../middleware/requireAdmin';
 
@@ -50,6 +51,11 @@ adminRouter.post('/club-cleanup/:clubId/delist-residue', adminClubCleanupControl
 // no clubs row yet, so the clubId-keyed resolve route cannot address it.
 adminRouter.post('/club-cleanup/candidates/:candidateId/promote', adminClubCleanupController.promote);
 adminRouter.post('/club-cleanup/candidates/:candidateId/resolve', adminClubCleanupController.resolveCandidate);
+
+// Freestyle dictionary curation. Read-only browse in this slice; each row links
+// to a placeholder edit route until the in-app edit surface is built.
+adminRouter.get('/freestyle/tricks',             adminFreestyleController.index);
+adminRouter.get('/freestyle/tricks/:slug/edit',  adminFreestyleController.editPlaceholder);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);
 adminRouter.post('/curator/upload', adminCuratorController.postUpload);
 // Async curator video upload (DD §6.8). Three-step browser flow: sign,
