@@ -996,22 +996,13 @@
 
   <section class="content-section" id="section-notation">
     <h2 class="section-heading">
-      Trick Naming &amp; Notation
+      Structural Analysis: Notation &amp; ADD
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
 
-    {{! ── §7 mini-TOC — four arcs of the notation section ─────────────── }}
-    <nav class="glossary-mini-toc" aria-label="In this section">
-      <span class="glossary-mini-toc-label">In this section:</span>
-      <ol class="glossary-mini-toc-list">
-        <li><a href="#compositional-premise">Premise</a></li>
-        <li><a href="#jobs-notation">Grammar</a></li>
-        <li><a href="#notation-roles">Worked examples</a></li>
-        <li><a href="#abbreviations">Abbreviations</a></li>
-        <li><a href="#operational-notation">Operational reference</a></li>
-      </ol>
-    </nav>
-
+    {{! The former in-section mini-TOC is dropped: its links now point into the
+        collapsed chapter below, the chapter summary lists the same contents, and
+        the page-level sidebar carries these anchors. }}
     <p class="glossary-thesis">
       The language evolves by compressing recurring compositional structures
       into shorter readable symbolic forms.
@@ -1041,6 +1032,12 @@
       </details>
       {{/if}}
     </div>
+
+    <details class="glossary-chapter" id="chapter-structural-analysis">
+    <summary class="glossary-chapter-summary">
+      <span class="glossary-chapter-summary-title">Notation and ADD reference</span>
+      <span class="glossary-chapter-summary-hint">the compositional premise and grammar, worked examples, the token abbreviations and operational reference, and the full ADD accounting</span>
+    </summary>
 
     {{! ── Compositional premise — Ben Job (1995) ───────────────────────────
         Concise primer naming Ben Job's notation contribution explicitly
@@ -1443,25 +1440,19 @@
       <a href="/freestyle/sets/reference">Set notation reference</a>.
     </p>
     </details>
-  </section>
 
-  <section class="content-section" id="section-add-accounting">
-    <h2 class="section-heading" id="traditional-reference">
-      ADD Accounting
-      <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
-    </h2>
+    <div id="section-add-accounting">
+    <h3 class="section-heading" id="traditional-reference">ADD Accounting</h3>
 
     <h3 id="run-quality">ADD philosophy</h3>
     <p>
-      <strong>ADD (Additional Degree of Difficulty)</strong> is
-      <em>additive structural accounting</em>: each base trick has a weight,
-      each modifier has a weight, and a trick's total is the sum. Each ATAM
-      bracket-flag (<code>[BOD]</code> / <code>[DEX]</code> /
-      <code>[XBD]</code> / <code>[DEL]</code> / <code>[UNS]</code>) in the
-      operational notation contributes 1 ADD; modifier stacks accumulate
-      above the base trick value. The same logic lets the dictionary read
-      <em><a href="/freestyle/tricks/mobius">mobius</a></em> as &ldquo;gyro torque&rdquo; and arrive at the same
-      ADD math either way.
+      ADD is <em>additive structural accounting</em>: a trick's total is the
+      sum of its base weight and each modifier's weight. The scored
+      bracket-flags in operational notation are
+      <code>[BOD]</code> / <code>[DEX]</code> / <code>[XBD]</code> /
+      <code>[DEL]</code> / <code>[UNS]</code>. The same additive logic lets the
+      dictionary read <em><a href="/freestyle/tricks/mobius">mobius</a></em> as
+      &ldquo;gyro torque&rdquo; and arrive at the same total either way.
     </p>
 
     <h3 id="add-provenance">Where do ADD values come from?</h3>
@@ -1680,6 +1671,8 @@
       Shred:30, Circle), see
       <a href="/freestyle/combo-analysis">Combo Analysis</a>.
     </p>
+    </div>
+    </details>
   </section>
 
   {{! ── Tier-break ruler #2 — Notation/ADD → Composition & the system ── }}
