@@ -9,6 +9,9 @@
   {{#if content.resolvedFlag}}
     <p class="form-success-banner" role="status">Item resolved and email reply dispatched.</p>
   {{/if}}
+  {{#if content.reviewedFlag}}
+    <p class="form-success-banner" role="status">Item marked reviewed.</p>
+  {{/if}}
   {{#if content.errorMessage}}
     <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
   {{/if}}
@@ -83,6 +86,15 @@
               <button type="submit" class="btn btn-outline btn-sm">Uphold Dispute: Revert Holder's Claim</button>
             </form>
             {{/if}}
+          {{else if isReviewFlag}}
+            <form method="POST" action="/admin/work-queue/{{id}}/dismiss" class="form-block">
+              <div class="form-field">
+                <label for="review_note_{{id}}">Review note (optional)</label>
+                <textarea id="review_note_{{id}}" name="note" rows="2" maxlength="500" placeholder="Internal note; not sent to the member"></textarea>
+              </div>
+              <p class="card-meta">Linking is not reverted here. To undo a wrong link, open a member link-help dispute and use the revert action.</p>
+              <button type="submit" class="btn btn-outline btn-sm">Mark Reviewed</button>
+            </form>
           {{else}}
             <form method="POST" action="/admin/work-queue/{{id}}/resolve" class="form-block">
               <div class="form-field">

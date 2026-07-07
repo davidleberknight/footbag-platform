@@ -28,6 +28,7 @@ adminRouter.post('/admin-roles/:memberId/revoke',         adminAdminRolesControl
 adminRouter.post('/admin-roles/:memberId/revoke/confirm', adminAdminRolesController.revokeConfirm);
 adminRouter.get('/work-queue',                adminWorkQueueController.index);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);
+adminRouter.post('/work-queue/:id/dismiss',   adminWorkQueueController.dismiss);
 adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.linkHelpApprove);
 adminRouter.post('/work-queue/:id/link-help/reject',  adminWorkQueueController.linkHelpReject);
 adminRouter.post('/work-queue/:id/link-help/dispute-revert', adminWorkQueueController.linkHelpDisputeRevert);

@@ -10,7 +10,7 @@
  *   - Public event browse and detail page reads
  *
  * Does not own:
- *   - Registration payments (PaymentService when implemented)
+ *   - Registration payments (PaymentService)
  *   - Competition participation records (CompetitionParticipationService)
  *
  * Required patterns:

@@ -51,6 +51,8 @@ The consequences are non-negotiable:
 - The intent is corrected only at its source. If a success criterion itself is wrong, it is changed in `docs/USER_STORIES.md` (or the relevant design doc) with explicit human consent first, and only then is the test rewritten against the corrected intent. The code is never the authority that licenses a test change.
 - A surface with no traceable intent is unintended scope (§4.1): write the missing story or remove the surface, do not paper over it with a behavior-mirroring test.
 
+A change that adds an effect must not shrink the test to that effect alone. In the same scenario, the test re-asserts the invariants the change is required to preserve: that a signal raised for later review does not also block the action it flags, and that a privacy-sensitive path returns the identical response whether or not the sensitive value matched (the anti-enumeration posture in `docs/DATA_GOVERNANCE.md`). Asserting the new effect while dropping the preserved invariant passes by construction and lets the invariant regress unseen -- the same failure this rule forbids, in different clothes. Both halves trace to intent: the new behavior to its success criterion, the preserved invariant to the decision or governance rule that fixes it.
+
 ---
 
 ## 3. Risk classification and OWASP ASVS levels
@@ -500,6 +502,33 @@ Some contracts cannot be exercised below production: the stub and staging paths 
 
 These are operator-run, not part of the automated suite — the production half of the adapter parity contract (§7.2), whose staging-smoke leg cannot reach the real charge, the real inbox, or the real zone.
 
+### 7.8 Staging as the real-data test ground
+
+Staging is loaded with the real footbag.org dataset and is the environment where real-data behaviour is validated: identity matching across real name, birth-date, and email variance; legacy-account claims; historical-person rendering; member search at real scale; and migration and cutover rehearsal. Synthetic fixtures deliberately under-represent the messiness these surfaces must survive (near-duplicate names, shared addresses, diacritic and right-to-left names, inconsistent date formats, collision clusters), so this validation runs against the real data on staging rather than being approximated in dev.
+
+**Take best advantage of staging by putting the right layer there.** Following the test pyramid and the testing quadrants, the fast technology-facing layers stay low in dev and continuous integration, and the business-facing, production-like, and real-data activities that dev cannot represent faithfully move to staging (the "shift-right" layers). Staging is not where unit or route-level checks are re-run; it is where the things that genuinely need production-like config and real data happen:
+
+- Real-data identity-matching and legacy-claim verification, and whole-population reconciliation over the loaded dataset.
+- Exploratory and session-based testing, and user-acceptance testing, against realistic data by a human tester.
+- Full-scale accessibility against real content (real names and addresses surface diacritic, length, and bidi edge cases synthetic personas miss).
+- Migration and cutover rehearsal, and the release-readiness checks that gate go-live.
+- Integration against production-like adapters and config, and the staging-safe security probes (§9.2).
+
+Dev and continuous integration keep the unit, route and service integration, the route-by-persona authorization matrix, and the security-regression floor — fast, deterministic, synthetic-only.
+
+**Environment-and-data boundary (absolute).** The real dataset lives only on staging and on the maintainer's local operator load. It never flows into a committed fixture, snapshot, seed file, trace, or any continuous-integration run, and never into application or test logs, screenshots, or a bug-report attachment. Every committed test artifact stays synthetic, unchanged from §2.1 and §10. Real member data on staging never travels downward into the repo or the shared pipeline.
+
+**Protection model.** Staging matches production's network posture — a public site with no edge access control — because parity with production and operational simplicity are first-order goals, and a staging-only gate would break both. Real member data on staging is protected by the same mechanisms that protect it in production: the application's own authentication and the public-versus-member visibility model (public surfaces expose only public historical records; member data requires a session). The environment is additionally kept out of search indexes and its address is not published. The anonymous persona switch (§7.5, §7.6) remains the tester's full-access affordance. The residual exposure this leaves is a risk the maintainer, as risk owner, accepts; data masking and a staging edge gate were both considered and deliberately not adopted. Any IFPA authorization for using real member data in testing is a private governance record kept out of the repo, and no committed doc names the staging address.
+
+**Tester procedure for real-data testing.**
+
+- Reach staging through the privately shared preview address (never a committed link). Use the persona grid and switch for role-conditional testing, and the loaded real dataset for real-data testing.
+- Verify migrated data renders and behaves correctly by claiming a real record and walking its profile, results, honors, and media across the site. Claim any record from the deterministic claim-risk strata below rather than one fixed person.
+- Exercise the legacy-claim surface across its risk classes with the deterministic strata sample (linked-with-email, paid-tier evidence, honoree, same-name disambiguated only by birth date, no-email, bare collision stub, and historical-person-without-account): for each sampled row, register on staging with the row's address, read the captured mail on the outbox viewer, and confirm the claim wizard does exactly what the sample expects, including the enumeration-safe outcomes for an absent and an already-claimed record.
+- Validate whole-population invariants by query, not by sampling: loaded counts reconcile against the source minus the held-out and excluded cohorts; no claimed account lacks its claim audit row; no historical-person link points at a missing account; every stored email is lowercased.
+- Never rehearse a deceased-member flow against a real person's record — use the seeded persona for that.
+- PII discipline: never paste real member data into a bug report, screenshot, trace, chat, or any shared or committed artifact. Report a real-data defect by record identifier and structural description, never by real name, email, address, or birth date. Test output is treated as potentially public (§2.1, §10.6).
+
 ---
 
 ## 8. Migration and onboarding testing
@@ -518,6 +547,7 @@ Legacy-member identity claim has three confidence outcomes (high, medium, low) p
 - *Medium confidence:* claim is queued for manual review; user sees an enumeration-safe message; admin queue receives the entry. Derived assertions cover the queueing plus the absence of any indication to the user that disambiguation is in progress.
 - *Low confidence and no match:* claim is rejected; user sees an enumeration-safe message; no link is created; no information about candidate identities is leaked.
 - *Name-change and alias edge cases:* historical records held under a different name resolve correctly; aliases are matched per the canonical alias table; no false-positive links cross alias boundaries.
+- *Date-of-birth conflict:* the claim links regardless of any date-of-birth discrepancy (the comparison never blocks); any non-identical outcome (near-miss or mismatch) enqueues an admin review item on both the legacy-account and direct historical-record claim paths; the member-facing response is identical whether the date matches or conflicts (the conflicting date and the admin flag never leak to the member); only an admin can dismiss the item.
 
 ### 8.3 Club affiliation and cleanup
 
@@ -527,9 +557,9 @@ Club affiliation tests cover the cases enumerated in `docs/MIGRATION_PLAN.md` (l
 
 The db-load smoke CI job (§5.3) runs the loader pipeline against fixed fixtures on every CI build. Row-count and shape assertions catch loader regressions. The fixtures themselves are synthetic. Real legacy data is never committed as test fixtures.
 
-### 8.5 Synthetic legacy data only
+### 8.5 Synthetic data in dev and CI; real data on staging
 
-Migration tests use synthetic legacy records that model edge cases without exposing real personal data. Where operator-controlled validation requires access to real legacy data (per `docs/MIGRATION_PLAN.md`), the data is minimized, gitignored, access-controlled, and redacted in test output. Raw legacy PII is never committed as test fixtures, never appears in snapshots, screenshots, or traces, and never appears in CI artifacts.
+Migration tests in dev and continuous integration use synthetic legacy records that model edge cases without exposing real personal data, and every committed fixture stays synthetic. Real-data validation runs on the staging real-data test ground (§7.8): the full loaded dataset exercises identity matching, claims, and rendering there. Raw legacy PII is never committed as a test fixture, never appears in a snapshot, screenshot, trace, log, or CI artifact, and never travels downward from staging into the repo or the shared pipeline.
 
 Two data tiers run the suite. The committed synthetic fixtures cover the great majority of it: `npm test`, the `db-load-smoke` loader gate, and routine route, service, and e2e tests run on them with no real data. A small subset needs real, maintainer-only member data — the gitignored membership roster (`legacy_data/membership/inputs/membership_input_normalized.csv`) and, for the legacy-import validation class, the legacy-site member dump. The persona-crawl gate (`--with-persona-crawl` / `npm run test:persona-crawl`) is one such test: it exercises a fully onboarded profile from the full operator load and skips on a fixture-only clone. A tester who must run a real-data test obtains access to that maintainer-owned PII handoff from the maintainer who holds the legacy-data distribution; the data stays minimized and access-controlled, and never lands in a committed fixture, snapshot, trace, or CI artifact.
 
@@ -554,9 +584,10 @@ After an operator load, human verification runs on two complementary levels:
   stubs, and historical persons with no account. The read-only
   `legacy_data/member_data_scripts/sample_legacy_claim_strata.py` samples each
   stratum deterministically into a git-ignored CSV stating who to register as, with
-  which email, and the expected wizard behavior; the tester registers in dev with the
-  row's email, reads captured mail on `GET /dev/outbox`, and confirms the wizard does
-  exactly what the row says. Adversarial picks extend the strata: mojibake and
+  which email, and the expected wizard behavior; the tester registers on staging
+  against the real load (or a maintainer local load) with the row's email, reads
+  captured mail on `GET /dev/outbox`, and confirms the wizard does exactly what the
+  row says. Adversarial picks extend the strata: mojibake and
   accented names, implausible and near-miss birth dates, and the enumeration probe (a
   real identity and an absent one must be indistinguishable from outside).
 - Deceased-member suppression is exercised via the seeded persona only; those flows
@@ -856,7 +887,7 @@ Operational anti-patterns (no DB mocking, no framework mocking, no timestamp lea
 - *Brittle locators.* CSS selectors that depend on auto-generated class names, XPath that depends on DOM structure, and text selectors that depend on copy phrasing are brittle. Prefer role and accessible-name selectors per Playwright best practice.
 - *Asserting on exact prose or wording.* Tests that pin rendered copy with patterns like `expect(res.text).toContain('exact heading')` or `not.toMatch(/old phrase/)` turn every copy edit into a test failure and train reviewers to ignore the suite. Assert structural intent instead: counts of expected elements, presence of IDs and classes, anchor href shape, response status, data attributes. When a literal string is the contract (an SEO meta description, an explicit error message), production code exports the constant and the test imports it rather than duplicating the literal. Email subjects and bodies follow this rule: they come from the exported builders of §5.9, which the sender and the test both import.
 - *Arbitrary sleeps.* `await page.waitForTimeout(N)` masks race conditions. Wait on observable conditions (selector visibility, network response, app state).
-- *Depending on production data.* Tests that read or assume real production records are brittle and may leak PII into test output.
+- *Depending on real production data in committed or CI tests.* Committed and continuous-integration tests never read or assume real member records; they are synthetic-only and deterministic. Real-data testing is the separate, human-driven staging activity in §7.8, whose output is governed by the PII discipline there and never becomes a committed or CI test.
 - *Depending on real email receipt for routine tests.* The persona switch and the captured-email simulated-email-card exist to avoid this. Routine tests do not poll a mailbox.
 - *Making staging tests destructive by default.* Staging tests are read-only or explicitly idempotent and audited per §5.4.
 - *Running penetration tests against production without explicit authorization.* Forbidden per §9.3 and §9.4.
@@ -904,7 +935,7 @@ The persona harness in `src/testkit/` lets a tester act as any seeded member, se
 ### 16.1 What the harness provides
 
 - A curated persona catalog (`src/testkit/canonicalPersonas.ts`), seeded into the dev or staging database.
-- `GET /dev/personas`, a grid of cards, one per loadable persona, showing its tier, roles, purpose, and coverage notes. A session-eligible persona card carries a Switch control; a login-blocked persona (unverified, deceased, soft-deleted) carries a Log in control that drives the real login path. The real-data-backed maintainer persona leads the grid, marked as built from real legacy data rather than a seeded fixture.
+- `GET /dev/personas`, a grid of cards, one per loadable persona, showing its tier, roles, purpose, and coverage notes. A session-eligible persona card carries a Switch control; a login-blocked persona (unverified, deceased, soft-deleted) carries a Log in control that drives the real login path.
 - `GET /dev/switch?as=<slug>`, which issues a real session cookie for that persona (the same primitive the login path uses, not an auth bypass).
 - Each persona's profile About marks it as a test persona and states what it exists to test, so a switched-in profile is never read as a real member.
 - A **Refresh all personas** control on `/dev/personas` (`POST /dev/personas/refresh`) that tears down the persona-owned rows and re-seeds the catalog, returning every persona to its seeded state. Use it to undo in-app changes a persona accumulated, for example a tier upgrade, which appends to the membership ledger and otherwise persists.

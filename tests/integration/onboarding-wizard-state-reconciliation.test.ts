@@ -111,6 +111,9 @@ describe('A2: out-of-wizard HP claim completes the legacy_claim task', () => {
     });
     const personId = insertHistoricalPerson(testDb, { person_name: 'Foo Bar' });
     svc.startTaskList(memberId);
+    // The out-of-wizard historical-record claim surface is reached only after
+    // onboarding completes, so personal details are already on file.
+    svc.completeTask(memberId, 'personal_details');
     expect(getTaskState(memberId, 'legacy_claim')).toBe('pending');
 
     const res = await request(createApp())
@@ -131,6 +134,8 @@ describe('A5 + L5: wizard GETs reconcile task state with underlying reality', ()
       login_email: `state-a5-${stamp}@example.com`,
     });
     svc.startTaskList(memberId);
+    // The club-affiliations step runs only once personal details are on file.
+    svc.completeTask(memberId, 'personal_details');
 
     const res = await request(createApp())
       .get('/register/wizard/club_affiliations')
@@ -155,6 +160,9 @@ describe('A5 + L5: wizard GETs reconcile task state with underlying reality', ()
     // HP and runs the auto-complete branch.
     testDb.prepare(`UPDATE members SET historical_person_id = ? WHERE id = ?`).run(personId, memberId);
     svc.startTaskList(memberId);
+    // The legacy-claim step reconciles on GET only once personal details are on
+    // file, so complete that prerequisite before exercising the auto-complete.
+    svc.completeTask(memberId, 'personal_details');
     expect(getTaskState(memberId, 'legacy_claim')).toBe('pending');
 
     const res = await request(createApp())
@@ -210,19 +218,24 @@ describe('A6 + A7: skipped tasks land in the skipped bucket, not the in-sequence
       birth_date:  '1980-01-01',
     });
     const cookie = cookieFor(memberId);
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookie);
+    // Personal details come first and unlock the later steps; complete them so
+    // the walk can advance through legacy_claim and club_affiliations.
+    svc.completeTask(memberId, 'personal_details');
 
+    // Continuing without linking is the required legacy decision and needs the
+    // attestation that the member never held an old-site account; it completes
+    // legacy_claim and advances to the club step.
     const r1 = await request(createApp())
       .post('/register/wizard/legacy_claim/skip')
-      .set('Cookie', cookie).type('form').send({});
+      .set('Cookie', cookie).type('form').send({ no_old_account: '1' });
     expect(r1.headers.location).toBe('/register/wizard/club_affiliations');
 
     const r2 = await request(createApp())
       .post('/register/wizard/club_affiliations/skip')
       .set('Cookie', cookie).type('form').send({});
-    // Skipping club advances to the remaining pending task (personal details),
-    // never back into a skipped task, and without bouncing through /complete.
-    expect(r2.headers.location).toBe('/register/wizard/personal_details');
+    // Skipping the last remaining task advances to the completion page, never
+    // back into an already-resolved task.
+    expect(r2.headers.location).toBe('/register/wizard/complete');
   });
 
   it('getDashboardTaskWidget puts skipped rows in the skipped bucket (not pending)', () => {
@@ -295,6 +308,9 @@ describe('D4: legacy_claim search surfaces the validation message inline', () =>
       login_email: `state-d4-${stamp}@example.com`,
       birth_date:  '1980-01-01',
     });
+    svc.startTaskList(memberId);
+    // The manual search runs only once personal details are on file.
+    svc.completeTask(memberId, 'personal_details');
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/find')
       .set('Cookie', cookieFor(memberId))

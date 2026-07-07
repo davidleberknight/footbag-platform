@@ -6,7 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { insertLegacyMember, insertHistoricalPerson } from '../fixtures/factories';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
-import { seedBrandNewPlayer, seedMemberWithAutoLinkCandidate, seedMemberWithLegacyDiffEmail, seedMemberWithHpMatch, getMemberField, getTaskState, raiseClaimRateLimits, legacyClaimConfirmUrl } from './helpers/onboarding';
+import { seedBrandNewPlayer, seedMemberWithAutoLinkCandidate, seedMemberWithLegacyDiffEmail, seedMemberWithHpMatch, getMemberField, getTaskState, raiseClaimRateLimits, legacyClaimConfirmUrl, completePersonalDetails } from './helpers/onboarding';
 
 test.beforeAll(() => {
   const db = openLiveDb();
@@ -18,6 +18,7 @@ import { WizardPage } from './pages/wizard.page';
 test('auto-link candidate card visible for high-confidence member', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberWithAutoLinkCandidate(db, { slug: `lc_al_${Date.now()}`, personName: 'Autolink Person' });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -37,6 +38,7 @@ test('auto-link candidate card visible for high-confidence member', { tag: ['@mi
 test('auto-link confirm advances to next task', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberWithAutoLinkCandidate(db, { slug: `lc_ac_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -44,7 +46,6 @@ test('auto-link confirm advances to next task', { tag: ['@migration'] }, async (
   const wizard = new WizardPage(page);
 
   await wizard.goto('legacy_claim');
-  await wizard.ensureBirthDateOnFile();
 
   const linkButton = page.getByRole('button', { name: /this is me/i });
   await linkButton.click();
@@ -62,6 +63,7 @@ test('auto-link confirm advances to next task', { tag: ['@migration'] }, async (
 test('manual search: enqueued path shows the banner but never the confirm link', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_enq_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -93,6 +95,7 @@ test('manual search: enqueued path shows the banner but never the confirm link',
 test('token confirm page shows record details and confirm button', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_tok_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -120,6 +123,7 @@ test('token confirm page shows record details and confirm button', { tag: ['@mig
 test('token consume advances wizard and links member', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_con_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -193,6 +197,8 @@ test('anti-enum: no-match and match searches show identical banner text', { tag:
   const legacyEmail = `ae-match-${stamp}@oldsite.example`;
   insertLegacyMember(db, { legacy_member_id: `LM-AE-${stamp}`, legacy_email: legacyEmail, real_name: 'AE Match' });
   const matchPersona = seedBrandNewPlayer(db, { slug: `lc_ae2_${stamp}` });
+  completePersonalDetails(db, noMatchPersona.memberId);
+  completePersonalDetails(db, matchPersona.memberId);
   db.close();
 
   const ctx1 = await createAuthenticatedContext(browser, baseURL!, noMatchPersona);

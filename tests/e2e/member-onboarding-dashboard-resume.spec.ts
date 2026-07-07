@@ -4,13 +4,14 @@
  */
 import { test, expect } from '@playwright/test';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
-import { seedBrandNewPlayer, seedTier0Member, seedMemberWithAutoLinkCandidate, seedAllTasksCompleted, seedMixedTaskState, getTaskState } from './helpers/onboarding';
+import { seedBrandNewPlayer, seedTier0Member, seedMemberWithAutoLinkCandidate, seedAllTasksCompleted, seedMixedTaskState, getTaskState, completePersonalDetails } from './helpers/onboarding';
 import { WizardPage } from './pages/wizard.page';
 import { DashboardPage } from './pages/dashboard.page';
 
 test('skipped tasks appear in dashboard widget with Resume affordance', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier0Member(db, { slug: `d_skip_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -53,6 +54,7 @@ test('completed tasks do NOT appear in dashboard widget', async ({ browser, base
 test('resume skipped task opens correct wizard page with correct heading', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier0Member(db, { slug: `d_res_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -125,6 +127,7 @@ test('profile edit page hides legacy CTA after successful claim', async ({ brows
   const db = openLiveDb();
   const persona = seedMemberWithAutoLinkCandidate(db, { slug: `d_nct_${Date.now()}` });
   const email = (db.prepare('SELECT login_email FROM members WHERE id = ?').get(persona.memberId) as { login_email: string }).login_email;
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -144,6 +147,7 @@ test('profile edit page hides legacy CTA after successful claim', async ({ brows
 test('logout and re-login preserves wizard task state', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier0Member(db, { slug: `d_ses_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);

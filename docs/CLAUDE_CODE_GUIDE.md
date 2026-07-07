@@ -120,7 +120,7 @@ The second premise in practice: enforcement that does not depend on the agent ch
 
 A Stop hook blocks low-quality questions to the human.
 
-**Where the whole setup lives.** The guard scripts are in `.claude/hooks/` and are wired — with their matchers and order — in the `hooks` block of `.claude/settings.json`; the always-on permission floor is the `permissions` block of the same file; the read-only classifier is `.claude/hooks/allow-readonly-bash.sh`; and every guard has a fixture in `scripts/ci/test_hooks.sh`. Read those four places to see the entire enforcement surface — this document explains the design, not every line.
+**Where the whole setup lives.** The guard scripts are in `.claude/hooks/` and are wired — with their matchers and order — in the `hooks` block of `.claude/settings.json`; the always-on permission floor is the `permissions` block of the same file; the read-only classifier is `.claude/hooks/allow-readonly-bash.sh`; and the guard hooks have fixtures in `scripts/ci/test_hooks.sh`. Read those four places to see the entire enforcement surface — this document explains the design, not every line.
 
 Read-only is not the same as safe: an allowed read of a secret file plus an allowed network fetch is an exfiltration chain. That is why secret-bearing paths are denied to Bash outright (`guard-secret-reads.sh`), since the Read-tool deny rules do not bind shell commands, and why WebFetch is domain-scoped rather than open.
 

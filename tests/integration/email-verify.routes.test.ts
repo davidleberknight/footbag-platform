@@ -124,7 +124,8 @@ describe('GET /verify/:token', () => {
     const token = tokenFromOutbox('verify-good@example.com');
     const res = await request(app).get(`/verify/${token}`);
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
+    // Post-verify landing is the first outstanding onboarding task.
+    expect(res.headers.location).toBe('/register/wizard/personal_details');
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBe(true);
     assertSecureSessionCookie(res.headers['set-cookie']);

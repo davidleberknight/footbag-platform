@@ -19,7 +19,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertClub, insertHistoricalPerson, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertClub, insertHistoricalPerson, insertOnboardingTask, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3211');
 
@@ -31,6 +31,14 @@ beforeAll(async () => {
   insertMember(db, {
     id: 'copy-member', slug: 'copy_member', login_email: 'copy-member@example.com',
     real_name: 'Copy Member', display_name: 'Copy Member',
+  });
+  // The legacy-claim step is reachable only once personal details are on file.
+  insertOnboardingTask(db, 'copy-member', 'personal_details', 'completed');
+  // A separate member with personal details still outstanding, so the
+  // personal-details form (and its microcopy) renders instead of redirecting.
+  insertMember(db, {
+    id: 'copy-pd-member', slug: 'copy_pd_member', login_email: 'copy-pd-member@example.com',
+    real_name: 'Copy PD Member', display_name: 'Copy PD Member',
   });
   insertClub(db, { name: 'Copy Test Club', country: 'Freedonia' });
   createApp = await importApp();
@@ -45,6 +53,10 @@ function cookie(): string {
   return `footbag_session=${createTestSessionJwt({ memberId: 'copy-member' })}`;
 }
 
+function pendingDetailsCookie(): string {
+  return `footbag_session=${createTestSessionJwt({ memberId: 'copy-pd-member' })}`;
+}
+
 describe('legacy-claim matching microcopy', () => {
   it('the old-email field frames the match as confirming the legacy claim', async () => {
     const res = await request(createApp())
@@ -57,7 +69,7 @@ describe('legacy-claim matching microcopy', () => {
   it('the date-of-birth field says it matches old records and stays private', async () => {
     const res = await request(createApp())
       .get('/register/wizard/personal_details')
-      .set('Cookie', cookie());
+      .set('Cookie', pendingDetailsCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('helps us match your old footbag.org account and competition records');
     expect(res.text).toContain('only you and administrators can see it');
@@ -66,7 +78,7 @@ describe('legacy-claim matching microcopy', () => {
   it('the region field carries the optional marker', async () => {
     const res = await request(createApp())
       .get('/register/wizard/personal_details')
-      .set('Cookie', cookie());
+      .set('Cookie', pendingDetailsCookie());
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Region \/ State <span class="text-muted">\(optional\)<\/span>/);
   });

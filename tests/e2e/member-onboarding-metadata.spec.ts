@@ -4,7 +4,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
-import { seedBrandNewPlayer, seedMemberMidWizard, seedAllTasksCompleted, getTaskState } from './helpers/onboarding';
+import { seedBrandNewPlayer, seedMemberMidWizard, seedAllTasksCompleted, getTaskState, completePersonalDetails } from './helpers/onboarding';
 import { WizardPage } from './pages/wizard.page';
 
 test('personal_details: out-of-range year 1900 rejected inline', async ({ browser, baseURL }) => {
@@ -93,6 +93,7 @@ test('GET wizard task after all completed and fully linked -> auto-transitions a
 test('keyboard: Tab reaches identifier input, Find button, Skip button', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `m_kbd_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -116,6 +117,7 @@ test('keyboard: Tab reaches identifier input, Find button, Skip button', { tag: 
 test('accessibility: form labels programmatically associated on legacy_claim', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `m_a11y_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);

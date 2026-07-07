@@ -107,14 +107,14 @@ function readAuditRowsForMember(memberId: string): AuditRow[] {
 }
 
 describe('memberOnboardingService.getDashboardTaskWidget', () => {
-  it('lists outstanding tasks in story order (legacy claim, club affiliations, optional metadata)', () => {
+  it('lists outstanding tasks in story order (personal details, legacy claim, club affiliations)', () => {
     const d = new BetterSqlite3(dbPath);
     insertMember(d, { id: 'dash-order-1', slug: 'dash_order_1', login_email: 'dash1@example.com' });
     d.close();
     svc.startTaskList('dash-order-1');
     const widget = svc.getDashboardTaskWidget('dash-order-1');
     expect(widget.pending.map((t) => t.taskType)).toEqual([
-      'legacy_claim', 'club_affiliations', 'personal_details',
+      'personal_details', 'legacy_claim', 'club_affiliations',
     ]);
   });
 });

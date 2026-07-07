@@ -243,18 +243,25 @@ describe('verifyEmailByToken — ambiguous-email classification', () => {
 });
 
 describe('verify → routing for ambiguous email', () => {
-  it('routes ambiguous-email verify to the onboarding wizard legacy_claim task', async () => {
+  it('routes ambiguous-email verify into the onboarding wizard, landing on the first outstanding task', async () => {
     const token = issueVerifyToken(MEM_AMBIG);
     const res = await request(createApp()).get(`/verify/${token}`);
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
+    expect(res.headers.location).toBe('/register/wizard/personal_details');
   });
 });
 
 describe('manual claim form — non-revealing on ambiguous email', () => {
   it('renders the SAME "sent" banner as a match or miss (no leak of ambiguity)', async () => {
+    // The legacy-claim resolving actions run only once personal details are on
+    // file, so complete that step before exercising the manual search.
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
     const agent = request.agent(createApp());
+    await agent
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookie)
+      .type('form')
+      .send({ city: 'Portland', country: 'US', birthDate: '1980-01-01' });
     const postRes = await agent
       .post('/register/wizard/legacy_claim/find')
       .set('Cookie', cookie)

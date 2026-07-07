@@ -236,7 +236,6 @@ publicRouter.get('/register/wizard/legacy_claim/anchors/verify/:token',      req
 publicRouter.get('/register/wizard/legacy_claim/claim/confirm/:token',  requireAuth, memberOnboardingController.getLegacyClaimTokenConfirm);
 publicRouter.post('/register/wizard/legacy_claim/claim/confirm',        requireAuth, memberOnboardingController.postLegacyClaimTokenConfirm);
 publicRouter.post('/register/wizard/legacy_claim/anchors/add',          requireAuth, memberOnboardingController.postAddAnchor);
-publicRouter.post('/register/wizard/legacy_claim/anchors/birth-date',   requireAuth, memberOnboardingController.postAddBirthDateAnchor);
 publicRouter.post('/register/wizard/legacy_claim/anchors/remove',       requireAuth, memberOnboardingController.postRemoveAnchor);
 publicRouter.post('/register/wizard/club_affiliations/submit',          requireAuth, memberOnboardingController.postClubAffiliationsSubmit);
 publicRouter.get('/register/wizard/club_affiliations/detour',           requireAuth, memberOnboardingController.getClubDetour);

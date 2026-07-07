@@ -666,6 +666,15 @@ config.footbagEnv with a production hard-guard, audit-log every
 issuance, and contain any persona-password literals via the §3.2
 single-source pattern.
 
+Staging additionally carries the real footbag.org dataset alongside this
+synthetic harness, loaded by the `--all-data` deploy, so onboarding matching,
+legacy claims, and historical-person pages are exercised against real records;
+the synthetic persona catalog powers the deterministic route-by-persona
+authorization matrix that real data does not replace. That real dataset is
+protected as it is in production, by the application's own authentication and the
+public-versus-member visibility model; TESTING.md owns the detailed protection
+model and the tester procedure.
+
 Rationale:
 
 - Without a shared composition primitive, every test slice reinvents
@@ -2162,7 +2171,7 @@ Rationale:
 
 Alternatives Considered:
 
-- Lit Web Components (islands architecture): Rejected for Phase 1 due to build tooling complexity (bundlers, TypeScript compilation), web component learning curve for volunteers, and risk of scope creep toward SPA patterns.
+- Lit Web Components (islands architecture): Rejected due to build tooling complexity (bundlers, TypeScript compilation), web component learning curve for volunteers, and risk of scope creep toward SPA patterns.
 
 - Enhance Framework: Rejected due to framework lock-in concerns, smaller contributor pool, and learning curve. Philosophy alignment appealing but does not justify long-term commitment for platform where most pages are simple content and forms.
 
@@ -2723,7 +2732,7 @@ Impact:
 
 - Services enqueue emails by creating outbox entities with recipient, subject, body, status. The background worker scans for pending entries on a system-wide configurable interval (default: every 30 seconds; configuration key `outbox_poll_interval_seconds`). After successful send via SES, it updates entry status. After failure, it increments retryCount and updates status. Maximum retries are controlled by the system-wide configuration value outbox_max_retry_attempts (not a per-row outbox override field); when retryCount reaches the configured limit, the worker moves the entry to dead_letter for admin review.
 
-- Member profiles include subscription preferences derived from MailingList and MailingListSubscription: the UI renders checkboxes from MailingList records that are flagged as member-manageable (for example, newsletter, board-announcements, event-notifications, technical-updates in Phase 1), and changes are applied by updating MailingListSubscription and keeping Member.subscriptions in sync.
+- Member profiles include subscription preferences derived from MailingList and MailingListSubscription: the UI renders checkboxes from MailingList records that are flagged as member-manageable (for example, newsletter, board-announcements, event-notifications, technical-updates), and changes are applied by updating MailingListSubscription and keeping Member.subscriptions in sync.
 
 - SES webhooks update MailingListSubscription records (status, bounce/complaint fields) and any global member email status as needed, and the projection in Member.subscriptions is updated accordingly so future sends skip problematic addresses. SES bounce and complaint notifications arrive via SNS; the webhook endpoint verifies the SNS message signature against the AWS-published signing certificate before processing, and rejects any message that fails signature verification. This parallels the Stripe webhook signature verification in §6.1.
 

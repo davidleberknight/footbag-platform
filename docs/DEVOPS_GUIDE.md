@@ -1749,6 +1749,16 @@ Use this when the change requires rebuilding and replacing the host DB from scra
 
 This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB. `--from-csv` rebuilds from the canonical CSVs without mirror access, but it still requires the operator's gitignored membership roster (it runs the full enrichment pipeline) — it is not a committed-data-only path. Pass `--soup-to-nuts` instead to rebuild from the legacy mirror and turn on the full seed set (curated media, personas; opt out per axis with `--no-media` / `--no-personas` — dev-admins are seeded unconditionally); that path regenerates committed canonical_input, name_variants, and seed files as a side effect, so the working tree may show diffs after the run.
 
+**Option C; full migration load including member data**
+
+Use this to load the real footbag.org dataset, including the legacy member intake, onto a target. `--all-data` runs the Option B committed-CSV rebuild plus the member-data intake, applying the reconciled member rows and historical-person links into the shipped database.
+
+```bash
+./deploy_to_aws.sh --all-data
+```
+
+Against staging it runs on any such deploy. Against production it is the one-time go-live cutover and proceeds only after the typed `REPLACE PRODUCTION DB` confirmation (the same DB-touching gate as Option B). Requires the operator's gitignored membership roster and either the footbag.org dump or a prior intermediate CSV. The member loaders write only to the locally-built database, which is then shipped; the data is protected on the target by the application's own authentication and its public-versus-member visibility model, the same as production.
+
 For schema changes against a target with non-disposable data (production), follow the migration runbook in §15.3 instead of Option B.
 
 Do not document manual `scp` + `ssh sudo cp` DB-replacement procedures. Those manual destructive flows are superseded by the entry-point deploy, `./deploy_to_aws.sh` (which delegates to `scripts/deploy-rebuild.sh`).

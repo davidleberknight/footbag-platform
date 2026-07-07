@@ -18,11 +18,15 @@ export const adminWorkQueueController = {
     try {
       const flash = readFlash(req);
       let resolvedFlag = false;
+      let reviewedFlag = false;
       if (flash?.kind === FLASH_KIND.WORK_QUEUE_RESOLVED) {
         resolvedFlag = true;
         clearFlash(res, req);
+      } else if (flash?.kind === FLASH_KIND.WORK_QUEUE_REVIEWED) {
+        reviewedFlag = true;
+        clearFlash(res, req);
       }
-      res.render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ resolvedFlag }));
+      res.render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ resolvedFlag, reviewedFlag }));
     } catch (err) {
       if (err instanceof RateLimitedError) {
         sendRateLimited(res, err);
@@ -53,6 +57,34 @@ export const adminWorkQueueController = {
       }
       if (err instanceof NotFoundError) {
         res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: 'That queue item is no longer open.' }));
+        return;
+      }
+      if (err instanceof RateLimitedError) {
+        sendRateLimited(res, err);
+        return;
+      }
+      handleControllerError(err, res, next, 'admin work queue controller');
+    }
+  },
+
+  /** POST /admin/work-queue/:id/dismiss
+   *
+   * Close an internal-review item (birth-date-conflict flag). No member email;
+   * the linking already happened and is never reverted here. */
+  dismiss(req: Request, res: Response, next: NextFunction): void {
+    const queueItemId = req.params['id'] ?? '';
+    const note = String(req.body?.note ?? '');
+    try {
+      contactRequestService.dismiss({ queueItemId, adminMemberId: req.user!.userId, note });
+      writeFlash(res, req, FLASH_KIND.WORK_QUEUE_REVIEWED, queueItemId);
+      res.redirect(303, '/admin/work-queue');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: err.message }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: 'That review item is no longer open.' }));
         return;
       }
       if (err instanceof RateLimitedError) {

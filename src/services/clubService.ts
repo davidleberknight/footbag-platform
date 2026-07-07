@@ -14,7 +14,7 @@
  *
  * Does not own:
  *   - Media (MediaGalleryService)
- *   - Payments (PaymentService when implemented)
+ *   - Payments (PaymentService)
  *
  * Required patterns:
  *   - SA only: no `deleted_at` on `clubs`; use `clubs_all` for archived queries.

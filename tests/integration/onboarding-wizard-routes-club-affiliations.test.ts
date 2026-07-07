@@ -263,6 +263,16 @@ beforeAll(async () => {
   insertMember(db, { id: MEMBER_PD_SKIP, slug: 'wiz_clubaff_pd_skip', login_email: 'wiz-pd-skip@example.com' });
   insertOnboardingTask(db, MEMBER_PD_SKIP, 'personal_details', 'pending');
 
+  // The club-affiliations step runs only once personal details are on file, so
+  // every member that reaches a club card, the wrap-up landing, or a club-card
+  // submit has that prerequisite completed first.
+  for (const id of [
+    MEMBER_EMPTY, MEMBER_MEMBERSHIP, MEMBER_LEADERSHIP, MEMBER_MULTI,
+    MEMBER_JUNK, MEMBER_CAP, MEMBER_DISAMBIG_CAP, MEMBER_PROMOTE, MEMBER_NOPROMOTE,
+  ]) {
+    insertOnboardingTask(db, id, 'personal_details', 'completed');
+  }
+
   db.close();
   createApp = await importApp();
   testDb = new BetterSqlite3(dbPath);
@@ -439,8 +449,9 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
 
     expect(res.status).toBe(303);
     // No more club cards remaining -> advance to the next pending task. This
-    // member has not completed legacy_claim, so the wizard routes there next
-    // (the documented order is legacy_claim, then club, then personal_details).
+    // member has personal details on file but has not completed legacy_claim, so
+    // the wizard routes there next (the order is personal_details, then
+    // legacy_claim, then club_affiliations).
     expect(res.headers.location).toBe('/register/wizard/legacy_claim');
     expect(readAffiliationStatus(membershipAffId)).toBe('confirmed_current');
     expect(readTaskState(MEMBER_MEMBERSHIP)).toBe('completed');

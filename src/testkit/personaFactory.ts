@@ -175,6 +175,15 @@ export interface PersonaLegacySpec {
    */
   birthDate?: string;
   /**
+   * Seeds a DIFFERENT date of birth on the legacy_members row than the member
+   * carries (the member keeps birthDate). Confirming the claim links the account
+   * anyway — a date-of-birth discrepancy never blocks — and raises a
+   * claim_dob_mismatch_review work-queue item, so a maintainer can see a flagged
+   * conflict end to end. Requires birthDate (the member side) to be set too, or
+   * there is nothing to compare.
+   */
+  legacyBirthDate?: string;
+  /**
    * Sets legacy_members.legacy_is_admin=1 on this persona's legacy row. With
    * `linked: true` it seeds the claimed-legacy-admin case: the legacy admin flag
    * must never confer a live admin role, so the member's own is_admin stays 0.
@@ -426,7 +435,9 @@ export function seedPersona(
       legacy_member_id: legacyMemberId,
       real_name: legacyDisplayName,
       ...(legacyEmail ? { legacy_email: legacyEmail } : {}),
-      ...(spec.legacy.birthDate ? { birth_date: spec.legacy.birthDate } : {}),
+      ...((spec.legacy.legacyBirthDate ?? spec.legacy.birthDate)
+        ? { birth_date: spec.legacy.legacyBirthDate ?? spec.legacy.birthDate }
+        : {}),
       ...(spec.legacy.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
     });
     personId = insertHistoricalPerson(db, {

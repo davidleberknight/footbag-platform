@@ -682,7 +682,6 @@ Test every candidate line: what breaks at go-live if this is skipped, and what a
 | ID | Criterion | Section | Blocks |
 |---|---|---|---|
 | R1 | QC subsystem retired (routes, code, tables, tests) | §30 | State 3 → State 4 |
-| R2 | Club-classification QC panel removed: the dev-only diagnostics panel renders nowhere in production; the `TEMP-DEVIATION` sites in `src/views/clubs/detail.hbs`, `src/services/clubService.ts`, and `src/testkit/personaRowBuilders.ts` are removed and the covering test `tests/integration/clubs-qc-panel.routes.test.ts` deleted | IMPLEMENTATION_PLAN | State 3 → State 4 |
 | R3 | Primary-maintainer test-user scaffolding retired: the journey builder (`src/testkit/davidJourney.ts`) and the build-then-switch route deleted, the two CI enforcement layers (positive-assertion absence test + grep guard) present and green, and no member carrying the test user's slug remains in the production-bound DB | §31 | State 3 → State 4 |
 
 ---
@@ -1286,7 +1285,7 @@ Sign-off on QC retirement is a prerequisite for §24 State 3 → State 4 transit
 - Views: every `.hbs` file under `src/views/internal-qc/`.
 - `src/db/db.ts`: every prepared-statement group banner-marked `// ---- QC-only (delete with pipeline-qc subsystem) ----`.
 - Schema tables in `database/schema.sql`: `net_review_queue` (and any future QC-only tables added under the same banner).
-- Tests: `tests/integration/persons.qc.routes.test.ts`, `tests/integration/clubs-qc-panel.routes.test.ts`, plus any tests that exercise the deleted routes.
+- Tests: `tests/integration/persons.qc.routes.test.ts`, plus any tests that exercise the deleted routes.
 - Route mounting in `src/app.ts` for the `/internal/*` router (and the router file itself if it serves only QC).
 - Production image hygiene: `docker/web/Dockerfile` strips `dist/internal-qc` from the production stage as an interim safeguard until source deletion lands; the retirement PR removes the strip line together with the source.
 

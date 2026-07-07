@@ -14,6 +14,7 @@ import {
   seedMemberMidWizard,
   seedMemberWithClubCards,
   seedTier0Member,
+  completePersonalDetails,
 } from './helpers/onboarding';
 import { insertLegacyMember } from '../fixtures/factories';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
@@ -43,7 +44,9 @@ test('post-verify: register -> check-email -> click verify link -> lands on wiza
   await page.goto(verifyUrl!);
   await page.waitForURL(/\/register\/wizard\/|\/members\//);
 
-  expect(page.url()).toMatch(/\/register\/wizard\/legacy_claim|\/members\//);
+  // personal_details is the first task in the fixed order, so a freshly
+  // verified member lands there before the legacy-claim step.
+  expect(page.url()).toMatch(/\/register\/wizard\/personal_details|\/members\//);
 });
 
 // ── Skip legacy_claim -> land on next task ───────────────────────────────────
@@ -51,6 +54,7 @@ test('post-verify: register -> check-email -> click verify link -> lands on wiza
 test('skip legacy_claim -> advances to next task', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `e2e_skip_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const context = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -71,6 +75,7 @@ test('skip legacy_claim -> advances to next task', async ({ browser, baseURL }) 
 test('dashboard shows Resume button for skipped tasks', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier0Member(db, { slug: `e2e_widget_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const context = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -93,6 +98,7 @@ test('dashboard shows Resume button for skipped tasks', async ({ browser, baseUR
 test('clicking Resume on dashboard opens the wizard task page', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier0Member(db, { slug: `e2e_resume_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const context = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -151,6 +157,7 @@ test('legacy-claim email-equality fast path: auto-links and advances', async ({ 
     slug: `e2e_fp_${stamp}`,
     overrides: { login_email: sharedEmail, real_name: 'Fast Path' },
   });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const context = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -186,6 +193,7 @@ test('unknown taskType renders 404 page', async ({ browser, baseURL }) => {
 test('wizard pages have accessible form labels and heading', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier0Member(db, { slug: `e2e_a11y_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const context = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -249,6 +257,7 @@ test('club-affiliations disambiguation group is a labelled fieldset', { tag: ['@
 test('wizard skip button is keyboard-reachable and activatable', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier0Member(db, { slug: `e2e_kbd_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const context = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -256,7 +265,11 @@ test('wizard skip button is keyboard-reachable and activatable', { tag: ['@a11y'
   const wizard = new WizardPage(page);
 
   await wizard.goto('legacy_claim');
-  await wizard.ensureBirthDateOnFile();
+
+  // Continue-without-linking carries a required attestation checkbox; without it
+  // the form fails HTML5 validation and never submits, so satisfy it before
+  // exercising keyboard activation of the button itself.
+  await wizard.noOldAccountCheckbox.check();
 
   await wizard.skipButton.focus();
   await expect(wizard.skipButton).toBeFocused();

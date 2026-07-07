@@ -11,9 +11,17 @@ export class WizardPage {
     await this.page.goto(`/register/wizard/${taskType}`);
   }
 
-  // legacy_claim's "nothing to claim" decision, which COMPLETES the task.
+  // legacy_claim's "nothing to claim" decision, which COMPLETES the task. Gated
+  // by the no_old_account attestation checkbox on the same form.
   get continueWithoutLinkingButton() {
     return this.page.getByRole('button', { name: /Continue Without Linking a Past Account/i });
+  }
+
+  // Required attestation on the continue-without-linking form: the member must
+  // affirm they never had an account on the old footbag.org before the decision
+  // is accepted (the server rejects the skip without it).
+  get noOldAccountCheckbox() {
+    return this.page.locator('input[name="no_old_account"]');
   }
 
   // club_affiliations skip control (wrap-up "Skip for Now" or the cards-view
@@ -39,29 +47,14 @@ export class WizardPage {
     return this.page.getByRole('heading', { level: 1 });
   }
 
-  // The claim task's required birth-date entry (present until a date is on
-  // file; every resolving action is blocked server-side without one).
-  get birthDateAnchorInput() {
-    return this.page.locator('#birthDateAnchor');
-  }
-
-  // Satisfies the claim task's birth-date requirement when the entry form is
-  // showing; a no-op once a date is already on file (read-only line instead).
-  async ensureBirthDateOnFile(value = '1980-01-15'): Promise<void> {
-    if (await this.birthDateAnchorInput.count() === 0) return;
-    await this.birthDateAnchorInput.fill(value);
-    await this.page.getByRole('button', { name: 'Add Date of Birth' }).click();
-    await this.page.waitForURL(/\/register\/wizard\/legacy_claim/);
-  }
-
   // Advances past the current task using its own control. legacy_claim is
-  // completed by the continue-without-linking decision (which requires a
-  // birth date on file first); club_affiliations is skipped. personal_details
-  // is required and cannot be advanced this way.
+  // completed by the continue-without-linking decision, which first requires
+  // checking the never-had-an-old-account attestation; club_affiliations is
+  // skipped. personal_details is required and cannot be advanced this way.
   async skipCurrentTask(): Promise<void> {
     const url = this.page.url();
     if (url.includes('legacy_claim')) {
-      await this.ensureBirthDateOnFile();
+      await this.noOldAccountCheckbox.check();
       await this.continueWithoutLinkingButton.click();
     } else if (url.includes('club_affiliations')) {
       await this.skipClubButton.click();
@@ -80,8 +73,9 @@ export class WizardPage {
     return this.page.getByRole('button', { name: 'Find' });
   }
 
+  // Submits the legacy-claim search. Assumes personal_details is already
+  // complete, since the claim step is only reachable once it is on file.
   async submitIdentifier(identifier: string): Promise<void> {
-    await this.ensureBirthDateOnFile();
     await this.identifierInput.fill(identifier);
     await this.findButton.click();
     await this.page.waitForURL(/\/register\/wizard\//);

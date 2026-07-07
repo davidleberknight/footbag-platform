@@ -6,8 +6,9 @@
  *     credential file, missing SSH alias.
  *   - scripts/reset-local-db.sh preflight: missing canonical_input CSVs.
  *   - scripts/deploy-local-data.sh member-intake dispatch: --all-data previews
- *     by default, applies only with --apply-members; the AWS deploy path never
- *     passes --apply-members (a deploy must never ship real member data).
+ *     by default, applies only with --apply-members; the AWS deploy path applies
+ *     the intake on any --all-data deploy (the full migration load), and against
+ *     production that load rides the typed DB-replace confirmation.
  *   - legacy_data/run_pipeline.sh: identity-lock CSV missing path.
  *   - freestyle/loaders/20_link_footbag_org_sources.py:
  *     graceful skip when scraped_footbag_moves.csv is absent.
@@ -194,6 +195,32 @@ describe('deploy_to_aws.sh wrapper', () => {
   );
 
   it.skipIf(!HAS_DOCKER)(
+    'production --all-data (full migration load) trips the DB-replace confirmation (no TTY → refuses)',
+    () => {
+      // --all-data replaces the on-host database and applies the real member
+      // intake, so against footbag-production it must ride the same typed
+      // confirmation as any other DB-touching deploy. The test environment has
+      // no TTY, so the gate refuses before any host contact.
+      const tmpFile = path.join(os.tmpdir(), `op-prod-alldata-${Date.now()}.txt`);
+      fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
+      try {
+        const r = run('bash', ['deploy_to_aws.sh', '--all-data'], {
+          env: {
+            AWS_OPERATOR_FILE: tmpFile,
+            DEPLOY_TARGET: 'footbag-production',
+          },
+        });
+        expect(r.status).toBe(1);
+        const combined = (r.stderr ?? '') + (r.stdout ?? '');
+        expect(combined).toMatch(/PRODUCTION DB-TOUCHING DEPLOY/);
+        expect(combined).toMatch(/requires interactive confirmation/);
+      } finally {
+        fs.unlinkSync(tmpFile);
+      }
+    },
+  );
+
+  it.skipIf(!HAS_DOCKER)(
     'production DB-replace with FOOTBAG_PROD_DB_REPLACE_ACK=1 bypasses the prompt and proceeds past the gate',
     () => {
       // The FOOTBAG_PROD_DB_REPLACE_ACK=1 escape hatch lets scripted deploys
@@ -282,7 +309,8 @@ describe('deploy_to_aws.sh wrapper', () => {
 // Contract: the member load writes real member data (emails, dates of birth),
 // so it is opt-in. --all-data alone previews the intake (the runner gets
 // --load --dry-run); only --all-data --apply-members runs the real load (the
-// runner gets --load --apply). The AWS deploy path never passes the opt-in.
+// runner gets --load --apply). The AWS deploy path passes the opt-in on any
+// --all-data deploy (the full migration load).
 
 describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
   // Minimal repo scaffold so --all-data passes its preflights and reaches the
@@ -395,41 +423,34 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
     expect(combined).toMatch(/--cutover-clubs is only meaningful with --all-data/);
   });
 
-  it('deploy-to-aws.sh --all-data plan dispatches deploy-local-data.sh WITHOUT --apply-members', () => {
+  it('deploy-to-aws.sh --all-data dispatches deploy-local-data.sh WITH --apply-members (staging)', () => {
     const r = run('bash', ['scripts/deploy-to-aws.sh', '--all-data', '-ny'], {
       input: 'fake-pw\n',
+      env: { DEPLOY_TARGET: 'footbag-staging' },
     });
     expect(r.status).toBe(0);
     const combined = (r.stderr ?? '') + (r.stdout ?? '');
-    expect(combined).toMatch(/deploy-local-data\.sh --all-data/);
-    expect(combined).not.toMatch(/--apply-members/);
+    expect(combined).toMatch(/deploy-local-data\.sh --all-data --apply-members/);
   });
 
-  it('deploy-to-aws.sh source never references --apply-members (static guard)', () => {
-    // The strongest pin on the standing decision: the deploy entry point has
-    // no code path that could apply real member data, under any flag.
-    const content = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-to-aws.sh'), 'utf8');
-    expect(content).not.toMatch(/--apply-members/);
+  it('deploy-to-aws.sh --all-data dispatches deploy-local-data.sh WITH --apply-members (production)', () => {
+    // --all-data is the full migration load: the member intake is applied and
+    // shipped to whichever target the deploy targets. The destructive production
+    // database replace itself rides the wrapper's typed confirmation (covered in
+    // the deploy_to_aws.sh wrapper suite), so a production member load is the
+    // deliberate go-live cutover.
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--all-data', '-ny'], {
+      input: 'fake-pw\n',
+      env: { DEPLOY_TARGET: 'footbag-production' },
+    });
+    expect(r.status).toBe(0);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/deploy-local-data\.sh --all-data --apply-members/);
   });
 
   it('run_dev.sh --all-data passes --apply-members to deploy-local-data.sh (static guard)', () => {
     const content = fs.readFileSync(path.join(REPO_ROOT, 'run_dev.sh'), 'utf8');
     expect(content).toMatch(/deploy-local-data\.sh --all-data --apply-members/);
-  });
-
-  it('deploy-rebuild.sh refuses to ship a DB carrying real imported member rows (static guard)', () => {
-    // The shipped database file is the one physical path real member data
-    // could ride to staging or production. The pre-rsync guard counts
-    // legacy_members rows with the real-import provenance mark and aborts if
-    // any exist, with no bypass flag; this pin fails if the guard is removed
-    // or moved after the ship step.
-    const content = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-rebuild.sh'), 'utf8');
-    expect(content).toMatch(/REAL-MEMBER-DATA GUARD/);
-    expect(content).toMatch(/import_source='legacy_site_data'/);
-    expect(content).toMatch(/refusing to ship/);
-    expect(content.indexOf("import_source='legacy_site_data'")).toBeLessThan(
-      content.indexOf('rsync -av --delete'),
-    );
   });
 });
 

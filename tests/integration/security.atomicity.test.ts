@@ -15,7 +15,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertLegacyMember, insertHistoricalPerson, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertLegacyMember, insertHistoricalPerson, insertOnboardingTask, createTestSessionJwt } from '../fixtures/factories';
 import { resetRateLimitForTests } from '../../src/services/rateLimitService';
 
 const { dbPath } = setTestEnv('3083');
@@ -94,6 +94,9 @@ beforeAll(async () => {
     legacy_email: 'legacy@example.com',
     display_name: 'Legacy Ghost',
   });
+  // The wizard find action that issues the claim token runs only once personal
+  // details are on file.
+  insertOnboardingTask(db, MEMBER_ID, 'personal_details', 'completed');
   db.close();
   createApp = await importApp();
 });
@@ -178,6 +181,7 @@ describe('claimLegacyAccount — two-actor race', () => {
       display_name: 'Atomic Member B',
       birth_date: '1980-01-01',
     });
+    insertOnboardingTask(db, MEMBER_B_ID, 'personal_details', 'completed');
     db.close();
   });
 
@@ -400,6 +404,7 @@ describe('claimHistoricalPersonInTx / consumeAndClaimLegacyInTx — outer-rollba
       login_email: 'atomic-fresh@example.com',
       birth_date: '1980-01-01',
     });
+    insertOnboardingTask(db, FRESH_MEMBER_ID, 'personal_details', 'completed');
     insertHistoricalPerson(db, {
       person_id: HP_ID,
       person_name: 'Atomic Fresh',
@@ -493,6 +498,7 @@ describe('consumeAndClaimLegacy — wrong-account guard', () => {
     const db = new BetterSqlite3(dbPath);
     insertMember(db, { id: A_MEMBER, slug: 'wa_a', login_email: 'wa-a@example.com', display_name: 'WA Member A', birth_date: '1980-01-01' });
     insertMember(db, { id: B_MEMBER, slug: 'wa_b', login_email: 'wa-b@example.com', display_name: 'WA Member B' });
+    insertOnboardingTask(db, A_MEMBER, 'personal_details', 'completed');
     insertLegacyMember(db, {
       legacy_member_id: WA_LEGACY,
       legacy_email: 'wa-legacy@example.com',

@@ -6,8 +6,8 @@ For every table any loader writes to, asserts:
 
   1. The table exists in the DB (catches schema drift).
   2. Row count >= MIN_ROWS threshold (catches silent INSERT OR IGNORE skips
-     of the kind that produced the 311-row legacy_club_candidates incident
-     on 2026-04-28; see legacy_data/IMPLEMENTATION_PLAN.md active item 2).
+     that leave a table drastically undercounted while the load still
+     exits zero).
 
 Exits 1 on any failure. Prints a summary table either way.
 

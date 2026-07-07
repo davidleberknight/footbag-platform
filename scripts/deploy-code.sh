@@ -256,26 +256,34 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
 
 # ── Step 5: Smoke check ───────────────────────────────────────────────────────
-# Smoke runs against the public CloudFront URL by default, not the direct
-# Lightsail origin. The origin is fenced by X-Origin-Verify (returns 444 to
-# anything not coming through CloudFront), so direct-IP smoke would always
-# fail under the current production-like wiring. Operators can override
-# SMOKE_BASE_URL for special cases (testing a different distribution, etc.).
-case "$FOOTBAG_ENV" in
-  staging)    SMOKE_DEFAULT_URL="https://doye1nvv64qep.cloudfront.net" ;;
-  production) SMOKE_DEFAULT_URL="" ;;  # set when production CloudFront lands
-  *)          SMOKE_DEFAULT_URL="" ;;
-esac
-SMOKE_BASE_URL="${SMOKE_BASE_URL:-$SMOKE_DEFAULT_URL}"
+# Smoke runs against the public CloudFront URL, not the direct Lightsail
+# origin. The origin is fenced by X-Origin-Verify (returns 444 to anything
+# not coming through CloudFront), so direct-IP smoke would always fail under
+# the current production-like wiring. No environment URL is committed to the
+# repo (the staging address is deliberately unpublished; it is what shields
+# the real-data staging environment): the URLs live in the operator's
+# gitignored .env as PUBLIC_BASE_URL_STAGING / PUBLIC_BASE_URL_PRODUCTION
+# (documented in .env.example). SMOKE_BASE_URL remains the per-run override.
+if [[ -z "${SMOKE_BASE_URL:-}" && -f "$REPO_ROOT/.env" ]]; then
+  case "$FOOTBAG_ENV" in
+    staging)    smoke_url_key="PUBLIC_BASE_URL_STAGING" ;;
+    production) smoke_url_key="PUBLIC_BASE_URL_PRODUCTION" ;;
+    *)          smoke_url_key="" ;;
+  esac
+  if [[ -n "$smoke_url_key" ]]; then
+    SMOKE_BASE_URL=$(awk -F= -v k="$smoke_url_key" '$1==k {sub(/^[^=]*=/,""); print}' "$REPO_ROOT/.env" | tail -1)
+  fi
+fi
+SMOKE_BASE_URL="${SMOKE_BASE_URL:-}"
 
 if [[ "$SKIP_SMOKE" == "yes" ]]; then
   echo "==> Skipping post-deploy smoke check (SKIP_SMOKE=yes)"
 elif [[ -z "$SMOKE_BASE_URL" ]]; then
-  # A production deploy must never complete with smoke silently skipped: a
-  # first deploy that "succeeds" unverified is false confidence at cutover.
+  # A staging or production deploy must never complete with smoke silently
+  # skipped: a deploy that "succeeds" unverified is false confidence.
   # Explicit SKIP_SMOKE=yes remains the operator's deliberate override.
-  if [[ "$FOOTBAG_ENV" == "production" ]]; then
-    echo "ERROR: no SMOKE_BASE_URL configured for production. Set SMOKE_BASE_URL to the production CloudFront URL (or SKIP_SMOKE=yes to skip deliberately)." >&2
+  if [[ "$FOOTBAG_ENV" == "production" || "$FOOTBAG_ENV" == "staging" ]]; then
+    echo "ERROR: no public base URL for $FOOTBAG_ENV. Add PUBLIC_BASE_URL_STAGING= / PUBLIC_BASE_URL_PRODUCTION= to the gitignored .env (see .env.example), or export SMOKE_BASE_URL, or SKIP_SMOKE=yes to skip deliberately." >&2
     exit 1
   fi
   echo "==> Skipping post-deploy smoke check (no SMOKE_BASE_URL configured for FOOTBAG_ENV=$FOOTBAG_ENV)"

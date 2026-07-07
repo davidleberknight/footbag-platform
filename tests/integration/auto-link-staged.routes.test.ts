@@ -16,6 +16,7 @@ import {
   insertMember,
   insertLegacyMember,
   insertHistoricalPerson,
+  insertOnboardingTask,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -74,6 +75,8 @@ function seedStaged(prefix: string, name: string): {
     real_name: name, display_name: name,
     birth_date: '1980-01-01',
   });
+  // The legacy-claim step is reachable only once personal details are on file.
+  insertOnboardingTask(db, memberId, 'personal_details', 'completed');
   const staged = identity.identityAccessService.stageAutoLinkCandidate(
     memberId,
     { confidence: 'high', personId, personName: name },
@@ -213,6 +216,8 @@ describe('auto-link confirm drift banner', () => {
       login_email: 'autolink-drift@example.com',
       birth_date: '1980-01-01',
     });
+    // The legacy-claim step is reachable only once personal details are on file.
+    insertOnboardingTask(db, memberId, 'personal_details', 'completed');
 
     // A confirm whose suggested match no longer resolves (a stale form
     // posting a person the classifier no longer produces) takes the drift

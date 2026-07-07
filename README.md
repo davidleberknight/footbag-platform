@@ -20,8 +20,6 @@ Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 
 A lot of functionality is done and deployed on AWS. This is the baseline for ongoing work.
 
-Sneak Preview on AWS staging: [https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open](https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open)
-
 - Soon we will begin planning the final sprint, looking to go live!
 
 ## Contributing

@@ -104,6 +104,14 @@ expect "$H" 'find . -name "*.bak" -delete' ask
 expect "$H" 'sort -o out.txt in.txt' ask
 expect "$H" 'curl -X POST https://example.com' ask
 expect "$H" 'curl -d @payload https://example.com' ask
+# curl to a discard target (/dev/null, or - for stdout) is a read-only probe, not a
+# write, and must defer; a real output filename still asks.
+expect "$H" 'curl -sf -o /dev/null https://example.com/health' defer
+expect "$H" 'curl -s -o - https://example.com' defer
+expect "$H" 'curl -o report.json https://example.com' ask
+# Redirecting a read-only command to the discard device writes nothing; a real file
+# target still asks.
+expect "$H" 'grep foo bar.txt > /dev/null' defer
 
 # sed writing or executing without -i: w/W write-command, s///w write-flag, e exec.
 expect "$H" 'sed -i "s/a/b/" f.txt' ask

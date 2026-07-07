@@ -19,6 +19,7 @@ import {
   insertMember,
   insertLegacyMember,
   insertHistoricalPerson,
+  insertOnboardingTask,
   createTestSessionJwt,
   completeOnboarding,
 } from '../fixtures/factories';
@@ -83,6 +84,11 @@ beforeAll(async () => {
     real_name: OTHER_NAME, display_name: OTHER_NAME,
     login_email: 'hpc-other@example.com',
     birth_date: '1980-01-01' });
+  // The direct claim surface runs only after personal details are on file, and
+  // stays open until legacy_claim is also resolved. These claimants have personal
+  // details completed but have not yet resolved legacy_claim, so the surface is open.
+  insertOnboardingTask(testDb, CLAIMER_ID, 'personal_details', 'completed');
+  insertOnboardingTask(testDb, OTHER_ID, 'personal_details', 'completed');
 
   // Scenario D: HP-only, no legacy_member.
   insertHistoricalPerson(testDb, {
@@ -319,8 +325,10 @@ describe('POST /history/:personId/claim/confirm — scenario D (HP-only)', () =>
     expect(row.first_competition_year).toBe(1988);
   });
 
-  it('claimer cannot claim a second HP once linked', async () => {
-    // CLAIMER already linked from the previous test; a second HP claim must fail.
+  it('claimer who already linked one record is routed to admin link help and keeps that link', async () => {
+    // CLAIMER linked from the previous test, which also completed onboarding, so
+    // the self-serve claim surface is now closed: a second attempt routes to the
+    // admin link-request form and the original link is left untouched.
     const secondHp = 'hp-second-for-claimer';
     insertHistoricalPerson(testDb, {
       person_id: secondHp, person_name: 'David Mockingbird',
@@ -330,8 +338,11 @@ describe('POST /history/:personId/claim/confirm — scenario D (HP-only)', () =>
     const res = await request(app)
       .post(`/history/${secondHp}/claim/confirm`)
       .set('Cookie', claimerCookie()).type('form').send({});
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('already linked');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/members/${CLAIMER_SLUG}/contact-admin?category=identity_link_issue`);
+    const row = testDb.prepare('SELECT historical_person_id FROM members WHERE id = ?')
+      .get(CLAIMER_ID) as { historical_person_id: string | null };
+    expect(row.historical_person_id).toBe(HP_NO_LEGACY);
   });
 });
 
@@ -342,6 +353,7 @@ describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed l
       login_email: 'scenario-e@example.com', country: null,
       birth_date: '1980-01-01',
     });
+    insertOnboardingTask(testDb, scenarioEClaimerId, 'personal_details', 'completed');
     const scenarioECookie = `footbag_session=${createTestSessionJwt({ memberId: scenarioEClaimerId })}`;
 
     const app = createApp();
@@ -417,6 +429,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       login_email: 'hpc-second@example.com',
       birth_date: '1980-01-01',
     });
+    insertOnboardingTask(testDb, secondClaimerId, 'personal_details', 'completed');
     const secondCookie = `footbag_session=${createTestSessionJwt({ memberId: secondClaimerId })}`;
     const app = createApp();
     const res = await request(app)
@@ -451,6 +464,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       login_email: 'hpc-deceased-adv@example.com',
       birth_date: '1980-01-01',
     });
+    insertOnboardingTask(testDb, freshClaimerId, 'personal_details', 'completed');
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: freshClaimerId })}`;
     const app = createApp();
     const res = await request(app)
@@ -507,6 +521,7 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
       login_email: 'hpc-dec-post@example.com',
       birth_date: '1980-01-01',
     });
+    insertOnboardingTask(testDb, claimantId, 'personal_details', 'completed');
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
     const app = createApp();
     const res = await request(app)

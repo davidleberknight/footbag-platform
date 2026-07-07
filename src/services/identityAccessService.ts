@@ -18,19 +18,18 @@
  *   - Staged-candidate resolution inside every claim transaction: any claim
  *     path that satisfies an open staged candidate marks it confirmed and
  *     emits the confirmed audit event.
- *   - Declared identity anchors (former surnames / old emails / birth date):
- *     rate-limited declare/remove, multi-anchor classifier matching, surname
- *     gates that honor former surnames, and the mailbox-control round-trip
- *     (single-use link to the declared address; a same-account click upgrades
- *     matches through that anchor to the hard-evidence tier). The birth-date
- *     anchor fills members.birth_date only when absent; it disambiguates tied
- *     same-name candidates (identical narrows fully, a typo-shaped near-miss
- *     narrows at medium), and every legacy-account claim records the member-
- *     versus-legacy birth-date comparison outcome in its audit metadata, with a
- *     hard mismatch raising a claim_dob_mismatch_review work-queue item. A
- *     direct historical-record claim that resolves through to a legacy account
- *     records the same comparison outcome but raises no review item, since the
- *     flag is a legacy-account-claim behavior. The comparison never gates a claim.
+ *   - Declared identity anchors (former surnames / old emails): rate-limited
+ *     declare/remove, multi-anchor classifier matching, surname gates that honor
+ *     former surnames, and the mailbox-control round-trip (single-use link to the
+ *     declared address; a same-account click upgrades matches through that anchor
+ *     to the hard-evidence tier).
+ *   - Date of birth is a matching anchor collected in the personal_details task
+ *     (not declared here); it disambiguates tied same-name candidates only when
+ *     identical (a near-miss no longer narrows). Every claim records the member-
+ *     versus-legacy birth-date comparison outcome in its audit metadata, and any
+ *     non-identical outcome (near-miss or mismatch) raises a claim_dob_mismatch_review
+ *     work-queue item on both the legacy-account and direct historical-record claim
+ *     paths. The comparison never gates a claim.
  *   - Cross-source offers: after a one-source claim, the other source is
  *     searched via real anchors and a cross_source staged candidate is
  *     offered (same stage / confirm / decline / expire lifecycle, distinct
@@ -129,7 +128,7 @@ import { config } from '../config/env';
 // first-admin (and break-glass recovery) path.
 import { applyDevStagingBootstrapAdmin } from '../dev-bootstrap/runtime';
 import { ConflictError, NotFoundError, RateLimitedError, ServiceError, ValidationError } from './serviceErrors';
-import { validateBirthDate, compareBirthDates } from '../lib/birthDate';
+import { compareBirthDates } from '../lib/birthDate';
 import { isUniqueConstraintError } from './sqliteRetry';
 import { findAutoLinkCandidates } from './nameVariantsService';
 import { appendAuditEntry } from './auditService';
@@ -385,10 +384,6 @@ export interface LinkHistoryContent {
    */
   validationMessage?: string;
   declaredAnchors?: DeclaredAnchorView[];
-  /** Show the required birth-date entry form while no birth date is on file. */
-  showBirthDateAnchorField?: boolean;
-  /** The birth date on file, rendered read-only once present. */
-  birthDateOnFileDisplay?: string | null;
   /** Public Turnstile site key for the find-form CAPTCHA widget; null when the
    *  captcha is stubbed (dev + staging), so no widget renders there. */
   turnstileSiteKey?: string | null;
@@ -1490,21 +1485,22 @@ function classifyAutoLink(
     return { confidence: 'low', reason: 'no_name_candidate' };
   }
   if (candidates.length > 1) {
-    // Birth-date disambiguation among tied same-name candidates. An identical
-    // date narrows at full strength; a near-miss (a transposed day/month or a
-    // single component off by one, the common entry errors) still narrows but
-    // is capped at medium so the member's explicit confirmation is required.
+    // Birth-date disambiguation among tied same-name candidates. Only an
+    // identical date narrows the tie; any discrepancy (a typo-shaped near-miss
+    // or a hard mismatch) does not corroborate, so a tie the date cannot resolve
+    // stays low and the member is never auto-sent to a candidate the date argues
+    // against.
     const dobComparison = memberBirthDate && legacyMatch.birthDate
       ? compareBirthDates(memberBirthDate, legacyMatch.birthDate)
       : null;
-    if (dobComparison === 'identical' || dobComparison === 'near_miss') {
+    if (dobComparison === 'identical') {
       const provenanceCandidate = candidates.find((c) => c.personId === hpProvenance.person_id);
       if (provenanceCandidate) {
         const narrowed = provenanceCandidate;
         if (!normalizedSurnamesMatch(realName, narrowed.personName)) {
           return { confidence: 'low', reason: 'hp_mismatch' };
         }
-        if (narrowed.matchKind === 'exact' && dobComparison === 'identical') {
+        if (narrowed.matchKind === 'exact') {
           return { confidence: 'high', personId: narrowed.personId, personName: narrowed.personName, anchorSource };
         }
         return {
@@ -1718,6 +1714,41 @@ export type EvidenceStrength =
  * as the synchronous already-claimed check, and the transaction (including
  * the tier grant) rolls back whole.
  */
+// A date-of-birth discrepancy on an otherwise-confirmed claim is a red flag for
+// a wrong claim, so it goes to the admin review queue in the same transaction.
+// It never blocks the claim (a legacy-side typo, or no legacy record at all,
+// must not lock a member out), and it is uniform: typo-shaped near-misses and
+// hard mismatches are flagged identically, on both the legacy-account and the
+// direct historical-person claim paths. Absent-date and no-legacy-account cases
+// are not discrepancies and never flag. The raw dates live in detail_text
+// (admin-only, scrubbed on PII purge), never in the append-only audit ledger.
+function isDobDiscrepancy(dobComparison: string): boolean {
+  return dobComparison === 'near_miss' || dobComparison === 'mismatch';
+}
+
+function enqueueDobConflictReview(input: {
+  memberId: string;
+  memberSlug: string | null;
+  memberBirthDate: string | null;
+  recordBirthDate: string | null;
+  recordLabel: string;
+}): void {
+  workQueueService.enqueue({
+    actorId:       input.memberId,
+    queueCategory: 'membership',
+    taskType:      'claim_dob_mismatch_review',
+    entityType:    'member',
+    entityId:      input.memberId,
+    priority:      5,
+    reasonText:    `A claim on ${input.recordLabel} was confirmed with a conflicting date of birth.`,
+    detailText:
+      `Claim confirmed with conflicting dates of birth: the member's date (${input.memberBirthDate}) ` +
+      `does not match the claimed record's date (${input.recordBirthDate}) on ${input.recordLabel}. ` +
+      `Member to review: id ${input.memberId}${input.memberSlug ? `, profile /members/${input.memberSlug}` : ''}. ` +
+      'Review the claim; if it looks wrong, use the link-help dispute revert.',
+  });
+}
+
 function claimLegacyAccountInTx(
   requestingMemberId: string,
   targetLegacyMemberId: string,
@@ -1855,27 +1886,13 @@ function claimLegacyAccountInTxInner(
     },
   });
 
-  // A hard birth-date mismatch on an otherwise-confirmed claim is the
-  // strongest available red flag for a wrong claim, so it goes to the admin
-  // review queue in the same transaction. Near-misses (typo-shaped) are
-  // recorded in the audit metadata above but do not raise a queue item. The
-  // raw dates live in detail_text (admin-only, scrubbed on PII purge), never
-  // in the append-only audit ledger.
-  if (dobComparison === 'mismatch') {
-    workQueueService.enqueue({
-      actorId:       requestingMemberId,
-      queueCategory: 'membership',
-      taskType:      'claim_dob_mismatch_review',
-      entityType:    'member',
-      entityId:      requestingMemberId,
-      priority:      5,
-      reasonText:    `Legacy account ${row.legacy_member_id} was claimed with a conflicting date of birth.`,
-      detailText:
-        `Claim confirmed with conflicting dates of birth: the member's entered date (${claimant?.birth_date}) ` +
-        `does not match the legacy record's date (${row.birth_date}) for legacy account ${row.legacy_member_id}` +
-        `${hp ? ` (linked historical record ${hp.person_id})` : ''}. ` +
-        `Member to review: id ${requestingMemberId}, profile /members/${claimant?.slug}. ` +
-        'Review the claim; if it looks wrong, use the link-help dispute revert.',
+  if (isDobDiscrepancy(dobComparison)) {
+    enqueueDobConflictReview({
+      memberId:        requestingMemberId,
+      memberSlug:      claimant?.slug ?? null,
+      memberBirthDate: claimant?.birth_date ?? null,
+      recordBirthDate: row.birth_date,
+      recordLabel:     `legacy account ${row.legacy_member_id}${hp ? ` (linked historical record ${hp.person_id})` : ''}`,
     });
   }
 
@@ -2791,13 +2808,14 @@ function claimHistoricalPersonInTxInner(
   let everPaidTier1Lifetime = false;
   let tier1AnnualActive = false;
 
-  // Record-only birth-date evidence, mirroring the legacy-account claim path:
-  // when this historical record resolves through to a legacy account carrying a
-  // birth date, compare it against the member's own date and record the outcome
-  // in the claim audit metadata below. A direct claim with no legacy account
-  // behind it has no legacy date to compare. This path never enqueues a mismatch
-  // review; that flag is a legacy-account-claim behavior.
+  // Birth-date evidence, mirroring the legacy-account claim path: when this
+  // historical record resolves through to a legacy account carrying a birth
+  // date, compare it against the member's own date, record the outcome in the
+  // claim audit metadata below, and flag a discrepancy for admin review the same
+  // way the legacy-account path does. A direct claim with no legacy account
+  // behind it has no legacy date to compare.
   let dobComparison = 'no_legacy_account';
+  let comparedLegacyBirthDate: string | null = null;
 
   // Transitive legacy claim when the HP is back-linked to a legacy account.
   if (hp.legacy_member_id) {
@@ -2811,6 +2829,7 @@ function claimHistoricalPersonInTxInner(
       everPaidTier2 = Boolean(lm.legacy_ever_paid_tier2);
       everPaidTier1Lifetime = Boolean(lm.legacy_ever_paid_tier1_lifetime);
       tier1AnnualActive = Boolean(lm.legacy_tier1_annual_active_at_cutover);
+      comparedLegacyBirthDate = lm.birth_date;
       dobComparison = member.birth_date && lm.birth_date
         ? compareBirthDates(member.birth_date, lm.birth_date)
         : member.birth_date
@@ -2906,6 +2925,16 @@ function claimHistoricalPersonInTxInner(
       dob_comparison:         dobComparison,
     },
   });
+
+  if (isDobDiscrepancy(dobComparison)) {
+    enqueueDobConflictReview({
+      memberId:        requestingMemberId,
+      memberSlug:      member.slug,
+      memberBirthDate: member.birth_date,
+      recordBirthDate: comparedLegacyBirthDate,
+      recordLabel:     `historical record ${hp.person_id}${hp.legacy_member_id ? ` (linked legacy account ${hp.legacy_member_id})` : ''}`,
+    });
+  }
 
   // A claim through any path counts as confirmation of a matching staged
   // candidate; resolve it in the same transaction.
@@ -3914,26 +3943,9 @@ function declareAnchor(
 }
 
 /**
- * Declare the member's date of birth from the wizard claim task. The value
- * is stored as the member's birth date (the personal-details task shows it
- * pre-filled and owns later edits), so this only ever fills an absent value.
- * The post-redirect GET re-runs candidate matching with the date present,
- * which is what disambiguates tied same-name candidates.
- */
-function declareBirthDateAnchor(memberId: string, rawValue: string): void {
-  anchorChangeRateLimit(memberId);
-  const value = validateBirthDate(rawValue.trim());
-  const now = new Date().toISOString();
-  const updated = account.setBirthDateIfAbsent.run(value, now, memberId, memberId);
-  if (updated.changes === 0) {
-    throw new ValidationError('A date of birth is already on file. You can edit it in the personal details step.');
-  }
-}
-
-/**
- * The member's birth date on file, or null. Drives the wizard claim task's
- * required birth-date field (form when absent, read-only display when
- * present) and the task-resolution gate.
+ * The member's birth date on file, or null. The personal-details task collects
+ * and owns it; here it is read to disambiguate tied same-name candidates and to
+ * compare against a legacy record at claim time.
  */
 function getMemberBirthDate(memberId: string): string | null {
   const member = legacyClaim.findClaimingMember.get(memberId) as
@@ -4350,4 +4362,4 @@ function rejectLinkHelpRequest(
   });
 }
 
-export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, declineClassifierCandidate, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, declareBirthDateAnchor, getMemberBirthDate, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors, enforceHistoricalPersonClaimLimit };
+export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, declineClassifierCandidate, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, getMemberBirthDate, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors, enforceHistoricalPersonClaimLimit };

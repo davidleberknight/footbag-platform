@@ -350,6 +350,21 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
       'auto-link date-of-birth tie-breaker resolves the candidate set',
     ],
   },
+  {
+    slug: 'legacy_dob_conflict',
+    displayName: 'Cody Conflict',
+    realName: 'Cody Conflict',
+    tier: 'tier0',
+    dimension: 'Auto-link confidence',
+    purpose: 'The member and the legacy account carry different dates of birth. Confirming the surfaced claim still links the account (a date-of-birth discrepancy never blocks) and raises a claim_dob_mismatch_review work-queue item for an admin, so a flagged conflict is visible end to end.',
+    testingUsage: 'Log in, confirm the surfaced legacy-account claim, then confirm the conflicting date of birth raised an admin review item on /admin/work-queue without blocking the link.',
+    legacy: { autoLinkConfidence: 'high', birthDate: '1985-06-15', legacyBirthDate: '1979-11-02' },
+    onboardingTasks: { personal_details: 'completed', legacy_claim: 'in_progress_paused' },
+    coverageNotes: [
+      'single high-confidence auto-link candidate with a mismatched date of birth',
+      'the discrepancy flags an admin review item without blocking the claim',
+    ],
+  },
 
   // ── Club affiliations ─────────────────────────────────────────────────────
   {

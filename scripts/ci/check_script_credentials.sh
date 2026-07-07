@@ -21,13 +21,15 @@ cd "$ROOT"
 violations=0
 
 scan() {
-  grep -rnE "$1" scripts/ --include='*.sh' --include='*.ts' --include='*.py' 2>/dev/null \
+  # -e keeps a pattern beginning with "--" (the CLI-flag check) from being
+  # swallowed as a grep option terminator, which would silently skip the scan.
+  grep -rnE -e "$1" scripts/ legacy_data/scripts/ legacy_data/tools/ --include='*.sh' --include='*.ts' --include='*.py' 2>/dev/null \
     | grep -v 'scripts/\.venv/' \
     | grep -v 'scripts/ci/check_script_credentials\.sh' \
     || true
 }
 
-hits=$(scan -- '--password[ =]')
+hits=$(scan '--password[ =]')
 if [ -n "$hits" ]; then
   echo "$hits" >&2
   echo "FAIL: secrets must not ride CLI flags; read them from stdin or a 600-mode file" >&2

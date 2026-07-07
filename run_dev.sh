@@ -102,8 +102,8 @@ DB rebuild modes (mutually exclusive; opt-in only):
                    load to the local DB (real member rows and historical-person
                    links, with a rollback snapshot). This is the local path for
                    exercising onboarding matching and legacy claims against real
-                   data. The AWS deploy path (deploy-to-aws.sh --all-data) stays
-                   preview-only: a deploy never ships real member data.
+                   data. The AWS deploy path (deploy-to-aws.sh --all-data) applies
+                   the same intake and ships it to whichever target it deploys.
                    Requires the gitignored membership roster AND either the
                    footbag.org dump or a prior intermediate CSV. Seeds personas by
                    default (opt out with --no-personas).

@@ -99,20 +99,37 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]].*)?[[:s
   exit 0
 fi
 
-# curl writing a file or uploading data — -o/-d/-F/-T flags can appear anywhere.
-if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]].*)?[[:space:]](-o|--output|-d|--data|--data-raw|--data-binary|--data-urlencode|-F|--form|-T|--upload-file)([[:space:]]|$)'; then
+# curl uploading data or a request body — -d/-F/-T flags can appear anywhere.
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]].*)?[[:space:]](-d|--data|--data-raw|--data-binary|--data-urlencode|-F|--form|-T|--upload-file)([[:space:]]|$)'; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "ask",
-      permissionDecisionReason: "curl with file-write or request-body flag detected. Confirm before running."
+      permissionDecisionReason: "curl with request-body or upload flag detected. Confirm before running."
     }
   }'
   exit 0
 fi
 
-# Output redirection from a read-only inspector creates or truncates files.
-if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])(cat|grep|rg|head|tail|find|ls|tree|stat|file|wc|echo|printf|awk|sed|jq|sort|uniq|cut|tr|diff)([[:space:]][^|;&]*)?[[:space:]]>{1,2}[[:space:]]'; then
+# curl -o / --output writing a real file. A discard target (/dev/null, or - for
+# stdout) writes nothing, so a read-only health probe such as
+# `curl -sf -o /dev/null <url>` passes without a prompt.
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]].*)?[[:space:]](-o|--output)[[:space:]]+' \
+  && ! printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]].*)?[[:space:]](-o|--output)[[:space:]]+(/dev/null|-)([[:space:]]|$)'; then
+  jq -n '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason: "curl -o / --output writes a file. Confirm before running."
+    }
+  }'
+  exit 0
+fi
+
+# Output redirection from a read-only inspector creates or truncates files. A
+# redirect to the discard device (/dev/null) writes nothing, so it passes.
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])(cat|grep|rg|head|tail|find|ls|tree|stat|file|wc|echo|printf|awk|sed|jq|sort|uniq|cut|tr|diff)([[:space:]][^|;&]*)?[[:space:]]>{1,2}[[:space:]]' \
+  && ! printf '%s' "$COMMAND" | grep -Eq '[[:space:]]>{1,2}[[:space:]]+/dev/null([[:space:]]|$)'; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",

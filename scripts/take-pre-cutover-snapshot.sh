@@ -4,8 +4,8 @@
 # Copies the SQLite file to a timestamped path under database/snapshots/,
 # computes SHA-256, runs PRAGMA integrity_check, and emits a manifest JSON
 # capturing the snapshot id, byte size, hash, and row counts for the
-# tables flagged in IMPLEMENTATION_PLAN.md as cutover-critical. The
-# manifest goes to stdout AND a sibling .manifest.json file.
+# cutover-critical tables enumerated below. The manifest goes to stdout
+# AND a sibling .manifest.json file.
 #
 # Reads FOOTBAG_DB_PATH (default: ./database/footbag.db).
 # Output dir overridable via FOOTBAG_SNAPSHOT_DIR (default: ./database/snapshots).

@@ -5,6 +5,9 @@
  * Owns:
  *   - Contact-request submission (category-validated, per-member open-request cap)
  *   - Contact-request resolution (decision label + admin note + member notification)
+ *   - Dismissal of internal-review items that have no member reply (the
+ *     birth-date-conflict flag): closes the row with an audit entry and sends
+ *     NO member email, unlike contact-request resolution
  *   - Admin work-queue page shaping (all open items grouped by category,
  *     including structured link-help payload display) and the per-category
  *     summary for the admin dashboard work-queue card
@@ -34,9 +37,10 @@
  *   work_queue_items, audit_entries.
  *
  * Side effects:
- *   - audit_entries append (support.contact_request_submitted / _resolved)
+ *   - audit_entries append (support.contact_request_submitted / _resolved;
+ *     legacy.dob_conflict_reviewed on a birth-date-conflict dismissal)
  *   - outbox_emails enqueue (admin-alerts fan-out on submit; member
- *     notification on resolve)
+ *     notification on resolve; NONE on a review dismissal)
  *   - operational-error audit + alarm on post-commit notification failure
  *
  * Service shape: singleton object (no external adapters beyond db.ts).
@@ -150,6 +154,13 @@ const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
   claim_dob_mismatch_review: 'Birth-date conflict on a claimed legacy account',
 };
 
+// Internal-review items an admin closes with a dismissal (no member reply, no
+// email), distinct from the contact-request resolve path. The generic resolve
+// form does not apply to these; the page renders a dismiss control instead.
+const DISMISSIBLE_REVIEW_TASK_TYPES: ReadonlySet<string> = new Set([
+  'claim_dob_mismatch_review',
+]);
+
 export interface WorkQueueViewItem {
   id: string;
   queueCategory: string;
@@ -169,6 +180,9 @@ export interface WorkQueueViewItem {
   /** Member link-help requests render structured payload + approve/reject
    * forms instead of the generic resolve form. */
   isLinkHelpRequest: boolean;
+  /** Internal-review flags (birth-date conflict) render a dismiss control
+   * instead of the generic resolve form, which does not apply to them. */
+  isReviewFlag: boolean;
   linkHelp: {
     statement: string;
     claimedLegacyUsername: string | null;
@@ -188,6 +202,7 @@ export interface WorkQueueContent {
   groups: WorkQueueGroup[];
   totalOpen: number;
   resolvedFlag: boolean;
+  reviewedFlag: boolean;
   errorMessage: string | null;
 }
 
@@ -241,6 +256,7 @@ function shapeWorkQueueItem(raw: ContactRequestRow): WorkQueueViewItem {
     detailText: isLinkHelpRequest ? null : raw.detailText,
     decisionLabels: DECISION_LABELS.map((d) => ({ value: d, label: DECISION_LABEL_DISPLAY[d] })),
     isLinkHelpRequest,
+    isReviewFlag: DISMISSIBLE_REVIEW_TASK_TYPES.has(raw.taskType),
     linkHelp: isLinkHelpRequest ? parseLinkHelpPayload(raw.reasonText) : null,
   };
 }
@@ -506,7 +522,7 @@ export const contactRequestService = {
    * the result in the standard `PageViewModel<WorkQueueContent>` envelope.
    * Controllers call this directly and render the return value.
    */
-  getAdminWorkQueuePage(opts: { resolvedFlag?: boolean; errorMessage?: string } = {}): PageViewModel<WorkQueueContent> {
+  getAdminWorkQueuePage(opts: { resolvedFlag?: boolean; reviewedFlag?: boolean; errorMessage?: string } = {}): PageViewModel<WorkQueueContent> {
     const rows = this.listOpenForAdmin();
     const groupMap = new Map<string, WorkQueueViewItem[]>();
     for (const r of rows) {
@@ -529,8 +545,53 @@ export const contactRequestService = {
         groups,
         totalOpen: rows.length,
         resolvedFlag: opts.resolvedFlag ?? false,
+        reviewedFlag: opts.reviewedFlag ?? false,
         errorMessage: opts.errorMessage ?? null,
       },
     };
+  },
+
+  /**
+   * Dismiss an internal-review work-queue item that has no member reply
+   * (currently the birth-date-conflict flag). Closes the row and appends an
+   * audit entry in one transaction; sends NO member email. Reuses the shared
+   * per-admin resolve rate-limit bucket. Throws NotFoundError when the id is
+   * not an open item of a dismissible review type.
+   */
+  dismiss(input: { queueItemId: string; adminMemberId: string; note: string }): void {
+    enforceWorkQueueResolveLimit(input.adminMemberId);
+    const note = (input.note ?? '').trim();
+    if (note.length > MAX_RESOLUTION_NOTE) {
+      throw new ValidationError(`Note must be ${MAX_RESOLUTION_NOTE} characters or fewer.`);
+    }
+    const row = workQueue.findById.get(input.queueItemId) as
+      | { status: string; task_type: string; entity_type: string; entity_id: string }
+      | undefined;
+    if (!row || row.status !== 'open' || !DISMISSIBLE_REVIEW_TASK_TYPES.has(row.task_type)) {
+      throw new NotFoundError(`Open review item not found: ${input.queueItemId}`);
+    }
+    const nowIso = new Date().toISOString();
+    transaction(() => {
+      const result = workQueue.closeReview.run(
+        nowIso,
+        input.adminMemberId,
+        nowIso,
+        input.adminMemberId,
+        input.queueItemId,
+      );
+      if (result.changes === 0) {
+        throw new NotFoundError(`Open review item not found: ${input.queueItemId}`);
+      }
+      appendAuditEntry({
+        actionType:    'legacy.dob_conflict_reviewed',
+        category:      'identity',
+        actorType:     'admin',
+        actorMemberId: input.adminMemberId,
+        entityType:    row.entity_type,
+        entityId:      row.entity_id,
+        reasonText:    'Birth-date conflict reviewed and dismissed.',
+        metadata:      { queue_item_id: input.queueItemId, note },
+      });
+    });
   },
 };

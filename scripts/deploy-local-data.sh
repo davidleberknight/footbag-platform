@@ -69,8 +69,8 @@ Options:
   --dry-run       Print what would be executed without running anything.
   --apply-members Apply the member load for real (only with --all-data).
                   Without it the intake stays a validate + dry-run preview.
-                  The AWS deploy path never passes this flag: a deploy must
-                  never ship real member data.
+                  The AWS deploy path passes this flag on any --all-data deploy
+                  (the full migration load) to whichever target it deploys.
   --cutover-clubs Cutover club set (only with --all-data): exports CLUBS_SEED=no
                   so the dev-convenience clubs seed (all 311 seed clubs) is
                   skipped and the cutover pre-populated-clubs step is the sole
@@ -314,8 +314,8 @@ run_all_data() {
     echo "NOTE: member data was NOT loaded. This build previews the intake"
     echo "      (validate + dry-run). Re-run with --apply-members to run the"
     echo "      identity reconciliation and apply the member data to the local"
-    echo "      DB. The AWS deploy path never applies it: a deploy must never"
-    echo "      ship real member data."
+    echo "      DB. The AWS deploy path applies it on any --all-data deploy (the"
+    echo "      full migration load) to whichever target it deploys."
   fi
 }
 

@@ -36,10 +36,13 @@
  *     anti-enumeration contract; a task the server determines is not_applicable is simply not
  *     rendered.
  *   - Per-task answers persist on submit; completing a task advances the sequence.
- *   - The legacy_claim task requires a birth date on file before any resolving action
- *     (confirm, search, token confirm, direct record claim, or the continue-without-linking
- *     decision); the gate is task-level only and never applies to the admin link-help
- *     apply path.
+ *   - The personal_details task precedes and gates the legacy_claim task: no resolving
+ *     action (confirm, search, token confirm, direct record claim, or the continue-without-
+ *     linking decision) runs until personal_details is completed, so the required personal
+ *     details including date of birth are on file before any matching. The gate is task-
+ *     level only and never applies to the admin link-help apply path. Date of birth is
+ *     collected only in personal_details, not the claim task; the continue-without-linking
+ *     decision additionally requires the member to affirm they never had an old-site account.
  *   - State-changing wizard POSTs are subject to the global Origin-pin CSRF middleware; a wizard
  *     POST is never added to that middleware's exemption list.
  *   - Every task page renders through the shared wizard layout primitive so all tasks present the
@@ -126,15 +129,16 @@ function writeViabilitySignal(
   );
 }
 
-// The task order is the documented wizard sequence: the legacy-account claim
-// first (where a verified member lands after email verification), then the
-// optional club affiliation, then the personal details. This order is the
-// single source of truth -- both the sequential advance and the gate /
-// completion redirects derive their "what's next" from this index.
+// The task order is the wizard sequence: personal details first, because the
+// required personal fields (including date of birth) must be on file before any
+// legacy-record matching runs; then the legacy-account claim; then the optional
+// club affiliation. This order is the single source of truth -- both the
+// sequential advance and the gate / completion redirects derive their "what's
+// next" from this index.
 export const TASK_CATALOG = [
+  'personal_details',
   'legacy_claim',
   'club_affiliations',
-  'personal_details',
 ] as const;
 export type OnboardingTaskType = typeof TASK_CATALOG[number];
 
@@ -303,6 +307,29 @@ function getTaskState(memberId: string, taskType: OnboardingTaskType): Onboardin
     | MemberOnboardingTaskRow
     | undefined;
   return row ? row.state as OnboardingTaskState : null;
+}
+
+// Tasks that must not run until the personal_details fields (including date of
+// birth) are on file: matching a member to legacy records depends on those
+// fields, so the wizard collects them first. personal_details is the single
+// collector, so it has no prerequisite of its own.
+const TASKS_REQUIRING_PERSONAL_DETAILS: ReadonlySet<OnboardingTaskType> = new Set([
+  'legacy_claim',
+  'club_affiliations',
+]);
+
+// The task that must be completed before `taskType` can run, or null when the
+// task has no unmet prerequisite. Enforces personal-details-before-matching: the
+// legacy-claim matcher only runs once this returns null for legacy_claim.
+function prerequisiteTaskFor(
+  memberId: string,
+  taskType: OnboardingTaskType,
+): OnboardingTaskType | null {
+  if (TASKS_REQUIRING_PERSONAL_DETAILS.has(taskType)
+      && getTaskState(memberId, 'personal_details') !== 'completed') {
+    return 'personal_details';
+  }
+  return null;
 }
 
 function startTaskList(memberId: string): void {
@@ -1184,14 +1211,13 @@ function advanceAfter(
   return { kind: 'advance', nextTaskType: nextOutstandingTaskType(memberId) };
 }
 
-// The claim task requires a birth date on file before it can be resolved:
-// matching needs it, and every resolving action asks identically regardless
-// of match state, so the requirement reveals nothing about what matched.
-export const BIRTH_DATE_REQUIRED_MESSAGE =
-  'Enter your date of birth first, so we can match your records.';
-
-function birthDateMissing(memberId: string): boolean {
-  return identityAccessService.getMemberBirthDate(memberId) === null;
+// Personal-details-before-matching applies to every legacy-claim resolution,
+// not just the page GET: a resolving action that arrives by direct POST must not
+// run until personal_details (which collects the required date of birth) is
+// complete. The action bounces back to the task GET, which redirects the member
+// to finish personal details.
+function legacyClaimPrerequisiteUnmet(memberId: string): boolean {
+  return prerequisiteTaskFor(memberId, 'legacy_claim') !== null;
 }
 
 async function processLegacyClaimSubmit(
@@ -1199,12 +1225,8 @@ async function processLegacyClaimSubmit(
   identifier: string,
   ip: string,
 ): Promise<WizardActionResult<LegacyClaimSubmitFormState>> {
-  if (birthDateMissing(memberId)) {
-    return {
-      kind: 'validation_error',
-      formState: { identifier: identifier ?? '' },
-      message: BIRTH_DATE_REQUIRED_MESSAGE,
-    };
+  if (legacyClaimPrerequisiteUnmet(memberId)) {
+    return { kind: 'retry_same', flash: null };
   }
   if (!identifier) {
     return {
@@ -1287,12 +1309,8 @@ function processLegacyClaimAutoLinkConfirm(
   memberId: string,
   personId: string,
 ): WizardActionResult<LegacyClaimAutoLinkConfirmFormState> {
-  if (birthDateMissing(memberId)) {
-    return {
-      kind: 'validation_error',
-      formState: null,
-      message: BIRTH_DATE_REQUIRED_MESSAGE,
-    };
+  if (legacyClaimPrerequisiteUnmet(memberId)) {
+    return { kind: 'retry_same', flash: null };
   }
   if (!personId) {
     return {
@@ -1512,6 +1530,7 @@ function processPersonalDetailsSubmit(
 function processTaskSkip(
   memberId: string,
   taskType: OnboardingTaskType,
+  attestedNoOldAccount = false,
 ): WizardActionResult {
   // personal_details and legacy_claim are required to become a member and
   // cannot be skipped.
@@ -1522,15 +1541,20 @@ function processTaskSkip(
     return { kind: 'retry_same', flash: null };
   }
   if (taskType === 'legacy_claim') {
-    // The legacy decision is required; the wizard's "no past account / nothing
-    // to claim" control posts here and is the explicit DECISION, which
-    // COMPLETES the task rather than skipping it. The decision, like every
-    // other resolution of this task, requires a birth date on file.
-    if (birthDateMissing(memberId)) {
+    // The legacy decision is required; the wizard's "continue without linking"
+    // control posts here and is the explicit DECISION, which COMPLETES the task
+    // rather than skipping it. Like every other resolution of this task, it does
+    // not run until personal_details is complete.
+    if (legacyClaimPrerequisiteUnmet(memberId)) {
+      return { kind: 'retry_same', flash: null };
+    }
+    // Linking is the expected path; continuing without it is reserved for a
+    // member who never had an old-site account and must affirm that first.
+    if (!attestedNoOldAccount) {
       return {
         kind: 'validation_error',
         formState: null,
-        message: BIRTH_DATE_REQUIRED_MESSAGE,
+        message: 'To continue without linking, confirm you never had an account on the old footbag.org.',
       };
     }
     completeTask(memberId, 'legacy_claim');
@@ -1563,8 +1587,10 @@ function claimHistoricalPersonAndCompleteTask(
   personId: string,
   ip: string,
 ): void {
-  if (birthDateMissing(memberId)) {
-    throw new ValidationError(BIRTH_DATE_REQUIRED_MESSAGE);
+  // Reached only after onboarding completes (the router-level completion gate
+  // guarantees it), so personal_details is already done; assert the invariant.
+  if (legacyClaimPrerequisiteUnmet(memberId)) {
+    throw new Error('personal_details must be complete before a historical-person claim');
   }
   identityAccessService.enforceHistoricalPersonClaimLimit(memberId, ip);
   try {
@@ -1834,6 +1860,7 @@ export const memberOnboardingService = {
   dismissClubAffiliationsTask,
   claimHistoricalPersonAndCompleteTask,
   getTaskState,
+  prerequisiteTaskFor,
   isOnboardingComplete,
   hasOtherOutstandingTasks,
   getClubAffiliationStage,

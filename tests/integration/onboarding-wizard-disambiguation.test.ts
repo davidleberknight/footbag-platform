@@ -15,6 +15,7 @@ import {
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
   insertClubBootstrapLeader,
+  insertOnboardingTask,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -106,6 +107,12 @@ beforeAll(async () => {
   const f1Club = insertClub(db, { name: 'F1 Club', city: 'Denver', country: 'USA' });
   const f1Cand = insertLegacyClubCandidate(db, { classification: 'pre_populate', mapped_club_id: f1Club, display_name: 'F1 Club' });
   f1AffId = insertLegacyPersonClubAffiliation(db, { legacy_member_id: 'lm-disambig-f1', legacy_club_candidate_id: f1Cand, confidence_score: 0.9 });
+
+  // The club-affiliations step is reachable only once personal details are on
+  // file, so complete that prerequisite for every member exercised here.
+  for (const id of [MEMBER_SAME_CITY, MEMBER_MIXED, MEMBER_LEADERSHIP, MEMBER_F1]) {
+    insertOnboardingTask(db, id, 'personal_details', 'completed');
+  }
 
   db.close();
   createApp = await importApp();

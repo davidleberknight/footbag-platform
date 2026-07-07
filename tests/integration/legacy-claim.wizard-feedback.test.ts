@@ -18,6 +18,7 @@ import {
   insertMember,
   insertLegacyMember,
   insertHistoricalPerson,
+  insertOnboardingTask,
   completeOnboarding,
   createTestSessionJwt,
 } from '../fixtures/factories';
@@ -71,6 +72,8 @@ function matchFixture(opts: { memberName: string; personName: string }): {
     real_name: opts.memberName, display_name: opts.memberName,
     birth_date: '1980-01-01',
   });
+  // The legacy-claim step runs only once personal details are on file.
+  insertOnboardingTask(db, memberId, 'personal_details', 'completed');
   return { memberId, legacyId, personId, slug };
 }
 
@@ -120,6 +123,7 @@ describe('specific failure reasons on This Is Me confirmation', () => {
       slug: `wf_drift_${tag('d')}`, login_email: `drift${_seq}@example.com`,
       real_name: 'Drift Delta', birth_date: '1980-01-01',
     });
+    insertOnboardingTask(db, memberId, 'personal_details', 'completed');
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/auto-link/confirm')
       .set('Cookie', cookieFor(memberId))

@@ -183,9 +183,6 @@ async function renderLegacyClaim(
   data.dashboardHref = dashboardHrefFor(req);
   data.turnstileSiteKey = config.turnstileSiteKey;
   data.declaredAnchors = identityAccessService.listDeclaredAnchors(memberId);
-  const birthDateOnFile = identityAccessService.getMemberBirthDate(memberId);
-  data.showBirthDateAnchorField = birthDateOnFile === null;
-  data.birthDateOnFileDisplay = birthDateOnFile;
   data.helpRequestNotice = req.query.help_request === 'sent';
   const anchorVerification = req.query.anchor_verification;
   data.anchorVerificationNotice =
@@ -407,6 +404,17 @@ export const memberOnboardingController = {
       const memberId = req.user!.userId;
       memberOnboardingService.startTaskList(memberId);
 
+      // Personal-details-before-matching gate: a task that depends on the
+      // required personal fields (legacy_claim, club_affiliations) does not
+      // render until personal_details is complete. This is what keeps the
+      // legacy-claim matcher from running before the member's date of birth is
+      // on file; it also blocks reaching those steps by direct URL.
+      const prerequisite = memberOnboardingService.prerequisiteTaskFor(memberId, taskType);
+      if (prerequisite) {
+        res.redirect(303, taskUrlFor(prerequisite));
+        return;
+      }
+
       // Reconcile task state with underlying reality before render. If the
       // underlying state shows the task is already done or moot, transition
       // it now and 303 to the next pending task (or /complete). Keeps the
@@ -480,12 +488,13 @@ export const memberOnboardingController = {
       renderNotFound(res);
       return;
     }
+    const attestedNoOldAccount = String(req.body?.no_old_account ?? '') === '1';
     await dispatch(req, res, next, taskType, {
-      action: () => memberOnboardingService.processTaskSkip(req.user!.userId, taskType),
+      action: () => memberOnboardingService.processTaskSkip(req.user!.userId, taskType, attestedNoOldAccount),
       renderValidationError: async (result) => {
-        // Today only the legacy_claim decision can fail validation (the
-        // birth-date-on-file requirement); re-render its page with the
-        // message so the member sees why the click did not advance.
+        // Only the legacy_claim decision can fail validation (the "I never had an
+        // old account" attestation); re-render its page with the message so the
+        // member sees why the click did not advance.
         if (taskType === 'legacy_claim') {
           await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, result.message);
           return;
@@ -757,22 +766,6 @@ export const memberOnboardingController = {
       identityAccessService.declareAnchor(
         req.user!.userId,
         String(req.body.anchorType ?? ''),
-        String(req.body.anchorValue ?? ''),
-      );
-      res.redirect(303, '/register/wizard/legacy_claim?anchor=saved');
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, err.message);
-        return;
-      }
-      next(err);
-    }
-  },
-
-  async postAddBirthDateAnchor(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      identityAccessService.declareBirthDateAnchor(
-        req.user!.userId,
         String(req.body.anchorValue ?? ''),
       );
       res.redirect(303, '/register/wizard/legacy_claim?anchor=saved');

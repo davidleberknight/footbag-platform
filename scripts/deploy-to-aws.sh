@@ -55,12 +55,10 @@ DATA SOURCE (opt-in DB rebuild; mutually exclusive)
                                catalog by default on staging; opt out with
                                --no-personas.
   --all-data                   The --from-csv build PLUS the legacy member-data
-                               intake: extract the footbag.org dump into the
-                               git-ignored intermediate CSV and validate/preview
-                               it. Preview-only by design: a deploy never applies
-                               or ships real member data. The real member load is
-                               a local maintainer step (run_dev.sh --all-data),
-                               never a deploy step.
+                               intake, applied into the local build and shipped to
+                               the target (the full migration load). Against
+                               production this is the go-live cutover and runs only
+                               under the typed DB-replace confirmation.
                                Requires the gitignored membership roster AND
                                either the footbag.org dump or a prior
                                intermediate CSV.
@@ -156,7 +154,7 @@ NO_PERSONAS_FLAG="no"    # --no-personas: opt OUT of soup-to-nuts persona seed
 DRY_RUN="no"
 FROM_CSV="no"        # explicit alias for default rebuild source
 SOUP_TO_NUTS="no"    # full clean rebuild from legacy mirror
-ALL_DATA="no"        # --from-csv build + member-intake preview (a deploy never ships real member data)
+ALL_DATA="no"        # --from-csv build + member intake applied and shipped (full migration load)
 # CUTOVER-REMOVE: --seed-test-personas flag.
 # Current: post-deploy seeds the canonical persona catalog into dev/staging
 #   only; not part of the production path. Signal only, no JSON payload.
@@ -523,8 +521,13 @@ if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
     echo "      legacy_data/seed/. Commit or revert before deploying again."
   fi
 elif [[ "$ALL_DATA" == "yes" ]]; then
-  echo "==> Step 1 (local DB rebuild + member-intake preview; no member data is deployed): scripts/deploy-local-data.sh --all-data"
-  run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --all-data
+  # --all-data is the full migration load: it applies the member intake into the
+  # local build and Step 2 ships that database to the target. A destructive
+  # production database replace runs only under the wrapper's typed confirmation,
+  # so a production member load is the deliberate go-live cutover, not an
+  # accidental deploy.
+  echo "==> Step 1 (local DB rebuild + member intake applied): scripts/deploy-local-data.sh --all-data --apply-members"
+  run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --all-data --apply-members
 else
   echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --from-csv"
   run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --from-csv

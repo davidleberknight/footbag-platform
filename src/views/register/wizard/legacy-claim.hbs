@@ -6,8 +6,19 @@
 
 <div class="wrapper">
   <section>
-    <p>Match your account to your past on footbag.org. Pick a suggested match below, tell us an email address or surname you used on the old site, or search by your old footbag.org ID.</p>
-    <p class="text-muted fs-sm">If you never had an account on the old footbag.org, you can continue without linking, using the button at the bottom of this page.</p>
+    <p>Link your account to your history on the old footbag.org so your past results and clubs show on your profile. Do one of these: pick a suggested match below, add an email or surname you used on the old site to sharpen the matches, or search by your old footbag.org member ID.</p>
+    <p class="text-muted fs-sm">Never had an account on the old footbag.org? Use the Continue Without Linking option below.</p>
+
+    <form method="POST" action="/register/wizard/legacy_claim/skip" class="card card-static mb-4">
+      <p>Linking your old footbag.org history is the expected next step. Only continue without linking if you never had an account on the old site.</p>
+      <div class="form-field">
+        <label>
+          <input type="checkbox" name="no_old_account" value="1" required />
+          I never had an account on the old footbag.org.
+        </label>
+      </div>
+      <button type="submit" class="btn btn-outline">Continue Without Linking a Past Account</button>
+    </form>
 
     {{#if content.validationMessage}}
       <p class="form-notice" role="alert">{{content.validationMessage}}</p>
@@ -132,19 +143,6 @@
     <h2>Help us find your record</h2>
     <p class="text-muted fs-sm">If you used a different email address or surname on footbag.org, tell us here and we'll look for matching records.</p>
 
-    {{#if content.showBirthDateAnchorField}}
-    <form method="POST" action="/register/wizard/legacy_claim/anchors/birth-date" class="card card-static mb-4">
-      <div class="form-field">
-        <label for="birthDateAnchor">Date of birth <span class="text-muted">(required)</span></label>
-        <input type="date" id="birthDateAnchor" name="anchorValue" required />
-        <small class="form-hint">Your date of birth helps us match your old footbag.org account and competition records, especially when more than one player shares your name. It is private: only you and administrators can see it.</small>
-      </div>
-      <button type="submit" class="btn btn-outline">Add Date of Birth</button>
-    </form>
-    {{else}}
-    <p class="text-muted fs-sm mb-4">Date of birth on file: {{content.birthDateOnFileDisplay}}. It is private: only you and administrators can see it.</p>
-    {{/if}}
-
     {{#if content.declaredAnchors.length}}
       <ul class="mb-4">
         {{#each content.declaredAnchors}}
@@ -217,11 +215,6 @@
         <input type="text" id="helpVouchers" name="vouchers" maxlength="200" />
       </div>
       <button type="submit" class="btn btn-outline">Send to an Administrator</button>
-    </form>
-
-    <form method="POST" action="/register/wizard/legacy_claim/skip" class="mt-6">
-      <p class="text-muted fs-sm">If you never had an account on the old footbag.org, or none of the matches above are you, continue. Your past results and clubs will not be linked, and you can return to this step from your profile.</p>
-      <button type="submit" class="btn btn-outline">Continue Without Linking a Past Account</button>
     </form>
 
     <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>

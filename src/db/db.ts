@@ -4984,17 +4984,6 @@ export const account = {
       AND m.personal_data_purged_at IS NULL
   `); },
 
-  // The wizard claim task's birth-date anchor only ever fills an absent
-  // value; the personal-details task owns subsequent edits.
-  get setBirthDateIfAbsent() { return db.prepare(`
-    UPDATE members
-    SET
-      birth_date = ?,
-      updated_at = ?,
-      updated_by = ?,
-      version    = version + 1
-    WHERE id = ? AND birth_date IS NULL
-  `); },
 
   get updateMemberPersonalDetails() { return db.prepare(`
     UPDATE members
@@ -8336,6 +8325,20 @@ export const workQueue = {
         resolved_by_member_id = ?,
         decision_label = ?,
         reason_text = ?,
+        updated_at = ?,
+        updated_by = ?,
+        version = version + 1
+    WHERE id = ? AND status = 'open'
+  `); },
+
+  // Close an internal-review item (e.g. a birth-date-conflict flag) with no
+  // member reply: transition to resolved without a decision label or a text
+  // rewrite, leaving reason_text / detail_text intact for the audit trail.
+  get closeReview() { return db.prepare(`
+    UPDATE work_queue_items
+    SET status = 'resolved',
+        resolved_at = ?,
+        resolved_by_member_id = ?,
         updated_at = ?,
         updated_by = ?,
         version = version + 1

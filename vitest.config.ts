@@ -22,7 +22,10 @@ const forkCap = envForkCap ?? (ramBound ? memForkCap : null);
 
 export default defineConfig({
   test: {
-    testTimeout: 15_000,
+    // Per-test ceiling with headroom for a slow or loaded box: the deploy
+    // preflight runs the full suite while docker image builds compete for CPU,
+    // so a tight limit turns load into spurious timeout failures.
+    testTimeout: 30_000,
     // beforeAll hooks transpile and import the whole app graph on first run;
     // on a slow laptop that cold transform can exceed half a minute, so the
     // ceiling is generous enough that the import cost is never the failure.

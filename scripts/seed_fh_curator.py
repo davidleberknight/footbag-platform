@@ -772,8 +772,7 @@ def _seed_one_sidecar(
     # prior tag rows for this media_id; we re-insert below.
     # Curator URL-ref content surfaces in the named gallery at
     # gallery_curated_freestyle_tricks purely via hashtag-AND match
-    # against the gallery's criteria-tag set (per DATA_MODEL.md
-    # §"hashtag-driven coupling" and USER_STORIES.md §V_View_Gallery).
+    # against the gallery's criteria-tag set.
     con.execute(
         """
         INSERT OR REPLACE INTO media_items (

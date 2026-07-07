@@ -176,6 +176,7 @@ aws/
 # Terraform plan files (binary, may contain sensitive data, never commit)
 tfplan
 *.tfplan
+*.plan
 
 # Generated cache files (never commit)
 legacy_data/robots_cache.json

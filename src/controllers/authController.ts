@@ -259,7 +259,12 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
     }
     issueSessionCookie(res, cookieValue, req);
     memberOnboardingService.startTaskList(result.memberId);
-    res.redirect(303, '/register/wizard/legacy_claim');
+    // Land on the first outstanding task in the wizard sequence rather than a
+    // fixed step, so the personal-details-first order governs where a verified
+    // member starts.
+    const firstTask =
+      memberOnboardingService.nextOutstandingTaskType(result.memberId) ?? 'personal_details';
+    res.redirect(303, `/register/wizard/${firstTask}`);
   } catch (err) {
     next(err);
   }

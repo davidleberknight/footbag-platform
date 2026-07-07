@@ -15,6 +15,7 @@ import {
   insertClubBootstrapLeaderSignal,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
+  insertOnboardingTask,
   createMemberAtTier,
   createTestSessionJwt,
 } from '../../fixtures/factories';
@@ -105,6 +106,14 @@ export function getAffiliationStatus(db: BetterSqlite3.Database, affiliationId: 
     'SELECT resolution_status FROM legacy_person_club_affiliations WHERE id = ?',
   ).get(affiliationId) as { resolution_status: string } | undefined;
   return row?.resolution_status ?? null;
+}
+
+// Marks personal_details complete for a member. The legacy_claim and
+// club_affiliations steps only render once personal_details is on file, so a
+// spec that drives those steps directly (without walking the personal_details
+// form first) seeds this so the wizard does not redirect back to it.
+export function completePersonalDetails(db: BetterSqlite3.Database, memberId: string): void {
+  insertOnboardingTask(db, memberId, 'personal_details', 'completed');
 }
 
 // ── Persona composition helpers ──────────────────────────────────────────────
@@ -248,7 +257,9 @@ export function seedMemberWithClubCards(
     affiliationIds.push(affiliationId);
   }
 
-  // Pre-complete legacy_claim so wizard starts at club_affiliations
+  // Pre-complete personal_details and legacy_claim so the wizard starts at
+  // club_affiliations (both precede it and gate its rendering).
+  insertOnboardingTask(db, memberId, 'personal_details', 'completed');
   const taskId = `mot-${rand()}`;
   db.prepare(`
     INSERT INTO member_onboarding_tasks (
@@ -313,7 +324,9 @@ export function seedMemberWithLeadershipCard(
     is_present: 1,
   });
 
-  // Pre-complete legacy_claim
+  // Pre-complete personal_details and legacy_claim so the wizard starts at
+  // club_affiliations (both precede it and gate its rendering).
+  insertOnboardingTask(db, memberId, 'personal_details', 'completed');
   const taskId = `mot-ldr-${rand()}`;
   db.prepare(`
     INSERT INTO member_onboarding_tasks (

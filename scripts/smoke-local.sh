@@ -15,6 +15,10 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:3000}"
+# Strip a trailing slash so joining `${BASE_URL}${path}` (path starts with `/`)
+# never yields a double slash: the app 404s `//events` where `/events` is 200,
+# which otherwise fails every check when the configured base URL ends in `/`.
+BASE_URL="${BASE_URL%/}"
 PASS=0
 FAIL=0
 

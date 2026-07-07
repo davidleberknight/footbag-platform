@@ -660,6 +660,29 @@ if ! bash scripts/ci/check_runtime_data_paths_copied.sh; then
   violations=$((violations + 1))
 fi
 
+echo "[conventions] check: no terraform state/plan artifacts tracked (delegated)"
+if ! bash scripts/ci/check_no_terraform_artifacts.sh; then
+  violations=$((violations + 1))
+fi
+
+# Rule: no concrete CloudFront distribution hostname in any tracked file. The
+# staging environment is protected by its address staying unpublished, so a
+# real distribution hostname in a committed file defeats that control.
+# Generic wildcard references like "*.cloudfront.net" are fine: the character
+# before the first dot is not alphanumeric, so the pattern skips them.
+echo "[conventions] check: no concrete CloudFront hostnames tracked"
+# Exempt the two documented fake hosts: the onboarding guide's "something
+# like" example domain and the Terraform bootstrap placeholder value.
+cf_host_hits=$(git grep -nE '[a-z0-9]+\.cloudfront\.net' -- . \
+  | grep -v 'scripts/ci/assert_conventions\.sh' \
+  | grep -vE 'd1234abcdef8\.cloudfront\.net|placeholder\.cloudfront\.net' \
+  || true)
+if [ -n "$cf_host_hits" ]; then
+  echo "$cf_host_hits" >&2
+  echo "  FAIL: a concrete CloudFront hostname must never be committed; keep environment addresses in local operator notes" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: tests/ comments and describe/it names never reference docs, doc-section
 # shorthands, or finding ids. A test name describes the long-term contract in
 # plain words; doc paths and section numbers rot as docs evolve, and finding

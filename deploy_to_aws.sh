@@ -36,8 +36,8 @@ done
 
 MODE_CODE_ONLY=0   # -k / --keep-staging-db (and the bare default): no DB ops at all.
 MODE_REUSE=0       # -r / --reuse-local-db: ship current ./database/footbag.db; no rebuild.
-DB_REBUILD_INVOLVED=0   # set when --from-csv / --soup-to-nuts opt into a DB rebuild.
-DATA_REBUILD=0     # --from-csv / --soup-to-nuts: opt-in DB rebuild + staging replace.
+DB_REBUILD_INVOLVED=0   # set when --from-csv / --soup-to-nuts / --all-data opt into a DB rebuild.
+DATA_REBUILD=0     # --from-csv / --soup-to-nuts / --all-data: opt-in DB rebuild + replace.
 SEED_TEST_PERSONAS=0   # --seed-test-personas: opt-in persona-catalog seed after deploy (CUTOVER-REMOVE).
 
 HAS_MODE=0
@@ -45,13 +45,13 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
   case "$arg" in
     -k|--keep-staging-db)       MODE_CODE_ONLY=1; HAS_MODE=1 ;;
     -r|--reuse-local-db)        MODE_REUSE=1;     HAS_MODE=1 ;;
-    --from-csv|--soup-to-nuts)  DATA_REBUILD=1 ;;
+    --from-csv|--soup-to-nuts|--all-data)  DATA_REBUILD=1 ;;
     --seed-test-personas)       SEED_TEST_PERSONAS=1 ;;
   esac
 done
-# Bare deploy (no -k/-r and no --from-csv/--soup-to-nuts) is code-only: no DB
-# ops at all. --from-csv / --soup-to-nuts opt into a DB rebuild + staging
-# replace; only then does the DB-touching preflight + prod-replace gate apply.
+# Bare deploy (no -k/-r and no --from-csv/--soup-to-nuts/--all-data) is code-only:
+# no DB ops at all. --from-csv / --soup-to-nuts / --all-data opt into a DB rebuild
+# + replace; only then does the DB-touching preflight + prod-replace gate apply.
 if (( HAS_MODE == 0 )); then
   if (( DATA_REBUILD == 1 )); then
     DB_REBUILD_INVOLVED=1

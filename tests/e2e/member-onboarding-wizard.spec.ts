@@ -5,7 +5,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
-import { seedBrandNewPlayer, seedMemberWithAutoLinkCandidate, seedMemberMidWizard, seedTier0Member, getTaskState, getMemberField, isLegacyClaimed, countTierGrants, raiseClaimRateLimits } from './helpers/onboarding';
+import { seedBrandNewPlayer, seedMemberWithAutoLinkCandidate, seedMemberMidWizard, seedTier0Member, getTaskState, getMemberField, isLegacyClaimed, countTierGrants, raiseClaimRateLimits, completePersonalDetails } from './helpers/onboarding';
 
 test.beforeAll(() => {
   const db = openLiveDb();
@@ -17,6 +17,7 @@ import { WizardPage } from './pages/wizard.page';
 test('brand-new player sees legacy_claim with search form, no candidate cards, sensible text', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `w_new_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -39,6 +40,7 @@ test('legacy_claim continue without linking: completes the task, advances', asyn
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `w_skip_${Date.now()}` });
   const { memberId } = persona;
+  completePersonalDetails(db, memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -63,6 +65,7 @@ test('auto-link fast path: email match links member, sets HP, writes tier grant'
   const db = openLiveDb();
   const persona = seedMemberWithAutoLinkCandidate(db, { slug: `w_al_${Date.now()}` });
   const { memberId, legacyMemberId } = persona;
+  completePersonalDetails(db, memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -95,6 +98,7 @@ test('auto-link fast path: email match links member, sets HP, writes tier grant'
 test('no-match search: renders guidance banner (no candidate count or identity leak)', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `w_ae_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -250,6 +254,7 @@ test('handle all three tasks end-to-end -> completion -> profile', async ({ brow
 test('browser reload mid-wizard preserves state', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `w_rel_${Date.now()}` });
+  completePersonalDetails(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);

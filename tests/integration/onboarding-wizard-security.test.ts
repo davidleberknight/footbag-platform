@@ -15,6 +15,7 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 import {
   insertMember,
   insertLegacyMember,
+  insertOnboardingTask,
   createTestSessionJwt,
 } from '../fixtures/factories';
 import { expectCsrfReject } from '../fixtures/expectCsrfReject';
@@ -126,12 +127,14 @@ describe('anti-enumeration: claim lookup returns identical response shape regard
   it('match, no-match, and already-claimed produce same status (303) and same banner text', async () => {
     const stamp = Date.now();
 
-    // Case 1: no-match
+    // Case 1: no-match. The manual search runs only once personal details are
+    // on file, so complete that prerequisite for every case below.
     const noMatchId = insertMember(db, {
       slug: `ae_nomatch_${stamp}`,
       login_email: `ae-nomatch-${stamp}@example.com`,
       birth_date: '1980-01-01',
     });
+    insertOnboardingTask(db, noMatchId, 'personal_details', 'completed');
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(noMatchId));
     const noMatchAgent = request.agent(createApp());
     const noMatchRes = await noMatchAgent
@@ -152,6 +155,7 @@ describe('anti-enumeration: claim lookup returns identical response shape regard
       login_email: `ae-match-${stamp}@example.com`,
       birth_date: '1980-01-01',
     });
+    insertOnboardingTask(db, matchId, 'personal_details', 'completed');
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(matchId));
     const matchAgent = request.agent(createApp());
     const matchRes = await matchAgent
@@ -178,6 +182,7 @@ describe('anti-enumeration: claim lookup returns identical response shape regard
       login_email: `ae-seeker-${stamp}@example.com`,
       birth_date: '1980-01-01',
     });
+    insertOnboardingTask(db, claimedSeekerId, 'personal_details', 'completed');
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(claimedSeekerId));
     const claimedAgent = request.agent(createApp());
     const claimedRes = await claimedAgent

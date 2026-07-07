@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertLegacyMember, insertHistoricalPerson, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertLegacyMember, insertHistoricalPerson, insertOnboardingTask, createTestSessionJwt } from '../fixtures/factories';
 import { expectLoggedError } from '../setup-env';
 
 const { dbPath } = setTestEnv('3088');
@@ -134,6 +134,8 @@ describe('mandatory old-email proof: an unverified old-email match cannot confir
       real_name: 'Proof Person', display_name: 'Proof Person',
       birth_date: '1980-01-01',
     });
+    // The legacy-claim resolving actions run only once personal details are on file.
+    insertOnboardingTask(db, memberId, 'personal_details', 'completed');
     declareOldEmail(memberId, 'proof-old@old.example.com');
     await ops.operationsPlatformService.runBatchAutoLink();
 
@@ -217,6 +219,8 @@ describe('registration-time conflict prompt', () => {
       login_email: 'conflict-new@example.com',
       real_name: 'Carl Conflictsson', display_name: 'Carl Conflictsson',
     });
+    // The legacy-claim step renders only once personal details are on file.
+    insertOnboardingTask(db, memberId, 'personal_details', 'completed');
     // The registration hook is exercised via the service-level detection the
     // hook uses (registerMember itself needs the full registration flow; the
     // detection contract is what the prompt depends on).
@@ -268,6 +272,7 @@ describe('registration-time conflict prompt', () => {
       login_email: 'conflict-legal@example.com',
       real_name: 'Hans Hiddenlegal', display_name: 'Hans Hiddenlegal',
     });
+    insertOnboardingTask(db, legalMatchId, 'personal_details', 'completed');
     const legalPage = await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(legalMatchId));
@@ -284,6 +289,7 @@ describe('registration-time conflict prompt', () => {
       login_email: 'conflict-handle@example.com',
       real_name: 'Berta Showhandle', display_name: 'Berta Showhandle',
     });
+    insertOnboardingTask(db, handleMatchId, 'personal_details', 'completed');
     const handlePage = await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(handleMatchId));
@@ -311,6 +317,10 @@ describe('cross-source offer after a one-source claim', () => {
       country: opts.memberCountry ?? 'US',
       birth_date: '1980-01-01',
     });
+    // The direct historical-record claim runs only once personal details are on
+    // file, and completing that step also lets the legacy_claim GET render the
+    // cross-source offer instead of routing to the next outstanding task.
+    insertOnboardingTask(db, memberId, 'personal_details', 'completed');
     return { memberId };
   }
 
@@ -325,9 +335,6 @@ describe('cross-source offer after a one-source claim', () => {
     // Direct historical-record claim (the HP has no legacy back-link, so the
     // claim covers one source only); the post-confirm offer hook runs here.
     onboarding.memberOnboardingService.claimHistoricalPersonAndCompleteTask(memberId, 'HP-xs-a', '198.51.100.1');
-    // Settle the earlier wizard task so the legacy_claim GET renders instead
-    // of redirecting to the next outstanding task.
-    db.prepare(`UPDATE member_onboarding_tasks SET state = 'completed', completed_at = '2026-01-01T00:00:00.000Z' WHERE member_id = ? AND task_type = 'personal_details'`).run(memberId);
 
     const m1 = db.prepare('SELECT historical_person_id, legacy_member_id FROM members WHERE id = ?').get(memberId) as Record<string, unknown>;
     expect(m1.historical_person_id).toBe('HP-xs-a');

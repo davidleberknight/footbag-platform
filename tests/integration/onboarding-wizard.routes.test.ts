@@ -28,6 +28,10 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: OWNER_ID, slug: OWNER_SLUG, login_email: 'wiz-owner@example.com', birth_date: '1980-01-01' });
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, login_email: 'wiz-other@example.com' });
+  // The legacy-claim step is reachable only once personal details are on file,
+  // so the shared members that exercise it start with that prerequisite met.
+  insertOnboardingTask(db, OWNER_ID, 'personal_details', 'completed');
+  insertOnboardingTask(db, OTHER_ID, 'personal_details', 'completed');
   db.close();
   createApp = await importApp();
   testDb = new BetterSqlite3(dbPath);
@@ -41,6 +45,14 @@ afterAll(() => {
 
 function cookieFor(memberId: string): string {
   return `footbag_session=${createTestSessionJwt({ memberId })}`;
+}
+
+// Inserts a member whose personal_details task is already completed, so the
+// legacy-claim step (and everything gated behind it) is immediately reachable.
+function insertClaimReadyMember(overrides: Parameters<typeof insertMember>[1] = {}): string {
+  const id = insertMember(testDb, overrides);
+  insertOnboardingTask(testDb, id, 'personal_details', 'completed');
+  return id;
 }
 
 function countOnboardingTasks(memberId: string): number {
@@ -77,9 +89,9 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
       .get('/register/wizard/personal_details')
       .set('Cookie', cookieFor(memberId));
     expect(res.status).toBe(200);
-    // The save control renders at both the top and bottom of the form so the
-    // pending action stays visible without scrolling.
-    expect(res.text.match(/>Save and Continue Onboarding</g)?.length).toBe(2);
+    // The personal-details form carries a single save control while other
+    // onboarding steps remain, labelled to continue the wizard.
+    expect(res.text.match(/>Save and Continue Onboarding</g)?.length).toBe(1);
     expect(countOnboardingTasks(memberId)).toBe(3);
     await request(createApp())
       .get('/register/wizard/club_affiliations')
@@ -125,7 +137,7 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
 
   it('renders each known taskType (club_affiliations renders the wrap-up landing when the member has zero possible cards)', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, { slug: `wiz_eachtask_${stamp}`, login_email: `wiz-each-${stamp}@example.com` });
+    const memberId = insertClaimReadyMember({ slug: `wiz_eachtask_${stamp}`, login_email: `wiz-each-${stamp}@example.com` });
     const cookie = cookieFor(memberId);
     for (const taskType of ['legacy_claim']) {
       const res = await request(createApp())
@@ -225,16 +237,18 @@ describe('POST /register/wizard/personal_details/submit — collects details and
 describe('POST /register/wizard/:taskType/skip — 303 advance to next task', () => {
   it('the legacy_claim "nothing to claim" decision completes the task and advances 303 to club_affiliations', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, { slug: `wiz_skip_lc_${stamp}`, login_email: `wiz-skip-lc-${stamp}@example.com`, birth_date: '1980-01-01' });
+    const memberId = insertClaimReadyMember({ slug: `wiz_skip_lc_${stamp}`, login_email: `wiz-skip-lc-${stamp}@example.com`, birth_date: '1980-01-01' });
     await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
     const beforeAudits = countAuditEntries(memberId, 'wizard.task.completed');
+    // Continuing without linking requires the attestation that the member never
+    // held an old-site account; it completes legacy_claim and advances.
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/skip')
       .set('Cookie', cookieFor(memberId))
       .type('form')
-      .send({});
+      .send({ no_old_account: '1' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/club_affiliations');
     // legacy_claim is a required decision: the "nothing to claim" control
@@ -252,6 +266,30 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     expect(getTaskState(memberId, 'club_affiliations')).toBe('pending');
   });
 
+  it('continue-without-linking requires the never-had-an-account attestation', async () => {
+    const stamp = Date.now();
+    const memberId = insertClaimReadyMember({ slug: `wiz_attest_${stamp}`, login_email: `wiz-attest-${stamp}@example.com` });
+    const cookie = cookieFor(memberId);
+    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookie);
+
+    // Without the attestation the decision is refused: the legacy-claim page
+    // re-renders at 422 with the confirmation message and the task is untouched.
+    const missing = await request(createApp())
+      .post('/register/wizard/legacy_claim/skip')
+      .set('Cookie', cookie).type('form').send({});
+    expect(missing.status).toBe(422);
+    expect(missing.text).toContain('confirm you never had an account');
+    expect(getTaskState(memberId, 'legacy_claim')).not.toBe('completed');
+
+    // With the attestation the required decision completes and the wizard advances.
+    const attested = await request(createApp())
+      .post('/register/wizard/legacy_claim/skip')
+      .set('Cookie', cookie).type('form').send({ no_old_account: '1' });
+    expect(attested.status).toBe(303);
+    expect(attested.headers.location).toBe('/register/wizard/club_affiliations');
+    expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
+  });
+
   it('completing the required tasks and skipping the optional club task lands on /register/wizard/complete', async () => {
     const stamp = Date.now();
     const memberId = insertMember(testDb, { slug: `wiz_skip_all_${stamp}`, login_email: `wiz-skip-all-${stamp}@example.com` });
@@ -264,8 +302,9 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
       .send({ city: 'Eugene', region: 'Oregon', country: 'USA', birthDate: '1990-05-05', gender: 'undisclosed' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/legacy_claim');
-    // legacy_claim is required: the "nothing to claim" control completes it.
-    res = await request(createApp()).post('/register/wizard/legacy_claim/skip').set('Cookie', cookie).type('form').send({});
+    // legacy_claim is required: the "nothing to claim" control, with the never-
+    // had-an-account attestation, completes it.
+    res = await request(createApp()).post('/register/wizard/legacy_claim/skip').set('Cookie', cookie).type('form').send({ no_old_account: '1' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/club_affiliations');
     // club_affiliations is optional and may be skipped.
@@ -328,7 +367,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
     const stamp = Date.now();
     const sharedEmail = `wiz-fast-${stamp}@example.com`;
     insertLegacyMember(testDb, { legacy_member_id: `LM-WIZ-FAST-${stamp}`, real_name: 'Wiz Fast', legacy_email: sharedEmail });
-    const memberId = insertMember(testDb, { slug: `wiz_fast_${stamp}`, login_email: sharedEmail, birth_date: '1980-01-01' });
+    const memberId = insertClaimReadyMember({ slug: `wiz_fast_${stamp}`, login_email: sharedEmail, birth_date: '1980-01-01' });
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/find')
@@ -344,7 +383,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
     const stamp = Date.now();
     const targetEmail = `wiz-enq-${stamp}@oldsite.example`;
     insertLegacyMember(testDb, { legacy_member_id: `LM-WIZ-ENQ-${stamp}`, real_name: 'Wiz Enq', legacy_email: targetEmail });
-    const memberId = insertMember(testDb, { slug: `wiz_enq_${stamp}`, login_email: `wiz-enq-req-${stamp}@example.com`, birth_date: '1980-01-01' });
+    const memberId = insertClaimReadyMember({ slug: `wiz_enq_${stamp}`, login_email: `wiz-enq-req-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
     const res = await agent
       .post('/register/wizard/legacy_claim/find')
@@ -375,7 +414,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
 
   it('no-match identifier -> 303 same step; follow-up GET surfaces the anti-enum banner', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, { slug: `wiz_nx_${stamp}`, login_email: `wiz-nx-${stamp}@example.com`, birth_date: '1980-01-01' });
+    const memberId = insertClaimReadyMember({ slug: `wiz_nx_${stamp}`, login_email: `wiz-nx-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
     const res = await agent
       .post('/register/wizard/legacy_claim/find')
@@ -395,7 +434,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
     const stamp = Date.now();
     const hpId = `hp-wiz-${stamp}`;
     insertHistoricalPerson(testDb, { person_id: hpId, person_name: 'Wiz HP Target' });
-    const memberId = insertMember(testDb, { slug: `wiz_hp_${stamp}`, login_email: `wiz-hp-${stamp}@example.com`, birth_date: '1980-01-01' });
+    const memberId = insertClaimReadyMember({ slug: `wiz_hp_${stamp}`, login_email: `wiz-hp-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
     const res = await agent
       .post('/register/wizard/legacy_claim/find')
@@ -440,7 +479,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
         real_name: 'Wiz EnqFail Target',
         legacy_email: targetEmail,
       });
-      const memberId = insertMember(testDb, {
+      const memberId = insertClaimReadyMember({
         slug: `wiz_enqfail_${stamp}`,
         login_email: `wiz-enqfail-req-${stamp}@example.com`,
         birth_date: '1980-01-01',
@@ -508,7 +547,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
 
   it('per-member rate-limit exhaustion returns 429 with Retry-After', async () => {
     const stamp = Date.now() + 100;
-    const memberId = insertMember(testDb, { slug: `wiz_rl_${stamp}`, login_email: `wiz-rl-${stamp}@example.com`, birth_date: '1980-01-01' });
+    const memberId = insertClaimReadyMember({ slug: `wiz_rl_${stamp}`, login_email: `wiz-rl-${stamp}@example.com`, birth_date: '1980-01-01' });
     const cookie = cookieFor(memberId);
     const app = createApp();
     for (let i = 0; i < 5; i++) {
@@ -549,7 +588,7 @@ describe('POST /register/wizard/legacy_claim/claim/confirm — token confirmatio
     const legacyId = `LM-WIZ-TOK-${stamp}`;
     const legacyEmail = `wiz-tok-${stamp}@oldsite.example`;
     insertLegacyMember(testDb, { legacy_member_id: legacyId, real_name: 'Wiz Tok', legacy_email: legacyEmail, country: 'JP', is_hof: 1 });
-    const memberId = insertMember(testDb, { slug: `wiz_tok_${stamp}`, login_email: `wiz-tok-req-${stamp}@example.com`, birth_date: '1980-01-01' });
+    const memberId = insertClaimReadyMember({ slug: `wiz_tok_${stamp}`, login_email: `wiz-tok-req-${stamp}@example.com`, birth_date: '1980-01-01' });
     const token = await issueTokenFor(memberId, legacyEmail);
     const res = await request(createApp())
       .get(`/register/wizard/legacy_claim/claim/confirm/${token}`)
@@ -574,7 +613,7 @@ describe('POST /register/wizard/legacy_claim/claim/confirm — token confirmatio
     const legacyId = `LM-WIZ-CONS-${stamp}`;
     const legacyEmail = `wiz-cons-${stamp}@oldsite.example`;
     insertLegacyMember(testDb, { legacy_member_id: legacyId, real_name: 'Wiz Cons', legacy_email: legacyEmail });
-    const memberId = insertMember(testDb, { slug: `wiz_cons_${stamp}`, login_email: `wiz-cons-req-${stamp}@example.com`, birth_date: '1980-01-01' });
+    const memberId = insertClaimReadyMember({ slug: `wiz_cons_${stamp}`, login_email: `wiz-cons-req-${stamp}@example.com`, birth_date: '1980-01-01' });
     const token = await issueTokenFor(memberId, legacyEmail);
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/claim/confirm')
@@ -607,7 +646,7 @@ describe('last outstanding task -> 303 to /register/wizard/complete', () => {
       .post('/register/wizard/personal_details/submit')
       .set('Cookie', cookie).type('form')
       .send({ city: 'Eugene', region: 'Oregon', country: 'USA', birthDate: '1990-05-05', gender: 'undisclosed' });
-    await request(createApp()).post('/register/wizard/legacy_claim/skip').set('Cookie', cookie).type('form').send({});
+    await request(createApp()).post('/register/wizard/legacy_claim/skip').set('Cookie', cookie).type('form').send({ no_old_account: '1' });
     await request(createApp()).post('/register/wizard/club_affiliations/skip').set('Cookie', cookie).type('form').send({});
     const followUp = await request(createApp()).get('/register/wizard/complete').set('Cookie', cookie);
     expect(followUp.status).toBe(200);
@@ -617,13 +656,13 @@ describe('last outstanding task -> 303 to /register/wizard/complete', () => {
 
 describe('per-member scoping: handlers read memberId from session, never URL/body', () => {
   it('member A POST cannot affect member B onboarding rows', async () => {
-    const memberAId = insertMember(testDb, { slug: `wiz_a_${Date.now()}`, login_email: `wiz-a-${Date.now()}@example.com`, birth_date: '1980-01-01' });
+    const memberAId = insertClaimReadyMember({ slug: `wiz_a_${Date.now()}`, login_email: `wiz-a-${Date.now()}@example.com`, birth_date: '1980-01-01' });
     const memberBId = insertMember(testDb, { slug: `wiz_b_${Date.now()}`, login_email: `wiz-b-${Date.now()}@example.com` });
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberAId));
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberBId));
     const beforeB = getTaskState(memberBId, 'legacy_claim');
     await request(createApp())
-      .post('/register/wizard/legacy_claim/skip').set('Cookie', cookieFor(memberAId)).type('form').send({});
+      .post('/register/wizard/legacy_claim/skip').set('Cookie', cookieFor(memberAId)).type('form').send({ no_old_account: '1' });
     // The legacy_claim decision completes member A's task; member B is untouched.
     expect(getTaskState(memberAId, 'legacy_claim')).toBe('completed');
     expect(getTaskState(memberBId, 'legacy_claim')).toBe(beforeB);
@@ -632,7 +671,7 @@ describe('per-member scoping: handlers read memberId from session, never URL/bod
 
 describe('flash cookie behavior (adversarial)', () => {
   it('tampered flash signature yields no banner', async () => {
-    const memberId = insertMember(testDb, { slug: `wiz_ft_${Date.now()}`, login_email: `wiz-ft-${Date.now()}@example.com` });
+    const memberId = insertClaimReadyMember({ slug: `wiz_ft_${Date.now()}`, login_email: `wiz-ft-${Date.now()}@example.com` });
     const res = await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', `${cookieFor(memberId)}; footbag_flash=wizard_legacy_claim_result:{"hpPersonId":"hp-tampered"}`)
@@ -643,7 +682,7 @@ describe('flash cookie behavior (adversarial)', () => {
 
   it('flash with hpPersonId pointing at a non-existent HP shows banner but no extra card', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, { slug: `wiz_fg_${stamp}`, login_email: `wiz-fg-${stamp}@example.com`, birth_date: '1980-01-01' });
+    const memberId = insertClaimReadyMember({ slug: `wiz_fg_${stamp}`, login_email: `wiz-fg-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
     const post = await agent
       .post('/register/wizard/legacy_claim/find')
@@ -661,7 +700,7 @@ describe('flash cookie behavior (adversarial)', () => {
 
   it('flash is not consumed by unrelated task GET; persists for next legacy_claim GET', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, { slug: `wiz_fb_${stamp}`, login_email: `wiz-fb-${stamp}@example.com`, birth_date: '1980-01-01' });
+    const memberId = insertClaimReadyMember({ slug: `wiz_fb_${stamp}`, login_email: `wiz-fb-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
     const post = await agent
       .post('/register/wizard/legacy_claim/find')
@@ -670,7 +709,7 @@ describe('flash cookie behavior (adversarial)', () => {
       .send({ identifier: `garbage-${stamp}` });
     expect(post.status).toBe(303);
     // Detour to a different task GET; the flash must NOT be consumed there.
-    const detour = await agent.get('/register/wizard/personal_details').set('Cookie', cookieFor(memberId));
+    const detour = await agent.get('/register/wizard/club_affiliations').set('Cookie', cookieFor(memberId));
     expect(detour.status).toBe(200);
     // The legacy_claim GET still has access to the flash.
     const target = await agent.get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
@@ -679,7 +718,7 @@ describe('flash cookie behavior (adversarial)', () => {
 
   it('flash is consumed (one-shot): second GET shows no banner', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, { slug: `wiz_oneshot_${stamp}`, login_email: `wiz-os-${stamp}@example.com`, birth_date: '1980-01-01' });
+    const memberId = insertClaimReadyMember({ slug: `wiz_oneshot_${stamp}`, login_email: `wiz-os-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
     const post = await agent
       .post('/register/wizard/legacy_claim/find')
@@ -695,7 +734,7 @@ describe('flash cookie behavior (adversarial)', () => {
 });
 
 describe('post-verify redirect lands on the wizard', () => {
-  it('routes to /register/wizard/legacy_claim regardless of classifier confidence', async () => {
+  it('routes into the wizard on the first outstanding task regardless of classifier confidence', async () => {
     expect(true).toBe(true);
   });
 

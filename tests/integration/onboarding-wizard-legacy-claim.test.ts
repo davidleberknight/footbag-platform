@@ -15,6 +15,7 @@ import {
   insertMember,
   insertLegacyMember,
   insertHistoricalPerson,
+  insertOnboardingTask,
   createTestSessionJwt,
   insertMemberTierGrant,
 } from '../fixtures/factories';
@@ -36,6 +37,14 @@ afterAll(() => {
 
 function cookieFor(memberId: string): string {
   return `footbag_session=${createTestSessionJwt({ memberId })}`;
+}
+
+// Inserts a member with personal_details already completed, so the legacy-claim
+// step (which runs only after personal details are on file) is reachable.
+function insertMemberReady(dbh: BetterSqlite3.Database, o: Parameters<typeof insertMember>[1] = {}): string {
+  const id = insertMember(dbh, o);
+  insertOnboardingTask(dbh, id, 'personal_details', 'completed');
+  return id;
 }
 
 function getMember(memberId: string) {
@@ -79,7 +88,7 @@ describe('captcha gate on legacy_claim/find', () => {
       legacy_email: email,
       real_name: 'Captcha Probe',
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `cap_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -116,7 +125,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       bio: 'legacy bio',
       country: 'CA',
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `fast_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -155,7 +164,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       legacy_email2: secondary,
       real_name: 'Fast Two',
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `fast2_${stamp}`,
       birth_date: '1980-01-01',
       login_email: secondary,
@@ -186,7 +195,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       legacy_email3: tertiary,
       real_name: 'Fast Three',
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `fast3_${stamp}`,
       birth_date: '1980-01-01',
       login_email: tertiary,
@@ -216,7 +225,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       real_name: 'Bio Merge',
       bio: 'legacy bio content',
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `merge_bio_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -243,7 +252,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       legacy_email: email,
       real_name: 'Legacy Name',
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `merge_name_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -270,7 +279,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       real_name: 'Country Merge',
       country: 'FR',
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `merge_country_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -298,7 +307,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       real_name: 'Hof Merge',
       is_hof: 1,
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `merge_hof_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -326,7 +335,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       real_name: 'Bap Merge',
       is_bap: 1,
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `merge_bap_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -353,7 +362,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       legacy_email: email,
       real_name: 'Tier Grant',
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `tier_grant_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -385,7 +394,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       real_name: 'Tier Hof',
       is_hof: 1,
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `tier_hof_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -427,7 +436,7 @@ describe('transitive HP claim through legacy back-link (Case E)', () => {
       country: 'DE',
       first_year: 2001,
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `trans_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -463,7 +472,7 @@ describe('transitive HP claim through legacy back-link (Case E)', () => {
       first_year: 1999,
       hof_member: 1,
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `hp_merge_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -498,7 +507,7 @@ describe('claim idempotency', () => {
       legacy_email: email,
       real_name: 'Idemp Claim',
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `idemp_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -541,7 +550,7 @@ describe('back-linked legacy already claimed', () => {
     const email = `clash-${stamp}@example.com`;
     const legacyId = `LM-CLASH-${stamp}`;
 
-    const firstMemberId = insertMember(db, {
+    const firstMemberId = insertMemberReady(db, {
       slug: `clash_first_${stamp}`,
       login_email: `clash-first-${stamp}@example.com`,
     });
@@ -553,7 +562,7 @@ describe('back-linked legacy already claimed', () => {
       claimed_at: '2025-01-01T00:00:00.000Z',
     });
 
-    const secondMemberId = insertMember(db, {
+    const secondMemberId = insertMemberReady(db, {
       slug: `clash_second_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -585,7 +594,7 @@ describe('claim audit trail', () => {
       legacy_email: email,
       real_name: 'Audit Claim',
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `audit_${stamp}`,
       birth_date: '1980-01-01',
       login_email: email,
@@ -616,7 +625,7 @@ describe('declared-anchor matching in the wizard claim task', () => {
       real_name: `Anchor Email ${stamp}`,
       country: 'CA',
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `anchor_email_${stamp}`,
       login_email: `current-${stamp}@example.com`,
       real_name: `Different Now ${stamp}`,
@@ -650,7 +659,7 @@ describe('declared-anchor matching in the wizard claim task', () => {
       legacy_user_id: collide,
       real_name: `Ambiguous User ${stamp}`,
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `anchor_ambig_${stamp}`,
       login_email: `cur-ambig-${stamp}@example.com`,
       real_name: `Ambig Now ${stamp}`,
@@ -681,7 +690,7 @@ describe('declared-anchor matching in the wizard claim task', () => {
       legacy_user_id: username,
       real_name: `Dup Person ${stamp}`,
     });
-    const memberId = insertMember(db, {
+    const memberId = insertMemberReady(db, {
       slug: `anchor_dup_${stamp}`,
       login_email: `cur-dup-${stamp}@example.com`,
       real_name: `Dup Now ${stamp}`,

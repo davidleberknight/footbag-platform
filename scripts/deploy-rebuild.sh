@@ -172,21 +172,12 @@ sqlite3 "$LOCAL_DB" \
   exit 1
 }
 
-# REAL-MEMBER-DATA GUARD: deploy is preview-only for member data by design; the
-# real member import (import_source='legacy_site_data') is a maintainer-machine
-# cutover operation and must never ride a shipped database file to staging or
-# production. If a maintainer applied the real member load to this working DB
-# (run_dev.sh --all-data --apply-members), refuse to ship it; rebuild the DB
-# (or run without SKIP_DB_REBUILD) so the deploy carries only the mirror
-# pre-seed. No flag or env var bypasses this check.
-real_member_rows=$(sqlite3 "$LOCAL_DB" \
-  "SELECT COUNT(*) FROM legacy_members WHERE import_source='legacy_site_data';")
-if [[ "$real_member_rows" != "0" ]]; then
-  echo "ERROR: refusing to ship $LOCAL_DB: it contains $real_member_rows real imported" >&2
-  echo "  member row(s) (legacy_members.import_source='legacy_site_data'). Production" >&2
-  echo "  deployment never applies member data; rebuild the local DB before deploying." >&2
-  exit 1
-fi
+# The shipped database carries whatever the build produced, member intake
+# included: --all-data applies the real member rows as part of the full migration
+# load. A destructive production database replace runs only under the wrapper's
+# typed confirmation (deploy_to_aws.sh), which is the deliberate control over any
+# member-carrying production load; there is no separate member-row ship refusal
+# here.
 
 # Curator seed: build the curated media set fresh from /curated/**/*.meta.json
 # sidecars into an ephemeral, curated-only build dir, and refresh media_items
@@ -359,21 +350,31 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
 
-# Smoke runs against the public CloudFront URL by default. Mirrors deploy-code.sh.
-case "$FOOTBAG_ENV" in
-  staging)    SMOKE_DEFAULT_URL="https://doye1nvv64qep.cloudfront.net" ;;
-  production) SMOKE_DEFAULT_URL="" ;;  # set when production CloudFront lands
-  *)          SMOKE_DEFAULT_URL="" ;;
-esac
-SMOKE_BASE_URL="${SMOKE_BASE_URL:-$SMOKE_DEFAULT_URL}"
+# Smoke runs against the public CloudFront URL. No environment URL is
+# committed to the repo (the staging address is deliberately unpublished):
+# the URLs live in the operator's gitignored .env as PUBLIC_BASE_URL_STAGING
+# / PUBLIC_BASE_URL_PRODUCTION (documented in .env.example). SMOKE_BASE_URL
+# remains the per-run override. Mirrors deploy-code.sh.
+if [[ -z "${SMOKE_BASE_URL:-}" && -f "$REPO_ROOT/.env" ]]; then
+  case "$FOOTBAG_ENV" in
+    staging)    smoke_url_key="PUBLIC_BASE_URL_STAGING" ;;
+    production) smoke_url_key="PUBLIC_BASE_URL_PRODUCTION" ;;
+    *)          smoke_url_key="" ;;
+  esac
+  if [[ -n "$smoke_url_key" ]]; then
+    SMOKE_BASE_URL=$(awk -F= -v k="$smoke_url_key" '$1==k {sub(/^[^=]*=/,""); print}' "$REPO_ROOT/.env" | tail -1)
+  fi
+fi
+SMOKE_BASE_URL="${SMOKE_BASE_URL:-}"
 
 if [[ "${SKIP_SMOKE:-no}" == "yes" ]]; then
   echo "==> Skipping post-deploy smoke check (SKIP_SMOKE=yes)"
 elif [[ -z "$SMOKE_BASE_URL" ]]; then
-  # A production deploy must never complete with smoke silently skipped; the
-  # explicit SKIP_SMOKE=yes override remains. Mirrors deploy-code.sh.
-  if [[ "$FOOTBAG_ENV" == "production" ]]; then
-    echo "ERROR: no SMOKE_BASE_URL configured for production. Set SMOKE_BASE_URL to the production CloudFront URL (or SKIP_SMOKE=yes to skip deliberately)." >&2
+  # A staging or production deploy must never complete with smoke silently
+  # skipped; the explicit SKIP_SMOKE=yes override remains. Mirrors
+  # deploy-code.sh.
+  if [[ "$FOOTBAG_ENV" == "production" || "$FOOTBAG_ENV" == "staging" ]]; then
+    echo "ERROR: no public base URL for $FOOTBAG_ENV. Add PUBLIC_BASE_URL_STAGING= / PUBLIC_BASE_URL_PRODUCTION= to the gitignored .env (see .env.example), or export SMOKE_BASE_URL, or SKIP_SMOKE=yes to skip deliberately." >&2
     exit 1
   fi
   echo "==> Skipping post-deploy smoke check (no SMOKE_BASE_URL configured for FOOTBAG_ENV=$FOOTBAG_ENV)"

@@ -20,6 +20,7 @@ export const FLASH_KIND = {
   MEDIA_SAVED: 'media_saved',
   CONTACT_SUBMITTED: 'contact_submitted',
   WORK_QUEUE_RESOLVED: 'work_queue_resolved',
+  WORK_QUEUE_REVIEWED: 'work_queue_reviewed',
   CLUB_ACTION: 'club_action',
   PROFILE_UPDATED: 'profile_updated',
   // Stub-only: carries the just-registered recipient email across the

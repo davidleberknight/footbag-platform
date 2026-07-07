@@ -8,19 +8,15 @@
   <section>
     <div class="card card-static">
       <div class="card-title">Your Details</div>
-      <p>Tell us where you live now, and when you were born. This step is required to finish setting up your member account; the fields marked "(required)" must be filled in to save.</p>
+      <p>Tell us where you live now and when you were born. These fields come first because we use them to find your old footbag.org records in the next step. The fields marked (required) must be filled in to save.</p>
 
       {{#if content.error}}
         <p class="form-notice" role="alert">{{content.error}}</p>
       {{/if}}
 
       <form method="POST" action="/register/wizard/personal_details/submit" class="form-block">
-        <div class="mb-4">
-          <button type="submit" class="btn btn-primary">{{content.submitLabel}}</button>
-        </div>
-
         <div class="form-field">
-          <label for="city">City <span class="text-muted">(required)</span></label>
+          <label for="city">City <span class="fw-600">(required)</span></label>
           <input type="text" id="city" name="city" maxlength="64" value="{{content.city}}" required />
         </div>
 
@@ -31,12 +27,12 @@
         </div>
 
         <div class="form-field">
-          <label for="country">Country <span class="text-muted">(required)</span></label>
+          <label for="country">Country <span class="fw-600">(required)</span></label>
           <input type="text" id="country" name="country" maxlength="64" value="{{content.country}}" required />
         </div>
 
         <div class="form-field">
-          <label for="birthDate">Date of birth <span class="text-muted">(required)</span></label>
+          <label for="birthDate">Date of birth <span class="fw-600">(required)</span></label>
           <input type="date" id="birthDate" name="birthDate" value="{{content.birthDate}}" required />
           <small class="form-hint">Your date of birth helps us match your old footbag.org account and competition records. It is private: only you and administrators can see it.</small>
         </div>
