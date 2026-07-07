@@ -2572,6 +2572,33 @@ export const freestyleTrickModifiers = {
   `); },
 };
 
+// Trick-to-modifier composition links. The admin curation edit page attaches or
+// detaches these; the read side (listLinksByTrickSlug) lives on the modifier
+// registry group above. The primary key is the full triple, so the same modifier
+// may recur at another apply order and the collision check is on all three parts.
+export const freestyleTrickModifierLinks = {
+  // One link by its full triple, for the existence check before an attach or a
+  // detach and to confirm the target belongs to the trick.
+  get getLink() { return db.prepare(`
+    SELECT trick_slug, modifier_slug, apply_order
+    FROM freestyle_trick_modifier_links
+    WHERE trick_slug = ? AND modifier_slug = ? AND apply_order = ?
+  `); },
+
+  // Admin curation: attach one registry modifier to a trick at an apply order.
+  get insert() { return db.prepare(`
+    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
+    VALUES (?, ?, ?)
+  `); },
+
+  // Admin curation: detach one modifier link, scoped to the full triple so an edit
+  // page can never remove a different link by trick and modifier alone.
+  get deleteForTrick() { return db.prepare(`
+    DELETE FROM freestyle_trick_modifier_links
+    WHERE trick_slug = ? AND modifier_slug = ? AND apply_order = ?
+  `); },
+};
+
 // ---------------------------------------------------------------------------
 // freestylePartnerships
 //

@@ -106,11 +106,36 @@
     {{else}}<p class="text-muted">All registry sources are linked.</p>{{/if}}
 
     <h2 class="section-heading">Modifier links</h2>
+    {{#if content.hasModifierError}}
+    <div class="form-error-banner">
+      <p>{{content.modifierError}}</p>
+    </div>
+    {{/if}}
     {{#if content.hasModifierLinks}}
     <ul class="freestyle-edit-list">
-      {{#each content.modifierLinks}}<li>{{this.name}} <code>{{this.slug}}</code> <span class="badge">{{this.type}}</span> (+{{this.addBonus}}, order {{this.applyOrder}})</li>{{/each}}
+      {{#each content.modifierLinks}}
+      <li>
+        {{this.name}} <code>{{this.slug}}</code> <span class="badge">{{this.type}}</span> (+{{this.addBonus}}, order {{this.applyOrder}})
+        <form method="POST" action="{{this.detachHref}}" class="inline-form">
+          <button type="submit" class="btn btn-outline btn-sm">Detach</button>
+        </form>
+      </li>
+      {{/each}}
     </ul>
     {{else}}<p class="text-muted">No modifier links.</p>{{/if}}
+
+    <form method="POST" action="{{content.attachModifierHref}}" class="freestyle-edit-form">
+      <fieldset>
+        <p><label>Attach modifier</label><br>
+          <select name="modifierSlug">
+            <option value="">Choose a modifier</option>
+            {{#each content.modifierOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+          </select>
+        </p>
+        <p><label>Apply order</label><br><input type="text" name="applyOrder" value="{{content.modifierFormApplyOrder}}" placeholder="1" /></p>
+      </fieldset>
+      <p><button type="submit" class="btn btn-primary btn-sm">Attach Modifier</button></p>
+    </form>
 
     <p><a href="{{content.backHref}}" class="btn btn-outline btn-sm">Back to freestyle content</a></p>
   </section>

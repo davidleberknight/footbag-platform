@@ -8,14 +8,14 @@
  *   - The admin edit surface for one trick: rendering its editable scalar fields
  *     and its attached aliases, sources, and modifier links, saving edits to the
  *     nine scalar fields of the trick row, adding or removing the trick's aliases,
- *     and attaching or detaching links to the existing registry sources.
+ *     attaching or detaching links to the existing registry sources, and attaching
+ *     or detaching links to the existing registry modifiers.
  *
  * Does not own:
  *   - The public freestyle section pages (FreestyleService is public, read-only).
  *   - Freestyle ontology and doctrine (the content modules and doctrine docs).
- *   - The source registry itself (new provenance-source rows are not created here).
- *   - Editing the attached modifier links; those stay read-only on this surface
- *     for now.
+ *   - The source and modifier registries themselves (new provenance-source or
+ *     modifier rows are not created here).
  *
  * Write discipline: updateTrickScalars validates the submitted fields for row
  * shape (canonical name required, ADD numeric/empty/"modifier", category and
@@ -30,15 +30,20 @@
  * unset. removeAlias is scoped to the alias's own trick. attachSource links one
  * existing registry source with an optional external URL and asserted ADD (the
  * other link columns stay unset), rejecting an unknown source id or a duplicate
- * link; detachSource is keyed on both the trick and the source. Each write and
- * its one audit entry commit together in a single transaction; the trick slug
- * identity key is not editable.
+ * link; detachSource is keyed on both the trick and the source. attachModifier
+ * links one existing registry modifier at an apply order that defaults to 1 when
+ * blank, rejecting an unknown modifier or the exact (trick, modifier, apply order)
+ * triple already linked, while allowing the same modifier at a different order;
+ * detachModifier is keyed on the full triple. Each write and its one audit entry
+ * commit together in a single transaction; the trick slug identity key is not
+ * editable.
  *
- * Persistence: reads and writes freestyle_tricks, freestyle_trick_aliases, and
- * freestyle_trick_source_links; reads freestyle_trick_sources and
- * freestyle_trick_modifier_links (join freestyle_trick_modifiers). Appends
- * freestyle.trick.updated, freestyle.trick_alias.created/deleted, and
- * freestyle.trick_source_link.created/deleted to audit_entries.
+ * Persistence: reads and writes freestyle_tricks, freestyle_trick_aliases,
+ * freestyle_trick_source_links, and freestyle_trick_modifier_links; reads
+ * freestyle_trick_sources and freestyle_trick_modifiers. Appends
+ * freestyle.trick.updated, freestyle.trick_alias.created/deleted,
+ * freestyle.trick_source_link.created/deleted, and
+ * freestyle.trick_modifier_link.created/deleted to audit_entries.
  */
 import {
   freestyleTricks,
@@ -46,6 +51,7 @@ import {
   freestyleTrickSources,
   freestyleTrickSourceLinks,
   freestyleTrickModifiers,
+  freestyleTrickModifierLinks,
   transaction,
 } from '../db/db';
 import { appendAuditEntry } from './auditService';
@@ -123,6 +129,7 @@ export interface FreestyleTrickEditModifierLink {
   type: string;
   addBonus: number;
   applyOrder: number;
+  detachHref: string;
 }
 
 export interface FreestyleTrickEditFields {
@@ -167,6 +174,11 @@ export interface FreestyleTrickEditContent {
   sourceFormAssertedAdds: string;
   sourceError: string;
   hasSourceError: boolean;
+  attachModifierHref: string;
+  modifierOptions: FilterOption[];
+  modifierFormApplyOrder: string;
+  modifierError: string;
+  hasModifierError: boolean;
 }
 
 /** The alias fields the add-alias form submits. */
@@ -180,6 +192,12 @@ export interface FreestyleSourceLinkInput {
   sourceId?: string;
   externalUrl?: string;
   assertedAdds?: string;
+}
+
+/** The modifier-link fields the attach-modifier form submits. */
+export interface FreestyleModifierLinkInput {
+  modifierSlug?: string;
+  applyOrder?: string;
 }
 
 /** The nine editable scalar fields submitted by the edit form. */
@@ -204,6 +222,8 @@ export interface EditPageOptions {
   aliasSubmitted?: FreestyleAliasInput;
   sourceError?: string;
   sourceSubmitted?: FreestyleSourceLinkInput;
+  modifierError?: string;
+  modifierSubmitted?: FreestyleModifierLinkInput;
 }
 
 interface CurationEditDbRow {
@@ -242,6 +262,8 @@ interface ModifierLinkDbRow {
   add_bonus: number;
   apply_order: number;
 }
+interface ModifierRegistryRow { slug: string; modifier_name: string; modifier_type: string; }
+interface ModifierLinkKeyDbRow { trick_slug: string; modifier_slug: string; apply_order: number; }
 
 // The category set is broad and has no schema CHECK, so the allowed values are
 // read from the data rather than hardcoded (the data carries values beyond the
@@ -377,8 +399,27 @@ export const freestyleCurationService = {
       .filter((r) => !linkedSourceIds.has(r.id))
       .map((r) => ({ value: r.id, label: r.source_label, selected: r.id === sourceSelectedId }));
     const sourceError = opts.sourceError ?? '';
+
+    // The attach-modifier select offers every registry modifier: the same modifier
+    // can legitimately recur on a trick at a different apply order, so it is not
+    // filtered by what is already linked.
+    const modifierSelectedSlug = opts.modifierSubmitted?.modifierSlug ?? '';
+    const modifierOptions: FilterOption[] = (freestyleTrickModifiers.listAll.all() as ModifierRegistryRow[])
+      .map((m) => ({
+        value: m.slug,
+        label: `${m.modifier_name} (${m.modifier_type})`,
+        selected: m.slug === modifierSelectedSlug,
+      }));
+    const modifierError = opts.modifierError ?? '';
     const modifierLinks: FreestyleTrickEditModifierLink[] = (freestyleTrickModifiers.listLinksByTrickSlug.all(slug) as ModifierLinkDbRow[])
-      .map((m) => ({ slug: m.modifier_slug, name: m.modifier_name, type: m.modifier_type, addBonus: m.add_bonus, applyOrder: m.apply_order }));
+      .map((m) => ({
+        slug: m.modifier_slug,
+        name: m.modifier_name,
+        type: m.modifier_type,
+        addBonus: m.add_bonus,
+        applyOrder: m.apply_order,
+        detachHref: `/admin/freestyle/tricks/${slug}/modifiers/${encodeURIComponent(m.modifier_slug)}/${m.apply_order}/delete`,
+      }));
 
     // On a validation re-render, show what the admin submitted; otherwise the DB.
     const sub = opts.submitted;
@@ -441,6 +482,11 @@ export const freestyleCurationService = {
         sourceFormAssertedAdds: opts.sourceSubmitted?.assertedAdds ?? '',
         sourceError,
         hasSourceError:   sourceError !== '',
+        attachModifierHref: `/admin/freestyle/tricks/${row.slug}/modifiers`,
+        modifierOptions,
+        modifierFormApplyOrder: opts.modifierSubmitted?.applyOrder ?? '',
+        modifierError,
+        hasModifierError: modifierError !== '',
       },
     };
   },
@@ -686,6 +732,76 @@ export const freestyleCurationService = {
           externalUrl:  link.external_url,
           assertedAdds: link.asserted_adds,
         },
+      });
+    });
+  },
+
+  // Attach one registry modifier to a trick at an apply order. The apply order
+  // defaults to 1 when blank (the schema default), and the resolved integer is
+  // what is stored and audited. Rejected (ValidationError, re-rendered inline)
+  // when no modifier is chosen, the slug is not a registry modifier, the apply
+  // order is not a whole number of 1 or more, or the exact triple (trick,
+  // modifier, apply order) is already linked. The same modifier at a different
+  // apply order is allowed. The insert and its audit entry commit in one
+  // transaction. The modifier registry itself is not edited here.
+  attachModifier(trickSlug: string, input: FreestyleModifierLinkInput, actorMemberId: string): void {
+    const trick = freestyleTricks.getForCurationBySlug.get(trickSlug) as CurationEditDbRow | undefined;
+    if (!trick) throw new NotFoundError(`No freestyle trick "${trickSlug}"`);
+
+    const modifierSlug = (input.modifierSlug ?? '').trim();
+    const modifier = freestyleTrickModifiers.getBySlug.get(modifierSlug) as ModifierRegistryRow | undefined;
+    if (!modifier) {
+      throw new ValidationError('Choose a modifier from the list.');
+    }
+
+    const orderRaw = (input.applyOrder ?? '').trim();
+    let applyOrder: number;
+    if (orderRaw === '') {
+      applyOrder = 1;
+    } else if (/^\d+$/.test(orderRaw) && parseInt(orderRaw, 10) >= 1) {
+      applyOrder = parseInt(orderRaw, 10);
+    } else {
+      throw new ValidationError('Apply order must be a whole number of 1 or more.');
+    }
+
+    if (freestyleTrickModifierLinks.getLink.get(trickSlug, modifierSlug, applyOrder)) {
+      throw new ValidationError(`"${modifier.modifier_name}" is already linked at apply order ${applyOrder}.`);
+    }
+
+    transaction(() => {
+      freestyleTrickModifierLinks.insert.run(trickSlug, modifierSlug, applyOrder);
+      appendAuditEntry({
+        actionType:    'freestyle.trick_modifier_link.created',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick_modifier_link',
+        entityId:      `${trickSlug}:${modifierSlug}:${applyOrder}`,
+        metadata:      { trickSlug, modifierSlug, applyOrder, modifierName: modifier.modifier_name },
+      });
+    });
+  },
+
+  // Detach one modifier link from a trick. Keyed on the full triple (trick,
+  // modifier, apply order), so an unknown or wrong-trick link is a NotFoundError
+  // (mapped to 404) and an edit page can never detach a different link. The delete
+  // and its audit entry commit in one transaction.
+  detachModifier(trickSlug: string, modifierSlug: string, applyOrder: number, actorMemberId: string): void {
+    const link = freestyleTrickModifierLinks.getLink.get(trickSlug, modifierSlug, applyOrder) as ModifierLinkKeyDbRow | undefined;
+    if (!link) {
+      throw new NotFoundError(`No modifier link "${modifierSlug}" at apply order ${applyOrder} on trick "${trickSlug}"`);
+    }
+
+    transaction(() => {
+      freestyleTrickModifierLinks.deleteForTrick.run(trickSlug, modifierSlug, applyOrder);
+      appendAuditEntry({
+        actionType:    'freestyle.trick_modifier_link.deleted',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick_modifier_link',
+        entityId:      `${trickSlug}:${modifierSlug}:${applyOrder}`,
+        metadata:      { trickSlug, modifierSlug, applyOrder },
       });
     });
   },

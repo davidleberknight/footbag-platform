@@ -169,6 +169,24 @@ beforeAll(async () => {
   insertFreestyleTrickSourceLink(db, 'source_host', 'src_a', {});
   insertFreestyleTrickSourceLink(db, 'detach_host', 'src_b', {});
 
+  // Registry modifiers ('blurry' is already registered by the blurry_whirl seed)
+  // and the trick the modifier-link tests write against. mod_host starts with one
+  // seeded link (ducking at apply order 2) for the detach and same-modifier-other-
+  // order paths.
+  insertFreestyleTrickModifier(db, { slug: 'ducking', modifier_name: 'ducking', add_bonus: 1, modifier_type: 'body' });
+  insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_name: 'spinning', add_bonus: 1, modifier_type: 'body' });
+  insertFreestyleTrick(db, {
+    slug: 'mod_host',
+    canonical_name: 'Mod Host',
+    adds: '3',
+    trick_family: 'whirl',
+    base_trick: 'whirl',
+    category: 'compound',
+    review_status: 'curated',
+    is_active: 1,
+  });
+  insertFreestyleTrickModifierLink(db, 'mod_host', 'ducking', 2);
+
   createApp = await importApp();
 });
 
@@ -219,6 +237,12 @@ function sourceLink(trickSlug: string, sourceId: string) {
   return db.prepare(
     'SELECT trick_slug, source_id, external_url, asserted_adds FROM freestyle_trick_source_links WHERE trick_slug = ? AND source_id = ?',
   ).get(trickSlug, sourceId) as { external_url: string | null; asserted_adds: number | null } | undefined;
+}
+
+function modifierLink(trickSlug: string, modifierSlug: string, applyOrder: number) {
+  return db.prepare(
+    'SELECT trick_slug, modifier_slug, apply_order FROM freestyle_trick_modifier_links WHERE trick_slug = ? AND modifier_slug = ? AND apply_order = ?',
+  ).get(trickSlug, modifierSlug, applyOrder) as { apply_order: number } | undefined;
 }
 
 describe('GET /admin/freestyle/tricks/:slug/edit — admin gate', () => {
@@ -603,5 +627,132 @@ describe('POST /admin/freestyle/tricks/:slug/sources/:sourceId/delete — detach
     const anon = await post('/admin/freestyle/tricks/detach_host/sources/src_b/delete', undefined, {});
     expect(anon.status).toBe(302);
     expect(sourceLink('detach_host', 'src_b')).toBeDefined(); // still there
+  });
+});
+
+describe('POST /admin/freestyle/tricks/:slug/modifiers — attach', () => {
+  it('attaches a modifier at an explicit apply order, writes one audit row, and redirects', async () => {
+    const res = await post('/admin/freestyle/tricks/mod_host/modifiers', admin(),
+      { modifierSlug: 'spinning', applyOrder: '1' });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/freestyle/tricks/mod_host/edit');
+    expect(modifierLink('mod_host', 'spinning', 1)).toBeDefined();
+
+    const audits = auditByAction('mod_host:spinning:1', 'freestyle.trick_modifier_link.created');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('spinning');
+
+    const shown = await get('/admin/freestyle/tricks/mod_host/edit', admin());
+    expect(shown.text).toContain('spinning');
+  });
+
+  it('defaults a blank apply order to 1 and records the resolved value in the audit', async () => {
+    const res = await post('/admin/freestyle/tricks/mod_host/modifiers', admin(),
+      { modifierSlug: 'blurry', applyOrder: '' });
+    expect(res.status).toBe(303);
+    expect(modifierLink('mod_host', 'blurry', 1)).toBeDefined();
+
+    const audits = auditByAction('mod_host:blurry:1', 'freestyle.trick_modifier_link.created');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('"applyOrder":1'); // resolved, not blank
+  });
+
+  it('allows the same modifier at a different apply order', async () => {
+    // mod_host already has ducking at apply order 2 (seeded).
+    const res = await post('/admin/freestyle/tricks/mod_host/modifiers', admin(),
+      { modifierSlug: 'ducking', applyOrder: '3' });
+    expect(res.status).toBe(303);
+    expect(modifierLink('mod_host', 'ducking', 3)).toBeDefined();
+    expect(modifierLink('mod_host', 'ducking', 2)).toBeDefined(); // original untouched
+  });
+
+  it('rejects the exact (trick, modifier, apply order) triple already linked and writes nothing', async () => {
+    const res = await post('/admin/freestyle/tricks/mod_host/modifiers', admin(),
+      { modifierSlug: 'ducking', applyOrder: '2' }); // already linked
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('already linked at apply order 2');
+    expect(auditByAction('mod_host:ducking:2', 'freestyle.trick_modifier_link.created')).toHaveLength(0);
+  });
+
+  it('rejects a modifier slug that is not in the registry', async () => {
+    const res = await post('/admin/freestyle/tricks/mod_host/modifiers', admin(),
+      { modifierSlug: 'ghost_mod', applyOrder: '1' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Choose a modifier from the list.');
+  });
+
+  it('rejects an empty modifier selection', async () => {
+    const res = await post('/admin/freestyle/tricks/mod_host/modifiers', admin(),
+      { modifierSlug: '', applyOrder: '1' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Choose a modifier from the list.');
+  });
+
+  it('rejects a non-numeric or below-one apply order and preserves the submitted value', async () => {
+    const nonNumeric = await post('/admin/freestyle/tricks/mod_host/modifiers', admin(),
+      { modifierSlug: 'spinning', applyOrder: 'abc' });
+    expect(nonNumeric.status).toBe(422);
+    expect(nonNumeric.text).toContain('Apply order must be');
+    expect(nonNumeric.text).toContain('abc'); // submitted value survives the re-render
+
+    const zero = await post('/admin/freestyle/tricks/mod_host/modifiers', admin(),
+      { modifierSlug: 'spinning', applyOrder: '0' });
+    expect(zero.status).toBe(422);
+    expect(modifierLink('mod_host', 'spinning', 0)).toBeUndefined();
+  });
+
+  it('returns 404 attaching to an unknown trick', async () => {
+    const res = await post('/admin/freestyle/tricks/nope_missing/modifiers', admin(),
+      { modifierSlug: 'spinning', applyOrder: '1' });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 for a non-admin and 302 for an unauthenticated visitor, writing nothing', async () => {
+    const member = await post('/admin/freestyle/tricks/mod_host/modifiers', cookieFor(MEMBER_ID, 'member'),
+      { modifierSlug: 'spinning', applyOrder: '5' });
+    expect(member.status).toBe(403);
+    const anon = await post('/admin/freestyle/tricks/mod_host/modifiers', undefined,
+      { modifierSlug: 'spinning', applyOrder: '5' });
+    expect(anon.status).toBe(302);
+    expect(modifierLink('mod_host', 'spinning', 5)).toBeUndefined();
+  });
+});
+
+describe('POST /admin/freestyle/tricks/:slug/modifiers/:modifierSlug/:applyOrder/delete — detach', () => {
+  it('returns 404 detaching a link that belongs to a different trick, leaving it intact', async () => {
+    // (mod_host, ducking, 2) exists; detach_host has no such link.
+    const res = await post('/admin/freestyle/tricks/detach_host/modifiers/ducking/2/delete', admin(), {});
+    expect(res.status).toBe(404);
+    expect(modifierLink('mod_host', 'ducking', 2)).toBeDefined();
+  });
+
+  it('returns 403 for a non-admin and 302 for an unauthenticated visitor, deleting nothing', async () => {
+    const member = await post('/admin/freestyle/tricks/mod_host/modifiers/ducking/2/delete', cookieFor(MEMBER_ID, 'member'), {});
+    expect(member.status).toBe(403);
+    const anon = await post('/admin/freestyle/tricks/mod_host/modifiers/ducking/2/delete', undefined, {});
+    expect(anon.status).toBe(302);
+    expect(modifierLink('mod_host', 'ducking', 2)).toBeDefined(); // still there
+  });
+
+  it('returns 404 detaching an apply order the trick does not have', async () => {
+    const res = await post('/admin/freestyle/tricks/mod_host/modifiers/ducking/9/delete', admin(), {});
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when the apply-order segment is not a number', async () => {
+    const res = await post('/admin/freestyle/tricks/mod_host/modifiers/ducking/abc/delete', admin(), {});
+    expect(res.status).toBe(404);
+  });
+
+  it('detaches a modifier link scoped to the full triple, writes one audit row, and redirects', async () => {
+    const res = await post('/admin/freestyle/tricks/mod_host/modifiers/ducking/2/delete', admin(), {});
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/freestyle/tricks/mod_host/edit');
+    expect(modifierLink('mod_host', 'ducking', 2)).toBeUndefined();
+    expect(modifierLink('mod_host', 'ducking', 3)).toBeDefined(); // the other-order link stays
+
+    const audits = auditByAction('mod_host:ducking:2', 'freestyle.trick_modifier_link.deleted');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('ducking');
   });
 });

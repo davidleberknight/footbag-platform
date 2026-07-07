@@ -4,6 +4,7 @@ import {
   FreestyleTrickScalarInput,
   FreestyleAliasInput,
   FreestyleSourceLinkInput,
+  FreestyleModifierLinkInput,
 } from '../services/freestyleCurationService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 
@@ -174,6 +175,63 @@ export const adminFreestyleController = {
     const sourceId = String(req.params.sourceId);
     try {
       freestyleCurationService.detachSource(slug, sourceId, req.user!.userId);
+      res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Attach one registry modifier to a trick. Success redirects back to the edit
+  // page; a validation failure re-renders the form (422) with the submitted values
+  // and an inline error; an unknown trick slug is a 404.
+  attachModifier(req: Request, res: Response, next: NextFunction): void {
+    const slug = String(req.params.slug);
+    const input: FreestyleModifierLinkInput = {
+      modifierSlug: str(req.body.modifierSlug),
+      applyOrder:   str(req.body.applyOrder),
+    };
+
+    try {
+      freestyleCurationService.attachModifier(slug, input, req.user!.userId);
+      res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        const vm = freestyleCurationService.getTrickEditPage(slug, {
+          modifierError: err.message,
+          modifierSubmitted: input,
+        });
+        if (!vm) {
+          renderNotFound(res);
+          return;
+        }
+        res.status(422).render('admin/freestyle-trick-edit', vm);
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Detach one modifier link from a trick, keyed on the modifier slug and apply
+  // order. A non-numeric apply-order segment is a 404 (no such link), as is an
+  // unknown or wrong-trick link.
+  detachModifier(req: Request, res: Response, next: NextFunction): void {
+    const slug = String(req.params.slug);
+    const modifierSlug = String(req.params.modifierSlug);
+    const applyOrder = Number.parseInt(String(req.params.applyOrder), 10);
+    if (Number.isNaN(applyOrder)) {
+      renderNotFound(res);
+      return;
+    }
+    try {
+      freestyleCurationService.detachModifier(slug, modifierSlug, applyOrder, req.user!.userId);
       res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
     } catch (err) {
       if (err instanceof NotFoundError) {
