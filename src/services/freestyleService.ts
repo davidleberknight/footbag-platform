@@ -3906,6 +3906,13 @@ export interface FreestyleGlossaryContent {
   // Core Concept card rendered in the Surfaces section: the cross-body body
   // relationship that defines the clipper.
   crossBodyConcept: GlossaryConceptCardVM;
+  // Core Concept cards rendered in the Operators & Modifiers section: the
+  // grammar of the operator layer.
+  setVsOperatorConcept: GlossaryConceptCardVM;
+  compositionConcept:   GlossaryConceptCardVM;
+  // Core Concept card rendered in the Notation section: additive scoring and
+  // the bracket-count checksum (its reveal lands here, where the notation is).
+  addConcept: GlossaryConceptCardVM;
 }
 
 /** A Core Concept glossary card: a Line always visible plus a "how it relates"
@@ -9810,6 +9817,11 @@ export const freestyleService = {
         sideConcept:      shapeGlossaryConcept('side'),
         // Core Concept card for the Surfaces section.
         crossBodyConcept: shapeGlossaryConcept('cross-body'),
+        // Core Concept cards for the Operators & Modifiers section.
+        setVsOperatorConcept: shapeGlossaryConcept('set-vs-operator'),
+        compositionConcept:   shapeGlossaryConcept('composition'),
+        // Core Concept card for the Notation section.
+        addConcept:           shapeGlossaryConcept('add'),
       },
     };
   },
