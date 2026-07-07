@@ -3,6 +3,7 @@ import {
   freestyleCurationService,
   FreestyleTrickScalarInput,
   FreestyleAliasInput,
+  FreestyleSourceLinkInput,
 } from '../services/freestyleCurationService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 
@@ -121,6 +122,58 @@ export const adminFreestyleController = {
     const aliasSlug = String(req.params.aliasSlug);
     try {
       freestyleCurationService.removeAlias(slug, aliasSlug, req.user!.userId);
+      res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Attach one registry source to a trick. Success redirects back to the edit
+  // page; a validation failure re-renders the form (422) with the submitted
+  // source values and an inline error; an unknown trick slug is a 404.
+  attachSource(req: Request, res: Response, next: NextFunction): void {
+    const slug = String(req.params.slug);
+    const input: FreestyleSourceLinkInput = {
+      sourceId:    str(req.body.sourceId),
+      externalUrl: str(req.body.externalUrl),
+      assertedAdds: str(req.body.assertedAdds),
+    };
+
+    try {
+      freestyleCurationService.attachSource(slug, input, req.user!.userId);
+      res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        const vm = freestyleCurationService.getTrickEditPage(slug, {
+          sourceError: err.message,
+          sourceSubmitted: input,
+        });
+        if (!vm) {
+          renderNotFound(res);
+          return;
+        }
+        res.status(422).render('admin/freestyle-trick-edit', vm);
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Detach one source link from a trick. Success redirects back to the edit page;
+  // an unknown or wrong-trick link is a 404.
+  detachSource(req: Request, res: Response, next: NextFunction): void {
+    const slug = String(req.params.slug);
+    const sourceId = String(req.params.sourceId);
+    try {
+      freestyleCurationService.detachSource(slug, sourceId, req.user!.userId);
       res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
     } catch (err) {
       if (err instanceof NotFoundError) {

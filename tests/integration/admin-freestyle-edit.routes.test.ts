@@ -149,6 +149,26 @@ beforeAll(async () => {
   });
   insertFreestyleTrickAlias(db, 'rm_me', 'alias_host', 'Remove Me');
 
+  // Two known registry sources for the source-link attach/detach tests, plus the
+  // tricks they write against: source_host (pre-linked to src_a), source_host2
+  // (no links), and detach_host (pre-linked to src_b).
+  insertFreestyleTrickSource(db, { id: 'src_a', source_label: 'Source A', source_type: 'curated' });
+  insertFreestyleTrickSource(db, { id: 'src_b', source_label: 'Source B', source_type: 'expert' });
+  for (const s of ['source_host', 'source_host2', 'detach_host']) {
+    insertFreestyleTrick(db, {
+      slug: s,
+      canonical_name: s,
+      adds: '3',
+      trick_family: 'whirl',
+      base_trick: 'whirl',
+      category: 'compound',
+      review_status: 'curated',
+      is_active: 1,
+    });
+  }
+  insertFreestyleTrickSourceLink(db, 'source_host', 'src_a', {});
+  insertFreestyleTrickSourceLink(db, 'detach_host', 'src_b', {});
+
   createApp = await importApp();
 });
 
@@ -193,6 +213,12 @@ function aliasRow(aliasSlug: string) {
   return db.prepare(
     'SELECT alias_slug, alias_text, alias_type, trick_slug FROM freestyle_trick_aliases WHERE alias_slug = ?',
   ).get(aliasSlug) as { alias_slug: string; alias_text: string; alias_type: string; trick_slug: string } | undefined;
+}
+
+function sourceLink(trickSlug: string, sourceId: string) {
+  return db.prepare(
+    'SELECT trick_slug, source_id, external_url, asserted_adds FROM freestyle_trick_source_links WHERE trick_slug = ? AND source_id = ?',
+  ).get(trickSlug, sourceId) as { external_url: string | null; asserted_adds: number | null } | undefined;
 }
 
 describe('GET /admin/freestyle/tricks/:slug/edit — admin gate', () => {
@@ -469,5 +495,113 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug/delete — remov
     const anon = await post('/admin/freestyle/tricks/blurry_whirl/aliases/bw/delete', undefined, {});
     expect(anon.status).toBe(302);
     expect(aliasRow('bw')).toBeDefined(); // still there
+  });
+});
+
+describe('POST /admin/freestyle/tricks/:slug/sources — attach', () => {
+  it('offers only registry sources not already linked to the trick', async () => {
+    // source_host is linked to src_a, so the attach select offers src_b but not src_a.
+    const res = await get('/admin/freestyle/tricks/source_host/edit', admin());
+    expect(res.text).toContain('value="src_b"');
+    expect(res.text).not.toContain('<option value="src_a"');
+  });
+
+  it('attaches a registry source with its optional fields, writes one audit row, and redirects', async () => {
+    const res = await post('/admin/freestyle/tricks/source_host2/sources', admin(),
+      { sourceId: 'src_a', externalUrl: 'http://example.test/x', assertedAdds: '4' });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/freestyle/tricks/source_host2/edit');
+
+    const link = sourceLink('source_host2', 'src_a');
+    expect(link).toBeDefined();
+    expect(link!.external_url).toBe('http://example.test/x');
+    expect(link!.asserted_adds).toBe(4);
+
+    const audits = auditByAction('source_host2:src_a', 'freestyle.trick_source_link.created');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('source_host2');
+    expect(audits[0].metadata_json).toContain('http://example.test/x');
+
+    const shown = await get('/admin/freestyle/tricks/source_host2/edit', admin());
+    expect(shown.text).toContain('Source A');
+  });
+
+  it('rejects a duplicate link on the same trick and writes nothing', async () => {
+    const res = await post('/admin/freestyle/tricks/source_host/sources', admin(),
+      { sourceId: 'src_a' }); // already linked
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('already linked');
+    expect(auditByAction('source_host:src_a', 'freestyle.trick_source_link.created')).toHaveLength(0);
+  });
+
+  it('rejects a source id that is not in the registry', async () => {
+    const res = await post('/admin/freestyle/tricks/source_host2/sources', admin(),
+      { sourceId: 'ghost_source' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Choose a source from the list.');
+  });
+
+  it('rejects an empty source selection', async () => {
+    const res = await post('/admin/freestyle/tricks/source_host2/sources', admin(),
+      { sourceId: '' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Choose a source from the list.');
+  });
+
+  it('rejects a non-numeric asserted ADD and writes nothing', async () => {
+    const res = await post('/admin/freestyle/tricks/source_host/sources', admin(),
+      { sourceId: 'src_b', assertedAdds: 'lots' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Asserted ADD must be');
+    expect(sourceLink('source_host', 'src_b')).toBeUndefined();
+  });
+
+  it('returns 404 attaching to an unknown trick', async () => {
+    const res = await post('/admin/freestyle/tricks/nope_missing/sources', admin(),
+      { sourceId: 'src_a' });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 for a non-admin and 302 for an unauthenticated visitor, writing nothing', async () => {
+    const member = await post('/admin/freestyle/tricks/source_host2/sources', cookieFor(MEMBER_ID, 'member'),
+      { sourceId: 'src_b' });
+    expect(member.status).toBe(403);
+    const anon = await post('/admin/freestyle/tricks/source_host2/sources', undefined,
+      { sourceId: 'src_b' });
+    expect(anon.status).toBe(302);
+    expect(sourceLink('source_host2', 'src_b')).toBeUndefined();
+  });
+});
+
+describe('POST /admin/freestyle/tricks/:slug/sources/:sourceId/delete — detach', () => {
+  it('returns 404 detaching a link that belongs to a different trick, leaving it intact', async () => {
+    // (source_host, src_a) exists; detach_host is not linked to src_a.
+    const res = await post('/admin/freestyle/tricks/detach_host/sources/src_a/delete', admin(), {});
+    expect(res.status).toBe(404);
+    expect(sourceLink('source_host', 'src_a')).toBeDefined();
+  });
+
+  it('detaches a source link scoped to its trick, writes one audit row, and redirects', async () => {
+    const res = await post('/admin/freestyle/tricks/source_host/sources/src_a/delete', admin(), {});
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/freestyle/tricks/source_host/edit');
+    expect(sourceLink('source_host', 'src_a')).toBeUndefined();
+
+    const audits = auditByAction('source_host:src_a', 'freestyle.trick_source_link.deleted');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('src_a');
+  });
+
+  it('returns 404 detaching a link the trick does not have', async () => {
+    const res = await post('/admin/freestyle/tricks/source_host2/sources/src_b/delete', admin(), {});
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 for a non-admin and 302 for an unauthenticated visitor, deleting nothing', async () => {
+    const member = await post('/admin/freestyle/tricks/detach_host/sources/src_b/delete', cookieFor(MEMBER_ID, 'member'), {});
+    expect(member.status).toBe(403);
+    const anon = await post('/admin/freestyle/tricks/detach_host/sources/src_b/delete', undefined, {});
+    expect(anon.status).toBe(302);
+    expect(sourceLink('detach_host', 'src_b')).toBeDefined(); // still there
   });
 });

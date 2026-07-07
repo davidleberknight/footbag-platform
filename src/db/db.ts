@@ -2355,16 +2355,50 @@ export const freestyleTrickAliases = {
   `); },
 };
 
+// The source registry (a small shared set of provenance sources). The admin
+// curation attach form offers these; this surface does not create new ones.
+export const freestyleTrickSources = {
+  get listAll() { return db.prepare(`
+    SELECT id, source_label FROM freestyle_trick_sources
+    ORDER BY source_label COLLATE NOCASE
+  `); },
+};
+
 // Trick-to-source links, joined to the source registry. The admin curation edit
-// page reads a trick's sources (and each source's per-link assertions) read-only.
+// page lists a trick's sources (with each link's assertions) and attaches or
+// detaches links to the existing registry sources.
 export const freestyleTrickSourceLinks = {
   get listForCuration() { return db.prepare(`
-    SELECT s.source_label, s.source_type, s.source_url,
+    SELECT l.source_id, s.source_label, s.source_type, s.source_url,
            l.external_url, l.asserted_adds
     FROM freestyle_trick_source_links l
     INNER JOIN freestyle_trick_sources s ON s.id = l.source_id
     WHERE l.trick_slug = ?
     ORDER BY s.source_label COLLATE NOCASE
+  `); },
+
+  // One link by its composite key, for the existence check before a detach and to
+  // capture the link's fields for the deletion audit entry.
+  get getLink() { return db.prepare(`
+    SELECT trick_slug, source_id, external_url, asserted_adds
+    FROM freestyle_trick_source_links
+    WHERE trick_slug = ? AND source_id = ?
+  `); },
+
+  // Admin curation: attach one registry source to a trick. external_ref,
+  // asserted_notation, asserted_category, and notes stay NULL in this surface;
+  // the composite primary key (trick_slug, source_id) is checked before insert.
+  get insert() { return db.prepare(`
+    INSERT INTO freestyle_trick_source_links
+      (trick_slug, source_id, external_ref, external_url,
+       asserted_adds, asserted_notation, asserted_category, notes)
+    VALUES (?, ?, NULL, ?, ?, NULL, NULL, NULL)
+  `); },
+
+  // Admin curation: detach one source link, scoped to its trick so an edit page
+  // can never remove another trick's link by source id alone.
+  get deleteForTrick() { return db.prepare(`
+    DELETE FROM freestyle_trick_source_links WHERE trick_slug = ? AND source_id = ?
   `); },
 };
 

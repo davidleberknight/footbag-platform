@@ -7,14 +7,15 @@
  *     and slug, and filters by active flag and review status.
  *   - The admin edit surface for one trick: rendering its editable scalar fields
  *     and its attached aliases, sources, and modifier links, saving edits to the
- *     nine scalar fields of the trick row, and adding or removing the trick's
- *     aliases.
+ *     nine scalar fields of the trick row, adding or removing the trick's aliases,
+ *     and attaching or detaching links to the existing registry sources.
  *
  * Does not own:
  *   - The public freestyle section pages (FreestyleService is public, read-only).
  *   - Freestyle ontology and doctrine (the content modules and doctrine docs).
- *   - Editing the attached sources and modifier links; those stay read-only on
- *     this surface for now.
+ *   - The source registry itself (new provenance-source rows are not created here).
+ *   - Editing the attached modifier links; those stay read-only on this surface
+ *     for now.
  *
  * Write discipline: updateTrickScalars validates the submitted fields for row
  * shape (canonical name required, ADD numeric/empty/"modifier", category and
@@ -26,19 +27,23 @@
  * text with the pipeline's normalization, and rejects a slug that equals any
  * canonical trick slug (checked across every row regardless of status) or an
  * existing alias slug (the global primary key); it leaves source_id and notes
- * unset. removeAlias is scoped to the alias's own trick. Each write and its one
- * audit entry commit together in a single transaction; the trick slug identity
- * key is not editable.
+ * unset. removeAlias is scoped to the alias's own trick. attachSource links one
+ * existing registry source with an optional external URL and asserted ADD (the
+ * other link columns stay unset), rejecting an unknown source id or a duplicate
+ * link; detachSource is keyed on both the trick and the source. Each write and
+ * its one audit entry commit together in a single transaction; the trick slug
+ * identity key is not editable.
  *
- * Persistence: reads and writes freestyle_tricks and freestyle_trick_aliases;
- * reads freestyle_trick_source_links (join freestyle_trick_sources) and
+ * Persistence: reads and writes freestyle_tricks, freestyle_trick_aliases, and
+ * freestyle_trick_source_links; reads freestyle_trick_sources and
  * freestyle_trick_modifier_links (join freestyle_trick_modifiers). Appends
- * freestyle.trick.updated, freestyle.trick_alias.created, and
- * freestyle.trick_alias.deleted to audit_entries.
+ * freestyle.trick.updated, freestyle.trick_alias.created/deleted, and
+ * freestyle.trick_source_link.created/deleted to audit_entries.
  */
 import {
   freestyleTricks,
   freestyleTrickAliases,
+  freestyleTrickSources,
   freestyleTrickSourceLinks,
   freestyleTrickModifiers,
   transaction,
@@ -103,11 +108,13 @@ export interface FreestyleTrickEditAlias {
 }
 
 export interface FreestyleTrickEditSource {
+  sourceId: string;
   label: string;
   type: string;
   url: string | null;
   externalUrl: string | null;
   assertedAdds: number | null;
+  detachHref: string;
 }
 
 export interface FreestyleTrickEditModifierLink {
@@ -153,12 +160,26 @@ export interface FreestyleTrickEditContent {
   aliasFormText: string;
   aliasError: string;
   hasAliasError: boolean;
+  attachSourceHref: string;
+  sourceOptions: FilterOption[];
+  hasUnlinkedSources: boolean;
+  sourceFormExternalUrl: string;
+  sourceFormAssertedAdds: string;
+  sourceError: string;
+  hasSourceError: boolean;
 }
 
 /** The alias fields the add-alias form submits. */
 export interface FreestyleAliasInput {
   aliasText?: string;
   aliasType?: string;
+}
+
+/** The source-link fields the attach-source form submits. */
+export interface FreestyleSourceLinkInput {
+  sourceId?: string;
+  externalUrl?: string;
+  assertedAdds?: string;
 }
 
 /** The nine editable scalar fields submitted by the edit form. */
@@ -181,6 +202,8 @@ export interface EditPageOptions {
   fieldErrors?: Record<string, string>;
   aliasError?: string;
   aliasSubmitted?: FreestyleAliasInput;
+  sourceError?: string;
+  sourceSubmitted?: FreestyleSourceLinkInput;
 }
 
 interface CurationEditDbRow {
@@ -198,12 +221,20 @@ interface CurationEditDbRow {
 interface AliasDbRow { alias_slug: string; alias_text: string; alias_type: string; }
 interface FullAliasDbRow extends AliasDbRow { trick_slug: string; }
 interface SourceLinkDbRow {
+  source_id: string;
   source_label: string;
   source_type: string;
   source_url: string | null;
   external_url: string | null;
   asserted_adds: number | null;
 }
+interface SourceLinkKeyDbRow {
+  trick_slug: string;
+  source_id: string;
+  external_url: string | null;
+  asserted_adds: number | null;
+}
+interface SourceRegistryRow { id: string; source_label: string; }
 interface ModifierLinkDbRow {
   modifier_slug: string;
   modifier_name: string;
@@ -327,8 +358,25 @@ export const freestyleCurationService = {
       selected: t === selectedAliasType,
     }));
     const aliasError = opts.aliasError ?? '';
-    const sources: FreestyleTrickEditSource[] = (freestyleTrickSourceLinks.listForCuration.all(slug) as SourceLinkDbRow[])
-      .map((s) => ({ label: s.source_label, type: s.source_type, url: s.source_url, externalUrl: s.external_url, assertedAdds: s.asserted_adds }));
+    const sourceLinks = freestyleTrickSourceLinks.listForCuration.all(slug) as SourceLinkDbRow[];
+    const sources: FreestyleTrickEditSource[] = sourceLinks.map((s) => ({
+      sourceId:     s.source_id,
+      label:        s.source_label,
+      type:         s.source_type,
+      url:          s.source_url,
+      externalUrl:  s.external_url,
+      assertedAdds: s.asserted_adds,
+      detachHref:   `/admin/freestyle/tricks/${slug}/sources/${encodeURIComponent(s.source_id)}/delete`,
+    }));
+
+    // The attach-source select offers only registry sources not already linked to
+    // this trick; the service still rejects a duplicate defensively.
+    const linkedSourceIds = new Set(sourceLinks.map((s) => s.source_id));
+    const sourceSelectedId = opts.sourceSubmitted?.sourceId ?? '';
+    const sourceOptions: FilterOption[] = (freestyleTrickSources.listAll.all() as SourceRegistryRow[])
+      .filter((r) => !linkedSourceIds.has(r.id))
+      .map((r) => ({ value: r.id, label: r.source_label, selected: r.id === sourceSelectedId }));
+    const sourceError = opts.sourceError ?? '';
     const modifierLinks: FreestyleTrickEditModifierLink[] = (freestyleTrickModifiers.listLinksByTrickSlug.all(slug) as ModifierLinkDbRow[])
       .map((m) => ({ slug: m.modifier_slug, name: m.modifier_name, type: m.modifier_type, addBonus: m.add_bonus, applyOrder: m.apply_order }));
 
@@ -386,6 +434,13 @@ export const freestyleCurationService = {
         aliasFormText,
         aliasError,
         hasAliasError:    aliasError !== '',
+        attachSourceHref: `/admin/freestyle/tricks/${row.slug}/sources`,
+        sourceOptions,
+        hasUnlinkedSources:     sourceOptions.length > 0,
+        sourceFormExternalUrl:  opts.sourceSubmitted?.externalUrl ?? '',
+        sourceFormAssertedAdds: opts.sourceSubmitted?.assertedAdds ?? '',
+        sourceError,
+        hasSourceError:   sourceError !== '',
       },
     };
   },
@@ -558,6 +613,78 @@ export const freestyleCurationService = {
           aliasSlug,
           aliasText: existing.alias_text,
           aliasType: existing.alias_type,
+        },
+      });
+    });
+  },
+
+  // Attach one existing registry source to a trick. Rejected (ValidationError,
+  // re-rendered inline) when no source is chosen, the id is not a registry source,
+  // the trick is already linked to it (the composite primary key), or the asserted
+  // ADD is neither empty nor a whole number. external_url is trimmed to NULL when
+  // blank; external_ref, asserted_notation, asserted_category, and notes stay unset
+  // in this surface. The insert and its audit entry commit in one transaction.
+  // Creating new registry sources is not part of this surface.
+  attachSource(trickSlug: string, input: FreestyleSourceLinkInput, actorMemberId: string): void {
+    const trick = freestyleTricks.getForCurationBySlug.get(trickSlug) as CurationEditDbRow | undefined;
+    if (!trick) throw new NotFoundError(`No freestyle trick "${trickSlug}"`);
+
+    const sourceId = (input.sourceId ?? '').trim();
+    const source = (freestyleTrickSources.listAll.all() as SourceRegistryRow[]).find((r) => r.id === sourceId);
+    if (!source) {
+      throw new ValidationError('Choose a source from the list.');
+    }
+
+    if (freestyleTrickSourceLinks.getLink.get(trickSlug, sourceId)) {
+      throw new ValidationError(`This trick is already linked to "${source.source_label}".`);
+    }
+
+    const externalUrl = emptyToNull(input.externalUrl);
+    const assertedRaw = (input.assertedAdds ?? '').trim();
+    if (assertedRaw !== '' && !/^\d+$/.test(assertedRaw)) {
+      throw new ValidationError('Asserted ADD must be empty or a whole number.');
+    }
+    const assertedAdds = assertedRaw === '' ? null : parseInt(assertedRaw, 10);
+
+    transaction(() => {
+      freestyleTrickSourceLinks.insert.run(trickSlug, sourceId, externalUrl, assertedAdds);
+      appendAuditEntry({
+        actionType:    'freestyle.trick_source_link.created',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick_source_link',
+        entityId:      `${trickSlug}:${sourceId}`,
+        metadata:      { trickSlug, sourceId, externalUrl, assertedAdds },
+      });
+    });
+  },
+
+  // Detach one source link from a trick. getLink is keyed on both the trick and
+  // the source, so an unknown or wrong-trick link is a NotFoundError (mapped to
+  // 404) and an edit page can never detach another trick's link. The delete and
+  // its audit entry (carrying the removed link's fields for recovery) commit in
+  // one transaction.
+  detachSource(trickSlug: string, sourceId: string, actorMemberId: string): void {
+    const link = freestyleTrickSourceLinks.getLink.get(trickSlug, sourceId) as SourceLinkKeyDbRow | undefined;
+    if (!link) {
+      throw new NotFoundError(`No source link "${sourceId}" on trick "${trickSlug}"`);
+    }
+
+    transaction(() => {
+      freestyleTrickSourceLinks.deleteForTrick.run(trickSlug, sourceId);
+      appendAuditEntry({
+        actionType:    'freestyle.trick_source_link.deleted',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick_source_link',
+        entityId:      `${trickSlug}:${sourceId}`,
+        metadata:      {
+          trickSlug,
+          sourceId,
+          externalUrl:  link.external_url,
+          assertedAdds: link.asserted_adds,
         },
       });
     });

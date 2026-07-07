@@ -71,11 +71,39 @@
     </form>
 
     <h2 class="section-heading">Sources</h2>
+    {{#if content.hasSourceError}}
+    <div class="form-error-banner">
+      <p>{{content.sourceError}}</p>
+    </div>
+    {{/if}}
     {{#if content.hasSources}}
     <ul class="freestyle-edit-list">
-      {{#each content.sources}}<li>{{this.label}} <span class="badge">{{this.type}}</span>{{#if this.assertedAdds}} (asserts ADD {{this.assertedAdds}}){{/if}}</li>{{/each}}
+      {{#each content.sources}}
+      <li>
+        {{this.label}} <span class="badge">{{this.type}}</span>{{#if this.assertedAdds}} (asserts ADD {{this.assertedAdds}}){{/if}}
+        <form method="POST" action="{{this.detachHref}}" class="inline-form">
+          <button type="submit" class="btn btn-outline btn-sm">Detach</button>
+        </form>
+      </li>
+      {{/each}}
     </ul>
     {{else}}<p class="text-muted">No sources.</p>{{/if}}
+
+    {{#if content.hasUnlinkedSources}}
+    <form method="POST" action="{{content.attachSourceHref}}" class="freestyle-edit-form">
+      <fieldset>
+        <p><label>Attach source</label><br>
+          <select name="sourceId">
+            <option value="">Choose a source</option>
+            {{#each content.sourceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+          </select>
+        </p>
+        <p><label>External URL (optional)</label><br><input type="text" name="externalUrl" value="{{content.sourceFormExternalUrl}}" /></p>
+        <p><label>Asserted ADD (optional)</label><br><input type="text" name="assertedAdds" value="{{content.sourceFormAssertedAdds}}" /></p>
+      </fieldset>
+      <p><button type="submit" class="btn btn-primary btn-sm">Attach Source</button></p>
+    </form>
+    {{else}}<p class="text-muted">All registry sources are linked.</p>{{/if}}
 
     <h2 class="section-heading">Modifier links</h2>
     {{#if content.hasModifierLinks}}
