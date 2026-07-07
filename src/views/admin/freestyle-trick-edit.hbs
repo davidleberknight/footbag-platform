@@ -1,0 +1,60 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{content.fields.canonicalName}}</h1>
+    <p class="text-muted">Editing freestyle trick <code>{{content.slug}}</code>.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.savingDeferred}}
+    <p class="notice">This form is read-only for now. The fields below show the current values; the edit and save path lands in a later slice.</p>
+    {{/if}}
+
+    <form class="freestyle-edit-form">
+      <fieldset disabled>
+        <p><label>Canonical name</label><br><input type="text" name="canonicalName" value="{{content.fields.canonicalName}}" /></p>
+        <p><label>ADD</label><br><input type="text" name="adds" value="{{content.fields.adds}}" /></p>
+        <p><label>Movement notation</label><br><textarea name="movementNotation" rows="2">{{content.fields.movementNotation}}</textarea></p>
+        <p><label>Execution notation</label><br><textarea name="executionNotation" rows="2">{{content.fields.executionNotation}}</textarea></p>
+        <p><label>Trick family</label><br><input type="text" name="family" value="{{content.fields.family}}" /></p>
+        <p><label>Base trick</label><br><input type="text" name="baseTrick" value="{{content.fields.baseTrick}}" /></p>
+        <p><label>Category</label><br>
+          <select name="category">
+            {{#each content.categoryOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+          </select>
+        </p>
+        <p><label><input type="checkbox" name="isActive" {{#if content.fields.isActive}}checked{{/if}} /> Active</label></p>
+        <p><label>Review status</label><br>
+          <select name="reviewStatus">
+            {{#each content.reviewStatusOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+          </select>
+        </p>
+      </fieldset>
+      <p><button type="submit" disabled class="btn btn-primary btn-sm">Save</button></p>
+    </form>
+
+    <h2 class="section-heading">Aliases</h2>
+    {{#if content.hasAliases}}
+    <ul class="freestyle-edit-list">
+      {{#each content.aliases}}<li><code>{{this.slug}}</code> {{this.text}} <span class="badge">{{this.type}}</span></li>{{/each}}
+    </ul>
+    {{else}}<p class="text-muted">No aliases.</p>{{/if}}
+
+    <h2 class="section-heading">Sources</h2>
+    {{#if content.hasSources}}
+    <ul class="freestyle-edit-list">
+      {{#each content.sources}}<li>{{this.label}} <span class="badge">{{this.type}}</span>{{#if this.assertedAdds}} (asserts ADD {{this.assertedAdds}}){{/if}}</li>{{/each}}
+    </ul>
+    {{else}}<p class="text-muted">No sources.</p>{{/if}}
+
+    <h2 class="section-heading">Modifier links</h2>
+    {{#if content.hasModifierLinks}}
+    <ul class="freestyle-edit-list">
+      {{#each content.modifierLinks}}<li>{{this.name}} <code>{{this.slug}}</code> <span class="badge">{{this.type}}</span> (+{{this.addBonus}}, order {{this.applyOrder}})</li>{{/each}}
+    </ul>
+    {{else}}<p class="text-muted">No modifier links.</p>{{/if}}
+
+    <p><a href="{{content.backHref}}" class="btn btn-outline btn-sm">Back to freestyle content</a></p>
+  </section>
+</div>

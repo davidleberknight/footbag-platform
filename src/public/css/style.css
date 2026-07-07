@@ -2562,6 +2562,21 @@ section.home-media { padding-top: 0; }
   font-weight: 600;
   color: var(--text-muted);
 }
+.freestyle-edit-form {
+  max-width: 640px;
+}
+.freestyle-edit-form label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.freestyle-edit-list {
+  margin: 8px 0 16px;
+  padding-left: 20px;
+  font-size: 0.9rem;
+}
+.freestyle-edit-list li {
+  margin: 3px 0;
+}
 .cleanup-action-form {
   display: flex;
   gap: 4px;

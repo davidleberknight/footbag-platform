@@ -15,24 +15,20 @@ export const adminFreestyleController = {
     }
   },
 
-  // Placeholder for the not-yet-built edit surface: a read-only notice so the
-  // browse page's per-row edit link resolves instead of returning a 404. No
-  // form and no writes; the edit capability lands in a later slice.
-  editPlaceholder(req: Request, res: Response, next: NextFunction): void {
+  // Read-only edit page for one trick: shows the editable scalar fields and the
+  // attached aliases, sources, and modifier links. The save path is not built
+  // yet, so the form is display-only (disabled controls, no POST route).
+  edit(req: Request, res: Response, next: NextFunction): void {
     try {
-      const found = freestyleCurationService.getEditPlaceholder(String(req.params.slug));
-      if (!found) {
+      const vm = freestyleCurationService.getTrickEditPage(String(req.params.slug));
+      if (!vm) {
         res.status(404).render('errors/not-found', {
           seo:  { title: 'Not Found' },
           page: { sectionKey: 'admin', pageKey: 'error_404', title: 'Not Found' },
         });
         return;
       }
-      res.render('admin/freestyle-trick-edit-placeholder', {
-        seo:  { title: 'Freestyle Content' },
-        page: { sectionKey: 'admin', pageKey: 'admin_freestyle_edit_placeholder', title: found.displayName },
-        content: found,
-      });
+      res.render('admin/freestyle-trick-edit', vm);
     } catch (err) {
       next(err);
     }

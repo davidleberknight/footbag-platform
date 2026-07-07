@@ -393,6 +393,33 @@ export function insertFreestyleTrickAlias(
   `).run(alias_slug, alias_text ?? alias_slug.replace(/-/g, ' '), trick_slug, TS);
 }
 
+/** Insert a freestyle_trick_sources registry row; returns the source id. */
+export function insertFreestyleTrickSource(
+  db: BetterSqlite3.Database,
+  o: { id?: string; source_type?: string; source_label?: string; source_url?: string | null } = {},
+): string {
+  const id = o.id ?? `src-${uid()}`;
+  db.prepare(`
+    INSERT INTO freestyle_trick_sources (id, source_type, source_label, source_url, retrieved_at, notes)
+    VALUES (?, ?, ?, ?, ?, NULL)
+  `).run(id, o.source_type ?? 'curated', o.source_label ?? 'Curated v1', o.source_url ?? null, TS);
+  return id;
+}
+
+/** Link a trick to a source (freestyle_trick_source_links). */
+export function insertFreestyleTrickSourceLink(
+  db: BetterSqlite3.Database,
+  trick_slug: string,
+  source_id: string,
+  o: { external_url?: string | null; asserted_adds?: number | null } = {},
+): void {
+  db.prepare(`
+    INSERT INTO freestyle_trick_source_links
+      (trick_slug, source_id, external_ref, external_url, asserted_adds, asserted_notation, asserted_category, notes)
+    VALUES (?, ?, NULL, ?, ?, NULL, NULL, NULL)
+  `).run(trick_slug, source_id, o.external_url ?? null, o.asserted_adds ?? null);
+}
+
 // ── Freestyle record ──────────────────────────────────────────────────────────
 
 export interface FreestyleRecordOverrides {

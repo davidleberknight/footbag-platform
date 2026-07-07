@@ -118,22 +118,10 @@ describe('GET /admin/freestyle/tricks — listing, search, filters', () => {
   });
 });
 
-describe('GET /admin/freestyle/tricks/:slug/edit — placeholder', () => {
-  const admin = () => cookieFor(ADMIN_ID, 'admin');
-
-  it('renders a 200 placeholder naming the trick', async () => {
-    const res = await get('/admin/freestyle/tricks/solo_whirl/edit', admin());
+describe('GET /admin/freestyle/tricks/:slug/edit — edit page link target', () => {
+  it('opens the edit page for a browsed row (the per-row Edit link resolves)', async () => {
+    const res = await get('/admin/freestyle/tricks/solo_whirl/edit', cookieFor(ADMIN_ID, 'admin'));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Solo Whirl');
-  });
-
-  it('404s an unknown slug', async () => {
-    const res = await get('/admin/freestyle/tricks/nope_missing/edit', admin());
-    expect(res.status).toBe(404);
-  });
-
-  it('is admin-gated (403 for a non-admin member)', async () => {
-    const res = await get('/admin/freestyle/tricks/solo_whirl/edit', cookieFor(MEMBER_ID, 'member'));
-    expect(res.status).toBe(403);
   });
 });

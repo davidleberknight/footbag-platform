@@ -55,7 +55,7 @@ adminRouter.post('/club-cleanup/candidates/:candidateId/resolve', adminClubClean
 // Freestyle dictionary curation. Read-only browse in this slice; each row links
 // to a placeholder edit route until the in-app edit surface is built.
 adminRouter.get('/freestyle/tricks',             adminFreestyleController.index);
-adminRouter.get('/freestyle/tricks/:slug/edit',  adminFreestyleController.editPlaceholder);
+adminRouter.get('/freestyle/tricks/:slug/edit',  adminFreestyleController.edit);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);
 adminRouter.post('/curator/upload', adminCuratorController.postUpload);
 // Async curator video upload (DD §6.8). Three-step browser flow: sign,

@@ -2214,6 +2214,17 @@ export const freestyleTricks = {
     FROM freestyle_tricks
     ORDER BY is_active DESC, canonical_name ASC
   `); },
+
+  // Admin curation edit page: the editable scalar fields for one trick regardless
+  // of status (admin edits inactive and pending rows too). Status-agnostic by
+  // design (admin-only). `notation` is the movement (Jobs) notation and
+  // `operational_notation` is the execution notation.
+  get getForCurationBySlug() { return db.prepare(`
+    SELECT slug, canonical_name, adds, notation, operational_notation,
+           trick_family, base_trick, category, is_active, review_status
+    FROM freestyle_tricks
+    WHERE slug = ?
+  `); },
 };
 
 export interface FreestyleTrickSearchRow {
@@ -2288,6 +2299,28 @@ export const freestyleTrickAliases = {
   // to an alias onto the canonical trick the rows are keyed by.
   get listAllAliasSlugs() { return db.prepare(`
     SELECT alias_slug, trick_slug FROM freestyle_trick_aliases
+  `); },
+
+  // Admin curation edit page: a trick's aliases with their slug, display text,
+  // and type, for read-only listing (and, in a later slice, editing).
+  get listForCuration() { return db.prepare(`
+    SELECT alias_slug, alias_text, alias_type
+    FROM freestyle_trick_aliases
+    WHERE trick_slug = ?
+    ORDER BY alias_text COLLATE NOCASE
+  `); },
+};
+
+// Trick-to-source links, joined to the source registry. The admin curation edit
+// page reads a trick's sources (and each source's per-link assertions) read-only.
+export const freestyleTrickSourceLinks = {
+  get listForCuration() { return db.prepare(`
+    SELECT s.source_label, s.source_type, s.source_url,
+           l.external_url, l.asserted_adds
+    FROM freestyle_trick_source_links l
+    INNER JOIN freestyle_trick_sources s ON s.id = l.source_id
+    WHERE l.trick_slug = ?
+    ORDER BY s.source_label COLLATE NOCASE
   `); },
 };
 
