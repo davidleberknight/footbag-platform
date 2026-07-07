@@ -278,24 +278,7 @@ export const adminFreestyleController = {
   // values and per-field errors; an unknown record id is a 404.
   recordUpdate(req: Request, res: Response, next: NextFunction): void {
     const id = String(req.params.id);
-    const input: FreestyleRecordScalarInput = {
-      recordType:    str(req.body.recordType),
-      personId:      str(req.body.personId),
-      displayName:   str(req.body.displayName),
-      trickName:     str(req.body.trickName),
-      sortName:      str(req.body.sortName),
-      addsCount:     str(req.body.addsCount),
-      valueNumeric:  str(req.body.valueNumeric),
-      valueText:     str(req.body.valueText),
-      achievedDate:  str(req.body.achievedDate),
-      datePrecision: str(req.body.datePrecision),
-      source:        str(req.body.source),
-      confidence:    str(req.body.confidence),
-      videoUrl:      str(req.body.videoUrl),
-      videoTimecode: str(req.body.videoTimecode),
-      notes:         str(req.body.notes),
-      supersededBy:  str(req.body.supersededBy),
-    };
+    const input = recordInputFromBody(req.body);
 
     try {
       freestyleRecordCurationService.updateRecord(id, input, req.user!.userId);
@@ -320,7 +303,57 @@ export const adminFreestyleController = {
       next(err);
     }
   },
+
+  // Blank new-record form (the same edit template with default values).
+  recordNew(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-record-edit', freestyleRecordCurationService.getRecordNewPage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Create one record. Success redirects to the new record's edit page with the
+  // saved indicator; a validation failure re-renders the new form (422) with the
+  // submitted values and per-field errors.
+  recordCreate(req: Request, res: Response, next: NextFunction): void {
+    const input = recordInputFromBody(req.body);
+    try {
+      const id = freestyleRecordCurationService.createRecord(input, req.user!.userId);
+      res.redirect(303, `/admin/freestyle/records/${id}/edit?saved=1`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/freestyle-record-edit', freestyleRecordCurationService.getRecordNewPage({
+          submitted: input,
+          fieldErrors: err.fieldErrors ?? {},
+        }));
+        return;
+      }
+      next(err);
+    }
+  },
 };
+
+function recordInputFromBody(body: Record<string, unknown>): FreestyleRecordScalarInput {
+  return {
+    recordType:    str(body.recordType),
+    personId:      str(body.personId),
+    displayName:   str(body.displayName),
+    trickName:     str(body.trickName),
+    sortName:      str(body.sortName),
+    addsCount:     str(body.addsCount),
+    valueNumeric:  str(body.valueNumeric),
+    valueText:     str(body.valueText),
+    achievedDate:  str(body.achievedDate),
+    datePrecision: str(body.datePrecision),
+    source:        str(body.source),
+    confidence:    str(body.confidence),
+    videoUrl:      str(body.videoUrl),
+    videoTimecode: str(body.videoTimecode),
+    notes:         str(body.notes),
+    supersededBy:  str(body.supersededBy),
+  };
+}
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value : '';

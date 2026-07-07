@@ -30,6 +30,7 @@
  * Persistence: reads and writes freestyle_records; reads historical_persons to
  * validate and name a linked person. Appends freestyle.record.updated to audit_entries.
  */
+import { randomUUID } from 'node:crypto';
 import { freestyleRecords, historicalPersonLookup, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
@@ -81,6 +82,8 @@ export interface FreestyleRecordEditFields {
 
 export interface FreestyleRecordEditContent {
   id: string;
+  isNew: boolean;
+  formAction: string;
   fields: FreestyleRecordEditFields;
   recordTypeOptions: FilterOption[];
   datePrecisionOptions: FilterOption[];
@@ -238,6 +241,8 @@ export const freestyleRecordCurationService = {
       page: { sectionKey: 'admin', pageKey: 'admin_freestyle_record_edit', title: row.trick_name ?? 'Record' },
       content: {
         id: row.id,
+        isNew: false,
+        formAction: `/admin/freestyle/records/${row.id}/edit`,
         fields,
         recordTypeOptions:    options(allowedRecordTypes(), fields.recordType),
         datePrecisionOptions: options(DATE_PRECISION_VALUES, fields.datePrecision),
@@ -245,6 +250,55 @@ export const freestyleRecordCurationService = {
         holderName,
         backHref:  '/admin/freestyle/records',
         saved:     opts.saved === true,
+        fieldErrors,
+        errorList,
+        hasErrors: errorList.length > 0,
+      },
+    };
+  },
+
+  // The blank new-record form: the same edit template with default field values
+  // and its post target pointing at the create route. `opts` re-renders the form
+  // with the admin's submitted values and per-field errors on a failed create.
+  getRecordNewPage(opts: RecordEditPageOptions = {}): PageViewModel<FreestyleRecordEditContent> {
+    const sub = opts.submitted;
+    const recordTypes = allowedRecordTypes();
+    const fields: FreestyleRecordEditFields = {
+      recordType:    sub ? (sub.recordType ?? '') : (recordTypes[0] ?? ''),
+      personId:      sub?.personId ?? '',
+      displayName:   sub?.displayName ?? '',
+      trickName:     sub?.trickName ?? '',
+      sortName:      sub?.sortName ?? '',
+      addsCount:     sub?.addsCount ?? '',
+      valueNumeric:  sub?.valueNumeric ?? '',
+      valueText:     sub?.valueText ?? '',
+      achievedDate:  sub?.achievedDate ?? '',
+      datePrecision: sub ? (sub.datePrecision ?? '') : 'day',
+      source:        sub?.source ?? '',
+      confidence:    sub ? (sub.confidence ?? '') : 'probable',
+      videoUrl:      sub?.videoUrl ?? '',
+      videoTimecode: sub?.videoTimecode ?? '',
+      notes:         sub?.notes ?? '',
+      supersededBy:  sub?.supersededBy ?? '',
+    };
+
+    const fieldErrors = opts.fieldErrors ?? {};
+    const errorList = Object.values(fieldErrors);
+
+    return {
+      seo:  { title: 'Freestyle Records' },
+      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_record_new', title: 'New record' },
+      content: {
+        id: '',
+        isNew: true,
+        formAction: '/admin/freestyle/records',
+        fields,
+        recordTypeOptions:    options(recordTypes, fields.recordType),
+        datePrecisionOptions: options(DATE_PRECISION_VALUES, fields.datePrecision),
+        confidenceOptions:    options(CONFIDENCE_VALUES, fields.confidence),
+        holderName: '',
+        backHref:  '/admin/freestyle/records',
+        saved:     false,
         fieldErrors,
         errorList,
         hasErrors: errorList.length > 0,
@@ -260,98 +314,32 @@ export const freestyleRecordCurationService = {
     const current = freestyleRecords.getForCurationById.get(id) as RecordCurationDbRow | undefined;
     if (!current) throw new NotFoundError(`No freestyle record "${id}"`);
 
-    const fieldErrors: Record<string, string> = {};
-
-    const recordType = (input.recordType ?? '').trim();
-    if (!recordType) {
-      fieldErrors.recordType = 'Record type is required.';
-    } else if (!allowedRecordTypes().includes(recordType)) {
-      fieldErrors.recordType = 'Record type must be one of the existing record types.';
-    }
-
-    const source = (input.source ?? '').trim();
-    if (!source) fieldErrors.source = 'Source is required.';
-
-    const personId = emptyToNull(input.personId);
-    const displayName = emptyToNull(input.displayName);
-    if (personId === null && displayName === null) {
-      fieldErrors.displayName = 'A record needs a linked person id or a display name.';
-    }
-    if (personId !== null && !historicalPersonLookup.personNameById.get(personId)) {
-      fieldErrors.personId = 'No historical person has that id.';
-    }
-
-    const datePrecision = (input.datePrecision ?? '').trim();
-    if (!DATE_PRECISION_VALUES.includes(datePrecision)) {
-      fieldErrors.datePrecision = 'Date precision must be day, month, year, or approximate.';
-    }
-
-    const achievedDate = emptyToNull(input.achievedDate);
-    if (achievedDate !== null && !ISO_DAY_RE.test(achievedDate)) {
-      fieldErrors.achievedDate = 'Achieved date must be empty or a YYYY-MM-DD date.';
-    }
-
-    const confidence = (input.confidence ?? '').trim();
-    if (!CONFIDENCE_VALUES.includes(confidence)) {
-      fieldErrors.confidence = 'Confidence must be verified, probable, provisional, or disputed.';
-    }
-
-    const addsRaw = (input.addsCount ?? '').trim();
-    if (addsRaw !== '' && !/^\d+$/.test(addsRaw)) {
-      fieldErrors.addsCount = 'Adds count must be empty or a whole number.';
-    }
-    const addsCount = addsRaw === '' ? null : parseInt(addsRaw, 10);
-
-    const valueRaw = (input.valueNumeric ?? '').trim();
-    if (valueRaw !== '' && !Number.isFinite(Number(valueRaw))) {
-      fieldErrors.valueNumeric = 'Value must be empty or a number.';
-    }
-    const valueNumeric = valueRaw === '' ? null : Number(valueRaw);
-
-    const supersededBy = emptyToNull(input.supersededBy);
-    if (supersededBy !== null) {
-      if (supersededBy === id) {
-        fieldErrors.supersededBy = 'A record cannot supersede itself.';
-      } else if (!freestyleRecords.getForCurationById.get(supersededBy)) {
-        fieldErrors.supersededBy = 'No record has that id.';
-      }
-    }
-
-    const valueText = emptyToNull(input.valueText);
-    const trickName = emptyToNull(input.trickName);
-    const sortName = emptyToNull(input.sortName);
-    const videoUrl = emptyToNull(input.videoUrl);
-    const videoTimecode = emptyToNull(input.videoTimecode);
-    const notes = emptyToNull(input.notes);
-
-    if (Object.keys(fieldErrors).length > 0) {
-      throw new ValidationError('Some fields need attention.', { fieldErrors });
-    }
+    const v = validateRecordInput(input, id);
 
     const changedFields: string[] = [];
     const mark = (changed: boolean, name: string) => { if (changed) changedFields.push(name); };
-    mark(recordType !== current.record_type, 'record_type');
-    mark(personId !== (current.person_id ?? null), 'person_id');
-    mark(displayName !== (current.display_name ?? null), 'display_name');
-    mark(trickName !== (current.trick_name ?? null), 'trick_name');
-    mark(sortName !== (current.sort_name ?? null), 'sort_name');
-    mark(addsCount !== (current.adds_count ?? null), 'adds_count');
-    mark(valueNumeric !== (current.value_numeric ?? null), 'value_numeric');
-    mark(valueText !== (current.value_text ?? null), 'value_text');
-    mark(achievedDate !== (current.achieved_date ?? null), 'achieved_date');
-    mark(datePrecision !== current.date_precision, 'date_precision');
-    mark(source !== current.source, 'source');
-    mark(confidence !== current.confidence, 'confidence');
-    mark(videoUrl !== (current.video_url ?? null), 'video_url');
-    mark(videoTimecode !== (current.video_timecode ?? null), 'video_timecode');
-    mark(notes !== (current.notes ?? null), 'notes');
-    mark(supersededBy !== (current.superseded_by ?? null), 'superseded_by');
+    mark(v.recordType !== current.record_type, 'record_type');
+    mark(v.personId !== (current.person_id ?? null), 'person_id');
+    mark(v.displayName !== (current.display_name ?? null), 'display_name');
+    mark(v.trickName !== (current.trick_name ?? null), 'trick_name');
+    mark(v.sortName !== (current.sort_name ?? null), 'sort_name');
+    mark(v.addsCount !== (current.adds_count ?? null), 'adds_count');
+    mark(v.valueNumeric !== (current.value_numeric ?? null), 'value_numeric');
+    mark(v.valueText !== (current.value_text ?? null), 'value_text');
+    mark(v.achievedDate !== (current.achieved_date ?? null), 'achieved_date');
+    mark(v.datePrecision !== current.date_precision, 'date_precision');
+    mark(v.source !== current.source, 'source');
+    mark(v.confidence !== current.confidence, 'confidence');
+    mark(v.videoUrl !== (current.video_url ?? null), 'video_url');
+    mark(v.videoTimecode !== (current.video_timecode ?? null), 'video_timecode');
+    mark(v.notes !== (current.notes ?? null), 'notes');
+    mark(v.supersededBy !== (current.superseded_by ?? null), 'superseded_by');
 
     transaction(() => {
       freestyleRecords.updateForCuration.run(
-        recordType, personId, displayName, trickName, sortName, addsCount,
-        valueNumeric, valueText, achievedDate, datePrecision, source, confidence,
-        videoUrl, videoTimecode, notes, supersededBy, id,
+        v.recordType, v.personId, v.displayName, v.trickName, v.sortName, v.addsCount,
+        v.valueNumeric, v.valueText, v.achievedDate, v.datePrecision, v.source, v.confidence,
+        v.videoUrl, v.videoTimecode, v.notes, v.supersededBy, id,
       );
       appendAuditEntry({
         actionType:    'freestyle.record.updated',
@@ -364,7 +352,140 @@ export const freestyleRecordCurationService = {
       });
     });
   },
+
+  // Add one new record. Validates the same fields as an edit, generates the id,
+  // inserts, and appends one audit entry in a single transaction. Returns the new
+  // id so the controller can redirect to its edit page. Throws ValidationError
+  // (with per-field messages) on bad input.
+  createRecord(input: FreestyleRecordScalarInput, actorMemberId: string): string {
+    assertActorMayCurateFreestyle(actorMemberId);
+    const id = randomUUID();
+    const v = validateRecordInput(input, id);
+
+    transaction(() => {
+      freestyleRecords.insertForCuration.run(
+        id, v.recordType, v.personId, v.displayName, v.trickName, v.sortName, v.addsCount,
+        v.valueNumeric, v.valueText, v.achievedDate, v.datePrecision, v.source, v.confidence,
+        v.videoUrl, v.videoTimecode, v.notes, v.supersededBy,
+      );
+      appendAuditEntry({
+        actionType:    'freestyle.record.created',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_record',
+        entityId:      id,
+        metadata:      { recordType: v.recordType, trickName: v.trickName, holder: v.personId ?? v.displayName },
+      });
+    });
+
+    return id;
+  },
 };
+
+interface ValidatedRecord {
+  recordType: string;
+  personId: string | null;
+  displayName: string | null;
+  trickName: string | null;
+  sortName: string | null;
+  addsCount: number | null;
+  valueNumeric: number | null;
+  valueText: string | null;
+  achievedDate: string | null;
+  datePrecision: string;
+  source: string;
+  confidence: string;
+  videoUrl: string | null;
+  videoTimecode: string | null;
+  notes: string | null;
+  supersededBy: string | null;
+}
+
+// Shared field-shape validation for a record create or edit. `selfId` is the row's
+// own id, so a superseded-by pointing at the row itself is rejected. Throws
+// ValidationError with per-field messages; returns the normalized, typed values.
+function validateRecordInput(input: FreestyleRecordScalarInput, selfId: string): ValidatedRecord {
+  const fieldErrors: Record<string, string> = {};
+
+  const recordType = (input.recordType ?? '').trim();
+  if (!recordType) {
+    fieldErrors.recordType = 'Record type is required.';
+  } else if (!allowedRecordTypes().includes(recordType)) {
+    fieldErrors.recordType = 'Record type must be one of the existing record types.';
+  }
+
+  const source = (input.source ?? '').trim();
+  if (!source) fieldErrors.source = 'Source is required.';
+
+  const personId = emptyToNull(input.personId);
+  const displayName = emptyToNull(input.displayName);
+  if (personId === null && displayName === null) {
+    fieldErrors.displayName = 'A record needs a linked person id or a display name.';
+  }
+  if (personId !== null && !historicalPersonLookup.personNameById.get(personId)) {
+    fieldErrors.personId = 'No historical person has that id.';
+  }
+
+  const datePrecision = (input.datePrecision ?? '').trim();
+  if (!DATE_PRECISION_VALUES.includes(datePrecision)) {
+    fieldErrors.datePrecision = 'Date precision must be day, month, year, or approximate.';
+  }
+
+  const achievedDate = emptyToNull(input.achievedDate);
+  if (achievedDate !== null && !ISO_DAY_RE.test(achievedDate)) {
+    fieldErrors.achievedDate = 'Achieved date must be empty or a YYYY-MM-DD date.';
+  }
+
+  const confidence = (input.confidence ?? '').trim();
+  if (!CONFIDENCE_VALUES.includes(confidence)) {
+    fieldErrors.confidence = 'Confidence must be verified, probable, provisional, or disputed.';
+  }
+
+  const addsRaw = (input.addsCount ?? '').trim();
+  if (addsRaw !== '' && !/^\d+$/.test(addsRaw)) {
+    fieldErrors.addsCount = 'Adds count must be empty or a whole number.';
+  }
+  const addsCount = addsRaw === '' ? null : parseInt(addsRaw, 10);
+
+  const valueRaw = (input.valueNumeric ?? '').trim();
+  if (valueRaw !== '' && !Number.isFinite(Number(valueRaw))) {
+    fieldErrors.valueNumeric = 'Value must be empty or a number.';
+  }
+  const valueNumeric = valueRaw === '' ? null : Number(valueRaw);
+
+  const supersededBy = emptyToNull(input.supersededBy);
+  if (supersededBy !== null) {
+    if (supersededBy === selfId) {
+      fieldErrors.supersededBy = 'A record cannot supersede itself.';
+    } else if (!freestyleRecords.getForCurationById.get(supersededBy)) {
+      fieldErrors.supersededBy = 'No record has that id.';
+    }
+  }
+
+  if (Object.keys(fieldErrors).length > 0) {
+    throw new ValidationError('Some fields need attention.', { fieldErrors });
+  }
+
+  return {
+    recordType,
+    personId,
+    displayName,
+    trickName:     emptyToNull(input.trickName),
+    sortName:      emptyToNull(input.sortName),
+    addsCount,
+    valueNumeric,
+    valueText:     emptyToNull(input.valueText),
+    achievedDate,
+    datePrecision,
+    source,
+    confidence,
+    videoUrl:      emptyToNull(input.videoUrl),
+    videoTimecode: emptyToNull(input.videoTimecode),
+    notes:         emptyToNull(input.notes),
+    supersededBy,
+  };
+}
 
 function emptyToNull(value: string | undefined): string | null {
   const trimmed = (value ?? '').trim();

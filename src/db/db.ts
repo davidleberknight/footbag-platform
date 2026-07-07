@@ -2058,6 +2058,17 @@ export const freestyleRecords = {
         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
     WHERE id = ?
   `); },
+
+  // Admin curation add: insert one new record. The service generates the id and
+  // validates the same fields as an edit; created_at and updated_at are stamped.
+  get insertForCuration() { return db.prepare(`
+    INSERT INTO freestyle_records
+      (id, record_type, person_id, display_name, trick_name, sort_name, adds_count,
+       value_numeric, value_text, achieved_date, date_precision, source, confidence,
+       video_url, video_timecode, notes, superseded_by, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            strftime('%Y-%m-%dT%H:%M:%fZ','now'), strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  `); },
 };
 
 // Historical-person existence and name lookup, used by freestyle-record curation

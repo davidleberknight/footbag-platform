@@ -65,6 +65,8 @@ adminRouter.post('/freestyle/tricks/:slug/sources/:sourceId/delete',   adminFree
 adminRouter.post('/freestyle/tricks/:slug/modifiers',                                    adminFreestyleController.attachModifier);
 adminRouter.post('/freestyle/tricks/:slug/modifiers/:modifierSlug/:applyOrder/delete',   adminFreestyleController.detachModifier);
 adminRouter.get('/freestyle/records',              adminFreestyleController.recordsIndex);
+adminRouter.get('/freestyle/records/new',          adminFreestyleController.recordNew);
+adminRouter.post('/freestyle/records',             adminFreestyleController.recordCreate);
 adminRouter.get('/freestyle/records/:id/edit',     adminFreestyleController.recordEdit);
 adminRouter.post('/freestyle/records/:id/edit',    adminFreestyleController.recordUpdate);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);

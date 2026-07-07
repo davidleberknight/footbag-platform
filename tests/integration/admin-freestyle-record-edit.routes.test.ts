@@ -252,6 +252,61 @@ describe('POST /admin/freestyle/records/:id/edit — validation', () => {
   });
 });
 
+describe('freestyle records — add new', () => {
+  it('shows a New Record button on the browse and a blank new form with defaults', async () => {
+    const browse = await get('/admin/freestyle/records', admin());
+    expect(browse.text).toContain('/admin/freestyle/records/new');
+    expect(browse.text).toContain('New Record');
+
+    const form = await get('/admin/freestyle/records/new', admin());
+    expect(form.status).toBe(200);
+    expect(form.text).toContain('New record');
+    expect(form.text).toContain('action="/admin/freestyle/records"');  // create target
+    expect(form.text).toContain('value="day" selected');               // default precision
+    expect(form.text).toContain('value="probable" selected');          // default confidence
+  });
+
+  it('creates a new record, writes one created audit row, and redirects to its edit page', async () => {
+    const res = await post('/admin/freestyle/records', admin(),
+      validBody({ displayName: 'Brand New Holder', trickName: 'Brand New Trick', valueNumeric: '77' }));
+    expect(res.status).toBe(303);
+    const loc = res.headers.location as string;
+    expect(loc).toMatch(/^\/admin\/freestyle\/records\/[0-9a-f-]{36}\/edit\?saved=1$/);
+
+    const newId = loc.replace('/admin/freestyle/records/', '').replace('/edit?saved=1', '');
+    const row = recordRow(newId);
+    expect(row.display_name).toBe('Brand New Holder');
+    expect(row.trick_name).toBe('Brand New Trick');
+    expect(row.value_numeric).toBe(77);
+
+    const audits = db.prepare(
+      `SELECT metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = 'freestyle.record.created'`,
+    ).all(newId) as { metadata_json: string }[];
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('Brand New Trick');
+  });
+
+  it('re-renders the new form at 422 on invalid input, preserving submitted values', async () => {
+    const res = await post('/admin/freestyle/records', admin(),
+      validBody({ confidence: 'legendary', trickName: 'Attempted New Trick' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Confidence must be');
+    expect(res.text).toContain('New record');               // still the new form
+    expect(res.text).toContain('Attempted New Trick');      // submitted value survives
+    expect(res.text).toContain('action="/admin/freestyle/records"');
+  });
+
+  it('refuses create for a non-admin (403), an unauthenticated visitor (302), and a seeded persona (403)', async () => {
+    const member = await post('/admin/freestyle/records', cookieFor(MEMBER_ID, 'member'), validBody());
+    expect(member.status).toBe(403);
+    const anon = await post('/admin/freestyle/records', undefined, validBody());
+    expect(anon.status).toBe(302);
+    const persona = await post('/admin/freestyle/records', cookieFor(PERSONA_ADMIN_ID, 'admin'), validBody({ displayName: 'Persona New' }));
+    expect(persona.status).toBe(403);
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM freestyle_records WHERE display_name = 'Persona New'`).get()).toEqual({ n: 0 });
+  });
+});
+
 describe('POST /admin/freestyle/records/:id/edit — write gate', () => {
   it('returns 403 for a non-admin and 302 for an unauthenticated visitor, writing nothing', async () => {
     const member = await post('/admin/freestyle/records/rec_guard/edit', cookieFor(MEMBER_ID, 'member'), validBody({ trickName: 'Hijacked' }));
