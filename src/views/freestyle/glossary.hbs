@@ -1505,9 +1505,14 @@
 
     <h3>Modifier weights</h3>
     <p>
-      Each modifier adds a fixed ADD weight on every base. An X-Dex is a
+      Most modifiers add a fixed ADD weight on every base. An X-Dex is a
       separate +1 scored wherever the operational notation carries
       <code>[XDEX]</code> on a dex; it is never part of a modifier's own weight.
+      Blurry is the exception: it is a folk shorthand scored per trick, reading
+      as stepping with a paradox second dex (+2) where the trick's notation
+      carries that second dex and as stepping alone (+1) where it does not, so
+      its contribution follows the trick's own notation rather than a single
+      global value.
     </p>
     <div class="glossary-add-weight-table-wrap">
       <table class="glossary-add-weight-table">
@@ -1527,7 +1532,7 @@
           <tr><td>atomic</td><td>+1</td><td>set</td></tr>
           <tr><td>furious</td><td>+2</td><td>set (two-dex ≡ barraging)</td></tr>
           <tr><td>nuclear</td><td>+2</td><td>set (composite ≡ paradox+illusion)</td></tr>
-          <tr><td>blurry</td><td>+2</td><td>set (composite ≡ stepping+paradox)</td></tr>
+          <tr><td>blurry</td><td>+1 / +2</td><td>set (folk shorthand, scored per trick)</td></tr>
           <tr><td>pixie</td><td>+1</td><td>set</td></tr>
           <tr><td>fairy</td><td>+1</td><td>set</td></tr>
         </tbody>

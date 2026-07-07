@@ -338,10 +338,14 @@ describe('GET /freestyle/add-analysis', () => {
     expect(res.text).toMatch(/\(downtime\) spin &gt; ss clipper/);
   });
 
-  it('blurry reads as +1 implying stepping, not paradox', async () => {
+  it('blurry reads as scored per trick, never a fixed universal weight', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    expect(res.text).toMatch(/blurry \+1 \(implies stepping\)/i);
-    expect(res.text).not.toMatch(/blurry[^.]*implies[^.]*paradox/i);
+    // blurry is folk shorthand governed by each trick's notation, not a flat value
+    expect(res.text).toMatch(/blurry is scored per trick/i);
+    // the stale fixed +1-stepping-only claim must not reappear
+    expect(res.text).not.toMatch(/blurry \+1 \(implies stepping\)/i);
+    // the per-trick reading includes the paradox second dex where the notation carries it
+    expect(res.text).toMatch(/paradox second dex/i);
   });
 
   it('Barraging surfaces as a Set/Uptime modifier with weight 2 (Red 2026-05-20)', async () => {

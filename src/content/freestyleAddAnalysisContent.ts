@@ -188,7 +188,7 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
   // single-valued taxonomy. Unresolved-doctrine weightings are marked TBD.
   {
     componentClass: 'Set / Uptime modifiers: pixie, fairy, atomic, quantum, nuclear, blurry, barraging / furious (pedagogical axis, not an official grouping)',
-    contribution:   'pixie / fairy / quantum +1; atomic +1 (a separate +1 X-Dex applies only where [XDEX] appears in the notation of the following dex); nuclear +2 (= paradox + illusion); blurry +1 (implies stepping); barraging +2 (a two-dex set; also called furious).',
+    contribution:   'pixie / fairy / quantum +1; atomic +1 (a separate +1 X-Dex applies only where [XDEX] appears in the notation of the following dex); nuclear +2 (= paradox + illusion); blurry is scored per trick, not a fixed weight (stepping with a paradox second dex, +2, where the notation carries that second dex; stepping alone, +1, where it does not); barraging +2 (a two-dex set; also called furious).',
     example:        'atomic + mirage = atom smasher = 4 ADD; barraging + osis = baroque = 5 ADD',
   },
   {
@@ -432,7 +432,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '5 ADD',
     components: 'Stepping (+1) + paradox (+1) + whirl (3).',
     derivation: 'stepping(+1) + paradox(+1) + whirl(3) = 5 ADD',
-    whyNote:    'Blurry transitively expands to stepping paradox. The compressed name "blurry whirl" and the expanded reading describe the same trick at different stopping depths. Both are correct.',
+    whyNote:    'In blurry whirl the notation carries a paradox second dex, so blurry reads here as stepping paradox (+2). The compressed name "blurry whirl" and the expanded reading describe the same trick at different stopping depths; both are correct. Blurry is scored per trick, so read this expansion from the trick\'s own notation, not from a fixed global value.',
   },
   {
     trickName:  'Mobius',
