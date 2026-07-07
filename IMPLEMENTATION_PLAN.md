@@ -149,13 +149,18 @@ Pipeline defects, deviations, and cleanup the cutover load and onboarding matchi
 **Surface propagation rule (definition of done for freestyle slices; a standing rule, not a task — do not delete when items close).** Any freestyle update — a promotion, a doctrine change, a classifier change, or a content backfill — must propagate to every affected surface before the slice is considered complete. A change is not complete merely because the source row was edited. Affected surfaces, as applicable: canonical trick data; aliases / duplicate archive; Emerging Vocabulary; the observational universe; tracked names; ADD analysis; trick detail pages; browse / search; operator / modifier pages; set pages; family surfaces; media / related-trick projections; metrics / counts / copy; generated content files (`src/content/freestyleObservationalUniverse.ts`, `freestyleTrackedNames.ts`, and their peers); and tests / QC gates. For every slice, explicitly verify one of: (1) all affected surfaces were updated and regenerated, or (2) a surface is intentionally unchanged, with the reason documented. This applies to human and AI work alike.
 
 **State of freestyle (standing summary).** The freestyle encyclopedia is release-ready
-at Version 1; this block records where it stands so the section below carries only
-what genuinely remains. Freestyle is now in stewardship mode: Glossary V2 is the only
-sanctioned forward-build track; all other freestyle work is maintenance, doctrine
-response, or parked post-V1 research.
+at Version 1; this block records where it stands so the plan stays pointer-only for
+freestyle. Freestyle is in launch curation-cutover mode: the public surface is
+coherent, the CSV rebuild is guarded against production use, and the active launch
+work is completing the in-app curation and cutover path tracked in
+`freestyle_remediation_report.md`. Doctrine, Red questions, and content promotions
+remain James-led and are tracked through the freestyle doctrine files and that report.
 
 - *Implementation.* The dictionary (about 900 active canonical tricks, every one
-  terminating in a core atom, bracket-count equal to published ADD enforced per row),
+  terminating in a core atom; new admin saves enforce scoring-bracket parity for a
+  numeric ADD where the execution notation carries scoring brackets, while legacy
+  rows await the planned normalization and audit work before that parity is a
+  universal data invariant),
   the notation system (movement and execution notation with per-token roles), the
   family system (display tiers over a stable roster), the operator/modifier system
   (single authority in the operator reference, registry consistent), the glossary,
@@ -168,13 +173,15 @@ response, or parked post-V1 research.
   compared readings, exactly one genuine contradiction surfaced (Bladerunner), and it
   is resolved in the dictionary (canonical 4, the outside 5 recorded as
   non-authoritative).
-- *Doctrine.* The first Red packet is sent and its answers are awaited; the remaining
-  first-edition doctrine papers (`freestyle/doctrine/papers/0..5`) are drafted,
-  committed, and deliberately unsent. Every unresolved doctrine question is isolated
-  where it cannot leak into published values: the doctrine queue in
-  `freestyle/doctrine/RED_QUEUE.md` with its blocked items (tracked as FS-23 and
-  FS-24 in `freestyle_remediation_report.md`), the Quantum-versus-Miraging question
-  (FS-36 there), and the divergence registries in the content layer.
+- *Doctrine.* Open Red questions are not treated as delivered or pending a Red answer
+  until James assembles and sends the current packet and delivery is confirmed;
+  doctrine integration and promotions remain James-led. The remaining first-edition
+  doctrine papers (`freestyle/doctrine/papers/0..5`) are drafted, committed, and
+  deliberately unsent. Every unresolved doctrine question is isolated where it cannot
+  leak into published values: the doctrine queue in `freestyle/doctrine/RED_QUEUE.md`
+  with its blocked items (tracked as FS-23 and FS-24 in
+  `freestyle_remediation_report.md`), the Quantum-versus-Miraging question (FS-36
+  there), and the divergence registries in the content layer.
 - *Promotion.* The major promotion arc is finished: everything independently
   derivable from the sources is promoted, the clean no-cascade runway is exhausted,
   and the curator's one-line-call queue is cleared. What remains unpromoted is
