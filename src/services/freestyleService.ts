@@ -10145,7 +10145,9 @@ export const freestyleService = {
   // their operator / modifier page so they never render as a trick-detail entry.
   // Sets are deliberately not redirected here (pixie and fairy are dual-role
   // tricks), except route-migrated first-class sets (whirling, swirling), which
-  // resolve to their set page rather than a modifier stub.
+  // resolve to their set page rather than a modifier stub. Pure alias slugs
+  // (a historical name or abbreviation with no canonical row of their own)
+  // redirect to the canonical trick URL, keeping one canonical URL per trick.
   trickRouteRedirectTarget(slug: string): string | null {
     if (isRouteMigratedSet(slug)) return `/freestyle/sets/${slug}`;
     const row = runSqliteRead('freestyleTricks.categoryBySlug', () =>
@@ -10153,6 +10155,18 @@ export const freestyleService = {
     );
     if (row && (row.category === 'modifier' || row.category === 'operator')) {
       return `/freestyle/modifier/${slug}`;
+    }
+    if (!row) {
+      // A slug with no canonical row may be a trick alias (a historical name or
+      // an abbreviation like atw). One canonical URL per trick: the alias URL
+      // permanently redirects to the canonical trick page instead of rendering
+      // a duplicate copy of it under the alias URL. A slug that IS a canonical
+      // row never reaches this branch, so a canonical page always renders even
+      // if an alias row shares its slug.
+      const alias = runSqliteRead('freestyleTrickAliases.getCanonicalForAlias', () =>
+        freestyleTrickAliases.getCanonicalForAlias.get(slug) as { trick_slug: string } | undefined,
+      );
+      if (alias) return `/freestyle/tricks/${alias.trick_slug}`;
     }
     return null;
   },

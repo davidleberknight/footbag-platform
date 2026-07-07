@@ -4,7 +4,8 @@
  * Records link to tricks by trick_name. Two failure modes are pinned here:
  *   - a record named with a lexical variant ("2-Bag Juggle") whose slug is an
  *     alias of the canonical trick ("2-bag-juggling") must still list on the
- *     canonical page, and the alias URL must render the canonical page;
+ *     canonical page, and the alias URL 301-redirects to the canonical page
+ *     (one canonical URL per trick; alias URLs never render a duplicate);
  *   - a record named with a side qualifier ("Clipper Stall (ss)") keeps the
  *     qualifier in its slug (clipper-stall-ss) and lists on its base trick page
  *     through an alias, not through a lexical strip.
@@ -97,10 +98,13 @@ describe('Record-to-trick linkage', () => {
     expect(res.text).toContain('Juggle Holder');
   });
 
-  it('the alias URL 2-bag-juggle resolves to the canonical trick page', async () => {
+  it('the alias URL 2-bag-juggle 301-redirects to the canonical trick page', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/2_bag_juggle');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Juggle Holder');
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/freestyle/tricks/2_bag_juggling');
+    const followed = await request(await createApp()).get(res.headers.location);
+    expect(followed.status).toBe(200);
+    expect(followed.text).toContain('Juggle Holder');
   });
 
   it('a record named with an (ss) qualifier lists on its base trick page via an alias', async () => {

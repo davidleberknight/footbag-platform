@@ -674,3 +674,34 @@ The audit ran 2026-07-07 in a read-only session. The maintainer approved the rem
 
 A fresh session should start here: read sections 1, 13, and 15; pick up Batch E (stories, human-gated, longest lead) and Batch A (the two launch-blocking code fixes) per the section 15 order; honor the per-edit approval gates (public wording, canonical docs, `.claude/` files); and re-verify any file:line citation before editing, since the codebase may have moved since this report was written.
 
+## 18. Reconciliation addendum — second verification pass (2026-07-07)
+
+A second pass re-verified every launch-relevant finding against the repository HEAD, which by now carried three freestyle commits made after the original audit ran (the blurry per-trick fix, the flat-chapter glossary rebuild, and the release-blocker remediation). Under explicit maintainer direction, the two launch-blocking Batch A code fixes were executed in this pass; the rest of the backlog stands. Where the fix or the tree has moved past the original prose, trust the tree; the corrections below say where.
+
+**Executed this pass (Batch A):**
+
+- **FS-01 (alias 301) — DONE, verified.** `trickRouteRedirectTarget` (`src/services/freestyleService.ts`) now resolves a slug that has no canonical trick row against `freestyle_trick_aliases` (reusing the existing `getCanonicalForAlias` statement) and returns `/freestyle/tricks/<canonical>`, which the controller already serves as a 301. A canonical row always wins, so a canonical slug that also appears as an alias still renders its own page. New suite `tests/integration/freestyle.trick-alias-redirect.routes.test.ts` pins alias-301-to-canonical, canonical-200, canonical-wins-over-a-shadowing-alias, modifier-301-unchanged, and garbage-404. The DC-1 internal-link addendum was checked: no service or trick template constructs an alias href, so the redirect is a safety net that rarely fires.
+
+- **FS-02 (production refuse-guard) — DONE, verified.** New standalone guard `freestyle/_assert_dev_db.sh` refuses the rebuild unless FOOTBAG_ENV is unset or exactly "development" AND the canonicalized target database is one of this checkout's own disposable databases; `freestyle/run_freestyle.sh` calls it before any loader; there is no bypass flag. Pytest `legacy_data/tests/test_freestyle_rebuild_guard.py` pins allow-dev-path, allow-CI-path, refuse-non-development-environment, refuse-alternate-path, and refuse-alternate-path-with-a-missing-environment. Placed as a standalone script (not inside a loader's DB-open helper) so it unit-tests without running a loader.
+  - **Scope note, a deviation from the DC-3 wording.** DC-3 said the guard allows "database/footbag.db". The guard as built allows two in-checkout databases: `database/footbag.db` (the dev default) and `database/footbag-ci.db`, because the CI loader-smoke gate sets `FOOTBAG_DB_PATH=./database/footbag-ci.db` (`.github/workflows/ci.yml`), so a footbag.db-only guard would have refused and broken that gate. Both are disposable in-checkout databases under `database/`; a production database never is, so the safety intent (refuse any live database) is preserved. Paths are canonicalized, so a relative or symlinked path cannot slip a live database past the check.
+
+**Evidence corrections to the original report (trust the tree):**
+
+- **FS-01's "no test pins the alias-URL behavior either way" was wrong.** A test pinned the pre-DC-1 behavior: `tests/integration/freestyle.record-linkage.routes.test.ts` asserted the alias URL `2_bag_juggle` renders 200 (a duplicate page), the exact behavior DC-1 forbids. It is corrected in this pass to assert the 301-to-canonical contract.
+
+- **Accessibility coverage is broader than the report states.** The axe scan (`tests/e2e/accessibility.spec.ts`) now includes `/freestyle/glossary` alongside the freestyle landing (added with the flat-chapter glossary work). FS-03's accessibility sub-item shrinks accordingly: the scan still omits tricks index, trick detail, and set detail, and the color-contrast rule is still globally disabled, but the glossary is covered.
+
+- **The "eight dead memory references" in FS-04 do not exist.** An existence check of every prefix-named memory reference across the five freestyle skills found zero missing files (for example `feedback_modifier_public_visibility.md`, cited as absent, is present and live). The FS-04 dead-memory-pointer component is void. The other FS-04 components remain real and verified: the hyphen-form slug examples (`footbag-freestyle-dictionary/REFERENCE.md:80`) and the stale "Modifier Reference section is a Handlebars block comment" claim (`footbag-freestyle-dictionary/SKILL.md:233`; `tricks.hbs` has no such section and no `content.modifiers` reference).
+
+- **FS-05 and FS-06 counts re-run essentially unchanged:** naming invariant 543 of 962 (identical); em dashes 183 template entities (was 188) plus 154 service strings.
+
+**New P3 notes (non-blocking; recorded so they are not rediscovered as new findings):**
+
+- **P3 — barrage concept-card wording.** The concept card in `src/content/freestyleGlossaryCoreConcepts.ts` calls barrage and barraging "the same two-dex structure named twice," but the trick `barrage` (`CLIP > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]`) and the operator `barraging` prefix (`OP IN [DEX] > SAME IN [DEX]`, consistent across all fourteen barraging compounds and the operator reference) differ in the first dex's side. Both are internally correct in the data; this is a copy nicety, not a contradiction, and not a launch blocker.
+
+- **P3 — latent hyphenated registry entries.** `src/services/glossaryAnchors.ts:42` and `src/services/semanticNotationRendering.ts:65` still list a hyphenated `around-the-world` / `atw` term while the rendered anchor id is the underscore form (`term-around_the_world`). No live caller passes the hyphenated form, and `semanticNotationRendering.ts:28` documents the hyphen form as deliberate for CSS/data attributes, so removal is not clearly safe. Unreachable dead-ish code, not a defect on the deployed surface; left as-is.
+
+- **P3 — the glossary deep-link opener does not move focus.** `src/public/js/glossary-details.js` opens the `<details>` ancestors of a URL fragment and scrolls to the target, but does not move keyboard focus to it. A minor accessibility nicety, not a defect: content is revealed and scrolled correctly for every user.
+
+**Verdict, updated.** No P0. FS-01 and FS-02 are closed. Remaining P1: FS-03 (test nets), FS-04 (reduced to the slug-convention and stale-mechanism components), FS-16 (stories), FS-19 (in-app curation cutover). Freestyle is ready for external testing; launch signoff still gates on FS-16, FS-19, and FS-03. This supersedes section 17's "no remediation code has been written," which was true only of the original audit session.
+

@@ -6328,13 +6328,9 @@ a.trick-hero-meta-chip--media:hover {
   border-color: var(--parch-450);
 }
 
-/* Glossary sidebar layout: CSS-only sticky positioning. Desktop ≥1024px
-   places the sidebar as a left rail next to the main column. Below
-   1024px the sidebar moves to a horizontal-scroll strip above the
-   content; below 480px it stacks vertically.
-
-   Progressive enhancement rule: no JS required. `position: sticky` is
-   the only behavioral CSS used. */
+/* Glossary page layout: a single content column. The page's navigation is
+   the chapter stack itself (collapsible details), so there is no rail or
+   grid; the .wrapper class constrains overall width. */
 .glossary-page {
   display: block;
 }
