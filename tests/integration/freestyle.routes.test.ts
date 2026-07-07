@@ -1881,15 +1881,17 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).not.toContain('An illusion combined with body rotation');
   });
 
-  it('§5 Core Trick Families renders as the registry-style core-trick grid; pixie/fairy stay in §6 set-modifiers', async () => {
-    // 14-section IA refactor (2026-05-19): §5 renamed from "Core Trick
-    // Structures" to "Core Trick Families". Content + anchors preserved.
+  it('Core Trick Families renders as the registry-style core-trick grid; pixie/fairy stay in the set-modifiers reference', async () => {
+    // The families section carries the registry-style core-trick grid. Modifiers
+    // (with the pixie/fairy set-modifier grid) now precedes families in the
+    // Foundations spine, so the family grid is bounded by the families section on
+    // the low side and the Notation topic on the high side.
     const res = await request(createApp()).get('/freestyle/glossary');
-    const sec5Heading = res.text.indexOf('id="section-families"');
-    const setModSection = res.text.indexOf('id="set-modifiers-tier-1"');
-    expect(sec5Heading).toBeGreaterThan(0);
-    expect(setModSection).toBeGreaterThan(sec5Heading);
-    const gridSlice = res.text.slice(sec5Heading, setModSection);
+    const familiesAt = res.text.indexOf('id="section-families"');
+    const notationAt = res.text.indexOf('id="section-notation"');
+    expect(familiesAt).toBeGreaterThan(0);
+    expect(notationAt).toBeGreaterThan(familiesAt);
+    const gridSlice = res.text.slice(familiesAt, notationAt);
     // All 11 foundational atoms render as registry tiles with `#term-{slug}` anchors.
     for (const slug of ['clipper_stall', 'mirage', 'legover', 'pickup', 'illusion', 'whirl', 'butterfly', 'swirl', 'osis', 'around_the_world', 'orbit']) {
       expect(gridSlice).toContain(`id="term-${slug}"`);

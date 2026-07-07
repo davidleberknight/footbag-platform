@@ -4915,51 +4915,62 @@ section.home-media { padding-top: 0; }
   margin: 4px 0 16px;
 }
 
-/* Chapter-scale disclosure: a large optional section whose teaching lead stays
-   visible while its reference bulk collapses. Distinct, more prominent than the
-   per-entry collapsibles above. */
-.glossary-chapter {
+/* Glossary chapters: a compact table of contents of independently collapsible
+   sections. Each summary is a chapter title plus a one-line description; the
+   stack of ten reads as a tidy list, not ten heavy cards. Opening a chapter
+   unfolds its whole section in place. */
+.glossary-topic {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  margin: 16px 0 24px;
-  background: var(--bg-subtle, var(--white));
+  margin: 8px 0;
+  background: var(--white);
 }
-.glossary-chapter-summary {
+.glossary-topic-card {
   cursor: pointer;
   list-style: none;
-  padding: 14px 18px;
+  padding: 14px 44px 14px 18px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  position: relative;
 }
-.glossary-chapter-summary::-webkit-details-marker { display: none; }
-.glossary-chapter-summary-title {
-  font-weight: 600;
-  font-size: 1.1rem;
-}
-.glossary-chapter-summary-title::before {
+.glossary-topic-card::-webkit-details-marker { display: none; }
+.glossary-topic-card:hover .glossary-topic-card-title { color: var(--primary-dk); }
+.glossary-topic-card::after {
   content: "\25B8";
-  display: inline-block;
-  margin-right: 10px;
-  color: var(--text-muted);
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  transform: translateY(-50%);
+  font-size: 1rem;
+  color: var(--primary);
   transition: transform 0.15s ease;
 }
-.glossary-chapter[open] > .glossary-chapter-summary .glossary-chapter-summary-title::before { transform: rotate(90deg); }
-.glossary-chapter-summary-hint {
-  font-size: 0.9rem;
+.glossary-topic[open] > .glossary-topic-card::after { transform: translateY(-50%) rotate(90deg); }
+.glossary-topic-card-title {
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--text);
+}
+.glossary-topic-card-hook {
+  font-size: 0.92rem;
   color: var(--text-secondary);
-  margin-left: 24px;
 }
-.glossary-chapter[open] > .glossary-chapter-summary {
+.glossary-topic[open] > .glossary-topic-card {
   border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
-.glossary-chapter > *:not(summary) {
+.glossary-topic > *:not(summary) {
   margin-left: 18px;
   margin-right: 18px;
 }
-.glossary-chapter > *:last-child {
+.glossary-topic > *:last-child {
   margin-bottom: 14px;
+}
+
+@media (max-width: 768px) {
+  .glossary-topic-card { padding: 12px 40px 12px 14px; }
+  .glossary-topic > *:not(summary) { margin-left: 12px; margin-right: 12px; }
 }
 
 /* Technique Notes inner sub-blocks (Execution / Learning Notes / Before You Try
@@ -6327,51 +6338,6 @@ a.trick-hero-meta-chip--media:hover {
 .glossary-page {
   display: block;
 }
-.glossary-sidebar {
-  margin: 0 0 20px 0;
-  padding: 12px 14px;
-  background: var(--sec-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-.glossary-sidebar-tier {
-  margin: 14px 0 4px 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--secondary);
-  text-transform: uppercase;
-}
-.glossary-sidebar-tier:first-child {
-  margin-top: 0;
-}
-.glossary-sidebar-group {
-  display: block;
-  margin: 4px 0 2px 0;
-  font-size: 0.86rem;
-  font-weight: 600;
-  color: var(--text);
-}
-.glossary-sidebar-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: 0.88rem;
-}
-.glossary-sidebar-list li {
-  margin: 2px 0;
-}
-.glossary-sidebar-list a {
-  color: var(--text);
-  text-decoration: none;
-  padding: 3px 0;
-  display: block;
-  border-radius: var(--radius-2xs);
-}
-.glossary-sidebar-list a:hover {
-  background: var(--gray-250);
-  padding-left: 6px;
-}
 .glossary-main-column {
   /* Content column inside .glossary-page wrapper. The wrapper is
      .wrapper, which already constrains overall page width. */
@@ -6518,39 +6484,6 @@ a.trick-hero-meta-chip--media:hover {
 @media (max-width: 480px) {
   .glossary-core-atoms-grid {
     grid-template-columns: 1fr;
-  }
-}
-@media (min-width: 1024px) {
-  .glossary-page {
-    display: grid;
-    grid-template-columns: 220px 1fr;
-    column-gap: 32px;
-    align-items: start;
-  }
-  .glossary-sidebar {
-    position: sticky;
-    top: 16px;
-    max-height: calc(100vh - 32px);
-    overflow-y: auto;
-    margin: 0;
-  }
-}
-@media (min-width: 768px) and (max-width: 1024px) {
-  /* Tablet: sidebar becomes a horizontal strip above the content. */
-  .glossary-sidebar-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 12px;
-  }
-  .glossary-sidebar-list li {
-    margin: 0;
-  }
-  .glossary-sidebar-list a {
-    padding: 3px 8px;
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-2xs);
-    font-size: 0.82rem;
   }
 }
 
@@ -10808,19 +10741,6 @@ a.dict-trick-row-hashtag--media:hover {
   max-width: 880px;
 }
 
-.glossary-sidebar-sublist {
-  list-style: none;
-  padding: 0;
-  margin: 4px 0 6px 14px;
-  font-size: 0.88rem;
-}
-.glossary-sidebar-sublist li {
-  padding: 1px 0;
-}
-.glossary-sidebar-sublist a {
-  color: var(--steel-500);
-}
-
 .glossary-derivation-atlas-heading {
   margin-top: 28px;
 }
@@ -11944,62 +11864,11 @@ a.dict-trick-row-hashtag--media:hover {
   border-left: 4px solid var(--set-moss);
   border-radius: var(--radius-xs);
 }
-.glossary-intro-card-heading {
-  margin: 0 0 8px;
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--earth-750);
-}
 .glossary-intro-card-lede {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 0.95rem;
   line-height: 1.5;
   color: var(--gray-800);
-}
-.glossary-intro-card-arcs {
-  margin: 0 0 12px;
-  padding-left: 22px;
-  font-size: 0.92rem;
-  line-height: 1.55;
-  color: var(--earth-750);
-}
-.glossary-intro-card-arcs li { margin: 2px 0; }
-.glossary-intro-card-arc-detail {
-  color: var(--text-muted);
-  font-weight: 400;
-  margin-left: 4px;
-}
-.glossary-intro-card-tail {
-  margin: 0;
-  font-size: 0.85rem;
-  line-height: 1.45;
-}
-
-/* Tier-break ruler: between major reading arcs */
-.glossary-tier-break {
-  margin: 36px 0 28px;
-  padding: 14px 18px 0;
-  border-top: 1px solid var(--parch-450);
-  position: relative;
-}
-.glossary-tier-break-label {
-  display: inline-block;
-  position: relative;
-  top: -23px;
-  padding: 0 12px;
-  background: var(--bg-page);
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--notation-gold);
-}
-.glossary-tier-break-note {
-  margin: -8px 0 0;
-  font-size: 0.88rem;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  font-style: italic;
 }
 
 /* §7 mini-TOC: inline pill row beneath the Notation H2 */

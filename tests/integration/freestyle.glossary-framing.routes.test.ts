@@ -170,14 +170,19 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
   });
 });
 
-describe('Glossary framing — sidebar + non-regression', () => {
-  it('adds a sidebar entry for the new section without dropping existing ones', async () => {
+describe('Glossary framing — chapter navigation + non-regression', () => {
+  it('navigates by the chapter stack, with no sidebar', async () => {
     const html = await glossary();
-    expect(html).toContain('href="#section-reading-the-dictionary"');
-    // Existing sidebar entries remain.
-    expect(html).toContain('href="#section-core-concepts"');
-    expect(html).toContain('href="#section-families"');
-    expect(html).toContain('href="#section-notation"');
+    // the sidebar rail is gone; the collapsible chapters are the navigation
+    expect(html).not.toContain('glossary-sidebar');
+    expect(html).toContain('id="chapter-reading-the-dictionary"');
+    expect(html).toContain('id="chapter-movement-basics"');
+    expect(html).toContain('id="chapter-family-encyclopedia"');
+    expect(html).toContain('id="chapter-structural-analysis"');
+    // the chapters still wrap their original sections (deep-link targets preserved)
+    expect(html).toContain('id="section-core-concepts"');
+    expect(html).toContain('id="section-families"');
+    expect(html).toContain('id="section-notation"');
   });
 
   it('§families groups the family cards by display tier, then lineage position', async () => {

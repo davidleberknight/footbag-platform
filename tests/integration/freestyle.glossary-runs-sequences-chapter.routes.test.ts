@@ -1,15 +1,14 @@
 /**
- * Integration tests for the Runs & Sequences chapter on GET /freestyle/glossary:
- * the merge of the former Symbolic Composition and Run Architecture sections into
- * one collapsible chapter (third chapter-disclosure pilot).
+ * Integration tests for the Runs & Sequences topic on GET /freestyle/glossary:
+ * the former Symbolic Composition and Run Architecture sections, merged into one
+ * section and presented as a major topic behind a destination card.
  *
- * The "tricks combine into runs; this is how tricks are used, not defined"
- * distinction and the core run vocabulary stay visible; the decomposition table,
- * the vocabulary-relationships reference, and the run-architecture detail fold
- * into one chapter details. Run Architecture folds from a section into a div
- * (preserving section-run-architecture), the section is renamed away from
- * "Composition" so it no longer collides with the trick-level Composition concept
- * card, and the duplicated run framing is removed.
+ * The whole section (the used-vs-defined distinction, the core run vocabulary,
+ * the decomposition table, the vocabulary-relationships reference, and the
+ * run-architecture detail) lives inside the topic. Run Architecture folds from a
+ * section into a div (preserving section-run-architecture), the section is renamed
+ * away from "Composition" so it no longer collides with the trick-level Composition
+ * concept card, and the duplicated run framing is removed.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -40,7 +39,7 @@ async function glossary(): Promise<string> {
 }
 
 describe('Glossary — Runs & Sequences chapter (Composition + Run Architecture merge)', () => {
-  it('renames the section away from Composition and folds both into one chapter', async () => {
+  it('renames the section away from Composition and folds it into one topic', async () => {
     const html = await glossary();
 
     // renamed heading (resolves the collision with the trick-level Composition card);
@@ -49,21 +48,21 @@ describe('Glossary — Runs & Sequences chapter (Composition + Run Architecture 
     expect(html).toContain('Runs &amp; Sequences');
     expect(html).not.toContain('Symbolic Composition');
 
-    const chapterAt    = html.indexOf('id="chapter-runs-sequences"');
+    const topicAt      = html.indexOf('id="chapter-runs-sequences"');
     const distinctionAt= html.indexOf('how tricks are <em>used</em>');
     const atlasAt       = html.indexOf('id="derivation-atlas"');
     const runArchAt     = html.indexOf('id="section-run-architecture"');
-    const chapterEnd    = html.indexOf('</section>', chapterAt);
+    const topicEnd      = html.indexOf('</section>', topicAt);
 
-    expect(chapterAt).toBeGreaterThan(-1);
-    // the used-vs-defined distinction stays visible, before the chapter
-    expect(distinctionAt).toBeGreaterThan(-1);
-    expect(distinctionAt).toBeLessThan(chapterAt);
-    // the decomposition table and the folded run architecture live inside the chapter
-    expect(atlasAt).toBeGreaterThan(chapterAt);
-    expect(atlasAt).toBeLessThan(chapterEnd);
-    expect(runArchAt).toBeGreaterThan(chapterAt);
-    expect(runArchAt).toBeLessThan(chapterEnd);
+    expect(topicAt).toBeGreaterThan(-1);
+    // the used-vs-defined distinction and run vocabulary now live inside the topic
+    expect(distinctionAt).toBeGreaterThan(topicAt);
+    expect(distinctionAt).toBeLessThan(topicEnd);
+    // the decomposition table and the folded run architecture live inside the topic
+    expect(atlasAt).toBeGreaterThan(topicAt);
+    expect(atlasAt).toBeLessThan(topicEnd);
+    expect(runArchAt).toBeGreaterThan(topicAt);
+    expect(runArchAt).toBeLessThan(topicEnd);
   });
 
   it('preserves the merged anchors, facts, and the combo-analysis link', async () => {

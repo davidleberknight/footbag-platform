@@ -1,14 +1,12 @@
 /**
- * Integration tests for the Reference & History chapter on GET /freestyle/glossary:
- * the fourth and final architectural chapter, folding the post-pedagogy reference
- * and history tail (observational panels, the movement-neighborhood case study,
- * advanced reference concepts, media-claim scope, community and historical
- * vocabulary, and sources) into one collapsible chapter.
+ * Integration tests for the Reference & History topic on GET /freestyle/glossary:
+ * the reference and history material (observational panels, the movement-neighborhood
+ * case study, advanced reference concepts, media-claim scope, community and historical
+ * vocabulary, and sources) presented as a major topic behind a destination card.
  *
- * A concise "why history and sources matter" intro stays visible; the detail
- * folds into one chapter details. The tail sections keep their ids and order, so
- * every anchor, link, and citation is preserved; the former "End of Pedagogy"
- * tier-break divider is replaced by the chapter.
+ * The whole section, including its "why history and sources matter" intro, lives
+ * inside the topic. The tail sections keep their ids and order, so every anchor,
+ * link, and citation is preserved; no tier-break divider precedes the topic.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -38,25 +36,25 @@ async function glossary(): Promise<string> {
   return res.text;
 }
 
-describe('Glossary — Reference & History chapter (final architectural chapter)', () => {
-  it('keeps a visible intro and folds the reference/history tail into one chapter', async () => {
+describe('Glossary — Reference & History topic (destination card + in-topic tail)', () => {
+  it('folds the whole reference and history section into one topic behind a card', async () => {
     const html = await glossary();
 
-    const introAt   = html.indexOf('id="section-reference-history"');
-    const chapterAt = html.indexOf('id="chapter-reference-history"');
+    const topicAt   = html.indexOf('id="chapter-reference-history"');
+    const sectionAt = html.indexOf('id="section-reference-history"');
     const firstTail = html.indexOf('id="connective-panels"');
     const lastTail  = html.indexOf('id="section-sources"');
-    const chapterEnd = html.indexOf('</details>', lastTail);
+    const topicEnd  = html.indexOf('</details>', lastTail);
 
-    // the chapter section and its visible heading exist
-    expect(introAt).toBeGreaterThan(-1);
+    // the topic wrapper and the section heading both exist
+    expect(topicAt).toBeGreaterThan(-1);
     expect(html).toContain('Reference &amp; History');
-    // the chapter details opens after the visible intro
-    expect(chapterAt).toBeGreaterThan(introAt);
-    // the first and last tail sections live inside the chapter
-    expect(firstTail).toBeGreaterThan(chapterAt);
+    // the topic details opens BEFORE the section it now wraps
+    expect(sectionAt).toBeGreaterThan(topicAt);
+    // the tail sections live inside the topic, in order, and the topic closes after them
+    expect(firstTail).toBeGreaterThan(sectionAt);
     expect(lastTail).toBeGreaterThan(firstTail);
-    expect(chapterEnd).toBeGreaterThan(lastTail);
+    expect(topicEnd).toBeGreaterThan(lastTail);
   });
 
   it('preserves every tail anchor and their order', async () => {

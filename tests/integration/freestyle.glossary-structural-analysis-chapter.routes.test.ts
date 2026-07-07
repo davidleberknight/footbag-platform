@@ -1,16 +1,14 @@
 /**
- * Integration tests for the Structural Analysis chapter on GET /freestyle/glossary:
- * the merge of the former Notation and ADD Accounting sections into one collapsible
- * chapter (the second chapter-disclosure pilot).
+ * Integration tests for the Structural Analysis topic on GET /freestyle/glossary:
+ * the former Notation and ADD Accounting sections, merged into one section and
+ * presented as a major topic behind a destination card.
  *
- * The notation framing and the ADD concept card stay visible; the notation
- * reference (compositional premise, grammar, worked examples, abbreviations,
- * operational reference) and the whole ADD accounting fold into one chapter
- * details. The two former sections' anchors are preserved (section-notation on
- * the merged section, section-add-accounting on a div inside it, plus
- * traditional-reference and run-quality). The ADD expansion is reconciled to one
- * term and the bracket-count checksum is stated once (in the card reveal), not
- * duplicated in the accounting prose.
+ * The whole section (its notation framing, the ADD concept card, the notation
+ * reference, and the ADD accounting) lives inside the topic. The former sections'
+ * anchors are preserved (section-notation on the merged section, section-add-accounting
+ * on a div inside it, plus traditional-reference and run-quality). The ADD expansion
+ * is reconciled to one term and the bracket-count checksum is stated once (in the
+ * concept card reveal), not duplicated in the accounting prose.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -41,24 +39,24 @@ async function glossary(): Promise<string> {
 }
 
 describe('Glossary — Structural Analysis chapter (Notation + ADD merge)', () => {
-  it('keeps the ADD card visible and folds both sections\' reference into one chapter', async () => {
+  it('folds the notation and ADD reference into one topic behind a destination card', async () => {
     const html = await glossary();
 
+    const topicAt       = html.indexOf('id="chapter-structural-analysis"');
     const cardAt        = html.indexOf('id="concept-add"');
-    const chapterAt     = html.indexOf('id="chapter-structural-analysis"');
     const premiseAt     = html.indexOf('id="compositional-premise"');
     const accountingAt  = html.indexOf('id="section-add-accounting"');
-    const chapterEnd    = html.indexOf('</section>', chapterAt);
+    const topicEnd      = html.indexOf('</section>', topicAt);
 
-    expect(chapterAt).toBeGreaterThan(-1);
-    // the ADD concept card is the visible lead, before the chapter opens
-    expect(cardAt).toBeGreaterThan(-1);
-    expect(cardAt).toBeLessThan(chapterAt);
-    // both the notation reference and the folded ADD accounting live inside the chapter
-    expect(premiseAt).toBeGreaterThan(chapterAt);
-    expect(premiseAt).toBeLessThan(chapterEnd);
-    expect(accountingAt).toBeGreaterThan(chapterAt);
-    expect(accountingAt).toBeLessThan(chapterEnd);
+    expect(topicAt).toBeGreaterThan(-1);
+    expect(html).toContain('class="glossary-topic-card-title"');
+    // the ADD concept card, the notation reference, and the ADD accounting all live inside the topic
+    expect(cardAt).toBeGreaterThan(topicAt);
+    expect(cardAt).toBeLessThan(topicEnd);
+    expect(premiseAt).toBeGreaterThan(topicAt);
+    expect(premiseAt).toBeLessThan(topicEnd);
+    expect(accountingAt).toBeGreaterThan(topicAt);
+    expect(accountingAt).toBeLessThan(topicEnd);
   });
 
   it('preserves the merged sections\' anchors and inbound-link targets', async () => {

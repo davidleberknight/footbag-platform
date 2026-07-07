@@ -16,43 +16,14 @@
 
 <div class="wrapper glossary-page">
 
-  {{> glossary-sidebar}}
-
   <div class="glossary-main-column">
 
-  {{! ── Glossary intro card — onboarding orientation ─────────────────────
-      A small one-pass orientation block above §1. Three short blocks:
-      what this glossary is, the four reading arcs, and how the sidebar
-      works. Zero new ontology; pure navigation lift. }}
-  <aside class="glossary-intro-card" aria-label="How to read this glossary">
-    <h2 class="glossary-intro-card-heading">How to read this glossary</h2>
+  {{! Glossary intro: one short orientation line above the chapter list. }}
+  <aside class="glossary-intro-card" aria-label="About this glossary">
     <p class="glossary-intro-card-lede">
-      A primer on freestyle's movement language &mdash; the words for
-      surfaces, dexes, families, modifiers, notation, and composition.
-      Start at the top; each section builds on the one before.
-    </p>
-    <ol class="glossary-intro-card-arcs" aria-label="Reading arcs">
-      <li>
-        <strong>Foundations</strong>
-        <span class="glossary-intro-card-arc-detail">surfaces, dexes, timing, sets &mdash; the parts.</span>
-      </li>
-      <li>
-        <strong>Families &amp; Modifiers</strong>
-        <span class="glossary-intro-card-arc-detail">how parts cluster into named groups.</span>
-      </li>
-      <li>
-        <strong>Notation &amp; ADD</strong>
-        <span class="glossary-intro-card-arc-detail">the symbolic layer for reading any trick name.</span>
-      </li>
-      <li>
-        <strong>Composition &amp; Beyond</strong>
-        <span class="glossary-intro-card-arc-detail">how tricks combine and where the system reaches.</span>
-      </li>
-    </ol>
-    <p class="glossary-intro-card-tail detail-muted">
-      The sidebar lists every section grouped by tier. On narrow screens it
-      reflows above the page. Reference and history sit below the fold &mdash;
-      a first read does not need them.
+      A reference for freestyle's movement language: the words for surfaces,
+      dexes, families, modifiers, notation, and how tricks compose. Open any
+      topic to read it.
     </p>
   </aside>
 
@@ -62,6 +33,11 @@
        separate. Foundational orientation only; do NOT harden
        family-hierarchy language here, the family taxonomy framing is
        curator-owned. }}
+  <details class="glossary-topic" id="chapter-reading-the-dictionary">
+    <summary class="glossary-topic-card">
+      <span class="glossary-topic-card-title">Reading the Dictionary</span>
+      <span class="glossary-topic-card-hook">How the dictionary describes every trick and the kinds of object it keeps separate.</span>
+    </summary>
   <section class="content-section" id="section-reading-the-dictionary">
     <h2 class="section-heading">Reading the dictionary</h2>
     <p>
@@ -156,7 +132,13 @@
       <a href="#section-families">Families</a> section maps both.
     </p>
   </section>
+  </details>
 
+  <details class="glossary-topic" id="chapter-movement-basics">
+    <summary class="glossary-topic-card">
+      <span class="glossary-topic-card-title">Movement Basics</span>
+      <span class="glossary-topic-card-hook">The twelve core atoms and the vocabulary every trick is built from.</span>
+    </summary>
   <section class="content-section" id="section-core-concepts">
     <h2 class="section-heading">Movement Basics</h2>
     <p>
@@ -281,7 +263,13 @@
     </div>
     {{/if}}
   </section>
+  </details>
 
+  <details class="glossary-topic" id="chapter-contact-surfaces">
+    <summary class="glossary-topic-card">
+      <span class="glossary-topic-card-title">Contact Surfaces &amp; Delays</span>
+      <span class="glossary-topic-card-hook">The surfaces a trick lands on and how each one controls the bag.</span>
+    </summary>
   <section class="content-section" id="section-surfaces">
     <h2 class="section-heading">
       Contact Surfaces &amp; Delays
@@ -410,9 +398,14 @@
       controlled <strong>swing element</strong> instead (Pendulum, Rake); see
       <a href="#edge-cases-special-structures">Edge cases and special structures</a>.
     </p>
-    <p class="glossary-section-next">Next &mdash; <a href="#section-dexterities">Dexterities</a> are the bag-foot motions that fill the middle of every compound.</p>
   </section>
+  </details>
 
+  <details class="glossary-topic" id="chapter-dexterities">
+    <summary class="glossary-topic-card">
+      <span class="glossary-topic-card-title">Dexterities</span>
+      <span class="glossary-topic-card-hook">The leg motions that shape the middle of a trick.</span>
+    </summary>
   <section class="content-section" id="section-dexterities">
     <h2 class="section-heading">
       Dexterities (Dex)
@@ -552,9 +545,14 @@
       <dt id="term-crowny">Crowny</dt>
       <dd>A duck-quality term: a duck performed with just the very top of the head &mdash; the duck-world parallel to a thin or <a href="#term-shoey">shoey</a> dex.</dd>
     </dl>
-    <p class="glossary-section-next">Next &mdash; <a href="#section-timing-sets">Timing &amp; Sets</a> places each component on the trick's parabolic arc.</p>
   </section>
+  </details>
 
+  <details class="glossary-topic" id="chapter-timing-sets">
+    <summary class="glossary-topic-card">
+      <span class="glossary-topic-card-title">Timing &amp; Sets</span>
+      <span class="glossary-topic-card-hook">Where each move happens during a trick, and the sets that begin it.</span>
+    </summary>
   <section class="content-section" id="section-timing-sets">
     <h2 class="section-heading">
       Timing &amp; Sets
@@ -632,13 +630,107 @@
       the ending mirrors it.
     </p>
   </section>
+  </details>
 
-  {{! ── Tier-break ruler #1 — Foundations → Families & Notation ───────── }}
-  <div class="glossary-tier-break" role="separator" aria-label="End of Foundations">
-    <span class="glossary-tier-break-label">End of Foundations</span>
-    <p class="glossary-tier-break-note">You now have the vocabulary to read any base trick name. Below: how tricks cluster into families and how the notation system makes their composition legible.</p>
-  </div>
+  <details class="glossary-topic" id="chapter-operators-modifiers">
+    <summary class="glossary-topic-card">
+      <span class="glossary-topic-card-title">Operators &amp; Modifiers</span>
+      <span class="glossary-topic-card-hook">The transformations that turn a base trick into new tricks.</span>
+    </summary>
+  <section class="content-section" id="section-modifiers">
+    <h2 class="section-heading">
+      Operators &amp; Modifiers
+      <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
+      <a class="glossary-section-canonical-link" href="/freestyle/operators">Open standalone &rarr;</a>
+    </h2>
 
+    <div class="glossary-concept" id="concept-set-vs-operator">
+      <p>{{content.setVsOperatorConcept.line}}</p>
+      <details class="glossary-core-atom-collapsible">
+        <summary>How it relates</summary>
+        <p>{{content.setVsOperatorConcept.relates}}</p>
+      </details>
+      {{#if content.setVsOperatorConcept.hasReveal}}
+      <details class="glossary-core-atom-collapsible">
+        <summary>What it reveals</summary>
+        <p>{{content.setVsOperatorConcept.reveal}}</p>
+      </details>
+      {{/if}}
+    </div>
+    <div class="glossary-concept" id="concept-composition">
+      <p>{{content.compositionConcept.line}}</p>
+      <details class="glossary-core-atom-collapsible">
+        <summary>How it relates</summary>
+        <p>{{content.compositionConcept.relates}}</p>
+      </details>
+    </div>
+
+    <p>
+      Modifiers form <strong>ecosystems</strong>. A single modifier transforms
+      <em>many</em> different base tricks: set ecosystems (pixie, fairy,
+      stepping, quantum, atomic) reshape the entry; body / rotational ecosystems
+      (ducking, gyro, spinning) reshape the midtime. An ecosystem is
+      <strong>not a family</strong> &mdash; it has no terminal mechanic of its
+      own; it modifies a base that does. That is why pixie appears across
+      pixie-illusion, pixie-mobius, and symposium-pixie rather than as a family
+      of its own. Browse a single ecosystem under
+      <a href="/freestyle/tricks?view=sets">By modifier</a>.
+    </p>
+
+    <p class="detail-muted">
+      Two of the set primitives have an intuitive motion reading:
+      <strong>pixie</strong> traces an uptime Around-the-World motion, and
+      <strong>fairy</strong> traces an uptime Orbit motion &mdash; the same
+      shapes as those atoms, performed on the set rather than as a landing trick.
+    </p>
+
+    <h3 class="section-heading" id="lineage-or-ecosystem">Lineage or ecosystem? A test you can apply</h3>
+    <p>
+      A <strong>lineage</strong> (a <a href="#section-families">family</a> or a
+      descendant lineage) has an ending of its own; an <strong>ecosystem</strong>
+      is a transformation you apply to someone else&rsquo;s ending. One quick
+      test settles most cases: <em>can you do it on its own?</em> You can do
+      &ldquo;a whirl&rdquo; or &ldquo;an osis&rdquo; &mdash; they land. You cannot
+      do &ldquo;a ducking,&rdquo; only a <em>ducking-something</em> (ducking-osis,
+      ducking-mirage, ducking-clipper). The ecosystem has no landing of its own.
+    </p>
+    <p>
+      The set primitives are the edge case. <strong>Pixie</strong> and
+      <strong>fairy</strong> broadcast across other bases like an ecosystem
+      (pixie-illusion, symposium-pixie), yet each also lands as its own trick
+      when taken to a toe stall: &ldquo;a pixie&rdquo; is the set to an
+      opposite-toe stall, a real 2-ADD trick. They read as both, depending on
+      how they are used.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th></th><th>Productive lineage</th><th>Modifier ecosystem</th></tr></thead>
+        <tbody>
+          <tr><td>Own terminal mechanic</td><td>yes</td><td>no</td></tr>
+          <tr><td>What it contributes</td><td>a base trick to build on</td><td>a transformation of a base</td></tr>
+          <tr><td>Spread</td><td>a coherent family tree</td><td>broadcast across many unrelated bases</td></tr>
+          <tr><td>Example</td><td>whirl, osis</td><td>ducking, spinning, blurry</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="detail-muted">
+      <strong>Hard cases: symposium and paradox.</strong> Both behave like
+      ecosystems &mdash; they transform many bases and have no terminal mechanic
+      of their own &mdash; even though older usage sometimes spoke of them as if
+      they were families. The platform classifies them as ecosystems for that
+      reason. That classification is curator-confirmable and may be refined, but
+      the test above is what decides it: neither lands on its own.
+    </p>
+
+    {{> freestyle-modifier-reference}}
+  </section>
+  </details>
+
+  <details class="glossary-topic" id="chapter-family-encyclopedia">
+    <summary class="glossary-topic-card">
+      <span class="glossary-topic-card-title">Family Encyclopedia</span>
+      <span class="glossary-topic-card-hook">How tricks organize into lineages.</span>
+    </summary>
   <section class="content-section" id="section-families">
     <h2 class="section-heading">
       Core Trick Families
@@ -740,12 +832,6 @@
       judgement, and a future ruling may move them &mdash; which is why some
       labels still render as their own groups.
     </p>
-
-    <details class="glossary-chapter" id="chapter-family-encyclopedia">
-    <summary class="glossary-chapter-summary">
-      <span class="glossary-chapter-summary-title">Family reference</span>
-      <span class="glossary-chapter-summary-hint">the full roster and display tiers, edge cases, other foundational atoms, and family-tree visualizations</span>
-    </summary>
 
     <h3 class="section-heading" id="edge-cases-special-structures">Edge cases and special structures</h3>
     <p class="detail-muted">
@@ -902,98 +988,14 @@
       </p>
     </details>
     {{/if}}
-    </details>
-    <p class="glossary-section-next">Next &mdash; <a href="#section-modifiers">Operators &amp; Modifiers</a> are the transformations that turn any family anchor into its named compounds.</p>
   </section>
+  </details>
 
-  <section class="content-section" id="section-modifiers">
-    <h2 class="section-heading">
-      Operators &amp; Modifiers
-      <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
-      <a class="glossary-section-canonical-link" href="/freestyle/operators">Open standalone &rarr;</a>
-    </h2>
-
-    <div class="glossary-concept" id="concept-set-vs-operator">
-      <p>{{content.setVsOperatorConcept.line}}</p>
-      <details class="glossary-core-atom-collapsible">
-        <summary>How it relates</summary>
-        <p>{{content.setVsOperatorConcept.relates}}</p>
-      </details>
-      {{#if content.setVsOperatorConcept.hasReveal}}
-      <details class="glossary-core-atom-collapsible">
-        <summary>What it reveals</summary>
-        <p>{{content.setVsOperatorConcept.reveal}}</p>
-      </details>
-      {{/if}}
-    </div>
-    <div class="glossary-concept" id="concept-composition">
-      <p>{{content.compositionConcept.line}}</p>
-      <details class="glossary-core-atom-collapsible">
-        <summary>How it relates</summary>
-        <p>{{content.compositionConcept.relates}}</p>
-      </details>
-    </div>
-
-    <p>
-      Modifiers form <strong>ecosystems</strong>. A single modifier transforms
-      <em>many</em> different base tricks: set ecosystems (pixie, fairy,
-      stepping, quantum, atomic) reshape the entry; body / rotational ecosystems
-      (ducking, gyro, spinning) reshape the midtime. An ecosystem is
-      <strong>not a family</strong> &mdash; it has no terminal mechanic of its
-      own; it modifies a base that does. That is why pixie appears across
-      pixie-illusion, pixie-mobius, and symposium-pixie rather than as a family
-      of its own. Browse a single ecosystem under
-      <a href="/freestyle/tricks?view=sets">By modifier</a>.
-    </p>
-
-    <p class="detail-muted">
-      Two of the set primitives have an intuitive motion reading:
-      <strong>pixie</strong> traces an uptime Around-the-World motion, and
-      <strong>fairy</strong> traces an uptime Orbit motion &mdash; the same
-      shapes as those atoms, performed on the set rather than as a landing trick.
-    </p>
-
-    <h3 class="section-heading" id="lineage-or-ecosystem">Lineage or ecosystem? A test you can apply</h3>
-    <p>
-      A <strong>lineage</strong> (a <a href="#section-families">family</a> or a
-      descendant lineage) has an ending of its own; an <strong>ecosystem</strong>
-      is a transformation you apply to someone else&rsquo;s ending. One quick
-      test settles most cases: <em>can you do it on its own?</em> You can do
-      &ldquo;a whirl&rdquo; or &ldquo;an osis&rdquo; &mdash; they land. You cannot
-      do &ldquo;a ducking,&rdquo; only a <em>ducking-something</em> (ducking-osis,
-      ducking-mirage, ducking-clipper). The ecosystem has no landing of its own.
-    </p>
-    <p>
-      The set primitives are the edge case. <strong>Pixie</strong> and
-      <strong>fairy</strong> broadcast across other bases like an ecosystem
-      (pixie-illusion, symposium-pixie), yet each also lands as its own trick
-      when taken to a toe stall: &ldquo;a pixie&rdquo; is the set to an
-      opposite-toe stall, a real 2-ADD trick. They read as both, depending on
-      how they are used.
-    </p>
-    <div class="glossary-add-weight-table-wrap">
-      <table class="glossary-add-weight-table">
-        <thead><tr><th></th><th>Productive lineage</th><th>Modifier ecosystem</th></tr></thead>
-        <tbody>
-          <tr><td>Own terminal mechanic</td><td>yes</td><td>no</td></tr>
-          <tr><td>What it contributes</td><td>a base trick to build on</td><td>a transformation of a base</td></tr>
-          <tr><td>Spread</td><td>a coherent family tree</td><td>broadcast across many unrelated bases</td></tr>
-          <tr><td>Example</td><td>whirl, osis</td><td>ducking, spinning, blurry</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="detail-muted">
-      <strong>Hard cases: symposium and paradox.</strong> Both behave like
-      ecosystems &mdash; they transform many bases and have no terminal mechanic
-      of their own &mdash; even though older usage sometimes spoke of them as if
-      they were families. The platform classifies them as ecosystems for that
-      reason. That classification is curator-confirmable and may be refined, but
-      the test above is what decides it: neither lands on its own.
-    </p>
-
-    {{> freestyle-modifier-reference}}
-  </section>
-
+  <details class="glossary-topic" id="chapter-structural-analysis">
+    <summary class="glossary-topic-card">
+      <span class="glossary-topic-card-title">Structural Analysis</span>
+      <span class="glossary-topic-card-hook">How to read any trick name as a formula.</span>
+    </summary>
   <section class="content-section" id="section-notation">
     <h2 class="section-heading">
       Structural Analysis: Notation &amp; ADD
@@ -1033,11 +1035,6 @@
       {{/if}}
     </div>
 
-    <details class="glossary-chapter" id="chapter-structural-analysis">
-    <summary class="glossary-chapter-summary">
-      <span class="glossary-chapter-summary-title">Notation and ADD reference</span>
-      <span class="glossary-chapter-summary-hint">the compositional premise and grammar, worked examples, the token abbreviations and operational reference, and the full ADD accounting</span>
-    </summary>
 
     {{! ── Compositional premise — Ben Job (1995) ───────────────────────────
         Concise primer naming Ben Job's notation contribution explicitly
@@ -1677,15 +1674,14 @@
       <a href="/freestyle/combo-analysis">Combo Analysis</a>.
     </p>
     </div>
-    </details>
   </section>
+  </details>
 
-  {{! ── Tier-break ruler #2 — Notation/ADD → Composition & the system ── }}
-  <div class="glossary-tier-break" role="separator" aria-label="End of Notation and Accounting">
-    <span class="glossary-tier-break-label">End of Notation &amp; Accounting</span>
-    <p class="glossary-tier-break-note">You can now read trick-detail pages and follow a decomposition chain end-to-end. Below: how tricks combine into longer sequences, and the system-level view of how the vocabulary fits together.</p>
-  </div>
-
+  <details class="glossary-topic" id="chapter-runs-sequences">
+    <summary class="glossary-topic-card">
+      <span class="glossary-topic-card-title">Runs &amp; Sequences</span>
+      <span class="glossary-topic-card-hook">How individual tricks combine into runs.</span>
+    </summary>
   <section class="content-section" id="section-composition">
     <h2 class="section-heading">
       Runs &amp; Sequences
@@ -1706,11 +1702,6 @@
       <li><strong>Shred Circle</strong>: a group format where players take turns performing runs.</li>
     </ul>
 
-    <details class="glossary-chapter" id="chapter-runs-sequences">
-    <summary class="glossary-chapter-summary">
-      <span class="glossary-chapter-summary-title">Runs and sequences reference</span>
-      <span class="glossary-chapter-summary-hint">the decomposition table, the four ways trick names relate, and the run-architecture vocabulary (quality tiers, competitive formats, and combo flow)</span>
-    </summary>
 
     {{! ── Decomposition table — the key structural readings in one compact
         place. Sits this late in the page because it belongs after the reader
@@ -1969,7 +1960,6 @@
       <em>alpine-big-apple</em> is the alias. The other projection is never discarded
       &mdash; it stays attached so either name still finds the trick.
     </p>
-    <p class="glossary-section-next">Next &mdash; the <a href="#walking-family-progression">walking-family progression</a> below renders ontology relationships as a 7-step ladder off the butterfly base.</p>
 
     {{! ── Walking-family progression ────────────────────────────────────────
         Pedagogical pathway: seven named compounds that branch off the
@@ -2045,9 +2035,14 @@
       <a href="/freestyle/combo-analysis">Combo Analysis</a>.
     </p>
     </div>
-    </details>
   </section>
+  </details>
 
+  <details class="glossary-topic" id="chapter-reference-history">
+    <summary class="glossary-topic-card">
+      <span class="glossary-topic-card-title">Reference &amp; History</span>
+      <span class="glossary-topic-card-hook">Where the vocabulary comes from.</span>
+    </summary>
   <section class="content-section" id="section-reference-history">
     <h2 class="section-heading">Reference &amp; History</h2>
     <p>
@@ -2056,11 +2051,6 @@
       historical names, movement-neighborhood lenses, and the source
       acknowledgements behind the canonical readings.
     </p>
-    <details class="glossary-chapter" id="chapter-reference-history">
-    <summary class="glossary-chapter-summary">
-      <span class="glossary-chapter-summary-title">Reference and history detail</span>
-      <span class="glossary-chapter-summary-hint">observational family and topology lenses, the movement-neighborhood case study, advanced reference concepts, media-claim scope, community and historical vocabulary, and sources</span>
-    </summary>
 
   {{#if content.connectivePanels.length}}
   <section class="content-section glossary-connective-section" id="connective-panels">
@@ -2498,8 +2488,8 @@
       authoritative trick page surfaces the open question explicitly.
     </p>
   </section>
-    </details>
   </section>
+  </details>
 
   </div>{{! /.glossary-main-column }}
 </div>

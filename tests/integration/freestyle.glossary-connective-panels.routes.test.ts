@@ -191,19 +191,19 @@ describe('GET /freestyle/glossary — connective panels do not break existing co
     expect(res.text).toMatch(/the language of freestyle footbag/);
   });
 
-  it('renders the glossary section spine in re-tiered order', async () => {
-    // Phase E (2026-05-22) re-tier: section anchors in progressive-disclosure
-    // order, with the relocated "Advanced Reference Concepts" section between
-    // Family & Topology Concepts and Community Vocabulary. Section ids are
-    // unique, so monotonic ordering on the anchors is a robust spine check.
+  it('renders the glossary section spine in reading order', async () => {
+    // Section anchors in reading order: the Foundations spine (ending in
+    // Modifiers) precedes the major topics (Families, then Notation, then
+    // Composition, then the reference and history tail). Section ids are unique,
+    // so monotonic ordering on the anchors is a robust spine check.
     const res = await request(createApp()).get('/freestyle/glossary');
     const orderedAnchors = [
       'id="section-core-concepts"',
       'id="section-surfaces"',
       'id="section-dexterities"',
       'id="section-timing-sets"',
-      'id="section-families"',
       'id="section-modifiers"',
+      'id="section-families"',
       'id="section-notation"',
       'id="section-add-accounting"',
       'id="section-composition"',
@@ -263,8 +263,8 @@ describe('GET /freestyle/glossary — inside-delay stationary-transition case st
     expect(slice).toMatch(/commonly interpreted as symposium/i);
   });
 
-  it('links the section from the glossary sidebar', async () => {
+  it('renders the neighborhood section with its deep-link anchor', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toContain('href="#inside-clipper-neighborhood"');
+    expect(res.text).toContain('id="inside-clipper-neighborhood"');
   });
 });

@@ -1,12 +1,12 @@
 /**
- * Integration tests for the Family Encyclopedia chapter on GET /freestyle/glossary.
+ * Integration tests for the Family Encyclopedia topic on GET /freestyle/glossary.
  *
- * The Families section is the pilot for chapter-scale progressive disclosure: its
- * teaching prose ("what makes a family") stays visible, while the reference bulk
- * (edge cases, the roster, display tiers, other foundational atoms, family trees)
- * collapses into one large chapter <details>. This suite pins that structure:
- * the teaching lead renders outside the chapter, the reference content renders
- * inside it, and no content was dropped by the wrapping.
+ * After Foundations the glossary presents a shelf of major topics. Each topic is
+ * a details whose summary is a destination card; opening the card unfolds the
+ * whole topic section in place. The Family Encyclopedia topic wraps the entire
+ * families section (its teaching prose and its reference bulk together) behind
+ * one card. This suite pins that structure: the card exists, the section content
+ * lives inside the topic, and nothing was dropped by the wrapping.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -36,27 +36,27 @@ async function glossary(): Promise<string> {
   return res.text;
 }
 
-describe('Glossary — Family Encyclopedia chapter (pilot chapter disclosure)', () => {
-  it('wraps the family reference bulk in a chapter details, keeping the teaching lead visible', async () => {
+describe('Glossary — Family Encyclopedia topic (destination card + in-topic content)', () => {
+  it('wraps the whole family section in a topic details behind a destination card', async () => {
     const html = await glossary();
 
-    const chapterAt   = html.indexOf('id="chapter-family-encyclopedia"');
+    const topicAt     = html.indexOf('id="chapter-family-encyclopedia"');
     const teachingAt  = html.indexOf('What makes a family?');
     const edgeCasesAt = html.indexOf('id="edge-cases-special-structures"');
-    const chapterEnd  = html.indexOf('glossary-section-next', chapterAt);
+    const nextTopicAt = html.indexOf('id="chapter-structural-analysis"');
 
-    // the chapter wrapper exists and is a details with a descriptive summary
-    expect(chapterAt).toBeGreaterThan(-1);
-    expect(html).toContain('class="glossary-chapter"');
-    expect(html).toContain('class="glossary-chapter-summary-title"');
+    // the topic wrapper exists and is a details with a destination card
+    expect(topicAt).toBeGreaterThan(-1);
+    expect(html).toContain('class="glossary-topic"');
+    expect(html).toContain('class="glossary-topic-card-title"');
 
-    // teaching lead stays OUTSIDE (before) the chapter
-    expect(teachingAt).toBeGreaterThan(-1);
-    expect(teachingAt).toBeLessThan(chapterAt);
+    // the teaching lead now lives INSIDE the topic (after the card), not above it
+    expect(teachingAt).toBeGreaterThan(topicAt);
+    expect(teachingAt).toBeLessThan(nextTopicAt);
 
-    // reference bulk (edge cases, roster) lives INSIDE the chapter
-    expect(edgeCasesAt).toBeGreaterThan(chapterAt);
-    expect(edgeCasesAt).toBeLessThan(chapterEnd);
+    // the reference bulk (edge cases, roster) lives inside the same topic
+    expect(edgeCasesAt).toBeGreaterThan(teachingAt);
+    expect(edgeCasesAt).toBeLessThan(nextTopicAt);
   });
 
   it('keeps all the family reference content present (nothing dropped by wrapping)', async () => {

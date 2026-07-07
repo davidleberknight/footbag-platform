@@ -5,8 +5,8 @@
  * The compact table replaces the former five-panel derivation atlas. It reads a
  * handful of named tricks as the operators + base they are built from, in two
  * registers: structural equivalence and educational approximation. The
- * `derivation-atlas` anchor is preserved for inbound deep-links, and the sidebar
- * surfaces it as a Core-Concepts sub-link.
+ * `derivation-atlas` anchor is preserved for inbound deep-links; it lives inside
+ * the Runs & Sequences chapter.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -68,10 +68,10 @@ describe('GET /freestyle/glossary — decomposition table', () => {
     }
   });
 
-  it('surfaces the table as a Core-Concepts sub-link in the sticky sidebar', async () => {
+  it('renders the decomposition table with its deep-link anchor and heading', async () => {
     const html = await glossary();
-    expect(html).toContain('glossary-sidebar-sublist');
-    expect(html).toContain('href="#derivation-atlas"');
+    // the table lives inside the Runs & Sequences chapter, reachable by its anchor
+    expect(html).toContain('id="derivation-atlas"');
     expect(html).toContain('Decomposition table');
   });
 

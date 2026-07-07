@@ -319,9 +319,9 @@ describe('/freestyle/glossary — compositional-premise §7 subsection', () => {
     expect(res.text).toMatch(/SET &gt; \(BACK\) SPIN \[BOD\] &gt; OP CLIP \[XBD\] \[DEL\]/);
   });
 
-  it('glossary sidebar exposes the #compositional-premise anchor', async () => {
+  it('renders the compositional-premise section with its deep-link anchor', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toContain('href="#compositional-premise"');
+    expect(res.text).toContain('id="compositional-premise"');
   });
 });
 

@@ -159,10 +159,10 @@ describe('Primitive vs Compound — glossary doctrine section', () => {
     expect(res.text).toMatch(/ontology, not difficulty or scoring/);
   });
 
-  it('sidebar exposes the primitives-and-compounds anchor', async () => {
+  it('renders the primitives-and-compounds section with its deep-link anchor', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('href="#primitives-and-compounds"');
+    expect(res.text).toContain('id="primitives-and-compounds"');
   });
 });
