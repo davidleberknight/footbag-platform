@@ -2225,6 +2225,26 @@ export const freestyleTricks = {
     FROM freestyle_tricks
     WHERE slug = ?
   `); },
+
+  // The category values actually present in the data. The admin edit form offers
+  // these plus a "none" option; the scalar-edit validation accepts them (the set
+  // is broad and has no CHECK, so it is read from the data, not hardcoded).
+  get listDistinctCategories() { return db.prepare(`
+    SELECT DISTINCT category FROM freestyle_tricks
+    WHERE category IS NOT NULL AND category <> ''
+    ORDER BY category
+  `); },
+
+  // Admin curation scalar edit: update only the nine editable scalar fields of
+  // one trick (slug is the identity key and stays fixed). Stamps updated_at.
+  // Attached aliases, sources, and modifier links are untouched here.
+  get updateScalars() { return db.prepare(`
+    UPDATE freestyle_tricks
+    SET canonical_name = ?, adds = ?, notation = ?, operational_notation = ?,
+        trick_family = ?, base_trick = ?, category = ?, is_active = ?,
+        review_status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+    WHERE slug = ?
+  `); },
 };
 
 export interface FreestyleTrickSearchRow {

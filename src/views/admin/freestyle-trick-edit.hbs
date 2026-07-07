@@ -7,12 +7,17 @@
 
 <div class="wrapper">
   <section>
-    {{#if content.savingDeferred}}
-    <p class="notice">This form is read-only for now. The fields below show the current values; the edit and save path lands in a later slice.</p>
+    {{#if content.saved}}
+    <p class="notice notice-info">Saved.</p>
+    {{/if}}
+    {{#if content.hasErrors}}
+    <div class="form-error-banner">
+      {{#each content.errorList}}<p>{{this}}</p>{{/each}}
+    </div>
     {{/if}}
 
-    <form class="freestyle-edit-form">
-      <fieldset disabled>
+    <form method="POST" action="/admin/freestyle/tricks/{{content.slug}}/edit" class="freestyle-edit-form">
+      <fieldset>
         <p><label>Canonical name</label><br><input type="text" name="canonicalName" value="{{content.fields.canonicalName}}" /></p>
         <p><label>ADD</label><br><input type="text" name="adds" value="{{content.fields.adds}}" /></p>
         <p><label>Movement notation</label><br><textarea name="movementNotation" rows="2">{{content.fields.movementNotation}}</textarea></p>
@@ -31,7 +36,7 @@
           </select>
         </p>
       </fieldset>
-      <p><button type="submit" disabled class="btn btn-primary btn-sm">Save</button></p>
+      <p><button type="submit" class="btn btn-primary btn-sm">Save</button></p>
     </form>
 
     <h2 class="section-heading">Aliases</h2>

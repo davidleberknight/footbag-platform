@@ -52,10 +52,12 @@ adminRouter.post('/club-cleanup/:clubId/delist-residue', adminClubCleanupControl
 adminRouter.post('/club-cleanup/candidates/:candidateId/promote', adminClubCleanupController.promote);
 adminRouter.post('/club-cleanup/candidates/:candidateId/resolve', adminClubCleanupController.resolveCandidate);
 
-// Freestyle dictionary curation. Read-only browse in this slice; each row links
-// to a placeholder edit route until the in-app edit surface is built.
+// Freestyle dictionary curation: browse the trick rows, open one for edit, and
+// save its scalar fields. Attached aliases, sources, and modifier links render
+// read-only on the edit page.
 adminRouter.get('/freestyle/tricks',             adminFreestyleController.index);
 adminRouter.get('/freestyle/tricks/:slug/edit',  adminFreestyleController.edit);
+adminRouter.post('/freestyle/tricks/:slug/edit', adminFreestyleController.update);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);
 adminRouter.post('/curator/upload', adminCuratorController.postUpload);
 // Async curator video upload (DD §6.8). Three-step browser flow: sign,
