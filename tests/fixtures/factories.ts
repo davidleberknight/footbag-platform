@@ -480,6 +480,7 @@ export function insertFreestyleRecord(
 // ── Consecutive Kicks Record ──────────────────────────────────────────────────
 
 export interface ConsecutiveKicksRecordOverrides {
+  id?: string;
   sort_order?: number;
   section?: string;
   subsection?: string;
@@ -493,21 +494,27 @@ export interface ConsecutiveKicksRecordOverrides {
   event_date?: string | null;
   event_name?: string | null;
   location?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 let _sortOrderCounter = 9000;
 
+/** Returns the row's stable surrogate id (the primary key). */
 export function insertConsecutiveKicksRecord(
   db: BetterSqlite3.Database,
   o: ConsecutiveKicksRecordOverrides = {},
-): number {
+): string {
+  const id = o.id ?? `ckr-test-${uid()}`;
   const sort_order = o.sort_order ?? ++_sortOrderCounter;
   db.prepare(`
     INSERT INTO consecutive_kicks_records
-      (sort_order, section, subsection, division, year, rank,
-       player_1, player_2, score, note, event_date, event_name, location)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, sort_order, section, subsection, division, year, rank,
+       player_1, player_2, score, note, event_date, event_name, location,
+       created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
+    id,
     sort_order,
     o.section    ?? 'Official World Records',
     o.subsection ?? 'Current Official World Records',
@@ -521,8 +528,10 @@ export function insertConsecutiveKicksRecord(
     o.event_date ?? null,
     o.event_name ?? null,
     o.location   ?? null,
+    o.created_at ?? TS,
+    o.updated_at ?? TS,
   );
-  return sort_order;
+  return id;
 }
 
 // ── Net Team ──────────────────────────────────────────────────────────────────

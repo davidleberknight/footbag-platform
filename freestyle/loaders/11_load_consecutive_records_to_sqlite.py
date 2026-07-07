@@ -17,6 +17,7 @@ Or via run_pipeline.sh which resolves --db automatically.
 import argparse
 import csv
 import os
+import uuid
 try:
     import pysqlite3 as sqlite3
 except ImportError:
@@ -60,12 +61,20 @@ def load_records(db_path: str, source_csv: str = SOURCE_CSV) -> None:
         year_raw = row['year'].strip()
         year = year_raw if year_raw else None
 
+        # A fresh surrogate id per row so the admin edit path and audit trail key on
+        # a stable identity rather than the mutable display position. The DELETE
+        # above empties the table, so a plain INSERT suffices; a duplicate sort_order
+        # in the source now surfaces as a UNIQUE error rather than silently replacing.
         con.execute("""
-            INSERT OR REPLACE INTO consecutive_kicks_records
-              (sort_order, section, subsection, division, year, rank,
-               player_1, player_2, score, note, event_date, event_name, location)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO consecutive_kicks_records
+              (id, sort_order, section, subsection, division, year, rank,
+               player_1, player_2, score, note, event_date, event_name, location,
+               created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+                    strftime('%Y-%m-%dT%H:%M:%fZ','now'))
         """, (
+            str(uuid.uuid4()),
             sort_order,
             row['section'].strip(),
             row['subsection'].strip(),

@@ -3943,12 +3943,16 @@ CREATE INDEX idx_freestyle_records_type_confidence
 --   World Record Progression — full progression history per division
 --   Milestone Firsts         — first player to reach milestone kick counts
 --
--- sort_order is the primary key, derived from the source CSV and encodes
--- section+subsection ordering (100s=Singles 20K+, 200s=Timed, 300s=Doubles,
--- 400s=Official WR, 500s–1200s=Progression, 1300s=Milestones).
+-- id is the stable surrogate primary key, so an admin edit path and its audit
+-- trail key on an identity that never changes. sort_order is the display
+-- position, derived from the source CSV and encoding section+subsection ordering
+-- (100s=Singles 20K+, 200s=Timed, 300s=Doubles, 400s=Official WR,
+-- 500s–1200s=Progression, 1300s=Milestones); it stays unique but is mutable
+-- (an admin may reorder rows), so it is not the identity.
 -- ---------------------------------------------------------------------------
 CREATE TABLE consecutive_kicks_records (
-  sort_order  INTEGER PRIMARY KEY,
+  id          TEXT PRIMARY KEY,
+  sort_order  INTEGER NOT NULL UNIQUE,   -- display position (mutable); formerly the primary key
   section     TEXT NOT NULL,    -- Highest Official Scores | Official World Records | World Record Progression | Milestone Firsts
   subsection  TEXT NOT NULL,
   division    TEXT NOT NULL,    -- Open Singles | Women's Singles | Open Doubles | Women's Doubles | etc.
@@ -3960,7 +3964,9 @@ CREATE TABLE consecutive_kicks_records (
   note        TEXT,
   event_date  TEXT,             -- ISO or raw text from source
   event_name  TEXT,
-  location    TEXT
+  location    TEXT,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
 );
 
 CREATE INDEX idx_consecutive_kicks_section

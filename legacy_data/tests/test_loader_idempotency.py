@@ -755,6 +755,25 @@ def test_consecutive_records_loader_idempotent(tmp_path: Path) -> None:
     n = assert_idempotent(db, loader, "consecutive_kicks_records")
     assert n >= 1
 
+    # Durable-identity shape: every row carries a stable surrogate id and
+    # created/updated timestamps, with sort_order retained as a unique display
+    # position rather than the identity. (The id is regenerated on each load, so
+    # idempotency is asserted on row count and shape, not on id equality.)
+    conn = sqlite3.connect(db)
+    try:
+        rows = conn.execute(
+            "SELECT id, sort_order, created_at, updated_at FROM consecutive_kicks_records"
+        ).fetchall()
+    finally:
+        conn.close()
+    assert len(rows) == n
+    for rid, sort_order, created, updated in rows:
+        assert isinstance(rid, str) and rid, "each row needs a non-empty surrogate id"
+        assert sort_order is not None
+        assert created and updated, "created_at and updated_at must be stamped"
+    sort_orders = [r[1] for r in rows]
+    assert len(sort_orders) == len(set(sort_orders)), "sort_order must stay unique"
+
 
 def test_clubs_seed_loader_idempotent(tmp_path: Path) -> None:
     db = make_db(tmp_path)
