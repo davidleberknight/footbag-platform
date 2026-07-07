@@ -138,6 +138,8 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Moderate_Media](#a_moderate_media)
     - [A_Upload_Curated_Media](#a_upload_curated_media)
     - [A_Manage_Curated_Gallery](#a_manage_curated_gallery)
+    - [A_Browse_Freestyle_Content](#a_browse_freestyle_content)
+    - [A_Edit_Freestyle_Trick](#a_edit_freestyle_trick)
     - [A_Create_News_Item](#a_create_news_item)
     - [A_Moderate_News_Item](#a_moderate_news_item)
     - [A_Archive_Club](#a_archive_club)
@@ -180,6 +182,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [SYS_Cleanup_Expired_Tokens](#sys_cleanup_expired_tokens)
     - [SYS_Cleanup_Soft_Deleted_Records](#sys_cleanup_soft_deleted_records)
     - [SYS_Rebuild_Hashtag_Stats](#sys_rebuild_hashtag_stats)
+    - [SYS_Freestyle_Content_Source_Of_Truth_Cutover](#sys_freestyle_content_source_of_truth_cutover)
     - [SYS_Handle_Stripe_Webhooks](#sys_handle_stripe_webhooks)
     - [SYS_Handle_SES_Bounce_And_Complaint_Webhooks](#sys_handle_ses_bounce_and_complaint_webhooks)
     - [SYS_Nightly_Backup_Sync](#sys_nightly_backup_sync)
@@ -2358,6 +2361,59 @@ Audit:
 
 - An audit_log entry is appended for every gallery create, edit, and delete, recording admin actor, timestamp, action type, and affected gallery id, parallel to A_Upload_Curated_Media and the other admin curator actions.
 
+### A_Browse_Freestyle_Content
+
+Access: Only admins can browse and search the freestyle dictionary curation surface. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
+
+Story: As an admin, I can list and search the freestyle dictionary content so that I can find the trick I want to edit.
+
+Success Criteria:
+
+- The curation index lists freestyle trick rows with their canonical name, slug, ADD value, trick family, active flag, and review status.
+- Admin can search by text over the canonical name and slug, and filter by active flag and by review status (curated, expert-reviewed, or pending).
+- Each listed row links to its edit surface (A_Edit_Freestyle_Trick).
+- An empty search or an empty filter result shows a clear empty state.
+- This surface is read-only: it performs no writes and records no audit entry.
+
+### A_Edit_Freestyle_Trick
+
+Access: Only admins can edit freestyle dictionary content, on behalf of the platform's freestyle curator identity. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login. Editing a slug that has no trick row returns 404.
+
+Story: As an admin, I can edit a freestyle trick dictionary row and the aliases, sources, and modifier links attached to it, with curator-grade validation and an audit trail, so that freestyle content is maintained in the running application once the live database is the source of truth for it.
+
+Success Criteria, Row fields:
+
+- Editable row fields are the canonical name, the ADD value, the movement and execution notation, the trick family, the base trick, the category, the active flag, and the review status (curated, expert-reviewed, or pending).
+- A save that passes validation writes the trick row through a prepared statement; the database write is the contract.
+
+Success Criteria, Validation (enforced at the write; a save that fails any check is rejected with a clear message and the submitted values preserved):
+
+- The notation's scoring-bracket count equals the stored ADD value.
+- The trick terminates in one of the twelve core atoms.
+- A modifier's or operator's ADD stays consistent with the single operator-reference source of truth.
+- The display-name-to-slug naming rule holds: the normalized canonical name reproduces the slug, honoring the curator-maintained genuine-hyphen exception list. This check applies to a name the admin changes; an existing row whose stored name predates the one-time name normalization stays editable in its other fields without the naming check blocking the save.
+- These are the same structural validations the freestyle content pipeline applies when it loads the dictionary, so a save that would fail the pipeline's quality gate is refused in the application rather than accepted and reconciled later.
+
+Success Criteria, Aliases:
+
+- Admin can add and remove alias rows for the trick. Alias slugs use the lowercase-underscore form. An alias slug that collides with an existing canonical trick slug is rejected with an inline error.
+
+Success Criteria, Sources and modifier links:
+
+- Admin can attach and detach the trick's source rows and source links, and add and remove its modifier links.
+
+Success Criteria, Activation and publication:
+
+- Admin can set the active flag and the review status. A trick whose ADD is settled but whose structure is contested can be held (kept inactive or unpublished) rather than published, preserving the held-not-published publication rule for contested structures.
+
+Success Criteria, Atomicity:
+
+- Each save rewrites the trick row and its attached alias, source, and modifier-link rows in a single transaction; a partial write never lands.
+
+Audit:
+
+- Every create, edit, and delete of a trick row or an attached alias, source, or modifier-link row appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (for example `freestyle.trick.updated`), and the affected trick slug or row id, parallel to A_Upload_Curated_Media, A_Override_Member_Data, and the other admin content actions.
+
 ### A_Create_News_Item
 
 Access: Only admins can manually create a news item.
@@ -2706,7 +2762,7 @@ Success Criteria:
 - Entries are sorted by timestamp, newest first by default.
 - Admin can filter logs by: date range (from/to); topic/category (for example: membership changes, pricing changes, elections, content moderation, payments, system alarms, configuration changes); actor type (admin vs system vs member); a specific member (matching rows where that member is the actor or the affected entity); and action type. A self-action filter surfaces rows where the acting admin is the affected member.
 - Filtering uses the structured filters above; the app does not provide free-text search over reason or metadata content, which is done with an external tool when needed.
-- Audit coverage includes at least: membership tier changes, pricing updates, event sanction approvals, media takedown decisions, election operations (create, publish, decrypt), admin role changes, alarm acknowledgments, and system cleanup or reconciliation processes.
+- Audit coverage includes at least: membership tier changes, pricing updates, event sanction approvals, media takedown decisions, freestyle content edits (trick rows, aliases, sources, and modifier links), election operations (create, publish, decrypt), admin role changes, alarm acknowledgments, and system cleanup or reconciliation processes.
 - Monthly summary view shows counts per category (for example: number of tier changes, number of event approvals, number of takedowns) to support lightweight reporting.
 - Logs retain limited identifiers necessary for traceability (IDs, not email addresses), consistent with privacy rules in Global Behaviors and Technical Requirements.
 - All audit log data is read-only; no UI allows editing or deleting existing entries.
@@ -2979,6 +3035,21 @@ Success Criteria:
 - The stats are stored in a format that can be read quickly by the Browse Hashtags page and any “popular tags” UI elements.
 - If the job fails, existing stats remain in place and the failure is logged for later investigation.
 - The system exposes basic metrics for the job (run time, success/failure) to operations/admins.
+
+### SYS_Freestyle_Content_Source_Of_Truth_Cutover
+
+Access: This source-of-truth behavior is a go-live cutover step run under the system role by the operator; only admins author freestyle content, before and after the cutover.
+
+Story: The freestyle dictionary content switches its source of truth from the committed CSV inputs to the persistent production database at go-live, so that after cutover freestyle content is edited in the running application and the CSV rebuild retires from the production path, mirroring the curated-media source-of-truth model.
+
+Success Criteria:
+
+- Before go-live, the committed CSV inputs are the source of truth: an admin edits a committed CSV and reruns the freestyle rebuild, and git history is the audit trail.
+- The freestyle rebuild refuses to run against any non-development database, with no bypass flag, so it never rewrites a live database; the one sanctioned final CSV rebuild runs on the pre-cutover database immediately before the switch.
+- At the cutover the persistent production database becomes the single source of truth for freestyle content: the CSV rebuild retires from the production path, and the in-app curation surface (A_Edit_Freestyle_Trick) becomes the sole write path.
+- Freestyle table rows survive a data-preserving deploy that does not run the rebuild.
+- Recovery from a bad edit is a corrective in-app edit or a database restore; every in-app edit is recorded in the audit trail.
+- Cutover tests pin the switch: freestyle rows survive a data-preserving deploy; the rebuild refuses a production database; and the in-app curation surface is the sole post-cutover write path.
 
 ### SYS_Handle_Stripe_Webhooks
 Access: This event-driven process runs under the system role when Stripe sends webhook events. Only admins can view logs and failure metrics.

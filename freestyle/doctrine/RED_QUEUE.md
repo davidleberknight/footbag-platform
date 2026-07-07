@@ -7,9 +7,16 @@ question list") as the list of record. Maintenance rule: when a question is
 answered, integrate the answer, record the ruling in `RED_RULINGS.md` (or the
 relevant doctrine document), and delete the entry here — no tombstones.
 
-The Wave 3 letter carrying the Red questions was sent 2026-07-02 after the reduction
-audit removed everything answerable from the written record; the first follow-up
-(the down-family ruling) is integrated in `DOWN_FAMILY.md`.
+Delivery posture: until delivery is explicitly confirmed, treat every open question
+below as not yet successfully delivered to Red, and do not mark any of them as
+pending his answer. A packet of these questions was prepared after the reduction
+audit removed everything answerable from the written record, but the repository
+does not prove the packet reached Red. One ruling that has already come back, the
+down-family ruling, is integrated in `DOWN_FAMILY.md`.
+
+**To-do (whole queue):** Review every open Red question, assemble the current
+packet, send or resend it to Red, and then update each item's delivery status from
+"not yet delivered" to "pending Red answer" only after delivery is confirmed.
 
 ## With Red
 
@@ -51,10 +58,9 @@ audit removed everything answerable from the written record; the first follow-up
    reconciled from the record; ridden to Red by curator ruling. Two rows sit in the
    `terraging_chain` gate in the current universe; the curator session rode four
    terrage rows to Red (the other two resolve in the alias and parser layers), so
-   the letter carries four and the EV gate holds two. **Send-confirmation
-   caveat:** the committed audit refers to an email draft that was never committed,
-   so nothing in the repository proves this rider actually reached Red — confirm it
-   was sent (or send it) before treating it as pending with him.
+   the letter carries four and the EV gate holds two. **Delivery status:** assume
+   this question has not reached Red. Add it to the next Red packet, send or resend
+   it, and only then mark it as pending with Red.
 6. **The rider list** (one combined section in the letter):
    - same-operator-twice scoring (four rows gated `repeated_operator`);
    - jani-walker structure (also decides Sidewinder = fairy gyro jani-walker);
