@@ -140,6 +140,9 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Manage_Curated_Gallery](#a_manage_curated_gallery)
     - [A_Browse_Freestyle_Content](#a_browse_freestyle_content)
     - [A_Edit_Freestyle_Trick](#a_edit_freestyle_trick)
+    - [A_Edit_Freestyle_Record](#a_edit_freestyle_record)
+    - [A_Edit_Consecutive_Kicks_Record](#a_edit_consecutive_kicks_record)
+    - [A_Moderate_Freestyle_Trick_Tip](#a_moderate_freestyle_trick_tip)
     - [A_Create_News_Item](#a_create_news_item)
     - [A_Moderate_News_Item](#a_moderate_news_item)
     - [A_Archive_Club](#a_archive_club)
@@ -2413,6 +2416,104 @@ Success Criteria, Atomicity:
 Audit:
 
 - Every create, edit, and delete of a trick row or an attached alias, source, or modifier-link row appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (for example `freestyle.trick.updated`), and the affected trick slug or row id, parallel to A_Upload_Curated_Media, A_Override_Member_Data, and the other admin content actions.
+
+### A_Edit_Freestyle_Record
+
+Access: Only admins can add or edit freestyle world-record rows, on behalf of the platform's freestyle curator identity. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login. Editing a record id that has no row returns 404.
+
+Story: As an admin, I can add a new freestyle world-record row and edit an existing one, with validation and an audit trail, so that the freestyle records the site publishes stay current and correct once the live database is the source of truth for them.
+
+Success Criteria, Listing:
+
+- Admin can list and search the records by holder, trick name, and record type, and open one to edit.
+
+Success Criteria, Row fields:
+
+- Editable fields are the record type, the record holder (either a linked historical person or a free-text display name), the trick name, the structured sort name, the adds count, the numeric or text value, the achieved date and its date precision, the source, the confidence rating, the video link and timecode, and the notes, plus the superseded-by pointer to the record that later beat this one.
+- The record id and the created and updated timestamps are read-only; the timestamps are stamped on write.
+- A save that passes validation writes the record row through a prepared statement; the database write is the contract.
+
+Success Criteria, Validation (enforced at the write; a save that fails any check is rejected with a clear message and the submitted values preserved):
+
+- The record type and the source are non-empty.
+- At least one of a linked historical person or a free-text display name is present; a linked person must reference an existing historical-person row.
+- The date precision is one of day, month, year, or approximate, and the achieved date is consistent with it.
+- The confidence rating is one of verified, probable, provisional, or disputed.
+- The adds count and the numeric value are each empty or a number.
+- The superseded-by pointer, when set, references an existing record other than the row itself.
+
+Success Criteria, Superseding and status (no ordinary delete):
+
+- A record beaten by a later one is retired by pointing its superseded-by at the newer record, never by deletion.
+- A record whose accuracy is in question is marked disputed or provisional through its confidence rating rather than removed.
+- This story provides add, edit, correction, confidence change, and superseding. It does not provide an ordinary hard delete; removing a duplicate or bad row is an exceptional maintainer correction or a future soft-delete design, not default story behavior.
+
+Audit:
+
+- Every add and edit of a record row appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (for example `freestyle.record.updated`), and the record id, parallel to A_Edit_Freestyle_Trick and the other admin content actions.
+
+### A_Edit_Consecutive_Kicks_Record
+
+Access: Only admins can add or edit consecutive-kicks record rows, on behalf of the platform's freestyle curator identity. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
+
+Story: As an admin, I can add, edit, and remove a consecutive-kicks record row and set its display position, with validation and an audit trail, so that the consecutive-kicks records the site publishes stay current once the live database is the source of truth for them.
+
+Success Criteria, Listing:
+
+- Admin can list the rows grouped by section and division and open one to edit.
+
+Success Criteria, Row fields:
+
+- Editable fields are the section, subsection, division, year, rank, both player names, the score, the note, the event date, the event name, the location, and the display position.
+
+Success Criteria, Validation (enforced at the write; a save that fails any check is rejected with a clear message and the submitted values preserved):
+
+- The section, subsection, and division are non-empty.
+- The score and the rank are each empty or a whole number.
+- The display position is a unique whole number.
+
+Success Criteria, Durable identity prerequisite:
+
+- This write path requires the row to carry a stable surrogate identifier and created and updated timestamps. The current shape keys a row only by its display position, which is mutable and controls presentation, so it is not a sound identity for an audit trail, an edit target, or rollback. Adding that stable identifier and those timestamps is a prerequisite that lands before this write path is built.
+
+Audit:
+
+- Every add, edit, and remove of a row appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (for example `freestyle.consecutive_record.updated`), and the row's stable identifier.
+
+### A_Moderate_Freestyle_Trick_Tip
+
+Access: Only admins can moderate freestyle trick tips, on behalf of the platform's freestyle curator identity. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login. Moderating a tip id that has no row returns 404.
+
+Story: As an admin, I can moderate the legacy-imported freestyle trick tips, editing the text, hiding or unhiding a tip, and resolving an unresolved tip to a canonical trick, with an audit trail, so that the community advice shown on trick pages stays accurate once the live database is the source of truth for it.
+
+Success Criteria, Listing:
+
+- Admin can list tips filtered by status and by trick, and open one to moderate.
+
+Success Criteria, Moderation actions:
+
+- Admin can edit a tip's text.
+- Admin can hide a tip and unhide it, moving its status between published and hidden.
+- Admin can resolve an unresolved tip by re-pointing it to a canonical trick and publishing it.
+
+Success Criteria, Editable versus read-only:
+
+- Editable fields are the tip text, the status (published, hidden, or unresolved), the trick the tip attaches to, and the display order.
+- The tip id, the legacy provenance identifiers and timestamps, the source, and the loaded-at value are read-only.
+
+Success Criteria, Validation (enforced at the write; a save that fails any check is rejected with a clear message and the submitted values preserved):
+
+- The tip text is non-empty and passes the standard text sanitization.
+- The status is one of published, hidden, or unresolved.
+- A published tip attaches to an existing published canonical trick.
+
+Success Criteria, Scope:
+
+- This story moderates existing legacy-imported tips only. It does not add a member-facing tip-submission flow; a member submit feature, if ever wanted, is a separate story.
+
+Audit:
+
+- Every edit, hide, unhide, and resolve of a tip appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (for example `freestyle.trick_tip.updated`), and the tip id, parallel to A_Moderate_Media and A_Moderate_News_Item.
 
 ### A_Create_News_Item
 
