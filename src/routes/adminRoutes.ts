@@ -58,6 +58,8 @@ adminRouter.post('/club-cleanup/candidates/:candidateId/resolve', adminClubClean
 adminRouter.get('/freestyle/tricks',             adminFreestyleController.index);
 adminRouter.get('/freestyle/tricks/:slug/edit',  adminFreestyleController.edit);
 adminRouter.post('/freestyle/tricks/:slug/edit', adminFreestyleController.update);
+adminRouter.post('/freestyle/tricks/:slug/aliases',                    adminFreestyleController.addAlias);
+adminRouter.post('/freestyle/tricks/:slug/aliases/:aliasSlug/delete',  adminFreestyleController.removeAlias);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);
 adminRouter.post('/curator/upload', adminCuratorController.postUpload);
 // Async curator video upload (DD §6.8). Three-step browser flow: sign,

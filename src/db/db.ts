@@ -2322,12 +2322,36 @@ export const freestyleTrickAliases = {
   `); },
 
   // Admin curation edit page: a trick's aliases with their slug, display text,
-  // and type, for read-only listing (and, in a later slice, editing).
+  // and type, for listing and per-row deletion.
   get listForCuration() { return db.prepare(`
     SELECT alias_slug, alias_text, alias_type
     FROM freestyle_trick_aliases
     WHERE trick_slug = ?
     ORDER BY alias_text COLLATE NOCASE
+  `); },
+
+  // One alias row by its slug (the global primary key). Used by the admin curation
+  // service to detect a slug collision before an insert and to capture the row's
+  // text and type for the deletion audit entry before it is removed.
+  get getByAliasSlug() { return db.prepare(`
+    SELECT alias_slug, alias_text, alias_type, trick_slug
+    FROM freestyle_trick_aliases
+    WHERE alias_slug = ?
+  `); },
+
+  // Admin curation: add one alias row for a trick. source_id and notes stay NULL
+  // in this surface (the minimal alias row); alias_slug is the global primary key,
+  // so the service checks for collisions before inserting. Stamps created_at.
+  get insert() { return db.prepare(`
+    INSERT INTO freestyle_trick_aliases
+      (alias_slug, alias_text, trick_slug, alias_type, source_id, notes, created_at)
+    VALUES (?, ?, ?, ?, NULL, NULL, strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  `); },
+
+  // Admin curation: remove one alias, scoped to its trick so an edit page can
+  // never delete another trick's alias by slug alone.
+  get deleteForTrick() { return db.prepare(`
+    DELETE FROM freestyle_trick_aliases WHERE alias_slug = ? AND trick_slug = ?
   `); },
 };
 

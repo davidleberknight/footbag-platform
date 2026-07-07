@@ -134,6 +134,21 @@ beforeAll(async () => {
     is_active: 1,
   });
 
+  // The trick the alias add/remove tests write against, plus a seeded alias for
+  // the remove path. Kept apart from the display rows so their assertions stay
+  // stable.
+  insertFreestyleTrick(db, {
+    slug: 'alias_host',
+    canonical_name: 'Alias Host',
+    adds: '3',
+    trick_family: 'whirl',
+    base_trick: 'whirl',
+    category: 'compound',
+    review_status: 'curated',
+    is_active: 1,
+  });
+  insertFreestyleTrickAlias(db, 'rm_me', 'alias_host', 'Remove Me');
+
   createApp = await importApp();
 });
 
@@ -166,6 +181,18 @@ function auditRows(slug: string) {
   return db.prepare(
     `SELECT metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = 'freestyle.trick.updated'`,
   ).all(slug) as { metadata_json: string }[];
+}
+
+function auditByAction(entityId: string, actionType: string) {
+  return db.prepare(
+    'SELECT metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = ?',
+  ).all(entityId, actionType) as { metadata_json: string }[];
+}
+
+function aliasRow(aliasSlug: string) {
+  return db.prepare(
+    'SELECT alias_slug, alias_text, alias_type, trick_slug FROM freestyle_trick_aliases WHERE alias_slug = ?',
+  ).get(aliasSlug) as { alias_slug: string; alias_text: string; alias_type: string; trick_slug: string } | undefined;
 }
 
 describe('GET /admin/freestyle/tricks/:slug/edit — admin gate', () => {
@@ -323,5 +350,124 @@ describe('POST /admin/freestyle/tricks/:slug/edit — successful save', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Saved.');
     expect(res.text).toContain('Save OK Edited');
+  });
+});
+
+describe('POST /admin/freestyle/tricks/:slug/aliases — add', () => {
+  it('adds an alias, derives its lowercase-underscore slug, writes one audit row, and redirects', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: 'Side Walk', aliasType: 'common' });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/freestyle/tricks/alias_host/edit');
+
+    const row = aliasRow('side_walk');
+    expect(row).toBeDefined();
+    expect(row!.trick_slug).toBe('alias_host');
+    expect(row!.alias_text).toBe('Side Walk');
+    expect(row!.alias_type).toBe('common');
+
+    const audits = auditByAction('side_walk', 'freestyle.trick_alias.created');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('alias_host');
+    expect(audits[0].metadata_json).toContain('Side Walk');
+
+    const shown = await get('/admin/freestyle/tricks/alias_host/edit', admin());
+    expect(shown.text).toContain('>side_walk<');
+  });
+
+  it('rejects an alias whose slug equals a canonical trick slug (any status) and writes nothing', async () => {
+    // "Held Pending" derives to held_pending, an inactive/pending canonical slug.
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: 'Held Pending', aliasType: 'common' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('canonical trick slug');
+    expect(aliasRow('held_pending')).toBeUndefined();
+    expect(auditByAction('held_pending', 'freestyle.trick_alias.created')).toHaveLength(0);
+  });
+
+  it('rejects a slug already used by another trick, distinctly from a duplicate', async () => {
+    // 'bw' already aliases blurry_whirl.
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: 'BW', aliasType: 'common' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('another trick');
+    expect(aliasRow('bw')!.trick_slug).toBe('blurry_whirl'); // unchanged
+  });
+
+  it('rejects a duplicate alias on the same trick', async () => {
+    const first = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: 'Dup Word', aliasType: 'common' });
+    expect(first.status).toBe(303);
+    const second = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: 'Dup Word', aliasType: 'common' });
+    expect(second.status).toBe(422);
+    expect(second.text).toContain('already an alias of this trick');
+    expect(auditByAction('dup_word', 'freestyle.trick_alias.created')).toHaveLength(1); // only the first
+  });
+
+  it('rejects empty alias text with 422 and preserves nothing', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: '   ', aliasType: 'common' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Alias text is required.');
+  });
+
+  it('rejects an unrecognized alias type with 422 and preserves the submitted text', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: 'Keep This Text', aliasType: 'bogus' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Keep This Text'); // submitted value survives the re-render
+    expect(aliasRow('keep_this_text')).toBeUndefined();
+  });
+
+  it('returns 404 adding to an unknown trick', async () => {
+    const res = await post('/admin/freestyle/tricks/nope_missing/aliases', admin(),
+      { aliasText: 'Whatever', aliasType: 'common' });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 for a non-admin and 302 for an unauthenticated visitor, writing nothing', async () => {
+    const member = await post('/admin/freestyle/tricks/alias_host/aliases', cookieFor(MEMBER_ID, 'member'),
+      { aliasText: 'Blocked A', aliasType: 'common' });
+    expect(member.status).toBe(403);
+    const anon = await post('/admin/freestyle/tricks/alias_host/aliases', undefined,
+      { aliasText: 'Blocked B', aliasType: 'common' });
+    expect(anon.status).toBe(302);
+    expect(aliasRow('blocked_a')).toBeUndefined();
+    expect(aliasRow('blocked_b')).toBeUndefined();
+  });
+});
+
+describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug/delete — remove', () => {
+  it('removes an alias scoped to its trick, writes one audit row, and redirects', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/rm_me/delete', admin(), {});
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/freestyle/tricks/alias_host/edit');
+    expect(aliasRow('rm_me')).toBeUndefined();
+
+    const audits = auditByAction('rm_me', 'freestyle.trick_alias.deleted');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('Remove Me'); // captured text for recovery
+    expect(audits[0].metadata_json).toContain('alias_host');
+  });
+
+  it('returns 404 removing an alias that belongs to a different trick, leaving it intact', async () => {
+    // 'bw' belongs to blurry_whirl, not alias_host.
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/bw/delete', admin(), {});
+    expect(res.status).toBe(404);
+    expect(aliasRow('bw')).toBeDefined();
+  });
+
+  it('returns 404 removing an unknown alias', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/no_such_alias/delete', admin(), {});
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 for a non-admin and 302 for an unauthenticated visitor, deleting nothing', async () => {
+    const member = await post('/admin/freestyle/tricks/blurry_whirl/aliases/bw/delete', cookieFor(MEMBER_ID, 'member'), {});
+    expect(member.status).toBe(403);
+    const anon = await post('/admin/freestyle/tricks/blurry_whirl/aliases/bw/delete', undefined, {});
+    expect(anon.status).toBe(302);
+    expect(aliasRow('bw')).toBeDefined(); // still there
   });
 });

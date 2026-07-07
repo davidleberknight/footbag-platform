@@ -40,11 +40,35 @@
     </form>
 
     <h2 class="section-heading">Aliases</h2>
+    {{#if content.hasAliasError}}
+    <div class="form-error-banner">
+      <p>{{content.aliasError}}</p>
+    </div>
+    {{/if}}
     {{#if content.hasAliases}}
     <ul class="freestyle-edit-list">
-      {{#each content.aliases}}<li><code>{{this.slug}}</code> {{this.text}} <span class="badge">{{this.type}}</span></li>{{/each}}
+      {{#each content.aliases}}
+      <li>
+        <code>{{this.slug}}</code> {{this.text}} <span class="badge">{{this.type}}</span>
+        <form method="POST" action="{{this.deleteHref}}" class="inline-form">
+          <button type="submit" class="btn btn-outline btn-sm">Remove</button>
+        </form>
+      </li>
+      {{/each}}
     </ul>
     {{else}}<p class="text-muted">No aliases.</p>{{/if}}
+
+    <form method="POST" action="{{content.addAliasHref}}" class="freestyle-edit-form">
+      <fieldset>
+        <p><label>Add alias</label><br><input type="text" name="aliasText" value="{{content.aliasFormText}}" placeholder="Alias name" /></p>
+        <p><label>Type</label><br>
+          <select name="aliasType">
+            {{#each content.aliasTypeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+          </select>
+        </p>
+      </fieldset>
+      <p><button type="submit" class="btn btn-primary btn-sm">Add Alias</button></p>
+    </form>
 
     <h2 class="section-heading">Sources</h2>
     {{#if content.hasSources}}

@@ -6,14 +6,15 @@
  *     regardless of activation or review status, text search over canonical name
  *     and slug, and filters by active flag and review status.
  *   - The admin edit surface for one trick: rendering its editable scalar fields
- *     plus its (read-only here) attached aliases, sources, and modifier links, and
- *     saving edits to the nine scalar fields of the trick row.
+ *     and its attached aliases, sources, and modifier links, saving edits to the
+ *     nine scalar fields of the trick row, and adding or removing the trick's
+ *     aliases.
  *
  * Does not own:
  *   - The public freestyle section pages (FreestyleService is public, read-only).
  *   - Freestyle ontology and doctrine (the content modules and doctrine docs).
- *   - Editing the attached aliases, sources, and modifier links; those stay
- *     read-only on this surface.
+ *   - Editing the attached sources and modifier links; those stay read-only on
+ *     this surface for now.
  *
  * Write discipline: updateTrickScalars validates the submitted fields for row
  * shape (canonical name required, ADD numeric/empty/"modifier", category and
@@ -21,13 +22,19 @@
  * structural doctrine check: when the ADD is numeric and the execution notation
  * carries scoring brackets, the scoring-bracket count must equal the ADD. Rows
  * with no scoring brackets are not checked. Terminal-atom and name-to-slug
- * doctrine remain out of scope. The scalar update and its one audit entry commit
- * together in a single transaction; the slug identity key is not editable.
+ * doctrine remain out of scope. addAlias derives the alias slug from the display
+ * text with the pipeline's normalization, and rejects a slug that equals any
+ * canonical trick slug (checked across every row regardless of status) or an
+ * existing alias slug (the global primary key); it leaves source_id and notes
+ * unset. removeAlias is scoped to the alias's own trick. Each write and its one
+ * audit entry commit together in a single transaction; the trick slug identity
+ * key is not editable.
  *
- * Persistence: reads and writes freestyle_tricks; reads freestyle_trick_aliases,
- * freestyle_trick_source_links (join freestyle_trick_sources), and
+ * Persistence: reads and writes freestyle_tricks and freestyle_trick_aliases;
+ * reads freestyle_trick_source_links (join freestyle_trick_sources) and
  * freestyle_trick_modifier_links (join freestyle_trick_modifiers). Appends
- * freestyle.trick.updated to audit_entries on a save.
+ * freestyle.trick.updated, freestyle.trick_alias.created, and
+ * freestyle.trick_alias.deleted to audit_entries.
  */
 import {
   freestyleTricks,
@@ -40,6 +47,7 @@ import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { checkAddMatchesScoringBrackets } from '../lib/freestyleNotation';
+import { trickNameToSlug } from './freestyleRecordShaping';
 
 interface CurationTrickDbRow {
   slug: string;
@@ -91,6 +99,7 @@ export interface FreestyleTrickEditAlias {
   slug: string;
   text: string;
   type: string;
+  deleteHref: string;
 }
 
 export interface FreestyleTrickEditSource {
@@ -139,6 +148,17 @@ export interface FreestyleTrickEditContent {
   fieldErrors: Record<string, string>;
   errorList: string[];
   hasErrors: boolean;
+  addAliasHref: string;
+  aliasTypeOptions: FilterOption[];
+  aliasFormText: string;
+  aliasError: string;
+  hasAliasError: boolean;
+}
+
+/** The alias fields the add-alias form submits. */
+export interface FreestyleAliasInput {
+  aliasText?: string;
+  aliasType?: string;
 }
 
 /** The nine editable scalar fields submitted by the edit form. */
@@ -159,6 +179,8 @@ export interface EditPageOptions {
   saved?: boolean;
   submitted?: FreestyleTrickScalarInput;
   fieldErrors?: Record<string, string>;
+  aliasError?: string;
+  aliasSubmitted?: FreestyleAliasInput;
 }
 
 interface CurationEditDbRow {
@@ -174,6 +196,7 @@ interface CurationEditDbRow {
   review_status: string;
 }
 interface AliasDbRow { alias_slug: string; alias_text: string; alias_type: string; }
+interface FullAliasDbRow extends AliasDbRow { trick_slug: string; }
 interface SourceLinkDbRow {
   source_label: string;
   source_type: string;
@@ -208,6 +231,17 @@ const REVIEW_STATUS_VALUES = ['curated', 'expert_reviewed', 'pending'];
 const EDITABLE_REVIEW_STATUSES = REVIEW_STATUS_VALUES;
 
 const CANONICAL_NAME_MAX = 200;
+
+// Alias types the schema documents; offered by the add-alias form. No CHECK
+// constrains the column, so the admin surface is the enforcement point.
+const ALIAS_TYPE_LABELS: Record<string, string> = {
+  common:       'Common',
+  abbreviation: 'Abbreviation',
+  historical:   'Historical',
+  notation:     'Notation',
+};
+const ALIAS_TYPES = ['common', 'abbreviation', 'historical', 'notation'];
+const ALIAS_TEXT_MAX = 200;
 
 export const freestyleCurationService = {
   getBrowsePage(filter: FreestyleBrowseFilterInput = {}): PageViewModel<FreestyleBrowseContent> {
@@ -276,7 +310,23 @@ export const freestyleCurationService = {
     if (!row) return null;
 
     const aliases: FreestyleTrickEditAlias[] = (freestyleTrickAliases.listForCuration.all(slug) as AliasDbRow[])
-      .map((a) => ({ slug: a.alias_slug, text: a.alias_text, type: a.alias_type }));
+      .map((a) => ({
+        slug: a.alias_slug,
+        text: a.alias_text,
+        type: a.alias_type,
+        deleteHref: `/admin/freestyle/tricks/${slug}/aliases/${encodeURIComponent(a.alias_slug)}/delete`,
+      }));
+
+    // On a failed add-alias re-render, keep the submitted text and type; otherwise
+    // the form starts empty with the default type.
+    const aliasFormText = opts.aliasSubmitted?.aliasText ?? '';
+    const selectedAliasType = opts.aliasSubmitted?.aliasType ?? 'common';
+    const aliasTypeOptions: FilterOption[] = ALIAS_TYPES.map((t) => ({
+      value: t,
+      label: ALIAS_TYPE_LABELS[t] ?? t,
+      selected: t === selectedAliasType,
+    }));
+    const aliasError = opts.aliasError ?? '';
     const sources: FreestyleTrickEditSource[] = (freestyleTrickSourceLinks.listForCuration.all(slug) as SourceLinkDbRow[])
       .map((s) => ({ label: s.source_label, type: s.source_type, url: s.source_url, externalUrl: s.external_url, assertedAdds: s.asserted_adds }));
     const modifierLinks: FreestyleTrickEditModifierLink[] = (freestyleTrickModifiers.listLinksByTrickSlug.all(slug) as ModifierLinkDbRow[])
@@ -331,6 +381,11 @@ export const freestyleCurationService = {
         fieldErrors,
         errorList,
         hasErrors:        errorList.length > 0,
+        addAliasHref:     `/admin/freestyle/tricks/${row.slug}/aliases`,
+        aliasTypeOptions,
+        aliasFormText,
+        aliasError,
+        hasAliasError:    aliasError !== '',
       },
     };
   },
@@ -415,6 +470,95 @@ export const freestyleCurationService = {
         entityType:    'freestyle_trick',
         entityId:      slug,
         metadata:      { changedFields },
+      });
+    });
+  },
+
+  // Add one alias to a trick. The alias slug is derived from the submitted display
+  // text with the same normalization the pipeline uses, so it is always in the
+  // lowercase-underscore form. Rejected (ValidationError, re-rendered inline) when
+  // the text is empty or over-long, the type is not a recognized one, the derived
+  // slug is empty, or the slug collides: an alias slug may not equal any canonical
+  // trick slug (checked across every row regardless of status), nor an existing
+  // alias slug (the global primary key). The insert and its audit entry commit in
+  // one transaction. source_id and notes are left unset in this surface.
+  addAlias(trickSlug: string, input: FreestyleAliasInput, actorMemberId: string): void {
+    const trick = freestyleTricks.getForCurationBySlug.get(trickSlug) as CurationEditDbRow | undefined;
+    if (!trick) throw new NotFoundError(`No freestyle trick "${trickSlug}"`);
+
+    const aliasText = (input.aliasText ?? '').trim();
+    if (!aliasText) {
+      throw new ValidationError('Alias text is required.');
+    }
+    if (aliasText.length > ALIAS_TEXT_MAX) {
+      throw new ValidationError(`Alias text must be ${ALIAS_TEXT_MAX} characters or fewer.`);
+    }
+
+    const aliasType = (input.aliasType ?? '').trim();
+    if (!ALIAS_TYPES.includes(aliasType)) {
+      throw new ValidationError('Choose an alias type.');
+    }
+
+    const aliasSlug = trickNameToSlug(aliasText);
+    if (!aliasSlug) {
+      throw new ValidationError('Alias text must contain at least one letter or number.');
+    }
+
+    // An alias may never equal a canonical trick slug, active or not.
+    if (freestyleTricks.getForCurationBySlug.get(aliasSlug)) {
+      throw new ValidationError(`"${aliasSlug}" is already a canonical trick slug, so it cannot be an alias.`);
+    }
+
+    // alias_slug is the global primary key: reject a duplicate distinctly from a
+    // slug already owned by a different trick.
+    const existing = freestyleTrickAliases.getByAliasSlug.get(aliasSlug) as FullAliasDbRow | undefined;
+    if (existing) {
+      if (existing.trick_slug === trickSlug) {
+        throw new ValidationError(`"${aliasSlug}" is already an alias of this trick.`);
+      }
+      throw new ValidationError(`"${aliasSlug}" is already an alias of another trick ("${existing.trick_slug}").`);
+    }
+
+    transaction(() => {
+      freestyleTrickAliases.insert.run(aliasSlug, aliasText, trickSlug, aliasType);
+      appendAuditEntry({
+        actionType:    'freestyle.trick_alias.created',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick_alias',
+        entityId:      aliasSlug,
+        metadata:      { trickSlug, aliasSlug, aliasText, aliasType },
+      });
+    });
+  },
+
+  // Remove one alias from a trick. Scoped to the trick both in the ownership check
+  // and in the delete statement, so an edit page cannot remove another trick's
+  // alias. The delete and its audit entry (carrying the removed text and type, so
+  // the change is recoverable) commit in one transaction. Unknown or wrong-trick
+  // alias is a NotFoundError (mapped to 404).
+  removeAlias(trickSlug: string, aliasSlug: string, actorMemberId: string): void {
+    const existing = freestyleTrickAliases.getByAliasSlug.get(aliasSlug) as FullAliasDbRow | undefined;
+    if (!existing || existing.trick_slug !== trickSlug) {
+      throw new NotFoundError(`No alias "${aliasSlug}" on trick "${trickSlug}"`);
+    }
+
+    transaction(() => {
+      freestyleTrickAliases.deleteForTrick.run(aliasSlug, trickSlug);
+      appendAuditEntry({
+        actionType:    'freestyle.trick_alias.deleted',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick_alias',
+        entityId:      aliasSlug,
+        metadata:      {
+          trickSlug,
+          aliasSlug,
+          aliasText: existing.alias_text,
+          aliasType: existing.alias_type,
+        },
       });
     });
   },
