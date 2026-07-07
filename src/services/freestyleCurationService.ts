@@ -16,10 +16,13 @@
  *     read-only on this surface.
  *
  * Write discipline: updateTrickScalars validates the submitted fields for row
- * shape only (canonical name required, ADD numeric/empty/"modifier", category and
- * review status within the existing allowed values, active a boolean), never the
- * freestyle doctrine QC. The scalar update and its one audit entry commit together
- * in a single transaction; the slug identity key is not editable.
+ * shape (canonical name required, ADD numeric/empty/"modifier", category and
+ * review status within the existing allowed values, active a boolean) plus one
+ * structural doctrine check: when the ADD is numeric and the execution notation
+ * carries scoring brackets, the scoring-bracket count must equal the ADD. Rows
+ * with no scoring brackets are not checked. Terminal-atom and name-to-slug
+ * doctrine remain out of scope. The scalar update and its one audit entry commit
+ * together in a single transaction; the slug identity key is not editable.
  *
  * Persistence: reads and writes freestyle_tricks; reads freestyle_trick_aliases,
  * freestyle_trick_source_links (join freestyle_trick_sources), and
@@ -36,6 +39,7 @@ import {
 import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
+import { checkAddMatchesScoringBrackets } from '../lib/freestyleNotation';
 
 interface CurationTrickDbRow {
   slug: string;
@@ -371,6 +375,17 @@ export const freestyleCurationService = {
     const executionNotation = emptyToNull(input.executionNotation);
     const family            = emptyToNull(input.family);
     const baseTrick         = emptyToNull(input.baseTrick);
+
+    // Scoring-bracket parity: when the ADD is numeric and the execution notation
+    // carries scoring brackets, their count must equal the ADD. Rows with no
+    // scoring brackets (a blank field, or primitive markers like `[set] > toe`)
+    // are not checked here.
+    const bracketCheck = checkAddMatchesScoringBrackets(adds, executionNotation ?? '');
+    if (bracketCheck && !bracketCheck.ok) {
+      const noun = bracketCheck.bracketCount === 1 ? 'scoring bracket' : 'scoring brackets';
+      fieldErrors.executionNotation =
+        `Execution notation shows ${bracketCheck.bracketCount} ${noun} but ADD is ${bracketCheck.add}; they must match.`;
+    }
 
     if (Object.keys(fieldErrors).length > 0) {
       throw new ValidationError('Some fields need attention.', { fieldErrors });

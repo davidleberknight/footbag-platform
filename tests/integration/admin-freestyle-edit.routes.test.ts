@@ -8,7 +8,10 @@
  * are never touched. This suite pins the admin gate, the scalar-field display, the
  * attached-row display, any-status loading, the persisted scalar save with its one
  * audit row and stamped updated_at, the saved-indicator redirect, and the
- * validation re-render that preserves submitted values and writes nothing.
+ * validation re-render that preserves submitted values and writes nothing. The
+ * save path also enforces scoring-bracket parity: when the ADD is numeric and the
+ * execution notation carries scoring brackets, their count must equal the ADD;
+ * rows with no scoring brackets or a non-numeric ADD skip the check and save.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -38,12 +41,13 @@ function cookieFor(memberId: string, role: 'admin' | 'member'): string {
   return `footbag_session=${createTestSessionJwt({ memberId, role })}`;
 }
 
-// A complete, valid scalar body for save_ok. Individual tests override a field to
-// exercise a single validation or change path.
+// A complete, valid scalar body for a save. The execution notation carries two
+// scoring brackets ([XBD] [DEL]), so ADD is 2 to satisfy bracket-count parity.
+// Individual tests override a field to exercise a single validation or change path.
 function validBody(overrides: Record<string, string> = {}): Record<string, string> {
   return {
     canonicalName:     'Save OK',
-    adds:              '5',
+    adds:              '2',
     movementNotation:  'CLIP > OP IN [DEX] move_marker',
     executionNotation: 'CLIP > OP CLIP [XBD] exec_marker [DEL]',
     family:            'whirl',
@@ -109,6 +113,20 @@ beforeAll(async () => {
     slug: 'save_guard',
     canonical_name: 'Guard Row',
     adds: '3',
+    trick_family: 'whirl',
+    base_trick: 'whirl',
+    category: 'compound',
+    review_status: 'curated',
+    is_active: 1,
+  });
+
+  // The row the bracket-parity skip tests save (once each, with distinct names):
+  // a numeric ADD with no scoring brackets, and a non-numeric ADD with brackets.
+  // Both bypass the parity check and must persist.
+  insertFreestyleTrick(db, {
+    slug: 'save_skip',
+    canonical_name: 'Skip Row',
+    adds: '2',
     trick_family: 'whirl',
     base_trick: 'whirl',
     category: 'compound',
@@ -253,6 +271,33 @@ describe('POST /admin/freestyle/tricks/:slug/edit — validation', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain('Review status must be');
     expect(auditRows('save_guard')).toHaveLength(0);
+  });
+});
+
+describe('POST /admin/freestyle/tricks/:slug/edit — scoring-bracket parity', () => {
+  it('rejects a numeric ADD that disagrees with the scoring-bracket count and writes nothing', async () => {
+    // Execution notation has two scoring brackets but ADD says four.
+    const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(),
+      validBody({ canonicalName: 'Attempted Name', adds: '4', executionNotation: 'OP IN [DEX] > OP TOE [DEL]' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('scoring');
+    expect(res.text).toContain('Attempted Name');        // submitted value survives
+    expect(trickRow('save_guard').canonical_name).toBe('Guard Row');
+    expect(auditRows('save_guard')).toHaveLength(0);
+  });
+
+  it('saves when the ADD is numeric but the execution notation has no scoring brackets', async () => {
+    const res = await post('/admin/freestyle/tricks/save_skip/edit', admin(),
+      validBody({ canonicalName: 'Skip Blank Notation', adds: '2', executionNotation: '' }));
+    expect(res.status).toBe(303);
+    expect(trickRow('save_skip').canonical_name).toBe('Skip Blank Notation');
+  });
+
+  it('saves when the execution notation has scoring brackets but the ADD is non-numeric', async () => {
+    const res = await post('/admin/freestyle/tricks/save_skip/edit', admin(),
+      validBody({ canonicalName: 'Skip Blank Add', adds: '', executionNotation: 'OP IN [DEX] [DEL]' }));
+    expect(res.status).toBe(303);
+    expect(trickRow('save_skip').canonical_name).toBe('Skip Blank Add');
   });
 });
 
