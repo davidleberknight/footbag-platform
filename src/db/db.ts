@@ -3088,6 +3088,41 @@ export const consecutiveKicksRecords = {
     GROUP BY section
     ORDER BY MIN(sort_order)
   `); },
+
+  // Admin curation browse: every row with its stable id and display position,
+  // ordered so the service can group by section and then division.
+  get listAllForCuration() { return db.prepare(`
+    SELECT id, sort_order, section, subsection, division, year, rank,
+           player_1, player_2, score, note, event_date, event_name, location
+    FROM consecutive_kicks_records
+    ORDER BY section ASC, sort_order ASC
+  `); },
+
+  // Admin curation edit page: the editable fields of one row, keyed on the stable id.
+  get getForCurationById() { return db.prepare(`
+    SELECT id, sort_order, section, subsection, division, year, rank,
+           player_1, player_2, score, note, event_date, event_name, location
+    FROM consecutive_kicks_records
+    WHERE id = ?
+  `); },
+
+  // The id of the row (if any) holding a given display position, so the service
+  // can reject a duplicate sort_order inline before the write; the column's UNIQUE
+  // constraint is the backstop.
+  get getIdBySortOrder() { return db.prepare(`
+    SELECT id FROM consecutive_kicks_records WHERE sort_order = ?
+  `); },
+
+  // Admin curation scalar edit: update the editable fields of one row (the id is
+  // the identity key and stays fixed). Stamps updated_at.
+  get updateForCuration() { return db.prepare(`
+    UPDATE consecutive_kicks_records
+    SET sort_order = ?, section = ?, subsection = ?, division = ?, year = ?,
+        rank = ?, player_1 = ?, player_2 = ?, score = ?, note = ?,
+        event_date = ?, event_name = ?, location = ?,
+        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+    WHERE id = ?
+  `); },
 };
 
 // ---------------------------------------------------------------------------

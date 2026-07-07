@@ -10,6 +10,10 @@ import {
   freestyleRecordCurationService,
   FreestyleRecordScalarInput,
 } from '../services/freestyleRecordCurationService';
+import {
+  consecutiveKicksCurationService,
+  ConsecutiveScalarInput,
+} from '../services/consecutiveKicksCurationService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 
 export const adminFreestyleController = {
@@ -332,6 +336,63 @@ export const adminFreestyleController = {
       next(err);
     }
   },
+
+  // Browse consecutive-kicks records, grouped by section and division.
+  consecutiveIndex(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/consecutive-records', consecutiveKicksCurationService.getBrowsePage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Edit page for one consecutive-kicks row; `?saved=1` shows the saved indicator.
+  // An unknown id is a 404.
+  consecutiveEdit(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = consecutiveKicksCurationService.getEditPage(String(req.params.id), {
+        saved: req.query.saved === '1',
+      });
+      if (!vm) {
+        renderNotFound(res);
+        return;
+      }
+      res.render('admin/consecutive-record-edit', vm);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Save one consecutive-kicks row. Success redirects back with a saved indicator;
+  // a validation failure re-renders the form (422) with the submitted values and
+  // per-field errors; an unknown id is a 404.
+  consecutiveUpdate(req: Request, res: Response, next: NextFunction): void {
+    const id = String(req.params.id);
+    const input = consecutiveInputFromBody(req.body);
+
+    try {
+      consecutiveKicksCurationService.updateRow(id, input, req.user!.userId);
+      res.redirect(303, `/admin/freestyle/consecutive-records/${id}/edit?saved=1`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        const vm = consecutiveKicksCurationService.getEditPage(id, {
+          submitted: input,
+          fieldErrors: err.fieldErrors ?? {},
+        });
+        if (!vm) {
+          renderNotFound(res);
+          return;
+        }
+        res.status(422).render('admin/consecutive-record-edit', vm);
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
 };
 
 function recordInputFromBody(body: Record<string, unknown>): FreestyleRecordScalarInput {
@@ -352,6 +413,24 @@ function recordInputFromBody(body: Record<string, unknown>): FreestyleRecordScal
     videoTimecode: str(body.videoTimecode),
     notes:         str(body.notes),
     supersededBy:  str(body.supersededBy),
+  };
+}
+
+function consecutiveInputFromBody(body: Record<string, unknown>): ConsecutiveScalarInput {
+  return {
+    sortOrder:  str(body.sortOrder),
+    section:    str(body.section),
+    subsection: str(body.subsection),
+    division:   str(body.division),
+    year:       str(body.year),
+    rank:       str(body.rank),
+    player1:    str(body.player1),
+    player2:    str(body.player2),
+    score:      str(body.score),
+    note:       str(body.note),
+    eventDate:  str(body.eventDate),
+    eventName:  str(body.eventName),
+    location:   str(body.location),
   };
 }
 

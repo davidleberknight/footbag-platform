@@ -1,0 +1,36 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="text-muted">Browse the consecutive-kicks records, grouped by section and division. {{content.totalCount}} row(s).</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.hasRows}}
+      {{#each content.sections}}
+        <h2 class="section-heading">{{this.section}}</h2>
+        {{#each this.divisions}}
+          <h3>{{this.division}}</h3>
+          <table class="freestyle-admin-table">
+            <thead>
+              <tr><th>Pos</th><th>Players</th><th>Score</th><th></th></tr>
+            </thead>
+            <tbody>
+              {{#each this.rows}}
+                <tr>
+                  <td>{{this.sortOrder}}</td>
+                  <td>{{this.players}}</td>
+                  <td>{{this.score}}</td>
+                  <td><a href="{{this.editHref}}" class="btn btn-outline btn-sm">Edit</a></td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        {{/each}}
+      {{/each}}
+    {{else}}
+      <p class="text-muted">No consecutive-kicks records.</p>
+    {{/if}}
+  </section>
+</div>

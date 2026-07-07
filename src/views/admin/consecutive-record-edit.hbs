@@ -1,0 +1,40 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>Edit consecutive-kicks record</h1>
+    <p class="text-muted">Editing record <code>{{content.id}}</code>.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.saved}}
+    <p class="notice notice-info">Saved.</p>
+    {{/if}}
+    {{#if content.hasErrors}}
+    <div class="form-error-banner">
+      {{#each content.errorList}}<p>{{this}}</p>{{/each}}
+    </div>
+    {{/if}}
+
+    <form method="POST" action="/admin/freestyle/consecutive-records/{{content.id}}/edit" class="freestyle-edit-form">
+      <fieldset>
+        <p><label>Display position</label><br><input type="text" name="sortOrder" value="{{content.fields.sortOrder}}" /></p>
+        <p><label>Section</label><br><input type="text" name="section" value="{{content.fields.section}}" /></p>
+        <p><label>Subsection</label><br><input type="text" name="subsection" value="{{content.fields.subsection}}" /></p>
+        <p><label>Division</label><br><input type="text" name="division" value="{{content.fields.division}}" /></p>
+        <p><label>Year</label><br><input type="text" name="year" value="{{content.fields.year}}" /></p>
+        <p><label>Rank</label><br><input type="text" name="rank" value="{{content.fields.rank}}" /></p>
+        <p><label>Player 1</label><br><input type="text" name="player1" value="{{content.fields.player1}}" /></p>
+        <p><label>Player 2</label><br><input type="text" name="player2" value="{{content.fields.player2}}" /></p>
+        <p><label>Score</label><br><input type="text" name="score" value="{{content.fields.score}}" /></p>
+        <p><label>Note</label><br><textarea name="note" rows="2">{{content.fields.note}}</textarea></p>
+        <p><label>Event date</label><br><input type="text" name="eventDate" value="{{content.fields.eventDate}}" /></p>
+        <p><label>Event name</label><br><input type="text" name="eventName" value="{{content.fields.eventName}}" /></p>
+        <p><label>Location</label><br><input type="text" name="location" value="{{content.fields.location}}" /></p>
+      </fieldset>
+      <p><button type="submit" class="btn btn-primary btn-sm">Save</button></p>
+    </form>
+
+    <p><a href="{{content.backHref}}" class="btn btn-outline btn-sm">Back to consecutive-kicks records</a></p>
+  </section>
+</div>

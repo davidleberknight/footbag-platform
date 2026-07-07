@@ -69,6 +69,9 @@ adminRouter.get('/freestyle/records/new',          adminFreestyleController.reco
 adminRouter.post('/freestyle/records',             adminFreestyleController.recordCreate);
 adminRouter.get('/freestyle/records/:id/edit',     adminFreestyleController.recordEdit);
 adminRouter.post('/freestyle/records/:id/edit',    adminFreestyleController.recordUpdate);
+adminRouter.get('/freestyle/consecutive-records',           adminFreestyleController.consecutiveIndex);
+adminRouter.get('/freestyle/consecutive-records/:id/edit',  adminFreestyleController.consecutiveEdit);
+adminRouter.post('/freestyle/consecutive-records/:id/edit', adminFreestyleController.consecutiveUpdate);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);
 adminRouter.post('/curator/upload', adminCuratorController.postUpload);
 // Async curator video upload (DD §6.8). Three-step browser flow: sign,
