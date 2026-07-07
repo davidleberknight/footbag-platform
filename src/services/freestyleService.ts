@@ -3628,8 +3628,8 @@ const BODY_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     glyph:       null,
     feel:        'Spinning carries a full-body 360° rotation through the dex moment.',
     intuition:   'A body modifier (flat); pairs with gyro for 180° rotations.',
-    example:     'Mobius = Spinning Torque; Spinning Butterfly.',
-    familyHint:  'Spinning anchors mobius, montage, and surreal.',
+    example:     'Spinning Torque; Spinning Butterfly.',
+    familyHint:  'Spinning anchors montage and surreal; gyro, its 180° half, anchors mobius.',
     midtimeBody: true,
   },
   {
@@ -11126,7 +11126,7 @@ export const freestyleService = {
       { name: 'Pixie',    notation: 'TOE > SAME IN [DEX] >' },
       { name: 'Stepping', notation: 'CLIP > OP IN [DEX] >' },
       { name: 'Blurry',   notation: 'CLIP > OP IN [DEX] > OP OUT [DEX] >' },
-      { name: 'Mobius',   notation: 'SET > (BACK) SPIN [BOD] > OP CLIP [XBD] [DEL]' },
+      { name: 'Mobius',   notation: 'CLIP >> (back) SPIN [BOD] >> SAME IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]' },
     ].map(ex => {
       const slug = movesAnchorSlug(ex.name);
       return {

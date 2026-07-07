@@ -66,10 +66,10 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
     slug:              'nuclear',
     displayName:       'Nuclear (modifier)',
     compactNotation:   'paradox + illusion',
-    officialAdd:       0,
+    officialAdd:       2,
     derivation:        'paradox dex + downtime illusioning dex (= 2 ADD)',
     status:            'canonical',
-    observationalNote: 'Nuclear behaves as a +2 modifier on its named compounds (sumo = nuclear mirage; matador = nuclear butterfly; hurl = nuclear ss whirl). It decomposes as paradox + downtime illusion; the illusioning dex is downtime (uptime would make it atomic), and nuclear itself carries no X-Dex.',
+    observationalNote: 'Nuclear behaves as a +2 modifier on its named compounds (sumo = nuclear mirage; matador = nuclear butterfly; hurl = nuclear ss whirl). It decomposes as paradox + downtime illusion; the illusioning dex is downtime (uptime would make it atomic). Nuclear itself does not carry an X-Dex. A nuclear compound may still receive an X-Dex point from its receiving mirage or dex relationship, as in sumo, but that point comes from the compound\'s dex, not from nuclear.',
   },
   {
     slug:              'quantum',

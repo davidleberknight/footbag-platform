@@ -161,7 +161,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     slug:              'butterfly',
     displayName:       'Butterfly',
     kind:              'root-terminal',
-    canonicalFormula:  'SET > SAME OUT [DEX] > OP IN [DEX] > SAME CLIP [XBD] [DEL]',
+    canonicalFormula:  'SET > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  3,
     commonDescendants: ['atomic butterfly', 'pixie butterfly', 'stepping butterfly', 'ducking butterfly'],
     siblingFamilies:   ['whirl', 'osis', 'mirage'],
@@ -170,29 +170,29 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Butterfly is where freestyle starts to feel like freestyle: the trick where players stop stringing together isolated moves and start linking movement.',
       physicalDescription:
-        'A Butterfly links two dexterities into one flight: one leg passes the bag outward, the other passes it back inward, and it lands on a clipper. For many players, Butterfly is the first trick that feels less like an isolated move and more like connected freestyle.',
+        'A Butterfly is a wing-like outward sweep of the foot across the body to a cross-body clipper catch, in a same-side and an opposite-side variant. For many players, Butterfly is the first trick that feels less like an isolated move and more like connected freestyle.',
       importance:
         'Butterfly matters less for its mechanics than for what it changes in a player. Learning Butterfly is often the moment freestyle stops feeling like individual tricks and starts feeling like continuous movement, which is why players often call it the beginning of real freestyle.',
       variantsIntro:
-        'Butterfly is two dexterities linked into a single clipper catch. That linking is the point: it is the first place a player builds one movement out of two, which is the pattern the rest of freestyle is made of.',
+        'Butterfly is a single outward dex swept across the body into a clipper catch, with a same-side and an opposite-side variant. It is a foundation rather than a combination: the atom the walking family is built on.',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
-        'Two dexterities, not one.',
-        'The legs alternate, one out and one in, in one continuous motion.',
-        'It lands on a clipper.',
-        'If you see two linked dexes flowing into a clipper, a butterfly is at the core.',
+        'A single outward dex swept across the body.',
+        'It lands on a cross-body clipper.',
+        'It comes in a same-side and an opposite-side variant of the same move.',
+        'If you see one outward sweep flowing into a cross-body clipper, a butterfly is at the core.',
       ],
       howToThink:
-        'Think of Butterfly as your first combination. Everything harder is more of the same: more dexterities linked, more operators added, more flow held together.',
+        'Think of Butterfly as a foundation, not a finish line. Everything harder is more of the same: atoms linked into runs, operators layered on, more flow held together.',
       misconceptions: [
-        'Butterfly is not important for being flashy; it is important for teaching you to link movement.',
-        'A butterfly is not two separate tricks; it is one linked movement.',
+        'Butterfly is not important for being flashy; it is important for teaching you to flow.',
+        'A butterfly is a single atom, not a combination of two separate tricks.',
         'Getting a butterfly is not the finish line; it is the start of thinking in combinations.',
       ],
       seeItIn: ['atomic_butterfly', 'ducking_butterfly', 'stepping_butterfly'],
       notationIntro:
-        'For readers interested in the formal notation, a butterfly links two dexterities into a clipper catch: SET > SAME OUT [DEX] > OP IN [DEX] > SAME CLIP [XBD] [DEL] (3 ADD). The two dex tokens are the linked motions; the clipper is the catch.',
+        'For readers interested in the formal notation, a butterfly is one outward dex swept across the body to a clipper catch: SET > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL] (3 ADD). The dex is the outward sweep; the clipper is the catch.',
       takeaway:
         'Butterfly is where freestyle stops being a list of tricks you can do and starts being movement you can link together.',
     },
@@ -701,7 +701,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     slug:              'phoenix',
     displayName:       'Phoenix',
     kind:              'branch',
-    canonicalFormula:  'SET > (no plant while) SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
+    canonicalFormula:  'TOE > SAME IN [DEX] >> DUCK [BOD] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  5,
     commonDescendants: ['paradox phoenix', 'ducking phoenix'],
     siblingFamilies:   ['butterfly', 'osis'],

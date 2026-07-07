@@ -91,7 +91,7 @@ describe('/freestyle/compositional-sets — route + hero + premise', () => {
     expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/mobius">Mobius<\/a>/);
     // Each example carries notation.
     expect(res.text).toContain('TOE &gt; SAME IN [DEX] &gt;');
-    expect(res.text).toContain('SET &gt; (BACK) SPIN [BOD] &gt; OP CLIP [XBD] [DEL]');
+    expect(res.text).toContain('CLIP &gt;&gt; (back) SPIN [BOD] &gt;&gt; SAME IN [DEX] &gt; (front) SPIN [BOD] &gt; OP CLIP [XBD] [DEL]');
   });
 });
 
@@ -316,7 +316,7 @@ describe('/freestyle/glossary — compositional-premise §7 subsection', () => {
     expect(res.text).toMatch(/TOE &gt; SAME IN \[DEX\] &gt;/);
     expect(res.text).toMatch(/CLIP &gt; OP IN \[DEX\] &gt;/);
     expect(res.text).toMatch(/CLIP &gt; OP IN \[DEX\] &gt; OP OUT \[DEX\] &gt;/);
-    expect(res.text).toMatch(/SET &gt; \(BACK\) SPIN \[BOD\] &gt; OP CLIP \[XBD\] \[DEL\]/);
+    expect(res.text).toMatch(/CLIP &gt;&gt; \(back\) SPIN \[BOD\] &gt;&gt; SAME IN \[DEX\] &gt; \(front\) SPIN \[BOD\] &gt; OP CLIP \[XBD\] \[DEL\]/);
   });
 
   it('renders the compositional-premise section with its deep-link anchor', async () => {

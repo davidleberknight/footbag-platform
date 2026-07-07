@@ -26,6 +26,7 @@ import { scanWcagAa, formatFindings } from './helpers/axe';
 const PUBLIC_PAGES: Array<{ path: string; name: string }> = [
   { path: '/', name: 'home' },
   { path: '/freestyle', name: 'freestyle landing' },
+  { path: '/freestyle/glossary', name: 'freestyle glossary' },
   { path: '/events', name: 'events' },
   { path: '/clubs', name: 'clubs' },
   { path: '/ifpa', name: 'membership hub' },
