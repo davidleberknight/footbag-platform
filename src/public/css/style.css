@@ -4915,6 +4915,53 @@ section.home-media { padding-top: 0; }
   margin: 4px 0 16px;
 }
 
+/* Chapter-scale disclosure: a large optional section whose teaching lead stays
+   visible while its reference bulk collapses. Distinct, more prominent than the
+   per-entry collapsibles above. */
+.glossary-chapter {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin: 16px 0 24px;
+  background: var(--bg-subtle, var(--white));
+}
+.glossary-chapter-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.glossary-chapter-summary::-webkit-details-marker { display: none; }
+.glossary-chapter-summary-title {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+.glossary-chapter-summary-title::before {
+  content: "\25B8";
+  display: inline-block;
+  margin-right: 10px;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+.glossary-chapter[open] > .glossary-chapter-summary .glossary-chapter-summary-title::before { transform: rotate(90deg); }
+.glossary-chapter-summary-hint {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-left: 24px;
+}
+.glossary-chapter[open] > .glossary-chapter-summary {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.glossary-chapter > *:not(summary) {
+  margin-left: 18px;
+  margin-right: 18px;
+}
+.glossary-chapter > *:last-child {
+  margin-bottom: 14px;
+}
+
 /* Technique Notes inner sub-blocks (Execution / Learning Notes / Before You Try
    This), each a compact labeled group inside the single disclosure. */
 .trick-technique-part {
