@@ -27,7 +27,7 @@
     if (!items.length) {
       var none = document.createElement('p');
       none.className = 'text-muted';
-      none.textContent = 'No tricks found matching "' + query + '".';
+      none.textContent = 'No tricks or family pages found matching "' + query + '".';
       results.appendChild(none);
       return;
     }
@@ -42,6 +42,14 @@
       link.textContent = it.name;
       row.appendChild(link);
 
+      // Family-page suggestions carry a type label so mixed results stay
+      // distinguishable; trick items have no typeLabel and render as before.
+      if (it.typeLabel) {
+        var kind = document.createElement('span');
+        kind.className = 'badge';
+        kind.textContent = it.typeLabel;
+        row.appendChild(kind);
+      }
       if (it.adds) {
         var adds = document.createElement('span');
         adds.className = 'text-muted';

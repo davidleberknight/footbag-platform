@@ -407,16 +407,59 @@ export interface FreestyleTrickSearchResult {
   matchedAlias: string | null;
 }
 
+export interface FreestyleFamilySearchResult {
+  slug: string;
+  name: string;
+  href: string;
+  /** Distinguishes the result kind on mixed surfaces (typeahead badge). */
+  typeLabel: 'Family';
+}
+
 export interface FreestyleSearchContent {
   query: string;
   hasQuery: boolean;
   tooShort: boolean;
+  familyResults: FreestyleFamilySearchResult[];
+  hasFamilyResults: boolean;
   results: FreestyleTrickSearchResult[];
   resultCount: number;
   hasMore: boolean;
+  /** True when a well-formed query matched neither a family nor a trick. */
+  hasNoResults: boolean;
 }
 
 const TRICK_SEARCH_MIN_LENGTH = 2;
+
+// Space, hyphen, and underscore are interchangeable in family naming, so the
+// query and the candidate names are folded to one separator before matching
+// ("double legover" finds double_leg_over).
+function foldSearchSeparators(s: string): string {
+  return s.toLowerCase().replace(/[\s_-]+/g, ' ').trim();
+}
+
+/**
+ * Family-page search over the public display roster, gated by exactly the
+ * family-detail route's own servability rule (official Family Parent with a
+ * public label), so a result can never link to a page that would 404.
+ * Case-insensitive substring match on the display label and the slug,
+ * separator-folded; closest (shortest) label first.
+ */
+function searchPublicFamilies(query: string, limit: number): FreestyleFamilySearchResult[] {
+  const q = foldSearchSeparators(query);
+  if (q.length < TRICK_SEARCH_MIN_LENGTH) return [];
+  return PUBLIC_DISPLAY_FAMILIES
+    .filter(f => isOfficialFamilyParent(f.slug) && PUBLIC_FAMILY_LABEL.has(f.slug))
+    .filter(f =>
+      foldSearchSeparators(f.label).includes(q) || foldSearchSeparators(f.slug).includes(q))
+    .sort((a, b) => a.label.length - b.label.length || a.label.localeCompare(b.label))
+    .slice(0, limit)
+    .map(f => ({
+      slug: f.slug,
+      name: f.label,
+      href: `/freestyle/families/${f.slug}`,
+      typeLabel: 'Family' as const,
+    }));
+}
 
 function runTrickSearch(query: string, limit: number): FreestyleTrickSearchResult[] {
   const q = query.trim();
@@ -6917,11 +6960,24 @@ export const freestyleService = {
     return runTrickSearch(query, limit);
   },
 
+  /**
+   * Combined typeahead suggestions: up to three family pages first (the broader
+   * hub destinations, never many), then tricks filling the remainder of the
+   * limit. Family items carry `typeLabel`; trick items keep their exact shape,
+   * so the JSON change is purely additive for the client.
+   */
+  getSearchSuggestions(query: string, limit = 10): Array<FreestyleFamilySearchResult | FreestyleTrickSearchResult> {
+    const families = searchPublicFamilies(query, 3);
+    const tricks = runTrickSearch(query, Math.max(limit - families.length, 1));
+    return [...families, ...tricks];
+  },
+
   getFreestyleTrickSearchPage(rawQuery: string): PageViewModel<FreestyleSearchContent> {
     const query = (rawQuery ?? '').trim();
     const hasQuery = query.length > 0;
     const tooShort = hasQuery && query.length < TRICK_SEARCH_MIN_LENGTH;
     const PAGE_LIMIT = 50;
+    const familyResults = hasQuery && !tooShort ? searchPublicFamilies(query, 5) : [];
     const found = hasQuery && !tooShort ? runTrickSearch(query, PAGE_LIMIT + 1) : [];
     const hasMore = found.length > PAGE_LIMIT;
     const results = hasMore ? found.slice(0, PAGE_LIMIT) : found;
@@ -6938,7 +6994,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_search',
         title:      'Search Tricks',
-        intro:      'Find a trick by its name or a folk-name alias.',
+        intro:      'Find a trick or family page by name.',
       },
       navigation: {
         breadcrumbs: [
@@ -6951,9 +7007,12 @@ export const freestyleService = {
         query,
         hasQuery,
         tooShort,
+        familyResults,
+        hasFamilyResults: familyResults.length > 0,
         results,
         resultCount: results.length,
         hasMore,
+        hasNoResults: hasQuery && !tooShort && familyResults.length === 0 && results.length === 0,
       },
     };
   },

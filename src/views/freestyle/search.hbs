@@ -34,25 +34,41 @@
       {{#if content.hasQuery}}
         {{#if content.tooShort}}
           <p class="text-muted">Please enter at least 2 characters.</p>
-        {{else if content.results.length}}
-          <div class="search-box-card-results-head">
-            <strong>Results</strong>
-            <span class="section-count">{{content.resultCount}}{{#if content.hasMore}}+{{/if}}</span>
-          </div>
-          {{#if content.hasMore}}
-            <p class="text-muted">Showing the first {{content.resultCount}}. Refine your search to narrow it.</p>
-          {{/if}}
-          <div class="search-box-results">
-            {{#each content.results}}
-              <div class="search-box-result">
-                <a href="{{href}}">{{name}}</a>
-                {{#if adds}}<span class="text-muted">{{adds}} ADD</span>{{/if}}
-                {{#if matchedAlias}}<span class="text-muted">also: {{matchedAlias}}</span>{{/if}}
-              </div>
-            {{/each}}
-          </div>
         {{else}}
-          <p class="text-muted">No tricks found matching "{{content.query}}".</p>
+          {{#if content.hasFamilyResults}}
+            <div class="search-box-card-results-head">
+              <strong>Family pages</strong>
+            </div>
+            <div class="search-box-results">
+              {{#each content.familyResults}}
+                <div class="search-box-result">
+                  <a href="{{href}}">{{name}}</a>
+                  <span class="badge">{{typeLabel}}</span>
+                </div>
+              {{/each}}
+            </div>
+          {{/if}}
+          {{#if content.results.length}}
+            <div class="search-box-card-results-head">
+              <strong>Results</strong>
+              <span class="section-count">{{content.resultCount}}{{#if content.hasMore}}+{{/if}}</span>
+            </div>
+            {{#if content.hasMore}}
+              <p class="text-muted">Showing the first {{content.resultCount}}. Refine your search to narrow it.</p>
+            {{/if}}
+            <div class="search-box-results">
+              {{#each content.results}}
+                <div class="search-box-result">
+                  <a href="{{href}}">{{name}}</a>
+                  {{#if adds}}<span class="text-muted">{{adds}} ADD</span>{{/if}}
+                  {{#if matchedAlias}}<span class="text-muted">also: {{matchedAlias}}</span>{{/if}}
+                </div>
+              {{/each}}
+            </div>
+          {{/if}}
+          {{#if content.hasNoResults}}
+            <p class="text-muted">No tricks or family pages found matching "{{content.query}}".</p>
+          {{/if}}
         {{/if}}
       {{/if}}
     </div>

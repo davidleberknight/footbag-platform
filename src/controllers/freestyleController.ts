@@ -39,7 +39,7 @@ export const freestyleController = {
     }
   },
 
-  /** GET /freestyle/search/suggest?q= — JSON typeahead for the trick search box. */
+  /** GET /freestyle/search/suggest?q= — JSON typeahead: family pages first, then tricks. */
   searchSuggest(req: Request, res: Response, next: NextFunction): void {
     try {
       const q = typeof req.query['q'] === 'string' ? req.query['q'].trim() : '';
@@ -47,7 +47,7 @@ export const freestyleController = {
         res.json([]);
         return;
       }
-      res.json(freestyleService.searchTricks(q, 10));
+      res.json(freestyleService.getSearchSuggestions(q, 10));
     } catch (err) {
       handleControllerError(err, res, next, 'freestyle controller');
     }

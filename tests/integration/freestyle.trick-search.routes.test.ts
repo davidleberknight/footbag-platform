@@ -1,8 +1,13 @@
 /**
  * GET /freestyle/search and GET /freestyle/search/suggest — alias-aware trick
- * search. The page is the no-JS fallback; the suggest endpoint backs the
- * typeahead. Both match on canonical name, slug, and alias text, exclude
- * inactive tricks, and surface the matched alias when the name was not the hit.
+ * search plus family-page results. The page is the no-JS fallback; the suggest
+ * endpoint backs the typeahead. Trick matching covers canonical name, slug, and
+ * alias text, excludes inactive tricks, and surfaces the matched alias when the
+ * name was not the hit. Family results come from the gated public-family roster
+ * (the same servability rule as the family detail route, so a result never
+ * links to a page that would 404): they render in their own band above the
+ * trick results with a Family label, and prepend to the suggest JSON with a
+ * typeLabel field while trick items keep their exact prior shape.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -64,13 +69,58 @@ describe('GET /freestyle/search (server-rendered)', () => {
 
   it('reports no matches for an unknown query', async () => {
     const { text } = await searchPage('zzzznotatrick');
-    expect(text).toContain('No tricks found');
+    expect(text).toContain('No tricks or family pages found');
   });
 
   it('excludes inactive tricks', async () => {
     const { text } = await searchPage('retired');
-    expect(text).toContain('No tricks found');
+    expect(text).toContain('No tricks or family pages found');
     expect(text).not.toContain('href="/freestyle/tricks/retired-trick"');
+  });
+});
+
+describe('GET /freestyle/search — family-page results', () => {
+  it('shows the family band with a link to the family page for a direct family-name query', async () => {
+    const { status, text } = await searchPage('butterfly');
+    expect(status).toBe(200);
+    expect(text).toContain('Family pages');
+    expect(text).toContain('href="/freestyle/families/butterfly"');
+    expect(text).toContain('>Family<'); // the type badge
+  });
+
+  it('renders family and trick results together for a query matching both', async () => {
+    const { text } = await searchPage('whirl');
+    expect(text).toContain('href="/freestyle/families/whirl"');   // family band
+    expect(text).toContain('href="/freestyle/tricks/whirl"');     // trick list unchanged
+    expect(text).toContain('href="/freestyle/tricks/paradox-whirl"');
+  });
+
+  it('finds a family by name for osis', async () => {
+    const { text } = await searchPage('osis');
+    expect(text).toContain('href="/freestyle/families/osis"');
+  });
+
+  it('folds spaces, hyphens, and underscores when matching family names', async () => {
+    const { text } = await searchPage('double legover');
+    expect(text).toContain('href="/freestyle/families/double_leg_over"');
+  });
+
+  it('offers no family link for a lineage below the family-page threshold', async () => {
+    // flurry is on the public roster but is not an official Family Parent, so
+    // its detail page does not render and search must not link to it.
+    const { text } = await searchPage('flurry');
+    expect(text).not.toContain('href="/freestyle/families/flurry"');
+    expect(text).toContain('No tricks or family pages found');
+  });
+
+  it('links only to family pages that actually render', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/butterfly');
+    expect(res.status).toBe(200);
+  });
+
+  it('carries the updated intro wording', async () => {
+    const res = await request(await createApp()).get('/freestyle/search');
+    expect(res.text).toContain('Find a trick or family page by name.');
   });
 });
 
@@ -107,6 +157,33 @@ describe('GET /freestyle/search/suggest (JSON typeahead)', () => {
 
   it('excludes inactive tricks from suggestions', async () => {
     const res = await request(await createApp()).get('/freestyle/search/suggest').query({ q: 'retired' });
+    expect(res.body).toEqual([]);
+  });
+
+  it('prepends a family suggestion with its type label ahead of trick items', async () => {
+    const res = await request(await createApp()).get('/freestyle/search/suggest').query({ q: 'whirl' });
+    expect(res.status).toBe(200);
+    const first = res.body[0];
+    expect(first.typeLabel).toBe('Family');
+    expect(first.href).toBe('/freestyle/families/whirl');
+    expect(first.name).toBe('Whirl');
+
+    // Trick items keep their exact prior shape: no typeLabel field.
+    const paradox = res.body.find((r: { slug: string; typeLabel?: string }) => r.slug === 'paradox-whirl');
+    expect(paradox).toBeDefined();
+    expect(paradox.typeLabel).toBeUndefined();
+    expect(paradox.href).toBe('/freestyle/tricks/paradox-whirl');
+  });
+
+  it('suggests a family even when no trick matches', async () => {
+    const res = await request(await createApp()).get('/freestyle/search/suggest').query({ q: 'butterfly' });
+    expect(res.body.length).toBeGreaterThan(0);
+    expect(res.body[0].typeLabel).toBe('Family');
+    expect(res.body[0].href).toBe('/freestyle/families/butterfly');
+  });
+
+  it('offers no family suggestion for a below-threshold lineage', async () => {
+    const res = await request(await createApp()).get('/freestyle/search/suggest').query({ q: 'flurry' });
     expect(res.body).toEqual([]);
   });
 });
