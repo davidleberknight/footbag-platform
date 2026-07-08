@@ -79,12 +79,15 @@ the paper that owns its detail.
 8. **The ADD-authority order.** The published value is official; the additive
    arithmetic is diagnostic; an outside source's number is recorded, never
    adopted. (Scoring.)
-9. **Two operator merges are settled precedent, not open questions:** Atomic =
-   Illusioning (the same outward-dex operator; the Illusioning name is a
-   descriptive reading and its registry row is retired) and Furious = Barraging
-   (the same two-dex uptime set; Barraging is the more explanative name). They
-   are the worked precedents the general merger criterion must retro-justify.
-   (Identity.)
+9. **Timing and role can individuate two moves that share a dex skeleton.** A
+   difference in timing (uptime versus downtime) or in role is identity-bearing:
+   two names are not one operator merely because their dex structures or older
+   names look related. Atomic is an uptime set and Illusioning is a separate
+   downtime move, so they do not merge; Furious and Barraging are distinct on the
+   same timing grounds. Earlier readings that merged each pair were superseded by
+   the rules expert's later timing clarification. Older source usages that blurred
+   the distinction are preserved in provenance or alias notes where appropriate,
+   but modern timing distinctions control the canon. (Identity.)
 
 ## Source reconciliation (editorial epistemology, not a scoring rule)
 
@@ -126,9 +129,11 @@ The series changes by supersession, never by silent overwrite.
    New doctrine traces to the sources, the expert, or an explicit human decision,
    never to a paper quoting itself back.
 4. A settled premise is re-opened only deliberately and on the record, never as a
-   side effect of answering something else. The two merge precedents (premise 9)
-   and the authority order (premise 8) are the ones most at risk of accidental
-   re-litigation; a paper that appears to re-open them is a drafting error to fix.
+   side effect of answering something else. The timing-individuation rule
+   (premise 9) and the authority order (premise 8) carry the identity and scoring
+   foundations the later papers assume; each is re-opened only by a deliberate,
+   recorded amendment. Premise 9 is itself the product of one such amendment,
+   which superseded an earlier pair of merge readings on a timing ruling.
 
 ## Open questions
 
@@ -142,9 +147,16 @@ The series changes by supersession, never by silent overwrite.
   governed for a time; it was superseded by "atomic is +1 flat, with a separate
   conditional X-Dex," and the change was recorded, the registry migrated, and the
   old reading marked superseded. This is the amendment rule working as intended.
-- **The Illusioning row.** When Atomic absorbed Illusioning, the Illusioning
-  registry row was retired to zero and the name kept only as a descriptive
-  reading. A merge executed cleanly, with the losing name preserved as an alias.
+- **The merge readings superseded on timing.** Atomic and Illusioning were once
+  read as one operator under two names, and Furious and Barraging as one set under
+  two names. Both readings were superseded when the rules expert clarified that
+  timing individuates them: Atomic is an uptime set and Illusioning a separate
+  downtime move, and Furious and Barraging differ by timing in the same way. The
+  earlier merge readings are marked superseded, and older source usages that
+  blurred the distinction are preserved in provenance or alias notes where
+  appropriate; Atomic and Illusioning remain distinct canonical concepts. This is
+  the amendment rule reversing a premise deliberately and on the record, not a
+  clean absorption.
 
 ## Encyclopedia impact
 

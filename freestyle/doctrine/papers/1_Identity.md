@@ -10,11 +10,12 @@ philosophy of naming that follows.
 
 ## Settled premises
 
-- **The identity axes are structure, direction, and side configuration.** Two
-  moves with the same structural skeleton are still different tricks if they
-  differ in direction (mirage vs illusion, around-the-world vs orbit) or in
-  side configuration (the resolved SAME/OP markers across the side-bearing
-  components). Direction and side are structural, not qualifiers.
+- **The identity axes are structure, direction, side configuration, and timing.**
+  Two moves with the same structural skeleton are still different tricks if they
+  differ in direction (mirage vs illusion, around-the-world vs orbit), in side
+  configuration (the resolved SAME/OP markers across the side-bearing components),
+  or in timing (uptime vs downtime execution of the same dex sequence). Direction,
+  side, and timing are structural, not qualifiers.
 - **One true name, descriptive sub-names.** Each trick has a single canonical
   name. Its structural decomposition and its notation reading are secondary,
   searchable presentations of the same trick, not competing names. Historical
@@ -24,30 +25,40 @@ philosophy of naming that follows.
   decomposed structure (modifier set plus base), never on the folk-name string.
 - **Sets versus operators is decided by role.** A concept launches a trick (set)
   or modifies one (operator); the mechanic it embeds does not decide which.
-- **Two merges are precedent.** Atomic = Illusioning and Furious = Barraging are
-  settled. They are the worked cases any general merger criterion must reproduce.
+- **Timing can block a merge.** Two names are not one operator merely because
+  their dex structures or older names look related: a difference in timing (uptime
+  vs downtime) individuates them. Atomic (uptime) and Illusioning (downtime) are
+  distinct, and Furious and Barraging are distinct on the same grounds. Both pairs
+  were once read as merges; those readings were superseded by the timing ruling.
+  Older source usages that blurred the distinction are preserved in provenance or
+  alias notes where appropriate, but the modern timing distinction controls the
+  canon.
 
 ## Open questions
 
-1. **The fourth identity axis: is timing structural?** Direction and side are
-   ruled structural. Timing — uptime versus downtime execution of the same dex
-   sequence — has never been ruled either way. The record already leans on it
-   (nuclear is defined as paradox plus a *downtime* illusion; a downtime miraging
-   pickup did not match a quantum pickup in cross-source checking), but there is
-   no ruling. Until there is, the identity tuple is incomplete. *This is the
-   central open question of the paper.* (Red.)
+1. **Timing as an identity axis: partially settled.** Timing — uptime versus
+   downtime execution of the same dex sequence — is now ruled identity-bearing for
+   the operator pairs where it was tested: Atomic (uptime) is distinct from
+   Illusioning (downtime), and Furious is distinct from Barraging on the same
+   grounds. The record already leaned on timing (nuclear is defined as paradox
+   plus a *downtime* illusion; a downtime miraging pickup did not match a quantum
+   pickup in cross-source checking), and the ruling confirms it. What remains open
+   is the general statement: does a timing difference individuate *every* dex
+   sequence, or only set-operators? (Red, for the general rule.)
 2. **The merger criterion, stated generally.** By what test are two names one
    operator? The two precedents each had a clean basis — an identity reading for
    Atomic/Illusioning, an explicit "same thing" ruling for Furious/Barraging.
    The criterion must be stated so it decides the next pair without a fresh
    ruling each time. (Red.)
-3. **The one live merger case: Quantum and Miraging.** Both contribute an
-   inward opposite-side dex at +1; on the legover and pickup bases their
-   compounds are identical but for the entry token. Against merging: FootbagMoves
-   treats Quantum as a productive set across a dozen bases and Miraging as only a
-   structural reading with no shared base, and the two sit in different set
-   subtypes. This is the test case for the criterion in question 2, not an
-   isolated ID. (Red.)
+3. **Quantum and Miraging, under the maintainer's working ruling.** Both
+   contribute an inward opposite-side dex at +1; on the legover and pickup bases
+   their compounds are identical but for the entry token. The maintainer's working
+   ruling treats this pair parallel to Atomic/Illusioning: Quantum is the uptime
+   set and Miraging is the downtime or descriptive mirage-family reading, so they
+   stay distinct rather than merging. They are already kept distinct in the data,
+   so the working ruling settles wording, not structure. This is not escalated to
+   the rules expert unless a real contradiction in the sources or notation appears.
+   (Maintainer; the rules expert only if a contradiction remains.)
 4. **When a variation earns its own canonical row versus an alias.** The
    named-identity, non-decomposability, competitive-significance, and
    ambiguity-resolver tests exist in practice; state them as the general
@@ -56,33 +67,42 @@ philosophy of naming that follows.
 
 ## Worked examples
 
-- **Atomic = Illusioning (settled).** The same outward-dex, reverse-direction
-  operator under two names. Illusioning is the descriptive reading; its registry
-  row is retired; the merge is executed with zero ADD change. Any merger
-  criterion must return "merge" here.
-- **Furious = Barraging (settled).** The same two-dex uptime set; "Barraging is
-  more explanative," so it is canonical and Furious is the alias. A cohort of
-  furious-named tricks maps to the barraging reading. The criterion must return
-  "merge" here too.
-- **Quantum vs Miraging (live).** Same dex token, same weight, near-identical
-  compounds on two bases, but different corpus productivity and different
-  entry commitment. The criterion must return a defensible verdict here — this
-  is what makes it a criterion rather than a pair of prior rulings.
+- **Atomic vs Illusioning (settled distinct, illustrates timing).** Once read as
+  one operator under two names; the rules expert clarified that Atomic is an
+  uptime set and Illusioning a separate downtime move, so they are two identities,
+  not one. The earlier merge reading is superseded; Illusioning remains a distinct
+  canonical concept, not an old alias of Atomic, and older source usages that
+  blurred the two are preserved in provenance or alias notes where appropriate. Any
+  merger criterion must return "do not merge" here, on timing.
+- **Furious vs Barraging (settled distinct, illustrates timing).** Once read as
+  one two-dex set under two names; they are now distinct because one is uptime and
+  one is downtime. Older source usages that blurred the distinction are preserved in
+  provenance or alias notes where appropriate, but the modern timing distinction
+  controls the canon. The criterion must return "do not merge" here too.
+- **Quantum vs Miraging (working ruling).** Same dex token, same weight,
+  near-identical compounds on two bases. Under the maintainer's working ruling they
+  parallel Atomic/Illusioning — Quantum the uptime set, Miraging the downtime or
+  descriptive reading — and stay distinct. Held as the maintainer's call unless a
+  source contradiction forces a rules-expert ruling.
 - **Mirage vs Illusion (settled, illustrates direction).** Identical skeleton,
   opposite direction, two tricks. The reason direction is an axis.
 
 ## Encyclopedia impact
 
 Identity governs every canonical row, every alias, and the positional resolver.
-A ruling on timing would either add a fourth axis to the resolver or close it
-off; a general merger criterion would let the encyclopedia resolve the standing
-Quantum/Miraging cross-links and pre-decide future set pairs (Pixie/Stepping,
-Fairy/Sailing) without new consultation. The naming premises are already the
-basis of the alias architecture.
+Timing is now a partial fourth axis: it individuates the operator pairs where it
+was tested, and a general statement of it would either extend the resolver or
+bound it. A general merger criterion would let the encyclopedia pre-decide future
+set pairs (Pixie/Stepping, Fairy/Sailing) without new consultation; Quantum and
+Miraging sit under the maintainer's working ruling in the meantime. The naming
+premises are already the basis of the alias architecture.
 
 ## Who should review it
 
-Red owns the timing axis, the merger criterion, and the Quantum/Miraging verdict
-— these are movement-knowledge and rules-authority calls. The admission test for
-new canonical rows is internal editorial doctrine, escalating to Red only for a
-genuinely novel structure with no attested reading.
+Red owns the general timing rule and the merger criterion — these are
+movement-knowledge and rules-authority calls — and has already settled the
+Atomic/Illusioning and Furious/Barraging timing distinctions. Quantum/Miraging
+sits under the maintainer's working ruling unless a source contradiction forces
+escalation. The admission test for new canonical rows is internal editorial
+doctrine, escalating to Red only for a genuinely novel structure with no attested
+reading.

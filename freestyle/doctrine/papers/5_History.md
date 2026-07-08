@@ -25,6 +25,15 @@ has — kept as history, marked as history.
   in turn compressed back into named compounds. Blurry-to-stepping is the clearest
   case: not a correction, but conceptual evolution, with the old and new readings
   coexisting.
+- **Older terminology was less precise, and some sources preserve the looser
+  usage.** As the vocabulary matured it drew finer timing and role distinctions
+  than the early names carried; instructional and community sources recorded at an
+  earlier moment may still use the looser terms — the `-ing` operator names, or
+  leggy and illusioning language — without the modern breakdown. This is
+  historical usage, preserved as record: the canon follows the modern technical
+  reading and preserves the older usages in provenance or alias notes where
+  appropriate, but the looser usage is a real part of how the vocabulary was
+  spoken. Memory, not a rule.
 - **The terminals concentrated on clipper and toe.** Both ends of the vocabulary
   — where tricks enter and where they land — are dominated by these two surfaces,
   and families emerged as compositions over that concentrated base.

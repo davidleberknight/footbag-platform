@@ -39,6 +39,17 @@ silently reshaping either side.
   reverse-ATW, drifter ≠ reverse-drifter. `reverse` is never a modifier row.
   Within-trick CW/CCW execution variants the community treats as one trick stay one
   row.
+- **Timing can individuate operators** (latest timing clarification). Red's latest
+  timing clarification settles the tested pairs: Atomic is an uptime set and
+  Illusioning is a distinct downtime move, so they do not merge; hippy Atomic and
+  leggy Atomic are execution styles of Atomic, not separate canonical tricks.
+  Furious and Barraging are also distinct by timing and are not globally merged.
+  This ruling supersedes the earlier merge readings for those pairs. The broader
+  rule — whether timing always individuates every dex sequence — remains an open
+  Identity question unless separately ruled. Older terminology is preserved in
+  provenance or alias notes where it blurred the distinction; any historical
+  "Barraging" or "Furious" name is audited before a canonical rename or an alias
+  rewire, and nothing is rewired on the strength of this ruling alone.
 - **The downs are one family** (Wave 3 follow-up, 2026-07-02): a single structural
   decomposition with set/foot variants. Full doctrine, grid, and the still-open
   embedded-base labeling half in `DOWN_FAMILY.md`. The earlier pt7 ruling that the
@@ -71,7 +82,13 @@ Values for all of these live in `freestyleOperatorReference.ts` /
   halves recorded in the registry and the pogo row's provenance; evidence dossier
   at `exploration/pogo-add-doctrine-packet/CURATOR_PACKET.md`).
 - **Furious = barraging** (pt14): the same operator — a two-dex uptime set;
-  "Barraging is more explanative."
+  "Barraging is more explanative." **Superseded by the latest timing
+  clarification:** Red now holds that Furious and Barraging are distinct by timing
+  (one uptime, one downtime) and are not globally merged. The pt14 reading is
+  preserved as the earlier ruling; the replacement is the timing-individuates entry
+  under Structural doctrine in force. Any historical "Barraging" name whose
+  structure is uptime is audited before a canonical rename or alias rewire; no data
+  is rewired on this note alone.
 - **Inspinning** (pt14): any spin counts the same, so inspinning carries spinning's
   weight; it differs in rotation direction (front where spinning is back).
 - **Nuclear** (pt9, pt14): structurally a paradox dex plus a downtime illusioning
@@ -80,8 +97,12 @@ Values for all of these live in `freestyleOperatorReference.ts` /
 - **Atomic and X-Dex**: atomic is a flat +1 on every base with no rotational class;
   X-Dex is a separate, receiver-gated +1 that fires only where the notation carries
   `[XDEX]` on an eligible far-form receiver dex, never inferred from an operator
-  name. The illusioning naming merged into atomic. `freestyleOperatorReference.ts`
-  is the canonical statement of this doctrine.
+  name. The earlier reading that "the illusioning naming merged into atomic" is
+  **superseded by the latest timing clarification:** Atomic is an uptime set and
+  Illusioning is a distinct downtime move, so they do not merge (see the
+  timing-individuates entry under Structural doctrine in force). The atomic +1 and
+  X-Dex rules are unaffected. `freestyleOperatorReference.ts` is the canonical
+  statement of the atomic +1 / X-Dex doctrine.
 - **Terraging** (pt8): its own +3 body modifier, NOT a parallel form of barraging
   (correcting pt6 phrasing). The unreconciled terraging-chain arithmetic is an open
   rider — see `RED_QUEUE.md`.
@@ -107,9 +128,14 @@ Each lives as a row (with pt-cited provenance) in the curated CSVs; the notable 
   "Quantum Mirage" equivalence, whose math did not close).
 - Quantum is the modern naming replacing the older "toe" prefix (pt2); toe-X names
   are aliases of quantum-X canonicals.
-- Omelette = Illusioning Pickup (pt6) — with illusioning since merged into atomic,
-  this is why "atomic pickup" is omelette's alias; the open rebind question is in
-  `RED_QUEUE.md`.
+- Omelette = Illusioning Pickup (pt6). The clause that "illusioning since merged
+  into atomic" (the reason "atomic pickup" reads as omelette's alias) is
+  **superseded by the latest timing clarification:** Atomic and Illusioning are
+  distinct (Atomic uptime, Illusioning downtime), so the omelette / atomic-pickup
+  relationship rests on the alias data as it stands, not on a merge. The pt6
+  identity (Omelette = Illusioning Pickup) is unaffected; the open alias-rebind
+  question remains in `RED_QUEUE.md`, and the "atomic pickup" alias is audited
+  before any rewire.
 - Flail = Symposium Illusion (pt6). Fury = Furious Paradox Mirage (pt6, replacing
   the pt4 decomposition). Merkon = spinning legover (pt5). Smog = Pixie Double Leg
   Over, Smudge = Pixie Illusion, Haze = Stepping Double Leg Over (pt7). Smoke =

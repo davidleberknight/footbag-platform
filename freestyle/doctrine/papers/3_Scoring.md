@@ -27,8 +27,10 @@ applied at scoring time but not itself a scoring rule.
   never applies twice. Where it fires the notation carries `[XDEX]`.
 - **Composite operators score as the sum of their parts.** Surging is spinning
   plus stepping (+2); blurry is a stepping entry carrying a paradox; nuclear is a
-  paradox plus a downtime illusion (+2); furious is another name for barraging
-  (+2, a two-dex set).
+  paradox plus a downtime illusion (+2); furious is a two-dex uptime set (+2),
+  scored by its components. Barraging is distinct from furious by timing and should
+  be scored from its own bracketed components when present, not treated as another
+  name for furious.
 
 ## Open questions
 
