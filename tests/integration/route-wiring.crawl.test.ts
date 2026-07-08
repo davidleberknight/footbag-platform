@@ -29,6 +29,14 @@ import {
   insertTag,
   insertEvent,
   insertHistoricalPerson,
+  insertFreestyleTrick,
+  insertFreestyleTrickAlias,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+  insertFreestyleTrickSource,
+  insertFreestyleTrickSourceLink,
+  insertFreestyleRecord,
+  insertConsecutiveKicksRecord,
   completeOnboarding,
   createTestSessionJwt,
 } from '../fixtures/factories';
@@ -53,9 +61,10 @@ const MEMBER_ID = 'crawl-member-001';
 const ADMIN_ID  = 'crawl-admin-001';
 
 // Hard bound per persona so a link explosion fails fast instead of hanging
-// the suite. High enough to cover every section root plus the freestyle index
-// and static pages, the operator QC pages, and discovered detail pages on the
-// small seed corpus; the crawl logs what it visited on failure.
+// the suite. High enough to cover every section root plus the freestyle index,
+// static pages, the operator QC pages, and the discovered freestyle reference
+// surfaces (browse views, set and operator and family details) reachable from
+// the small seed corpus; the crawl logs what it visited on failure.
 const MAX_PAGES = 450;
 
 const SEED_ROOTS = [
@@ -74,6 +83,11 @@ const SEED_ROOTS = [
   '/internal/net/recovery-candidates', '/internal/net/review/summary',
   '/internal/net/review', '/internal/net/curated', '/internal/net/candidates',
 ];
+
+// The freestyle tricks this fixture seeds; trick-detail links outside this set
+// are content-authored references into the full real dictionary and are
+// skipped rather than reported as dead (see shouldSkip).
+const SEEDED_TRICK_SLUGS = new Set(['whirl', 'paradox_whirl']);
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -102,6 +116,38 @@ beforeAll(async () => {
   insertEvent(db, { title: 'Crawl Open', status: 'published' });
 
   insertHistoricalPerson(db, { person_name: 'Historic Crawler', hof_member: 1 });
+
+  // Minimal freestyle corpus so the freestyle surfaces (index views, trick
+  // detail, records, and the links they render) are crawlable instead of
+  // excluded. whirl is an official Family Parent, so the family links its
+  // pages render resolve; the compound carries an alias, a modifier link,
+  // and a source link so those rendered blocks emit their links too.
+  insertFreestyleTrick(db, {
+    slug: 'whirl', canonical_name: 'Whirl', adds: '3',
+    trick_family: 'whirl', base_trick: 'whirl', category: 'dex',
+    review_status: 'curated', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'paradox_whirl', canonical_name: 'Paradox Whirl', adds: '4',
+    trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1,
+  });
+  insertFreestyleTrickAlias(db, 'crawl_alias', 'paradox_whirl', 'Crawl Alias');
+  insertFreestyleTrickModifier(db, { slug: 'paradox', modifier_name: 'paradox', add_bonus: 1, modifier_type: 'body' });
+  insertFreestyleTrickModifierLink(db, 'paradox_whirl', 'paradox', 1);
+  const crawlSourceId = insertFreestyleTrickSource(db, { source_label: 'Crawl Source', source_type: 'curated' });
+  insertFreestyleTrickSourceLink(db, 'paradox_whirl', crawlSourceId, {});
+  insertFreestyleRecord(db, {
+    id: 'crawl_record', display_name: 'Crawl Holder', trick_name: 'Whirl', value_numeric: 12,
+  });
+  insertConsecutiveKicksRecord(db, {
+    id: 'crawl_ck_wr', sort_order: 401, section: 'Official World Records',
+    subsection: 'Current', division: 'Open Singles', player_1: 'Crawl Kicker', score: 50000,
+  });
+  insertConsecutiveKicksRecord(db, {
+    id: 'crawl_ck_ms', sort_order: 1301, section: 'Milestone Firsts',
+    subsection: 'Firsts', division: 'Open Singles', player_1: 'Crawl Kicker', score: 10000,
+  });
 
   // FH system member + the catalog FH galleries the freestyle landing links
   // statically. Empty galleries render fine; what matters is that the links
@@ -165,16 +211,14 @@ function shouldSkip(path: string): boolean {
   // Harness action: refreshing re-seeds personas mid-crawl, so the crawler
   // skips it; a dedicated test probes it after the crawls complete.
   if (path === '/dev/personas/refresh') return true;
-  // Freestyle dictionary detail pages resolve a specific trick, set, family, or
-  // modifier from the seeded corpus, which this fixture DB does not carry, so
-  // their wiring is data-dependent and skipped. The section's index and static
-  // pages (landing, tricks index, glossary, operators, about, ...) carry no
-  // corpus dependency and are crawled. The flat sets reference table is a
-  // literal page, not a per-set detail, so it stays crawled.
-  if (/^\/freestyle\/tricks\/.+/.test(path)) return true;
-  if (/^\/freestyle\/sets\/(?!reference$).+/.test(path)) return true;
-  if (/^\/freestyle\/families\/.+/.test(path)) return true;
-  if (/^\/freestyle\/modifier\/.+/.test(path)) return true;
+  // Trick-detail links are checked only for the seeded corpus. The freestyle
+  // reference pages (ADD analysis, glossary, learn, sets) are content modules
+  // authored against the full real dictionary, so they legitimately link
+  // trick slugs this fixture does not carry; following those would report the
+  // fixture's smallness as dead links. Every other freestyle surface (index
+  // views, set, family, operator, records, search) is crawled in full.
+  const trickDetail = path.match(/^\/freestyle\/tricks\/([^/?#]+)$/);
+  if (trickDetail && !SEEDED_TRICK_SLUGS.has(decodeURIComponent(trickDetail[1]))) return true;
   return false;
 }
 
