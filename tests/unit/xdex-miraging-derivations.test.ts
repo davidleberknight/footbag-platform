@@ -51,7 +51,7 @@ describe('X-Dex miraging-family derived operational notation', () => {
   }
 
   it('atomic-miraging-butterfly: non-receiver, no X-Dex, red_additions ADD is 5', () => {
-    const line = additionsLines.find(l => l.startsWith('atomic-miraging-butterfly,'));
+    const line = additionsLines.find(l => l.startsWith('atomic miraging butterfly,'));
     expect(line, 'red_additions row for atomic-miraging-butterfly').toBeDefined();
     expect(line!.split(',')[1]).toBe('5');
   });

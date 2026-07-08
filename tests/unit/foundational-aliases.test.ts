@@ -50,8 +50,8 @@ describe('foundational trick aliases', () => {
   it('DSO resolves to Double Switch-Over, distinct from DLO (Double Leg Over)', () => {
     // dso is an inline alias on the red_additions double-switch-over row; dlo
     // stays on double-leg-over. The two abbreviations must not collide.
-    expect(redInlineAliases('double switch-over')).toContain('dso');
-    expect(redAddCanons.has('double switch-over')).toBe(true);
+    expect(redInlineAliases('double switch over')).toContain('dso');
+    expect(redAddCanons.has('double switch over')).toBe(true);
     expect(inlineAliases('double leg over')).toContain('dlo');
     expect(inlineAliases('double leg over')).not.toContain('dso');
   });

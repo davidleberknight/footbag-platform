@@ -77,7 +77,9 @@ describe('fborg-reconciliation derived operational notation', () => {
 
   it('clipper-stall corrections set diving/gyro/stepping/pixie clipper to 3 ADD', () => {
     for (const slug of ['diving-clipper', 'gyro-clipper', 'stepping-clipper', 'pixie-clipper']) {
-      const line = additionsLines.find(l => l.startsWith(`${slug},`));
+      // red_additions carries the normalized (spaced) display name; the slug is
+      // its hyphenated form.
+      const line = additionsLines.find(l => l.startsWith(`${slug.replace(/-/g, ' ')},`));
       expect(line, `red_additions row for ${slug}`).toBeDefined();
       expect(line!.split(',')[1]).toBe('3');
     }

@@ -17,7 +17,7 @@ const EXPECTED: Record<string, { notation: string; adds: number }> = {
   'whirl':            { notation: 'SET > OP IN [DEX] > OP CLIP [XBD] [DEL]',    adds: 3 },
   'butterfly':        { notation: 'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]',   adds: 3 },
   'swirl':            { notation: 'SET > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]', adds: 3 },
-  'osis':             { notation: 'SET > SPIN [BOD] > OP CLIP [XBD] [DEL]',     adds: 3 },
+  'osis':             { notation: 'SET > (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL]', adds: 3 },
   'around_the_world': { notation: 'TOE > SAME IN [DEX] > SAME TOE [DEL]',       adds: 2 },
   'orbit':            { notation: 'TOE > SAME OUT [DEX] > SAME TOE [DEL]',      adds: 2 },
 };
