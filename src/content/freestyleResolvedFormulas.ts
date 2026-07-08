@@ -563,7 +563,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    5,
     derivation:  'furious(+2) + paradox(+1) + mirage(2) = 5 ADD',
     operationalNotation: 'CLIP > SAME IN [DEX] >> OP IN [PDX] [DEX] > OP TOE [DEL]',  // Sibling-derivation; furious multi-dex pattern (nemesis precedent) + paradox-mirage stack; not Red-confirmed (Red pt6 ruled the chain reading but not the operational notation).
-    provenance:  'Red pt6: Fury = Furious Paradox Mirage (replaces pt4 paradox+barraging+mirage decomposition; ADD 5 unchanged). furious modifier is +2 universally (two-dex set, the barraging pattern). Chain reading published in freestyleSymbolicEquivalences.ts.',
+    provenance:  'Red pt6: Fury = Furious Paradox Mirage (replaces pt4 paradox+barraging+mirage decomposition; ADD 5 unchanged). furious modifier is +2 universally (a two-dex uptime set). Chain reading published in freestyleSymbolicEquivalences.ts.',
   },
   {
     slug:        'fog',

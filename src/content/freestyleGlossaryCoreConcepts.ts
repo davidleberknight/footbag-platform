@@ -47,7 +47,7 @@ export const GLOSSARY_CORE_CONCEPTS: readonly GlossaryConceptCard[] = [
   {
     key:     'set-vs-operator',
     line:    "The same movement can play two jobs. When it launches a trick, putting the bag up to start the sequence, it is a set; when it modifies a trick already under way, it is an operator. Set or operator is a question of the job the movement is doing, not of the movement itself.",
-    relates: "This is the hinge between the vocabulary's atoms and its compounds: a trick is a base, often launched by a set, with operators laid over it. The clearest case is barrage and furious, the same two-dex structure named twice, a barrage when it is the trick you perform and furious when it is a modifier applied to another trick.",
+    relates: "This is the hinge between the vocabulary's atoms and its compounds: a trick is a base, often launched by a set, with operators laid over it. The clearest case is barrage and barraging, one two-dex structure in two roles: a barrage when it is the trick you perform, and barraging when the same pattern is laid over another trick as a modifier.",
     reveal:  "Whether a movement is a set or an operator is decided by where it sits in the trick, not written into the movement. So you cannot sort the vocabulary by looking at movements in isolation; you ask what job each piece is doing. Once role comes apart from mechanic, the operator layer stops being a second pile of moves to memorize and becomes a small set of jobs the atoms you already know can be assigned to.",
   },
   {

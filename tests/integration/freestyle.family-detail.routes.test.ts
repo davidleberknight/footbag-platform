@@ -69,6 +69,11 @@ beforeAll(async () => {
     slug: 'blender', canonical_name: 'blender', adds: '4',
     trick_family: 'blender', category: 'compound', is_active: 1,
   });
+  // Swirl family: one member so the swirl family detail page renders its card.
+  insertFreestyleTrick(db, {
+    slug: 'swirl', canonical_name: 'swirl', adds: '3',
+    trick_family: 'swirl', category: 'core', is_active: 1,
+  });
 
   // Down family: one trick per variant cell. fusion carries the raw 'dod'
   // label, which folds into the double-over-down variant at display time.
@@ -494,5 +499,28 @@ describe('sitemap — family-detail pages are enumerated', () => {
     expect(res.text).not.toContain('/freestyle/families/paradon');
     expect(res.text).not.toContain('/freestyle/families/eclipse');
     expect(res.text).not.toMatch(/\/freestyle\/families<\/loc>/);
+  });
+});
+
+// Family cards describe the base trick, then say the family extends that pattern
+// through different entries, sets, and modifiers, rather than stating an
+// over-narrow "the family is [start]-to-[finish]" claim that only fits the base.
+describe('GET /freestyle/families/:slug — family cards distinguish base from family', () => {
+  it('whirl card describes the base whirl with entry-generic wording and notes the family extends beyond clipper entries', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('It can be entered from a clipper or a toe delay');
+    expect(res.text).toContain('not every whirl-family trick starts from a clipper');
+    // The base is never locked to a clipper-only entry; the trick page says it
+    // can start from a clipper or a toe delay.
+    expect(res.text).not.toContain('clipper-to-clipper');
+  });
+
+  it('swirl card describes the base swirl with entry-generic wording and notes the family extends the ending pattern', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/swirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Like the whirl it can be entered from a clipper or a toe delay');
+    expect(res.text).toContain('The swirl family extends that ending pattern');
+    expect(res.text).not.toContain('clipper-to-clipper');
   });
 });

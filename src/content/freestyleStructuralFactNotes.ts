@@ -26,7 +26,7 @@ export const MODIFIER_BEGINNER_NOTES: ReadonlyMap<string, string> = new Map([
   ['blurry',     'Stepping momentum combined with a paradox side-change.'],
   ['nuclear',    'A heavy launch that stacks a paradox with a downtime illusion dexterity.'],
   ['barraging',  'Two same-direction dexterity moves on a single set.'],
-  ['furious',    'Two same-direction dexterity moves on one set (+2); structurally the barraging pattern.'],
+  ['furious',    'Two same-direction dexterity moves on one set (+2); a two-dex uptime set.'],
   ['paradox',    'The hips pivot between two dexterity moves; the body changes sides mid-trick.'],
   ['spinning',   'A full-body turn carried through the dexterity moment.'],
   ['ducking',    'A head dip near the top so the bag passes around the neck.'],

@@ -50,11 +50,12 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
       'compound set modifiers (nuclear = paradox + illusion, quantum = ' +
       'compressed atomic).',
     // Order: pixie / fairy (pre-base uptime compressors); atomic (the outward-dex
-    // uptime set) and miraging (retained as descriptive / downtime mirage-family
-    // language, not a modern set); quantum / nuclear; stepping / surging (set-foot
-    // relocations); whirling (the whirl dex performed during uptime, before the
-    // bag peaks).
-    modifierSlugs:  ['pixie', 'fairy', 'atomic', 'miraging', 'quantum', 'nuclear', 'stepping', 'surging', 'whirling'],
+    // uptime set); quantum / nuclear; stepping / surging (set-foot relocations);
+    // whirling (the whirl dex performed during uptime, before the bag peaks).
+    // Miraging is deliberately absent: it is descriptive / downtime mirage-family
+    // language, not a modern set, so trick pages rely on the modifier row instead
+    // of a set-uptime movement-system row.
+    modifierSlugs:  ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'stepping', 'surging', 'whirling'],
   },
   {
     axisKey:        'entry-topology',

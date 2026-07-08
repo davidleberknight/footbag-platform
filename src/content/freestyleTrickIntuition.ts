@@ -69,13 +69,13 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
     slug: 'around_the_world',
     prose:
-      'From a toe delay, set the footbag up in front of you and circle one leg all the way around the bag, passing it around and back down to a toe delay. The leg makes a full loop around the footbag while the bag hangs roughly in place. It can be circled inside-to-outside or outside-to-inside, and both directions are worth the same. Keep your eyes on the bag through the whole circle so the toe arrives back underneath it cleanly.',
+      'From a toe delay, set the footbag up in front of you and circle one leg all the way around the bag, passing it around and back down to a toe delay. The leg makes a full loop around the footbag while the bag hangs roughly in place. Around the world circles the leg inward around the supporting leg; the outward, reverse circle is a separate move, the orbit. Keep your eyes on the bag through the whole circle so the toe arrives back underneath it cleanly.',
     attribution: '',
   },
   {
     slug: 'orbit',
     prose:
-      'Orbit circles one leg around the footbag once between two toe delays, the same circling motion as an around-the-world. From a toe delay, set the bag and pass the leg around it, then catch it again on a toe delay. If you can already do an around-the-world, you have most of an orbit: it is the same loop of the leg around the bag, and the two names describe the same movement.',
+      'Orbit circles one leg around the footbag once between two toe delays, in the reverse direction from an around-the-world. From a toe delay, set the bag and pass the leg around it the opposite way, then catch it again on a toe delay. If you can already do an around-the-world, orbit is a close cousin: the same kind of full leg circle, but circled the other way, so the two are distinct moves rather than one.',
     attribution: '',
   },
   {

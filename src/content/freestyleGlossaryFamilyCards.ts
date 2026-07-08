@@ -116,7 +116,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     slug:              'whirl',
     displayName:       'Whirl',
     kind:              'root-terminal',
-    canonicalFormula:  'CLIP > OP IN [DEX] > OP CLIP [XBD] [DEL]',
+    canonicalFormula:  'SET > OP IN [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  3,
     commonDescendants: ['blurry whirl', 'paradox whirl', 'gyro whirl', 'spinning whirl', 'symposium whirl'],
     siblingFamilies:   ['butterfly', 'osis', 'swirl', 'rev_whirl'],
@@ -130,7 +130,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Whirl became the trick freestyle is built around, because it ends exactly where it begins and lets a combo keep going.',
       physicalDescription:
-        'A whirl is a clipper-to-clipper move: from a clipper, the leg circles the bag over the top and brings it back to a clipper. It is one of the first rotational moves a player owns, and one they never stop using.',
+        'The base whirl circles the leg around the bag, over the top, and lands cross-body on a clipper. It can be entered from a clipper or a toe delay. It is one of the first rotational moves a player owns, and one they never stop using. The whirl family extends that clipper ending through different entries, sets, and modifiers, so not every whirl-family trick starts from a clipper.',
       importance:
         'Whirl became the hub because it starts and ends in the same position, a clipper: you can enter it from almost anything that lands in a clipper and leave it into almost anything that starts from one. That points at something larger about advanced freestyle. Many tricks are valuable not simply because they are hard, but because they leave the player in a position where the next trick is possible. Whirl became central because it returns the player to one of the most reusable positions in the sport, which is a large part of why the clipper became the language advanced freestyle is built on.',
       variantsIntro:
@@ -161,7 +161,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     slug:              'butterfly',
     displayName:       'Butterfly',
     kind:              'root-terminal',
-    canonicalFormula:  'SET > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]',
+    canonicalFormula:  'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  3,
     commonDescendants: ['atomic butterfly', 'pixie butterfly', 'stepping butterfly', 'ducking butterfly'],
     siblingFamilies:   ['whirl', 'osis', 'mirage'],
@@ -170,17 +170,17 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Butterfly is where freestyle starts to feel like freestyle: the trick where players stop stringing together isolated moves and start linking movement.',
       physicalDescription:
-        'A Butterfly is a wing-like outward sweep of the foot across the body to a cross-body clipper catch, in a same-side and an opposite-side variant. For many players, Butterfly is the first trick that feels less like an isolated move and more like connected freestyle.',
+        'A Butterfly is a wing-like outward sweep of the foot across the body to a cross-body clipper catch. The base Butterfly is the far/opposite-side form; Butterfly Same Side is the named same-side variant. For many players, Butterfly is the first trick that feels less like an isolated move and more like connected freestyle.',
       importance:
         'Butterfly matters less for its mechanics than for what it changes in a player. Learning Butterfly is often the moment freestyle stops feeling like individual tricks and starts feeling like continuous movement, which is why players often call it the beginning of real freestyle.',
       variantsIntro:
-        'Butterfly is a single outward dex swept across the body into a clipper catch, with a same-side and an opposite-side variant. It is a foundation rather than a combination: the atom the walking family is built on.',
+        'Butterfly is a single outward dex swept across the body into a clipper catch. The public dictionary treats Butterfly as the far/opposite-side form by default; Butterfly Same Side is the named same-side variant. It is a foundation rather than a combination: the atom the walking family is built on.',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
         'A single outward dex swept across the body.',
         'It lands on a cross-body clipper.',
-        'It comes in a same-side and an opposite-side variant of the same move.',
+        'The base Butterfly is the far/opposite-side form; Butterfly Same Side names the same-side variant.',
         'If you see one outward sweep flowing into a cross-body clipper, a butterfly is at the core.',
       ],
       howToThink:
@@ -192,7 +192,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
       ],
       seeItIn: ['atomic_butterfly', 'ducking_butterfly', 'stepping_butterfly'],
       notationIntro:
-        'For readers interested in the formal notation, a butterfly is one outward dex swept across the body to a clipper catch: SET > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL] (3 ADD). The dex is the outward sweep; the clipper is the catch.',
+        'For readers interested in the formal notation, the base Butterfly is the far/opposite-side form: SET > OP OUT [DEX] > OP CLIP [XBD] [DEL] (3 ADD). Butterfly Same Side names the same-side variant. Older or compressed notation may describe the wider butterfly shape, but the public dictionary treats Butterfly as far by default.',
       takeaway:
         'Butterfly is where freestyle stops being a list of tricks you can do and starts being movement you can link together.',
     },
@@ -298,7 +298,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     slug:              'osis',
     displayName:       'Osis',
     kind:              'root-terminal',
-    canonicalFormula:  'SET > (BACK or FRONT) SPIN [BOD] > SAME or OP CLIP [XBD] [DEL]',
+    canonicalFormula:  'SET > (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  3,
     commonDescendants: ['paradox osis', 'spinning osis', 'symposium osis', 'atomic osis'],
     siblingFamilies:   ['whirl', 'butterfly', 'swirl'],
@@ -483,7 +483,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     slug:              'swirl',
     displayName:       'Swirl',
     kind:              'branch',
-    canonicalFormula:  'CLIP > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]',
+    canonicalFormula:  'SET > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  3,
     commonDescendants: ['paradox swirl', 'hop over swirl', 'butterfly swirl'],
     siblingFamilies:   ['whirl', 'osis'],
@@ -492,7 +492,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Swirl is the whirl run the other way, and it shows one of the ways freestyle grows: by varying a move you already know.',
       physicalDescription:
-        'A swirl is a clipper-to-clipper move like the whirl, but the leg takes the bag around the back instead of over the top. Same start, same finish, opposite path.',
+        'The base swirl uses the reverse-direction swirl dex and lands cross-body on a clipper: like the whirl, but the leg takes the bag around the back instead of over the top. Like the whirl it can be entered from a clipper or a toe delay, and it finishes on a clipper. The swirl family extends that ending pattern through different entries, sets, and modifiers.',
       importance:
         'Swirl illustrates one of the ways freestyle expanded. Once players understood a movement, they naturally explored what happened when they changed one dimension of it, and here that dimension is the direction of the circle. Taking a known move and reversing it, rather than inventing something new from scratch, is one of the most productive ways the vocabulary has grown, and the swirl is a clean early example. Its own family, butterfly swirl, spinning swirl, and symposium swirl, is that same habit applied again.',
       variantsIntro:
@@ -508,7 +508,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
       howToThink:
         'See swirl as variation in action. It is a whirl with one dimension changed, and that habit, taking a move you know and changing a single thing about it, is how much of the vocabulary you will ever learn came to be. Recognizing the whirl and swirl pair is the start of seeing freestyle as a system you can extend, not just a set of tricks to memorize.',
       misconceptions: [
-        'Swirl is not a harder whirl; it is the same clipper-to-clipper shape circled the other way.',
+        'Swirl is not a harder whirl; it is the same whirl shape circled the other way.',
         'A swirl is not defined by its entry; the direction of the circle is what makes it a swirl.',
         'Learning the whirl does not cover the swirl; the reversed direction is its own skill, even though the frame is shared.',
       ],
@@ -653,13 +653,13 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
       howToRecognize: [
         'One inward circling dexterity.',
         'Caught on a clipper on the same side.',
-        'One dex arriving on a clipper, not a clipper-to-clipper loop.',
+        'One dex arriving on a clipper, not a full rotational loop.',
         'Strip the operators and a drifter is what remains.',
       ],
       howToThink:
         'Read drifter as a clipper reached with a dex in front. When you meet a royale or a vortex, name the drifter underneath first, then the operator that was added to reach it. That is usually most of the work of reading the trick.',
       misconceptions: [
-        'Drifter is not a whirl; a whirl loops from a clipper back to a clipper, while a drifter is one dex arriving on a clipper.',
+        'Drifter is not a whirl; a whirl loops the leg all the way around to a clipper, while a drifter is one dex arriving on a clipper.',
         'The royale and the vortex are not separate tricks; each is a drifter with an operator added.',
         'Drifter is not defined by the set that launches it; the set can change while the drifter stays the same.',
       ],

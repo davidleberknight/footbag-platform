@@ -51,7 +51,7 @@ export const COMPOUND_SEMANTIC_DESCRIPTIONS: ReadonlyMap<string, string> = new M
   // Wording is plain compositional prose; not notation, not ADD math.
   ['double_legover', 'mirage + legover chain: two consecutive in-direction dex steps from a single set.'],
   ['blurry',         'stepping paradox-whirl structure: two-dex set with a paradox second component.'],
-  ['furious',        'two-dex barraging pattern: two same-direction dexterity steps on a single set.'],
+  ['furious',        'a two-dex uptime set: two same-direction dexterity steps on a single set, contributing +2.'],
   ['atom_smasher',   'atomic mirage composition: atomic set primitive followed by a mirage-class terminal.'],
   // Alternate canonical slug for atom smasher (some seeds use atomsmasher); both render the same description.
   ['atomsmasher',    'atomic mirage composition: atomic set primitive followed by a mirage-class terminal.'],

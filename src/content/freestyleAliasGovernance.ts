@@ -83,6 +83,13 @@ export const ALIAS_GOVERNANCE_ENTRIES: readonly AliasGovernanceEntry[] = [
     displayAs:       null,
     reason:          'Reverse-swirl is a direction-variant trick, not an alias of swirl. Surfacing it as ≡ would misrepresent the relationship.',
   },
+  {
+    trickSlug:       'butterfly',
+    aliasText:       'infinity',
+    surfaceOnBrowse: false,
+    displayAs:       null,
+    reason:          'Infinity is a clipper-set far Butterfly name/subform, not a generic alias of the side-either Butterfly. Suppressed from the generic Butterfly "Also called" line so the page does not present it as an exact alias; the historical Infinity name is preserved in the alias table and its distinct clipper-set-far-Butterfly identity is a held item pending the butterfly default-side doctrine.',
+  },
 ];
 
 /**

@@ -99,7 +99,7 @@ describe('Movement intuition — flagship pages render the section', () => {
   it('orbit renders the how-to intuition, anchored to around-the-world', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/orbit');
     expect(res.text).toContain('class="content-section trick-intuition"');
-    expect(res.text).toMatch(/the same circling motion as an around-the-world/);
+    expect(res.text).toMatch(/the reverse direction from an around-the-world/);
   });
 
   it('pickup renders the how-to intuition (scoop from below)', async () => {

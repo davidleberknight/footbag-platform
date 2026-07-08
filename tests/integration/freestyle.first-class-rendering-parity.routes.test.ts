@@ -366,10 +366,10 @@ describe('First-class rendering parity — no fake formulas, no pending pill', (
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     const card = cardFor('osis', res.text);
-    // The osis atomic flag-decomposition is curator-authored
-    // ('SET > SPIN [BOD] > OP CLIP [XBD] [DEL]'). The Job row in
-    // the first-class summary must carry this verbatim.
-    expect(card).toContain('SET &gt; SPIN [BOD] &gt; OP CLIP [XBD] [DEL]');
+    // The osis atomic flag-decomposition is curator-authored and either-side:
+    // osis catches on a same-side or opposite-side clipper, so the Job row in
+    // the first-class summary carries the SAME/OP catch verbatim.
+    expect(card).toContain('SET &gt; (back or front) SPIN [BOD] &gt; SAME/OP CLIP [XBD] [DEL]');
   });
 });
 

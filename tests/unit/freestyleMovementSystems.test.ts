@@ -92,11 +92,11 @@ describe('freestyleMovementSystems content module', () => {
   });
 
   it('allMovementSystemModifierSlugs returns the union of all axes with no duplicates', () => {
-    // Union across all four axes; the set-uptime axis includes miraging
-    // alongside atomic as its inward-dex peer.
+    // Union across all four axes. The set-uptime axis excludes miraging, which
+    // is descriptive downtime mirage-family language rather than a set.
     const all = allMovementSystemModifierSlugs();
-    expect(all.length).toBe(16);
-    expect(new Set(all).size).toBe(16);
+    expect(all.length).toBe(15);
+    expect(new Set(all).size).toBe(15);
     // Spot-check original pilot membership
     expect(all).toContain('pixie');
     expect(all).toContain('paradox');

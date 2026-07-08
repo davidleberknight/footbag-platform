@@ -5040,7 +5040,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   ['osis', {
     decomposition:    'spin(1) + xbod(1) + stall(1) = 3 ADD',
     totalAdd:         3,
-    operationalChain: 'SET > SPIN [BOD] > OP CLIP [XBD] [DEL]',
+    operationalChain: 'SET > (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL]',
   }],
   ['around_the_world', {
     // Pedagogical normalization: foundational tricks teach the
@@ -6148,10 +6148,20 @@ function shapeDictEntry(
   // browse listing reads) so every surface resolves aliases identically; fall
   // back to the deprecated aliases_json column only for rows the table does not
   // yet cover.
-  let aliases: string[] = [...aliasesFromTable];
+  // Aliases the governance layer marks not-for-surface (surfaceOnBrowse:false)
+  // are held out of the visible alias set on the detail page too, matching the
+  // browse "Also called" line, so a name the site does not present as an exact
+  // alias (e.g. Infinity on the side-either Butterfly) never renders here.
+  let aliases: string[] = [...aliasesFromTable].filter(a => {
+    const gov = getAliasGovernanceEntry(row.slug, a);
+    return !(gov && gov.surfaceOnBrowse === false);
+  });
   if (aliases.length === 0 && row.aliases_json) {
     try {
-      aliases = JSON.parse(row.aliases_json) as string[];
+      aliases = (JSON.parse(row.aliases_json) as string[]).filter(a => {
+        const gov = getAliasGovernanceEntry(row.slug, a);
+        return !(gov && gov.surfaceOnBrowse === false);
+      });
     } catch { /* ignore malformed JSON */ }
   }
 

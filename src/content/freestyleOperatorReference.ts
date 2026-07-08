@@ -85,7 +85,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
   {
     slug:           'miraging',
     name:           'Miraging',
-    category:       'set',
+    category:       'body',
     oneLineMeaning: 'A single inward dex, +1: SET > OP IN [DEX] >. Retained as descriptive or downtime mirage-family language. Under the current working ruling, Quantum is the uptime set concept; miraging is not treated as a modern set or a Quantum equivalent.',
     decomposition:  null,
     pendingNote:    'Miraging is +1. Older sources described it as atomic\'s inward-dex mirror, but under the current working ruling miraging is not treated as a modern set. Any X-Dex is a separate +1 marked [XDEX] in the notation, not part of miraging.',
