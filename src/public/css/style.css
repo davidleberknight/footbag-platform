@@ -272,6 +272,12 @@ body {
 
 a { color: var(--primary); text-decoration: none; }
 a:hover { color: var(--primary-dk); text-decoration: underline; }
+/* In-prose links carry a non-color cue at rest: an anchor inside running
+   paragraph text is underlined, so it stays distinguishable for color-blind
+   readers regardless of the surrounding text's color. Buttons rendered as
+   anchors inside a paragraph keep their button styling; hover behavior is
+   unchanged. */
+p a:not(.btn) { text-decoration: underline; }
 
 /* Dev-only notice block (SES_ADAPTER=stub only, hidden in staging/prod) */
 .dev-only-note {
