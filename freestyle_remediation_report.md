@@ -592,6 +592,36 @@ P3 | doctrine-wording | owner: James (maintainer) | replaces plan item: line 420
 Context: the platform treats Quantum and Miraging as distinct sets (verified in `symbolicSetEducation.ts` and content), and the Identity doctrine paper now places this pair under James's working ruling rather than as an external decision. The working ruling treats Quantum and Miraging parallel to Atomic and Illusioning: Quantum is the uptime set concept, and Miraging is downtime or descriptive mirage-family language, so the two stay distinct rather than merging. They are already distinct in the data, so the ruling settles wording, not structure. This is not escalated to the rules expert unless a real contradiction survives a source-and-notation audit. The stale wording to reconcile is the operator reference's description of miraging as an uptime set (it should read as the downtime or descriptive mirage-family reading under this ruling). Touches parts of FS-28 and FS-32 as a wording dependency, not an external block.
 Needed: reconcile the miraging set/operator wording across the set encyclopedia, operator reference, and teaching content so Quantum reads as the uptime set and Miraging reads as the downtime or descriptive mirage-family reading. No dictionary rows should merge. This is a maintainer-owned wording task, not an external Red block. The working ruling is already reflected in the Identity paper.
 
+**FS-37 — Tracked deviation: Butterfly stored notation keeps SAME/OP while the public atom is opposite-side (far) by default**
+P3 | code/data (deviation) | owner: James | status: accepted deviation, tracked here | new-from-audit: yes (post-audit consistency slice)
+Context: the `freestyle_tricks` butterfly row stores `SET > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]` (either-side entry), but the public trick page, glossary/family card, and browse surfaces render the opposite-side (far) default `SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]` via the core-atom spec override in `src/content/freestyleLandingContent.ts` (resolved by `resolveOperationalNotationRaw`). The stored row is intentionally left unchanged; the atom spec is the guard. Butterfly Same Side is the named same-side variant.
+Done: the stored butterfly notation is normalized to the far default (so the DB row and the atom-spec override agree), or the deviation is explicitly re-accepted at cutover review.
+
+**FS-38 — Tracked deviation: Around the World stored notation keeps IN/OUT while the public atom is inward-only**
+P3 | code/data (deviation) | owner: James | status: accepted deviation, tracked here | new-from-audit: yes (post-audit consistency slice)
+Context: the `freestyle_tricks` around_the_world row stores `TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]` (direction-either), while the public atom spec and prose now treat Around the World as the inward circle only, with Orbit as the outward/reverse circle (its own canonical atom). The notation card renders the inward-only spec; the stored IN/OUT is latent and not surfaced. The description prose was already reconciled to inward-only.
+Done: the stored ATW notation is normalized to `TOE > SAME IN [DEX] > SAME TOE [DEL]`, removing the latent IN/OUT so the DB row matches the public inward-only reading.
+
+**FS-39 — Butterfly-family compound notations: decide whether the far default propagates**
+P3 | doctrine/data | owner: James (maintainer) | new-from-audit: yes (post-audit consistency slice)
+Context: the base Butterfly renders far/opposite by default, but the eleven butterfly-family compound notations still carry the side-either `SAME/OP` entry dex (for example `butterfly_swirl`, and the notation-derivation test fixtures). Whether the far default should propagate to those compounds is an open doctrine/data question; the base-Butterfly slice deliberately did not migrate them.
+Done: a ruling on whether butterfly-family compounds adopt the far default, and if so a single migration of the eleven compound notations (source CSVs, family cards, resolved-formula content, and the parser-derivation tests); or an explicit decision to keep them side-either.
+
+**FS-40 — Decide the Infinity / Far Butterfly model**
+P3 | doctrine/data | owner: James (maintainer) | new-from-audit: yes (post-audit consistency slice)
+Context: Infinity is currently a display-suppressed alias of Butterfly (governance `surfaceOnBrowse: false`), and Far Butterfly is a retired canonical row that 301-redirects to Butterfly. The open question is whether Infinity / Far Butterfly should become a distinct clipper-set canonical row (its own trick) or a named subform of Butterfly, rather than staying a suppressed alias.
+Done: a ruling on the Infinity / Far Butterfly model, and the alias/row/subform change it implies, with the alias governance and any redirect updated to match.
+
+**FS-41 — Polish: Barfly terminal bracket order**
+P3 (post-V1, parked) | data/notation | owner: James | new-from-audit: yes (post-audit consistency slice)
+Context: the barfly family-card `canonicalFormula` (and the matching stored row) terminates in `OP CLIP [DEL] [XBD]`, the reverse of the standard `[XBD] [DEL]` order used elsewhere. Cosmetic; no ADD or structural impact.
+Done: the barfly terminal bracket order is normalized to `[XBD] [DEL]`, or the reversed order is confirmed intentional.
+
+**FS-42 — Polish: Orbit atom label calls itself an "alias" of reverse Around the World**
+P3 (post-V1, parked) | copy | owner: James | new-from-audit: yes (post-audit consistency slice)
+Context: the Orbit core-atom `equivalences[0]` reads "core atom: alias of reverse around-the-world" in `src/content/freestyleLandingContent.ts`. Orbit is the canonical atom for the outward/reverse circle, not an alias, so the label frames the canonical entry backwards.
+Done: the Orbit equivalences label reads as the reverse-direction counterpart of Around the World (for example "core atom: reverse-direction around-the-world"), not as an "alias".
+
 **Post-V1 vision (carried from the plan; directions, not tasks).** Each becomes a scoped task only when the maintainer pulls it: (A) Glossary layering: a layered, collapsible glossary as the flagship of version 1.1 (the sanctioned Glossary V2 design track). (B) Foundational Bases: teaching pages for the anchor positions (Toe Stall, Clipper Stall, and peers) as a pedagogical layer, not an ontology change. (C) Teaching the algebra: Mirror Law, operator algebra, and notation walkthroughs with a running ADD sum. (D) Frontier as a story: the 8-ADD ceiling, 9-ADD claims, and open doctrine as narrative. (E) History by mechanism: rewrite the history page around vocabulary-evolution mechanisms. (F) Navigation for learners: progression ladders derived from the operator lattice, absorbing the symbolic-grammar UI rollout and the Movement Systems audit (FS-35).
 
 ## 14. IP consolidation: the executed edit and the complete mapping
