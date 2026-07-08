@@ -2,18 +2,22 @@
 """Opt-in live crawl of footbag.org member groups (settings + membership).
 
 Logs into footbag.org with member credentials, then walks a range of group
-IDs fetching three pages per group:
+IDs fetching four pages per group:
 
   - /groups/editgroupinfo/<id>  — the group's settings form
   - /groups/home/<id>           — the group's member list
+  - /groups/edit/<id>           — the "Administer Member Group" page, checked
+                                   for the owner's name/profile ID and the
+                                   member count
   - /groups/viewarchive/<id>    — checked only for the most recent message
                                    date in the archive, if any
 
-Writes two CSVs: one row per group for settings (which now includes the most
-recent archive message date, if found), one row per (group, member) for
-membership. A group ID that 404s, redirects to a "no such group" page, or
-requires access the logged-in account doesn't have is recorded as skipped and
-the crawl continues.
+Writes two CSVs: one row per group for settings (which now includes the
+owner's name and profile ID, the member count, and the most recent archive
+message date, if found), one row per (group, member) for membership. A group
+ID that 404s, redirects to a "no such group" page, or requires access the
+logged-in account doesn't have is recorded as skipped and the crawl
+continues.
 
 Scope and guarantees:
 
@@ -168,6 +172,34 @@ def parse_group_members(group_id: int, soup: BeautifulSoup) -> list[dict]:
     return members
 
 
+def parse_group_owner_and_member_count(soup: BeautifulSoup) -> tuple[str, str, int]:
+    """Extracts the owner's name/profile ID and member count from the groups/edit page.
+
+    The owner is the row labeled "Owner:", linking to /members/profile/<id>.
+    The member count is the number of distinct CommitteeMemberID values in the
+    roster's raise/lower links (see `_COMMITTEE_MEMBER_ID_RE`).
+    """
+    owner_name = ""
+    owner_member_id = ""
+    for tr in soup.find_all("tr"):
+        cells = tr.find_all("td")
+        if len(cells) < 2:
+            continue
+        label = cells[0].get_text(strip=True).rstrip(":").lower()
+        if label != "owner":
+            continue
+        link = cells[1].find("a", href=True)
+        if link and "/members/profile/" in link["href"]:
+            owner_name = link.get_text(strip=True)
+            owner_member_id = link["href"].rstrip("/").rsplit("/", 1)[-1]
+        else:
+            owner_name = cells[1].get_text(strip=True)
+        break
+
+    member_count = len(set(_COMMITTEE_MEMBER_ID_RE.findall(str(soup))))
+    return owner_name, owner_member_id, member_count
+
+
 _MONTH_ABBR = {m: i for i, m in enumerate(
     ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], start=1
 )}
@@ -177,6 +209,10 @@ _ISO_DATE_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 # The message archive's actual format: "May/14/26", "Apr/1/25" (abbreviated month,
 # slash-separated, 2-digit year).
 _MONTH_SLASH_DATE_RE = re.compile(r"\b([A-Za-z]{3,9})/(\d{1,2})/(\d{2,4})\b")
+
+# Each roster row on groups/edit carries a raise/lower link keyed by CommitteeMemberID,
+# one per listed member (admin or not), so counting distinct IDs gives the member count.
+_COMMITTEE_MEMBER_ID_RE = re.compile(r"CommitteeMemberID=(\d+)")
 
 
 def _year_from_str(year_str: str) -> int:
@@ -256,6 +292,16 @@ def fetch_group(session: requests.Session, group_id: int) -> tuple[dict | None, 
 
     time.sleep(DELAY_SECONDS)
 
+    owner_name, owner_member_id, member_count = "", "", 0
+    edit_resp = get(session, f"{BASE_URL}/groups/edit/{group_id}")
+    if edit_resp.status_code != 404:
+        edit_resp.raise_for_status()
+        edit_soup = BeautifulSoup(edit_resp.text, "html.parser")
+        if not looks_like_missing_group(edit_soup):
+            owner_name, owner_member_id, member_count = parse_group_owner_and_member_count(edit_soup)
+
+    time.sleep(DELAY_SECONDS)
+
     archive_resp = get(session, f"{BASE_URL}/groups/viewarchive/{group_id}")
     if archive_resp.status_code == 404:
         archive_date = ""
@@ -266,6 +312,9 @@ def fetch_group(session: requests.Session, group_id: int) -> tuple[dict | None, 
 
     settings = parse_group_settings(group_id, settings_soup)
     if settings is not None:
+        settings["owner_name"] = owner_name
+        settings["owner_member_id"] = owner_member_id
+        settings["member_count"] = member_count
         settings["archive_most_recent_message_date"] = archive_date
 
     return settings, members, None
@@ -319,6 +368,7 @@ def main() -> int:
         for label, path_segment in (
             ("editgroupinfo", f"editgroupinfo/{group_id}"),
             ("home", f"home/{group_id}"),
+            ("edit", f"edit/{group_id}"),
             ("viewarchive", f"viewarchive/{group_id}"),
         ):
             resp = get(session, f"{BASE_URL}/groups/{path_segment}")
