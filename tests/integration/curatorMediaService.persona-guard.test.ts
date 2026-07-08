@@ -14,9 +14,9 @@
  * `curatorMediaService.persona-guard.sidecars-off.test.ts`, which boots with the
  * flag cleared before config freezes.
  *
- * A real maintainer account carries an ordinary member id; the David Leberknight
- * persona registers through the real flow and also carries an ordinary id; only
- * the seeded harness personas carry the persona-prefixed id the guard keys on.
+ * A real maintainer account registers through the real flow and carries an
+ * ordinary member id; only the seeded harness personas carry the persona-prefixed
+ * id the guard keys on.
  * The guard wraps every curated write through one shared helper, so this suite
  * exercises a representative set (a media upload, an FH-owned gallery create, and
  * an FH-owned gallery edit/delete) plus the two passing cases (a real admin, and

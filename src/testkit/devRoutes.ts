@@ -13,7 +13,7 @@
  */
 import { Router } from 'express';
 import { getDevSwitch } from './personaSwitchRoute';
-import { getDevBuildSwitch } from './personaBuildSwitchRoute';
+import { getDevBuildClaim } from './buildClaimRoute';
 import { getDevLogin } from './personaLoginRoute';
 import { getDevPersonas } from './personaListingRoute';
 import { postDevPersonasRefresh } from './personaRefreshRoute';
@@ -22,8 +22,9 @@ import { getDevOutbox } from './devOutboxRoute';
 export const devRouter = Router();
 
 devRouter.get('/switch', getDevSwitch);
-// CUTOVER-REMOVE: staging-only build-then-switch for the DL special user.
-devRouter.get('/build-switch', getDevBuildSwitch);
+// Generic real-flow claim: build a claimed account for any real legacy record
+// and sign in as it.
+devRouter.get('/build-claim', getDevBuildClaim);
 devRouter.get('/login', getDevLogin);
 devRouter.get('/personas', getDevPersonas);
 devRouter.post('/personas/refresh', postDevPersonasRefresh);

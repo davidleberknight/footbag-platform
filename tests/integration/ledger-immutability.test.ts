@@ -2,10 +2,13 @@
  * Ledger immutability: append-only tables reject UPDATE and DELETE.
  *
  * Two layers. The structural sweep asserts every ledger table still carries its
- * BEFORE UPDATE and BEFORE DELETE abort triggers, so a schema change that drops
- * one fails here rather than silently making a ledger mutable. The behavioral
- * cases prove the triggers actually fire on a seeded row, through the shared
- * assertAppendOnly helper that any ledger test reuses.
+ * BEFORE UPDATE and BEFORE DELETE abort triggers AND that each abort is
+ * unconditional (no WHEN guard), so a schema change that drops a trigger or
+ * narrows it behind a condition fails here rather than silently making a ledger
+ * mutable. An unconditional BEFORE UPDATE/DELETE trigger fires on every matching
+ * mutation by construction, so the sweep proves the invariant for every ledger;
+ * the behavioral cases then demonstrate that firing on representative ledgers
+ * through the shared assertAppendOnly helper that any ledger test reuses.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -23,6 +26,7 @@ const LEDGER_TABLES = [
   'member_tier_grants',
   'active_player_grants',
   'active_player_vouches',
+  'active_player_reminder_sent',
   'system_config',
   'erasure_log',
   'payment_status_transitions',
@@ -71,10 +75,21 @@ describe('ledger immutability', () => {
         .all() as Array<{ tbl_name: string; sql: string }>;
       for (const table of LEDGER_TABLES) {
         const forTable = triggers.filter((t) => t.tbl_name === table && /RAISE\(ABORT/i.test(t.sql));
-        const hasUpdate = forTable.some((t) => /BEFORE\s+UPDATE/i.test(t.sql));
-        const hasDelete = forTable.some((t) => /BEFORE\s+DELETE/i.test(t.sql));
-        expect(hasUpdate, `${table} has a BEFORE UPDATE abort trigger`).toBe(true);
-        expect(hasDelete, `${table} has a BEFORE DELETE abort trigger`).toBe(true);
+        const updateTrigs = forTable.filter((t) => /BEFORE\s+UPDATE/i.test(t.sql));
+        const deleteTrigs = forTable.filter((t) => /BEFORE\s+DELETE/i.test(t.sql));
+        expect(updateTrigs.length, `${table} has a BEFORE UPDATE abort trigger`).toBeGreaterThan(0);
+        expect(deleteTrigs.length, `${table} has a BEFORE DELETE abort trigger`).toBeGreaterThan(0);
+        // The abort must be unconditional: a WHEN guard before the trigger body
+        // could let a no-op or selective mutation slip past the RAISE, so no
+        // ledger immutability trigger carries a WHEN clause. Check the header
+        // ahead of BEGIN so a 'when' inside the RAISE message never false-trips.
+        for (const t of [...updateTrigs, ...deleteTrigs]) {
+          const header = t.sql.split(/\bBEGIN\b/i)[0];
+          expect(
+            /\bWHEN\b/i.test(header),
+            `${table} immutability trigger fires unconditionally (no WHEN guard)`,
+          ).toBe(false);
+        }
       }
     } finally {
       db.close();

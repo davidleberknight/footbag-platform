@@ -91,6 +91,12 @@ describe('GET /dev/* — production mount gate', () => {
     expect(res.status).toBe(404);
   });
 
+  it('returns 404 for /dev/build-claim (real-flow claim affordance not mounted in production)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/dev/build-claim?as=any-id');
+    expect(res.status).toBe(404);
+  });
+
   it('returns 404 for /dev/outbox (router not mounted in production)', async () => {
     const app = createApp();
     const res = await request(app).get('/dev/outbox');

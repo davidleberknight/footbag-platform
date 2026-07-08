@@ -134,6 +134,20 @@ view-model boundary, db-write safety), check that the decision doc, the matching
 service JSDoc, and the code still describe the same pattern; divergence among the four
 homes is drift to report with its direction.
 
+Beyond architectural patterns, audit each path-scoped rule AND each skill against the
+canonical doc that governs the same activity, in both directions: neither a rule nor a skill
+may contradict, nor silently drop, the design, UI, or testing intent the doc establishes, and
+a doc mandate that no governing rule or skill carries is itself drift. Check `testing.md` and
+the write-tests skill against `docs/TESTING.md` (the rule names the doc as its strategic
+frame, so a mandate omitted or contradicted — regression-test-on-fix, edge-case minimums, the
+`logger.error` gate — is drift on whichever side moved); `template-conventions`, `view-layer`,
+`controller-conventions`, and the add-public-page skill against the UI and page intent in
+`docs/USER_STORIES.md` and `docs/DESIGN_DECISIONS.md`; `service-layer`, `db-layer`, and the
+extend-service-contract and migrate-browse-view skills against the contracts in
+`docs/DESIGN_DECISIONS.md` and `docs/DATA_MODEL.md`. A clause a rule or skill states that no
+doc supports, or a doc requirement a rule or skill never mentions, is a finding with its drift
+direction named.
+
 For every behavior, identifier, boundary, or contract the deployed code establishes, grep
 the full `.claude/rules/*` and `.claude/skills/*` set for the matching term and flag any
 clause still stating the superseded behavior. A stale sentence buried in an
@@ -209,7 +223,8 @@ partial-deployment ambiguity; story without deployed evidence; deployed feature 
 story; success-criteria untestable; missing traceability; cross-document contradiction;
 intra-document contradiction; source-of-truth ambiguity; canonical/current-state leakage;
 stale implementation claim; stale design claim; service-contract drift; view-layer drift;
-data model drift; data governance drift; testing-doc drift; CI/script drift; DevOps-doc
+rule-vs-doc drift; skill-vs-doc drift; data model drift; data governance drift;
+testing-doc drift; CI/script drift; DevOps-doc
 drift; Docker/Terraform parity drift; migration/go-live drift; post-go-live
 source-of-truth ambiguity; terminology/identifier drift; broken internal reference;
 forbidden reference pattern; obscure-reference-for-prose (a bare code or number standing

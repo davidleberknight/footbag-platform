@@ -72,8 +72,8 @@
  *     integration-test fixture, which set `config.allowCuratedSidecarWrites`), a
  *     curated/system write (curator photo/video/url-ref upload, edit, delete, and
  *     FH-owned gallery create/update/delete) refuses a seeded test-persona actor
- *     (`assertCuratorActorMayWriteCurated`); real maintainer accounts and the
- *     David Leberknight persona carry ordinary ids and pass. In staging and
+ *     (`assertCuratorActorMayWriteCurated`); real maintainer accounts carry
+ *     ordinary ids and pass. In staging and
  *     production the sidecar write is off, so any admin may curate and the guard
  *     is a no-op. Member-owned writes never call it.
  *   - Member-gallery form uploads carry user-supplied `uploadTags` (never
@@ -505,7 +505,7 @@ function newMediaTagId(): string {
 }
 
 // Human-readable id for member-owned galleries: `gallery_<owner_slug>_<name_slug>`
-// (e.g. `gallery_david_leberknight_funky_footbags`). Owner-prefixed so two
+// (e.g. `gallery_jane_doe_highlights`). Owner-prefixed so two
 // members can both have a gallery named "Photos" without colliding. Stable
 // across renames: callers re-use the existing id rather than regenerating.
 // Conforms to the shared `^gallery_[a-z0-9_]+$` pattern used by FH-owned ids,
@@ -976,7 +976,7 @@ export interface CuratorGalleryCreateInput {
   // human-readable id from `ownerSlug` + the gallery name and the field
   // is ignored.
   suggestedId?: string;
-  // Owner's member slug (e.g. `david_leberknight`). Required for member-owned
+  // Owner's member slug (e.g. `jane_doe`). Required for member-owned
   // creates so the service can derive the human-readable gallery id
   // `gallery_<owner_slug>_<name_slug>`. Ignored for FH-owned (suggestedId
   // path). Sourced from `req.user.slug` at the controller.
@@ -1053,8 +1053,8 @@ function assertTier1Benefits(actorMemberId: string): void {
 // data. In staging and production the sidecar write is off (curated writes land
 // in the DB and object store only), so any admin may curate and this is a no-op.
 // Within dev, seeded test personas must never author, edit, or delete curated
-// content: real maintainer accounts and the David Leberknight persona register
-// through the real flow and carry ordinary member ids, so they pass, while a
+// content: real maintainer accounts register through the real flow and carry
+// ordinary member ids, so they pass, while a
 // switchable seeded persona admin is refused. Member-owned media never calls
 // this (only the curated/system write paths do).
 function assertCuratorActorMayWriteCurated(actorMemberId: string): void {

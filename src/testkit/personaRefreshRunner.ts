@@ -165,25 +165,9 @@ export function refreshAllPersonas(
     // 1. Discover persona members actually present, by deterministic id prefix.
     //    Covers every seeded persona plus any whose spec was removed from the
     //    catalog since seeding (orphans), so a refresh always converges to it.
-    const personaRows = db
+    const memberRows = db
       .prepare(`SELECT id, slug FROM members WHERE id LIKE 'member_persona_%'`)
       .all() as { id: string; slug: string }[];
-    // buildOnSwitch personas (e.g. David) are real registered members with
-    // random ids, not member_persona_ ids, so they are discovered by slug. Their
-    // member-keyed rows and media are torn down by the passes below; the REAL
-    // legacy account they claimed is released (claimed_by nulled), not deleted,
-    // by the claim-release pass, and their real club survives the club-test- guard.
-    const buildOnSwitchSlugs = CANONICAL_PERSONAS
-      .filter((s) => s.buildOnSwitch)
-      .map((s) => s.slug);
-    const buildOnSwitchRows = buildOnSwitchSlugs.length
-      ? (db
-          .prepare(
-            `SELECT id, slug FROM members WHERE slug IN (${placeholders(buildOnSwitchSlugs.length)})`,
-          )
-          .all(...buildOnSwitchSlugs) as { id: string; slug: string }[])
-      : [];
-    const memberRows = [...personaRows, ...buildOnSwitchRows];
     const memberIds = memberRows.map((r) => r.id);
     // Two deterministic legacy roots per slug: the legacy-claim identity and the
     // club-leader fallback identity (personaFactory seeds one or the other).
@@ -499,9 +483,7 @@ export function refreshAllPersonas(
     //    no member row and render greyed on /dev/personas.
     let reseeded = 0;
     for (const spec of specs) {
-      // buildOnSwitch personas are built by real flows on /dev/build-switch,
-      // never seeded; refresh tears down their real rows separately (by slug).
-      if (spec.blockedBy || spec.buildOnSwitch) continue;
+      if (spec.blockedBy) continue;
       seedPersona(db, spec, opts.passwordHash ? { passwordHash: opts.passwordHash } : {});
       reseeded += 1;
     }

@@ -20,14 +20,22 @@
  * singleton ahead of a test's environment setup.
  */
 import BetterSqlite3 from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
 
 const TS  = '2025-01-01T00:00:00.000Z';
 const SYS = 'system';
 
 let _counter = 0;
-/** Monotonic per-process suffix for deterministic, collision-free test ids. */
+/**
+ * Unique test-row id. The crypto-random suffix is what makes the id unique -- it
+ * is generated the same way the application generates its own row ids, so an id
+ * never collides even when a second process (the live E2E dev server) writes the
+ * same database or the test module's counter restarts. The counter prefix
+ * carries no uniqueness guarantee on its own; it only keeps ids readable and in
+ * insertion order under a lexical sort.
+ */
 export function uid(): string {
-  return (++_counter).toString().padStart(4, '0');
+  return `${(++_counter).toString().padStart(4, '0')}_${randomUUID().replace(/-/g, '')}`;
 }
 
 // ── Member ────────────────────────────────────────────────────────────────────

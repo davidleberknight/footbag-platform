@@ -682,7 +682,7 @@ Test every candidate line: what breaks at go-live if this is skipped, and what a
 | ID | Criterion | Section | Blocks |
 |---|---|---|---|
 | R1 | QC subsystem retired (routes, code, tables, tests) | §30 | State 3 → State 4 |
-| R3 | Primary-maintainer test-user scaffolding retired: the journey builder (`src/testkit/davidJourney.ts`) and the build-then-switch route deleted, the two CI enforcement layers (positive-assertion absence test + grep guard) present and green, and no member carrying the test user's slug remains in the production-bound DB | §31 | State 3 → State 4 |
+| R3 | Primary-maintainer test-user scaffolding retired early: the person-specific journey builder, build-then-switch route, catalog entry, and build-on-switch plumbing are removed (a grep for the old scaffolding tokens returns nothing), the real-flow assurance is preserved by the four-track testing suite, and no production-bound member carries the test user's slug | §31 | State 3 → State 4 (satisfied) |
 
 ---
 
@@ -1296,29 +1296,10 @@ Sign-off on QC retirement is a prerequisite for §24 State 3 → State 4 transit
 
 The retirement PR adds both layers to `.github/workflows/ci.yml`. R1 sign-off asserts both layers are present and green.
 
-## 31. Primary-maintainer test-user retirement (go-live gate)
+## 31. Primary-maintainer test-user retirement (retired early)
 
-The primary-maintainer build-on-switch test user and all its scaffolding are a hard go-live gate: no production deployment may carry the journey builder, its build-then-switch route, its catalog entry, or the build-on-switch plumbing that supports it. The test user is an initial-testing aid that drives the real registration / verify / claim / onboarding / upload flows against a real-data dev or staging database; it is not a product feature. Retirement is deletion, not a post-launch tidy-up: it deletes the scaffolding only. The test user logs in with a synthetic test address and claims its Hall-of-Fame legacy record by `legacy_member_id`, so no maintainer email lives anywhere in the system to remove; admin, when present, comes only from the operator's own dev admin allowlist, not from the persona itself.
+The primary-maintainer real-flow test user and its person-specific scaffolding — the journey builder, the build-then-switch route, its catalog entry, and the build-on-switch plumbing — have been removed ahead of cutover rather than at it, so no production deployment carries them. That test user was an initial-testing aid that drove the real registration, verify, claim, onboarding, and upload flows against a real-data dev or staging database; it was never a product feature. It logged in with a synthetic test address and claimed its Hall-of-Fame legacy record by `legacy_member_id`, so no maintainer email ever lived in the system to remove.
 
-Sign-off on this retirement is a prerequisite for the §24 State 3 → State 4 transition.
+The real-flow assurance that scaffolding provided is preserved, and broadened, by a four-track testing suite: a synthetic register-through-co-lead journey in continuous integration; a read-only, PII-safe whole-population invariant gate over the loaded real data (counts and pass/fail only); a generic real-claim crawl that builds a claimed account for any real record through `GET /dev/build-claim?as=<legacy_member_id>` and walks its rendered surfaces; and a human stratified-sampling walk on staging. Migrated-real-data behaviour is verified by claiming any real record rather than one fixed person.
 
-**Retirement inventory** (canonical list; the retirement PR maintainer extends this list if files have been added since):
-
-- Delete `src/testkit/davidJourney.ts` (the journey builder) and `src/testkit/personaBuildSwitchRoute.ts` (the build-then-switch route).
-- `src/testkit/canonicalPersonas.ts`: remove the build-on-switch catalog entry.
-- `src/testkit/personaFactory.ts`: remove the `buildOnSwitch` field from `PersonaSpec`.
-- `src/testkit/devRoutes.ts`: remove the `/build-switch` route registration and its import.
-- `src/testkit/personaSeedRunner.ts` and `src/testkit/personaRefreshRunner.ts`: remove the `buildOnSwitch` skip branches and the refresh discovery-by-slug pass that tears down build-on-switch members.
-- `src/testkit/personaListingRoute.ts`: remove the `buildOnSwitch` switch-href and the build-on-switch row override.
-- Tests: remove the build-on-switch assertions in `tests/integration/devPersonasListing.test.ts` and the build-on-switch teardown case in `tests/integration/persona-refresh.service.test.ts`.
-
-**Database and operator-environment teardown** (staging, before the code deletion lands):
-
-- Run persona Refresh (`POST /dev/personas/refresh`), which releases the test user's claimed legacy account back to unclaimed (never deletes the real legacy or HoF record) and deletes the member row, media, and club leadership/affiliation rows. No email mutation needs reverting: the build never writes a maintainer email into the legacy record, and the synthetic login address is not a real mailbox.
-
-**Automated enforcement**: two layers, paired so a rename can't silently slip through:
-
-1. **Positive-assertion test** (preferred). A test asserts that the named scaffolding files (`davidJourney.ts`, `personaBuildSwitchRoute.ts`) no longer exist in the source tree, keyed to this inventory; absence is the success signal.
-2. **Pattern grep** (defense in depth). A CI check on every PR targeting `main` greps the source tree for known entry points (`davidJourney`, `personaBuildSwitchRoute`, `buildOnSwitch`, `build-switch`, `david_leberknight`) and fails the build if any are found.
-
-The retirement PR adds both layers to `.github/workflows/ci.yml`. Sign-off asserts both layers are present and green, and that no member carrying the test user's slug remains in the production-bound database.
+Verification that the scaffolding is gone: a grep of the source tree for the old entry points (the journey builder and build-then-switch route names, the build-on-switch field, and the person slug) returns nothing, and the test suite and type-check pass. No production-bound member carries the test user's slug. This item is no longer a State 3 → State 4 blocker; it is satisfied.

@@ -61,15 +61,8 @@ interface PersonaListRow {
    */
   loginHref?: string;
   switchHref: string;
-  /** State chips (deny half, account state, real-data backing, blocked). */
+  /** State chips (deny half, account state, blocked). */
   statusBadges: PersonaStatusBadge[];
-  /**
-   * The real-data-backed maintainer persona, built by real flows rather than
-   * seeded. Its card leads the catalog and carries a note distinguishing it
-   * from the deliberately seeded fixtures.
-   */
-  isSpecial: boolean;
-  specialNote?: string;
 }
 
 interface PersonaGroup {
@@ -87,24 +80,10 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 /**
- * Card note for the real-data-backed maintainer persona, the one entry not
- * produced by the seeded fixtures. Spells out why it is special and that, in
- * this dev/staging context, it is still a test view and not a production
- * identity, so a tester never mistakes it for a live real-person profile.
- */
-const SPECIAL_PERSONA_NOTE =
-  'Special persona. This account is backed by real historical and legacy data ' +
-  '(a Hall of Fame record and a legacy account) rather than the normal seeded ' +
-  'persona fixtures, and is built by the real signup, claim, and onboarding ' +
-  'flows on first Switch. It appears first because it verifies that migrated ' +
-  'real-world data behaves correctly in the harness. In this dev and staging ' +
-  'context it is still a test persona view, not a production identity.';
-
-/**
  * State chips a card shows beyond its roles: the deny half of an authorization
- * pair, the account state that blocks login, the real-data backing of the
- * maintainer persona, and the muted "blocked" chip on an unbuilt-feature
- * persona. Derived from the spec so the template renders pre-shaped values only.
+ * pair, the account state that blocks login, and the muted "blocked" chip on an
+ * unbuilt-feature persona. Derived from the spec so the template renders
+ * pre-shaped values only.
  */
 function deriveStatusBadges(spec: PersonaSpec): PersonaStatusBadge[] {
   const badges: PersonaStatusBadge[] = [];
@@ -113,7 +92,6 @@ function deriveStatusBadges(spec: PersonaSpec): PersonaStatusBadge[] {
   if (spec.isDeceased) badges.push({ text: 'deceased', muted: false });
   if (spec.deletionState === 'grace_open') badges.push({ text: 'restore window open', muted: false });
   if (spec.deletionState === 'grace_elapsed') badges.push({ text: 'restore window elapsed', muted: false });
-  if (spec.buildOnSwitch) badges.push({ text: 'real legacy data', muted: false });
   if (spec.blockedBy) badges.push({ text: 'blocked', muted: true });
   return badges;
 }
@@ -141,8 +119,6 @@ function toRow(
     tierLabel: TIER_LABELS[spec.tier] ?? spec.tier,
     roles: deriveRoles(spec),
     statusBadges: deriveStatusBadges(spec),
-    isSpecial: spec.buildOnSwitch ?? false,
-    ...(spec.buildOnSwitch ? { specialNote: SPECIAL_PERSONA_NOTE } : {}),
     purpose: spec.purpose ?? spec.coverageNotes[0] ?? '',
     negative: spec.negative ?? false,
     coverage: spec.coverageNotes,
@@ -154,9 +130,7 @@ function toRow(
     ...(backed && !switchable
       ? { loginHref: `/dev/login?as=${encodeURIComponent(spec.slug)}` }
       : {}),
-    switchHref: spec.buildOnSwitch
-      ? `/dev/build-switch?as=${encodeURIComponent(spec.slug)}`
-      : `/dev/switch?as=${encodeURIComponent(spec.slug)}`,
+    switchHref: `/dev/switch?as=${encodeURIComponent(spec.slug)}`,
   };
 }
 
@@ -200,13 +174,10 @@ function groupByDimension(specs: PersonaSpec[], rows: PersonaListRow[]): Persona
 
 export function getDevPersonas(_req: Request, res: Response, next: NextFunction): void {
   try {
-    // A build-on-switch persona (DL) shows wherever /dev mounts (dev + staging,
-    // never prod) and always offers a Switch, which builds it on first click;
-    // other personas show a Switch only when seeded and switchable.
+    // A persona offers a Switch only when its row is seeded and switchable; a
+    // login-blocked but backed persona offers /dev/login instead.
     const rows = CANONICAL_PERSONAS.map((spec) =>
-      spec.buildOnSwitch
-        ? toRow(spec, true, true)
-        : toRow(spec, isPersonaBacked(spec), isPersonaSwitchable(spec)),
+      toRow(spec, isPersonaBacked(spec), isPersonaSwitchable(spec)),
     );
     res.render('dev/persona-listing', {
       seo: { title: 'Test personas' },

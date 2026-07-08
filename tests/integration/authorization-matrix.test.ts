@@ -26,6 +26,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import Database from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { seedPersona } from '../../src/testkit/personaFactory';
@@ -127,6 +128,12 @@ beforeAll(async () => {
   expect(leaderClubKey, 'leader club key shape').toMatch(/^club_[a-z0-9_]+$/);
   expect(coleaderClubKey, 'co-leader club key shape').toMatch(/^club_[a-z0-9_]+$/);
 
+  // The curator upload/list pages resolve the curated root at render time; point
+  // it at the temp dir through the service's explicit test seam so the admin
+  // allow cells render instead of tripping the write-into-repo guard.
+  const curatorSvc = await import('../../src/services/curatorMediaService');
+  curatorSvc.setCuratedRootDirForTests(MEDIA_TMP);
+
   createApp = await importApp();
 
   for (const persona of CANONICAL_PERSONAS) {
@@ -137,7 +144,9 @@ beforeAll(async () => {
   }
 });
 
-afterAll(() => {
+afterAll(async () => {
+  const curatorSvc = await import('../../src/services/curatorMediaService');
+  curatorSvc.resetCuratedRootDirForTests();
   cleanupTestDb(dbPath);
   fs.rmSync(MEDIA_TMP, { recursive: true, force: true });
   if (PRIOR_FOOTBAG_ENV === undefined) delete process.env.FOOTBAG_ENV;
@@ -165,9 +174,19 @@ describe('authentication-state axis', () => {
 describe('admin gate — GET (allow admin only, deny everyone else)', () => {
   const ADMIN_GET_ROUTES = [
     '/admin',
+    '/admin/admin-roles',
     '/admin/work-queue',
+    '/admin/audit-log',
+    '/admin/audit-log/export',
+    '/admin/email-log',
+    '/admin/clubs/leadership',
     '/admin/club-cleanup',
     '/admin/curator/media',
+    '/admin/curator/galleries',
+    '/admin/curator/upload',
+    '/admin/freestyle/tricks',
+    '/admin/freestyle/records',
+    '/admin/freestyle/consecutive-records',
   ];
 
   it('serves admins, 403s authenticated non-admins, redirects the unauthenticated', async () => {
@@ -186,6 +205,61 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
           expect(res.status, `${cell} (non-admin deny)`).toBe(403);
         }
       }
+    }
+  });
+});
+
+describe('admin gate — POST (every state-changing admin route sits behind the gate)', () => {
+  // The admin router applies requireAuth then requireAdmin to every route below
+  // the bootstrap-claim exception, so the deny outcome fires before any handler
+  // and is independent of the placeholder ids. The GET cells above already sweep
+  // the full persona set through this same gate; here one authenticated
+  // non-admin plus the anonymous case proves each state-changing POST route is
+  // mounted behind the gate, not accidentally above it the way bootstrap-claim
+  // deliberately is.
+  const ADMIN_POST_ROUTES = [
+    '/admin/admin-roles/grant',
+    '/admin/admin-roles/grant/confirm',
+    '/admin/admin-roles/ph/revoke',
+    '/admin/admin-roles/ph/revoke/confirm',
+    '/admin/work-queue/ph/resolve',
+    '/admin/work-queue/ph/dismiss',
+    '/admin/work-queue/ph/link-help/approve',
+    '/admin/work-queue/ph/link-help/reject',
+    '/admin/work-queue/ph/link-help/dispute-revert',
+    '/admin/clubs/ph/leadership/assign',
+    '/admin/clubs/ph/leadership/demote',
+    '/admin/club-cleanup/claim',
+    '/admin/club-cleanup/bulk-resolve',
+    '/admin/club-cleanup/bulk-delist-residue',
+    '/admin/club-cleanup/ph/resolve',
+    '/admin/club-cleanup/ph/contact-members',
+    '/admin/club-cleanup/ph/delist-residue',
+    '/admin/club-cleanup/candidates/ph/promote',
+    '/admin/club-cleanup/candidates/ph/resolve',
+    '/admin/freestyle/records',
+    '/admin/freestyle/records/ph/edit',
+    '/admin/freestyle/consecutive-records',
+    '/admin/freestyle/consecutive-records/ph/edit',
+    '/admin/freestyle/consecutive-records/ph/delete',
+    '/admin/freestyle/tricks/ph/edit',
+    '/admin/curator/media/ph/edit',
+    '/admin/curator/media/ph/delete',
+    '/admin/curator/galleries',
+    '/admin/curator/galleries/ph/edit',
+    '/admin/curator/galleries/ph/delete',
+  ];
+
+  it('403s an authenticated non-admin and redirects the unauthenticated', async () => {
+    for (const route of ADMIN_POST_ROUTES) {
+      const nonAdmin = await request(createApp())
+        .post(route)
+        .set('Cookie', cookies.get('t1_paid')!)
+        .send({});
+      expect(nonAdmin.status, `t1_paid -> POST ${route} (non-admin deny)`).toBe(403);
+
+      const anon = await request(createApp()).post(route).send({});
+      expect(isLoginRedirect(anon), `anonymous -> POST ${route} (login)`).toBe(true);
     }
   });
 });
@@ -217,6 +291,77 @@ describe('owner gate — member self-edit (BOLA)', () => {
       } else {
         expect(res.status, `${p.slug} -> victim /edit (cross-owner deny)`).toBe(404);
       }
+    }
+  });
+});
+
+describe('owner gate — member-owned routes (BOLA anti-enumeration)', () => {
+  // The controllers 404 when the authenticated user's slug does not match
+  // :memberKey, an anti-enumeration deny identical for every non-owner. VICTIM
+  // owns the target routes; CROSS_OWNER is a different session-holding member
+  // whose every attempt on VICTIM's routes must 404, never leak or act.
+  const VICTIM = 't1_paid';
+  const CROSS_OWNER = 't2_paid';
+
+  // Routes addressed by member key alone: the ownership gate is the sole
+  // determinant, so the owner passes it (never 404) and every non-owner 404s.
+  const keyOnlyRoutes: Array<{ method: 'get' | 'post'; path: string }> = [
+    { method: 'post', path: '/edit' },
+    { method: 'get',  path: '/edit/password' },
+    { method: 'post', path: '/edit/password' },
+    { method: 'post', path: '/avatar' },
+    { method: 'post', path: '/purchase-tier' },
+    { method: 'get',  path: '/payments' },
+    { method: 'get',  path: '/contact-admin' },
+    { method: 'post', path: '/contact-admin' },
+    { method: 'get',  path: '/galleries' },
+    { method: 'get',  path: '/galleries/new' },
+    { method: 'post', path: '/galleries' },
+    { method: 'get',  path: '/media/upload' },
+    { method: 'post', path: '/media/upload' },
+  ];
+
+  // Resource-id sub-routes: a placeholder id 404s for owner and non-owner alike,
+  // so only the deny half (a non-owner never gets past the slug gate) is asserted
+  // here; the owner-allow path is exercised by each feature's own suite against a
+  // real seeded resource.
+  const idRoutes: Array<{ method: 'get' | 'post'; path: string }> = [
+    { method: 'get',  path: '/galleries/ph/edit' },
+    { method: 'post', path: '/galleries/ph/edit' },
+    { method: 'post', path: '/galleries/ph/delete' },
+    { method: 'get',  path: '/media/ph/edit' },
+    { method: 'post', path: '/media/ph/edit' },
+    { method: 'post', path: '/media/ph/delete' },
+  ];
+
+  const fire = (method: 'get' | 'post', url: string, cookie?: string) => {
+    const t = method === 'get' ? request(createApp()).get(url) : request(createApp()).post(url);
+    if (cookie) t.set('Cookie', cookie);
+    return method === 'post' ? t.send({}) : t;
+  };
+
+  it('404s a non-owner and redirects the unauthenticated on every member-owned route', async () => {
+    for (const { method, path } of [...keyOnlyRoutes, ...idRoutes]) {
+      const url = `/members/${VICTIM}${path}`;
+      const cross = await fire(method, url, cookies.get(CROSS_OWNER)!);
+      expect(cross.status, `${CROSS_OWNER} -> ${method.toUpperCase()} ${url} (cross-owner deny)`).toBe(404);
+      const anon = await fire(method, url);
+      expect(isLoginRedirect(anon), `anonymous -> ${method.toUpperCase()} ${url} (login)`).toBe(true);
+    }
+  });
+
+  it('admits the owner past the ownership gate on key-addressed routes', async () => {
+    // The two multipart upload POSTs reject an empty JSON probe body before the
+    // handler resolves, so their owner-allow path is exercised by their own
+    // upload suites; the deny cells above still cover them.
+    const ownerAllow = keyOnlyRoutes.filter(
+      (r) => !(r.method === 'post' && (r.path === '/avatar' || r.path === '/media/upload')),
+    );
+    for (const { method, path } of ownerAllow) {
+      const url = `/members/${VICTIM}${path}`;
+      const own = await fire(method, url, cookies.get(VICTIM)!);
+      expect(own.status, `${VICTIM} -> ${method.toUpperCase()} ${url} (owner not 404)`).not.toBe(404);
+      expect(isLoginRedirect(own), `${VICTIM} -> ${method.toUpperCase()} ${url} (owner not login)`).toBe(false);
     }
   });
 });
@@ -296,5 +441,67 @@ describe('tier gate — POST /clubs/create (create-club bootstrap eligibility)',
   it('redirects the unauthenticated to login', async () => {
     const res = await request(createApp()).post('/clubs/create').send({});
     expect(isLoginRedirect(res), 'anonymous -> POST /clubs/create (login)').toBe(true);
+  });
+});
+
+describe('owner gate — club-leader actions (adjacent-owner BOLA)', () => {
+  // These actions mutate club state, so the allow (leader) cell lives in the club
+  // suites, not here. The deny property is what this asserts: a leader of a
+  // DIFFERENT club (the adjacent owner) is treated exactly as a plain non-leader
+  // on this club, proving the gate keys on the specific club rather than on
+  // holding any leadership, and neither one performs the action.
+  const LEADER_ACTIONS = ['step-down', 'mark-inactive', 'reactivate', 'hashtag', 'invite'];
+
+  it('treats an adjacent-club leader as a non-leader and redirects the unauthenticated', async () => {
+    for (const action of LEADER_ACTIONS) {
+      const url = `/clubs/${leaderClubKey}/${action}`;
+      const adjacent = await request(createApp())
+        .post(url)
+        .set('Cookie', cookies.get('club_leader_b')!)
+        .send({});
+      const nonLeader = await request(createApp())
+        .post(url)
+        .set('Cookie', cookies.get('t1_paid')!)
+        .send({});
+      expect(adjacent.status, `club_leader_b == t1_paid on ${url} (adjacent owner is not this club's leader)`)
+        .toBe(nonLeader.status);
+      expect(isLoginRedirect(adjacent), `club_leader_b -> ${url} (a deny, not an auth failure)`).toBe(false);
+
+      const anon = await request(createApp()).post(url).send({});
+      expect(isLoginRedirect(anon), `anonymous -> ${url} (login)`).toBe(true);
+    }
+  });
+});
+
+describe('tier gate — POST /clubs/:key/volunteer (co-lead eligibility)', () => {
+  it('403s a Tier 0 member without Active Player and redirects the unauthenticated', async () => {
+    const url = `/clubs/${leaderClubKey}/volunteer`;
+    const tier0 = await request(createApp()).post(url).set('Cookie', cookies.get('t0_fresh')!).send({});
+    expect(tier0.status, `t0_fresh -> ${url} (tier deny)`).toBe(403);
+
+    const anon = await request(createApp()).post(url).send({});
+    expect(isLoginRedirect(anon), `anonymous -> ${url} (login)`).toBe(true);
+  });
+});
+
+describe('above the admin gate — POST /admin/bootstrap-claim self-grants nothing', () => {
+  it('lets an authenticated non-admin reach the handler but confers no admin without the token', async () => {
+    const res = await request(createApp())
+      .post('/admin/bootstrap-claim')
+      .set('Cookie', cookies.get('t1_paid')!)
+      .send({});
+    // The claim route sits above requireAdmin by design (the claimant is not yet
+    // an admin), so the outcome is neither the admin-gate 403 nor a login redirect.
+    expect(res.status, 'reaches the handler past requireAuth').not.toBe(403);
+    expect(isLoginRedirect(res), 'not redirected to login').toBe(false);
+
+    // The load-bearing guarantee: a tokenless claim grants nothing. Read the row
+    // straight from the DB rather than trusting the response shape.
+    const probe = new Database(dbPath, { readonly: true });
+    const row = probe
+      .prepare('SELECT is_admin FROM members WHERE id = ?')
+      .get(memberId('t1_paid')) as { is_admin: number } | undefined;
+    probe.close();
+    expect(row?.is_admin, 't1_paid was not granted admin by a tokenless bootstrap-claim').toBe(0);
   });
 });

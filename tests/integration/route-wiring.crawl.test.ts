@@ -16,7 +16,9 @@
  *
  * POST form targets are probed with an empty body: any response except 404
  * and 5xx proves the route is wired (422/4xx validation responses are the
- * expected answer to an empty body).
+ * expected answer to an empty body). A POST that redirects (a create that
+ * 302s to the resource it made) has its Location enqueued, so a GET page
+ * reachable only through a POST is still crawled rather than silently missed.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -51,14 +53,26 @@ const MEMBER_ID = 'crawl-member-001';
 const ADMIN_ID  = 'crawl-admin-001';
 
 // Hard bound per persona so a link explosion fails fast instead of hanging
-// the suite. High enough to cover every section root plus discovered detail
-// pages on the small seed corpus; the crawl logs what it visited on failure.
-const MAX_PAGES = 250;
+// the suite. High enough to cover every section root plus the freestyle index
+// and static pages, the operator QC pages, and discovered detail pages on the
+// small seed corpus; the crawl logs what it visited on failure.
+const MAX_PAGES = 450;
 
 const SEED_ROOTS = [
   '/', '/members', '/clubs', '/events', '/media', '/media/browse', '/hof',
   '/bap', '/history', '/freestyle', '/net', '/records', '/rules', '/ifpa',
   '/legal', '/login', '/register', '/password/forgot', '/dev/personas',
+  // Admin claim form: requireAuth-only, above the admin gate, linked from no
+  // page. Anonymous/non-admin see the redirect/gate; the crawl confirms it wires.
+  '/admin/bootstrap-claim',
+  // Operator QC surface: admin-gated GET pages linked from no crawled page, so
+  // seeded directly. Anonymous redirects to /login and a non-admin member gets
+  // 403 (both skipped); only the admin persona renders them. Detail pages that
+  // need a row id are reached via links from these lists when data exists.
+  '/internal/persons/qc', '/internal/persons/browse',
+  '/internal/net/team-corrections', '/internal/net/recovery-signals',
+  '/internal/net/recovery-candidates', '/internal/net/review/summary',
+  '/internal/net/review', '/internal/net/curated', '/internal/net/candidates',
 ];
 
 beforeAll(async () => {
@@ -151,11 +165,16 @@ function shouldSkip(path: string): boolean {
   // Harness action: refreshing re-seeds personas mid-crawl, so the crawler
   // skips it; a dedicated test probes it after the crawls complete.
   if (path === '/dev/personas/refresh') return true;
-  // Freestyle dictionary detail pages resolve from the seeded trick corpus,
-  // which this fixture DB does not carry; their wiring is data-dependent,
-  // and the freestyle surface is excluded from this sweep. The freestyle
-  // landing itself stays in the seed roots.
-  if (/^\/freestyle\/.+/.test(path)) return true;
+  // Freestyle dictionary detail pages resolve a specific trick, set, family, or
+  // modifier from the seeded corpus, which this fixture DB does not carry, so
+  // their wiring is data-dependent and skipped. The section's index and static
+  // pages (landing, tricks index, glossary, operators, about, ...) carry no
+  // corpus dependency and are crawled. The flat sets reference table is a
+  // literal page, not a per-set detail, so it stays crawled.
+  if (/^\/freestyle\/tricks\/.+/.test(path)) return true;
+  if (/^\/freestyle\/sets\/(?!reference$).+/.test(path)) return true;
+  if (/^\/freestyle\/families\/.+/.test(path)) return true;
+  if (/^\/freestyle\/modifier\/.+/.test(path)) return true;
   return false;
 }
 
@@ -269,6 +288,11 @@ async function crawlAs(
         failures.push({ persona, url: target, via: `form on ${url}`, problem: 'form action resolves to 404' });
       } else if (postRes.status >= 500) {
         failures.push({ persona, url: target, via: `form on ${url}`, problem: `form action POST ${postRes.status}` });
+      } else if (postRes.status >= 300 && postRes.status < 400) {
+        // A create/action POST that 302s to the resource it produced: follow
+        // the Location so a GET page reachable only via this POST is crawled.
+        const loc = normalize(String(postRes.headers.location ?? ''));
+        if (loc && !visited.has(loc)) queue.push({ url: loc, via: `form on ${url} (redirect)` });
       }
     }
   }
@@ -281,6 +305,33 @@ async function crawlAs(
   }
 
   return { failures, visited };
+}
+
+// The persona-switch route issues a real session cookie on its 302; pulling it
+// out lets the crawl render pages AS the switched persona instead of only
+// confirming the switch link resolves.
+function sessionCookieFrom(setCookie: string[] | string | undefined): string | null {
+  const cookies = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
+  for (const c of cookies) {
+    const m = /^footbag_session=[^;]+/.exec(c);
+    if (m) return m[0];
+  }
+  return null;
+}
+
+async function renderProblem(
+  app: ReturnType<typeof createApp>,
+  cookie: string,
+  url: string,
+): Promise<string | null> {
+  const res = await request(app).get(url).set('Cookie', cookie).redirects(0);
+  if (res.status >= 500) return `GET ${res.status}`;
+  if (res.status !== 200) return `expected 200, got ${res.status}`;
+  if (!String(res.headers['content-type'] ?? '').includes('text/html')) return 'not html';
+  const body = stripJsonIslands(res.text);
+  if (body.includes('[object Object]')) return 'rendered [object Object]';
+  if (/\{\{|\}\}/.test(body)) return 'rendered raw mustache artifact';
+  return null;
 }
 
 describe('route wiring crawl', () => {
@@ -299,12 +350,42 @@ describe('route wiring crawl', () => {
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
     const { failures, visited } = await crawlAs('admin', cookie);
     expect(failures).toEqual([]);
+    // The operator QC pages are admin-gated and linked from no crawled page, so
+    // a silently-skipped non-200 would still pass the crawl. Pin that the admin
+    // persona actually renders one, proving real coverage past both gates.
+    const qc = await request(createApp()).get('/internal/persons/qc').set('Cookie', cookie);
+    expect(qc.status).toBe(200);
     // Guards the entity-decode path: a query-string link (the `?as=` carries an
     // HTML-escaped `=`) must be followed with its value intact, not truncated.
     expect(visited.has('/dev/switch?as=t0_fresh')).toBe(true);
     // A login-blocked persona is an exercisable link, not a dead row: its
     // /dev/login target is followed and resolves (it lands on /login).
     expect(visited.has('/dev/login?as=unverified')).toBe(true);
+  });
+
+  // Adopting the session cookie the switch route issues renders pages AS each
+  // persona, so tier, honor, and club-role conditional surfaces are actually
+  // walked rather than only having their switch link confirmed to resolve. A
+  // role-diverse, onboarding-complete sample keeps this proportionate; the full
+  // route-by-persona authorization matrix lives in its own suite.
+  it('each role-distinct persona renders its own conditional surfaces', async () => {
+    const app = createApp();
+    const personaSlugs = [
+      't0_fresh', 't1_paid', 't2_paid', 't3_comped',
+      'honors_hof', 'club_leader', 'club_coleader', 'legacy_linked',
+    ];
+    const failures: CrawlFailure[] = [];
+    for (const slug of personaSlugs) {
+      const sw = await request(app).get(`/dev/switch?as=${slug}`).redirects(0);
+      expect(sw.status, `switch to ${slug} redirects`).toBe(302);
+      const cookie = sessionCookieFrom(sw.headers['set-cookie']);
+      expect(cookie, `switch to ${slug} issues a session cookie`).toBeTruthy();
+      for (const url of ['/', `/members/${slug}`, `/members/${slug}/edit`]) {
+        const problem = await renderProblem(app, cookie!, url);
+        if (problem) failures.push({ persona: slug, url, via: 'persona-switch walk', problem });
+      }
+    }
+    expect(failures).toEqual([]);
   });
 
   // Probed after the crawls because a successful refresh re-seeds every
@@ -314,5 +395,79 @@ describe('route wiring crawl', () => {
     const res = await request(app).post('/dev/personas/refresh').redirects(0).type('form').send({});
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/dev/personas');
+  });
+});
+
+// ── Button-destination integrity ─────────────────────────────────────────────
+// A button's label is a promise: on any one page, two controls that show the
+// SAME label must lead to the SAME place. This catches the class of defect the
+// wiring crawl above cannot — a button that resolves fine but does not do what
+// its label says, quietly landing the user somewhere else (a "Link My History"
+// button that actually searches, or two "Apply" buttons hitting different
+// endpoints). The route-resolves check proves the target exists; this proves the
+// label does not lie about which target. Checked statically over every rendered
+// template so states the crawl never reaches (wizard candidate cards) are covered
+// too.
+const VIEWS_DIR = path.join(process.cwd(), 'src', 'views');
+const ALL_TEMPLATES = fs.globSync('**/*.hbs', { cwd: VIEWS_DIR });
+
+function normalizeDestination(raw: string): string {
+  return raw
+    .split('?')[0]                                  // query carries per-row ids, not a different page
+    .replace(/\{\{[^}]*\}\}/g, ':x')                // Handlebars interpolation → placeholder
+    .replace(/:[A-Za-z_][A-Za-z0-9_]*/g, ':x')      // Express :params → placeholder
+    .replace(/\/$/, '');
+}
+
+function normalizeLabel(raw: string): string {
+  return raw.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+interface LabelledControl { label: string; destination: string }
+
+function extractControls(html: string): LabelledControl[] {
+  const controls: LabelledControl[] = [];
+  // Form-submit buttons: the form's action is the destination.
+  for (const form of html.matchAll(/<form\b[^>]*\baction="([^"]+)"[^>]*>([\s\S]*?)<\/form>/gi)) {
+    const destination = normalizeDestination(form[1]);
+    for (const btn of form[2].matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/gi)) {
+      const label = normalizeLabel(btn[1]);
+      if (label) controls.push({ label, destination });
+    }
+  }
+  // Button-styled anchors: a CTA that looks like a button but navigates by href.
+  for (const anchor of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+    if (!/\bclass="[^"]*\bbtn\b[^"]*"/i.test(anchor[1])) continue;
+    const href = /\bhref="([^"]+)"/i.exec(anchor[1])?.[1];
+    if (!href) continue;
+    const label = normalizeLabel(anchor[2]);
+    if (label) controls.push({ label, destination: normalizeDestination(href) });
+  }
+  return controls;
+}
+
+// An identity-switch verb is legitimately polymorphic: "Switch" means "become
+// this identity", and the persona harness offers more than one switch mechanism
+// (a seeded persona via /dev/switch, a real claimed member via /dev/build-claim).
+// Both honour the label, so a Switch control may fan out to more than one switch
+// endpoint without lying about where the click lands. Exempt that label from the
+// single-destination promise; every other label still promises one destination.
+const LABELS_ALLOWED_MULTIPLE_DESTINATIONS = new Set(['Switch']);
+
+describe('button-destination integrity (every rendered template)', () => {
+  it.each(ALL_TEMPLATES)('%s: each button label leads to exactly one destination', (file) => {
+    const html = fs.readFileSync(path.join(VIEWS_DIR, file), 'utf8');
+    const byLabel = new Map<string, Set<string>>();
+    for (const c of extractControls(html)) {
+      if (!byLabel.has(c.label)) byLabel.set(c.label, new Set());
+      byLabel.get(c.label)!.add(c.destination);
+    }
+    const liars = [...byLabel.entries()]
+      .filter(([label, dests]) => dests.size > 1 && !LABELS_ALLOWED_MULTIPLE_DESTINATIONS.has(label))
+      .map(([label, dests]) => `"${label}" -> {${[...dests].join(' , ')}}`);
+    expect(
+      liars,
+      `${file}: a button label must promise one destination; these lead to several:\n  ${liars.join('\n  ')}`,
+    ).toEqual([]);
   });
 });

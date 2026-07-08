@@ -66,8 +66,9 @@ Before calling a test suite complete, try to break the feature. Common attacks:
 - SQL-injection attempts in every free-text input.
 - XSS attempts in every field that lands in a Handlebars template.
 - Timing attacks against anti-enumeration endpoints (login, password reset, claim lookup).
-- Race conditions — two simultaneous inserts of the same idempotency key; two simultaneous claims of the same legacy account.
+- Race conditions — two simultaneous inserts of the same idempotency key; two simultaneous claims of the same legacy account. Distinguish the technique: a deterministic pre-commit of the winner's unique value proves the constraint-to-error mapping, but only two genuinely concurrent HTTP requests (fired with `Promise.all` against the running app) prove request-interleaving safety on a surface with an async boundary; a synchronous single-transaction service cannot race in-process, so the deterministic simulation is the correct evidence there.
 - Expired/wrong-type/replay-attack tokens.
+- Mass assignment / overposting — a state-changing form or JSON body carrying extra fields that target privileged columns (`is_admin`, `tier`, `id`, `slug`, `login_email`, `password_hash`, verification/email-status flags). The handler must persist only its whitelisted fields; the test posts the crafted extras and asserts every privileged column is untouched and no shadow row is conjured by an injected id or slug.
 
 If an adversarial test reveals a hole, fix it *and* keep the test.
 

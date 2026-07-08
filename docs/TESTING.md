@@ -147,8 +147,11 @@ Standard techniques to draw from when shaping a test:
 - Pairwise / combinatorial coverage: matrix-shaped concerns (role x route x method x auth-state). Use all-pairs rather than full Cartesian when the matrix is large.
 - Property-based testing (fast-check): invariant-shaped assertions ("for all inputs, property P holds"). Selective use for validators, encoders, security pure functions, anti-enumeration helpers. Not a universal requirement.
 - Scenario tests with explicit state transitions: state-machine-shaped concerns (multi-step wizard, token lifecycle, audit emission on state-changing paths).
-- Selective fuzzing: parsers, validators, complex input handlers. Targeted at the specific module.
+- Selective fuzzing: parsers, validators, complex input handlers. Targeted at the specific module. Name pathological-input timing (catastrophic regex backtracking / ReDoS) as an explicit goal for any hand-written regex validator — the freestyle notation grammar, slug and URL validators.
 - Rate-limit + resource-bound assertions: denial-of-service concerns. Configuration verification, not load testing (load is deferred per §14).
+- Query-count / N+1 detection: for a list or detail read path, wrap the database and assert the executed-statement count is bounded and stays constant as the row count grows (seed one row versus many; the count must not scale with the data), and that list-returning service methods carry a `LIMIT`. Catches a page whose query count grows with the table before it becomes a production incident, which no row-count or shape assertion reveals.
+- Metamorphic / differential testing: assert a relation between related inputs or outputs rather than one fixed oracle — a migration reconciliation whose aggregate counts are independent of input row order, a sort stable under a repeated secondary key, or two adapter implementations (stub versus live) producing identically-structured output.
+- Money as integer minor units: monetary amounts stay integer cents through every calculation. Test cents-versus-dollars representation, summation with no floating-point arithmetic, and currency-mismatch rejection.
 
 The technique catalog is a vocabulary, not a checklist. Pick what fits the assertion; don't enumerate every technique against every assertion.
 
@@ -223,6 +226,7 @@ Belongs:
 - Rate-limit boundary assertions
 - Adapter parity (boot-time config tests, interface parity tests)
 - Exhaustive route-wiring crawl: every rendered link and form target resolves for the persona it was shown to
+- Button-destination integrity: on any one page every clickable control's visible label maps to a single destination, so a label cannot lie about where the click lands. A button labelled "Link My History" that actually runs a search, or two identically-labelled "Apply" buttons that post to different endpoints, fail here. This is distinct from the route-wiring crawl (which proves a target resolves) and from the no-nested-forms gate (which proves a form reaches a handler): it proves the label tells the truth about the outcome
 
 Does not belong:
 
@@ -324,9 +328,9 @@ Every promised email is covered by construction. The email catalog names each em
 
 Production differs in what the live path adds: it resolves `SES_ADAPTER=live` and sends through SES; it honors the SES suppression list, so an address that has hard-bounced or complained is withheld; it records bounce and complaint feedback through the webhook; and it carries the sender-identity, DKIM, and DMARC records that the stub path does not exercise. Production safety rests on the build-time strip and config guards (§7.1, §9.5); below production, the stub captures every message.
 
-### 5.10 Persona-crawl (development)
+### 5.10 Real-claim crawl (development)
 
-A development-only tier under `tests/dev/` that exercises the full persona set across the app's pages (a member-journey and page crawl) to surface broken pages and journeys the per-route integration tests do not. It is excluded from the default `npm test` run and is invoked by `npm run test:persona-crawl` (`RUN_PERSONA_CRAWL=1`) and by `./run_all_tests.sh --with-persona-crawl` (opt-in). It runs against a local fixture-seeded database and needs no AWS.
+A development-only tier under `tests/dev/` that builds a claimed account for a real migrated record through `GET /dev/build-claim?as=<legacy_member_id>` and crawls its rendered surfaces (profile, honors, results, media, any co-led club), proving migrated real-world data renders and behaves once a member claims it — the person-neutral successor to the earlier fixed-person journey crawl. It is excluded from the default `npm test` run and is invoked by `npm run test:persona-crawl` (`RUN_PERSONA_CRAWL=1`) and by `./run_all_tests.sh --with-persona-crawl` (opt-in). It needs a loaded real dataset — the dev operator load, or a running staging stack targeted with `PERSONA_CRAWL_BASE_URL` — and skips on a fixture-only clone; it defaults to the numerically-lowest Hall-of-Fame honoree carrying a legacy link, or targets a specific record with `PERSONA_CRAWL_LEGACY_ID`. Every assertion keys on record ids and page structure, never on the claimed person's name or contact details.
 
 ---
 
@@ -557,11 +561,13 @@ Club affiliation tests cover the cases enumerated in `docs/MIGRATION_PLAN.md` (l
 
 The db-load smoke CI job (§5.3) runs the loader pipeline against fixed fixtures on every CI build. Row-count and shape assertions catch loader regressions. The fixtures themselves are synthetic. Real legacy data is never committed as test fixtures.
 
+Two data-integrity concerns sit beside the loader's row-count regression. *Idempotent re-import:* running the loader a second time against the same input must be safe — no duplicate rows, no crash, no partial-state corruption — the realistic scenario of a re-triggered pipeline after a partial failure; the smoke gate covers a single run, so a re-run assertion is the guard for this. *Backup and restore integrity:* a backup is only as good as its restore, so a restore drill — restore a snapshot into a scratch database and assert schema integrity, row counts against the source, and WAL-checkpoint consistency — proves a mid-write or mid-checkpoint snapshot is not silently unrestorable, before a real disaster-recovery event needs it.
+
 ### 8.5 Synthetic data in dev and CI; real data on staging
 
 Migration tests in dev and continuous integration use synthetic legacy records that model edge cases without exposing real personal data, and every committed fixture stays synthetic. Real-data validation runs on the staging real-data test ground (§7.8): the full loaded dataset exercises identity matching, claims, and rendering there. Raw legacy PII is never committed as a test fixture, never appears in a snapshot, screenshot, trace, log, or CI artifact, and never travels downward from staging into the repo or the shared pipeline.
 
-Two data tiers run the suite. The committed synthetic fixtures cover the great majority of it: `npm test`, the `db-load-smoke` loader gate, and routine route, service, and e2e tests run on them with no real data. A small subset needs real, maintainer-only member data — the gitignored membership roster (`legacy_data/membership/inputs/membership_input_normalized.csv`) and, for the legacy-import validation class, the legacy-site member dump. The persona-crawl gate (`--with-persona-crawl` / `npm run test:persona-crawl`) is one such test: it exercises a fully onboarded profile from the full operator load and skips on a fixture-only clone. A tester who must run a real-data test obtains access to that maintainer-owned PII handoff from the maintainer who holds the legacy-data distribution; the data stays minimized and access-controlled, and never lands in a committed fixture, snapshot, trace, or CI artifact.
+Two data tiers run the suite. The committed synthetic fixtures cover the great majority of it: `npm test`, the `db-load-smoke` loader gate, and routine route, service, and e2e tests run on them with no real data. A small subset needs real, maintainer-only member data — the gitignored membership roster (`legacy_data/membership/inputs/membership_input_normalized.csv`) and, for the legacy-import validation class, the legacy-site member dump. Two opt-in gates are such tests: the real-claim crawl (`--with-persona-crawl` / `npm run test:persona-crawl`) builds a claimed account for a real record and crawls its surfaces, and the read-only invariant gate (`--with-realdata-invariants`) runs whole-population reconciliation and referential-integrity checks over the loaded data, emitting counts and pass/fail only — never names or emails. Both run from the full operator load (or, re-pointed by env var, against staging) and skip on a fixture-only clone. A tester who must run a real-data test obtains access to that maintainer-owned PII handoff from the maintainer who holds the legacy-data distribution; the data stays minimized and access-controlled, and never lands in a committed fixture, snapshot, trace, or CI artifact.
 
 ### 8.6 Migration tests verify the migration plan, not the loader
 
@@ -846,7 +852,7 @@ The platform targets WCAG 2.1 AA as the baseline accessibility conformance level
 
 Accessibility testing is a named test layer, not an afterthought. The layer combines:
 
-- *Automated checks* via `@axe-core/playwright` (per §15.3.1) in the lightweight Playwright suite, tagged `@a11y`. Every business-critical surface in the suite carries an axe assertion against the WCAG 2.1 AA rule set. Runs in CI on every push and in the full local suite (`./run_all_tests.sh --full`); catches automated-detectable regressions early.
+- *Automated checks* via `@axe-core/playwright` (per §15.3.1) in the lightweight Playwright suite, tagged `@a11y`, against the WCAG 2.1 AA rule set. Runs in CI on every push and in the full local suite (`./run_all_tests.sh --full`); catches automated-detectable regressions early. The axe scan today reaches the high-traffic anonymous public pages; the authenticated member and admin surfaces (member dashboard, profile edit, club edit, admin panels) are not yet axe-scanned and are the coverage to extend next — a member-only form is exactly where form-label and ARIA violations are likeliest to hide.
 - *Smoke-tagged automated checks* (`@smoke @a11y`) on a small subset of high-traffic public pages (home, member dashboard, login, register, public event detail, results page) that the post-deploy staging browser smoke check (`npm run test:e2e:smoke`) also covers, separate from the vitest staging-adapter smoke gate (§5.4).
 - *Manual audit* by the maintainer or an external accessibility reviewer periodically and before major launches. The third-party periodic pentest engagement (§9.4) may include accessibility scope.
 - *Deeper audit beyond automated coverage* (full keyboard-only journey, screen-reader flow validation, cognitive accessibility) is operator-invoked via the `browser-qa` skill.
@@ -930,13 +936,14 @@ The platform's testing toolchain consists of:
 
 ## 16. Tester runbook: using the persona harness
 
-The persona harness in `src/testkit/` lets a tester act as any seeded member, see captured email without a real inbox, and drive the membership purchase flow without Stripe. It is active under `FOOTBAG_ENV ∈ {development, staging}` and absent from production (§7.5, §7.6). This section is the step-by-step; §7 is the design contract.
+The persona harness in `src/testkit/` lets a tester act as any seeded member, act as a real migrated member by claiming its record, see captured email without a real inbox, and drive the membership purchase flow without Stripe. It is active under `FOOTBAG_ENV ∈ {development, staging}` and absent from production (§7.5, §7.6). This section is the step-by-step; §7 is the design contract.
 
 ### 16.1 What the harness provides
 
 - A curated persona catalog (`src/testkit/canonicalPersonas.ts`), seeded into the dev or staging database.
 - `GET /dev/personas`, a grid of cards, one per loadable persona, showing its tier, roles, purpose, and coverage notes. A session-eligible persona card carries a Switch control; a login-blocked persona (unverified, deceased, soft-deleted) carries a Log in control that drives the real login path.
 - `GET /dev/switch?as=<slug>`, which issues a real session cookie for that persona (the same primitive the login path uses, not an auth bypass).
+- A **Switch to a real member** card on `/dev/personas`: enter a real migrated legacy record's member id and `GET /dev/build-claim?as=<legacy_member_id>` builds a claimed account for it (running the real register, verify, claim, and onboarding journey once), issues a session for it, and lands on its profile, so a tester acts as a real claimed member rather than only a seeded persona. A record already claimed reuses its account, so a repeat switch rebuilds nothing. It needs a loaded real dataset and is the manual peer of the real-claim crawl (§7.8, §10).
 - Each persona's profile About marks it as a test persona and states what it exists to test, so a switched-in profile is never read as a real member.
 - A **Refresh all personas** control on `/dev/personas` (`POST /dev/personas/refresh`) that tears down the persona-owned rows and re-seeds the catalog, returning every persona to its seeded state. Use it to undo in-app changes a persona accumulated, for example a tier upgrade, which appends to the membership ledger and otherwise persists.
 - The simulated-email card, captured outbound email rendered inline on email-gated pages when `SES_ADAPTER=stub`.

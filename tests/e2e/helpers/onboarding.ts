@@ -4,6 +4,7 @@
  * that build on the existing factory/persona infrastructure.
  */
 import BetterSqlite3 from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
 import {
   insertMember,
   insertLegacyMember,
@@ -458,7 +459,12 @@ export function seedMemberWithAutoLinkCandidate(
   const slug = opts.slug ?? `autolink_${rand()}`;
   const legacyMemberId = `LM-AL-${rand().toUpperCase()}`;
   const loginEmail = uniqueEmail('al');
-  const personName = opts.personName ?? 'Test Autolink';
+  // Unique per seed: every auto-link persona shares one database in the E2E run,
+  // so a constant name makes several records namesakes and the classifier
+  // downgrades the match to ambiguous, hiding the auto-link confirm card. The
+  // suffix is crypto-random rather than Math.random so uniqueness is not left to
+  // chance across the whole suite.
+  const personName = opts.personName ?? `Test Autolink ${randomUUID()}`;
 
   insertLegacyMember(db, {
     legacy_member_id: legacyMemberId,

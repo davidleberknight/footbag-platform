@@ -247,6 +247,51 @@ describe('phone whitespace trimming', () => {
   });
 });
 
+// ── Mass assignment / overposting ────────────────────────────────────────────
+
+describe('mass-assignment / overposting guard', () => {
+  it('ignores crafted privileged fields in the edit body; no protected column moves', async () => {
+    const before = readMember();
+    // A valid edit plus crafted extra fields targeting privileged columns the
+    // profile-edit contract must never accept from the member's own form body.
+    const res = await postEdit({
+      bio: 'legit overposting-probe bio',
+      is_admin: '1',
+      id: 'attacker-controlled-id',
+      slug: 'hijacked_slug',
+      login_email: 'attacker@evil.example',
+      login_email_normalized: 'attacker@evil.example',
+      password_hash: 'attacker-controlled-hash',
+      password_version: '999',
+      email_verified_at: '2000-01-01T00:00:00.000Z',
+      email_status: 'verified',
+    });
+    // The whitelisted field saves; the extras are ignored (a field-by-field
+    // contract), so the request is not a server error.
+    expect([303, 422]).toContain(res.status);
+
+    // Not one protected column moved.
+    const after = readMember();
+    expect(after.is_admin, 'is_admin unchanged').toBe(before.is_admin);
+    expect(after.id, 'id unchanged').toBe(MEMBER_ID);
+    expect(after.slug, 'slug unchanged').toBe(MEMBER_SLUG);
+    expect(after.login_email, 'login_email unchanged').toBe(before.login_email);
+    expect(after.login_email_normalized, 'login_email_normalized unchanged').toBe(before.login_email_normalized);
+    expect(after.password_hash, 'password_hash unchanged').toBe(before.password_hash);
+    expect(after.password_version, 'password_version unchanged').toBe(before.password_version);
+    expect(after.email_verified_at, 'email_verified_at unchanged').toBe(before.email_verified_at);
+    expect(after.email_status, 'email_status unchanged').toBe(before.email_status);
+
+    // The crafted id/slug conjured no shadow account.
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const hijacked = db
+      .prepare("SELECT COUNT(*) AS n FROM members WHERE id = 'attacker-controlled-id' OR slug = 'hijacked_slug'")
+      .get() as { n: number };
+    db.close();
+    expect(hijacked.n, 'no shadow account created').toBe(0);
+  });
+});
+
 // ── Audit trail ───────────────────────────────────────────────────────────────
 
 describe('profile update writes an audit row', () => {

@@ -321,12 +321,6 @@ export interface PersonaSpec {
    */
   blockedBy?: string;
   /**
-   * CUTOVER-REMOVE. Non-prod (dev + staging) special user (David Leberknight)
-   * built by real flows on first Switch rather than seeded: the seed/refresh
-   * runners skip it, and the listing points its "Switch" at /dev/build-switch.
-   */
-  buildOnSwitch?: boolean;
-  /**
    * Plain-English user story this persona traces to: the real-world scenario its
    * not-yet-built feature serves, shown beside a blocked persona.
    */

@@ -38,6 +38,10 @@ Non-exported pure functions are tested indirectly through integration tests. Do 
 
 **Smoke tests** (`tests/smoke/`) for real-AWS wiring contracts only. Opt-in via `npm run test:smoke` (which uses `scripts/test-smoke.sh` to read TF outputs and gate behind `RUN_STAGING_SMOKE=1`). Excluded from default `npm test` and CI. See "Smoke tests" below for scope rules.
 
+**End-to-end tests** (`tests/e2e/`, Playwright) for assertions only a real browser can make: real cookie attributes (HttpOnly, Secure, SameSite) and session behavior across redirect chains, CSRF-protected form submission where browser semantics matter, the onboarding / legacy-claim / club-cleanup wizard happy paths plus the one negative case per wizard a browser reveals, and avatar / media upload round-trips. Keep the suite small and business-critical — every business-rule branch and validation edge belongs in integration, not here; exhaustive navigation crawls live at the integration HTTP layer, not in a browser. Local e2e obtains a session from the persona-switch route (`GET /dev/switch?as=<slug>`) rather than a full login-plus-email chain. See `docs/TESTING.md` §5.5 and §6 for the belongs / does-not-belong rules.
+
+**Persona-crawl** (`tests/dev/`) is the development-only member-journey and page crawl across the persona set; opt-in via `RUN_PERSONA_CRAWL=1`, excluded from `npm test` and CI. Extend it only when adding a cross-persona page-crawl surface, not for ordinary route coverage.
+
 ## Step 3: Understand what needs testing
 
 Read:
@@ -65,7 +69,10 @@ Baseline case list:
 - Route ordering: more-specific before catch-all
 - Negative paths: validation failures, boundary values, empty/whitespace input
 - Adversarial: session tampering, double-submit, concurrent claims
-- Form-bearing page: the rendered primary form is not nested and its submit control posts to the intended handler (assert structure in the render, or an E2E submit where browser semantics matter). A nested `<form>` orphans the submit button and is invisible to a handler-only POST test.
+- Anti-enumeration: existence-leaking endpoints (login, password reset, email verify, claim lookup) return identical status, body, and timing for the "exists" and "does not exist" cases
+- Rate-limit: exceeding the configured limit returns 429 with a `Retry-After` header
+- CSRF / origin: every state-changing verb (POST/PATCH/PUT/DELETE) rejects a request that carries no matching CSRF token or `Origin` header — this is why an integration suite that issues them imports `supertestWithOrigin` (see Step 5)
+- Form-bearing page: the rendered primary form is not nested and its submit control posts to the intended handler (assert structure in the render, or an E2E submit where browser semantics matter). A nested `<form>` orphans the submit button and is invisible to a handler-only POST test; the static no-nested-forms gate in `scripts/ci/assert_conventions.sh` catches the markup at merge time, and the E2E submit is the deep check that the wired form reaches its handler.
 
 For catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim), also consider STRIDE-aware threat coverage per `docs/TESTING.md` §4.2 (a vocabulary, not a per-test artifact) and the verification floor in §4.5.
 
@@ -94,7 +101,7 @@ Use the shared helper from `tests/fixtures/testDb.ts` for new test files:
 
 ```typescript
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertEvent, createTestSessionJwt } from '../fixtures/factories';
 
@@ -127,6 +134,8 @@ describe('GET /events', () => {
   });
 });
 ```
+
+The example imports `../fixtures/supertestWithOrigin`, not plain `supertest`, because state-changing verbs (POST/PUT/PATCH/DELETE) are origin-pinned: the request is rejected with 403 before the controller runs unless it carries a matching `Origin` header, which the wrapper supplies. Use the wrapper whenever a suite issues any state-changing request; plain `supertest` is acceptable only for a GET-only suite.
 
 Always create test data through the factories in `tests/fixtures/factories.ts` (never a raw `INSERT`); add a factory if a table lacks one. Insert only what the tests need. Use `insertMember()` overrides for edge cases (e.g., `{ is_hof: 1 }`, `{ is_deceased: 1 }`, `{ personal_data_purged_at: '2025-01-01T00:00:00.000Z' }`).
 

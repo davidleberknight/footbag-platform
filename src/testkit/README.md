@@ -19,16 +19,17 @@ Affordances under `/dev`:
 - `/dev/login` — log in as a persona by slug.
 - `/dev/outbox` — read captured outbound email (the SES stub captures links here, e.g. the
   email-verification link).
-- `/dev/build-switch` — staging-only build-then-switch for the primary maintainer's persona.
+- `/dev/build-claim` — dev/staging build-and-sign-in as a claimed account for any real legacy record (`?as=<legacy_member_id>`).
 
 ## Files
 
 - `devRoutes.ts` — the `/dev` router; delegates to the per-route handlers below.
 - `personaSwitchRoute.ts`, `personaLoginRoute.ts`, `personaListingRoute.ts`,
-  `personaRefreshRoute.ts`, `personaBuildSwitchRoute.ts`, `devOutboxRoute.ts` — the route
+  `personaRefreshRoute.ts`, `buildClaimRoute.ts`, `devOutboxRoute.ts` — the route
   handlers.
-- `canonicalPersonas.ts`, `personaFactory.ts`, `personaRowBuilders.ts`, `davidJourney.ts` —
-  the persona catalog and the row builders (the same builders the test factories re-export).
+- `canonicalPersonas.ts`, `personaFactory.ts`, `personaRowBuilders.ts`, `realClaimJourney.ts` —
+  the persona catalog, the row builders (the same builders the test factories re-export), and the
+  generic real-flow claim journey the build-claim route runs.
 - `seedCli.ts`, `personaSeedRunner.ts`, `personaRefreshRunner.ts` — seed/build entry points.
 - `devOutboxCaptureClient.ts` — the outbox-capture client behind `/dev/outbox`.
 - `personaSecrets.ts` — the single persona password literal (see below).

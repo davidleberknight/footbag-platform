@@ -24,25 +24,6 @@ import type { PersonaSpec } from './personaFactory';
 
 export const CANONICAL_PERSONAS: PersonaSpec[] = [
   {
-    // CUTOVER-REMOVE. Non-prod (dev + staging); built by real flows on first
-    // Switch (not seeded). See src/testkit/davidJourney.ts and /dev/build-switch.
-    slug: 'david_leberknight',
-    displayName: 'David Leberknight',
-    realName: 'David Leberknight',
-    tier: 'tier2',
-    isAdmin: true,
-    buildOnSwitch: true,
-    dimension: 'Tier ladder & admin',
-    purpose: 'Maintainer real-flow journey (dev + staging, never prod): built end-to-end on first Switch via the real register / verify / claim / onboard / upload flows.',
-    testingUsage: 'Dev + staging. Click Switch to build David through the real flows (or rebuild after Refresh), then act as the maintainer.',
-    onboardingComplete: true,
-    coverageNotes: [
-      'non-prod build-on-switch real-flow journey',
-      'HOF legacy claim, club co-leader, avatar, galleries, media',
-      'admin via the dev/staging register-allowlist bootstrap',
-    ],
-  },
-  {
     slug: 't0_fresh',
     displayName: 'Tia Zero',
     tier: 'tier0',

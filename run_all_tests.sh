@@ -30,6 +30,7 @@
 #   ./run_all_tests.sh              # full safe suite: build, lint, audit, conventions, secret-scan, unit, integration, python-pipeline, e2e, terraform
 #   ./run_all_tests.sh --quick      # fast loop: skips e2e + terraform
 #   ./run_all_tests.sh --with-smoke # additionally run the staging-AWS smoke suite (needs RUN_STAGING_SMOKE=1)
+#   ./run_all_tests.sh --with-realdata-invariants # read-only whole-population invariants over a loaded real dataset (dev load or staging)
 #   ./run_all_tests.sh --pentest    # additionally run the heavyweight pentest harness (boots a stack; ZAP leg needs Docker)
 #   ./run_all_tests.sh --full       # everything: full suite + pentest + staging smoke (smoke SKIPs without AWS creds)
 #   ./run_all_tests.sh --fail-fast  # stop at the first failing gate
@@ -52,6 +53,11 @@ SMOKE_OPTIONAL=0
 # usable by a developer or tester without the operator data handoff.
 PERSONA_CRAWL_OPTIONAL=0
 WITH_PERSONA_CRAWL=0
+WITH_REALDATA_INVARIANTS=0
+# Set when the real-data invariant gate runs only because --full implied it (not
+# an explicit --with-realdata-invariants). In that case an absent operator dataset
+# (a fixture-seeded clone) SKIPs the gate instead of failing the whole run.
+REALDATA_INVARIANTS_OPTIONAL=0
 A11Y=0
 FAIL_FAST=0
 for arg in "$@"; do
@@ -59,13 +65,14 @@ for arg in "$@"; do
     --quick)              QUICK=1 ;;
     --with-smoke)         WITH_SMOKE=1 ;;
     --with-persona-crawl) WITH_PERSONA_CRAWL=1 ;;
+    --with-realdata-invariants) WITH_REALDATA_INVARIANTS=1 ;;
     --a11y)               A11Y=1 ;;
     --pentest)            PENTEST=1 ;;
     --full)               FULL=1 ;;
     --fail-fast)          FAIL_FAST=1 ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--a11y] [--pentest] [--full] [--fail-fast]
+Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--with-realdata-invariants] [--a11y] [--pentest] [--full] [--fail-fast]
 
 Canonical local full-suite test runner. Runs the CI gates that are safe on a
 workstation and summarizes the results.
@@ -79,12 +86,24 @@ Options:
                 (npm run test:smoke). Requires RUN_STAGING_SMOKE=1 and a
                 configured staging AWS profile; errors out otherwise.
   --with-persona-crawl
-                Additionally run the David Leberknight dev-persona build-switch
-                journey and page crawl (npm run test:persona-crawl) against an
-                already-running dev stack. It needs the loaded pipeline database
-                and the real image worker, so start ./run_dev.sh first; the gate
-                errors out when the app is unreachable. Point it elsewhere with
-                PERSONA_CRAWL_BASE_URL. Never runs in CI.
+                Additionally run the real-claim crawl (npm run test:persona-crawl):
+                it builds a claimed account for a real migrated record via
+                /dev/build-claim and crawls its surfaces, against an already-running
+                dev stack. It needs the loaded pipeline database and the real image
+                worker, so start ./run_dev.sh first; the gate errors out when the
+                app is unreachable. Point the stack elsewhere with
+                PERSONA_CRAWL_BASE_URL, or target a record with
+                PERSONA_CRAWL_LEGACY_ID. Never runs in CI.
+  --with-realdata-invariants
+                Additionally run read-only, PII-safe whole-population invariant
+                checks over a loaded real dataset: reconciliation and field
+                gates (no shared email, unique legacy user id, provenance,
+                populated fields, tier/honor inputs) plus referential integrity
+                (no attribution links to a missing account, every claimed
+                account points at a real member, every stored email lowercased).
+                Output is counts and PASS/FAIL only. Reads the dev DB by default;
+                point FOOTBAG_DB_PATH at staging to run it there. SKIPs on a
+                fixture-seeded clone (no real dataset). Never runs in CI.
   --pentest     Additionally run the heavyweight pentest harness
                 (npm run test:pentest:heavy). Boots a throwaway stack and runs
                 the security-header walk, internal-route, and upload-abuse
@@ -95,8 +114,8 @@ Options:
                 than fails) when RUN_STAGING_SMOKE / AWS creds are absent, so
                 --full runs end to end without an AWS profile. The persona crawl
                 likewise SKIPs (with a warning) when the dev DB lacks the operator
-                dataset (DL's HOF record + the Wellington club), so --full also
-                completes for a developer or tester without the data handoff.
+                dataset (no claimable real record), so --full also completes for a
+                developer or tester without the data handoff.
   --a11y        Additionally run the axe WCAG 2.1 AA accessibility scan of the
                 high-traffic public pages (npm run test:e2e:a11y) against a
                 throwaway browser stack. Opt-in because it boots the full e2e
@@ -135,6 +154,8 @@ if (( FULL == 1 )); then
   SMOKE_OPTIONAL=1
   WITH_PERSONA_CRAWL=1
   PERSONA_CRAWL_OPTIONAL=1
+  WITH_REALDATA_INVARIANTS=1
+  REALDATA_INVARIANTS_OPTIONAL=1
 fi
 
 # Preflight: required tooling. Match deploy_to_aws.sh's need_cmd shape.
@@ -341,33 +362,32 @@ gate_pentest() {
 }
 
 gate_persona_crawl() {
-  # The DL persona is built against loaded pipeline data and the real image
-  # worker. This gate boots the dev stack against the existing loaded dev DB,
-  # runs the DL build-switch journey (media + onboarding), then tears the stack
-  # down. The in-suite seeded-persona crawl runs separately in the integration
-  # gate. Booting with no rebuild flag writes nothing under legacy_data/ or
-  # curated/, so the real-data fingerprint guard stays satisfied.
+  # The real-claim crawl builds a claimed account for a real migrated record via
+  # /dev/build-claim, against loaded pipeline data and the real image worker. This
+  # gate boots the dev stack against the existing loaded dev DB, runs the crawl,
+  # then tears the stack down. The in-suite seeded-persona crawl runs separately
+  # in the integration gate. Booting with no rebuild flag writes nothing under
+  # legacy_data/ or curated/, so the real-data fingerprint guard stays satisfied.
   local base="${PERSONA_CRAWL_BASE_URL:-http://localhost:3000}"
 
-  # Require a loaded DB carrying DL's data (his HOF record + the Wellington club);
-  # the build-switch journey needs them. Absent → SKIP under --full, FAIL under an
-  # explicit --with-persona-crawl.
+  # Require a loaded DB carrying a claimable real record (a Hall-of-Fame honoree
+  # with a legacy link, the crawl's default target). A name-free, dataset-agnostic
+  # probe. Absent → SKIP under --full, FAIL under an explicit --with-persona-crawl.
   local have_db=0
   if [[ -f database/footbag.db ]] && command -v sqlite3 >/dev/null 2>&1; then
-    local hof wel
-    hof=$(sqlite3 database/footbag.db "SELECT COUNT(*) FROM historical_persons WHERE hof_member=1 AND person_name LIKE '%Leberknight%';" 2>/dev/null || echo 0)
-    wel=$(sqlite3 database/footbag.db "SELECT COUNT(*) FROM clubs WHERE name LIKE '%Wellington%';" 2>/dev/null || echo 0)
-    [[ "${hof}" != "0" && "${wel}" != "0" ]] && have_db=1
+    local claimable
+    claimable=$(sqlite3 -readonly database/footbag.db "SELECT COUNT(*) FROM historical_persons WHERE hof_member=1 AND legacy_member_id IS NOT NULL;" 2>/dev/null || echo 0)
+    [[ "${claimable}" != "0" ]] && have_db=1
   fi
   if (( have_db == 0 )); then
     if (( PERSONA_CRAWL_OPTIONAL == 1 )); then
-      echo "  WARNING: persona crawl needs a loaded dev DB (DL's HOF record + the Wellington club);" >&2
-      echo "  a fixture-seeded clone has neither, so this gate is SKIPPED. Every other gate still runs." >&2
-      echo "  To exercise it, load the operator data handoff, then run with --with-persona-crawl." >&2
+      echo "  WARNING: persona crawl needs a loaded dev DB (a claimable real record);" >&2
+      echo "  a fixture-seeded clone has none, so this gate is SKIPPED. Every other gate still runs." >&2
+      echo "  To exercise it, load the operator dataset (./run_dev.sh --all-data), then run with --with-persona-crawl." >&2
       return 77
     fi
-    echo "ERROR: persona crawl needs a loaded dev DB (DL's HOF record + the Wellington club)." >&2
-    echo "Recommendation: bash scripts/reset-local-db.sh (or ./run_dev.sh --reset), then re-run." >&2
+    echo "ERROR: persona crawl needs a loaded dev DB (a claimable real record)." >&2
+    echo "Recommendation: ./run_dev.sh --all-data (load the operator dataset), then re-run." >&2
     return 1
   fi
 
@@ -403,6 +423,88 @@ gate_persona_crawl() {
   reclaim_port 3000
   reclaim_port 4001
   return $rc
+}
+
+gate_realdata_invariants() {
+  # Read-only, PII-safe whole-population invariants over the loaded real dataset
+  # (the dev local operator load, or staging via FOOTBAG_DB_PATH). Emits only
+  # counts and PASS/FAIL, never names or emails, and runs no writer, so the
+  # real-data fingerprint guard stays satisfied. Absent a real load (a
+  # fixture-seeded clone) it SKIPs under --full and FAILs under an explicit
+  # --with-realdata-invariants.
+  local db="${FOOTBAG_DB_PATH:-./database/footbag.db}"
+
+  if ! command -v sqlite3 >/dev/null 2>&1; then
+    echo "  sqlite3 absent — cannot run real-data invariants; skipping." >&2
+    return 77
+  fi
+
+  # A real load is present when the population far exceeds any committed fixture:
+  # fixtures carry a handful of rows, the real footbag.org dump carries thousands.
+  # A size signal, not a name match, so the probe stays PII-free and dataset-agnostic.
+  local min_members=200 members=0
+  if [[ -f "${db}" ]]; then
+    members=$(sqlite3 -readonly "${db}" "SELECT COUNT(*) FROM legacy_members;" 2>/dev/null || echo 0)
+  fi
+  members=${members//[^0-9]/}; members=${members:-0}
+  if (( members < min_members )); then
+    if (( REALDATA_INVARIANTS_OPTIONAL == 1 )); then
+      echo "  WARNING: real-data invariants need a loaded real dataset (found ${members} legacy_members," >&2
+      echo "  below the ${min_members}-row real-load threshold), so this gate is SKIPPED." >&2
+      echo "  To exercise it, load the operator dataset (./run_dev.sh --all-data), then re-run." >&2
+      return 77
+    fi
+    echo "ERROR: real-data invariants need a loaded real dataset; found only ${members} legacy_members." >&2
+    echo "Recommendation: ./run_dev.sh --all-data, or point FOOTBAG_DB_PATH at the staging database." >&2
+    return 1
+  fi
+
+  # Capture all invariant output so the PII self-check can scan it before the
+  # gate is trusted. Every line below is a count or a PASS/FAIL, never a value.
+  local out rc
+  out=$(
+    set +e
+    echo "── reconciliation + field invariants (G1-G6) ──"
+    FOOTBAG_DB_PATH="${db}" bash scripts/validate-legacy-import-gates.sh
+    g_rc=$?
+
+    echo "── referential integrity ──"
+    orphan_links=$(sqlite3 -readonly "${db}" "SELECT COUNT(*) FROM historical_persons hp WHERE hp.legacy_member_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM legacy_members lm WHERE lm.legacy_member_id = hp.legacy_member_id);" 2>/dev/null || echo -1)
+    if [[ "${orphan_links}" == "0" ]]; then
+      echo "GATE: RI1 PASS: no historical_persons attribution points at a missing legacy_members row"
+    else
+      echo "GATE: RI1 FAIL: ${orphan_links} historical_persons attribution(s) point at a missing legacy_members row"
+    fi
+
+    orphan_claims=$(sqlite3 -readonly "${db}" "SELECT COUNT(*) FROM legacy_members lm WHERE lm.claimed_by_member_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM members m WHERE m.id = lm.claimed_by_member_id);" 2>/dev/null || echo -1)
+    if [[ "${orphan_claims}" == "0" ]]; then
+      echo "GATE: RI2 PASS: every claimed legacy account points at a real member"
+    else
+      echo "GATE: RI2 FAIL: ${orphan_claims} claimed legacy account(s) point at a missing member"
+    fi
+
+    bad_emails=$(sqlite3 -readonly "${db}" "SELECT COUNT(*) FROM members WHERE login_email IS NOT NULL AND login_email <> lower(login_email);" 2>/dev/null || echo -1)
+    if [[ "${bad_emails}" == "0" ]]; then
+      echo "GATE: RI3 PASS: every stored login email is lowercased"
+    else
+      echo "GATE: RI3 FAIL: ${bad_emails} stored login email(s) are not lowercased"
+    fi
+
+    [[ "${g_rc}" -eq 0 && "${orphan_links}" == "0" && "${orphan_claims}" == "0" && "${bad_emails}" == "0" ]]
+  )
+  rc=$?
+
+  printf '%s\n' "${out}"
+
+  # PII self-check: the invariant output is counts and PASS/FAIL only, so an '@'
+  # would mean a query accidentally selected a contact field. Fail rather than
+  # let a real address reach a test log.
+  if printf '%s' "${out}" | grep -q '@'; then
+    echo "ERROR: real-data invariant output contains an '@' (possible PII leak); refusing to pass." >&2
+    return 1
+  fi
+
+  return "${rc}"
 }
 
 gate_smoke() {
@@ -518,6 +620,10 @@ fi
 
 if (( WITH_PERSONA_CRAWL == 1 )); then
   run_gate persona-crawl gate_persona_crawl
+fi
+
+if (( WITH_REALDATA_INVARIANTS == 1 )); then
+  run_gate realdata-invariants gate_realdata_invariants
 fi
 
 if (( A11Y == 1 )); then

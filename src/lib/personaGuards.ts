@@ -7,9 +7,9 @@
  * account, so guards that must treat test personas differently key on it.
  *
  * The pre-go-live curated-media guardrail uses this to refuse curated/sidecar
- * writes from test-persona admins: real maintainer accounts and the David
- * Leberknight persona register through the real flow and so carry ordinary uuid
- * ids, never this prefix, and pass; a seeded persona admin is blocked.
+ * writes from test-persona admins: real maintainer accounts register through the
+ * real flow and so carry ordinary uuid ids, never this prefix, and pass; a
+ * seeded persona admin is blocked.
  *
  * Lives in the neutral lib layer (no service or testkit dependency) so both the
  * persona factory and the service-layer guard share one definition of the prefix.

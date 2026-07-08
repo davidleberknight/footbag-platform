@@ -72,7 +72,7 @@ Verification defaults: confirm what success looks like for the task, prefer rout
 - No emojis in your output and avoid em-dash in prose.
 - Make surgical changes scoped to the current slice: no speculative abstraction, flexibility, or scope creep; no refactoring unrelated code, unnecessary formatting or comment changes. 
 - Use the Explore sub-agent for broad codebase searches; use the Plan sub-agent for sequencing or architecture tasks. Both protect the main context window.
-- For read-only exploration prefer the Grep/Glob/Read tools; they never require permission. Read-only Bash inspection, including pipelines and loops, is permitted and should not prompt. Reserve the single-command preference for state-changing commands, where each subcommand is approved separately.
+- For read-only exploration prefer the Grep/Glob/Read tools; they never require permission. Read-only Bash inspection, including pipelines and loops, is permitted and should not prompt. Reserve the single-command preference for state-changing commands, where each subcommand is approved separately. Avoid a leading `cd` in a compound command that also redirects output (even `2>/dev/null`): it trips a built-in approval prompt no repo rule can suppress, so rely on the persistent working directory and absolute paths.
 - Edit files only through the Edit/Write tools; never `sed -i`, `perl -i`, in-place `awk`, `tee`, or shell redirection to write a file. Those bypass the diff preview and are permission-gated. Bash is for read-only inspection and running commands, not editing files.
 
 

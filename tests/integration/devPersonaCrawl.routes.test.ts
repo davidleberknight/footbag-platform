@@ -33,13 +33,13 @@ process.env.FOOTBAG_ENV = 'development';
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 // The harness seeds every persona whose feature exists: all but the
-// unbuilt-feature personas (blockedBy) and the DL special user (buildOnSwitch).
-const SEEDED = CANONICAL_PERSONAS.filter((p) => !p.blockedBy && !p.buildOnSwitch);
+// unbuilt-feature personas (blockedBy).
+const SEEDED = CANONICAL_PERSONAS.filter((p) => !p.blockedBy);
 
 // The switch route's session lookup excludes unverified, deceased, and
 // soft-deleted rows, so a seeded persona is switchable only when none apply.
 const isSwitchable = (p: (typeof CANONICAL_PERSONAS)[number]): boolean =>
-  !p.blockedBy && !p.buildOnSwitch && p.emailVerified !== false && !p.isDeceased && !p.deletionState;
+  !p.blockedBy && p.emailVerified !== false && !p.isDeceased && !p.deletionState;
 
 const SWITCHABLE = SEEDED.filter(isSwitchable);
 const SEEDED_NOT_SWITCHABLE = SEEDED.filter((p) => !isSwitchable(p));

@@ -1,17 +1,14 @@
 /**
- * Member-uploaded media (the switch-built David Leberknight persona) behaves as
- * ordinary community media across every media surface. His uploads carry the
- * #by_<slug> uploader tag and never #curated; they are discoverable through
- * browse, his named "Funky Footbags" gallery, the gallery/standalone item
- * pages, the member-galleries list, the auto Personal Gallery, and trick
- * reference, with one consistent gallery UX.
+ * Member-uploaded media behaves as ordinary community media across every media
+ * surface. A member's uploads carry the #by_<slug> uploader tag and never
+ * #curated; they are discoverable through browse, a named gallery, the
+ * gallery/standalone item pages, the member-galleries list, the auto Personal
+ * Gallery, and trick reference, with one consistent gallery UX.
  *
  * The #by_<slug> tag lifts to a linked member display name for an authenticated
- * viewer and to an unlinked name for an anonymous one. His avatar is excluded
- * from every gallery/browse query. His rows carry no curator marker and no
- * seeded-persona id prefix, so nothing at the data level distinguishes them from
- * a genuine member upload: the only guard keeping them out of a production
- * dataset is the cutover teardown, which finds them by slug and uploader tag.
+ * viewer and to an unlinked name for an anonymous one, and it links to the
+ * member's media gallery, never to the profile. The member's avatar is excluded
+ * from every gallery/browse query.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -23,24 +20,24 @@ import {
   insertFreestyleTrick,
   createTestSessionJwt,
 } from '../fixtures/factories';
-import { isSeededTestPersonaMemberId } from '../../src/lib/personaGuards';
 
 const { dbPath } = setTestEnv('3211');
 const TS = '2025-01-01T00:00:00.000Z';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
-const DAVID_ID = 'dl-member-1';
-const DAVID_SLUG = 'david_leberknight';
-const VIEWER_ID = 'dl-viewer-1';
-const CURATOR_ID = 'dl-curator-1';
-const FUNKY_GALLERY_ID = 'dl-gallery-funky';
-const PERSONAL_GALLERY_ID = 'dl-gallery-personal';
+const MEMBER_ID = 'media-member-1';
+const MEMBER_SLUG = 'media_uploader';
+const MEMBER_NAME = 'Media Uploader';
+const VIEWER_ID = 'mm-viewer-1';
+const CURATOR_ID = 'mm-curator-1';
+const FUNKY_GALLERY_ID = 'mm-gallery-highlights';
+const PERSONAL_GALLERY_ID = 'mm-gallery-personal';
 const TRICK_SLUG = 'around-the-world';
 
 // Item ids so the route tests can address specific gallery/standalone items.
-const P1 = 'dl-photo-1';
-const V2 = 'dl-video-trick';
+const P1 = 'mm-photo-1';
+const V2 = 'mm-video-trick';
 
 const tagIds = new Map<string, string>();
 
@@ -105,53 +102,53 @@ function insertGallery(
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // David: a real-shaped member with an ordinary id (not the seeded-persona
-  // prefix) and a display name, so the #by_ tag resolves to a linked name.
-  insertMember(db, { id: DAVID_ID, slug: DAVID_SLUG, display_name: 'David Leberknight' });
+  // A real-shaped member with an ordinary id (not the seeded-persona prefix) and
+  // a display name, so the #by_ tag resolves to a linked name.
+  insertMember(db, { id: MEMBER_ID, slug: MEMBER_SLUG, display_name: MEMBER_NAME });
   // An authenticated viewer for the auth-gating assertions.
-  insertMember(db, { id: VIEWER_ID, slug: 'dl_viewer' });
-  // The curator uploader for the #curated chinlone items (system member,
-  // null credentials), mirroring the Footbag Hacky curator account.
+  insertMember(db, { id: VIEWER_ID, slug: 'mm_viewer' });
+  // The curator uploader for the #curated items (system member, null
+  // credentials), mirroring the Footbag Hacky curator account.
   insertMember(db, { id: CURATOR_ID, slug: 'footbag_hacky', is_system: 1 });
 
-  const BY = `#by_${DAVID_SLUG}`;
+  const BY = `#by_${MEMBER_SLUG}`;
 
-  // David's avatar: one tag, excluded from every gallery/browse query.
-  insertMediaItem(db, { id: 'dl-avatar', uploader_member_id: DAVID_ID, is_avatar: 1, caption: null });
-  tagMedia(db, 'dl-avatar', BY);
+  // The avatar: one tag, excluded from every gallery/browse query.
+  insertMediaItem(db, { id: 'mm-avatar', uploader_member_id: MEMBER_ID, is_avatar: 1, caption: null });
+  tagMedia(db, 'mm-avatar', BY);
 
-  // Three #footbags photos (the Funky Footbags gallery's topic).
-  insertMediaItem(db, { id: P1, uploader_member_id: DAVID_ID, caption: '182 panel footbags' });
+  // Three #footbags photos (the named gallery's topic).
+  insertMediaItem(db, { id: P1, uploader_member_id: MEMBER_ID, caption: '182 panel footbags' });
   tagMedia(db, P1, BY, '#footbags');
-  insertMediaItem(db, { id: 'dl-photo-2', uploader_member_id: DAVID_ID, caption: 'More footbags' });
-  tagMedia(db, 'dl-photo-2', BY, '#footbags');
-  insertMediaItem(db, { id: 'dl-photo-3', uploader_member_id: DAVID_ID, caption: 'Even more footbags' });
-  tagMedia(db, 'dl-photo-3', BY, '#footbags');
+  insertMediaItem(db, { id: 'mm-photo-2', uploader_member_id: MEMBER_ID, caption: 'More footbags' });
+  tagMedia(db, 'mm-photo-2', BY, '#footbags');
+  insertMediaItem(db, { id: 'mm-photo-3', uploader_member_id: MEMBER_ID, caption: 'Even more footbags' });
+  tagMedia(db, 'mm-photo-3', BY, '#footbags');
 
   // A #chinlone photo + video (topic shared with the curator content below).
-  insertMediaItem(db, { id: 'dl-photo-4', uploader_member_id: DAVID_ID, caption: 'Chinlone hack' });
-  tagMedia(db, 'dl-photo-4', BY, '#chinlone', '#club_wellington');
-  insertYouTube(db, { id: 'dl-video-chinlone', uploader_member_id: DAVID_ID, caption: 'Wellington Hack Crew', videoId: 'h17Z102sJNc' });
-  tagMedia(db, 'dl-video-chinlone', BY, '#chinlone', '#club_wellington');
+  insertMediaItem(db, { id: 'mm-photo-4', uploader_member_id: MEMBER_ID, caption: 'Chinlone hack' });
+  tagMedia(db, 'mm-photo-4', BY, '#chinlone', '#club_downtown');
+  insertYouTube(db, { id: 'mm-video-chinlone', uploader_member_id: MEMBER_ID, caption: 'Downtown hack crew', videoId: 'ytchinlone01' });
+  tagMedia(db, 'mm-video-chinlone', BY, '#chinlone', '#club_downtown');
 
   // A trick-tagged clip: appears on the trick reference surface as a member clip.
-  insertYouTube(db, { id: V2, uploader_member_id: DAVID_ID, caption: 'Around the world line', videoId: 'aTwTheWorld' });
+  insertYouTube(db, { id: V2, uploader_member_id: MEMBER_ID, caption: 'Around the world line', videoId: 'yttrick0001' });
   tagMedia(db, V2, BY, `#${TRICK_SLUG}`, '#freestyle', '#trick');
 
   // Curator (#curated) chinlone content, so the chinlone set is large enough to
   // filter and carries curator content for the pinned "Curated" opt-in.
   for (const n of [1, 2, 3]) {
-    const id = `dl-curated-chinlone-${n}`;
+    const id = `mm-curated-chinlone-${n}`;
     insertMediaItem(db, { id, uploader_member_id: CURATOR_ID, caption: `FH chinlone ${n}` });
     tagMedia(db, id, '#chinlone', '#curated');
   }
 
   insertGallery(db, {
-    id: FUNKY_GALLERY_ID, ownerId: DAVID_ID, name: 'Funky Footbags', isDefault: 0,
+    id: FUNKY_GALLERY_ID, ownerId: MEMBER_ID, name: 'Footbag Highlights', isDefault: 0,
     criteria: ['#footbags', BY],
   });
   insertGallery(db, {
-    id: PERSONAL_GALLERY_ID, ownerId: DAVID_ID, name: 'Personal Gallery', isDefault: 1,
+    id: PERSONAL_GALLERY_ID, ownerId: MEMBER_ID, name: 'Personal Gallery', isDefault: 1,
     criteria: [BY],
   });
 
@@ -164,11 +161,11 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 const cookieFor = (id: string) => `footbag_session=${createTestSessionJwt({ memberId: id })}`;
-const PROFILE_HREF = `href="/members/${DAVID_SLUG}"`;
+const PROFILE_HREF = `href="/members/${MEMBER_SLUG}"`;
 
 describe('member-uploaded media surfaces', () => {
-  it('browse default surfaces his photos and video as community content', async () => {
-    const res = await request(createApp()).get(`/media/browse?tag=by_${DAVID_SLUG}`);
+  it('browse default surfaces the photos and video as community content', async () => {
+    const res = await request(createApp()).get(`/media/browse?tag=by_${MEMBER_SLUG}`);
     expect(res.status).toBe(200);
     // Six non-avatar uploads carry #by_; the avatar is excluded from the count.
     expect(res.text).toContain('Showing 6 ');
@@ -177,14 +174,14 @@ describe('member-uploaded media surfaces', () => {
   });
 
   it('the avatar is excluded from the browse/gallery query', async () => {
-    const res = await request(createApp()).get(`/media/browse?tag=by_${DAVID_SLUG}`);
+    const res = await request(createApp()).get(`/media/browse?tag=by_${MEMBER_SLUG}`);
     expect(res.text).not.toContain('Showing 7 ');
   });
 
-  it('the Funky Footbags named gallery renders only its matching media', async () => {
+  it('the named gallery renders only its matching media', async () => {
     const res = await request(createApp()).get(`/media/${FUNKY_GALLERY_ID}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Named Gallery: Funky Footbags');
+    expect(res.text).toContain('Named Gallery: Footbag Highlights');
     // Only the three #footbags photos satisfy the #footbags AND #by_ criteria.
     expect(res.text).toContain('Showing 3 ');
     expect(res.text).toContain('182 panel footbags');
@@ -198,10 +195,10 @@ describe('member-uploaded media surfaces', () => {
     expect(res.text).toContain('182 panel footbags');
   });
 
-  it('the member-galleries list shows Funky Footbags but excludes the Personal Gallery', async () => {
+  it('the member-galleries list shows the named gallery but excludes the Personal Gallery', async () => {
     const res = await request(createApp()).get('/media/member-galleries');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Funky Footbags');
+    expect(res.text).toContain('Footbag Highlights');
     expect(res.text).toContain(`href="/media/${FUNKY_GALLERY_ID}"`);
     expect(res.text).not.toContain(`href="/media/${PERSONAL_GALLERY_ID}"`);
   });
@@ -211,7 +208,7 @@ describe('member-uploaded media surfaces', () => {
     expect(res.status).toBe(200);
     // A 3-item gallery shows prev and/or next neighbors.
     expect(res.text).toMatch(/rel="(prev|next)"/);
-    expect(res.text).toContain('David Leberknight');
+    expect(res.text).toContain(MEMBER_NAME);
   });
 
   it('a standalone item with no context hides the pager and never dead-ends', async () => {
@@ -247,66 +244,23 @@ describe('member-uploaded media surfaces', () => {
 });
 
 describe('#by_ uploader-tag links to the member gallery (not the profile)', () => {
-  const GALLERY_HREF = `href="/media/browse?tag&#x3D;by_${DAVID_SLUG}"`;
+  const GALLERY_HREF = `href="/media/browse?tag&#x3D;by_${MEMBER_SLUG}"`;
 
   it('an authenticated viewer sees the name linked to the member gallery, not the profile', async () => {
     const res = await request(createApp())
-      .get(`/media/browse?tag=by_${DAVID_SLUG}`)
+      .get(`/media/browse?tag=by_${MEMBER_SLUG}`)
       .set('Cookie', cookieFor(VIEWER_ID));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('David Leberknight');
+    expect(res.text).toContain(MEMBER_NAME);
     expect(res.text).toContain(GALLERY_HREF);
     expect(res.text).not.toContain(PROFILE_HREF);
   });
 
   it('an anonymous viewer gets the same member-gallery link (member galleries are public)', async () => {
-    const res = await request(createApp()).get(`/media/browse?tag=by_${DAVID_SLUG}`);
+    const res = await request(createApp()).get(`/media/browse?tag=by_${MEMBER_SLUG}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('David Leberknight');
+    expect(res.text).toContain(MEMBER_NAME);
     expect(res.text).toContain(GALLERY_HREF);
     expect(res.text).not.toContain(PROFILE_HREF);
-  });
-});
-
-describe('production-exclusion data invariants', () => {
-  it('his member id carries no seeded-persona marker', () => {
-    expect(isSeededTestPersonaMemberId(DAVID_ID)).toBe(false);
-  });
-
-  it('none of his media carries the curator marker', () => {
-    const db = new BetterSqlite3(dbPath, { readonly: true });
-    try {
-      const row = db.prepare(`
-        SELECT COUNT(*) AS n
-          FROM media_items mi
-          JOIN media_tags mt ON mt.media_id = mi.id
-          JOIN tags t ON t.id = mt.tag_id
-         WHERE mi.uploader_member_id = ? AND t.tag_normalized = '#curated'
-      `).get(DAVID_ID) as { n: number };
-      expect(row.n).toBe(0);
-    } finally {
-      db.close();
-    }
-  });
-
-  it('his rows are findable only by slug/uploader tag, not by any data marker', () => {
-    const db = new BetterSqlite3(dbPath, { readonly: true });
-    try {
-      // No marker column flags his data: the teardown must target him by slug.
-      const byPrefix = db.prepare(
-        `SELECT COUNT(*) AS n FROM members WHERE id LIKE 'member_persona_%'`,
-      ).get() as { n: number };
-      expect(byPrefix.n).toBe(0);
-      const bySlug = db.prepare(
-        `SELECT COUNT(*) AS n FROM members WHERE slug = ?`,
-      ).get(DAVID_SLUG) as { n: number };
-      expect(bySlug.n).toBe(1);
-      const byTag = db.prepare(
-        `SELECT COUNT(*) AS n FROM tags WHERE tag_normalized = ?`,
-      ).get(`#by_${DAVID_SLUG}`) as { n: number };
-      expect(byTag.n).toBe(1);
-    } finally {
-      db.close();
-    }
   });
 });

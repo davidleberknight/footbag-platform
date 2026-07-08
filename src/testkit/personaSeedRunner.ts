@@ -53,12 +53,6 @@ export async function main(): Promise<number> {
   let skippedBlocked = 0;
   try {
     for (const spec of specs) {
-      if (spec.buildOnSwitch) {
-        // Built by real flows on first /dev/build-switch, never seeded here.
-        skippedBlocked += 1;
-        console.log(`[persona-seed] skip (build-on-switch): ${spec.slug}`);
-        continue;
-      }
       if (spec.blockedBy) {
         // The persona's feature is not built yet, so there is nothing to seed.
         // It still lives in the catalog and renders greyed on /dev/personas.
