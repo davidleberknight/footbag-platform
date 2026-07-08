@@ -257,7 +257,8 @@ Every privileged operation has a runbook or checklist. Find the task, go to the 
 
 ### 4.6 Cutover
 - Cutover preflight checklist (§6.6); DNS cutover sequence (§6.7); external DNS/mail upstream coordination
-  (§6.8); MX-to-Google mail cutover (§6.8); environment bring-up sequence (§6.9).
+  (§6.8); MX-to-Google mail cutover (§6.8); environment bring-up sequence (§6.9); freestyle content
+  source of truth (§15.6).
 
 ### 4.7 Respond (§5)
 - Standard incident flow (§5.1); first-checks-by-symptom (§5.2); readiness-failure (§5.3), secret/config
@@ -512,7 +513,8 @@ The cutover preflight orchestrator sequences the validation gates from `MIGRATIO
 - SES sending domain verified end-to-end on the production account, SPF/DKIM/DMARC records published, sandbox exit complete, bounce and complaint SNS topics subscribed. See §9.5 and §18.5. A test send from the production account to the operator mailbox confirms the path.
 - DNS TTL on the legacy footbag.org zone reduced to 60 seconds at least 48 hours before the DNS swap. Webmaster coordination per `MIGRATION_PLAN.md` §19 item 18; capture the lowered-TTL timestamp in the cutover log.
 - `footbag.org` MX already repointed to Google Managed Services in the discrete pre-T-0 mail-cutover step, all active `@footbag.org` aliases provisioned on Google, and inbound delivery verified end-to-end (MIGRATION_PLAN gate EX7 / §29.12a; runbook §6.8 MX-to-Google mail cutover). The web cutover does not change MX.
-- Pre-cutover database snapshot taken and integrity verified per §16.5. Manifest captured (snapshot id, byte size, row counts for `members`, `legacy_members`, `historical_persons`, `name_variants`, `club_bootstrap_leaders`).
+- Final freestyle CSV rebuild (`freestyle/run_freestyle.sh`) run against the database being shipped, with its QC gate passing. This is the last sanctioned run of the freestyle pipeline: at cutover the live database becomes the source of truth for freestyle content (§15.6) and the pipeline retires from the production path.
+- Pre-cutover database snapshot taken and integrity verified per §16.5. Manifest captured (snapshot id, byte size, row counts for `members`, `legacy_members`, `historical_persons`, `name_variants`, `club_bootstrap_leaders`, `freestyle_tricks`, `freestyle_records`, `consecutive_kicks_records`).
 - Dev-admin shortcuts confirmed absent from the production runtime via `scripts/audit-dev-shortcuts.sh`; expected count is zero.
 - `npm run test:smoke` and `npm run test:e2e` green against the production origin.
 
@@ -549,6 +551,8 @@ For `www` all three should return CloudFront edge IPs (the `aws-cloudfront-net` 
 **T+1 hour -- retained-subdomain check.** Confirm every retained `*.footbag.org` subdomain (per `MIGRATION_PLAN.md` §19 item 16) still resolves to the legacy host and was not altered by the apply. Do not print any private operator-only subdomain into shared logs or output.
 
 **T+24 hours -- TTL restore.** With the cutover stable, the webmaster raises the apex + `www` TTL back to the long-term default (3600s) on his zone (it stays on his infrastructure until the later, optional Route 53 handover). Record the timestamp.
+
+**T+24 hours -- post-cutover marker.** With the cutover stable and the rollback window past, append the post-cutover marker on the production host: `sudo sh -c 'echo FOOTBAG_CUTOVER_COMPLETE=1 >> /srv/footbag/env'`. From this point `scripts/deploy-rebuild.sh` refuses the host (no bypass flag; a disaster rebuild requires deliberately removing the marker line as root first), `scripts/deploy-code.sh` is the routine deploy, and freestyle content is edited only in the admin application (§15.6). Record the timestamp in the cutover log.
 
 Rollback (anywhere from T-0 to T+1 hour): the webmaster reverts the apex and `www` records to the legacy origin on his zone. With TTLs at 60s the world resolves back within about two minutes — but not instantly everywhere: clients and resolvers that cached the new records lag by up to their cached TTL. Past T+1 hour, rollback is still possible but accumulates the cost of any writes that landed on the new origin while DNS was diverging; consult the rollback decision framework in `MIGRATION_PLAN.md` §27 before triggering.
 
@@ -1871,6 +1875,8 @@ The pre-cutover snapshot is taken as State 4 step 9 (after the batch auto-link a
 
 The T+4-hour boundary is a default; the maintainer may adjust the window based on observed traffic volume after cutover.
 
+A bad freestyle content edit is not by itself a rollback trigger: every curation write is audited with recoverable metadata, so the first-line fix is a corrective edit in the admin application. Snapshot restore is for disasters, and it rolls back every content edit since the snapshot along with everything else, which is exactly what the in-window write quantification above counts.
+
 ---
 
 ## 14. Health Endpoints, Maintenance Mode, and Readiness
@@ -2010,6 +2016,23 @@ Common first checks:
 - worker backup failure
 - abnormal import or cleanup workload
 - host disk pressure
+
+### 15.6 Freestyle content source of truth
+
+Before cutover, the committed CSV inputs under `freestyle/inputs/` are the source
+of truth for freestyle content: edits land in the CSVs, `freestyle/run_freestyle.sh`
+rebuilds the local database (it refuses any non-development target, with no bypass
+flag), and the rebuilt database ships via the destructive rebuild deploy. At
+cutover the live database becomes the single source of truth: freestyle tricks,
+world records, and consecutive-kicks records are edited only through the admin
+curation surfaces, every write audited, and the CSV pipeline retires from the
+production path. The post-cutover marker (`FOOTBAG_CUTOVER_COMPLETE=1` in
+`/srv/footbag/env`, set as the closing cutover step, §6.7) makes that retirement
+mechanical: `scripts/deploy-rebuild.sh` refuses a marked host with no bypass flag,
+and routine deploys use `scripts/deploy-code.sh`, which never touches the
+database. Recovery from a bad edit is a corrective in-app edit first (every
+curation write is audited with recoverable metadata); snapshot restore (§16.5) is
+for disasters and rolls back all content edits since the snapshot.
 
 ---
 
@@ -2182,6 +2205,7 @@ Minimum drill expectations:
 - health endpoints pass
 - critical read paths work
 - admin dashboard shows expected backup/job state
+- freestyle content row counts match the snapshot manifest (`freestyle_tricks`, `freestyle_records`, `consecutive_kicks_records`)
 - logs and alarms are normalizing
 - no environment-crossing secrets or endpoints were introduced accidentally
 
