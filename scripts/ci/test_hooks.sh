@@ -112,6 +112,34 @@ expect "$H" 'curl -o report.json https://example.com' ask
 # Redirecting a read-only command to the discard device writes nothing; a real file
 # target still asks.
 expect "$H" 'grep foo bar.txt > /dev/null' defer
+# A read-only command redirecting into the AI session scratch directory writes only scratch,
+# so it must defer, like /dev/null; a scratch path escaping via .. still asks.
+expect "$H" 'grep foo src > /tmp/claude-1000/x/scratchpad/list.txt' defer
+expect "$H" 'grep foo src > /tmp/claude-1000/x/../etc/o.txt' ask
+
+# A write redirect must gate no matter which command head precedes it, because a static allow
+# rule for that head (egrep, fgrep, date, pgrep, a read-only git subcommand) would otherwise
+# auto-approve the write; the guard must not depend on a head list. Spacing after > is irrelevant.
+expect "$H" 'egrep foo x > out.txt' ask
+expect "$H" 'fgrep foo x > out.txt' ask
+expect "$H" 'date > stamp.txt' ask
+expect "$H" 'pgrep node > pids.txt' ask
+expect "$H" 'git log > history.txt' ask
+expect "$H" 'git show HEAD > commit.txt' ask
+expect "$H" 'cat a.txt >out.txt' ask
+# A real-file write alongside a /dev/null redirect still asks (the exempt target does not
+# excuse the real one); fd duplications and a bare /dev/null write are not writes to gate.
+expect "$H" 'cat a.txt > out.txt 2>/dev/null' ask
+expect "$H" 'grep foo bar.txt >/dev/null' defer
+expect "$H" 'grep foo bar.txt 2>&1' defer
+expect "$H" 'ls -l >&2' defer
+# A literal > inside a quoted argument is a search pattern, not a redirect: a read-only
+# command must still defer. A real redirect alongside a quoted > still asks.
+expect "$H" "grep -rn '=>' src" defer
+expect "$H" "grep -rn '->' src" defer
+expect "$H" "git log --grep='a>b'" defer
+expect "$H" 'grep -rn "=>" src' defer
+expect "$H" "grep -rn '=>' src > out.txt" ask
 
 # sed writing or executing without -i: w/W write-command, s///w write-flag, e exec.
 expect "$H" 'sed -i "s/a/b/" f.txt' ask
@@ -282,6 +310,69 @@ expect "$H" '{ rm x; }' defer
 expect "$H" '! rm x' defer
 expect "$H" 'case $x in a) rm y;; esac' defer
 expect "$H" 'if rm x; then echo hi; fi' defer
+
+# gh: read-only subcommands (and a read-only gh api GET) auto-approve, including inside a
+# compound; every mutating, download, checkout, sensitive-read, and gh-api-write form falls through.
+expect "$H" 'gh run view 123' allow
+expect "$H" 'gh run list --limit 5' allow
+expect "$H" 'gh pr view 7' allow
+expect "$H" 'gh pr checks' allow
+expect "$H" 'gh pr diff 7' allow
+expect "$H" 'gh api repos/o/r/commits' allow
+expect "$H" 'echo hi; gh run view 123 | head -40' allow
+expect "$H" 'gh search prs --state open' allow
+expect "$H" 'gh pr create --title x --body y' defer
+expect "$H" 'gh run rerun 123' defer
+expect "$H" 'gh pr merge 7' defer
+expect "$H" 'gh pr checkout 7' defer
+expect "$H" 'gh run download 123' defer
+expect "$H" 'gh api -X POST repos/o/r/issues' defer
+expect "$H" 'gh api repos/o/r/issues -f title=x' defer
+expect "$H" 'gh auth token' defer
+expect "$H" 'gh secret list' defer
+
+# sqlite3: a read-only inline query auto-approves (even with < in the SQL, or piped to a
+# reader); every escape form -- no -readonly, a shell/file dot-command, or a query read from
+# stdin/pipe/redirect -- falls through.
+expect "$H" 'sqlite3 -readonly db.sqlite "SELECT 1"' allow
+expect "$H" 'sqlite3 -readonly db.sqlite "SELECT * FROM t WHERE x<5"' allow
+expect "$H" 'sqlite3 -readonly db.sqlite "SELECT 1" | grep 1' allow
+expect "$H" 'sqlite3 -readonly db.sqlite ".tables"' allow
+expect "$H" 'sqlite3 db.sqlite "SELECT 1"' defer
+expect "$H" 'sqlite3 -readonly db.sqlite ".shell rm -rf x"' defer
+expect "$H" 'sqlite3 -readonly db.sqlite ".output /tmp/x" ".dump"' defer
+expect "$H" 'echo ".shell rm x" | sqlite3 -readonly db.sqlite' defer
+expect "$H" 'cat evil.sql | sqlite3 -readonly db.sqlite' defer
+expect "$H" 'sqlite3 -readonly db.sqlite < evil.sql' defer
+expect "$H" 'sqlite3 -readonly db.sqlite' defer
+
+# sed writing or executing (w/W command, s///w flag, e exec) is refused by the approver
+# itself, not only the sibling guard; a read-only transform with a "w" in it still approves.
+expect "$H" "sed -n 'w out.txt' f.txt" defer
+expect "$H" "sed 's/a/b/w out.txt' f.txt" defer
+expect "$H" "sed '3e touch x' f.txt" defer
+expect "$H" "sed 's/word/X/' f.txt" allow
+
+# A read-only command redirecting into the AI session scratch directory (or /dev/null)
+# auto-approves; a real-file target or a scratch path escaping via .. falls through.
+expect "$H" 'grep -rn foo src > /tmp/claude-1000/x/scratchpad/list.txt' allow
+expect "$H" 'grep foo src | sort -u > /tmp/claude-1000/x/scratchpad/o.txt' allow
+expect "$H" 'grep foo src > realfile.txt' defer
+expect "$H" 'grep foo src > /tmp/claude-1000/x/../etc/o.txt' defer
+
+# curl is auto-approved ONLY as a loopback health probe that discards its body (-o /dev/null);
+# a content-returning curl, a non-loopback host, a file write, a mutating method, or a
+# connection redirect all fall through to a prompt (content is fetched via WebFetch).
+expect "$H" 'curl -sf -o /dev/null http://localhost:3000/health' allow
+expect "$H" 'curl -s -o /dev/null https://127.0.0.1/status' allow
+expect "$H" 'curl --output /dev/null http://localhost/live' allow
+expect "$H" 'curl -sf http://localhost/health' defer
+expect "$H" 'curl -o /dev/null https://example.com' defer
+expect "$H" 'curl -o report.json http://localhost/x' defer
+expect "$H" 'curl -X POST -o /dev/null http://localhost/x' defer
+expect "$H" 'curl -o /dev/null -x http://proxy:3128 http://localhost/x' defer
+expect "$H" 'curl -o /dev/null --resolve localhost:80:1.2.3.4 http://localhost/x' defer
+expect "$H" 'curl -o /dev/null -L http://localhost/redir' defer
 
 # guard-question-quality.sh is a Stop hook, not a PreToolUse hook: it reads the
 # last assistant message from a transcript file and blocks a question that carries

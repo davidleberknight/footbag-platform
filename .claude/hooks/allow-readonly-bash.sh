@@ -58,6 +58,15 @@ simple_readonly_command() {
 # separator split below. Redirections to real files are left in place.
 SCAN="$(printf '%s' "$COMMAND" | sed -E 's/&>>?[[:space:]]*\/dev\/null//g; s/[0-9]*>>?[[:space:]]*\/dev\/null//g; s/[0-9]*>&[0-9-]+//g')"
 
+# The AI's own session scratch directory (/tmp/claude-*) is a sanctioned write target, so
+# strip a redirect that lands there too, exactly like /dev/null, so a read-only command
+# parking output in the scratchpad survives the write check below. Fail closed if the
+# command contains `..`: a path-escape attempt stays unexempted and keeps prompting.
+case "$COMMAND" in
+  *..*) : ;;
+  *) SCAN="$(printf '%s' "$SCAN" | sed -E 's#[0-9]*>>?[[:space:]]*/tmp/claude-[A-Za-z0-9._/-]+##g')" ;;
+esac
+
 # Backtick command substitution is never reasoned about; fall through.
 case "$SCAN" in *'`'*) exit 0 ;; esac
 
@@ -199,15 +208,111 @@ while IFS= read -r seg; do
     done
     continue
   fi
+  if [ "$head" = gh ]; then
+    shift                                   # drop `gh`
+    while [ $# -gt 0 ]; do
+      case "$1" in --version|--help|-h) shift ;; *) break ;; esac
+    done
+    group="${1:-}"; sub="${2:-}"
+    # `gh api` defaults to a GET and mutates only with an explicit method or a
+    # request-body/field flag, so approve it only when none of those are present.
+    if [ "$group" = api ]; then
+      for a in "$@"; do
+        case "$a" in
+          -X|--method|--method=*|-f|-F|--field|--field=*|--raw-field|--raw-field=*|--input|--input=*) exit 0 ;;
+        esac
+      done
+      continue
+    fi
+    # Fixed allow-list of read-only gh subcommand paths; every other subcommand
+    # (create, edit, merge, close, delete, rerun, download, unlisted) falls through.
+    case "$group $sub" in
+      "run view"|"run list"|"run watch"|\
+      "pr view"|"pr list"|"pr checks"|"pr diff"|"pr status"|\
+      "issue view"|"issue list"|"issue status"|\
+      "release view"|"release list"|"repo view"|"repo list"|\
+      "workflow view"|"workflow list"|"cache list"|"label list"|\
+      "search prs"|"search issues"|"search repos"|"search code"|"search commits")
+        continue ;;
+      *) exit 0 ;;
+    esac
+  fi
+  if [ "$head" = curl ]; then
+    # A curl that DISCARDS its response body (-o /dev/null) against a loopback host is a
+    # local health / liveness probe: it fetches no content into context and cannot reach
+    # off-box, so auto-approve it. Require BOTH the discard and a loopback URL, and reject
+    # any flag that could write a file, upload, mutate, or redirect the connection off
+    # loopback (-o REALFILE, -O, -c, -D, --trace, --output-dir, -T/-F/-d/--json, -L,
+    # -x/--proxy, --resolve, --connect-to, --url, -K). Everything else -- including a
+    # content-returning curl -- falls through to the normal prompt; content is fetched
+    # through domain-scoped WebFetch, never an auto-approved curl to an arbitrary host.
+    shift                                       # drop `curl`
+    discard=0 loopback=0
+    for a in "$@"; do
+      case "$a" in
+        -o|--output) : ;;                       # discard target is the next token
+        -o/dev/null|--output=/dev/null|/dev/null) discard=1 ;;
+        -o*|--output=*) exit 0 ;;               # -o to a real file (attached form)
+        -O|--remote-name|--remote-name-all|-J|--remote-header-name|\
+        -c|--cookie-jar|-D|--dump-header|--trace|--trace-ascii|--trace-time|\
+        --output-dir|--create-dirs|\
+        -L|--location|-x|--proxy*|--preproxy|--socks4|--socks4a|--socks5|--socks5-hostname|\
+        --resolve|--connect-to|--url|--url=*|-K|--config|\
+        -T|--upload-file|-F|--form*|-d|--data*|--json|\
+        -X|--request|-X*|--request=*) exit 0 ;;
+        http://localhost|http://localhost/*|http://localhost:*|\
+        https://localhost|https://localhost/*|https://localhost:*|\
+        http://127.0.0.1|http://127.0.0.1/*|http://127.0.0.1:*|\
+        https://127.0.0.1|https://127.0.0.1/*|https://127.0.0.1:*|\
+        'http://[::1]'|'http://[::1]/'*|'http://[::1]:'*|\
+        'https://[::1]'|'https://[::1]/'*|'https://[::1]:'*) loopback=1 ;;
+        *://*) exit 0 ;;                        # any non-loopback URL scheme
+      esac
+    done
+    { [ "$discard" = 1 ] && [ "$loopback" = 1 ]; } || exit 0
+    continue
+  fi
+  if [ "$head" = sqlite3 ]; then
+    # sqlite3 escapes the database even with -readonly: its dot-commands can run a shell
+    # (.shell / .system / .!) or write a file (.output / .once / .backup / ...), and a
+    # script read from stdin, a pipe, a heredoc, or an input redirect hides its contents
+    # from this check. Approve only a read-only, inline query carrying none of those.
+    ro=0
+    for a in "$@"; do
+      case "$a" in -readonly|--readonly) ro=1 ;; esac
+    done
+    [ "$ro" = 1 ] || exit 0
+    case "$COMMAND" in
+      *.shell*|*.system*|*'.!'*|*.output*|*.once*|*.excel*|*.import*|*.backup*|\
+      *.save*|*.clone*|*.log*|*.read*|*.recover*|*.expert*|*.archive*) exit 0 ;;
+    esac
+    shift                                       # drop `sqlite3`
+    operands=0
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        '<'|'<<'|'>'|'>>'|'0<') exit 0 ;;       # a redirect: hidden input, or a write
+        -init|-cmd|-separator|-nullvalue|-newline) shift; [ $# -gt 0 ] && shift ;;
+        -lookaside|-pagecache) shift; [ $# -gt 0 ] && shift; [ $# -gt 0 ] && shift ;;
+        -*) shift ;;
+        *) operands=$((operands + 1)); shift ;;
+      esac
+    done
+    # Fewer than two operands means no inline query (a db alone reads stdin), so the
+    # actual SQL is invisible here; fall through to a prompt.
+    [ "$operands" -ge 2 ] || exit 0
+    continue
+  fi
   contains "$readonly_heads" "$head" || exit 0
 
   # Exec/write flags that ride mid-arguments on an otherwise read-only head.
   case "$head" in
     sed)
-      # In-place edit in any spelling (-i, -i.bak, -i's/../', -ni, --in-place[=x]) is
-      # a write; the w/W/e write/exec sed-commands live inside the script argument and
-      # are caught by guard-readonly-bash (ask). Bail here so no in-place form allows.
-      for a in "$@"; do case "$a" in -i*|-[!-]*i*|--in-place|--in-place=*) exit 0 ;; esac; done ;;
+      # In-place edit in any spelling (-i, -i.bak, -i's/../', -ni, --in-place[=x]) writes.
+      for a in "$@"; do case "$a" in -i*|-[!-]*i*|--in-place|--in-place=*) exit 0 ;; esac; done
+      # The w/W write-commands, the s///w write-flag, and the e exec-command act through
+      # the script argument, so refuse them here too: the approver alone must never
+      # approve a sed that writes a file or runs a shell command.
+      if printf '%s' "$COMMAND" | grep -Eq "(^|[;&|[:space:]])sed([[:space:]]|\$).*([[:space:]']([wW]|[0-9,~+]*e)[[:space:]]|s[/|,#].*[/|,#][gpimw0-9]*w([[:space:]]|\$))"; then exit 0; fi ;;
     find)
       # find action predicates run a command or write/delete a file. They ride anywhere
       # in the args and can be quote- or backslash-obfuscated (find . '-exec' rm ...),

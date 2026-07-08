@@ -111,9 +111,11 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]].*)?[[:s
   exit 0
 fi
 
-# curl -o / --output writing a real file. A discard target (/dev/null, or - for
-# stdout) writes nothing, so a read-only health probe such as
-# `curl -sf -o /dev/null <url>` passes without a prompt.
+# curl -o / --output writing a real file. A discard target (/dev/null, or - for stdout)
+# writes nothing, so this guard does not ask on it: a `curl -sf -o /dev/null <loopback>`
+# health probe is auto-approved by the read-only approver (loopback discard only). Every
+# other curl still prompts (no static curl allow), because content is fetched through
+# domain-scoped WebFetch, not an auto-approved curl to an arbitrary host.
 if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]].*)?[[:space:]](-o|--output)[[:space:]]+' \
   && ! printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]].*)?[[:space:]](-o|--output)[[:space:]]+(/dev/null|-)([[:space:]]|$)'; then
   jq -n '{
@@ -126,15 +128,32 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]].*)?[[:s
   exit 0
 fi
 
-# Output redirection from a read-only inspector creates or truncates files. A
-# redirect to the discard device (/dev/null) writes nothing, so it passes.
-if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])(cat|grep|rg|head|tail|find|ls|tree|stat|file|wc|echo|printf|awk|sed|jq|sort|uniq|cut|tr|diff)([[:space:]][^|;&]*)?[[:space:]]>{1,2}[[:space:]]' \
-  && ! printf '%s' "$COMMAND" | grep -Eq '[[:space:]]>{1,2}[[:space:]]+/dev/null([[:space:]]|$)'; then
+# Output redirection (>, >>) to a real file writes it, whatever command precedes it. A
+# statically-allowed read-only head (cat, egrep, fgrep, date, pgrep, a read-only git
+# subcommand, ...) would otherwise have `<head> ... > file` auto-approved by its own allow
+# rule, because the read-only approver only DEFERS on a redirect and so cannot override an
+# allow. Do not anchor on a head list (it drifts out of sync with the allow list): strip the
+# redirect forms that write nothing worth gating -- fd duplications (2>&1, >&2), the discard
+# device (/dev/null), and the AI's own session scratch dir (/tmp/claude-*) -- then ask if any
+# redirect remains. `..` in the command keeps the scratch exemption off so a path escape stays
+# gated. Spacing does not matter: `>out` leaks exactly as `> out` would.
+RSCAN="$(printf '%s' "$COMMAND" | sed -E 's#[0-9]*>&[0-9-]+##g; s#&>>?[[:space:]]*/dev/null##g; s#[0-9]*>>?[[:space:]]*/dev/null##g')"
+case "$COMMAND" in
+  *..*) : ;;
+  *) RSCAN="$(printf '%s' "$RSCAN" | sed -E 's#[0-9]*>>?[[:space:]]*/tmp/claude-[A-Za-z0-9._/-]+##g')" ;;
+esac
+# Remove inert quoted regions so a literal `>` in an argument (grep '=>' , grep '->' ,
+# --grep='a>b') is not mistaken for a redirect operator. A real redirect `>` can never sit
+# inside single quotes, so stripping single-quoted regions can never hide a genuine write.
+# Double-quoted regions are stripped only when they hold no `$` or backtick, so a redirect
+# hidden in a command substitution (`"$(cmd > f)"`) is left in place and still asks.
+RSCAN="$(printf '%s' "$RSCAN" | sed -E "s/'[^']*'//g; s/\"[^\"\$\`]*\"//g")"
+if printf '%s' "$RSCAN" | grep -q '>'; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "ask",
-      permissionDecisionReason: "Shell output redirection (>, >>) from a read-only command would write a file. Confirm before running."
+      permissionDecisionReason: "Shell output redirection (>, >>) to a real file would write it, and a static allow rule for the leading command could auto-approve it. Confirm before running. The discard device (/dev/null) and the session scratch dir are exempt."
     }
   }'
   exit 0

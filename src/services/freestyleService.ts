@@ -207,7 +207,6 @@ import {
   CANONICAL_SETS,
   SET_SUBTYPE_SPECS,
   findCanonicalSetBySlug,
-  resolveCanonicalSetAlias,
   resolveSetRouteRedirect,
 } from '../content/freestyleCanonicalSets';
 import { COMPETITION_FORMATS } from '../content/freestyleCompetitionFormats';

@@ -485,7 +485,7 @@ A load/performance check is in the go-live gate set, so capacity is gated; this 
 
 `.claude/` is production configuration (per `.claude/rules/claude-harness-governance.md`), and CI runs a harness self-check plus hook fixture tests. Audit the guard LAYERS, not just the files:
 
-- Subagent-safety mirroring: every statically-expressible guard a hook enforces must have a `permissions.deny`/`ask` twin in `.claude/settings.json`, because hooks must be treated as main-session-only. A hook-only guard on a destructive class is a finding.
+- Subagent-safety mirroring: every statically-expressible guard a hook enforces must have a `permissions.deny`/`ask` twin in `.claude/settings.json`, because the permission floor is the version-proof layer a subagent always inherits, whereas hook-firing inside subagents has varied across client versions. A destructive-class guard with no permissions twin is a finding.
 - Hook bypass review: each guard hook against command/process substitution, redirection, pipes, `xargs`, quoting, and multiline input; a bypass is High.
 - Fixture coverage: every wired hook has a fixture test in the CI hook-test script; a guard change without a fixture is a finding.
 - Self-check coverage: conventions the harness-governance rule states that `scripts/ci/assert_claude_harness.sh` does not yet verify are coverage findings (report; do not edit the harness).
