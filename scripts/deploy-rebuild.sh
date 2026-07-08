@@ -76,6 +76,10 @@ SKIP_DB_REBUILD="${SKIP_DB_REBUILD:-no}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REMOTE_HALF="${SCRIPT_DIR}/internal/deploy-rebuild-remote.sh"
+# Prepended ahead of the remote half in the root ssh stream: refuses the
+# database replace once the host's env carries the post-cutover marker
+# (FOOTBAG_CUTOVER_COMPLETE=1), before any live mutation. No bypass flag.
+CUTOVER_GUARD="${SCRIPT_DIR}/internal/deploy-rebuild-cutover-guard.sh"
 
 # SSH connection options. Parallel to scripts/deploy-code.sh; see that file
 # for the rationale (host-key pinning on first contact, fail-fast on dead
@@ -118,6 +122,7 @@ if [[ "$FOOTBAG_ENV" != "staging" && "$KEEP_MEDIA" != "yes" ]]; then
 fi
 
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
+[[ -r "$CUTOVER_GUARD" ]] || { echo "ERROR: missing cutover guard: $CUTOVER_GUARD" >&2; exit 1; }
 command -v docker >/dev/null || { echo "ERROR: docker required locally for image build" >&2; exit 1; }
 
 HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2; exit}')
@@ -347,7 +352,9 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
-  cat "$REMOTE_HALF"
+  # The cutover guard runs first inside the root session: on a post-cutover
+  # host it exits non-zero before the remote half, so nothing live is touched.
+  cat "$CUTOVER_GUARD" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
 
 # Smoke runs against the public CloudFront URL. No environment URL is
