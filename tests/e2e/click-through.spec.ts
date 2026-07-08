@@ -29,27 +29,11 @@
  * processes talking over HTTP.
  */
 import { test, expect } from '@playwright/test';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import BetterSqlite3 from 'better-sqlite3';
 import sharp from 'sharp';
 import { seedTier1Member, personaToPlaywrightCookies } from '../fixtures/personas';
 import { insertPersonaNamedGallery, completeOnboarding } from '../../src/testkit/personaRowBuilders';
-
-const DB_PATH_FILE = path.join(process.env.TMPDIR ?? '/tmp', 'footbag-e2e-db-path');
-
-function openLiveDb(): BetterSqlite3.Database {
-  const dbPath = fs.readFileSync(DB_PATH_FILE, 'utf8').trim();
-  // Must match the path start-stack.sh exports so the test signer and
-  // the running app's verifier resolve to the same keypair file.
-  process.env.JWT_LOCAL_KEYPAIR_PATH =
-    process.env.JWT_LOCAL_KEYPAIR_PATH
-    ?? path.join(process.env.TMPDIR ?? '/tmp', 'footbag-e2e-jwt.pem');
-  const db = new BetterSqlite3(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  return db;
-}
+import { insertFreestyleTrick } from '../fixtures/factories';
+import { openLiveDb } from './helpers/liveDb';
 
 test('Tier-1 member uploads avatar end-to-end against real image worker', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
@@ -175,6 +159,38 @@ test('Public nav surfaces all render without Service Unavailable', { tag: ['@smo
     const res = await page.goto(navPath);
     expect(res?.status() ?? 500, `${navPath} status`).toBeLessThan(500);
     await expect(page.locator('div.error-page'), `${navPath} error-page`).toHaveCount(0);
+  }
+});
+
+// The freestyle public walk: landing, dictionary index, one seeded trick
+// detail, both records surfaces, glossary, learn, and the media hub. One
+// looping test in this file's nav-reachability style: does each page render
+// with its main content, not does every control work.
+test('Freestyle public surfaces render end-to-end for an anonymous visitor', { tag: ['@smoke'] }, async ({ page }) => {
+  const db = openLiveDb();
+  const slug = `e2e_fs_walk_${Date.now()}`;
+  insertFreestyleTrick(db, {
+    slug, canonical_name: `e2e fs walk ${Date.now()}`, adds: '3',
+    trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1,
+  });
+  db.close();
+
+  const walk = [
+    '/freestyle',
+    '/freestyle/tricks',
+    `/freestyle/tricks/${slug}`,
+    '/freestyle/records',
+    '/records',
+    '/freestyle/glossary',
+    '/freestyle/learn',
+    '/freestyle/media',
+  ];
+  for (const walkPath of walk) {
+    const res = await page.goto(walkPath);
+    expect(res?.status() ?? 500, `${walkPath} status`).toBeLessThan(500);
+    await expect(page.locator('div.error-page'), `${walkPath} error-page`).toHaveCount(0);
+    await expect(page.locator('h1').first(), `${walkPath} h1`).toBeVisible();
   }
 });
 

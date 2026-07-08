@@ -22,11 +22,17 @@
  */
 import { test, expect } from '@playwright/test';
 import { scanWcagAa, formatFindings } from './helpers/axe';
+import { insertFreestyleTrick } from '../fixtures/factories';
+import { openLiveDb } from './helpers/liveDb';
 
 const PUBLIC_PAGES: Array<{ path: string; name: string }> = [
   { path: '/', name: 'home' },
   { path: '/freestyle', name: 'freestyle landing' },
   { path: '/freestyle/glossary', name: 'freestyle glossary' },
+  { path: '/freestyle/tricks', name: 'freestyle trick dictionary' },
+  { path: '/freestyle/sets', name: 'freestyle set encyclopedia' },
+  { path: '/freestyle/learn', name: 'freestyle learn' },
+  { path: '/records', name: 'records' },
   { path: '/events', name: 'events' },
   { path: '/clubs', name: 'clubs' },
   { path: '/ifpa', name: 'membership hub' },
@@ -38,8 +44,23 @@ const PUBLIC_PAGES: Array<{ path: string; name: string }> = [
 ];
 
 test('high-traffic public pages have no structural WCAG 2.1 AA axe violations', { tag: ['@a11y', '@smoke'] }, async ({ page }) => {
+  // The trick detail page renders from a database row, so seed one; every other
+  // scanned page renders anonymously with no seeded data.
+  const db = openLiveDb();
+  const slug = `e2e_fs_a11y_${Date.now()}`;
+  insertFreestyleTrick(db, {
+    slug, canonical_name: `e2e fs a11y ${Date.now()}`, adds: '3',
+    trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1,
+  });
+  db.close();
+  const pages = [
+    ...PUBLIC_PAGES,
+    { path: `/freestyle/tricks/${slug}`, name: 'freestyle trick detail' },
+  ];
+
   const report: string[] = [];
-  for (const { path, name } of PUBLIC_PAGES) {
+  for (const { path, name } of pages) {
     const res = await page.goto(path, { waitUntil: 'domcontentloaded' });
     expect(res, `${name} (${path}) should respond`).not.toBeNull();
     expect(res!.status(), `${name} (${path}) should render, not error`).toBeLessThan(400);
