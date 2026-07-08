@@ -875,6 +875,14 @@ export type OnboardingTaskState =
  * completion); every other state leaves completed_at NULL. INSERT OR IGNORE
  * keeps the UNIQUE(member_id, task_type) contract: the first state set for a
  * task wins, so callers seed a task once.
+ *
+ * The seed is read back and asserted to have landed in the requested state.
+ * INSERT OR IGNORE silently drops the row on any primary-key or
+ * UNIQUE(member_id, task_type) conflict, so a lost seed is otherwise invisible
+ * here and surfaces far away as a wizard-gate redirect. A row that is absent, or
+ * present in a state other than the one seeded, means a colliding writer (a
+ * duplicate id, or the live dev server's own task-row insert when it shares this
+ * database) won the row: fail loudly at the seed rather than in a distant assertion.
  */
 export function insertOnboardingTask(
   db: BetterSqlite3.Database,
@@ -887,6 +895,17 @@ export function insertOnboardingTask(
       (id, created_at, created_by, updated_at, updated_by, version, member_id, task_type, state, completed_at)
     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
   `).run(`mot_${uid()}`, TS, SYS, TS, SYS, memberId, taskType, state, state === 'completed' ? TS : null);
+
+  const landed = db.prepare(
+    'SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?',
+  ).get(memberId, taskType) as { state: string } | undefined;
+  if (landed?.state !== state) {
+    throw new Error(
+      `Onboarding-task seed did not land: ${taskType} for ${memberId} expected state ` +
+        `'${state}' but found '${landed?.state ?? 'no row'}'. A duplicate id or a ` +
+        `concurrent writer won the row.`,
+    );
+  }
 }
 
 export function completeOnboarding(db: BetterSqlite3.Database, memberId: string): void {
