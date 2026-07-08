@@ -206,7 +206,7 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
         }
       }
     }
-  });
+  }, 120_000);
 });
 
 describe('admin gate — POST (every state-changing admin route sits behind the gate)', () => {

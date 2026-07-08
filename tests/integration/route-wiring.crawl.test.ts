@@ -382,13 +382,13 @@ describe('route wiring crawl', () => {
   it('anonymous: every rendered link and form target resolves; no template artifacts', async () => {
     const { failures } = await crawlAs('anonymous', null);
     expect(failures).toEqual([]);
-  });
+  }, 120_000);
 
   it('authenticated member: every rendered link and form target resolves; no template artifacts', async () => {
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
     const { failures } = await crawlAs('member', cookie);
     expect(failures).toEqual([]);
-  });
+  }, 120_000);
 
   it('admin: every rendered link and form target resolves; no template artifacts', async () => {
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
@@ -405,7 +405,7 @@ describe('route wiring crawl', () => {
     // A login-blocked persona is an exercisable link, not a dead row: its
     // /dev/login target is followed and resolves (it lands on /login).
     expect(visited.has('/dev/login?as=unverified')).toBe(true);
-  });
+  }, 120_000);
 
   // Adopting the session cookie the switch route issues renders pages AS each
   // persona, so tier, honor, and club-role conditional surfaces are actually

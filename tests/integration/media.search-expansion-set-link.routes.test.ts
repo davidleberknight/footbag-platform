@@ -170,9 +170,15 @@ describe('GET /media/browse — set-video cross-link', () => {
     expect(res.text).toContain('href="/freestyle/sets/atomic"');
   });
 
-  it('#concept_illusioning_sets resolves to the canonical set /freestyle/sets/atomic', async () => {
+  it('#concept_illusioning_sets renders no set link (illusioning is not a set under current doctrine)', async () => {
     const res = await request(createApp()).get('/media/browse?tag=concept_illusioning_sets');
-    expect(res.text).toContain('href="/freestyle/sets/atomic"');
+    expect(res.status).toBe(200);
+    // The illusioning-tagged tile renders, but illusioning is a distinct
+    // downtime move, not a set, so it folds to no canonical set and shows no
+    // set cross-link.
+    expect(res.text).toContain('illusioning-set-list-video');
+    expect(res.text).not.toContain('gallery-tile-set-link');
+    expect(res.text).not.toContain('href="/freestyle/sets/');
   });
 
   it('a non-set concept tag renders no set link', async () => {
