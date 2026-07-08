@@ -83,3 +83,24 @@ def test_refuses_an_alternate_path_even_when_environment_is_missing(tmp_path):
     result = run_guard(other)
     assert result.returncode != 0
     assert "database" in result.stderr.lower()
+
+
+def test_rebuild_orchestrator_invokes_the_guard_before_any_loader():
+    # The guard only protects the rebuild if the orchestrator actually calls it.
+    # This pins the wiring: run_freestyle.sh invokes _assert_dev_db.sh, and does
+    # so before the first loader invocation, so a refusal happens before any
+    # table is touched. Without this, deleting the one call line would leave the
+    # guard green in isolation while the rebuild ran unguarded.
+    orchestrator = (REPO_ROOT / "freestyle" / "run_freestyle.sh").read_text()
+    # Compare executable lines only: the header comments mention loader names,
+    # which would otherwise anchor the "first loader" before the guard.
+    executable = "\n".join(
+        line for line in orchestrator.splitlines() if not line.lstrip().startswith("#")
+    )
+    guard_pos = executable.find("_assert_dev_db.sh")
+    assert guard_pos != -1, "run_freestyle.sh no longer invokes the dev-db guard"
+    first_invocation_pos = executable.find("_load_")
+    assert first_invocation_pos != -1, "run_freestyle.sh runs no loaders?"
+    assert guard_pos < first_invocation_pos, (
+        "the dev-db guard must run before the first loader invocation"
+    )
