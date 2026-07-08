@@ -31,12 +31,12 @@ const { dbPath } = setTestEnv('3159');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
-// Priority sets the curator named in the slice. Each must render. Furious is
-// folded into barraging (one set, two names), so its slug redirects rather than
-// rendering its own page, the same as illusioning into atomic.
+// Priority sets that must render their own set page. Furious is the confirmed
+// two-dex uptime set page under current doctrine; Barraging and Miraging are not
+// sets and redirect to their glossary terms, so they are not priority set pages.
 const PRIORITY_SETS = [
   'pixie', 'fairy', 'stepping', 'atomic', 'quantum', 'nuclear',
-  'barraging', 'blurry', 'surging', 'tapping',
+  'furious', 'blurry', 'surging', 'tapping',
 ] as const;
 
 beforeAll(async () => {
@@ -285,10 +285,10 @@ describe('GET /freestyle/sets — S1 ★ flagship marker on 5 foundational sets'
     },
   );
 
-  it('the flagship cohort is exactly 6 cards (matches FLAGSHIP_SET_TOOLTIPS in the service)', async () => {
+  it('the flagship cohort is exactly 5 cards (matches FLAGSHIP_SET_TOOLTIPS in the service; miraging removed)', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
     const flagshipMatches = res.text.match(/sets-encyclopedia-card-flagship/g) ?? [];
-    expect(flagshipMatches.length).toBe(6);
+    expect(flagshipMatches.length).toBe(5);
   });
 });
 
@@ -372,5 +372,26 @@ describe('GET /freestyle/sets — S4 per-subtype Read-next footers', () => {
     const wrapperCloseIdx = res.text.indexOf('</div>', sectionStart);
     const slice = res.text.slice(sectionStart, wrapperCloseIdx + 6);
     expect(slice).not.toMatch(/class="glossary-section-next"/);
+  });
+});
+
+// Set-taxonomy doctrine: Furious is the confirmed two-dex uptime set page;
+// Miraging and Barraging are not sets and must not appear as set pages in the
+// index or the sitemap.
+describe('GET /freestyle/sets — set-taxonomy doctrine (furious in, miraging/barraging out)', () => {
+  it('renders a Furious set card and no Miraging or Barraging card', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('id="enc-set-furious"');
+    expect(res.text).not.toContain('id="enc-set-miraging"');
+    expect(res.text).not.toContain('id="enc-set-barraging"');
+  });
+
+  it('the set sitemap includes furious and excludes miraging and barraging', async () => {
+    const { freestyleService } = await import('../../src/services/freestyleService');
+    const slugs = freestyleService.listSitemapSetSlugs();
+    expect(slugs).toContain('furious');
+    expect(slugs).not.toContain('miraging');
+    expect(slugs).not.toContain('barraging');
   });
 });

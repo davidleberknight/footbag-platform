@@ -33,21 +33,21 @@ describe('dex-kick description overrides', () => {
   });
 });
 
-describe('Illusioning folds into the Atomic set (one set, two names)', () => {
-  it('illusioning is no longer a separate canonical-set entry', () => {
+describe('Atomic and Illusioning are distinct (no merge)', () => {
+  it('illusioning is not a canonical-set entry', () => {
     expect(findCanonicalSetBySlug('illusioning')).toBeNull();
   });
 
-  it('the surviving atomic entry carries Illusioning as an equivalent name and links to miraging', () => {
+  it('the atomic entry does not carry Illusioning as an equivalent name and does not link to miraging', () => {
     const atomic = findCanonicalSetBySlug('atomic');
     expect(atomic).not.toBeNull();
     const equivNames = (atomic!.equivalentNames ?? []).map(e => e.name);
-    expect(equivNames).toContain('Illusioning');
+    expect(equivNames).not.toContain('Illusioning');
     const relatedSlugs = (atomic!.relatedSystems ?? []).map(s => s.slug);
-    expect(relatedSlugs).toContain('miraging');
+    expect(relatedSlugs).not.toContain('miraging');
   });
 
-  it('the retired illusioning slug resolves to atomic', () => {
-    expect(resolveCanonicalSetAlias('illusioning')).toBe('atomic');
+  it('the illusioning slug no longer folds to atomic', () => {
+    expect(resolveCanonicalSetAlias('illusioning')).toBeNull();
   });
 });

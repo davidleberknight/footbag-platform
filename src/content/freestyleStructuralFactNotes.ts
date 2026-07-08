@@ -37,7 +37,7 @@ export const MODIFIER_BEGINNER_NOTES: ReadonlyMap<string, string> = new Map([
   ['diving',     'The upper body dives over the bag and back during the trick.'],
   ['swirling',   'The whirl-and-swirl launch set: a rotational opening carried by a swirl dexterity.'],
   ['inspinning', 'An inward body turn carried into the dexterity moment.'],
-  ['miraging',   'An uptime set that adds one inward dexterity before the base (+1); the inward-dex peer of the atomic launch set.'],
+  ['miraging',   'Descriptive or downtime mirage-family language that adds one inward dexterity before the base (+1). Under the current working ruling, Quantum is the uptime set concept; miraging is not treated as a modern set or a Quantum equivalent.'],
   ['whirling',   'The whirl-family launch set: a rotational opening run before the base (whirling osis is the blender).'],
   ['tapping',    'Adds a quick extra dexterity tap before the base.'],
   ['sailing',    'A compound uptime set that runs two set treatments before the base.'],

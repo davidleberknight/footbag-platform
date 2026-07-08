@@ -972,16 +972,16 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     expect(res.text).not.toContain('Curator-adjudicated');
   });
 
-  it('documents barraging and furious as the same operator on the barraging entry', async () => {
-    // Furious and barraging are the same two-dex uptime set (+2 ADD); furious is
-    // folded into the barraging entry rather than carrying its own.
+  it('holds barraging distinct from furious by timing on the barraging operator entry', async () => {
+    // Current doctrine holds Furious and Barraging distinct by timing; the entry
+    // must not reintroduce the old "also called furious" merge.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     const idx = res.text.indexOf('id="term-barraging"');
     expect(idx).toBeGreaterThan(0);
     const slice = res.text.slice(idx, idx + 2000);
-    expect(slice).toMatch(/also called furious/i);
-    expect(slice).toMatch(/two-dex uptime set/i);
+    expect(slice).not.toMatch(/also called furious/i);
+    expect(slice).toMatch(/distinct by timing|not inferred from the name/i);
   });
 
   it('renders entries in pedagogical order: set-tier first, body next, quantifier last', async () => {

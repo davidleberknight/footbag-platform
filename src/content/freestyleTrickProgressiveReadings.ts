@@ -157,7 +157,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'ADD accounting',
-        reading: "furious(+2) + paradox(+1) + mirage(2) = 5 ADD. Furious is a two-dex set: +2 on any base (the barraging pattern).",
+        reading: "furious(+2) + paradox(+1) + mirage(2) = 5 ADD. Furious is a two-dex set: +2 on any base. Historically grouped with barraging; current doctrine holds them distinct by timing.",
       },
       {
         stage:   'Doctrine evolution',

@@ -168,13 +168,30 @@ describe('/freestyle/compositional-sets — uptime reinterpretation ladders', ()
 
   it('each ladder shows reinterpretation + steps + source citation', async () => {
     const res = await request(createApp()).get('/freestyle/compositional-sets');
-    // Miraging ladder reinterpretation phrase.
-    expect(res.text).toMatch(/Uptime mirage structure/);
+    // Miraging ladder reinterpretation phrase: mirage-family descriptive
+    // language, not an uptime set.
+    expect(res.text).toMatch(/Mirage-family descriptive language/);
     // Step entries render as <li> within an <ol>.
     expect(res.text).toContain('class="compositional-ladder-steps"');
     expect(res.text).toContain('class="compositional-ladder-step"');
     // Source citation label always renders.
     expect(res.text).toContain('Source:');
+  });
+
+  it('does not describe miraging as an uptime set; quantum is the modern uptime inward-dex set', async () => {
+    const res = await request(createApp()).get('/freestyle/compositional-sets');
+    // The stale uptime-set framing is gone from every compositional-set surface.
+    expect(res.text).not.toMatch(/uptime mirage structure/i);
+    expect(res.text).toMatch(/miraging is not treated as a modern set|not a modern set/i);
+    expect(res.text).toMatch(/Quantum is the modern uptime inward-dex set/i);
+  });
+
+  it('does not describe illusioning as an uptime set; illusioning is distinct from atomic', async () => {
+    const res = await request(createApp()).get('/freestyle/compositional-sets');
+    expect(res.text).not.toMatch(/uptime illusion structure/i);
+    // Illusioning is a distinct downtime move, not a set or an Atomic equivalent.
+    expect(res.text).toMatch(/illusioning is a distinct downtime move/i);
+    expect(res.text).toMatch(/Atomic is the modern uptime outward-dex set/i);
   });
 
   it('illusioning ladder honestly notes it is a structural inference (not in Holden)', async () => {

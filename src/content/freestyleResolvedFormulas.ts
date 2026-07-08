@@ -546,8 +546,9 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   // and modifier_links registered on the DB rows.
   //
   // fury: Red pt6 overrode pt4 (paradox+barraging+mirage)
-  // with the cleaner furious-paradox-mirage reading. furious is +2 on
-  // furious = +2 universally (two-dex set, the barraging pattern).
+  // with the cleaner furious-paradox-mirage reading. furious is +2
+  // universally (a two-dex set). Historically grouped with barraging;
+  // current doctrine holds furious and barraging distinct by timing.
   //
   // fog: Red pt6 MODEL_CHANGE: Fog does NOT contain an
   // eggbeater (Bedwetter does). Decomposition uses dlo (double-leg-over)

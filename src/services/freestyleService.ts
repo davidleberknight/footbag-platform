@@ -208,6 +208,7 @@ import {
   SET_SUBTYPE_SPECS,
   findCanonicalSetBySlug,
   resolveCanonicalSetAlias,
+  resolveSetRouteRedirect,
 } from '../content/freestyleCanonicalSets';
 import { COMPETITION_FORMATS } from '../content/freestyleCompetitionFormats';
 import {
@@ -3634,8 +3635,8 @@ const SET_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     slug:        'furious',
     name:        'Furious',
     glyph:       null,
-    feel:        'Furious extends the uptime with rotational character.',
-    intuition:   'A two-dex set (+2 on any base); the barraging operator in set-prefix position.',
+    feel:        'Furious adds two same-direction dexes on the set, with rotational character.',
+    intuition:   'A two-dex set (+2 on any base). Historically grouped with barraging; current doctrine holds them distinct by timing, so equivalence is not inferred from the name (rows and aliases preserved pending a timing and source audit).',
     example:     'Fury = Furious Paradox Mirage; Nemesis = Furious Barfly.',
     familyHint:  null,
     midtimeBody: false,
@@ -8768,7 +8769,9 @@ export const freestyleService = {
       showDetailLink:      true,
     });
     const subtypeSections: SetSubtypeSection[] = SET_SUBTYPE_SPECS.map(spec => {
-      const cards = CANONICAL_SETS.filter(s => s.subtype === spec.key).map(shapeSetCard);
+      // Held entries stay routable (detail page + fold-map) but are not listed as
+      // confirmed sets on the index while their set status is held pending doctrine.
+      const cards = CANONICAL_SETS.filter(s => s.subtype === spec.key && !s.heldFromEncyclopediaList).map(shapeSetCard);
       return {
         key:   spec.key,
         label: spec.label,
@@ -8832,7 +8835,7 @@ export const freestyleService = {
       quantum:   'The compressed form of atomic: a tighter uptime treatment.',
       nuclear:   'A +2 set modifier; structurally paradox + illusion.',
       fairy:     'A pre-base uptime set treatment closely related to pixie.',
-      furious:   'A +2 set modifier with a heavier uptime treatment.',
+      furious:   'A +2 two-dex set modifier. Historically grouped with barraging; current doctrine holds them distinct by timing.',
     };
 
     const componentSortByAddThenName = (
@@ -10323,13 +10326,13 @@ export const freestyleService = {
 
   /**
    * Canonical set slugs whose /freestyle/sets/:slug page renders directly.
-   * Alias slugs that 301-redirect to their canonical are excluded (same alias
-   * test as setRouteRedirectTarget). Drives the sitemap enumeration of
-   * set-detail pages, parallel to the freestyle trick pages.
+   * Slugs that 301-redirect (to a glossary term for a non-set concept) are
+   * excluded. Drives the sitemap enumeration of set-detail pages, parallel to the
+   * freestyle trick pages.
    */
   listSitemapSetSlugs(): string[] {
     return CANONICAL_SETS
-      .filter((s) => !resolveCanonicalSetAlias(s.slug))
+      .filter((s) => !resolveSetRouteRedirect(s.slug))
       .map((s) => s.slug);
   },
 
@@ -10566,14 +10569,13 @@ export const freestyleService = {
   },
 
   /**
-   * GET /freestyle/sets/:slug — when a retired set slug folded into a surviving
-   * canonical set, send its old deep link to the surviving entry. Returns the
-   * redirect path, or null when the slug is a live set (render it) or unknown
-   * (404). Keeps illusioning's old link working now that it lives under atomic.
+   * GET /freestyle/sets/:slug — for a slug that is not a confirmed set page but a
+   * non-set concept (illusioning, miraging, barraging), send its old set URL to
+   * the glossary term that explains it as a non-set concept. Returns the redirect
+   * path, or null when the slug is a live set (render it) or unknown (404).
    */
   setRouteRedirectTarget(slug: string): string | null {
-    const target = resolveCanonicalSetAlias(slug);
-    return target ? `/freestyle/sets/${target}` : null;
+    return resolveSetRouteRedirect(slug);
   },
 
   /**
@@ -10837,10 +10839,9 @@ export const freestyleService = {
     const FLAGSHIP_SET_TOOLTIPS: Record<string, string> = {
       pixie:    'Flagship set: the simplest +1 uptime entry; anchors terraging / sailing / frantic.',
       fairy:    "Flagship set: pixie's directional mirror (out-dex); anchors the fairy-spinning family.",
-      stepping: 'Flagship set: clipper-entry +1; anchors blurry / barraging / shooting / leaning.',
+      stepping: 'Flagship set: clipper-entry +1; anchors blurry / furious / shooting / leaning.',
       atomic:   'Flagship set: out-dex toe entry resolving to op-side; the outward-dex uptime set, anchors nuclear / fairy-atomic.',
-      miraging: "Flagship set: in-dex uptime set; atomic's inward-dex peer, anchors drifter and the miraging cohort.",
-      quantum:  "Flagship set: atomic's in-dex sibling; the platform-canonical replacement for toe-prefix naming.",
+      quantum:  "Flagship set: atomic's in-dex sibling; the inward-dex uptime set, the platform-canonical replacement for toe-prefix naming.",
     };
 
     // Pre-load trick rows + modifier-link rows ONCE for the whole encyclopedia

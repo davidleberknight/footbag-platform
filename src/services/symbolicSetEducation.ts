@@ -227,7 +227,7 @@ const STEPPING_SET_CONTENT: SetEducationInput = {
   relatedConcepts: [
     {
       name:  'barraging',
-      prose: 'A two-dex set built on the stepping launch, adding a second inward dex (also called furious). The clearest system derived from stepping.',
+      prose: 'A two-dex set built on the stepping launch, adding a second inward dex. The clearest system derived from stepping. Furious is a historically related name; current doctrine holds Furious and Barraging distinct by timing, so equivalence is not inferred from the name.',
     },
     {
       name:  'blurry',

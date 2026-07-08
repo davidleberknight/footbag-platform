@@ -115,6 +115,13 @@ export interface CanonicalSet {
    * distinction. Not yet populated.
    */
   tier?: 'literal-primitive' | 'compositional-system';
+  /**
+   * Display-only. When true the set is kept fully routable (its detail page and
+   * any fold-map redirect still resolve) but is not shown as a confirmed set on
+   * the Set Encyclopedia index list. Used while a concept's set status is held
+   * pending doctrine, so the index does not teach it as a confirmed set.
+   */
+  heldFromEncyclopediaList?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -262,7 +269,6 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'a clipper-anchored chain.',
     equivalenceNotes: [],
     derivedSystems: [
-      { slug: 'barraging',  label: 'Barraging' },
       { slug: 'blurry',     label: 'Blurry' },
       { slug: 'leaning',    label: 'Leaning' },
       { slug: 'go_go',      label: 'Go-Go' },
@@ -291,7 +297,6 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     ],
     relatedSystems: [
       { slug: 'atomic',   label: 'Atomic (outward counterpart, op-side terminal)' },
-      { slug: 'miraging', label: 'Miraging (inward-dex sibling; the non-terminating uptime form of the same inward shape)' },
       { slug: 'slapping', label: 'Slapping (same-side-component sibling)' },
     ],
     source: 'platform-tracked',
@@ -303,15 +308,12 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'atomic', hashtag: '#set_atomic', displayName: 'Atomic', subtype: 'true-core',
     formula: 'TOE > OP OUT [DEX] > (op side component)',
     movementExplanation:
-      'A toe set with an opposite-side outward dex landing on the far side; the uptime ' +
-      'motion echoes the pickup crossing. The outward-dex peer of miraging\'s inward-dex ' +
-      'set, neither derived from the other.',
+      'Atomic is an uptime set built around an outward dex. Hippy Atomic and leggy ' +
+      'Atomic are execution styles of Atomic. Older sources may blur Atomic, leggy ' +
+      'Atomic, and Illusioning language, but current doctrine keeps them distinct: ' +
+      'Illusioning is a downtime move, not an equivalent name for Atomic.',
     equivalenceNotes: [
-      { reading: 'Toe set Illusion', citation: 'Holden parenthetical' },
-      { reading: 'uptime illusion structure (reverse-miraging)', citation: 'Structural reading' },
-    ],
-    equivalentNames: [
-      { name: 'Illusioning', structuralReading: 'REV(0) Miraging', note: 'Also called Illusioning, an older set-operator name; the descriptive reverse-miraging reading of the same outward uptime dex. One set, two names.' },
+      { reading: 'Toe set Illusion', citation: 'Holden parenthetical (historical; not formalized by the platform)' },
     ],
     derivedSystems: [
       { slug: 'fairy_atomic', label: 'Fairy Atomic' },
@@ -320,7 +322,6 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     ],
     relatedSystems: [
       { slug: 'quantum',  label: 'Quantum (inward counterpart, op-side terminal)' },
-      { slug: 'miraging', label: 'Miraging (inward-dex peer; the opposite-direction uptime set)' },
       { slug: 'nuclear',  label: 'Nuclear (platform reading: paradox + illusion)' },
     ],
     source: 'platform-tracked',
@@ -379,30 +380,6 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     auditStatus: 'holden-only',
     tier: 'literal-primitive',
   },
-  {
-    slug: 'miraging', hashtag: '#set_miraging', displayName: 'Miraging', subtype: 'true-core',
-    formula: 'SET > OP IN [DEX] >',
-    movementExplanation:
-      'A set with an opposite-side inward dex; the uptime motion mirrors the mirage ' +
-      'shape, with the terminal toe-stall omitted as the set continues into the next ' +
-      'move. The inward-dex peer of atomic\'s outward-dex set.',
-    equivalenceNotes: [
-      { reading: 'uptime mirage structure', citation: 'Structural reading' },
-    ],
-    derivedSystems: [
-      { slug: 'flailing', label: 'Flailing (Symposium Reverse Miraging)' },
-      { slug: 'surging',  label: 'Surging (Holden reading: spinning miraging)' },
-    ],
-    relatedSystems: [
-      { slug: 'atomic',  label: 'Atomic (outward-dex peer; the opposite-direction uptime set)' },
-      { slug: 'quantum', label: 'Quantum (inward-dex sibling; the terminating compressed-set form of the same inward shape)' },
-    ],
-    source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with platform notation.',
-    auditStatus: 'aligned',
-    tier: 'literal-primitive',
-  },
-
   // ── Composite / derived sets (9) ──────────────────────────────────
   {
     slug: 'terraging', hashtag: '#set_terraging', displayName: 'Terraging', subtype: 'composite-derived',
@@ -423,25 +400,25 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
   {
-    slug: 'barraging', hashtag: '#set_barraging', displayName: 'Barraging', subtype: 'composite-derived',
+    slug: 'furious', hashtag: '#set_furious', displayName: 'Furious', subtype: 'composite-derived',
     formula: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',
     movementExplanation:
-      'Stepping extended with a second inward dex (folk name High Stepping): stepping\'s ' +
-      'opening dex followed by a same-side inward dex. The same two-dex set is also named ' +
-      'Furious, with Barraging the more explanative term.',
+      'Furious is a two-dex uptime set concept: a clipper set opening with an ' +
+      'opposite-side inward dex followed by a same-side inward dex. Older sources ' +
+      'sometimes grouped Furious and Barraging together, but current doctrine holds the ' +
+      'terms distinct by timing. Historical Barraging names are preserved in provenance ' +
+      'and alias data where they occur; equivalence is not inferred from the name alone. ' +
+      'Barrage is a separate standalone base concept, not to be confused with Barraging.',
     equivalenceNotes: [
-      { reading: 'High Stepping', citation: 'Holden parenthetical' },
-    ],
-    equivalentNames: [
-      { name: 'Furious', note: 'The same two-dex set under a retained name; used by named compounds such as Furious Clipper.' },
+      { reading: 'High Stepping', citation: 'Holden parenthetical (historical)' },
     ],
     derivedSystems: [],
     relatedSystems: [
       { slug: 'stepping', label: 'Stepping (single-dex base)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with platform tracking.',
-    auditStatus: 'aligned',
+    sourceCitation: 'Platform-tracked as the modern two-dex uptime set; Barraging is a historically related name, not equivalent canon.',
+    auditStatus: 'partial',
     tier: 'compositional-system',
   },
   {
@@ -581,9 +558,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { reading: 'Symposium Illusioning', citation: 'Curator-adjudicated' },
     ],
     derivedSystems: [],
-    relatedSystems: [
-      { slug: 'miraging', label: 'Miraging (base direction)' },
-    ],
+    relatedSystems: [],
     source: 'holden-only',
     sourceCitation: 'Holden compilation (2003); unusual notation with explicit no-plant constraint.',
     auditStatus: 'holden-only',
@@ -626,7 +601,6 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     ],
     derivedSystems: [],
     relatedSystems: [
-      { slug: 'miraging', label: 'Miraging (Holden\'s reading anchor)' },
       { slug: 'stepping', label: 'Stepping (platform\'s reading anchor)' },
     ],
     source: 'platform-tracked',
@@ -1160,25 +1134,41 @@ export function findCanonicalSetBySlug(slug: string): CanonicalSet | null {
 }
 
 /**
- * Retired set slugs that now resolve to a surviving canonical set, so existing
- * deep links keep working after two parallel entries collapse into one. The
- * illusioning set folded into atomic, and the furious set folded into barraging
- * (each is one set under two names), so the retired slug sends the reader to the
- * surviving entry that carries that history as an equivalent name.
+ * Set-to-set canonical folds. Empty under current doctrine: the former merge
+ * folds (illusioning to atomic, furious to barraging) are removed, because those
+ * pairs are no longer treated as one set. Furious is now its own set entry, and
+ * Illusioning, Miraging, and Barraging are not sets. A media set-tag therefore
+ * canonicalizes to itself, never folding one set name into another.
  */
-const SET_SLUG_ALIASES: ReadonlyMap<string, string> = new Map([
-  ['illusioning', 'atomic'],
-  ['furious', 'barraging'],
-]);
+const SET_SLUG_ALIASES: ReadonlyMap<string, string> = new Map();
 
 /**
- * Returns the canonical set slug a retired alias slug redirects to, or null
- * when the slug is not a retired alias. Only fires for slugs that are not
- * themselves a live canonical set, so a real set is never redirected.
+ * Returns the canonical set slug a retired alias slug folds to, or null when the
+ * slug is not a fold. Empty today; kept as the media / sitemap seam so a future
+ * genuine set-to-set fold has one home. A real set is never folded.
  */
 export function resolveCanonicalSetAlias(slug: string): string | null {
   if (SETS_BY_SLUG.has(slug)) return null;
   return SET_SLUG_ALIASES.get(slug) ?? null;
+}
+
+/**
+ * Old /freestyle/sets/:slug routes for concepts that are NOT confirmed sets.
+ * Under current doctrine Illusioning is a distinct downtime move, and Miraging
+ * and Barraging are held / non-set terminology; none is a set page. Their old set
+ * URLs redirect to the glossary term that explains each as a non-set concept, so
+ * existing deep links resolve without teaching a set page. Only fires for slugs
+ * that are not themselves a live canonical set.
+ */
+const SET_ROUTE_GLOSSARY_REDIRECTS: ReadonlyMap<string, string> = new Map([
+  ['illusioning', '/freestyle/glossary#term-illusioning'],
+  ['miraging',    '/freestyle/glossary#term-miraging-not-a-set'],
+  ['barraging',   '/freestyle/glossary#term-barraging-not-a-set'],
+]);
+
+export function resolveSetRouteRedirect(slug: string): string | null {
+  if (SETS_BY_SLUG.has(slug)) return null;
+  return SET_ROUTE_GLOSSARY_REDIRECTS.get(slug) ?? null;
 }
 
 export function canonicalSetsBySubtype(subtype: SetSubtype): readonly CanonicalSet[] {

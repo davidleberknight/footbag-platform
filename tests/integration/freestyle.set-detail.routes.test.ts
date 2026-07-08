@@ -214,10 +214,12 @@ describe('GET /freestyle/sets/:slug — S5 sibling navigation strip', () => {
     expect(strip).toContain('Quantum');
   });
 
-  it('last-in-subtype (miraging): renders prev=tapping, no next', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/miraging');
+  it('last-in-subtype (tapping): renders prev=slapping, no next (miraging removed)', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/tapping');
     expect(res.text).toContain('class="set-detail-sibling-nav"');
-    expect(res.text).toMatch(/<a class="set-detail-sibling-nav-prev" href="\/freestyle\/sets\/tapping">/);
+    expect(res.text).toMatch(/<a class="set-detail-sibling-nav-prev" href="\/freestyle\/sets\/slapping">/);
+    // Tapping is now the last true-core set, so there is no next sibling and no
+    // link to the removed miraging set page.
     expect(res.text).not.toMatch(/<a class="set-detail-sibling-nav-next"/);
   });
 
@@ -262,11 +264,11 @@ describe('/freestyle/sets routes render directly', () => {
   });
 });
 
-describe('GET /freestyle/sets/:slug — retired set slug redirects to the surviving entry', () => {
-  it('illusioning folded into atomic, so its old link 301s to the atomic entry', async () => {
+describe('GET /freestyle/sets/:slug — non-set slug redirects to its glossary term', () => {
+  it('illusioning is not a set; its old link 301s to the illusioning glossary term, not atomic', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/illusioning').redirects(0);
     expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/sets/atomic');
+    expect(res.headers['location']).toBe('/freestyle/glossary#term-illusioning');
   });
 
   it('a live canonical set is never redirected', async () => {
@@ -276,12 +278,13 @@ describe('GET /freestyle/sets/:slug — retired set slug redirects to the surviv
 });
 
 describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name equivalences)', () => {
-  it('atomic shows Illusioning as an equivalent name with its REV(0) Miraging structural reading', async () => {
+  it('atomic does not show Illusioning as an equivalent name; it is a distinct downtime move', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/atomic');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Equivalent names');
-    expect(res.text).toContain('Illusioning');
-    expect(res.text).toContain('Structural reading: REV(0) Miraging');
+    // Atomic and Illusioning are distinct under current doctrine, so atomic has
+    // no equivalent-name section and never presents Illusioning as a synonym.
+    expect(res.text).not.toContain('Equivalent names');
+    expect(res.text).toContain('Illusioning is a downtime move, not an equivalent name for Atomic');
   });
 
   it('keeps the equivalent name out of the structural Equivalence readings slot', async () => {
@@ -299,38 +302,45 @@ describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name eq
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Equivalent names');
   });
+
+  it('quantum does not list Miraging as an equivalent or related set name', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/quantum');
+    expect(res.status).toBe(200);
+    // Miraging is not a set; the quantum page must not chip-link or name it as a set.
+    expect(res.text).not.toContain('href="/freestyle/sets/miraging"');
+    expect(res.text).not.toContain('Miraging');
+  });
 });
 
-// Furious and Barraging are one two-dex set (later doctrine). The page must not
-// reintroduce the older base/extension contradiction.
-describe('GET /freestyle/sets/:slug — Furious and Barraging are one set', () => {
-  it('barraging names Furious as an equivalent, not a "third dex extension"', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/barraging');
+// Under current doctrine Furious is the confirmed two-dex uptime set page.
+// Barraging and Miraging are not sets and their old set URLs redirect to their
+// glossary terms; Illusioning redirects to its glossary term, not to Atomic.
+describe('GET /freestyle/sets/:slug — set vs non-set concepts', () => {
+  it('furious renders a set detail page for the two-dex uptime concept', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/furious').redirects(0);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Equivalent names');
-    expect(res.text).toContain('Furious');
+    expect(res.text).toContain('two-dex uptime set');
+    // Historically related to Barraging, but never presented as the same set.
+    expect(res.text).toContain('Barraging');
     expect(res.text).not.toContain('third dex extension');
   });
 
-  it('furious folded into barraging, so its old link 301s to the barraging entry', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/furious').redirects(0);
+  it('barraging does not render a set page; it redirects to its glossary term', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/barraging').redirects(0);
     expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/sets/barraging');
+    expect(res.headers['location']).toBe('/freestyle/glossary#term-barraging-not-a-set');
   });
 
-  it('the barraging entry drops the "+2 primitive"/"two-dex base" framing', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/barraging');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('two-dex base');
-    expect(res.text).not.toContain('Structural +2 set primitive');
-    expect(res.text).not.toContain('parallel to atomic');
+  it('miraging does not render a set page; it redirects to its glossary term', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/miraging').redirects(0);
+    expect(res.status).toBe(301);
+    expect(res.headers['location']).toBe('/freestyle/glossary#term-miraging-not-a-set');
   });
 
-  it('barraging renders the two-dex set formula, not a three-dex chain', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/barraging');
-    expect(res.text).toContain('SAME IN [DEX]');
-    // The reconciled formula stops at two dexes; no third OP IN dex follows.
-    expect(res.text).not.toMatch(/SAME IN \[DEX\] &gt; OP IN \[DEX\]/);
+  it('illusioning redirects to its glossary term, not to atomic', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/illusioning').redirects(0);
+    expect(res.status).toBe(301);
+    expect(res.headers['location']).toBe('/freestyle/glossary#term-illusioning');
   });
 });
 
@@ -360,20 +370,23 @@ function presentSectionsInOrder(text: string): { present: string[]; ascending: b
 }
 
 describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail shell', () => {
-  it('atomic renders every parity section, in trick-detail order', async () => {
+  it('atomic renders its parity sections in trick-detail order (no equivalent-name section: none remain)', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/atomic');
     const { present, ascending } = presentSectionsInOrder(res.text);
-    expect(present).toEqual(SET_PARITY_ORDER); // all sections present
+    // Atomic has no equivalent names under current doctrine, so that section is
+    // absent; every other parity section is present and in order.
+    const expected = SET_PARITY_ORDER.filter(s => s !== 'aria-label="Equivalent names"');
+    expect(present).toEqual(expected);
     expect(ascending).toBe(true);
   });
 
-  it('barraging keeps its present sections in parity order, equivalent names above the readings', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/barraging');
+  it('furious renders its parity sections in trick-detail order', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/furious');
     const { present, ascending } = presentSectionsInOrder(res.text);
     expect(ascending).toBe(true);
-    expect(present).toContain('aria-label="Equivalent names"');
-    expect(present.indexOf('aria-label="Equivalent names"'))
-      .toBeLessThan(present.indexOf('aria-label="Equivalence readings"'));
+    // Furious has no equivalent-name section under current doctrine.
+    expect(present).not.toContain('aria-label="Equivalent names"');
+    expect(present).toContain('aria-label="Movement explanation"');
   });
 });
 
