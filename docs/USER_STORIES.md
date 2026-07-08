@@ -24,6 +24,16 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [V_Not_Found](#v_not_found)
     - [V_Error_or_Maintenance_Mode](#v_error_or_maintenance_mode)
     - [V_Register_Account](#v_register_account)
+  - [2.2 Freestyle Encyclopedia](#22-freestyle-encyclopedia)
+    - [V_Browse_Trick_Dictionary](#v_browse_trick_dictionary)
+    - [V_View_Trick_Detail](#v_view_trick_detail)
+    - [V_Search_Tricks](#v_search_tricks)
+    - [V_View_Trick_Records](#v_view_trick_records)
+    - [V_View_Freestyle_Reference](#v_view_freestyle_reference)
+    - [V_View_Set_Encyclopedia](#v_view_set_encyclopedia)
+    - [V_Learn_Freestyle](#v_learn_freestyle)
+    - [V_View_Emerging_Vocabulary](#v_view_emerging_vocabulary)
+    - [V_View_Freestyle_Media_Hub](#v_view_freestyle_media_hub)
 - [3. Member Stories](#3-member-stories)
   - [3.1 Account Lifecycle](#31-account-lifecycle)
     - [M_Login](#m_login)
@@ -530,6 +540,141 @@ Success Criteria:
 - Password Requirements: Minimum 8 characters, maximum 128 characters, no complexity requirements to allow passphrases.
 - Password Validation: Client-side validation provides immediate feedback, server-side validation provides authoritative enforcement.
 - If registration validation detects rule violations at registration time (invalid format, prohibited characters, not using a full name), the system rejects registration immediately with clear error message. Admin deletion authority is for cases where invalid registrations pass initial validation and are discovered later through manual review or reports.
+
+## 2.2 Freestyle Encyclopedia
+
+The freestyle encyclopedia is the public, read-only projection of the curated freestyle corpus: the trick dictionary, its reference and learning layers, sets, families, records, emerging vocabulary, and media. Every surface is public with no authentication; depth is controlled by page structure (views, disclosure, deep links), never by login or role. Content curation happens through the admin stories (A_Browse_Freestyle_Content, A_Edit_Freestyle_Trick, and their siblings). Hashtag and media-link semantics shared across the site are defined in V_View_Trick_Reference_Videos and are not restated per story.
+
+### V_Browse_Trick_Dictionary
+
+Access: Any visitor can browse the trick dictionary without logging in.
+
+Story: As a visitor, I can browse the canonical trick dictionary through multiple structural views so that I can explore the vocabulary along the axis that suits me: difficulty, family, set, movement, or components.
+
+Success Criteria:
+
+- The dictionary index at `/freestyle/tricks` lists every active canonical trick. Every browse view renders the same shared trick row (trick name, hashtag, ADD chip, primary notation) linking to the trick's detail page.
+- Browse views are selected with a `?view=` query parameter, so every view is a shareable deep link that works without JavaScript. Supported views: by ADD (the default), family, category, entry set, component, topology, movement system, and dex count. An unrecognized view value renders the default view rather than erroring.
+- `/freestyle/families` redirects to the dictionary's family view.
+- Canonical browse excludes tracked external vocabulary that has not been adjudicated into the canon (see V_View_Emerging_Vocabulary). A canonical trick whose authoring is incomplete stays visible with an incomplete marker rather than being hidden.
+- Each view groups tricks by data derived from the canonical corpus itself (stored notation, family, modifier links); views are projections of one corpus, never separately maintained lists.
+
+### V_View_Trick_Detail
+
+Access: Any visitor can view any trick detail page without logging in.
+
+Story: As a visitor, I can open a trick's detail page so that I understand its identity, structure, difficulty derivation, lineage, records, community tips, and media in one place.
+
+Success Criteria:
+
+- One canonical URL per trick: `/freestyle/tricks/{slug}` renders at the trick's canonical slug, and the page is titled by the trick's canonical name.
+- An alias slug (historical name, abbreviation, or folk spelling) permanently redirects (301) to the canonical trick URL. Internal links always use canonical slugs, so the redirect is a safety net for external links.
+- An operator or modifier slug permanently redirects to its operator page; a slug for a set that migrated out of the trick corpus permanently redirects to its set detail page; an unknown slug returns 404.
+- The page presents the trick's identity (canonical name, hashtag, ADD), its notation, its ADD derivation (the scoring-component breakdown), and its structural facts (family, base, movement system, neighborhood) with plain-words notes a beginner can read.
+- Known aliases in community use are listed on the page. Search resolves every alias; display surfaces the helpful ones.
+- Relationship blocks have strict ownership: same-family progression, conceptual related tricks, and structural neighbors are distinct sections that do not duplicate one another, and each entry links to a canonical trick page that renders (never an alias URL, never a dead link).
+- Freestyle world records set on the trick render on the page.
+- Published community tips render in a clearly labeled collapsible section, visually distinct from canonical content; unpublished or rejected tips never appear (moderation per A_Moderate_Freestyle_Trick_Tip).
+- The Media section and the browser-tab title follow V_View_Trick_Reference_Videos.
+
+### V_Search_Tricks
+
+Access: Any visitor can search without logging in.
+
+Story: As a visitor, I can search tricks and family pages by name so that I reach the right page without knowing the exact canonical spelling.
+
+Success Criteria:
+
+- `/freestyle/search` is a server-rendered search page that works without JavaScript; `/freestyle/search/suggest` is the JSON endpoint backing the typeahead.
+- The page intro reads "Find a trick or family page by name."
+- Matching covers canonical names, slugs (a spaced query matches an underscore slug), and alias text. An alias hit resolves to the canonical trick and surfaces the matched alias alongside the result.
+- Inactive tricks never appear in results or suggestions.
+- Family-page results render in their own band with a Family label, and only for family pages that actually render, so a search result never links to a page that would 404. The suggest endpoint prepends family items with a type label while trick items keep their own shape.
+- A query shorter than 2 characters yields a min-length notice; an over-long query yields no results; the page renders usably with no query at all.
+- The no-results state reads "No tricks or family pages found matching" the query.
+
+### V_View_Trick_Records
+
+Access: Any visitor can view freestyle records and leaders without logging in.
+
+Story: As a visitor, I can view freestyle world records and their leaders so that I see the sport's documented achievements and who holds them.
+
+Success Criteria:
+
+- `/freestyle/records` lists the curated freestyle world records; `/freestyle/leaders` aggregates record counts by player.
+- A record links to a canonical trick detail page when its recorded trick name resolves to a canonical trick, directly or through an alias; a legacy name that resolves to nothing renders as plain text, never a broken link.
+- Where a record's recorded difficulty differs from the trick's canonical ADD, both are presented honestly as distinct facts; neither silently overwrites the other.
+- Provenance and verification status are stated plainly. Unknown data stays unknown: no fabricated dates, names, or values, and placeholder source dates are never displayed as real dates.
+
+### V_View_Freestyle_Reference
+
+Access: Any visitor can read the reference layer without logging in.
+
+Story: As a visitor, I can read the freestyle reference layer (glossary, operators, notation article, scoring and combo analysis, corpus insights) so that I can learn the movement language and how difficulty is derived.
+
+Success Criteria:
+
+- `/freestyle/glossary` defines the movement vocabulary (surfaces, dexterities, sets, operators, families, notation, composition) as pedagogy layered over the canonical data: it explains canonical facts and links to them, and never contradicts or redefines them.
+- Deep links into the glossary (term and section anchors) land on content the reader can see; a link into a collapsed region opens it.
+- `/freestyle/operators` presents the operator and modifier reference derived from the canonical operator registry, the single authority for operator difficulty contribution and structure.
+- `/freestyle/notation-article` reproduces Ben Job's notation article verbatim with its source attribution.
+- `/freestyle/add-analysis` walks worked examples of difficulty scoring against the live dictionary. Every trick reference links to an active canonical page, resolves through an alias to the canonical page when the referenced name is superseded, or renders as plain text; it never links to a page that would 404.
+- `/freestyle/combo-analysis` presents run-level (sequence) analysis; `/freestyle/insights` presents corpus statistics computed from the live dictionary, so counts reflect the loaded data rather than hand-maintained numbers.
+
+### V_View_Set_Encyclopedia
+
+Access: Any visitor can browse the set encyclopedia without logging in.
+
+Story: As a visitor, I can browse the set encyclopedia so that I understand the sets that begin tricks, as first-class pages distinct from tricks and operators.
+
+Success Criteria:
+
+- `/freestyle/sets` is the set encyclopedia index; `/freestyle/sets/{slug}` renders a set's detail page; a legacy set alias slug permanently redirects to the canonical set URL; an unknown slug returns 404.
+- `/freestyle/sets/reference` renders the flat set reference table with its source credited.
+- `/freestyle/compositional-sets` is a sibling hub grouping sets compositionally (family groups and progression ladders); it complements the encyclopedia index and does not replace it.
+- Set surfaces carry `#set_{slug}` hashtags per V_View_Trick_Reference_Videos. A name that is both a trick and a set (pixie, fairy) has both pages, each carrying its role's hashtag.
+- Classification follows compositional role: a set launches a trick, an operator modifies one. A set page never presents its subject as a trick.
+
+### V_Learn_Freestyle
+
+Access: Any visitor can use the learning and orientation surfaces without logging in.
+
+Story: As a visitor new to freestyle, I can start from the freestyle landing page and follow the learning and orientation surfaces so that I find my way into the discipline before I can read notation.
+
+Success Criteria:
+
+- `/freestyle` is the landing page: it previews and links into the encyclopedia's surfaces (dictionary, search, records, learning, media, reference) without embedding any of them wholesale.
+- `/freestyle/learn` presents the guided learning path; `/freestyle/progression/walking-family` presents a worked progression through one family.
+- `/freestyle/families/{slug}` renders a family detail page for each official family. A lineage below the family-page threshold has no page (404), and no other surface links to it.
+- Family pages own same-family progression: ladders and next-step guidance within a family live on the family page, and trick pages link into them rather than duplicating them.
+- `/freestyle/about`, `/freestyle/history`, `/freestyle/competition`, and `/freestyle/partnerships` present editorial orientation content.
+
+### V_View_Emerging_Vocabulary
+
+Access: Any visitor can view the emerging-vocabulary page without logging in.
+
+Story: As a visitor, I can view tracked emerging vocabulary so that I see what the community is naming, clearly separated from the canonical dictionary.
+
+Success Criteria:
+
+- `/freestyle/observational` lists externally observed, not-yet-canonical vocabulary.
+- The page frames tracking honestly: tracked entries are observations, not official tricks, and tracking is not canonization.
+- Emerging entries are excluded from canonical browse views and from search.
+- Each entry presents its distance to the canonical vocabulary: whether it matches, extends, or stands apart from existing canonical structure, and what would be needed for curation.
+- The dictionary's `?view=emerging` parameter redirects here, so the vocabulary is reachable but never mixed into canonical browse.
+
+### V_View_Freestyle_Media_Hub
+
+Access: Any visitor can browse the freestyle media hub without logging in.
+
+Story: As a visitor, I can browse the freestyle media hub so that I find the curated freestyle video collections in one organized place.
+
+Success Criteria:
+
+- `/freestyle/media` presents the curated freestyle collections as a structured set of sections and folders, each folder linking to its named gallery.
+- A planned folder whose gallery does not exist yet stays visible as an unavailable entry, so the published structure does not silently shrink.
+- `/media/freestyle-tutorials` permanently redirects to `/freestyle/media` (the former tutorials index folded into the hub).
+- Per-trick media semantics (bare-slug hashtag galleries, the Media section on trick pages) are owned by V_View_Trick_Reference_Videos; this hub is the collection-level entrance.
 
 # 3. Member Stories
 
