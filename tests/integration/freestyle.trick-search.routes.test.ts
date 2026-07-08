@@ -21,11 +21,11 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertFreestyleTrick(db, { slug: 'whirl',         canonical_name: 'Whirl',         adds: '3', category: 'dex',      sort_order: 1 });
-  insertFreestyleTrick(db, { slug: 'paradox-whirl', canonical_name: 'Paradox Whirl', adds: '4', category: 'compound', sort_order: 2 });
+  insertFreestyleTrick(db, { slug: 'paradox_whirl', canonical_name: 'Paradox Whirl', adds: '4', category: 'compound', sort_order: 2 });
   insertFreestyleTrick(db, { slug: 'mirage',        canonical_name: 'Mirage',        adds: '2', category: 'dex',      sort_order: 3 });
-  insertFreestyleTrick(db, { slug: 'retired-trick', canonical_name: 'Retired Trick', adds: '3', sort_order: 4, is_active: 0 });
+  insertFreestyleTrick(db, { slug: 'retired_trick', canonical_name: 'Retired Trick', adds: '3', sort_order: 4, is_active: 0 });
   // Folk-name alias pointing at an active canonical trick.
-  insertFreestyleTrickAlias(db, 'tomahawk', 'paradox-whirl', 'tomahawk');
+  insertFreestyleTrickAlias(db, 'tomahawk', 'paradox_whirl', 'tomahawk');
   db.close();
   createApp = await importApp();
 });
@@ -46,18 +46,18 @@ describe('GET /freestyle/search (server-rendered)', () => {
   it('matches by canonical name', async () => {
     const { status, text } = await searchPage('paradox');
     expect(status).toBe(200);
-    expect(text).toContain('href="/freestyle/tricks/paradox-whirl"');
+    expect(text).toContain('href="/freestyle/tricks/paradox_whirl"');
   });
 
-  it('matches by hyphen-as-space slug', async () => {
+  it('matches a spaced query against the underscore slug', async () => {
     const { text } = await searchPage('paradox whirl');
-    expect(text).toContain('href="/freestyle/tricks/paradox-whirl"');
+    expect(text).toContain('href="/freestyle/tricks/paradox_whirl"');
   });
 
   it('matches by alias and surfaces the matched alias', async () => {
     const { status, text } = await searchPage('tomahawk');
     expect(status).toBe(200);
-    expect(text).toContain('href="/freestyle/tricks/paradox-whirl"');
+    expect(text).toContain('href="/freestyle/tricks/paradox_whirl"');
     expect(text).toContain('also: tomahawk');
   });
 
@@ -75,7 +75,7 @@ describe('GET /freestyle/search (server-rendered)', () => {
   it('excludes inactive tricks', async () => {
     const { text } = await searchPage('retired');
     expect(text).toContain('No tricks or family pages found');
-    expect(text).not.toContain('href="/freestyle/tricks/retired-trick"');
+    expect(text).not.toContain('href="/freestyle/tricks/retired_trick"');
   });
 });
 
@@ -92,7 +92,7 @@ describe('GET /freestyle/search — family-page results', () => {
     const { text } = await searchPage('whirl');
     expect(text).toContain('href="/freestyle/families/whirl"');   // family band
     expect(text).toContain('href="/freestyle/tricks/whirl"');     // trick list unchanged
-    expect(text).toContain('href="/freestyle/tricks/paradox-whirl"');
+    expect(text).toContain('href="/freestyle/tricks/paradox_whirl"');
   });
 
   it('finds a family by name for osis', async () => {
@@ -131,16 +131,16 @@ describe('GET /freestyle/search/suggest (JSON typeahead)', () => {
     expect(Array.isArray(res.body)).toBe(true);
     const slugs = res.body.map((r: { slug: string }) => r.slug);
     expect(slugs).toContain('whirl');
-    expect(slugs).toContain('paradox-whirl');
-    const paradox = res.body.find((r: { slug: string }) => r.slug === 'paradox-whirl');
-    expect(paradox.href).toBe('/freestyle/tricks/paradox-whirl');
+    expect(slugs).toContain('paradox_whirl');
+    const paradox = res.body.find((r: { slug: string }) => r.slug === 'paradox_whirl');
+    expect(paradox.href).toBe('/freestyle/tricks/paradox_whirl');
     expect(paradox.matchedAlias).toBeNull();
   });
 
   it('resolves an alias to its canonical trick with matchedAlias set', async () => {
     const res = await request(await createApp()).get('/freestyle/search/suggest').query({ q: 'tomahawk' });
     expect(res.body).toHaveLength(1);
-    expect(res.body[0].slug).toBe('paradox-whirl');
+    expect(res.body[0].slug).toBe('paradox_whirl');
     expect(res.body[0].matchedAlias).toBe('tomahawk');
   });
 
@@ -169,10 +169,10 @@ describe('GET /freestyle/search/suggest (JSON typeahead)', () => {
     expect(first.name).toBe('Whirl');
 
     // Trick items keep their exact prior shape: no typeLabel field.
-    const paradox = res.body.find((r: { slug: string; typeLabel?: string }) => r.slug === 'paradox-whirl');
+    const paradox = res.body.find((r: { slug: string; typeLabel?: string }) => r.slug === 'paradox_whirl');
     expect(paradox).toBeDefined();
     expect(paradox.typeLabel).toBeUndefined();
-    expect(paradox.href).toBe('/freestyle/tricks/paradox-whirl');
+    expect(paradox.href).toBe('/freestyle/tricks/paradox_whirl');
   });
 
   it('suggests a family even when no trick matches', async () => {

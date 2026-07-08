@@ -62,6 +62,7 @@ LEGACY_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_DB     = REPO_ROOT / "database" / "footbag.db"
 DEFAULT_SCRAPE = LEGACY_DIR / "inputs" / "footbag_org_moves_snapshot.csv"
 OUT_DIR        = LEGACY_DIR / "out"
+DISPLAY_NAME_EXCEPTIONS = LEGACY_DIR / "inputs" / "curated" / "tricks" / "display_name_exceptions.csv"
 
 OUT_COMPARISON = OUT_DIR / "trick_dictionary_comparison.csv"
 OUT_CONFLICTS  = OUT_DIR / "trick_dictionary_conflicts.csv"
@@ -121,6 +122,46 @@ def normalize_concept(name: str) -> str:
 def name_to_slug(name: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "_", name.lower().strip())
     return s.strip("_")
+
+
+def load_display_name_exceptions() -> tuple[dict[str, str], list[re.Pattern]]:
+    """The curator-approved display-name exceptions: per-row verbatim displays
+    (slug -> exact display string) and genuine-hyphen tokens whose hyphen the
+    display keeps while the slug folds it to an underscore."""
+    row_exceptions: dict[str, str] = {}
+    token_patterns: list[re.Pattern] = []
+    with DISPLAY_NAME_EXCEPTIONS.open(newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row["kind"] == "row":
+                row_exceptions[row["key"]] = row["value"]
+            elif row["kind"] == "token":
+                token_patterns.append(re.compile(r"(?i)\b" + re.escape(row["key"]) + r"\b"))
+    return row_exceptions, token_patterns
+
+
+def check_naming_invariant(curated: dict[str, dict]) -> list[str]:
+    """HARD GATE: every trick's display name is the plain human-readable form of
+    its slug. A name passes when it is a curator-approved verbatim exception, or
+    when it carries no underscore, its hyphens sit only inside the approved
+    genuine-hyphen tokens, and folding it (lowercase, non-alphanumeric runs to
+    underscores) reproduces the slug exactly. Slugs, hashtags, and every other
+    identifier surface derive from the slug and are untouched by display names."""
+    row_exceptions, token_patterns = load_display_name_exceptions()
+    violations: list[str] = []
+    for slug, t in curated.items():
+        name = t["canonical_name"]
+        if row_exceptions.get(slug) == name:
+            continue
+        stripped = name
+        for pat in token_patterns:
+            stripped = pat.sub("", stripped)
+        if "_" in name:
+            violations.append(f"{slug}: display name carries an underscore: {name!r}")
+        elif "-" in stripped:
+            violations.append(f"{slug}: display name carries a separator hyphen: {name!r}")
+        elif name_to_slug(name) != slug:
+            violations.append(f"{slug}: display name does not fold back to the slug: {name!r}")
+    return violations
 
 
 def conflict_id(*parts: str) -> str:
@@ -811,6 +852,15 @@ def run(db_path: Path, scrape_path: Path) -> dict:
         modifier_links_per_trick = load_modifier_links(conn)
     finally:
         conn.close()
+
+    # HARD GATE, before any report writing: naming-invariant violations abort
+    # the rebuild so a non-conforming display name can never load silently.
+    naming_violations = check_naming_invariant(curated)
+    if naming_violations:
+        print("NAMING INVARIANT VIOLATIONS (hard gate):", file=sys.stderr)
+        for v in naming_violations:
+            print(f"  {v}", file=sys.stderr)
+        sys.exit(1)
 
     scrape_rows = load_footbag_scrape(scrape_path)
 
