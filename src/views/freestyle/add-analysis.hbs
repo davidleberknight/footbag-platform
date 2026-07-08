@@ -93,7 +93,7 @@
     <ol class="add-analysis-osis-branch">
       {{#each content.osisBranch}}
       <li class="add-analysis-branch-step">
-        <a class="add-analysis-branch-name" href="/freestyle/tricks/{{trickSlug}}">{{trickName}}</a>
+        {{#if trickSlug}}<a class="add-analysis-branch-name" href="/freestyle/tricks/{{trickSlug}}">{{trickName}}</a>{{else}}<span class="add-analysis-branch-name">{{trickName}}</span>{{/if}}
         <span class="add-analysis-branch-eq">=</span>
         <code class="add-analysis-branch-reading">{{reading}}</code>
         <span class="add-analysis-branch-total">{{total}}</span>
@@ -122,7 +122,7 @@
       <tbody>
         {{#each content.resolvedFormulas}}
         <tr>
-          <td><a href="/freestyle/tricks/{{slug}}">{{name}}</a></td>
+          <td>{{#if slug}}<a href="/freestyle/tricks/{{slug}}">{{name}}</a>{{else}}{{name}}{{/if}}</td>
           <td><code class="resolved-formula-derivation">{{derivation}}</code></td>
           <td class="resolved-formula-add">{{totalAdd}}</td>
         </tr>

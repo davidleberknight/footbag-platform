@@ -120,8 +120,13 @@ export interface AddAnalysisContent {
   passbackAddDisagreements: readonly AddDisagreementRow[];
   /** Canonical formula resolution: framing prose. */
   resolvedFormulasFraming:  string;
-  /** Canonical formula resolution: the 15 +1-stack compositions. */
-  resolvedFormulas:         readonly ResolvedFormula[];
+  /**
+   * Canonical formula resolution: the +1-stack compositions. The page service
+   * resolves each row's slug to the active canonical page its link should
+   * target and nulls a name that resolves nowhere active, so the slug is
+   * nullable here while the static source rows always carry one.
+   */
+  resolvedFormulas:         readonly (Omit<ResolvedFormula, 'slug'> & { slug: string | null })[];
   closingParagraphs:        readonly string[];
   crossLinks:               readonly AddAnalysisCrossLink[];
 }
@@ -452,7 +457,12 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
 // operators, a whole lineage. Uses only accepted decompositions; no new doctrine.
 export interface AddAnalysisBranchStep {
   trickName: string;
-  trickSlug: string;
+  /**
+   * The static rows always carry a slug; the page service resolves it to the
+   * active canonical page the link should target and nulls a name that
+   * resolves nowhere active, so the step renders as plain text over a dead link.
+   */
+  trickSlug: string | null;
   reading:   string;   // "miraging Osis"
   total:     string;   // "+1 → 4 ADD"
 }

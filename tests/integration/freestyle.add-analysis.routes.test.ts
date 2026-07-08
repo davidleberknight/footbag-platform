@@ -21,21 +21,40 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
+import { FREESTYLE_ADD_ANALYSIS_CONTENT } from '../../src/content/freestyleAddAnalysisContent';
 
 const { dbPath } = setTestEnv('3110');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
+// Names this suite requires to render as plain text (no trick page); every
+// other content-referenced slug is seeded active so its link resolves.
+const UNSEEDED_PLAIN_TEXT_SLUGS = new Set([
+  'foot_stall', 'paradox_osis', 'paradox_legover', 'symposium_osis',
+]);
+
 beforeAll(async () => {
-  // The page is curator-authored content; the only DB-dependent part is the
-  // PassBack-vs-IFPA disagreement table, whose IFPA-name links gate on trick
-  // resolvability. Seed one disagreement-row trick so the resolvable branch is
-  // exercised; the unresolvable names stay unseeded and must render as text.
+  // The page is curator-authored content whose trick links resolve against the
+  // dictionary: a referenced name links only when its trick row is active (or
+  // its name is an alias of an active trick). Seed every slug the content
+  // references as an active trick, so the link assertions below exercise real
+  // resolution; the plain-text set above stays unseeded and must render as text.
   const db = createTestDb(dbPath);
-  insertFreestyleTrick(db, {
-    slug: 'butterfly', canonical_name: 'butterfly', adds: '3',
-    trick_family: 'butterfly', category: 'core', is_active: 1,
-  });
+  const c = FREESTYLE_ADD_ANALYSIS_CONTENT;
+  const referenced = new Set<string>();
+  for (const r of c.workedExamples)           if (r.trickSlug) referenced.add(r.trickSlug);
+  for (const r of c.osisBranch)               if (r.trickSlug) referenced.add(r.trickSlug);
+  for (const r of c.discrepancyCases)         if (r.trickSlug) referenced.add(r.trickSlug);
+  for (const r of c.edgeCases)                if (r.trickSlug) referenced.add(r.trickSlug);
+  for (const r of c.passbackAddDisagreements) if (r.ifpaSlug) referenced.add(r.ifpaSlug);
+  for (const r of c.resolvedFormulas)         if (r.slug) referenced.add(r.slug);
+  for (const slug of referenced) {
+    if (UNSEEDED_PLAIN_TEXT_SLUGS.has(slug)) continue;
+    insertFreestyleTrick(db, {
+      slug, canonical_name: slug.replace(/_/g, ' '), adds: '3',
+      trick_family: 'butterfly', category: 'compound', is_active: 1,
+    });
+  }
   db.close();
   createApp = await importApp();
 });

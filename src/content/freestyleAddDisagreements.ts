@@ -33,9 +33,11 @@
 
 export interface AddDisagreementRow {
   /**
-   * IFPA canonical slug. The static rows always carry a slug; the page service
-   * nulls it when the slug has no resolvable trick page, so the row renders as
-   * plain text instead of a dead link.
+   * IFPA structural slug. The static rows always carry a slug; the page service
+   * resolves it to the slug of the active canonical page the link should target
+   * (a retired structural name links to the active folk-named canonical it
+   * aliases), and nulls it when the name resolves nowhere active, so the row
+   * renders as plain text instead of a dead link.
    */
   ifpaSlug:        string | null;
   /** IFPA canonical display name. */

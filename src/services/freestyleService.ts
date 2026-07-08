@@ -76,7 +76,7 @@ import {
   modifierSurfaceHashtag,
 } from './freestyleRecordShaping';
 import { modifierHashtagRole } from '../content/freestyleHashtagRoles';
-import { getResolvableTrickSlugs } from './freestyleResolvableSlugs';
+import { getResolvableTrickSlugs, buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
 import {
   NotationDisplay,
   shapeNotationDisplay,
@@ -9546,15 +9546,35 @@ export const freestyleService = {
    * stays reversible without code changes.
    */
   getAddAnalysisPage(): PageViewModel<AddAnalysisContent> {
-    // The PassBack-vs-IFPA disagreement rows are hand-authored against IFPA
-    // names; a few reference a name with no canonical trick page. Drop the slug
-    // on those so the template renders the name as plain text, not a dead link.
-    const resolvable = getResolvableTrickSlugs();
+    // Every trick link this page renders is hand-authored against IFPA
+    // structural names. Some of those names belong to retired structural rows
+    // that are held inactive while the same name is an alias of an active
+    // folk-named canonical; those link straight to the active canonical page
+    // (the displayed name stays the structural one). A name that resolves
+    // nowhere active drops its slug so the template renders plain text, never
+    // a dead link. Applied uniformly to every link-carrying block.
+    const resolveActive = buildActiveTrickSlugResolver();
+    const resolveSlug = (slug: string | null): string | null =>
+      slug ? resolveActive(slug) : null;
     const content: AddAnalysisContent = {
       ...FREESTYLE_ADD_ANALYSIS_CONTENT,
+      workedExamples: FREESTYLE_ADD_ANALYSIS_CONTENT.workedExamples.map(r => ({
+        ...r, trickSlug: resolveSlug(r.trickSlug),
+      })),
+      osisBranch: FREESTYLE_ADD_ANALYSIS_CONTENT.osisBranch.map(r => ({
+        ...r, trickSlug: resolveSlug(r.trickSlug),
+      })),
+      discrepancyCases: FREESTYLE_ADD_ANALYSIS_CONTENT.discrepancyCases.map(r => ({
+        ...r, trickSlug: resolveSlug(r.trickSlug),
+      })),
+      edgeCases: FREESTYLE_ADD_ANALYSIS_CONTENT.edgeCases.map(r => ({
+        ...r, trickSlug: resolveSlug(r.trickSlug),
+      })),
       passbackAddDisagreements: FREESTYLE_ADD_ANALYSIS_CONTENT.passbackAddDisagreements.map(r => ({
-        ...r,
-        ifpaSlug: r.ifpaSlug && resolvable.has(r.ifpaSlug) ? r.ifpaSlug : null,
+        ...r, ifpaSlug: resolveSlug(r.ifpaSlug),
+      })),
+      resolvedFormulas: FREESTYLE_ADD_ANALYSIS_CONTENT.resolvedFormulas.map(r => ({
+        ...r, slug: resolveSlug(r.slug),
       })),
     };
     return {
