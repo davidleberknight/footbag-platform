@@ -11028,9 +11028,10 @@ export const freestyleService = {
       },
       content: {
         intro:
-          'What is each set as a system? This index lists the named uptime movement ' +
-          'primitives the rest of the language composes from. For "which tricks use this ' +
-          'set?", see the Trick Dictionary\'s By Modifier view.',
+          'A set is how a freestyle trick begins: the launch or entry that sets up the rest ' +
+          'of the movement. This encyclopedia treats each named set as its own subject; tap ' +
+          'any card for the deep reading. For which tricks use a given set, see the Trick ' +
+          'Dictionary\'s By Modifier view.',
         totalSets: subtypeSections.reduce((n, s) => n + s.count, 0),
         subtypeSections,
         subtypeMiniToc,
@@ -11249,7 +11250,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_compositional_sets',
         title:      'Compositional Sets',
-        intro:      'How named sets compose from a small grammar.',
+        intro:      'How named sets are built from a few simple parts. This page shows the grammar behind them: which small moves combine, and in what order, to form each named set.',
       },
       navigation: {
         breadcrumbs: [

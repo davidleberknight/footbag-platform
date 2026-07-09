@@ -35,6 +35,11 @@ describe('/freestyle/sets — subtype intro one-liners', () => {
     expect(res.text).toContain('class="sets-encyclopedia-subtype-intro"');
   });
 
+  it('the hero intro opens with a beginner-plain definition of a set', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    expect(res.text).toContain('A set is how a freestyle trick begins');
+  });
+
   it('intros for each curator-authored subtype are present in the rendered output', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
     // Spot-check a phrase from each subtype's intro (sourced verbatim

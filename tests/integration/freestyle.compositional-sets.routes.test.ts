@@ -68,6 +68,11 @@ describe('/freestyle/compositional-sets — route + hero + premise', () => {
     expect(res.text).toContain('href="/freestyle"');
   });
 
+  it('opens with a beginner-plain hero intro, not grammar jargon', async () => {
+    const res = await request(createApp()).get('/freestyle/compositional-sets');
+    expect(res.text).toContain('How named sets are built from a few simple parts');
+  });
+
   it('renders the premise section with the canonical formula', async () => {
     const res = await request(createApp()).get('/freestyle/compositional-sets');
     expect(res.text).toContain('class="content-section compositional-sets-premise"');
