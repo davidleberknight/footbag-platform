@@ -122,30 +122,27 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
     expect(html).toMatch(/pixie appears across\s+pixie-illusion/);
   });
 
-  it('the atomic modifier feel card states the +1 single-dex doctrine, not the retired double-dexterity reading', async () => {
+  it('the atomic set definition states the single-dex +1 doctrine, not the retired double-dexterity reading', async () => {
     const html = await glossary();
-    const card = html.match(/id="modifier-atomic"[\s\S]*?<\/article>/);
-    expect(card, 'atomic modifier card').not.toBeNull();
-    // Settled doctrine: a single outward dex, +1, with any X-Dex as a separate
-    // event; not the retired "double-dexterity" (+2-conflation) framing.
-    expect(card![0]).toMatch(/single outward/i);
-    expect(card![0]).toMatch(/\+1 launch primitive/i);
-    expect(card![0]).not.toContain('double-dexterity');
+    // Atomic is set vocabulary, defined in the Timing & Sets chapter. Settled
+    // doctrine: a single outward dex, +1, with any X-Dex as a separate event;
+    // not the retired double-dexterity (+2-conflation) framing.
+    const def = html.match(/id="term-set-atomic"[\s\S]*?<\/dd>/);
+    expect(def, 'atomic set definition').not.toBeNull();
+    expect(def![0]).toMatch(/single outward dex/i);
+    expect(def![0]).toMatch(/\+1/);
+    expect(def![0]).not.toContain('double-dexterity');
+    expect(def![0]).not.toMatch(/double dex/i);
   });
 
-  it('groups paradox under Dex Relationships, separate from the body operators', async () => {
+  it('frames paradox as an entry / dex relationship cross-linked to Dexterities, not a set or body movement', async () => {
     const html = await glossary();
-    expect(html).toContain('Dex Relationships');
-    // The paradox card sits in the Dex Relationships cluster (after its heading,
-    // before the Body Modifiers cluster) and is framed as a relationship, not a
-    // body movement.
-    const dexRelIdx  = html.indexOf('Dex Relationships');
-    const bodyIdx     = html.indexOf('Body Modifiers <span class="glossary-modifier-cluster-axes">');
-    const paradoxIdx = html.indexOf('id="modifier-paradox"');
-    expect(dexRelIdx).toBeGreaterThan(0);
-    expect(paradoxIdx).toBeGreaterThan(dexRelIdx);
-    expect(paradoxIdx).toBeLessThan(bodyIdx);
-    expect(html).toMatch(/dex relationship, not a body movement/i);
+    // Paradox is the Entry Topologies axis; dex side relationships are owned by
+    // the Dexterities chapter, which Operators cross-links rather than
+    // re-teaching. The modifier-paradox deep-link anchor is preserved.
+    expect(html).toMatch(/Entry Topologies/);
+    expect(html).toContain('href="#section-dexterities"');
+    expect(html).toContain('id="modifier-paradox"');
   });
 
   it('the modifier weights table lists the full +1 body family (head-movement + spin siblings)', async () => {

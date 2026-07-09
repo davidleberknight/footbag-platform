@@ -55,7 +55,7 @@ describe('GET /freestyle/glossary — Timing & Sets is the set-vocabulary home',
     for (const anchor of ['term-set-atomic', 'term-set-quantum', 'term-set-furious', 'term-set-launches']) {
       expect(timingChapter).toContain(`id="${anchor}"`);
     }
-    expect(timingChapter).toContain('An uptime set built around an outward dex'); // atomic
+    expect(timingChapter).toContain('An uptime set built around a single outward dex'); // atomic
     expect(timingChapter).toContain('two-dex uptime set');                         // furious
   });
 

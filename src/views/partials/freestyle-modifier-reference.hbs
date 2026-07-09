@@ -59,8 +59,9 @@
   cluster-paired form to surface the same structure.
 </p>
 <ol class="glossary-movement-system-axes">
-  <li><strong>Set / Uptime Systems</strong>: launch mechanics + uptime dex character.<br>
-    <em>pixie, fairy, atomic, quantum, furious, nuclear, blurry, stepping, whirling</em>. (Barraging is historically related to Furious but not a confirmed set.)</li>
+  <li><strong>Set / Uptime Systems</strong>: launch mechanics. These are set
+    vocabulary, defined in the <a href="#section-timing-sets">Timing &amp; Sets</a>
+    chapter, not here.</li>
   <li><strong>Entry Topologies</strong>: entry relationship and cross-body framing.<br>
     <em>paradox</em>; positional vocabulary (op/ss, near/far) lives in &sect;3 and &sect;7.</li>
   <li><strong>Midtime Body Modifiers</strong>: apex body mechanics around the trick&apos;s peak.<br>
@@ -69,9 +70,8 @@
     <em>symposium, symple, muted, flying</em>.</li>
 </ol>
 <p class="detail-muted">
-  The cards below surface a selected pedagogical cohort
-  (13 cards across 2 visual clusters); the full axis breakdown
-  lives on the dictionary&apos;s movement-system browse surface.
+  The body-modifier cards below surface a selected pedagogical cohort; the full
+  axis breakdown lives on the dictionary&apos;s movement-system browse surface.
 </p>
 
 {{! ── Surface A: Common Advanced Modifiers ─────────────────────────────
@@ -83,49 +83,21 @@
 <h3 class="section-heading" id="common-advanced-modifiers">Common advanced modifiers</h3>
 <p>The modifiers players reach for most often. Read these for movement and feel; the structural readings live in the advanced reference below.</p>
 
-<div class="glossary-modifier-cluster">
-  <h4 class="glossary-modifier-cluster-heading">Set / Uptime Systems</h4>
-  <div class="glossary-modifier-cards">
-    {{#each content.setModifierFeelCards}}
-    <article class="glossary-modifier-card" id="modifier-{{slug}}">
-      <p class="glossary-modifier-card-head">
-        <span class="glossary-modifier-card-name">{{name}}</span>
-        {{#if glyph}}<span class="glossary-modifier-card-glyph">{{glyph}}</span>{{/if}}
-      </p>
-      <p class="glossary-modifier-card-feel">{{feel}}</p>
-      <p class="glossary-modifier-card-intuition">{{intuition}}</p>
-      <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
-      {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
-      <p class="glossary-modifier-card-tricks-link"><a class="glossary-outward-link" href="/freestyle/tricks?view=movement-system">Browse {{name}} tricks &rarr;</a></p>
-    </article>
-    {{/each}}
-  </div>
-</div>
-
-<div class="glossary-modifier-cluster">
-  <h4 class="glossary-modifier-cluster-heading">Dex Relationships</h4>
-  <div class="glossary-modifier-cards">
-    {{#each content.entryTopologyFeelCards}}
-    <article class="glossary-modifier-card" id="modifier-{{slug}}">
-      <p class="glossary-modifier-card-head">
-        <span class="glossary-modifier-card-name">{{name}}</span>
-      </p>
-      <p class="glossary-modifier-card-feel">{{feel}}</p>
-      <p class="glossary-modifier-card-intuition">{{intuition}}</p>
-      <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
-      {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
-      <p class="glossary-modifier-card-tricks-link"><a class="glossary-outward-link" href="/freestyle/tricks?view=movement-system">Browse {{name}} tricks &rarr;</a></p>
-    </article>
-    {{/each}}
-  </div>
-  <p class="glossary-modifier-cluster-note">
-    A cross-body side relationship between dexes, not a movement operator. It sits
-    with the other dex relationships (same / opposite, near / far) and X-Dex
-    eligibility in the <a href="#section-dexterities">Dexterities</a> section.
-    (A broad temporary grouping; the eventual home is an Entry / Side / Dex
-    Relationships section.)
-  </p>
-</div>
+<p>
+  Named launch and set systems (pixie, fairy, atomic, quantum, furious, and the
+  rest) are set vocabulary, defined in the
+  <a href="#section-timing-sets">Timing &amp; Sets</a> chapter. Dex side
+  relationships (same / opposite, near / far) and X-Dex eligibility live in the
+  <a href="#section-dexterities">Dexterities</a> chapter. This chapter keeps the
+  transformations that reshape a base once it is under way.
+</p>
+{{! Deep-link anchor stubs: dictionary semantic tokens deep-link to
+    modifier-{slug} for these set / entry systems. Their feel cards moved to the
+    owning chapters, but the anchors stay as thin cross-links so those deep links
+    keep resolving. }}
+<p class="detail-muted">Set systems:
+  {{#each content.setModifierFeelCards}}<a id="modifier-{{slug}}" class="glossary-outward-link" href="#section-timing-sets">{{name}}</a>{{#unless @last}} &middot; {{/unless}}{{/each}}{{#each content.entryTopologyFeelCards}} &middot; <a id="modifier-{{slug}}" class="glossary-outward-link" href="#term-paradox">{{name}} (entry)</a>{{/each}}.
+</p>
 
 <div class="glossary-modifier-cluster">
   <h4 class="glossary-modifier-cluster-heading">Body Modifiers <span class="glossary-modifier-cluster-axes">(midtime &middot; suspension)</span></h4>

@@ -251,16 +251,16 @@ describe('Glossary §6 modifier cards — "See tricks using X" deep-links', () =
     expect(res.text).toContain('class="glossary-modifier-card-tricks-link"');
   });
 
-  it('positions the tricks-link footer INSIDE each modifier card article', async () => {
+  it('preserves the modifier-pixie deep-link anchor, cross-linked to its set definition', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    // The card for #modifier-pixie contains the tricks-link footer with
-    // the matching Movement System deep-link (post-soft-retirement).
-    const cardRegion = res.text.match(
-      /id="modifier-pixie"[\s\S]*?<\/article>/,
-    );
-    expect(cardRegion).not.toBeNull();
-    expect(cardRegion![0]).toContain('href="/freestyle/tricks?view=movement-system"');
+    // Pixie is set vocabulary, defined in the Timing & Sets chapter. Its feel
+    // card moved there, but the modifier-pixie anchor that dictionary tokens
+    // deep-link to survives as a thin cross-link so those deep links resolve.
+    expect(res.text).toContain('id="modifier-pixie"');
+    const stub = res.text.match(/id="modifier-pixie"[^>]*href="([^"]+)"/);
+    expect(stub).not.toBeNull();
+    expect(stub![1]).toBe('#section-timing-sets');
   });
 });
 
