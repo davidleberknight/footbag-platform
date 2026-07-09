@@ -72,6 +72,12 @@ describe('GET /freestyle/search (server-rendered)', () => {
     expect(text).toContain('No tricks or family pages found');
   });
 
+  it('offers onward browse links from the empty state instead of a dead end', async () => {
+    const { text } = await searchPage('zzzznotatrick');
+    expect(text).toContain('Try browsing instead');
+    expect(text).toContain('href="/freestyle/tricks"');
+  });
+
   it('excludes inactive tricks', async () => {
     const { text } = await searchPage('retired');
     expect(text).toContain('No tricks or family pages found');
