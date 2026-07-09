@@ -77,6 +77,24 @@ def get(session: requests.Session, url: str, timeout: int = 15) -> requests.Resp
     return resp
 
 
+class SessionExpiredError(RuntimeError):
+    """Raised when a page fetched mid-crawl turns out to be the sign-in page.
+
+    footbag.org silently drops the session (instead of returning an error) when
+    the logged-in account lacks admin access to a group's /groups/edit/<id>
+    page, so a fetch that should return group data can come back as the login
+    form instead. Left undetected, `parse_group_settings` would harvest that
+    login form's fields as if they were group settings for every remaining
+    group in the crawl range.
+    """
+
+
+def looks_like_signin_page(soup: BeautifulSoup) -> bool:
+    title = soup.find("title")
+    title_text = title.get_text(strip=True).lower() if title else ""
+    return bool(soup.find("form", {"name": "loginform"})) or "member sign-in" in title_text
+
+
 def login(session: requests.Session, username: str, password: str) -> None:
     init_resp = session.get(BASE_URL + "/members/", timeout=10)
     init_resp.raise_for_status()
@@ -92,9 +110,7 @@ def login(session: requests.Session, username: str, password: str) -> None:
     verify_resp = get(session, LOGIN_URL, timeout=10)
     verify_resp.raise_for_status()
     soup = BeautifulSoup(verify_resp.text, "html.parser")
-    title = soup.find("title")
-    title_text = title.get_text(strip=True).lower() if title else ""
-    if soup.find("form", {"name": "loginform"}) or "member sign-in" in title_text:
+    if looks_like_signin_page(soup):
         raise RuntimeError("Login failed — still seeing the sign-in page.")
     log.info("Login successful")
 
@@ -270,6 +286,13 @@ def parse_archive_most_recent_date(soup: BeautifulSoup) -> str:
     return max(dates).isoformat() if dates else ""
 
 
+def _require_still_logged_in(soup: BeautifulSoup, group_id: int, page: str) -> None:
+    if looks_like_signin_page(soup):
+        raise SessionExpiredError(
+            f"group {group_id}: session appears logged out (saw the sign-in page while fetching {page})"
+        )
+
+
 def fetch_group(session: requests.Session, group_id: int) -> tuple[dict | None, list[dict], str | None]:
     """Returns (settings_row_or_None, member_rows, skip_reason_or_None)."""
     settings_resp = get(session, f"{BASE_URL}/groups/editgroupinfo/{group_id}")
@@ -277,6 +300,7 @@ def fetch_group(session: requests.Session, group_id: int) -> tuple[dict | None, 
         return None, [], "editgroupinfo 404"
     settings_resp.raise_for_status()
     settings_soup = BeautifulSoup(settings_resp.text, "html.parser")
+    _require_still_logged_in(settings_soup, group_id, "editgroupinfo")
     if looks_like_missing_group(settings_soup):
         return None, [], "no such group"
 
@@ -288,6 +312,7 @@ def fetch_group(session: requests.Session, group_id: int) -> tuple[dict | None, 
     else:
         home_resp.raise_for_status()
         home_soup = BeautifulSoup(home_resp.text, "html.parser")
+        _require_still_logged_in(home_soup, group_id, "home")
         members = [] if looks_like_missing_group(home_soup) else parse_group_members(group_id, home_soup)
 
     time.sleep(DELAY_SECONDS)
@@ -297,6 +322,7 @@ def fetch_group(session: requests.Session, group_id: int) -> tuple[dict | None, 
     if edit_resp.status_code != 404:
         edit_resp.raise_for_status()
         edit_soup = BeautifulSoup(edit_resp.text, "html.parser")
+        _require_still_logged_in(edit_soup, group_id, "edit")
         if not looks_like_missing_group(edit_soup):
             owner_name, owner_member_id, member_count = parse_group_owner_and_member_count(edit_soup)
 
@@ -308,6 +334,7 @@ def fetch_group(session: requests.Session, group_id: int) -> tuple[dict | None, 
     else:
         archive_resp.raise_for_status()
         archive_soup = BeautifulSoup(archive_resp.text, "html.parser")
+        _require_still_logged_in(archive_soup, group_id, "viewarchive")
         archive_date = "" if looks_like_missing_group(archive_soup) else parse_archive_most_recent_date(archive_soup)
 
     settings = parse_group_settings(group_id, settings_soup)
@@ -389,6 +416,13 @@ def main() -> int:
             log.warning("group %d: fetch failed: %s", group_id, e)
             time.sleep(DELAY_SECONDS)
             continue
+        except SessionExpiredError as e:
+            log.error(
+                "%s — stopping crawl early rather than harvesting login-page data as group settings. "
+                "Log back in and rerun with --start %d to resume.",
+                e, group_id,
+            )
+            break
 
         if skip_reason:
             skipped.append((group_id, skip_reason))
