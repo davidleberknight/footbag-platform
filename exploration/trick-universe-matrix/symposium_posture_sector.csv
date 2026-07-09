@@ -1,0 +1,28 @@
+slug,adds,suspension_mode,base_shape,licensed_event_bracket,encoding,note
+symposium_mirage,3,no-plant,mirage (OP IN to OP TOE),BOD,noplant-prestate-fused,base symposium form; no-plant licenses a body event fused to the receiver dex
+flail,3,no-plant,illusion (OP OUT to OP TOE),BOD,noplant-prestate-fused,folk name for symposium illusion
+symposium_pixie,3,no-plant,pixie (SAME IN to OP TOE),BOD,noplant-prestate-fused,
+symposium_bubba,3,no-plant,bubba (OP OUT to OP TOE from clip),BOD,noplant-prestate-fused,
+symposium_whirl,4,no-plant,whirl (OP IN to OP CLIP xbd),BOD,noplant-prestate-fused,cross-body landing keeps its own grade
+symposium_butterfly,4,no-plant,butterfly (OUT to OP CLIP xbd),BOD,noplant-prestate-fused,
+symposium_swirl,4,no-plant,swirl,BOD,noplant-prestate-fused,
+symposium_reverse_whirl,4,no-plant,reverse whirl,BOD,noplant-prestate-fused,
+clipper_symposium_whirl,4,no-plant,whirl,DEX,symp-dex-token,alternate encoding: symposium written as a leading SAME SYMP [DEX] token rather than a fused body
+reverse_swirling_symposium_mirage,4,no-plant,mirage,DEX,symp-dex-token,alternate encoding: SAME SYMP [DEX] as a chain step
+pogo_mirage,3,no-plant,mirage,DEX,noplant-prestate-leading-dex,same no-plant posture but it licenses an extra leading dex, not a body event
+pogo_illusion,3,no-plant,illusion,DEX,noplant-prestate-leading-dex,
+pogo_legover,3,no-plant,legover,DEX,noplant-prestate-leading-dex,
+pogo_pickup,3,no-plant,pickup,DEX,noplant-prestate-leading-dex,
+pogo_whirl,4,no-plant,whirl,DEX,noplant-prestate-leading-dex,
+pogo_butterfly,4,no-plant,butterfly,DEX,noplant-prestate-leading-dex,
+flying_inside,1,flying,inside landing,BOD,flying-leading-body,flying is a distinct suspension mode: a leading airborne body action
+flying_outside,1,flying,outside landing,BOD,flying-leading-body,
+flying_clipper,2,flying,clipper landing,BOD,flying-leading-body,
+dragonfly_kick,2,flying,outward dex kick,BOD,flying-leading-body,
+hop_over,2,jump,inside landing,BOD,jump-leading-body-with-land,jump is a distinct suspension mode: a leap that ends with an explicit (land)
+eclipse,3,jump,inside then outward dex,BOD,jump-leading-body-with-land,
+butterfly_kick,2,jump,outward dex kick,BOD,jump-leading-body-with-land,
+spyro,1,planted-explicit,spin kick,none,plant-prestate,carries an explicit (plant) entry marker even as a simple spin
+fairy_same_side_mirage,3,planted-explicit,fairy then same-in dex,none,plant-midchain,the (plant) between dexes distinguishes it from the no-plant version
+paradox_symposium_illusion,4,mixed,illusion,BOD,plant-then-noplant,planted clipper entry then a no-plant dex; posture changes within the trick
+paradox_symposium_mirage,4,mixed,mirage,BOD,plant-then-noplant,posture is per-step and can change mid-chain

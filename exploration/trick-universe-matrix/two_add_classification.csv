@@ -1,0 +1,29 @@
+observed_annotation,structural_class,generator_word,dex_side,direction,terminal_side,terminal_surface,terminal_hardness,symmetry_coordinate,notes
+around_the_world,dex+delay,d(SAME,IN).D(toe),SAME,IN,SAME,toe,plain,cube(SAME.IN.SAME),cube vertex 1 of 8
+orbit,dex+delay,d(SAME,OUT).D(toe),SAME,OUT,SAME,toe,plain,cube(SAME.OUT.SAME),direction-reversal of around_the_world
+pixie,dex+delay,d(SAME,IN).D(toe),SAME,IN,OP,toe,plain,cube(SAME.IN.OP),terminal-reflection of around_the_world
+fairy,dex+delay,d(SAME,OUT).D(toe),SAME,OUT,OP,toe,plain,cube(SAME.OUT.OP),terminal-reflection of orbit
+mirage,dex+delay,d(OP,IN).D(toe),OP,IN,OP,toe,plain,cube(OP.IN.OP),side-reflection of pixie
+illusion,dex+delay,d(OP,OUT).D(toe),OP,OUT,OP,toe,plain,cube(OP.OUT.OP),direction-reversal of mirage
+pickup,dex+delay,d(OP,IN).D(toe),OP,IN,SAME,toe,plain,cube(OP.IN.SAME),terminal-reflection of mirage
+legover,dex+delay,d(OP,OUT).D(toe),OP,OUT,SAME,toe,plain,cube(OP.OUT.SAME),side-reflection of orbit; completes the 8-vertex cube
+inside_around_the_world,dex+delay,d(SAME,IN).D(inside),SAME,IN,SAME,inside,plain,cube(SAME.IN.SAME) x surface(inside),around_the_world shape on the inside fiber
+outside_around_the_world,dex+delay,d(SAME,OUT).D(outside),SAME,OUT,SAME,outside,plain,cube(SAME.OUT.SAME) x surface(outside),orbit shape on the outside fiber
+guay,dex+delay,d(OP,IN).D(inside),OP,IN,SAME,inside,plain,cube(OP.IN.SAME) x surface(inside),pickup shape on the inside fiber
+inspinning_reverse_guay,dex+delay,d(SAME,IN).D(inside),SAME,IN,OP,inside,plain,cube(SAME.IN.OP) x surface(inside),pixie shape on the inside fiber
+bubba,dex+delay,e(clip).d(OP,OUT).D(toe),OP,OUT,OP,toe,plain,cube(OP.OUT.OP) x entry(clip),illusion shape entered from the clipper set
+diving_toe_stall,body+delay,b(dive).D(toe),,,SAME,toe,plain,body(dive),
+ducking_toe_stall,body+delay,b(duck).D(toe),,,OP,toe,plain,body(duck),
+gyro_toe,body+delay,b(spin.back).D(toe),,,SAME,toe,plain,body(spin.back),
+inspinning_toe_stall,body+delay,b(spin.front).D(toe),,,OP,toe,plain,body(spin.front),
+hop_over,body+delay,b(jump).D(inside),,,SAME/OP,inside,plain,body(jump),
+dragon,hard-terminal,e.T(SAME,OUT,cross-body),SAME,OUT,,toe-region,cross-body,terminal2(xbd),single cross-body stall carries both ADD
+probe,hard-terminal,e.T(OP,clip,cross-body),OP,,OP,clipper,cross-body,terminal2(xbd),cross-body clipper stall
+clipper_stall,hard-terminal,e.T(cross-body),,,,clipper,cross-body,terminal2(xbd),the named clipper stall is a grade-2 cross-body landing
+cloud_stall,hard-terminal,e.T(SAME,cloud,unusual),SAME,,SAME,cloud,unusual,terminal2(uns),unusual-surface stall carries both ADD
+heel_stall,hard-terminal,e.T(SAME,heel,unusual),SAME,,SAME,heel,unusual,terminal2(uns),unusual-surface stall
+butterfly_kick,kick-generation,b(jump).d(OUT).K,SAME/OP,OUT,,,,kick(grade3-cousin),stall cousin is grade-3 butterfly
+dragonfly_kick,kick-generation,b(flying).d(OP,OUT).K,OP,OUT,,,,kick(grade3-cousin),
+flying_clipper,kick-generation,b(flying).T(OP,clip,cross-body-open),OP,,OP,clipper,cross-body,kick-region,flying into an open cross-body clipper
+double_spin,iterated,b(spin).b(spin),,,,,,,iterate(body),two body events, no terminal delay
+2_bag_juggling,iterated,D(toe).D(toe),,,SAME,toe,plain,iterate(delay),two terminal delays in sequence (juggle)

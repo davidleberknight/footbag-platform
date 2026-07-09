@@ -1,0 +1,896 @@
+slug,name,add,contact_count,scored_event_count,classification
+clipper_stall,"clipper stall",2,2,0,notation-gap
+pendulum,pendulum,2,2,0,notation-gap
+toe_stall,"toe stall",1,2,0,notation-gap
+ducking_osis,"ducking osis",4,3,4,parse-residue-embedded-name
+weaving_osis,"weaving osis",4,3,4,parse-residue-embedded-name
+zulu_osis,"zulu osis",4,3,4,parse-residue-embedded-name
+backside_symposium_smear,"backside symposium smear",5,6,5,doctrine-question-symp-encoding
+clipper_ducking_symposium_whirl,"clipper ducking symposium whirl",5,5,5,doctrine-question-symp-encoding
+clipper_symposium_whirl,"clipper symposium whirl",4,4,4,doctrine-question-symp-encoding
+paradox_symposium_whirling_rake,"paradox symposium whirling rake",5,5,5,doctrine-question-symp-encoding
+reverse_swirling_paradox_symposium_whirl,"Reverse Swirling Paradox Symposium Whirl",6,5,6,doctrine-question-symp-encoding
+reverse_swirling_symposium_mirage,"reverse swirling symposium mirage",4,5,4,doctrine-question-symp-encoding
+surging_ducking_paradox_symposium_whirling_rake,"Surging Ducking Paradox Symposium Whirling Rake",8,8,8,doctrine-question-symp-encoding
+symposium_reverse_swirling_pickup,"symposium reverse swirling pickup",4,5,4,doctrine-question-symp-encoding
+symposium_reverse_whirling_swirl,"symposium reverse whirling swirl",5,5,5,doctrine-question-symp-encoding
+toe_symposium_swirl,"toe symposium swirl",4,4,4,doctrine-question-symp-encoding
+aeon_flux,"aeon flux",5,4,5,explained-known-extension
+anoxia,anoxia,6,5,6,explained-known-extension
+armageddon,armageddon,6,5,6,explained-known-extension
+atom_bomb,"atom bomb",6,4,6,explained-known-extension
+atom_smasher,"atom smasher",4,4,4,explained-known-extension
+avalanche,avalanche,5,5,5,explained-known-extension
+backside_magellan,"backside magellan",4,5,4,explained-known-extension
+backside_paste,"backside paste",4,5,4,explained-known-extension
+barfry,barfry,5,4,5,explained-known-extension
+blue_widow,"blue widow",7,5,7,explained-known-extension
+blur,blur,4,4,4,explained-known-extension
+blurry_drifter,"Blurry Drifter",5,4,5,explained-known-extension
+blurry_symposium_whirl,"Blurry Symposium Whirl",6,4,6,explained-known-extension
+blurry_torque,"blurry torque",6,5,6,explained-known-extension
+blurry_whirl,"blurry whirl",5,4,5,explained-known-extension
+blurry_whirling_swirl,"blurry whirling swirl",6,5,6,explained-known-extension
+chainsaw_massacre,"chainsaw massacre",7,5,7,explained-known-extension
+cold_fusion,"cold fusion",6,5,6,explained-known-extension
+ducking_paradox_blender,"ducking paradox blender",6,5,6,explained-known-extension
+ducking_paradox_drifter,"ducking paradox drifter",5,4,5,explained-known-extension
+ducking_paradox_flail,"ducking paradox flail",5,4,5,explained-known-extension
+ducking_paradox_illusion,"ducking paradox illusion",4,4,4,explained-known-extension
+ducking_paradox_mirage,"ducking paradox mirage",4,4,4,explained-known-extension
+ducking_paradox_symposium_illusion,"ducking paradox symposium illusion",5,4,5,explained-known-extension
+ducking_paradox_symposium_mirage,"ducking paradox symposium mirage",5,4,5,explained-known-extension
+ducking_paradox_symposium_whirl,"ducking paradox symposium whirl",6,4,6,explained-known-extension
+ducking_paradox_torque,"ducking paradox torque",6,5,6,explained-known-extension
+ego,ego,6,5,6,explained-known-extension
+fog,fog,5,5,5,explained-known-extension
+food_processor,"food processor",6,5,6,explained-known-extension
+fury,fury,5,5,5,explained-known-extension
+gangsta_party,"gangsta party",7,6,7,explained-known-extension
+gary_coleman,"gary coleman",6,4,6,explained-known-extension
+gauntlet,gauntlet,7,6,7,explained-known-extension
+hurl,hurl,5,4,5,explained-known-extension
+inspinning_paradox_illusion,"inspinning paradox illusion",4,4,4,explained-known-extension
+inspinning_paradox_mirage,"inspinning paradox mirage",4,4,4,explained-known-extension
+juno_reactor,"juno reactor",6,5,6,explained-known-extension
+lotus,lotus,5,4,5,explained-known-extension
+maelstrom,maelstrom,6,5,6,explained-known-extension
+margaritaville,margaritaville,7,6,7,explained-known-extension
+matador,matador,5,4,5,explained-known-extension
+mind_bender,"mind bender",6,5,6,explained-known-extension
+montage,montage,7,5,7,explained-known-extension
+morpheus,morpheus,6,5,6,explained-known-extension
+mullet,mullet,6,4,6,explained-known-extension
+nuclear_butterfly,"Nuclear Butterfly",5,4,5,explained-known-extension
+nuclear_double_leg_over,"nuclear double leg over",5,5,5,explained-known-extension
+nuclear_drifter,"nuclear drifter",5,4,5,explained-known-extension
+nuclear_dyno,"nuclear dyno",6,5,6,explained-known-extension
+nuclear_guay,"nuclear guay",4,4,4,explained-known-extension
+nuclear_illusion,"nuclear illusion",4,4,4,explained-known-extension
+nuclear_legover,"nuclear legover",4,4,4,explained-known-extension
+nuclear_pickup,"nuclear pickup",4,4,4,explained-known-extension
+nuclear_rev_guay,"nuclear rev guay",4,4,4,explained-known-extension
+nuclear_rev_whirl,"nuclear rev whirl",5,4,5,explained-known-extension
+nuclear_torque,"nuclear torque",6,5,6,explained-known-extension
+nuclear_whirl,"nuclear whirl",5,4,5,explained-known-extension
+oh_wheely,"oh wheely",6,5,6,explained-known-extension
+overlord,overlord,7,6,7,explained-known-extension
+paradox_barrage,"paradox barrage",4,4,4,explained-known-extension
+paradox_blender,"paradox blender",5,4,5,explained-known-extension
+paradox_blizzard,"paradox blizzard",4,4,4,explained-known-extension
+paradox_da_da_curve,"paradox da da curve",5,4,5,explained-known-extension
+paradox_double_leg_over,"paradox double leg over",4,4,4,explained-known-extension
+paradox_drifter,"paradox drifter",4,3,4,explained-known-extension
+paradox_eggbeater,"paradox eggbeater",4,4,4,explained-known-extension
+paradox_flail,"paradox flail",4,3,4,explained-known-extension
+paradox_flurry,"paradox flurry",5,5,5,explained-known-extension
+paradox_fusion,"paradox fusion",6,5,6,explained-known-extension
+paradox_high_plains_drifter,"paradox high plains drifter",5,4,5,explained-known-extension
+paradox_illusion,"paradox illusion",3,3,3,explained-known-extension
+paradox_mirage,"paradox mirage",3,3,3,explained-known-extension
+paradox_ripwalk,"paradox ripwalk",5,4,5,explained-known-extension
+paradox_symposium_eggbeater,"paradox symposium eggbeater",5,4,5,explained-known-extension
+paradox_symposium_illusion,"paradox symposium illusion",4,3,4,explained-known-extension
+paradox_symposium_mirage,"paradox symposium mirage",4,3,4,explained-known-extension
+paradox_symposium_torque,"paradox symposium torque",6,4,6,explained-known-extension
+paradox_symposium_whirl,"paradox symposium whirl",5,3,5,explained-known-extension
+paradox_torque,"paradox torque",5,4,5,explained-known-extension
+paradox_whirl,"paradox whirl",4,3,4,explained-known-extension
+paradox_whirling_rake,"paradox whirling rake",4,4,4,explained-known-extension
+paradox_whirling_swirl,"paradox whirling swirl",5,4,5,explained-known-extension
+paratoxic,paratoxic,6,4,6,explained-known-extension
+pixie_spinning_paradox_blender,"pixie spinning paradox blender",7,6,7,explained-known-extension
+pixie_spinning_paradox_symposium_whirl,"pixie spinning paradox symposium whirl",7,5,7,explained-known-extension
+pixie_spinning_paradox_whirl,"pixie spinning paradox whirl",6,5,6,explained-known-extension
+pogo_paradox_barrage,"Pogo Paradox Barrage",5,5,5,explained-known-extension
+pogo_paradox_blender,"Pogo Paradox Blender",6,5,6,explained-known-extension
+pogo_paradox_da_da_curve,"Pogo Paradox Da Da Curve",6,5,6,explained-known-extension
+pogo_paradox_drifter,"Pogo Paradox Drifter",5,4,5,explained-known-extension
+pogo_paradox_eggbeater,"Pogo Paradox Eggbeater",5,5,5,explained-known-extension
+pogo_paradox_torque,"Pogo Paradox Torque",6,5,6,explained-known-extension
+pogo_paradox_whirl,"Pogo Paradox Whirl",5,4,5,explained-known-extension
+pogo_paradox_whirling_swirl,"Pogo Paradox Whirling Swirl",6,5,6,explained-known-extension
+pogo_voodoo,"Pogo Voodoo",6,5,6,explained-known-extension
+rake,rake,2,3,2,explained-known-extension
+reactor,reactor,5,4,5,explained-known-extension
+redwetter,redwetter,6,6,6,explained-known-extension
+reverse_swirling_paradox_torque,"reverse swirling paradox torque",6,5,6,explained-known-extension
+reverse_whirling_rake,"reverse whirling rake",3,4,3,explained-known-extension
+royale,royale,4,3,4,explained-known-extension
+shooting_barfly,"shooting barfly",7,6,7,explained-known-extension
+shooting_butterfly,"shooting butterfly",6,5,6,explained-known-extension
+shooting_clipper,"shooting clipper",5,4,5,explained-known-extension
+shooting_da_da_curve,"shooting da da curve",7,6,7,explained-known-extension
+shooting_double_leg_over,"shooting double leg over",6,6,6,explained-known-extension
+shooting_ducking_butterfly,"shooting ducking butterfly",7,6,7,explained-known-extension
+shooting_gyro_mirage,"shooting gyro mirage",6,6,6,explained-known-extension
+shooting_illusion,"shooting illusion",5,5,5,explained-known-extension
+shooting_legover,"shooting legover",5,5,5,explained-known-extension
+shooting_mirage,"shooting mirage",5,5,5,explained-known-extension
+shooting_pickup,"shooting pickup",5,5,5,explained-known-extension
+shooting_star,"shooting star",7,6,7,explained-known-extension
+shooting_torque,"shooting torque",7,6,7,explained-known-extension
+slapstick,slapstick,6,5,6,explained-known-extension
+spender,spender,6,5,6,explained-known-extension
+spike_hammer,"spike hammer",5,5,5,explained-known-extension
+spinning_ducking_paradox_blender,"spinning ducking paradox blender",7,6,7,explained-known-extension
+spinning_ducking_paradox_drifter,"spinning ducking paradox drifter",6,5,6,explained-known-extension
+spinning_ducking_paradox_mirage,"spinning ducking paradox mirage",5,5,5,explained-known-extension
+spinning_ducking_paradox_symposium_mirage,"spinning ducking paradox symposium mirage",6,5,6,explained-known-extension
+spinning_ducking_paradox_symposium_whirl,"spinning ducking paradox symposium whirl",7,5,7,explained-known-extension
+spinning_ducking_paradox_whirl,"spinning ducking paradox whirl",6,5,6,explained-known-extension
+spinning_paradox_blender,"spinning paradox blender",6,5,6,explained-known-extension
+spinning_paradox_double_leg_over,"spinning paradox double leg over",5,5,5,explained-known-extension
+spinning_paradox_drifter,"spinning paradox drifter",5,4,5,explained-known-extension
+spinning_paradox_illusion,"spinning paradox illusion",4,4,4,explained-known-extension
+spinning_paradox_mirage,"spinning paradox mirage",4,4,4,explained-known-extension
+spinning_paradox_symposium_whirl,"spinning paradox symposium whirl",6,4,6,explained-known-extension
+spinning_paradox_torque,"spinning paradox torque",6,5,6,explained-known-extension
+spinning_paradox_whirl,"spinning paradox whirl",5,4,5,explained-known-extension
+spinning_tomahawk,"spinning tomahawk",6,5,6,explained-known-extension
+stepping_ducking_paradox_blender,"stepping ducking paradox blender",7,6,7,explained-known-extension
+stepping_ducking_paradox_illusion,"stepping ducking paradox illusion",5,5,5,explained-known-extension
+stepping_ducking_paradox_symposium_whirl,"stepping ducking paradox symposium whirl",7,5,7,explained-known-extension
+stepping_paradox_torque,"stepping paradox torque",6,5,6,explained-known-extension
+sumo,sumo,5,4,5,explained-known-extension
+surge,surge,5,5,5,explained-known-extension
+surging_ducking_paradox_torque,"surging ducking paradox torque",8,7,8,explained-known-extension
+surreal,surreal,6,5,6,explained-known-extension
+swirling_paradox_mirage,"swirling paradox mirage",4,4,4,explained-known-extension
+swirling_paradox_symposium_whirl,"swirling paradox symposium whirl",6,4,6,explained-known-extension
+swirlwind,swirlwind,7,5,7,explained-known-extension
+symposium_blur,"symposium blur",5,4,5,explained-known-extension
+symposium_tomahawk,"symposium tomahawk",6,4,6,explained-known-extension
+tomahawk,tomahawk,5,4,5,explained-known-extension
+trixie,trixie,5,5,5,explained-known-extension
+whirling_paradox_mirage,"whirling paradox mirage",4,4,4,explained-known-extension
+whirling_rake,"whirling rake",3,4,3,explained-known-extension
+witchdoctor,witchdoctor,5,4,5,explained-known-extension
+2_bag_juggling,"2 bag juggling",2,2,2,fully-explained
+3_bag_juggling,"3 bag juggling",3,3,3,fully-explained
+archnemesis,archnemesis,6,6,6,fully-explained
+around_the_world,"around the world",2,3,2,fully-explained
+around_the_world_heel,"around the world heel",3,3,3,fully-explained
+around_the_world_kick,"around the world kick",1,2,1,fully-explained
+assassin,assassin,4,5,4,fully-explained
+assassin_same_side,"assassin same side",4,5,4,fully-explained
+atomic_barrage,"atomic barrage",4,5,4,fully-explained
+atomic_blender,"atomic blender",5,5,5,fully-explained
+atomic_butterfly,"atomic butterfly",4,4,4,fully-explained
+atomic_clipper,"atomic clipper",3,3,3,fully-explained
+atomic_drifter,"atomic drifter",4,4,4,fully-explained
+atomic_ducking_blender,"atomic ducking blender",6,6,6,fully-explained
+atomic_ducking_mirage,"Atomic Ducking Mirage",4,5,4,fully-explained
+atomic_ducking_torque,"atomic ducking torque",6,6,6,fully-explained
+atomic_eclipse,"atomic eclipse",4,5,4,fully-explained
+atomic_eggbeater,"atomic eggbeater",4,5,4,fully-explained
+atomic_flail,"atomic flail",4,4,4,fully-explained
+atomic_guay,"atomic guay",3,4,3,fully-explained
+atomic_illusion,"atomic illusion",3,4,3,fully-explained
+atomic_inspinning_butterfly,"atomic inspinning butterfly",5,5,5,fully-explained
+atomic_kick,"atomic kick",1,2,1,fully-explained
+atomic_miraging_butterfly,"atomic miraging butterfly",5,5,5,fully-explained
+atomic_reverse_guay,"atomic reverse guay",3,4,3,fully-explained
+atomic_reverse_swirl,"atomic reverse swirl",4,4,4,fully-explained
+atomic_swirl,"Atomic Swirl",4,4,4,fully-explained
+atomic_symposium_butterfly,"atomic symposium butterfly",5,4,5,fully-explained
+atomic_symposium_eggbeater,"atomic symposium eggbeater",5,5,5,fully-explained
+atomic_symposium_mirage,"atomic symposium mirage",4,4,4,fully-explained
+atomic_symposium_whirl,"Atomic Symposium Whirl",5,4,5,fully-explained
+atomic_torque,"atomic torque",5,5,5,fully-explained
+atomic_whirl,"Atomic Whirl",4,4,4,fully-explained
+backside_symposium_toe_blizzard,"Backside Symposium Toe Blizzard",4,4,4,fully-explained
+barfly,barfly,4,4,4,fully-explained
+barfly_swirl,"barfly swirl",5,5,5,fully-explained
+barrage,barrage,3,4,3,fully-explained
+barraging_barfly,"barraging barfly",6,6,6,fully-explained
+barraging_barfly_swirl,"barraging barfly swirl",7,7,7,fully-explained
+barraging_butterfly,"barraging butterfly",5,5,5,fully-explained
+barraging_butterfly_swirl,"barraging butterfly swirl",6,6,6,fully-explained
+barraging_double_leg_over,"barraging double leg over",5,6,5,fully-explained
+barraging_drifter,"barraging drifter",5,5,5,fully-explained
+barraging_eggbeater,"barraging eggbeater",5,6,5,fully-explained
+barraging_illusion,"barraging illusion",4,5,4,fully-explained
+barraging_legover,"barraging legover",4,5,4,fully-explained
+barraging_mirage,"barraging mirage",4,5,4,fully-explained
+barraging_osis,"barraging osis",5,5,5,fully-explained
+barraging_pickup,"barraging pickup",4,5,4,fully-explained
+barraging_symposium_eggbeater,"barraging symposium eggbeater",6,6,6,fully-explained
+barraging_symposium_legover,"barraging symposium legover",5,5,5,fully-explained
+bedwetter,bedwetter,4,5,4,fully-explained
+big_apple,"big apple",6,5,6,fully-explained
+big_papa_smurf,"big papa smurf",7,7,7,fully-explained
+bigwalk,bigwalk,5,5,5,fully-explained
+blackula,blackula,5,4,5,fully-explained
+bladerunner,bladerunner,4,5,4,fully-explained
+blaze,blaze,3,4,3,fully-explained
+blender,blender,4,4,4,fully-explained
+blender_same_side,"Blender Same Side",4,4,4,fully-explained
+bling_blang,"bling blang",4,4,4,fully-explained
+blister,blister,4,5,4,fully-explained
+blistering_whirl,"Blistering Whirl",5,5,5,fully-explained
+blizzard,blizzard,3,4,3,fully-explained
+blurrage,blurrage,4,5,4,fully-explained
+blurrier,Blurrier,5,5,5,fully-explained
+blurriest,blurriest,5,5,5,fully-explained
+bubba,bubba,2,3,2,fully-explained
+bullwhip,bullwhip,5,5,5,fully-explained
+butterfly,butterfly,3,3,3,fully-explained
+butterfly_gyro_toe,"butterfly gyro toe",4,4,4,fully-explained
+butterfly_kick,"butterfly kick",2,3,2,fully-explained
+butterfly_same_side,"Butterfly Same Side",3,3,3,fully-explained
+butterfly_swirl,"butterfly swirl",4,4,4,fully-explained
+cheese_processor,"cheese processor",7,7,7,fully-explained
+clipper,clipper,1,1,1,fully-explained
+clipper_diving_whirl,"clipper diving whirl",4,4,4,fully-explained
+clipper_ducking_blender,"clipper ducking blender",5,5,5,fully-explained
+clipper_ducking_drifter,"clipper ducking drifter",4,4,4,fully-explained
+clipper_ducking_whirl,"clipper ducking whirl",4,4,4,fully-explained
+cloud_kick,"cloud kick",1,2,1,fully-explained
+cloud_stall,"cloud stall",2,2,2,fully-explained
+clown_face,"clown face",5,6,5,fully-explained
+colossus,colossus,6,5,6,fully-explained
+cross_body_sole_stall,"cross-body sole stall",3,2,3,fully-explained
+dada_curve,"dada curve",4,4,4,fully-explained
+dark_avenue,"dark avenue",5,5,5,fully-explained
+darkwalk,darkwalk,5,5,5,fully-explained
+dimmiest,dimmiest,5,5,5,fully-explained
+dimwalk,dimwalk,4,4,4,fully-explained
+diving_butterfly,"diving butterfly",4,4,4,fully-explained
+diving_clipper,"diving clipper",3,3,3,fully-explained
+diving_drifter,"diving drifter",4,4,4,fully-explained
+diving_eclipse,"diving eclipse",4,6,4,fully-explained
+diving_guay,"diving guay",3,4,3,fully-explained
+diving_illusion,"diving illusion",3,4,3,fully-explained
+diving_legover,"diving legover",3,4,3,fully-explained
+diving_mirage,"diving mirage",3,4,3,fully-explained
+diving_osis,"diving osis",4,4,4,fully-explained
+diving_pickup,"diving pickup",3,4,3,fully-explained
+diving_reverse_guay,"diving reverse guay",3,4,3,fully-explained
+diving_reverse_swirl,"diving reverse swirl",4,4,4,fully-explained
+diving_smudge,"diving smudge",4,5,4,fully-explained
+diving_swirl,"diving swirl",4,4,4,fully-explained
+diving_symposium_mirage,"diving symposium mirage",4,4,4,fully-explained
+diving_symposium_whirl,"diving symposium whirl",5,4,5,fully-explained
+diving_toe_stall,"diving toe stall",2,3,2,fully-explained
+diving_whirl,"diving whirl",4,4,4,fully-explained
+dolomite,dolomite,5,4,5,fully-explained
+dorshanatrix,dorshanatrix,5,5,5,fully-explained
+double_around_the_world,"double around the world",3,4,3,fully-explained
+double_around_the_world_heel,"double around the world heel",4,4,4,fully-explained
+double_blender,"double blender",5,5,5,fully-explained
+double_fairy,"double fairy",3,4,3,fully-explained
+double_illusion,"double illusion",3,4,3,fully-explained
+double_kick,"double kick",1,1,1,fully-explained
+double_knee,"double knee",1,1,1,fully-explained
+double_leg_over,"double leg over",3,4,3,fully-explained
+double_orbit,"double orbit",3,4,3,fully-explained
+double_over_down,"double over down",4,4,4,fully-explained
+double_over_down_swirl,"double over down swirl",5,5,5,fully-explained
+double_pickup,"double pickup",3,4,3,fully-explained
+double_pixie,"double pixie",3,4,3,fully-explained
+double_spin,"double spin",2,2,2,fully-explained
+double_spinning_butterfly,"double spinning butterfly",5,5,5,fully-explained
+double_spinning_clipper,"double spinning clipper",4,4,4,fully-explained
+double_spinning_mirage,"double spinning mirage",4,5,4,fully-explained
+double_spinning_osis,"double spinning osis",5,5,5,fully-explained
+double_spinning_whirl,"double spinning whirl",5,5,5,fully-explained
+double_switch_over,"double switch over",3,4,3,fully-explained
+double_whirl,"double whirl",4,4,4,fully-explained
+down_diver,"down diver",5,5,5,fully-explained
+dragon,dragon,2,2,2,fully-explained
+dragonfly_kick,"dragonfly kick",2,2,2,fully-explained
+drifter,drifter,3,3,3,fully-explained
+ducking_barfly,"ducking barfly",5,5,5,fully-explained
+ducking_butterfly,"ducking butterfly",4,4,4,fully-explained
+ducking_butterfly_swirl,"ducking butterfly swirl",5,5,5,fully-explained
+ducking_clipper,"ducking clipper",3,3,3,fully-explained
+ducking_double_leg_over,"ducking double leg over",4,5,4,fully-explained
+ducking_drifter,"ducking drifter",4,4,4,fully-explained
+ducking_eclipse,"ducking eclipse",4,4,4,fully-explained
+ducking_guay,"ducking guay",3,4,3,fully-explained
+ducking_illusion,"ducking illusion",3,4,3,fully-explained
+ducking_legover,"ducking legover",3,4,3,fully-explained
+ducking_mirage,"ducking mirage",3,4,3,fully-explained
+ducking_pickup,"ducking pickup",3,4,3,fully-explained
+ducking_reverse_guay,"ducking reverse guay",3,4,3,fully-explained
+ducking_symposium_mirage,"ducking symposium mirage",4,4,4,fully-explained
+ducking_symposium_reverse_whirl,"ducking symposium reverse whirl",5,4,5,fully-explained
+ducking_toe_stall,"ducking toe stall",2,3,2,fully-explained
+ducking_whirl,"ducking whirl",4,4,4,fully-explained
+dyno,dyno,4,4,4,fully-explained
+eclipse,eclipse,3,5,3,fully-explained
+eclipse_same_side,"eclipse same side",3,5,3,fully-explained
+eggbeater,eggbeater,3,4,3,fully-explained
+fairy,fairy,2,3,2,fully-explained
+fairy_barrage,"fairy barrage",4,5,4,fully-explained
+fairy_blender,"fairy blender",5,5,5,fully-explained
+fairy_butterfly,"fairy butterfly",4,4,4,fully-explained
+fairy_butterfly_swirl,"fairy butterfly swirl",5,5,5,fully-explained
+fairy_clipper,"fairy clipper",3,3,3,fully-explained
+fairy_diving_butterfly,"fairy diving butterfly",5,5,5,fully-explained
+fairy_double_leg_over,"fairy double leg over",4,5,4,fully-explained
+fairy_double_over_down,"fairy double over down",5,5,5,fully-explained
+fairy_double_pickup,"fairy double pickup",4,5,4,fully-explained
+fairy_drifter,"fairy drifter",4,4,4,fully-explained
+fairy_ducking_blender,"fairy ducking blender",6,6,6,fully-explained
+fairy_ducking_butterfly,"fairy ducking butterfly",5,5,5,fully-explained
+fairy_ducking_clipper,"fairy ducking clipper",4,4,4,fully-explained
+fairy_ducking_double_leg_over,"fairy ducking double leg over",5,6,5,fully-explained
+fairy_ducking_drifter,"fairy ducking drifter",5,5,5,fully-explained
+fairy_ducking_illusion,"fairy ducking illusion",4,5,4,fully-explained
+fairy_ducking_legover,"fairy ducking legover",4,5,4,fully-explained
+fairy_ducking_mirage,"fairy ducking mirage",4,5,4,fully-explained
+fairy_ducking_osis,"fairy ducking osis",5,5,5,fully-explained
+fairy_ducking_pickup,"fairy ducking pickup",4,5,4,fully-explained
+fairy_ducking_torque,"fairy ducking torque",6,6,6,fully-explained
+fairy_ducking_whirl,"fairy ducking whirl",5,5,5,fully-explained
+fairy_dyno,"fairy dyno",5,5,5,fully-explained
+fairy_eclipse,"fairy eclipse",4,4,4,fully-explained
+fairy_eggbeater,"fairy eggbeater",4,5,4,fully-explained
+fairy_flail,"fairy flail",4,4,4,fully-explained
+fairy_guay,"fairy guay",3,4,3,fully-explained
+fairy_gyro_barrage,"fairy gyro barrage",5,6,5,fully-explained
+fairy_gyro_butterfly,"fairy gyro butterfly",5,5,5,fully-explained
+fairy_gyro_double_leg_over,"fairy gyro double leg over",5,6,5,fully-explained
+fairy_gyro_drifter,"fairy gyro drifter",5,5,5,fully-explained
+fairy_gyro_mirage,"fairy gyro mirage",4,5,4,fully-explained
+fairy_gyro_symposium_mirage,"fairy gyro symposium mirage",5,5,5,fully-explained
+fairy_gyro_torque,"fairy gyro torque",6,6,6,fully-explained
+fairy_gyro_whirl,"fairy gyro whirl",5,5,5,fully-explained
+fairy_illusion,"fairy illusion",3,4,3,fully-explained
+fairy_kick,"fairy kick",1,2,1,fully-explained
+fairy_legover,"fairy legover",3,4,3,fully-explained
+fairy_merkon,"fairy merkon",4,5,4,fully-explained
+fairy_mirage,"fairy mirage",3,4,3,fully-explained
+fairy_mobius,"fairy mobius",6,6,6,fully-explained
+fairy_osis,"fairy osis",4,4,4,fully-explained
+fairy_paradon,"fairy paradon",5,5,5,fully-explained
+fairy_pickup,"fairy pickup",3,4,3,fully-explained
+fairy_pickup_same_side,"fairy pickup same side",3,4,3,fully-explained
+fairy_rev_whirl,"fairy rev whirl",4,4,4,fully-explained
+fairy_reverse_guay,"fairy reverse guay",3,4,3,fully-explained
+fairy_reverse_swirl,"fairy reverse swirl",4,4,4,fully-explained
+fairy_reverse_whirl,"fairy reverse whirl",4,4,4,fully-explained
+fairy_ripstein,"fairy ripstein",5,5,5,fully-explained
+fairy_same_side_mirage,"fairy same side mirage",3,4,3,fully-explained
+fairy_same_side_whirl,"fairy same side whirl",4,4,4,fully-explained
+fairy_spinning_blender,"fairy spinning blender",6,6,6,fully-explained
+fairy_spinning_butterfly,"fairy spinning butterfly",5,5,5,fully-explained
+fairy_spinning_ducking_osis,"fairy spinning ducking osis",6,6,6,fully-explained
+fairy_spinning_illusion,"fairy spinning illusion",4,5,4,fully-explained
+fairy_spinning_mirage,"fairy spinning mirage",4,5,4,fully-explained
+fairy_spinning_osis,"fairy spinning osis",5,5,5,fully-explained
+fairy_swirl,"fairy swirl",4,4,4,fully-explained
+fairy_swirling_swirl,"fairy swirling swirl",5,5,5,fully-explained
+fairy_symposium_eggbeater,"fairy symposium eggbeater",5,5,5,fully-explained
+fairy_symposium_mirage,"fairy symposium mirage",4,4,4,fully-explained
+fairy_symposium_whirl,"fairy symposium whirl",5,4,5,fully-explained
+fairy_torque,"fairy torque",5,5,5,fully-explained
+fairy_twirl,"fairy twirl",5,5,5,fully-explained
+fairy_weaving_butterfly,"fairy weaving butterfly",5,5,5,fully-explained
+fairy_weaving_clipper,"fairy weaving clipper",4,4,4,fully-explained
+fairy_weaving_mirage,"fairy weaving mirage",4,5,4,fully-explained
+fairy_weaving_osis,"fairy weaving osis",5,5,5,fully-explained
+fairy_whirl,"fairy whirl",4,4,4,fully-explained
+fender,fender,5,5,5,fully-explained
+fender_bender,"fender bender",6,6,6,fully-explained
+feral,feral,4,4,4,fully-explained
+flail,flail,3,3,3,fully-explained
+floatation,floatation,6,5,6,fully-explained
+flog,Flog,4,5,4,fully-explained
+flurricane,flurricane,5,6,5,fully-explained
+flurry,flurry,4,5,4,fully-explained
+flux,flux,4,4,4,fully-explained
+flying_clipper,"flying clipper",2,2,2,fully-explained
+flying_fish,"flying fish",5,6,5,fully-explained
+flying_inside,"flying inside",1,2,1,fully-explained
+flying_outside,"flying outside",1,2,1,fully-explained
+forehead_stall,"forehead stall",1,2,1,fully-explained
+forque,forque,5,5,5,fully-explained
+fume,fume,4,4,4,fully-explained
+fusion,fusion,5,5,5,fully-explained
+genesis,genesis,5,5,5,fully-explained
+genuphobia,genuphobia,7,6,7,fully-explained
+goliath,goliath,5,6,5,fully-explained
+grave_digger,"grave digger",5,5,5,fully-explained
+guay,guay,2,3,2,fully-explained
+guillotine,guillotine,4,5,4,fully-explained
+gyro_barfly,"gyro barfly",5,5,5,fully-explained
+gyro_barrage,"gyro barrage",4,5,4,fully-explained
+gyro_blender,"gyro blender",5,5,5,fully-explained
+gyro_butterfly,"gyro butterfly",4,4,4,fully-explained
+gyro_butterfly_swirl,"gyro butterfly swirl",5,5,5,fully-explained
+gyro_clipper,"gyro clipper",3,3,3,fully-explained
+gyro_dada_curve,"gyro dada curve",5,5,5,fully-explained
+gyro_diving_butterfly,"gyro diving butterfly",5,5,5,fully-explained
+gyro_diving_clipper,"gyro diving clipper",4,4,4,fully-explained
+gyro_diving_symposium_torque,"gyro diving symposium torque",7,6,7,fully-explained
+gyro_double_leg_over,"gyro double leg over",4,5,4,fully-explained
+gyro_double_over_down,"gyro double over down",5,5,5,fully-explained
+gyro_double_pickup,"gyro double pickup",4,5,4,fully-explained
+gyro_ducking_symposium_torque,"gyro ducking symposium torque",7,6,7,fully-explained
+gyro_eclipse,"gyro eclipse",4,4,4,fully-explained
+gyro_eggbeater,"gyro eggbeater",4,5,4,fully-explained
+gyro_flail,"gyro flail",4,4,4,fully-explained
+gyro_guay,"gyro guay",3,4,3,fully-explained
+gyro_illusion,"gyro illusion",3,4,3,fully-explained
+gyro_legover,"gyro legover",3,4,3,fully-explained
+gyro_mirage,"gyro mirage",3,4,3,fully-explained
+gyro_osis,"gyro osis",4,4,4,fully-explained
+gyro_pickup,"gyro pickup",3,4,3,fully-explained
+gyro_reverse_guay,"gyro reverse guay",3,4,3,fully-explained
+gyro_symposium_double_leg_over,"gyro symposium double leg over",5,5,5,fully-explained
+gyro_symposium_mirage,"gyro symposium mirage",4,4,4,fully-explained
+gyro_symposium_swirl,"gyro symposium swirl",5,4,5,fully-explained
+gyro_symposium_torque,"gyro symposium torque",6,5,6,fully-explained
+gyro_symposium_whirl,"gyro symposium whirl",5,4,5,fully-explained
+gyro_toe,"gyro toe",2,3,2,fully-explained
+gyro_whirl,"gyro whirl",4,4,4,fully-explained
+gyro_whirling_swirl,"gyro whirling swirl",5,5,5,fully-explained
+hatchet,hatchet,4,4,4,fully-explained
+haze,haze,4,5,4,fully-explained
+head_stall,"head stall",1,2,1,fully-explained
+heel_stall,"heel stall",2,2,2,fully-explained
+high_plains_drifter,"high plains drifter",4,4,4,fully-explained
+hop_over,"hop over",2,4,2,fully-explained
+hop_over_swirl,"hop over swirl",4,4,4,fully-explained
+id,id,6,6,6,fully-explained
+illusion,illusion,2,3,2,fully-explained
+inside_around_the_world,"inside around the world",2,3,2,fully-explained
+inside_stall,"inside stall",1,2,1,fully-explained
+inspinning_butterfly,"inspinning butterfly",4,4,4,fully-explained
+inspinning_clipper,"inspinning clipper",3,3,3,fully-explained
+inspinning_flail,"inspinning flail",4,4,4,fully-explained
+inspinning_guay,"inspinning guay",3,4,3,fully-explained
+inspinning_illusion,"inspinning illusion",3,4,3,fully-explained
+inspinning_legover,"inspinning legover",3,4,3,fully-explained
+inspinning_mirage,"inspinning mirage",3,4,3,fully-explained
+inspinning_osis,"inspinning osis",4,4,4,fully-explained
+inspinning_reverse_guay,"inspinning reverse guay",2,3,2,fully-explained
+inspinning_symposium_mirage,"inspinning symposium mirage",4,4,4,fully-explained
+inspinning_toe_stall,"inspinning toe stall",2,3,2,fully-explained
+irish_cream,"irish cream",6,6,6,fully-explained
+irish_spring,"irish spring",5,5,5,fully-explained
+jani_walker,"jani walker",5,5,5,fully-explained
+knee_clipper,"knee clipper",2,2,2,fully-explained
+knee_stall,"knee stall",1,2,1,fully-explained
+leg_over_flapper_stall,"Leg Over Flapper Stall",4,3,4,fully-explained
+legeater,legeater,3,4,3,fully-explained
+legover,legover,2,3,2,fully-explained
+legover_kick,"legover kick",1,2,1,fully-explained
+leviathon,leviathon,6,6,6,fully-explained
+liquifier,liquifier,6,6,6,fully-explained
+locomotion,locomotion,6,6,6,fully-explained
+magellan,magellan,3,4,3,fully-explained
+mantis,mantis,4,5,4,fully-explained
+merkon,merkon,3,4,3,fully-explained
+mirage,mirage,2,3,2,fully-explained
+miraging_dyno,"miraging dyno",5,5,5,fully-explained
+miraging_eclipse,"miraging eclipse",4,5,4,fully-explained
+miraging_flail,"miraging flail",4,4,4,fully-explained
+miraging_kick,"miraging kick",1,2,1,fully-explained
+miraging_pickup,"miraging pickup",3,4,3,fully-explained
+miraging_symposium_butterfly,"miraging symposium butterfly",5,4,5,fully-explained
+miraging_symposium_double_over_down,"miraging symposium double over down",6,5,6,fully-explained
+miraging_symposium_eggbeater,"miraging symposium eggbeater",5,5,5,fully-explained
+miraging_symposium_illusion,"miraging symposium illusion",4,4,4,fully-explained
+miraging_symposium_mirage,"miraging symposium mirage",4,4,4,fully-explained
+miraging_symposium_whirl,"miraging symposium whirl",5,4,5,fully-explained
+mobius,mobius,5,5,5,fully-explained
+moby_dick,"moby dick",6,6,6,fully-explained
+mofly,mofly,6,5,6,fully-explained
+motion,motion,5,5,5,fully-explained
+motion_sickness,"motion sickness",6,6,6,fully-explained
+nebula,nebula,5,6,5,fully-explained
+neck_stall,"neck stall",1,2,1,fully-explained
+nemesis,nemesis,6,6,6,fully-explained
+nova,nova,4,4,4,fully-explained
+omelette,omelette,3,4,3,fully-explained
+orbit,orbit,2,3,2,fully-explained
+orbit_kick,"orbit kick",1,2,1,fully-explained
+osis,osis,3,3,3,fully-explained
+outside_around_the_world,"outside around the world",2,3,2,fully-explained
+outside_stall,"outside stall",1,2,1,fully-explained
+pandemonium,pandemonium,5,5,5,fully-explained
+paradon,paradon,4,4,4,fully-explained
+paradon_swirl,"paradon swirl",5,5,5,fully-explained
+parallax,parallax,3,4,3,fully-explained
+parkwalk,parkwalk,4,4,4,fully-explained
+paste,paste,3,4,3,fully-explained
+paste_same_side,"paste same side",3,4,3,fully-explained
+peak_delay,"peak delay",1,2,1,fully-explained
+phoenix,phoenix,5,5,5,fully-explained
+pickup,pickup,2,3,2,fully-explained
+pigbeater,pigbeater,4,5,4,fully-explained
+pixie,pixie,2,3,2,fully-explained
+pixie_barfly,"pixie barfly",5,5,5,fully-explained
+pixie_barrage,"pixie barrage",4,5,4,fully-explained
+pixie_blender,"pixie blender",5,5,5,fully-explained
+pixie_butterfly_swirl,"pixie butterfly swirl",5,5,5,fully-explained
+pixie_clipper,"pixie clipper",3,3,3,fully-explained
+pixie_dada_curve,"pixie dada curve",5,5,5,fully-explained
+pixie_diving_mirage,"pixie diving mirage",4,5,4,fully-explained
+pixie_diving_osis,"pixie diving osis",5,5,5,fully-explained
+pixie_diving_pickup,"pixie diving pickup",4,5,4,fully-explained
+pixie_diving_symposium_mirage,"pixie diving symposium mirage",5,5,5,fully-explained
+pixie_diving_whirl,"pixie diving whirl",5,5,5,fully-explained
+pixie_dolomite,"pixie dolomite",6,5,6,fully-explained
+pixie_double_over_down,"pixie double over down",5,5,5,fully-explained
+pixie_double_pickup,"pixie double pickup",4,5,4,fully-explained
+pixie_double_pickup_same_side,"pixie double pickup same side",4,5,4,fully-explained
+pixie_double_switch_over,"pixie double switch over",4,5,4,fully-explained
+pixie_ducking_butterfly,"pixie ducking butterfly",5,5,5,fully-explained
+pixie_ducking_butterfly_swirl,"pixie ducking butterfly swirl",6,6,6,fully-explained
+pixie_ducking_clipper,"pixie ducking clipper",4,4,4,fully-explained
+pixie_ducking_eggbeater,"pixie ducking eggbeater",5,6,5,fully-explained
+pixie_ducking_illusion,"pixie ducking illusion",4,5,4,fully-explained
+pixie_ducking_legover,"pixie ducking legover",4,5,4,fully-explained
+pixie_ducking_osis,"pixie ducking osis",5,5,5,fully-explained
+pixie_ducking_pickup,"pixie ducking pickup",4,5,4,fully-explained
+pixie_ducking_symposium_mirage,"pixie ducking symposium mirage",5,5,5,fully-explained
+pixie_ducking_whirl,"pixie ducking whirl",5,5,5,fully-explained
+pixie_dyno,"pixie dyno",5,5,5,fully-explained
+pixie_eclipse,"pixie eclipse",4,4,4,fully-explained
+pixie_eggbeater,"pixie eggbeater",4,5,4,fully-explained
+pixie_flail,"pixie flail",4,4,4,fully-explained
+pixie_guay,"pixie guay",3,4,3,fully-explained
+pixie_gyro_double_leg_over,"pixie gyro double leg over",5,6,5,fully-explained
+pixie_kick,"pixie kick",1,2,1,fully-explained
+pixie_legover,"pixie legover",3,4,3,fully-explained
+pixie_mirage,"pixie mirage",3,4,3,fully-explained
+pixie_miraging_flail,"pixie miraging flail",5,5,5,fully-explained
+pixie_miraging_symposium_eggbeater,"pixie miraging symposium eggbeater",6,6,6,fully-explained
+pixie_mobius,"pixie mobius",6,6,6,fully-explained
+pixie_opposite_clipper,"pixie opposite clipper",3,3,3,fully-explained
+pixie_osis,"pixie osis",4,4,4,fully-explained
+pixie_paradon,"pixie paradon",5,6,5,fully-explained
+pixie_pickup,"pixie pickup",3,4,3,fully-explained
+pixie_quantum_butterfly,"pixie quantum butterfly",5,5,5,fully-explained
+pixie_quantum_legover,"Pixie Quantum Legover",4,5,4,fully-explained
+pixie_rev_whirl,"pixie rev whirl",4,4,4,fully-explained
+pixie_reverse_guay,"pixie reverse guay",3,4,3,fully-explained
+pixie_reverse_swirl,"pixie reverse swirl",4,4,4,fully-explained
+pixie_reverse_whirl,"pixie reverse whirl",4,4,4,fully-explained
+pixie_same_clipper,"pixie same clipper",3,3,3,fully-explained
+pixie_same_side_illusion,"pixie same side illusion",3,4,3,fully-explained
+pixie_swirl,"pixie swirl",4,4,4,fully-explained
+pixie_symposium_illusion,"pixie symposium illusion",4,4,4,fully-explained
+pixie_symposium_mirage,"pixie symposium mirage",4,4,4,fully-explained
+pixie_symposium_rev_whirl,"pixie symposium rev whirl",5,4,5,fully-explained
+pixie_symposium_reverse_whirl,"pixie symposium reverse whirl",5,4,5,fully-explained
+pixie_symposium_whirl,"pixie symposium whirl",5,4,5,fully-explained
+pixie_symposium_whirling_swirl,"pixie symposium whirling swirl",6,5,6,fully-explained
+pixie_torque,"pixie torque",5,5,5,fully-explained
+pixie_weaving_butterfly,"pixie weaving butterfly",5,5,5,fully-explained
+pixie_weaving_mirage,"pixie weaving mirage",4,5,4,fully-explained
+pixie_weaving_osis,"pixie weaving osis",5,5,5,fully-explained
+pixie_weaving_symposium_mirage,"pixie weaving symposium mirage",5,5,5,fully-explained
+pixie_weaving_whirl,"pixie weaving whirl",5,5,5,fully-explained
+pixie_whirl,"pixie whirl",4,4,4,fully-explained
+plasma,plasma,5,5,5,fully-explained
+pogo_barfly,"Pogo Barfly",5,5,5,fully-explained
+pogo_barrage,"Pogo Barrage",4,5,4,fully-explained
+pogo_blender,"Pogo Blender",5,5,5,fully-explained
+pogo_butterfly,"Pogo Butterfly",4,4,4,fully-explained
+pogo_da_da_curve,"pogo da da curve",5,5,5,fully-explained
+pogo_double_leg_over,"pogo double leg over",4,5,4,fully-explained
+pogo_drifter,"Pogo Drifter",4,4,4,fully-explained
+pogo_eggbeater,"Pogo Eggbeater",4,5,4,fully-explained
+pogo_illusion,"Pogo Illusion",3,4,3,fully-explained
+pogo_legover,"Pogo Legover",3,4,3,fully-explained
+pogo_mirage,"Pogo Mirage",3,4,3,fully-explained
+pogo_motion,"pogo motion",6,6,6,fully-explained
+pogo_paradox_mirage,"Pogo Paradox Mirage",4,4,4,fully-explained
+pogo_pickup,"Pogo Pickup",3,4,3,fully-explained
+pogo_torque,"Pogo Torque",5,5,5,fully-explained
+pogo_whirl,"Pogo Whirl",4,4,4,fully-explained
+pogo_whirling_swirl,"Pogo Whirling Swirl",5,5,5,fully-explained
+predator,predator,4,5,4,fully-explained
+probe,probe,2,2,2,fully-explained
+puck,puck,4,5,4,fully-explained
+quagmire,quagmire,4,5,4,fully-explained
+quantanamera,quantanamera,5,5,5,fully-explained
+quantum_blender,"quantum blender",5,5,5,fully-explained
+quantum_butterfly,"quantum butterfly",4,4,4,fully-explained
+quantum_butterfly_swirl,"quantum butterfly swirl",5,5,5,fully-explained
+quantum_double_leg_over,"quantum double leg over",4,5,4,fully-explained
+quantum_drifter,"quantum drifter",4,4,4,fully-explained
+quantum_ducking_whirl,"quantum ducking whirl",5,5,5,fully-explained
+quantum_eclipse,"quantum eclipse",4,4,4,fully-explained
+quantum_eggbeater,"quantum eggbeater",4,5,4,fully-explained
+quantum_flail,"quantum flail",4,4,4,fully-explained
+quantum_guay,"quantum guay",3,4,3,fully-explained
+quantum_gyro_mirage,"quantum gyro mirage",4,5,4,fully-explained
+quantum_illusion,"quantum illusion",3,4,3,fully-explained
+quantum_legover,"quantum legover",3,4,3,fully-explained
+quantum_mirage,"quantum mirage",3,4,3,fully-explained
+quantum_osis,"quantum osis",4,4,4,fully-explained
+quantum_pickup,"quantum pickup",3,4,3,fully-explained
+quantum_reverse_guay,"quantum reverse guay",3,4,3,fully-explained
+quantum_symposium_mirage,"quantum symposium mirage",4,4,4,fully-explained
+quantum_symposium_whirl,"quantum symposium whirl",5,4,5,fully-explained
+quantum_torque,"quantum torque",5,5,5,fully-explained
+quantum_whirl,"quantum whirl",4,4,4,fully-explained
+rage,rage,5,5,5,fully-explained
+rail_warrior,"rail warrior",6,6,6,fully-explained
+reaper,reaper,3,4,3,fully-explained
+refraction,refraction,3,4,3,fully-explained
+rev_swirl,"rev swirl",3,3,3,fully-explained
+rev_whirl,"rev whirl",3,3,3,fully-explained
+reverse_blender,"reverse blender",4,4,4,fully-explained
+reverse_drifter,"reverse drifter",3,3,3,fully-explained
+reverse_guay,"reverse guay",2,3,2,fully-explained
+reverse_magellan,"reverse magellan",3,4,3,fully-explained
+reverse_swirling_blender,"reverse swirling blender",5,5,5,fully-explained
+reverse_swirling_osis,"reverse swirling osis",4,4,4,fully-explained
+reverse_swirling_pickup,"reverse swirling pickup",3,4,3,fully-explained
+reverse_torque,"reverse torque",4,4,4,fully-explained
+reverse_whirling_twirl,"reverse whirling twirl",5,5,5,fully-explained
+ricochet,ricochet,5,4,5,fully-explained
+ripped_warrior,"ripped warrior",5,5,5,fully-explained
+ripstein,ripstein,4,4,4,fully-explained
+ripwalk,ripwalk,4,4,4,fully-explained
+sailing_butterfly,"Sailing Butterfly",5,5,5,fully-explained
+sailing_clipper,"sailing clipper",4,4,4,fully-explained
+sailing_double_leg_over,"Sailing Double Leg Over",5,6,5,fully-explained
+sailing_eggbeater,"Sailing Eggbeater",5,6,5,fully-explained
+sailing_legover,"Sailing Legover",4,5,4,fully-explained
+sailing_mirage,"Sailing Mirage",4,5,4,fully-explained
+sailing_pickup,"sailing pickup",4,5,4,fully-explained
+sailing_whirl,"Sailing Whirl",5,5,5,fully-explained
+schmoe,schmoe,3,4,3,fully-explained
+scorpions_tail,"scorpions tail",5,5,5,fully-explained
+scrambled_eggbeater,"scrambled eggbeater",3,4,3,fully-explained
+shaft,shaft,5,4,5,fully-explained
+shoulder_stall,"shoulder stall",1,2,1,fully-explained
+sidewalk,sidewalk,4,4,4,fully-explained
+smear,smear,3,4,3,fully-explained
+smear_same_side,"smear same side",3,4,3,fully-explained
+smog,smog,4,5,4,fully-explained
+smoke,smoke,4,4,4,fully-explained
+smudge,smudge,3,4,3,fully-explained
+smudge_same_side,"smudge same side",3,4,3,fully-explained
+sole_kick,"sole kick",1,2,1,fully-explained
+sole_stall,"sole stall",2,2,2,fully-explained
+sole_survivor,"sole survivor",5,4,5,fully-explained
+spanishfly,spanishfly,5,5,5,fully-explained
+spin,spin,1,2,1,fully-explained
+spinal_tap,"spinal tap",5,5,5,fully-explained
+spinning_barfly,"spinning barfly",5,5,5,fully-explained
+spinning_blender,"spinning blender",5,5,5,fully-explained
+spinning_butterfly,"spinning butterfly",4,4,4,fully-explained
+spinning_butterfly_kick,"spinning butterfly kick",3,3,3,fully-explained
+spinning_butterfly_swirl,"spinning butterfly swirl",5,5,5,fully-explained
+spinning_clipper,"spinning clipper",3,3,3,fully-explained
+spinning_diving_symposium_whirl,"spinning diving symposium whirl",6,5,6,fully-explained
+spinning_double_leg_over,"spinning double leg over",4,5,4,fully-explained
+spinning_drifter,"spinning drifter",4,4,4,fully-explained
+spinning_ducking_blender,"spinning ducking blender",6,6,6,fully-explained
+spinning_ducking_butterfly,"spinning ducking butterfly",5,5,5,fully-explained
+spinning_ducking_clipper,"spinning ducking clipper",4,4,4,fully-explained
+spinning_ducking_drifter,"spinning ducking drifter",5,5,5,fully-explained
+spinning_ducking_illusion,"spinning ducking illusion",4,5,4,fully-explained
+spinning_ducking_legover,"spinning ducking legover",4,5,4,fully-explained
+spinning_ducking_mirage,"spinning ducking mirage",4,5,4,fully-explained
+spinning_ducking_osis,"spinning ducking osis",5,5,5,fully-explained
+spinning_ducking_pickup,"spinning ducking pickup",4,5,4,fully-explained
+spinning_ducking_superfly,"spinning ducking superfly",7,6,7,fully-explained
+spinning_ducking_symposium_double_over_down,"spinning ducking symposium double over down",7,6,7,fully-explained
+spinning_ducking_symposium_torque,"spinning ducking symposium torque",7,6,7,fully-explained
+spinning_ducking_symposium_whirl,"spinning ducking symposium whirl",6,5,6,fully-explained
+spinning_ducking_whirl,"spinning ducking whirl",5,5,5,fully-explained
+spinning_eggbeater,"spinning eggbeater",4,5,4,fully-explained
+spinning_guay,"spinning guay",3,4,3,fully-explained
+spinning_illusion,"spinning illusion",3,4,3,fully-explained
+spinning_legover,"spinning legover",3,4,3,fully-explained
+spinning_mirage,"spinning mirage",3,4,3,fully-explained
+spinning_miraging_symposium_torque,"spinning miraging symposium torque",7,6,7,fully-explained
+spinning_osis,"spinning osis",4,4,4,fully-explained
+spinning_pickup,"spinning pickup",3,4,3,fully-explained
+spinning_rev_whirl,"spinning rev whirl",4,4,4,fully-explained
+spinning_reverse_guay,"spinning reverse guay",3,4,3,fully-explained
+spinning_reverse_swirl,"spinning reverse swirl",4,4,4,fully-explained
+spinning_reverse_whirl,"spinning reverse whirl",4,4,4,fully-explained
+spinning_superfly,"spinning superfly",6,5,6,fully-explained
+spinning_swirl,"spinning swirl",4,4,4,fully-explained
+spinning_symposium_down_double_down,"spinning symposium down double down",6,5,6,fully-explained
+spinning_symposium_eggbeater,"spinning symposium eggbeater",5,5,5,fully-explained
+spinning_symposium_flux,"spinning symposium flux",6,5,6,fully-explained
+spinning_symposium_illusion,"spinning symposium illusion",4,4,4,fully-explained
+spinning_symposium_mirage,"spinning symposium mirage",4,4,4,fully-explained
+spinning_symposium_pickup,"spinning symposium pickup",4,4,4,fully-explained
+spinning_symposium_swirl,"spinning symposium swirl",5,4,5,fully-explained
+spinning_symposium_torque,"spinning symposium torque",6,5,6,fully-explained
+spinning_symposium_whirling_swirl,"spinning symposium whirling swirl",6,5,6,fully-explained
+spinning_toe_stall,"spinning toe stall",2,3,2,fully-explained
+spinning_torque,"spinning torque",5,5,5,fully-explained
+spinning_whirl,"spinning whirl",4,4,4,fully-explained
+spinning_whirling_swirl,"spinning whirling swirl",5,5,5,fully-explained
+spinning_whirling_symposium_swirl,"spinning whirling symposium swirl",6,5,6,fully-explained
+spyro,spyro,1,3,1,fully-explained
+squeeze,squeeze,2,1,2,fully-explained
+stepping_barfly,"stepping barfly",5,5,5,fully-explained
+stepping_blender,"stepping blender",5,5,5,fully-explained
+stepping_butterfly,"stepping butterfly",4,4,4,fully-explained
+stepping_butterfly_swirl,"stepping butterfly swirl",5,5,5,fully-explained
+stepping_clipper,"stepping clipper",3,3,3,fully-explained
+stepping_clipper_same_side,"Stepping Clipper Same Side",3,3,3,fully-explained
+stepping_diving_butterfly,"stepping diving butterfly",5,5,5,fully-explained
+stepping_diving_double_leg_over,"stepping diving double leg over",5,6,5,fully-explained
+stepping_diving_mirage,"stepping diving mirage",4,5,4,fully-explained
+stepping_double_over_down,"stepping double over down",5,5,5,fully-explained
+stepping_double_switch_over,"stepping double switch over",4,5,4,fully-explained
+stepping_ducking_butterfly,"stepping ducking butterfly",5,5,5,fully-explained
+stepping_ducking_butterfly_swirl,"stepping ducking butterfly swirl",6,6,6,fully-explained
+stepping_ducking_double_leg_over,"stepping ducking double leg over",5,6,5,fully-explained
+stepping_ducking_double_pickup,"stepping ducking double pickup",5,6,5,fully-explained
+stepping_ducking_drifter,"stepping ducking drifter",5,5,5,fully-explained
+stepping_ducking_magellan,"stepping ducking magellan",5,6,5,fully-explained
+stepping_ducking_mirage,"stepping ducking mirage",4,5,4,fully-explained
+stepping_ducking_osis,"stepping ducking osis",5,5,5,fully-explained
+stepping_ducking_paste,"stepping ducking paste",5,6,5,fully-explained
+stepping_ducking_pigbeater,"stepping ducking pigbeater",6,7,6,fully-explained
+stepping_ducking_smog,"stepping ducking smog",6,7,6,fully-explained
+stepping_ducking_smudge,"stepping ducking smudge",5,6,5,fully-explained
+stepping_ducking_symposium_eggbeater,"stepping ducking symposium eggbeater",6,6,6,fully-explained
+stepping_ducking_torque,"stepping ducking torque",6,6,6,fully-explained
+stepping_dyno,"stepping dyno",5,5,5,fully-explained
+stepping_eggbeater,"stepping eggbeater",4,5,4,fully-explained
+stepping_flail,"stepping flail",4,4,4,fully-explained
+stepping_guay,"stepping guay",3,4,3,fully-explained
+stepping_mirage,"stepping mirage",3,4,3,fully-explained
+stepping_osis,"stepping osis",4,4,4,fully-explained
+stepping_osis_same_side,"Stepping Osis Same Side",4,4,4,fully-explained
+stepping_pickup,"stepping pickup",3,4,3,fully-explained
+stepping_reaper,"stepping reaper",4,5,4,fully-explained
+stepping_rev_whirl,"stepping rev whirl",4,4,4,fully-explained
+stepping_reverse_guay,"stepping reverse guay",3,4,3,fully-explained
+stepping_reverse_swirl,"stepping reverse swirl",4,4,4,fully-explained
+stepping_reverse_whirl,"stepping reverse whirl",4,4,4,fully-explained
+stepping_superfly,"stepping superfly",6,5,6,fully-explained
+stepping_swirl,"stepping swirl",4,4,4,fully-explained
+stepping_symposium_mirage,"stepping symposium mirage",4,4,4,fully-explained
+stepping_symposium_whirl,"stepping symposium whirl",5,4,5,fully-explained
+stepping_weaving_butterfly,"stepping weaving butterfly",5,5,5,fully-explained
+stepping_weaving_mirage,"stepping weaving mirage",4,5,4,fully-explained
+stepping_whirl,"stepping whirl",4,4,4,fully-explained
+stepping_whirling_swirl,"stepping whirling swirl",5,5,5,fully-explained
+superfly,superfly,5,4,5,fully-explained
+surgery,surgery,6,5,6,fully-explained
+surging,surging,3,4,3,fully-explained
+surging_ducking_blender,"Surging Ducking Blender",7,7,7,fully-explained
+surging_ducking_torque,"Surging Ducking Torque",7,7,7,fully-explained
+surging_legover,"surging legover",4,5,4,fully-explained
+surging_mirage,"surging mirage",4,5,4,fully-explained
+surging_osis,"surging osis",5,5,5,fully-explained
+surging_same_side_osis,"Surging Same Side Osis",5,5,5,fully-explained
+surging_whirl,"surging whirl",5,5,5,fully-explained
+swirl,swirl,3,3,3,fully-explained
+swirling_butterfly,"swirling butterfly",4,4,4,fully-explained
+swirling_mirage,"swirling mirage",3,4,3,fully-explained
+swirling_reverse_swirl,"swirling reverse swirl",4,4,4,fully-explained
+swirling_swirl,"swirling swirl",4,4,4,fully-explained
+swirling_symposium_whirl,"swirling symposium whirl",5,4,5,fully-explained
+swirling_whirl,"swirling whirl",4,4,4,fully-explained
+swirling_whirling_swirl,"swirling whirling swirl",5,5,5,fully-explained
+symposium_atomic_butterfly,"symposium atomic butterfly",5,4,5,fully-explained
+symposium_blizzard,"symposium blizzard",4,4,4,fully-explained
+symposium_bubba,"symposium bubba",3,3,3,fully-explained
+symposium_butterfly,"symposium butterfly",4,3,4,fully-explained
+symposium_double_over_down,"symposium double over down",5,4,5,fully-explained
+symposium_eggbeater,"symposium eggbeater",4,4,4,fully-explained
+symposium_mirage,"symposium mirage",3,3,3,fully-explained
+symposium_miraging_mirage,"symposium miraging mirage",4,4,4,fully-explained
+symposium_mobius,"symposium mobius",6,5,6,fully-explained
+symposium_paradon,"symposium paradon",5,4,5,fully-explained
+symposium_pixie,"symposium pixie",3,3,3,fully-explained
+symposium_reverse_whirl,"symposium reverse whirl",4,3,4,fully-explained
+symposium_swirl,"symposium swirl",4,3,4,fully-explained
+symposium_torque,"symposium torque",5,4,5,fully-explained
+symposium_twirl,"symposium twirl",5,4,5,fully-explained
+symposium_whirl,"symposium whirl",4,3,4,fully-explained
+symposium_whirling_mirage,"symposium whirling mirage",4,4,4,fully-explained
+symposium_whirling_swirl,"symposium whirling swirl",5,4,5,fully-explained
+tap,tap,3,4,3,fully-explained
+tapdown,tapdown,4,4,4,fully-explained
+tapping_butterfly,"tapping butterfly",4,4,4,fully-explained
+tapping_clipper,"tapping clipper",3,3,3,fully-explained
+tapping_diving_mirage,"tapping diving mirage",4,5,4,fully-explained
+tapping_double_leg_over,"tapping double leg over",4,5,4,fully-explained
+tapping_double_over_down,"tapping double over down",5,5,5,fully-explained
+tapping_drifter,"tapping drifter",4,4,4,fully-explained
+tapping_eggbeater,"tapping eggbeater",4,5,4,fully-explained
+tapping_guay,"tapping guay",3,4,3,fully-explained
+tapping_illusion,"tapping illusion",3,4,3,fully-explained
+tapping_leg_over,"tapping leg over",3,4,3,fully-explained
+tapping_legover,"tapping legover",3,4,3,fully-explained
+tapping_mirage,"tapping mirage",3,4,3,fully-explained
+tapping_mobius,"tapping mobius",6,6,6,fully-explained
+tapping_osis,"tapping osis",4,4,4,fully-explained
+tapping_pickup,"tapping pickup",3,4,3,fully-explained
+tapping_reverse_guay,"tapping reverse guay",3,4,3,fully-explained
+tapping_symposium_whirl,"tapping symposium whirl",5,4,5,fully-explained
+tapping_torque,"tapping torque",5,5,5,fully-explained
+tapping_twirl,"tapping twirl",5,5,5,fully-explained
+tapping_whirl,"tapping whirl",4,4,4,fully-explained
+tapping_whirling_swirl,"tapping whirling swirl",5,5,5,fully-explained
+terraging_opposite_clipper,"Terraging Opposite Clipper",4,4,4,fully-explained
+terraging_same_clipper,"Terraging Same Clipper",4,4,4,fully-explained
+toe_clipper,"toe clipper",2,2,2,fully-explained
+toe_double_drifter,"Toe Double Drifter",4,4,4,fully-explained
+toe_ducking_legover,"toe ducking legover",3,4,3,fully-explained
+toe_flurry,"toe flurry",4,5,4,fully-explained
+toe_gyro_mirage,"toe gyro mirage",3,4,3,fully-explained
+toe_ripwalk,"toe ripwalk",4,4,4,fully-explained
+toe_spinning_torque,"toe spinning torque",5,5,5,fully-explained
+toe_whirling_swirl,"toe whirling swirl",4,4,4,fully-explained
+toe_whirr,"Toe Whirr",4,4,4,fully-explained
+tombstone,tombstone,4,4,4,fully-explained
+torque,torque,4,4,4,fully-explained
+triple_around_the_world,"triple around the world",4,5,4,fully-explained
+triple_mirage,"triple mirage",4,5,4,fully-explained
+triple_orbit,"triple orbit",4,5,4,fully-explained
+triple_spin,"triple spin",3,3,3,fully-explained
+triple_swirl,"triple swirl",5,5,5,fully-explained
+tripwalk,tripwalk,4,4,4,fully-explained
+twirl,twirl,4,4,4,fully-explained
+venom,venom,6,6,6,fully-explained
+voodoo,Voodoo,5,4,5,fully-explained
+vortex,vortex,4,4,4,fully-explained
+walk_over,"walk over",2,5,2,fully-explained
+warp,warp,5,5,5,fully-explained
+weaving_butterfly,"weaving butterfly",4,4,4,fully-explained
+weaving_clipper,"weaving clipper",3,3,3,fully-explained
+weaving_double_leg_over,"weaving double leg over",4,5,4,fully-explained
+weaving_drifter,"weaving drifter",4,4,4,fully-explained
+weaving_eclipse,"weaving eclipse",4,4,4,fully-explained
+weaving_guay,"weaving guay",3,4,3,fully-explained
+weaving_illusion,"weaving illusion",3,4,3,fully-explained
+weaving_legover,"weaving legover",3,4,3,fully-explained
+weaving_mirage,"weaving mirage",3,4,3,fully-explained
+weaving_pickup,"weaving pickup",3,4,3,fully-explained
+weaving_reverse_guay,"weaving reverse guay",3,4,3,fully-explained
+weaving_symposium_mirage,"weaving symposium mirage",4,4,4,fully-explained
+weaving_toe_stall,"weaving toe stall",2,3,2,fully-explained
+weaving_whirl,"weaving whirl",4,4,4,fully-explained
+whirl,whirl,3,3,3,fully-explained
+whirling_butterfly,"whirling butterfly",4,4,4,fully-explained
+whirling_gyro_mirage,"whirling gyro mirage",4,5,4,fully-explained
+whirling_pickup,"whirling pickup",3,4,3,fully-explained
+whirling_reverse_whirl,"whirling reverse whirl",4,4,4,fully-explained
+whirling_swirl,"whirling swirl",4,4,4,fully-explained
+whirling_whirl,"whirling whirl",4,4,4,fully-explained
+wrap,wrap,2,4,2,fully-explained
+yoda,yoda,5,6,5,fully-explained
+zulu_butterfly,"zulu butterfly",4,4,4,fully-explained
+zulu_clipper,"zulu clipper",3,3,3,fully-explained
+zulu_double_leg_over,"zulu double leg over",4,5,4,fully-explained
+zulu_drifter,"zulu drifter",4,4,4,fully-explained
+zulu_guay,"zulu guay",3,4,3,fully-explained
+zulu_illusion,"zulu illusion",3,4,3,fully-explained
+zulu_legover,"zulu legover",3,4,3,fully-explained
+zulu_mirage,"zulu mirage",3,4,3,fully-explained
+zulu_pickup,"zulu pickup",3,4,3,fully-explained
+zulu_toe_stall,"zulu toe stall",2,3,2,fully-explained
+zulu_whirl,"zulu whirl",4,4,4,fully-explained

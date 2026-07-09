@@ -1,0 +1,20 @@
+launch_surface,landing_surface,landing_grade,landing_laterality,launch_symmetry,cube_status,cube_dimension,named_vertices,notes
+toe,toe,plain,paired,symmetric,preserved,3,8,the canonical fiber: all eight cube vertices realized and named (atw orbit pixie fairy mirage illusion pickup legover)
+toe,inside,plain,paired,symmetric,preserved,3,2,guay (OP.IN.SAME) and inspinning-reverse-guay (SAME.IN.OP) named; other six vertices structurally open and unnamed
+toe,outside,plain,paired,symmetric,preserved,3,0,structurally full cube; no vertex named on this fiber (outside-atw lives on the outside-to-outside fiber)
+inside,inside,plain,paired,symmetric,preserved,3,1,inside-around-the-world (SAME.IN.SAME) named; self-fiber on a paired plain surface keeps the full cube
+outside,outside,plain,paired,symmetric,preserved,3,1,outside-around-the-world (SAME.OUT.SAME) named
+knee,knee,plain,paired,symmetric,preserved,3,0,plain paired self-fiber; full cube structurally open; no vertex named
+toe,knee,plain,paired,symmetric,preserved,3,0,cross-surface transfer between two plain paired surfaces; cube open
+toe,shoulder,plain,paired,symmetric,preserved,3,0,shoulder is plain and paired; dex landings on a shoulder are exotic but structurally cube-preserving
+toe,head,plain,midline,symmetric,halved,2,0,terminal side collapses to one central target; cube reduces to a dex-side by direction square
+toe,neck,plain,midline,symmetric,halved,2,0,midline landing; terminal-side axis dead
+toe,forehead,plain,midline,symmetric,halved,2,0,midline landing; terminal-side axis dead
+toe,peak,plain,midline,symmetric,halved,2,0,peak is a central apex position; behaves as a midline landing so the cube halves
+toe,clipper,hard,paired,symmetric,lifted,3,0,clipper landing is a cross-body grade-2 delay; dex plus clipper is grade 3 so the cube lives one grade up
+toe,cloud,hard,midline,symmetric,lifted-and-halved,2,0,unusual grade-2 midline landing; the cube both lifts to grade 3 and halves
+toe,heel,hard,paired,symmetric,lifted,3,0,unusual grade-2 paired landing; cube lifts to grade 3 (terminal-side survives there)
+toe,sole,hard,paired,symmetric,lifted,3,0,unusual grade-2 paired landing; cube lifts to grade 3
+clipper,toe,plain,paired,cross-body,partial,2,1,cross-body launch commits an opposite-side entry; the OP dex-side face survives (bubba, OP.OUT.OP) and the SAME dex-side face is foreclosed under bag control
+clipper,inside,plain,paired,cross-body,partial,2,0,cross-body launch forecloses the same-side entry vertices; OP face open
+outside,inside,plain,paired,transfer-asymmetric,partial,2,0,contralateral transfer realizable in one handedness; the side-reflection edge of the cube breaks

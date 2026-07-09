@@ -1,0 +1,58 @@
+layer,primitive,symbolic_form,scoring_bracket,add,named_status,named_example_slug,notes
+terminal,toe stall,TOE [DEL],[DEL],1,named,toe_stall,same-side held delay; the reference 1-ADD stall
+terminal,inside stall,INSIDE [DEL],[DEL],1,named,inside_stall,
+terminal,outside stall,OUTSIDE [DEL],[DEL],1,named,outside_stall,
+terminal,knee stall,KNEE [DEL],[DEL],1,named,knee_stall,
+terminal,neck stall,NECK [DEL],[DEL],1,named,neck_stall,
+terminal,head stall,HEAD [DEL],[DEL],1,named,head_stall,
+terminal,forehead stall,FOREHEAD [DEL],[DEL],1,named,forehead_stall,
+terminal,shoulder stall,SHOULDER [DEL],[DEL],1,named,shoulder_stall,
+terminal,peak delay,PEAK [DEL],[DEL],1,named,peak_delay,
+terminal,sole stall,SOLE [DEL],[DEL],1,candidate,,only the sole kick is named; a held sole stall is structurally valid and unnamed
+terminal,heel stall,HEEL [DEL],[DEL],1,candidate,,surface token exists; held heel stall unnamed in the live dictionary
+terminal,cloud stall,CLOUD [DEL],[DEL],1,candidate,,only the cloud kick is named; a held cloud stall is structurally valid and unnamed
+terminal-kick,toe kick,TOE [KICK],(none: dex-scored),1,candidate,,plain kick off the toe; kick terminator is non-scoring so the ADD must come from an accompanying dex
+terminal-kick,sole kick,SOLE [KICK],(surface-scored),1,named,sole_kick,kick scoring convention is an open modeling question (see doc section 2.5)
+terminal-kick,cloud kick,CLOUD [KICK],(surface-scored),1,named,cloud_kick,
+terminal-kick,double kick,DOUBLE [KICK],(quantifier),1,named,double_kick,double is a quantifier operator applied to a kick
+terminal-kick,double knee,DOUBLE KNEE [KICK],(quantifier),1,named,double_knee,
+dex,inward same-side dex,SAME IN [DEX],[DEX],1,named-as-kick,around_the_world_kick,the around-the-world path as a single dex without a held delay
+dex,inward same-side set dex (pixie),TOE > SAME IN [DEX],[DEX],1,named-as-kick,pixie_kick,pixie is this same primitive read as a launch set
+dex,outward same-side dex (fairy),TOE > SAME OUT [DEX],[DEX],1,named-as-kick,fairy_kick,
+dex,inward opposite dex (mirage path / miraging),OP IN [DEX],[DEX],1,named-as-kick,miraging_kick,
+dex,outward opposite dex (atomic / orbit path),OP OUT [DEX] / TOE > OP OUT [DEX],[DEX],1,named-as-kick,atomic_kick,orbit_kick shares this outward-opposite path
+dex,legover dex,LEGOVER [DEX],[DEX],1,named-as-kick,legover_kick,
+dex,pickup dex,PICKUP [DEX],[DEX],1,candidate,,pickup exists as a 2-ADD held atom; a pickup kick (single dex) is structurally valid and unnamed
+dex,mirage dex (bare),OP IN [DEX],[DEX],1,candidate,,the mirage motion terminated in a kick rather than a held toe stall
+dex,illusion dex (bare),OP IN [DEX] (mid-flight rotation),[DEX],1,candidate,,illusion motion as a bare dex
+dex,rotational dex (whirl),FRONT/BACK WHIRL [DEX],[DEX],1,candidate,,the whirl rotational step in isolation; named forms are 2+ ADD held tricks
+dex,cross-body rotational dex (swirl),SAME BACK/FRONT SWIRL [DEX],[DEX],1,candidate,,
+body,spin,SPIN [BOD],[BOD],1,named,spin,
+body,spyro,SPYRO [BOD],[BOD],1,named,spyro,inspin-family single body rotation
+body,flying inside,FLYING [BOD] (inside),[BOD],1,named,flying_inside,airborne body primitive on the inside foot
+body,flying outside,FLYING [BOD] (outside),[BOD],1,named,flying_outside,
+body,duck,DUCK [BOD],[BOD],1,candidate,,the ducking body action in isolation; named only as the +1 operator ducking
+body,dive,DIVE [BOD],[BOD],1,candidate,,the diving body action in isolation; named only as the +1 operator diving
+operator-set,atomic,TOE > OP OUT [DEX] (+1),[DEX],1,operator,,a single outward-opposite toe-set dex read as a launch set
+operator-set,pixie,TOE > SAME IN [DEX] (+1),[DEX],1,operator,,single same-side inward toe-set dex
+operator-set,fairy,TOE > SAME OUT [DEX] (+1),[DEX],1,operator,,single same-side outward toe-set dex
+operator-set,stepping,CLIP > OP IN [DEX] (+1),[DEX],1,operator,,relocating-support-foot launch
+operator-set,quantum,TOE > OP IN [DEX] (+1),[DEX],1,operator,,compressed-atomic set
+operator-set,blurry,CLIP > OP IN [DEX] > OP OUT [DEX] (+1 net),[DEX],1,operator,,stepping paradox treatment; registry +1
+operator-set,pogo,set (+1 no-dex),(non-dex set),1,operator,,pogo is a set that adds 1 without a scoring dex; a modeling edge case
+operator-body,paradox,OP ... [PDX] (+1),[PDX],1,operator,,paradox-direction dex
+operator-body,spinning,+1 body rotation,[BOD],1,operator,,
+operator-body,gyro,+1 same-foot spin-and-dex,[BOD],1,operator,,
+operator-body,ducking,+1 body drop,[BOD],1,operator,,
+operator-body,diving,+1 body dive,[BOD],1,operator,,
+operator-body,weaving,+1 body,[BOD],1,operator,,
+operator-body,zulu,+1 body,[BOD],1,operator,,
+operator-body,tapping,+1 body,[BOD],1,operator,,
+operator-body,symposium,+1 no-plant,[BOD],1,operator,,support leg leaves the ground
+operator-body,inspinning,+1 body,[BOD],1,operator,,
+operator-body,whirling,+1 rotational set,[DEX],1,operator,,
+operator-body,swirling,+1 cross-body rotational set,[DEX],1,operator,,
+operator-body,backside,+1 body,[BOD],1,operator,,
+operator-body,blazing,+1 body,[BOD],1,operator,,
+operator-body,miraging,OP IN [DEX] (+1),[DEX],1,operator,,single inward dex read as descriptive mirage-family language
+operator-body,xdex,+1 conditional X-Dex,[XDEX],1,operator,,scored only where the notation carries an explicit X-Dex marker

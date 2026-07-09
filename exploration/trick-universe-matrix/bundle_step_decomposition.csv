@@ -1,0 +1,30 @@
+slug,adds,step_no,relation,posture,bag_path,body_event,dex_events,terminal_event,scored_in_step,note
+mirage,2,1,succession,planted,normal,,OP-IN-DEX,,1,cube: single dex step
+mirage,2,2,succession,planted,normal,,,OP-TOE-DEL,1,cube: single terminal step
+fairy,2,1,succession,planted,normal,,SAME-OUT-DEX,,1,cube
+fairy,2,2,succession,planted,normal,,,OP-TOE-DEL,1,cube
+fairy_same_side_mirage,3,1,succession,planted,normal,,SAME-OUT-DEX,,1,chain: first planted dex
+fairy_same_side_mirage,3,2,succession,planted-explicit,normal,,SAME-IN-DEX,,1,chain: RE-PLANT forces a new contact so this dex is its own step
+fairy_same_side_mirage,3,3,succession,planted,normal,,,OP-TOE-DEL,1,chain: terminal
+fairy_symposium_mirage,4,1,succession,planted,normal,,SAME-OUT-DEX,,1,first dex planted
+fairy_symposium_mirage,4,2,succession,no-plant,normal,BOD,OP-IN-DEX,,2,BUNDLE: leg stays lifted so the mirage dex co-occurs with a suspension body event
+fairy_symposium_mirage,4,3,succession,planted,normal,,,OP-TOE-DEL,1,terminal
+symposium_mirage,3,1,succession,no-plant,normal,BOD,OP-IN-DEX,,2,BUNDLE: suspension co-articulated with the receiver dex
+symposium_mirage,3,2,succession,planted,normal,,,OP-TOE-DEL,1,terminal
+pogo_mirage,3,1,succession,no-plant,normal,,OP-IN-DEX,,1,no-plant but bundle-size-1: the lifted leg licenses a leading dex, no body event
+pogo_mirage,3,2,succession,planted,normal,,OP-IN-DEX,,1,receiver dex
+pogo_mirage,3,3,succession,planted,normal,,,OP-TOE-DEL,1,terminal
+dragonfly_kick,2,1,entry,flying,normal,BOD,,,1,flying is a leading airborne body event
+dragonfly_kick,2,2,succession,planted,normal,,OP-OUT-DEX,KICK,1,BUNDLE: dex and its kick terminal share one instant; KICK is unscored
+cross_body_sole_stall,3,1,succession,planted,normal,,,SAME-SOLE-XBD-UNS-DEL,3,compound terminal: one landing carrying cross-body and unusual-surface qualifiers, 3 scored brackets
+assassin,4,1,succession,planted,normal,,SAME-IN-DEX,,1,first dex
+assassin,4,2,overlap,planted,normal,DUCK-BOD,,,1,OVERLAP: the duck runs concurrently across the transition between the two dexes
+assassin,4,3,overlap,planted,normal,,OP-IN-DEX,,1,second dex overlapped by the duck
+assassin,4,4,succession,planted,normal,,,OP-TOE-DEL,1,terminal
+montage,7,1,overlap,planted,normal,SPIN-BOD,,,1,back spin overlapping the clipper set
+montage,7,2,succession,planted,normal,DUCK-BOD,,,1,duck body step
+montage,7,3,overlap,no-plant,normal,BOD,FRONT-WHIRL-DEX+PDX,,3,BUNDLE of 3: a rotational dex done paradox while suspended, all one instant
+montage,7,4,succession,planted,normal,,,OP-CLIP-XBD-DEL,2,cross-body terminal
+atom_bomb,6,1,succession,no-plant,normal,BOD,OP-OUT-DEX,,2,BUNDLE: suspended outward dex
+atom_bomb,6,2,overlap,no-plant,normal,BOD,OP-IN-DEX+XDEX,,3,BUNDLE of 3: suspended dex carrying an x-dex; previews the paradox/x-dex slice
+atom_bomb,6,3,succession,planted,normal,,,OP-TOE-DEL,1,terminal
