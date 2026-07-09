@@ -80,6 +80,11 @@ describe('GET /freestyle/observational — nine-state ladder surface', () => {
     expect(html).toMatch(/how close each one is to publication/);
   });
 
+  it('shows a visible source-key legend so the per-card badges are not tooltip-only', async () => {
+    const html = await page();
+    expect(html).toContain('Source key: PB is PassBack, FM is FootbagMoves, SG is Stanford shorthand.');
+  });
+
   // ── The single-source-of-truth contract ──
   it('the nine states partition the universe: counts sum to the total with zero overlap', async () => {
     // Every row carries exactly one of the nine ladder states.

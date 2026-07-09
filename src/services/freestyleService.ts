@@ -9531,7 +9531,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_insights',
         title:      'Freestyle Insights',
-        intro:      'Patterns observed in a documented archive of 395 Sick3 sequences.',
+        intro:      'What patterns show up when tricks are strung into sequences. Drawn from a documented archive of Sick 3, a three-trick sequence format; the archive holds 395 sequences.',
       },
       navigation: {
         breadcrumbs: [
