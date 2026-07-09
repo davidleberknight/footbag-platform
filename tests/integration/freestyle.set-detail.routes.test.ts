@@ -111,7 +111,7 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
   it('renders source provenance label', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/pixie');
     expect(res.text).toContain('set-card-source--platform-tracked');
-    expect(res.text).toContain('Platform-tracked');
+    expect(res.text).toContain('Tracked here');
   });
 
   it('renders audit-status label for sets that carry one (atomic = partial)', async () => {

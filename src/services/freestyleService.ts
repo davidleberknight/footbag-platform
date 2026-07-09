@@ -1180,7 +1180,7 @@ function operatorStatus(slug: string): { key: string; label: string } {
   if (getOperatorReferenceEntry(slug)?.curatorConfirmPending) {
     return { key: 'doctrine-pending', label: 'Doctrine-pending' };
   }
-  return { key: 'platform-tracked', label: 'Platform-tracked' };
+  return { key: 'platform-tracked', label: 'Listed, no guide yet' };
 }
 
 // Short type label for modifiers outside the curated index (fallback for the
@@ -2774,7 +2774,7 @@ export interface EncyclopediaSetCard {
   /** Single short line — combines source + audit status into one label. */
   provenanceLine:  string;
   /** Beginner-safe status pill that keeps internal source names off the card:
-   *  'Under review' (documented disagreement), 'Platform-tracked', or
+   *  'Under review' (documented disagreement), 'Listed here', or
    *  'Community-cited' (compilation-only). key is the kebab CSS hook. */
   statusPill:      { label: string; key: string };
   /** Up to 3 quick-relation tags (derived first, then related). */
@@ -8743,7 +8743,7 @@ export const freestyleService = {
     // pages live at /freestyle/sets/<slug>.
     const sourceLabels: Record<CanonicalSetSourceKey, string> = {
       'canonical':        'Canonical',
-      'platform-tracked': 'Platform-tracked',
+      'platform-tracked': 'Tracked here',
       'holden-only':      'Holden-only',
     };
     const auditLabels: Record<CanonicalSetAuditKey, string> = {
@@ -10598,7 +10598,7 @@ export const freestyleService = {
 
     const sourceLabels: Record<CanonicalSetSourceKey, string> = {
       'canonical':        'Canonical',
-      'platform-tracked': 'Platform-tracked',
+      'platform-tracked': 'Tracked here',
       'holden-only':      'Holden-only',
     };
     const auditLabels: Record<CanonicalSetAuditKey, string> = {
@@ -10774,16 +10774,16 @@ export const freestyleService = {
   getSetsEncyclopediaPage(): PageViewModel<FreestyleSetsEncyclopediaView> {
     const sourceLabels: Record<CanonicalSetSourceKey, string> = {
       'canonical':        'Canonical',
-      'platform-tracked': 'Platform-tracked',
+      'platform-tracked': 'Tracked here',
       'holden-only':      'Holden-only',
     };
 
     // Compact provenance: combine source + audit status into ONE line.
     // Examples:
     //   canonical + aligned        → "Canonical · Holden aligned"
-    //   platform-tracked + aligned → "Platform-tracked · Holden aligned"
+    //   platform-tracked + aligned → "Tracked here · Holden aligned"
     //   holden-only                → "Holden-only"
-    //   platform-tracked + partial → "Platform-tracked · Holden partial"
+    //   platform-tracked + partial → "Tracked here · Holden partial"
     const buildProvenanceLine = (set: typeof CANONICAL_SETS[number]): string => {
       const sourcePart = sourceLabels[set.source];
       if (!set.auditStatus) return sourcePart;
@@ -10907,14 +10907,14 @@ export const freestyleService = {
 
     // Public status pill: keeps internal source names off the card. A
     // documented disagreement (partial / conflict audit) reads "Under review";
-    // canonical and platform-tracked sets read "Platform-tracked"; remaining
+    // canonical and platform-tracked sets read "Listed here"; remaining
     // compilation-only sets read "Community-cited".
     const deriveStatusPill = (s: typeof CANONICAL_SETS[number]): { label: string; key: string } => {
       if (s.auditStatus === 'conflict' || s.auditStatus === 'partial') {
         return { label: 'Under review', key: 'under-review' };
       }
       if (s.source === 'canonical' || s.source === 'platform-tracked') {
-        return { label: 'Platform-tracked', key: 'platform-tracked' };
+        return { label: 'Listed here', key: 'platform-tracked' };
       }
       return { label: 'Community-cited', key: 'community-cited' };
     };
