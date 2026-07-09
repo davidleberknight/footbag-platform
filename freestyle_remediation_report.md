@@ -759,3 +759,20 @@ A third pass reconciles this report with the repository HEAD, which now carries 
 
 **Launch-signoff picture, updated.** No P0. FS-01, FS-02, FS-03, FS-04, and FS-06 are closed, and FS-16's launch-gating stories are merged. The single remaining launch-signoff gate is FS-19's operator-run staging rehearsal, which has not yet been run. Freestyle is ready for external testing.
 
+## 20. FS-19 staging rehearsal — status (2026-07-08)
+
+The staging rehearsal splits by authorization. The admin-UI portion was completed by the freestyle maintainer, whose access is limited to the admin application. The AWS deploy and host-level portions require an authorized deploy/server operator and remain open; the maintainer neither ran nor was authorized to run the AWS deploy path.
+
+- **Admin-authored freestyle content edits — DONE (maintainer, admin UI only).** Two freestyle content surfaces were edited through the admin curation pages, verified, and then restored so staging is left clean:
+  - Freestyle trick `3_bag_juggling`, Movement-notation field: a reversible rehearsal marker saved successfully and appeared on the public trick-detail page (public verification surface).
+  - Freestyle world record `2_bag_juggling`, Notes field: the marker saved successfully. Record Notes is admin-only (the public record queries fetch it but no public template renders it), so the admin edit page is the verification surface, and the marker was confirmed there on reload.
+  Both fields were restored to their captured pre-edit values after verification.
+
+- **Code-only deploy persistence check — OPEN (needs an authorized AWS deploy operator).** An authorized operator must run the code-only deploy path (which preserves the host env and never touches the live database), then confirm both markers survive on their respective surfaces. Not run.
+
+- **Destructive-rebuild refusal demo — OPEN (needs an authorized staging/server operator).** An authorized operator must add, then remove, the post-cutover marker on the host env file and confirm the database-replacing deploy refuses on a marked host before any live mutation, with no bypass. Not run.
+
+- **Scope ruling — consecutive-kicks excluded from freestyle rehearsal.** Maintainer product ruling: consecutive-kicks records are not freestyle content, so they are excluded from the freestyle curation cutover rehearsal. The admin-authored-freestyle-content persistence test therefore covers the trick and world-record surfaces only; the earlier "one edit of each kind, all three persist" framing is superseded, and two independent freestyle surfaces (trick, world record) satisfy the persistence contract.
+
+**FS-19 remains open.** The admin-edit half is rehearsed; launch signoff still gates on the two operator-run halves above, which an authorized deploy/server operator must run. FS-19 is NOT closed.
+
