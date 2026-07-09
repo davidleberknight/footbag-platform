@@ -7,7 +7,7 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 [ -n "$COMMAND" ] || exit 0
 
 # Production Terraform mutations
-if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])terraform([[:space:]].*)?(apply|destroy|import|state[[:space:]]+rm|taint|untaint)([[:space:]]|$)' \
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|`({]|&&|\|\|)[[:space:]]*terraform([[:space:]].*)?(apply|destroy|import|state[[:space:]]+rm|taint|untaint)([[:space:]]|$)' \
   && printf '%s' "$COMMAND" | grep -Eq '(terraform/production|(^|[[:space:]])production([[:space:]/_-]|$))'; then
   jq -n '{
     hookSpecificOutput: {
@@ -20,7 +20,7 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])terraform([[:space:]].*)
 fi
 
 # Live service mutations on host
-if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])(sudo[[:space:]]+)?systemctl[[:space:]]+(start|stop|restart|reload|enable|disable|mask|unmask|daemon-reload)([[:space:]]|$)'; then
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|`({]|&&|\|\|)[[:space:]]*(sudo[[:space:]]+)?systemctl[[:space:]]+(start|stop|restart|reload|enable|disable|mask|unmask|daemon-reload)([[:space:]]|$)'; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
@@ -32,7 +32,7 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])(sudo[[:space:]]+)?syste
 fi
 
 # Production-like Docker Compose mutations
-if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])docker[[:space:]]+compose([[:space:]].*)?(up|down|restart|stop|rm|pull|build)([[:space:]]|$)' \
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|`({]|&&|\|\|)[[:space:]]*docker[[:space:]]+compose([[:space:]].*)?(up|down|restart|stop|rm|pull|build)([[:space:]]|$)' \
   && printf '%s' "$COMMAND" | grep -Eq '(/srv/footbag|production|compose[.]ya?ml|docker-compose)'; then
   jq -n '{
     hookSpecificOutput: {

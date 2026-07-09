@@ -92,6 +92,43 @@ expect "$H" 'rm database/footbag.db' ask
 expect "$H" 'sqlite3 -readonly database/footbag.db "SELECT COUNT(*) FROM members"' defer
 expect "$H" 'sqlite3 -readonly database/footbag.db ".tables"' defer
 
+# Executing the reset script asks; merely naming its path to a read-only command defers.
+expect "$H" 'bash scripts/reset-local-db.sh' ask
+expect "$H" './scripts/reset-local-db.sh --reset' ask
+expect "$H" 'scripts/reset-local-db.sh' ask
+expect "$H" 'FOOTBAG_DB_PATH=/tmp/x.db scripts/reset-local-db.sh' ask
+expect "$H" 'npm run build && bash scripts/reset-local-db.sh' ask
+expect "$H" 'sh scripts/reset-local-db.sh; echo done' ask
+expect "$H" 'git log --oneline -- scripts/reset-local-db.sh' defer
+expect "$H" 'cat scripts/reset-local-db.sh' defer
+expect "$H" 'grep -n reset scripts/reset-local-db.sh' defer
+expect "$H" 'wc -l scripts/reset-local-db.sh' defer
+expect "$H" 'diff scripts/reset-local-db.sh scripts/deploy-local-data.sh' defer
+
+H=guard-dangerous-git.sh
+
+# Executing a destructive git verb asks; a read-only mention of it defers.
+expect "$H" 'git reset --hard HEAD~1' ask
+expect "$H" 'foo && git reset --hard' ask
+expect "$H" 'git restore src/' ask
+expect "$H" 'git checkout -- src/app.ts' ask
+expect "$H" 'git branch -D feature' ask
+expect "$H" 'git clean -fd' ask
+expect "$H" 'echo git restore drops local edits' defer
+expect "$H" 'echo "run git reset --hard to undo"' defer
+expect "$H" 'grep -rn "git reset --hard" docs' defer
+expect "$H" 'git log --oneline -20' defer
+
+H=guard-prod-ops.sh
+
+# Executing a prod-ops mutation asks; a read-only mention of it defers.
+expect "$H" 'systemctl restart footbag' ask
+expect "$H" 'sudo systemctl stop footbag' ask
+expect "$H" 'foo && systemctl reload nginx' ask
+expect "$H" 'echo "run systemctl restart footbag on production"' defer
+expect "$H" 'grep -rn "systemctl restart" ops/systemd' defer
+expect "$H" 'echo terraform apply to production' defer
+
 H=guard-readonly-bash.sh
 
 # Writes hidden behind read-only command heads must ask.

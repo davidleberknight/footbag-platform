@@ -6,7 +6,10 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 
 [ -n "$COMMAND" ] || exit 0
 
-if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])git[[:space:]]+reset[[:space:]]+--hard|(^|[;&|[:space:]])git[[:space:]]+clean[[:space:]].*-[a-zA-Z]*f|(^|[;&|[:space:]])git[[:space:]]+checkout[[:space:]]+--|(^|[;&|[:space:]])git[[:space:]]+restore([[:space:]]|$)|(^|[;&|[:space:]])git[[:space:]]+branch[[:space:]]+-D'; then
+# Match only command position (start, or after a separator, optionally via a
+# bash/sh/env/VAR= prefix) so a read-only mention of the verb in an echo/grep
+# argument does not prompt; a real destructive git invocation always sits here.
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|`({]|&&|\|\|)[[:space:]]*git[[:space:]]+(reset[[:space:]]+--hard|clean[[:space:]].*-[a-zA-Z]*f|checkout[[:space:]]+--|restore([[:space:]]|$)|branch[[:space:]]+-D)'; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",

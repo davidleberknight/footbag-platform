@@ -6,7 +6,11 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 
 [ -n "$COMMAND" ] || exit 0
 
-if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])(\./)?scripts/reset-local-db\.sh([[:space:]]|$)'; then
+# Gate EXECUTING the reset script, not merely naming its path as an argument to a
+# read-only command (git log/cat/grep/wc read the file and must not prompt). Match
+# only command position: start, or after a separator, optionally via a VAR= prefix
+# or a bash/sh/env/source launcher.
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|`({]|&&|\|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*((bash|sh|source|\.|env)[[:space:]]+)?(\./)?scripts/reset-local-db\.sh([[:space:];&|)>`]|$)'; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
