@@ -776,3 +776,17 @@ The staging rehearsal splits by authorization. The admin-UI portion was complete
 
 **FS-19 remains open.** The admin-edit half is rehearsed; launch signoff still gates on the two operator-run halves above, which an authorized deploy/server operator must run. FS-19 is NOT closed.
 
+## 21. Reconciliation addendum — fourth pass (2026-07-09)
+
+A fourth pass reconciles this report with the repository HEAD after a pull carrying the platform maintainer's freestyle-cutover hardening. This pass records committed changes and one review outcome as status only. It closes nothing, opens nothing, and changes no doctrine.
+
+- **Deploy database-preservation test — present in the tree.** A unit test now guards the single rsync exclude that keeps a routine code-only deploy from deleting the live database, so dropping that exclude fails the test. Committed (`tests/unit/deploy-code.db-preserving.test.ts`).
+
+- **Curation insert unique-constraint handling — present in the tree.** The freestyle curation insert paths (alias, source link, modifier link, and the consecutive-kicks create) now catch the database unique / primary-key constraint that sits behind their existing duplicate pre-check, so a cross-process double-submit returns the same "already exists" message the pre-check gives rather than an unhandled 500. Committed in the freestyle curation services.
+
+- **Independent cutover review — passed (status note, not a code artifact).** The freestyle cutover work (its design, the curation edit paths, and the switch itself) was independently reviewed and held up: the code-only deploy cannot reach the database, the post-cutover rebuild-refusal guard is wired into the root deploy stream with no bypass, and every admin edit writes through the service layer in one transaction with an audit row. Recorded here as a review outcome only.
+
+- **Remaining freestyle go-live gate — the staging rehearsal evidence, now owned by the authorized deploy operator.** The two operator-run steps the rehearsal still needs (the code-only deploy persistence check and the destructive-rebuild refusal demo, both in section 20 above) require AWS deploy and host access. They are owned by the authorized deploy/server operator, who will run them on staging and capture the evidence for each; the freestyle maintainer neither runs nor is authorized to run the AWS deploy path. This is a tracked pre-cutover requirement in the migration plan's go-live blocker index. FS-19 stays open until that evidence lands and the rehearsal item is closed against it.
+
+**FS-19 remains open.** This pass records committed hardening and the review outcome and confirms the two operator-run rehearsal steps sit with the authorized deploy operator; it does not close FS-19.
+
