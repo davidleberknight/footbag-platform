@@ -147,7 +147,7 @@ export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
   { slug: 'swirl',            equivalences: ['core atom: reverse-direction rotational dex',    'xbody(1) + dex(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'osis',             equivalences: ['core atom: double-pass rotational dex',          'spin(1) + xbody(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL]' },
   { slug: 'around_the_world', equivalences: ['core atom: dex with full bag orbit',             'full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'TOE > SAME IN [DEX] > SAME TOE [DEL]' },
-  { slug: 'orbit',            equivalences: ['core atom: alias of reverse around-the-world',   'reverse full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'TOE > SAME OUT [DEX] > SAME TOE [DEL]' },
+  { slug: 'orbit',            equivalences: ['core atom: dex with reverse full bag orbit',      'reverse full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'TOE > SAME OUT [DEX] > SAME TOE [DEL]' },
 ];
 
 // Demonstrations are a plain FreestyleDemonstration[] hardcoded in
