@@ -9678,6 +9678,7 @@ export const freestyleService = {
         pageKey:    'freestyle_notation_article',
         title:      'By the Way, Not the Name',
         eyebrow:    'Ben Job, 1995',
+        intro:      'This is the 1995 message that gave the dictionary its notation: a way to describe a freestyle trick by the movement it is, rather than by the name it happens to carry. It is why every trick on this site can be read as a formula of surfaces, dexterities, and body positions.',
       },
       navigation: {
         breadcrumbs: [

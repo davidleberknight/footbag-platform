@@ -23,6 +23,12 @@ describe('Jobs notation article page', () => {
     expect(res.text).toContain('Source: Ben Job');
   });
 
+  it('orients the reader with a hero intro that says what the document is and why it matters', async () => {
+    const res = await request(createApp()).get('/freestyle/notation-article');
+    expect(res.text).toContain('gave the dictionary its notation');
+    expect(res.text).toContain('read as a formula of surfaces, dexterities, and body positions');
+  });
+
   it('reproduces the article without the footbag.org page chrome', async () => {
     const res = await request(createApp()).get('/freestyle/notation-article');
     // Site navigation, copyright, and implementation credits surrounding the
