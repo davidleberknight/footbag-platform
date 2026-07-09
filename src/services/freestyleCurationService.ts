@@ -64,6 +64,16 @@ import { trickNameToSlug } from './freestyleRecordShaping';
 import { config } from '../config/env';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 
+// A pre-check rejects a duplicate before each insert, but two writers in separate
+// processes can both pass that check and race to the same key; the primary-key /
+// unique constraint is the authoritative backstop. Map its violation to the same
+// ValidationError the pre-check raises, so the losing writer sees the clean
+// "already exists" message instead of an unhandled 500.
+function isDuplicateKeyError(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code;
+  return code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'SQLITE_CONSTRAINT_PRIMARYKEY';
+}
+
 interface CurationTrickDbRow {
   slug: string;
   canonical_name: string;
@@ -641,18 +651,25 @@ export const freestyleCurationService = {
       throw new ValidationError(`"${aliasSlug}" is already an alias of another trick ("${existing.trick_slug}").`);
     }
 
-    transaction(() => {
-      freestyleTrickAliases.insert.run(aliasSlug, aliasText, trickSlug, aliasType);
-      appendAuditEntry({
-        actionType:    'freestyle.trick_alias.created',
-        category:      'content',
-        actorType:     'admin',
-        actorMemberId,
-        entityType:    'freestyle_trick_alias',
-        entityId:      aliasSlug,
-        metadata:      { trickSlug, aliasSlug, aliasText, aliasType },
+    try {
+      transaction(() => {
+        freestyleTrickAliases.insert.run(aliasSlug, aliasText, trickSlug, aliasType);
+        appendAuditEntry({
+          actionType:    'freestyle.trick_alias.created',
+          category:      'content',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'freestyle_trick_alias',
+          entityId:      aliasSlug,
+          metadata:      { trickSlug, aliasSlug, aliasText, aliasType },
+        });
       });
-    });
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        throw new ValidationError(`"${aliasSlug}" is already an alias.`);
+      }
+      throw err;
+    }
   },
 
   // Remove one alias from a trick. Scoped to the trick both in the ownership check
@@ -715,18 +732,25 @@ export const freestyleCurationService = {
     }
     const assertedAdds = assertedRaw === '' ? null : parseInt(assertedRaw, 10);
 
-    transaction(() => {
-      freestyleTrickSourceLinks.insert.run(trickSlug, sourceId, externalUrl, assertedAdds);
-      appendAuditEntry({
-        actionType:    'freestyle.trick_source_link.created',
-        category:      'content',
-        actorType:     'admin',
-        actorMemberId,
-        entityType:    'freestyle_trick_source_link',
-        entityId:      `${trickSlug}:${sourceId}`,
-        metadata:      { trickSlug, sourceId, externalUrl, assertedAdds },
+    try {
+      transaction(() => {
+        freestyleTrickSourceLinks.insert.run(trickSlug, sourceId, externalUrl, assertedAdds);
+        appendAuditEntry({
+          actionType:    'freestyle.trick_source_link.created',
+          category:      'content',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'freestyle_trick_source_link',
+          entityId:      `${trickSlug}:${sourceId}`,
+          metadata:      { trickSlug, sourceId, externalUrl, assertedAdds },
+        });
       });
-    });
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        throw new ValidationError(`This trick is already linked to "${source.source_label}".`);
+      }
+      throw err;
+    }
   },
 
   // Detach one source link from a trick. getLink is keyed on both the trick and
@@ -793,18 +817,25 @@ export const freestyleCurationService = {
       throw new ValidationError(`"${modifier.modifier_name}" is already linked at apply order ${applyOrder}.`);
     }
 
-    transaction(() => {
-      freestyleTrickModifierLinks.insert.run(trickSlug, modifierSlug, applyOrder);
-      appendAuditEntry({
-        actionType:    'freestyle.trick_modifier_link.created',
-        category:      'content',
-        actorType:     'admin',
-        actorMemberId,
-        entityType:    'freestyle_trick_modifier_link',
-        entityId:      `${trickSlug}:${modifierSlug}:${applyOrder}`,
-        metadata:      { trickSlug, modifierSlug, applyOrder, modifierName: modifier.modifier_name },
+    try {
+      transaction(() => {
+        freestyleTrickModifierLinks.insert.run(trickSlug, modifierSlug, applyOrder);
+        appendAuditEntry({
+          actionType:    'freestyle.trick_modifier_link.created',
+          category:      'content',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'freestyle_trick_modifier_link',
+          entityId:      `${trickSlug}:${modifierSlug}:${applyOrder}`,
+          metadata:      { trickSlug, modifierSlug, applyOrder, modifierName: modifier.modifier_name },
+        });
       });
-    });
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        throw new ValidationError(`"${modifier.modifier_name}" is already linked at apply order ${applyOrder}.`);
+      }
+      throw err;
+    }
   },
 
   // Detach one modifier link from a trick. Keyed on the full triple (trick,

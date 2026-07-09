@@ -49,3 +49,26 @@ describe('deploy-code.sh preserves the host database', () => {
     expect(code).not.toMatch(/--include='?\/?database/);
   });
 });
+
+const REMOTE_SCRIPT_PATH = resolve(__dirname, '../../scripts/internal/deploy-code-remote.sh');
+
+function remoteExecutableLines(): string[] {
+  return readFileSync(REMOTE_SCRIPT_PATH, 'utf8')
+    .split('\n')
+    .filter((line) => !/^\s*#/.test(line));
+}
+
+describe('deploy-code-remote.sh promotes the release without deleting the live database', () => {
+  it('promotes with rsync --delete while excluding the live db, env, and media directories', () => {
+    const code = remoteExecutableLines().join('\n');
+    // The release tree the routine deploy ships carries no db/env/media directory,
+    // so promoting it into the live directory with rsync --delete and no excludes
+    // would delete the live database on the host. These excludes are the entire
+    // DB-preservation mechanism for the routine deploy; without them a code-only
+    // deploy silently wipes the source-of-truth database.
+    expect(code).toMatch(/rsync\b[^\n]*--delete/);
+    expect(code).toMatch(/--exclude=\/db\b/);
+    expect(code).toMatch(/--exclude=\/env\b/);
+    expect(code).toMatch(/--exclude=\/media\b/);
+  });
+});

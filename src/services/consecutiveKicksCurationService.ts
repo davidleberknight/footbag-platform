@@ -32,6 +32,16 @@ import { PageViewModel } from '../types/page';
 import { config } from '../config/env';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 
+// A pre-check rejects a duplicate display position before the insert, but two
+// writers in separate processes can both pass that check and race to the same
+// value; the column's unique constraint is the authoritative backstop. Map its
+// violation to the same ValidationError the pre-check raises, so the losing writer
+// sees the clean field message instead of an unhandled 500.
+function isDuplicateKeyError(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code;
+  return code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'SQLITE_CONSTRAINT_PRIMARYKEY';
+}
+
 export interface ConsecutiveBrowseRow {
   id: string;
   sortOrder: number;
@@ -317,21 +327,30 @@ export const consecutiveKicksCurationService = {
     const id = randomUUID();
     const v = validateConsecutiveInput(input, id);
 
-    transaction(() => {
-      consecutiveKicksRecords.insertForCuration.run(
-        id, v.sortOrder, v.section, v.subsection, v.division, v.year, v.rank,
-        v.player1, v.player2, v.score, v.note, v.eventDate, v.eventName, v.location,
-      );
-      appendAuditEntry({
-        actionType:    'freestyle.consecutive_record.created',
-        category:      'content',
-        actorType:     'admin',
-        actorMemberId,
-        entityType:    'freestyle_consecutive_record',
-        entityId:      id,
-        metadata:      { sortOrder: v.sortOrder, section: v.section, division: v.division },
+    try {
+      transaction(() => {
+        consecutiveKicksRecords.insertForCuration.run(
+          id, v.sortOrder, v.section, v.subsection, v.division, v.year, v.rank,
+          v.player1, v.player2, v.score, v.note, v.eventDate, v.eventName, v.location,
+        );
+        appendAuditEntry({
+          actionType:    'freestyle.consecutive_record.created',
+          category:      'content',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'freestyle_consecutive_record',
+          entityId:      id,
+          metadata:      { sortOrder: v.sortOrder, section: v.section, division: v.division },
+        });
       });
-    });
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        throw new ValidationError('Some fields need attention.', {
+          fieldErrors: { sortOrder: `Display position ${v.sortOrder} is already used by another row.` },
+        });
+      }
+      throw err;
+    }
 
     return id;
   },
