@@ -125,6 +125,23 @@ export const TRICK_INTERPRETATION_ENTRIES: readonly TrickInterpretationEntry[] =
       'The disagreement is primarily analytical rather than performative: the readings differ in how the swirl is described, not in what the body does.',
     ],
   },
+  // ── Subform naming notes: a folk name for a specific variant ────────────
+  // A community name that denotes one particular set-and-side form of a
+  // trick, not the general trick. It is preserved as a naming note here
+  // rather than on the plain-alias line, so a visitor who searched the folk
+  // name and landed on the general page learns what the name points to,
+  // without the site presenting it as an exact alias of the general trick.
+  {
+    slug: 'butterfly',
+    // Butterfly is a core atom; its canonical reading is rendered elsewhere,
+    // so this note carries only the naming clarification.
+    canonicalReading: '',
+    historicalReadings: [],
+    structuralNotes: [
+      'Infinity is a community name for the clipper-set butterfly: a butterfly launched from a clipper set.',
+      'It names that clipper-set form specifically, so the dictionary preserves Infinity as a historical name rather than listing it among butterfly\'s plain aliases.',
+    ],
+  },
   // ── Terminology notes: one label, different moves ───────────────────────
   // The dictionary entry and a historical footbag.org move share a name but
   // are NOT the same move. The historical move is described in the notes

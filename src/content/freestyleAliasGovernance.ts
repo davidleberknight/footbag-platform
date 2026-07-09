@@ -88,7 +88,7 @@ export const ALIAS_GOVERNANCE_ENTRIES: readonly AliasGovernanceEntry[] = [
     aliasText:       'infinity',
     surfaceOnBrowse: false,
     displayAs:       null,
-    reason:          'Infinity is a clipper-set far Butterfly name/subform, not a generic alias of the side-either Butterfly. Suppressed from the generic Butterfly "Also called" line so the page does not present it as an exact alias; the historical Infinity name is preserved in the alias table and its distinct clipper-set-far-Butterfly identity is a held item pending the butterfly default-side doctrine.',
+    reason:          'Infinity is a clipper-set far Butterfly name/subform, not a generic alias of the side-either Butterfly. Suppressed from the generic Butterfly "Also called" line so the page does not present it as an exact alias; the historical Infinity name is preserved in the alias table and its distinct clipper-set-far-Butterfly identity is a held item pending the butterfly default-side doctrine. The name is instead surfaced on the Butterfly page as a curator naming note explaining that Infinity is the clipper-set butterfly, so a visitor who searched Infinity and landed on Butterfly learns what it points to without it being listed as an exact alias. Do not re-enable it on the alias line to make it visible.',
   },
 ];
 

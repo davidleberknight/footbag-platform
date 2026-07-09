@@ -23,6 +23,7 @@
     <h2>Naming &amp; interpretation</h2>
     {{#if content.sectionSubtitles.namingInterpretation}}<p class="section-intro">{{content.sectionSubtitles.namingInterpretation}}</p>{{/if}}
   </div>
+  {{#if (or content.interpretation.canonicalReading content.interpretation.historicalReadings.length)}}
   <dl class="trick-interpretation-readings">
     {{#if content.interpretation.canonicalReading}}
     <dt class="trick-interpretation-reading-label">Canonical reading</dt>
@@ -35,6 +36,7 @@
     {{/each}}
     {{/if}}
   </dl>
+  {{/if}}
   {{#if content.interpretation.structuralNotes.length}}
   <ul class="trick-interpretation-notes">
     {{#each content.interpretation.structuralNotes}}

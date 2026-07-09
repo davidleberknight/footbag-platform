@@ -5,8 +5,11 @@
  *   canonical row, exists only as an alias of butterfly, so its old URL
  *   301-redirects to Butterfly (the project's normal alias-redirect behavior)
  *   and it never appears as a separate browse card.
- * - Infinity is not shown on the generic Butterfly's "Also known as" line
- *   (governance-suppressed), while the historical alias is preserved in data.
+ * - Infinity is not listed on the generic Butterfly's "Also known as" alias
+ *   line (governance-suppressed), but the Butterfly page surfaces it as a
+ *   curator naming note explaining that Infinity is the clipper-set butterfly,
+ *   so a visitor who searched the folk name learns what it points to. The
+ *   historical alias is preserved in data.
  * - The stored Butterfly and Butterfly Same Side rows are unchanged. Public
  *   Butterfly defaults to the far/opposite-side form: the trick page renders the
  *   opposite-side (OP) notation, and the glossary/family card presents the same
@@ -67,11 +70,18 @@ describe('GET /freestyle/tricks/:slug — Butterfly cluster after the safe clean
     expect(res.headers['location']).toBe('/freestyle/tricks/butterfly');
   });
 
-  it('butterfly renders and does not show Infinity as an alias', async () => {
+  it('butterfly surfaces Infinity as a clipper-set naming note, not as a plain alias', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/butterfly');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Infinity');
-    expect(res.text).not.toContain('infinity');
+    // The naming note explains the folk name to a visitor who searched "infinity".
+    expect(res.text).toContain('Naming &amp; interpretation');
+    expect(res.text).toContain('Infinity is a community name for the clipper-set butterfly');
+    // But Infinity is still not listed on the "Also known as" alias line: it
+    // names the clipper-set form, not a plain alias of the general butterfly.
+    const aliasLine = res.text.match(/Also known as<\/dt>\s*<dd>([\s\S]*?)<\/dd>/);
+    if (aliasLine) {
+      expect(aliasLine[1].toLowerCase()).not.toContain('infinity');
+    }
   });
 
   it('the public butterfly page presents the far/opposite-side form, not a side-either marker', async () => {
