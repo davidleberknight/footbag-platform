@@ -780,7 +780,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
       ],
       seeItIn: ['blurriest', 'gyro_barfly', 'spinning_barfly', 'stepping_barfly'],
       notationIntro:
-        'For readers interested in the formal notation, a barfly runs two same-side outward dexes into a cross-body clipper: CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD] (4 ADD). The two outward dexes are its signature; the cross-body clipper is the down ending.',
+        'For readers interested in the formal notation, a barfly runs two same-side outward dexes into a cross-body clipper: CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD] (4 ADD). The two outward dexes are its signature; the cross-body clipper is the down ending. Its terminal brackets read [DEL] [XBD] rather than the usual [XBD] [DEL]; this reversed order is intentional and curator-preserved, and does not change the ADD value.',
       takeaway:
         'Barfly is one of the downs and a base of its own, and holding both readings is how a corner of the down branch comes together.',
     },
