@@ -8442,6 +8442,21 @@ a.trick-hero-meta-chip--media:hover {
   font-weight: 500;
   vertical-align: 0.1em;
 }
+
+.glossary-operator-nickname-flag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  font-size: 0.7rem;
+  font-style: italic;
+  color: var(--slate-600);
+  background: var(--slate-100);
+  border: 1px solid var(--slate-300);
+  border-radius: var(--radius-2xs);
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  vertical-align: 0.1em;
+}
 .glossary-operator-meaning {
   color: var(--text);
 }

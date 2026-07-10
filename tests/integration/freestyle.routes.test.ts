@@ -985,6 +985,19 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     expect(slice).not.toMatch(/distinct by timing/i);
   });
 
+  it('tags the historical nickname patterns (barraging, miraging) in the operator reference', async () => {
+    // The reference makes the official-set-vs-nickname split explicit: Barraging
+    // and Miraging carry a "historical name" flag; official sets do not.
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    const entry = (slug: string) => {
+      const i = res.text.indexOf(`id="term-${slug}"`);
+      return i < 0 ? '' : res.text.slice(i, i + 500);
+    };
+    expect(entry('barraging')).toContain('glossary-operator-nickname-flag');
+    expect(entry('miraging')).toContain('glossary-operator-nickname-flag');
+  });
+
   it('renders entries in pedagogical order: set-tier first, body next, quantifier last', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');

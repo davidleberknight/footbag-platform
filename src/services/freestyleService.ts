@@ -3873,7 +3873,7 @@ export interface FreestyleGlossaryContent {
   // Intermediate-operator reference rendered inside §3 as a quick-reference
   // subsection. Authoritative source for what each intermediate operator
   // means and how it decomposes; equivalence-chain tokens deep-link here.
-  intermediateOperators: readonly OperatorReferenceEntry[];
+  intermediateOperators: readonly (OperatorReferenceEntry & { isHistoricalNickname: boolean })[];
   // Canonical Tier-1 definition lines keyed by slug, from the operator
   // reference. The body-modifier reference partial renders each definition
   // from this record instead of authoring its own copy; the per-term extras
@@ -9858,7 +9858,10 @@ export const freestyleService = {
       },
       content: {
         operatorBoard:         this.getOperatorBoard('glossary'),
-        intermediateOperators: OPERATOR_REFERENCE_ENTRIES,
+        intermediateOperators: OPERATOR_REFERENCE_ENTRIES.map(e => ({
+          ...e,
+          isHistoricalNickname: e.category === 'historical-nickname',
+        })),
         tier1Definitions: Object.fromEntries(
           TIER1_OPERATOR_DEFINITIONS.map(d => [d.slug, d.definition]),
         ),

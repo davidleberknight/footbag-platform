@@ -41,6 +41,9 @@ export type OperatorReferenceCategory =
                        //  here (TIER1_OPERATOR_DEFINITIONS), not a full entry
   | 'compound-set'     // a set treatment that decomposes into other operators
   | 'compound-body'    // a body operator that decomposes into other operators
+  | 'historical-nickname' // a legacy/nickname naming pattern (Miraging, Barraging),
+                       //  not a canonical set or operator of its own; a downtime-
+                       //  analogy name that resolves to an official set
   | 'quantifier';      // a quantifier-style operator (double)
 
 export interface OperatorReferenceEntry {
@@ -85,7 +88,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
   {
     slug:           'miraging',
     name:           'Miraging',
-    category:       'body',
+    category:       'historical-nickname',
     oneLineMeaning: 'A single inward dex, +1: SET > OP IN [DEX] >. A historical downtime nickname, retained as descriptive mirage-family language, not a canonical set. Quantum is the official uptime set concept; miraging is not a modern set or a Quantum equivalent.',
     decomposition:  null,
     pendingNote:    'Miraging is +1. Older sources described it as atomic\'s inward-dex mirror, but under current doctrine miraging is a historical nickname, not a modern set. Any X-Dex is a separate +1 marked [XDEX] in the notation, not part of miraging.',
@@ -129,7 +132,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
   {
     slug:           'barraging',
     name:           'Barraging',
-    category:       'compound-set',
+    category:       'historical-nickname',
     oneLineMeaning: 'A legacy name pattern for the Furious set, not a canonical set of its own. Furious is the official two-dex uptime set (+2 ADD, two in-direction dexes; operational form CLIP > OP IN [DEX] > SAME IN [DEX] >, historically called high stepping). Some tricks carry barraging-based names by analogy to similar motions; those names persist for continuity, but the set is Furious, and decomposition resolves to Furious.',
     decomposition:  'high stepping',
     pendingNote:    null,
