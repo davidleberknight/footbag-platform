@@ -717,6 +717,69 @@ def test_red_additions_loader_idempotent(tmp_path: Path) -> None:
     assert n == base + 1
 
 
+def test_red_additions_loader_scoped_delete_preserves_other_source_aliases(tmp_path: Path) -> None:
+    """Loader 19's alias DELETE is scoped to source_id='red-husted-2026-04-20', so
+    aliases owned by another source (loader 17's 'curated-v1') survive a
+    red-additions run and re-run rather than being wiped."""
+    db = make_db(tmp_path)
+    # Loader 17 builds the base dictionary, including the 'clip' -> 'clipper' alias
+    # scoped to source_id='curated-v1'.
+    setup = run([
+        "freestyle/loaders/17_load_trick_dictionary.py",
+        "--db", str(db),
+        *_write_trick_dictionary_inputs(tmp_path),
+    ])
+    assert setup.returncode == 0, f"17 setup failed.\nstderr: {setup.stderr}"
+
+    def alias_count(source_id: str) -> int:
+        conn = sqlite3.connect(db)
+        try:
+            return conn.execute(
+                "SELECT COUNT(*) FROM freestyle_trick_aliases WHERE source_id = ?",
+                (source_id,),
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+    curated_before = alias_count("curated-v1")
+    assert curated_before >= 1, "expected loader 17 to seed a curated-v1 alias"
+
+    # A red-additions row carrying its own alias, so loader 19 exercises its scoped
+    # alias DELETE + INSERT (source_id='red-husted-2026-04-20').
+    additions = write_csv(
+        tmp_path / "red_additions.csv",
+        ["canonical_name", "adds", "base_trick", "category", "aliases",
+         "modifier_links", "description", "review_status", "is_active", "review_note"],
+        [{"canonical_name": "scoped-red-trick", "adds": "2",
+          "base_trick": "clipper", "category": "body", "aliases": "srt",
+          "modifier_links": "", "description": "A red trick with an alias.",
+          "review_status": "approved", "is_active": "1", "review_note": ""}],
+    )
+    corrections = write_csv(
+        tmp_path / "red_corrections.csv",
+        ["slug", "field", "old_value", "new_value", "source_note"], [],
+    )
+    loader = [
+        "freestyle/loaders/19_load_red_additions.py",
+        "--db", str(db),
+        "--additions-csv", str(additions),
+        "--corrections-csv", str(corrections),
+    ]
+
+    # Run twice: the second run's scoped DELETE actually removes and re-inserts
+    # Red's own aliases, proving the delete fires while the curated-v1 alias is
+    # never in its scope.
+    for label in ("first", "second"):
+        r = run(loader)
+        assert r.returncode == 0, f"19 {label} run failed.\nstderr: {r.stderr}"
+        assert alias_count("curated-v1") == curated_before, (
+            f"the curated-v1 alias must survive the red-scoped delete ({label} run)"
+        )
+        assert alias_count("red-husted-2026-04-20") >= 1, (
+            f"loader 19's own scoped alias insert must land ({label} run)"
+        )
+
+
 # Synthetic-fixture cases for the seed loaders that previously hardcoded their
 # input paths; each now takes an input-path override flag (default unchanged), so
 # the loader reads a tmp_path fixture here and never a real-data tree.
