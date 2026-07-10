@@ -255,7 +255,7 @@ import {
   type AddAnalysisContent,
 } from '../content/freestyleAddAnalysisContent';
 import {
-  RESOLVED_FORMULAS_SPRINT_1,
+  RESOLVED_ADD_FORMULAS,
   type ResolvedFormula,
 } from '../content/freestyleResolvedFormulas';
 import {
@@ -4333,14 +4333,14 @@ const ROTATIONAL_BASES = new Set(['whirl', 'mirage', 'torque', 'blender', 'swirl
 // rendering hierarchy contract.
 const RESOLVED_FORMULAS_BY_SLUG: ReadonlyMap<string, ResolvedFormula> = (() => {
   const map = new Map<string, ResolvedFormula>();
-  for (const formula of RESOLVED_FORMULAS_SPRINT_1) {
+  for (const formula of RESOLVED_ADD_FORMULAS) {
     map.set(formula.slug, formula);
   }
   return map;
 })();
 
 /** Resolve the curator-authored JOB operational notation for a slug.
- *  Lookup order: CoreTrickSpec (12 atoms) → RESOLVED_FORMULAS_SPRINT_1
+ *  Lookup order: CoreTrickSpec (12 atoms) → RESOLVED_ADD_FORMULAS
  *  (curator-published compounds carrying operationalNotation) → DB row's
  *  operational_notation column. Returns null when no source has a value.
  *
@@ -4437,11 +4437,11 @@ function shapeTrickAddAnalysis(slug: string, isAtomic = false): TrickAddAnalysis
 //   Tier 1 — JOB + ADD both curator-locked. Atoms with
 //     ATOMIC_FLAG_DECOMPOSITIONS entries (providing operationalChain +
 //     decomposition strings), or compounds with both curator-authored
-//     operational_notation AND a RESOLVED_FORMULAS_SPRINT_1 entry.
+//     operational_notation AND a RESOLVED_ADD_FORMULAS entry.
 //     Cards render at full osis-grade parity (both first-class rows
 //     populated, no incomplete-state line).
 //   Tier 2 — ADD curator-locked; Job notation genuinely absent upstream.
-//     RESOLVED_FORMULAS_SPRINT_1 entries whose operational_notation
+//     RESOLVED_ADD_FORMULAS entries whose operational_notation
 //     column is empty. Cards render the ADD breakdown plus the honest
 //     "JOB: notation pending" incomplete-state line.
 //
@@ -4671,7 +4671,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'spinning_pickup',         // spinning(+1) + pickup(2) = 3 ADD
   'tapping_whirl',           // tapping(+1) + whirl(3) = 4 ADD
   // ── Promotions: 19 slugs already carrying
-  //    curator-published derivations in RESOLVED_FORMULAS_SPRINT_1
+  //    curator-published derivations in RESOLVED_ADD_FORMULAS
   //    but never explicitly added to a tier set. Each row's derivation
   //    is settled; promotion is mechanical (set membership only).
   'atom_smasher',            // atomic(+1) + mirage(2) + symposium(+1) = 4 ADD (composite via base-mirage)
@@ -7654,7 +7654,7 @@ export const freestyleService = {
             // O1a/O1b/O1d: shape into role-classified tokens for the trick-
             // detail template. Null when no source carries operational
             // notation; section omits entirely. Lookup chain: CoreTrickSpec
-            // (12 atoms) → RESOLVED_FORMULAS_SPRINT_1 (curator-published
+            // (12 atoms) → RESOLVED_ADD_FORMULAS (curator-published
             // compound JOB overrides) → DB operational_notation column.
             // shapeOperationalNotationDisplay handles null/empty/whitespace-
             // only input safely. The optional curator-authored sourceNote

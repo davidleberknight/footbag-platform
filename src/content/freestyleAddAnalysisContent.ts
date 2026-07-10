@@ -39,7 +39,7 @@ import {
 } from './freestyleAddDisagreements';
 export type { AddDisagreementRow };
 import {
-  RESOLVED_FORMULAS_SPRINT_1,
+  RESOLVED_ADD_FORMULAS,
   RESOLVED_FORMULAS_FRAMING_PROSE,
   type ResolvedFormula,
 } from './freestyleResolvedFormulas';
@@ -673,7 +673,7 @@ export const FREESTYLE_ADD_ANALYSIS_CONTENT: AddAnalysisContent = {
   passbackAddFraming:     PASSBACK_ADD_FRAMING_PROSE,
   passbackAddDisagreements: PASSBACK_ADD_DISAGREEMENTS,
   resolvedFormulasFraming: RESOLVED_FORMULAS_FRAMING_PROSE,
-  resolvedFormulas:        RESOLVED_FORMULAS_SPRINT_1,
+  resolvedFormulas:        RESOLVED_ADD_FORMULAS,
   closingParagraphs:      CLOSING_PARAGRAPHS,
   crossLinks:             CROSS_LINKS,
 };

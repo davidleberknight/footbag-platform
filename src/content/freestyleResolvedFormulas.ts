@@ -113,7 +113,7 @@ export const RESOLVED_FORMULAS_FRAMING_PROSE =
 // Resolved formulas accumulator. All rows were classified
 // `curator_pending` in the formula-gap classification and the
 // composition is mechanically derivable.
-export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
+export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   {
     slug:        'quantum_guay',
     name:        'quantum guay',

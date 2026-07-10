@@ -11,8 +11,8 @@
  *     canonical `≡` equivalence readings. ADD values are joined from
  *     `freestyle_tricks` at service-shape time; this file does not encode
  *     ADD values to prevent drift.
- *   - (Demonstrations content lives in the service shaping directly;
- *     see freestyleService.getLandingPage for the array.)
+ *   - (Demonstrations content lives in the service shaping directly, not in
+ *     this content module.)
  *
  * Forever-rules:
  *   - Definitions adapted from `passback-glossary.txt` carry a `source` field
