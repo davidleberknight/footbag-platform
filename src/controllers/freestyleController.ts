@@ -1,12 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
 import { freestyleService } from '../services/freestyleService';
 import { handleControllerError } from '../lib/controllerErrors';
-import { NotFoundError } from '../services/serviceErrors';
 
 /**
  * Thin controller for public freestyle routes.
  * Business logic and page shaping live in freestyleService.
  */
+
+/**
+ * Render the shared 404 page. The set and family detail service methods return
+ * null (not throw) on an unknown or non-first-class slug, so their controllers
+ * render the not-found page directly; this matches the NotFoundError mapping in
+ * handleControllerError that the throwing detail routes rely on.
+ */
+function renderNotFound(res: Response): void {
+  res.status(404).render('errors/not-found', {
+    seo:  { title: 'Page Not Found' },
+    page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
+  });
+}
+
 export const freestyleController = {
   /** GET /freestyle */
   landing(_req: Request, res: Response, next: NextFunction): void {
@@ -75,13 +88,6 @@ export const freestyleController = {
       const vm = freestyleService.getTrickDetailPage(slug);
       res.render('freestyle/trick-shell', vm);
     } catch (err) {
-      if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
-        return;
-      }
       handleControllerError(err, res, next, 'freestyle controller');
     }
   },
@@ -148,21 +154,13 @@ export const freestyleController = {
     try {
       const family = typeof req.query['family'] === 'string' ? req.query['family'] : undefined;
       const view   = typeof req.query['view']   === 'string' ? req.query['view']   : undefined;
-      // Legacy/guessed alias: /freestyle/tricks?view=emerging redirects
-      // to the dedicated Emerging Vocabulary surface. Without the
-      // redirect, the unknown view falls through to the default 'add'
-      // view silently, producing a confusing "this looked like a new
-      // surface but rendered the same content" UX.
-      if (view === 'emerging') {
-        res.redirect(302, '/freestyle/observational');
+      const redirectTo = freestyleService.tricksIndexRedirectTarget(view);
+      if (redirectTo) {
+        res.redirect(302, redirectTo);
         return;
       }
-      // /freestyle/tricks opens directly on the By ADD ladder (the service
-      // defaults view to 'add'); there is no separate browse-mode gate.
-      // ?sort=alpha switches the ADD view's within-tier arrangement to flat A-Z
-      // for lookup; anything else (the default) is the nearest-anchor By-family.
-      const addSort = req.query['sort'] === 'alpha' ? 'alpha' : 'family';
-      const vm = freestyleService.getFreestyleTricksIndexPage(family, view, addSort);
+      const sort = typeof req.query['sort'] === 'string' ? req.query['sort'] : undefined;
+      const vm = freestyleService.getFreestyleTricksIndexPage(family, view, sort);
       res.render('freestyle/tricks', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'freestyle controller');
@@ -242,10 +240,7 @@ export const freestyleController = {
       }
       const vm = freestyleService.getCanonicalSetDetailPage(rawSlug);
       if (!vm) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       res.render('freestyle/set-detail', vm);
@@ -264,10 +259,7 @@ export const freestyleController = {
       const rawSlug = typeof req.params['slug'] === 'string' ? req.params['slug'] : '';
       const vm = freestyleService.getFamilyDetailPage(rawSlug);
       if (!vm) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       res.render('freestyle/family-detail', vm);
@@ -360,13 +352,6 @@ export const freestyleController = {
         detail.vm,
       );
     } catch (err) {
-      if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
-        return;
-      }
       handleControllerError(err, res, next, 'freestyle controller');
     }
   },

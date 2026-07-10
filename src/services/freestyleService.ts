@@ -8331,14 +8331,16 @@ export const freestyleService = {
    * own their tricks and no foundational surface (clipper-stall) or raw root ever
    * becomes a band; bands order by the canonical public-family order, and tricks
    * with no public family collect in a trailing "Other / standalone tricks" band.
-   * `addSort` toggles the within-tier presentation: 'family' (default) keeps that
-   * banded grouping, 'alpha' (`?sort=alpha`) renders a flat A–Z list for lookup.
+   * The `sort` argument (the raw `?sort=` query) toggles the within-tier
+   * presentation: 'alpha' renders a flat A-Z list for lookup, anything else
+   * (the default) keeps the banded By-family grouping.
    */
   getFreestyleTricksIndexPage(
     family?: string,
     view?: string,
-    addSort: 'family' | 'alpha' = 'family',
+    sort?: string,
   ): PageViewModel<FreestyleTricksIndexContent> {
+    const addSort: 'family' | 'alpha' = sort === 'alpha' ? 'alpha' : 'family';
     // Active + pending external rows. Pending rows surface as labeled
     // placeholders; they never claim canonical status.
     const allRowsUnfiltered = runSqliteRead('freestyleTricks.listAllWithPending', () =>
@@ -10243,6 +10245,17 @@ export const freestyleService = {
   // resolve to their set page rather than a modifier stub. Pure alias slugs
   // (a historical name or abbreviation with no canonical row of their own)
   // redirect to the canonical trick URL, keeping one canonical URL per trick.
+  /**
+   * GET /freestyle/tricks redirect decision. `?view=emerging` is a legacy or
+   * guessed alias for the dedicated Emerging Vocabulary surface; without the
+   * redirect the unknown view falls through to the default 'add' view silently,
+   * producing a confusing "looked like a new surface but rendered the same
+   * content" result. Returns the redirect target, or null to render the index.
+   */
+  tricksIndexRedirectTarget(view: string | undefined): string | null {
+    return view === 'emerging' ? '/freestyle/observational' : null;
+  },
+
   trickRouteRedirectTarget(slug: string): string | null {
     if (isRouteMigratedSet(slug)) return `/freestyle/sets/${slug}`;
     const row = runSqliteRead('freestyleTricks.categoryBySlug', () =>
