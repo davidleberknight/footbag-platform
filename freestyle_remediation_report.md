@@ -210,6 +210,15 @@ formula-identity audit, in rough order of how self-contained they are:
    - Consolidating `surfaceOnBrowse` into `alias_display` is future cleanup, not
      part of this slice.
 
+8. **Review miraging-bearing canonical compounds.** `big_apple_sauce` and
+   `spinning_miraging_symposium_torque` still carry `miraging` as a scored
+   component in their decompositions. Their canonical community names literally
+   contain "miraging", so this is not the same bug as Torque (whose scoring label
+   was corrected to the settled `quantum osis`). Decide whether "miraging" there
+   is a name-bearing historical term, a valid downtime component, or a stale
+   formula label that should be re-expressed through settled operators. Left
+   unchanged pending that targeted review.
+
 The path/catch framing also routed about 17 folk or unmapped terminal names and
 about 10 incomplete operator-ending names to this identity and completeness track;
 they are recorded here rather than as notation work.
