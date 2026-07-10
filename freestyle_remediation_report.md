@@ -71,6 +71,41 @@ An effort-ordered view over the still-open freestyle backlog, to work easiest sa
 - FS-21 — difficulty-tag design. **blocked** (behind FS-27).
 - FS-29 — replacement demo video for the sole-survivor clip. **S** (source-dependent).
 
+## Emerging Vocabulary next-work posture and doctrine-decision roadmap (2026-07-10)
+
+The formula-identity audit (FS-47) settles the posture for the Emerging Vocabulary surface: it is
+mostly duplicate naming, formula gaps, identity questions, and notation/operator decisions, not a
+prose-authoring queue.
+
+1. **Authoring is paused** unless a row passes formula-authority review (the movement formula is
+   settled, every operator and token is defined in the operator authority and representable in the
+   notation, and the row is neither a redundant restatement nor a collision with an existing
+   canonical).
+2. **Frantic is formula-blocked** until the Scoring paper defines it as an operator with an ADD and
+   structure; it is a recognized token, not a settled operator.
+3. **Inward Gyro is notation-blocked or already-represented, not authorable**: "inward" is not a
+   notation token, gyro's dex direction is already intrinsic, and the rows either restate an
+   existing gyro_X canonical or collide with its OUT dex.
+4. **The next major unlocks are doctrine decisions, not manual rows.** Progress comes from the
+   Scoring and Notation papers and a curator equivalence pass, in the priority below.
+
+Roadmap (decisions, not tasks; no new Red questions, everything maps to an existing paper):
+
+| Decision | Paper / owner | Est. rows unlocked | Result type | Recommended next action |
+|---|---|---|---|---|
+| Blurry-expansion predicate (does a blurry-named trick carry the paradox term?) | Scoring / Red | ~61 | authoring (mostly) + reclassification | Lead question of the Scoring paper; biggest single yes/no |
+| Operator structural definitions (ADD + structure + compositional behavior) | Scoring / Red | ~90 total; top five ~37 | authoring | Define high-count operators first: symple 11, slapping 9, fusing 6, phasing 6, frantic 5, railing 5, slaying 5, sonic 5, twinspinning 4 |
+| Double-prefix / count-quantifier rider | Scoring / Red (+ internal parser for the count-token rendering, FS-26) | ~21 | reclassification (mostly) | Rule the double-prefix reading; the count-token-as-operator rendering is internal parser work |
+| Repeated-operator scoring; terraging-chain arithmetic | Scoring / Red | 4; 2 | reclassification | Ride at the end of the Scoring paper |
+| Path/catch (terminal-mechanic) encoding standard | Notation / Red, then internal parser | up to ~103 | parser work + reclassification | Largest structural unlock; a notation rule plus parser implementation, not a single yes/no |
+| Zulu and Weaving: notation token or Duck/Dive variant? | Notation / Red | ~15 zulu + ~3 weaving | authoring (if token) or alias cleanup (if variant) | Rule tokens vs duck/dive variants and how the path/catch distinction is recorded |
+| Cross-body rake base | Notation / Red | 12 now (+ ~47-slug parser drain later) | authoring (Snowflake) + reclassification | Define the xbd-rake base structurally |
+| "Inward" on gyro | Notation / Red | ~9 | alias cleanup (mostly) + reclassification | Small; likely rule "inward" redundant on a gyro, merging the rows into the existing gyro_X |
+| Positional equivalence, settle-now (already-settled operators) | Curator / James | ~12 (nuclear 7 + settled-operator remainder) | alias cleanup or new distinct rows | Curator rules ss / far / near / opposite equivalence for rows whose base operator is already settled |
+| Positional equivalence, operator-blocked | Curator / James | ~28 (pogo 8, flailing 5, shooting 5, frantic 4, railing 2, zulu 2) | deferred | Hold each until its operator is defined by the Scoring or Notation paper; do not mix with Red questions |
+| Down-family per-trick embedded-base verification | Curator / James (frame from the Identity paper's open half) | 21 | bucket reclassification (no ADD changes) | Apply per trick once the coordinate-frame ruling lands |
+| Competing multi-name identities; source/video (POD, Kiwi) | Curator / James | 10; 2 | alias cleanup / distinct row | Resolve per case; POD and Kiwi need a video viewing |
+
 ## 2. Scope and method
 
 **In scope:** all 28 mounted `/freestyle/*` route paths (the search page and its JSON suggest endpoint counted separately) plus the `/media/freestyle-tutorials` redirect, 29 mounted routes in all; `freestyleController.ts`; `mediaController.freestyleMedia`; `freestyleService.ts` and 18 supporting services; 52 `src/content/freestyle*.ts` modules; 27 views in `src/views/freestyle/` and ~45 freestyle partials; `freestyle-trick-search.js`; freestyle statement groups in `src/db/db.ts`; the `freestyle/` pipeline (orchestrator, 8 loaders, 3 QC scripts, scripts, inputs, symbolic_grammar, doctrine, tools); 20 freestyle/symbolic tables in `database/schema.sql`; the freestyle test corpus (118 integration + 30 unit freestyle-named files; 198 freestyle-touching); the five freestyle-relevant skills (audited as subjects, not used as authority, per maintainer instruction in this run); all freestyle docs and doctrine; `exploration/` disposition; every Freestyle-related `IMPLEMENTATION_PLAN.md` item.
