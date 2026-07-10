@@ -26,7 +26,9 @@ applied at scoring time but not itself a scoring rule.
   barfly, or the down family, it attaches to the dex and not to the set, and it
   never applies twice. Where it fires the notation carries `[XDEX]`.
 - **Composite operators score as the sum of their parts.** Surging is spinning
-  plus stepping (+2); blurry is a stepping entry carrying a paradox; nuclear is a
+  plus stepping (+2); blurry is a stepping entry that carries a paradox in its
+  default compound reading, though whether every historical blurry-named trick
+  carries it is the per-row predicate proposed below; nuclear is a
   paradox plus a downtime illusion (+2); furious is a two-dex uptime set (+2),
   scored by its components. Barraging is distinct from furious by timing and should
   be scored from its own bracketed components when present, not treated as another
@@ -53,7 +55,83 @@ applied at scoring time but not itself a scoring rule.
    lineage and not another, does the paradox term score? This is the single
    largest scoring gate. It is a scoring question that rests on a notation
    question (what a `[PDX]` bracket asserts, in Notation); the scoring half asks
-   whether, once present, it counts. (Red.)
+   whether, once present, it counts. Its largest concrete instance, the
+   blurry-expansion predicate, is drafted as a proposed ruling below. (Red.)
+
+## Proposed ruling: the blurry-expansion predicate
+
+This is the largest concrete instance of the paradox predicate above, presented
+as a Red-facing proposed ruling with the repository's recommendation.
+
+**The question.** Does a blurry-named trick carry the paradox term as physical
+content, or is "blurry" only a historical naming pattern whose structure, and
+therefore whether a paradox dex is present, must be read from the trick's own
+formula? About 61 rows on the observational surface are held on this single
+predicate.
+
+**Why it matters.** The ruling decides in one stroke whether those rows author
+uniformly (all with a paradox dex and its extra point of difficulty) or whether
+each is read from its own source. It also settles the ADD of the handful of
+active blurry canonicals whose difficulty is currently flagged approximate and
+the disposition of roughly ten deferred blurry-form aliases. A ruling that
+applies the paradox uniformly would stamp a paradox dex onto tricks whose
+sources show none, inflating their difficulty and collapsing distinctions the
+dictionary currently treats as real.
+
+**The evidence in the corpus.** The paradox term is currently treated as physical
+content, not a notation flourish:
+
+- The built blurry canonicals are split. Blurry Whirl, Blurry Drifter, Blurry
+  Torque, Blurry Symposium Whirl, and Blurry Whirling Swirl carry a `[PDX]`
+  bracket; Blurrage, Blurrier, and Blurriest do not.
+- For several tricks the dictionary keeps a no-paradox row and an explicit
+  paradox row as two distinct tricks: Ripwalk (no paradox, ADD 4) beside Paradox
+  Ripwalk (with paradox, ADD 5); Blizzard (no paradox, ADD 3) beside Paradox
+  Blizzard (with paradox, ADD 4). If the paradox term were only a notation
+  convention these would not be separate canonicals.
+- The sources split the same way. A trick with its own footbag.org movement
+  description tends to record the paradox term; a stepping-only technical name
+  from the outside record library tends to omit it. Spike Hammer resolved toward
+  the paradox reading; Ripwalk is the one case where both sources agree there is
+  no paradox.
+
+**Representative rows.** Blurry Butterfly (also known as Ripwalk), Blurry Barrage
+(also known as Blurrage), Blurry Clipper, Blurry Double Legover, Blurry Da Da
+Curve, Blurry Butterfly Swirl (also known as Riptide), Blurry Ducking Butterfly,
+and the plain compound Blurry (Stepping Paradox) itself.
+
+**The two possible rulings.**
+
+- **Ruling 1: blurry carries the paradox term (uniform).** Every blurry-named
+  trick reads as stepping-plus-paradox and gains the paradox dex and its point.
+- **Ruling 2: blurry is a naming pattern; structure is read from the formula and
+  source.** A blurry-named trick carries the paradox term only when its own
+  source records it and authors without it when the source shows no paradox dex.
+
+**What each ruling would do.** Under Ruling 1: all ~61 author uniformly with the
+paradox dex, which is fast but over-applies where sources show none; every
+"Blurry X" becomes an alias of the paradox-X form; the held rows collapse
+uniformly into authorable or already-represented; and the existing no-paradox
+canonicals (Blurrage, Blurrier, Blurriest) and the Ripwalk-versus-Paradox-Ripwalk
+distinction are contradicted and would need correction. Under Ruling 2: each row
+authors from its own source, some with the paradox term and some without; each
+"Blurry X" resolves to whichever canonical its source supports, so some map to an
+existing paradox form, some to an existing no-paradox form, and some are
+genuinely new; the held rows split into already-represented, authorable, and a
+few identity-ambiguous; and no existing canonical is contradicted.
+
+**Recommended ruling: Ruling 2, structure and source decide.** "Blurry" may be
+the default historical reading for the plain compound, but it should not
+automatically stamp a paradox dex onto every blurry-named trick. A blurry-named
+row carries the paradox term only when its own formula or source records it. The
+operator reference can define the plain, default blurry compound as
+stepping-plus-paradox; it does not, and should not, govern every historical
+blurry-named trick. The built canon already treats the paradox term as physical
+content: it maintains separate no-paradox and explicit-paradox rows (Ripwalk
+beside Paradox Ripwalk, Blizzard beside Paradox Blizzard) and applies "blurry"
+non-uniformly across its own canonicals. Ruling 2 extends that model; Ruling 1
+would contradict the existing no-paradox canonicals and collapse those
+distinctions.
 
 ## Worked examples
 

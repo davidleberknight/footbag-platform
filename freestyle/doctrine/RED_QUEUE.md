@@ -40,7 +40,9 @@ packet, send or resend it to Red, and then update each item's delivery status fr
    no-paradox case — so is the paradox term physical content footbag.org records and
    PassBack elides, or a notation convention? (The blurry rows that have their own
    footbag.org JOBs author under the codified source-priority order regardless of
-   the answer.)
+   the answer.) This question is now drafted as a proposed ruling in the Scoring
+   doctrine paper, which is its delivery vehicle; the recommendation there is that
+   structure and source decide, not a uniform paradox.
 2. **Embedded-base labeling frame for down-family operator compounds** — the
    still-open half of the down question. Red has ruled the downs one family (a
    single structural decomposition with set/foot variants), which settles the grid
