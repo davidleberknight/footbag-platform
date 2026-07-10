@@ -282,9 +282,10 @@ describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name eq
     const res = await request(await createApp()).get('/freestyle/sets/atomic');
     expect(res.status).toBe(200);
     // Atomic and Illusioning are distinct under current doctrine, so atomic has
-    // no equivalent-name section and never presents Illusioning as a synonym.
+    // no equivalent-name section, and its Set Encyclopedia teaching page states
+    // the distinction rather than presenting Illusioning as a synonym.
     expect(res.text).not.toContain('Equivalent names');
-    expect(res.text).toContain('Illusioning is a downtime move, not an equivalent name for Atomic');
+    expect(res.text).toContain('illusioning is a downtime move, not another name for the atomic uptime set');
   });
 
   it('keeps the equivalent name out of the structural Equivalence readings slot', async () => {
@@ -370,23 +371,33 @@ function presentSectionsInOrder(text: string): { present: string[]; ascending: b
 }
 
 describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail shell', () => {
-  it('atomic renders its parity sections in trick-detail order (no equivalent-name section: none remain)', async () => {
+  it('atomic renders its below-fold reference sections in trick-detail order (its teaching page covers formula and movement explanation; no equivalent-name section)', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/atomic');
     const { present, ascending } = presentSectionsInOrder(res.text);
-    // Atomic has no equivalent names under current doctrine, so that section is
-    // absent; every other parity section is present and in order.
-    const expected = SET_PARITY_ORDER.filter(s => s !== 'aria-label="Equivalent names"');
+    // Atomic now has a Set Encyclopedia teaching page, so the Formula and Movement
+    // explanation reference blocks are covered by the teaching layout above and no
+    // longer render as separate parity sections; the remaining reference sections
+    // still appear in trick-detail order, and atomic has no equivalent-name section.
+    const expected = SET_PARITY_ORDER.filter(
+      s => s !== 'aria-label="Equivalent names"'
+        && s !== 'aria-label="Formula"'
+        && s !== 'aria-label="Movement explanation"',
+    );
     expect(present).toEqual(expected);
     expect(ascending).toBe(true);
   });
 
-  it('furious renders its parity sections in trick-detail order', async () => {
+  it('furious renders its below-fold reference sections in trick-detail order (its teaching page covers formula and movement explanation)', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/furious');
     const { present, ascending } = presentSectionsInOrder(res.text);
     expect(ascending).toBe(true);
-    // Furious has no equivalent-name section under current doctrine.
+    // Furious now has a Set Encyclopedia teaching page, so the Formula and Movement
+    // explanation reference blocks are covered by the teaching layout above; the
+    // remaining reference sections still render in order, and furious has no
+    // equivalent-name section under current doctrine.
     expect(present).not.toContain('aria-label="Equivalent names"');
-    expect(present).toContain('aria-label="Movement explanation"');
+    expect(present).not.toContain('aria-label="Movement explanation"');
+    expect(present).toContain('aria-label="Equivalence readings"');
   });
 });
 

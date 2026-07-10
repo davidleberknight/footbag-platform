@@ -31,6 +31,8 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'whirling', modifier_name: 'Whirling', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'pixie',    modifier_name: 'Pixie',    add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set'  });
   insertFreestyleTrickModifier(db, { slug: 'atomic',   modifier_name: 'Atomic',   add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set'  });
+  // A set primitive with no teaching page, so its modifier route stays a stub.
+  insertFreestyleTrickModifier(db, { slug: 'slapping', modifier_name: 'Slapping', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set'  });
 
   // freestyle_tricks rows. A modifier-category row (spinning) for the redirect +
   // search exclusion; set-category rows (pixie dual-role, atomic set-only) for
@@ -38,6 +40,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'spinning',          canonical_name: 'spinning',          category: 'modifier' });
   insertFreestyleTrick(db, { slug: 'pixie',             canonical_name: 'pixie',             category: 'set' });
   insertFreestyleTrick(db, { slug: 'atomic',            canonical_name: 'atomic',            category: 'set' });
+  insertFreestyleTrick(db, { slug: 'slapping',          canonical_name: 'slapping',          category: 'set' });
   insertFreestyleTrick(db, { slug: 'spinning-butterfly', canonical_name: 'spinning butterfly', category: 'compound', adds: '4', base_trick: 'butterfly', trick_family: 'butterfly' });
 
   db.close();
@@ -70,13 +73,13 @@ describe('GET /freestyle/operators — role-aware hashtags', () => {
 });
 
 describe('GET /freestyle/modifier/:slug — stub hashtag', () => {
-  it('renders the role-aware hashtag on a stub (atomic set → #set_atomic)', async () => {
-    // atomic is a set with no authored teaching page, so its modifier route
-    // still resolves to a data-driven stub (unlike pixie, which now redirects
-    // to its set-encyclopedia page).
-    const res = await request(await createApp()).get('/freestyle/modifier/atomic');
+  it('renders the role-aware hashtag on a stub (slapping set → #set_slapping)', async () => {
+    // slapping is a set with no authored teaching page, so its modifier route
+    // still resolves to a data-driven stub (unlike pixie or atomic, which now
+    // redirect to their set-encyclopedia pages).
+    const res = await request(await createApp()).get('/freestyle/modifier/slapping');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('#set_atomic');
+    expect(res.text).toContain('#set_slapping');
   });
 
   it('honors the curator role override: whirling is a first-class set, so its modifier route redirects to the set page', async () => {

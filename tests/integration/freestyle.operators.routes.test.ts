@@ -204,11 +204,16 @@ describe('GET /freestyle/modifier/:slug — universal detail resolution', () => 
   });
 
   it('the stub surfaces the operator-reference decomposition + worked examples (now the canonical home)', async () => {
-    const res = await request(await createApp()).get('/freestyle/modifier/atomic');
+    // miraging is a modifier with no teaching page, so its route still resolves
+    // to the data-driven stub, which remains the canonical home for the operator
+    // reference's decomposition and worked examples. (atomic / quantum / nuclear
+    // now have Set Encyclopedia teaching pages, so their modifier routes redirect
+    // to the set page instead of rendering this stub.)
+    const res = await request(await createApp()).get('/freestyle/modifier/miraging');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Decomposition');
     // Worked example from the operator reference (the '=' renders HTML-escaped).
-    expect(res.text).toContain('Atom Smasher');
-    expect(res.text).toContain('Atomic Mirage');
+    expect(res.text).toContain('Miraging Clipper');
+    expect(res.text).toContain('Drifter');
   });
 });
