@@ -30,9 +30,10 @@ applied at scoring time but not itself a scoring rule.
   default compound reading, though whether every historical blurry-named trick
   carries it is the per-row predicate proposed below; nuclear is a
   paradox plus a downtime illusion (+2); furious is a two-dex uptime set (+2),
-  scored by its components. Barraging is distinct from furious by timing and should
-  be scored from its own bracketed components when present, not treated as another
-  name for furious. A further batch of recognized operators has no such
+  scored by its components. Barraging is a legacy naming pattern for Furious-set
+  tricks, not a distinct set identity separated by timing; where a Barraging name
+  appears it is scored from its own bracketed components, which resolve to the
+  Furious set. A further batch of recognized operators has no such
   decomposition yet and cannot be scored until defined; they are collected in the
   undefined-operator ask below.
 
