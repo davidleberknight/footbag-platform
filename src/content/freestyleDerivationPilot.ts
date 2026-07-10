@@ -154,7 +154,7 @@ const RAW_DERIVATION_PILOT_ENTRIES: readonly RawDerivationPanelEntry[] = [
       { depth: 'compressed', text: 'mobius' },
       { depth: 'semantic',   text: 'gyro torque' },
       { depth: 'expanded',   text: 'spinning same-side torque' },
-      { depth: 'deep',       text: 'spinning same-side miraging osis' },
+      { depth: 'deep',       text: 'spinning same-side quantum osis' },
     ],
     operational:    'CLIP > OP IN [DEX] > (BACK) SPIN [BOD] > OP CLIP [XBD] [DEL]',
     add: {

@@ -124,7 +124,7 @@ describe('Family view — two-line row contract', () => {
 
   it('interpretation (≡) coexists with JOB + ADD on family compounds', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=family');
-    // smear ≡ pixie mirage, magellan ≡ pixie legover, torque ≡ miraging osis
+    // smear ≡ pixie mirage, magellan ≡ pixie legover, torque ≡ quantum osis
     const cases: Array<[string, RegExp]> = [
       ['smear', /mirage/],
       ['magellan', /legover/],

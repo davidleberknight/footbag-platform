@@ -302,7 +302,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     familyAnchorAdds:  3,
     commonDescendants: ['paradox osis', 'spinning osis', 'symposium osis', 'atomic osis'],
     siblingFamilies:   ['whirl', 'butterfly', 'swirl'],
-    notableCompounds:  ['torque (≡ miraging osis)', 'blender (≡ whirling osis)'],
+    notableCompounds:  ['torque (≡ quantum osis)', 'blender (≡ whirling osis)'],
     observationalNotes: [],
     teaching: {
       hook: 'Everyone keeps talking about Osis because so much of the advanced vocabulary grows out of it.',
@@ -314,7 +314,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
         'Osis is a destination. Advanced tricks that end in an osis are best understood by asking what was added before the osis, rather than treating each trick as unrelated.',
       variants: [],
       variantsRuling:
-        'Torque is an osis reached by adding a miraging dex on the way in; Blender, a whirling dex. That shared ending underneath a whole branch is why osis is called a base.',
+        'Torque is an osis reached by adding a quantum dex on the way in; Blender, a whirling dex. That shared ending underneath a whole branch is why osis is called a base.',
       howToRecognize: [
         'The spin.',
         'The clipper finish.',
@@ -547,7 +547,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'First-class branch of osis',
-        body:  'Torque ≡ miraging osis under the symbolic-compression doctrine; the lineage is preserved on the torque trick-detail page as a chain reading. Torque is a Family Parent that descends from osis (it conserves the osis terminal), so it renders as a branch under osis while leading its own lineage.',
+        body:  'Torque ≡ quantum osis under the symbolic-compression doctrine; the lineage is preserved on the torque trick-detail page as a chain reading. Torque is a Family Parent that descends from osis (it conserves the osis terminal), so it renders as a branch under osis while leading its own lineage.',
       },
     ],
     teaching: {
@@ -600,7 +600,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
       physicalDescription:
         'A Blender adds one circling dexterity before an osis, like a torque, but the dex it adds is a whirl-style circle rather than a mirage-style one. The ending is the same osis, a spin onto a clipper; the dex in front is what tells a blender from a torque.',
       importance:
-        'Blender sits beside torque as the other main way into the osis. Torque adds a miraging dex, blender a whirling one, and seeing them as a pair is the lesson: once freestyle has a base ending like the osis, the different dexes you can put in front of it generate an entire branch rather than a handful of separate tricks.',
+        'Blender sits beside torque as the other main way into the osis. Torque adds a quantum dex, blender a whirling one, and seeing them as a pair is the lesson: once freestyle has a base ending like the osis, the different dexes you can put in front of it generate an entire branch rather than a handful of separate tricks.',
       variantsIntro:
         'Blender is a base other tricks build on. Add an operator and you get its family: paradox blender, spinning blender, symposium blender. Its blurry form is the food processor. The blender underneath stays the same; the operator is what changes.',
       variants: [],

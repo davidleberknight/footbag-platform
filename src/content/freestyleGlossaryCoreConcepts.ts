@@ -52,13 +52,13 @@ export const GLOSSARY_CORE_CONCEPTS: readonly GlossaryConceptCard[] = [
   },
   {
     key:     'composition',
-    line:    "A freestyle trick is usually not one indivisible thing, it is a structure: a base move with operators added to it. Miraging osis, blurry mirage, and two dexes in one set are all compositions, a foundation plus what has been layered on.",
-    relates: "Composition is the premise that makes the vocabulary legible: a base plus one or more operators gives a named compound, and the count of parts is what the trick scores. It is the idea that lets torque be read as miraging osis rather than memorized whole. The payoff, that famous short names are secretly formulas, lands at the compound entries, not here.",
+    line:    "A freestyle trick is usually not one indivisible thing, it is a structure: a base move with operators added to it. Quantum osis, blurry mirage, and two dexes in one set are all compositions, a foundation plus what has been layered on.",
+    relates: "Composition is the premise that makes the vocabulary legible: a base plus one or more operators gives a named compound, and the count of parts is what the trick scores. It is the idea that lets torque be read as quantum osis rather than memorized whole. The payoff, that famous short names are secretly formulas, lands at the compound entries, not here.",
   },
   {
     key:     'add',
     line:    "ADD (Additional Degree of Difficulty) is freestyle's difficulty score. It counts scoring components: dexterities, cross-body positions, delays, and other scored elements, which the notation makes visible as bracketed parts.",
-    relates: "Because ADD is a count of parts, it follows straight from composition: read a trick's structure and you can read its score. This is why the encyclopedia can call torque miraging osis and know what it scores, the parts are the points.",
+    relates: "Because ADD is a count of parts, it follows straight from composition: read a trick's structure and you can read its score. This is why the encyclopedia can call torque quantum osis and know what it scores, the parts are the points.",
     reveal:  "Once a trick is written down, the score checks itself: each scoring part sits in its own bracket, so the bracket count is the ADD, and a reader can confirm it without trusting anyone. A scoring system that audits its own arithmetic in front of you is the strongest possible answer to how you know a trick is worth what it scores.",
   },
 ];

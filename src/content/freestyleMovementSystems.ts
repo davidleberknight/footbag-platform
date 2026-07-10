@@ -194,7 +194,7 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
   ],
   ['miraging',
     'MIRAGING + base: prepends a mirage-style inside dex at the front of the base trick. ' +
-    'Compounds: MIRAGING + OSIS (torque), MIRAGING + LEGOVER.',
+    'Compounds: MIRAGING + CLIPPER (drifter), MIRAGING + LEGOVER (double leg over).',
   ],
   ['whirling',
     'WHIRLING + base: a whirl dex during uptime before the bag peaks, ' +

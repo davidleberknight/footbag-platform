@@ -1306,8 +1306,8 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
     // rendered text changes.
     expect(res.text).toMatch(/>gyro<\/span>\s*<span[^>]*>torque</);            // reading 0 (no abbreviations)
     expect(res.text).toMatch(/>spinning<\/span>\s*<span[^>]*>same-side</);     // reading 1 (ss → same-side)
-    // miraging is now a registered operator, so it auto-links like atomic.
-    expect(res.text).toMatch(/>miraging<\/a>\s*<span[^>]*>opposite</);         // reading 2 (op → opposite)
+    // quantum is a registered operator, so it auto-links like atomic.
+    expect(res.text).toMatch(/>quantum<\/a>\s*<span[^>]*>opposite</);          // reading 2 (op → opposite)
     // Last reading: tokenized; osis is a CORE atom → auto-linked
     expect(res.text).toMatch(/href="\/freestyle\/glossary#term-osis"[^>]*>osis</);
     // Ordering: depth-0 before depth-1 before depth-2
@@ -1777,7 +1777,7 @@ describe('Formula Accountability Corrective Slice (2026-05-17)', () => {
     expect(res.text).toMatch(new RegExp(`dex\\(1\\)\\s*\\+\\s*stall\\(1\\)\\s*${eq}\\s*2 ADD`));    // mirage / illusion / pickup / legover
     expect(res.text).toMatch(new RegExp(`xbody\\(1\\)\\s*\\+\\s*dex\\(1\\)\\s*\\+\\s*stall\\(1\\)\\s*${eq}\\s*3 ADD`)); // whirl / swirl
     expect(res.text).toMatch(new RegExp(`spin\\(1\\)\\s*\\+\\s*xbody\\(1\\)\\s*\\+\\s*stall\\(1\\)\\s*${eq}\\s*3 ADD`));// osis
-    expect(res.text).toMatch(new RegExp(`miraging\\(\\+1\\)\\s*\\+\\s*osis\\(3\\)\\s*${eq}\\s*4 ADD`));
+    expect(res.text).toMatch(new RegExp(`quantum\\(\\+1\\)\\s*\\+\\s*osis\\(3\\)\\s*${eq}\\s*4 ADD`));
     expect(res.text).toMatch(new RegExp(`stepping\\(\\+1\\)\\s*\\+\\s*paradox\\(\\+1\\)\\s*\\+\\s*whirl\\(3\\)\\s*${eq}\\s*5 ADD`));
     expect(res.text).toMatch(new RegExp(`gyro\\(\\+1\\)\\s*\\+\\s*torque\\(4\\)\\s*${eq}\\s*5 ADD`));
   });
@@ -1965,7 +1965,7 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(slice).toMatch(/mobius/i);
     expect(slice).toMatch(/gyro torque/i);
     expect(slice).toMatch(/spinning same-side torque/i);
-    expect(slice).toMatch(/spinning miraging same-side osis/i);
+    expect(slice).toMatch(/spinning quantum same-side osis/i);
     // Link to ADD Accounting & Analysis is preserved.
     expect(slice).toContain('href="/freestyle/add-analysis"');
     // The retired three-card cascade must not survive.
@@ -2124,7 +2124,7 @@ describe('Freestyle glossary — Structural compression subsection', () => {
   it('renders the four-depth mobius compression ladder', async () => {
     // The compression-ladder example was expanded from 3 readings to 4
     // (curator-approved 2026-05-25): mobius → gyro torque → spinning
-    // same-side torque → spinning miraging same-side osis. The deepest
+    // same-side torque → spinning quantum same-side osis. The deepest
     // reading is where the "compositional transformations" wow-moment
     // lands pedagogically.
     const res = await request(createApp()).get('/freestyle/glossary');
@@ -2136,7 +2136,7 @@ describe('Freestyle glossary — Structural compression subsection', () => {
     expect(slice).toMatch(/<strong>\s*<a href="\/freestyle\/tricks\/mobius">mobius<\/a>\s*<\/strong>/i);
     expect(slice).toMatch(/gyro torque/i);
     expect(slice).toMatch(/spinning same-side torque/i);
-    expect(slice).toMatch(/spinning miraging same-side osis/i);
+    expect(slice).toMatch(/spinning quantum same-side osis/i);
     expect(slice).toMatch(/compression ladder/i);
     // The retired three-card cascade must not survive.
     expect(slice).not.toContain('id="compression-step-osis"');
@@ -2447,11 +2447,11 @@ describe('Freestyle dictionary — S1+S3: ≡ equivalence rendering on dict card
 });
 
 describe('Freestyle dictionary — S2: canon-locked chain readings (torque/blender/drifter)', () => {
-  it('renders torque as ≡ miraging osis (pt11)', async () => {
+  it('renders torque as ≡ quantum osis', async () => {
     // Tokenized rendering wraps each operator in a sem-token span; match
     // each word independently allowing intervening markup.
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).toMatch(/data-trick-slug="torque"[\s\S]*?miraging[\s\S]*?osis/);
+    expect(res.text).toMatch(/data-trick-slug="torque"[\s\S]*?quantum[\s\S]*?osis/);
   });
 
   it('renders blender as ≡ whirling osis (pt11)', async () => {

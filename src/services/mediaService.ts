@@ -548,8 +548,8 @@ function tagBody(display: string): string {
 }
 
 // Resolve a tag body to a Set Encyclopedia destination when it is `set_<slug>`
-// or `concept_<slug>_sets`. Set aliases resolve to the canonical set (e.g.
-// illusioning -> atomic, furious -> barraging). Unknown set -> null (no link).
+// or `concept_<slug>_sets`. A legacy set name resolves to its canonical set
+// tag (e.g. furious -> barraging). Unknown set -> null (no link).
 function setDestFromTagBody(body: string): MediaDestination | null {
   let slug: string | null = null;
   if (body.startsWith('set_')) slug = body.slice(4);

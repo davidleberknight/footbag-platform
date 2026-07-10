@@ -1239,7 +1239,7 @@ describe('GET /freestyle/tricks/:slug — notation display', () => {
     expect(res.text).toMatch(/<span class="notation-token notation-set" data-role="set" title="Stepping, set modifier \(\+1 ADD\)">STEPPING<\/span>/);
     expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Ducking, body modifier \(\+1 ADD\)">DUCKING<\/span>/);
     expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Paradox, dex relationship \(\+1 ADD\)">PARADOX<\/span>/);
-    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Torque, base trick family \(4 ADD; miraging osis\)">TORQUE<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Torque, base trick family \(4 ADD; quantum osis\)">TORQUE<\/span>/);
     const indices = ['STEPPING', 'DUCKING', 'PARADOX', 'TORQUE'].map(t => res.text.indexOf(`>${t}<`));
     expect(indices.every(i => i > -1)).toBe(true);
     expect(indices).toEqual([...indices].sort((a, b) => a - b)); // monotonic left-to-right

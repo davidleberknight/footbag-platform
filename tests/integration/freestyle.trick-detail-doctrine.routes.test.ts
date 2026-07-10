@@ -202,11 +202,11 @@ beforeAll(async () => {
 
   // Modifier links so the relocated "vs parent" delta (inside Movement
   // Intuition) and build-path (inside About) render for modifier-composed
-  // compounds. blur = mirage + blurry; torque = osis + miraging.
-  insertFreestyleTrickModifier(db, { slug: 'blurry',   modifier_name: 'blurry',   modifier_type: 'body' });
-  insertFreestyleTrickModifier(db, { slug: 'miraging', modifier_name: 'miraging', modifier_type: 'body' });
+  // compounds. blur = mirage + blurry; torque = osis + quantum.
+  insertFreestyleTrickModifier(db, { slug: 'blurry',  modifier_name: 'blurry',  modifier_type: 'body' });
+  insertFreestyleTrickModifier(db, { slug: 'quantum', modifier_name: 'quantum', modifier_type: 'set' });
   insertFreestyleTrickModifierLink(db, 'blur', 'blurry');
-  insertFreestyleTrickModifierLink(db, 'torque', 'miraging');
+  insertFreestyleTrickModifierLink(db, 'torque', 'quantum');
 
   db.close();
   createApp = await importApp();
@@ -530,7 +530,7 @@ describe('butterfly — productivity + family-evolution deleted', () => {
 });
 
 describe('torque renders intuition (productivity + family-evolution deleted)', () => {
-  it('torque renders L1 intuition with the miraging-osis compound prose', async () => {
+  it('torque renders L1 intuition with the quantum-osis compound prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/torque');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-intuition"');

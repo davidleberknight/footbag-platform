@@ -20,9 +20,10 @@
       <form method="GET" action="/freestyle/search" class="search-box-form" role="search"
             data-trick-search-form data-suggest-url="/freestyle/search/suggest">
         <input type="text" name="q" minlength="2" maxlength="100"
-               placeholder="Search tricks by name or alias..."
+               placeholder="Name or alias"
                value="{{content.query}}"
                aria-label="Search tricks by name or alias"
+               title="Search tricks by name or alias"
                autocomplete="off"
                class="search-box-input"
                data-trick-search-input />

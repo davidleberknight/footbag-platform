@@ -112,7 +112,7 @@ describe('S5 migration — preserved entries (kept after migration)', () => {
     expect(chain?.readings).toHaveLength(3);
     expect(chain?.readings[0]).toBe('gyro torque');
     expect(chain?.readings[1]).toBe('spinning ss torque');
-    expect(chain?.readings[2]).toBe('spinning ss miraging op osis');
+    expect(chain?.readings[2]).toBe('spinning ss quantum op osis');
   });
 });
 

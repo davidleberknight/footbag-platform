@@ -317,8 +317,8 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
   });
 
   it('By ADD groups each bucket into lineage sub-bands with headers', async () => {
-    const html = (await request(createApp()).get('/freestyle/tricks')).text; // default = By ADD
-    // By-family is the default ADD-view mode: each tier sub-groups into
+    const html = (await request(createApp()).get('/freestyle/tricks?sort=family')).text;
+    // The By-family ADD-view mode (?sort=family) sub-groups each tier into
     // nearest-anchor family bands with a plain family-name header (no
     // "-derived" suffix, and no surface/root bands).
     expect(html).toContain('class="add-lineage-header"');

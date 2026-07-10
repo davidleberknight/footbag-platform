@@ -68,7 +68,7 @@ export interface SymbolicEquivalenceChain {
 export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = [
   {
     slug:     'mobius',
-    readings: ['gyro torque', 'spinning ss torque', 'spinning ss miraging op osis'],
+    readings: ['gyro torque', 'spinning ss torque', 'spinning ss quantum op osis'],
     curatorConfirmPending: false,   // curator-authored verbatim
   },
   // toe-blur has no chain entry: it is a pure alias of quantum-mirage
@@ -137,7 +137,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // question Q1c.
   {
     slug:     'torque',
-    readings: ['miraging osis'],
+    readings: ['quantum osis'],
     curatorConfirmPending: false,   // pt11-locked
   },
   {
@@ -347,7 +347,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   },
 
   // ── Torque-family trivially-named compounds ─────
-  // Torque is itself the named compound for miraging osis (existing
+  // Torque is itself the named compound for quantum osis (existing
   // chain); these stack one modifier onto torque. blurry-torque's
   // alternative "stepping paradox torque" reading was retired per the
   // Red adjudication ("Blurry just implies stepping; it does

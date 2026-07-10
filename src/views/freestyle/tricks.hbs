@@ -58,8 +58,9 @@
     <div class="search-box-section">
       <form method="GET" action="/freestyle/search" class="search-box-form" role="search">
         <input type="text" name="q" minlength="2" maxlength="100"
-               placeholder="Search tricks by name or alias..."
+               placeholder="Name or alias"
                aria-label="Search tricks by name or alias"
+               title="Search tricks by name or alias"
                autocomplete="off"
                class="search-box-input" />
         <button type="submit" class="btn btn-primary">Search</button>
@@ -174,12 +175,12 @@
        JOB: + ADD:. No green ADD chip (the value is in the section header
        + the line-2 ADD: formula). See dictionary-trick-row.hbs. }}
   {{#if (eq content.activeView "add")}}
-  {{! Within-tier browse mode: By family (default, nearest-anchor family bands
-      in public-family order) or Alphabetical (flat A-Z for lookup). Selected
+  {{! Within-tier browse mode: Alphabetical (default, flat A-Z for lookup) or
+      By family (nearest-anchor family bands in public-family order). Selected
       via ?sort=; server-rendered, no JavaScript. }}
   <nav class="trick-view-toggle" aria-label="Sort within each ADD tier">
     {{#if (eq content.addSort "alpha")}}
-      <a href="/freestyle/tricks?view=add">By family</a>
+      <a href="/freestyle/tricks?view=add&amp;sort=family">By family</a>
       <span class="trick-view-toggle-sep">·</span>
       <span class="trick-view-toggle-active">Alphabetical</span>
     {{else}}

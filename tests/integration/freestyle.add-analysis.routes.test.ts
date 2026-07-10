@@ -283,7 +283,7 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
       'dex(1) + xbody(1) + stall(1) &#x3D; 3 ADD',
       'spin(1) + xbody(1) + stall(1) &#x3D; 3 ADD',
       'paradox(+1) + mirage(2) &#x3D; 3 ADD',
-      'miraging(+1) + osis(3) &#x3D; 4 ADD',
+      'quantum(+1) + osis(3) &#x3D; 4 ADD',
       'atomic(+1) + mirage(2) + xdex(+1) &#x3D; 4 ADD',
       'stepping(+1) + paradox(+1) + whirl(3) &#x3D; 5 ADD',
       'gyro(+1) + torque(4) &#x3D; 5 ADD',
@@ -704,7 +704,7 @@ describe('GET /freestyle/add-analysis — public pedagogy cleanup', () => {
     expect(res.text).toContain('id="osis-branch"');
     expect(res.text).toMatch(/Reading a branch: the Osis family/);
     // The three operator steps, in order.
-    expect(res.text).toMatch(/miraging Osis/);
+    expect(res.text).toMatch(/quantum Osis/);
     expect(res.text).toMatch(/whirling Osis/);
     expect(res.text).toMatch(/gyro Torque/);
     for (const slug of ['osis', 'torque', 'blender', 'mobius']) {

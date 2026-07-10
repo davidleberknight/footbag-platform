@@ -421,9 +421,9 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickName:  'Torque',
     trickSlug:  'torque',
     addLabel:   '4 ADD',
-    components: 'Miraging operator (+1) on osis (3).',
-    derivation: 'miraging(+1) + osis(3) = 4 ADD',
-    whyNote:    'The official reading of "miraging osis". Anchors its own descendant lineage (paradox-torque, spinning-torque, mobius, gauntlet, atomic-torque, blurry-torque, grave-digger, spinal-tap).',
+    components: 'Quantum operator (+1) on osis (3).',
+    derivation: 'quantum(+1) + osis(3) = 4 ADD',
+    whyNote:    'The quantum inward-dex set on osis. Older sources read this as "miraging osis", a mirage-family nickname; the settled set identity is Quantum. Anchors its own descendant lineage (paradox-torque, spinning-torque, mobius, gauntlet, atomic-torque, blurry-torque, grave-digger, spinal-tap).',
   },
   {
     trickName:  'Atom Smasher',
@@ -446,7 +446,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickSlug:  'mobius',
     addLabel:   '5 ADD',
     components: 'Gyro operator (+1) on torque (4), or deep-form unfolding.',
-    derivation: 'gyro(+1) + torque(4) = 5 ADD   (deep form: spinning(+1) + ss(+0) + miraging(+1) + osis(3) = 5 ADD)',
+    derivation: 'gyro(+1) + torque(4) = 5 ADD   (deep form: spinning(+1) + ss(+0) + quantum(+1) + osis(3) = 5 ADD)',
     whyNote:    'The flagship multi-depth example. Two valid stopping depths reach the same total. Players say mobius; analysts can unfold to either depth.',
   },
 ];
@@ -465,7 +465,7 @@ export interface AddAnalysisBranchStep {
    * resolves nowhere active, so the step renders as plain text over a dead link.
    */
   trickSlug: string | null;
-  reading:   string;   // "miraging Osis"
+  reading:   string;   // "quantum Osis"
   total:     string;   // "+1 → 4 ADD"
 }
 
@@ -475,7 +475,7 @@ const OSIS_BRANCH_FRAMING =
 
 const OSIS_BRANCH_LADDER: readonly AddAnalysisBranchStep[] = [
   { trickName: 'Osis',    trickSlug: 'osis',    reading: 'spin(1) + xbody(1) + stall(1)', total: '3 ADD' },
-  { trickName: 'Torque',  trickSlug: 'torque',  reading: 'miraging Osis',                 total: '+1 → 4 ADD' },
+  { trickName: 'Torque',  trickSlug: 'torque',  reading: 'quantum Osis',                  total: '+1 → 4 ADD' },
   { trickName: 'Blender', trickSlug: 'blender', reading: 'whirling Osis',                  total: '+1 → 4 ADD' },
   { trickName: 'Mobius',  trickSlug: 'mobius',  reading: 'gyro Torque',                    total: '+1 → 5 ADD' },
 ];
@@ -541,7 +541,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     externalSourceLabel:     'IFPA (compressed vs expanded)',
     externalAdd:             '6',
     delta:                   '0',
-    decompositionDifference: 'Same compression pattern as Blurry Whirl, applied to a compound base (torque = miraging osis).',
+    decompositionDifference: 'Same compression pattern as Blurry Whirl, applied to a compound base (torque = quantum osis).',
     pattern:                 'compression vs expansion (transitive across compound bases)',
     ifpaStatusLine:          'settled',
   },
@@ -559,13 +559,13 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
   },
   {
     caseId:                  'DC-07',
-    trickName:               'Mobius ≡ Gyro Torque ≡ Spinning ss Miraging Osis',
+    trickName:               'Mobius ≡ Gyro Torque ≡ Spinning ss Quantum Osis',
     trickSlug:               'mobius',
     ifpaAdd:                 '5',
     externalSourceLabel:     'IFPA (multi-depth)',
     externalAdd:             '5',
     delta:                   '0',
-    decompositionDifference: 'Two valid stopping depths reach the same total. Compact: gyro torque (+1 +4) = 5. Deep: spinning (+1) + ss (+0) + miraging (+1) + osis (3) = 5.',
+    decompositionDifference: 'Two valid stopping depths reach the same total. Compact: gyro torque (+1 +4) = 5. Deep: spinning (+1) + ss (+0) + quantum (+1) + osis (3) = 5.',
     pattern:                 'stopping-depth ambiguity',
     ifpaStatusLine:          'settled',
   },

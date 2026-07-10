@@ -99,7 +99,7 @@ export const TRICK_INTERPRETATION_ENTRIES: readonly TrickInterpretationEntry[] =
     slug: 'torque',
     // Canonical reading lives in the Equivalent-readings chain + Movement
     // intuition; this slot keeps only the unique historical variant so the
-    // "miraging osis" reading is stated once on the page.
+    // "quantum osis" reading is stated once on the page.
     canonicalReading: '',
     historicalReadings: ['stepping opposite osis'],
     structuralNotes: [

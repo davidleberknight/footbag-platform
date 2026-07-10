@@ -105,7 +105,7 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
     slug: 'blender',
     role: 'Compound-of-canonicals exemplar',
     prose:
-      "Blender is the canonical exemplar for compound-of-canonicals topology in the doctrine. Two named tricks (whirl + osis) combine into a recognized third, and the compound name (blender) does not parameterize either parent: it has earned its own identity through cultural promotion. The pattern repeats across the dictionary: torque (miraging-osis), mobius (gyro-torque), spender (compound on blender), each promoting a compound reading to anchor status. Blender's role is teaching what compound-of-canonicals means structurally and culturally.",
+      "Blender is the canonical exemplar for compound-of-canonicals topology in the doctrine. Two named tricks (whirl + osis) combine into a recognized third, and the compound name (blender) does not parameterize either parent: it has earned its own identity through cultural promotion. The pattern repeats across the dictionary: torque (quantum-osis), mobius (gyro-torque), spender (compound on blender), each promoting a compound reading to anchor status. Blender's role is teaching what compound-of-canonicals means structurally and culturally.",
   },
 
   {

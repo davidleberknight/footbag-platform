@@ -160,7 +160,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     parentSlugs: ['whirl', 'osis'],
     prose:
       "Blender combines two canonical tricks into a single compound. The whirl provides the opening cross-body rotational dex; the osis provides the closing spin-into-clipper terminal. Where each parent is itself a 3-ADD canonical, blender threads them together into a 4-ADD compound: the whirl operator adds the rotational dex onto osis's spin-terminal pattern.\n\n" +
-      "Blender is the doctrine's canonical exemplar for compound-of-canonicals topology: two named tricks combine into a recognized third. The compound name (blender) carries its own identity rather than reading as a parameterized whirl or osis: it has been culturally promoted to anchor status. This pattern recurs across the dictionary (torque = miraging-osis; mobius = gyro-torque; spender = compound on blender) and blender is the cleanest demonstration of how two canonicals become a named third.",
+      "Blender is the doctrine's canonical exemplar for compound-of-canonicals topology: two named tricks combine into a recognized third. The compound name (blender) carries its own identity rather than reading as a parameterized whirl or osis: it has been culturally promoted to anchor status. This pattern recurs across the dictionary (torque = quantum-osis; mobius = gyro-torque; spender = compound on blender) and blender is the cleanest demonstration of how two canonicals become a named third.",
     topologyKind: 'compound',
   },
 
@@ -215,7 +215,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     slug:        'mobius',
     parentSlugs: ['torque'],
     prose:
-      "Relative to torque, mobius layers a gyro modifier that adds a back-spin body-modifier moment to the compound. Where torque combines a miraging dex with an osis spin-terminal, mobius opens with a gyro back-spin before the dex, threading rotational character through what would otherwise read as a torque-class compound.\n\n" +
+      "Relative to torque, mobius layers a gyro modifier that adds a back-spin body-modifier moment to the compound. Where torque combines a mirage-like inward dex with an osis spin-terminal, mobius opens with a gyro back-spin before the dex, threading rotational character through what would otherwise read as a torque-class compound.\n\n" +
       "The structural reading is 'gyro torque': the gyro operator (+1 on rotational character) layered onto torque's 4-ADD chassis, yielding 5 ADD. Mobius sits at the top of the gyro-on-compound-of-canonicals branch, demonstrating that body-modifier layering on an already-compound chassis produces named third-anchor status. The compound name (mobius) carries its own identity rather than reading as 'gyro torque' in the canonical grammar.",
     topologyKind: 'rotational',
   },

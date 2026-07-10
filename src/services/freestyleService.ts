@@ -4296,7 +4296,7 @@ const FAMILY_NOTES: Record<string, string> = {
     'performed 4-ADD tricks. Its 3-ADD starting point and moderate complexity make it the ' +
     'most common entry point into the compound vocabulary.',
   osis:
-    'The osis spawns two major named sub-families: torque (miraging osis) and blender ' +
+    'The osis spawns two major named sub-families: torque (quantum osis) and blender ' +
     '(whirling osis). These in turn anchor their own clusters (paradox torque and mobius ' +
     'on the torque side, paradox blender and spender on the blender side), making the osis ' +
     'one of the most generative bases in the advanced trick vocabulary.',
@@ -4314,7 +4314,7 @@ const FAMILY_NOTES: Record<string, string> = {
     'DLO-style combinations at 5 ADD (fog).',
   torque:
     'Torque is the most important intermediate base in advanced freestyle. Canonically ' +
-    'Miraging Osis, it sits at 4 ADD and supports a dense cluster of high-difficulty ' +
+    'Quantum Osis, it sits at 4 ADD and supports a dense cluster of high-difficulty ' +
     'derivatives: paradox torque and mobius (Gyro Torque) at 5 ADD, atomic torque ' +
     'at 6 ADD, and several 6-7 ADD compounds.',
   blender:
@@ -5639,7 +5639,7 @@ function shapeDictionaryTrickCard(
   // status. Examples that previously leaked through: "double around the
   // world" ≡ on the DATW card, "reverse whirl" ≡ on rev-whirl. Curator-
   // locked non-tautological folk-name readings (ripwalk → "stepping
-  // butterfly", torque → "miraging osis", DLO → "miraging legover")
+  // butterfly", torque → "quantum osis", DLO → "miraging legover")
   // survive this filter unchanged — they ARE genuine human-readable
   // compound interpretations the user wants visible.
   const canonicalLowerForFilter = indexRow.canonicalName.toLowerCase().trim();
@@ -8340,7 +8340,7 @@ export const freestyleService = {
     view?: string,
     sort?: string,
   ): PageViewModel<FreestyleTricksIndexContent> {
-    const addSort: 'family' | 'alpha' = sort === 'alpha' ? 'alpha' : 'family';
+    const addSort: 'family' | 'alpha' = sort === 'family' ? 'family' : 'alpha';
     // Active + pending external rows. Pending rows surface as labeled
     // placeholders; they never claim canonical status.
     const allRowsUnfiltered = runSqliteRead('freestyleTricks.listAllWithPending', () =>

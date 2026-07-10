@@ -1,6 +1,6 @@
 /**
- * ADD-view within-tier grouping: By family (default, nearest-anchor) +
- * Alphabetical (flat A-Z, ?sort=alpha).
+ * ADD-view within-tier grouping: Alphabetical (flat A-Z, the default) +
+ * By family (nearest-anchor bands, ?sort=family).
  *
  * The ADD view must group by the nearest public family (the same model the
  * Family view uses), not by the top source-root ancestor, and must not surface
@@ -43,7 +43,7 @@ beforeAll(async () => {
 });
 afterAll(() => cleanupTestDb(dbPath));
 
-async function addView(sort?: 'alpha'): Promise<string> {
+async function addView(sort?: 'alpha' | 'family'): Promise<string> {
   const url = sort ? `/freestyle/tricks?view=add&sort=${sort}` : '/freestyle/tricks?view=add';
   const res = await request(await createApp()).get(url);
   expect(res.status).toBe(200);
@@ -51,36 +51,36 @@ async function addView(sort?: 'alpha'): Promise<string> {
 }
 const header = (slug: string) => `add-lineage-header">${slug}`;
 
-describe('ADD view — By family (default)', () => {
+describe('ADD view — By family (?sort=family)', () => {
   it('has no "Clipper-stall" band and no "-derived" headers', async () => {
-    const html = await addView();
+    const html = await addView('family');
     expect(html).not.toContain('-derived');
     expect(html).not.toContain(header('Clipper-stall'));
     expect(html).not.toContain('add-lineage-header">Clipper'); // no surface/root band
   });
 
   it('bands branch anchors under their own families (not Osis/Legover)', async () => {
-    const html = await addView();
+    const html = await addView('family');
     for (const label of ['Torque', 'Blender', 'Double Legover', 'Eggbeater']) {
       expect(html).toContain(header(label));
     }
   });
 
   it('drifter-family tricks band under Drifter', async () => {
-    const html = await addView();
+    const html = await addView('family');
     expect(html).toContain(header('Drifter'));
     // both the drifter anchor and the clipper-stall-tagged member are reachable
     expect(html).toContain('href="/freestyle/tricks/high_plains_drifter"');
   });
 
   it('non-public-family tricks collect in "Other / standalone tricks"', async () => {
-    const html = await addView();
+    const html = await addView('family');
     expect(html).toContain(header('Other / standalone tricks'));
     expect(html).toContain('href="/freestyle/tricks/stepping_reaper"');
   });
 
   it('Dada Curve appears in its own Dada-Curve family band', async () => {
-    const html = await addView();
+    const html = await addView('family');
     expect(html).toContain(header('Dada-Curve'));
   });
 });

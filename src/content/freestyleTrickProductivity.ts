@@ -128,9 +128,9 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'osis',
     prose:
-      "Osis anchors one of the dictionary's most productive trees. The spin-into-clipper structural signature composes naturally with body modifiers (ducking-osis, spinning-osis, atomic-osis), with paradox topology (paradox-osis), with an X-Dex where the notation carries [XDEX] (atomic-osis; stepping-osis as the multi-dex case), with set treatments (pixie-osis), with rotational layering producing compound-of-canonicals (torque = miraging-osis; blender = whirling-osis), and with naming-driven extensions (twirl, aeon-flux, barraging-osis). The osis family is among the broadest at the 4-5 ADD layer.",
+      "Osis anchors one of the dictionary's most productive trees. The spin-into-clipper structural signature composes naturally with body modifiers (ducking-osis, spinning-osis, atomic-osis), with paradox topology (paradox-osis), with an X-Dex where the notation carries [XDEX] (atomic-osis; stepping-osis as the multi-dex case), with set treatments (pixie-osis), with rotational layering producing compound-of-canonicals (torque = quantum-osis; blender = whirling-osis), and with naming-driven extensions (twirl, aeon-flux, barraging-osis). The osis family is among the broadest at the 4-5 ADD layer.",
     productiveDescendants: [
-      { slug: 'torque',         label: 'torque',         note: 'Miraging-osis compound; sub-family anchor in its own right.' },
+      { slug: 'torque',         label: 'torque',         note: 'Quantum-osis compound; sub-family anchor in its own right.' },
       { slug: 'blender',        label: 'blender',        note: 'Whirling-osis compound; compound-of-canonicals exemplar.' },
       { slug: 'ducking_osis',   label: 'ducking-osis',   note: 'Body modifier layered on osis; 4 ADD.' },
       { slug: 'pixie_osis',     label: 'pixie-osis',     note: 'Set-treatment modifier on osis; 4 ADD.' },
@@ -156,7 +156,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'torque',
     prose:
-      "Torque is one of the dictionary's most productive intermediate-base anchors. The miraging-osis structural signature composes naturally with body modifiers (spinning-torque, atomic-torque, symposium-torque), with paradox topology (paradox-torque), with gyro rotation (mobius = gyro-torque), with stepping-paradox layering (blurry-torque), and with naming-driven extensions (forque, grave-digger, spinal-tap, big-apple). The 5-ADD bucket on the torque chassis is dense, and the family extends into 6 and 7 ADD via deeper modifier stacks (gauntlet = highest-ADD torque compound).",
+      "Torque is one of the dictionary's most productive intermediate-base anchors. The quantum-osis structural signature composes naturally with body modifiers (spinning-torque, atomic-torque, symposium-torque), with paradox topology (paradox-torque), with gyro rotation (mobius = gyro-torque), with stepping-paradox layering (blurry-torque), and with naming-driven extensions (forque, grave-digger, spinal-tap, big-apple). The 5-ADD bucket on the torque chassis is dense, and the family extends into 6 and 7 ADD via deeper modifier stacks (gauntlet = highest-ADD torque compound).",
     productiveDescendants: [
       { slug: 'mobius',          label: 'mobius',          note: 'Gyro torque; 5 ADD compound at the top of the gyro-on-compound branch.' },
       { slug: 'paradox_torque',  label: 'paradox-torque',  note: 'Paradox topology on torque chassis; 5 ADD.' },

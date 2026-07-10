@@ -73,7 +73,7 @@ const BASE_ANCHORS: ReadonlySet<string> = new Set([
   'whirl',
   'swirl',
   // Named-compound bases that function as anchors in semantic readings.
-  // (Torque = miraging osis; appears as a base in spinning torque = mobius.)
+  // (Torque = quantum osis; appears as a base in spinning torque = mobius.)
   'torque',
   'blender',
   // Direction-variant base anchors (rev-whirl exists as its own row; appears
@@ -217,7 +217,7 @@ function classify(token: string): SemanticRole {
  * Tokenize a semantic ≡ reading into role-classified tokens.
  *
  * @param reading        Free-form reading string, e.g. "Spinning Paradox Whirl"
- *                       or "spinning ss miraging osis". Case-insensitive;
+ *                       or "spinning ss quantum osis". Case-insensitive;
  *                       tokens are emitted lowercase.
  * @param activeAnchor   Optional active-view anchor slug. When a token matches
  *                       this slug, `isFamilyAnchor` is true → template can

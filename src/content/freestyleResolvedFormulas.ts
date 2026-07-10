@@ -322,8 +322,8 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'paradox(+1) + torque(4) = 5 ADD',
-    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // Sibling-derivation; paradox-whirl direction-flip precedent + torque (miraging osis) base; not Red-confirmed.
-    provenance:  'paradox = +1 dex relationship; torque = 4 ADD compound (miraging osis, pt11)',
+    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // Sibling-derivation; paradox-whirl direction-flip precedent + torque (quantum osis) base; not curator-confirmed.
+    provenance:  'paradox = +1 dex relationship; torque = 4 ADD compound (quantum osis)',
   },
   {
     slug:        'spinning_torque',
@@ -333,8 +333,8 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'spinning(+1) + torque(4) = 5 ADD',
-    operationalNotation: 'CLIP > (back) SPIN [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // Sibling-derivation; spinning-osis double-spin pattern + torque (miraging osis) base; not Red-confirmed.
-    provenance:  'spinning = +1 midtime body modifier; torque = 4 ADD compound (miraging osis, pt11)',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // Sibling-derivation; spinning-osis double-spin pattern + torque (quantum osis) base; not curator-confirmed.
+    provenance:  'spinning = +1 midtime body modifier; torque = 4 ADD compound (quantum osis)',
   },
 
   // ─── Pattern expansion ───────────────────────────────────────────────
@@ -1458,13 +1458,13 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   {
     slug:        'torque',
     name:        'torque',
-    operator:    'miraging',
+    operator:    'quantum',
     base:        'osis',
     baseAdd:     3,
     totalAdd:    4,
-    derivation:  'miraging(+1) + osis(3) = 4 ADD',
-    operationalNotation: 'SET > OP IN [DEX] > (back or front) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // Sibling-derivation; compound-of-canonicals (mirage dex + osis spin-terminal); chain reading "miraging osis" pt11-locked; not Red-confirmed for operational notation.
-    provenance:  'pt11-locked chain reading "miraging osis": torque = mirage operator (+1 dex on the osis chassis) + osis = 4 ADD. The operational notation composes mirage\'s in-to-out dex with osis\'s spin-into-clipper terminal. Bucket A derivation backfill.',
+    derivation:  'quantum(+1) + osis(3) = 4 ADD',
+    operationalNotation: 'SET > OP IN [DEX] > (back or front) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // Compound-of-canonicals: a mirage-like inward dex into the osis spin-terminal; the settled set is Quantum, chain reading "quantum osis"; not curator-confirmed for operational notation.
+    provenance:  'Chain reading "quantum osis": torque is the quantum inward-dex set (+1 dex on the osis chassis) + osis = 4 ADD. As a teaching bridge the entry feels mirage-like, an in-to-out dex into osis\'s spin-into-clipper terminal, but the canonical component is the Quantum set, not the miraging nickname.',
   },
   {
     slug:        'omelette',
@@ -1960,7 +1960,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     totalAdd:    8,
     derivation:  'surging(2) + ducking(1) + paradox(1) + torque(4) = 8 ADD ([BOD] + [PDX] + [DEX] + [BOD] + [DEX] + [BOD] + [XBD] + [DEL])',
     operationalNotation: 'CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // sibling-composed from stepping-ducking-torque + a spinning prefix + paradox on the stepping dex; bracket count 8 matches ADD; not curator-confirmed.
-    provenance:  'FootbagMoves single-source 8-ADD promotion. surging decomposes to spinning + stepping; ducking is a settled +1 body modifier and paradox a settled +1 dex relationship; torque is a 4-ADD canonical (miraging osis). All operators defined, ADD closes at 8, torque family. FootbagMoves is the only source, so the structure is uncorroborated; promoted under the arithmetic-closes policy with honest single-source provenance. Notation sibling-composed; not curator-confirmed.',
+    provenance:  'FootbagMoves single-source 8-ADD promotion. surging decomposes to spinning + stepping; ducking is a settled +1 body modifier and paradox a settled +1 dex relationship; torque is a 4-ADD canonical (quantum osis). All operators defined, ADD closes at 8, torque family. FootbagMoves is the only source, so the structure is uncorroborated; promoted under the arithmetic-closes policy with honest single-source provenance. Notation sibling-composed; not curator-confirmed.',
   },
   {
     slug:        'big_apple_sauce',

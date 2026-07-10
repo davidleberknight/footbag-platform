@@ -52,7 +52,7 @@ describe('freestyleSymbolicEquivalences — registry hygiene', () => {
 describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', () => {
   // S2 entries (already locked in earlier slice):
   it('S2 entries: torque / blender / drifter / vortex / eggbeater / omelette', () => {
-    expect(getSymbolicEquivalenceChain('torque')?.readings).toEqual(['miraging osis']);
+    expect(getSymbolicEquivalenceChain('torque')?.readings).toEqual(['quantum osis']);
     expect(getSymbolicEquivalenceChain('blender')?.readings).toEqual(['whirling osis']);
     expect(getSymbolicEquivalenceChain('drifter')?.readings).toEqual(['miraging clipper']);
     expect(getSymbolicEquivalenceChain('vortex')?.readings).toEqual(['gyro drifter']);

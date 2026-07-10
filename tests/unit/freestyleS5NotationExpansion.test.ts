@@ -46,12 +46,12 @@ describe('S5 chain reading abbreviation expansion', () => {
     const res = await request(await createApp()).get('/freestyle/tricks/mobius');
     expect(res.status).toBe(200);
     // The chain readings ['gyro torque', 'spinning ss torque',
-    // 'spinning ss miraging op osis'] should render as expanded forms.
+    // 'spinning ss quantum op osis'] should render as expanded forms.
     // Tokens render as individual <span>s, so check token-text presence.
     expect(res.text).toMatch(/>same-side</);
     expect(res.text).toMatch(/>opposite</);
     expect(res.text).toMatch(/>spinning</);
-    expect(res.text).toMatch(/>miraging</);
+    expect(res.text).toMatch(/>quantum</);
   });
 
   it('the equivalent-readings list does NOT contain standalone "ss" or "op" tokens', async () => {

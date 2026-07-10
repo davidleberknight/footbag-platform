@@ -229,7 +229,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Compound-of-canonicals (mirage path)',
         prose:
-          "Layering a mirage operator onto osis produces torque (miraging-osis at 4 ADD); torque becomes its own sub-anchor with descendants of its own.",
+          "Layering a mirage-family inward dex onto osis produces torque (quantum-osis at 4 ADD); torque becomes its own sub-anchor with descendants of its own.",
         exemplarSlugs: ['torque'],
       },
       {

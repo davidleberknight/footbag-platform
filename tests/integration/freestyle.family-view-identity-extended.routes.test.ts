@@ -86,7 +86,7 @@ const OSIS_PILOTS: Pilot[] = [
 
 const TORQUE_PILOTS: Pilot[] = [
   { slug: 'torque',          name: 'torque',          adds: '4', family: 'torque',
-    firstReadingTokens: ['miraging', 'osis'] },   // existing pt11-locked chain
+    firstReadingTokens: ['quantum', 'osis'] },   // torque ≡ quantum osis
   { slug: 'paradox-torque',  name: 'paradox torque',  adds: '5', family: 'torque',
     firstReadingTokens: ['paradox', 'torque'] },
   { slug: 'spinning-torque', name: 'spinning torque', adds: '5', family: 'torque',

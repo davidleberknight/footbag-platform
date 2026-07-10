@@ -121,7 +121,7 @@ export const PASSBACK_ADD_DISAGREEMENTS: readonly AddDisagreementRow[] = [
   { ifpaSlug: 'symposium_osis',            ifpaName: 'symposium osis',            ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'symposium_whirl',           ifpaName: 'symposium whirl',           ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'toe_stall',                 ifpaName: 'toe stall',                 ifpaFormula: null,                            passbackAdd: 0, curatorNote: null },
-  { ifpaSlug: 'torque',                    ifpaName: 'torque',                    ifpaFormula: 'miraging osis',                  passbackAdd: 2, curatorNote: null },
+  { ifpaSlug: 'torque',                    ifpaName: 'torque',                    ifpaFormula: 'quantum osis',                   passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'tripwalk',                  ifpaName: 'tripwalk',                  ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'ducking_whirl',             ifpaName: 'ducking whirl',             ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'ducking_osis',              ifpaName: 'ducking osis',              ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },

@@ -45,9 +45,9 @@ describe('GET /freestyle/glossary — decomposition table', () => {
 
   it('reads the key tricks as their structural decompositions', async () => {
     const html = await glossary();
-    expect(html).toContain('Miraging Osis');           // Torque
+    expect(html).toContain('Quantum Osis');            // Torque
     expect(html).toContain('Whirling Osis');            // Blender
-    expect(html).toContain('Gyro Miraging Osis');       // Mobius ladder
+    expect(html).toContain('Gyro Quantum Osis');        // Mobius ladder
     expect(html).toContain('Stepping Butterfly');       // Ripwalk
     expect(html).toContain('Stepping Paradox Mirage');  // Blur
     expect(html).toContain('Reverse Swirling Osis');    // Twirl (structural)

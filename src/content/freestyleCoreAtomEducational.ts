@@ -130,7 +130,7 @@ export const CORE_ATOM_EDUCATIONAL: readonly CoreAtomEducationalCard[] = [
     displayName: 'Osis',
     adds:        '3',
     line:        "Formula: set + back-or-front spin + cross-body clipper catch. The body spins downward and the bag is caught cross-body on a clipper, the spin and the catch as one motion.",
-    relates:     "Osis is the rotational cross-body atom, a cousin of whirl, swirl, and butterfly. It is the base a single operator turns into a famous-sounding compound: miraging osis is torque, whirling osis is blender (see Torque, and Name vs Structure).",
+    relates:     "Osis is the rotational cross-body atom, a cousin of whirl, swirl, and butterfly. It is the base a single operator turns into a famous-sounding compound: quantum osis is torque, whirling osis is blender (see Torque, and Name vs Structure).",
   },
   {
     // Surface Frame note (author-only, not rendered): do not publish the larger

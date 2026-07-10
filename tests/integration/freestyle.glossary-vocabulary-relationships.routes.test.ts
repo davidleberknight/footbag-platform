@@ -65,7 +65,7 @@ describe('Glossary Vocabulary Relationships subsection', () => {
     expect(res.text).toMatch(/atom smasher[\s\S]*atomic mirage/i);
     expect(res.text).toMatch(/eggbeater[\s\S]*atomic legover/i);
     // 4-step mobius ladder including the deepest reading
-    expect(res.text).toMatch(/mobius[\s\S]*gyro torque[\s\S]*spinning same-side torque[\s\S]*spinning miraging same-side osis/i);
+    expect(res.text).toMatch(/mobius[\s\S]*gyro torque[\s\S]*spinning same-side torque[\s\S]*spinning quantum same-side osis/i);
   });
 
   it('section 2 carries the vocabulary-evolution framing sentence (WHY compressed names emerged)', async () => {
