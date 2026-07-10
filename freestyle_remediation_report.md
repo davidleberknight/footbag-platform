@@ -106,6 +106,61 @@ Roadmap (decisions, not tasks; no new Red questions, everything maps to an exist
 | Down-family per-trick embedded-base verification | Curator / James (frame from the Identity paper's open half) | 21 | bucket reclassification (no ADD changes) | Apply per trick once the coordinate-frame ruling lands |
 | Competing multi-name identities; source/video (POD, Kiwi) | Curator / James | 10; 2 | alias cleanup / distinct row | Resolve per case; POD and Kiwi need a video viewing |
 
+### Doctrine-paper drafting: remaining sections (to-do)
+
+Drafted and committed so far: the blurry-expansion ruling, the undefined-operator
+definition ask, and the double-prefix / count-quantifier disposition in the Scoring
+paper; the paradox-bracket ([PDX]) ruling and the path/catch encoding framing in
+the Notation paper.
+
+Remaining Red-facing sections to draft, in order:
+
+1. **Zulu and Weaving token-or-variant** (Notation paper, ~18 rows). Decide whether
+   Zulu and Weaving get their own notation tokens or resolve as Duck/Dive variants,
+   and how the across-body path / same-foot catch distinction is recorded. The
+   largest remaining, and a real decision.
+2. **Cross-body rake base** (Notation paper, ~12 rows now, plus a larger parser
+   drain later). Frame what the cross-body rake base is structurally.
+3. **"Inward" on gyro** (Notation paper, ~9 rows). Likely small: the formula-identity
+   audit found these rows mostly restate an existing gyro form or collide with its
+   intrinsic dex direction, so this is probably a short alias / reclassification
+   note rather than an unlock.
+4. **Repeated-operator scoring and terraging-chain arithmetic** (Scoring paper,
+   4 + 2 rows). The roadmap parks these at the end; small, and the terraging half is
+   entangled with the already-landed double-prefix question, so a short combined
+   section.
+
+After these four the Red doctrine-paper series is complete. What remains beyond it
+is not paper drafting: the curator track (below) and the eventual parser
+implementation.
+
+### Curator track: remaining tasks (to-do)
+
+Not Red doctrine drafting; these are curator and identity decisions surfaced by the
+formula-identity audit, in rough order of how self-contained they are:
+
+1. **Positional equivalence, settle-now** (~12 rows). Same-side / far / near /
+   opposite variants whose base operator is already settled (nuclear and the other
+   settled-operator rows). The curator rules whether each side configuration is
+   equivalent to its base (alias cleanup) or a distinct trick (a new row).
+   Actionable now.
+2. **Positional equivalence, operator-blocked** (~28 rows). The same decision for
+   variants whose operator is not yet defined (pogo, flailing, shooting, frantic,
+   railing, zulu). Hold each until its operator is defined; do not action ahead of
+   that.
+3. **Down-family per-trick embedded-base verification** (21 rows). Apply the
+   down-family coordinate-frame per trick once the frame ruling lands; bucket
+   reclassification, no ADD change.
+4. **Competing multi-name identities** (10 rows). Resolve the rows that carry more
+   than one folk name (the dragon and multi-parenthetical rows) case by case: alias
+   cleanup or a distinct row.
+5. **Source or video review** (2 rows). POD versus Dimmier, and the Kiwi source
+   contradiction; each needs a video viewing to settle.
+
+The path/catch framing also routed about 17 folk or unmapped terminal names and
+about 10 incomplete operator-ending names to this identity and completeness track;
+they are recorded here rather than as notation work.
+
 ## 2. Scope and method
 
 **In scope:** all 28 mounted `/freestyle/*` route paths (the search page and its JSON suggest endpoint counted separately) plus the `/media/freestyle-tutorials` redirect, 29 mounted routes in all; `freestyleController.ts`; `mediaController.freestyleMedia`; `freestyleService.ts` and 18 supporting services; 52 `src/content/freestyle*.ts` modules; 27 views in `src/views/freestyle/` and ~45 freestyle partials; `freestyle-trick-search.js`; freestyle statement groups in `src/db/db.ts`; the `freestyle/` pipeline (orchestrator, 8 loaders, 3 QC scripts, scripts, inputs, symbolic_grammar, doctrine, tools); 20 freestyle/symbolic tables in `database/schema.sql`; the freestyle test corpus (118 integration + 30 unit freestyle-named files; 198 freestyle-touching); the five freestyle-relevant skills (audited as subjects, not used as authority, per maintainer instruction in this run); all freestyle docs and doctrine; `exploration/` disposition; every Freestyle-related `IMPLEMENTATION_PLAN.md` item.
