@@ -680,7 +680,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Butterfly Flapper", "slug": "butterfly-flapper", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "authoring", "holdKind": "authoring", "flags": ["duplicate_or_alias_candidate"]},
   {"name": "Butterfly Flapper (Buttersole) (Sole Train)", "slug": "butterfly-flapper-buttersole-sole-train", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "identification", "holdKind": "identity", "flags": ["duplicate_or_alias_candidate", "verification_needed"]},
   {"name": "Butterfly Swivel", "slug": "butterfly-swivel", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "folk", "holdKind": "folk", "flags": ["duplicate_or_alias_candidate"]},
-  {"name": "Butterfly Twirl", "slug": "butterfly-twirl", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "evState": "alias", "holdKind": "alias", "flags": ["duplicate_or_alias_candidate"]},
+  {"name": "Butterfly Twirl", "slug": "butterfly-twirl", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "parser", "holdKind": "parser", "flags": ["duplicate_or_alias_candidate"]},
   {"name": "Butterfy near Osis", "slug": "butterfy-near-osis", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "authoring", "holdKind": "authoring", "flags": ["positional_variant", "duplicate_or_alias_candidate"]},
   {"name": "Clipper far Grifter", "slug": "clipper-far-grifter", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "folk", "holdKind": "folk", "flags": ["positional_variant", "duplicate_or_alias_candidate"]},
   {"name": "Clipper far triple-dex Butterfly", "slug": "clipper-far-triple-dex-butterfly", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "authoring", "holdKind": "authoring", "flags": ["positional_variant", "duplicate_or_alias_candidate"]},
@@ -737,7 +737,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Fusing ss Illusion", "slug": "fusing-ss-illusion", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "undefined_operator", "holdKind": "fusing", "flags": ["positional_variant", "duplicate_or_alias_candidate"]},
   {"name": "Fusing ss Mirage", "slug": "fusing-ss-mirage", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "undefined_operator", "holdKind": "fusing", "flags": ["positional_variant", "duplicate_or_alias_candidate"]},
   {"name": "Fyro Double Legover", "slug": "fyro-double-legover", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "undefined_operator", "holdKind": "fyro", "flags": ["duplicate_or_alias_candidate"]},
-  {"name": "Fyro Mirage", "slug": "fyro-mirage", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "evState": "alias", "holdKind": "alias", "flags": ["duplicate_or_alias_candidate"]},
+  {"name": "Fyro Mirage", "slug": "fyro-mirage", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "undefined_operator", "holdKind": "fyro", "flags": ["duplicate_or_alias_candidate"]},
   {"name": "Grifter (same side)", "slug": "grifter-same-side", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "folk", "holdKind": "folk", "flags": ["positional_variant", "duplicate_or_alias_candidate"]},
   {"name": "Ill Frenzy", "slug": "ill-frenzy", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "folk", "holdKind": "folk", "flags": ["duplicate_or_alias_candidate"]},
   {"name": "Illusioning Clipper (Grifter)", "slug": "illusioning-clipper-grifter", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "folk", "holdKind": "folk", "flags": ["duplicate_or_alias_candidate"]},
@@ -772,7 +772,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Null Butterfly", "slug": "null-butterfly", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "folk", "holdKind": "folk", "flags": ["duplicate_or_alias_candidate"]},
   {"name": "Orpheus", "slug": "orpheus", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "evState": "alias", "holdKind": "alias", "flags": ["duplicate_or_alias_candidate"]},
   {"name": "Out(-In) Dex", "slug": "out-in-dex", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "folk", "holdKind": "folk", "flags": ["duplicate_or_alias_candidate"]},
-  {"name": "Park Avenue", "slug": "park-avenue", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "evState": "alias", "holdKind": "alias", "flags": ["duplicate_or_alias_candidate"]},
   {"name": "Pdx Dada Curve", "slug": "pdx-dada-curve", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "parser", "holdKind": "parser", "flags": ["duplicate_or_alias_candidate"]},
   {"name": "Pdx. Merlin", "slug": "pdx-merlin", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "parser", "holdKind": "parser", "flags": ["duplicate_or_alias_candidate"]},
   {"name": "Pdx. Toxic", "slug": "pdx-toxic", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "evState": "parser", "holdKind": "parser", "flags": ["duplicate_or_alias_candidate"]},
@@ -1065,7 +1064,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 971,
+    "total": 970,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1074,7 +1073,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
     "promotionFrontier": 130,
-    "lexicalArchive": 839,
+    "lexicalArchive": 838,
     "intakeBuckets": {
       "promotion_ready": {
         "names": 4,
@@ -1089,8 +1088,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 102
       },
       "alias": {
-        "names": 443,
-        "distinctStructures": 443
+        "names": 440,
+        "distinctStructures": 440
       },
       "equivalence": {
         "names": 0,
@@ -1101,8 +1100,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 1
       },
       "low_confidence": {
-        "names": 384,
-        "distinctStructures": 384
+        "names": 386,
+        "distinctStructures": 386
       },
       "doctrine_unresolved": {
         "names": 12,
@@ -1115,35 +1114,35 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "doctrine": 82,
       "governance": 23,
       "identification": 13,
-      "parser": 108,
-      "undefined_operator": 67,
+      "parser": 109,
+      "undefined_operator": 68,
       "folk": 98,
-      "alias": 445
+      "alias": 442
     },
     "evProgress": {
       "numerator": 135,
-      "denominator": 526,
+      "denominator": 528,
       "pct": 26
     },
     "ready": 2,
     "frontier": 104,
     "doctrineBlocked": 36,
-    "folkUnresolved": 514,
-    "parserUnresolved": 315,
+    "folkUnresolved": 511,
+    "parserUnresolved": 317,
     "promotionReadyPct": 11,
     "doctrineBlockedPct": 4,
     "folkUnresolvedPct": 53,
-    "parserUnresolvedPct": 32,
+    "parserUnresolvedPct": 33,
     "canonicalCoveragePct": 21,
     "sources": {
       "SG": 525,
-      "FM": 211,
+      "FM": 210,
       "PB": 170,
       "FB": 61,
       "MULTI": 4
     },
     "foldedJunk": 142,
-    "generatedOn": "2026-07-03"
+    "generatedOn": "2026-07-09"
   };
 
 export const DOCTRINE_BLOCKING_QUESTIONS: Record<string, string> =
