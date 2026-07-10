@@ -2375,6 +2375,18 @@ export const freestyleTrickAliases = {
     WHERE a.alias_slug = ?
   `); },
 
+  // Count of nicknames public search can resolve: every alias whose target
+  // trick is active. Search ignores the display gate but resolves only to an
+  // active target, so this is the public-searchable nickname count surfaced in
+  // the dictionary summary. It is a different population from the observational
+  // alias-archive (documented names that fold to a trick) and from the display
+  // set (alias_display = 1, the "Also called" line).
+  get countSearchable() { return db.prepare(`
+    SELECT COUNT(*) AS n
+    FROM freestyle_trick_aliases a
+    JOIN freestyle_tricks t ON t.slug = a.trick_slug AND t.is_active = 1
+  `); },
+
   // All aliases for all tricks. Used by the index page to attach alias text
   // to each row in a single round trip; service groups by trick_slug.
   get listAll() { return db.prepare(`

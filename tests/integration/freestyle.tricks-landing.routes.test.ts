@@ -148,8 +148,8 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(res.text).not.toContain('dictionary of named freestyle footbag tricks');
     // The corpus counts read in beginner-facing wording (not the internal "canonical").
     expect(res.text).toContain('come with a full page');
-    expect(res.text).toMatch(/[\d,]+ trick names in all/);
-    expect(res.text).toMatch(/[\d,]+ nicknames/);
+    expect(res.text).toMatch(/spans [\d,]+ names/);
+    expect(res.text).toMatch(/[\d,]+ aliases and alternate names/);
     expect(res.text).toContain('Emerging Vocabulary');
   });
 

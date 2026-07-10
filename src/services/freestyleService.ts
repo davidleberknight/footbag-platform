@@ -8564,14 +8564,17 @@ export const freestyleService = {
       r => r.is_active === 1 && isTrickRow(r),
     ).length;
 
-    // The documented-name universe splits into unique tricks and the alias /
-    // duplicate-variant names that resolve to an already-counted trick. Both
-    // alias-class buckets are name-level duplicates of an existing structure.
-    const documentedAliasCount =
-      OBSERVATIONAL_UNIVERSE_STATS.intakeBuckets.alias.names +
-      OBSERVATIONAL_UNIVERSE_STATS.intakeBuckets.duplicate_variant.names;
-    const uniqueDocumentedTrickCount =
-      OBSERVATIONAL_UNIVERSE_STATS.universeTotal - documentedAliasCount;
+    // Public-searchable aliases and alternate names: every alias whose target
+    // trick is active (nicknames, abbreviations, spelling variants, historical
+    // names, and hidden search/redirect forms alike). Sourced from the live alias
+    // table (search resolves these regardless of the display gate), NOT from the
+    // observational alias-archive, which is a different population of documented
+    // names. The documented trick-name
+    // universe total is the generated census; it is preserved as names resolve
+    // to canonical tricks, so it is stated whole and never a shrinking figure.
+    const searchableAliasCount = (runSqliteRead('freestyleTrickAliases.countSearchable', () =>
+      freestyleTrickAliases.countSearchable.get() as { n: number }).n);
+    const documentedUniverseTotal = OBSERVATIONAL_UNIVERSE_STATS.universeTotal;
 
     // ---- View toggle --------------------------------------------------
     const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets', 'component', 'topology', 'movement-system', 'dex-count'];
@@ -9481,9 +9484,11 @@ export const freestyleService = {
         },
         dictionaryStats:
           `Most tricks here come with a full page: what the move is, how it's done, and how hard ` +
-          `it is. ${canonicalCount} have one, and a search also finds them by ${fmtCount(documentedAliasCount)} ` +
-          `nicknames. There are ${fmtCount(uniqueDocumentedTrickCount)} trick names in all; the ones still ` +
-          'being written up are gathered under Emerging Vocabulary, so no real move is left out.',
+          `it is. ${fmtCount(canonicalCount)} have one, and public search also finds them through ` +
+          `${fmtCount(searchableAliasCount)} aliases and alternate names. The wider documented trick-name universe spans ` +
+          `${fmtCount(documentedUniverseTotal)} names from across the community; the ones still being written ` +
+          'up are gathered under Emerging Vocabulary. That historical universe is preserved as names resolve ' +
+          'to canonical tricks, and only the unresolved work surface shrinks.',
         // Per-view context note for the advanced family browse view.
         familyViewIntro:
           'Family groupings cluster tricks that preserve a conserved terminal mechanic. ' +
