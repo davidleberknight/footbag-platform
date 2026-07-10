@@ -3,6 +3,9 @@ paths:
   - "scripts/**"
   - "legacy_data/scripts/**"
   - "legacy_data/tools/**"
+  - "freestyle/loaders/**"
+  - "freestyle/scripts/**"
+  - "freestyle/tools/**"
 ---
 
 # DB write safety rules

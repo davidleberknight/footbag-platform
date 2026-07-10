@@ -5,6 +5,9 @@ paths:
   - "scripts/**"
   - "legacy_data/scripts/**"
   - "legacy_data/tools/**"
+  - "freestyle/loaders/**"
+  - "freestyle/scripts/**"
+  - "freestyle/tools/**"
 ---
 
 # Code comment & human-readable-text rules
