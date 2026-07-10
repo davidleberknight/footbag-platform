@@ -193,6 +193,11 @@ jobs:
       - name: Assert per-table row counts
         run: python3 scripts/ci/assert_loader_row_counts.py --db ./database/footbag-ci.db
 
+      - name: Assert generated content modules are current
+        env:
+          FOOTBAG_DB_PATH: ./database/footbag-ci.db
+        run: bash scripts/ci/assert_generated_content_current.sh
+
   legacy-pytest:
     name: Legacy-data pipeline pytest (safety-guard regression gate)
     runs-on: ubuntu-latest
