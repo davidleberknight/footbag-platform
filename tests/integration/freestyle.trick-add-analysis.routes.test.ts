@@ -4,7 +4,7 @@
  *
  * Contract:
  *   - The disclosure renders only for slugs in
- *     src/content/freestyleResolvedFormulas.ts (RESOLVED_FORMULAS_SPRINT_1).
+ *     src/content/freestyleResolvedFormulas.ts (RESOLVED_ADD_FORMULAS).
  *   - Slugs without a curator-published resolved formula render the
  *     detail page silently (no disclosure section). This is the
  *     Tier-3 silent-absence contract.
@@ -35,7 +35,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // paradox_mirage: in RESOLVED_FORMULAS_SPRINT_1 with derivation
+  // paradox_mirage: in RESOLVED_ADD_FORMULAS with derivation
   // 'paradox(+1) + mirage(2) = 3 ADD'. Trick-detail must render the
   // Tier-4 disclosure.
   insertFreestyleTrick(db, {

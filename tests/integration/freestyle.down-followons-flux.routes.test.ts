@@ -29,7 +29,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3177');
 
@@ -66,9 +66,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — down-family follow-ons + flux entries', () => {
+describe('RESOLVED_ADD_FORMULAS — down-family follow-ons + flux entries', () => {
   it('pixie-double-over-down carries FB.org-confirmed JOB with (plant) pre-state', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie_double_over_down');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'pixie_double_over_down');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.baseAdd).toBe(4);
@@ -80,7 +80,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — down-family follow-ons + flux entries',
   });
 
   it("scorpions-tail carries FB.org-confirmed JOB with lowercase [bod] preserved verbatim", () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'scorpions_tail');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'scorpions_tail');
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.operator).toBe('spinning');
     expect(entry?.base).toBe('down-double-down');
@@ -90,7 +90,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — down-family follow-ons + flux entries',
   });
 
   it('flux carries FB.org-confirmed JOB with mid-trick (FRONT) SPIN [BOD]', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'flux');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'flux');
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.operator).toBe('atomic');
     expect(entry?.base).toBe('osis');

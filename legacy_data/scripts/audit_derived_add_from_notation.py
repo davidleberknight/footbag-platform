@@ -19,7 +19,7 @@ Inputs read:
       FIRST_CLASS_ROTATIONAL_BASES                — rotational vs non
       SUI_GENERIS_SELF_TOKEN_SLUGS                — self-token primitives
   - src/content/freestyleResolvedFormulas.ts
-      RESOLVED_FORMULAS_SPRINT_1                  — slug → totalAdd
+      RESOLVED_ADD_FORMULAS                  — slug → totalAdd
   - src/content/freestyleTrickKindOverrides.ts
       MODIFIER_SLUGS / OPERATOR_SLUGS /
       SURFACE_SLUGS / PENDING_REVIEW_SLUGS        — kind filtering
@@ -93,7 +93,7 @@ def extract_atomic_decompositions(content: str) -> dict:
 
 
 def extract_resolved_formulas(content: str) -> dict:
-    """Pull {slug: totalAdd} from RESOLVED_FORMULAS_SPRINT_1 entries."""
+    """Pull {slug: totalAdd} from RESOLVED_ADD_FORMULAS entries."""
     entries = re.findall(
         r"slug:\s*'([a-z0-9-]+)'[\s\S]*?totalAdd:\s*(\d+)",
         content,
@@ -454,7 +454,7 @@ def classify(row, ts_state, canonical_adds, modifier_table, alias_map):
         status = "exact" if derived_add == official_add else "mismatch"
     elif in_resolved:
         derived_add = ts_state["resolved"][slug]
-        breakdown = f"[RESOLVED_FORMULAS_SPRINT_1] totalAdd={derived_add}"
+        breakdown = f"[RESOLVED_ADD_FORMULAS] totalAdd={derived_add}"
         status = "exact" if derived_add == official_add else "mismatch"
     elif in_sui_generis:
         status = "self-token"
@@ -653,7 +653,7 @@ def main():
     print(f"  FIRST_CLASS_TIER_1:           {len(ts_state['first_class_tier_1'])}")
     print(f"  FIRST_CLASS_TIER_2:           {len(ts_state['first_class_tier_2'])}")
     print(f"  ATOMIC_FLAG_DECOMPOSITIONS:   {len(ts_state['atomic'])}")
-    print(f"  RESOLVED_FORMULAS_SPRINT_1:   {len(ts_state['resolved'])}")
+    print(f"  RESOLVED_ADD_FORMULAS:   {len(ts_state['resolved'])}")
     print(f"  DOCTRINE_BLOCKED_SLUGS:       {len(ts_state['doctrine_blocked'])}")
     print(f"  DOCTRINE_DIVERGENCE (pub):    {len(ts_state['doctrine_divergent'])}")
     print(f"  FIRST_CLASS_ROTATIONAL_BASES: {len(ts_state['rotational_bases'])}")

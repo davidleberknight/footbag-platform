@@ -33,7 +33,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3163');
 
@@ -78,9 +78,9 @@ function cardFor(slug: string, html: string): string {
 
 describe('Held-delay leg-over family — RESOLVED_FORMULAS overlay carries each slug', () => {
   it.each([['hop_over'], ['walk_over'], ['wrap']] as const)(
-    '%s has a curator-overlay operationalNotation in RESOLVED_FORMULAS_SPRINT_1',
+    '%s has a curator-overlay operationalNotation in RESOLVED_ADD_FORMULAS',
     (slug) => {
-      const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === slug);
+      const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === slug);
       expect(entry).toBeDefined();
       expect(entry?.operationalNotation).toBeTruthy();
       expect(entry?.totalAdd).toBe(2);
@@ -90,19 +90,19 @@ describe('Held-delay leg-over family — RESOLVED_FORMULAS overlay carries each 
   );
 
   it('hop-over JOB carries [BOD] + [DEL] tags (fb.org body-over-delay signature)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'hop_over');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'hop_over');
     expect(entry?.operationalNotation).toMatch(/\[DEL\]/);
     expect(entry?.operationalNotation).toMatch(/\[BOD\]/);
   });
 
   it('walk-over JOB carries [DEL] + [DEX] tags (fb.org step-over signature)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'walk_over');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'walk_over');
     expect(entry?.operationalNotation).toMatch(/\[DEL\]/);
     expect(entry?.operationalNotation).toMatch(/\[DEX\]/);
   });
 
   it('wrap JOB carries [DEL] + [DEX] tags (fb.org wrap-around signature)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'wrap');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'wrap');
     expect(entry?.operationalNotation).toMatch(/\[DEL\]/);
     expect(entry?.operationalNotation).toMatch(/\[DEX\]/);
   });
@@ -110,7 +110,7 @@ describe('Held-delay leg-over family — RESOLVED_FORMULAS overlay carries each 
 
 describe('Butterfly-kick correction — 2 ADD with [dex] [bod] reading', () => {
   it('RESOLVED_FORMULAS entry for butterfly-kick is 2 ADD with no terminal [XBD]', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'butterfly_kick');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'butterfly_kick');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(2);
     expect(entry?.operationalNotation).toMatch(/\[BOD\]/);

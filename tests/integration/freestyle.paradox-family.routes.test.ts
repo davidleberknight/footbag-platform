@@ -20,7 +20,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3170');
 
@@ -48,9 +48,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — paradox family entries', () => {
+describe('RESOLVED_ADD_FORMULAS — paradox family entries', () => {
   it('paradox-da-da-curve overlay carries FB.org-confirmed JOB', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'paradox_da_da_curve');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'paradox_da_da_curve');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.baseAdd).toBe(4);
@@ -61,14 +61,14 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — paradox family entries', () => {
   });
 
   it('paradox-whirling-swirl overlay carries FB.org-confirmed JOB (preserves OP BACK SWIRL + SAME CLIP)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'paradox_whirling_swirl');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'paradox_whirling_swirl');
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.operationalNotation).toBe('CLIP > SAME IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]');
   });
 
   it('both paradox compounds use the standard paradox-prefix pattern SAME IN [PDX] [DEX]', () => {
     for (const slug of ['paradox_da_da_curve', 'paradox_whirling_swirl']) {
-      const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === slug);
+      const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === slug);
       expect(entry?.operationalNotation ?? '').toMatch(/SAME IN \[PDX\] \[DEX\]/);
     }
   });

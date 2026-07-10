@@ -83,7 +83,7 @@ beforeAll(async () => {
 
   // ─── Tier 2 Wave 1: audit-derived promotions (2026-05-22) ────────────
   // Mechanical modifier × base derivations; ADD curator-locked via
-  // RESOLVED_FORMULAS_SPRINT_1, JOB chain pending upstream.
+  // RESOLVED_ADD_FORMULAS, JOB chain pending upstream.
   insertFreestyleTrick(db, { slug: 'atomic_torque',   canonical_name: 'atomic torque',   adds: '6', base_trick: 'torque',  trick_family: 'torque',  category: 'compound', notation: 'ATOMIC TORQUE' });
   insertFreestyleTrick(db, { slug: 'ducking_mirage',  canonical_name: 'ducking mirage',  adds: '3', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound', notation: 'DUCKING MIRAGE' });
   insertFreestyleTrick(db, { slug: 'paradox_drifter', canonical_name: 'paradox drifter', adds: '4', base_trick: 'drifter', trick_family: 'drifter', category: 'compound', notation: 'PARADOX DRIFTER' });
@@ -314,7 +314,7 @@ describe('First-class rendering parity — honest incomplete-state', () => {
   // Bucket A backfill:
   // symposium-mirage and ripwalk were promoted out of the JOB-pending
   // state when their operationalNotation field was added to
-  // RESOLVED_FORMULAS_SPRINT_1. Only paradox-mirage and atomic-butterfly
+  // RESOLVED_ADD_FORMULAS. Only paradox-mirage and atomic-butterfly
   // remain JOB-pending in this cohort.
   it.each([
     // Slice D 2026-05-26: `= N ADD` terminator stripped on browse + detail

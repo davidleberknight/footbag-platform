@@ -21,7 +21,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3173');
 
@@ -43,9 +43,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — flurricane entry', () => {
+describe('RESOLVED_ADD_FORMULAS — flurricane entry', () => {
   it('overlay carries FB.org-confirmed CLIP-set JOB + 5 ADD + gyro/flurry derivation', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'flurricane');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'flurricane');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.baseAdd).toBe(4);

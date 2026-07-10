@@ -1246,7 +1246,7 @@ def build_row(
         "torque":       "Curator chain reading 'miraging osis'. Compare with mobius (gyro torque).",
         "mobius":       "Curator chain reading 'gyro torque'. Cross-check with torque row.",
         "eggbeater":    "Folk-named; check decomposition agreement across PB/FM/footbag.org.",
-        "paradox-mirage": "+1 operator stack settled per RESOLVED_FORMULAS_SPRINT_1.",
+        "paradox-mirage": "+1 operator stack settled per RESOLVED_ADD_FORMULAS.",
         "paradox-symposium-whirl": "Multi-operator chain; +1+1 stack on whirl (Sprint 2).",
         "symposium-whirl": "Compare with paradox-symposium-whirl decomposition.",
         "smear":        "Sprint 3 resolution: PIX + MIRAGE.",

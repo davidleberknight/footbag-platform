@@ -2,7 +2,7 @@
  * Bucket A derivation backfill — regression tests.
  *
  * Pre-Red derivation governance pass applied 19 sibling-derived
- * operational_notation candidates to RESOLVED_FORMULAS_SPRINT_1 (via the
+ * operational_notation candidates to RESOLVED_ADD_FORMULAS (via the
  * operationalNotation field).
  *
  * Two rendering paths:
@@ -19,7 +19,7 @@
  *    partial on /freestyle/tricks/{slug} renders the JOB tokens from
  *    the same curator overlay.
  *
- * Both paths source from RESOLVED_FORMULAS_SPRINT_1.operationalNotation
+ * Both paths source from RESOLVED_ADD_FORMULAS.operationalNotation
  * via resolveOperationalNotationRaw() in freestyleService.ts.
  *
  * Contracts under test:
@@ -45,7 +45,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3158');
 
@@ -216,11 +216,11 @@ describe('Bucket A backfill — trick-detail "Set notation" rendering (4 non-fir
 // Path 3: Content-overlay data assertion (all 19)
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Bucket A backfill — every slug has operationalNotation in RESOLVED_FORMULAS_SPRINT_1', () => {
+describe('Bucket A backfill — every slug has operationalNotation in RESOLVED_ADD_FORMULAS', () => {
   it.each(ALL_BUCKET_A_SLUGS.map(slug => [slug] as const))(
     '%s has a non-empty operationalNotation field in the curator overlay',
     (slug) => {
-      const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === slug);
+      const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === slug);
       expect(entry).toBeDefined();
       expect(entry?.operationalNotation).toBeTruthy();
       expect(typeof entry?.operationalNotation).toBe('string');
@@ -236,7 +236,7 @@ describe('Bucket A backfill — every slug has operationalNotation in RESOLVED_F
     // from runtime; instead we just assert the set is at least 19.
     // This is a sanity check that the backfill cardinality matches the
     // audit's Bucket A cohort size.
-    const slugsWithOperationalNotation = RESOLVED_FORMULAS_SPRINT_1
+    const slugsWithOperationalNotation = RESOLVED_ADD_FORMULAS
       .filter(e => e.operationalNotation)
       .map(e => e.slug);
     for (const slug of ALL_BUCKET_A_SLUGS) {
@@ -264,13 +264,13 @@ describe('Bucket A backfill — Bucket B/C/D rows untouched', () => {
     },
   );
 
-  it('Bucket B/C/D slugs do NOT have operationalNotation in RESOLVED_FORMULAS_SPRINT_1', () => {
+  it('Bucket B/C/D slugs do NOT have operationalNotation in RESOLVED_ADD_FORMULAS', () => {
     // Bucket B examples: tapping-whirl (tapping grammar inconsistent)
     // Bucket C examples: blurry-torque
     // None of these should have been touched by the Bucket A backfill.
     const bucketB_C_slugs = ['tapping_whirl', 'blurry_torque', 'predator', 'bedwetter', 'schmoe'];
     for (const slug of bucketB_C_slugs) {
-      const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === slug);
+      const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === slug);
       if (entry) {
         expect(entry.operationalNotation).toBeFalsy();
       }

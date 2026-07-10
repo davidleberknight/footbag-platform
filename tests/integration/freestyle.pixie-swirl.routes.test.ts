@@ -15,7 +15,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3174');
 
@@ -36,9 +36,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — pixie_swirl entry', () => {
+describe('RESOLVED_ADD_FORMULAS — pixie_swirl entry', () => {
   it('overlay carries FB.org-confirmed JOB + 4 ADD + pixie/swirl derivation', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie_swirl');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'pixie_swirl');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.baseAdd).toBe(3);

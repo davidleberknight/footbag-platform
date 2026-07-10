@@ -580,7 +580,7 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
     // 2026-05-24 QC: rev-up was demoted from canonical (is_active=0)
     // because it's structurally distinct from rev-whirl without an
     // authored decomposition. Its resolved-formula entry is removed
-    // from RESOLVED_FORMULAS_SPRINT_1 alongside the demotion. Sprint 3
+    // from RESOLVED_ADD_FORMULAS alongside the demotion. Sprint 3
     // now publishes 2 folk-name resolutions, not 3.
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const eq = '(?:=|&#x3D;)';

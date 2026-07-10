@@ -24,7 +24,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3169');
 
@@ -93,9 +93,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — down family entries', () => {
+describe('RESOLVED_ADD_FORMULAS — down family entries', () => {
   it('double-over-down overlay carries FB.org-confirmed JOB (TOE-set chassis)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'double_over_down');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'double_over_down');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.operationalNotation).toBe('TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]');
@@ -104,14 +104,14 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — down family entries', () => {
   });
 
   it('down-double-down overlay carries FB.org-confirmed JOB (CLIP-set chassis)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'down_double_down');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'down_double_down');
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.operationalNotation).toBe('CLIP > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]');
     expect(entry?.provenance ?? '').toMatch(/distinct chassis/i);
   });
 
   it('down-diver overlay carries FB.org-confirmed JOB (diving on double-over-down chassis)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'down_diver');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'down_diver');
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.baseAdd).toBe(4);
     expect(entry?.operator).toBe('diving');
@@ -121,8 +121,8 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — down family entries', () => {
   });
 
   it('double-over-down and down-double-down have distinct chassis (TOE vs CLIP starting set)', () => {
-    const dod = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'double_over_down');
-    const ddd = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'down_double_down');
+    const dod = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'double_over_down');
+    const ddd = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'down_double_down');
     expect(dod?.operationalNotation ?? '').toMatch(/^TOE >/);
     expect(ddd?.operationalNotation ?? '').toMatch(/^CLIP >/);
     // Both have 4 tokens (same ADD math via different chassis)

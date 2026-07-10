@@ -124,7 +124,7 @@ beforeAll(async () => {
   });
   insertFreestyleTrickModifierLink(db, 'mobius', 'gyro', 1);
 
-  // ── Control: blur — fails H4 (not in RESOLVED_FORMULAS_SPRINT_1) ──
+  // ── Control: blur — fails H4 (not in RESOLVED_ADD_FORMULAS) ──
   insertFreestyleTrick(db, {
     slug: 'blur', canonical_name: 'blur', base_trick: 'mirage',
     trick_family: 'mirage', category: 'compound', adds: '4', is_active: 1,

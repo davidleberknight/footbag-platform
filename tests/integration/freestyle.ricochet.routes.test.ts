@@ -20,7 +20,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3172');
 
@@ -41,9 +41,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — ricochet entry', () => {
+describe('RESOLVED_ADD_FORMULAS — ricochet entry', () => {
   it('overlay carries FB.org-confirmed JOB + 5 ADD + cross-body-sole-stall base', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'ricochet');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'ricochet');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.baseAdd).toBe(3);

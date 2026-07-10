@@ -22,7 +22,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3178');
 
@@ -52,9 +52,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — avalanche + spike-hammer entries', () => {
+describe('RESOLVED_ADD_FORMULAS — avalanche + spike-hammer entries', () => {
   it('avalanche carries FB.org-confirmed JOB with OP OUT [PDX] [DEX] (illusion base)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'avalanche');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'avalanche');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.base).toBe('paradox-illusion');
@@ -65,7 +65,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — avalanche + spike-hammer entries', () =
   });
 
   it('spike-hammer carries FB.org-confirmed JOB with OP IN [PDX] [DEX] (mirage base)', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'spike_hammer');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'spike_hammer');
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.base).toBe('paradox-mirage');
     expect(entry?.operationalNotation).toBe('CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]');
@@ -73,8 +73,8 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — avalanche + spike-hammer entries', () =
   });
 
   it('both entries share an identical modifier stack and differ only in the dex direction', () => {
-    const av = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'avalanche');
-    const sh = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'spike_hammer');
+    const av = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'avalanche');
+    const sh = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'spike_hammer');
     expect(av?.totalAdd).toBe(sh?.totalAdd);
     // Both share "OP IN [DEX] > DUCK [BOD]" prefix and "OP TOE [DEL]" tail.
     expect(av?.operationalNotation ?? '').toContain('OP IN [DEX] > DUCK [BOD]');

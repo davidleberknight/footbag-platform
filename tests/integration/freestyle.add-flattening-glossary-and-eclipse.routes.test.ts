@@ -24,7 +24,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3164');
 
@@ -112,8 +112,8 @@ describe('Glossary §8 — ADD-flattening note', () => {
 });
 
 describe('Eclipse — curator-supplied operational notation', () => {
-  it('RESOLVED_FORMULAS_SPRINT_1 carries an eclipse entry with the airborne-hop-over JOB', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'eclipse');
+  it('RESOLVED_ADD_FORMULAS carries an eclipse entry with the airborne-hop-over JOB', () => {
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'eclipse');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(3);
     expect(entry?.operationalNotation).toBe('SET > (jump) [BOD] > SAME or OP INSIDE [DEL] > OP OUT [DEX] > (land)');

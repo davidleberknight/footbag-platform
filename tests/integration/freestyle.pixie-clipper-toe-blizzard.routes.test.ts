@@ -22,7 +22,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3165');
 
@@ -88,9 +88,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — pixie-clipper entries', () => {
+describe('RESOLVED_ADD_FORMULAS — pixie-clipper entries', () => {
   it('pixie-opposite-clipper overlay carries JOB + 3 ADD + sibling-derivation provenance', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie_opposite_clipper');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'pixie_opposite_clipper');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(3);
     expect(entry?.baseAdd).toBe(2);
@@ -103,7 +103,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — pixie-clipper entries', () => {
   });
 
   it('pixie-same-clipper overlay carries JOB + 3 ADD + sibling-derivation provenance', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie_same_clipper');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'pixie_same_clipper');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(3);
     expect(entry?.operationalNotation).toBe('TOE > SAME IN [DEX] > SAME CLIP [XBD] [DEL]');
@@ -111,8 +111,8 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — pixie-clipper entries', () => {
   });
 
   it('pixie-opposite-clipper and pixie-same-clipper differ only in clipper side label (OP vs SAME)', () => {
-    const opp  = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie_opposite_clipper');
-    const same = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'pixie_same_clipper');
+    const opp  = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'pixie_opposite_clipper');
+    const same = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'pixie_same_clipper');
     expect(opp?.totalAdd).toBe(same?.totalAdd);
     expect(opp?.operationalNotation).toMatch(/OP CLIP/);
     expect(same?.operationalNotation).toMatch(/SAME CLIP/);

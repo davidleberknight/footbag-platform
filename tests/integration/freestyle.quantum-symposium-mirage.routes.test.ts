@@ -20,7 +20,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3180');
 
@@ -49,9 +49,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — quantum-symposium-mirage entry', () => {
+describe('RESOLVED_ADD_FORMULAS — quantum-symposium-mirage entry', () => {
   it('overlay carries FB.org-confirmed JOB + 4 ADD + quantum-symposium derivation', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'quantum_symposium_mirage');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'quantum_symposium_mirage');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.baseAdd).toBe(2);

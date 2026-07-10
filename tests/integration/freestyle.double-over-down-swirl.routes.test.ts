@@ -19,7 +19,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3179');
 
@@ -40,9 +40,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — double-over-down-swirl entry', () => {
+describe('RESOLVED_ADD_FORMULAS — double-over-down-swirl entry', () => {
   it('overlay carries FB.org-confirmed JOB + 5 ADD + double-over-down base extension', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'double_over_down_swirl');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'double_over_down_swirl');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.baseAdd).toBe(4);
@@ -53,7 +53,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — double-over-down-swirl entry', () => {
   });
 
   it('preserves the double-over-down chassis prefix (SAME OUT / SAME OUT dex pair) and ends with SAME CLIP terminator', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'double_over_down_swirl');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'double_over_down_swirl');
     expect(entry?.operationalNotation ?? '').toMatch(/TOE > SAME OUT \[DEX\] > SAME OUT \[DEX\]/);
     expect(entry?.operationalNotation ?? '').toMatch(/SAME CLIP \[XBD\] \[DEL\]$/);
     // OP BACK SWIRL fuses into rotation-variant token

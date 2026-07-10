@@ -16,7 +16,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3171');
 
@@ -37,9 +37,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — symposium_pixie entry', () => {
+describe('RESOLVED_ADD_FORMULAS — symposium_pixie entry', () => {
   it('overlay carries sibling-derived JOB + 3 ADD + symposium-prefix derivation provenance', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'symposium_pixie');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'symposium_pixie');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(3);
     expect(entry?.baseAdd).toBe(2);

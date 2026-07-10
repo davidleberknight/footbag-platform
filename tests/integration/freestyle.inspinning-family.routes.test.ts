@@ -20,7 +20,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3168');
 
@@ -55,9 +55,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_FORMULAS_SPRINT_1 — inspinning family entries', () => {
+describe('RESOLVED_ADD_FORMULAS — inspinning family entries', () => {
   it('inspinning-butterfly overlay carries FB.org-confirmed JOB', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'inspinning_butterfly');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'inspinning_butterfly');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.baseAdd).toBe(3);
@@ -70,13 +70,13 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — inspinning family entries', () => {
   });
 
   it('inspinning-paradox-illusion overlay applies the direction-flip rule', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'inspinning_paradox_illusion');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'inspinning_paradox_illusion');
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.operationalNotation).toBe('CLIP > (front) SPIN [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL]');
   });
 
   it('inspinning-paradox-mirage overlay applies the direction-flip rule', () => {
-    const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === 'inspinning_paradox_mirage');
+    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'inspinning_paradox_mirage');
     expect(entry?.totalAdd).toBe(4);
     expect(entry?.operationalNotation).toBe('CLIP > (front) SPIN [BOD] > SAME IN [PDX] [DEX] > OP TOE [DEL]');
   });
@@ -84,7 +84,7 @@ describe('RESOLVED_FORMULAS_SPRINT_1 — inspinning family entries', () => {
   it('all three inspinning JOBs use (front) SPIN and SAME-side dex (not OP like spinning)', () => {
     const slugs = ['inspinning_butterfly', 'inspinning_paradox_illusion', 'inspinning_paradox_mirage'];
     for (const slug of slugs) {
-      const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === slug);
+      const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === slug);
       expect(entry?.operationalNotation ?? '').toContain('(front) SPIN [BOD]');
       expect(entry?.operationalNotation ?? '').toMatch(/SAME (OUT|IN)/);
       expect(entry?.operationalNotation ?? '').not.toMatch(/\(back\) SPIN/);

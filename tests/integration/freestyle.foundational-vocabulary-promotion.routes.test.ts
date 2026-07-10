@@ -9,7 +9,7 @@
  *
  * Provenance:
  *   fb.org-derived / sibling-derived; NOT Red-confirmed. Tagged inline
- *   in the RESOLVED_FORMULAS_SPRINT_1 entries. Surfaces Red questions
+ *   in the RESOLVED_ADD_FORMULAS entries. Surfaces Red questions
  *   K-1..K-3 + B-1.
  *
  * Contracts under test:
@@ -21,7 +21,7 @@
  *   - operationalNotation is reachable via the service overlay even when
  *     the DB row's operational_notation column is empty (i.e. before the
  *     pipeline rebuild that materializes the CSV rows into DB)
- *   - The 4 entries appear in RESOLVED_FORMULAS_SPRINT_1
+ *   - The 4 entries appear in RESOLVED_ADD_FORMULAS
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -33,7 +33,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_FORMULAS_SPRINT_1 } from '../../src/content/freestyleResolvedFormulas';
+import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3160');
 
@@ -114,9 +114,9 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Foundational-vocabulary promotion — RESOLVED_FORMULAS overlay carries each slug', () => {
   it.each(PROMOTION_COHORT.map(r => [r.slug] as const))(
-    '%s is present in RESOLVED_FORMULAS_SPRINT_1 with non-empty operationalNotation',
+    '%s is present in RESOLVED_ADD_FORMULAS with non-empty operationalNotation',
     (slug) => {
-      const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === slug);
+      const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === slug);
       expect(entry).toBeDefined();
       expect(entry?.operationalNotation).toBeTruthy();
       expect((entry?.operationalNotation ?? '').length).toBeGreaterThan(0);
@@ -207,7 +207,7 @@ describe('Foundational-vocabulary promotion — no tautological compound-slot le
 describe('Foundational-vocabulary promotion — provenance is visible, not silently curator-authored', () => {
   it('the RESOLVED_FORMULAS entries carry the foundational-vocabulary provenance marker in their provenance field', () => {
     for (const row of PROMOTION_COHORT) {
-      const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === row.slug);
+      const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === row.slug);
       expect(entry).toBeDefined();
       expect(entry?.provenance ?? '').toMatch(/Foundational-vocabulary/);
       // None of the four are Red-confirmed; verify the provenance says so.
