@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
 import sqlite3
 from collections import Counter
@@ -54,7 +55,9 @@ OUT = REPO / "src/content/freestyleObservationalUniverse.ts"
 TRICKS_CSV = FREESTYLE / "inputs/base_dictionary/tricks.csv"
 RED_ADD_CSV = FREESTYLE / "inputs/curated/tricks/red_additions_2026_04_20.csv"
 # Live platform DB: authoritative canonical/alias gate (see build_tracked_names_content.py).
-DB = REPO / "database/footbag.db"
+# Honor the pipeline's DB-path env var so a fresh regeneration can run against
+# the CI-built database; falls back to the local dev database.
+DB = Path(os.environ.get("FOOTBAG_DB_PATH", str(REPO / "database/footbag.db")))
 
 # Doctrine-blocked clusters whose STRUCTURE is known (blocked only on an ADD /
 # policy ruling, not on the movement reading) — promotion-frontier eligible. The

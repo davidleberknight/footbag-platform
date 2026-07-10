@@ -28,6 +28,7 @@ Re-runnable; regenerate when the audit or master refreshes.
 from __future__ import annotations
 
 import csv
+import os
 import re
 import sqlite3
 from collections import defaultdict
@@ -43,7 +44,9 @@ OUT = REPO / 'src/content/freestyleTrackedNames.ts'
 # Live platform DB. The authoritative canonical/alias gate: a slug active in
 # freestyle_tricks, or registered in freestyle_trick_aliases, must never appear
 # on the tracked surface. The static CSVs above drift; the DB does not.
-DB = REPO / 'database/footbag.db'
+# Honor the pipeline's DB-path env var so a fresh regeneration can run against
+# the CI-built database; falls back to the local dev database.
+DB = Path(os.environ.get('FOOTBAG_DB_PATH', str(REPO / 'database/footbag.db')))
 
 # Canonical CSVs read by loader 17. Slugs present in any of these are
 # canonical-published, regardless of the reconciliation CSV's recorded

@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1370;
+export const TRACKED_UNPUBLISHED_TOTAL = 1369;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -676,7 +676,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Butterfly Swirl (same side)', slug: 'butterfly_swirl_same_side' },
     { displayName: 'Butterflying Symposium Reverse Swirling Toe', slug: 'butterflying_symposium_reverse_swirling_toe' },
     { displayName: 'Buttersole', slug: 'buttersole', operationalNotation: 'Set >> Op Out (DEX) > Op Flapper (XBD)(UNS)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Carousel', slug: 'carousel' },
     { displayName: 'Cascade', slug: 'cascade', operationalNotation: 'Toe >> Duck (BOD) >> Op In (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Casket', slug: 'casket', operationalNotation: 'Toe > Same Out (DEX) >> Same In (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Cataclysm', slug: 'cataclysm', operationalNotation: 'Toe > Op Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
