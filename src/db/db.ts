@@ -229,6 +229,22 @@ export interface PublicClubMemberRow {
 
 export const db: SqliteDatabase = openDatabase(DB_FILENAME);
 
+// Idempotent additive column-ensure for databases built before alias_display
+// existed. A fresh schema.sql already declares the column; an older on-disk DB
+// gets it here on connection open, without a full rebuild. Additive and
+// DEFAULT 1, so every existing alias row preserves its current (displayed)
+// behavior. Guarded on presence so it is a no-op once the column exists and a
+// no-op when the table is not yet created. alias_display gates public "Also
+// called" display only; search and redirect ignore it.
+function ensureAliasDisplayColumn(conn: SqliteDatabase): void {
+  const cols = conn.prepare(`PRAGMA table_info(freestyle_trick_aliases)`).all() as { name: string }[];
+  if (cols.length === 0) return;
+  if (!cols.some(c => c.name === 'alias_display')) {
+    conn.exec(`ALTER TABLE freestyle_trick_aliases ADD COLUMN alias_display INTEGER NOT NULL DEFAULT 1`);
+  }
+}
+ensureAliasDisplayColumn(db);
+
 // Graceful-shutdown hook: fold the WAL back into the main file and close the
 // connection so the on-disk DB is consistent for the final host backup that
 // runs after the container stops. Idempotent and best-effort; a failed
@@ -2354,7 +2370,9 @@ export const freestyleTrickAliases = {
   // TT Series view to resolve sidecar tags whose first non-meta tag is an
   // alias rather than a canonical slug (e.g., 'neck-catch' -> 'neck-stall').
   get getCanonicalForAlias() { return db.prepare(`
-    SELECT trick_slug FROM freestyle_trick_aliases WHERE alias_slug = ?
+    SELECT a.trick_slug FROM freestyle_trick_aliases a
+    JOIN freestyle_tricks t ON t.slug = a.trick_slug AND t.is_active = 1
+    WHERE a.alias_slug = ?
   `); },
 
   // All aliases for all tricks. Used by the index page to attach alias text
@@ -2362,6 +2380,7 @@ export const freestyleTrickAliases = {
   get listAll() { return db.prepare(`
     SELECT alias_text, trick_slug
     FROM freestyle_trick_aliases
+    WHERE alias_display = 1
     ORDER BY trick_slug, alias_text COLLATE NOCASE
   `); },
 
@@ -2376,7 +2395,7 @@ export const freestyleTrickAliases = {
   // identically to the browse listing (which reads the same table), instead of
   // the deprecated aliases_json column that drifts out of sync.
   get getAliasTextsForTrick() { return db.prepare(`
-    SELECT alias_text FROM freestyle_trick_aliases WHERE trick_slug = ?
+    SELECT alias_text FROM freestyle_trick_aliases WHERE trick_slug = ? AND alias_display = 1
     ORDER BY alias_text COLLATE NOCASE
   `); },
 

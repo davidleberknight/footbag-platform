@@ -385,12 +385,20 @@ export function insertFreestyleTrickAlias(
   alias_slug: string,
   trick_slug: string,
   alias_text?: string,
+  opts?: { alias_type?: string; alias_display?: 0 | 1 },
 ): void {
   db.prepare(`
     INSERT INTO freestyle_trick_aliases (
-      alias_slug, alias_text, trick_slug, alias_type, source_id, notes, created_at
-    ) VALUES (?, ?, ?, 'common', NULL, NULL, ?)
-  `).run(alias_slug, alias_text ?? alias_slug.replace(/-/g, ' '), trick_slug, TS);
+      alias_slug, alias_text, trick_slug, alias_type, alias_display, source_id, notes, created_at
+    ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)
+  `).run(
+    alias_slug,
+    alias_text ?? alias_slug.replace(/-/g, ' '),
+    trick_slug,
+    opts?.alias_type ?? 'common',
+    opts?.alias_display ?? 1,
+    TS,
+  );
 }
 
 /** Insert a freestyle_trick_sources registry row; returns the source id. */

@@ -4331,7 +4331,8 @@ CREATE TABLE freestyle_trick_aliases (
   alias_slug   TEXT PRIMARY KEY,                   -- normalized alias key, e.g. 'bw'
   alias_text   TEXT NOT NULL,                      -- display form, e.g. 'BW'
   trick_slug   TEXT NOT NULL REFERENCES freestyle_tricks(slug),
-  alias_type   TEXT NOT NULL,                      -- 'common' | 'abbreviation' | 'historical' | 'notation' (no CHECK)
+  alias_type   TEXT NOT NULL,                      -- semantic class: 'common' | 'historical' | 'technical' | 'structural' | 'typo' | 'suppressed' | 'positional' | 'ambiguous' (no CHECK)
+  alias_display INTEGER NOT NULL DEFAULT 1,        -- 1 = eligible for public "Also called" display; 0 = search/redirect only. Search and redirect ignore this gate; they resolve any alias to an active target.
   source_id    TEXT REFERENCES freestyle_trick_sources(id),
   notes        TEXT,
   created_at   TEXT NOT NULL
