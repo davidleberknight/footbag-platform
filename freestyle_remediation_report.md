@@ -156,6 +156,15 @@ formula-identity audit, in rough order of how self-contained they are:
    cleanup or a distinct row.
 5. **Source or video review** (2 rows). POD versus Dimmier, and the Kiwi source
    contradiction; each needs a video viewing to settle.
+6. **Curator notation for two doctrine-clear incomplete-cohort tricks** (2 rows).
+   `paradox_blur` and `big_apple_sauce` are doctrine-clear (all component operators
+   settled) but not authorable by mechanical derivation; each needs a curator's
+   movement-authoritative JOB notation before it becomes canonical. `paradox_blur`
+   has a derived candidate that creates two `[PDX]` brackets and needs explicit
+   curator confirmation of that exact notation; `big_apple_sauce` is a
+   five-operator stack on torque that must not be derived mechanically. Both stay
+   in the active-canonical incomplete-notation cohort (and its guard) until their
+   notation lands.
 
 The path/catch framing also routed about 17 folk or unmapped terminal names and
 about 10 incomplete operator-ending names to this identity and completeness track;
