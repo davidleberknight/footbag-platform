@@ -41,8 +41,8 @@ An effort-ordered view over the still-open freestyle backlog, to work easiest sa
 - FS-11 — remaining loader safety test. **S.** One pytest pinning loader-19's scoped-delete survival (other sources' rows untouched).
 
 ### 2. Short content wins
-- FS-43 — Zulu / Weaving notation gap. **S.** Author the two missing JOB formulas in `freestyleCanonicalSets.ts` (content only, no rebuild; derivable from the movement text).
 - FS-32 — authorable Technique Notes. **M.** Three notes authorable from existing sources plus one partial; edit path is `red_corrections` CSV rows plus a rebuild.
+- (FS-43 Zulu / Weaving notation: on inspection NOT a clean derivation, moved to curator-decision below.)
 - (FS-28 Set Encyclopedia pages: the four settled pages are DONE and committed; only the held Miraging page remains, which is wording-dependent. Moved out of this bucket to curator-decision.)
 
 ### 3. Medium work
@@ -54,6 +54,7 @@ An effort-ordered view over the still-open freestyle backlog, to work easiest sa
 - FS-31 — Member Tips remainder. **blocked.** Each of the eight tips needs a curator decision to author a new trick or alias.
 - FS-23 / FS-24 — Red doctrine and world-record-name decisions. **blocked (external).** Await Red answers and curator viewings.
 - FS-35 — Movement Systems completeness audit. **L / blocked.** Gated behind doctrine work.
+- FS-43 — Zulu / Weaving notation gap. **blocked (curator notation-governance).** No `WEAVE`/`ZULU` body-action token exists in the notation vocabulary, and the launch-only set formula cannot encode the distinguishing across-body path / same-foot catch; needs a notation-governance ruling (own tokens vs duck/dive variants, and how the distinctions are recorded), not a derivation.
 - Miraging teaching page (the FS-28 tail). **blocked** on its wording.
 
 ### 5. Cutover-timed
@@ -514,6 +515,7 @@ P2 | test | audience: implementing-developer | status: should-fix-before-launch 
 Remediation: pin the trick page with zero records and zero media (records table and media section omitted, page coherent); pin a family page whose members all went inactive (or assert the suppression rule that prevents it).
 Likely files: `tests/integration/freestyle.trick-detail-*.routes.test.ts`, `freestyle.family-detail.routes.test.ts`.
 Done: both states pinned; suite green.
+CLOSED (2026-07-09). The family-page empty-state was already pinned (`freestyle.family-detail.routes.test.ts`: a first-class family parent with no seeded members renders 200 and omits the member-tricks section). This adds the missing trick-detail half in a new `freestyle.trick-detail-empty-state.routes.test.ts`: an active trick seeded with zero records and zero media renders a coherent 200 (name + always-present source-note footer), the consecutive-records table is omitted (renders only when recordCount > 0), and the Media section and its anchor are omitted (so no dangling `#media` link). tsc, the suite, and conventions pass.
 
 **FS-13 — De-epoch freestyle test comments (execute the tracked item, scope enlarged)**
 P3 | IP-cleanup/code | audience: implementing-developer | status: post-V1 (as tracked) | replaces: absorbs the residue of IP L288 into L281 | new: no (quantified)
@@ -679,9 +681,10 @@ Done: the Orbit equivalences label reads as the reverse-direction counterpart of
 CLOSED (2026-07-08). The Orbit core-atom label now reads "core atom: dex with reverse full bag orbit", describing orbit by its own mechanic in parallel with around-the-world's "core atom: dex with full bag orbit", rather than framing it as an alias. Content string only in `src/content/freestyleLandingContent.ts`; no notation, ADD, slug, alias, or route changed.
 
 **FS-43 — Author the missing JOB notation for the Zulu and Weaving canonical sets**
-P3 | data/content | owner: James (curator) | status: pre-cutover content; not a launch blocker | new: yes (2026-07-09 reconciliation)
+P3 | data/content (notation governance) | owner: James (curator) | status: curator notation-governance decision; not a launch blocker | new: yes (2026-07-09 reconciliation)
 Context: two canonical sets carry an empty `formula` in `src/content/freestyleCanonicalSets.ts` (Zulu, Weaving), so their public pages `/freestyle/sets/zulu` and `/freestyle/sets/weaving` render an honest "Canonical JOB notation is pending" placeholder instead of a formula, and neither has a Set Encyclopedia teaching page. Distinct from the five-set teaching-page task (FS-28), which covers sets that already have notation and only lack prose; this gap is the notation itself, and folding it into FS-28 would silently change that item's done-condition. The formula is derivable from each set's movement description, not externally blocked. The page is coherent and truthfully labeled today, so this is a visible-incompleteness content gap, not a correctness defect.
 Done: Zulu and Weaving each carry a curator-authored JOB formula; the pending-notation placeholder no longer renders on either set page; a decision is recorded on whether either warrants its own teaching page.
+Status (2026-07-09): re-scoped from "derivable content win" to a curator notation decision. On inspection the formula is NOT cleanly derivable: the head-dip family has four directional variations (duck, dive, weave, zulu), but the operational-notation vocabulary carries body-action tokens only for two of them, `DUCK [BOD]` and `DIVE [BOD]` (confirmed in the dictionary and the glossary's body-action token list, which reads "SPIN, DUCK, DIVE"); there is no `WEAVE [BOD]` or `ZULU [BOD]` token anywhere in the corpus. The launch-only set `formula` field also cannot encode Zulu's distinguishing across-body bag path or Weaving's distinguishing same-foot catch (a bag path and a terminal detail). Authoring a formula would therefore mean either inventing notation tokens that do not exist or publishing two identical `SET > DUCK [BOD] >` formulas that fail to distinguish the sets, both worse than the current truthful placeholder. Missing input: a curator notation-governance ruling on (1) whether Weaving and Zulu get explicit body-action tokens such as `WEAVE [BOD]` and `ZULU [BOD]`; (2) or whether they remain ducking/diving variants; and (3) if they are variants, how the notation encodes Zulu's across-body path and Weaving's same-foot catch without pretending they are identical to an ordinary Duck or Dive. Until that is decided, the honest "notation pending" placeholder is the correct public behavior because it is truthful and avoids fabricated structure. Not a launch blocker; no product code changes in the interim.
 
 **FS-44 — Remove the dead legacy branch in the modifier-teaching surface**
 P3 | code cleanup | owner: James / Dave (freestyle content-module code) | status: post-V1 cleanup; not a launch blocker | new: yes (2026-07-09 reconciliation)
