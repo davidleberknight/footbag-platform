@@ -125,6 +125,61 @@ def test_freestyle_records_loader_idempotent(tmp_path: Path) -> None:
     assert n >= 1
 
 
+def test_freestyle_records_loader_warns_on_edited_but_skipped_row(tmp_path: Path) -> None:
+    """The records loader is additive (INSERT OR IGNORE, no DELETE), so editing an
+    existing record row and re-running does not apply the edit. The loader must not
+    drop that edit silently: it detects the edited-but-skipped row, keeps the stored
+    row unchanged, and prints a loud warning, so a curator's correction is never lost
+    without notice. A genuine re-run duplicate must not trigger that warning."""
+    db = make_db(tmp_path)
+    fields = ["record_id", "unit", "confidence", "player", "record_value",
+              "trick_name", "sort_name", "adds", "date_normalized", "approx_date", "video"]
+    base_row = {
+        "record_id": "edit-rec-1", "unit": "consecutive_completions",
+        "confidence": "high", "player": "Edit Player", "record_value": "100",
+        "trick_name": "clipper", "sort_name": "clipper", "adds": "3",
+        "date_normalized": "2010-01-01", "approx_date": "no", "video": "",
+    }
+
+    def stored_value() -> float:
+        conn = sqlite3.connect(db)
+        try:
+            return conn.execute(
+                "SELECT value_numeric FROM freestyle_records WHERE id = 'edit-rec-1'"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+    def load(rows: list[dict], name: str) -> subprocess.CompletedProcess:
+        csv_path = write_csv(tmp_path / name, fields, rows)
+        r = run([
+            "freestyle/loaders/10_load_freestyle_records_to_sqlite.py",
+            "--db", str(db), "--records-csv", str(csv_path),
+        ])
+        assert r.returncode == 0, f"{name} load failed.\nstderr: {r.stderr}"
+        return r
+
+    # First load stores the original value.
+    load([base_row], "records1.csv")
+    assert stored_value() == 100.0
+
+    # A genuine re-run of the identical CSV is a true duplicate: no edited-row warning.
+    r_dup = load([base_row], "records2.csv")
+    assert "edited in the CSV but NOT applied" not in r_dup.stdout, (
+        f"an unchanged re-run must not report an edited-but-skipped row.\nstdout: {r_dup.stdout}"
+    )
+
+    # A curator edits the record value and re-runs. The additive loader does not apply
+    # the edit, but it must report it loudly rather than counting it as a plain duplicate.
+    r_edit = load([dict(base_row, record_value="250")], "records3.csv")
+    assert stored_value() == 100.0, "an additive re-run must not mutate the stored record"
+    assert "1 record row(s) were edited in the CSV but NOT applied" in r_edit.stdout, (
+        f"the loader should print the loud edited-but-skipped warning.\nstdout: {r_edit.stdout}"
+    )
+    assert "edit-rec-1" in r_edit.stdout, "the warning should name the edited record id"
+    assert count(db, "freestyle_records") == 1, "an edited re-run must not add a row"
+
+
 def test_name_variants_loader_idempotent(tmp_path: Path) -> None:
     db = make_db(tmp_path)
     inp = write_csv(

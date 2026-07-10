@@ -206,6 +206,8 @@ def main() -> None:
     pid_unresolved = 0
     unknown_unit  = []
     unknown_conf  = []
+    skipped_edited = 0
+    edited_ids    = []
 
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON;")
@@ -304,7 +306,32 @@ def main() -> None:
                     ),
                 )
                 if cur.rowcount == 0:
-                    skipped_dup += 1
+                    # The id already exists, so INSERT OR IGNORE skipped this row. This
+                    # loader is additive (no DELETE), so an edited CSV row is not applied
+                    # to the stored row. Distinguish a true re-run duplicate from an edit
+                    # that was silently dropped, so a curator's correction never passes
+                    # unnoticed: compare the incoming content against the stored row.
+                    stored = conn.execute(
+                        """
+                        SELECT record_type, person_id, display_name,
+                               trick_name, sort_name, adds_count,
+                               value_numeric, achieved_date, date_precision,
+                               confidence, video_url, video_timecode, notes
+                        FROM freestyle_records WHERE id = ?
+                        """,
+                        (record_id,),
+                    ).fetchone()
+                    incoming = (
+                        record_type, person_id, display_name,
+                        trick_name, sort_name, adds_count,
+                        value_numeric, achieved_date, date_precision,
+                        confidence, video_url, video_timecode, notes,
+                    )
+                    if stored is not None and tuple(stored) != incoming:
+                        skipped_edited += 1
+                        edited_ids.append(record_id)
+                    else:
+                        skipped_dup += 1
                 else:
                     inserted += 1
             except sqlite3.IntegrityError as e:
@@ -327,9 +354,23 @@ def main() -> None:
     # ---------------------------------------------------------------------------
     print(f"\nInserted:          {inserted:,}")
     print(f"Skipped duplicate: {skipped_dup:,}")
+    print(f"Skipped edited:    {skipped_edited:,}")
     print(f"Skipped bad rows:  {skipped_bad:,}")
     print(f"Person ID resolved:{pid_resolved:,}")
     print(f"Display name only: {pid_unresolved:,}")
+
+    if skipped_edited:
+        bar = "=" * 72
+        print(f"\n{bar}")
+        print(f"WARNING: {skipped_edited:,} record row(s) were edited in the CSV but NOT applied.")
+        print("This loader is additive (INSERT OR IGNORE, no DELETE): an edit to an existing")
+        print("record is skipped and the stored row is preserved, so record corrections take")
+        print("effect only on a fresh database build. Rebuild the freestyle records from")
+        print("scratch to apply these edits.")
+        preview = ", ".join(edited_ids[:10])
+        extra = "" if len(edited_ids) <= 10 else f" (+{len(edited_ids) - 10} more)"
+        print(f"Edited-but-skipped record ids: {preview}{extra}")
+        print(bar)
 
     if unknown_unit:
         from collections import Counter
