@@ -54,12 +54,12 @@ export interface ModifierRelatedModifier {
 
 // Per-modifier authored content (input shape; static).
 //
-// Two layouts coexist during rollout. The CONCEPT-FIRST frozen template is the
-// standard: when `definition` is set, the page teaches the concept before the
-// execution (Definition / What changes / How it changes / JOB notation / Where
-// it appears / Progression / Representative examples / Common confusions /
-// Related concepts / Execution notes). Pages without `definition` fall back to
-// the legacy mechanical-lead layout until they are migrated to the standard.
+// Pages use the concept-first frozen template: the page teaches the concept
+// before the execution (Definition / What changes / How it changes / JOB
+// notation / Where it appears / Progression / Representative examples / Common
+// confusions / Related concepts / Execution notes). Tier-1 operators leave
+// `definition` unset and take their canonical definition line from the operator
+// reference at build time.
 export interface ModifierEducationInput {
   slug:                 string;     // modifier slug; matches route param
   displayName:          string;     // e.g., "Spinning"
@@ -76,16 +76,7 @@ export interface ModifierEducationInput {
   whereItAppears?:      string;     // Where it appears (composition first, taxonomy after)
   howItComposes?:       string;     // What kinds of structures it naturally combines with
   executionNotes?:      string;     // Execution, last and objective (defining mechanic, not coaching)
-  // ── Legacy mechanical-lead layout (pre-frozen-template pages) ──
-  mechanicalLead?: {
-    whereTheMotionLives:  string;
-    whenItHappens:        string;
-    whatItFeelsLike:      string;
-    commonFailure:        string;
-  };
-  anchorSentence?:      string;
-  diagramPlaceholder?:  string;
-  // ── Shared by both layouts ──
+  // ── Shared ──
   // Common confusions (2-4 entries)
   confusions:           ModifierConfusionPair[];
   // Section 4: Progression chain (3-5 steps; first is anchor base)
@@ -132,10 +123,6 @@ export interface ModifierFamilyPageContent {
   whereItAppears?:      string;
   howItComposes?:       string;
   executionNotes?:      string;
-  // Legacy mechanical-lead layout (present on un-migrated pages).
-  mechanicalLead?:      ModifierEducationInput['mechanicalLead'];
-  anchorSentence?:      string;
-  diagramPlaceholder?:  string;
   confusions:           ModifierConfusionPair[];
   progression: {
     anchorBaseLabel: string;
@@ -1290,7 +1277,6 @@ const MODIFIER_PAGE_CONTENT: Record<string, ModifierEducationInput> = {
 
 /**
  * Returns true when a modifier-family page exists for the given slug.
- * Only "spinning" exists so far.
  */
 export function hasModifierFamilyPage(slug: string): boolean {
   return Object.prototype.hasOwnProperty.call(MODIFIER_PAGE_CONTENT, slug);
@@ -1351,9 +1337,6 @@ export function buildModifierFamilyPage(
     whereItAppears:     input.whereItAppears,
     howItComposes:      input.howItComposes,
     executionNotes:     input.executionNotes,
-    mechanicalLead:     input.mechanicalLead,
-    anchorSentence:     input.anchorSentence,
-    diagramPlaceholder: input.diagramPlaceholder,
     confusions:         input.confusions,
     progression: {
       anchorBaseLabel: input.progression.anchorBaseLabel,

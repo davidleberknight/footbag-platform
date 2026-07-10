@@ -6,11 +6,11 @@
  * Verifies:
  *   - /freestyle/modifier/spinning returns 200 with the teaching page
  *   - /freestyle/modifier/garbage-slug returns 404
- *   - Six teaching sections all render (mechanical lead / anchor / diagram /
- *     confusions / progression / cross-base / related modifiers)
- *   - Coach-tone phrases present in mechanical-lead prose
- *   - "The same idea on other bases" framing used (not "Related tricks")
- *   - Diagram placeholder rendered as accessible image-role
+ *   - The concept-first teaching sections render (What it is / Why it exists /
+ *     How it changes the base / JOB notation / Where it appears / Progression /
+ *     Representative examples / Common confusions / Related concepts / Execution
+ *     notes), with the definition preceding the execution notes
+ *   - The legacy mechanical-lead layout is not rendered
  *   - Observational-layer badge + footer rendered
  *   - Progression first step marked as anchor
  *   - Cross-base examples link to detail pages when slug is pilot
