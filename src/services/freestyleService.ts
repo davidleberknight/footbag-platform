@@ -10137,7 +10137,7 @@ export const freestyleService = {
         stats: statBlocks,
         statsNote:
           `The frontier, ordered by distance to canonical publication. ` +
-          `${cc('ready')} ${cc('ready') === 1 ? 'name is' : 'names are'} ready for curation and ${cc('authoring')} need one authoring pass; ` +
+          `${cc('ready')} ${cc('ready') === 1 ? 'name is' : 'names are'} ready for curation and ${cc('authoring')} remain in the authoring lane, pending formula-authority, operator, or curator checks before promotion; ` +
           `${cc('doctrine')} rest on an open expert ruling and ${cc('governance')} on a curator call; ` +
           `${cc('identification')} await identification, ${cc('parser')} a parser resolution, and ` +
           `${cc('undefined_operator')} a settled operator definition. The remaining ${cc('folk')} are folk names ` +
