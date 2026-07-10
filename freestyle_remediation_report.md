@@ -66,7 +66,7 @@ An effort-ordered view over the still-open freestyle backlog, to work easiest sa
 - FS-34 — local MP4 trick-clip ingestion tooling. **M/L.**
 - FS-15 — freestyleService extraction seams. **L** (the 2.6x size outlier; owner: Dave).
 - FS-13 — de-epoch freestyle test comments. **M** (86 files).
-- FS-14 — rename `inputs/noise/` + extend rule globs. **S.**
+- FS-14 — rename `inputs/noise/` + extend rule globs. **S. Part (a) DONE, part (b) awaiting approval.** Renamed `freestyle/inputs/noise/` to `freestyle/inputs/base_dictionary/` and updated every freestyle-scoped code/test path reference (loader 17, both generators, the CI row-count checker, four tests); loader 17 verified loading from the new path. Part (b) (extend the `.claude/rules/*` globs to reach `freestyle/**`, plus the doc-reference path updates) is a gated `.claude`/docs edit held for human approval.
 - FS-17 — records-correction ergonomics. **M.**
 - FS-21 — difficulty-tag design. **blocked** (behind FS-27).
 - FS-29 — replacement demo video for the sole-survivor clip. **S** (source-dependent).
@@ -290,6 +290,7 @@ Fix (minimal): make loader 10 report edited-but-skipped rows (compare incoming r
 **FS-14 / FS-14b (P3; audience: maintainer). Naming and rule-coverage hygiene in the pipeline.**
 (a) `freestyle/inputs/noise/` holds the authoritative curated base dictionary (74 tricks; loader 17:56-58 with the header comment confirming it) under a name that says the opposite. Rename or document (decision card DC-7).
 (b) No `.claude/rules/*` glob covers `freestyle/**`: `comments.md`, `db-write-safety.md`, and `script-secret-safety.md` scope `scripts/**` and `legacy_data/**` only, so the freestyle loaders and scripts sit outside every enforced rule. Extending those globs is a harness change requiring explicit approval; filed in Batch H.
+Status: part (a) DONE (directory renamed to `freestyle/inputs/base_dictionary/`; loader 17, both content generators, the CI row-count checker, and four tests updated; loader 17 verified). Part (b) — the `.claude/rules/*` glob extension and the stale path references in `freestyle/doctrine/*.md` and the skill REFERENCE.md — is a gated `.claude`/docs edit awaiting human approval.
 
 ## 7. Pre/post-go-live curator audit
 
@@ -525,7 +526,7 @@ Scope from this audit: 86 files (43 epoch labels, 70 dated change-markers, 19 se
 Done: grep for epoch/date/section tokens in freestyle test files returns only genuine data values.
 
 **FS-14 — Rename or document `inputs/noise/`; extend rule globs to `freestyle/**`**
-P3 | data + harness | audience: maintainer (approval: `.claude/` edit for the glob part) | status: post-V1 acceptable | new: yes | replaces: none
+P3 | data + harness | audience: maintainer (approval: `.claude/` edit for the glob part) | status: part (a) CLOSED; part (b) awaiting approval | new: yes | replaces: none
 (a) Ratified (DC-7): rename `freestyle/inputs/noise/` to `freestyle/inputs/base_dictionary/`, updating the three path constants in `freestyle/loaders/17_load_trick_dictionary.py` (lines 56-58) in the same change. Rationale: the folder holds the authoritative 74-trick curated base dictionary; the name "noise" invites a future contributor to treat it as discardable. (b) Extend the `paths:` globs of `.claude/rules/comments.md` and `.claude/rules/db-write-safety.md` to cover `freestyle/loaders/**`, `freestyle/scripts/**`, and `freestyle/tools/**`, because today no path-scoped rule reaches the freestyle pipeline directory at all, leaving its loaders outside every enforced standard.
 Done: rename landed and rebuild passes; rule globs cover the pipeline; each harness edit approved as literal before/after.
 
