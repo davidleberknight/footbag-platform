@@ -165,22 +165,50 @@ formula-identity audit, in rough order of how self-contained they are:
    five-operator stack on torque that must not be derived mechanically. Both stay
    in the active-canonical incomplete-notation cohort (and its guard) until their
    notation lands.
-7. **Alias taxonomy: structural bucket paused for curator review.** The alias
-   visibility infrastructure is built (semantic `alias_type` plus an `alias_display`
-   gate, a delete/retype override step, and an additive `alias_additions` source),
-   and Batch 1 landed 18 technical abbreviation aliases and one verified structural
-   alias (`Symposium Hatchet` to `diving_symposium_whirl`), all search/redirect only
-   at `alias_display=0`. The remaining structural candidates are PAUSED: the
-   evidence check showed the bucket is doctrine-sensitive, because a structural
-   "X equals Y" alias can assert a formula identity that pre-empts an open ruling
-   (miraging as a nickname, spyro as a prefix modifier, blistering, blurry), so none
-   moves without explicit curator approval. Held for curator review: Whirling Gyro
-   Whirl (blistering), Toe Fog, Quantum Symposium Illusion, Fairy Same Pickup, the
-   observational-collision pair (Fairy Spinning Legover, Stepping Down Double Down),
-   the Pogo Op rows, the Stepping Paradox / Blurry rows, and Paradox Symposium Blur.
-   Bucket 3 (folk / historical nicknames) is the next alias work, as a draft-review
-   pass only, never bulk-displayed by default. `PS Torque` is deferred to a later
-   technical batch.
+7. **Alias taxonomy slice: COMPLETE; structural and display decisions parked for
+   curator review.** The alias layer now separates movement identity from names.
+   Landed and verified: the visibility infrastructure (semantic `alias_type` plus a
+   public-display gate `alias_display`, added with an existing-database column
+   ensure so a rebuild needs no schema reset); display, search, and redirect
+   behavior separated (display honors the gate; search and redirect ignore it but
+   resolve only to active targets, so an inactive-target alias never publicly
+   redirects); the `surfaceOnBrowse` suppression preserved transitionally alongside
+   the new gate; a delete/retype/hide override step for upstream-produced aliases;
+   an additive `alias_additions` source for curated new aliases; the existing-row
+   cleanup (three deletes, four suppressions of inactive-target rows, and the
+   technical/typo retypes); 18 technical abbreviation aliases inserted as
+   search/redirect only; one verified structural alias (`Symposium Hatchet` to
+   `diving_symposium_whirl`) inserted; and 23 folk/historical nicknames inserted as
+   search/redirect only. No historical alias displays publicly by default, and no
+   bulk structural or historical display decision was made. Adding the folk aliases
+   correctly moved eight now-resolved folk names off the unresolved observational
+   surface (the historical name universe is unchanged; the unresolved work surface
+   shrank).
+
+   Parked follow-ups, each held for a specific reason, none actionable without the
+   named input:
+   - The folk/historical display shortlist stays curator-review only: promoting any
+     nickname to a public "Also called" entry is a per-name curator decision with
+     source evidence, not a default.
+   - The remaining structural aliases stay paused because the bucket is
+     doctrine-sensitive: a structural "X equals Y" alias can assert a formula
+     identity that pre-empts an open ruling (miraging as a nickname, spyro as a
+     prefix modifier, blistering, blurry). Held: Whirling Gyro Whirl (blistering),
+     Toe Fog, Quantum Symposium Illusion, Fairy Same Pickup, the
+     observational-collision pair (Fairy Spinning Legover, Stepping Down Double
+     Down), and Paradox Symposium Blur. `PS Torque` waits for a later technical
+     batch.
+   - The Stepping Paradox and Blurry rows wait on the blurry-expansion predicate in
+     the Scoring paper.
+   - The Pogo Op rows wait on a Pogo doctrine ruling.
+   - Dimmier versus POD stays in source/video review (needs a video viewing).
+   - Super Ego stays held until it is verified as a real community nickname rather
+     than a single-source name.
+   - `johnny walker` to `jani_walker` was excluded from the approved 23 (the batch
+     was kept to exactly the approved rows) and remains an optional later review.
+   - Retiring the dead `aliases_json` fallback is separate future cleanup.
+   - Consolidating `surfaceOnBrowse` into `alias_display` is future cleanup, not
+     part of this slice.
 
 The path/catch framing also routed about 17 folk or unmapped terminal names and
 about 10 incomplete operator-ending names to this identity and completeness track;
