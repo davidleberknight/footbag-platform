@@ -7,12 +7,23 @@ question list") as the list of record. Maintenance rule: when a question is
 answered, integrate the answer, record the ruling in `RED_RULINGS.md` (or the
 relevant doctrine document), and delete the entry here — no tombstones.
 
-Delivery posture: until delivery is explicitly confirmed, treat every open question
-below as not yet successfully delivered to Red, and do not mark any of them as
-pending his answer. A packet of these questions was prepared after the reduction
-audit removed everything answerable from the written record, but the repository
-does not prove the packet reached Red. One ruling that has already come back, the
-down-family ruling, is integrated in `DOWN_FAMILY.md`.
+Delivery posture: this queue is the older operational question packet (historically
+called the "Wave 3 packet"), a separate artifact from the five formal doctrine
+papers. Its delivery to Red is not proven in the repository, so treat every
+operational question below as not yet successfully delivered to Red, and do not mark
+any as pending his answer, until delivery is confirmed. The formal doctrine papers
+have their own send state, tracked separately: the Identity paper was sent to Red and
+answered (its rulings are integrated in `RED_RULINGS.md`, `DOWN_FAMILY.md`, and the
+topic docs), the Frontier paper was sent and awaits an answer, and the Notation,
+Scoring, and History papers are drafted and not yet sent. Questions settled by the
+Identity paper's answers are integrated and removed from this list; the down-family
+one-family ruling is the clearest example (see `DOWN_FAMILY.md`), with only its
+embedded-base labeling frame still open. The remaining open questions map onto the
+still-unsent papers: the blurry-expansion predicate, the operator structural
+definitions, and the terraging-chain arithmetic are Scoring-paper questions; the
+cross-body rake base and its register are Notation-paper questions; the down-family
+embedded-base labeling frame is the open half of an Identity-paper question. These
+fold into those papers rather than becoming new ad hoc asks.
 
 **To-do (whole queue):** Review every open Red question, assemble the current
 packet, send or resend it to Red, and then update each item's delivery status from
@@ -103,7 +114,8 @@ packet, send or resend it to Red, and then update each item's delivery status fr
   Red-sourced naming, so it holds for a curator decision: omelette (the naming
   ruling) or scrambled-eggbeater (the structure).
 
-Positional atom-level doctrine that also awaits rulings (butterfly default side,
-whether cross-body `[XBD]` inherently encodes OP, the osis spin-to-catch
-relationship, and the ambiguous multi-component same-side records) is carried in
-`POSITIONAL_IDENTITY.md` under "Atom-level foundations".
+Positional atom-level doctrine that also awaits rulings (whether cross-body `[XBD]`
+inherently encodes OP, the osis spin-to-catch relationship, and the ambiguous
+multi-component same-side records) is carried in `POSITIONAL_IDENTITY.md` under
+"Atom-level foundations". The butterfly default catch side is resolved for V1
+(far/opposite by default) and is no longer an open question.

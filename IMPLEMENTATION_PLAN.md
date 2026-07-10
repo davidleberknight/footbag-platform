@@ -177,8 +177,10 @@ remain James-led and are tracked through the freestyle doctrine files and that r
 - *Doctrine.* Open Red questions are not treated as delivered or pending a Red answer
   until James assembles and sends the current packet and delivery is confirmed;
   doctrine integration and promotions remain James-led. The remaining first-edition
-  doctrine papers (`freestyle/doctrine/papers/0..5`) are drafted, committed, and
-  deliberately unsent. Every unresolved doctrine question is isolated where it cannot
+  doctrine papers (`freestyle/doctrine/papers/0..5`) have a mixed send state: the
+  Identity paper was sent to Red and answered, the Frontier paper was sent and awaits
+  Red's answer, and the Notation, Scoring, and History papers are drafted, committed,
+  and not yet sent. Every unresolved doctrine question is isolated where it cannot
   leak into published values: the doctrine queue in `freestyle/doctrine/RED_QUEUE.md`
   with its blocked items (tracked as FS-23 and FS-24 in
   `freestyle_remediation_report.md`), the Quantum-versus-Miraging question (FS-36

@@ -10,10 +10,12 @@ The freestyle encyclopedia is **release-ready at Version 1** and operating in
 **stewardship mode**: it passed an adversarial rendered-surface audit, its blockers
 were fixed and re-verified, and the full test suite is green. The promotion arc is
 **closed** — everything derivable from sources is promoted; what remains unpromoted is
-blocked on doctrine questions with the rules expert (Red, Wave 3 packet sent, answers
-pending). The source-reconciliation scholarship (FootbagMoves, PassBack, Stanford) is
+blocked on doctrine questions with the rules expert. (The older Wave 3 operational
+question packet is a separate artifact from the five formal doctrine papers; its
+delivery to Red is unconfirmed in the repository, so `RED_QUEUE.md` treats those
+operational questions as not yet delivered.) The source-reconciliation scholarship (FootbagMoves, PassBack, Stanford) is
 **complete** — one genuine contradiction ever found, resolved (Bladerunner, canonical
-4). The doctrine papers are drafted and committed, **deliberately unsent**. The one
+4). The five doctrine papers have a mixed send state: Identity sent and answered, Frontier sent and awaiting an answer, and Notation, Scoring, and History drafted and not yet sent. The one
 sanctioned forward track is **Glossary V2** — a layered teaching system, designed and
 piloted but not yet implemented. Nothing else freestyle-flavored is active unless the
 maintainer pulls it from the IP's parked sections.
