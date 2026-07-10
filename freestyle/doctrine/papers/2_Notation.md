@@ -51,7 +51,72 @@ guessed.
    token physical content one lineage records and the other elides, or a
    convention of the writer? This is the general form of the paradox question in
    Scoring, and it is a notation question first: it asks what a bracket asserts
-   about the body. (Red, informed by the source lineages.)
+   about the body. Its paradox-bracket instance is drafted as a proposed ruling
+   below. (Red, informed by the source lineages.)
+
+## Proposed ruling: what `[PDX]` asserts
+
+This is the concrete instance of the record-versus-convention question above, for
+the paradox bracket specifically, presented as a Red-facing proposed ruling with
+the repository's recommendation.
+
+**The question.** What does a `[PDX]` bracket assert about the movement: a paradox
+component (a hip-pivot relationship attached to a dex), or a naming flourish that
+some writers add and others omit?
+
+**The plain-English issue.** The notation already lists `[PDX]` among the scoring
+brackets, so where it appears it counts one toward ADD. What is unstated is
+whether the bracket records a physical thing the body does or is a convention of
+the writer. If it is physical, its presence or absence is a real structural fact
+about a trick, and a name alone cannot supply it. If it is a convention, two
+writings of the same trick could differ only in whether they wrote the bracket,
+and the ADD would move for no bodily reason.
+
+**Why it matters for blurry rows.** The blurry-expansion predicate in the Scoring
+paper turns on this. If `[PDX]` is physical structure, then whether a blurry-named
+trick carries the paradox term must be read from its formula and source (does the
+trick actually perform the paradox component?), which is the recommended blurry
+ruling. If `[PDX]` were a flourish, "blurry" could carry it uniformly as a naming
+habit and the Scoring recommendation would lose its footing.
+
+**The evidence.** The built canon treats `[PDX]` as physical content that changes
+the score by exactly one:
+
+- Ripwalk writes no paradox bracket and scores 4; Paradox Ripwalk writes the
+  paradox component as `SAME IN [PDX] [DEX]` and scores 5. The single difference
+  between the two canonical tricks is the paradox component, and it is worth
+  exactly one.
+- Blizzard writes no paradox bracket and scores 3; Paradox Blizzard writes it and
+  scores 4. The same one-bracket, one-point difference.
+- These are kept as separate canonical tricks, not one trick written two ways,
+  which is only coherent if the bracket records something the body does.
+
+**The proposed ruling.** `[PDX]` asserts physical structure: a paradox component,
+a hip-pivot relationship attached to a dex, recorded as physical movement and
+counted as its own scoring bracket, worth one toward ADD wherever the movement
+performs it. It is not a naming flourish. This is the notation-as-record answer
+applied to the paradox bracket specifically: the bracket records a hip-pivot
+relationship, and a formula that omits it records a different structure unless
+other evidence shows the paradox component is present.
+
+**Consequences for scoring and authoring.**
+
+- Scoring: settled by the bracket-count invariant already in force. Where a
+  `[PDX]` is genuinely present it counts one, so the paradox predicate reduces to
+  whether it is present, not whether it counts.
+- Authoring: a blurry-named (or any) row gets the paradox point only when its own
+  formula or source records the paradox component. Rows whose authoritative source
+  records it author with `[PDX]` and the extra point; rows whose source shows a
+  plain stepping dex author without it. This is the notation basis for the blurry
+  recommendation that structure and source decide.
+- No existing canonical is disturbed: the Ripwalk / Paradox Ripwalk and Blizzard /
+  Paradox Blizzard pairs are already written this way.
+
+**Scope.** This section rules only what `[PDX]` asserts. It does not touch the
+other notation axioms (the embedded-base coordinate frame, the butterfly default
+side, whether cross-body encodes opposite-side, the osis spin-to-catch
+relationship) and creates no new Red question beyond the existing
+record-versus-convention item.
 
 ## Worked examples
 
