@@ -509,6 +509,7 @@ Context: only the records loader has an idempotency pytest; loaders 17 (whole-ta
 Remediation: pytests against a temp DB: 17 is idempotent (two runs, identical table state); 19 scopes deletes to its source_id (rows from other sources survive); the QC 22 hard gate actually aborts `run_freestyle.sh` on violation (fixture with a bad row).
 Likely files: `legacy_data/tests/` (or a new `freestyle/tests/`), fixtures under temp dirs only.
 Done: three green pytests; `./run_all_tests.sh` includes them without touching real data.
+CLOSED (2026-07-09). The prior three pieces already existed: loader 17 idempotency and loader 19 idempotency (`legacy_data/tests/test_loader_idempotency.py`) and the QC-22 naming-gate check (`test_trick_naming_gate.py`). This adds the one piece the audit found missing, loader 19's scoped-delete survival: a new `test_red_additions_loader_scoped_delete_preserves_other_source_aliases` seeds loader 17's `curated-v1` aliases, runs the red-additions loader twice, and asserts the curated aliases survive the red-scoped `DELETE` (source_id `red-husted-2026-04-20`) on both runs while loader 19's own aliases are inserted. All temp-DB, no real-data writes; the targeted pytest is green and the conventions gate passes.
 
 **FS-12 — Empty-state route tests for trick detail and family pages**
 P2 | test | audience: implementing-developer | status: should-fix-before-launch | new: yes | replaces: none
