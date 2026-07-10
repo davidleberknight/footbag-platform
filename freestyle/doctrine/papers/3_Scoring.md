@@ -192,6 +192,74 @@ audit surfaced, as one operator-definition ask prioritized by row count. It does
 not touch path/catch encoding, Zulu, Weaving, the cross-body rake, or the identity
 and notation axioms, and it proposes no definitions.
 
+## Proposed disposition: the double-prefix and count-quantifier rider
+
+A band of held rows carry a leading count or quantifier token. They look alike but
+are two different problems, and the first job of this disposition is to separate
+them: one is a Red scoring question about what "double" contributes when it
+doubles an operation, the other is an internal rendering matter that needs no Red
+ruling.
+
+**The split.**
+
+- Count-quantifier rows (about 10): `double-dex X` and `triple-dex X`. These name
+  how many dexes a trick performs. Each dex already itemizes as a `[DEX]` bracket,
+  so the bracket-count invariant already scores them; there is no separate
+  quantity for a Red ruling to assign. They are held only because the notation
+  renderer currently treats a count token like an operator, which is a tracked
+  internal deviation, not a movement-language call. This half leaves the Red ask.
+- Double-prefix rows (about 11): `Double X`. Here "double" is the quantifier that
+  applies an operation twice (the operator authority records "double = the set
+  applied twice," with the worked identity double pixie = terraging). How that
+  doubling scores is unsettled, and that is the Red question.
+
+**Why it matters.** The count-quantifier half is not a doctrine question: it is
+removed from the Red packet and becomes an internal renderer and parser cleanup,
+so a count token renders distinctly from an operator. It does not follow that
+those rows are then authorable; after the cleanup each is rechecked for authoring
+on its own merits. The double-prefix half is a real scoring rule that governs
+every "Double X" reading, and it overlaps the terraging arithmetic, so settling it
+also bears on that rider.
+
+**The double-prefix question (Red).** When "double" applies an operation twice,
+what does it contribute: exactly twice the operation's own ADD, or twice plus a
+linking cost for joining the two repetitions? The repository holds conflicting
+signals rather than an answer. The operator authority records the identity double
+pixie = terraging, but the pixie-to-terraging arithmetic does not settle to a
+single number: a pixie contributes one, so two pixies would suggest two, while
+terraging's registry value is three and the expert reading is four. Whether
+doubling contributes exactly twice, or twice plus a joining cost, is what those
+two-versus-three-versus-four signals leave open. It is the same unresolved tension
+as the terraging-chain arithmetic rider, so the two are best answered together
+rather than in isolation.
+
+**The count-quantifier half (internal, not Red).** The `double-dex` and
+`triple-dex` rows need no scoring ruling: their dexes already count as brackets.
+The work is an internal renderer and parser cleanup so a count token renders
+distinctly from an operator. This removes the rows from the Red packet; it does
+not make them authorable. Once the cleanup lands, each count-quantifier row is
+rechecked for authoring on its own merits.
+
+**Records-only note.** Double Dyno and Double Whip are records-only questions:
+each blocks a world-record badge, not a dictionary row, and they are already
+tracked with the unresolved world-record videos. They ride the same double-prefix
+reading but are not double-tracked here.
+
+**Recommendation.** Two dispositions, not one ruling. First, remove the
+count-quantifier rows from the Red ask and route them to the internal renderer and
+parser cleanup; nothing there is a movement-language question, and each row is
+rechecked for authoring only after that cleanup. Second, carry the double-prefix
+scoring as a Red question paired with the terraging-chain arithmetic, because the
+double pixie = terraging identity makes them one problem. No single scoring value
+is recommended, because the repository evidence is the very
+two-versus-three-versus-four inconsistency the ruling must resolve.
+
+**Scope.** This disposition rules only the double-prefix reading and the routing
+of the count-quantifier rows. It does not resolve the terraging arithmetic itself
+(its own rider), applies no renderer or parser fix here, authors nothing, and does
+not touch path/catch encoding, Zulu, Weaving, the cross-body rake, or operator
+definitions.
+
 ## Worked examples
 
 - **Atom Smasher = 4.** Atomic (+1) plus mirage (2) plus an `[XDEX]` (+1) on the

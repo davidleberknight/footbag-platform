@@ -95,7 +95,9 @@ packet, send or resend it to Red, and then update each item's delivery status fr
    - Motorfly (a memory check: PassBack carries the name with no technical name,
      and nothing else anywhere);
    - "Double Dyno" and "Double Whip" ("double" is a structural prefix and the
-     "(rev)" reading is ambiguous);
+     "(rev)" reading is ambiguous; the general double-prefix scoring reading, and
+     the routing of the count-quantifier rows to internal renderer and parser
+     cleanup, are drafted as a disposition in the Scoring paper);
    - "Stepping Ducking Blurry Whirl" (the folk name reads four operators at 6 ADD,
      the structured name two operators at 5);
    - slicing (Lawn Moir's base reading, if its FootbagMoves-notation authoring
