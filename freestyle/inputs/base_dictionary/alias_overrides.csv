@@ -1,0 +1,41 @@
+alias_slug,action,alias_type,alias_display,note
+alpine_plo,retype,technical,0,abbreviation for pixie_ducking_legover
+atomic_dlo,retype,suppressed,0,points to inactive trick atomic_double_leg_over
+atomic_dod,retype,technical,0,abbreviation for fusion
+back,delete,,,junk alias to inactive/notation-phrase (back)
+blurry_dlo,retype,technical,0,abbreviation for fog
+blury_whirl,retype,typo,0,misspelling of blurry_whirl
+datw,retype,technical,0,abbreviation for double_around_the_world
+datw_heel,retype,technical,0,abbreviation for double_around_the_world_heel
+ddd,retype,technical,0,abbreviation for down_double_down
+dlo,retype,technical,0,abbreviation for double_leg_over
+dod,retype,technical,0,abbreviation for double_over_down
+dso,retype,technical,0,abbreviation for double_switch_over
+foot_processor,retype,typo,0,misspelling of food_processor
+front,delete,,,junk alias to inactive/notation-phrase (front)
+gyro_dlo,retype,technical,0,abbreviation for gyro_double_leg_over
+m_bius,retype,typo,0,misspelling of mobius
+moebius,retype,typo,0,misspelling of mobius
+no_plant_while,delete,,,junk alias to inactive/notation-phrase (no plant while)
+paradox_dlo,retype,technical,0,abbreviation for paradox_double_leg_over
+paralax,retype,typo,0,misspelling of parallax
+pdx_blender,retype,technical,0,abbreviation for paradox_blender
+pdx_drifter,retype,technical,0,abbreviation for paradox_drifter
+pdx_mirage,retype,technical,0,abbreviation for paradox_mirage
+pdx_symposium_whirl,retype,technical,0,abbreviation for paradox_symposium_whirl
+pdx_torque,retype,technical,0,abbreviation for paradox_torque
+pdx_whirl,retype,technical,0,abbreviation for paradox_whirl
+pixie_dlo,retype,technical,0,abbreviation for smog
+pixie_dso,retype,technical,0,abbreviation for pixie_double_switch_over
+plo,retype,technical,0,abbreviation for pixie_legover
+pogo_dlo,retype,technical,0,abbreviation for pogo_double_leg_over
+ps_whirl,retype,technical,0,abbreviation for paradox_symposium_whirl
+revup,retype,suppressed,0,points to inactive trick rev_up
+shooting_dlo,retype,technical,0,abbreviation for shooting_double_leg_over
+spyro_pickup,retype,suppressed,0,points to inactive trick pandora
+stepping_dlo,retype,technical,0,abbreviation for haze
+stepping_ducking_ps_whirl,retype,technical,0,abbreviation for stepping_ducking_paradox_symposium_whirl
+stepping_op_squeeze,retype,suppressed,0,points to inactive trick miraging_pincher
+symposium_ddd,retype,technical,0,abbreviation for shaft
+symposium_dod,retype,technical,0,abbreviation for blackula
+symposium_wirl,retype,typo,0,misspelling of symposium_whirl

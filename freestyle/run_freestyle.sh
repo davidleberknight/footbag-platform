@@ -41,6 +41,9 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 "${PY}" "${L}/20_link_footbag_org_sources.py"       --db "${DB}"
 "${PY}" "${L}/21_load_footbag_org_pending_tricks.py" --db "${DB}"
 
+# Curated alias-type / display overrides, applied after every alias source loader.
+"${PY}" "${L}/21b_apply_alias_overrides.py"         --db "${DB}"
+
 # Legacy footbag.org Member Tips (community advice; display-only, never doctrine).
 # Runs after the dictionary loaders so every trick slug exists for mapping.
 "${PY}" "${L}/27_load_trick_tips.py"                --db "${DB}"
