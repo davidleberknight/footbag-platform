@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1361;
+export const TRACKED_UNPUBLISHED_TOTAL = 1353;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -630,9 +630,7 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: '84 / Wiggle Walk', slug: '84_wiggle_walk' },
     { displayName: 'Aeon Flux / Nucleosis', slug: 'aeon_flux_nucleosis' },
     { displayName: 'Alex Zerbe is the greatest', slug: 'alex_zerbe_is_the_greatest', operationalNotation: 'Clip >> (back) Spin (BOD) >> (no plant while) Same In (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Amadeus', slug: 'amadeus', operationalNotation: 'Clip >> (back) Spin (BOD) >> Same In (DEX) > Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Apocalypse', slug: 'apocalypse', operationalNotation: 'Toe > Same In (DEX) >> Op In (DEX) > (no plant while) Op In (DEX)(XDEX)(BOD) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Arachnophobia', slug: 'arachnophobia', operationalNotation: 'Clip > Op In (DEX) >> Dive (BOD) >> Same In (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Arctic Butterfly', slug: 'arctic_butterfly' },
     { displayName: 'Arcwalk', slug: 'arcwalk', operationalNotation: 'Frigidosis > Same In (DEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
     { displayName: 'Atomic Ducking Double Legover', slug: 'atomic_ducking_double_legover' },
@@ -646,7 +644,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Barraging ss Double Double Down', slug: 'barraging_ss_double_double_down' },
     { displayName: 'Big Apple Sauce / Chilly Pilly Sauce', slug: 'big_apple_sauce_chilly_pilly_sauce' },
     { displayName: 'Bill & Ted`s Bogus Journey', slug: 'bill_&_ted`s_bogus_journey', operationalNotation: 'Toe > (no plant while) Op Out (DEX)(BOD) >> (no plant while) Same In (DEX)(BOD) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Blacula', slug: 'blacula', operationalNotation: 'Toe >> (no plant while) Op Out (DEX)(BOD) > Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Blurry Barrage', slug: 'blurry_barrage' },
     { displayName: 'Blurry Chainsaw Massacre', slug: 'blurry_chainsaw_massacre', operationalNotation: 'Clip >> Op Out (DEX) >> (no plant while) Op Out (DEX)(XDEX)(PDX)(BOD) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Blurry Double Legover', slug: 'blurry_double_legover' },
@@ -679,10 +676,8 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Compound Fracture', slug: 'compound_fracture', operationalNotation: 'Toe > (rooted) Same In (DEX)(BOD) > Op In (DEX) >> Same In (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Conniption City', slug: 'conniption_city', operationalNotation: 'Toe > Op In (DEX) >> (no plant while) Op In (DEX)(XDEX)(BOD) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Cristal', slug: 'cristal', operationalNotation: 'Toe > Op In (DEX) >> Duck (BOD) >> Op Front Whirl (DEX)(XDEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Croissant', slug: 'croissant', operationalNotation: 'Toe > Same In (DEX) >> (no plant while) Op Front Whirl (DEX)(BOD) > Op Back Swirl (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Croxton', slug: 'croxton', operationalNotation: 'Clip > (no plant while) Op Front Whirl (DEX)(BOD) > Op Back Swirl (DEX) >> Op In (DEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Cyborg', slug: 'cyborg', operationalNotation: 'Clip > Op In (DEX) >> Duck (BOD) >> Op Out (DEX) > Op Back Swirl (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Cyclone', slug: 'cyclone', operationalNotation: 'Clip > Op In (DEX) > Op Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Dellusion', slug: 'dellusion', operationalNotation: 'Toe >> Op Out (DEX) > Same Out (DEX)(XDEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Desien', slug: 'desien', operationalNotation: 'Toe > Same In (DEX) > Op Out (DEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Dorshatrix', slug: 'dorshatrix', operationalNotation: 'Toe > (rooted) Same In (DEX)(BOD) > Op Out (DEX) >> Op In (DEX)(XDEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
@@ -707,7 +702,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Dwirl', slug: 'dwirl', operationalNotation: 'Clip >> Same Front Swirl (DEX) > Same Front Swirl (DEX)(XDEX) > (back) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Dyno (far)', slug: 'dyno_far', operationalNotation: 'Clip >> Op Back Whirl (DEX) > (back) Spin (BOD) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'E-Walk', slug: 'e_walk', operationalNotation: 'Toe > Same In (DEX) > Op In (DEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Eggplant', slug: 'eggplant', operationalNotation: 'Toe > Op Out (DEX) >> Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Ego / Tamboura', slug: 'ego_tamboura' },
     { displayName: 'Fairy Crossbody Rake', slug: 'fairy_crossbody_rake' },
     { displayName: 'Fairy Legover (same side)', slug: 'fairy_legover_same_side' },
@@ -756,7 +750,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Fyro Double Legover', slug: 'fyro_double_legover' },
     { displayName: 'Fyro Mirage', slug: 'fyro_mirage' },
     { displayName: 'Fyro Torque', slug: 'fyro_torque' },
-    { displayName: 'Gilan', slug: 'gilan', operationalNotation: 'Toe > Same In (DEX) >> (back) Spin (BOD) >> Op In (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Glaucoma', slug: 'glaucoma', operationalNotation: 'Toe > Same Out (DEX) >> Same In (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Grifter (same side)', slug: 'grifter_same_side', operationalNotation: 'Clip >> Op Out (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Guillotine / Cower', slug: 'guillotine_cower' },
@@ -971,7 +964,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Wookie', slug: 'wookie', operationalNotation: 'Toe > Same In (DEX) > (no plant while) Op In (DEX)(BOD) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Your Mom', slug: 'your_mom', operationalNotation: 'Toe > Op Out (DEX) >> (no plant while) Op Out (DEX)(XDEX)(BOD) > Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Your Sister', slug: 'your_sister', operationalNotation: 'Toe > (no plant while) Op Out (DEX)(BOD) >> (no plant while) Same Out (DEX)(XDEX)(BOD) > Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Zig Zag', slug: 'zig_zag', operationalNotation: 'Clip > Same Back Swirl (DEX) >> Same Front Swirl (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Zipper Stepping Op Butterfly Zipper', slug: 'zipper_stepping_op_butterfly_zipper' },
     { displayName: 'Zipwalk', slug: 'zipwalk', operationalNotation: 'XBD Toe > Op In (DEX) >> Op Out (DEX) > Op XBD Toe (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'low' },
     { displayName: 'Zulu Le Loup', slug: 'zulu_le_loup', operationalNotation: 'Clip >> Dive (BOD) >> Op Out (DEX) > Op Clip (XBD)(DEL)[/quote]', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
