@@ -32,7 +32,9 @@ applied at scoring time but not itself a scoring rule.
   paradox plus a downtime illusion (+2); furious is a two-dex uptime set (+2),
   scored by its components. Barraging is distinct from furious by timing and should
   be scored from its own bracketed components when present, not treated as another
-  name for furious.
+  name for furious. A further batch of recognized operators has no such
+  decomposition yet and cannot be scored until defined; they are collected in the
+  undefined-operator ask below.
 
 ## Open questions
 
@@ -132,6 +134,63 @@ beside Paradox Ripwalk, Blizzard beside Paradox Blizzard) and applies "blurry"
 non-uniformly across its own canonicals. Ruling 2 extends that model; Ruling 1
 would contradict the existing no-paradox canonicals and collapse those
 distinctions.
+
+## Proposed ask: undefined-operator structural definitions
+
+Unlike the ruling above, this section carries no repository recommendation: the
+operators below have no structural evidence to reason from, so it is a Red ask
+prioritized by the audit's row counts, not a proposed ruling.
+
+**The issue.** A group of recognized operator tokens appear as prefixes on
+ordinary bases but have no settled definition in the operator authority: no ADD
+contribution, no structure, no compositional behavior. Because a composite scores
+as the sum of its parts, a compound built on an undefined operator can be neither
+scored nor authored. The audit of the observational surface counted how many held
+rows each one blocks.
+
+**Why it matters.** These nine operators block about 56 held rows between them,
+and each is a prefix, so one definition unlocks a whole family of compounds at
+once. Until an operator is defined, none of its compounds can be given an ADD or
+published.
+
+**The operators, by rows blocked (highest first).**
+
+- symple (11): prefixes butterfly, guay, legover, pickup, mirage.
+- slapping (9): prefixes butterfly, drifter, guay, mirage, osis, pickup. Already
+  named in the Red queue's operator-definition item; the open half is whether
+  slapping is the prefix form of the outside reference's bare "Slap."
+- fusing (6): prefixes butterfly, legover, mirage, pickup, and same-side forms.
+- phasing (6): prefixes blender, pickup, swirl, dyno, mirage, mostly same-side and
+  near forms.
+- frantic (5): prefixes butterfly, flail, illusion, mirage, pickup. Already named
+  as a qualifying set in this paper's X-Dex premise, so it is partly specified as
+  a set that triggers the cross-dex bonus; its own ADD and structure remain
+  undefined.
+- railing (5): prefixes butterfly, illusion, legover, mirage, and a ducking form.
+- slaying (5): prefixes butterfly, illusion, mirage, flail, symposium mirage.
+- sonic (5): prefixes illusion, legover, mirage, pickup, torque.
+- twinspinning (4): prefixes illusion, legover, pickup, mirage. The name suggests
+  a two-spin structure, but that is a reading to confirm, not a settled
+  definition.
+
+**The ask.** For each operator: what is its ADD contribution, what does the body
+do (its structure), and how does it compose (does it stack, does it carry a dex of
+its own, does it interact with the cross-dex rule)? Two carry a specific starting
+point rather than a blank slate: slapping (confirm or deny that it is the prefix
+form of the outside "Slap"), and frantic (define it as an operator consistent with
+its existing role as a qualifying set in the cross-dex rule). The other seven are
+open.
+
+**What a definition produces.** Once an operator is defined, its held compounds
+become scorable and authorable; any that turn out to duplicate an existing
+structure become alias cleanup instead. No definition is proposed here, because
+the repository holds no structural evidence for these operators (only slapping
+carries derivation notes, and frantic a partial set role).
+
+**Scope.** This covers only the recognized-but-undefined prefix operators the
+audit surfaced, as one operator-definition ask prioritized by row count. It does
+not touch path/catch encoding, Zulu, Weaving, the cross-body rake, or the identity
+and notation axioms, and it proposes no definitions.
 
 ## Worked examples
 

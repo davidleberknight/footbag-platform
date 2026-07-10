@@ -63,6 +63,12 @@ packet, send or resend it to Red, and then update each item's delivery status fr
      prefix form?
    - **blistering** — open since the pt9 batch answered its paired question
      (sailing) but not this one.
+
+   A broader batch of recognized-but-undefined prefix operators surfaced by the
+   observational audit (symple, fusing, phasing, frantic, railing, slaying, sonic,
+   twinspinning, and slapping again), whose ADDs are not yet evidenced, is drafted
+   as an ask in the Scoring paper, prioritized by the number of rows each blocks.
+   That section is the delivery vehicle for this broader batch.
 4. **The cross-body rake base and the crossbody register** — what the xbd-rake base
    is structurally (Snowflake needs it now; a ~47-slug parser-section drain follows
    later).
