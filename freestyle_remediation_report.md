@@ -35,7 +35,7 @@ An effort-ordered view over the still-open freestyle backlog, to work easiest sa
 
 ### 1. Fast / low-risk closures
 - FS-44 — remove the dead modifier-teaching branch. **S.** Delete the unreachable `{{#unless content.definition}}` branch and its now-unused fields/types, and fix the stale "only spinning exists" comment.
-- FS-41 — Barfly terminal bracket-order polish. **S.** Normalize `OP CLIP [DEL] [XBD]` to `[XBD] [DEL]` in the family-card content and the stored row (the stored row needs a rebuild to land).
+- FS-41 — Barfly terminal bracket-order polish. **S. CLOSED (confirmed intentional).** The reversed `[DEL] [XBD]` terminal is curator-preserved across ~15 Red-curated barfly-chassis rows, so it is NOT normalized. Added a one-line reader note on the barfly family card; stored rows and Red CSVs left untouched.
 - FS-08 — remove delivery/phase labels. **S. CLOSED.** Renamed `RESOLVED_FORMULAS_SPRINT_1` to `RESOLVED_ADD_FORMULAS` across its call sites, removed the "Phase E" observational header at the generator and in the generated file's header line, and dropped the caller-reference comment.
 - FS-12 — trick-detail empty-state test. **S.** One integration test for a trick page rendering coherently with zero records and zero media.
 - FS-11 — remaining loader safety test. **S.** One pytest pinning loader-19's scoped-delete survival (other sources' rows untouched).
@@ -678,7 +678,7 @@ RESOLVED (2026-07-09, V1 ruling). For V1 the model stands as-is: Far Butterfly s
 P3 (post-V1, parked) | data/notation | owner: James | new-from-audit: yes (post-audit consistency slice)
 Context: the barfly family-card `canonicalFormula` (and the matching stored row) terminates in `OP CLIP [DEL] [XBD]`, the reverse of the standard `[XBD] [DEL]` order used elsewhere. Cosmetic; no ADD or structural impact.
 Done: the barfly terminal bracket order is normalized to `[XBD] [DEL]`, or the reversed order is confirmed intentional.
-Status (2026-07-09): verified still unapplied. The stored `freestyle_tricks.barfly` row and the family-card notation in `src/content/freestyleGlossaryFamilyCards.ts` both terminate in `OP CLIP [DEL] [XBD]`, the reverse of the standard `[XBD] [DEL]` order used by every other trick. This is non-blocking data/notation polish (cosmetic; no ADD or structural impact), not a doctrine question and not a launch blocker; it stays open only as parked polish.
+Status: CLOSED. Confirmed intentional: Barfly preserves its unusual terminal `[DEL] [XBD]` order. No notation normalization for V1. The reversed order is not an accidental artifact: it is seeded from a curator-reviewed source and preserved explicitly across roughly fifteen barfly-chassis rows in the curated Red corrections and additions (their notes read "Preserves barfly's unusual `[DEL] [XBD]` terminal order"), so Red's curated notation wins over the general cosmetic `[XBD] [DEL]` convention, and the ADD is identical either way. The stored notation rows and Red correction CSVs are deliberately left untouched. A single reader-facing clarifying sentence was added to the barfly family card's notation intro so the unusual order does not read as an error. Any future global normalization is a family-wide doctrine change routed to Red, not mechanical polish.
 
 **FS-42 — Polish: Orbit atom label calls itself an "alias" of reverse Around the World**
 P3 (post-V1, parked) | copy | owner: James | new-from-audit: yes (post-audit consistency slice)
