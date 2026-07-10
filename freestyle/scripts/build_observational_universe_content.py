@@ -51,7 +51,7 @@ OUT = REPO / "src/content/freestyleObservationalUniverse.ts"
 # separation forbids one slug in both). Mirrors the dual-gate in
 # build_tracked_names_content.py so a promoted slug leaves this surface on the
 # next regen even when the upstream packet CSVs still list it.
-TRICKS_CSV = FREESTYLE / "inputs/noise/tricks.csv"
+TRICKS_CSV = FREESTYLE / "inputs/base_dictionary/tricks.csv"
 RED_ADD_CSV = FREESTYLE / "inputs/curated/tricks/red_additions_2026_04_20.csv"
 # Live platform DB: authoritative canonical/alias gate (see build_tracked_names_content.py).
 DB = REPO / "database/footbag.db"

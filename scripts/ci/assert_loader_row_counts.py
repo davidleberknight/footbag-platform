@@ -47,11 +47,11 @@ EXPECTATIONS: list[Expectation] = [
     # Step 5: 11_load_consecutive_records_to_sqlite.py
     Expectation("consecutive_kicks_records", 10, "from committed consecutives_records.csv"),
     # Step 6: 17_load_trick_dictionary.py
-    Expectation("freestyle_tricks", 30, "from committed inputs/noise/tricks.csv + script 19"),
-    Expectation("freestyle_trick_modifiers", 5, "from committed inputs/noise/trick_modifiers.csv"),
+    Expectation("freestyle_tricks", 30, "from committed inputs/base_dictionary/tricks.csv + script 19"),
+    Expectation("freestyle_trick_modifiers", 5, "from committed inputs/base_dictionary/trick_modifiers.csv"),
     Expectation("freestyle_trick_sources", 1, "scripts 17/19/20 register source rows"),
     Expectation("freestyle_trick_source_links", 5, "per-trick provenance from 17/19; 20 layers more"),
-    Expectation("freestyle_trick_aliases", 5, "from committed inputs/noise/trick_aliases.csv"),
+    Expectation("freestyle_trick_aliases", 5, "from committed inputs/base_dictionary/trick_aliases.csv"),
     # Step 7: 19_load_red_additions.py
     Expectation("freestyle_trick_modifier_links", 1, "Red expert-review modifier links"),
     # Step 12: load_name_variants_seed.py

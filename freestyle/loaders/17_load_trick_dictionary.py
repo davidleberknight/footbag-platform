@@ -8,9 +8,9 @@ Script 17: Load freestyle trick dictionary, modifier reference, aliases, and
 curated-v1 provenance into SQLite (schema v2.1).
 
 Reads:
-  freestyle/inputs/noise/tricks.csv          → freestyle_tricks (74 rows)
-  freestyle/inputs/noise/trick_modifiers.csv → freestyle_trick_modifiers
-  freestyle/inputs/noise/trick_aliases.csv   → freestyle_trick_aliases
+  freestyle/inputs/base_dictionary/tricks.csv          → freestyle_tricks (74 rows)
+  freestyle/inputs/base_dictionary/trick_modifiers.csv → freestyle_trick_modifiers
+  freestyle/inputs/base_dictionary/trick_aliases.csv   → freestyle_trick_aliases
 
 Writes: database/footbag.db
   - freestyle_tricks (DELETE + INSERT)
@@ -53,9 +53,9 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
 REPO_ROOT = SCRIPT_DIR.parents[1]  # scripts/ → event_results/ → legacy_data/ → repo root
-TRICKS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "noise" / "tricks.csv"
-MODIFIERS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "noise" / "trick_modifiers.csv"
-ALIASES_CSV = SCRIPT_DIR.parents[0] / "inputs" / "noise" / "trick_aliases.csv"
+TRICKS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "tricks.csv"
+MODIFIERS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "trick_modifiers.csv"
+ALIASES_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "trick_aliases.csv"
 
 CURATED_V1_SOURCE_ID = "curated-v1"
 CURATED_V1_RETRIEVED_AT = "2026-04-20T00:00:00.000Z"

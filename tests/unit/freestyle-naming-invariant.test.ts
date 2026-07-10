@@ -20,7 +20,7 @@ import { join, resolve } from 'node:path';
 import { trickNameToSlug } from '../../src/services/freestyleRecordShaping';
 
 const REPO_ROOT = resolve(__dirname, '../..');
-const BASE_CSV = join(REPO_ROOT, 'freestyle/inputs/noise/tricks.csv');
+const BASE_CSV = join(REPO_ROOT, 'freestyle/inputs/base_dictionary/tricks.csv');
 const ADDITIONS_CSV = join(REPO_ROOT, 'freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv');
 const CORRECTIONS_CSV = join(REPO_ROOT, 'freestyle/inputs/curated/tricks/red_corrections_2026_04_20.csv');
 const EXCEPTIONS_CSV = join(REPO_ROOT, 'freestyle/inputs/curated/tricks/display_name_exceptions.csv');

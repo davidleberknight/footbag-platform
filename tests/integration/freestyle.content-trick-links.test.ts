@@ -32,7 +32,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 const REPO_ROOT = resolve(__dirname, '../..');
 const SRC_ROOT = join(REPO_ROOT, 'src');
 const DICTIONARY_CSVS = [
-  join(REPO_ROOT, 'freestyle/inputs/noise/tricks.csv'),
+  join(REPO_ROOT, 'freestyle/inputs/base_dictionary/tricks.csv'),
   join(REPO_ROOT, 'freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv'),
 ];
 

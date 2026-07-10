@@ -104,7 +104,7 @@ describe('whirl, swirl and drifter family cards use entry-generic wording', () =
 
 describe('the modifier seed notes keep atomic and furious distinct from their neighbours', () => {
   const seed = readFileSync(
-    new URL('../../freestyle/inputs/noise/trick_modifiers.csv', import.meta.url),
+    new URL('../../freestyle/inputs/base_dictionary/trick_modifiers.csv', import.meta.url),
     'utf8',
   );
   it('the atomic note does not say illusioning is a presentation of atomic', () => {

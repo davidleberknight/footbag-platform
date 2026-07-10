@@ -50,7 +50,7 @@ DB = REPO / 'database/footbag.db'
 # governance_state. Filtering against these as a second gate prevents
 # stale rows from leaking onto the observational page when the
 # reconciliation audit is out of sync with the canonical CSVs.
-TRICKS_CSV = FREESTYLE / 'inputs/noise/tricks.csv'
+TRICKS_CSV = FREESTYLE / 'inputs/base_dictionary/tricks.csv'
 RED_ADD_CSV = FREESTYLE / 'inputs/curated/tricks/red_additions_2026_04_20.csv'
 
 SOURCE_PRIORITY = ['footbagmoves', 'fborg', 'passback', 'curator']
