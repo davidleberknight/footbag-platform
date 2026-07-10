@@ -13,7 +13,7 @@ per-row provenance lives where each ruling is applied.
 
 - **Operator ADD values, structure, X-Dex behavior:**
   `src/content/freestyleOperatorReference.ts` is the single authority, mirrored on
-  the data side by `freestyle/inputs/noise/trick_modifiers.csv`. This ledger names
+  the data side by `freestyle/inputs/base_dictionary/trick_modifiers.csv`. This ledger names
   which operators carry expert rulings; it never duplicates their values.
 - **Per-row rulings (identities, equivalences, ADDs, structures):** the provenance
   notes on the rows themselves in

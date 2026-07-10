@@ -28,7 +28,7 @@ compounds (weaving clipper = ducking clipper, weaving butterfly = ducking
 butterfly, same values), demonstrating that the distinguishing launch detail is
 ADD-neutral for Weaving. Zulu is the sibling ducking set and takes the same equality
 by ruling; its modifier row is registered alongside weaving's in
-`freestyle/inputs/noise/trick_modifiers.csv` so the ADD math derives Zulu compounds
+`freestyle/inputs/base_dictionary/trick_modifiers.csv` so the ADD math derives Zulu compounds
 as base plus the duck, equal to the Ducking compound. Operator values live in
 `src/content/freestyleOperatorReference.ts` and the modifier registry, not here.
 

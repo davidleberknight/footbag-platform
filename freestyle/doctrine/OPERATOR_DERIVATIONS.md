@@ -13,7 +13,7 @@ derived only when independent evidence converges and a competing reading is
 positively excluded; where evidence ran out, the item stays with the expert or the
 curator and says so. Operator ADD values themselves live in
 `src/content/freestyleOperatorReference.ts` and the
-`freestyle/inputs/noise/trick_modifiers.csv` registry; this document records the
+`freestyle/inputs/base_dictionary/trick_modifiers.csv` registry; this document records the
 derivations and their proofs.
 
 ## Alpine = the ducking prefix

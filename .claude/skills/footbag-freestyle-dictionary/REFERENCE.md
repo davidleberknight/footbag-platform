@@ -24,7 +24,7 @@ active rows or normalizing future ones:
 
 Descriptions live in two CSVs, both loaded into `freestyle_tricks.description`:
 
-- `freestyle/inputs/noise/tricks.csv` — canonical baseline, loaded by `freestyle/loaders/17_load_trick_dictionary.py`. Holds most active tricks. Rows with commas must be CSV-quoted.
+- `freestyle/inputs/base_dictionary/tricks.csv` — canonical baseline, loaded by `freestyle/loaders/17_load_trick_dictionary.py`. Holds most active tricks. Rows with commas must be CSV-quoted.
 - `freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv` — Red Husted overlays, loaded by `freestyle/loaders/19_load_red_additions.py`. Holds body primitives, set primitives, and a handful of compounds.
 
 **Never write descriptions directly to `database/footbag.db`**: `scripts/reset-local-db.sh` wipes them on next reload. Edit the canonical CSV; verify by running script 17 (and 19 if applicable) against a fresh schema-only temp DB before claiming the change is durable.
