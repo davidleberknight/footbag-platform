@@ -21,9 +21,13 @@ inherits them.
   caps (`SPIN`, `DUCK`, `JUMP`); parenthetical annotations are lowercase
   (`(back)`, `(no plant while)`, `(land)`). `>>` is a major sequence boundary,
   `>` a continuous sub-step; the two never collapse.
-- **Twelve core atoms terminate every trick.** Toe-stall, clipper-stall,
-  around-the-world, orbit, legover, pickup, mirage, illusion, butterfly, osis,
-  whirl, swirl. Every canonical trick resolves to one of these.
+- **The twelve core atoms are the foundational terminal vocabulary.** Toe-stall,
+  clipper-stall, around-the-world, orbit, legover, pickup, mirage, illusion,
+  butterfly, osis, whirl, swirl. Many tricks terminate directly in one of them,
+  while others terminate in named bases, composite catches, rakes, kicks, body
+  contacts, or other structures that may decompose through or build on the core
+  vocabulary. Every canonical trick still needs a terminal contact or terminal
+  resolution, but that terminal is not always itself one of the twelve core atoms.
 
 ## Open questions
 
@@ -117,6 +121,82 @@ other notation axioms (the embedded-base coordinate frame, the butterfly default
 side, whether cross-body encodes opposite-side, the osis spin-to-catch
 relationship) and creates no new Red question beyond the existing
 record-versus-convention item.
+
+## Proposed framing: the path/catch encoding standard
+
+This section frames a notation gap; it proposes no tokens and no parser change.
+
+**The problem.** A trick needs a terminal: the contact or resolution where the
+movement ends. The notation writes a terminal as a catch (a side, an optional
+cross-body flag, a delay or kick, for example `OP CLIP [XBD] [DEL]`). The twelve
+core atoms are the foundational terminal vocabulary, but they are not the whole
+terminal universe: a trick can also terminate in a named base, a composite catch,
+a rake, a kick, or another non-core terminal structure. What the notation lacks is
+a general standard for two things when a name is not a simple base: which contact
+in a multi-contact name is the terminal, and how the bag reaches it (its path).
+Where those are unstated, the terminal mechanic is ambiguous and the parser cannot
+resolve it. About 103 held rows carry this classification.
+
+**The right question, and the four cases.** The useful test is not "does the name
+end in a core atom?" but "does the terminal phrase resolve to a known movement
+structure?" By that test the band is four cases:
+
+1. Core-atom terminal, path or role ambiguous (about 31). The terminal is a
+   foundational atom (Butterfly Reverse Swirl, Drifter Swirl, Nemesis Osis). The
+   catch is known; what is unresolved is which atom is the terminal versus an
+   operator or intermediate contact, or how it is reached. Some also carry an
+   undefined leading operator, so encoding alone does not finish them.
+2. Resolved non-core terminal or named base (about 45). The terminal is a
+   legitimate known structure that is not a core atom (motion, grifter, baroque,
+   swivel, flapper, eggbeater, rake, twirl, atom smasher, the double-leg-over
+   shorthands). These are not invalid; they need decomposition of the named
+   terminal and an encoded catch, not identity dismissal.
+3. Folk-name or unmapped terminal (about 17). The terminal word is not yet mapped
+   to any known structure (curve, massacre, firewalk, tale, spitfire), including a
+   few misspellings and compression artifacts (buterfly, tomahwak, symp.mirage).
+   These are genuine identity or source questions.
+4. Incomplete operator-ending name (about 10). The name ends in an operator or
+   modifier with no terminal contact at all (Diving, Inspinning, Fairy Spinning,
+   Miraging). The name may be incomplete or a shorthand for a fuller form.
+
+**What this means for the lever.** The terminal resolves to a known structure in
+cases 1 and 2, about 76 rows. That is where the path/catch work genuinely bears:
+encoding the path and terminal role for the known-atom cases, and decomposing the
+named non-core terminals so their catch can be written. Cases 3 (about 17) and 4
+(about 10) are not notation-encoding problems; they are identity/source and
+completeness questions upstream. So the standard's real reach is the roughly 76
+resolvable-terminal rows, larger than a core-atom-only reading suggests and
+smaller than treating all 103 as a single notation unlock, and it is a design plus
+parser-implementation and decomposition effort, not a yes/no ruling.
+
+**The Red notation-design question.** For the resolvable-terminal cases: what is
+the standard for marking which contact in a multi-contact name is the terminal,
+and for encoding the path by which the bag reaches it, including terminals that are
+named bases or non-core structures rather than one of the twelve atoms? This sits
+alongside the paper's existing atom-level catch questions (whether cross-body fixes
+the side, how an osis relates its spin to its catch), which are specific cases of
+the same terminal-mechanic family; it does not reopen them, and it does not assume
+the twelve atoms are the whole terminal vocabulary.
+
+**Consequences.** A path/catch standard, its parser implementation, and
+decomposition of the named terminals reclassify the resolvable subset: some rows
+resolve to an existing canonical (alias cleanup), some become authorable, some stay
+pending their operator. The folk-terminal and operator-ending cases are routed to
+identity and completeness work and are out of this section's scope. No authoring
+follows automatically: each reclassified row is rechecked on its own merits after
+the standard, the parser change, and any decomposition land.
+
+**Recommendation.** No encoding standard is proposed here: the rule is Red's design
+call, and inventing tokens would be structure-invention the movement-language
+standard forbids. The section states the gap precisely, applies the
+resolves-to-a-known-structure test rather than a core-atom test, scopes the genuine
+notation-encoding-and-decomposition work to the resolvable-terminal subset, and
+routes the unmapped and incomplete cases to identity and completeness work.
+
+**Scope.** This section frames only the path/catch terminal-mechanic encoding gap
+and its reach. It applies no parser change, authors nothing, proposes no encoding
+tokens, and does not touch Zulu, Weaving, the cross-body rake, operator
+definitions, or the blurry and paradox rulings.
 
 ## Worked examples
 
