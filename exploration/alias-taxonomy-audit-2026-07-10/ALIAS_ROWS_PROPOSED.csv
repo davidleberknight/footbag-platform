@@ -1,0 +1,382 @@
+alias_text,target_slug,target_active,proposed_alias_type,proposed_alias_display,reason,action
+2 bag juggle,2_bag_juggling,1,common,True,synonym,keep
+3 bag juggle,3_bag_juggling,1,common,True,synonym,keep
+3atw,triple_around_the_world,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+69,nuclear_drifter,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+Dasein,sailing_butterfly,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+Dominatrix,sailing_mirage,1,common,True,synonym,keep
+Fracture,sailing_double_leg_over,1,common,True,synonym,keep
+Frantic Legover,pixie_quantum_legover,1,structural,True,decomposition-phrase,keep (curator confirm display)
+Godzilla,nuclear_dyno,1,common,True,synonym,keep
+Merlin,miraging_symposium_mirage,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+Sail Down,sailing_butterfly,1,common,True,synonym,keep
+Spyro Pickup,pandora,0,suppressed,False,inactive-target,suppress-or-repoint
+Stepping op Squeeze,miraging_pincher,0,suppressed,False,inactive-target,suppress-or-repoint
+Terminator,nuclear_double_leg_over,1,common,True,synonym,keep
+alpine atomsmasher,atomic_ducking_mirage,1,common,True,synonym,keep
+alpine fusion,id,1,common,True,synonym,keep
+alpine plo,pixie_ducking_legover,1,technical,False,abbreviation,"retype technical, display=false"
+alpine ripwalk,stepping_ducking_butterfly,1,common,True,synonym,keep
+alpine sidewalk,stepping_diving_butterfly,1,common,True,synonym,keep
+alpine spinning whirl,spinning_ducking_whirl,1,structural,True,decomposition-phrase,keep (curator confirm display)
+alpine super mario,spinning_ducking_symposium_torque,1,common,True,synonym,keep
+alpine superduperfly,spinning_ducking_superfly,1,common,True,synonym,keep
+alpine void,morpheus,1,common,True,synonym,keep
+alpine-big-apple,gyro_ducking_symposium_torque,1,common,True,synonym,keep
+armaggedon,miraging_symposium_eggbeater,1,common,True,synonym,keep
+assassin (ss),assassin_same_side,1,common,True,synonym,keep
+atomic dlo,atomic_double_leg_over,0,suppressed,False,inactive-target,suppress-or-repoint
+atomic dod,fusion,1,technical,False,abbreviation,"retype technical, display=false"
+atomic double leg over,predator,1,structural,True,decomposition-phrase,keep (curator confirm display)
+atomic double over down,fusion,1,structural,True,decomposition-phrase,keep (curator confirm display)
+atomic down-over-down,fusion,1,structural,True,decomposition-phrase,keep (curator confirm display)
+atomic ducking far double down,id,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+atomic ducking whirl,ego,1,structural,True,decomposition-phrase,keep (curator confirm display)
+atomic far double down,fusion,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+atomic gyro torque,irish_cream,1,structural,True,decomposition-phrase,keep (curator confirm display)
+atomic legover,eggbeater,1,structural,True,decomposition-phrase,keep (curator confirm display)
+atomic mirage,atom_smasher,1,structural,True,decomposition-phrase,keep (curator confirm display)
+atomic osis,flux,1,structural,True,decomposition-phrase,keep (curator confirm display)
+atomic pickup,omelette,1,structural,True,decomposition-phrase,keep (curator confirm display)
+atomsmasher,atom_smasher,1,common,True,canonical-spelling-variant,keep
+atw,around_the_world,1,common,True,synonym,keep
+atw heel,around_the_world_heel,1,common,True,synonym,keep
+atw kick,around_the_world_kick,1,structural,True,decomposition-phrase,keep (curator confirm display)
+back,spyro_illusion,0,suppressed,False,inactive-target,suppress-or-repoint
+backside symposium toe blur,quantum_symposium_mirage,1,structural,True,decomposition-phrase,keep (curator confirm display)
+bar fly,barfly,1,common,True,canonical-spelling-variant,keep
+baroque,barraging_osis,1,common,True,synonym,keep
+barraging far double down,nemesis,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+barraging near double down,archnemesis,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+barraging whirl,genesis,1,structural,True,decomposition-phrase,keep (curator confirm display)
+barroque,barraging_osis,1,common,True,synonym,keep
+big applesauce,spinning_miraging_symposium_torque,1,common,True,synonym,keep
+big orange,spinning_symposium_flux,1,common,True,synonym,keep
+blurr-iest,blurriest,1,common,True,canonical-spelling-variant,keep
+blurry barfly,blurriest,1,structural,True,decomposition-phrase,keep (curator confirm display)
+blurry blender,food_processor,1,structural,True,decomposition-phrase,keep (curator confirm display)
+blurry dim walk,fog,1,common,True,synonym,keep
+blurry dlo,fog,1,technical,False,abbreviation,"retype technical, display=false"
+blurry w,blurry_whirl,1,common,True,synonym,keep
+blurtigo,stepping_ducking_drifter,1,common,True,synonym,keep
+blury whirl,blurry_whirl,1,typo,False,misspelling,"retype typo, display=false"
+bw,blurry_whirl,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+cardinal swirl,triple_swirl,1,common,True,synonym,keep
+carousel,surging_ducking_paradox_symposium_whirling_rake,1,common,True,synonym,keep
+catwalk,eclipse,1,common,True,synonym,keep
+clipper delay,clipper_stall,1,common,True,synonym,keep
+clipper ducking far double down,spanishfly,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+clipper far symposium double down,superfly,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+clipper kick,clipper,1,structural,True,decomposition-phrase,keep (curator confirm display)
+clipper near symposium double down,shaft,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+clipper set ss symposium double over down,shaft,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+clipper stall (ss),clipper_stall,1,structural,True,decomposition-phrase,keep (curator confirm display)
+cloud delay,cloud_stall,1,common,True,synonym,keep
+clownface,barraging_eggbeater,1,common,True,synonym,keep
+creature,miraging_symposium_illusion,1,common,True,synonym,keep
+cross-body sole delay,cross_body_sole_stall,1,common,True,synonym,keep
+da-da-curve,dada_curve,1,common,True,canonical-spelling-variant,keep
+datw,double_around_the_world,1,technical,False,abbreviation,"retype technical, display=false"
+datw heel,double_around_the_world_heel,1,technical,False,abbreviation,"retype technical, display=false"
+ddd,down_double_down,1,technical,False,abbreviation,"retype technical, display=false"
+delusion,double_illusion,1,common,True,synonym,keep
+dim walk,dimwalk,1,common,True,canonical-spelling-variant,keep
+diving down double-down,down_diver,1,structural,True,decomposition-phrase,keep (curator confirm display)
+dlo,double_leg_over,1,technical,False,abbreviation,"retype technical, display=false"
+dod,double_over_down,1,technical,False,abbreviation,"retype technical, display=false"
+double atw,double_around_the_world,1,structural,True,decomposition-phrase,keep (curator confirm display)
+double atw heel,double_around_the_world_heel,1,common,True,synonym,keep
+double down near osis,motion,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+double infinity,barfly,1,suppressed,False,infinity-model-or-junk,curator-review
+double swirl,ripstein,1,structural,True,decomposition-phrase,keep (curator confirm display)
+double switchover,double_switch_over,1,common,True,canonical-spelling-variant,keep
+doublespinning kick,double_spin,1,common,True,synonym,keep
+dragonfly,dragonfly_kick,1,common,True,synonym,keep
+dso,double_switch_over,1,technical,False,abbreviation,"retype technical, display=false"
+ducking paradox whirl,tomahawk,1,structural,True,decomposition-phrase,keep (curator confirm display)
+dyno (op),dyno,1,common,True,synonym,keep
+eclipse (ss),eclipse_same_side,1,common,True,synonym,keep
+egg beater,eggbeater,1,common,True,canonical-spelling-variant,keep
+enterrage,terraging_legover,1,common,True,synonym,keep
+fairy beater,fairy_butterfly,1,common,True,synonym,keep
+fairy legover (ss),double_orbit,1,structural,True,decomposition-phrase,keep (curator confirm display)
+fairy pickup (ss),fairy_pickup_same_side,1,structural,True,decomposition-phrase,keep (curator confirm display)
+fairy spyro symposium torque,genuphobia,1,structural,True,decomposition-phrase,keep (curator confirm display)
+far butterfly,butterfly,1,suppressed,False,infinity-model-or-junk,curator-review
+fear,fairy_mirage,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+fission,barraging_illusion,1,common,True,synonym,keep
+flail (ss),flail,1,common,True,synonym,keep
+flailing ss symposium eggbeater,bill_ted_s_excellent_adventure,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+flapper,cross_body_sole_stall,1,common,True,synonym,keep
+flapper delay,cross_body_sole_stall,1,common,True,synonym,keep
+flapper stall,cross_body_sole_stall,1,structural,True,decomposition-phrase,keep (curator confirm display)
+flare,symposium_whirling_mirage,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+floating butterfly,floatation,1,structural,True,decomposition-phrase,keep (curator confirm display)
+foot processor,food_processor,1,typo,False,misspelling,"retype typo, display=false"
+forehead delay,forehead_stall,1,common,True,synonym,keep
+frankenstein,fairy_swirling_swirl,1,common,True,synonym,keep
+frigidosis,osis,1,common,True,synonym,keep
+front,inspinning_same_side_illusion,0,suppressed,False,inactive-target,suppress-or-repoint
+fudge,fairy_illusion,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+furious barfly,nemesis,1,structural,True,decomposition-phrase,keep (curator confirm display)
+furious butterfly swirl,barraging_butterfly_swirl,1,structural,True,decomposition-phrase,keep (curator confirm display)
+furious double legover,nebula,1,structural,True,decomposition-phrase,keep (curator confirm display)
+furious drifter,barraging_drifter,1,structural,True,decomposition-phrase,keep (curator confirm display)
+furious eggbeater,clown_face,1,structural,True,decomposition-phrase,keep (curator confirm display)
+furious illusion,barraging_illusion,1,structural,True,decomposition-phrase,keep (curator confirm display)
+furious mirage,barraging_mirage,1,structural,True,decomposition-phrase,keep (curator confirm display)
+furious symposium eggbeater,barraging_symposium_eggbeater,1,structural,True,decomposition-phrase,keep (curator confirm display)
+furious symposium mirage,rage,1,structural,True,decomposition-phrase,keep (curator confirm display)
+furious whirl,genesis,1,structural,True,decomposition-phrase,keep (curator confirm display)
+gdlo,gyro_double_leg_over,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+geesha,cold_fusion,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+ghost,whirling_rake,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+golden shower,stepping_ducking_symposium_eggbeater,1,common,True,synonym,keep
+grifter,reverse_drifter,1,common,True,synonym,keep
+gybas,stepping_dyno,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+gyro dlo,gyro_double_leg_over,1,technical,False,abbreviation,"retype technical, display=false"
+gyro drifter,vortex,1,structural,True,decomposition-phrase,keep (curator confirm display)
+gyro flurry,flurricane,1,structural,True,decomposition-phrase,keep (curator confirm display)
+gyro torque,mobius,1,structural,True,decomposition-phrase,keep (curator confirm display)
+gyro torque screw,moby_dick,1,common,True,synonym,keep
+gyro torquescrew,moby_dick,1,common,True,synonym,keep
+head delay,head_stall,1,common,True,synonym,keep
+heel delay,heel_stall,1,common,True,synonym,keep
+icarus,atomic_ducking_torque,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+illusion kick,atomic_kick,1,structural,True,decomposition-phrase,keep (curator confirm display)
+illusioning flail,atomic_flail,1,structural,True,decomposition-phrase,keep (curator confirm display)
+illusioning osis,flux,1,structural,True,decomposition-phrase,keep (curator confirm display)
+illusioning symposium butterfly,atomic_symposium_butterfly,1,structural,True,decomposition-phrase,keep (curator confirm display)
+illusioning symposium eggbeater,atomic_symposium_eggbeater,1,structural,True,decomposition-phrase,keep (curator confirm display)
+illusioning symposium mirage,atomic_symposium_mirage,1,structural,True,decomposition-phrase,keep (curator confirm display)
+infinity,butterfly,1,suppressed,False,infinity-model-or-junk,curator-review
+infinity swirl,butterfly_swirl,1,suppressed,False,infinity-model-or-junk,curator-review
+inside atw,inside_around_the_world,1,structural,True,decomposition-phrase,keep (curator confirm display)
+inside delay,inside_stall,1,common,True,synonym,keep
+inspinning same side butterfly,inspinning_butterfly,1,structural,True,decomposition-phrase,keep (curator confirm display)
+jackknife,stepping_diving_butterfly,1,common,True,synonym,keep
+janiwalker,barraging_butterfly,1,common,True,synonym,keep
+jester,flying_clipper,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+johnny vodka,pixie_mobius,1,common,True,synonym,keep
+king koopa,spinning_ducking_symposium_torque,1,common,True,synonym,keep
+knee delay,knee_stall,1,common,True,synonym,keep
+leg beater,atomic_butterfly,1,common,True,synonym,keep
+leg-over,legover,1,common,True,canonical-spelling-variant,keep
+legbeater,atomic_butterfly,1,common,True,synonym,keep
+little apple,gyro_symposium_mirage,1,common,True,synonym,keep
+maelstrom,spinning_ducking_whirl,1,common,True,synonym,keep
+marius,spinning_torque,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+miraging clipper,drifter,1,structural,True,decomposition-phrase,keep (curator confirm display)
+miraging far symposium double down,mofly,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+miraging legover,double_leg_over,1,structural,True,decomposition-phrase,keep (curator confirm display)
+miraging osis,torque,1,structural,True,decomposition-phrase,keep (curator confirm display)
+mobiusscrew,moby_dick,1,common,True,synonym,keep
+moebius,mobius,1,typo,False,misspelling,"retype typo, display=false"
+möbius,mobius,1,typo,False,misspelling,"retype typo, display=false"
+nagellam,reverse_magellan,1,common,True,synonym,keep
+nallegam,fairy_pickup,1,common,True,synonym,keep
+neck catch,neck_stall,1,common,True,synonym,keep
+neck delay,neck_stall,1,common,True,synonym,keep
+neutron drifter,irish_spring,1,structural,True,decomposition-phrase,keep (curator confirm display)
+neutron torque,irish_cream,1,structural,True,decomposition-phrase,keep (curator confirm display)
+no plant while,stepping_p_s_whirling_x_body_rake,0,suppressed,False,inactive-target,suppress-or-repoint
+nuclear double over down,cold_fusion,1,structural,True,decomposition-phrase,keep (curator confirm display)
+nuclear far butterfly,matador,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+nuclear far double down,cold_fusion,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+nuclear far mirage,sumo,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+nuclear mirage,sumo,1,structural,True,decomposition-phrase,keep (curator confirm display)
+nuclear near butterfly,barfry,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+nuclear nova,oh_wheely,1,common,True,synonym,keep
+nuclear osis,aeon_flux,1,structural,True,decomposition-phrase,keep (curator confirm display)
+nuclear ss butterfly,barfry,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+nuclear ss dyno,nuclear_dyno,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+nuclear ss whirl,hurl,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+nucleosis,aeon_flux,1,common,True,synonym,keep
+outside atw,outside_around_the_world,1,structural,True,decomposition-phrase,keep (curator confirm display)
+outside delay,outside_stall,1,common,True,synonym,keep
+outside-in mirage,illusion,1,structural,True,decomposition-phrase,keep (curator confirm display)
+p. blender,paradox_blender,1,common,True,synonym,keep
+p. drifter,paradox_drifter,1,common,True,synonym,keep
+p. mirage,paradox_mirage,1,common,True,synonym,keep
+p. torque,paradox_torque,1,common,True,synonym,keep
+p. whirl,paradox_whirl,1,common,True,synonym,keep
+p.s. whirl,paradox_symposium_whirl,1,common,True,synonym,keep
+pandora's box,gyro_pickup,1,common,True,synonym,keep
+paradox dlo,paradox_double_leg_over,1,technical,False,abbreviation,"retype technical, display=false"
+paradox double drifter,paradox_high_plains_drifter,1,structural,True,decomposition-phrase,keep (curator confirm display)
+paradox fusion,cold_fusion,1,common,True,synonym,keep
+paradox grifter,royale,1,common,True,synonym,keep
+paradox miraging symposium eggbeater,armageddon,1,structural,True,decomposition-phrase,keep (curator confirm display)
+paradox t,paradox_torque,1,common,True,synonym,keep
+paralax,parallax,1,typo,False,misspelling,"retype typo, display=false"
+park-walk,parkwalk,1,common,True,canonical-spelling-variant,keep
+paste (ss),paste_same_side,1,common,True,synonym,keep
+pdx blender,paradox_blender,1,technical,False,abbreviation,"retype technical, display=false"
+pdx drifter,paradox_drifter,1,technical,False,abbreviation,"retype technical, display=false"
+pdx mirage,paradox_mirage,1,technical,False,abbreviation,"retype technical, display=false"
+pdx symposium whirl,paradox_symposium_whirl,1,technical,False,abbreviation,"retype technical, display=false"
+pdx torque,paradox_torque,1,technical,False,abbreviation,"retype technical, display=false"
+pdx whirl,paradox_whirl,1,technical,False,abbreviation,"retype technical, display=false"
+peak,peak_delay,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+phobia,fairy_mobius,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+pickup (ss),pickup,1,common,True,synonym,keep
+pincher,squeeze,1,common,True,synonym,keep
+pincher squeeze,squeeze,1,common,True,synonym,keep
+pixie butterfly,dimwalk,1,structural,True,decomposition-phrase,keep (curator confirm display)
+pixie diving butterfly,darkwalk,1,structural,True,decomposition-phrase,keep (curator confirm display)
+pixie dlo,smog,1,technical,False,abbreviation,"retype technical, display=false"
+pixie double leg over,smog,1,structural,True,decomposition-phrase,keep (curator confirm display)
+pixie double legover,smog,1,structural,True,decomposition-phrase,keep (curator confirm display)
+pixie double pickup (ss),pixie_double_pickup_same_side,1,structural,True,decomposition-phrase,keep (curator confirm display)
+pixie double switchover,pixie_double_switch_over,1,common,True,canonical-spelling-variant,keep
+pixie drifter,smoke,1,structural,True,decomposition-phrase,keep (curator confirm display)
+pixie dso,pixie_double_switch_over,1,technical,False,abbreviation,"retype technical, display=false"
+pixie ducking double leg over,goliath,1,structural,True,decomposition-phrase,keep (curator confirm display)
+pixie ducking mirage,assassin,1,structural,True,decomposition-phrase,keep (curator confirm display)
+pixie far double down,dimmiest,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+pixie illusion,smudge,1,structural,True,decomposition-phrase,keep (curator confirm display)
+pixie opposite side butterfly,dimwalk,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+pixie same legover,magellan,1,structural,True,decomposition-phrase,keep (curator confirm display)
+pixie ss butterfly,parkwalk,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+pixie symposium eggbeater,pandemonium,1,structural,True,decomposition-phrase,keep (curator confirm display)
+plo,pixie_legover,1,technical,False,abbreviation,"retype technical, display=false"
+pod,pixie_double_over_down,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+pogo dlo,pogo_double_leg_over,1,technical,False,abbreviation,"retype technical, display=false"
+pogo nuclear far double down,shooting_star,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+porn star,shooting_barfly,1,common,True,synonym,keep
+porque,pixie_torque,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+ps whirl,paradox_symposium_whirl,1,technical,False,abbreviation,"retype technical, display=false"
+quantum double down,plasma,1,structural,True,decomposition-phrase,keep (curator confirm display)
+quantum double over down,plasma,1,structural,True,decomposition-phrase,keep (curator confirm display)
+quantum far double down,plasma,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+quark,quantum_torque,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+railing ducking butterfly,rail_warrior,1,structural,True,decomposition-phrase,keep (curator confirm display)
+railing ducking mirage,flying_fish,1,structural,True,decomposition-phrase,keep (curator confirm display)
+railing symposium mirage,dorshanatrix,1,structural,True,decomposition-phrase,keep (curator confirm display)
+ratw,orbit,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+red wetter,redwetter,1,common,True,canonical-spelling-variant,keep
+rev whirl (op),rev_whirl,1,structural,True,decomposition-phrase,keep (curator confirm display)
+rev-atw,orbit,1,structural,True,decomposition-phrase,keep (curator confirm display)
+reverse ATW kick,orbit_kick,1,structural,True,decomposition-phrase,keep (curator confirm display)
+reverse around-the-world,orbit,1,common,True,synonym,keep
+reverse atw,orbit,1,structural,True,decomposition-phrase,keep (curator confirm display)
+reverse mirage,illusion,1,structural,True,decomposition-phrase,keep (curator confirm display)
+reverse swirl,rev_swirl,1,structural,True,decomposition-phrase,keep (curator confirm display)
+reverse whirl,rev_whirl,1,structural,True,decomposition-phrase,keep (curator confirm display)
+revup,rev_up,0,suppressed,False,inactive-target,suppress-or-repoint
+revwhirl,rev_whirl,1,common,True,canonical-spelling-variant,keep
+ripcurl,stepping_butterfly_swirl,1,common,True,synonym,keep
+ripped warrior,stepping_ducking_butterfly,1,common,True,synonym,keep
+riptide,stepping_butterfly_swirl,1,common,True,synonym,keep
+shooting dlo,shooting_double_leg_over,1,technical,False,abbreviation,"retype technical, display=false"
+shooting double over down,shooting_star,1,structural,True,decomposition-phrase,keep (curator confirm display)
+shooting down double down,shooting_star,1,structural,True,decomposition-phrase,keep (curator confirm display)
+shooting eggbeater,redwetter,1,structural,True,decomposition-phrase,keep (curator confirm display)
+shooting far double down,shooting_star,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+shoulder delay,shoulder_stall,1,common,True,synonym,keep
+sidwalk,stepping_butterfly,1,common,True,synonym,keep
+silo,atomic_torque,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+skullsmasher,atomic_ducking_mirage,1,common,True,synonym,keep
+slapdown,quantum_butterfly,1,common,True,synonym,keep
+slaughter,atomic_symposium_mirage,1,common,True,synonym,keep
+smear (ss),smear_same_side,1,common,True,synonym,keep
+smudge (ss),smudge_same_side,1,common,True,synonym,keep
+sole delay,sole_stall,1,common,True,synonym,keep
+spikehammer,spike_hammer,1,common,True,canonical-spelling-variant,keep
+spinning down double-down,scorpions_tail,1,structural,True,decomposition-phrase,keep (curator confirm display)
+spinning far double down,scorpions_tail,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+spinning kick,spin,1,structural,True,decomposition-phrase,keep (curator confirm display)
+spinning near double down,bullwhip,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+spinning paradox miraging symposium torque,big_apple_sauce,1,common,True,canonical-spelling-variant,keep
+spinning paradox symposium whirling swirl,swirlwind,1,structural,True,decomposition-phrase,keep (curator confirm display)
+spinning symposium whirl,sole_survivor,1,structural,True,decomposition-phrase,keep (curator confirm display)
+spinning symposium wirl,sole_survivor,1,common,True,synonym,keep
+splicing ss blender,liquifier,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+step-over,walk_over,1,common,True,synonym,keep
+stepping barrage,blurrage,1,common,True,synonym,keep
+stepping dlo,haze,1,technical,False,abbreviation,"retype technical, display=false"
+stepping double leg over,haze,1,structural,True,decomposition-phrase,keep (curator confirm display)
+stepping drifter,tombstone,1,structural,True,decomposition-phrase,keep (curator confirm display)
+stepping ducking far double down,leviathon,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+stepping ducking far double over down,leviathon,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+stepping far double down,blurriest,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+stepping illusion,blizzard,1,structural,True,decomposition-phrase,keep (curator confirm display)
+stepping legover,schmoe,1,structural,True,decomposition-phrase,keep (curator confirm display)
+stepping near double down,blurrier,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+stepping opposite osis,torque,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+stepping opposite reaper,stepping_double_switch_over,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+stepping opposite side butterfly,ripwalk,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+stepping opposite side reverse whirl,stepping_rev_whirl,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+stepping paradox double leg over,fog,1,structural,True,decomposition-phrase,keep (curator confirm display)
+stepping paradox eggbeater,bedwetter,1,structural,True,decomposition-phrase,keep (curator confirm display)
+stepping paradox mirage,blur,1,structural,True,decomposition-phrase,keep (curator confirm display)
+stepping paradox whirl,blurry_whirl,1,structural,True,decomposition-phrase,keep (curator confirm display)
+stepping same-side torque,grave_digger,1,structural,True,decomposition-phrase,keep (curator confirm display)
+stepping torque,grave_digger,1,structural,True,decomposition-phrase,keep (curator confirm display)
+stepping-ducking-paradox-torque,gauntlet,1,structural,True,decomposition-phrase,keep (curator confirm display)
+stepping-ducking-ps-whirl,stepping_ducking_paradox_symposium_whirl,1,technical,False,abbreviation,"retype technical, display=false"
+sunilwalk,barraging_butterfly,1,common,True,synonym,keep
+super fly,superfly,1,common,True,canonical-spelling-variant,keep
+super mario,spinning_symposium_torque,1,common,True,synonym,keep
+superdeeduperfly,spinning_ducking_superfly,1,common,True,synonym,keep
+superduperfly,spinning_superfly,1,common,True,synonym,keep
+supernova,gyro_symposium_double_leg_over,1,common,True,synonym,keep
+surfing ss blender,big_papa_smurf,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+surging barfly,venom,1,common,True,synonym,keep
+surging butterfly,bigwalk,1,common,True,synonym,keep
+surging ducking blender,cheese_processor,1,common,True,synonym,keep
+surging far double down,venom,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+surging paradox blender,margaritaville,1,common,True,synonym,keep
+surging paradox mirage,surge,1,common,True,synonym,keep
+surging paradox whirl,surreal,1,common,True,synonym,keep
+surging ss osis,surging_same_side_osis,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+surging symposium reverse whirl,surgery,1,common,True,synonym,keep
+swifter,stepping_swirl,1,common,True,synonym,keep
+swivel,symposium_twirl,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+symposium barfly,superfly,1,structural,True,decomposition-phrase,keep (curator confirm display)
+symposium ddd,shaft,1,technical,False,abbreviation,"retype technical, display=false"
+symposium dod,blackula,1,technical,False,abbreviation,"retype technical, display=false"
+symposium double leg over,nova,1,structural,True,decomposition-phrase,keep (curator confirm display)
+symposium down double down,shaft,1,structural,True,decomposition-phrase,keep (curator confirm display)
+symposium furious legover,barraging_symposium_legover,1,structural,True,decomposition-phrase,keep (curator confirm display)
+symposium illusion,flail,1,structural,True,decomposition-phrase,keep (curator confirm display)
+symposium mirage (ss),symposium_mirage,1,structural,True,decomposition-phrase,keep (curator confirm display)
+symposium swirl (op),symposium_swirl,1,structural,True,decomposition-phrase,keep (curator confirm display)
+symposium wirl,symposium_whirl,1,typo,False,misspelling,"retype typo, display=false"
+tapping gyro drifter,irish_spring,1,structural,True,decomposition-phrase,keep (curator confirm display)
+tapping mobius,irish_cream,1,structural,True,decomposition-phrase,keep (curator confirm display)
+tatw,triple_around_the_world,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+three bag juggling,3_bag_juggling,1,common,True,synonym,keep
+three-bag,3_bag_juggling,1,common,True,synonym,keep
+toe,toe_stall,1,common,True,synonym,keep
+toe barrage,terrage,1,common,True,synonym,keep
+toe blizzard,quantum_illusion,1,common,True,synonym,keep
+toe blur,quantum_mirage,1,structural,True,decomposition-phrase,keep (curator confirm display)
+toe delay,toe_stall,1,common,True,synonym,keep
+toe far symposium double down,dolomite,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+toe massacre,atomic_flail,1,common,True,synonym,keep
+toe mobius,mobius,1,structural,True,decomposition-phrase,keep (curator confirm display)
+toe near barrage,terrage,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+toe near symposium double down,blackula,1,structural,True,positional-in-a-distinct-name,keep (curator confirm display)
+torch r rack,stepping_superfly,1,common,True,synonym,keep
+torture rack,stepping_superfly,1,common,True,synonym,keep
+toxic,miraging_symposium_whirl,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+triage,triple_mirage,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+triple atw,triple_around_the_world,1,structural,True,decomposition-phrase,keep (curator confirm display)
+triple spinning kick,triple_spin,1,structural,True,decomposition-phrase,keep (curator confirm display)
+tsunami,barraging_butterfly_swirl,1,common,True,synonym,keep
+two bag juggling,2_bag_juggling,1,common,True,synonym,keep
+two-bag,2_bag_juggling,1,common,True,synonym,keep
+void,spinning_drifter,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+walrus,barraging_symposium_eggbeater,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+warping mirage,warp,1,structural,True,decomposition-phrase,keep (curator confirm display)
+weaving magellan,pixie_ducking_legover,1,structural,True,decomposition-phrase,keep (curator confirm display)
+weaving pigbeater,pixie_ducking_eggbeater,1,common,True,synonym,keep
+whip,rev_whirl,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+whirling mirage,blaze,1,structural,True,decomposition-phrase,keep (curator confirm display)
+whirling osis,blender,1,structural,True,decomposition-phrase,keep (curator confirm display)
+whirlwalk,whirling_whirl,1,common,True,synonym,keep
+whirlwind,sole_survivor,1,common,True,synonym,keep
+whirlygig,stepping_symposium_whirl,1,common,True,synonym,keep
+whirr,double_whirl,1,historical,False,folk-nickname,"retype historical, display curator-decide"
+zulu clipper,diving_clipper,1,structural,True,decomposition-phrase,keep (curator confirm display)
