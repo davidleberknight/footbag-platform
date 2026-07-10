@@ -36,7 +36,7 @@ An effort-ordered view over the still-open freestyle backlog, to work easiest sa
 ### 1. Fast / low-risk closures
 - FS-44 — remove the dead modifier-teaching branch. **S.** Delete the unreachable `{{#unless content.definition}}` branch and its now-unused fields/types, and fix the stale "only spinning exists" comment.
 - FS-41 — Barfly terminal bracket-order polish. **S.** Normalize `OP CLIP [DEL] [XBD]` to `[XBD] [DEL]` in the family-card content and the stored row (the stored row needs a rebuild to land).
-- FS-08 — remove delivery/phase labels. **S.** Rename `RESOLVED_FORMULAS_SPRINT_1` across its call sites, regenerate the observational header without "Phase E", drop the caller-reference comment.
+- FS-08 — remove delivery/phase labels. **S. CLOSED.** Renamed `RESOLVED_FORMULAS_SPRINT_1` to `RESOLVED_ADD_FORMULAS` across its call sites, removed the "Phase E" observational header at the generator and in the generated file's header line, and dropped the caller-reference comment.
 - FS-12 — trick-detail empty-state test. **S.** One integration test for a trick page rendering coherently with zero records and zero media.
 - FS-11 — remaining loader safety test. **S.** One pytest pinning loader-19's scoped-delete survival (other sources' rows untouched).
 
@@ -226,6 +226,7 @@ Fix: delete the redundant `NotFoundError` branches (delegate to `handleControlle
 Evidence: exported identifier `RESOLVED_FORMULAS_SPRINT_1` (`src/content/freestyleResolvedFormulas.ts:116`), consumed at `src/content/freestyleAddAnalysisContent.ts:42,664` and 7 sites in `src/services/freestyleService.ts`. "Phase E" in the generated header of `src/content/freestyleObservationalUniverse.ts:3` (fix belongs in the generator, `freestyle/scripts/build_observational_universe_content.py`, which writes the header). Caller reference in `src/content/freestyleLandingContent.ts:15` ("see freestyleService.getLandingPage for the array"). The `S3/S5` labels in `freestyleSymbolicEquivalences.ts:38,648` may be domain set-slot notation rather than epoch labels; author to confirm before touching.
 Standard violated: comments rule (sprint/slice/phase/wave labels forbidden everywhere, including identifiers as human-readable text; caller references forbidden).
 Fix: rename the constant (e.g. `RESOLVED_ADD_FORMULAS`), regenerate the observational header without the phase label, drop the caller reference.
+Status: CLOSED. `RESOLVED_FORMULAS_SPRINT_1` renamed to `RESOLVED_ADD_FORMULAS` across all call sites (the export plus its two content-module consumers and the seven service uses/comments). The observational header phase label is removed at its source in the generator, and the single header line in the generated file is brought into line with what the generator now emits; the file's stale data rows are left untouched (a separate generated-content-drift concern outside this rename). The caller reference in `freestyleLandingContent.ts` is reworded to a self-contained statement. `S3/S5` in `freestyleSymbolicEquivalences.ts` is domain set-slot notation, not an epoch label, and was left alone. Build, the affected freestyle tests, and the conventions gate pass.
 
 **FS-13 (P3, IP-cleanup; audience: implementing-developer). Test-comment epoch/date residue, quantified.**
 Evidence: 86 of 198 freestyle-touching test files carry at least one violation of the stricter test-comment rule: 43 files with epoch labels (Slice A2/R1b, Wave 1-7, Phase C, Batch), 70 files with dates as change markers (e.g. `freestyleSymbolicEquivalences.test.ts:74` "flurry SE chain removed 2026-05-26 per S3/S5 governance migration"), 19 files with section-sign shorthands (the test rule bans them outright even for glossary anchors), finding/slot IDs (NR-1, R4, S9, R1b). Worst files: `freestyle.family-view-identity.routes.test.ts` (+extended), `freestyle.dictionary-trick-card.routes.test.ts:304-334` (a dated Wave changelog block), `freestyleSymbolicEquivalences.test.ts`.
@@ -487,8 +488,8 @@ Likely files: `src/controllers/freestyleController.ts`, `src/services/freestyleS
 Done: one 404 path; controller methods are HTTP glue; route tests unchanged and green.
 
 **FS-08 — Remove delivery-epoch labels from identifiers and generated headers**
-P2 | code | audience: implementing-developer | status: should-fix-before-launch | new: yes | replaces: none
-Evidence/remediation: section 5 (FS-08). Rename `RESOLVED_FORMULAS_SPRINT_1` (10+ sites), regenerate `freestyleObservationalUniverse.ts` header without "Phase E" (edit the generator), drop the caller reference in `freestyleLandingContent.ts:15`; author confirms whether `S3/S5` is domain notation before touching it.
+P2 | code | audience: implementing-developer | status: CLOSED | new: yes | replaces: none
+Evidence/remediation: section 5 (FS-08). Renamed `RESOLVED_FORMULAS_SPRINT_1` to `RESOLVED_ADD_FORMULAS` across all sites, removed "Phase E" from the observational header at the generator and matched the generated file's header line, dropped the caller reference in `freestyleLandingContent.ts`; `S3/S5` confirmed as domain set-slot notation and left untouched.
 Likely files: `src/content/freestyleResolvedFormulas.ts`, `freestyleAddAnalysisContent.ts`, `freestyleService.ts`, `freestyle/scripts/build_observational_universe_content.py`, `src/content/freestyleLandingContent.ts`.
 Done: grep for sprint/phase tokens in freestyle `src/` is clean (S3/S5 resolved either way); build green.
 
