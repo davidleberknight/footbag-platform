@@ -972,16 +972,17 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     expect(res.text).not.toContain('Curator-adjudicated');
   });
 
-  it('holds barraging distinct from furious by timing on the barraging operator entry', async () => {
-    // Current doctrine holds Furious and Barraging distinct by timing; the entry
-    // must not reintroduce the old "also called furious" merge.
+  it('frames barraging as a legacy name pattern for the furious set, not a canonical set', async () => {
+    // Settled doctrine: Furious is the canonical set; Barraging is not a set but a
+    // legacy name pattern for it. The entry names Furious as the set and does not
+    // reintroduce the old "distinct by timing, pending audit" framing.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     const idx = res.text.indexOf('id="term-barraging"');
     expect(idx).toBeGreaterThan(0);
     const slice = res.text.slice(idx, idx + 2000);
-    expect(slice).not.toMatch(/also called furious/i);
-    expect(slice).toMatch(/distinct by timing|not inferred from the name/i);
+    expect(slice).toMatch(/legacy name pattern for the Furious set/i);
+    expect(slice).not.toMatch(/distinct by timing/i);
   });
 
   it('renders entries in pedagogical order: set-tier first, body next, quantifier last', async () => {

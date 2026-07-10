@@ -403,12 +403,12 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'furious', hashtag: '#set_furious', displayName: 'Furious', subtype: 'composite-derived',
     formula: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',
     movementExplanation:
-      'Furious is a two-dex uptime set concept: a clipper set opening with an ' +
-      'opposite-side inward dex followed by a same-side inward dex. Older sources ' +
-      'sometimes grouped Furious and Barraging together, but current doctrine holds the ' +
-      'terms distinct by timing. Historical Barraging names are preserved in provenance ' +
-      'and alias data where they occur; equivalence is not inferred from the name alone. ' +
-      'Barrage is a separate standalone base concept, not to be confused with Barraging.',
+      'Furious is the two-dex uptime set: a clipper set opening with an ' +
+      'opposite-side inward dex followed by a same-side inward dex. Barraging is not a ' +
+      'canonical set but a legacy name pattern for this set; some tricks carry ' +
+      'barraging-based names for historical continuity, but the set is Furious and their ' +
+      'decomposition resolves to Furious. Barrage is a separate standalone base concept, ' +
+      'not to be confused with Barraging.',
     equivalenceNotes: [
       { reading: 'High Stepping', citation: 'Holden parenthetical (historical)' },
     ],
@@ -417,7 +417,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'stepping', label: 'Stepping (single-dex base)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Platform-tracked as the modern two-dex uptime set; Barraging is a historically related name, not equivalent canon.',
+    sourceCitation: 'Platform-tracked as the two-dex uptime set; Barraging is a legacy name pattern for this set, not a canonical set of its own.',
     auditStatus: 'partial',
     tier: 'compositional-system',
   },
