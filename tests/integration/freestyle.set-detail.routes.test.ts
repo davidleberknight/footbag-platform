@@ -304,12 +304,15 @@ describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name eq
     expect(res.text).not.toContain('Equivalent names');
   });
 
-  it('quantum does not list Miraging as an equivalent or related set name', async () => {
+  it('quantum names Miraging only to disambiguate it, never as an equivalent or related set', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/quantum');
     expect(res.status).toBe(200);
-    // Miraging is not a set; the quantum page must not chip-link or name it as a set.
+    // Miraging is not a set: the quantum page must not chip-link it as a set page.
+    // It may name Miraging only to disambiguate it as a distinct historical nickname,
+    // exactly as the atomic page disambiguates illusioning; it is never presented as
+    // an equivalent or alternate name for the quantum set.
     expect(res.text).not.toContain('href="/freestyle/sets/miraging"');
-    expect(res.text).not.toContain('Miraging');
+    expect(res.text).toContain('not a canonical set, and not an equivalent term for Quantum');
   });
 });
 

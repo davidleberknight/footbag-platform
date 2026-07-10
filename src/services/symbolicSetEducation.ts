@@ -1088,6 +1088,11 @@ const QUANTUM_SET_CONTENT: SetEducationInput = {
         'Toe Blur is the historical name for the quantum launch, most familiar as quantum mirage. Same launch, older name; the dictionary keeps quantum as the current term with Toe Blur preserved as history.',
     },
     {
+      heading: 'Quantum vs Miraging',
+      prose:
+        'Miraging is a historical, mirage-family name from an older downtime reading; it is a nickname, not a canonical set, and not an equivalent term for Quantum. Miraging names may persist for continuity, but Quantum is the official set identity for this inward-uptime launch, and its own historical name is Toe Blur.',
+    },
+    {
       heading: 'Quantum is a launch, not a body movement',
       prose:
         'Quantum does not turn or pivot the body; it determines how the bag is launched into the trick, at the set layer, scored as a +1 set treatment and written in the set portion of the notation.',
