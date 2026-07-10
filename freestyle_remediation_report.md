@@ -29,6 +29,47 @@ An honest correction surfaced during review: the audit's original "launch-viable
 - **Top risks:** (1) an accidental `run_freestyle.sh` against the production DB after go-live silently DELETE+INSERTs every dictionary table with no guard; (2) the freestyle skills teach a wrong slug convention and cite eight dead memory files, actively misleading future agents; (3) duplicate-content alias URLs at launch.
 - **Top fixes:** Batch E (stories, gating everything schema-shaped) and Batch A (alias redirect + loader guard) first, then Batch J (the launch-scope curation cutover feature), Batch F (crawl inclusion + e2e/a11y/mobile + naming-invariant test), Batch H (skills corrections), and Batch B (copy standard sweep). Full batch definitions in section 15.
 
+## Effort sequencing (2026-07-09)
+
+An effort-ordered view over the still-open freestyle backlog, to work easiest safe closures upward. Effort labels: XS (minutes), S (about an hour), M (a slice), L (a large slice), blocked (needs an external or curator answer), timed (gated to the go-live cutover). The launch-blocker list is unchanged: exactly one item, FS-19's operator-run staging rehearsal.
+
+### 1. Fast / low-risk closures
+- FS-44 — remove the dead modifier-teaching branch. **S.** Delete the unreachable `{{#unless content.definition}}` branch and its now-unused fields/types, and fix the stale "only spinning exists" comment.
+- FS-41 — Barfly terminal bracket-order polish. **S.** Normalize `OP CLIP [DEL] [XBD]` to `[XBD] [DEL]` in the family-card content and the stored row (the stored row needs a rebuild to land).
+- FS-08 — remove delivery/phase labels. **S.** Rename `RESOLVED_FORMULAS_SPRINT_1` across its call sites, regenerate the observational header without "Phase E", drop the caller-reference comment.
+- FS-12 — trick-detail empty-state test. **S.** One integration test for a trick page rendering coherently with zero records and zero media.
+- FS-11 — remaining loader safety test. **S.** One pytest pinning loader-19's scoped-delete survival (other sources' rows untouched).
+
+### 2. Short content wins
+- FS-43 — Zulu / Weaving notation gap. **S.** Author the two missing JOB formulas in `freestyleCanonicalSets.ts` (content only, no rebuild; derivable from the movement text).
+- FS-32 — authorable Technique Notes. **M.** Three notes authorable from existing sources plus one partial; edit path is `red_corrections` CSV rows plus a rebuild.
+- (FS-28 Set Encyclopedia pages: the four settled pages are DONE and committed; only the held Miraging page remains, which is wording-dependent. Moved out of this bucket to curator-decision.)
+
+### 3. Medium work
+- FS-20 — remaining media-gallery links. **M.** Emit `media/browse?context=` links on the family view, landing, and media hub, with route tests. Owner: Dave.
+- FS-07 — controller 404 / branching cleanup. **M.** Delete the four inlined 404 branches (delegate to `handleControllerError`) and move the `tricksIndex` redirect/sort logic into the service.
+- FS-10 — generated-content drift guard + orphan. **M.** Add a test that fails when a generated content file drifts from its CSV source; resolve the 148 KB orphan file.
+
+### 4. Curator-decision / blocked
+- FS-31 — Member Tips remainder. **blocked.** Each of the eight tips needs a curator decision to author a new trick or alias.
+- FS-23 / FS-24 — Red doctrine and world-record-name decisions. **blocked (external).** Await Red answers and curator viewings.
+- FS-35 — Movement Systems completeness audit. **L / blocked.** Gated behind doctrine work.
+- Miraging teaching page (the FS-28 tail). **blocked** on its wording.
+
+### 5. Cutover-timed
+- FS-19 — in-app curation cutover rehearsal. **timed.** The one launch blocker; code-complete, only the operator-run staging rehearsal remains. Owner: authorized deploy operator.
+- FS-25 — retire the exploration corpus at go-live. **timed.** Relocate the two generator inputs out of `exploration/`, then the destructive retirement at cutover.
+
+### 6. Post-V1 / larger parked
+- FS-30 — tag the 72 BAP Shred clips by trick/set. **L** (human viewing pass).
+- FS-34 — local MP4 trick-clip ingestion tooling. **M/L.**
+- FS-15 — freestyleService extraction seams. **L** (the 2.6x size outlier; owner: Dave).
+- FS-13 — de-epoch freestyle test comments. **M** (86 files).
+- FS-14 — rename `inputs/noise/` + extend rule globs. **S.**
+- FS-17 — records-correction ergonomics. **M.**
+- FS-21 — difficulty-tag design. **blocked** (behind FS-27).
+- FS-29 — replacement demo video for the sole-survivor clip. **S** (source-dependent).
+
 ## 2. Scope and method
 
 **In scope:** all 28 mounted `/freestyle/*` route paths (the search page and its JSON suggest endpoint counted separately) plus the `/media/freestyle-tutorials` redirect, 29 mounted routes in all; `freestyleController.ts`; `mediaController.freestyleMedia`; `freestyleService.ts` and 18 supporting services; 52 `src/content/freestyle*.ts` modules; 27 views in `src/views/freestyle/` and ~45 freestyle partials; `freestyle-trick-search.js`; freestyle statement groups in `src/db/db.ts`; the `freestyle/` pipeline (orchestrator, 8 loaders, 3 QC scripts, scripts, inputs, symbolic_grammar, doctrine, tools); 20 freestyle/symbolic tables in `database/schema.sql`; the freestyle test corpus (118 integration + 30 unit freestyle-named files; 198 freestyle-touching); the five freestyle-relevant skills (audited as subjects, not used as authority, per maintainer instruction in this run); all freestyle docs and doctrine; `exploration/` disposition; every Freestyle-related `IMPLEMENTATION_PLAN.md` item.
@@ -558,6 +599,7 @@ P3 (post-V1, parked) | UX-copy/content | owner: James | replaces plan item: line
 Context: the Set Encyclopedia's concept-first teaching pages exist for eight sets (stepping, pixie, fairy, whirling, swirling, floating, surfing, warping; verified as the `slug:` entries in `src/services/symbolicSetEducation.ts`). Five named sets remain without teaching pages: Atomic, Miraging, Quantum, Barraging (Furious), and Nuclear. Note the Quantum page is entangled with FS-36 (whether Quantum and Miraging are one set or two).
 Done: all five pages authored in the established education-branch format and rendering on their set-detail routes.
 Status (2026-07-09): corrected and re-scoped. The four settled pages to author are Atomic, Quantum, Furious, and Nuclear; all four already exist as routable canonical set entries, so adding a teaching page is a pure content-module edit in `src/services/symbolicSetEducation.ts` (no schema, route, template, or rebuild). Correction: the fourth is the set slug `furious`, not `barraging`. Under current doctrine Barraging is not a set and `/freestyle/sets/barraging` redirects to a glossary note explaining that, so no Barraging set page should be authored. Miraging is held out of this batch pending its own wording (its doctrine is settled, see FS-36, but the teaching prose depends on that wording). A source-of-truth conflict surfaced while gathering the Furious facts and is tracked separately below as FS-45 (the operator reference still describes barraging as a settled compound-set). Not a launch blocker.
+Update (2026-07-09): the four settled pages (Atomic, Quantum, Furious, Nuclear) are authored and committed in `src/services/symbolicSetEducation.ts` and render on their set-detail routes, each grounded in the operator reference and canonical-sets doctrine. FS-28 is effectively done except the held Miraging page, which is curator/wording-dependent (it follows the settled Quantum/Miraging doctrine but the teaching prose is not yet written), not a plain content win.
 
 **FS-29 — Source a replacement demo video for sole survivor**
 P3 (post-V1, parked) | curated-media | owner: James (curator) | replaces plan item: line 250 | new-from-audit: no
@@ -645,6 +687,7 @@ Done: Zulu and Weaving each carry a curator-authored JOB formula; the pending-no
 P3 | code cleanup | owner: James / Dave (freestyle content-module code) | status: post-V1 cleanup; not a launch blocker | new: yes (2026-07-09 reconciliation)
 Context: every modifier registered in `src/services/symbolicModifierEducation.ts` resolves a real `definition`, so the `{{#unless content.definition}}` branch in `src/views/freestyle/modifier-family.hbs` (a "diagram planned" placeholder layout carrying `mechanicalLead` / `anchorSentence` / `diagramPlaceholder` fields) is unreachable dead code, is untested, and its self-describing comment "Only 'spinning' exists so far" is stale against the eight registered modifiers. No user-visible defect renders today. Distinct from the controller/service dead-branch cleanup (FS-07, scoped to `freestyleController.ts`/`freestyleService.ts`) and from the skills-doc corrections (FS-04).
 Done: the dead template branch and its now-unused fields and types are removed (or the branch is deliberately revived for a planned modifier that ships without a Tier-1 definition, stated as such), and the stale comment is corrected.
+CLOSED (2026-07-09). Verified the branch was unreachable first: all eight registered modifiers resolve a truthy `definition` (seven via Tier-1 operator definitions, and inspinning via its own `definition`), so the `{{else}}` legacy mechanical-lead branch never rendered. Removed it: the `{{else}}` branch in `modifier-family.hbs`, the `mechanicalLead` / `anchorSentence` / `diagramPlaceholder` fields from the input and content types plus the build passthrough in `symbolicModifierEducation.ts`, and the now-orphaned `.mechanical-lead` / `.anchor-sentence` / `.diagram-placeholder` CSS rules. Corrected the stale "Only spinning exists so far" JSDoc, the "two layouts coexist" type comment, and the modifier-family test file-header. tsc, the full freestyle suite, and the conventions gate pass; the modifier pages render the concept-first template unchanged.
 
 **FS-45 — Correct the stale `barraging` reference to match settled set doctrine (source-of-truth cleanup)**
 P3 | data/content (source-of-truth cleanup) | owner: James (maintainer) | status: not a launch blocker; doctrine is settled, this is cleanup | new: yes (2026-07-09 reconciliation)
