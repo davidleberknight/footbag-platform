@@ -95,3 +95,50 @@ describe('observational universe snapshot internal consistency', () => {
       Math.round((100 * STATS.evProgress.numerator) / STATS.evProgress.denominator));
   });
 });
+
+// A name whose trick is already published must not also sit on the Emerging
+// Vocabulary surface, even when the observational name carries a folk-nickname
+// suffix, an abbreviation, or a parenthetical folk name. The gate resolves each
+// of those forms to its canonical/alias slug and drops the row. The one form it
+// must never resolve away is a side configuration: a same-side / far / near
+// positional variant is a distinct trick and stays on the surface unless it has
+// its own explicit equivalence alias.
+describe('emerging vocabulary: published names are gated, positional variants are kept', () => {
+  const has = (name: string) => OBSERVATIONAL_UNIVERSE.some(r => r.name === name);
+
+  it('gates a name carrying a folk-nickname suffix (resolves to the published base)', () => {
+    // "Nuclear Drifter (69)" is nuclear_drifter; "Shooting Barfly (Porn Star)" is
+    // shooting_barfly. The folk nickname in parentheses is decoration, not identity.
+    expect(has('Nuclear Drifter (69)')).toBe(false);
+    expect(has('Shooting Barfly (Porn Star)')).toBe(false);
+  });
+
+  it('gates an abbreviation form that expands to a published trick', () => {
+    // DLO expands to double_leg_over: "Nuclear DLO (Terminator)" is
+    // nuclear_double_leg_over, "Spinning DLO" is spinning_double_leg_over.
+    expect(has('Nuclear DLO (Terminator)')).toBe(false);
+    expect(has('Spinning DLO')).toBe(false);
+    expect(has('Tapping DLO')).toBe(false);
+  });
+
+  it('gates a parenthetical folk name that is itself the published canonical/alias', () => {
+    // "Gyro Torque (Mobius)" resolves through the gyro_torque alias to mobius;
+    // "Atomic Mirage (Atom Smasher)" resolves to atom_smasher.
+    expect(has('Gyro Torque (Mobius)')).toBe(false);
+    expect(has('Atomic Mirage (Atom Smasher)')).toBe(false);
+  });
+
+  it('keeps a same-side positional variant that has no explicit equivalence alias', () => {
+    // The base exists (nuclear_guay, shooting_clipper) but there is no ss-form
+    // alias, so the side configuration is a distinct trick and must stay.
+    expect(has('Nuclear ss Guay')).toBe(true);
+    expect(has('Shooting ss Clipper')).toBe(true);
+  });
+
+  it('keeps a positional variant even when its base IS published (never collapses to the base)', () => {
+    // fairy_double_leg_over is a published trick, but "Fairy DLO (ss)" is its
+    // same-side variant: the parenthetical positional marker is kept, not stripped,
+    // so the row is never folded into the base.
+    expect(has('Fairy DLO (ss)')).toBe(true);
+  });
+});

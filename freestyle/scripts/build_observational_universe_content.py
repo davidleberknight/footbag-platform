@@ -321,6 +321,53 @@ def _norm_slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
 
+# Unambiguous community shorthands that name a settled published base. Each maps
+# one token to the full slug form so an observational name written in shorthand
+# resolves to the same trick the canonical browse already shows. Positional
+# tokens (ss / os / far / near) are deliberately absent: a side configuration is
+# structural identity and must never expand or collapse to its base.
+_EV_ABBREV = {
+    "dlo": "double_leg_over",
+    "dso": "double_switch_over",
+    "dod": "double_over_down",
+    "ddd": "down_double_down",
+    "datw": "double_around_the_world",
+}
+# Parenthetical contents that are a positional marker, not a folk nickname. A
+# folk nickname in parentheses ("(Godzilla)", "(69)") is decoration to strip; a
+# positional marker in parentheses ("(ss)", "(same side)", "(far)") is part of
+# the trick's identity and is kept so the row is only ever matched by an explicit
+# same-side alias, never folded into its base.
+_EV_POSITIONAL_PAREN = {
+    "ss", "os", "far", "near", "opposite", "same side", "same-side",
+}
+
+
+def _represented_norm_candidates(name: str, slug: str) -> set[str]:
+    """Normalized slug candidates for the canonical-gate membership test.
+
+    The gate drops an observational row when the trick it names is already
+    published. Comparing only the row's own slug misses two honest matches: a
+    name carrying a folk-nickname suffix (``Nuclear Drifter (69)`` is the
+    published ``nuclear_drifter``) and a name written in shorthand (``Nuclear
+    DLO`` is ``nuclear_double_leg_over``). This returns every normalized slug the
+    name could legitimately mean: the raw slug, the folk-suffix-stripped slug,
+    and the abbreviation-expanded slug. A positional parenthetical is preserved
+    (never stripped), so a same-side variant is matched only by an explicit
+    same-side alias and is never collapsed to its base.
+    """
+    cands = {slug.replace("-", "_")}
+    stripped = name
+    for inner in re.findall(r"\(([^)]*)\)", name):
+        if inner.strip().lower() not in _EV_POSITIONAL_PAREN:
+            stripped = stripped.replace(f"({inner})", " ")
+    base = re.sub(r"[^a-z0-9]+", "_", stripped.lower()).strip("_")
+    if base:
+        cands.add(base)
+        cands.add("_".join(_EV_ABBREV.get(t, t) for t in base.split("_")))
+    return {_norm_slug(c) for c in cands if c}
+
+
 def _lev1(a: str, b: str) -> bool:
     """True if edit distance(a, b) <= 1 (cheap, length-gated by the caller)."""
     if a == b:
@@ -473,8 +520,14 @@ def main() -> None:
     # Compare on the alphanumeric-normalized slug: observational rows use hyphen
     # slugs while the canonical DB / CSV slugs use underscores, so a raw-string
     # membership test never matched and the gate let published slugs through.
+    # Test every slug the row could legitimately mean (its own slug, the
+    # folk-suffix-stripped slug, the abbreviation-expanded slug); a row whose
+    # trick is published under any of these leaves the surface. Positional
+    # variants are never collapsed to their base here (see
+    # _represented_norm_candidates).
     _canonical_norm = {_norm_slug(s) for s in canonical_slugs}
-    rows = [r for r in rows if _norm_slug(r["slug"]) not in _canonical_norm]
+    rows = [r for r in rows
+            if not (_represented_norm_candidates(r["name"], r["slug"]) & _canonical_norm)]
 
     # ── long-tail disposition ── fold aliases / misspellings / malformed scrape
     # strings / single-source junk OUT of the public folk + parser long tail so the
