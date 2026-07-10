@@ -165,6 +165,22 @@ formula-identity audit, in rough order of how self-contained they are:
    five-operator stack on torque that must not be derived mechanically. Both stay
    in the active-canonical incomplete-notation cohort (and its guard) until their
    notation lands.
+7. **Alias taxonomy: structural bucket paused for curator review.** The alias
+   visibility infrastructure is built (semantic `alias_type` plus an `alias_display`
+   gate, a delete/retype override step, and an additive `alias_additions` source),
+   and Batch 1 landed 18 technical abbreviation aliases and one verified structural
+   alias (`Symposium Hatchet` to `diving_symposium_whirl`), all search/redirect only
+   at `alias_display=0`. The remaining structural candidates are PAUSED: the
+   evidence check showed the bucket is doctrine-sensitive, because a structural
+   "X equals Y" alias can assert a formula identity that pre-empts an open ruling
+   (miraging as a nickname, spyro as a prefix modifier, blistering, blurry), so none
+   moves without explicit curator approval. Held for curator review: Whirling Gyro
+   Whirl (blistering), Toe Fog, Quantum Symposium Illusion, Fairy Same Pickup, the
+   observational-collision pair (Fairy Spinning Legover, Stepping Down Double Down),
+   the Pogo Op rows, the Stepping Paradox / Blurry rows, and Paradox Symposium Blur.
+   Bucket 3 (folk / historical nicknames) is the next alias work, as a draft-review
+   pass only, never bulk-displayed by default. `PS Torque` is deferred to a later
+   technical batch.
 
 The path/catch framing also routed about 17 folk or unmapped terminal names and
 about 10 incomplete operator-ending names to this identity and completeness track;
