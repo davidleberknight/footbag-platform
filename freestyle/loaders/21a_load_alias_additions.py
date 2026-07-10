@@ -104,7 +104,11 @@ def load_additions(db_path: str) -> None:
     finally:
         conn.close()
 
-    print(f"alias additions applied: inserted={len(additions)} (all alias_type=technical, alias_display=0)")
+    by_type: dict[str, int] = {}
+    for a in additions:
+        by_type[a["alias_type"]] = by_type.get(a["alias_type"], 0) + 1
+    breakdown = ", ".join(f"{t}={n}" for t, n in sorted(by_type.items()))
+    print(f"alias additions applied: inserted={len(additions)} ({breakdown})")
 
 
 def main() -> None:
