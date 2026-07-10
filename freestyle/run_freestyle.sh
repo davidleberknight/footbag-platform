@@ -41,7 +41,9 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 "${PY}" "${L}/20_link_footbag_org_sources.py"       --db "${DB}"
 "${PY}" "${L}/21_load_footbag_org_pending_tricks.py" --db "${DB}"
 
-# Curated alias-type / display overrides, applied after every alias source loader.
+# Additive curated aliases (new rows no source loader produces), then curated
+# alias-type / display overrides, both after every alias source loader.
+"${PY}" "${L}/21a_load_alias_additions.py"          --db "${DB}"
 "${PY}" "${L}/21b_apply_alias_overrides.py"         --db "${DB}"
 
 # Legacy footbag.org Member Tips (community advice; display-only, never doctrine).

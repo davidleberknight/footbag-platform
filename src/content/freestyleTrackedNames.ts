@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1369;
+export const TRACKED_UNPUBLISHED_TOTAL = 1361;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -130,7 +130,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Diving Whirl (Hatchet)', slug: 'diving_whirl_hatchet' },
     { displayName: 'DOD Osis (Motion)', slug: 'dod_osis_motion' },
     { displayName: 'DOD Reverse Swirl', slug: 'dod_reverse_swirl' },
-    { displayName: 'DOD Swirl', slug: 'dod_swirl' },
     { displayName: 'Double Bubba', slug: 'double_bubba' },
     { displayName: 'Double Butterfly (Paradon)', slug: 'double_butterfly_paradon' },
     { displayName: 'Double Butterfly Dragon (Pteradon)', slug: 'double_butterfly_dragon_pteradon' },
@@ -150,7 +149,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Double Whirling Swirl (Whirring Swirl)', slug: 'double_whirling_swirl_whirring_swirl' },
     { displayName: 'Dragon Blurry Butterfly Dragon (Flipwalk)', slug: 'dragon_blurry_butterfly_dragon_flipwalk' },
     { displayName: 'Ducking Barfly (Spanish Fly)', slug: 'ducking_barfly_spanish_fly', operationalNotation: 'CLIP > DUCK [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Ducking DLO', slug: 'ducking_dlo' },
     { displayName: 'Ducking Far Legover', slug: 'ducking_far_legover' },
     { displayName: 'Ducking Far Osis', slug: 'ducking_far_osis' },
     { displayName: 'Ducking Far Pickup', slug: 'ducking_far_pickup' },
@@ -162,11 +160,9 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Eclipse (Catwalk)', slug: 'eclipse_catwalk', operationalNotation: 'SET > (jump) [BOD] > SAME or OP INSIDE [DEL] > OP OUT [DEX] > (land)', formulaProvenance: 'footbag.org' },
     { displayName: 'Fairy Blender (Fender)', slug: 'fairy_blender_fender' },
     { displayName: 'Fairy Diving Butterfly (Dark Avenue)', slug: 'fairy_diving_butterfly_dark_avenue' },
-    { displayName: 'Fairy DOD', slug: 'fairy_dod' },
     { displayName: 'Fairy Drifter (Fume)', slug: 'fairy_drifter_fume', operationalNotation: 'TOE > SAME OUT [DEX] > OP IN [DEX] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Fairy Ducking Blender (Fender Bender)', slug: 'fairy_ducking_blender_fender_bender' },
     { displayName: 'Fairy Ducking Butterfly (Fairy Warrior)', slug: 'fairy_ducking_butterfly_fairy_warrior' },
-    { displayName: 'Fairy Ducking DLO', slug: 'fairy_ducking_dlo' },
     { displayName: 'Fairy Ducking Drifter (Alpine Fume)', slug: 'fairy_ducking_drifter_alpine_fume' },
     { displayName: 'Fairy Ducking Mirage (Guillotine) (Cower)', slug: 'fairy_ducking_mirage_guillotine_cower' },
     { displayName: 'Fairy Ducking Torque (Forque Lift)', slug: 'fairy_ducking_torque_forque_lift' },
@@ -350,6 +346,7 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Pixie Diving Butterfly (Darkwalk)', slug: 'pixie_diving_butterfly_darkwalk' },
     { displayName: 'Pixie Diving Osis (Alpine Maverick)', slug: 'pixie_diving_osis_alpine_maverick' },
     { displayName: 'Pixie DLO (Smog)', slug: 'pixie_dlo_smog' },
+    { displayName: 'Pixie DOD (Dimmier)', slug: 'pixie_dod_dimmier' },
     { displayName: 'Pixie Drifter (Smoke)', slug: 'pixie_drifter_smoke' },
     { displayName: 'Pixie Ducking Butterfly (Phoenix)', slug: 'pixie_ducking_butterfly_phoenix' },
     { displayName: 'Pixie Ducking Butterfly Swirl (Phoenix Swirl)', slug: 'pixie_ducking_butterfly_swirl_phoenix_swirl' },
@@ -440,7 +437,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Reverse Walkover', slug: 'reverse_walkover' },
     { displayName: 'Reverse Whirling Osis (Dyno)', slug: 'reverse_whirling_osis_dyno' },
     { displayName: 'Sailing Butterfly (Dasein)', slug: 'sailing_butterfly_dasein' },
-    { displayName: 'Sailing DLO', slug: 'sailing_dlo' },
     { displayName: 'Sailing DOD', slug: 'sailing_dod' },
     { displayName: 'Sailing Mirage (Dominatrix)', slug: 'sailing_mirage_dominatrix' },
     { displayName: 'Sailing ss DLO (Fracture)', slug: 'sailing_ss_dlo_fracture' },
@@ -485,7 +481,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Sonic Mirage', slug: 'sonic_mirage' },
     { displayName: 'Sonic Pickup', slug: 'sonic_pickup' },
     { displayName: 'Sonic Torque', slug: 'sonic_torque' },
-    { displayName: 'Spinning DLO', slug: 'spinning_dlo' },
     { displayName: 'Spinning Double Down (Scorpion\\u2019s Tail)', slug: 'spinning_double_down_scorpion_u2019s_tail' },
     { displayName: 'Spinning Double Down Swirl (Scorpion\\u2019s Tail Swirl)', slug: 'spinning_double_down_swirl_scorpion_u2019s_tail_swirl' },
     { displayName: 'Spinning Drifter (Lotus) (Void)', slug: 'spinning_drifter_lotus_void' },
@@ -570,7 +565,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Symposium Whirling Swirling Mirage (Croxton)', slug: 'symposium_whirling_swirling_mirage_croxton' },
     { displayName: 'Tapping Butterfly (Tap Down)', slug: 'tapping_butterfly_tap_down' },
     { displayName: 'Tapping Diving Mirage (Alpine Tap)', slug: 'tapping_diving_mirage_alpine_tap' },
-    { displayName: 'Tapping DLO', slug: 'tapping_dlo' },
     { displayName: 'Tapping Drifter (Tremor)', slug: 'tapping_drifter_tremor' },
     { displayName: 'Tapping Mirage (Tap)', slug: 'tapping_mirage_tap' },
     { displayName: 'Tapping Paradon (Kiwi)', slug: 'tapping_paradon_kiwi' },
@@ -915,7 +909,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Stampede', slug: 'stampede', operationalNotation: 'Toe > (no plant while) Op Out (DEX)(BOD) >> (no plant while) Same In (DEX)(BOD) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Stepping Butterfly (same side)', slug: 'stepping_butterfly_same_side' },
     { displayName: 'Stepping Drifter (same side)', slug: 'stepping_drifter_same_side' },
-    { displayName: 'Stepping Ducking DLO', slug: 'stepping_ducking_dlo' },
     { displayName: 'Stepping Ducking Far Butterfly', slug: 'stepping_ducking_far_butterfly' },
     { displayName: 'Stepping Ducking Far Butterfly Swirl', slug: 'stepping_ducking_far_butterfly_swirl' },
     { displayName: 'Stepping Ducking Far Double Pickup', slug: 'stepping_ducking_far_double_pickup' },
@@ -1136,7 +1129,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Pigbeater (Pixie op Eggbeater)', slug: 'pigbeater_pixie_op_eggbeater', operationalNotation: 'Toe > Same In (DEX) >> Op Out (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Pixie (archaic)', slug: 'pixie_archaic', operationalNotation: 'TOE > SAME IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Diving near Butterfly', slug: 'pixie_diving_near_butterfly' },
-    { displayName: 'Pixie DOD', slug: 'pixie_dod' },
     { displayName: 'Pixie Ducking far DLO', slug: 'pixie_ducking_far_dlo' },
     { displayName: 'Pixie Ducking far Mirage', slug: 'pixie_ducking_far_mirage' },
     { displayName: 'Pixie far Butterfly', slug: 'pixie_far_butterfly' },

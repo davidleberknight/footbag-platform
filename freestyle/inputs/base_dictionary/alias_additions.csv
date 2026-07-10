@@ -1,0 +1,19 @@
+alias_text,target_canonical_slug,alias_type,alias_display,note
+Nuclear DLO,nuclear_double_leg_over,technical,0,DLO abbreviation of double leg over
+Quantum DLO,quantum_double_leg_over,technical,0,DLO abbreviation of double leg over
+Spinning DLO,spinning_double_leg_over,technical,0,DLO abbreviation of double leg over
+Tapping DLO,tapping_double_leg_over,technical,0,DLO abbreviation of double leg over
+Sailing DLO,sailing_double_leg_over,technical,0,DLO abbreviation of double leg over
+Ducking DLO,ducking_double_leg_over,technical,0,DLO abbreviation of double leg over
+Fairy Ducking DLO,fairy_ducking_double_leg_over,technical,0,DLO abbreviation of double leg over
+Fairy Gyro DLO,fairy_gyro_double_leg_over,technical,0,DLO abbreviation of double leg over
+Pixie Gyro DLO,pixie_gyro_double_leg_over,technical,0,DLO abbreviation of double leg over
+Gyro Symposium DLO,gyro_symposium_double_leg_over,technical,0,DLO abbreviation of double leg over
+Stepping Diving DLO,stepping_diving_double_leg_over,technical,0,DLO abbreviation of double leg over
+Stepping Ducking DLO,stepping_ducking_double_leg_over,technical,0,DLO abbreviation of double leg over
+Fairy DOD,fairy_double_over_down,technical,0,DOD abbreviation of double over down
+Pixie DOD,pixie_double_over_down,technical,0,DOD abbreviation of double over down
+DOD Swirl,double_over_down_swirl,technical,0,DOD abbreviation of double over down
+Diving DDD,down_diver,technical,0,DDD abbreviation; named canonical down diver
+Shooting DDD,shooting_star,technical,0,DDD abbreviation; named canonical shooting star
+Furious DLO,nebula,technical,0,DLO abbreviation; named canonical nebula
