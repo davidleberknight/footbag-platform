@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Define the boundaries of freestyle: the ceiling of difficulty, the completeness
-of the grammar, the treatment of structures that are valid but unnamed, and what
-remains for future players to invent. This is where the theory ends and the open
-territory begins. It is also where two questions the other papers deferred come
-to rest: whether a 9-ADD trick is possible, and whether every legal structure is
-a real trick.
+Describe the open edge of freestyle: how the encyclopedia treats difficulty near
+the top, structures that are valid but unnamed, and combos that do or do not
+connect. The frontier of unhit tricks and combos is too vast to enumerate, so
+this paper frames how the open territory is handled, never a bounded list of it.
+It is also where two questions the other papers deferred come to rest: whether a
+9-ADD trick is possible, and whether every legal structure is a real trick.
 
 ## Settled premises
 
@@ -23,15 +23,30 @@ a real trick.
   one of two ways: it rests on an X-Dex application the settled rule forbids, or on
   an operator the grammar has not defined. The doctrine already decides them (see
   the worked examples). "Not yet built" is a status fact, never a gap.
+- **Red's Frontier ruling (integrated).** The frontier of unhit tricks and combos
+  is too vast to summarize, so the encyclopedia never publishes a bounded list of
+  what has not been hit. "Physically impossible" is rejected as a permanent
+  category: what looks impossible today can become possible as players advance, so
+  any statement about a ceiling is dated, never final. The one hard, useful
+  distinction is combo compatibility, whether the terminal contact and state of one
+  move can feed the required entry and contact of the next. Fog does not chain into
+  Blurry Whirl because Fog ends on a toe stall (SAME TOE [DEL]) while Blurry Whirl
+  must launch from a clipper (CLIP), so the ending contact does not feed the
+  required entry. That link is state-transition incompatible, not permanently
+  impossible. A generator or checker that reports whether two or more moves can
+  connect from their start and end contacts is the useful artifact this ruling
+  points to.
 
 ## Open questions
 
-1. **Is there a practical upper limit to ADD, and is a 9 physically possible?**
-   The record documents nothing clean above 8. Whether that is a limit of
-   documentation or of the body is not an editorial question — it needs people
-   who train and judge at the ceiling, and any answer is dated, because athletes
-   change what is possible. (Elite players and competition judges first; Red for
-   how such a trick would be read if it appeared.)
+1. **Is there a practical upper limit to ADD?**
+   The record documents nothing clean above 8, but per Red's ruling this is an
+   open frontier, not a permanent ceiling: whether a 9 has been hit is a dated,
+   evidence-tracked question, never a claim that a 9 is impossible. Whether the
+   limit is one of documentation or of the body is not an editorial question, it
+   needs people who train and judge at the top, and any answer is dated, because
+   athletes change what is possible. (Elite players and competition judges first;
+   Red for how such a trick would be read if it appeared.)
 2. **Is the operator grammar complete, and does it permit repetition?** Whether
    the primitive operator set is closed, and whether an operator may repeat in
    one compound (miraging twice), is likely answerable only as a dated editorial
@@ -77,14 +92,40 @@ a real trick.
   reduce to a single trick. The thinness of the evidence is why completeness is a
   declaration, not a discovery.
 
+## Combo frontier: state-transition compatibility
+
+Red's ruling makes combo compatibility the one hard, useful distinction on the
+frontier. A combo link joins two moves in sequence; it connects only when the
+terminal contact and state the first move leaves the bag in can serve as the entry
+the second move requires. When it cannot, the link is state-transition
+incompatible, which is a fact about contacts, never a claim of impossibility.
+Fog leaving the bag on a toe stall while Blurry Whirl requires a clipper entry is
+the reference case: the two do not chain, but either move on its own is ordinary.
+
+Four labels carry this across the encyclopedia, and they replace any "impossible"
+framing:
+
+- **Open frontier.** Unhit but structurally plausible tricks and combos. Not gaps,
+  not impossibilities, and never published as a bounded list.
+- **State-transition incompatible.** A combo link whose terminal contact or state
+  does not feed the next move's required entry. A compatibility fact, dated to the
+  transition rules in force, not a permanent verdict on either move.
+- **Unknown / unverified.** A trick or link that lacks the structure or the
+  evidence to judge, held until one arrives.
+- **Curator or expert ruling required.** A doctrine-sensitive case, including which
+  terminal contacts may bridge to which entries, that only a curator or the rules
+  expert settles.
+
 ## Encyclopedia impact
 
 The frontier governs the shape of the Emerging Vocabulary surface and the History
 page's closing argument. A physical-ceiling answer dates gracefully and frames how
 the high-ADD tail is presented. A grammar-completeness declaration lets the
-encyclopedia state, with a date, that its operator set is closed — turning an open
-worry into a bounded claim. The unnamed-structure policy decides what the
-observational tier admits.
+encyclopedia state, with a date, that its operator set is closed, as a dated
+declaration rather than a bounded enumeration of the frontier. The
+unnamed-structure policy decides what the observational tier admits, and the
+combo-compatibility labels above decide how the surface talks about links that do
+not connect: state-transition incompatible, never impossible.
 
 ## Who should review it
 

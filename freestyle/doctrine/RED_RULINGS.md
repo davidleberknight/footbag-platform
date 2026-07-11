@@ -34,6 +34,16 @@ silently reshaping either side.
 
 ## Structural doctrine in force
 
+- **Frontier and combo compatibility** (Frontier paper answer). The frontier of
+  unhit tricks and combos is too vast to enumerate, so the encyclopedia never
+  publishes a bounded list of what has not been hit. "Physically impossible" is not
+  a permanent category, because future players may make currently unimaginable
+  things possible; any ceiling statement is dated, never final. The one hard, useful
+  distinction is combo compatibility: whether the terminal contact and state of one
+  move can feed the required entry and contact of the next. Fog does not chain into
+  Blurry Whirl because Fog ends on a toe stall and Blurry Whirl requires a clipper
+  entry, so the link is state-transition incompatible, not impossible. Canonical
+  home: `freestyle/doctrine/papers/4_Frontier.md`.
 - **Direction is structural, not a qualifier** (pt6). A direction-reversed move is
   its own canonical entry: mirage ≠ illusion, spinning ≠ inspinning, ATW ≠
   reverse-ATW, drifter ≠ reverse-drifter. `reverse` is never a modifier row.

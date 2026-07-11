@@ -14,8 +14,11 @@ operational question below as not yet successfully delivered to Red, and do not 
 any as pending his answer, until delivery is confirmed. The formal doctrine papers
 have their own send state, tracked separately: the Identity paper was sent to Red and
 answered (its rulings are integrated in `RED_RULINGS.md`, `DOWN_FAMILY.md`, and the
-topic docs), the Frontier paper was sent and awaits an answer, and the Notation,
-Scoring, and History papers are drafted and not yet sent. Questions settled by the
+topic docs), the Frontier paper was sent and answered (its ruling is integrated in
+`4_Frontier.md` and `RED_RULINGS.md`: the frontier is too vast to enumerate,
+"physically impossible" is not a permanent category, and combo compatibility is the
+one hard distinction), and the Notation, Scoring, and History papers are drafted and
+not yet sent. Questions settled by the
 Identity paper's answers are integrated and removed from this list; the down-family
 one-family ruling is the clearest example (see `DOWN_FAMILY.md`), with only its
 embedded-base labeling frame still open. The remaining open questions map onto the
