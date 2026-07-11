@@ -11760,6 +11760,20 @@ a.dict-trick-row-hashtag--media:hover {
   color: var(--secondary);
   margin-left: 4px;
 }
+/* Per-member and per-set-member "watch clips" gallery link. */
+a.set-detail-trick-media {
+  font-size: 0.8rem;
+  color: var(--primary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+a.set-detail-trick-media:hover {
+  text-decoration: underline;
+}
+/* Family / set page "watch a clip" representative-media link. */
+.family-representative-media {
+  font-size: 0.9rem;
+}
 .set-detail-examples-empty {
   font-style: italic;
   color: var(--text-secondary);

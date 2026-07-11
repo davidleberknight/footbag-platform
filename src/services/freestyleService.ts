@@ -2839,6 +2839,9 @@ export interface FreestyleSetDetailContent {
   relatedSystems:       readonly SlugLinkVM[];
   exampleTricks:        readonly SetDetailExampleTrick[];
   hasExampleTricks:     boolean;
+  // A single "watch a clip from this set" link: the strongest-covered example
+  // trick's gallery, or null when no example trick has curated media.
+  representativeMedia:  { label: string; coverageLabel: string; href: string } | null;
   crossLinks:           SetDetailCrossLinks;
   source:               CanonicalSetSourceKey;
   sourceLabel:          string;
@@ -2879,6 +2882,9 @@ export interface SetDetailExampleTrick {
   adds:                string | null;
   addsLabel:           string;
   operationalNotation: string;
+  // Media-gallery destination for this trick's clips, or null when it has none.
+  mediaHref:           string | null;
+  mediaLabel:          string;   // 'Tutorial available' / 'Demo available' / ''
 }
 
 export interface SetDetailCrossLinks {
@@ -3282,6 +3288,11 @@ export interface FamilyDetailMemberLink {
   displayName: string;
   href: string;            // /freestyle/tricks/:slug
   addsLabel: string;       // pre-shaped: '4 ADD' / '? ADD'
+  // Media-gallery destination for this member's clips, /media/browse?context=<slug>,
+  // or null when the member has no curated reference media. Surfaces the media
+  // the platform already owns on the family page, matching the browse-row hashtag.
+  mediaHref: string | null;
+  mediaLabel: string;      // 'Tutorial available' / 'Demo available' / '' (none)
 }
 
 // One operator-depth band of member tricks (Core / 1 operator / ...).
@@ -3343,6 +3354,9 @@ export interface FreestyleFamilyDetailContent {
   // The family anchor trick's detail link, when the anchor is a dictionary
   // member (the Down umbrella has no anchor trick of its own).
   anchorTrick: { displayName: string; href: string } | null;
+  // A single "watch a clip from this family" link: the strongest-covered
+  // member's media gallery, or null when no family member has curated media.
+  representativeMedia: { label: string; coverageLabel: string; href: string } | null;
   sharedStructure: string | null;  // family invariant one-liner
   evolutionSteps: FamilyDetailEvolutionStep[];
   hasEvolution: boolean;
@@ -10454,7 +10468,20 @@ export const freestyleService = {
       displayName: card.displayName,
       href:        card.href,
       addsLabel:   card.addsLabel,
+      mediaHref:   card.hashtagHref,
+      mediaLabel:  card.mediaCoverageLabel,
     });
+
+    // Representative family media: the strongest-covered member (a tutorial over
+    // a demo), used for a single "watch a clip from this family" link near the
+    // top of the page. Pure projection over the coverage the browse rows use.
+    const pickRepresentativeMedia = (cards: DictionaryTrickCard[]) => {
+      const pick = cards.find(c => c.mediaCoverage === 'tutorial')
+        ?? cards.find(c => c.mediaCoverage === 'demo');
+      return pick && pick.hashtagHref
+        ? { label: pick.displayName, coverageLabel: pick.mediaCoverageLabel, href: pick.hashtagHref }
+        : null;
+    };
 
     // Umbrella family: a roster root with variant branches and no raw
     // trick_family rows of its own. Its members group by variant (the ruled
@@ -10498,6 +10525,12 @@ export const freestyleService = {
 
     const anchorRow = memberRows.find(r => r.slug === slug) ?? null;
     const descendantCount = FAMILY_DESCENDANT_COUNTS.get(slug) ?? group.cards.length;
+
+    const representativeMedia = pickRepresentativeMedia(
+      isUmbrella
+        ? variantBranches.flatMap(b => buildFamilyGroup(b.slug, familyMap.get(b.slug) ?? [], ctx, rungOf).cards)
+        : group.cards,
+    );
 
     const rowBySlug = new Map(allRows.map(r => [r.slug, r]));
     const teaching: FamilyDetailTeaching | null = card?.teaching
@@ -10590,6 +10623,7 @@ export const freestyleService = {
         anchorTrick: anchorRow
           ? { displayName: anchorRow.canonical_name, href: `/freestyle/tricks/${anchorRow.slug}` }
           : null,
+        representativeMedia,
         sharedStructure: group.sharedStructure,
         evolutionSteps,
         hasEvolution:    evolutionSteps.length > 0,
@@ -10665,6 +10699,21 @@ export const freestyleService = {
     const rowsBySlug = new Map<string, FreestyleTrickRow>(
       allActiveRows.map(r => [r.slug, r]),
     );
+    // Per-trick media coverage, built the same way the browse rows build it, so
+    // the set page surfaces the clips the platform already owns.
+    const allWithPending = runSqliteRead('freestyleTricks.listAllWithPending', () =>
+      freestyleTricks.listAllWithPending.all() as FreestyleTrickRowWithStatus[],
+    );
+    const { ctx: setCtx } = buildTrickIndexShapingContext(allWithPending);
+    const mediaHrefFor = (s: string): { href: string | null; label: string } => {
+      const cov = setCtx.mediaCoverageBySlug.get(s) ?? 'none';
+      if (cov === 'none') return { href: null, label: '' };
+      const label = cov === 'tutorial' ? 'Tutorial available'
+        : cov === 'demo' ? 'Demo available'
+        : cov === 'record' ? 'Record video'
+        : '';
+      return { href: `/media/browse?context=${s}`, label };
+    };
     const linkedTrickSlugs = new Set<string>(
       linkRows.filter(l => l.modifier_slug === set.slug).map(l => l.trick_slug),
     );
@@ -10672,14 +10721,26 @@ export const freestyleService = {
       .map(s => rowsBySlug.get(s))
       .filter((r): r is FreestyleTrickRow => r !== undefined)
       .sort((a, b) => a.canonical_name.localeCompare(b.canonical_name))
-      .map(row => ({
-        slug:                row.slug,
-        displayName:         row.canonical_name,
-        href:                `/freestyle/tricks/${row.slug}`,
-        adds:                row.adds ?? null,
-        addsLabel:           row.adds ? `${row.adds} ADD` : '? ADD',
-        operationalNotation: row.operational_notation ?? '',
-      }));
+      .map(row => {
+        const m = mediaHrefFor(row.slug);
+        return {
+          slug:                row.slug,
+          displayName:         row.canonical_name,
+          href:                `/freestyle/tricks/${row.slug}`,
+          adds:                row.adds ?? null,
+          addsLabel:           row.adds ? `${row.adds} ADD` : '? ADD',
+          operationalNotation: row.operational_notation ?? '',
+          mediaHref:           m.href,
+          mediaLabel:          m.label,
+        };
+      });
+    // Representative set media: the strongest-covered example (tutorial over demo).
+    const setRepTrick =
+      exampleTricks.find(t => t.mediaLabel === 'Tutorial available')
+      ?? exampleTricks.find(t => t.mediaHref !== null);
+    const representativeMedia = setRepTrick && setRepTrick.mediaHref
+      ? { label: setRepTrick.displayName, coverageLabel: setRepTrick.mediaLabel, href: setRepTrick.mediaHref }
+      : null;
 
     // Compositional-sets anchor — map subtype → family key on /freestyle/compositional-sets.
     const compositionalFamilyKey: Record<SetSubtypeKey, string> = {
@@ -10771,6 +10832,7 @@ export const freestyleService = {
           href:  `/freestyle/sets/${r.slug}`,
         })),
         exampleTricks,
+        representativeMedia,
         hasExampleTricks:      exampleTricks.length > 0,
         crossLinks,
         source:                set.source,

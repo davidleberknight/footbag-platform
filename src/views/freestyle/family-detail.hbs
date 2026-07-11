@@ -31,6 +31,13 @@
   <p class="trick-family-branch-of mt-4">Branch of the <a href="{{content.branchParent.href}}">{{content.branchParent.name}}</a> family.</p>
   {{/if}}
 
+  {{#if content.representativeMedia}}
+  <p class="family-representative-media mt-4">
+    <a href="{{content.representativeMedia.href}}">Watch a clip from this family &rarr;</a>
+    <span class="text-muted">({{content.representativeMedia.coverageLabel}}: {{content.representativeMedia.label}})</span>
+  </p>
+  {{/if}}
+
   {{#if content.teaching}}
   <section class="content-section" aria-label="What is {{content.displayArticle}} {{content.displayName}}">
     <div class="section-heading">
@@ -132,6 +139,7 @@
         <li class="set-detail-trick">
           <a href="{{href}}">{{displayName}}</a>
           <span class="set-detail-trick-add">({{addsLabel}})</span>
+          {{#if mediaHref}}<a class="set-detail-trick-media" href="{{mediaHref}}" aria-label="Media for {{displayName}}">&#9654; media</a>{{/if}}
         </li>
         {{/each}}
       </ul>
@@ -146,6 +154,7 @@
         <li class="set-detail-trick">
           <a href="{{href}}">{{displayName}}</a>
           <span class="set-detail-trick-add">({{addsLabel}})</span>
+          {{#if mediaHref}}<a class="set-detail-trick-media" href="{{mediaHref}}" aria-label="Media for {{displayName}}">&#9654; media</a>{{/if}}
         </li>
         {{/each}}
       </ul>

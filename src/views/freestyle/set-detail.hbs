@@ -175,12 +175,19 @@
   {{#if content.hasExampleTricks}}
   <section class="set-detail-section set-detail-examples-section" aria-label="Example tricks">
     <h2>Example tricks</h2>
+    {{#if content.representativeMedia}}
+    <p class="family-representative-media">
+      <a href="{{content.representativeMedia.href}}">Watch a clip from this set &rarr;</a>
+      <span class="text-muted">({{content.representativeMedia.coverageLabel}}: {{content.representativeMedia.label}})</span>
+    </p>
+    {{/if}}
     <ul class="set-detail-trick-list">
       {{#each content.exampleTricks}}
       <li class="set-detail-trick">
         <a href="{{href}}">{{displayName}}</a>
         <span class="set-detail-trick-add">({{addsLabel}})</span>
         {{#if operationalNotation}}<code class="set-detail-trick-notation">{{operationalNotation}}</code>{{/if}}
+        {{#if mediaHref}}<a class="set-detail-trick-media" href="{{mediaHref}}" aria-label="Media for {{displayName}}">&#9654; media</a>{{/if}}
       </li>
       {{/each}}
     </ul>
