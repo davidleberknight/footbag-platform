@@ -17,16 +17,20 @@ answered (its rulings are integrated in `RED_RULINGS.md`, `DOWN_FAMILY.md`, and 
 topic docs), the Frontier paper was sent and answered (its ruling is integrated in
 `4_Frontier.md` and `RED_RULINGS.md`: the frontier is too vast to enumerate,
 "physically impossible" is not a permanent category, and combo compatibility is the
-one hard distinction), and the Notation, Scoring, and History papers are drafted and
-not yet sent. Questions settled by the
+one hard distinction), the Scoring paper was sent and awaits Red's answer (its five
+questions: the blurry-expansion predicate, the undefined-operator definitions, the
+double-prefix and count-quantifier disposition, repeated-operator and stacked-chain
+scoring, and the terraging-chain arithmetic; the cross-dex receiver-boundary question
+was deliberately held back for a later scoring follow-up), and the Notation and
+History papers are drafted and not yet sent. Questions settled by the
 Identity paper's answers are integrated and removed from this list; the down-family
 one-family ruling is the clearest example (see `DOWN_FAMILY.md`), with only its
-embedded-base labeling frame still open. The remaining open questions map onto the
-still-unsent papers: the blurry-expansion predicate, the operator structural
-definitions, and the terraging-chain arithmetic are Scoring-paper questions; the
-cross-body rake base and its register are Notation-paper questions; the down-family
-embedded-base labeling frame is the open half of an Identity-paper question. These
-fold into those papers rather than becoming new ad hoc asks.
+embedded-base labeling frame still open. The remaining open questions map onto their
+papers: the blurry-expansion predicate, the operator structural
+definitions, and the terraging-chain arithmetic are Scoring-paper questions now with
+Red; the cross-body rake base and its register are Notation-paper questions; the
+down-family embedded-base labeling frame is the open half of an Identity-paper
+question. These fold into those papers rather than becoming new ad hoc asks.
 
 **To-do (whole queue):** Review every open Red question, assemble the current
 packet, send or resend it to Red, and then update each item's delivery status from
