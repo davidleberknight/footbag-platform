@@ -150,12 +150,13 @@ Pipeline defects, deviations, and cleanup the cutover load and onboarding matchi
 **Surface propagation rule (definition of done for freestyle slices; a standing rule, not a task — do not delete when items close).** Any freestyle update — a promotion, a doctrine change, a classifier change, or a content backfill — must propagate to every affected surface before the slice is considered complete. A change is not complete merely because the source row was edited. Affected surfaces, as applicable: canonical trick data; aliases / duplicate archive; Emerging Vocabulary; the observational universe; tracked names; ADD analysis; trick detail pages; browse / search; operator / modifier pages; set pages; family surfaces; media / related-trick projections; metrics / counts / copy; generated content files (`src/content/freestyleObservationalUniverse.ts`, `freestyleTrackedNames.ts`, and their peers); and tests / QC gates. For every slice, explicitly verify one of: (1) all affected surfaces were updated and regenerated, or (2) a surface is intentionally unchanged, with the reason documented. This applies to human and AI work alike.
 
 **State of freestyle (standing summary).** The freestyle encyclopedia is release-ready
-at Version 1; this block records where it stands so the plan stays pointer-only for
-freestyle. Freestyle is in launch curation-cutover mode: the public surface is
-coherent, the CSV rebuild is guarded against production use, and the active launch
-work is completing the in-app curation and cutover path tracked in
-`freestyle_remediation_report.md`. Doctrine, Red questions, and content promotions
-remain James-led and are tracked through the freestyle doctrine files and that report.
+at Version 1; this block records where it stands. Freestyle is in launch
+curation-cutover mode: the public surface is coherent, the CSV rebuild is guarded
+against production use, and the one open launch item is the in-app curation cutover's
+operator-run staging rehearsal, carried in the live priority list below. Doctrine, Red
+questions, and content promotions remain James-led, tracked through the freestyle
+doctrine files and that live list. The 2026-07-07 stewardship audit is reconciled and
+closed; its report is a historical archive, and the live freestyle work is this plan.
 
 - *Implementation.* The dictionary (about 900 active canonical tricks, every one
   terminating in a core atom; new admin saves enforce scoring-bracket parity for a
@@ -178,13 +179,13 @@ remain James-led and are tracked through the freestyle doctrine files and that r
   until James assembles and sends the current packet and delivery is confirmed;
   doctrine integration and promotions remain James-led. The remaining first-edition
   doctrine papers (`freestyle/doctrine/papers/0..5`) have a mixed send state: the
-  Identity paper was sent to Red and answered, the Frontier paper was sent and awaits
-  Red's answer, and the Notation, Scoring, and History papers are drafted, committed,
-  and not yet sent. Every unresolved doctrine question is isolated where it cannot
+  Identity and Frontier papers were sent to Red, answered, and integrated, and the
+  Notation, Scoring, and History papers are drafted, committed, and not yet sent. Every
+  unresolved doctrine question is isolated where it cannot
   leak into published values: the doctrine queue in `freestyle/doctrine/RED_QUEUE.md`
-  with its blocked items (tracked as FS-23 and FS-24 in
-  `freestyle_remediation_report.md`), the Quantum-versus-Miraging question (FS-36
-  there), and the divergence registries in the content layer.
+  with its blocked items (the Red-dependent promotion and world-record-name decisions
+  carried in the live priority list below), and the divergence registries in the
+  content layer.
 - *Promotion.* The major promotion arc is finished: everything independently
   derivable from the sources is promoted, the clean no-cascade runway is exhausted,
   and the curator's one-line-call queue is cleared. What remains unpromoted is
@@ -193,23 +194,27 @@ remain James-led and are tracked through the freestyle doctrine files and that r
   blockers and four should-fix items are fixed and re-verified against rendered
   output; the full test suite is green. Version 1 is ready to freeze.
 
-- **All freestyle work items are consolidated in `freestyle_remediation_report.md` (repo root).** The 2026-07-07 freestyle stewardship audit absorbed every freestyle to-do item from this plan into that report's backlog (tasks FS-01 through FS-42, with a per-item mapping from the old plan lines): the launch-scope in-app freestyle curation cutover, the launch-blocking code fixes and test nets, the copy and code cleanup, the two tracked freestyle deviations (count/quantifier notation rendering; the PassBack compound difficulty tags), the doctrine blockers awaiting rules-expert and curator answers, the parked post-V1 backlog, and the post-V1 vision directions. The report also records the maintainer-ratified decisions: the live database becomes the single source of truth for freestyle content at go-live (the CSV pipeline retires from production); the full in-app curation feature is launch scope; alias URLs canonicalize with minimal redirects; and `exploration/` proves a real use or is retired at go-live. The per-item detail, context, and done-conditions live in that report. The two blocks below summarize the current release gate and the remaining non-blocking work, so the plan shows the shape of freestyle at a glance without carrying every item.
+- **The freestyle stewardship audit is reconciled and closed; this plan is the live source of truth.** The 2026-07-07 audit produced `freestyle_remediation_report.md`, which served as the freestyle triage queue during the Version 1 push. That work is now reconciled: every item is either closed, an accepted decision, a tracked deviation, or a post-launch or blocked item, and all of the live ones are carried in the priority list below. The report is retained only as a historical archive of the audit trail (per-item evidence and ratified decisions); it is not an active backlog, and new freestyle work starts from this plan.
 
-**Freestyle 1.2 go-live gate (the only release blocker).** One item blocks the Freestyle 1.2 release: the curation-cutover staging rehearsal evidence. The build, the admin-edit rehearsal, and the cutover mechanics are done. What remains is two operator-run staging steps that need AWS deploy and host access: a code-only deploy that leaves the live database untouched while an admin edit made through the app survives, and a demonstration that the database-replacing rebuild deploy refuses on a host carrying the post-cutover marker before any mutation, with no bypass. Dave, the authorized deploy operator, runs both on staging and captures the evidence for each. James completed only the admin-UI rehearsal half and is not authorized to run the AWS deploy path. This is the freestyle curation-cutover rehearsal gate in the go-live blocker index, and the freestyle curation-cutover item (FS-19) in `freestyle_remediation_report.md`; it stays open until Dave returns both the code-only-deploy persistence evidence and the destructive-rebuild refusal evidence. Nothing else freestyle blocks the release.
+**Freestyle 1.2 go-live gate (the only release blocker).** One item blocks the Freestyle 1.2 release: the curation-cutover staging rehearsal evidence. The build, the admin-edit rehearsal, and the cutover mechanics are done. What remains is two operator-run staging steps that need AWS deploy and host access: a code-only deploy that leaves the live database untouched while an admin edit made through the app survives, and a demonstration that the database-replacing rebuild deploy refuses on a host carrying the post-cutover marker before any mutation, with no bypass. Dave, the authorized deploy operator, runs both on staging and captures the evidence for each. James completed the admin-UI rehearsal half and is not authorized to run the AWS deploy path. This is the freestyle curation-cutover rehearsal gate in the go-live blocker index. It stays open until both the code-only-deploy persistence evidence and the destructive-rebuild refusal evidence are returned. Nothing else freestyle blocks the release.
 
-**Unfinished freestyle business (real work, none of it release-blocking).** Substantial freestyle work remains after Freestyle 1.2, and none of it blocks the release unless the remediation report explicitly marks it a launch blocker, which only the gate above is. Per-item detail lives in `freestyle_remediation_report.md` (the FS-## items), the doctrine questions in `freestyle/doctrine/RED_QUEUE.md`, and the movement-algebra research in its own research notes. Summary:
+**Post-launch freestyle roadmap (Freestyle 1.3; none release-blocking).**
+- *Media.* Source a replacement demo for the sole-survivor trick; build local MP4 trick-clip ingestion; learn-by-watching tutorial embeds; and broader media curation and tagging limited to actual trick-demonstration footage. The 72 BAP Individual Shred clips are excluded by decision (see the closed decisions below).
+- *Code and test hygiene.* De-epoch the freestyle test comments (86 files carry epoch labels and dated change-markers); freestyleService extraction into smaller seams is opportunistic only, done when a slice already touches those seams, never as freestanding refactoring.
+- *Contingent or doctrine-gated.* Record the difficulty-tag design once the PassBack compound difficulty tags are split into a source tag plus a difficulty tag; the Movement Systems completeness audit, gated behind doctrine work.
+- *Deferred tooling.* Trick-tip moderation, creating new provenance-source registry rows, and the symbolic and observational admin edit surfaces, built post-launch when scoped; their deferred write-path user stories (the modifier registry, trick relations, and the symbolic layers) land with them.
+- *Vision directions (pulled one at a time):* a layered, collapsible glossary as the Version 1.1 flagship; foundational-base teaching pages for the anchor positions; teaching the operator algebra and notation with a running ADD sum; the frontier as narrative; a history page rewritten around vocabulary-evolution mechanisms; and learner navigation ladders derived from the operator lattice.
 
-| Work | Scope and count | Owner | Blocks launch | Closes when | Detail locator |
-|---|---|---|---|---|---|
-| Pre-launch polish | Seven tracked items (copy and orientation cleanup, an em-dash sweep of visitor text, and code and test hygiene) | James (copy), Dave (code and tests) | No | Copy approved and the code and test items land | FS-05, FS-07, FS-08, FS-09, FS-10, FS-11, FS-12 |
-| Doctrine queue | Six open Red questions and four curator questions, none yet confirmed-delivered to Red | Red answers; James routes; curator rules | No | Packet sent and confirmed, answers integrated across every affected surface | FS-23, FS-24; RED_QUEUE.md |
-| Promotion / canon expansion | Promoting the promotable, clearing structurally-resolved-but-unpublished tricks, and reducing the emerging vocabulary: 64+ Red-gated rows plus the broader emerging/observational backlog, detailed in the remediation report | James (curator), gated on the doctrine queue | No | Doctrine lands, then promote and propagate to every surface | Red queue plus the emerging/observational backlog |
-| Possible-trick research | The movement-algebra / trick-universe study | James (research) | No | Ongoing; it needs a durable home outside the scratch exploration area before that area is retired at go-live (decision pending; files not moved in this pass) | research line; FS-25 exploration-retirement / durable-home decision |
-| Consistency / audit | Three tracked consistency decisions (butterfly-family far-default, the Infinity model, a bracket-order polish) plus a surface-propagation audit after any promotion or doctrine change | James | No | Each ruling lands and propagates to every surface | FS-39, FS-40, FS-41 |
-| Media / content | Media-gallery connectivity for the family and set surfaces is engineering-complete (both pages now expose the curated clips the platform already owns, the browse family view / landing mosaic / media hub kept their existing media idioms, and future tagged clips flow into the family and set pages automatically). The remaining media work is post-launch, the Freestyle 1.3 media roadmap: tagging the 72 BAP shred clips by trick and set, learn-by-watching tutorial embeds, local MP4 clip ingestion, the sole-survivor and unresolved record/video viewings, and broader media curation and tagging | James (Dave for the ingestion tooling) | No | Assets sourced, tagged, and authored post-launch | FS-29, FS-30, FS-31, FS-34 |
-| External dependencies | The IFPA competition-format rules wording | IFPA, via Dave | No | IFPA supplies the wording | FS-33 |
-| Deferred tooling / admin | The curation surfaces not built for launch: trick-tip moderation, new provenance-source creation, and the symbolic and observational admin surfaces | James and Dave | No | Built post-launch when scoped | FS-19 tail; FS-13, FS-14, FS-15, FS-17, FS-21, FS-28, FS-35 |
-| Accepted deviations | Four tracked non-blockers, no action now: count/quantifier notation rendering, the PassBack difficulty tags, and the butterfly and around-the-world stored-notation deviations | James | No | Re-accepted or scheduled at the cutover review | FS-26, FS-27, FS-37, FS-38 |
+**Doctrine, curator, and external blockers (still real; none release-blocking).**
+- *Rules-expert doctrine.* The Frontier paper has been answered and integrated. The Notation, Scoring, and History doctrine papers are drafted but not yet sent. Those remaining papers gate Red-dependent promotion work, including the blurry-expansion predicate, repeated-operator scoring, cross-body rake/base questions, and related Emerging Vocabulary reductions, and six unresolved world-record trick names wait on the same answers.
+- *Curator (James).* Six world-record trick names await curator video viewings; eight recovered Member Tips each need an author-or-reject curator decision (each would mean authoring a new trick or alias) and two Net-discipline tips wait for a Net surface to exist; the Zulu and Weaving canonical sets await a curator notation-governance ruling (their own body-action tokens versus duck/dive variants) before their JOB notation can be authored; the parked alias follow-ups (the folk/historical display shortlist and the doctrine-sensitive structural aliases) await per-name curator review; and one curator ruling on whether miraging is ever a formula-bearing component releases the parked miraging compound set and the held Drifter and double-leg-over readings.
+- *External (IFPA).* The Sick 3 competition-format rules wording; when the IFPA supplies it, the freestyle rules buttons re-enable.
+
+**Accepted freestyle deviations and closed decisions (tracked; no action now).**
+- *Deviations (the Current/Target markers stay in the code):* count and quantifier tokens (double, triple, surging, high) render like operators in the symbolic notation; the PassBack tutorial galleries use compound difficulty tags; the Butterfly stored notation keeps its side-either SAME/OP entry while the public atom renders far-default; and the Around-the-World stored notation keeps its IN/OUT direction while the public atom renders inward-only.
+- *Closed decisions (recorded so they are not re-litigated):* the 72 BAP Individual Shred clips were all reviewed and are player-centered shred performances, not individual trick demonstrations, so they stay in the BAP/media collection and are excluded from per-trick media tagging, with no further trick or set tagging work planned; Quantum is the confirmed set identity, while Miraging is not a canonical set and is not a Quantum equivalent, remaining historical or downtime mirage-family terminology where explicitly framed, and no rows merge; and for Version 1, Far Butterfly retires into Butterfly as the routed alias behavior, Infinity remains suppressed from generic Butterfly alias display, and the broader Butterfly compound notation migration remains out of scope.
+
+*The movement-algebra / Trick Universe study is ongoing research under `exploration/`, not release work.*
 
 ---
 

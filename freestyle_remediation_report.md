@@ -1,5 +1,7 @@
 # Freestyle Remediation Report
 
+> **Status: reconciled and closed (2026-07-10). Historical archive, not an active backlog.** This report served as the freestyle stewardship triage queue during the Version 1 push. Its work is now reconciled: every actionable item is either closed, an accepted decision, a tracked deviation, or a post-launch or doctrine-blocked item, and the live source of truth for all of them is `IMPLEMENTATION_PLAN.md`. The single remaining launch-relevant item is the operator-run staging rehearsal, tracked in the plan's Freestyle 1.2 go-live gate. This file is retained for its audit trail (per-item evidence, ratified decisions, and the four reconciliation passes); do not treat any item here as open work without checking the plan first. New freestyle work starts from the plan, not from this report.
+
 Adversarial audit of the entire Footbag Freestyle area against this repository's own standards, plus a consolidation of every Freestyle-related `IMPLEMENTATION_PLAN.md` item. Produced 2026-07-07. The audit itself ran read-only (live dev server on localhost:3000, read-only SQLite queries, static analysis); after the maintainer ratified the consolidation the same day, one companion edit was executed with explicit approval: the freestyle to-do items were deleted from `IMPLEMENTATION_PLAN.md` (the complete accounting is section 14). The repository artifacts of this work are therefore this report and that plan edit, nothing else. This report is standalone: a reader with only this file and the repository can act on every item.
 
 Severity scale: P0 must fix before go-live; P1 must fix before launch signoff; P2 should fix before launch or external testing; P3 non-blocking cleanup. Each backlog task carries audience and action-type tags.
@@ -991,6 +993,8 @@ Every decision card raised by the audit was answered by the maintainer during pl
 **Additional maintainer directives ratified in the same review:** the live database becomes the single source of truth at go-live (decision 1); `exploration/` is fenced from live dependencies and kept as the research home, not retired (decision 4, revised); and ALL freestyle to-do items leave `IMPLEMENTATION_PLAN.md` and live in this report (section 14).
 
 **Still-open human inputs (tracked as tasks, not decisions for this report):** the Red Wave 3 doctrine answers (FS-23), the curator video viewings behind the same-side record names (FS-24), the IFPA Sick 3 rules wording (FS-33), and the demo poster/MP4 assets (FS-22). (The genuine-hyphen exception list was ruled and committed at FS-06's execution; the terraging-rider question folded into the queue-wide delivery reset under FS-23; and the Quantum-vs-Miraging question is no longer an awaited external input, having moved to a maintainer-owned wording reconciliation under FS-36.)
+
+**BAP Individual Shred Collection classification — closed decision (2026-07-10).** All 72 BAP Individual Shred clips (task FS-30) were reviewed and classified as player-centered shred performances, not individual trick demonstrations. They remain in the BAP/media collection and are intentionally excluded from per-trick media tagging. FS-30 is closed as a decision, not deferred work: no further trick or set tagging of these clips is planned.
 
 ## 17. Approval record and starting point for a fresh session
 
