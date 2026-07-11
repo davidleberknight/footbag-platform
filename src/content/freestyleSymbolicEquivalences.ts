@@ -145,11 +145,11 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['whirling osis'],
     curatorConfirmPending: false,   // pt11-locked
   },
-  {
-    slug:     'drifter',
-    readings: ['miraging clipper'],
-    curatorConfirmPending: false,   // pt11-locked
-  },
+  // drifter's compositional reading is held for curator review: "miraging
+  // clipper" is legacy mirage-family shorthand, and drifter is a clipper-anchored
+  // base/primitive whose canonical decomposition is not settled. It renders with
+  // no ≡ reading until a curator rules it, rather than teaching the nickname as a
+  // scored decomposition. Notation: SET > OP IN [DEX] > SAME CLIP [XBD] [DEL].
   {
     slug:     'vortex',
     readings: ['gyro drifter'],
@@ -202,11 +202,10 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // paradox paradox-legover). S9
   // (EQUIVALENCE_TOPOLOGY) is the sole owner of the both-paths rendering;
   // S5 would duplicate one path and obscure the other.
-  {
-    slug:     'double_leg_over',
-    readings: ['miraging legover'],
-    curatorConfirmPending: false,   // pt4-locked (DLO = Miraging Legover)
-  },
+  // double-leg-over's compositional reading is held for curator review: "miraging
+  // legover" is legacy shorthand for what the notation renders as two dexes into a
+  // toe (SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]). It renders with no ≡
+  // reading until a curator rules its canonical decomposition.
   {
     slug:     'surge',
     readings: ['surging paradox mirage'],
@@ -373,16 +372,11 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   },
 
   // ── Dada-curve ──────────────────────────────────
-  // Per user-spec doctrine: "dada-curve = miraging far symposium butterfly".
-  // dada-curve has its own singleton trick_family bucket; the chain
-  // surfaces on the trick's individual detail page + ADD view. All
-  // tokens registered (miraging in MODIFIERS, far in SIDE_POSITIONAL,
-  // symposium in MODIFIERS, butterfly in BASE_ANCHORS).
-  {
-    slug:     'dada_curve',
-    readings: ['miraging far symposium butterfly'],
-    curatorConfirmPending: false,   // user-spec doctrine
-  },
+  // dada-curve's "miraging far symposium butterfly" reading is held for curator
+  // review: miraging is descriptive mirage-family language, not a settled
+  // formula-bearing operator, so the trick renders no compositional reading
+  // rather than teach the nickname as canonical. Parked in the miraging-review
+  // follow-up.
 
   // ── Whirl-family trivially-named compounds ──────
   // These compounds are named by their compositional structure: the name
@@ -474,8 +468,8 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   },
   {
     slug:     'paradox_drifter',
-    readings: ['paradox drifter', 'paradox miraging clipper'],
-    curatorConfirmPending: false,   // tokenizes the canonical name; deeper reading extends drifter's pt11-locked 'miraging clipper'
+    readings: ['paradox drifter'],
+    curatorConfirmPending: false,   // the deeper 'paradox miraging clipper' extension is held with drifter's own decomposition (miraging is not a settled scored component); 'paradox drifter' echoes the canonical name and is dropped by the tautological filter, so paradox_drifter renders no compositional reading pending curator review
   },
   // ── Externally-supported chains ───────────────────────────────────────
   // Chains grounded by a cross-source audit: each entry has FM+PB

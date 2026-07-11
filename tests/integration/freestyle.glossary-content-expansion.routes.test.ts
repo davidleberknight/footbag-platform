@@ -157,7 +157,10 @@ describe('Glossary §8 — walking-family progression', () => {
     expect(res.text).toMatch(/notation-token[^>]*>stepping<[\s\S]*?notation-token[^>]*>butterfly</);
     expect(res.text).toMatch(/notation-token[^>]*>pixie<[\s\S]*?notation-token[^>]*>butterfly</);
     expect(res.text).toMatch(/notation-token[^>]*>stepping<[\s\S]*?notation-token[^>]*>near<[\s\S]*?notation-token[^>]*>butterfly</);
-    expect(res.text).toMatch(/notation-token[^>]*>miraging<[\s\S]*?notation-token[^>]*>far<[\s\S]*?notation-token[^>]*>symposium<[\s\S]*?notation-token[^>]*>butterfly</);
+    // dada-curve's "miraging far symposium butterfly" formula is held for curator
+    // review (miraging is not a settled scored component), so it renders a held
+    // note instead of the formula chip.
+    expect(res.text).toContain('decomposition held for curator review');
     expect(res.text).toMatch(/notation-token[^>]*>nuclear<[\s\S]*?notation-token[^>]*>butterfly</);
     expect(res.text).toMatch(/notation-token[^>]*>pixie<[\s\S]*?notation-token[^>]*>ducking<[\s\S]*?notation-token[^>]*>butterfly</);
   });

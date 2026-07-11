@@ -59,12 +59,14 @@ beforeAll(async () => {
   });
 
   // Control: a non-allowlisted compound that DOES have a symbolic-
-  // equivalence chain (drifter ≡ miraging clipper). The "Compressed
-  // from" line MUST NOT render for this slug because it's not in the
-  // famous-compression allowlist.
+  // equivalence chain (vortex ≡ gyro drifter). The "Compressed from" line
+  // MUST NOT render for this slug because it's not in the famous-compression
+  // allowlist. (Drifter's own "miraging clipper" reading is held for curator
+  // review, so drifter no longer carries a chain and cannot serve as this
+  // control.)
   insertFreestyleTrick(db, {
-    slug: 'drifter', canonical_name: 'drifter', adds: '3',
-    base_trick: 'clipper_stall', trick_family: 'clipper_stall',
+    slug: 'vortex', canonical_name: 'vortex', adds: '4',
+    base_trick: 'drifter', trick_family: 'drifter',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
   });
 
@@ -130,13 +132,13 @@ describe('"Compressed from" surface — allowlisted famous compressions', () => 
 });
 
 describe('"Compressed from" surface — suppression rules', () => {
-  it('non-allowlisted slug WITH symbolic-equivalence chain does NOT render the line (drifter ≡ miraging clipper)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/drifter');
+  it('non-allowlisted slug WITH symbolic-equivalence chain does NOT render the line (vortex ≡ gyro drifter)', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/vortex');
     expect(res.status).toBe(200);
-    // drifter has a chain entry (miraging clipper) but is NOT in the
+    // vortex has a chain entry (gyro drifter) but is NOT in the
     // FAMOUS_COMPRESSION_SLUGS allowlist; the line MUST NOT render.
     expect(res.text).not.toContain('class="trick-compressed-from"');
-    expect(res.text).not.toMatch(/<em class="trick-compressed-from-reading">miraging clipper<\/em>/);
+    expect(res.text).not.toMatch(/<em class="trick-compressed-from-reading">gyro drifter<\/em>/);
   });
 
   it('plain non-allowlisted compound does NOT render the line (pixie_legover control)', async () => {

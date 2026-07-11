@@ -2459,9 +2459,15 @@ describe('Freestyle dictionary — S2: canon-locked chain readings (torque/blend
     expect(res.text).toMatch(/data-trick-slug="blender"[\s\S]*?whirling[\s\S]*?osis/);
   });
 
-  it('renders drifter as ≡ miraging clipper (pt11)', async () => {
+  it('holds drifter\'s decomposition: no miraging reading rendered', async () => {
+    // "miraging clipper" is legacy mirage-family shorthand held for curator
+    // review; drifter renders no ≡ reading rather than teach the nickname.
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).toMatch(/data-trick-slug="drifter"[\s\S]*?miraging[\s\S]*?clipper/);
+    const idx = res.text.indexOf('data-trick-slug="drifter"');
+    expect(idx).toBeGreaterThan(-1);
+    const next = res.text.indexOf('data-trick-slug=', idx + 1);
+    const win = res.text.substring(idx, next > -1 ? next : idx + 4000);
+    expect(win).not.toMatch(/miraging/);
   });
 });
 

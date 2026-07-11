@@ -126,14 +126,18 @@ describe('branch-family chain additions render symbolically', () => {
     expect(window).toMatch(/spinning[\s\S]{0,300}paradox[\s\S]{0,300}blender/i);
   });
 
-  it('paradox_drifter resolves through the new chain (not the long op-notation)', async () => {
+  it('paradox_drifter: deeper miraging reading held, renders no interpretation but keeps JOB', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     const idx = res.text.indexOf('data-trick-slug="paradox_drifter"');
     expect(idx).toBeGreaterThan(-1);
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
     const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
-    expect(window).toContain('dict-trick-row-interpretation');
-    // Two-line contract: JOB also renders on line 2 (independent of the chain).
+    // The deeper 'paradox miraging clipper' reading is held with drifter's own
+    // decomposition, and 'paradox drifter' echoes the canonical name, so no ≡
+    // interpretation renders. It must never show the miraging nickname.
+    expect(window).not.toContain('dict-trick-row-interpretation');
+    expect(window).not.toMatch(/miraging/);
+    // Two-line contract: JOB still renders on line 2 (independent of the chain).
     expect(window).toMatch(/class="dict-trick-row-job-value">/);
   });
 });

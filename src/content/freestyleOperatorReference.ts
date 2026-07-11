@@ -92,7 +92,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     oneLineMeaning: 'A single inward dex, +1: SET > OP IN [DEX] >. A historical downtime nickname, retained as descriptive mirage-family language, not a canonical set. Quantum is the official uptime set concept; miraging is not a modern set or a Quantum equivalent.',
     decomposition:  null,
     pendingNote:    'Miraging is +1. Older sources described it as atomic\'s inward-dex mirror, but under current doctrine miraging is a historical nickname, not a modern set. Any X-Dex is a separate +1 marked [XDEX] in the notation, not part of miraging.',
-    workedExamples: ['Miraging Clipper = Drifter', 'Miraging Legover = Double Leg Over'],
+    workedExamples: ['Historically read as Miraging Clipper (Drifter)', 'Historically read as Miraging Legover (Double Leg Over)'],
     lineageNote:    'Operational form from the historical moves reference. Retained as descriptive or downtime mirage-family language, not a modern set.',
     curatorConfirmPending: false,
   },

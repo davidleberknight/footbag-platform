@@ -193,8 +193,9 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
     'Compounds: DIVE + CLIPPER, DIVE + MIRAGE.',
   ],
   ['miraging',
-    'MIRAGING + base: prepends a mirage-style inside dex at the front of the base trick. ' +
-    'Compounds: MIRAGING + CLIPPER (drifter), MIRAGING + LEGOVER (double leg over).',
+    'MIRAGING + base: a historical mirage-family nickname for a single inward dex ' +
+    '(SET > OP IN [DEX]) at the front of the base trick. Descriptive or downtime ' +
+    'language, not a canonical set; specific compound decompositions are held for curator review.',
   ],
   ['whirling',
     'WHIRLING + base: a whirl dex during uptime before the bag peaks, ' +

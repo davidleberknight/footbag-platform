@@ -237,7 +237,7 @@ const SPINNING_CONTENT: ModifierEducationInput = {
         slug:      'spinning_drifter',
         baseLabel: 'Cross-body',
         prose:
-          'Spinning on drifter, a miraging-clipper base that travels across the body; the rotation carries through that cross-body travel (4 ADD).',
+          'Spinning on drifter, a clipper-anchored base that travels across the body; the rotation carries through that cross-body travel (4 ADD).',
       },
       {
         slug:      'spinning_symposium_whirl',
@@ -377,7 +377,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
         slug:      'paradox_drifter',
         baseLabel: 'Cross-body',
         prose:
-          'Paradox on drifter, a miraging-clipper base that travels across the body and lands on a cross-body clipper, carrying the side-switch through that travel (4 ADD).',
+          'Paradox on drifter, a clipper-anchored base that travels across the body and lands on a cross-body clipper, carrying the side-switch through that travel (4 ADD).',
       },
       {
         slug:      'paradox_symposium_whirl',
@@ -526,7 +526,7 @@ const DUCKING_CONTENT: ModifierEducationInput = {
         slug:      'ducking_drifter',
         baseLabel: 'Cross-body',
         prose:
-          'Ducking on drifter, a miraging-clipper base that travels across the body; the duck is carried through that cross-body travel (4 ADD).',
+          'Ducking on drifter, a clipper-anchored base that travels across the body; the duck is carried through that cross-body travel (4 ADD).',
       },
       {
         slug:      'mind_bender',
@@ -933,7 +933,7 @@ const DIVING_CONTENT: ModifierEducationInput = {
         slug:      'diving_drifter',
         baseLabel: 'Cross-body',
         prose:
-          'Diving on drifter, a miraging-clipper base that travels across the body; the dive is carried through that cross-body travel (4 ADD).',
+          'Diving on drifter, a clipper-anchored base that travels across the body; the dive is carried through that cross-body travel (4 ADD).',
       },
       {
         slug:      'stepping_diving_mirage',
@@ -1089,7 +1089,7 @@ const TAPPING_CONTENT: ModifierEducationInput = {
         slug:      'tapping_drifter',
         baseLabel: 'Longer compound',
         prose:
-          'A tap ahead of drifter, a miraging-clipper base; the tap precedes a base that already travels across the body (4 ADD).',
+          'A tap ahead of drifter, a clipper-anchored base; the tap precedes a base that already travels across the body (4 ADD).',
       },
     ],
   },

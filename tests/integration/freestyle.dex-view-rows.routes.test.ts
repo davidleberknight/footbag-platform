@@ -208,11 +208,12 @@ describe('Dex view — two-line row contract', () => {
     expect(row).toMatch(/class="dict-trick-row-label">ADD</);
   });
 
-  it('drifter: line 1 ≡ interpretation; line 2 resolved JOB + ADD', async () => {
+  it('drifter: interpretation held (no ≡ reading); line 2 resolved JOB + ADD', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     const row = rowFor(res.text, 'drifter');
-    expect(row).toMatch(/class="dict-trick-row-interpretation"/);
-    expect(row).toMatch(/miraging/);
+    // drifter's "miraging clipper" reading is held for curator review.
+    expect(row).not.toMatch(/class="dict-trick-row-interpretation"/);
+    expect(row).not.toMatch(/miraging/);
     expect(row).toMatch(/class="dict-trick-row-job-value">/);
   });
 

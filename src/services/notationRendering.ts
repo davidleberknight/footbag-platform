@@ -119,7 +119,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   LEGOVER:   'Legover, base trick family (2 ADD)',
   PICKUP:    'Pickup, base trick family (2 ADD)',
   BLENDER:   'Blender, base trick family (4 ADD; whirling osis)',
-  DRIFTER:   'Drifter, base trick family (3 ADD; miraging clipper)',
+  DRIFTER:   'Drifter, base trick family (3 ADD)',
   BARFLY:    'Barfly, base trick family (4 ADD)',
   SWIRL:     'Swirl, base trick family (3 ADD)',
 
@@ -133,7 +133,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   BLAZING:   'Blazing, body modifier (+1 ADD)',
   BARRAGING: 'Barraging, body modifier (+1 ADD; underlies Flurry)',
   WEAVING:   'Weaving, body modifier (+1 ADD)',
-  MIRAGING:  'Miraging, body modifier (+1 ADD; underlies Drifter, DLO)',
+  MIRAGING:  'Miraging, historical mirage-family nickname (+1 ADD; not a canonical set)',
   BACKSIDE:  'Backside, body modifier (+1 ADD; Symposium-equivalent)',
   TERRAGING: 'Terraging, body modifier (+3 ADD)',
   XDEX:      'X-Dex, conditional +1 ADD; scored only where the notation carries [XDEX]',

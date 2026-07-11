@@ -4331,9 +4331,26 @@ const ROTATIONAL_BASES = new Set(['whirl', 'mirage', 'torque', 'blender', 'swirl
 // module. Missing slugs return null → silent suppression (Tier-3 absence
 // on the trick-detail page), preserving the test-pinned 4-tier
 // rendering hierarchy contract.
+// Compounds whose published derivation scores a "miraging(+1)" component.
+// Miraging is descriptive mirage-family language, not a settled formula-bearing
+// operator, so its scored decomposition is held for curator review: these
+// compounds carry no published resolved formula, so every formula consumer
+// (ADD-view chip, trick-detail disclosure, operator-derived modifier links)
+// falls back to a bare ADD rather than teaching the nickname as canonical. The
+// trick name and DB notation are untouched. Released when the curator rules the
+// miraging operator. Parked in the freestyle remediation report.
+const MIRAGING_HELD_FORMULA_SLUGS: ReadonlySet<string> = new Set([
+  'big_apple_sauce',
+  'spinning_miraging_symposium_torque',
+  'symposium_miraging_mirage',
+  'miraging_symposium_butterfly',
+  'miraging_symposium_whirl',
+]);
+
 const RESOLVED_FORMULAS_BY_SLUG: ReadonlyMap<string, ResolvedFormula> = (() => {
   const map = new Map<string, ResolvedFormula>();
   for (const formula of RESOLVED_ADD_FORMULAS) {
+    if (MIRAGING_HELD_FORMULA_SLUGS.has(formula.slug)) continue;
     map.set(formula.slug, formula);
   }
   return map;
@@ -5639,9 +5656,10 @@ function shapeDictionaryTrickCard(
   // status. Examples that previously leaked through: "double around the
   // world" ≡ on the DATW card, "reverse whirl" ≡ on rev-whirl. Curator-
   // locked non-tautological folk-name readings (ripwalk → "stepping
-  // butterfly", torque → "quantum osis", DLO → "miraging legover")
-  // survive this filter unchanged — they ARE genuine human-readable
-  // compound interpretations the user wants visible.
+  // butterfly", torque → "quantum osis") survive this filter unchanged —
+  // they ARE genuine human-readable compound interpretations the user wants
+  // visible. (Drifter and DLO readings are held for curator review, so they
+  // carry no folk-name reading here.)
   const canonicalLowerForFilter = indexRow.canonicalName.toLowerCase().trim();
   const chain                = getSymbolicEquivalenceChain(indexRow.slug);
   const chainReadingsRaw     = chain ? [...chain.readings] : [];
@@ -5691,10 +5709,10 @@ function shapeDictionaryTrickCard(
   // The universal tautological filter
   // above (chainReadings) already drops readings that just echo the
   // canonical name (e.g. "reverse whirl" on rev-whirl, "double around
-  // the world" on DATW). Genuine folk-name compound readings (DLO ≡
-  // "miraging legover", ripwalk ≡ "stepping butterfly") survive that
-  // filter — they ARE the kind of "human-readable compound reading"
-  // the curator's audit said to keep visible. The op-notation chip
+  // the world" on DATW). Genuine folk-name compound readings (ripwalk ≡
+  // "stepping butterfly") survive that filter — they ARE the kind of
+  // "human-readable compound reading" the curator's audit said to keep
+  // visible. (Drifter and DLO readings are held for curator review.) The op-notation chip
   // (which DID duplicate the JOB row) is suppressed separately above.
   const tokenizedEquivalences = coreAtomSpec
     ? []
@@ -9592,9 +9610,13 @@ export const freestyleService = {
       passbackAddDisagreements: FREESTYLE_ADD_ANALYSIS_CONTENT.passbackAddDisagreements.map(r => ({
         ...r, ifpaSlug: resolveSlug(r.ifpaSlug),
       })),
-      resolvedFormulas: FREESTYLE_ADD_ANALYSIS_CONTENT.resolvedFormulas.map(r => ({
-        ...r, slug: resolveSlug(r.slug),
-      })),
+      // Compounds whose derivation scores a held "miraging(+1)" component are
+      // dropped from the public resolved-formula table: miraging is not a settled
+      // scored operator, so its decomposition stays out of the teaching surface
+      // until a curator rules it.
+      resolvedFormulas: FREESTYLE_ADD_ANALYSIS_CONTENT.resolvedFormulas
+        .filter(r => !(r.slug && MIRAGING_HELD_FORMULA_SLUGS.has(r.slug)))
+        .map(r => ({ ...r, slug: resolveSlug(r.slug) })),
     };
     return {
       seo: {

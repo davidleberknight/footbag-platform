@@ -46,7 +46,8 @@ beforeAll(async () => {
     { slug: 'legover', canonical_name: 'legover', adds: '2', base_trick: 'legover', trick_family: 'legover', category: 'dex', notation: 'LEGOVER', operational_notation: 'SET > OP OUT [DEX] > SAME TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     // Atom with simple JOB; no modifier decomposition.
     { slug: '2-bag-juggling', canonical_name: '2-bag juggling', adds: '2', base_trick: '2-bag-juggling', trick_family: '2-bag-juggling', category: 'compound', notation: 'TOE > TOE', operational_notation: 'TOE [DEL] > TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
-    // drifter: has a symbolic-equivalence reading (≡ miraging clipper) + op notation.
+    // drifter: its "miraging clipper" reading is held for curator review, so it
+    // renders no ≡ interpretation, only op notation.
     { slug: 'drifter', canonical_name: 'drifter', adds: '3', base_trick: 'drifter', trick_family: 'drifter', category: 'compound', notation: 'DRIFTER', operational_notation: 'SET > OP IN [DEX] > SAME CLIP [XBD] [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     // flying-inside: 1-ADD atom.
     { slug: 'flying-inside', canonical_name: 'flying inside', adds: '1', base_trick: 'flying-inside', trick_family: 'flying-inside', category: 'compound', notation: 'FLYING INSIDE', operational_notation: 'flying > inside', review_status: 'expert_reviewed', is_active: 1 },
@@ -126,12 +127,13 @@ describe('ADD view — uniform two-line row contract', () => {
     expect(w).toMatch(/class="dict-trick-row-label">ADD</);
   });
 
-  it('drifter: line 1 has ≡ interpretation; line 2 has JOB + ADD', async () => {
+  it('drifter: interpretation held (no ≡ reading); line 2 has JOB + ADD', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     const w = cardWindow(res.text, 'drifter');
-    expect(w).toMatch(/class="dict-trick-row-interpretation"/);
-    // drifter ≡ miraging clipper from the symbolic-equivalences module
-    expect(w).toMatch(/miraging/);
+    // drifter's "miraging clipper" reading is held for curator review, so it
+    // renders no ≡ interpretation and never teaches the miraging nickname.
+    expect(w).not.toMatch(/class="dict-trick-row-interpretation"/);
+    expect(w).not.toMatch(/miraging/);
     expect(w).toMatch(/class="dict-trick-row-label">JOB</);
     expect(w).toMatch(/class="dict-trick-row-label">ADD</);
   });

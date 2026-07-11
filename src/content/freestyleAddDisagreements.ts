@@ -71,7 +71,7 @@ export const PASSBACK_ADD_DISAGREEMENTS: readonly AddDisagreementRow[] = [
   { ifpaSlug: 'bullwhip',                  ifpaName: 'bullwhip',                  ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'butterfly',                 ifpaName: 'butterfly',                 ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 3 ADD (dex + xbody + stall); an outside source counts 1 dex' },
   { ifpaSlug: 'clipper',                   ifpaName: 'Clipper Kick',              ifpaFormula: null,                            passbackAdd: 0, curatorNote: 'IFPA canonical = 1 ADD (xbody kick); an outside source records 0 dexes (a clipper kick is not a dex)' },
-  { ifpaSlug: 'dada_curve',                ifpaName: 'dada curve',                ifpaFormula: 'miraging far symposium butterfly', passbackAdd: 2, curatorNote: null },
+  { ifpaSlug: 'dada_curve',                ifpaName: 'dada curve',                ifpaFormula: null,                            passbackAdd: 2, curatorNote: 'Decomposition held for curator review (miraging not a settled scored component)' },
   { ifpaSlug: 'dimwalk',                   ifpaName: 'dimwalk',                   ifpaFormula: 'pixie butterfly',                passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'eggbeater',                 ifpaName: 'eggbeater',                 ifpaFormula: 'atomic legover',                 passbackAdd: 1, curatorNote: 'IFPA scores it 3 ADD (atomic + legover + stall); an outside source counts 1 dex' },
   { ifpaSlug: 'foot_stall',                ifpaName: 'foot stall',                ifpaFormula: null,                            passbackAdd: 0, curatorNote: null },

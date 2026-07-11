@@ -210,14 +210,32 @@ formula-identity audit, in rough order of how self-contained they are:
    - Consolidating `surfaceOnBrowse` into `alias_display` is future cleanup, not
      part of this slice.
 
-8. **Review miraging-bearing canonical compounds.** `big_apple_sauce` and
-   `spinning_miraging_symposium_torque` still carry `miraging` as a scored
-   component in their decompositions. Their canonical community names literally
-   contain "miraging", so this is not the same bug as Torque (whose scoring label
-   was corrected to the settled `quantum osis`). Decide whether "miraging" there
-   is a name-bearing historical term, a valid downtime component, or a stale
-   formula label that should be re-expressed through settled operators. Left
-   unchanged pending that targeted review.
+8. **Resolve the miraging operator across the canonical compounds (curator
+   ruling needed).** A terminology pass removed `miraging` as a canonical scored
+   or component label from Torque, and then held Drifter and DLO: their legacy
+   "miraging clipper" / "miraging legover" readings are held for curator review
+   (they render with no compositional reading rather than teach the nickname),
+   because miraging is descriptive mirage-family language, not a settled
+   formula-bearing operator. Drifter's notation-grounded description is a single
+   inward dex into a cross-body clipper (SET > OP IN [DEX] > SAME CLIP [XBD]); DLO
+   is two dexes into a toe (SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE). The
+   operator-reference miraging entry keeps its worked examples but reframed as
+   explicitly historical.
+
+   No public canonical decomposition, scoring chip, or equivalence reading now
+   presents miraging as settled: the compounds whose derivation scored a
+   miraging(+1) component (`big_apple_sauce`, `spinning_miraging_symposium_torque`,
+   `symposium_miraging_mirage`, `miraging_symposium_butterfly`,
+   `miraging_symposium_whirl`) are excluded from the resolved-formula map, so their
+   ADD-view chip, trick-detail disclosure, add-analysis formula table, and
+   operator-derived modifier links all fall back to a bare ADD; `paradox_drifter`
+   and `dada_curve` hold their compositional readings; and `high_plains_drifter`
+   plus the atomic-drifter reference keep miraging only in non-rendered provenance.
+   Trick names, notation tokens, and framed-historical mentions are untouched, and
+   the `miraging` notation token stays registered because these compounds still
+   carry it in their names. What remains is one curator ruling on whether miraging
+   is ever a formula-bearing component or should be re-expressed through settled
+   operators; that ruling releases the whole set (and Drifter/DLO above).
 
 The path/catch framing also routed about 17 folk or unmapped terminal names and
 about 10 incomplete operator-ending names to this identity and completeness track;

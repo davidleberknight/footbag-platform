@@ -637,7 +637,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Family Parent from clipper',
-        body:  'Drifter ≡ miraging clipper. The mirage operator transforms a clipper-set entry into the drifter terminal; this first-class lineage grows from the clipper-anchored set primitives.',
+        body:  'Drifter is a clipper-anchored base: from the set it takes a single inward dex into a cross-body clipper (SET > OP IN [DEX] > SAME CLIP [XBD]). This first-class lineage grows from the clipper-anchored set primitives. The legacy "miraging clipper" reading is held for curator review rather than taught as the scored decomposition.',
       },
     ],
     teaching: {
@@ -735,8 +735,8 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  [],
     observationalNotes: [
       {
-        title: 'Miraging far symposium butterfly',
-        body:  'Dada-Curve carries a committed equivalence: it reads as a miraging far symposium butterfly, a butterfly-family branch stacking the miraging, far, and symposium operators on a no-plant-while chassis that closes on an opposite cross-body clipper.',
+        title: 'A butterfly-family branch on a no-plant-while chassis',
+        body:  'Dada-Curve is a butterfly-family branch on a no-plant-while chassis that closes on an opposite cross-body clipper. Its full compositional reading uses mirage-family (miraging) language whose status as a scored component is unsettled, so the decomposition is held for curator review rather than stated as canonical here.',
       },
     ],
   },

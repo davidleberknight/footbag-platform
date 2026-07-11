@@ -54,7 +54,8 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
   it('S2 entries: torque / blender / drifter / vortex / eggbeater / omelette', () => {
     expect(getSymbolicEquivalenceChain('torque')?.readings).toEqual(['quantum osis']);
     expect(getSymbolicEquivalenceChain('blender')?.readings).toEqual(['whirling osis']);
-    expect(getSymbolicEquivalenceChain('drifter')?.readings).toEqual(['miraging clipper']);
+    // drifter's "miraging clipper" reading is held for curator review: no chain.
+    expect(getSymbolicEquivalenceChain('drifter')).toBeNull();
     expect(getSymbolicEquivalenceChain('vortex')?.readings).toEqual(['gyro drifter']);
     expect(getSymbolicEquivalenceChain('eggbeater')?.readings).toEqual(['atomic legover', 'illusioning legover']);
     expect(getSymbolicEquivalenceChain('omelette')?.readings).toEqual(['atomic illusion']);
@@ -73,7 +74,8 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
 
   it('NR-1 royale + dlo (flurry SE chain removed 2026-05-26 per S3/S5 governance migration)', () => {
     expect(getSymbolicEquivalenceChain('royale')?.readings).toEqual(['paradox reverse drifter']);
-    expect(getSymbolicEquivalenceChain('double_leg_over')?.readings).toEqual(['miraging legover']);
+    // DLO's "miraging legover" reading is held for curator review: no chain.
+    expect(getSymbolicEquivalenceChain('double_leg_over')).toBeNull();
     // flurry's chain was removed as part of the 2026-05-26 S3/S5 slot
     // governance migration. flurry is an equivalent-derivation case
     // (two valid paths converge on 4 ADD) owned exclusively by S9
@@ -104,7 +106,7 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
   it('all NR-1 entries are flagged curator-confirmed (not pending)', () => {
     // flurry removed 2026-05-26 (S3/S5 governance migration; S9 sole owner)
     const nr1Slugs = [
-      'flail', 'smudge', 'smoke', 'smog', 'royale', 'double_leg_over',
+      'flail', 'smudge', 'smoke', 'smog', 'royale',
       'surge', 'surreal', 'surgery', 'venom', 'bigwalk',
       'plasma', 'fusion', 'grave_digger', 'nemesis', 'atomic_torque',
     ];
@@ -209,7 +211,10 @@ describe('freestyleSymbolicEquivalences — branch-family chain additions', () =
   it('paradox-drifter resolves to a two-stop chain (parallel to paradox-blender)', () => {
     const chain = getSymbolicEquivalenceChain('paradox_drifter');
     expect(chain).not.toBeNull();
-    expect(chain?.readings).toEqual(['paradox drifter', 'paradox miraging clipper']);
+    // The deeper 'paradox miraging clipper' extension is held with drifter's own
+    // decomposition; only the tautological 'paradox drifter' remains (and it is
+    // dropped by the tautological filter at render time).
+    expect(chain?.readings).toEqual(['paradox drifter']);
     expect(chain?.curatorConfirmPending).toBe(false);
   });
 });

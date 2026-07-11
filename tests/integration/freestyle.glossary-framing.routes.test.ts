@@ -269,10 +269,10 @@ describe('Glossary framing — Phase D2 step 5 (interpretation doctrine)', () =>
     expect(html).toMatch(/eggbeater-ing/);
   });
 
-  it('uses drifter as the compositional-descent reading example', async () => {
+  it('uses blender as the compositional-descent reading example', async () => {
     const html = await glossary();
     expect(html).toMatch(/<strong>compositional descent<\/strong>/);
-    expect(html).toMatch(/&equiv; miraging clipper/);
+    expect(html).toMatch(/&equiv; whirling osis/);
   });
 
   it('enumerates the reading provenances (editorial / historical / compositional / parser / policy)', async () => {
