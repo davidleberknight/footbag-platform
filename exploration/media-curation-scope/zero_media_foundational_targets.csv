@@ -1,0 +1,135 @@
+slug,canonical_name,adds,trick_family,category,tier,has_set_page,family_has_covered_member,coverage_signal
+butterfly_kick,butterfly kick,2,butterfly_kick,compound,ADD2-demo,,,clean-gap
+probe,probe,2,clipper,compound,ADD2-demo,,yes,candidate-covered
+cloud_stall,cloud stall,2,cloud_stall,surface,ADD2-stall,,,clean-gap
+double_spin,double spin,2,double_spin,body,ADD2-demo,,,clean-gap
+dragon,dragon,2,dragon,compound,ADD2-demo,,,clean-gap
+fairy,fairy,2,fairy,set,ADD2-demo,yes,yes,candidate-covered
+bubba,bubba,2,illusion,compound,ADD2-demo,,yes,candidate-covered
+guay,guay,2,inside_stall,dex,ADD2-demo,,yes,candidate-covered
+inspinning_reverse_guay,inspinning reverse guay,2,inside_stall,compound,ADD2-demo,,yes,candidate-covered
+reverse_guay,reverse guay,2,inside_stall,compound,ADD2-demo,,yes,candidate-covered
+knee_clipper,knee clipper,2,knee_clipper,compound,ADD2-demo,,,clean-gap
+pixie,pixie,2,pixie,set,ADD2-demo,yes,,candidate-covered
+toe_clipper,toe clipper,2,toe_clipper,compound,ADD2-demo,,,clean-gap
+diving_toe_stall,diving toe stall,2,toe_stall,compound,ADD2-stall,,yes,candidate-covered
+ducking_toe_stall,ducking toe stall,2,toe_stall,compound,ADD2-stall,,yes,candidate-covered
+inspinning_toe_stall,inspinning toe stall,2,toe_stall,compound,ADD2-stall,,yes,candidate-covered
+spinning_toe_stall,spinning toe stall,2,toe_stall,compound,ADD2-stall,,yes,candidate-covered
+weaving_toe_stall,weaving toe stall,2,toe_stall,compound,ADD2-stall,,yes,candidate-covered
+zulu_toe_stall,zulu toe stall,2,toe_stall,compound,ADD2-stall,,yes,candidate-covered
+walk_over,walk over,2,walk_over,body,ADD2-demo,,,clean-gap
+wrap,wrap,2,wrap,compound,ADD2-demo,,,clean-gap
+3_bag_juggling,3 bag juggling,3,3_bag_juggling,multi-bag,ADD3,,,clean-gap
+around_the_world_heel,around the world heel,3,around_the_world,compound,ADD3,,yes,candidate-covered
+butterfly_same_side,Butterfly Same Side,3,butterfly,compound,ADD3,,yes,candidate-covered
+spinning_butterfly_kick,spinning butterfly kick,3,butterfly_kick,compound,ADD3,,,clean-gap
+pixie_clipper,pixie clipper,3,clipper,compound,ADD3,yes,yes,candidate-covered
+stepping_clipper_same_side,Stepping Clipper Same Side,3,clipper,compound,ADD3,,yes,candidate-covered
+atomic_clipper,atomic clipper,3,clipper_stall,compound,ADD3,,yes,candidate-covered
+fairy_clipper,fairy clipper,3,clipper_stall,compound,ADD3,,yes,candidate-covered
+pixie_opposite_clipper,pixie opposite clipper,3,clipper_stall,compound,ADD3,,yes,candidate-covered
+pixie_same_clipper,pixie same clipper,3,clipper_stall,compound,ADD3,,yes,candidate-covered
+reaper,reaper,3,clipper_stall,compound,ADD3,,yes,candidate-covered
+tapping_clipper,tapping clipper,3,clipper_stall,compound,ADD3,,yes,candidate-covered
+weaving_clipper,weaving clipper,3,clipper_stall,compound,ADD3,,yes,candidate-covered
+zulu_clipper,zulu clipper,3,clipper_stall,compound,ADD3,,yes,candidate-covered
+eclipse_same_side,eclipse same side,3,eclipse,compound,ADD3,,yes,candidate-covered
+atomic_illusion,atomic illusion,3,illusion,compound,ADD3,yes,yes,candidate-covered
+blazing_illusion,blazing illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+diving_illusion,diving illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+double_illusion,double illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+ducking_illusion,ducking illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+fairy_illusion,fairy illusion,3,illusion,compound,ADD3,yes,yes,candidate-covered
+gyro_illusion,gyro illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+inspinning_illusion,inspinning illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+paradox_illusion,paradox illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+pixie_same_side_illusion,pixie same side illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+pogo_illusion,Pogo Illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+quantum_illusion,quantum illusion,3,illusion,compound,ADD3,yes,yes,candidate-covered
+smudge_same_side,smudge same side,3,illusion,compound,ADD3,,yes,candidate-covered
+spinning_illusion,spinning illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+symposium_bubba,symposium bubba,3,illusion,compound,ADD3,,yes,candidate-covered
+tapping_illusion,tapping illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+weaving_illusion,weaving illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+zulu_illusion,zulu illusion,3,illusion,compound,ADD3,,yes,candidate-covered
+atomic_guay,atomic guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+atomic_reverse_guay,atomic reverse guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+diving_guay,diving guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+diving_reverse_guay,diving reverse guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+ducking_guay,ducking guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+ducking_reverse_guay,ducking reverse guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+fairy_guay,fairy guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+fairy_reverse_guay,fairy reverse guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+gyro_guay,gyro guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+gyro_reverse_guay,gyro reverse guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+inspinning_guay,inspinning guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+pixie_guay,pixie guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+pixie_reverse_guay,pixie reverse guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+quantum_guay,quantum guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+quantum_reverse_guay,quantum reverse guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+spinning_guay,spinning guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+spinning_reverse_guay,spinning reverse guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+stepping_guay,stepping guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+stepping_reverse_guay,stepping reverse guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+tapping_guay,tapping guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+tapping_reverse_guay,tapping reverse guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+weaving_guay,weaving guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+weaving_reverse_guay,weaving reverse guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+zulu_guay,zulu guay,3,inside_stall,compound,ADD3,,yes,candidate-covered
+blazing_legover,blazing legover,3,legover,compound,ADD3,,yes,candidate-covered
+diving_legover,diving legover,3,legover,compound,ADD3,,yes,candidate-covered
+ducking_legover,ducking legover,3,legover,compound,ADD3,,yes,candidate-covered
+gyro_legover,gyro legover,3,legover,compound,ADD3,,yes,candidate-covered
+inspinning_legover,inspinning legover,3,legover,compound,ADD3,,yes,candidate-covered
+merkon,merkon,3,legover,compound,ADD3,,yes,candidate-covered
+parallax,parallax,3,legover,compound,ADD3,,yes,candidate-covered
+pogo_legover,Pogo Legover,3,legover,compound,ADD3,,yes,candidate-covered
+quantum_legover,quantum legover,3,legover,compound,ADD3,yes,yes,candidate-covered
+reverse_magellan,reverse magellan,3,legover,compound,ADD3,,yes,candidate-covered
+schmoe,schmoe,3,legover,compound,ADD3,,yes,candidate-covered
+spinning_legover,spinning legover,3,legover,compound,ADD3,,yes,candidate-covered
+tapping_leg_over,tapping leg over,3,legover,compound,ADD3,,yes,candidate-covered
+weaving_legover,weaving legover,3,legover,compound,ADD3,,yes,candidate-covered
+zulu_legover,zulu legover,3,legover,compound,ADD3,,yes,candidate-covered
+blaze,blaze,3,mirage,compound,ADD3,,yes,candidate-covered
+blazing_mirage,blazing mirage,3,mirage,compound,ADD3,,yes,candidate-covered
+ducking_mirage,ducking mirage,3,mirage,compound,ADD3,,yes,candidate-covered
+fairy_mirage,fairy mirage,3,mirage,compound,ADD3,yes,yes,candidate-covered
+fairy_same_side_mirage,fairy same side mirage,3,mirage,compound,ADD3,,yes,candidate-covered
+gyro_mirage,gyro mirage,3,mirage,compound,ADD3,,yes,candidate-covered
+inspinning_mirage,inspinning mirage,3,mirage,compound,ADD3,,yes,candidate-covered
+pixie_mirage,pixie mirage,3,mirage,compound,ADD3,,yes,candidate-covered
+pogo_mirage,Pogo Mirage,3,mirage,compound,ADD3,,yes,candidate-covered
+smear_same_side,smear same side,3,mirage,compound,ADD3,,yes,candidate-covered
+spinning_mirage,spinning mirage,3,mirage,compound,ADD3,,yes,candidate-covered
+stepping_mirage,stepping mirage,3,mirage,compound,ADD3,yes,yes,candidate-covered
+swirling_mirage,swirling mirage,3,mirage,compound,ADD3,yes,yes,candidate-covered
+tapping_mirage,tapping mirage,3,mirage,compound,ADD3,,yes,candidate-covered
+weaving_mirage,weaving mirage,3,mirage,compound,ADD3,,yes,candidate-covered
+zulu_mirage,zulu mirage,3,mirage,compound,ADD3,,yes,candidate-covered
+diving_pickup,diving pickup,3,pickup,compound,ADD3,,yes,candidate-covered
+double_pickup,double pickup,3,pickup,compound,ADD3,,yes,candidate-covered
+ducking_pickup,ducking pickup,3,pickup,compound,ADD3,,yes,candidate-covered
+fairy_pickup_same_side,fairy pickup same side,3,pickup,compound,ADD3,,yes,candidate-covered
+gyro_pickup,gyro pickup,3,pickup,compound,ADD3,,yes,candidate-covered
+legeater,legeater,3,pickup,compound,ADD3,,yes,candidate-covered
+miraging_pickup,miraging pickup,3,pickup,compound,ADD3,,yes,candidate-covered
+paste_same_side,paste same side,3,pickup,compound,ADD3,,yes,candidate-covered
+pixie_pickup,pixie pickup,3,pickup,compound,ADD3,,yes,candidate-covered
+quantum_pickup,quantum pickup,3,pickup,compound,ADD3,,yes,candidate-covered
+reverse_swirling_pickup,reverse swirling pickup,3,pickup,compound,ADD3,,yes,candidate-covered
+scrambled_eggbeater,scrambled eggbeater,3,pickup,compound,ADD3,,yes,candidate-covered
+spinning_pickup,spinning pickup,3,pickup,compound,ADD3,,yes,candidate-covered
+stepping_pickup,stepping pickup,3,pickup,compound,ADD3,,yes,candidate-covered
+weaving_pickup,weaving pickup,3,pickup,compound,ADD3,,yes,candidate-covered
+whirling_pickup,whirling pickup,3,pickup,compound,ADD3,yes,yes,candidate-covered
+zulu_pickup,zulu pickup,3,pickup,compound,ADD3,,yes,candidate-covered
+double_pixie,double pixie,3,pixie,compound,ADD3,,,clean-gap
+symposium_pixie,symposium pixie,3,pixie,compound,ADD3,,,clean-gap
+pogo_pickup,Pogo Pickup,3,pogo_pickup,compound,ADD3,,,clean-gap
+reverse_whirling_rake,reverse whirling rake,3,rake,compound,ADD3,,,clean-gap
+whirling_rake,whirling rake,3,rake,compound,ADD3,yes,,candidate-covered
+refraction,refraction,3,refraction,dex,ADD3,,,clean-gap
+triple_spin,triple spin,3,spin,compound,ADD3,,yes,candidate-covered
+surging,surging,3,surging,compound,ADD3,,,clean-gap
