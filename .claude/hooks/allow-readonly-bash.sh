@@ -95,8 +95,15 @@ while [[ "$SCAN" == *'$('* ]]; do
 done
 
 # Refuse remaining hidden-write forms: process substitution, append, or a
-# file-writing redirect. (Command substitution has already been resolved.)
-if printf '%s' "$SCAN" | grep -Eq '<\(|>\(|>>|>[[:space:]]*[^&]'; then
+# file-writing redirect. (Command substitution has already been resolved.) Check a
+# copy with newlines flattened and inert quoted regions removed, so a literal > in
+# quoted argument text (an inline SQL <> comparison, a node -e arrow function) is
+# not mistaken for a redirect even when the quoted string spans lines. A real
+# redirect can never sit inside single quotes, and a double-quoted region is dropped
+# only when it holds no $ or backtick, so a redirect hidden in an unresolved
+# expansion still falls through to a prompt.
+WCHECK="$(printf '%s' "$SCAN" | tr '\n' ' ' | sed -E "s/'[^']*'//g; s/\"[^\"\$\`]*\"//g")"
+if printf '%s' "$WCHECK" | grep -Eq '<\(|>\(|>>|>[[:space:]]*[^&]'; then
   exit 0
 fi
 
@@ -111,8 +118,16 @@ fi
 # tracker skips, so `grep foo\" ; rm x` keeps its `;` a real separator (the `rm`
 # segment is then vetted and the command falls through) instead of the `\"` opening
 # a phantom quote that swallows `; rm x`. Inside single quotes bash does not process
-# backslashes, so escaping is not applied there.
-NEUTRAL="$(printf '%s' "$SCAN" | awk 'BEGIN{dq=sprintf("%c",34); sq=sprintf("%c",39); bs=sprintf("%c",92)} {out="";q=""; n=length($0); for(i=1;i<=n;i++){c=substr($0,i,1); if(q==sq){ if(c==sq){q="";out=out c} else if(c==";"||c=="|"||c=="&"){out=out "_"} else {out=out c}; continue } if(c==bs){ out=out c; i++; if(i<=n) out=out substr($0,i,1); continue } if(q==""){ if(c==dq||c==sq){q=c} out=out c } else { if(c==q){q="";out=out c} else if(c==";"||c=="|"||c=="&"){out=out "_"} else {out=out c} } } print out}')"
+# backslashes, so escaping is not applied there. A backslash-escaped separator
+# (`\|`, `\;`) is literal text to bash wherever it appears, so it is neutralized
+# like a quoted one and cannot manufacture a phantom segment (`grep "A\|B" f` is one
+# read-only command, not a pipe).
+#
+# Quote state carries across lines, because a quoted string may span newlines (an
+# inline SQL query, a node -e script): a newline inside quotes is content and joins
+# with a space, while a newline outside quotes remains a command separator for the
+# split below.
+NEUTRAL="$(printf '%s' "$SCAN" | awk 'BEGIN{dq=sprintf("%c",34); sq=sprintf("%c",39); bs=sprintf("%c",92); q=""} {out=""; n=length($0); for(i=1;i<=n;i++){c=substr($0,i,1); if(q==sq){ if(c==sq){q="";out=out c} else if(c==";"||c=="|"||c=="&"){out=out "_"} else {out=out c}; continue } if(c==bs){ out=out c; i++; if(i<=n){ nc=substr($0,i,1); if(nc==";"||nc=="|"||nc=="&"){out=out "_"} else {out=out nc} }; continue } if(q==""){ if(c==dq||c==sq){q=c} out=out c } else { if(c==q){q="";out=out c} else if(c==";"||c=="|"||c=="&"){out=out "_"} else {out=out c} } } if(q==""){print out} else {printf "%s ", out}}')"
 
 # Break into segments on shell separators, then vet the head word of each.
 segments="$(printf '%s' "$NEUTRAL" | tr '\n' ';' | sed -E 's/\|\||&&|[;|&]/\n/g')"
@@ -189,11 +204,16 @@ while IFS= read -r seg; do
   if [ "$head" = git ]; then
     shift                                   # drop `git`
     # Skip read-only global options that can precede the subcommand, so a common form
-    # like `git --no-pager diff` is vetted on `diff`. `-c`/`-C` are deliberately NOT
-    # skipped: they can change behavior or target another repo, so they fall through.
+    # like `git --no-pager diff` is vetted on `diff`. `-c` is deliberately NOT
+    # skipped: it can change behavior, so it falls through. `-C` targets another
+    # repo, so it is accepted only when it names the project directory itself --
+    # the form CLAUDE.md prefers over a leading cd; any other target falls through.
     while [ $# -gt 0 ]; do
       case "$1" in
         --no-pager|-P|--paginate|--no-optional-locks|--literal-pathspecs) shift ;;
+        -C)
+          { [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ "${2:-}" = "$CLAUDE_PROJECT_DIR" ]; } || exit 0
+          shift; shift ;;
         *) break ;;
       esac
     done
@@ -277,9 +297,20 @@ while IFS= read -r seg; do
     # (.shell / .system / .!) or write a file (.output / .once / .backup / ...), and a
     # script read from stdin, a pipe, a heredoc, or an input redirect hides its contents
     # from this check. Approve only a read-only, inline query carrying none of those.
+    # The -readonly flag and the file:...?mode=ro URI spelling both open the
+    # database read-only; accept either. Quotes are stripped from the operand before
+    # matching (a URI argument is normally quoted for its `?`), and a `_` counts as
+    # the parameter separator alongside `&` because the quote-neutralizing pass
+    # above rewrites a quoted `&` to `_` before this block sees the word.
     ro=0
     for a in "$@"; do
-      case "$a" in -readonly|--readonly) ro=1 ;; esac
+      case "$a" in
+        -readonly|--readonly) ro=1 ;;
+        *) b="$a"; b="${b//\"/}"; b="${b//\'/}"
+           case "$b" in
+             file:*\?mode=ro|file:*\?mode=ro[\&_]*|file:*[\&_]mode=ro|file:*[\&_]mode=ro[\&_]*) ro=1 ;;
+           esac ;;
+      esac
     done
     [ "$ro" = 1 ] || exit 0
     case "$COMMAND" in

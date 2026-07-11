@@ -205,6 +205,39 @@ else
   echo "[harness] $LOCAL absent or empty (nothing to scan)"
 fi
 
+# --- Check 12: agent frontmatter hooks resolve and mirror the settings Bash chain ---
+# A custom agent with Bash declares the guard chain in its own frontmatter so it stays
+# protected on a client version that does not fire settings hooks inside subagents.
+# That chain drifts silently when a hook is added to settings.json but not the agent
+# (or vice versa), and a typo'd frontmatter path never fires at all.
+agent_bad=""
+settings_chain=$(jq -r '(.hooks.PreToolUse // [])[] | select(.matcher=="Bash") | .hooks[].command' "$SETTINGS" 2>/dev/null | sed 's#.*/##')
+for f in .claude/agents/*.md; do
+  [ -f "$f" ] || continue
+  fm=$(awk 'NR==1&&/^---[[:space:]]*$/{f=1;next} f&&/^---[[:space:]]*$/{exit} f{print}' "$f")
+  cmds=$(printf '%s\n' "$fm" | grep -E '^[[:space:]]*command:' | sed 's/^[[:space:]]*command:[[:space:]]*//; s/"//g')
+  while IFS= read -r cmd; do
+    [ -n "$cmd" ] || continue
+    path=${cmd#\$CLAUDE_PROJECT_DIR/}
+    if [ ! -f "$path" ] || [ ! -x "$path" ]; then
+      agent_bad="${agent_bad}  ${f}: hook missing or not executable: ${path}"$'\n'
+    fi
+  done <<<"$cmds"
+  if printf '%s\n' "$fm" | grep -qE '^[[:space:]]*-[[:space:]]*Bash[[:space:]]*$|^tools:.*[[:space:],]Bash([[:space:],]|$)'; then
+    agent_chain=$(printf '%s\n' "$cmds" | sed 's#.*/##')
+    if [ "$agent_chain" != "$settings_chain" ]; then
+      agent_bad="${agent_bad}  ${f}: frontmatter Bash hook chain differs from the settings.json Bash chain"$'\n'
+    fi
+  fi
+done
+if [ -n "$agent_bad" ]; then
+  echo "[harness] FAIL: agent frontmatter hook problem(s):" >&2
+  printf '%s' "$agent_bad" >&2
+  fail=1
+else
+  echo "[harness] agent frontmatter hooks resolve and mirror the settings Bash chain"
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "[harness] FAIL: one or more harness checks failed." >&2
   exit 1

@@ -8,6 +8,10 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 
+# The read-only approver accepts `git -C` only for the project directory itself; a
+# live session sets this, so default it here for direct and CI runs.
+export CLAUDE_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+
 fail=0
 
 # expect <hook-file> <command-string> <deny|ask|allow|defer>
@@ -177,6 +181,15 @@ expect "$H" "grep -rn '->' src" defer
 expect "$H" "git log --grep='a>b'" defer
 expect "$H" 'grep -rn "=>" src' defer
 expect "$H" "grep -rn '=>' src > out.txt" ask
+# A quoted string spanning lines (an inline SQL <> comparison, a node -e script with
+# arrow functions) is argument text, not a redirect; a real redirect elsewhere in a
+# multiline command still asks.
+expect "$H" 'sqlite3 -readonly db.sqlite "SELECT
+ a FROM t WHERE b<>2"' defer
+expect "$H" 'node -e "
+fetch(u).then(r=>r.text()).then(t=>console.log(t))"' defer
+expect "$H" 'grep foo f
+sort x > out.txt' ask
 
 # sed writing or executing without -i: w/W write-command, s///w write-flag, e exec.
 expect "$H" 'sed -i "s/a/b/" f.txt' ask
@@ -268,6 +281,19 @@ expect "$H" 'grep foo\" ; rm x' defer
 expect "$H" 'grep foo\" ; ./evil.sh' defer
 expect "$H" 'cat a\" && bash evil.sh' defer
 expect "$H" 'grep "a\"; rm x"' allow
+# A backslash-escaped separator is literal text to bash wherever it sits (quoted or
+# bare) and must not split a phantom segment; a double-backslash before a separator
+# leaves that separator real, so the mutation after it still falls through.
+expect "$H" 'grep "A\|B" f.txt' allow
+expect "$H" 'grep A\|B f.txt' allow
+expect "$H" 'grep foo\\; rm x' defer
+# A quoted string spanning lines is one argument (quote state carries across the
+# newline); a newline outside quotes still separates commands, so the mutation on
+# the next line still falls through.
+expect "$H" 'grep "foo
+bar" x.txt' allow
+expect "$H" 'grep a f
+rm x' defer
 
 # In-place sed in any spelling is a write and must fall through (guard then asks).
 expect "$H" 'sed -i.bak "s/a/b/" f.txt' defer
@@ -336,6 +362,14 @@ expect "$H" 'git --no-pager diff HEAD' allow
 expect "$H" 'git --no-pager log --oneline -5' allow
 expect "$H" 'git -P show HEAD:src/app.ts' allow
 expect "$H" 'git --no-pager commit -m x' defer
+# git -C is accepted only when it targets the project directory itself (the form the
+# root CLAUDE.md prefers over a leading cd); any other -C target, any -c override,
+# and a mutation behind an accepted -C all fall through.
+expect "$H" "git -C $CLAUDE_PROJECT_DIR log --oneline -5" allow
+expect "$H" "git -C $CLAUDE_PROJECT_DIR diff --stat notes.md" allow
+expect "$H" 'git -C /somewhere/else log' defer
+expect "$H" "git -C $CLAUDE_PROJECT_DIR push" defer
+expect "$H" 'git -c core.pager=touch log' defer
 
 # Control constructs: a command hidden behind a conditional, grouping, or negation
 # is still vetted (must not skip a mutation), while a read-only conditional allows.
@@ -382,6 +416,15 @@ expect "$H" 'echo ".shell rm x" | sqlite3 -readonly db.sqlite' defer
 expect "$H" 'cat evil.sql | sqlite3 -readonly db.sqlite' defer
 expect "$H" 'sqlite3 -readonly db.sqlite < evil.sql' defer
 expect "$H" 'sqlite3 -readonly db.sqlite' defer
+# The file:...?mode=ro URI opens the database read-only exactly like -readonly and
+# auto-approves, including with a multiline query whose <> comparison is quoted
+# argument text; any other URI mode and the dot-command escapes still fall through.
+expect "$H" 'sqlite3 "file:db.sqlite?mode=ro" ".tables"' allow
+expect "$H" 'sqlite3 "file:db.sqlite?mode=ro&cache=shared" "SELECT 1"' allow
+expect "$H" 'sqlite3 -readonly db.sqlite "SELECT
+ (SELECT COUNT(*) FROM t WHERE x<>2) AS n;"' allow
+expect "$H" 'sqlite3 "file:db.sqlite?mode=rwc" "SELECT 1"' defer
+expect "$H" 'sqlite3 "file:db.sqlite?mode=ro" ".shell rm -rf x"' defer
 
 # sed writing or executing (w/W command, s///w flag, e exec) is refused by the approver
 # itself, not only the sibling guard; a read-only transform with a "w" in it still approves.

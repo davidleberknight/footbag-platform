@@ -136,8 +136,11 @@ fi
 # redirect forms that write nothing worth gating -- fd duplications (2>&1, >&2), the discard
 # device (/dev/null), and the AI's own session scratch dir (/tmp/claude-*) -- then ask if any
 # redirect remains. `..` in the command keeps the scratch exemption off so a path escape stays
-# gated. Spacing does not matter: `>out` leaks exactly as `> out` would.
-RSCAN="$(printf '%s' "$COMMAND" | sed -E 's#[0-9]*>&[0-9-]+##g; s#&>>?[[:space:]]*/dev/null##g; s#[0-9]*>>?[[:space:]]*/dev/null##g')"
+# gated. Spacing does not matter: `>out` leaks exactly as `> out` would. Newlines are
+# flattened first: the stripping below is line-based, and a quoted string spanning lines
+# (an inline SQL query with a <> comparison, a node -e script with arrow functions) would
+# otherwise leave its literal > unstripped and raise a false ask.
+RSCAN="$(printf '%s' "$COMMAND" | tr '\n' ' ' | sed -E 's#[0-9]*>&[0-9-]+##g; s#&>>?[[:space:]]*/dev/null##g; s#[0-9]*>>?[[:space:]]*/dev/null##g')"
 case "$COMMAND" in
   *..*) : ;;
   *) RSCAN="$(printf '%s' "$RSCAN" | sed -E 's#[0-9]*>>?[[:space:]]*/tmp/claude-[A-Za-z0-9._/-]+##g')" ;;

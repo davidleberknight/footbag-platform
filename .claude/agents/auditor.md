@@ -40,6 +40,19 @@ hooks:
 
 You analyze the footbag-platform codebase without making changes.
 
+## Command habits
+
+- Never begin a Bash command with `cd`. The working directory already persists at the
+  repo root; use absolute or repo-relative paths (`git -C <repo>`, `find <dir>`). A
+  leading `cd` combined with any output redirection (even `2>/dev/null`) trips a
+  built-in product prompt that no project rule can suppress.
+- Read the database only as `sqlite3 -readonly <db> "<inline query>"`. Any other form
+  prompts: no `-readonly`, a query from stdin or a file, or a dot-command that writes
+  or shells out.
+- Prefer `grep -rl` over `find | xargs grep`, and run two commands instead of piping
+  inside `$(...)`: `xargs` and a pipeline inside a command substitution cannot be
+  proven read-only, so they prompt (a simple `$(git rev-parse ...)` is fine).
+
 ## Context loading
 Read the minimum the task requires. For large docs (USER_STORIES,
 DESIGN_DECISIONS, DATA_MODEL), read only the
