@@ -3272,8 +3272,8 @@ section.home-media { padding-top: 0; }
   margin: 12px 0 8px;
   color: var(--text-muted);
 }
-.trick-view-toggle a { color: var(--primary); text-decoration: none; }
-.trick-view-toggle a:hover { text-decoration: underline; }
+.trick-view-toggle a { color: var(--primary); text-decoration: underline; }
+.trick-view-toggle a:hover { color: var(--primary-dk); }
 .trick-view-toggle-active { font-weight: 600; color: var(--text); }
 .trick-view-toggle-sep { margin: 0 6px; opacity: 0.5; }
 
