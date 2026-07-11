@@ -18,6 +18,17 @@ export function trickNameToSlug(name: string): string {
     .replace(/^_|_$/g, '');
 }
 
+// Record-resolution normalization, used only in the record-to-trick resolution path,
+// never in the dictionary identity layer above (which preserves qualifiers). In the
+// world-record vocabulary a terminal "(ss)" on a trick name is redundant label
+// notation: same-side is implicit in the canonical trick, so the "(ss)" names no
+// configuration the dictionary distinguishes. Strip only a terminal "(ss)" here, then
+// resolve the remaining name with the ordinary trickNameToSlug. This deliberately does
+// not touch (op) / (near) / (far), which name distinct configurations.
+export function recordTrickNameToSlug(name: string): string {
+  return trickNameToSlug(name.replace(/\s*\(\s*ss\s*\)\s*$/i, ''));
+}
+
 // The hashtag body is the slug lowercased with hyphens as underscores. On an
 // already-underscore slug this is a no-op.
 function hashtagBody(slug: string): string {
@@ -142,7 +153,7 @@ function safeVideoUrl(raw: string | null): string | null {
  */
 function trickHrefFor(name: string | null, resolvable?: ReadonlySet<string>): string | null {
   if (!name || isRecordOnlyTrickName(name)) return null;
-  const slug = trickNameToSlug(name);
+  const slug = recordTrickNameToSlug(name);
   if (resolvable && !resolvable.has(slug)) return null;
   return `/freestyle/tricks/${slug}`;
 }

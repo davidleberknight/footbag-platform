@@ -72,6 +72,7 @@ import {
   shapeFreestyleRecord,
   stripDisplaySideQualifier,
   trickNameToSlug,
+  recordTrickNameToSlug,
   trickSurfaceHashtag,
   modifierSurfaceHashtag,
 } from './freestyleRecordShaping';
@@ -5953,7 +5954,7 @@ function buildTrickIndexShapingContext(
   const slugsWithRecords = new Set(
     publicRows
       .filter(r => r.trick_name)
-      .map(r => trickNameToSlug(r.trick_name!)),
+      .map(r => recordTrickNameToSlug(r.trick_name!)),
   );
 
   // A freestyle record's own video_url is a third coverage lane, ranked below
@@ -5968,7 +5969,7 @@ function buildTrickIndexShapingContext(
   );
   for (const r of publicRows) {
     if (!r.trick_name || !r.video_url || r.video_url.trim() === '') continue;
-    const raw = trickNameToSlug(r.trick_name);
+    const raw = recordTrickNameToSlug(r.trick_name);
     const slug = aliasToCanonical.get(raw) ?? raw;
     if (slug && !mediaCoverageBySlug.has(slug)) {
       mediaCoverageBySlug.set(slug, 'record');
@@ -7138,7 +7139,7 @@ export const freestyleService = {
       (freestyleTrickAliases.getAliasSlugsForTrick.all(slug) as { alias_slug: string }[]).map(a => a.alias_slug),
     );
     const matchSlugs = new Set<string>([slug, ...aliasSlugs]);
-    const recordTrickName = publicRows.find(r => r.trick_name && matchSlugs.has(trickNameToSlug(r.trick_name)))?.trick_name;
+    const recordTrickName = publicRows.find(r => r.trick_name && matchSlugs.has(recordTrickNameToSlug(r.trick_name)))?.trick_name;
     // Display form of the canonical name for a dictionary trick (separators to
     // spaces, then title-cased, so "clipper-stall" reads "Clipper Stall"); null
     // for a record-only page that has no dictionary row.
@@ -7243,7 +7244,7 @@ export const freestyleService = {
     if (dictRow && effectiveFamilySlug) {
       // Build set of slugs with records for linking
       const slugsWithRecords = new Set(
-        publicRows.filter(r => r.trick_name).map(r => trickNameToSlug(r.trick_name!)),
+        publicRows.filter(r => r.trick_name).map(r => recordTrickNameToSlug(r.trick_name!)),
       );
       familyMembers = allDictRows
         .filter(r =>

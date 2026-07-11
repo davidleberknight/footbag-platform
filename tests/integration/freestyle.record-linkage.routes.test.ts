@@ -6,9 +6,11 @@
  *     alias of the canonical trick ("2-bag-juggling") must still list on the
  *     canonical page, and the alias URL 301-redirects to the canonical page
  *     (one canonical URL per trick; alias URLs never render a duplicate);
- *   - a record named with a side qualifier ("Clipper Stall (ss)") keeps the
- *     qualifier in its slug (clipper-stall-ss) and lists on its base trick page
- *     through an alias, not through a lexical strip.
+ *   - a record named with a redundant terminal side qualifier ("Pigbeater (ss)")
+ *     resolves to its active base trick by normalizing the terminal "(ss)" away in
+ *     the record-resolution path (same-side is implicit in the trick, so "(ss)" is
+ *     redundant record-label notation); this normalization is record-scoped and does
+ *     not touch the dictionary identity layer, which still preserves qualifiers.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -36,7 +38,7 @@ beforeAll(async () => {
 
   // Qualifier case: the slugifier preserves "(ss)" -> clipper-stall-ss, which is
   // wired as an alias of clipper-stall, so the record resolves to its base through
-  // the alias (the new identity model), not through a lexical strip.
+  // the alias.
   insertFreestyleTrick(db, { slug: 'clipper_stall', canonical_name: 'clipper-stall', category: 'compound', adds: '1' });
   insertFreestyleTrickAlias(db, 'clipper_stall_ss', 'clipper_stall', 'clipper stall (ss)');
   insertFreestyleRecord(db, {
@@ -44,6 +46,19 @@ beforeAll(async () => {
     record_type:  'trick_consecutive',
     display_name: 'Qualifier Holder',
     value_numeric: 99,
+  });
+
+  // Redundant-qualifier case: a record named with a terminal "(ss)" whose base
+  // trick is active and has NO "(ss)" alias. The record-resolution path normalizes
+  // the terminal "(ss)" away, so the record lists on its base page purely by the
+  // strip, not by any alias. This mirrors the world-record vocabulary where
+  // "Pigbeater (ss)" is the pigbeater trick with same-side implicit.
+  insertFreestyleTrick(db, { slug: 'pigbeater', canonical_name: 'pigbeater', category: 'compound', adds: '3' });
+  insertFreestyleRecord(db, {
+    trick_name:   'Pigbeater (ss)',
+    record_type:  'trick_consecutive',
+    display_name: 'Redundant-Qualifier Holder',
+    value_numeric: 42,
   });
 
   // Either-side catch: the terminal delay is an ambiguous SAME/OP, so the trick
@@ -111,6 +126,12 @@ describe('Record-to-trick linkage', () => {
     const res = await request(await createApp()).get('/freestyle/tricks/clipper_stall');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Qualifier Holder');
+  });
+
+  it('a record with a redundant terminal (ss) resolves to its active base trick by normalization, no alias needed', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/pigbeater');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Redundant-Qualifier Holder');
   });
 
   it('the hero title and breadcrumb strip the side qualifier, showing the plain trick name', async () => {
