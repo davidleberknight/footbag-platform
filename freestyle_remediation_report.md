@@ -211,7 +211,21 @@ formula-identity audit, in rough order of how self-contained they are:
      part of this slice.
 
 8. **Resolve the miraging operator across the canonical compounds (curator
-   ruling needed).** A terminology pass removed `miraging` as a canonical scored
+   ruling needed).**
+
+   **Terminology slice CLOSED.** Delivered and verified: Dictionary ADD view
+   defaults to alphabetical; the trick-search placeholder is shortened (full text
+   kept in aria-label/title); Torque renders `quantum(+1) + osis(3)`; Drifter and
+   DLO no longer render `miraging clipper` / `miraging legover` as canonical
+   decompositions; no public rendered scoring or component label shows
+   `miraging(+1)`; the doctrine-sensitive miraging compounds are hidden or
+   neutralized in the public formula render paths rather than deleted; and
+   historical/glossary mentions remain only where clearly framed as historical or
+   unresolved. Full freestyle integration green (2179/2179), drift guard green,
+   working tree clean. Parked below for a single curator ruling; do not continue
+   into the parked set as part of this slice.
+
+   A terminology pass removed `miraging` as a canonical scored
    or component label from Torque, and then held Drifter and DLO: their legacy
    "miraging clipper" / "miraging legover" readings are held for curator review
    (they render with no compositional reading rather than teach the nickname),
