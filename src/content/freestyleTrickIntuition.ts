@@ -172,7 +172,7 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
     slug: 'barrage',
     prose:
       "Barrage feels like two complete same-side inside dexes stacked back-to-back, ending on a toe delay. The support leg swings inside-and-back on the first dex, settles briefly, then swings inside-and-back again on the second, a doubled same-side pattern that builds momentum through repetition rather than direction change. The rhythm is a paired cadence; balance has to hold steady across two beats of identical motion before the catch arrives.",
-    attribution: 'A standalone family anchor, distinct from the barraging modifier.',
+    attribution: 'A standalone family anchor, distinct from the Furious two-dex set (historically named barraging).',
   },
   {
     slug: 'blurriest',

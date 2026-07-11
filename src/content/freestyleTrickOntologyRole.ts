@@ -89,7 +89,7 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
     slug: 'barrage',
     role: 'Naming-disambiguation exemplar',
     prose:
-      "Barrage is the canonical naming-disambiguation case in the doctrine: the trick BARRAGE (a 3-ADD anchor with a doubled same-side dex) is structurally distinct from the BARRAGING modifier (an operator that produces fury via barraging-paradox-mirage and flurry via barraging-leg-over). The shared root reflects compositional-vs-modifier semantics: the same conceptual movement appears as both a standalone anchor and as a transferable operator. Barrage demonstrates that a single root name can legitimately occupy both layers in the language.",
+      "Barrage is the canonical naming-disambiguation case in the doctrine: the trick BARRAGE (a 3-ADD anchor with a doubled same-side dex) is structurally distinct from the two-dex uptime set that produces fury (furious paradox mirage) and flurry (furious leg over). That set is Furious; some rows carry legacy barraging-based names for it, but the set is Furious, not a separate operator. The shared root reflects compositional-vs-naming semantics: the same conceptual movement appears both as a standalone anchor and under a legacy set name. Barrage demonstrates that a single root name can occupy more than one layer in the language.",
   },
 
   {

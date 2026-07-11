@@ -199,7 +199,7 @@ export const COMPOSITIONAL_SET_FAMILIES: readonly CompositionalSetFamily[] = [
       { name: 'Flailing',    notation: 'SET > (no plant while) OP OUT [BOD] [DEX] >',                    statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Symposium Reverse Miraging.' },
       { name: 'Fairy Atomic',notation: 'TOE > SAME OUT [DEX] > OP OUT [DEX] >',                          statusHint: 'holden-only',       structuralNote: null },
       { name: 'Shooting',    notation: 'CLIP > OP IN [DEX] > OP OUT [PDX][DEX] >',                       statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Stepping Paradox Illusion.' },
-      { name: 'Furious',     notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',                           statusHint: 'platform-tracked', structuralNote: 'A two-dex set (+2), historically grouped with Barraging but held distinct by timing under current doctrine; an older three-dex Barraging Paradox Miraging reading is superseded.' },
+      { name: 'Furious',     notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',                           statusHint: 'platform-tracked', structuralNote: 'A two-dex uptime set (+2). Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator; an older three-dex Barraging Paradox Miraging reading is superseded.' },
       { name: 'Infracting',  notation: 'opposite of a Refraction, done as a set',                        statusHint: 'holden-only',       structuralNote: 'Inverse pattern, not a literal grammar string.' },
     ],
   },
@@ -322,13 +322,13 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
   {
     setName:         'furious',
     setNotation:     'CLIP > OP IN [DEX] > SAME IN [DEX] >',
-    reinterpretation:'A two-dex set (+2); historically grouped with Barraging, but current doctrine holds the two distinct by timing. The older third-dex reading is superseded.',
+    reinterpretation:'A two-dex uptime set (+2); barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator. The older third-dex reading is superseded.',
     steps: [
       'barraging  =  CLIP > OP IN [DEX] > SAME IN [DEX] >',
-      'furious and barraging were historically treated together; current doctrine holds them distinct by timing, so equivalence is not inferred from the name (rows and aliases preserved pending a timing and source audit)',
+      'barraging is a legacy name pattern for the Furious set, not a separate timing-defined operator; barraging-named rows and aliases are preserved for name continuity and resolve to Furious',
       'a superseded reading extended this with a third dex (OP IN [DEX]) as "Barraging Paradox Miraging"',
     ],
-    sourceCitation:  'Holden compilation; the earlier folding of furious into barraging is superseded, and current doctrine holds them distinct by timing.',
+    sourceCitation:  'Holden compilation; barraging is a legacy name pattern for the Furious set, and barraging-named tricks resolve to the Furious two-dex uptime set.',
     conflictNote:    'The earlier three-dex Barraging Paradox Miraging chain is historical lineage, not current structure.',
   },
   {
@@ -409,9 +409,9 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
   {
     holdenName:      'Furious',
     holdenReading:   'CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] >; Holden parenthetical: Barraging Paradox Miraging.',
-    platformReading: 'A two-dex set (+2); historically grouped with Barraging, now held distinct by timing. The earlier three-dex extension reading is superseded.',
+    platformReading: 'A two-dex uptime set (+2); barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator. The earlier three-dex extension reading is superseded.',
     status:          'partial',
-    note:            'The three-dex Barraging Paradox Miraging reading is historical lineage; current doctrine holds Furious and Barraging distinct by timing, so equivalence is not inferred from the name.',
+    note:            'The three-dex Barraging Paradox Miraging reading is historical lineage; barraging is a legacy name pattern for the Furious set, not a separate timing-defined operator, so it resolves to Furious.',
   },
   {
     holdenName:      'Terraging',

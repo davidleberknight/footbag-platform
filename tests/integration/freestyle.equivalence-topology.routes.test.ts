@@ -115,7 +115,7 @@ describe('equivalence-topology — section renders for ratified entries', () => 
     // Handlebars HTML-escapes '=' → '&#x3D;' (safe-by-default; browser
     // decodes back to '='). Test pins the escaped form actually present
     // in the HTTP response body.
-    expect(res.text).toContain('barraging(+2) + legover(2) &#x3D; 4 ADD');
+    expect(res.text).toContain('furious(+2) + legover(2) &#x3D; 4 ADD');
     expect(res.text).toContain('paradox(+1) + paradox-legover(3) &#x3D; 4 ADD');
   });
 

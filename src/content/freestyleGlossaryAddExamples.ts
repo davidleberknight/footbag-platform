@@ -85,8 +85,8 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
     displayName:       'Baroque',
     compactNotation:   'barraging osis',
     officialAdd:       5,
-    derivation:        'barraging(+2) + osis(3) = 5 ADD',
+    derivation:        'furious(+2) + osis(3) = 5 ADD',
     status:            'canonical',
-    observationalNote: 'Barraging is a two-dex set: the two dex steps inside the set are each count-bearing, giving the modifier a structural +2 weight. The Baroque total of 5 converges mechanically as the two-dex contribution stacked on the osis atom.',
+    observationalNote: 'Furious is the two-dex uptime set (barraging is a legacy name for it): the two dex steps inside the set are each count-bearing, giving a structural +2 weight. The Baroque total of 5 converges mechanically as the two-dex contribution stacked on the osis atom.',
   },
 ];

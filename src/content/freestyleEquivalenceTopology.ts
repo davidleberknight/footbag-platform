@@ -130,7 +130,7 @@ export const EQUIVALENCE_TOPOLOGY: readonly EquivalenceTopologyEntry[] = [
         source:       'historical',
         status:       'confirmed',
         reading:      'barraging legover',
-        addBreakdown: 'barraging(+2) + legover(2) = 4 ADD',
+        addBreakdown: 'furious(+2) + legover(2) = 4 ADD',
         publishedIn:
           'freestyleSymbolicEquivalences.ts (pt4-locked; ' +
           'barraging weight 2 per Red)',

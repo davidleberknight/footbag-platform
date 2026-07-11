@@ -193,7 +193,7 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
   // single-valued taxonomy. Unresolved-doctrine weightings are marked TBD.
   {
     componentClass: 'Set / Uptime modifiers: pixie, fairy, atomic, quantum, nuclear, blurry, barraging, furious (pedagogical axis, not an official grouping)',
-    contribution:   'pixie / fairy / quantum +1; atomic +1 (a separate +1 X-Dex applies only where [XDEX] appears in the notation of the following dex); nuclear +2 (= paradox + illusion); blurry is scored per trick, not a fixed weight (stepping with a paradox second dex, +2, where the notation carries that second dex; stepping alone, +1, where it does not); barraging +2 (a two-dex set). Furious is a two-dex set (+2) historically grouped with barraging; current doctrine holds them distinct by timing, so equivalence is not inferred from the name.',
+    contribution:   'pixie / fairy / quantum +1; atomic +1 (a separate +1 X-Dex applies only where [XDEX] appears in the notation of the following dex); nuclear +2 (= paradox + illusion); blurry is scored per trick, not a fixed weight (stepping with a paradox second dex, +2, where the notation carries that second dex; stepping alone, +1, where it does not); furious +2 (the two-dex uptime set; barraging is a legacy name pattern for this same set, not a separate timing-defined operator).',
     example:        'atomic + mirage = atom smasher = 4 ADD; barraging + osis = baroque = 5 ADD',
   },
   {
@@ -281,9 +281,9 @@ const COMPOSITE_NOTE =
   'A few operator names are shorthand for a combination, and they score as the ' +
   'sum of their parts. Surging is spinning plus stepping, so it adds two. Blurry ' +
   'is a stepping entry carrying a paradox. Nuclear is a paradox plus a downtime ' +
-  'illusion, adding two. Furious is a two-dex set that adds two; it was ' +
-  'historically grouped with barraging, but current doctrine holds the two ' +
-  'distinct by timing, so equivalence is not inferred from the name. Reading the ' +
+  'illusion, adding two. Furious is a two-dex uptime set that adds two; ' +
+  'barraging is a legacy name pattern for this same Furious set, not a ' +
+  'separate timing-defined operator, so barraging names resolve to Furious. Reading the ' +
   'composite name back into its parts is what makes the bracket count and the ' +
   'published ADD line up.';
 
@@ -589,7 +589,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     externalSourceLabel:     'IFPA (operator class)',
     externalAdd:             '5',
     delta:                   '0',
-    decompositionDifference: 'Barraging’s contribution to Baroque is structural: it multiplies the dex count rather than adding as a body modifier. Two dexes (+2) + osis (3) = 5.',
+    decompositionDifference: 'The Furious set’s contribution to Baroque is structural: it multiplies the dex count rather than adding as a body modifier. Two dexes (+2) + osis (3) = 5. Baroque carries a legacy barraging-based name, but the set is Furious.',
     pattern:                 'operator class (structural dex-multiplier)',
     ifpaStatusLine:          'settled (Baroque named ruling)',
   },

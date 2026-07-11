@@ -157,7 +157,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'ADD accounting',
-        reading: "furious(+2) + paradox(+1) + mirage(2) = 5 ADD. Furious is a two-dex set: +2 on any base. Historically grouped with barraging; current doctrine holds them distinct by timing.",
+        reading: "furious(+2) + paradox(+1) + mirage(2) = 5 ADD. Furious is a two-dex uptime set: +2 on any base. Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator.",
       },
       {
         stage:   'Doctrine evolution',
@@ -261,7 +261,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Operator productivity',
-        reading: "The barraging modifier produces fury (barraging-paradox-mirage in earlier doctrine) and flurry (barraging-leg-over) on other chassis.",
+        reading: "The Furious set (carried under legacy barraging-based names on some rows) produces fury (furious paradox mirage) and flurry (furious leg over) on other chassis.",
       },
       {
         stage:   'Family-language summary',

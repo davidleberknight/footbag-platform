@@ -104,7 +104,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     parentSlugs: ['paradox_mirage'],
     prose:
       "Relative to paradox-mirage, fury adds the furious two-dex set: two same-direction dex steps on the set, with the paradox hip-pivot threaded through the catch end. Where blur adds a single stepping dex onto the paradox-mirage chassis, fury adds the two-dex furious set instead.\n\n" +
-      "The furious set carries +2, yielding 5 ADD: furious(+2) + paradox(+1) + mirage(2). Furious is a two-dex set (+2); it was historically grouped with barraging, but current doctrine holds them distinct by timing, so equivalence is not inferred from the name.",
+      "The furious set carries +2, yielding 5 ADD: furious(+2) + paradox(+1) + mirage(2). Furious is a two-dex uptime set (+2); barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator.",
     topologyKind: 'paradox',
   },
 

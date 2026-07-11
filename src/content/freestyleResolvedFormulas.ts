@@ -545,10 +545,10 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   // have Red pt6 rulings published in red_additions
   // and modifier_links registered on the DB rows.
   //
-  // fury: Red pt6 overrode pt4 (paradox+barraging+mirage)
-  // with the cleaner furious-paradox-mirage reading. furious is +2
-  // universally (a two-dex set). Historically grouped with barraging;
-  // current doctrine holds furious and barraging distinct by timing.
+  // fury: Red pt6 overrode the earlier reading with the cleaner
+  // furious-paradox-mirage reading. furious is +2 universally (a two-dex
+  // uptime set). Barraging is a legacy name pattern for the same Furious
+  // set, not a separate timing-defined operator.
   //
   // fog: Red pt6 MODEL_CHANGE: Fog does NOT contain an
   // eggbeater (Bedwetter does). Decomposition uses dlo (double-leg-over)
@@ -2691,90 +2691,90 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   {
     slug:        'barraging_barfly',
     name:        'barraging barfly',
-    operator:    'barraging',
+    operator:    'furious',
     base:        'barfly',
     baseAdd:     4,
     totalAdd:    6,
-    derivation:  'barraging(+2) + barfly(4) = 6 ADD',
-    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]',  // standard barraging two-dex chassis; bracket count 6 matches ADD.
-    provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 6 matches ADD. Observational (FM).',
+    derivation:  'furious(+2) + barfly(4) = 6 ADD',
+    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]',  // standard Furious two-dex chassis (historical name barraging); bracket count 6 matches ADD.
+    provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 6 matches ADD. Observational (FM).',
   },
   {
     slug:        'barraging_butterfly',
     name:        'barraging butterfly',
-    operator:    'barraging',
+    operator:    'furious',
     base:        'butterfly',
     baseAdd:     3,
     totalAdd:    5,
-    derivation:  'barraging(+2) + butterfly(3) = 5 ADD',
-    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // standard barraging two-dex chassis; bracket count 5 matches ADD.
-    provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 5 matches ADD. Observational (FM/PB).',
+    derivation:  'furious(+2) + butterfly(3) = 5 ADD',
+    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // standard Furious two-dex chassis (historical name barraging); bracket count 5 matches ADD.
+    provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 5 matches ADD. Observational (FM/PB).',
   },
   {
     slug:        'barraging_eggbeater',
     name:        'barraging eggbeater',
-    operator:    'barraging',
+    operator:    'furious',
     base:        'eggbeater',
     baseAdd:     3,
     totalAdd:    5,
-    derivation:  'barraging(+2) + eggbeater(3) = 5 ADD',
-    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // standard barraging two-dex chassis; bracket count 5 matches ADD.
-    provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 5 matches ADD. Observational (PB).',
+    derivation:  'furious(+2) + eggbeater(3) = 5 ADD',
+    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // standard Furious two-dex chassis (historical name barraging); bracket count 5 matches ADD.
+    provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 5 matches ADD. Observational (PB).',
   },
   {
     slug:        'barraging_illusion',
     name:        'barraging illusion',
-    operator:    'barraging',
+    operator:    'furious',
     base:        'illusion',
     baseAdd:     2,
     totalAdd:    4,
-    derivation:  'barraging(+2) + illusion(2) = 4 ADD',
-    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP TOE [DEL]',  // standard barraging two-dex chassis; bracket count 4 matches ADD.
-    provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 4 matches ADD. Observational (PB).',
+    derivation:  'furious(+2) + illusion(2) = 4 ADD',
+    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP TOE [DEL]',  // standard Furious two-dex chassis (historical name barraging); bracket count 4 matches ADD.
+    provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 4 matches ADD. Observational (PB).',
   },
   {
     slug:        'barraging_legover',
     name:        'barraging legover',
-    operator:    'barraging',
+    operator:    'furious',
     base:        'legover',
     baseAdd:     2,
     totalAdd:    4,
-    derivation:  'barraging(+2) + legover(2) = 4 ADD',
-    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // standard barraging two-dex chassis; bracket count 4 matches ADD.
-    provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 4 matches ADD. Observational (FM/PB).',
+    derivation:  'furious(+2) + legover(2) = 4 ADD',
+    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // standard Furious two-dex chassis (historical name barraging); bracket count 4 matches ADD.
+    provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 4 matches ADD. Observational (FM/PB).',
   },
   {
     slug:        'barraging_mirage',
     name:        'barraging mirage',
-    operator:    'barraging',
+    operator:    'furious',
     base:        'mirage',
     baseAdd:     2,
     totalAdd:    4,
-    derivation:  'barraging(+2) + mirage(2) = 4 ADD',
-    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > OP TOE [DEL]',  // standard barraging two-dex chassis; bracket count 4 matches ADD.
-    provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 4 matches ADD. Observational (PB).',
+    derivation:  'furious(+2) + mirage(2) = 4 ADD',
+    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > OP TOE [DEL]',  // standard Furious two-dex chassis (historical name barraging); bracket count 4 matches ADD.
+    provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 4 matches ADD. Observational (PB).',
   },
   {
     slug:        'barraging_pickup',
     name:        'barraging pickup',
-    operator:    'barraging',
+    operator:    'furious',
     base:        'pickup',
     baseAdd:     2,
     totalAdd:    4,
-    derivation:  'barraging(+2) + pickup(2) = 4 ADD',
-    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > SAME TOE [DEL]',  // standard barraging two-dex chassis; bracket count 4 matches ADD.
-    provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 4 matches ADD. Observational (SG).',
+    derivation:  'furious(+2) + pickup(2) = 4 ADD',
+    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > SAME TOE [DEL]',  // standard Furious two-dex chassis (historical name barraging); bracket count 4 matches ADD.
+    provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 4 matches ADD. Observational (SG).',
   },
   {
     slug:        'barraging_whirl',
     name:        'barraging whirl',
-    operator:    'barraging',
+    operator:    'furious',
     base:        'whirl',
     baseAdd:     3,
     totalAdd:    5,
-    derivation:  'barraging(+2) + whirl(3) = 5 ADD',
-    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]',  // standard barraging two-dex chassis; bracket count 5 matches ADD.
-    provenance:  'Barraging-chassis promotion. barraging(+2) two-dex set; bracket count 5 matches ADD. Observational (PB).',
+    derivation:  'furious(+2) + whirl(3) = 5 ADD',
+    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]',  // standard Furious two-dex chassis (historical name barraging); bracket count 5 matches ADD.
+    provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 5 matches ADD. Observational (PB).',
   },
   {
     slug:        'symposium_atomic_butterfly',
@@ -3384,13 +3384,13 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   {
     slug:        'barraging_barfly_swirl',
     name:        'barraging barfly swirl',
-    operator:    'barraging',
+    operator:    'furious',
     base:        'barfly-swirl',
     baseAdd:     5,
     totalAdd:    7,
-    derivation:  'barraging(+2) + barfly-swirl(5) = 7 ADD',
-    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // barraging chassis on canonical barfly-swirl; bracket count 7 matches ADD.
-    provenance:  'Clean Tier-1 sweep. barraging on canonical barfly-swirl; bracket count 7 matches ADD. Observational (SG).',
+    derivation:  'furious(+2) + barfly-swirl(5) = 7 ADD',
+    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // Furious two-dex chassis (historical name barraging) on canonical barfly-swirl; bracket count 7 matches ADD.
+    provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set on canonical barfly-swirl; bracket count 7 matches ADD. Observational (SG).',
   },
   {
     slug:        'ducking_symposium_reverse_whirl',

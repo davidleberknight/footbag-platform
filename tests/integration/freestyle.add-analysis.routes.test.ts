@@ -367,10 +367,12 @@ describe('GET /freestyle/add-analysis', () => {
     expect(res.text).toMatch(/paradox second dex/i);
   });
 
-  it('Barraging surfaces as a Set/Uptime modifier with weight 2 (Red 2026-05-20)', async () => {
+  it('Furious surfaces as the two-dex Set/Uptime modifier with weight 2; barraging is a legacy name for it', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    expect(res.text).toMatch(/barraging \+2/i);
-    expect(res.text).toMatch(/two-dex set/i);
+    expect(res.text).toMatch(/furious \+2/i);
+    expect(res.text).toMatch(/two-dex.*set/i);
+    // barraging is retired as a scored operator; it survives only as a legacy name for the Furious set
+    expect(res.text).toMatch(/barraging is a legacy name/i);
   });
 
   it('Philosophy paragraph elevates stopping-depth equivalence as foundational', async () => {

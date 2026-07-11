@@ -3650,7 +3650,7 @@ const SET_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     name:        'Furious',
     glyph:       null,
     feel:        'Furious adds two same-direction dexes on the set, with rotational character.',
-    intuition:   'A two-dex set (+2 on any base). Historically grouped with barraging; current doctrine holds them distinct by timing, so equivalence is not inferred from the name (rows and aliases preserved pending a timing and source audit).',
+    intuition:   'A two-dex set (+2 on any base). Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator; barraging-named rows and aliases are preserved for name continuity and resolve to Furious.',
     example:     'Fury = Furious Paradox Mirage; Nemesis = Furious Barfly.',
     familyHint:  null,
     midtimeBody: false,
@@ -4623,7 +4623,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'fairy_spinning_ducking_osis',
   'fairy_swirling_swirl',
   'fairy_whirl',
-  // Barraging + base batch (two-dex +2 chassis; barraging=+2; all bases canonical).
+  // Furious-set + base batch (two-dex +2 chassis; furious=+2; historical name barraging; all bases canonical).
   'barraging_barfly',
   'barraging_butterfly',
   'barraging_eggbeater',
@@ -8882,7 +8882,7 @@ export const freestyleService = {
       quantum:   'The compressed form of atomic: a tighter uptime treatment.',
       nuclear:   'A +2 set modifier; structurally paradox + illusion.',
       fairy:     'A pre-base uptime set treatment closely related to pixie.',
-      furious:   'A +2 two-dex set modifier. Historically grouped with barraging; current doctrine holds them distinct by timing.',
+      furious:   'A +2 two-dex uptime set. Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator.',
     };
 
     const componentSortByAddThenName = (

@@ -84,7 +84,7 @@ describe('GET /freestyle/glossary — flurry worked example (preserved from prio
   it('shows both flurry readings reach 4 ADD via different operator compositions', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     // The per-path ADD breakdowns (parenthesized) confirm 4-ADD convergence.
-    expect(res.text).toMatch(/barraging\(\+2\)[\s\S]*legover\(2\)[\s\S]*4 ADD/i);
+    expect(res.text).toMatch(/furious\(\+2\)[\s\S]*legover\(2\)[\s\S]*4 ADD/i);
     expect(res.text).toMatch(/paradox\(\+1\)[\s\S]*paradox-legover\(3\)[\s\S]*4 ADD/i);
   });
 });
