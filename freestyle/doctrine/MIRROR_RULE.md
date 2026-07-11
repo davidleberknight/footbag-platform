@@ -59,10 +59,20 @@ zero new assumptions. The gate is the mirror's existence:
 - The more complex ducking compounds themselves (paradox / symposium / swirl / jump
   / barfly / reverse variants) where the ducking parent is not yet authored.
 
-## Open refinement (not a blocker)
+## Notation of the distinguishing detail (settled)
 
-The distinguishing launch detail is carried as a non-scoring annotation rather than
-a formal JOB token. A future notation pass may represent it more explicitly — for
-Weaving the candidate is flipping the terminal side from the ducking exemplar's `OP`
-to `SAME` (the same-foot catch AS the terminal side). Both representations keep ADD
-unchanged; until such a pass, the annotation form invents no new syntax.
+The distinguishing launch detail stays a non-scoring parenthetical annotation, not a
+formal notation token. This is a settled curator decision, and it matches the
+existing `(plant foot)` precedent on wrap and walk-over: an unbracketed note records
+an execution nuance without entering the scoring grammar, so bracket-count still
+equals ADD and nothing in the scoring path can count it.
+
+No new token is introduced for the across-body launch or the same-foot catch, and
+the structural `SAME` / `OP` side markers are not repurposed to encode them. The
+once-considered candidate of flipping Weaving's terminal side from the ducking
+exemplar's `OP` to `SAME` is declined: it would overload markers a reader and the
+parser rely on for the terminal side, break this rule's copy-the-ducking-exemplar
+invariant, and have no analog for Zulu's across-body launch, leaving the two siblings
+encoding their distinguishing detail differently. The annotation form keeps them
+consistent and invents no syntax. No trick data, notation row, parser behavior, or
+ADD value changes under this decision.
