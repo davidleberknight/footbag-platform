@@ -2531,7 +2531,7 @@ Story: As an admin, I can edit a freestyle trick dictionary row and the aliases,
 
 Success Criteria, Row fields:
 
-- Editable row fields are the canonical name, the ADD value, the movement and execution notation, the trick family, the base trick, the category, the active flag, and the review status (curated, expert-reviewed, or pending).
+- Editable row fields are the canonical name, the ADD value, the movement and execution notation, the trick family, the base trick, the category, the active flag, the review status (curated, expert-reviewed, or pending), and the editorial prose fields: the description, the short description, the execution summary, the learning notes, the prerequisite notes, the pronunciation, and the execution-notation source note. Every database-backed field on the trick row has an in-app edit path, so no trick content freezes once the live database is the source of truth.
 - A save that passes validation writes the trick row through a prepared statement; the database write is the contract.
 
 Success Criteria, Validation (enforced at the write; a save that fails any check is rejected with a clear message and the submitted values preserved):

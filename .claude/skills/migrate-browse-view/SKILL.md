@@ -88,7 +88,7 @@ Add a fresh `*BrowseView` interface in `freestyleService.ts`. Build it alongside
 
 - **Sort within groups: ADD ascending, then trick name alphabetical** (unless an explicit per-view exception is documented: family view uses "anchor first then ADD asc"; component view uses "priority order then alphabetical fallthrough" for groups but ADD-asc-then-name within groups)
 - **Empty groups hidden** via `entries.length > 0` filter (every shipped view; explicit per-view exceptions require curator approval)
-- **Modifier-stub rows excluded** at the row-filtering step (per `feedback_modifier_public_visibility`)
+- **Modifier-stub rows excluded** at the row-filtering step (modifier rows are FK targets, not public tricks; they never render on browse views)
 - **Cards built via `shapeDictionaryTrickCard()`**: do NOT inline card shaping; do NOT bypass the helper
 - **`FreestyleTrickRowWithStatus`** is the row type the card builder needs (operational_notation column lives there, not on the base `FreestyleTrickRow`)
 
@@ -200,7 +200,7 @@ Run:
 - `npx tsc -p tsconfig.json --noEmit`: must be clean
 - `npx vitest run --exclude "tests/e2e/**" --exclude "tests/smoke/**"`: full suite green
 - `git add` the changed files (services / templates / CSS / tests / report)
-- Surface the commit command to the user (Claude never commits; per `feedback_git_commit_boundary`)
+- Surface the commit command to the user (Claude never commits; the human owns commits)
 
 ## Constraints (every browse-view slice)
 
@@ -239,5 +239,3 @@ Observational badge convention: `<span class="symbolic-layer-badge" title="...">
 - `exploration/dictionary-symbolic-card/SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md`: background on the semantic-navigation architecture and the curator-approval gate for adding a browse view
 - `src/views/partials/dictionary-trick-card.hbs`: the shared partial; never modify in a browse-view slice
 - `tests/integration/freestyle.dictionary-trick-card.routes.test.ts`: the card-uniformity regression guard
-- `feedback_modifier_public_visibility.md`: modifier-stub exclusion
-- `feedback_git_commit_boundary.md`: stage-only by Claude

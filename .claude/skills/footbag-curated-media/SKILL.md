@@ -292,10 +292,10 @@ A new `source_id` (e.g. `passback_demos`, `footbag_org`) requires SIX coordinate
 5. `freestyle/loaders/24_qc_freestyle_media_coverage.py` — `DEMO_SOURCES` / `STRONG_TUTORIAL_SOURCES` / `RECORD_SOURCES`. An unregistered source is an "unrecognized source_id" **hard-fail (exit 2)** AND mis-classifies clips as `WEAK_RECORD`.
 6. `tests/unit/freestyleSourceTier.test.ts` — the "exactly N known sources" guard count + a per-tier shape assertion (the guard intentionally fails until updated).
 
-Conditional: if the source emits a gallery TAG `#<source>`, whitelist it in `scripts/_trick_tag_invariant.py` `UTILITY_EXACT` (NOT needed if promote emits no source tag — `passback_demos` emits only `#<slug> #freestyle #trick`). See memory `[[feedback_curated_media_source_registration]]`.
+Conditional: if the source emits a gallery TAG `#<source>`, whitelist it in `scripts/_trick_tag_invariant.py` `UTILITY_EXACT` (NOT needed if promote emits no source tag — `passback_demos` emits only `#<slug> #freestyle #trick`).
 
 ## Cross-references
 
 - `footbag-freestyle-dictionary` skill: trick / alias / glossary layer separation rules; the canonical source for what counts as a trick.
-- `feedback_admin_post_rebuild_backfill.md` (memory): DB rebuilds wipe member rows including `is_admin`; not directly about media but the same operational lesson: rebuilds don't reapply per-row state.
-- `project_gallery_organization.md` (memory): historical context on TT Series view + cluster candidates (passback_records, anz_trikz, footbag_finland, shred_global, flipsider_footbag); note that the original TT view code was removed in commit `23a4bae` and replaced by named-gallery sidecars.
+- Operational lesson shared with member data: a database rebuild wipes member rows including `is_admin`; rebuilds do not reapply per-row state, so per-row grants need re-application after any rebuild.
+- Gallery organization: the Tricks-of-the-Trade series and the source clusters (passback_records, anz_trikz, footbag_finland, shred_global, flipsider_footbag) are organized as named-gallery sidecars; there is no dedicated TT Series view code.

@@ -56,9 +56,9 @@ When in doubt: assume observational. Promotion to canonical requires curator dec
 
 4. **`family` is NOT modifier.** Paradox is a modifier with family-like character (paradox compounds hang together), but treating it as a family slug forces a single membership on tricks that legitimately belong to multiple modifier cohorts. Use topology / component grouping instead.
 
-5. **Single-value family is a known limitation.** Tricks like `double-leg-over` (legover-based AND mirage-related via `miraging legover` reading) and `torque` (its own family AND osis-derived via `miraging osis` reading) belong to multiple structural cohorts. The current schema cannot express this. Slice D may introduce multi-family memberships via reversible TypeScript content modules; do NOT introduce a multi-family schema until Wave-2 Red answers + curator triage stabilize the ontology.
+5. **Single-value family is a known limitation.** Tricks like `double_leg_over` (legover-based AND mirage-related via `miraging legover` reading) and `torque` (its own family AND osis-derived via `miraging osis` reading) belong to multiple structural cohorts. The current schema cannot express this. A future slice may introduce multi-family memberships via reversible TypeScript content modules; do NOT introduce a multi-family schema until the outstanding Red answers and curator triage stabilize the ontology.
 
-6. **Singleton families are ambiguous.** A `trick_family` slug with only 1 active member (dada-curve, atw, several others) is currently suppressed by the `length > 1` family-view heuristic. Singleton-family policy is unresolved: do not invent rules without curator input.
+6. **Singleton families are ambiguous.** A `trick_family` slug with only 1 active member (dada_curve, atw, several others) is currently suppressed by the `length > 1` family-view heuristic. Singleton-family policy is unresolved: do not invent rules without curator input.
 
 ---
 
@@ -144,11 +144,11 @@ For any reading that RED_QUEUE.md shows is still open: do NOT freeze its decompo
 
 ## Reversible governance doctrine
 
-Cross-references [[feedback_reversible_content_governance]]. The summary form:
+The doctrine in summary form:
 
 - **TypeScript content modules over SQL** while ontology is in flight. Allow-lists, chain registries, kind overrides, family memberships, category taxonomies, glossary anchor allow-lists: all curator-authored, all reversible by editing one file.
 - **No schema migrations** for taxonomy data until the ontology stabilizes and the curator ratifies it (the open questions in `RED_QUEUE.md` cleared, at minimum).
-- **No auto-derivation** of curator-authoritative classification from notation, formulas, or alias tables. Curator data is curator data; parser data is parser data. (Cross-references [[feedback_parser_editorial_separation]].)
+- **No auto-derivation** of curator-authoritative classification from notation, formulas, or alias tables. Curator data is curator data; parser data is parser data.
 - **Restraint over feature throughput.** A wrong taxonomy commitment is worse than a missing one. When a slice is uncertain, surface the question to the curator; do not invent a default.
 
 When a proposal violates reversibility (schema migration, SQL CHECK constraint, NOT NULL on a taxonomy column), STOP and surface to the curator. The default is "defer to next slice"; the override path is explicit curator sign-off.

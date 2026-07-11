@@ -9,7 +9,7 @@ description: Use when building or changing public-facing freestyle dictionary su
 
 Invoke this skill when work touches:
 
-- Public-facing surfaces of the freestyle dictionary (`/freestyle/tricks`, `/freestyle/tricks/:slug`, hypothetical `/freestyle/families/:name` or `/freestyle/modifiers/:name`)
+- Public-facing surfaces of the freestyle dictionary (`/freestyle/tricks`, `/freestyle/tricks/:slug`, `/freestyle/families/:slug`, `/freestyle/modifier/:slug`)
 - Trick-detail page rendering, including aliases, decomposition, related tricks, records, media
 - Family-page rendering: collective structure, ladder views, family-level media aggregation
 - Disclosure-depth controls (Simple / Deep Dive toggles)
@@ -28,7 +28,7 @@ If the work is media pipeline (sidecar emit, gallery seeding, source registratio
 
 The freestyle dictionary's competitive edge is **structural ontology** (relationships, decomposition, families, sets, aliases, provenance), not trick count. This skill governs how that ontology gets projected onto user-facing surfaces without overwhelming users.
 
-The single load-bearing finding from the 2026-05-07 sandbox exploration:
+The single load-bearing finding from the sandbox exploration:
 
 > The dictionary's structure already encodes the things UX wants to surface. The work ahead is **projection** (services + templates + curator content), not **modeling** (schema).
 
@@ -50,7 +50,7 @@ These are the load-bearing patterns. Future work that quietly relaxes them is a 
 
 ### Projection over extension
 
-The default answer to "how do we surface X about a trick?" is: query the existing ontology and shape at the service layer. New schema is the rare exception, not the norm. Three of four UX axes explored in 2026-05-07 needed zero new schema; the fourth degraded gracefully without it.
+The default answer to "how do we surface X about a trick?" is: query the existing ontology and shape at the service layer. New schema is the rare exception, not the norm. Three of four UX axes explored needed zero new schema; the fourth degraded gracefully without it.
 
 ### Disclosure depth, never auth gating
 
@@ -102,36 +102,36 @@ Same source data; different curatorial choice. The family page wants breadth; th
 
 | Category | Render rule | Example |
 |---|---|---|
-| Common alias | Inline always | `Reverse Whirl` → rev-whirl; `PS Whirl` → paradox-symposium-whirl |
-| Historical name | Inline in Deep Dive only; with provenance | `Whirlwind` → spinning-symposium-whirl; `Whip` → rev-whirl |
+| Common alias | Inline always | `Reverse Whirl` → rev_whirl; `PS Whirl` → paradox_symposium_whirl |
+| Historical name | Inline in Deep Dive only; with provenance | `Whirlwind` → spinning_symposium_whirl; `Whip` → rev_whirl |
 | **Structural alias** | Inline in Deep Dive (alongside the decomposition block) | `Gyro Torque` → mobius; `Atomic Legover` → eggbeater; `Blurry Mirage` → blur |
-| Technical decomposition | Search-only / "abbreviations" expander | `pdx-whirl`, `BW`, `bs-magellan` |
-| Typo / misspelling | Search-only; **never displayed** | `blury-whirl`, `m-bius`, `spinning-symposium-wirl` |
+| Technical decomposition | Search-only / "abbreviations" expander | `pdx_whirl`, `BW`, `bs_magellan` |
+| Typo / misspelling | Search-only; **never displayed** | `blury_whirl`, `m_bius`, `spinning_symposium_wirl` |
 
 Categorization isn't in the schema today. Heuristics (length, vowel-edit-distance, word-count, abbreviation-token detection, known-name lookup) categorize most cases; a single optional curator-asserted `alias_kind` column would clean it up. Until then, render only the most-confidently-named Common aliases and degrade gracefully.
 
-#### Structural alias category (added 2026-05-07; validated dictionary-wide)
+#### Structural alias category (validated dictionary-wide)
 
 A **structural alias** is a string that decomposes the canonical compositionally AND is in active community use as a name for the trick. The two dimensions distinguish it from each neighbor:
 
 - vs Common: a Common alias is a synonym (different label for the same thing). A Structural alias is the *decomposition* (the modifier-stack expressed in noun-phrase form) used as a name.
 - vs Historical: a Historical alias has been superseded by a different canonical name. A Structural alias coexists with the canonical: both forms are in current use.
-- vs Technical decomposition: a Technical decomposition is an abbreviation or slug-form (`gyro-torque`, `pdx-whirl`). A Structural alias is the full noun phrase (`Gyro Torque`, `Atomic Legover`).
+- vs Technical decomposition: a Technical decomposition is an abbreviation or slug-form (`gyro_torque`, `pdx_whirl`). A Structural alias is the full noun phrase (`Gyro Torque`, `Atomic Legover`).
 
-Validated examples from the alias audit (2026-05-07):
+Validated examples from the alias audit:
 
 | Structural alias | Canonical | ADD math |
 |---|---|---|
 | Gyro Torque | mobius | gyro(+1) + torque(4) = 5 |
 | Atomic Legover | eggbeater | atomic(+1) + legover(2) = 3 |
-| Atomic Mirage | atom-smasher | atomic(+1) + mirage(2) + [XDEX](1) = 4 |
+| Atomic Mirage | atom_smasher | atomic(+1) + mirage(2) + [XDEX](1) = 4 |
 | Blurry Mirage | blur | blurry(+2) + mirage(2) = 4 |
 | Blurry Butterfly | ripwalk | blurry(+1) + butterfly(3) = 4 |
 | Miraging Clipper | drifter | miraging(+1) + clipper(2) = 3 |
-| Miraging Legover | double-leg-over | miraging(+1) + legover(2) = 3 |
+| Miraging Legover | double_leg_over | miraging(+1) + legover(2) = 3 |
 | Barraging Legover | flurry | barraging(+1) + legover(2) = 3 |
-| Pixie DLO | smog | pixie(+1) + double-leg-over(3) = 4 |
-| Stepping DLO | haze | stepping(+1) + double-leg-over(3) = 4 |
+| Pixie DLO | smog | pixie(+1) + double_leg_over(3) = 4 |
+| Stepping DLO | haze | stepping(+1) + double_leg_over(3) = 4 |
 
 Roughly 10–15 dictionary aliases fit this pattern. The audit found them clustered in the Common bucket under the prior four-category taxonomy; the fifth category surfaces them honestly.
 

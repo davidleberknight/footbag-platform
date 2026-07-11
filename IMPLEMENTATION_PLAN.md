@@ -152,21 +152,22 @@ Pipeline defects, deviations, and cleanup the cutover load and onboarding matchi
 **State of freestyle (standing summary).** The freestyle encyclopedia is release-ready
 at Version 1; this block records where it stands. Freestyle is in launch
 curation-cutover mode: the public surface is coherent, the CSV rebuild is guarded
-against production use, and the one open launch item is the in-app curation cutover's
-operator-run staging rehearsal, carried in the live priority list below. Doctrine, Red
-questions, and content promotions remain James-led, tracked through the freestyle
-doctrine files and that live list. The 2026-07-07 stewardship audit is reconciled and
-closed; its report is a historical archive, and the live freestyle work is this plan.
+against production use, and the open freestyle launch items are gated in the
+go-live blocker index in `docs/MIGRATION_PLAN.md`. Doctrine, Red questions, content
+promotions, and the freestyle fix queue remain James-led; this plan carries the
+launch gate and cross-team items.
 
-- *Implementation.* The dictionary (about 900 active canonical tricks, every one
-  terminating in a core atom; new admin saves enforce scoring-bracket parity for a
-  numeric ADD where the execution notation carries scoring brackets, while legacy
-  rows await the planned normalization and audit work before that parity is a
-  universal data invariant),
+- *Implementation.* The dictionary (about 900 active canonical tricks; core-atom
+  termination is the design intent but not yet a universal data invariant, since a
+  pytest-guarded cohort of active tricks still awaits complete notation; new admin
+  saves enforce scoring-bracket parity for a numeric ADD where the execution
+  notation carries scoring brackets, while legacy rows await the planned
+  normalization and audit work before that parity is a universal data invariant),
   the notation system (movement and execution notation with per-token roles), the
   family system (display tiers over a stable roster), the operator/modifier system
   (single authority in the operator reference, registry consistent), the glossary,
-  the set and compositional-set surfaces, search with alias and typo resolution,
+  the set and compositional-set surfaces, search with alias resolution (stored typo
+  aliases resolve; there is no fuzzy typo matching),
   records with source-recorded ADD explicitly distinguished from canonical ADD, and
   the curated media galleries are all live and internally consistent.
 - *Scholarship.* The source-reconciliation series under
@@ -179,8 +180,9 @@ closed; its report is a historical archive, and the live freestyle work is this 
   until James assembles and sends the current packet and delivery is confirmed;
   doctrine integration and promotions remain James-led. The remaining first-edition
   doctrine papers (`freestyle/doctrine/papers/0..5`) have a mixed send state: the
-  Identity and Frontier papers were sent to Red, answered, and integrated, and the
-  Notation, Scoring, and History papers are drafted, committed, and not yet sent. Every
+  Identity and Frontier papers were sent to Red, answered, and integrated; the
+  Scoring paper is sent and awaiting Red's answer; and the Notation and History
+  papers are drafted, committed, and not yet sent. Every
   unresolved doctrine question is isolated where it cannot
   leak into published values: the doctrine queue in `freestyle/doctrine/RED_QUEUE.md`
   with its blocked items (the Red-dependent promotion and world-record-name decisions
@@ -194,15 +196,13 @@ closed; its report is a historical archive, and the live freestyle work is this 
   blockers and four should-fix items are fixed and re-verified against rendered
   output; the full test suite is green. Version 1 is ready to freeze.
 
-- **The freestyle stewardship audit is reconciled and closed; this plan is the live source of truth.** The 2026-07-07 audit produced `freestyle_remediation_report.md`, which served as the freestyle triage queue during the Version 1 push. That work is now reconciled: every item is either closed, an accepted decision, a tracked deviation, or a post-launch or blocked item, and all of the live ones are carried in the priority list below. The report is retained only as a historical archive of the audit trail (per-item evidence and ratified decisions); it is not an active backlog, and new freestyle work starts from this plan.
-
-**Freestyle 1.2 launch gate (exactly one release blocker).** The in-app curation cutover staging rehearsal evidence. The build, the admin-UI edit rehearsal, and the cutover mechanics are done and their guard tests pass; two operator-run staging rehearsals remain, both needing AWS deploy and host access:
+**Freestyle 1.2 launch gate.** The in-app curation cutover staging rehearsal evidence. The build, the admin-UI edit rehearsal, and the cutover mechanics are done and their guard tests pass; two operator-run staging rehearsals remain, both needing AWS deploy and host access:
 - *Code-only deploy persistence rehearsal.* On staging, an admin edit made through the app survives a code-only deploy that never touches the live database.
 - *Destructive-rebuild refusal rehearsal.* On staging, with the post-cutover marker set, the database-replacing rebuild deploy refuses before any mutation, with no bypass.
 
-Owner and lane: Dave, the authorized deploy operator, runs both on staging and captures the evidence; James completed the admin-UI rehearsal half and is not authorized to run the AWS deploy path. Close condition: both evidence blocks (code-only-deploy persistence, and destructive-rebuild refusal) captured and recorded against this gate. This is the freestyle curation-cutover rehearsal gate in the go-live blocker index. Nothing else freestyle blocks the release.
+Owner and lane: Dave, the authorized deploy operator, runs both on staging and captures the evidence; James completed the admin-UI rehearsal half and is not authorized to run the AWS deploy path. Close condition: both evidence blocks (code-only-deploy persistence, and destructive-rebuild refusal) captured and recorded against this gate. This is the freestyle curation-cutover rehearsal gate in the go-live blocker index.
 
-**Unfinished freestyle business (not release-blocking).** Every item below is post-launch, blocked, or research; none gates the Freestyle 1.2 release. Counts are item counts at summary grain; per-item evidence and history live in `freestyle_remediation_report.md` (historical archive only).
+**Unfinished freestyle business (not release-blocking).** Every item below is post-launch, blocked, or research; none gates the Freestyle 1.2 release. Counts are item counts at summary grain.
 
 | Bucket | Count | Items | Owner | Blocks launch? | Close condition |
 |---|---|---|---|---|---|
@@ -212,11 +212,11 @@ Owner and lane: Dave, the authorized deploy operator, runs both on staging and c
 | Deferred tooling | 5 | trick-tip moderation; new provenance-source registry rows; symbolic admin edit surface; observational admin edit surface; deferred write-path stories for the modifier registry, trick relations, and the symbolic layers | James and Dave | No | built post-launch when scoped; the deferred stories land with their surfaces |
 | Rules-expert / Red doctrine | 7 | Notation paper; History paper (both drafted, not yet sent; the Scoring paper is sent and awaiting Red's answer); blurry-expansion predicate; repeated-operator scoring; cross-body rake/base questions; related Emerging Vocabulary reductions; six unresolved world-record trick names awaiting Red-dependent answers | Red answers; James routes | No | the papers are sent and answered and the answers are integrated across every affected surface |
 | Curator | 5 | three Member Tips remaining (Stepping Down Double Down, ruled a distinct compound but authoring blocked on Down Double Down's own missing notation; Stepping Paradox Symposium Whirl, ruled a distinct compound, held for explicit notation confirmation rather than a sibling-composed deep stack; Pogo Op Whirling Swirl, blocked on the pogo operator); two Net tips awaiting a Net surface; folk/historical alias display shortlist; structural alias review; Dimmier / POD and other open source or video reviews | James (curator) | No | each ruling or viewing lands and propagates to every affected surface |
-| External | 1 | IFPA Sick 3 competition-format rules wording | IFPA, via Dave | No | the IFPA supplies the wording and the freestyle rules buttons re-enable |
+| External | 1 | IFPA Sick 3 competition-format rules wording | IFPA, via Julie | No | the IFPA supplies the wording and the freestyle rules buttons re-enable |
 
 **Accepted freestyle deviations and closed decisions (tracked; no action now).**
 - *Deviations (the Current/Target markers stay in the code):* count and quantifier tokens (double, triple, surging, high) render like operators in the symbolic notation; the PassBack tutorial galleries use compound difficulty tags; the Butterfly stored notation keeps its side-either SAME/OP entry while the public atom renders far-default; and the Around-the-World stored notation keeps its IN/OUT direction while the public atom renders inward-only.
-- *Closed decisions (recorded so they are not re-litigated):* the foundational zero-media media audit is closed with no further sourcing or cross-reference pass planned: the raw missing-media count (808 of 907 active tricks) substantially overstated the real educational gap, because a movement is also covered through a curated clip on one of its alternate names, its own record video, a set teaching page, its family's media, and intentional inheritance (for example inside and outside Around the World inherit the Around-the-World and Orbit demonstrations), and after those lanes only about sixteen foundational tricks are clean gaps, too few and too unlikely to yield valuable footage to justify a dedicated pass; the seven priority clean-gap tricks and the candidate-covered tricks generate no tasks, future footage for any of them is an opportunistic addition during normal curation, and the read-only worklist and methodology are retained as historical research under `exploration/` only; the 72 BAP Individual Shred clips were all reviewed and are player-centered shred performances, not individual trick demonstrations, so they stay in the BAP/media collection and are excluded from per-trick media tagging, with no further trick or set tagging work planned; Quantum is the confirmed set identity, while Miraging is not a canonical set and is not a Quantum equivalent, remaining historical or downtime mirage-family terminology where explicitly framed, and no rows merge; and for Version 1, Far Butterfly retires into Butterfly as the routed alias behavior, Infinity remains suppressed from generic Butterfly alias display, and the broader Butterfly compound notation migration remains out of scope.
+- *Closed decisions (recorded so they are not re-litigated):* the foundational zero-media media audit is closed with no further sourcing or cross-reference pass planned: the raw missing-media count (808 of 907 active tricks) substantially overstated the real educational gap, because a movement is also covered through a curated clip on one of its alternate names, its own record video, a set teaching page, its family's media, and intentional inheritance (for example inside and outside Around the World inherit the Around-the-World and Orbit demonstrations), and after those lanes only about sixteen foundational tricks are clean gaps, too few and too unlikely to yield valuable footage to justify a dedicated pass; the seven priority clean-gap tricks and the candidate-covered tricks generate no tasks, future footage for any of them is an opportunistic addition during normal curation, and the read-only worklist and methodology are retained as historical research under `exploration/` only; the 72 BAP Individual Shred clips were all reviewed and are player-centered shred performances, not individual trick demonstrations, so they stay in the BAP/media collection and are excluded from per-trick media tagging, with no further trick or set tagging work planned; Quantum is the confirmed set identity, while Miraging is not a canonical set and is not a Quantum equivalent, remaining historical or downtime mirage-family terminology where explicitly framed, and no rows merge; barraging is retired as a scored operator, being a legacy name pattern for the Furious set rather than a separate timing-defined operator, so its modifier-registry row is dropped and the sixteen barraging-named tricks re-point to Furious with their ADD values preserved, while barraging-named rows and aliases stay for name continuity; and for Version 1, Far Butterfly retires into Butterfly as the routed alias behavior, Infinity remains suppressed from generic Butterfly alias display, and the broader Butterfly compound notation migration remains out of scope.
 
 ---
 
@@ -254,7 +254,7 @@ Real work, but nothing is being done on it now.
 - **Retire the inline preview card (consolidate on `GET /dev/outbox`).** The dev-only outbox route exists (`GET /dev/outbox` lists the full captured buffer newest-first, merging web-process captures with the worker's over the internal-secret IPC channel), and password-reset and legacy-claim links are already read from it; the registration check-email page still renders an inline preview card scoped to the session's own address. Retire that card and read its link from `/dev/outbox` too.
 - **Ballot retention/cleanup.** The soft-deleted-records cleanup job covers members and payments; it deliberately preserves ballots and never auto-deletes them, because destroying IFPA vote records is an IFPA governance decision rather than an operator action. Ballot retention/cleanup activates when the voting feature ships and the IFPA defines a destruction policy. (SYS_Cleanup_Soft_Deleted_Records)
 - **Admin-to-member in-app message channel.** An admin can send a message or question to a specific member, shown in-app on the member's next login (a dashboard notice or lightweight inbox); email is only a nudge to log in and never carries the message content. No such channel exists today: the current follow-up to a member is out-of-band email to the verified login address. Its first use case is asking a member to confirm their real date of birth from a birth-date-conflict work-queue item, where the content must stay in-app because date of birth is owner-and-admin private. It needs its own user story, a privacy pass, and its own persistence rather than overloading the fixed onboarding-task set.
-- **Events are read-only while the site runs.** Only the pre-launch pipeline writes events; an admin editing path for events is future work. (Freestyle content had the same limitation; it is resolved by the launch-scope in-app freestyle curation feature tracked in `freestyle_remediation_report.md`, which also covers freestyle records and consecutive-kicks records.)
+- **Events are read-only while the site runs.** Only the pre-launch pipeline writes events; an admin editing path for events is future work. (Freestyle content had the same limitation; it is resolved by the launch-scope in-app freestyle curation feature, which also covers freestyle records and consecutive-kicks records.)
 - **Merging the two canonical result sets.** Combine the pre-1997 and post-1997 sets and retire the older one.
 - **Version stamps in the data outputs.** Add the build version, build date, and identity-lock version to the workbook and canonical files.
 - **A data-notes sheet in the workbook.** Explaining excluded events, sources, and what "unknown" means.

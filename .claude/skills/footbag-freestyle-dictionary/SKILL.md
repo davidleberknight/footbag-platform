@@ -230,7 +230,7 @@ All public queries on `freestyle_tricks` MUST filter `is_active = 1`. Enforced i
 
 `freestyle_tricks` rows with `category='modifier'` (paradox, gyro, barraging, blazing) are excluded from public category groupings; they exist only as FK targets for `freestyle_trick_modifier_links`. The proper rules table for modifier ADD bonuses is `freestyle_trick_modifiers`; do not derive modifier ADD math from `freestyle_tricks` rows.
 
-**The Modifier Reference does not render on the trick pages** (neither the trick dictionary index `tricks.hbs` nor the trick detail `trick-shell.hbs` carries a Modifier Reference section — editorial decision). The reference table renders on `/freestyle/glossary` (the `freestyle-modifier-reference` partial). Do not add it to the trick pages without explicit human approval (see memory `feedback_modifier_public_visibility.md`). Public modifier editorial content belongs on `/freestyle/glossary` only, in plain language.
+**The Modifier Reference does not render on the trick pages** (neither the trick dictionary index `tricks.hbs` nor the trick detail `trick-shell.hbs` carries a Modifier Reference section — editorial decision). The reference table renders on `/freestyle/glossary` (the `freestyle-modifier-reference` partial). Do not add it to the trick pages without explicit human approval. Public modifier editorial content belongs on `/freestyle/glossary` only, in plain language.
 
 ---
 

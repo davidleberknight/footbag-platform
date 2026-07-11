@@ -45,7 +45,7 @@ enforces one primary per entity). Verify external URLs before reviewer sign-off.
 
 - **FootbagSpot tutorials:** `https://footbagspot.com/tutorials/v/{hash-or-slug}` for individual videos; `/tutorials/{category}` for landing pages. Speculative `/tutorials/{slug}` URLs 404 — do not extrapolate.
 - **YouTube oembed verification:** `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={id}&format=json` returns title + author; HTTP 400 if the id is malformed (YouTube IDs are exactly 11 chars). Use this to confirm any new YouTube URL before append.
-- **WorldFootbag channel inventory:** `yt-dlp --flat-playlist --dump-json https://www.youtube.com/@WorldFootbag/videos` enumerates the Tricks-of-the-Trade series (42 lessons #1–#42). See memory `reference_worldfootbag_channel.md`.
+- **WorldFootbag channel inventory:** `yt-dlp --flat-playlist --dump-json https://www.youtube.com/@WorldFootbag/videos` enumerates the Tricks-of-the-Trade series (42 lessons #1–#42).
 
 ### Source registry and tutorial-tier classification
 
