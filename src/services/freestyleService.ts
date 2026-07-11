@@ -4345,15 +4345,15 @@ const ROTATIONAL_BASES = new Set(['whirl', 'mirage', 'torque', 'blender', 'swirl
 // module. Missing slugs return null → silent suppression (Tier-3 absence
 // on the trick-detail page), preserving the test-pinned 4-tier
 // rendering hierarchy contract.
-// Compounds whose published derivation scores a "miraging(+1)" component.
-// Miraging is descriptive mirage-family language, not a settled formula-bearing
-// operator, so its scored decomposition is held for curator review: these
-// compounds carry no published resolved formula, so every formula consumer
-// (ADD-view chip, trick-detail disclosure, operator-derived modifier links)
-// falls back to a bare ADD rather than teaching the nickname as canonical. The
-// trick name and DB notation are untouched. Released when the curator rules the
-// miraging operator. Parked in the freestyle remediation report.
-const MIRAGING_HELD_FORMULA_SLUGS: ReadonlySet<string> = new Set([
+// Compounds whose earlier published derivation scored a "miraging(+1)" component.
+// Miraging is retired as a scored, formula-bearing operator: it is historical
+// mirage-family terminology for a single inward dex, which scores as a dex from the
+// notation, not as a miraging operator. So these compounds carry no operator-scored
+// resolved formula, and every formula consumer (ADD-view chip, trick-detail
+// disclosure, operator-derived modifier links) falls back to the bare ADD read from
+// the notation rather than presenting the nickname as a scored component. The trick
+// name, the DB notation, and the bare ADD (the notation bracket count) are unchanged.
+const MIRAGING_NON_OPERATOR_FORMULA_SLUGS: ReadonlySet<string> = new Set([
   'big_apple_sauce',
   'spinning_miraging_symposium_torque',
   'symposium_miraging_mirage',
@@ -4364,7 +4364,7 @@ const MIRAGING_HELD_FORMULA_SLUGS: ReadonlySet<string> = new Set([
 const RESOLVED_FORMULAS_BY_SLUG: ReadonlyMap<string, ResolvedFormula> = (() => {
   const map = new Map<string, ResolvedFormula>();
   for (const formula of RESOLVED_ADD_FORMULAS) {
-    if (MIRAGING_HELD_FORMULA_SLUGS.has(formula.slug)) continue;
+    if (MIRAGING_NON_OPERATOR_FORMULA_SLUGS.has(formula.slug)) continue;
     map.set(formula.slug, formula);
   }
   return map;
@@ -9624,12 +9624,12 @@ export const freestyleService = {
       passbackAddDisagreements: FREESTYLE_ADD_ANALYSIS_CONTENT.passbackAddDisagreements.map(r => ({
         ...r, ifpaSlug: resolveSlug(r.ifpaSlug),
       })),
-      // Compounds whose derivation scores a held "miraging(+1)" component are
-      // dropped from the public resolved-formula table: miraging is not a settled
-      // scored operator, so its decomposition stays out of the teaching surface
-      // until a curator rules it.
+      // Compounds whose earlier derivation scored a "miraging(+1)" component are
+      // dropped from the public resolved-formula table: miraging is retired as a
+      // scored, formula-bearing operator, so its decomposition stays out of the
+      // teaching surface and the bare ADD from the notation is what publishes.
       resolvedFormulas: FREESTYLE_ADD_ANALYSIS_CONTENT.resolvedFormulas
-        .filter(r => !(r.slug && MIRAGING_HELD_FORMULA_SLUGS.has(r.slug)))
+        .filter(r => !(r.slug && MIRAGING_NON_OPERATOR_FORMULA_SLUGS.has(r.slug)))
         .map(r => ({ ...r, slug: resolveSlug(r.slug) })),
     };
     return {

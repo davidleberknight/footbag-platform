@@ -145,11 +145,11 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['whirling osis'],
     curatorConfirmPending: false,   // pt11-locked
   },
-  // drifter's compositional reading is held for curator review: "miraging
-  // clipper" is legacy mirage-family shorthand, and drifter is a clipper-anchored
-  // base/primitive whose canonical decomposition is not settled. It renders with
-  // no ≡ reading until a curator rules it, rather than teaching the nickname as a
-  // scored decomposition. Notation: SET > OP IN [DEX] > SAME CLIP [XBD] [DEL].
+  // drifter is described directly from its notation, a single inward dex into a
+  // cross-body clipper (SET > OP IN [DEX] > SAME CLIP [XBD] [DEL]). "Miraging
+  // clipper" is legacy mirage-family shorthand only; miraging is retired as a
+  // scored, formula-bearing operator, so drifter renders no scored ≡ decomposition
+  // rather than present the nickname as a scored component.
   {
     slug:     'vortex',
     readings: ['gyro drifter'],
@@ -158,7 +158,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'eggbeater',
     readings: ['atomic legover', 'illusioning legover'],
-    curatorConfirmPending: false,   // pt4-locked (atomic legover); 'illusioning legover' is the same structure read through the illusioning operator (rev(0) miraging, +1), parallel to double-leg-over = miraging legover
+    curatorConfirmPending: false,   // pt4-locked (atomic legover); 'illusioning legover' names the same structure through the historical illusioning term (the reverse-direction inward dex), parallel to the legacy 'miraging legover' name for double-leg-over. Both are descriptive dex names, not scored operators.
   },
   {
     slug:     'omelette',
@@ -202,10 +202,10 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // paradox paradox-legover). S9
   // (EQUIVALENCE_TOPOLOGY) is the sole owner of the both-paths rendering;
   // S5 would duplicate one path and obscure the other.
-  // double-leg-over's compositional reading is held for curator review: "miraging
-  // legover" is legacy shorthand for what the notation renders as two dexes into a
-  // toe (SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]). It renders with no ≡
-  // reading until a curator rules its canonical decomposition.
+  // double-leg-over is described directly from its notation, two dexes into a toe
+  // (SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]). "Miraging legover" is
+  // legacy shorthand only; miraging is retired as a scored, formula-bearing
+  // operator, so double-leg-over renders no scored ≡ decomposition.
   {
     slug:     'surge',
     readings: ['surging paradox mirage'],
@@ -372,11 +372,10 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   },
 
   // ── Dada-curve ──────────────────────────────────
-  // dada-curve's "miraging far symposium butterfly" reading is held for curator
-  // review: miraging is descriptive mirage-family language, not a settled
-  // formula-bearing operator, so the trick renders no compositional reading
-  // rather than teach the nickname as canonical. Parked in the miraging-review
-  // follow-up.
+  // dada-curve is described directly from its notation. "Miraging far symposium
+  // butterfly" is descriptive mirage-family language only; miraging is retired as a
+  // scored, formula-bearing operator, so dada-curve renders no scored miraging
+  // decomposition rather than present the nickname as a scored component.
 
   // ── Whirl-family trivially-named compounds ──────
   // These compounds are named by their compositional structure: the name
@@ -469,7 +468,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'paradox_drifter',
     readings: ['paradox drifter'],
-    curatorConfirmPending: false,   // the deeper 'paradox miraging clipper' extension is held with drifter's own decomposition (miraging is not a settled scored component); 'paradox drifter' echoes the canonical name and is dropped by the tautological filter, so paradox_drifter renders no compositional reading pending curator review
+    curatorConfirmPending: false,   // the deeper 'paradox miraging clipper' extension is retired with drifter's own decomposition (miraging is retired as a scored operator); 'paradox drifter' echoes the canonical name and is dropped by the tautological filter, so paradox_drifter renders no scored miraging decomposition
   },
   // ── Externally-supported chains ───────────────────────────────────────
   // Chains grounded by a cross-source audit: each entry has FM+PB

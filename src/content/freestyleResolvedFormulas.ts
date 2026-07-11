@@ -1965,13 +1965,13 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   {
     slug:        'big_apple_sauce',
     name:        'big apple sauce',
-    operator:    'spinning + paradox + miraging + symposium',
+    operator:    'spinning + paradox + inward dex + symposium',
     base:        'torque',
     baseAdd:     4,
     totalAdd:    8,
-    derivation:  'spinning(1) + paradox(1) + miraging(1) + symposium(1) + torque(4) = 8 ADD ([BOD] + [PDX] + [BOD] + [DEX] + [DEX] + [BOD] + [XBD] + [DEL])',
+    derivation:  'spinning(1) + paradox(1) + inward dex(1) + symposium(1) + torque(4) = 8 ADD ([BOD] + [PDX] + [BOD] + [DEX] + [DEX] + [BOD] + [XBD] + [DEL])',
     operationalNotation: 'CLIP > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // sibling-composed from spinning-ducking-paradox-symposium-whirl (paradox + symposium on a no-plant dex) + torque terminal; bracket count 8 matches ADD; not curator-confirmed.
-    provenance:  'FootbagMoves promotion. Folk name big-apple-sauce; technical reading Spinning Paradox Miraging Symposium Torque. Structural ADD 8 (spinning + paradox + miraging + symposium on torque). FootbagMoves lists 9; published at the structural 8 with the FM-9 over-count recorded as a single-source divergence, consistent with the frequency-is-not-authority and outlier precedent. All operators defined; torque family. FootbagMoves is the only source; structure uncorroborated. Notation sibling-composed; not curator-confirmed.',
+    provenance:  'FootbagMoves promotion. Folk name big-apple-sauce; historical technical reading Spinning Paradox Miraging Symposium Torque, where "miraging" is descriptive mirage-family naming for the leading inward dex, not a scored operator. Structural ADD 8 (spinning, paradox, an inward dex, and symposium on torque). FootbagMoves lists 9; published at the structural 8 with the FM-9 over-count recorded as a single-source divergence, consistent with the frequency-is-not-authority and outlier precedent. All operators defined; torque family. FootbagMoves is the only source; structure uncorroborated. Notation sibling-composed; not curator-confirmed.',
   },
 
   // ── FootbagMoves single-source 7-ADD promotions (ready-now batch). Operators
@@ -2427,11 +2427,11 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   {
     slug:        'spinning_miraging_symposium_torque',
     name:        'spinning miraging symposium torque',
-    operator:    'spinning + miraging',
+    operator:    'spinning + inward dex',
     base:        'symposium-torque',
     baseAdd:     5,
     totalAdd:    7,
-    derivation:  'spinning(+1) + miraging(+1) + symposium-torque(5) = 7 ADD',
+    derivation:  'spinning(+1) + inward dex(1) + symposium-torque(5) = 7 ADD',
     operationalNotation: 'CLIP > (back) SPIN [BOD] > OP IN [DEX] > (no plant while) OP IN [DEX] [BOD] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // standard spinning back-spin chassis; bracket count 7 matches ADD.
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 7 matches ADD. Observational (PB).',
   },
@@ -2856,11 +2856,11 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   {
     slug:        'symposium_miraging_mirage',
     name:        'symposium miraging mirage',
-    operator:    'symposium + miraging',
+    operator:    'symposium + inward dex',
     base:        'mirage',
     baseAdd:     2,
     totalAdd:    4,
-    derivation:  'symposium(+1) + miraging(+1) + mirage(2) = 4 ADD',
+    derivation:  'symposium(+1) + inward dex(1) + mirage(2) = 4 ADD',
     operationalNotation: 'SET > (no plant while) OP IN [BOD] [DEX] > OP IN [DEX] > OP TOE [DEL]',  // standard symposium no-plant chassis; bracket count 4 matches ADD.
     provenance:  'Symposium-chassis promotion. symposium(+1) no-plant on the first dex; bracket count 4 matches ADD. Observational (PB).',
   },
@@ -3032,24 +3032,24 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   {
     slug:        'miraging_symposium_butterfly',
     name:        'miraging symposium butterfly',
-    operator:    'miraging',
+    operator:    'inward dex',
     base:        'symposium-butterfly',
     baseAdd:     4,
     totalAdd:    5,
-    derivation:  'miraging(+1) + symposium-butterfly(4) = 5 ADD',
-    operationalNotation: 'SET > OP IN [DEX] > (no plant while) SAME OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]',  // standard miraging chassis; bracket count 5 matches ADD.
-    provenance:  'Miraging-chassis promotion. miraging(+1); bracket count 5 matches ADD. Observational (PB).',
+    derivation:  'inward dex(1) + symposium-butterfly(4) = 5 ADD',
+    operationalNotation: 'SET > OP IN [DEX] > (no plant while) SAME OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]',  // leading inward dex on a symposium butterfly chassis; bracket count 5 matches ADD.
+    provenance:  'Mirage-family-chassis promotion; the leading inward dex ("miraging" in the historical name) scores as a dex from the notation, not a miraging operator; bracket count 5 matches ADD. Observational (PB).',
   },
   {
     slug:        'miraging_symposium_whirl',
     name:        'miraging symposium whirl',
-    operator:    'miraging',
+    operator:    'inward dex',
     base:        'symposium-whirl',
     baseAdd:     4,
     totalAdd:    5,
-    derivation:  'miraging(+1) + symposium-whirl(4) = 5 ADD',
-    operationalNotation: 'SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]',  // standard miraging chassis; bracket count 5 matches ADD.
-    provenance:  'Miraging-chassis promotion. miraging(+1); bracket count 5 matches ADD. Observational (PB).',
+    derivation:  'inward dex(1) + symposium-whirl(4) = 5 ADD',
+    operationalNotation: 'SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]',  // leading inward dex on a symposium whirl chassis; bracket count 5 matches ADD.
+    provenance:  'Mirage-family-chassis promotion; the leading inward dex ("miraging" in the historical name) scores as a dex from the notation, not a miraging operator; bracket count 5 matches ADD. Observational (PB).',
   },
   {
     slug:        'paradox_fusion',
