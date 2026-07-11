@@ -1,0 +1,9 @@
+slug,display_name,neighborhood_id,circling_side,dex_direction,landing_side,structural_coordinate,atlas_provenance
+around_the_world,around the world,one_dex_toe,same,in,same,toe:toe/S.IN.S,atlas 1-dex toe cube; toe:toe/S.IN.S
+fairy,fairy,one_dex_toe,same,out,opposite,toe:toe/S.OUT.O,atlas 1-dex toe cube; toe:toe/S.OUT.O
+illusion,illusion,one_dex_toe,opposite,out,opposite,toe:toe/O.OUT.O,atlas 1-dex toe cube; toe:toe/O.OUT.O
+legover,legover,one_dex_toe,opposite,out,same,toe:toe/O.OUT.S,atlas 1-dex toe cube; toe:toe/O.OUT.S
+mirage,mirage,one_dex_toe,opposite,in,opposite,toe:toe/O.IN.O,atlas 1-dex toe cube; toe:toe/O.IN.O
+orbit,orbit,one_dex_toe,same,out,same,toe:toe/S.OUT.S,atlas 1-dex toe cube; toe:toe/S.OUT.S
+pickup,pickup,one_dex_toe,opposite,in,same,toe:toe/O.IN.S,atlas 1-dex toe cube; toe:toe/O.IN.S
+pixie,pixie,one_dex_toe,same,in,opposite,toe:toe/S.IN.O,atlas 1-dex toe cube; toe:toe/S.IN.O
