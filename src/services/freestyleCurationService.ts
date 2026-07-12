@@ -12,6 +12,11 @@
  *     removing the trick's aliases,
  *     attaching or detaching links to the existing registry sources, and attaching
  *     or detaching links to the existing registry modifiers.
+ *   - Moderation of the imported community trick tips: a cross-trick index that
+ *     lists and searches every tip regardless of status, editing a tip's advice
+ *     text, hiding a tip and restoring it (a reversible status change, never a
+ *     delete), and remapping a tip to an active canonical trick while preserving
+ *     the original mapping as audit-trail provenance.
  *
  * Does not own:
  *   - The public freestyle section pages (FreestyleService is public, read-only).
@@ -43,12 +48,28 @@
  * test persona cannot author freestyle content in a developer checkout; in staging
  * and production the guard is a no-op and the admin remains the audit actor.
  *
+ * Tip moderation write discipline: the import assigns tips a status of published,
+ * hidden, or one of several unresolved buckets (unresolved_freestyle / _frontier /
+ * _ambiguous, and future_net for net-technique tips); only published tips render
+ * publicly. Moderation reads every status but writes only published or hidden, so
+ * an unresolved bucket is never flattened. editTipText rejects empty or over-long
+ * text. hideTip acts only on a published tip (the only publicly visible kind) and
+ * sets it hidden. restoreTip acts only on a hidden tip and, guarding that it still
+ * points at an active canonical trick, sets it back to published; a hidden tip
+ * whose trick is inactive or unresolved is not restored and must be remapped first.
+ * remapTip requires an active canonical target slug (a missing, inactive,
+ * non-canonical, or unchanged target is rejected), overwrites trick_slug, sets
+ * status to published, and preserves the original slug and status in the audit
+ * metadata. Each tip write and its one audit entry commit together, behind the same
+ * persona guard.
+ *
  * Persistence: reads and writes freestyle_tricks, freestyle_trick_aliases,
- * freestyle_trick_source_links, and freestyle_trick_modifier_links; reads
- * freestyle_trick_sources and freestyle_trick_modifiers. Appends
- * freestyle.trick.updated, freestyle.trick_alias.created/deleted,
- * freestyle.trick_source_link.created/deleted, and
- * freestyle.trick_modifier_link.created/deleted to audit_entries.
+ * freestyle_trick_source_links, freestyle_trick_modifier_links, and
+ * freestyle_trick_tips; reads freestyle_trick_sources and freestyle_trick_modifiers.
+ * Appends freestyle.trick.updated, freestyle.trick_alias.created/deleted,
+ * freestyle.trick_source_link.created/deleted,
+ * freestyle.trick_modifier_link.created/deleted, and
+ * freestyle.trick_tip.edited/hidden/restored/remapped to audit_entries.
  */
 import {
   freestyleTricks,
@@ -57,6 +78,7 @@ import {
   freestyleTrickSourceLinks,
   freestyleTrickModifiers,
   freestyleTrickModifierLinks,
+  freestyleTrickTips,
   transaction,
 } from '../db/db';
 import { appendAuditEntry } from './auditService';
@@ -356,6 +378,77 @@ function assertActorMayCurateFreestyle(actorMemberId: string): void {
       'Freestyle dictionary content cannot be edited by a test persona in a pre-go-live developer checkout.',
     );
   }
+}
+
+// Imported community tips carry more advice than a one-liner but are not essays;
+// cap edited text at the same length as the trick editorial-prose fields.
+const TIP_TEXT_MAX = PROSE_MAX;
+
+interface TipModerationDbRow {
+  id: number;
+  trick_slug: string;
+  tip_text: string;
+  status: string;
+  display_order: number;
+  created_at_legacy: number | null;
+}
+
+export interface TipModerationRow {
+  id: number;
+  trickSlug: string;
+  tipText: string;
+  status: string;
+  statusLabel: string;
+  isPublished: boolean;
+  isHidden: boolean;
+  isUnresolved: boolean;
+  // An unresolved tip carries the original import name inside its slug; expose it
+  // so the moderator sees what a remap would resolve.
+  unresolvedName: string;
+}
+
+export interface FreestyleTipModerationContent {
+  rows: TipModerationRow[];
+  totalCount: number;
+  query: string;
+  isFiltered: boolean;
+  hasRows: boolean;
+  // Set when a moderation action failed validation and the index is re-rendered
+  // in place with the message.
+  error?: string;
+}
+
+// The import assigns a richer status vocabulary than published/hidden: a tip whose
+// legacy trick name has no canonical trick yet is bucketed by why it is unresolved,
+// and net-technique tips are parked for future Net pages. Moderation reads all of
+// these but only ever writes published or hidden; an unresolved tip leaves its
+// bucket only by being remapped to a canonical trick.
+const TIP_STATUS_LABELS: Record<string, string> = {
+  published:            'Published',
+  hidden:               'Hidden',
+  unresolved_freestyle: 'Unresolved (freestyle)',
+  unresolved_frontier:  'Unresolved (frontier)',
+  unresolved_ambiguous: 'Unresolved (ambiguous)',
+  future_net:           'Future net',
+};
+
+function shapeTipModerationRow(r: TipModerationDbRow): TipModerationRow {
+  const isPublished = r.status === 'published';
+  const isHidden = r.status === 'hidden';
+  const hasUnresolvedSlug = r.trick_slug.startsWith('unresolved:');
+  return {
+    id:             r.id,
+    trickSlug:      r.trick_slug,
+    tipText:        r.tip_text,
+    status:         r.status,
+    statusLabel:    TIP_STATUS_LABELS[r.status] ?? r.status,
+    isPublished,
+    isHidden,
+    // Every status that is neither published nor hidden is an unresolved-family
+    // status: the tip is not public and awaits a remap to a canonical trick.
+    isUnresolved:   !isPublished && !isHidden,
+    unresolvedName: hasUnresolvedSlug ? r.trick_slug.slice('unresolved:'.length) : '',
+  };
 }
 
 export const freestyleCurationService = {
@@ -934,6 +1027,164 @@ export const freestyleCurationService = {
         entityType:    'freestyle_trick_modifier_link',
         entityId:      `${trickSlug}:${modifierSlug}:${applyOrder}`,
         metadata:      { trickSlug, modifierSlug, applyOrder },
+      });
+    });
+  },
+
+  // Moderation index for the imported community tips: every tip regardless of
+  // status (published, hidden, or unresolved), so a curator can find, edit, hide,
+  // restore, and remap them once the database is the source of truth. Optional
+  // free-text search matches the advice text or the (canonical or
+  // unresolved:<name>) slug. Read-only; no persona guard on the read.
+  getTipModerationPage(filter: { query?: string; error?: string } = {}): PageViewModel<FreestyleTipModerationContent> {
+    const query = (filter.query ?? '').trim();
+    const dbRows = query
+      ? (freestyleTrickTips.searchForModeration.all(`%${query}%`, `%${query}%`) as TipModerationDbRow[])
+      : (freestyleTrickTips.listForModeration.all() as TipModerationDbRow[]);
+    const rows = dbRows.map(shapeTipModerationRow);
+
+    return {
+      seo:  { title: 'Freestyle Tips' },
+      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_tips', title: 'Freestyle Tips' },
+      content: {
+        rows,
+        totalCount: rows.length,
+        query,
+        isFiltered: query !== '',
+        hasRows: rows.length > 0,
+        error: filter.error,
+      },
+    };
+  },
+
+  // Edit one tip's advice text. Rejects empty or over-long text. The update and
+  // its audit entry commit in one transaction; the tip's status and trick mapping
+  // are untouched here.
+  editTipText(tipId: number, tipTextInput: string, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
+    const tip = freestyleTrickTips.getByIdForModeration.get(tipId) as TipModerationDbRow | undefined;
+    if (!tip) throw new NotFoundError(`No freestyle tip #${tipId}`);
+
+    const tipText = (tipTextInput ?? '').trim();
+    if (!tipText) {
+      throw new ValidationError('Tip text is required.');
+    }
+    if (tipText.length > TIP_TEXT_MAX) {
+      throw new ValidationError(`Tip text must be ${TIP_TEXT_MAX} characters or fewer.`);
+    }
+
+    transaction(() => {
+      freestyleTrickTips.updateText.run(tipText, tipId);
+      appendAuditEntry({
+        actionType:    'freestyle.trick_tip.edited',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick_tip',
+        entityId:      String(tipId),
+        metadata:      { tipId, trickSlug: tip.trick_slug },
+      });
+    });
+  },
+
+  // Hide a tip from the public trick page without deleting it. Only a published
+  // tip is publicly visible, so only a published tip can be hidden; an unresolved
+  // tip is already non-public and is resolved by remapping, not hiding. The row
+  // and text remain; only status changes to hidden.
+  hideTip(tipId: number, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
+    const tip = freestyleTrickTips.getByIdForModeration.get(tipId) as TipModerationDbRow | undefined;
+    if (!tip) throw new NotFoundError(`No freestyle tip #${tipId}`);
+    if (tip.status !== 'published') {
+      throw new ValidationError('Only a published tip can be hidden.');
+    }
+
+    transaction(() => {
+      freestyleTrickTips.updateStatus.run('hidden', tipId);
+      appendAuditEntry({
+        actionType:    'freestyle.trick_tip.hidden',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick_tip',
+        entityId:      String(tipId),
+        metadata:      { tipId, trickSlug: tip.trick_slug, fromStatus: tip.status },
+      });
+    });
+  },
+
+  // Restore a hidden tip to the public page. Restore is the inverse of hide, which
+  // only ever hides a published tip, so restore only ever produces published. It
+  // guards that the tip still points at an active canonical trick, so a tip whose
+  // trick has since been retired or was never resolved is not restored to a page
+  // that would not render it; that tip must be remapped to an active trick instead.
+  // Restore never writes an unresolved status, so an unresolved bucket is preserved.
+  restoreTip(tipId: number, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
+    const tip = freestyleTrickTips.getByIdForModeration.get(tipId) as TipModerationDbRow | undefined;
+    if (!tip) throw new NotFoundError(`No freestyle tip #${tipId}`);
+    if (tip.status !== 'hidden') {
+      throw new ValidationError('Only a hidden tip can be restored.');
+    }
+
+    const target = freestyleTricks.getForCurationBySlug.get(tip.trick_slug) as CurationEditDbRow | undefined;
+    if (!target || target.is_active !== 1) {
+      throw new ValidationError('This tip is not mapped to an active trick, so it cannot be restored to the public page. Remap it to an active trick instead.');
+    }
+
+    transaction(() => {
+      freestyleTrickTips.updateStatus.run('published', tipId);
+      appendAuditEntry({
+        actionType:    'freestyle.trick_tip.restored',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick_tip',
+        entityId:      String(tipId),
+        metadata:      { tipId, trickSlug: tip.trick_slug, toStatus: 'published' },
+      });
+    });
+  },
+
+  // Remap a tip to an active canonical trick. The target must be an active
+  // canonical trick slug: a missing slug is a NotFoundError, and an inactive or
+  // non-canonical target (including an alias slug, which has no canonical row) is
+  // rejected so the tip never lands on a page that will not render it. The row's
+  // trick_slug is overwritten and its status becomes published; the original slug
+  // (an unresolved:<name> or a prior mapping) is preserved as provenance in the
+  // audit entry, which is the immutable record of what the tip used to point at.
+  remapTip(tipId: number, targetSlugInput: string, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
+    const tip = freestyleTrickTips.getByIdForModeration.get(tipId) as TipModerationDbRow | undefined;
+    if (!tip) throw new NotFoundError(`No freestyle tip #${tipId}`);
+
+    const targetSlug = (targetSlugInput ?? '').trim();
+    if (!targetSlug) {
+      throw new ValidationError('Choose a trick to remap this tip to.');
+    }
+
+    const target = freestyleTricks.getForCurationBySlug.get(targetSlug) as CurationEditDbRow | undefined;
+    if (!target) {
+      throw new ValidationError(`"${targetSlug}" is not a canonical trick slug.`);
+    }
+    if (target.is_active !== 1) {
+      throw new ValidationError(`"${targetSlug}" is not an active trick, so a tip cannot be remapped to it.`);
+    }
+    if (targetSlug === tip.trick_slug) {
+      throw new ValidationError('This tip is already mapped to that trick.');
+    }
+
+    const fromSlug = tip.trick_slug;
+    transaction(() => {
+      freestyleTrickTips.remap.run(targetSlug, tipId);
+      appendAuditEntry({
+        actionType:    'freestyle.trick_tip.remapped',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick_tip',
+        entityId:      String(tipId),
+        metadata:      { tipId, fromSlug, fromStatus: tip.status, toSlug: targetSlug },
       });
     });
   },

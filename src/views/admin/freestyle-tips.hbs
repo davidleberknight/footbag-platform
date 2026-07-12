@@ -1,0 +1,79 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="text-muted">Moderate the imported community trick tips: edit the advice, hide or restore a tip, or remap it to a trick. Hidden and unresolved tips are shown here but never on the public pages. {{content.totalCount}} tip(s) shown.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <form method="GET" action="/admin/freestyle/tips" class="freestyle-admin-filter">
+      <input type="text" name="q" placeholder="Search tip text or slug" value="{{content.query}}" />
+      <button type="submit" class="btn btn-outline btn-sm">Search</button>
+      {{#if content.isFiltered}}
+        <a href="/admin/freestyle/tips" class="btn btn-outline btn-sm">Clear</a>
+      {{/if}}
+    </form>
+
+    {{#if content.error}}
+    <div class="form-error-banner">
+      <p>{{content.error}}</p>
+    </div>
+    {{/if}}
+
+    {{#if content.hasRows}}
+      <table class="freestyle-admin-table mt-2">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Mapping</th>
+            <th>Tip</th>
+            <th>Moderate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.rows}}
+            <tr>
+              <td><span class="badge">{{this.statusLabel}}</span></td>
+              <td>
+                {{#if this.isUnresolved}}
+                  <span class="text-muted">unresolved:</span><br><code>{{this.unresolvedName}}</code>
+                {{else}}
+                  <code>{{this.trickSlug}}</code>
+                {{/if}}
+              </td>
+              <td>
+                <form method="POST" action="/admin/freestyle/tips/{{this.id}}/edit" class="freestyle-edit-form">
+                  <input type="hidden" name="q" value="{{@root.content.query}}" />
+                  <p><textarea name="tipText" rows="3">{{this.tipText}}</textarea></p>
+                  <p><button type="submit" class="btn btn-primary btn-sm">Save Text</button></p>
+                </form>
+              </td>
+              <td>
+                {{#if this.isPublished}}
+                  <form method="POST" action="/admin/freestyle/tips/{{this.id}}/hide" class="inline-form">
+                    <input type="hidden" name="q" value="{{@root.content.query}}" />
+                    <button type="submit" class="btn btn-outline btn-sm">Hide</button>
+                  </form>
+                {{/if}}
+                {{#if this.isHidden}}
+                  <form method="POST" action="/admin/freestyle/tips/{{this.id}}/restore" class="inline-form">
+                    <input type="hidden" name="q" value="{{@root.content.query}}" />
+                    <button type="submit" class="btn btn-outline btn-sm">Restore</button>
+                  </form>
+                {{/if}}
+                <form method="POST" action="/admin/freestyle/tips/{{this.id}}/remap" class="freestyle-edit-form mt-2">
+                  <input type="hidden" name="q" value="{{@root.content.query}}" />
+                  <p><input type="text" name="targetSlug" placeholder="Active trick slug" /></p>
+                  <p><button type="submit" class="btn btn-outline btn-sm">Remap to Trick</button></p>
+                </form>
+              </td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <p class="text-muted mt-2">No tips match.</p>
+    {{/if}}
+  </section>
+</div>

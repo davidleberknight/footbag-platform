@@ -2510,6 +2510,36 @@ export const freestyleTrickTips = {
     WHERE trick_slug = ? AND status = 'published'
     ORDER BY display_order, id
   `); },
+
+  // Admin moderation reads: every tip regardless of status, so a curator can
+  // find, edit, hide, restore, and remap the imported tips. The public read
+  // above stays filtered to published; these never reach a public route.
+  get getByIdForModeration() { return db.prepare(`
+    SELECT id, trick_slug, tip_text, status, display_order, created_at_legacy
+    FROM freestyle_trick_tips
+    WHERE id = ?
+  `); },
+  get listForModeration() { return db.prepare(`
+    SELECT id, trick_slug, tip_text, status, display_order, created_at_legacy
+    FROM freestyle_trick_tips
+    ORDER BY status, trick_slug, display_order, id
+  `); },
+  // Free-text moderation search over the advice text and the (canonical or
+  // unresolved:<name>) slug. Both bind the same LIKE pattern.
+  get searchForModeration() { return db.prepare(`
+    SELECT id, trick_slug, tip_text, status, display_order, created_at_legacy
+    FROM freestyle_trick_tips
+    WHERE tip_text LIKE ? OR trick_slug LIKE ?
+    ORDER BY status, trick_slug, display_order, id
+  `); },
+
+  // Admin moderation writes, each paired with one audit entry in a transaction.
+  get updateText()   { return db.prepare(`UPDATE freestyle_trick_tips SET tip_text = ? WHERE id = ?`); },
+  get updateStatus() { return db.prepare(`UPDATE freestyle_trick_tips SET status = ? WHERE id = ?`); },
+  // Remap points the tip at an active canonical trick; the row becomes published
+  // in the same write. The original slug is preserved as provenance in the audit
+  // entry, so overwriting trick_slug here loses no history.
+  get remap()        { return db.prepare(`UPDATE freestyle_trick_tips SET trick_slug = ?, status = 'published' WHERE id = ?`); },
 };
 
 export const freestyleMediaLinks = {

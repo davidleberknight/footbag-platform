@@ -64,6 +64,14 @@ adminRouter.post('/freestyle/tricks/:slug/sources',                    adminFree
 adminRouter.post('/freestyle/tricks/:slug/sources/:sourceId/delete',   adminFreestyleController.detachSource);
 adminRouter.post('/freestyle/tricks/:slug/modifiers',                                    adminFreestyleController.attachModifier);
 adminRouter.post('/freestyle/tricks/:slug/modifiers/:modifierSlug/:applyOrder/delete',   adminFreestyleController.detachModifier);
+// Moderation of the imported community trick tips: a cross-trick index, and
+// per-tip edit / hide / restore / remap. Tips are keyed by numeric id (unresolved
+// tips have no trick page), so this is its own index rather than a per-trick sub-surface.
+adminRouter.get('/freestyle/tips',              adminFreestyleController.tips);
+adminRouter.post('/freestyle/tips/:id/edit',    adminFreestyleController.editTip);
+adminRouter.post('/freestyle/tips/:id/hide',    adminFreestyleController.hideTip);
+adminRouter.post('/freestyle/tips/:id/restore', adminFreestyleController.restoreTip);
+adminRouter.post('/freestyle/tips/:id/remap',   adminFreestyleController.remapTip);
 adminRouter.get('/freestyle/records',              adminFreestyleController.recordsIndex);
 adminRouter.get('/freestyle/records/new',          adminFreestyleController.recordNew);
 adminRouter.post('/freestyle/records',             adminFreestyleController.recordCreate);

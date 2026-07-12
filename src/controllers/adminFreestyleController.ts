@@ -444,7 +444,82 @@ export const adminFreestyleController = {
       next(err);
     }
   },
+
+  // Moderation index for the imported community trick tips: list every tip across
+  // every status, with optional free-text search over the advice text and slug.
+  tips(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleCurationService.getTipModerationPage({
+        query: typeof req.query.q === 'string' ? req.query.q : undefined,
+      });
+      res.render('admin/freestyle-tips', vm);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Edit one tip's advice text. Each of the four tip actions shares the same
+  // success (303 back to the index, search preserved) and failure handling (422
+  // re-render with an inline error, or 404 for an unknown tip).
+  editTip(req: Request, res: Response, next: NextFunction): void {
+    handleTipAction(req, res, next, (id, actor) =>
+      freestyleCurationService.editTipText(id, str(req.body.tipText), actor));
+  },
+
+  // Hide a tip from the public trick page (reversible; no delete).
+  hideTip(req: Request, res: Response, next: NextFunction): void {
+    handleTipAction(req, res, next, (id, actor) =>
+      freestyleCurationService.hideTip(id, actor));
+  },
+
+  // Restore a hidden tip to visibility.
+  restoreTip(req: Request, res: Response, next: NextFunction): void {
+    handleTipAction(req, res, next, (id, actor) =>
+      freestyleCurationService.restoreTip(id, actor));
+  },
+
+  // Remap a tip to an active canonical trick.
+  remapTip(req: Request, res: Response, next: NextFunction): void {
+    handleTipAction(req, res, next, (id, actor) =>
+      freestyleCurationService.remapTip(id, str(req.body.targetSlug), actor));
+  },
 };
+
+// Shared glue for the four tip moderation POSTs: a non-integer id is a 404
+// (anti-enumeration), success redirects to the index preserving the search
+// query, a ValidationError re-renders the index in place at 422 with the message,
+// and an unknown tip is a 404.
+function handleTipAction(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  action: (tipId: number, actorMemberId: string) => void,
+): void {
+  const tipId = Number(req.params.id);
+  const query = str(req.body.q);
+  if (!Number.isInteger(tipId)) {
+    renderNotFound(res);
+    return;
+  }
+  try {
+    action(tipId, req.user!.userId);
+    const suffix = query ? `?q=${encodeURIComponent(query)}` : '';
+    res.redirect(303, `/admin/freestyle/tips${suffix}`);
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      res.status(422).render('admin/freestyle-tips', freestyleCurationService.getTipModerationPage({
+        query: query || undefined,
+        error: err.message,
+      }));
+      return;
+    }
+    if (err instanceof NotFoundError) {
+      renderNotFound(res);
+      return;
+    }
+    next(err);
+  }
+}
 
 function recordInputFromBody(body: Record<string, unknown>): FreestyleRecordScalarInput {
   return {
