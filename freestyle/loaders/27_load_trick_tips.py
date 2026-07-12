@@ -91,10 +91,16 @@ def classify(tip: dict, idx: dict[str, str]) -> tuple[str, str]:
 
 
 def build_slug_index(conn: sqlite3.Connection) -> dict[str, str]:
-    """normalized name/alias -> canonical slug, alias-aware."""
+    """normalized name/alias -> canonical slug, alias-aware, active tricks only.
+
+    Only active tricks (and aliases pointing at active tricks) are indexed, so a
+    tip whose only match is a retired trick resolves through the surviving
+    trick's alias, or falls to the unresolved: convention, instead of landing on
+    a slug hidden from every public surface.
+    """
     idx: dict[str, str] = {}
     for slug, name, aliases_json in conn.execute(
-        "SELECT slug, canonical_name, aliases_json FROM freestyle_tricks"
+        "SELECT slug, canonical_name, aliases_json FROM freestyle_tricks WHERE is_active = 1"
     ):
         idx.setdefault(name_to_slug(slug), slug)
         idx.setdefault(name_to_slug(name), slug)
@@ -109,7 +115,8 @@ def build_slug_index(conn: sqlite3.Connection) -> dict[str, str]:
     # the dedicated alias table (covers aliases not mirrored into aliases_json)
     try:
         for alias_slug, trick_slug in conn.execute(
-            "SELECT alias_slug, trick_slug FROM freestyle_trick_aliases"
+            "SELECT a.alias_slug, a.trick_slug FROM freestyle_trick_aliases a "
+            "JOIN freestyle_tricks t ON t.slug = a.trick_slug WHERE t.is_active = 1"
         ):
             if alias_slug:
                 idx.setdefault(name_to_slug(alias_slug), trick_slug)

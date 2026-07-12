@@ -326,6 +326,18 @@ def load_corrections(conn: sqlite3.Connection, corrections_csv: Path, loaded_at:
     return {"applied": applied, "skipped": skipped}
 
 
+def prune_inactive_modifier_links(conn: sqlite3.Connection) -> int:
+    """Delete modifier links on inactive tricks. A trick added active carries its
+    modifier links; when a later correction retires it, those links become dead
+    rows on a trick hidden from every public surface. Idempotent; returns the
+    number of links deleted.
+    """
+    return conn.execute(
+        "DELETE FROM freestyle_trick_modifier_links "
+        "WHERE trick_slug IN (SELECT slug FROM freestyle_tricks WHERE is_active = 0)"
+    ).rowcount
+
+
 def load(db_path: Path, additions_csv: Path, corrections_csv: Path) -> None:
     loaded_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
@@ -336,8 +348,12 @@ def load(db_path: Path, additions_csv: Path, corrections_csv: Path) -> None:
             upsert_red_source(conn)
             additions = load_additions(conn, additions_csv, loaded_at)
             corrections = load_corrections(conn, corrections_csv, loaded_at)
+            # Runs after corrections, when is_active is final for the red-loaded
+            # rows, so links on just-retired tricks are pruned.
+            pruned_links = prune_inactive_modifier_links(conn)
 
         print(f"Red additions: {additions['tricks']} tricks (active + pending)")
+        print(f"Pruned modifier_links on inactive tricks: {pruned_links}")
         cur = conn.execute(
             """
             SELECT review_status, is_active, COUNT(*) AS n
