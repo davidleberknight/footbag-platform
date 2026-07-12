@@ -617,6 +617,7 @@ Success Criteria:
 - `/freestyle/glossary` defines the movement vocabulary (surfaces, dexterities, sets, operators, families, notation, composition) as pedagogy layered over the canonical data: it explains canonical facts and links to them, and never contradicts or redefines them.
 - Deep links into the glossary (term and section anchors) land on content the reader can see; a link into a collapsed region opens it.
 - `/freestyle/operators` presents the operator and modifier reference derived from the canonical operator registry, the single authority for operator difficulty contribution and structure.
+- `/freestyle/modifier/{slug}` renders a modifier's detail page: a visitor can open it to read its definition, scoring and structural role, related examples, and any clearly labeled stub state when fuller teaching content is not yet available.
 - `/freestyle/notation-article` reproduces Ben Job's notation article verbatim with its source attribution.
 - `/freestyle/add-analysis` walks worked examples of difficulty scoring against the live dictionary. Every trick reference links to an active canonical page, resolves through an alias to the canonical page when the referenced name is superseded, or renders as plain text; it never links to a page that would 404.
 - `/freestyle/combo-analysis` presents run-level (sequence) analysis; `/freestyle/insights` presents corpus statistics computed from the live dictionary, so counts reflect the loaded data rather than hand-maintained numbers.
