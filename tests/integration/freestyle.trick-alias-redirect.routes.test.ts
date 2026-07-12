@@ -4,9 +4,11 @@
  * The dictionary stores alias names (historical names, abbreviations like atw)
  * mapped to canonical tricks. One canonical URL per trick: a pure alias slug
  * permanently redirects (301) to the canonical trick page rather than rendering
- * a duplicate copy of the page under the alias URL. A canonical slug always
- * renders; modifier and operator slugs keep their existing 301 to the modifier
- * page; an unknown slug is a 404.
+ * a duplicate copy of the page under the alias URL. An active canonical slug
+ * always renders its own page and wins even when an alias row shadows the slug;
+ * an inactive archived row whose slug is also an alias 301s to its canonical
+ * trick; an inactive slug with no alias is a 404, as is an unknown slug; modifier
+ * and operator slugs keep their existing 301 to the modifier page.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -64,6 +66,30 @@ beforeAll(async () => {
   });
   insertFreestyleTrickAlias(db, 'atw', 'around_the_world', 'ATW');
   insertFreestyleTrickAlias(db, 'orbit', 'around_the_world', 'orbit (collision)');
+  // An inactive archived row whose slug is also an alias slug: the inactive row
+  // never renders, so the alias URL 301s to its canonical trick.
+  insertFreestyleTrick(db, {
+    slug: 'legbeater',
+    canonical_name: 'legbeater',
+    adds: '3',
+    base_trick: 'legbeater',
+    trick_family: 'legbeater',
+    category: 'dex',
+    review_status: 'expert_reviewed',
+    is_active: 0,
+  });
+  insertFreestyleTrickAlias(db, 'legbeater', 'around_the_world', 'legbeater');
+  // An inactive row with no alias: unreachable, a 404 like an unknown slug.
+  insertFreestyleTrick(db, {
+    slug: 'ghost_inactive',
+    canonical_name: 'ghost inactive',
+    adds: '2',
+    base_trick: 'ghost_inactive',
+    trick_family: 'ghost_inactive',
+    category: 'dex',
+    review_status: 'expert_reviewed',
+    is_active: 0,
+  });
   db.close();
   createApp = await importApp();
 });
@@ -83,12 +109,26 @@ describe('GET /freestyle/tricks/:slug — alias canonicalization', () => {
     expect(res.text).toContain('around the world');
   });
 
-  it('renders a canonical trick even when an alias row shares its slug', async () => {
-    // The alias table maps 'orbit' -> around_the_world, but 'orbit' is itself a
-    // canonical trick: the canonical row wins and the page renders.
+  it('renders the active canonical trick, not the alias target, when an alias row shares its slug', async () => {
+    // The alias table maps 'orbit' -> around_the_world, but 'orbit' is itself an
+    // active canonical trick: the canonical row wins, so orbit's own page renders
+    // and around-the-world's does not.
     const res = await request(await createApp()).get('/freestyle/tricks/orbit');
     expect(res.status).toBe(200);
     expect(res.headers.location).toBeUndefined();
+    expect(res.text).toContain('orbit');
+    expect(res.text).not.toContain('around the world');
+  });
+
+  it('301-redirects an inactive archived slug that is also an alias to its canonical trick', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/legbeater');
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/freestyle/tricks/around_the_world');
+  });
+
+  it('404s an inactive slug with no alias (unreachable, like an unknown slug)', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/ghost_inactive');
+    expect(res.status).toBe(404);
   });
 
   it('still 301-redirects a modifier slug to its modifier page', async () => {

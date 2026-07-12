@@ -7112,12 +7112,25 @@ export const freestyleService = {
   getTrickDetailPage(
     rawSlug: string,
   ): PageViewModel<FreestyleTrickContent> {
-    // A record or media link may address a trick by an alias slug; resolve it
-    // to the canonical trick so the alias URL renders the canonical page.
-    const aliasCanonical = runSqliteRead('freestyleTrickAliases.getCanonicalForAlias', () =>
-      freestyleTrickAliases.getCanonicalForAlias.get(rawSlug) as { trick_slug: string } | undefined,
+    // An active canonical trick always renders at its own slug: the alias
+    // override must not fire when the raw slug is itself an active trick, or an
+    // alias row that shadows the slug would replace the trick's own page. Only
+    // when the raw slug is not an active canonical row does a record or media
+    // link's alias slug resolve to its canonical trick so the alias URL renders
+    // the canonical page. getBySlug filters is_active = 1, so a row here means
+    // the raw slug is an active canonical trick.
+    const rawActiveRow = runSqliteRead('freestyleTricks.getBySlug', () =>
+      freestyleTricks.getBySlug.get(rawSlug) as FreestyleTrickRowWithParse | undefined,
     );
-    const slug = aliasCanonical?.trick_slug ?? rawSlug;
+    let slug: string;
+    if (rawActiveRow) {
+      slug = rawSlug;
+    } else {
+      const aliasCanonical = runSqliteRead('freestyleTrickAliases.getCanonicalForAlias', () =>
+        freestyleTrickAliases.getCanonicalForAlias.get(rawSlug) as { trick_slug: string } | undefined,
+      );
+      slug = aliasCanonical?.trick_slug ?? rawSlug;
+    }
 
     // Resolve slug → trick_name via public (non-superseded) records
     const publicRows = runSqliteRead('freestyleRecords.listPublic', () =>
@@ -7127,8 +7140,9 @@ export const freestyleService = {
     // Also check dictionary for slug resolution (trick may have no records).
     // getBySlug returns the parser columns (jobs_notation_raw, structural
     // _parse_json, computed_*) alongside the base trick fields; only this
-    // statement loads them, so grids stay lean.
-    const dictRow = runSqliteRead('freestyleTricks.getBySlug', () =>
+    // statement loads them, so grids stay lean. Reuse the raw-slug row when it
+    // was already an active canonical trick to avoid a second lookup.
+    const dictRow = rawActiveRow ?? runSqliteRead('freestyleTricks.getBySlug', () =>
       freestyleTricks.getBySlug.get(slug) as FreestyleTrickRowWithParse | undefined,
     );
 
@@ -10301,23 +10315,23 @@ export const freestyleService = {
   trickRouteRedirectTarget(slug: string): string | null {
     if (isRouteMigratedSet(slug)) return `/freestyle/sets/${slug}`;
     const row = runSqliteRead('freestyleTricks.categoryBySlug', () =>
-      freestyleTricks.categoryBySlug.get(slug) as { category: string | null } | undefined,
+      freestyleTricks.categoryBySlug.get(slug) as { category: string | null; is_active: number } | undefined,
     );
     if (row && (row.category === 'modifier' || row.category === 'operator')) {
       return `/freestyle/modifier/${slug}`;
     }
-    if (!row) {
-      // A slug with no canonical row may be a trick alias (a historical name or
-      // an abbreviation like atw). One canonical URL per trick: the alias URL
-      // permanently redirects to the canonical trick page instead of rendering
-      // a duplicate copy of it under the alias URL. A slug that IS a canonical
-      // row never reaches this branch, so a canonical page always renders even
-      // if an alias row shares its slug.
-      const alias = runSqliteRead('freestyleTrickAliases.getCanonicalForAlias', () =>
-        freestyleTrickAliases.getCanonicalForAlias.get(slug) as { trick_slug: string } | undefined,
-      );
-      if (alias) return `/freestyle/tricks/${alias.trick_slug}`;
-    }
+    // An active canonical trick always renders at its own slug: never redirect
+    // it, even when an alias row shadows the slug. One canonical URL per trick.
+    if (row && row.is_active === 1) return null;
+    // No active canonical row here: the slug is either a pure trick alias with no
+    // row of its own (a historical name or an abbreviation like atw), or a slug
+    // that shadows only an inactive archived row. Either way the alias URL
+    // permanently redirects to the canonical trick page instead of rendering a
+    // duplicate copy of it under the alias URL.
+    const alias = runSqliteRead('freestyleTrickAliases.getCanonicalForAlias', () =>
+      freestyleTrickAliases.getCanonicalForAlias.get(slug) as { trick_slug: string } | undefined,
+    );
+    if (alias) return `/freestyle/tricks/${alias.trick_slug}`;
     return null;
   },
 

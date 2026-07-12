@@ -2265,10 +2265,12 @@ export const freestyleTricks = {
     WHERE slug = ?
   `); },
 
-  // Category for a slug regardless of is_active, so the trick-detail route can
-  // redirect modifier / operator rows to their operator page before rendering.
+  // Category and active flag for a slug regardless of is_active, so the
+  // trick-detail route can redirect modifier / operator rows to their operator
+  // page, and let an active canonical trick always win its own URL even when an
+  // alias row shadows the slug.
   get categoryBySlug() { return db.prepare(`
-    SELECT category FROM freestyle_tricks WHERE slug = ?
+    SELECT category, is_active FROM freestyle_tricks WHERE slug = ?
   `); },
 
   // Admin curation browse: every row regardless of is_active or review_status,
