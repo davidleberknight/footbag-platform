@@ -2764,7 +2764,7 @@ Decision:
 
 The platform uses a small, enumerated set of `@footbag.org` addresses with distinct, non-overlapping purposes. All platform code, documentation, and terraform configuration references these canonical addresses. New email addresses are added to this list before they are introduced into the codebase.
 
-Outbound send is handled by AWS SES (see §5.4). Inbound receive for all role addresses is handled by Google Managed Services, which delivers or forwards each address per its configured mailbox or alias. SES is not used for inbound ingestion.
+Outbound send is handled by AWS SES (see §5.4). Inbound receive for all role addresses is handled by Google Workspace, which delivers or forwards each address per its configured mailbox or alias. SES is not used for inbound ingestion.
 
 | Address | Purpose | Direction | Used by |
 |---|---|---|---|
@@ -2790,14 +2790,14 @@ Requirements:
 
 Trade-offs:
 
-- Alias and mailbox configuration is managed in Google Managed Services (one rule per receive address rather than one catch-all). Where a role address needs collaborative shared-inbox workflows, Google Managed Services provides a hosted mailbox without changing the canonical list.
+- Alias and mailbox configuration is managed in Google Workspace (one rule per receive address rather than one catch-all). Where a role address needs collaborative shared-inbox workflows, Google Workspace provides a hosted mailbox without changing the canonical list.
 - Requires discipline in code review to avoid introducing new addresses without updating this list.
 
 Impact:
 
 - `admin@footbag.org` is named in the `/legal` page Privacy, Terms, and Copyright sections as the legal/administrative contact.
 - `announce@footbag.org` is documented in `docs/USER_STORIES.md` (`M_Send_Announce_Email`, Tier 2 benefits).
-- Google Managed Services is configured with one mailbox or forwarding rule per receive address (`admin@`, `announce@` inbound, `brat@`, `directors@`, `ops-alert@`, `sanctioning@`). `brat@`, `directors@`, and `sanctioning@` are in-use contacts carried over from the legacy site and must be live on Google before legacy delivery is withdrawn so no mail is lost.
+- Google Workspace is configured with one mailbox or forwarding rule per receive address (`admin@`, `announce@` inbound, `brat@`, `directors@`, `ops-alert@`, `sanctioning@`). `brat@`, `directors@`, and `sanctioning@` are in-use contacts carried over from the legacy site and must be live on Google before legacy delivery is withdrawn so no mail is lost.
 - Any additional address (e.g., `privacy@`, `legal@`, `support@`, `info@`) must be justified against this list and added here before it is introduced. The default is to route new purposes to `admin@footbag.org` unless volume or scope warrants a split.
 - Handover to IFPA: ownership of these addresses transfers as part of the operational handover; the addresses themselves and their purposes do not change.
 
@@ -3616,40 +3616,69 @@ Impact:
 
 Decision:
 
-Go-live is a clean DNS switch executed by the legacy-site webmaster on his own authoritative bind9 zone: `www.footbag.org` becomes a CNAME to the production CloudFront distribution, and the apex `footbag.org` becomes an A record to a small platform-run always-on redirector instance with a static IP that 301-redirects every apex request to `www` over its own TLS certificate. `www` is the canonical host. The legacy site leaves the live path at the switch: no reverse proxy or front door on the legacy server, and no legacy TLS certificate. Rollback is the webmaster reverting the `www`/apex records to the legacy origin under a pre-lowered low TTL. The Route 53 apex/`www` alias records (`enable_apex_alias_records`) and the SES domain-auth records (`ses_enable_domain_auth`) are gated off by default; they apply only at an optional, deferred, post-stability zone migration to Route 53, at which point the apex becomes a Route 53 ALIAS to the distribution and the redirector retires.
+Go-live is a clean DNS switch executed by the operator on Route 53. Before go-live the `footbag.org` zone moves to Route 53 under IFPA-controlled access as advance preparation: the zone is mirrored from the webmaster's bind9 servers (fresh zone snapshot first, verified record-for-record), the webmaster makes the registrar name-server change, and his bind9 service retires once nothing resolves through it. At the switch `www.footbag.org` and the apex `footbag.org` become Route 53 ALIAS records to the production CloudFront distribution; `www` is the canonical host and the apex 301-redirects to `www` through the distribution. No separate apex redirector exists. The legacy site leaves the live path at the switch: no reverse proxy or front door on the legacy server, and no legacy TLS certificate. Recovery is fix-forward or a platform restore first, with any DNS change operator-made on the pre-lowered low-TTL zone; no legacy server remains running for rollback. The Route 53 apex/`www` alias records (`enable_apex_alias_records`) stay gated off through the zone move — Route 53 first serves the zone's existing records faithfully — and flip at T-0 as the switch itself; the SES domain-auth records (`ses_enable_domain_auth`) flip once the zone move completes, taking over from any hand-applied copies.
 
 Rationale:
 
+- Implements the Legacy Independence at Go-Live decision (§6.12): DNS is one of the functions that may not remain dependent on legacy infrastructure after go-live.
 - A clean switch removes the legacy server from the live path entirely: no legacy TLS certificate to maintain, no critical-path dependency on legacy hardware, and CloudFront sees client IPs directly (the proxy chain stays CloudFront then nginx, two hops, with no third front-door hop at any milestone).
-- The apex cannot be a CNAME (RFC 1034) and bind9 has no ALIAS/ANAME record type; pointing the apex directly at CloudFront without Route 53 requires CloudFront Anycast static IPs at a flat monthly fee disproportionate for a nonprofit. A small always-on redirector instance with a static IP is the one robust apex mechanism that keeps the zone authoritative on bind9.
-- The redirector's failure blast radius is apex-only entry points; `www`, where all canonical URLs live, rides CloudFront's availability.
-- The simplest rollback for a DNS-switch cutover is a DNS revert: with the `www`/apex TTL pre-lowered to 60 seconds, resolvers return to the legacy origin within minutes, and the legacy backup serves read-only because the member write-freeze is permanent.
-- Mail is decoupled from the web switch: MX routing is independent of A/AAAA changes, inbound moves to Google Workspace as its own earlier step, and the web cutover never touches MX.
-- Outbound authentication is flexible by design: the apex SPF authorizes every legitimate sender (SES, Google, the webmaster's own sending host), starting softfail with DMARC in monitor-only mode and tightening only after the verified sender list and clean aggregate reports prove no legitimate mail would be quarantined.
+- Moving the zone to Route 53 before go-live removes the last infrastructure dependency on the legacy operator: the apex is served as a free ALIAS record (no CNAME-at-apex limitation, no Anycast fee, no redirector instance to run), the switch and any emergency DNS change are operator-executed rather than resting on one person's availability, and DNS sits under IFPA-controlled access from before go-live.
+- The simplest recovery for a DNS-switch cutover is platform-side: fix-forward or a restore from the pre-flip snapshot; when a DNS change is needed, the low-TTL zone converges in minutes.
+- Mail is decoupled from the web switch: MX routing is independent of A/AAAA changes, inbound moves to Google Workspace as its own earlier preparation step, and the web cutover never touches MX.
+- Outbound authentication is flexible by design: the apex SPF authorizes every legitimate sender (SES, Google, the webmaster's own sending host while it still sends), starting softfail with DMARC in monitor-only mode and tightening only after the verified sender list and clean aggregate reports prove no legitimate mail would be quarantined.
 - Historical content is served from the platform-controlled `archive.footbag.org` on its own CloudFront distribution and us-east-1 certificate (the Legacy Archive decision, §6.4), so no legacy subdomain is needed for it.
 
 Requirements:
 
 - The production distribution carries `footbag.org` and `www.footbag.org` as alternate domain names with a matching ACM certificate in us-east-1; the archive distribution carries `archive.footbag.org` with its own us-east-1 certificate.
-- The webmaster is the records-actor: he hand-applies the maintainer-supplied records to his zone — the ACM validation CNAMEs (permanent; renewals depend on them), the SES DKIM CNAMEs, the custom MAIL FROM subdomain records, the SPF amendment, the DMARC record, the Google MX record, the `archive.footbag.org` CNAME, the `www` CNAME, and the apex A record.
+- Records-actor by era: before the zone move the webmaster hand-applies maintainer-supplied records to his zone (the ACM validation CNAMEs, the SES DKIM CNAMEs, the custom MAIL FROM subdomain records, the SPF amendment, the DMARC record, and the Google MX when the mail step runs early); after the move Terraform owns the records and the operator applies them on Route 53.
+- The zone move mirrors every existing record faithfully (fresh snapshot, `dig`-verified against the Route 53 name servers) before the registrar name-server change, and completes before any cutover step depends on it.
 - Any CAA record on the zone must authorize Amazon's certificate authorities before certificate issuance is attempted.
-- The apex redirector serves HTTPS with a valid `footbag.org` certificate and returns 301 to the same path on `www`.
-- A pre-cutover smoke test proves the CloudFront path (via a test subdomain and `curl --resolve` against a current edge IP) and the apex redirect before the switch; the switch is gated on the smoke re-running green on the day.
-- The cold legacy backup stays restorable through the rollback window plus the dispute-lookup period.
+- A pre-cutover smoke test proves the CloudFront path (via a test subdomain and `curl --resolve` against a current edge IP) and the apex 301 through the distribution before the switch; the switch is gated on the smoke re-running green on the day.
+- Post-go-live legacy retention is limited to encrypted, non-public artifacts under IFPA-controlled access; a catastrophic-failure fallback is a read-only reconstruction from a tested encrypted artifact, never a standing legacy server.
 
 Trade-offs:
 
-- One more always-on instance (the redirector) to run and patch; accepted to keep bind9 authoritative and avoid the Anycast fee.
+- The zone move is one more coordinated preparation step with the registrar and the webmaster; mitigated by the zone-authority handoff checklist and a test-subdomain rehearsal.
 - Apex URLs cost one redirect hop; `www` is the canonical host everywhere.
-- A DNS revert is not instantaneous for clients that cached the new records; the low-TTL choreography bounds this to minutes.
-- Hand-applied records on an externally operated zone are a manual failure mode; mitigated by an enumerated record inventory with a per-record verification command.
+- A DNS change is not instantaneous for clients that cached the prior records; the low-TTL choreography bounds this to minutes.
+- Hand-applied records on an externally operated zone are a manual failure mode only until the move; after it, records are Terraform-owned and the manual mode disappears.
 
 Impact:
 
-- `terraform/production/route53.tf` alias records and `terraform/production/ses.tf` domain-auth records stay gated off until the optional Route 53 handover; the apex redirector gets its own Terraform.
-- The DNS cutover runbook in `docs/DEVOPS_GUIDE.md` scripts the webmaster-executed switch, not a Terraform apply; Terraform-applied DNS appears only in the optional handover procedure.
+- `terraform/production/route53.tf` gains the hosted zone and the mirrored records; `enable_apex_alias_records` flips at T-0 as the switch itself; `ses_enable_domain_auth` flips at the zone move; no apex-redirector Terraform exists.
+- The DNS cutover runbook in `docs/DEVOPS_GUIDE.md` scripts an operator-executed Route 53 change; the zone move follows the guide's zone-authority handoff checklist.
 - `TRUST_PROXY` is 2 in staging and production from go-live, with no topology change at any later milestone.
-- MIGRATION_PLAN sequences the cutover (§29.12) and the mail disposition (§29.12a) against this decision.
+- MIGRATION_PLAN sequences the zone move (§19 item 15), the cutover (§29.12), and the mail disposition (§29.12a) against this decision.
+
+## 6.12 Legacy Independence at Go-Live
+
+Decision:
+
+The migration is one coordinated production go-live. No required website, email, mailing-list, DNS, data, media, registration, or application function remains dependent on legacy infrastructure after go-live. Preparation may run in advance — data rehearsals, Google Workspace provisioning and Google Group setup, archive capture, SES verification, the early inbound-mail (MX) move, the DNS zone move to Route 53, replacement-service testing — but advance preparation is not phased delivery: every required service activates together at go-live, and "keep it running on legacy" is not an allowed final disposition. Every legacy function is migrated, replaced, archived, or deliberately retired before shutdown. Post-go-live retention of legacy material is limited to encrypted, non-public recovery and reference artifacts under IFPA-controlled access.
+
+Rationale:
+
+- The platform is all-new and has no hard dependency on legacy technology; the cleanest design keeps it that way, concentrating complexity, risk, and coordination in one well-rehearsed event instead of an open-ended parallel operation.
+- A phased production migration would keep legacy services live indefinitely, each a standing dependency on aging software, a single operator, and plain-HTTP hosts that could never safely share the platform's domain-wide login cookie.
+- A single go-live gives every stakeholder one date, one requirement set, and one shutdown checklist; anything believed to need continued life is named, evidenced, and dispositioned before the switch rather than discovered after it.
+
+Requirements:
+
+- Every legacy function is inventoried and receives exactly one disposition before go-live: migrate, replace (Google Workspace, Google Groups, a platform feature, or another approved non-legacy service), archive read-only, or retire with notice; an unresolved active communication need blocks go-live.
+- Requirements discovery works from current users and organizational participants (group owners, moderators, committee members, the people sending and receiving through each address, event organizers, the IFPA board), never from database flags or stale generated aliases alone.
+- Content is preserved, not application engines: WordPress, MediaWiki, forum software, Majordomo, the legacy list server, legacy login, and legacy PHP do not remain live; selected content is copied into IFPA-controlled storage; anything not preserved gets an explicit accepted-loss decision.
+- No legacy password, session, or login survives, and recovery never relies on a running legacy system: a catastrophic-failure fallback is a read-only reconstruction from a tested encrypted artifact.
+
+Trade-offs:
+
+- Go-live inherits more gates (discovery, replacements, archive custody) and therefore more up-front schedule risk; accepted in exchange for zero legacy tail.
+- Rare post-go-live lookups read encrypted artifacts instead of a convenient live legacy system; accepted, since convenience is how indefinite dependencies start.
+
+Impact:
+
+- MIGRATION_PLAN carries this as its governing principle and gates go-live on it; IMPLEMENTATION_PLAN tracks the workstreams that satisfy it (the webmaster's handover and shutdown, the secretary's discovery, the zone move, the shutdown checklist).
+- The DNS Cutover decision (§6.11), the Legacy Archive decision (§6.4), the Sealed Legacy Email Archive decision (§6.5a), and the canonical email architecture (§5.5) implement it.
 
 # 7. DevOps
 

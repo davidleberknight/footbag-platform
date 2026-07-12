@@ -511,8 +511,8 @@ The cutover preflight orchestrator sequences the validation gates from `MIGRATIO
 
 - ACM certificate for footbag.org issued in us-east-1 and attached to the production CloudFront distribution. Issuance is operator-initiated through AWS Support and allows several days of lead time; the cert is requested with both `footbag.org` and `www.footbag.org` covered.
 - SES sending domain verified end-to-end on the production account, SPF/DKIM/DMARC records published, sandbox exit complete, bounce and complaint SNS topics subscribed. See §9.5 and §18.5. A test send from the production account to the operator mailbox confirms the path.
-- DNS TTL on the legacy footbag.org zone reduced to 60 seconds at least 48 hours before the DNS swap. Webmaster coordination per `MIGRATION_PLAN.md` §19 item 18; capture the lowered-TTL timestamp in the cutover log.
-- `footbag.org` MX already repointed to Google Managed Services in the discrete pre-T-0 mail-cutover step, all active `@footbag.org` aliases provisioned on Google, and inbound delivery verified end-to-end (MIGRATION_PLAN gate EX7 / §29.12a; runbook §6.8 MX-to-Google mail cutover). The web cutover does not change MX.
+- DNS zone authoritative on Route 53 under IFPA-controlled access (the zone move is go-live preparation; MIGRATION_PLAN §19 item 15), and the apex/`www` TTL reduced to 60 seconds on Route 53 (`scripts/dns-ttl-preflight.sh`) at least 48 hours before the DNS swap; capture the lowered-TTL timestamp in the cutover log. Cutover-window coordination with the webmaster per MIGRATION_PLAN §19 item 18.
+- `footbag.org` MX already repointed to Google Workspace in the discrete pre-T-0 mail-cutover step, all active `@footbag.org` aliases provisioned on Google, and inbound delivery verified end-to-end (MIGRATION_PLAN gate EX7 / §29.12a; runbook §6.8 MX-to-Google mail cutover). The web cutover does not change MX.
 - Final freestyle CSV rebuild (`freestyle/run_freestyle.sh`) run against the database being shipped, with its QC gate passing. This is the last sanctioned run of the freestyle pipeline: at cutover the live database becomes the source of truth for freestyle content (§15.6) and the pipeline retires from the production path.
 - Pre-cutover database snapshot taken and integrity verified per §16.5. Manifest captured (snapshot id, byte size, row counts for `members`, `legacy_members`, `historical_persons`, `name_variants`, `club_bootstrap_leaders`, `freestyle_tricks`, `freestyle_records`, `consecutive_kicks_records`).
 - Dev-admin shortcuts confirmed absent from the production runtime via `scripts/audit-dev-shortcuts.sh`; expected count is zero.
@@ -524,15 +524,15 @@ The orchestrator's `CLAIM-SAFETY` gate re-runs the integration suite against the
 
 ### 6.7 DNS cutover sequence runbook
 
-The DNS cutover repoints `www.footbag.org` (a CNAME to the CloudFront distribution attached to the production certificate) and the apex `footbag.org` (an A record to the platform's apex redirector, which 301-redirects to `www`) away from the legacy origin. The sequence is gated on §6.6 having passed; once started it is webmaster-executed and operator-coordinated, and runs to completion before any further write traffic is taken. This sequence changes only the apex and `www` records; it does not touch MX. The `@footbag.org` MX move to Google is a separate, earlier step (§6.8 MX-to-Google mail cutover; MIGRATION_PLAN §29.12a) completed before T-0, so the apex swap is MX-neutral. Retained `*.footbag.org` subdomains (including the `ifpa.` mail host) keep their existing records and must not be altered or clobbered by the apply.
+The DNS cutover repoints `www.footbag.org` and the apex `footbag.org` (both as Route 53 ALIAS records to the CloudFront distribution attached to the production certificate) away from the legacy origin. The sequence is gated on §6.6 having passed; it is operator-executed on Route 53, planned and rehearsed with the webmaster, and runs to completion before any further write traffic is taken. This sequence changes only the apex and `www` records; it does not touch MX. The `@footbag.org` MX move to Google is a separate, earlier step (§6.8 MX-to-Google mail cutover; MIGRATION_PLAN §29.12a) completed before T-0, so the apex swap is MX-neutral. Any remaining `*.footbag.org` records in the zone (pending their per-name dispositions, MIGRATION_PLAN §19 item 16) must not be altered or clobbered by the apply.
 
-The numerics below (60s TTL pre-shrink, T+24h TTL restore, T-0 to T+1h rollback window) are the generic-procedure defaults used for staging dry-runs and any cutover without its own overrides. For production footbag.org: the go-live cutover is the `www`/apex DNS switch itself (MIGRATION_PLAN §29.12), so this runbook applies at cutover, and it governs again later at the post-stability Route 53 zone migration, where MIGRATION_PLAN §29.12 additionally requires a fresh zone snapshot first so mail and retained-subdomain records copy faithfully into Route 53. Where MIGRATION_PLAN §29.12 and this section disagree, MIGRATION_PLAN §29.12 wins for footbag.org.
+The numerics below (60s TTL pre-shrink, T+24h TTL restore, T-0 to T+1h rollback window) are the generic-procedure defaults used for staging dry-runs and any cutover without its own overrides. For production footbag.org: the zone moves to Route 53 as go-live preparation (the §6.8 zone-authority handoff checklist, with a fresh zone snapshot first so mail and remaining records copy faithfully), and the go-live cutover is the `www`/apex switch on Route 53 (MIGRATION_PLAN §29.12). Where MIGRATION_PLAN §29.12 and this section disagree, MIGRATION_PLAN §29.12 wins for footbag.org.
 
 Sequence:
 
-**T-48 hours -- TTL drop.** The webmaster lowers the TTL on the apex and `www` records to 60 seconds on his own authoritative zone (it stays on his infrastructure at go-live). This is his manual action, not `scripts/dns-ttl-preflight.sh`, which operates on Route 53 and is reserved for the later, optional DNS-handover milestone. Record the prior TTL: the old value must have fully expired before T-0 (a 24-hour prior TTL needs at least 24 hours of lead — verify, don't assume; 48 hours covers the common cases). Verify the drop is actually served: `dig @<webmaster-authoritative-NS> footbag.org A +noall +answer` and the same for `www` must show TTL 60. Record the timestamp + authoritative-observed TTL in the cutover log. From this point, any revert propagates within about a minute.
+**T-48 hours -- TTL drop.** The operator lowers the TTL on the apex and `www` records to 60 seconds via `scripts/dns-ttl-preflight.sh` on Route 53 (the zone moved there as go-live preparation). Record the prior TTL: the old value must have fully expired before T-0 (a 24-hour prior TTL needs at least 24 hours of lead — verify, don't assume; 48 hours covers the common cases). Verify the drop is actually served: `dig @<route53-assigned-NS> footbag.org A +noall +answer` and the same for `www` must show TTL 60. Record the timestamp + authoritative-observed TTL in the cutover log. From this point, any revert propagates within about a minute.
 
-**T-0 -- the switch.** On his own zone the webmaster points the records at the new platform: `www.footbag.org` becomes a CNAME to the production distribution's `cloudfront.net` endpoint, and the apex `footbag.org` becomes an A record to the apex redirector's static IP; the legacy origin goes dark. No Terraform apply: the Route 53 apex/`www` alias records (gated by `enable_apex_alias_records`) stay off until the later, optional handover. Never delete-then-recreate a record — replace each in a single change, so no interim negative answer can be cached (negative caching follows the zone's SOA, not the record's 60s TTL). Record the change timestamp and verify immediately against the authoritative servers: `dig @<webmaster-authoritative-NS> www.footbag.org CNAME +short` returns the distribution endpoint and `dig @<webmaster-authoritative-NS> footbag.org A +short` returns the redirector IP.
+**T-0 -- the switch.** The operator points the records at the new platform on Route 53: flip `enable_apex_alias_records` and apply the reviewed Terraform plan, making `www.footbag.org` and the apex `footbag.org` ALIAS records to the production distribution; the legacy origin goes dark. Never delete-then-recreate a record — replace each in a single change, so no interim negative answer can be cached (negative caching follows the zone's SOA, not the record's 60s TTL). Record the change timestamp and verify immediately against the authoritative servers: `dig @<route53-assigned-NS> www.footbag.org A +short` and `dig @<route53-assigned-NS> footbag.org A +short` both return CloudFront edge IPs (an ALIAS answers as A records).
 
 **T+1 hour -- propagation check across three resolvers.** Run from the operator workstation:
 
@@ -544,23 +544,23 @@ for resolver in 1.1.1.1 8.8.8.8 9.9.9.9; do
 done
 ```
 
-For `www` all three should return CloudFront edge IPs (the `aws-cloudfront-net` block); for the apex, the redirector's static IP — neither should return the legacy origin. If one resolver still returns the legacy IP after one hour, re-check the TTL on the *legacy* zone's authoritative servers; some upstream resolvers honor the long-cached SOA negative-cache window beyond the record TTL. A single straggler that resolves correctly via the others is tolerable; broad divergence is a rollback trigger.
+For both `www` and the apex, all three should return CloudFront edge IPs (the `aws-cloudfront-net` block) — neither should return the legacy origin. If one resolver still returns the legacy IP after one hour, re-check the TTL from the Route 53 authoritative servers; some upstream resolvers honor the long-cached SOA negative-cache window beyond the record TTL. A single straggler that resolves correctly via the others is tolerable; broad divergence is a rollback trigger.
 
 **T+1 hour -- end-to-end verification.** `curl -sf https://www.footbag.org/health/live` must return HTTP 200 with the production cert presented, and `curl -sfI https://footbag.org/` must return 301 with `Location: https://www.footbag.org/` over a valid certificate, from at least one network outside the operator's primary ISP. A 4xx/5xx from the new origin is a rollback trigger.
 
-**T+1 hour -- retained-subdomain check.** Confirm every retained `*.footbag.org` subdomain (per `MIGRATION_PLAN.md` §19 item 16) still resolves to the legacy host and was not altered by the apply. Do not print any private operator-only subdomain into shared logs or output.
+**T+1 hour -- remaining-subdomain check.** Confirm the zone's remaining records match the per-name disposition list (`MIGRATION_PLAN.md` §19 item 16): replaced names resolve to their new homes, retired names no longer resolve, and no name resolves to legacy infrastructure. Do not print any private operator-only subdomain into shared logs or output.
 
-**T+24 hours -- TTL restore.** With the cutover stable, the webmaster raises the apex + `www` TTL back to the long-term default (3600s) on his zone (it stays on his infrastructure until the later, optional Route 53 handover). Record the timestamp.
+**T+24 hours -- TTL restore.** With the cutover stable, the operator raises the apex + `www` TTL back to the long-term default (3600s) on Route 53. Record the timestamp.
 
 **T+24 hours -- post-cutover marker.** With the cutover stable and the rollback window past, append the post-cutover marker on the production host: `sudo sh -c 'echo FOOTBAG_CUTOVER_COMPLETE=1 >> /srv/footbag/env'`. From this point `scripts/deploy-rebuild.sh` refuses the host (no bypass flag; a disaster rebuild requires deliberately removing the marker line as root first), `scripts/deploy-code.sh` is the routine deploy, and freestyle content is edited only in the admin application (§15.6). Record the timestamp in the cutover log.
 
-Rollback (anywhere from T-0 to T+1 hour): the webmaster reverts the apex and `www` records to the legacy origin on his zone. With TTLs at 60s the world resolves back within about two minutes — but not instantly everywhere: clients and resolvers that cached the new records lag by up to their cached TTL. Past T+1 hour, rollback is still possible but accumulates the cost of any writes that landed on the new origin while DNS was diverging; consult the rollback decision framework in `MIGRATION_PLAN.md` §27 before triggering.
+Rollback (anywhere from T-0 to T+1 hour): the operator reverts the apex and `www` records to their prior values on Route 53; before the legacy-side shutdown has run, that returns service to the legacy origin (member system read-only). Fix-forward and the platform restore are the preferred paths (`MIGRATION_PLAN.md` §27). With TTLs at 60s the world resolves back within about two minutes — but not instantly everywhere: clients and resolvers that cached the new records lag by up to their cached TTL. Past T+1 hour, rollback is still possible but accumulates the cost of any writes that landed on the new origin while DNS was diverging; consult the rollback decision framework in `MIGRATION_PLAN.md` §27 before triggering.
 
-Dry-run note: rehearse before production, but the pathways differ — staging exercises Route 53/Terraform (`terraform/staging/route53.tf`, when enabled), while the production go-live is a manual switch on the webmaster's bind9 zone. A staging dry-run therefore proves the propagation-check tooling and the smoke suite, not the production change mechanism. The production-faithful rehearsal is the test-subdomain rehearsal (MIGRATION_PLAN §29.12): the webmaster applies a test-subdomain record on his own zone by the same manual process he will use at T-0.
+Dry-run note: rehearse before production. Staging and production now share the change mechanism — both are Route 53/Terraform changes (`terraform/staging/route53.tf`, when enabled) — so a staging dry-run rehearses the real change path as well as the propagation-check tooling and the smoke suite. The production-faithful rehearsal remains the test-subdomain rehearsal on the production zone (MIGRATION_PLAN §29.12), run with the webmaster after the zone move.
 
 ### 6.8 External DNS/mail upstream coordination runbook
 
-Whenever the platform's DNS zone or MX records are owned by an external operator (the legacy-site webmaster today; potentially other upstreams in future), changes that touch the records below cannot be applied without coordinated action. This runbook covers the long-term coordination pattern; cutover-specific applications layer their own gates on top (e.g. `MIGRATION_PLAN.md` §19 for the legacy-webmaster contract, §29.12 for the DNS cutover).
+Whenever the platform's DNS zone or MX records are owned by an external operator (the legacy-site webmaster, until the zone move to Route 53 completes; potentially other upstreams in future), changes that touch the records below cannot be applied without coordinated action. This runbook covers the long-term coordination pattern; cutover-specific applications layer their own gates on top (e.g. `MIGRATION_PLAN.md` §19 for the legacy-webmaster contract, §29.12 for the DNS cutover).
 
 When this runbook applies:
 
@@ -580,7 +580,7 @@ Communication touchpoints:
 - Lead time: minimum 7 days for any scheduled change (TTL pre-shrink, ACM validation publication, record swap window). Emergency rollback is faster (single record revert; see "Emergency rollback" below) but should still page the upstream operator immediately so they're aware the platform is in incident state.
 - Handoff payload: the maintainer hands over a single message containing (a) the records to change with exact name + type + value + TTL, (b) the requested time window, (c) the maintainer's verification step the upstream operator can run after applying (typically `dig @<upstream-resolver> <name> <type>`), and (d) the rollback record values to keep in their back pocket.
 
-Zone-authority handoff checklist (when transferring ownership of an upstream-owned zone to the maintainer's Route 53 account):
+Zone-authority handoff checklist (when transferring ownership of an upstream-owned zone to the maintainer's Route 53 account). For `footbag.org` this checklist is the go-live-preparation zone move (MIGRATION_PLAN §19 item 15):
 
 1. Stand up the target Route 53 hosted zone in the maintainer's account; capture the NS records the zone advertises.
 2. Mirror every existing record from the upstream zone into the Route 53 zone. Verify with `dig @<target-NS> <name> <type>` from outside that the new authoritative servers return the same answers as the upstream.
@@ -598,7 +598,7 @@ Audit trail: every coordinated change produces (a) the maintainer's handoff mess
 
 #### MX-to-Google mail cutover (footbag.org)
 
-The ordinary `@footbag.org` inbound move to Google Managed Services is a discrete step run before the apex/`www` web cutover (decoupled; `MIGRATION_PLAN.md` §28 Email transition and §29.12a). It is gated by zone authority and a confirmed alias inventory, and tracked by MIGRATION_PLAN gate EX7. Outbound SES is unaffected (DKIM-based, MX-independent). `@ifpa.footbag.org` on llic.net is untouched.
+The ordinary `@footbag.org` inbound move to Google Workspace is a discrete preparation step run before the apex/`www` web cutover (decoupled; `MIGRATION_PLAN.md` §28 Email transition and §29.12a). It is gated by zone authority and a confirmed alias inventory, and tracked by MIGRATION_PLAN gate EX7. Outbound SES is unaffected (DKIM-based, MX-independent). The `@ifpa.footbag.org` domain follows its own disposition (MIGRATION_PLAN §29.12a) and is not touched by this step.
 
 Skeleton (detailed provider click-paths are filled in when the step is first executed and validated):
 
@@ -609,7 +609,7 @@ Skeleton (detailed provider click-paths are filled in when the step is first exe
 5. Verify inbound end-to-end to every provisioned address from an external account; confirm DMARC alignment holds.
 6. Once confirmed, withdraw legacy `@footbag.org` delivery.
 
-Rollback: if Google inbound fails verification, revert the `footbag.org` MX to the legacy mail server (still running until step 6). The web cutover (§6.7) is independent and unaffected. Never modify the `ifpa.footbag.org` MX during this step.
+Rollback: if Google inbound fails verification, revert the `footbag.org` MX to the legacy mail server (a pre-go-live contingency; the legacy mail server runs only until step 6, and never past go-live). The web cutover (§6.7) is independent and unaffected. Never modify the `ifpa.footbag.org` MX during this step.
 
 ### 6.9 Environment bring-up sequence
 
@@ -650,7 +650,7 @@ resource roles, not literal identifiers.
 | SNS topics | alarm and SES feedback fan-out | §12.5; §10.11 |
 | AWS Budgets + cost alarms | spend tracking and overrun alerting | §12.6, §12.7 |
 
-Inbound `@footbag.org` mail is handled by Google Managed Services, not SES or any AWS resource; SES is
+Inbound `@footbag.org` mail is handled by Google Workspace, not SES or any AWS resource; SES is
 outbound-only and configures no receiving rules.
 
 ---
@@ -851,22 +851,22 @@ CloudFront operating facts:
 
 #### 9.2.1 ACM certificate for footbag.org runbook
 
-CloudFront-attached certificates must live in the `us-east-1` region regardless of where the rest of the platform runs. The cert covers both the apex (`footbag.org`) and `www.footbag.org` so a single distribution handles both names. Retained `*.footbag.org` subdomains (for example `lists.` and the legacy `ifpa.` mail host) are not covered by this cert and keep their own DNS and TLS on the legacy host; do not add them to the SAN list. Issuance is operator-initiated; DNS validation takes 5-30 minutes on average and can take several hours, so request well ahead of any cutover.
+CloudFront-attached certificates must live in the `us-east-1` region regardless of where the rest of the platform runs. The cert covers both the apex (`footbag.org`) and `www.footbag.org` so a single distribution handles both names. Other `*.footbag.org` names are not covered by this cert and must not be added to the SAN list; no legacy subdomain stays live after go-live (each is replaced, archived, or retired per MIGRATION_PLAN §19 item 16), and the platform's `archive.footbag.org` carries its own separate certificate. Issuance is operator-initiated; DNS validation takes 5-30 minutes on average and can take several hours, so request well ahead of any cutover.
 
 Preconditions:
 
-- Route 53 hosted zone for `footbag.org` is reachable from the operator's AWS profile, or the webmaster is on standby to publish the DNS validation records on the upstream zone.
+- Route 53 hosted zone for `footbag.org` is reachable from the operator's AWS profile, or, before the zone move, the webmaster is on standby to publish the DNS validation records on the upstream zone.
 - The production CloudFront distribution exists and its terraform state is in sync. (If not, run `terraform plan` first; a missing distribution is its own remediation track.)
 
 Operator steps:
 
 1. Request the certificate via Terraform in `terraform/production/`, not the console. The resource declares `provider = aws.us_east_1` and both `domain_name = "footbag.org"` + `subject_alternative_names = ["www.footbag.org"]`. `validation_method = "DNS"`.
 2. `terraform apply`. ACM emits two `DomainValidationOption` records (apex + www); capture them from the plan output.
-3. Publish the DNS validation records. If `footbag.org`'s Route 53 zone is owned by the same account, declare the `aws_route53_record` validation records alongside the cert in the same module and re-apply. If the zone is upstream-owned, hand the records to the webmaster (see §6.8, external DNS/mail upstream coordination) and wait for confirmation that they are live.
+3. Publish the DNS validation records. If `footbag.org`'s Route 53 zone is owned by the same account, declare the `aws_route53_record` validation records alongside the cert in the same module and re-apply. If the zone is still upstream-owned (before the zone move), hand the records to the webmaster (see §6.8, external DNS/mail upstream coordination) and wait for confirmation that they are live.
 4. Poll cert status: `aws acm describe-certificate --region us-east-1 --certificate-arn <arn> --query 'Certificate.Status'`. Expected progression: `PENDING_VALIDATION` → `ISSUED`. If status sticks at `PENDING_VALIDATION` past one hour, re-verify the DNS validation records resolve (`dig _<token>.footbag.org CNAME`).
 5. Attach to the production CloudFront distribution. Update the `viewer_certificate` block on the distribution resource to reference the issued cert arn and set `ssl_support_method = "sni-only"`, `minimum_protocol_version = "TLSv1.2_2021"`. `terraform apply`.
 6. Post-attachment verification (pre-cutover the public apex and `www` DNS still point at the legacy host, so verify against the distribution directly, matching the pre-switch smoke in MIGRATION_PLAN §29.12):
-   - `curl -vIk --resolve www.footbag.org:443:<edge-ip> https://www.footbag.org/health/live` (an `<edge-ip>` from `dig +short <distribution>.cloudfront.net`) returns HTTP 200 and the TLS handshake reports the new cert's subject + SAN; the test subdomain, once the webmaster applies its record, verifies the same path without `--resolve`.
+   - `curl -vIk --resolve www.footbag.org:443:<edge-ip> https://www.footbag.org/health/live` (an `<edge-ip>` from `dig +short <distribution>.cloudfront.net`) returns HTTP 200 and the TLS handshake reports the new cert's subject + SAN; the test subdomain, once its record is applied (by the webmaster before the zone move, by the operator after), verifies the same path without `--resolve`.
    - `openssl s_client -connect <distribution>.cloudfront.net:443 -servername www.footbag.org </dev/null 2>/dev/null | openssl x509 -noout -subject -dates` shows both names and a `notAfter` consistent with ACM's 13-month validity.
    - CloudFront's `Status` reports `Deployed` (the in-flight `InProgress` state lasts 5-15 minutes after `terraform apply`).
 
@@ -919,7 +919,7 @@ System Administrators own SES account-level and DNS-level setup:
 
 First-time production SES activation (domain identity, DKIM, sandbox exit) is the onboarding operator path; see `DEV_ONBOARDING.md` §9.6 (production-access) and §9.7 (domain identity with DKIM). This section is the steady-state operational reference and the feedback-loop activation runbook is §10.11.
 
-Inbound `@footbag.org` mail is handled by Google Managed Services, not SES or any AWS resource; SES is outbound-only and the platform configures no SES receiving rules. The `footbag.org` SPF record must authorize both AWS SES (the outbound sender) and Google (the inbound provider), and the DMARC policy must align across both; the SES DKIM CNAMEs and Google's required records coexist in the zone. `@ifpa.footbag.org` is a separate mail domain on llic.net (MIGRATION_PLAN §29.12a) and is not touched by SES or by the `footbag.org` MX move.
+Inbound `@footbag.org` mail is handled by Google Workspace, not SES or any AWS resource; SES is outbound-only and the platform configures no SES receiving rules. The `footbag.org` SPF record must authorize both AWS SES (the outbound sender) and Google (the inbound provider), and the DMARC policy must align across both; the SES DKIM CNAMEs and Google's required records coexist in the zone. `@ifpa.footbag.org` is a separate mail domain (MIGRATION_PLAN §29.12a), not touched by SES or by the `footbag.org` MX move; its own disposition replaces or retires its list functions by go-live.
 
 #### SES sandbox behavior
 
@@ -1445,10 +1445,10 @@ Rules:
 - environment-specific names, tags, bucket paths, and alarms must be deterministic
 - do not allow a single command to mutate multiple environments implicitly
 
-Milestone-gated variables (default off; flip at the DNS-handover milestone, when the zone moves to Route 53):
+Milestone-gated variables (default off; they flip around the go-live-preparation zone move to Route 53):
 
-- `enable_apex_alias_records`: creates the apex/www ALIAS records to CloudFront in Route 53. Before handover the zone is authoritative on the webmaster's bind9 (not Route 53), where the webmaster points `www` at the distribution and the apex at the platform's apex redirector during the go-live cutover; these Route 53 records apply only once Route 53 serves the zone (the redirector retires then).
-- `ses_enable_domain_auth`: provisions the SES domain identity, DKIM, and SPF/DMARC records in Route 53. Requires a zone Route 53 actually serves.
+- `enable_apex_alias_records`: creates the apex/www ALIAS records to CloudFront in Route 53. It stays off through the zone move — Route 53 must first serve the zone's existing records faithfully, still pointing at the legacy origin — and flips at T-0 as the go-live switch itself (MIGRATION_PLAN §29.12).
+- `ses_enable_domain_auth`: provisions the SES domain identity, DKIM, and SPF/DMARC records in Route 53, taking over from any hand-applied copies. Requires a zone Route 53 actually serves; flips once the zone move completes.
 
 ### 11.5 Emergency console changes
 

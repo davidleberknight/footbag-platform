@@ -112,7 +112,7 @@ This guide helps contributors do different things: understand how the platform i
   - [9.2 Scope](#92-scope)
   - [9.3 Preconditions](#93-preconditions)
   - [9.4 Domain ownership and DNS coordination](#94-domain-ownership-and-dns-coordination)
-  - [9.5 Google Managed Services deliverability for noreply@footbag.org](#95-google-managed-services-deliverability-for-noreplyfootbagorg)
+  - [9.5 Google Workspace deliverability for noreply@footbag.org](#95-google-workspace-deliverability-for-noreplyfootbagorg)
   - [9.6 SES production-access activation](#96-ses-production-access-activation)
   - [9.7 SES domain identity with DKIM](#97-ses-domain-identity-with-dkim)
   - [9.8 Production KMS key, source-profile, and runtime role](#98-production-kms-key-source-profile-and-runtime-role)
@@ -3192,9 +3192,9 @@ Treat the secret access key with the same custody you use for `footbag-operator`
 > Superseded for staging (see the Path H SES note in §8). Staging runs the stub SES adapter;
 > the steps below are retained as the live-SES procedure Path I reuses for production.
 
-Before starting, confirm `noreply@footbag.org` is deliverable via Google Managed Services (per DD §5.5), either as a mailbox or as a forward to an operator inbox; SES email-identity verification requires clicking a link delivered to that address, and without an inbound route the verification email is dropped silently. If no route exists, create it in Google Managed Services first.
+Before starting, confirm `noreply@footbag.org` is deliverable via Google Workspace (per DD §5.5), either as a mailbox or as a forward to an operator inbox; SES email-identity verification requires clicking a link delivered to that address, and without an inbound route the verification email is dropped silently. If no route exists, create it in Google Workspace first.
 
-**Preflight:** before triggering the SES verification email, send a manual test message from a different external account (e.g. a personal gmail) to `noreply@footbag.org` and confirm it arrives at the destination inbox. If it does not arrive, the SES verification email will also be silently dropped and this step will appear to hang. Fix the Google Managed Services route first, then continue.
+**Preflight:** before triggering the SES verification email, send a manual test message from a different external account (e.g. a personal gmail) to `noreply@footbag.org` and confirm it arrives at the destination inbox. If it does not arrive, the SES verification email will also be silently dropped and this step will appear to hang. Fix the Google Workspace route first, then continue.
 
 1. AWS Console → SES → **Verified identities** → **Create identity**.
 2. Identity type: **Email address**.
@@ -3615,7 +3615,7 @@ Validation gate: all five forms gate correctly; fail-open path is tested and emi
 
 Path H activates KMS-backed JWT session signing, runtime AWS identity, and SES-backed transactional email on staging. Path I is the equivalent activation for production: it establishes a production AWS account posture with its own KMS signing key, runtime role, SES domain identity, and bounce/complaint handling, and stands up the production Lightsail host with the credential chain it needs. The shape of each step mirrors Path H; the names, ARNs, domain, and sender identity are production-scoped.
 
-Several production-only operations have no staging equivalent and are covered here in full: domain ownership and DNS coordination, Google Managed Services deliverability for the canonical sender, the SES production-access support ticket, SES domain identity with DKIM, and the bounce/complaint webhook subscription.
+Several production-only operations have no staging equivalent and are covered here in full: domain ownership and DNS coordination, Google Workspace deliverability for the canonical sender, the SES production-access support ticket, SES domain identity with DKIM, and the bounce/complaint webhook subscription.
 
 Like Path H, this is a one-time activation per environment, not part of the routine deploy workflow.
 
@@ -3625,7 +3625,7 @@ Production only. The work falls into two groups:
 
 **Production-only procedures authored here (§9.4 through §9.7, §9.10):**
 1. Domain ownership and DNS coordination
-2. Google Managed Services deliverability for `noreply@footbag.org`
+2. Google Workspace deliverability for `noreply@footbag.org`
 3. SES production-access activation (AWS support ticket)
 4. SES domain identity with DKIM
 5. SES bounce/complaint webhook subscription
@@ -3672,11 +3672,11 @@ Production cutover requires IFPA to own `footbag.org` at the registrar level. Au
 
 5. Record in operator notes: registrar used, renewal contact, webmaster contact and lead time, Route 53 zone ID.
 
-### 9.5 Google Managed Services deliverability for noreply@footbag.org
+### 9.5 Google Workspace deliverability for noreply@footbag.org
 
-SES verifies a sender identity by sending a confirmation email to that address; the address must be deliverable. `@footbag.org` inbound is handled by Google Managed Services (DD §5.5), so `noreply@footbag.org` is made deliverable there for the verification step and for any replies to operational emails.
+SES verifies a sender identity by sending a confirmation email to that address; the address must be deliverable. `@footbag.org` inbound is handled by Google Workspace (DD §5.5), so `noreply@footbag.org` is made deliverable there for the verification step and for any replies to operational emails.
 
-1. In the Google Managed Services admin console for `footbag.org`, confirm the domain is verified. The `footbag.org` MX repoint to Google is the migration plan's discrete email-day step; this deliverability check, and the SES email-identity verification that depends on it, run after that repoint (the SES domain identity in §9.7 verifies via DNS records alone and does not wait on it).
+1. In the Google Workspace admin console for `footbag.org`, confirm the domain is verified. The `footbag.org` MX repoint to Google is the migration plan's discrete email-day step; this deliverability check, and the SES email-identity verification that depends on it, run after that repoint (the SES domain identity in §9.7 verifies via DNS records alone and does not wait on it).
 
 2. Create a route for `noreply@footbag.org`: either a mailbox or a forward to an operator inbox the project controls.
 
@@ -3745,7 +3745,7 @@ Exercise the source-profile → runtime-role chain locally with `aws sts get-cal
 
 Mirror Path H §8.8 and §8.9 against the production identity.
 
-1. Confirm `noreply@footbag.org` is deliverable via Google Managed Services (§9.5).
+1. Confirm `noreply@footbag.org` is deliverable via Google Workspace (§9.5).
 2. Verify the sender identity in SES (email identity, distinct from the domain identity in §9.7): add and confirm the verification link at the operator inbox.
 3. Amend the `OutboundEmail` statement on the production runtime role's inline policy so `Resource` is the ARN of the `noreply@footbag.org` identity (`arn:aws:ses:us-east-1:<account-id>:identity/noreply@footbag.org`). If §9.7 is already complete, point to the domain identity ARN for broader sender flexibility; the app still pins the From address via `SES_FROM_IDENTITY`.
 4. `terraform apply`.
