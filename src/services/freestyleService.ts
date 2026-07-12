@@ -4248,7 +4248,7 @@ export interface ModifierStubContent {
   statusKey:   string;
   statusLabel: string;
   commonTricks:     { slug: string; name: string; adds: string }[];
-  relatedModifiers: { slug: string; name: string }[];
+  relatedModifiers: { slug: string; name: string; href: string }[];
   // Operator -> base-atom cross-link (spinning -> spin), the reverse of the
   // atom's "See also" link, so the relationship is discoverable from either page.
   baseAtom:         { label: string; href: string } | null;
@@ -7578,7 +7578,17 @@ export const freestyleService = {
           relatedGroups,
           relatedOperator:  (() => {
             const op = operatorCrossLinkFor(slug);
-            return op ? { label: `${operatorTitleCase(op)} tricks`, href: `/freestyle/modifier/${op}` } : null;
+            if (!op) return null;
+            // Only cross-link to an operator that actually has a modifier page.
+            // An operator retired as a scored modifier (e.g. illusioning) has no
+            // page, so a link to it would 404; suppress it rather than render a
+            // dead link, and it re-appears automatically if the operator later
+            // gains a page.
+            const opRow = runSqliteRead('freestyleTrickModifiers.getBySlug', () =>
+              freestyleTrickModifiers.getBySlug.get(op) as FreestyleTrickModifierRow | undefined,
+            );
+            if (!isKnownModifier(op, opRow)) return null;
+            return { label: `${operatorTitleCase(op)} tricks`, href: `/freestyle/modifier/${op}` };
           })(),
           relativeSideVariants: dictRow ? buildRelativeSideVariants(dictRow, allDictRows) : null,
           // Structural Neighbors owns ONLY cross-base compositional relationships:
@@ -10361,7 +10371,23 @@ export const freestyleService = {
       : (findCanonicalSetBySlug(slug)?.relatedSystems ?? []).map(r => r.slug);
     const relatedModifiers = siblingSlugs
       .filter(s => s !== slug)
-      .map(s => ({ slug: s, name: operatorFeelCard(s)?.name ?? operatorTitleCase(s) }));
+      .map(s => {
+        const name = operatorFeelCard(s)?.name ?? operatorTitleCase(s);
+        const sRow = runSqliteRead('freestyleTrickModifiers.getBySlug', () =>
+          freestyleTrickModifiers.getBySlug.get(s) as FreestyleTrickModifierRow | undefined,
+        );
+        // Link each sibling to the surface that actually resolves: the target it
+        // redirects to, else its modifier page, else its set-encyclopedia page,
+        // else drop it rather than render a link that 404s (a related system can
+        // be a canonical set, e.g. rooting, which has no modifier page).
+        const redirect = this.modifierRouteRedirectTarget(s);
+        let href: string | null = null;
+        if (redirect) href = redirect;
+        else if (isKnownModifier(s, sRow)) href = `/freestyle/modifier/${s}`;
+        else if (findCanonicalSetBySlug(s) && !resolveSetRouteRedirect(s)) href = `/freestyle/sets/${s}`;
+        return { slug: s, name, href };
+      })
+      .filter((m): m is { slug: string; name: string; href: string } => m.href !== null);
     const commonTricks = trickRows.slice(0, 12).map(t => ({
       slug: t.slug,
       name: t.canonical_name,

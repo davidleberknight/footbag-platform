@@ -56,7 +56,7 @@
   <section class="content-section">
     <h2 class="section-heading">Related modifiers</h2>
     <p class="modifier-stub-related">
-      {{#each content.relatedModifiers}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/modifier/{{slug}}">{{name}}</a>{{/each}}
+      {{#each content.relatedModifiers}}{{#unless @first}} &middot; {{/unless}}<a href="{{href}}">{{name}}</a>{{/each}}
     </p>
   </section>
   {{/if}}
