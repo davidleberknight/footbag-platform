@@ -104,7 +104,7 @@ Same source data; different curatorial choice. The family page wants breadth; th
 |---|---|---|
 | Common alias | Inline always | `Reverse Whirl` → rev_whirl; `PS Whirl` → paradox_symposium_whirl |
 | Historical name | Inline in Deep Dive only; with provenance | `Whirlwind` → spinning_symposium_whirl; `Whip` → rev_whirl |
-| **Structural alias** | Inline in Deep Dive (alongside the decomposition block) | `Gyro Torque` → mobius; `Atomic Legover` → eggbeater; `Blurry Mirage` → blur |
+| **Structural alias** | Inline in Deep Dive (alongside the decomposition block) | `Gyro Torque` → mobius; `Atomic Legover` → eggbeater; `Pixie DLO` → smog |
 | Technical decomposition | Search-only / "abbreviations" expander | `pdx_whirl`, `BW`, `bs_magellan` |
 | Typo / misspelling | Search-only; **never displayed** | `blury_whirl`, `m_bius`, `spinning_symposium_wirl` |
 
@@ -125,11 +125,8 @@ Validated examples from the alias audit:
 | Gyro Torque | mobius | gyro(+1) + torque(4) = 5 |
 | Atomic Legover | eggbeater | atomic(+1) + legover(2) = 3 |
 | Atomic Mirage | atom_smasher | atomic(+1) + mirage(2) + [XDEX](1) = 4 |
-| Blurry Mirage | blur | blurry(+2) + mirage(2) = 4 |
 | Blurry Butterfly | ripwalk | blurry(+1) + butterfly(3) = 4 |
-| Miraging Clipper | drifter | miraging(+1) + clipper(2) = 3 |
-| Miraging Legover | double_leg_over | miraging(+1) + legover(2) = 3 |
-| Barraging Legover | flurry | barraging(+1) + legover(2) = 3 |
+| Barraging Legover | flurry | furious(+2) + legover(2) = 4 |
 | Pixie DLO | smog | pixie(+1) + double_leg_over(3) = 4 |
 | Stepping DLO | haze | stepping(+1) + double_leg_over(3) = 4 |
 
