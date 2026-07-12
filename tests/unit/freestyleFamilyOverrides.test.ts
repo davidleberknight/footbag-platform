@@ -1,8 +1,8 @@
 /**
  * Unit tests for src/content/freestyleFamilyOverrides.ts.
  *
- * Covers Slice J (one-way redirect) and Slice M (dual-membership +
- * retirement) governance content. These maps are curator-authoritative
+ * Covers the one-way-redirect and dual-membership governance content.
+ * These maps are curator-authoritative
  * — every entry has consequences across the Family-View browse surface,
  * so the shape is asserted explicitly.
  */
@@ -12,7 +12,6 @@ import {
   resolveFamilyOverride,
   FAMILY_DUAL_MEMBERSHIPS,
   resolveFamilyDualMemberships,
-  isRetiredFamily,
   FAMILY_DISPLAY_NAMES,
   resolveFamilyDisplayName,
 } from '../../src/content/freestyleFamilyOverrides';
@@ -84,32 +83,6 @@ describe('FAMILY_DUAL_MEMBERSHIPS (additive memberships)', () => {
   });
 });
 
-describe('RETIRED_FAMILIES (Family-view route-outs)', () => {
-  it('retires the foundational surfaces (clipper-stall, clipper, toe-stall)', () => {
-    expect(isRetiredFamily('clipper_stall')).toBe(true);
-    expect(isRetiredFamily('clipper')).toBe(true);
-    expect(isRetiredFamily('toe_stall')).toBe(true);
-  });
-
-  it('retires representative modifier-ecosystem + alternative-surface route-outs', () => {
-    // Spot-check representative route-out kinds.
-    expect(isRetiredFamily('pixie')).toBe(true);                  // modifier ecosystem
-    expect(isRetiredFamily('cross_body_sole_stall')).toBe(true);  // alternative surface
-    expect(isRetiredFamily('2_bag_juggling')).toBe(true);         // multi-bag primitive
-  });
-
-  it('does NOT retire parent families or labels that fold/defer into the view', () => {
-    // Parents render top-level; children fold into a live parent; deferred
-    // labels keep their own section. None are route-outs.
-    expect(isRetiredFamily('whirl')).toBe(false);      // parent
-    expect(isRetiredFamily('osis')).toBe(false);       // parent
-    expect(isRetiredFamily('butterfly')).toBe(false);  // parent
-    expect(isRetiredFamily('torque')).toBe(false);     // folds into osis
-    expect(isRetiredFamily('blender')).toBe(false);    // folds into osis
-    expect(isRetiredFamily('drifter')).toBe(false);    // deferred, own section
-  });
-});
-
 describe('FAMILY_DISPLAY_NAMES', () => {
   it('resolves rev-whirl to "Rev Whirl"', () => {
     expect(resolveFamilyDisplayName('rev_whirl')).toBe('Rev Whirl');
@@ -141,12 +114,4 @@ describe('cross-mechanism invariants', () => {
     }
   });
 
-  it('no dual-membership target is a retired family', () => {
-    for (const [slug, extras] of FAMILY_DUAL_MEMBERSHIPS) {
-      for (const extra of extras) {
-        expect(isRetiredFamily(extra),
-          `${slug} should not be promoted into a retired family (${extra})`).toBe(false);
-      }
-    }
-  });
 });
