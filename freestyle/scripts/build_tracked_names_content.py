@@ -28,9 +28,7 @@ Re-runnable; regenerate when the audit or master refreshes.
 from __future__ import annotations
 
 import csv
-import os
 import re
-import sqlite3
 from collections import defaultdict
 from pathlib import Path
 
@@ -41,12 +39,6 @@ FREESTYLE = Path(__file__).resolve().parents[1]
 RECON = FREESTYLE / 'inputs/observational/RECONCILIATION.csv'
 MASTER = FREESTYLE / 'inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv'
 OUT = REPO / 'src/content/freestyleTrackedNames.ts'
-# Live platform DB. The authoritative canonical/alias gate: a slug active in
-# freestyle_tricks, or registered in freestyle_trick_aliases, must never appear
-# on the tracked surface. The static CSVs above drift; the DB does not.
-# Honor the pipeline's DB-path env var so a fresh regeneration can run against
-# the CI-built database; falls back to the local dev database.
-DB = Path(os.environ.get('FOOTBAG_DB_PATH', str(REPO / 'database/footbag.db')))
 
 # Canonical CSVs read by loader 17. Slugs present in any of these are
 # canonical-published, regardless of the reconciliation CSV's recorded
@@ -120,20 +112,13 @@ def main() -> None:
                 if slug:
                     canonical_slugs.add(slug)
 
-    # ── live-DB gate (authoritative) ── exclude every slug that is an active
-    # canonical trick or a registered alias. Read-only; closes the drift the
-    # static CSVs leave open.
-    if DB.exists():
-        con = sqlite3.connect(f'file:{DB}?mode=ro', uri=True)
-        try:
-            for (s,) in con.execute('SELECT slug FROM freestyle_tricks WHERE is_active = 1'):
-                if s:
-                    canonical_slugs.add(s.strip())
-            for (s,) in con.execute('SELECT alias_slug FROM freestyle_trick_aliases'):
-                if s:
-                    canonical_slugs.add(s.strip())
-        finally:
-            con.close()
+    # No live-DB gate: this module is a pure CSV-derived artifact and never reads
+    # the database. Its exclusion is the canonical-CSV gate above only, so the
+    # emitted set is "documented names not present in the canonical trick CSVs";
+    # a name that is only a registered alias (never a canonical CSV row) is NOT
+    # excluded here. This module is test-only and never rendered, so it carries no
+    # publication guarantee; the rendered Emerging Vocabulary surface applies the
+    # live-database db-tracked-and-alias exclusion at request time.
 
     # ── reconciliation audit: the unpublished name set ──────────────
     with RECON.open(newline='') as f:
@@ -230,10 +215,13 @@ def main() -> None:
         '  readonly names: readonly TrackedName[];',
         '}',
         '',
-        '/** Total tracked-but-unpublished names across all sources. */',
-        f'export const TRACKED_UNPUBLISHED_TOTAL = {total};',
+        '/** Total documented outside-source names across all sources, minus those',
+        ' *  recorded as a canonical trick in the committed canonical CSVs. Test',
+        ' *  fixture only; not a live publication filter (a name here may be a',
+        ' *  registered alias in the live database). */',
+        f'export const TRACKED_DOCUMENTED_TOTAL = {total};',
         '',
-        'export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [',
+        'export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [',
     ]
     for s in order:
         names = sorted(by_source[s], key=lambda e: e['displayName'].lower())

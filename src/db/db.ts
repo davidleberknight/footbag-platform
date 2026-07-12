@@ -2273,6 +2273,14 @@ export const freestyleTricks = {
     SELECT category, is_active FROM freestyle_tricks WHERE slug = ?
   `); },
 
+  // Every db-tracked trick slug, any status. The Emerging Vocabulary surface
+  // excludes an observational candidate whose name is already a database trick
+  // (published, held, or pending) at request time, so an in-app edit takes
+  // effect immediately against the CSV-only generated universe.
+  get listAllSlugs() { return db.prepare(`
+    SELECT slug FROM freestyle_tricks
+  `); },
+
   // Admin curation browse: every row regardless of is_active or review_status,
   // because an admin curates inactive and pending rows the public dictionary
   // hides. Status-agnostic by design (admin-only surface); search and status

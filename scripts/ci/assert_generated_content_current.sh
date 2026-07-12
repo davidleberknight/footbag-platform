@@ -2,12 +2,14 @@
 # Regeneration-is-a-no-op guard for the generated freestyle content modules.
 #
 # src/content/freestyleObservationalUniverse.ts and
-# src/content/freestyleTrackedNames.ts are generated from committed input CSVs
-# plus the built database. This runs both generators and fails if a committed
-# module differs from a fresh regeneration, i.e. a source input changed without
-# the module being regenerated and committed. It belongs in the tier that
-# already builds the database, because both generators open it read-only
-# (they honor FOOTBAG_DB_PATH, falling back to the local dev database).
+# src/content/freestyleTrackedNames.ts are generated purely from committed input
+# CSVs; neither generator reads the database. This runs both generators and fails
+# if a committed module differs from a fresh regeneration, i.e. a source CSV
+# changed without the module being regenerated and committed. It verifies only
+# source-to-generated-file currency, needs no database file and no
+# FOOTBAG_DB_PATH, and belongs in a database-free CI tier. (The live
+# publication-state exclusion for the rendered Emerging Vocabulary surface is
+# applied at request time by the service, not baked into these modules.)
 #
 # On failure the regenerated modules are left in place so the diff is
 # inspectable and directly committable; the workspace is disposable in CI.

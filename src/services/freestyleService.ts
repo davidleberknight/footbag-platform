@@ -1196,6 +1196,33 @@ function isKnownModifier(slug: string, row: FreestyleTrickModifierRow | undefine
   return OPERATOR_INDEX_SLUGS.has(slug) || row != null || getOperatorReferenceEntry(slug) != null;
 }
 
+// Alphanumeric-only comparison key. Observational rows use hyphen slugs and the
+// database uses underscores, so both collapse to the same key for the membership
+// test without mutating either stored form.
+function observationalSlugKey(slug: string): string {
+  return slug.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+// Every db-tracked trick name (any status) and every registered alias, as a set
+// of comparison keys. The Emerging Vocabulary surface filters its observational
+// candidates against this at request time, so a candidate that becomes a
+// published, held, or aliased database row drops off the surface immediately.
+// The generated observational universe is a pure CSV artifact and carries such
+// names until this gate removes them; after cutover the live database owns
+// publication state, and a build-time gate could not see in-app edits.
+function observationalPublishedSlugKeys(): Set<string> {
+  const keys = new Set<string>();
+  const trickSlugs = runSqliteRead('freestyleTricks.listAllSlugs', () =>
+    freestyleTricks.listAllSlugs.all() as { slug: string }[],
+  );
+  for (const r of trickSlugs) keys.add(observationalSlugKey(r.slug));
+  const aliasSlugs = runSqliteRead('freestyleTrickAliases.listAllAliasSlugs', () =>
+    freestyleTrickAliases.listAllAliasSlugs.all() as { alias_slug: string }[],
+  );
+  for (const r of aliasSlugs) keys.add(observationalSlugKey(r.alias_slug));
+  return keys;
+}
+
 function buildOperatorIndexAxes(
   modifierRows: readonly FreestyleTrickModifierRow[],
 ): OperatorIndexAxisGroup[] {
@@ -8404,6 +8431,15 @@ export const freestyleService = {
       freestyleTricks.listAllWithPending.all() as FreestyleTrickRowWithStatus[],
     );
 
+    // The Emerging Vocabulary tile counts unconfirmed (unpublished) names, so it
+    // uses the runtime-filtered universe, not the raw generated census, matching
+    // the exclusion the /freestyle/observational page applies.
+    const emergingVocabUnconfirmed = (() => {
+      const publishedKeys = observationalPublishedSlugKeys();
+      return OBSERVATIONAL_UNIVERSE.filter(
+        r => !publishedKeys.has(observationalSlugKey(r.slug))).length;
+    })();
+
     // Apply optional family filter (driven by ?family= hashtag click). An
     // umbrella root with no raw rows of its own (the Down family) filters as
     // the set of raw labels its branches and their sub-labels carry.
@@ -9379,8 +9415,8 @@ export const freestyleService = {
             {
               label:        'Emerging vocabulary',
               href:         '/freestyle/observational',
-              count:        OBSERVATIONAL_UNIVERSE_STATS.total,
-              countDisplay: fmtCount(OBSERVATIONAL_UNIVERSE_STATS.total),
+              count:        emergingVocabUnconfirmed,
+              countDisplay: fmtCount(emergingVocabUnconfirmed),
               countSuffix:  'unconfirmed names',
               lensQuestion: 'Names the community is still confirming, not separate tricks yet.',
               chips:        ['PassBack', 'Footbag.org', 'FootbagMoves', 'Stanford'].map(s => ({ label: s, href: '/freestyle/observational', count: null })),
@@ -10008,12 +10044,17 @@ export const freestyleService = {
 
   getObservationalLayerPage(): PageViewModel<FreestyleObservationalContent> {
     // Layer-separation invariant: observational entries surface ONLY here.
-    // Content-module-driven (the generated freestyleObservationalUniverse,
-    // overlap-safe by construction) per [[feedback_reversible_content_
-    // governance]]. No DB query, no canonical promotion, no request-time CSV
-    // read; provisional ADD/decomposition are observationally extrapolated.
-    const universe = OBSERVATIONAL_UNIVERSE;
-    const stats = OBSERVATIONAL_UNIVERSE_STATS;
+    // Content-module-driven (the generated freestyleObservationalUniverse) per
+    // [[feedback_reversible_content_governance]]. The generated universe is a
+    // pure CSV artifact and carries every documented name, including ones now
+    // published, held, or aliased in the database; that db-tracked-and-alias
+    // exclusion is applied HERE at request time, so an in-app publish / hold /
+    // alias edit takes effect immediately (after cutover the live database owns
+    // publication state). Classification (evState / provisional ADD) is never
+    // re-derived at request time; only the publication membership filter is live.
+    const publishedKeys = observationalPublishedSlugKeys();
+    const universe = OBSERVATIONAL_UNIVERSE.filter(
+      r => !publishedKeys.has(observationalSlugKey(r.slug)));
 
     // Curator-note overrides: preserve the hand-authored notes from the legacy
     // curator module, keyed by slug. Notes only — no lane forcing, no data.
@@ -10098,8 +10139,20 @@ export const freestyleService = {
       | 'parser' | 'undefined_operator' | 'folk' | 'alias';
     const inState = (s: EvState): ObservationalUniverseRow[] =>
       universe.filter(r => r.evState === s);
-    const cc = (s: EvState): number => stats.evStates[s] ?? 0;
-    const progress = stats.evProgress;
+    // Frontier counts and progress are recomputed from the runtime-filtered
+    // universe, so every visible / frontier / unpublished count reflects live
+    // publication state rather than the baked build-time census. The evProgress
+    // formula matches the generator: (ready + authoring) over (total - alias).
+    const filteredEvCounts: Record<string, number> = {};
+    for (const r of universe) filteredEvCounts[r.evState] = (filteredEvCounts[r.evState] ?? 0) + 1;
+    const cc = (s: EvState): number => filteredEvCounts[s] ?? 0;
+    const evDenominator = universe.length - cc('alias');
+    const evNumerator = cc('ready') + cc('authoring');
+    const progress = {
+      numerator: evNumerator,
+      denominator: evDenominator,
+      pct: evDenominator ? Math.round((100 * evNumerator) / evDenominator) : 0,
+    };
     const progressHeadline =
       `${progress.pct}% of the non-alias frontier (${progress.numerator} of ` +
       `${progress.denominator} names) is a candidate or one authoring step away.`;
@@ -10151,7 +10204,9 @@ export const freestyleService = {
       { label: 'Folk / unrecoverable',       value: String(cc('folk')),               hint: 'community names with no recoverable structure yet' },
     ];
 
-    const sources = Object.keys(stats.sources).map(badge => ({
+    // Source badges reflect the runtime-filtered universe: a source whose names
+    // have all been published no longer shows a chip.
+    const sources = [...new Set(universe.map(r => r.source))].map(badge => ({
       badge, label: observedSourceLabel(badge),
     }));
 
@@ -10234,7 +10289,7 @@ export const freestyleService = {
           { label: 'Operators & Modifiers',         href: '/freestyle/operators' },
           { label: 'ADD Analysis',                  href: '/freestyle/add-analysis' },
         ],
-        generatedOn: stats.generatedOn,
+        generatedOn: OBSERVATIONAL_UNIVERSE_STATS.generatedOn,
         isEmpty:     universe.length === 0,
       },
     };

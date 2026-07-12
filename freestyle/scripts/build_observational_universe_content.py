@@ -36,7 +36,6 @@ import csv
 import json
 import os
 import re
-import sqlite3
 from collections import Counter
 from datetime import date
 from pathlib import Path
@@ -54,10 +53,6 @@ OUT = REPO / "src/content/freestyleObservationalUniverse.ts"
 # next regen even when the upstream packet CSVs still list it.
 TRICKS_CSV = FREESTYLE / "inputs/base_dictionary/tricks.csv"
 RED_ADD_CSV = FREESTYLE / "inputs/curated/tricks/red_additions_2026_04_20.csv"
-# Live platform DB: authoritative canonical/alias gate (see build_tracked_names_content.py).
-# Honor the pipeline's DB-path env var so a fresh regeneration can run against
-# the CI-built database; falls back to the local dev database.
-DB = Path(os.environ.get("FOOTBAG_DB_PATH", str(REPO / "database/footbag.db")))
 
 # Doctrine-blocked clusters whose STRUCTURE is known (blocked only on an ADD /
 # policy ruling, not on the movement reading) — promotion-frontier eligible. The
@@ -498,25 +493,14 @@ def main() -> None:
             s = (c.get("canonical_name", "") or "").strip()
             if s:
                 canonical_slugs.add(s)
-    # ── live-DB gate (authoritative) ── exclude EVERY database-tracked slug
-    # (active or not) plus aliases. An active row renders in the canonical
-    # browse; an inactive row is either a pending external entry (rendered from
-    # the database in the Emerging Vocabulary external section) or a deliberate
-    # adjudicated hold. Either way the database is that name's home, so the
-    # generated universe must never also carry it; otherwise a pending database
-    # row would appear twice on the Emerging Vocabulary page (once as a
-    # universe row, once in the external section).
-    if DB.exists():
-        con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
-        try:
-            for (s,) in con.execute("SELECT slug FROM freestyle_tricks"):
-                if s:
-                    canonical_slugs.add(s.strip())
-            for (s,) in con.execute("SELECT alias_slug FROM freestyle_trick_aliases"):
-                if s:
-                    canonical_slugs.add(s.strip())
-        finally:
-            con.close()
+    # The database-tracked exclusion (every freestyle_tricks slug plus every
+    # registered alias) is applied at REQUEST TIME by the service, not baked in
+    # here. After cutover the live database is the source of truth for publication
+    # state, and a build-time gate against a rebuilt-from-CSV database cannot see
+    # in-app edits, so it would leave the rendered surface stale. This generator
+    # is therefore pure over the committed CSVs; the rendered Emerging Vocabulary
+    # surface filters out every db-tracked name (any status) and alias live, which
+    # also keeps a name that has a pending external row from double-rendering.
     # Compare on the alphanumeric-normalized slug: observational rows use hyphen
     # slugs while the canonical DB / CSV slugs use underscores, so a raw-string
     # membership test never matched and the gate let published slugs through.

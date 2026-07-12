@@ -273,20 +273,20 @@ describe('Foundational-vocabulary promotion — canonical browse view (/freestyl
 });
 
 describe('Foundational-vocabulary promotion — Emerging Vocabulary no longer counts the promoted slugs', () => {
-  it('TRACKED_UNPUBLISHED_TOTAL is bounded after promoted slugs moved to canonical-published state', async () => {
+  it('TRACKED_DOCUMENTED_TOTAL is bounded after promoted slugs moved to canonical-published state', async () => {
     // The total fluctuates: promotion waves drop it; corpus-expansion
     // waves raise it (Wave 0 added ~1700 names to the reconciliation
     // audit). The load-bearing check is slug-absence (see the next
     // assertion below); this count assertion is a sanity ceiling.
-    const { TRACKED_UNPUBLISHED_TOTAL } = await import('../../src/content/freestyleTrackedNames');
-    expect(TRACKED_UNPUBLISHED_TOTAL).toBeGreaterThan(0);
-    expect(TRACKED_UNPUBLISHED_TOTAL).toBeLessThanOrEqual(5000);
+    const { TRACKED_DOCUMENTED_TOTAL } = await import('../../src/content/freestyleTrackedNames');
+    expect(TRACKED_DOCUMENTED_TOTAL).toBeGreaterThan(0);
+    expect(TRACKED_DOCUMENTED_TOTAL).toBeLessThanOrEqual(5000);
   });
 
-  it('the 4 promoted slugs do NOT appear in TRACKED_UNPUBLISHED_NAMES', async () => {
-    const { TRACKED_UNPUBLISHED_NAMES } = await import('../../src/content/freestyleTrackedNames');
+  it('the 4 promoted slugs do NOT appear in TRACKED_DOCUMENTED_NAMES', async () => {
+    const { TRACKED_DOCUMENTED_NAMES } = await import('../../src/content/freestyleTrackedNames');
     const allTrackedSlugs = new Set<string>();
-    for (const group of TRACKED_UNPUBLISHED_NAMES) {
+    for (const group of TRACKED_DOCUMENTED_NAMES) {
       for (const name of group.names) {
         allTrackedSlugs.add(name.slug);
       }

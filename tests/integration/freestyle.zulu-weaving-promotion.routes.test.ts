@@ -12,7 +12,7 @@
  *     freestyle_trick_modifier_links, so a promoted compound linked to the set
  *     surfaces on /freestyle/sets/weaving and /freestyle/sets/zulu;
  *   - the promoted bare compounds are removed from the Emerging Vocabulary
- *     (TRACKED_UNPUBLISHED_NAMES), since they are now canonical-published.
+ *     (TRACKED_DOCUMENTED_NAMES), since they are now canonical-published.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -80,10 +80,10 @@ describe('Zulu / Weaving encyclopedia example sections derive from modifier link
 });
 
 describe('Zulu / Weaving promoted compounds leave the Emerging Vocabulary', () => {
-  it('the promoted single-modifier slugs do NOT appear in TRACKED_UNPUBLISHED_NAMES', async () => {
-    const { TRACKED_UNPUBLISHED_NAMES } = await import('../../src/content/freestyleTrackedNames');
+  it('the promoted single-modifier slugs do NOT appear in TRACKED_DOCUMENTED_NAMES', async () => {
+    const { TRACKED_DOCUMENTED_NAMES } = await import('../../src/content/freestyleTrackedNames');
     const tracked = new Set<string>();
-    for (const group of TRACKED_UNPUBLISHED_NAMES) {
+    for (const group of TRACKED_DOCUMENTED_NAMES) {
       for (const name of group.names) tracked.add(name.slug);
     }
     for (const setSlug of ['weaving', 'zulu']) {
@@ -94,9 +94,9 @@ describe('Zulu / Weaving promoted compounds leave the Emerging Vocabulary', () =
   });
 
   it('a still-held multi-modifier composition (tapping_weaving_mirage) remains tracked', async () => {
-    const { TRACKED_UNPUBLISHED_NAMES } = await import('../../src/content/freestyleTrackedNames');
+    const { TRACKED_DOCUMENTED_NAMES } = await import('../../src/content/freestyleTrackedNames');
     const tracked = new Set<string>();
-    for (const group of TRACKED_UNPUBLISHED_NAMES) {
+    for (const group of TRACKED_DOCUMENTED_NAMES) {
       for (const name of group.names) tracked.add(name.slug);
     }
     // A weaving stack whose ducking mirror is not yet canonical stays tracked;

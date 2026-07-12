@@ -116,6 +116,17 @@ jobs:
       - name: Run convention gate
         run: bash scripts/ci/assert_conventions.sh
 
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
+      # Pure source-to-generated-file currency check; the generators read no
+      # database, so this runs here (no DB build, no FOOTBAG_DB_PATH) rather than
+      # in the DB load-smoke tier.
+      - name: Assert generated content modules are current
+        run: bash scripts/ci/assert_generated_content_current.sh
+
   harness:
     name: Harness self-check
     runs-on: ubuntu-latest
@@ -192,11 +203,6 @@ jobs:
 
       - name: Assert per-table row counts
         run: python3 scripts/ci/assert_loader_row_counts.py --db ./database/footbag-ci.db
-
-      - name: Assert generated content modules are current
-        env:
-          FOOTBAG_DB_PATH: ./database/footbag-ci.db
-        run: bash scripts/ci/assert_generated_content_current.sh
 
   legacy-pytest:
     name: Legacy-data pipeline pytest (safety-guard regression gate)
