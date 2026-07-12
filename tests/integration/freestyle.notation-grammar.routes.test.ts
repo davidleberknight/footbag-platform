@@ -392,7 +392,8 @@ describe('GET /freestyle/tricks/:slug — exact_self_atom (computed agrees with 
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/trick-self-atom');
     expect(res.text).toContain('Exact: named trick / self-atom');
-    expect(res.text).toContain('(exact_self_atom)');
+    // The raw parser status value is internal QC and never renders publicly.
+    expect(res.text).not.toContain('(exact_self_atom)');
     // The earlier "Exact (self-atom)" wording must not appear; the current
     // labels distinguish self-atom tautological agreement from modifier-
     // derived structural confirmation.
@@ -500,25 +501,15 @@ describe('GET /freestyle/tricks/:slug — approximate (computed disagrees with a
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/trick-approx');
     expect(res.text).toContain('Approximate');
-    expect(res.text).toContain('(approximate)');
+    expect(res.text).not.toContain('(approximate)');
   });
 
-  it('renders parse_warnings entries inside the Diagnostic details disclosure', async () => {
+  it('never renders raw parse_warnings codes on the public page', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/trick-approx');
-    expect(res.text).toContain('Parse warnings');
-    expect(res.text).toContain('ambiguous_modifier_attachment');
-    // parse_warnings live inside the <details> block, not as a top-level
-    // sibling next to the role layers. Anchor on the disclosure.
-    const detailsStart   = res.text.indexOf('<details');
-    const detailsEnd     = res.text.indexOf('</details>', detailsStart);
-    const warningsIndex  = res.text.indexOf('Parse warnings');
-    const ambiguousIndex = res.text.indexOf('ambiguous_modifier_attachment');
-    expect(detailsStart).toBeGreaterThan(-1);
-    expect(warningsIndex).toBeGreaterThan(detailsStart);
-    expect(warningsIndex).toBeLessThan(detailsEnd);
-    expect(ambiguousIndex).toBeGreaterThan(detailsStart);
-    expect(ambiguousIndex).toBeLessThan(detailsEnd);
+    // Raw parser warning codes are internal QC and do not render publicly.
+    expect(res.text).not.toContain('Parse warnings');
+    expect(res.text).not.toContain('ambiguous_modifier_attachment');
   });
 });
 
@@ -530,7 +521,7 @@ describe('GET /freestyle/tricks/:slug — policy_dependent', () => {
     const res = await request(app).get('/freestyle/tricks/trick-policy');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Policy-dependent');
-    expect(res.text).toContain('(policy_dependent)');
+    expect(res.text).not.toContain('(policy_dependent)');
   });
 
   it('renders the Policy tokens section with each policy_tokens entry', async () => {
@@ -565,12 +556,12 @@ describe('GET /freestyle/tricks/:slug — policy_dependent', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/tricks/:slug — unresolved', () => {
-  it('shows the Unresolved status label and raw key', async () => {
+  it('shows the Unresolved status label, not the raw key', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/trick-unresolved');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Unresolved');
-    expect(res.text).toContain('(unresolved)');
+    expect(res.text).not.toContain('(unresolved)');
   });
 
   it('renders unresolved tokens in the descriptive layer only, not as a duplicate standalone section', async () => {
@@ -592,13 +583,16 @@ describe('GET /freestyle/tricks/:slug — unresolved', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/tricks/:slug — unknown add_formula_status falls back gracefully', () => {
-  it('uses the raw status value as the label when not in STATUS_LABELS', async () => {
+  it('falls back to a neutral hedge for an unknown status, never the raw value or a doc reference', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/trick-unknown-status');
     expect(res.status).toBe(200);
-    // Both the <strong> label and the parenthesized key render the raw status.
-    expect(res.text).toContain('something_new');
-    expect(res.text).toContain('(something_new)');
+    // The raw status value never renders; a neutral hedge stands in, with no
+    // internal-document reference.
+    expect(res.text).not.toContain('something_new');
+    expect(res.text).toContain('Pending review');
+    expect(res.text).toContain('Analysis status pending review.');
+    expect(res.text).not.toContain('See PROPOSAL');
   });
 });
 
@@ -610,7 +604,7 @@ describe('GET /freestyle/tricks/:slug — exact_modifier_derived (label distinct
     const res = await request(app).get('/freestyle/tricks/trick-mod-derived');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Exact: structurally derived');
-    expect(res.text).toContain('(exact_modifier_derived)');
+    expect(res.text).not.toContain('(exact_modifier_derived)');
     // The earlier "Exact (modifier-derived)" wording must not appear; the
     // current label distinguishes modifier-derived structural confirmation
     // from self-atom tautological agreement.
@@ -663,19 +657,13 @@ describe('GET /freestyle/tricks/:slug — editorial context block visibility', (
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/tricks/:slug — Diagnostic details disclosure (warning noise reduction)', () => {
-  it('places inferred_self_canonical_atom inside the Diagnostic details disclosure rather than at the top level', async () => {
+  it('never renders the inferred_self_canonical_atom warning code on the public page', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/trick-mechanical-warn');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Diagnostic details');
-    expect(res.text).toContain('inferred_self_canonical_atom');
-    // The mechanical warning must live inside <details>...</details>.
-    const detailsStart  = res.text.indexOf('<details');
-    const detailsEnd    = res.text.indexOf('</details>', detailsStart);
-    const warningIndex  = res.text.indexOf('inferred_self_canonical_atom');
-    expect(detailsStart).toBeGreaterThan(-1);
-    expect(warningIndex).toBeGreaterThan(detailsStart);
-    expect(warningIndex).toBeLessThan(detailsEnd);
+    // Raw parser warning codes are internal QC and do not render publicly.
+    expect(res.text).not.toContain('inferred_self_canonical_atom');
+    expect(res.text).not.toContain('Parse warnings');
   });
 
   it('omits the disclosure when there is nothing diagnostic to show', async () => {
@@ -731,7 +719,9 @@ describe('GET /freestyle/tricks/:slug — editorial decomposition (sumo-style: f
     // computed=5. Editorial-derived disagreement (composed=4) must NOT push
     // the status to approximate or rewrite the formula.
     expect(res.text).toContain('Exact: structurally derived');
-    expect(res.text).toContain('(exact_modifier_derived)');
+    // The status label alone proves the parser status is unchanged; the raw
+    // status key is internal QC and does not render publicly.
+    expect(res.text).not.toContain('(exact_modifier_derived)');
     expect(res.text).toContain('trick-ed-sumo(5)');
     // Parser-derived agree phrase (asserted=5, computed=5) still fires — the
     // editorial divergence and the parser agree-state are independent.

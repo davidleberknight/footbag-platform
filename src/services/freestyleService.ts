@@ -2446,8 +2446,10 @@ function shapeNotationGrammar(
   }
 
   const status = row.add_formula_status ?? 'unresolved';
+  // Unrecognized parser status: never render the raw status value or an
+  // internal-document reference on the public page; fall back to a neutral hedge.
   const statusEntry = STATUS_LABELS[status]
-    ?? { label: status, description: 'Status produced by the parser. See PROPOSAL §7.2.' };
+    ?? { label: 'Pending review', description: 'Analysis status pending review.' };
 
   const assertedAdds = row.adds !== null && /^\d+$/.test(row.adds) ? parseInt(row.adds, 10) : null;
   const computedAdds = row.computed_adds;
@@ -2479,8 +2481,10 @@ function shapeNotationGrammar(
     ? row.description.trim()
     : null;
 
-  const hasDiagnosticDetails = parseWarnings.length > 0
-    || (typeof row.jobs_notation_raw === 'string' && row.jobs_notation_raw.length > 0);
+  // Raw parse warnings are internal QC and are not rendered publicly, so the
+  // diagnostic-details block is shown only when there is raw notation to display.
+  const hasDiagnosticDetails =
+    typeof row.jobs_notation_raw === 'string' && row.jobs_notation_raw.length > 0;
 
   const editorialDecomposition = shapeEditorialDecomposition(row, dictBySlug, modifierLinks);
 

@@ -24,7 +24,6 @@
     <dt>Status</dt>
     <dd>
       <strong>{{content.notationGrammar.statusLabel}}</strong>
-      <span> ({{content.notationGrammar.status}})</span>
       <p>{{content.notationGrammar.statusDescription}}</p>
     </dd>
 
@@ -155,16 +154,6 @@
     </dl>
     {{/if}}
 
-    {{#if content.notationGrammar.parseWarnings.length}}
-    <div>
-      <h3>Parse warnings</h3>
-      <ul>
-        {{#each content.notationGrammar.parseWarnings}}
-        <li><code>{{this}}</code></li>
-        {{/each}}
-      </ul>
-    </div>
-    {{/if}}
   </details>
   {{/if}}
 
