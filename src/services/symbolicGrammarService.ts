@@ -117,6 +117,15 @@ function splitMembers(raw: string): string[] {
     .filter(s => s.length > 0);
 }
 
+// The symbolic-grammar CSVs key tricks by hyphenated slug ("around-the-world"),
+// while freestyle_tricks and every public route use the underscore canonical
+// form ("around_the_world"). Normalizing to underscore at each slug boundary is
+// what lets a compound trick resolve its memberships and equivalence clusters;
+// without it the lookup silently returns nothing and the panels never render.
+export function normalizeSymbolicSlug(slug: string): string {
+  return slug.trim().toLowerCase().replace(/-/g, '_');
+}
+
 function parseIntOrNull(raw: string): number | null {
   if (!raw || raw.trim() === '') return null;
   const n = Number.parseInt(raw, 10);
@@ -147,7 +156,7 @@ function buildCache(): Cache {
     clusterId:                 r['cluster_id'] ?? '',
     clusterLabel:              r['cluster_label'] ?? '',
     symbolicNormalization:     r['symbolic_normalization'] ?? '',
-    memberTrickSlugs:          splitMembers(r['member_trick_slugs'] ?? ''),
+    memberTrickSlugs:          splitMembers(r['member_trick_slugs'] ?? '').map(normalizeSymbolicSlug),
     ifpaDecompositionVariance: r['ifpa_decomposition_variance'] ?? '',
     addRange:                  r['add_range'] ?? '',
     anchorTopologyGroup:       r['anchor_topology_group'] ?? '',
@@ -159,7 +168,7 @@ function buildCache(): Cache {
   // Memberships — build two indexes (by trick + by group)
   const membershipRows = readTable(symbolicGrammar.groupMembership);
   const memberships: SymbolicGroupMembership[] = membershipRows.map(r => ({
-    trickSlug:        r['trick_slug'] ?? '',
+    trickSlug:        normalizeSymbolicSlug(r['trick_slug'] ?? ''),
     symbolicGroupId:  r['symbolic_group_id'] ?? '',
     membershipReason: r['membership_reason'] ?? '',
     confidence:       r['confidence'] ?? '',
@@ -305,7 +314,7 @@ export const symbolicGrammarService = {
   getMembershipsForSlug(slug: string): SymbolicGroupMembership[] {
     const c = loadOnce();
     if (!c) return [];
-    return c.membershipBySlug.get(slug) ?? [];
+    return c.membershipBySlug.get(normalizeSymbolicSlug(slug)) ?? [];
   },
 
   /**
@@ -323,7 +332,8 @@ export const symbolicGrammarService = {
   getClustersForSlug(slug: string): SymbolicEquivalenceCluster[] {
     const c = loadOnce();
     if (!c) return [];
-    return c.equivClusters.filter(cl => cl.memberTrickSlugs.includes(slug));
+    const key = normalizeSymbolicSlug(slug);
+    return c.equivClusters.filter(cl => cl.memberTrickSlugs.includes(key));
   },
 
   /**

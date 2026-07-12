@@ -21,7 +21,7 @@
  */
 import type { FreestyleTrickRow } from '../db/db';
 import { slugToHashtag } from './freestyleRecordShaping';
-import { symbolicGrammarService } from './symbolicGrammarService';
+import { symbolicGrammarService, normalizeSymbolicSlug } from './symbolicGrammarService';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Allow-list: trick slugs that render the symbolic Related Topology panel.
@@ -34,8 +34,8 @@ const SYMBOLIC_TOPOLOGY_PANEL_SLUGS: ReadonlySet<string> = new Set([
   'ripwalk',
   'dimwalk',
   'sidewalk',
-  'dada-curve',
-  'spinning-whirl',
+  'dada_curve',
+  'spinning_whirl',
   'montage',
 ]);
 
@@ -129,7 +129,7 @@ function compareAddsThenSlug(a: SymbolicTopologyPanelMember, b: SymbolicTopology
  * panel (the allow-list).
  */
 export function shouldRenderSymbolicTopologyPanel(slug: string): boolean {
-  return SYMBOLIC_TOPOLOGY_PANEL_SLUGS.has(slug);
+  return SYMBOLIC_TOPOLOGY_PANEL_SLUGS.has(normalizeSymbolicSlug(slug));
 }
 
 // ─────────────────────────────────────────────────────────────────────────

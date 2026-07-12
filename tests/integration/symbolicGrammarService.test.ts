@@ -84,6 +84,24 @@ describe('symbolicGrammarService — group memberships', () => {
   });
 });
 
+describe('symbolicGrammarService — hyphen/underscore slug normalization', () => {
+  it('resolves an underscore canonical slug against hyphenated CSV membership keys', () => {
+    // The CSV keys this trick "spinning-whirl"; the dictionary and every public
+    // route use the underscore canonical "spinning_whirl". The lookup bridges
+    // the two, and the shaped slug is the underscore form.
+    const memberships = svc.getMembershipsForSlug('spinning_whirl');
+    expect(memberships.length).toBeGreaterThan(0);
+    for (const m of memberships) expect(m.trickSlug).not.toContain('-');
+  });
+
+  it('resolves an underscore slug against a hyphenated equivalence-cluster member', () => {
+    // "dada-curve" is a wing-on-butterfly cluster member in the CSV; the route
+    // slug is "dada_curve".
+    const clusters = svc.getClustersForSlug('dada_curve');
+    expect(clusters.some(c => c.clusterId === 'wing-on-butterfly')).toBe(true);
+  });
+});
+
 describe('symbolicGrammarService — movement archetypes', () => {
   it('returns all archetypes', () => {
     const archetypes = svc.getMovementArchetypes();

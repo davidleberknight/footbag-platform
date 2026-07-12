@@ -1,9 +1,14 @@
 /**
  * Integration tests for the symbolic Related Topology panel on trick pages.
  *
+ * The dictionary keys tricks by the underscore canonical slug (spinning_whirl)
+ * while the symbolic-grammar CSVs key by hyphenated slug (spinning-whirl); the
+ * panel must resolve across that boundary, so these tests seed underscore slugs
+ * the way production does.
+ *
  * Verifies:
  *   - Panel renders on the 8 allow-listed flagship slugs (ripwalk + sidewalk +
- *     dimwalk + dada-curve + matador + phoenix + spinning-whirl + montage)
+ *     dimwalk + dada_curve + matador + phoenix + spinning_whirl + montage)
  *     when matching staging-CSV topology data exists
  *   - Panel does NOT render on non-allow-listed trick pages
  *   - Panel does NOT duplicate the canonical Related Tricks list
@@ -44,15 +49,15 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'tripwalk',   canonical_name: 'tripwalk',    adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'matador',    canonical_name: 'matador',     adds: '5', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'phoenix',    canonical_name: 'phoenix',     adds: '5', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'dada-curve', canonical_name: 'dada curve',  adds: '4', base_trick: null,        trick_family: 'dada-curve', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'dada_curve', canonical_name: 'dada curve',  adds: '4', base_trick: null,        trick_family: 'dada_curve', category: 'compound' });
 
   // whirl-rotational-topology members
   insertFreestyleTrick(db, { slug: 'whirl',                    canonical_name: 'whirl',                    adds: '3', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'spinning-whirl',           canonical_name: 'spinning whirl',           adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'paradox-whirl',            canonical_name: 'paradox whirl',            adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'ducking-whirl',            canonical_name: 'ducking whirl',            adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'stepping-whirl',           canonical_name: 'stepping whirl',           adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'symposium-whirl',          canonical_name: 'symposium whirl',          adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'spinning_whirl',           canonical_name: 'spinning whirl',           adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'paradox_whirl',            canonical_name: 'paradox whirl',            adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'ducking_whirl',            canonical_name: 'ducking whirl',            adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'stepping_whirl',           canonical_name: 'stepping whirl',           adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'symposium_whirl',          canonical_name: 'symposium whirl',          adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'mullet',                   canonical_name: 'mullet',                   adds: '6', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'montage',                  canonical_name: 'montage',                  adds: '7', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
 
@@ -71,8 +76,8 @@ const ALLOW_LISTED = [
   'ripwalk',
   'dimwalk',
   'sidewalk',
-  'dada-curve',
-  'spinning-whirl',
+  'dada_curve',
+  'spinning_whirl',
   'montage',
 ];
 
@@ -158,7 +163,7 @@ describe('symbolic Related Topology panel — service contract', () => {
   it('panel view-model includes observational layer marker', async () => {
     // Verified by HTML; deeper service-level layer-marker check lives in
     // symbolicGrammarService.test.ts.
-    const res = await request(createApp()).get('/freestyle/tricks/spinning-whirl');
+    const res = await request(createApp()).get('/freestyle/tricks/spinning_whirl');
     expect(res.status).toBe(200);
     expect(res.text).toContain('symbolic-layer-badge');
     // Unified tooltip per UX-CONSOLIDATION-1: "supplementary; does not change canonical classifications"

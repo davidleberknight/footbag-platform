@@ -35,17 +35,20 @@ beforeAll(async () => {
   //   spinning   → spinning-family      → spinning-whirl, spinning-osis, montage
   //   whirl      → whirl-rotational-topology → whirl, spinning-whirl, paradox-whirl
   //   pixie      → pixie-family         → smear, dimwalk, parkwalk, phoenix
+  // Dictionary slugs are the underscore canonical form (production shape); the
+  // symbolic-grammar CSVs key the same tricks by hyphenated slug, and the panel
+  // resolves across that boundary.
   const tricks = [
-    { slug: 'paradox-mirage',    adds: '3', base: 'mirage'    },
-    { slug: 'paradox-whirl',     adds: '4', base: 'whirl'     },
+    { slug: 'paradox_mirage',    adds: '3', base: 'mirage'    },
+    { slug: 'paradox_whirl',     adds: '4', base: 'whirl'     },
     { slug: 'matador',           adds: '5', base: 'butterfly' },
     { slug: 'mullet',            adds: '6', base: 'whirl'     },
     { slug: 'montage',           adds: '7', base: 'whirl'     },
-    { slug: 'ducking-whirl',     adds: '4', base: 'whirl'     },
-    { slug: 'ducking-osis',      adds: '4', base: 'osis'      },
+    { slug: 'ducking_whirl',     adds: '4', base: 'whirl'     },
+    { slug: 'ducking_osis',      adds: '4', base: 'osis'      },
     { slug: 'phoenix',           adds: '5', base: 'butterfly' },
-    { slug: 'spinning-whirl',    adds: '4', base: 'whirl'     },
-    { slug: 'spinning-osis',     adds: '4', base: 'osis'      },
+    { slug: 'spinning_whirl',    adds: '4', base: 'whirl'     },
+    { slug: 'spinning_osis',     adds: '4', base: 'osis'      },
     { slug: 'whirl',             adds: '3', base: 'whirl'     },
     { slug: 'smear',             adds: '3', base: 'mirage'    },
     { slug: 'dimwalk',           adds: '4', base: 'butterfly' },
@@ -54,7 +57,7 @@ beforeAll(async () => {
   for (const t of tricks) {
     insertFreestyleTrick(db, {
       slug:           t.slug,
-      canonical_name: t.slug.replace(/-/g, ' '),
+      canonical_name: t.slug.replace(/[-_]/g, ' '),
       adds:           t.adds,
       base_trick:     t.base,
       trick_family:   t.base,
@@ -118,13 +121,13 @@ describe('GET /freestyle/glossary — connective panels section', () => {
 
   it('renders related-tricks chips for each panel that has members', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    // paradox panel should link to paradox-mirage or paradox-whirl
+    // paradox panel should link to paradox_mirage or paradox_whirl
     const paradoxStart = res.text.indexOf('id="glossary-panel-paradox"');
     const symposiumStart = res.text.indexOf('id="glossary-panel-symposium"');
     expect(paradoxStart).toBeGreaterThan(-1);
     expect(symposiumStart).toBeGreaterThan(paradoxStart);
     const paradoxSlice = res.text.substring(paradoxStart, symposiumStart);
-    expect(paradoxSlice).toMatch(/href="\/freestyle\/tricks\/paradox-/);
+    expect(paradoxSlice).toMatch(/href="\/freestyle\/tricks\/paradox_/);
   });
 
   it('each panel includes a "Used in these tricks" section label when tricks present', async () => {
