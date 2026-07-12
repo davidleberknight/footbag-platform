@@ -64,10 +64,10 @@ describe('GET /freestyle/learn', () => {
     expect(res.text).toContain('Educational pathways through freestyle footbag');
   });
 
-  it('renders the start-here foundational path: the six pages in learning order, linked, above the advanced pathways', async () => {
+  it('renders the start-here beginner-lessons path: the six lessons in learning order, linked, above the advanced pathways', async () => {
     const res = await request(createApp()).get('/freestyle/learn');
-    expect(res.text).toContain('Start here: the six foundations');
-    // The six foundational pages appear in learning order, each linked to its family page.
+    expect(res.text).toContain('Start here: six beginner lessons');
+    // The six beginner lessons appear in learning order, each linked to its family page.
     const order = ['mirage', 'butterfly', 'whirl', 'osis', 'swirl', 'down'];
     let last = -1;
     for (const slug of order) {
@@ -76,7 +76,7 @@ describe('GET /freestyle/learn', () => {
       last = at;
     }
     // The start-here path sits above the more advanced Progressions section.
-    expect(res.text.indexOf('Start here: the six foundations')).toBeLessThan(res.text.indexOf('Progressions'));
+    expect(res.text.indexOf('Start here: six beginner lessons')).toBeLessThan(res.text.indexOf('Progressions'));
   });
 
   it('renders all three sections in order: Progressions, Modifier pedagogy, Reference surfaces', async () => {

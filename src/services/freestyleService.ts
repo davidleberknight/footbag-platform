@@ -9602,7 +9602,7 @@ export const freestyleService = {
             { label: 'By modifier / set', note: 'grouped by the layers added' },
           ],
           links: [
-            { label: 'Start with the six foundations', href: '/freestyle/learn' },
+            { label: 'Start with six beginner lessons', href: '/freestyle/learn' },
             { label: 'What is an ADD?', href: '/freestyle/glossary#section-add-accounting' },
             { label: 'How trick names work', href: '/freestyle/glossary#section-notation' },
             { label: 'How to read the dictionary', href: '/freestyle/glossary#section-reading-the-dictionary' },

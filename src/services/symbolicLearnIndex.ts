@@ -44,7 +44,7 @@ export interface FoundationalPath {
 export interface SymbolicLearnIndexContent {
   pageHeading:   string;
   pageIntro:     string;
-  // The beginner start-here path: the six foundational pages in reading order,
+  // The beginner start-here path: the six beginner lessons in reading order,
   // rendered before the more advanced pathways below.
   foundationalPath: FoundationalPath;
   // Operator-board orientation strip rendered before the section list, as the
@@ -54,11 +54,13 @@ export interface SymbolicLearnIndexContent {
   layerSource:   'observational';
 }
 
-// The six foundational pages, in learning order: each teaches one idea the rest of
+// The six beginner lessons, in learning order: each teaches one idea the rest of
 // the sport is built on, walking from the simplest dexterity to how the vocabulary
-// is organized. Order and lessons are the curator-set foundational curriculum.
+// is organized. "Foundations" is reserved for the twelve foundational movements on
+// the landing page; this six-page path is the beginner lessons. Order and lessons
+// are the curator-set beginner curriculum.
 const FOUNDATIONAL_PATH: FoundationalPath = {
-  heading: 'Start here: the six foundations',
+  heading: 'Start here: six beginner lessons',
   intro:
     'New to freestyle? Read these six pages in order. Each teaches one idea the rest of the sport is built on, and together they are the shortest path from your first dexterity to how the whole vocabulary fits together.',
   steps: [

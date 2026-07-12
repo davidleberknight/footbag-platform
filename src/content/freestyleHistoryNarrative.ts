@@ -151,7 +151,7 @@ export const HISTORY_NARRATIVE: HistoryNarrative = {
     { label: 'Records', href: '/freestyle/records' },
   ],
   whereNext: [
-    { label: 'Start with the six foundations', href: '/freestyle/learn' },
+    { label: 'Start with six beginner lessons', href: '/freestyle/learn' },
     { label: 'Browse the Trick Dictionary', href: '/freestyle/tricks' },
     { label: 'The Glossary', href: '/freestyle/glossary' },
   ],
