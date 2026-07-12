@@ -263,8 +263,24 @@ import {
 } from '../content/freestyleResolvedFormulas';
 import {
   FREESTYLE_COMBO_ANALYSIS_CONTENT,
+  RUN_QUALITY_ENTRIES,
   type ComboAnalysisContent,
+  type ComboAnalysisRunQualityEntry,
 } from '../content/freestyleComboAnalysisContent';
+
+// The numeric run-quality ladder for the glossary: Tiltless through Godly, each
+// defined by the minimum ADD every trick in a run must reach. Genuine and BOP are
+// deliberately excluded because they are not floor-of-ADD tiers (Genuine is
+// Guiltless minus BOP; BOP is a named trick set); the combo-analysis authority
+// carries all of them. Sourced from that authority so the definitions have one home.
+const RUN_QUALITY_LADDER: readonly ComboAnalysisRunQualityEntry[] = [
+  'run-quality-tiltless', 'run-quality-guiltless', 'run-quality-tripless',
+  'run-quality-fearless', 'run-quality-beastly', 'run-quality-godly',
+].map(anchor => {
+  const entry = RUN_QUALITY_ENTRIES.find(e => e.anchorId === anchor);
+  if (!entry) throw new Error(`run-quality ladder anchor missing from authority: ${anchor}`);
+  return entry;
+});
 import {
   OBSERVATIONAL_TRICKS,
 } from '../content/freestyleObservationalTricks';
@@ -4068,6 +4084,9 @@ export interface FreestyleGlossaryContent {
   // Core Concept card rendered in the Notation section: additive scoring and
   // the bracket-count checksum (its reveal lands here, where the notation is).
   addConcept: GlossaryConceptCardVM;
+  // The numeric run-quality ladder (Tiltless through Godly) rendered in the ADD
+  // philosophy section. Genuine and BOP are handled separately in the template.
+  runQualityLadder: readonly ComboAnalysisRunQualityEntry[];
 }
 
 /** A Core Concept glossary card: a Line always visible plus a "how it relates"
@@ -10074,6 +10093,8 @@ export const freestyleService = {
         compositionConcept:   shapeGlossaryConcept('composition'),
         // Core Concept card for the Notation section.
         addConcept:           shapeGlossaryConcept('add'),
+        // The numeric run-quality ladder, from the combo-analysis authority.
+        runQualityLadder:     RUN_QUALITY_LADDER,
       },
     };
   },

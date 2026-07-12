@@ -120,7 +120,7 @@ const RUN_QUALITY_INTRO =
   'not the difficulty of any individual trick. A "guiltless" run means every trick ' +
   'in it cleared the 3-ADD threshold; the term says nothing about which specific tricks.';
 
-const RUN_QUALITY_ENTRIES: readonly ComboAnalysisRunQualityEntry[] = [
+export const RUN_QUALITY_ENTRIES: readonly ComboAnalysisRunQualityEntry[] = [
   { anchorId: 'run-quality-tiltless',  term: 'Tiltless',  definition: 'Every trick in the run reaches at least ADD 2.' },
   { anchorId: 'run-quality-guiltless', term: 'Guiltless', definition: 'Every trick reaches at least ADD 3.' },
   { anchorId: 'run-quality-tripless',  term: 'Tripless',  definition: 'Every trick reaches at least ADD 4.' },

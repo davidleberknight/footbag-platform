@@ -1798,10 +1798,32 @@
     <p>
       For the full mechanical walkthrough with all resolved formulas,
       see <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
-      For run-quality tiers (Tiltless, Guiltless, Tripless, Fearless,
-      Beastly, Godly, Genuine, BOP) and competitive formats (Sick3,
-      Shred:30, Circle), see
-      <a href="/freestyle/combo-analysis">Combo Analysis</a>.
+    </p>
+
+    <h4 class="section-heading" id="run-quality-ladder">Run-quality ladder</h4>
+    <p class="detail-muted">
+      A run-quality tier describes a whole run, not a single trick. Each tier
+      asks every trick in the run to clear a minimum ADD, so the
+      <strong>lowest-ADD trick in the run sets the tier</strong>: one easy trick
+      caps the whole run.
+    </p>
+    <dl class="glossary-term-list">
+      {{#each content.runQualityLadder}}
+      <dt>{{term}}</dt>
+      <dd>{{definition}}</dd>
+      {{/each}}
+    </dl>
+    <p class="detail-muted">
+      Example: a run of ADD 5, 3, and 6 tricks is <strong>Guiltless</strong>
+      (every trick reaches at least 3), not Fearless, because the ADD-3 trick is
+      the floor.
+    </p>
+    <p class="detail-muted">
+      <strong>Genuine</strong> and <strong>BOP</strong> are related terms, not
+      rungs of this numeric ladder: Genuine is Guiltless excluding BOP tricks,
+      and BOP is the Butterfly, Osis, and Paradox Mirage set. For applying these
+      tiers and the competitive formats (Sick3, Shred:30, Circle) to real runs,
+      see <a href="/freestyle/combo-analysis">Combo Analysis</a>.
     </p>
     </div>
   </section>
