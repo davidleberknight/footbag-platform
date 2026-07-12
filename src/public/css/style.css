@@ -4961,6 +4961,74 @@ section.home-media { padding-top: 0; }
   margin: 4px 0 16px;
 }
 
+/* "Eight closest relatives" figure (Dexterities): the eight foundational one-dex
+   toe tricks, each showing the three tricks one movement change away. A teaching
+   figure, not an analytics chart; cards stack on narrow screens. */
+.glossary-neighbor-figure {
+  margin: 8px 0 20px;
+}
+.glossary-neighbor-figure-caption {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  max-width: 60ch;
+}
+.glossary-neighbor-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.glossary-neighbor-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-light);
+  padding: 12px 14px;
+}
+.glossary-neighbor-card-trick {
+  display: block;
+  font-weight: 600;
+  color: var(--primary-ink);
+  text-decoration: none;
+  margin-bottom: 8px;
+}
+.glossary-neighbor-card-trick:hover {
+  color: var(--primary-ink-dk);
+  text-decoration: underline;
+}
+.glossary-neighbor-moves {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.glossary-neighbor-move {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.glossary-neighbor-change {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+.glossary-neighbor-dest {
+  color: var(--primary-ink);
+  text-decoration: none;
+}
+.glossary-neighbor-dest::before {
+  content: "\2192\00a0";
+  color: var(--text-subtle);
+}
+.glossary-neighbor-dest:hover {
+  text-decoration: underline;
+}
+
 /* Glossary chapters: a compact table of contents of independently collapsible
    sections. Each summary is a chapter title plus a one-line description; the
    stack of ten reads as a tidy list, not ten heavy cards. Opening a chapter

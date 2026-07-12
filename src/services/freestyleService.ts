@@ -104,6 +104,7 @@ import {
   baseAtomCrossLinkFor,
 } from './freestyleRelatedTricks';
 import { StructuralNeighbors, buildStructuralNeighbors } from './freestyleAdjacency';
+import { movementNeighborsFor } from './freestyleMovementNeighbors';
 import {
   SymbolicRelatedTopologyPanel,
   SymbolicEducationCta,
@@ -3909,6 +3910,53 @@ function buildFamilyCardTierGroups(): FamilyCardTierGroup[] {
   return groups;
 }
 
+/** One "change one thing" move in the movement-neighbor figure: the plain-language
+ *  change and the neighbor trick it lands on. */
+export interface GlossaryMovementNeighborMove {
+  changeLabel: string;   // e.g. "Reverse the direction the leg circles"
+  toName:      string;   // the neighbor trick's canonical name
+  toHref:      string;   // /freestyle/tricks/<neighbor-slug>
+}
+
+/** One card in the "eight closest relatives" figure: a foundational trick and the
+ *  three tricks one movement change away from it. */
+export interface GlossaryMovementNeighborCard {
+  name:  string;         // this trick's canonical name
+  href:  string;         // /freestyle/tricks/<slug>
+  moves: GlossaryMovementNeighborMove[];  // exactly three, one per movement aspect
+}
+
+export interface GlossaryMovementNeighbors {
+  cards: GlossaryMovementNeighborCard[];  // the eight one-dex toe tricks
+}
+
+// Reading order for the eight cards: the four direction-reverse pairs kept
+// adjacent, so a reader sees each pair (mirage/illusion, pixie/fairy, and so on)
+// side by side.
+const MOVEMENT_NEIGHBOR_CARD_ORDER = [
+  'mirage', 'illusion', 'pixie', 'fairy',
+  'around_the_world', 'orbit', 'pickup', 'legover',
+] as const;
+
+/** Shape the "eight closest relatives" figure from the movement-neighbor relation,
+ *  resolving each slug to its canonical name and detail href against the active
+ *  dictionary. */
+function shapeMovementNeighbors(allDictRows: FreestyleTrickRow[]): GlossaryMovementNeighbors {
+  const nameBySlug = new Map(allDictRows.map(r => [r.slug, r.canonical_name]));
+  const nameFor = (slug: string) => nameBySlug.get(slug) ?? slug;
+  const hrefFor = (slug: string) => `/freestyle/tricks/${slug}`;
+  const cards = MOVEMENT_NEIGHBOR_CARD_ORDER.map(slug => ({
+    name: nameFor(slug),
+    href: hrefFor(slug),
+    moves: (movementNeighborsFor(slug) ?? []).map(n => ({
+      changeLabel: n.changeLabel,
+      toName:      nameFor(n.slug),
+      toHref:      hrefFor(n.slug),
+    })),
+  }));
+  return { cards };
+}
+
 export interface FreestyleGlossaryContent {
   // Operator-board orientation strip embedded in §3 ("How Tricks Are Built").
   // Shared partial with the landing page; surface-specific heading + lede.
@@ -4006,6 +4054,10 @@ export interface FreestyleGlossaryContent {
   // side axes as three-layer entries (Line + collapsibles).
   directionConcept: GlossaryConceptCardVM;
   sideConcept:      GlossaryConceptCardVM;
+  // The "eight closest relatives" figure rendered in the Dexterities section:
+  // the eight foundational one-dex toe tricks, each with the three tricks one
+  // movement change away. Sourced from the movement-neighbor relation.
+  movementNeighbors: GlossaryMovementNeighbors;
   // Core Concept card rendered in the Surfaces section: the cross-body body
   // relationship that defines the clipper.
   crossBodyConcept: GlossaryConceptCardVM;
@@ -10013,6 +10065,8 @@ export const freestyleService = {
         // pre-shaped so the template branches on a boolean, not field presence.
         directionConcept: shapeGlossaryConcept('direction'),
         sideConcept:      shapeGlossaryConcept('side'),
+        // The "eight closest relatives" movement-neighbor figure.
+        movementNeighbors: shapeMovementNeighbors(allDictRows),
         // Core Concept card for the Surfaces section.
         crossBodyConcept: shapeGlossaryConcept('cross-body'),
         // Core Concept cards for the Operators & Modifiers section.

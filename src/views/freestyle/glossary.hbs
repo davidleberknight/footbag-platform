@@ -483,6 +483,30 @@
       <dd>Performing a dex on the far / opposite side does not by itself add difficulty. <a href="#term-x-dex">X-Dex</a> is a separate +1 scored only where the operational notation carries <code>[XDEX]</code>. A far dex changes the side but not the score unless the notation marks it <code>[XDEX]</code>.</dd>
     </dl>
 
+    <h3 class="section-heading">The eight closest relatives</h3>
+    <figure class="glossary-neighbor-figure">
+      <figcaption class="glossary-neighbor-figure-caption">
+        Start with any of these eight foundational tricks. Change just one thing
+        about the movement, the direction the leg circles or one of the two
+        sides, and you land on another of the eight.
+      </figcaption>
+      <ul class="glossary-neighbor-grid">
+        {{#each content.movementNeighbors.cards}}
+        <li class="glossary-neighbor-card">
+          <a class="glossary-neighbor-card-trick" href="{{href}}">{{name}}</a>
+          <ul class="glossary-neighbor-moves">
+            {{#each moves}}
+            <li class="glossary-neighbor-move">
+              <span class="glossary-neighbor-change">{{changeLabel}}</span>
+              <a class="glossary-neighbor-dest" href="{{toHref}}">{{toName}}</a>
+            </li>
+            {{/each}}
+          </ul>
+        </li>
+        {{/each}}
+      </ul>
+    </figure>
+
     <h3 class="section-heading">Execution window</h3>
     <p>The phantom space the leg draws around the bag while the dex is performed. The terms below describe where in that space the dex lives.</p>
     <dl class="glossary-term-list">
