@@ -72,6 +72,10 @@ adminRouter.post('/freestyle/tips/:id/edit',    adminFreestyleController.editTip
 adminRouter.post('/freestyle/tips/:id/hide',    adminFreestyleController.hideTip);
 adminRouter.post('/freestyle/tips/:id/restore', adminFreestyleController.restoreTip);
 adminRouter.post('/freestyle/tips/:id/remap',   adminFreestyleController.remapTip);
+// Dictionary provenance-source registry: list the existing sources and create one
+// (the trick-dictionary provenance registry, distinct from the media-source registry).
+adminRouter.get('/freestyle/sources',           adminFreestyleController.sources);
+adminRouter.post('/freestyle/sources',          adminFreestyleController.createSource);
 adminRouter.get('/freestyle/records',              adminFreestyleController.recordsIndex);
 adminRouter.get('/freestyle/records/new',          adminFreestyleController.recordNew);
 adminRouter.post('/freestyle/records',             adminFreestyleController.recordCreate);

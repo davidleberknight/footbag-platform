@@ -17,12 +17,16 @@
  *     text, hiding a tip and restoring it (a reversible status change, never a
  *     delete), and remapping a tip to an active canonical trick while preserving
  *     the original mapping as audit-trail provenance.
+ *   - Creation of dictionary provenance-source registry rows: listing the existing
+ *     sources and creating a new one with a curator-supplied permanent id, so
+ *     post-cutover media and assertions can cite a new source. Editing, deleting,
+ *     and merging sources are not owned here.
  *
  * Does not own:
  *   - The public freestyle section pages (FreestyleService is public, read-only).
  *   - Freestyle ontology and doctrine (the content modules and doctrine docs).
- *   - The source and modifier registries themselves (new provenance-source or
- *     modifier rows are not created here).
+ *   - The modifier registry itself (new modifier rows are not created here), and
+ *     the separate media-source registry.
  *
  * Write discipline: updateTrickScalars validates the submitted fields for row
  * shape (canonical name required, ADD numeric/empty/"modifier", category and
@@ -63,13 +67,22 @@
  * metadata. Each tip write and its one audit entry commit together, behind the same
  * persona guard.
  *
+ * Source creation write discipline: createSource takes a curator-supplied id and
+ * validates it as the permanent primary key (lowercase letters, digits, hyphen,
+ * underscore; first and last character alphanumeric; unique, a duplicate rejected
+ * distinctly). The source type must be one of the documented values, the label is
+ * required, and the retrieval timestamp is required in the ISO-8601 UTC form the
+ * existing rows use and is never silently defaulted. URL and notes are optional.
+ * The insert and its one audit entry commit together behind the persona guard.
+ *
  * Persistence: reads and writes freestyle_tricks, freestyle_trick_aliases,
- * freestyle_trick_source_links, freestyle_trick_modifier_links, and
- * freestyle_trick_tips; reads freestyle_trick_sources and freestyle_trick_modifiers.
- * Appends freestyle.trick.updated, freestyle.trick_alias.created/deleted,
+ * freestyle_trick_source_links, freestyle_trick_modifier_links, freestyle_trick_tips,
+ * and freestyle_trick_sources; reads freestyle_trick_modifiers. Appends
+ * freestyle.trick.updated, freestyle.trick_alias.created/deleted,
  * freestyle.trick_source_link.created/deleted,
- * freestyle.trick_modifier_link.created/deleted, and
- * freestyle.trick_tip.edited/hidden/restored/remapped to audit_entries.
+ * freestyle.trick_modifier_link.created/deleted,
+ * freestyle.trick_tip.edited/hidden/restored/remapped, and
+ * freestyle.trick_source.created to audit_entries.
  */
 import {
   freestyleTricks,
@@ -449,6 +462,62 @@ function shapeTipModerationRow(r: TipModerationDbRow): TipModerationRow {
     isUnresolved:   !isPublished && !isHidden,
     unresolvedName: hasUnresolvedSlug ? r.trick_slug.slice('unresolved:'.length) : '',
   };
+}
+
+const SOURCE_ID_MAX = 100;
+const SOURCE_LABEL_MAX = 200;
+const SOURCE_URL_MAX = 500;
+const SOURCE_NOTES_MAX = PROSE_MAX;
+const SOURCE_TYPES = ['curated', 'scraped', 'expert', 'imported'];
+
+// A curator-supplied source id is a permanent primary key referenced by the
+// trick-to-source links, so it can never be renamed through this surface and its
+// shape is constrained: lowercase letters, digits, hyphen, and underscore,
+// beginning and ending with a letter or digit.
+const SOURCE_ID_PATTERN = /^[a-z0-9]([a-z0-9_-]*[a-z0-9])?$/;
+// The retrieval timestamp matches the ISO-8601 UTC form the existing source rows
+// carry, for example 2026-04-20T00:00:00.000Z.
+const SOURCE_RETRIEVED_AT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+interface SourceCurationDbRow {
+  id: string;
+  source_type: string;
+  source_label: string;
+  source_url: string | null;
+  retrieved_at: string;
+  notes: string | null;
+}
+
+export interface FreestyleSourceInput {
+  id?: string;
+  sourceType?: string;
+  sourceLabel?: string;
+  sourceUrl?: string;
+  retrievedAt?: string;
+  notes?: string;
+}
+
+export interface FreestyleSourceRegistryRow {
+  id: string;
+  sourceType: string;
+  sourceLabel: string;
+  sourceUrl: string;
+  retrievedAt: string;
+  notes: string;
+}
+
+export interface FreestyleSourceRegistryContent {
+  rows: FreestyleSourceRegistryRow[];
+  totalCount: number;
+  hasRows: boolean;
+  typeOptions: FilterOption[];
+  // The form's submitted values on a re-render (so a rejected create preserves
+  // what the curator typed), any inline error, and the retrieval-timestamp field
+  // value: the submitted value when re-rendering, otherwise a current-timestamp
+  // prefill the curator confirms or edits before submitting.
+  submitted: FreestyleSourceInput;
+  retrievedAtValue: string;
+  error?: string;
 }
 
 export const freestyleCurationService = {
@@ -1187,6 +1256,117 @@ export const freestyleCurationService = {
         metadata:      { tipId, fromSlug, fromStatus: tip.status, toSlug: targetSlug },
       });
     });
+  },
+
+  // The dictionary provenance-source registry: the existing registry rows plus the
+  // create form. This is the trick-dictionary provenance registry (who or what
+  // asserted a trick's existence, ADD, or notation), distinct from the separate
+  // media-source registry. Read-only; no persona guard on the read. `opts` re-renders
+  // the create form after a validation failure with the submitted values and error.
+  getSourceRegistryPage(opts: { submitted?: FreestyleSourceInput; error?: string } = {}): PageViewModel<FreestyleSourceRegistryContent> {
+    const dbRows = freestyleTrickSources.listForCuration.all() as SourceCurationDbRow[];
+    const rows: FreestyleSourceRegistryRow[] = dbRows.map((r) => ({
+      id:          r.id,
+      sourceType:  r.source_type,
+      sourceLabel: r.source_label,
+      sourceUrl:   r.source_url ?? '',
+      retrievedAt: r.retrieved_at,
+      notes:       r.notes ?? '',
+    }));
+    const submitted = opts.submitted ?? {};
+    const typeOptions: FilterOption[] = SOURCE_TYPES.map((t) => ({
+      value: t, label: t, selected: submitted.sourceType === t,
+    }));
+
+    return {
+      seo:  { title: 'Freestyle Sources' },
+      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_sources', title: 'Dictionary Provenance Source Creation' },
+      content: {
+        rows,
+        totalCount: rows.length,
+        hasRows: rows.length > 0,
+        typeOptions,
+        submitted,
+        retrievedAtValue: (submitted.retrievedAt ?? '').trim() || new Date().toISOString(),
+        error: opts.error,
+      },
+    };
+  },
+
+  // Create one dictionary provenance-source row. The curator supplies the id, which
+  // becomes the permanent primary key the trick-to-source links reference, so it is
+  // shape-validated and must be unique; a duplicate is rejected distinctly. The
+  // source type must be one of the documented values, the label is required, and the
+  // retrieval timestamp is required in the ISO-8601 UTC form the existing rows use
+  // (never silently defaulted, since it is provenance that may describe an earlier
+  // retrieval). URL and notes are optional. The insert and its audit entry commit in
+  // one transaction behind the persona guard; no other row is created or edited.
+  createSource(input: FreestyleSourceInput, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
+
+    const id = (input.id ?? '').trim();
+    if (!id) {
+      throw new ValidationError('Source ID is required.');
+    }
+    if (id.length > SOURCE_ID_MAX) {
+      throw new ValidationError(`Source ID must be ${SOURCE_ID_MAX} characters or fewer.`);
+    }
+    if (!SOURCE_ID_PATTERN.test(id)) {
+      throw new ValidationError('Source ID may use only lowercase letters, digits, hyphens, and underscores, and must begin and end with a letter or digit.');
+    }
+    if (freestyleTrickSources.getById.get(id)) {
+      throw new ValidationError(`Source ID "${id}" already exists. A source ID is a permanent identifier and must be unique.`);
+    }
+
+    const sourceType = (input.sourceType ?? '').trim();
+    if (!SOURCE_TYPES.includes(sourceType)) {
+      throw new ValidationError('Choose a source type from the list.');
+    }
+
+    const sourceLabel = (input.sourceLabel ?? '').trim();
+    if (!sourceLabel) {
+      throw new ValidationError('Source label is required.');
+    }
+    if (sourceLabel.length > SOURCE_LABEL_MAX) {
+      throw new ValidationError(`Source label must be ${SOURCE_LABEL_MAX} characters or fewer.`);
+    }
+
+    const retrievedAt = (input.retrievedAt ?? '').trim();
+    if (!retrievedAt) {
+      throw new ValidationError('A retrieval timestamp is required.');
+    }
+    if (!SOURCE_RETRIEVED_AT_PATTERN.test(retrievedAt) || Number.isNaN(Date.parse(retrievedAt))) {
+      throw new ValidationError('The retrieval timestamp must be an ISO-8601 UTC value such as 2026-04-20T00:00:00.000Z.');
+    }
+
+    const sourceUrl = (input.sourceUrl ?? '').trim();
+    if (sourceUrl.length > SOURCE_URL_MAX) {
+      throw new ValidationError(`Source URL must be ${SOURCE_URL_MAX} characters or fewer.`);
+    }
+    const notes = (input.notes ?? '').trim();
+    if (notes.length > SOURCE_NOTES_MAX) {
+      throw new ValidationError(`Notes must be ${SOURCE_NOTES_MAX} characters or fewer.`);
+    }
+
+    try {
+      transaction(() => {
+        freestyleTrickSources.insert.run(id, sourceType, sourceLabel, sourceUrl || null, retrievedAt, notes || null);
+        appendAuditEntry({
+          actionType:    'freestyle.trick_source.created',
+          category:      'content',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'freestyle_trick_source',
+          entityId:      id,
+          metadata:      { id, sourceType, sourceLabel },
+        });
+      });
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        throw new ValidationError(`Source ID "${id}" already exists.`);
+      }
+      throw err;
+    }
   },
 };
 

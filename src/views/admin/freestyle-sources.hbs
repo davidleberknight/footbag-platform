@@ -1,0 +1,83 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="text-muted">Create a provenance source for the freestyle trick dictionary, so a new source can be cited when linking it to a trick. This is the dictionary provenance registry (who or what asserted a trick's existence, ADD, or notation), not the separate media-source registry. {{content.totalCount}} source(s).</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <h2 class="section-heading">New source</h2>
+
+    {{#if content.error}}
+    <div class="form-error-banner">
+      <p>{{content.error}}</p>
+    </div>
+    {{/if}}
+
+    <form method="POST" action="/admin/freestyle/sources" class="freestyle-edit-form">
+      <p>
+        <label>Source ID</label><br>
+        <input type="text" name="id" value="{{content.submitted.id}}" placeholder="e.g. anz-trikz-2026" />
+        <span class="text-muted fs-sm">Lowercase letters, digits, hyphens, and underscores; must begin and end with a letter or digit. This becomes a permanent referenced identifier and cannot be renamed through this surface.</span>
+      </p>
+      <p>
+        <label>Source type</label><br>
+        <select name="sourceType">
+          <option value="">Choose a type</option>
+          {{#each content.typeOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </p>
+      <p>
+        <label>Source label</label><br>
+        <input type="text" name="sourceLabel" value="{{content.submitted.sourceLabel}}" placeholder="Human-readable description" />
+      </p>
+      <p>
+        <label>Retrieved at</label><br>
+        <input type="text" name="retrievedAt" value="{{content.retrievedAtValue}}" />
+        <span class="text-muted fs-sm">ISO-8601 UTC, e.g. 2026-04-20T00:00:00.000Z. Prefilled with now; change it if the source was retrieved earlier.</span>
+      </p>
+      <p>
+        <label>Source URL (optional)</label><br>
+        <input type="text" name="sourceUrl" value="{{content.submitted.sourceUrl}}" />
+      </p>
+      <p>
+        <label>Notes (optional)</label><br>
+        <textarea name="notes" rows="2">{{content.submitted.notes}}</textarea>
+      </p>
+      <p><button type="submit" class="btn btn-primary btn-sm">Create Source</button></p>
+    </form>
+
+    <h2 class="section-heading mt-6">Existing sources</h2>
+    {{#if content.hasRows}}
+      <table class="freestyle-admin-table mt-2">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Label</th>
+            <th>URL</th>
+            <th>Retrieved at</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.rows}}
+            <tr>
+              <td><code>{{this.id}}</code></td>
+              <td>{{this.sourceType}}</td>
+              <td>{{this.sourceLabel}}</td>
+              <td>{{this.sourceUrl}}</td>
+              <td>{{this.retrievedAt}}</td>
+              <td>{{this.notes}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <p class="text-muted mt-2">No sources yet.</p>
+    {{/if}}
+  </section>
+</div>

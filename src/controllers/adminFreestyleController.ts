@@ -5,6 +5,7 @@ import {
   FreestyleAliasInput,
   FreestyleSourceLinkInput,
   FreestyleModifierLinkInput,
+  FreestyleSourceInput,
 } from '../services/freestyleCurationService';
 import {
   freestyleRecordCurationService,
@@ -482,6 +483,43 @@ export const adminFreestyleController = {
   remapTip(req: Request, res: Response, next: NextFunction): void {
     handleTipAction(req, res, next, (id, actor) =>
       freestyleCurationService.remapTip(id, str(req.body.targetSlug), actor));
+  },
+
+  // The dictionary provenance-source registry: the existing sources plus the
+  // create form.
+  sources(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-sources', freestyleCurationService.getSourceRegistryPage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Create one provenance source. Success redirects to the registry; a validation
+  // failure re-renders the create form (422) with the submitted values and an
+  // inline error.
+  createSource(req: Request, res: Response, next: NextFunction): void {
+    const input: FreestyleSourceInput = {
+      id:          str(req.body.id),
+      sourceType:  str(req.body.sourceType),
+      sourceLabel: str(req.body.sourceLabel),
+      sourceUrl:   str(req.body.sourceUrl),
+      retrievedAt: str(req.body.retrievedAt),
+      notes:       str(req.body.notes),
+    };
+    try {
+      freestyleCurationService.createSource(input, req.user!.userId);
+      res.redirect(303, '/admin/freestyle/sources');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/freestyle-sources', freestyleCurationService.getSourceRegistryPage({
+          submitted: input,
+          error: err.message,
+        }));
+        return;
+      }
+      next(err);
+    }
   },
 };
 

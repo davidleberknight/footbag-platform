@@ -2459,6 +2459,22 @@ export const freestyleTrickSources = {
     SELECT id, source_label FROM freestyle_trick_sources
     ORDER BY source_label COLLATE NOCASE
   `); },
+  // Full rows for the admin provenance-source registry surface.
+  get listForCuration() { return db.prepare(`
+    SELECT id, source_type, source_label, source_url, retrieved_at, notes
+    FROM freestyle_trick_sources
+    ORDER BY id COLLATE NOCASE
+  `); },
+  get getById() { return db.prepare(`
+    SELECT id, source_type, source_label, source_url, retrieved_at, notes
+    FROM freestyle_trick_sources WHERE id = ?
+  `); },
+  // Create one registry source. The id is the curator-supplied permanent primary
+  // key; the write and its audit entry commit in one transaction at the service.
+  get insert() { return db.prepare(`
+    INSERT INTO freestyle_trick_sources (id, source_type, source_label, source_url, retrieved_at, notes)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `); },
 };
 
 // Trick-to-source links, joined to the source registry. The admin curation edit
