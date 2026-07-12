@@ -131,7 +131,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   TAPPING:   'Tapping, body modifier (+1 ADD; distinct from Stepping)',
   DIVING:    'Diving, body modifier (+1 ADD)',
   BLAZING:   'Blazing, body modifier (+1 ADD)',
-  BARRAGING: 'Barraging, body modifier (+1 ADD; underlies Flurry)',
+  BARRAGING: 'Barraging, a historical naming pattern for Furious-set structures, not a separately scored operator; where a trick is ruled Furious, ADD decomposition uses Furious (+2)',
   WEAVING:   'Weaving, body modifier (+1 ADD)',
   MIRAGING:  'Miraging, historical mirage-family nickname (+1 ADD; not a canonical set)',
   BACKSIDE:  'Backside, body modifier (+1 ADD; Symposium-equivalent)',
