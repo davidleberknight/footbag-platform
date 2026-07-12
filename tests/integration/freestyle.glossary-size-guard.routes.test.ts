@@ -22,6 +22,17 @@
  * without changing the rendered byte count. If the glossary ever renders either,
  * regenerate with their real values so the guard stays representative.
  *
+ * Maintenance contract for the snapshot:
+ *   - It is a test fixture, not a content authority. Nothing reads it at
+ *     runtime, and no dictionary or naming decision is ever made from it.
+ *   - Its regeneration path is the query above, run against the built database:
+ *     deterministic and documented. The fixture is never hand-edited.
+ *   - A dictionary change that affects the glossary regenerates the fixture
+ *     through that path, rather than editing rows in place.
+ *   - A regenerated fixture is reviewed for its new rendered byte baseline, and
+ *     the ceiling is bumped (with a new baseline entry) if the render grew past
+ *     it, so page growth is never absorbed silently.
+ *
  * Baseline history (representative full-dictionary render). The ceiling sits a
  * documented margin above the baseline; a future addition that pushes past it
  * must raise the ceiling AND add a baseline entry explaining the growth, so page
