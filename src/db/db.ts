@@ -6507,8 +6507,10 @@ export function queryStyleTermTagIds(
 // freestyle trick destinations: an exact `freestyle_tricks.slug`, or an
 // `freestyle_trick_aliases.alias_slug` that points at one. Returns one row per
 // input slug that resolves, with the canonical trick slug and display name.
-// Exact slug wins over alias. Slugs that resolve to nothing are simply omitted
-// (no broken links). Used by the media-card ontology cross-link resolver.
+// Exact slug wins over alias. Only active tricks resolve, matching every other
+// public trick read: an inactive or unresolved slug is omitted so a media card
+// never renders a chip whose trick-detail link would 404. Used by the media-card
+// ontology cross-link resolver.
 export function resolveTrickTags(
   slugs: string[],
 ): { matched: string; canonicalSlug: string; canonicalName: string }[] {
@@ -6518,12 +6520,14 @@ export function resolveTrickTags(
     SELECT slug AS matched, slug AS canonicalSlug, canonical_name AS canonicalName
     FROM freestyle_tricks
     WHERE slug IN (${ph})
+      AND is_active = 1
     UNION
     SELECT a.alias_slug AS matched, a.trick_slug AS canonicalSlug, ft.canonical_name AS canonicalName
     FROM freestyle_trick_aliases a
     JOIN freestyle_tricks ft ON ft.slug = a.trick_slug
     WHERE a.alias_slug IN (${ph})
       AND a.alias_slug NOT IN (SELECT slug FROM freestyle_tricks)
+      AND ft.is_active = 1
   `).all(...slugs, ...slugs) as { matched: string; canonicalSlug: string; canonicalName: string }[];
 }
 
