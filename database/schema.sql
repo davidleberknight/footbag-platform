@@ -4392,7 +4392,7 @@ CREATE TABLE freestyle_trick_tips (
   created_at_legacy   INTEGER,                       -- movehints.HintCreated (unix seconds)
   modified_at_legacy  INTEGER,                       -- movehints.HintModified (unix seconds)
   display_order       INTEGER NOT NULL DEFAULT 0,    -- chronological by legacy creation
-  status              TEXT NOT NULL DEFAULT 'published',  -- 'published' | 'unresolved' | 'hidden' (no CHECK)
+  status              TEXT NOT NULL DEFAULT 'published',  -- published (only status shown publicly) | hidden | unresolved_freestyle | unresolved_frontier | unresolved_ambiguous | future_net (no CHECK)
   source              TEXT NOT NULL DEFAULT 'footbag_org_moves2',
   loaded_at           TEXT NOT NULL
 );
