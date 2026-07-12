@@ -2289,7 +2289,9 @@ export const freestyleTricks = {
   // `operational_notation` is the execution notation.
   get getForCurationBySlug() { return db.prepare(`
     SELECT slug, canonical_name, adds, notation, operational_notation,
-           trick_family, base_trick, category, is_active, review_status
+           trick_family, base_trick, category, is_active, review_status,
+           description, short_description, execution_summary, learning_notes,
+           prerequisite_notes, pronunciation, operational_notation_source
     FROM freestyle_tricks
     WHERE slug = ?
   `); },
@@ -2303,14 +2305,18 @@ export const freestyleTricks = {
     ORDER BY category
   `); },
 
-  // Admin curation scalar edit: update only the nine editable scalar fields of
-  // one trick (slug is the identity key and stays fixed). Stamps updated_at.
-  // Attached aliases, sources, and modifier links are untouched here.
+  // Admin curation scalar edit: update the editable row fields of one trick,
+  // the structural fields plus the editorial prose fields (slug is the identity
+  // key and stays fixed). Stamps updated_at. Attached aliases, sources, and
+  // modifier links are untouched here.
   get updateScalars() { return db.prepare(`
     UPDATE freestyle_tricks
     SET canonical_name = ?, adds = ?, notation = ?, operational_notation = ?,
         trick_family = ?, base_trick = ?, category = ?, is_active = ?,
-        review_status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+        review_status = ?, description = ?, short_description = ?,
+        execution_summary = ?, learning_notes = ?, prerequisite_notes = ?,
+        pronunciation = ?, operational_notation_source = ?,
+        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
     WHERE slug = ?
   `); },
 };

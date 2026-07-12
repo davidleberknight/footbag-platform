@@ -64,6 +64,13 @@ export const adminFreestyleController = {
       category:          str(req.body.category),
       reviewStatus:      str(req.body.reviewStatus),
       isActive:          req.body.isActive !== undefined, // checkbox present -> active
+      description:               str(req.body.description),
+      shortDescription:          str(req.body.shortDescription),
+      executionSummary:          str(req.body.executionSummary),
+      learningNotes:             str(req.body.learningNotes),
+      prerequisiteNotes:         str(req.body.prerequisiteNotes),
+      pronunciation:             str(req.body.pronunciation),
+      operationalNotationSource: str(req.body.operationalNotationSource),
     };
 
     try {

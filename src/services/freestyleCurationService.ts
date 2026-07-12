@@ -5,9 +5,11 @@
  *   - The admin browse of freestyle trick dictionary rows: listing every row
  *     regardless of activation or review status, text search over canonical name
  *     and slug, and filters by active flag and review status.
- *   - The admin edit surface for one trick: rendering its editable scalar fields
+ *   - The admin edit surface for one trick: rendering its editable row fields
  *     and its attached aliases, sources, and modifier links, saving edits to the
- *     nine scalar fields of the trick row, adding or removing the trick's aliases,
+ *     trick row's structural and editorial prose fields (so no database-backed
+ *     field freezes once the live database is the source of truth), adding or
+ *     removing the trick's aliases,
  *     attaching or detaching links to the existing registry sources, and attaching
  *     or detaching links to the existing registry modifiers.
  *
@@ -19,7 +21,8 @@
  *
  * Write discipline: updateTrickScalars validates the submitted fields for row
  * shape (canonical name required, ADD numeric/empty/"modifier", category and
- * review status within the existing allowed values, active a boolean) plus one
+ * review status within the existing allowed values, active a boolean, each
+ * editorial prose field within a length cap) plus one
  * structural doctrine check: when the ADD is numeric and the execution notation
  * carries scoring brackets, the scoring-bracket count must equal the ADD. Rows
  * with no scoring brackets are not checked. Terminal-atom and name-to-slug
@@ -158,6 +161,13 @@ export interface FreestyleTrickEditFields {
   activeLabel: string;
   reviewStatus: string;
   reviewStatusLabel: string;
+  description: string;
+  shortDescription: string;
+  executionSummary: string;
+  learningNotes: string;
+  prerequisiteNotes: string;
+  pronunciation: string;
+  operationalNotationSource: string;
 }
 
 export interface FreestyleTrickEditContent {
@@ -214,7 +224,12 @@ export interface FreestyleModifierLinkInput {
   applyOrder?: string;
 }
 
-/** The nine editable scalar fields submitted by the edit form. */
+/**
+ * The editable scalar fields submitted by the edit form: the structural fields
+ * plus the editorial prose fields, so every database-backed field on the trick
+ * row has an in-app edit path and no content freezes once the live database is
+ * the source of truth.
+ */
 export interface FreestyleTrickScalarInput {
   canonicalName?: string;
   adds?: string;
@@ -225,6 +240,13 @@ export interface FreestyleTrickScalarInput {
   category?: string;
   reviewStatus?: string;
   isActive?: boolean;
+  description?: string;
+  shortDescription?: string;
+  executionSummary?: string;
+  learningNotes?: string;
+  prerequisiteNotes?: string;
+  pronunciation?: string;
+  operationalNotationSource?: string;
 }
 
 /** Options for re-rendering the edit page after a save or a validation failure. */
@@ -251,6 +273,13 @@ interface CurationEditDbRow {
   category: string | null;
   is_active: number;
   review_status: string;
+  description: string | null;
+  short_description: string | null;
+  execution_summary: string | null;
+  learning_notes: string | null;
+  prerequisite_notes: string | null;
+  pronunciation: string | null;
+  operational_notation_source: string | null;
 }
 interface AliasDbRow { alias_slug: string; alias_text: string; alias_type: string; }
 interface FullAliasDbRow extends AliasDbRow { trick_slug: string; }
@@ -298,6 +327,10 @@ const REVIEW_STATUS_VALUES = ['curated', 'expert_reviewed', 'pending'];
 const EDITABLE_REVIEW_STATUSES = REVIEW_STATUS_VALUES;
 
 const CANONICAL_NAME_MAX = 200;
+// Upper bound on each editorial prose field, a safety cap against oversized
+// payloads rather than an editorial length rule; the longest field (learning
+// notes) comfortably fits.
+const PROSE_MAX = 4000;
 
 // Alias types the schema documents; offered by the add-alias form. No CHECK
 // constrains the column, so the admin surface is the enforcement point.
@@ -468,6 +501,13 @@ export const freestyleCurationService = {
       activeLabel:       isActive ? 'Active' : 'Inactive',
       reviewStatus,
       reviewStatusLabel: REVIEW_STATUS_LABELS[reviewStatus] ?? reviewStatus,
+      description:               sub ? (sub.description ?? '') : (row.description ?? ''),
+      shortDescription:          sub ? (sub.shortDescription ?? '') : (row.short_description ?? ''),
+      executionSummary:          sub ? (sub.executionSummary ?? '') : (row.execution_summary ?? ''),
+      learningNotes:             sub ? (sub.learningNotes ?? '') : (row.learning_notes ?? ''),
+      prerequisiteNotes:         sub ? (sub.prerequisiteNotes ?? '') : (row.prerequisite_notes ?? ''),
+      pronunciation:             sub ? (sub.pronunciation ?? '') : (row.pronunciation ?? ''),
+      operationalNotationSource: sub ? (sub.operationalNotationSource ?? '') : (row.operational_notation_source ?? ''),
     };
 
     const categoryOptions: FilterOption[] = [
@@ -520,11 +560,13 @@ export const freestyleCurationService = {
     };
   },
 
-  // Scalar-row update: validate the nine editable fields (row-shape rules only,
-  // not the doctrine QC), then update the trick and append one audit entry in a
-  // single transaction. slug is the identity key and is not editable; attached
-  // aliases, sources, and modifier links are untouched. Throws NotFoundError for
-  // an unknown slug and ValidationError (with per-field messages) on bad input.
+  // Scalar-row update: validate the editable row fields (row-shape rules only,
+  // not the doctrine QC), including the editorial prose fields so no
+  // database-backed field freezes once the live database is the source of truth,
+  // then update the trick and append one audit entry in a single transaction.
+  // slug is the identity key and is not editable; attached aliases, sources, and
+  // modifier links are untouched. Throws NotFoundError for an unknown slug and
+  // ValidationError (with per-field messages) on bad input.
   updateTrickScalars(slug: string, input: FreestyleTrickScalarInput, actorMemberId: string): void {
     assertActorMayCurateFreestyle(actorMemberId);
     const current = freestyleTricks.getForCurationBySlug.get(slug) as CurationEditDbRow | undefined;
@@ -562,6 +604,30 @@ export const freestyleCurationService = {
     const family            = emptyToNull(input.family);
     const baseTrick         = emptyToNull(input.baseTrick);
 
+    // Editorial prose fields are free text; the only row-shape rule is a length
+    // cap that rejects an oversized payload. Empty clears the field to null.
+    const description               = emptyToNull(input.description);
+    const shortDescription          = emptyToNull(input.shortDescription);
+    const executionSummary          = emptyToNull(input.executionSummary);
+    const learningNotes             = emptyToNull(input.learningNotes);
+    const prerequisiteNotes         = emptyToNull(input.prerequisiteNotes);
+    const pronunciation             = emptyToNull(input.pronunciation);
+    const operationalNotationSource = emptyToNull(input.operationalNotationSource);
+    const proseFields: Array<[keyof FreestyleTrickScalarInput, string | null, string]> = [
+      ['description', description, 'Description'],
+      ['shortDescription', shortDescription, 'Short description'],
+      ['executionSummary', executionSummary, 'Execution summary'],
+      ['learningNotes', learningNotes, 'Learning notes'],
+      ['prerequisiteNotes', prerequisiteNotes, 'Prerequisite notes'],
+      ['pronunciation', pronunciation, 'Pronunciation'],
+      ['operationalNotationSource', operationalNotationSource, 'Execution-notation source'],
+    ];
+    for (const [key, value, label] of proseFields) {
+      if (value !== null && value.length > PROSE_MAX) {
+        fieldErrors[key] = `${label} must be ${PROSE_MAX} characters or fewer.`;
+      }
+    }
+
     // Scoring-bracket parity: when the ADD is numeric and the execution notation
     // carries scoring brackets, their count must equal the ADD. Rows with no
     // scoring brackets (a blank field, or primitive markers like `[set] > toe`)
@@ -587,11 +653,20 @@ export const freestyleCurationService = {
     if (category !== (current.category ?? null))                changedFields.push('category');
     if (isActive !== current.is_active)                         changedFields.push('is_active');
     if (reviewStatus !== current.review_status)                 changedFields.push('review_status');
+    if (description !== (current.description ?? null))          changedFields.push('description');
+    if (shortDescription !== (current.short_description ?? null)) changedFields.push('short_description');
+    if (executionSummary !== (current.execution_summary ?? null)) changedFields.push('execution_summary');
+    if (learningNotes !== (current.learning_notes ?? null))     changedFields.push('learning_notes');
+    if (prerequisiteNotes !== (current.prerequisite_notes ?? null)) changedFields.push('prerequisite_notes');
+    if (pronunciation !== (current.pronunciation ?? null))      changedFields.push('pronunciation');
+    if (operationalNotationSource !== (current.operational_notation_source ?? null)) changedFields.push('operational_notation_source');
 
     transaction(() => {
       freestyleTricks.updateScalars.run(
         canonicalName, adds, movementNotation, executionNotation,
-        family, baseTrick, category, isActive, reviewStatus, slug,
+        family, baseTrick, category, isActive, reviewStatus,
+        description, shortDescription, executionSummary, learningNotes,
+        prerequisiteNotes, pronunciation, operationalNotationSource, slug,
       );
       appendAuditEntry({
         actionType:    'freestyle.trick.updated',

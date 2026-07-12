@@ -35,6 +35,13 @@
             {{#each content.reviewStatusOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
         </p>
+        <p><label>Description</label><br><textarea name="description" rows="3">{{content.fields.description}}</textarea></p>
+        <p><label>Short description</label><br><textarea name="shortDescription" rows="2">{{content.fields.shortDescription}}</textarea></p>
+        <p><label>Execution summary</label><br><textarea name="executionSummary" rows="3">{{content.fields.executionSummary}}</textarea></p>
+        <p><label>Learning notes</label><br><textarea name="learningNotes" rows="3">{{content.fields.learningNotes}}</textarea></p>
+        <p><label>Prerequisite notes</label><br><textarea name="prerequisiteNotes" rows="2">{{content.fields.prerequisiteNotes}}</textarea></p>
+        <p><label>Pronunciation</label><br><input type="text" name="pronunciation" value="{{content.fields.pronunciation}}" /></p>
+        <p><label>Execution-notation source</label><br><textarea name="operationalNotationSource" rows="2">{{content.fields.operationalNotationSource}}</textarea></p>
       </fieldset>
       <p><button type="submit" class="btn btn-primary btn-sm">Save</button></p>
     </form>

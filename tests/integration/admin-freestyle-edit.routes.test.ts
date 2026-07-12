@@ -3,9 +3,9 @@
  *
  * The admin-only trick edit surface. GET loads a trick row (any status) with its
  * editable scalar fields plus its attached aliases, sources, and modifier links
- * (the attached rows are display-only). POST saves the nine editable scalar fields
- * of the trick row in one transaction with a single audit entry; the attached rows
- * are never touched. This suite pins the admin gate, the scalar-field display, the
+ * (the attached rows are display-only). POST saves the editable row fields, the
+ * structural fields plus the editorial prose fields, in one transaction with a
+ * single audit entry; the attached rows are never touched. This suite pins the admin gate, the scalar-field display, the
  * attached-row display, any-status loading, the persisted scalar save with its one
  * audit row and stamped updated_at, the saved-indicator redirect, and the
  * validation re-render that preserves submitted values and writes nothing. The
@@ -191,6 +191,37 @@ beforeAll(async () => {
   });
   insertFreestyleTrickModifierLink(db, 'mod_host', 'ducking', 2);
 
+  // Editorial-prose edit coverage: prose_host is seeded with values (the display
+  // test), prose_save is the write target, and prose_clear is seeded with a
+  // description to prove an empty submit clears it to null.
+  insertFreestyleTrick(db, {
+    slug: 'prose_host',
+    canonical_name: 'Prose Host',
+    adds: '3', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1,
+    description: 'Seed description text.',
+    short_description: 'Seed short desc.',
+    execution_summary: 'Seed execution summary.',
+    learning_notes: 'Seed learning notes.',
+    prerequisite_notes: 'Seed prereq notes.',
+    pronunciation: 'proas-host',
+    operational_notation_source: 'Seed source note.',
+  });
+  insertFreestyleTrick(db, {
+    slug: 'prose_save',
+    canonical_name: 'Prose Save',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1,
+    description: 'Old description.',
+  });
+  insertFreestyleTrick(db, {
+    slug: 'prose_clear',
+    canonical_name: 'Prose Clear',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1,
+    description: 'Clear me.',
+  });
+
   createApp = await importApp();
 });
 
@@ -247,6 +278,19 @@ function modifierLink(trickSlug: string, modifierSlug: string, applyOrder: numbe
   return db.prepare(
     'SELECT trick_slug, modifier_slug, apply_order FROM freestyle_trick_modifier_links WHERE trick_slug = ? AND modifier_slug = ? AND apply_order = ?',
   ).get(trickSlug, modifierSlug, applyOrder) as { apply_order: number } | undefined;
+}
+
+function proseRow(slug: string) {
+  return db.prepare(
+    `SELECT description, short_description, execution_summary, learning_notes,
+            prerequisite_notes, pronunciation, operational_notation_source
+     FROM freestyle_tricks WHERE slug = ?`,
+  ).get(slug) as {
+    description: string | null; short_description: string | null;
+    execution_summary: string | null; learning_notes: string | null;
+    prerequisite_notes: string | null; pronunciation: string | null;
+    operational_notation_source: string | null;
+  };
 }
 
 describe('GET /admin/freestyle/tricks/:slug/edit — admin gate', () => {
@@ -404,6 +448,66 @@ describe('POST /admin/freestyle/tricks/:slug/edit — successful save', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Saved.');
     expect(res.text).toContain('Save OK Edited');
+  });
+});
+
+describe('POST/GET /admin/freestyle/tricks/:slug/edit — editorial prose fields', () => {
+  it('displays all seven prose fields for editing', async () => {
+    const res = await get('/admin/freestyle/tricks/prose_host/edit', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Seed description text.');
+    expect(res.text).toContain('Seed short desc.');
+    expect(res.text).toContain('Seed execution summary.');
+    expect(res.text).toContain('Seed learning notes.');
+    expect(res.text).toContain('Seed prereq notes.');
+    expect(res.text).toContain('value="proas-host"');   // pronunciation input
+    expect(res.text).toContain('Seed source note.');     // execution-notation source
+  });
+
+  it('persists all seven prose fields and records them in the audit metadata', async () => {
+    const res = await post('/admin/freestyle/tricks/prose_save/edit', admin(), validBody({
+      canonicalName: 'Prose Save',
+      description: 'New description.',
+      shortDescription: 'New short.',
+      executionSummary: 'New exec summary.',
+      learningNotes: 'New learning.',
+      prerequisiteNotes: 'New prereq.',
+      pronunciation: 'new-pron',
+      operationalNotationSource: 'New source.',
+    }));
+    expect(res.status).toBe(303);
+
+    const row = proseRow('prose_save');
+    expect(row.description).toBe('New description.');
+    expect(row.short_description).toBe('New short.');
+    expect(row.execution_summary).toBe('New exec summary.');
+    expect(row.learning_notes).toBe('New learning.');
+    expect(row.prerequisite_notes).toBe('New prereq.');
+    expect(row.pronunciation).toBe('new-pron');
+    expect(row.operational_notation_source).toBe('New source.');
+
+    const audits = auditRows('prose_save');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('description');
+    expect(audits[0].metadata_json).toContain('operational_notation_source');
+  });
+
+  it('clears a prose field to null when submitted empty', async () => {
+    const res = await post('/admin/freestyle/tricks/prose_clear/edit', admin(),
+      validBody({ canonicalName: 'Prose Clear', description: '' }));
+    expect(res.status).toBe(303);
+    expect(proseRow('prose_clear').description).toBeNull();
+  });
+
+  it('rejects an oversized prose field with 422 and writes nothing', async () => {
+    const before = proseRow('save_guard');
+    const huge = 'x'.repeat(4001);
+    const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(),
+      validBody({ canonicalName: 'Attempted Name', description: huge }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Description must be');
+    expect(proseRow('save_guard').description).toBe(before.description);
+    expect(auditRows('save_guard')).toHaveLength(0);
   });
 });
 
