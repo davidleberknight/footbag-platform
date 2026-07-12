@@ -574,6 +574,7 @@ describe('legacy_data script 20 graceful skip', () => {
     expect(r.status).toBe(0);
     const combined = (r.stderr ?? '') + (r.stdout ?? '');
     expect(combined).toMatch(/skip:/);
-    expect(combined).toMatch(/script 18/);
+    // The skip message points the operator at the scrape script that populates the CSV.
+    expect(combined).toMatch(/18_scrape_footbag_org_moves/);
   });
 });
