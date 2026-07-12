@@ -94,40 +94,28 @@ while [[ "$SCAN" == *'$('* ]]; do
   fi
 done
 
-# Refuse remaining hidden-write forms: process substitution, append, or a
-# file-writing redirect. (Command substitution has already been resolved.) Check a
-# copy with newlines flattened and inert quoted regions removed, so a literal > in
-# quoted argument text (an inline SQL <> comparison, a node -e arrow function) is
-# not mistaken for a redirect even when the quoted string spans lines. A real
-# redirect can never sit inside single quotes, and a double-quoted region is dropped
-# only when it holds no $ or backtick, so a redirect hidden in an unresolved
-# expansion still falls through to a prompt.
-WCHECK="$(printf '%s' "$SCAN" | tr '\n' ' ' | sed -E "s/'[^']*'//g; s/\"[^\"\$\`]*\"//g")"
-if printf '%s' "$WCHECK" | grep -Eq '<\(|>\(|>>|>[[:space:]]*[^&]'; then
+# Quote-aware neutralization: walk the (substitution-resolved) command character by
+# character, tracking single/double-quote state and backslash escapes, and replace
+# the shell-significant characters (; | & < >) that fall INSIDE quotes with an inert
+# placeholder. A single character walk pairs quotes correctly even when a $-bearing
+# quoted region (like "$DB") is preserved next to a plain one, which a regex strip
+# cannot do: it would mis-pair the kept region's quote with the next region's quote
+# and expose that region's contents. This lets a literal > in quoted argument text
+# (an inline SQL <> comparison, a node -e arrow function) survive the redirect check
+# below, and a quoted separator survive the segment split. A > inside quotes is never
+# a shell redirect regardless of any $ in the same region, because command
+# substitution was already resolved/rejected above and bash does not re-parse a plain
+# expansion for redirection. A newline inside quotes is content (joined with a space);
+# outside quotes it stays a separator. A backslash-escaped separator is neutralized
+# like a quoted one.
+NEUTRAL="$(printf '%s' "$SCAN" | awk 'BEGIN{dq=sprintf("%c",34); sq=sprintf("%c",39); bs=sprintf("%c",92); q=""} {out=""; n=length($0); for(i=1;i<=n;i++){c=substr($0,i,1); if(q==sq){ if(c==sq){q="";out=out c} else if(c==";"||c=="|"||c=="&"||c=="<"||c==">"){out=out "_"} else {out=out c}; continue } if(c==bs){ out=out c; i++; if(i<=n){ nc=substr($0,i,1); if(nc==";"||nc=="|"||nc=="&"||nc=="<"||nc==">"){out=out "_"} else {out=out nc} }; continue } if(q==""){ if(c==dq||c==sq){q=c} out=out c } else { if(c==q){q="";out=out c} else if(c==";"||c=="|"||c=="&"||c=="<"||c==">"){out=out "_"} else {out=out c} } } if(q==""){print out} else {printf "%s ", out}}')"
+
+# Refuse hidden-write forms on the quote-neutralized text: process substitution,
+# append, or a file-writing redirect that sits OUTSIDE any quote (in-quote copies are
+# now inert placeholders). Command substitution was already resolved/rejected above.
+if printf '%s' "$NEUTRAL" | tr '\n' ' ' | grep -Eq '<\(|>\(|>>|>[[:space:]]*[^&]'; then
   exit 0
 fi
-
-# Neutralize shell separators that appear INSIDE quotes (e.g. a quoted regex in
-# grep -E "a|b|c"), so the split below does not manufacture phantom segments from
-# argument text. Command/process substitution and real redirects were already
-# rejected/resolved above, so quoted content remaining here is inert literal
-# text, safe to rewrite for splitting purposes only.
-#
-# Backslash escaping is honored so a backslash-escaped quote does NOT open a quoted
-# region: outside quotes and inside double quotes, `\<c>` is a literal pair the
-# tracker skips, so `grep foo\" ; rm x` keeps its `;` a real separator (the `rm`
-# segment is then vetted and the command falls through) instead of the `\"` opening
-# a phantom quote that swallows `; rm x`. Inside single quotes bash does not process
-# backslashes, so escaping is not applied there. A backslash-escaped separator
-# (`\|`, `\;`) is literal text to bash wherever it appears, so it is neutralized
-# like a quoted one and cannot manufacture a phantom segment (`grep "A\|B" f` is one
-# read-only command, not a pipe).
-#
-# Quote state carries across lines, because a quoted string may span newlines (an
-# inline SQL query, a node -e script): a newline inside quotes is content and joins
-# with a space, while a newline outside quotes remains a command separator for the
-# split below.
-NEUTRAL="$(printf '%s' "$SCAN" | awk 'BEGIN{dq=sprintf("%c",34); sq=sprintf("%c",39); bs=sprintf("%c",92); q=""} {out=""; n=length($0); for(i=1;i<=n;i++){c=substr($0,i,1); if(q==sq){ if(c==sq){q="";out=out c} else if(c==";"||c=="|"||c=="&"){out=out "_"} else {out=out c}; continue } if(c==bs){ out=out c; i++; if(i<=n){ nc=substr($0,i,1); if(nc==";"||nc=="|"||nc=="&"){out=out "_"} else {out=out nc} }; continue } if(q==""){ if(c==dq||c==sq){q=c} out=out c } else { if(c==q){q="";out=out c} else if(c==";"||c=="|"||c=="&"){out=out "_"} else {out=out c} } } if(q==""){print out} else {printf "%s ", out}}')"
 
 # Break into segments on shell separators, then vet the head word of each.
 segments="$(printf '%s' "$NEUTRAL" | tr '\n' ';' | sed -E 's/\|\||&&|[;|&]/\n/g')"

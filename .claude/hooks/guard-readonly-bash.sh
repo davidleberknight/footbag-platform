@@ -145,12 +145,16 @@ case "$COMMAND" in
   *..*) : ;;
   *) RSCAN="$(printf '%s' "$RSCAN" | sed -E 's#[0-9]*>>?[[:space:]]*/tmp/claude-[A-Za-z0-9._/-]+##g')" ;;
 esac
-# Remove inert quoted regions so a literal `>` in an argument (grep '=>' , grep '->' ,
-# --grep='a>b') is not mistaken for a redirect operator. A real redirect `>` can never sit
-# inside single quotes, so stripping single-quoted regions can never hide a genuine write.
-# Double-quoted regions are stripped only when they hold no `$` or backtick, so a redirect
-# hidden in a command substitution (`"$(cmd > f)"`) is left in place and still asks.
-RSCAN="$(printf '%s' "$RSCAN" | sed -E "s/'[^']*'//g; s/\"[^\"\$\`]*\"//g")"
+# Neutralize a literal `>` that sits INSIDE quotes so an argument like grep '=>', grep
+# '->', or an inline SQL <> comparison is not mistaken for a redirect operator. A single
+# character walk pairs quotes correctly even when a $-bearing quoted region (like "$DB")
+# sits next to a plain one; a regex strip mis-pairs the kept region's quote with the next
+# region's quote and exposes that region's `>`, raising a false ask. Security property kept
+# intact: a `>` in a single-quoted region is always inert (bash never expands there), but a
+# `>` in a DOUBLE-quoted region is neutralized only when that region holds no $ or backtick,
+# so a redirect hidden in a command substitution ("$(cmd > f)") keeps its `>` and still asks.
+# An unterminated quote (a malformed command) is emitted verbatim, so a stray `>` still asks.
+RSCAN="$(printf '%s' "$RSCAN" | awk 'BEGIN{dq=sprintf("%c",34); sq=sprintf("%c",39); q=""; buf=""; xp=0} {out=""; n=length($0); for(i=1;i<=n;i++){c=substr($0,i,1); if(q==""){ if(c==sq){q=sq; buf=""} else if(c==dq){q=dq; buf=""; xp=0} else {out=out c}; continue } if(q==sq){ if(c==sq){gsub(/[<>]/,"_",buf); out=out sq buf sq; q=""} else {buf=buf c}; continue } if(c==dq){ if(xp==0){gsub(/[<>]/,"_",buf)}; out=out dq buf dq; q=""; continue } if(c=="$"||c=="\140"){xp=1} buf=buf c } if(q!=""){ out=out buf } print out}')"
 if printf '%s' "$RSCAN" | grep -q '>'; then
   jq -n '{
     hookSpecificOutput: {

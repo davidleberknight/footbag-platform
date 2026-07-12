@@ -190,6 +190,14 @@ expect "$H" 'node -e "
 fetch(u).then(r=>r.text()).then(t=>console.log(t))"' defer
 expect "$H" 'grep foo f
 sort x > out.txt' ask
+# A $-bearing quoted argument ("$DB") kept next to the double-quoted inline SQL must not
+# desync quote pairing and expose the SQL's <> (or a bare < / >) as a phantom redirect: a
+# read-only query still defers. A real redirect after them still asks, and a redirect hidden
+# in a command substitution still asks (the $-region is left intact, so its > survives).
+expect "$H" 'sqlite3 -readonly "$DB" "SELECT a FROM t WHERE x<>2"' defer
+expect "$H" 'sqlite3 -readonly "$DB" "SELECT a FROM t WHERE c<3 AND d>1"' defer
+expect "$H" 'sqlite3 -readonly "$DB" "SELECT 1" > out.txt' ask
+expect "$H" 'echo "$(date > f.txt)"' ask
 
 # sed writing or executing without -i: w/W write-command, s///w write-flag, e exec.
 expect "$H" 'sed -i "s/a/b/" f.txt' ask
@@ -425,6 +433,12 @@ expect "$H" 'sqlite3 -readonly db.sqlite "SELECT
  (SELECT COUNT(*) FROM t WHERE x<>2) AS n;"' allow
 expect "$H" 'sqlite3 "file:db.sqlite?mode=rwc" "SELECT 1"' defer
 expect "$H" 'sqlite3 "file:db.sqlite?mode=ro" ".shell rm -rf x"' defer
+# A $-bearing quoted database argument ("$DB") kept next to the double-quoted SQL must still
+# auto-approve a read-only query whose <> / < / > is quoted argument text; a real redirect
+# after it still falls through to the guard.
+expect "$H" 'sqlite3 -readonly "$DB" "SELECT a FROM t WHERE x<>2"' allow
+expect "$H" 'sqlite3 -readonly "$DB" "SELECT a FROM t WHERE c<3 AND d>1"' allow
+expect "$H" 'sqlite3 -readonly "$DB" "SELECT 1" > out.txt' defer
 
 # sed writing or executing (w/W command, s///w flag, e exec) is refused by the approver
 # itself, not only the sibling guard; a read-only transform with a "w" in it still approves.
