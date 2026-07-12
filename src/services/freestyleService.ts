@@ -6348,6 +6348,11 @@ function shapeDictEntry(
     const override = getCompoundSemanticDescription(row.slug);
     if (override !== null) return override;
     if (isDescriptionRedundantWithNotation(row.description, row.notation)) return null;
+    // Suppress structural-placeholder backfills (JOB-notation echoes, bracket
+    // tokens, ADD-arithmetic shorthand) that belong in the notation and ADD
+    // blocks, not in the About prose. This is the single-home suppression
+    // policy the SEO meta description already applies.
+    if (isDescriptionStructuralPlaceholder(row.description)) return null;
     return row.description;
   })();
 
