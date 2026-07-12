@@ -219,6 +219,7 @@ import {
 import {
   getCompoundSemanticDescription,
   isDescriptionRedundantWithNotation,
+  isDescriptionStructuralPlaceholder,
   getReversePairTransform,
   REV_ZERO_EXPLAINER,
 } from '../content/freestyleSemanticOverrides';
@@ -7306,9 +7307,16 @@ export const freestyleService = {
     const hasRecords       = currentRows.length > 0;
     const trickTag         = trickSurfaceHashtag(slug, dictEntry?.category ?? null);
     const seoTitle         = `Trick ${trickTag}`;
+    // A structural-placeholder description (formula backfill or thin
+    // restatement) must not leak into the meta description; fall back to the
+    // generic line. Same policy as the on-page About block.
+    const seoDescriptionBody = dictEntry?.description
+      && !isDescriptionStructuralPlaceholder(dictEntry.description)
+        ? dictEntry.description
+        : 'Freestyle footbag trick reference.';
     const seoDescription   = hasRecords
       ? `Freestyle footbag passback records for ${trickName}. Current record: ${topValue} kicks.`
-      : `${trickName}: ${dictEntry?.description ?? 'Freestyle footbag trick reference.'}`;
+      : `${trickName}: ${seoDescriptionBody}`;
 
     return {
       seo: {
@@ -8060,38 +8068,12 @@ export const freestyleService = {
               })),
             };
           })(),
-          descriptionIsPlaceholder: (() => {
-            // Placeholder-description suppressor.
-            //
-            // Catches "X-modified Y." /
-            // "X-and-Y modified Z." / "Popular freestyle trick." patterns.
-            //
-            // Also catches
-            // formula-embedded descriptions backfilled during bulk
-            // promotion. Those rows carry the JOB chain
-            // inline (e.g. "Stepping modifier on barfly base. 5 ADD =
-            // stepping(+1) + barfly(4); JOB CLIP > OP IN [DEX] >> ...
-            // Stepping leading-[DEX] chassis prefixed to barfly's
-            // no-plant out-dex chain."). The JOB chain belongs in
-            // notation/operational_notation — not in description prose
-            // — so the page renders the structured-decomposition pill
-            // instead. DB row is NEVER mutated; template suppresses
-            // render only.
-            //
-            // Detection heuristic: any description containing `; JOB `
-            // OR a bracket token (`[DEX]`, `[BOD]`, `[PDX]`, `[XBD]`,
-            // `[DEL]`, `[UNS]`, `[XDEX]`) is a formula-embedded
-            // backfill, not pedagogical prose. ~128 rows post-W9.
-            const desc = dictRow?.description ?? null;
-            if (!desc) return false;
-            const trimmed = desc.trim();
-            if (/^[A-Z][a-zA-Z-]+(?:-modified|-and-[a-zA-Z-]+ modified) [a-zA-Z][a-zA-Z -]*\.?$/.test(trimmed)) return true;
-            if (/^Popular freestyle trick\.?$/i.test(trimmed)) return true;
-            if (/^Common freestyle trick\.?$/i.test(trimmed)) return true;
-            if (/; JOB /.test(trimmed)) return true;
-            if (/\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/.test(trimmed)) return true;
-            return false;
-          })(),
+          // Suppress a structural-placeholder description (a formula-embedded
+          // backfill or a thin auto-generated restatement) in favour of the
+          // structured-decomposition pill. Computed on the effective,
+          // override-resolved description so a clean curator override always
+          // renders even when the underlying row is a formula backfill.
+          descriptionIsPlaceholder: isDescriptionStructuralPlaceholder(dictEntry?.description ?? null),
           familyAnchorContext: (() => {
             // Family-anchor callout. When the
             // current trick is itself the family-anchor (slug ===
