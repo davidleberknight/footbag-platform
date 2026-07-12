@@ -7,14 +7,16 @@
  *     retired rows the public records page hides), with the resolved holder name.
  *   - The admin edit surface for one record: rendering its editable fields and
  *     saving edits to the record row.
+ *   - The admin new-record surface: rendering the create form and inserting a new
+ *     record row with a generated id and the same field validation as an edit.
  *
  * Does not own:
  *   - The public freestyle records pages (FreestyleService is public, read-only).
  *   - The historical_persons registry (a linked person is referenced by id, never
  *     created here) or the trick dictionary.
- *   - Adding new records (a separate slice) or deleting records: a beaten record is
- *     retired by pointing its superseded-by at the newer record, and a questionable
- *     one is marked by its confidence rating; there is no hard delete on this surface.
+ *   - Deleting records: a beaten record is retired by pointing its superseded-by at
+ *     the newer record, and a questionable one is marked by its confidence rating;
+ *     there is no hard delete on this surface.
  *
  * Write discipline: updateRecord validates the submitted fields (record type one of
  * the existing types, source required, at least one of a linked person id or a free
@@ -23,12 +25,15 @@
  * ISO day or empty, adds count an integer or empty, numeric value a number or empty,
  * and a superseded-by that references a real record other than the row itself). The
  * update and its one audit entry commit together in a single transaction; the record
- * id is not editable. Every write path first runs the pre-go-live persona guard, so a
+ * id is not editable. createRecord runs that same field validation, generates the new
+ * record id, inserts the row, and commits with its own audit entry in one transaction.
+ * Every write path first runs the pre-go-live persona guard, so a
  * seeded test persona cannot author record content in a developer checkout; in staging
  * and production the guard is a no-op and the admin remains the audit actor.
  *
  * Persistence: reads and writes freestyle_records; reads historical_persons to
- * validate and name a linked person. Appends freestyle.record.updated to audit_entries.
+ * validate and name a linked person. Appends freestyle.record.updated and
+ * freestyle.record.created to audit_entries.
  */
 import { randomUUID } from 'node:crypto';
 import { freestyleRecords, historicalPersonLookup, transaction } from '../db/db';
