@@ -11,7 +11,7 @@ Usage (from the repo root):
     python freestyle/loaders/11_load_consecutive_records_to_sqlite.py \
         --db ~/projects/footbag-platform/database/footbag.db
 
-Or via run_pipeline.sh which resolves --db automatically.
+Or via run_freestyle.sh which resolves --db automatically.
 """
 
 import argparse

@@ -14,9 +14,9 @@ Writes (only with --live):
 Does NOT modify the database or any seed files.
 Review the snapshot diff and audit before committing a refreshed snapshot.
 
-Usage (from legacy_data/ with venv active):
-  python event_results/scripts/18_scrape_footbag_org_moves.py           # no-op; prints the snapshot path
-  python event_results/scripts/18_scrape_footbag_org_moves.py --live    # re-scrape before cutover
+Usage (from the repo root with venv active):
+  python freestyle/scripts/18_scrape_footbag_org_moves.py           # no-op; prints the snapshot path
+  python freestyle/scripts/18_scrape_footbag_org_moves.py --live    # re-scrape before cutover
 """
 
 import argparse

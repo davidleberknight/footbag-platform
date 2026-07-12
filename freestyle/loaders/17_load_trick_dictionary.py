@@ -52,7 +52,7 @@ from pathlib import Path
 
 
 SCRIPT_DIR = Path(__file__).parent
-REPO_ROOT = SCRIPT_DIR.parents[1]  # scripts/ → event_results/ → legacy_data/ → repo root
+REPO_ROOT = SCRIPT_DIR.parents[1]  # freestyle/loaders/ -> freestyle/ -> repo root
 TRICKS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "tricks.csv"
 MODIFIERS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "trick_modifiers.csv"
 ALIASES_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "trick_aliases.csv"

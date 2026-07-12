@@ -296,7 +296,7 @@ def main() -> None:
     if not scraped_path.exists():
         print(
             f"  (skip: {scraped_path.name} not present; "
-            f"run legacy_data/run_pipeline.sh full to populate via script 18)"
+            f"run freestyle/scripts/18_scrape_footbag_org_moves.py --live to populate)"
         )
         return
 

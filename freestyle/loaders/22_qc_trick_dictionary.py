@@ -1,7 +1,7 @@
 """
 Script 22: QC the freestyle trick dictionary against footbag.org and emit
 review artifacts. READ-ONLY. Writes nothing to the database. Writes nothing
-to source CSVs. All output lands in legacy_data/out/ for human review.
+to source CSVs. All output lands in freestyle/out/ for human review.
 
 Inputs:
   - database/footbag.db
@@ -13,7 +13,7 @@ Inputs:
       freestyle_trick_relations
   - freestyle/inputs/footbag_org_moves_snapshot.csv  (produced by script 18)
 
-Outputs (legacy_data/out/):
+Outputs (freestyle/out/):
   - trick_dictionary_comparison.csv  — concept-level matrix (one row per
     distinct concept name found in either source). Drives merge planning.
   - trick_dictionary_conflicts.csv   — one row per detected conflict, with
@@ -40,7 +40,7 @@ Conflict types detected:
                                    for human review against the canonical-vs-
                                    compositional skill rule. Never hard-fails.
 
-Usage (from legacy_data/ with venv active, or from repo root):
+Usage (from the repo root with venv active):
   python freestyle/loaders/22_qc_trick_dictionary.py
   python freestyle/loaders/22_qc_trick_dictionary.py --db /path/to/footbag.db
 """

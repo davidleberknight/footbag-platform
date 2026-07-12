@@ -4285,7 +4285,8 @@ CREATE TABLE freestyle_trick_modifiers (
 
 -- =============================================================================
 -- TRICK DICTIONARY v2.1 — provenance, aliases, relations, composition
--- Loaded by scripts 17 (curated), 19 (Red expert review), 20 (footbag.org scrape).
+-- Loaded by scripts 17 (curated), 19 (Red expert review), 20 (footbag.org
+-- source links), and 21 (footbag.org pending tricks).
 -- =============================================================================
 
 -- v2.1: Source registry. Every loaded trick row is attributed to one or more
@@ -4305,8 +4306,8 @@ CREATE TABLE freestyle_trick_sources (
 -- v2.1: Many-to-many trick↔source. Captures per-source assertions that may
 -- diverge from canonical (asserted_adds vs freestyle_tricks.adds). Canonical
 -- is authoritative; this table preserves the disagreement for QC and audit.
--- The QC script pipeline/qc/check_trick_source_disagreements.py emits a CSV
--- of all rows where asserted_* differs from canonical.
+-- The freestyle trick-dictionary QC loader emits a CSV of all rows where
+-- asserted_* differs from canonical.
 CREATE TABLE freestyle_trick_source_links (
   trick_slug         TEXT NOT NULL REFERENCES freestyle_tricks(slug),
   source_id          TEXT NOT NULL REFERENCES freestyle_trick_sources(id),
@@ -4322,11 +4323,10 @@ CREATE INDEX idx_freestyle_trick_source_links_source ON freestyle_trick_source_l
 
 -- v2.1: First-class alias table. Replaces the aliases_json column on
 -- freestyle_tricks (the column is retained during migration for backwards
--- compat; new code reads this table). alias_type distinguishes:
---   'common'        — established alternate name (Sidewalk, Tombstone)
---   'abbreviation'  — short form (BW, p-whirl)
---   'historical'    — renamed-from name (toe blur → quantum)
---   'notation'      — notation-form alias (XBD/B)
+-- compat; new code reads this table). alias_type is one of 'common' (an
+-- established alternate name), 'historical' (a renamed-from name), 'technical'
+-- (an abbreviation or slug form), 'structural' (a decomposition used as a name),
+-- 'typo' (never displayed), 'suppressed', 'positional', or 'ambiguous'.
 CREATE TABLE freestyle_trick_aliases (
   alias_slug   TEXT PRIMARY KEY,                   -- normalized alias key, e.g. 'bw'
   alias_text   TEXT NOT NULL,                      -- display form, e.g. 'BW'
