@@ -27,7 +27,7 @@
 #     (boots a throwaway stack; the OWASP ZAP leg needs Docker, else it skips).
 #
 # Usage:
-#   ./run_all_tests.sh              # full safe suite: build, lint, audit, conventions, secret-scan, unit, integration, python-pipeline, e2e, terraform
+#   ./run_all_tests.sh              # full safe suite: build, lint, audit, conventions, generated-content, secret-scan, unit, integration, python-pipeline, e2e, terraform
 #   ./run_all_tests.sh --quick      # fast loop: skips e2e + terraform
 #   ./run_all_tests.sh --with-smoke # additionally run the staging-AWS smoke suite (needs RUN_STAGING_SMOKE=1)
 #   ./run_all_tests.sh --with-realdata-invariants # read-only whole-population invariants over a loaded real dataset (dev load or staging)
@@ -77,8 +77,8 @@ Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--wit
 Canonical local full-suite test runner. Runs the CI gates that are safe on a
 workstation and summarizes the results.
 
-Default (no flags): build, lint, audit, conventions, secret-scan, unit,
-integration, e2e, terraform.
+Default (no flags): build, lint, audit, conventions, generated-content,
+secret-scan, unit, integration, e2e, terraform.
 
 Options:
   --quick       Fast inner loop: skips e2e + terraform.
@@ -604,6 +604,7 @@ run_gate build       npm run build
 run_gate lint        npm run lint
 run_gate audit       gate_audit
 run_gate conventions bash scripts/ci/assert_conventions.sh
+run_gate generated-content bash scripts/ci/assert_generated_content_current.sh
 run_gate secret-scan gate_secret_scan
 run_gate unit        npm run test:unit
 run_gate integration npm run test:integration

@@ -8,8 +8,8 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 
-# The read-only approver accepts `git -C` only for the project directory itself; a
-# live session sets this, so default it here for direct and CI runs.
+# The read-only approver accepts `git -C` only for the project directory or a path
+# under it; a live session sets this, so default it here for direct and CI runs.
 export CLAUDE_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 
 fail=0
@@ -262,6 +262,26 @@ expect "$H" 'cat a.txt | wc -l' allow
 expect "$H" 'find footbag.org -path "*/backups/latest.sql"' allow
 expect "$H" 'for f in a b c; do cat "$f"; done' allow
 expect "$H" 'git status' allow
+
+# Literal backticks -- single-quoted, or backslash-escaped -- are plain text, not
+# substitution, and must not force a prompt; an ACTIVE backtick substitution still
+# falls through, as does a mutation after a neutralized literal.
+expect "$H" 'grep -c "INSERT INTO \`ifpa_group_messages\`" dump.sql' allow
+expect "$H" "grep 'a \`quoted\` word' notes.txt" allow
+expect "$H" 'ls \`pwd\`' allow
+expect "$H" 'echo `rm -rf x`' defer
+expect "$H" 'echo "`rm -rf x`"' defer
+expect "$H" 'echo $(cat `evil`)' defer
+expect "$H" 'grep "x\`y" f.txt; rm z' defer
+
+# git -C auto-approves for the project directory and paths under it (the read-only
+# reference-clone symlink included); out-of-tree targets, ..-escapes, and mutating
+# subcommands still fall through.
+expect "$H" "git -C $CLAUDE_PROJECT_DIR log -1" allow
+expect "$H" "git -C $CLAUDE_PROJECT_DIR/footbag.org log -1 --format='%ai %s'" allow
+expect "$H" 'git -C /somewhere/else log -1' defer
+expect "$H" "git -C $CLAUDE_PROJECT_DIR/../elsewhere log -1" defer
+expect "$H" "git -C $CLAUDE_PROJECT_DIR push" defer
 
 # Read-only command substitution auto-approves (the case that regressed to a prompt).
 expect "$H" 'echo "size $(wc -c < f.txt)"' allow

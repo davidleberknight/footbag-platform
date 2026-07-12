@@ -67,7 +67,14 @@ case "$COMMAND" in
   *) SCAN="$(printf '%s' "$SCAN" | sed -E 's#[0-9]*>>?[[:space:]]*/tmp/claude-[A-Za-z0-9._/-]+##g')" ;;
 esac
 
-# Backtick command substitution is never reasoned about; fall through.
+# Neutralize LITERAL backticks first: inside single quotes, or backslash-escaped
+# outside them, a backtick is plain text to bash (a grep pattern quoting a SQL
+# identifier, for example). The walk tracks quote state like the neutralization
+# pass below; a mis-track can only leave a literal backtick un-neutralized (an
+# extra prompt), never mark an active one literal.
+SCAN="$(printf '%s' "$SCAN" | awk 'BEGIN{dq=sprintf("%c",34); sq=sprintf("%c",39); bs=sprintf("%c",92); bt=sprintf("%c",96); q=""} {out=""; n=length($0); for(i=1;i<=n;i++){c=substr($0,i,1); if(q==sq){ if(c==sq){q=""} else if(c==bt){c="_"}; out=out c; continue } if(c==bs){ out=out c; i++; if(i<=n){ nc=substr($0,i,1); if(nc==bt){out=out "_"} else {out=out nc} }; continue } if(q==""){ if(c==dq||c==sq){q=c}; out=out c } else { if(c==q){q=""}; out=out c } } print out}')"
+
+# A backtick still present is substitution-active and never reasoned about; fall through.
 case "$SCAN" in *'`'*) exit 0 ;; esac
 
 # Bash 5.2+ function substitution -- ${ cmd;} and ${| cmd;} -- runs a command inside a
@@ -194,13 +201,20 @@ while IFS= read -r seg; do
     # Skip read-only global options that can precede the subcommand, so a common form
     # like `git --no-pager diff` is vetted on `diff`. `-c` is deliberately NOT
     # skipped: it can change behavior, so it falls through. `-C` targets another
-    # repo, so it is accepted only when it names the project directory itself --
-    # the form CLAUDE.md prefers over a leading cd; any other target falls through.
+    # repo, so it is accepted only for the project directory or a path under it
+    # (an in-project symlink to a read-only reference clone counts) -- the form
+    # CLAUDE.md prefers over a leading cd; a `..`-bearing or out-of-tree target
+    # falls through.
     while [ $# -gt 0 ]; do
       case "$1" in
         --no-pager|-P|--paginate|--no-optional-locks|--literal-pathspecs) shift ;;
         -C)
-          { [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ "${2:-}" = "$CLAUDE_PROJECT_DIR" ]; } || exit 0
+          [ -n "${CLAUDE_PROJECT_DIR:-}" ] || exit 0
+          case "${2:-}" in
+            *..*) exit 0 ;;
+            "$CLAUDE_PROJECT_DIR"|"$CLAUDE_PROJECT_DIR"/?*) ;;
+            *) exit 0 ;;
+          esac
           shift; shift ;;
         *) break ;;
       esac
