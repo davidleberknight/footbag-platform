@@ -121,11 +121,17 @@ describe('emerging vocabulary: published names are gated, positional variants ar
     expect(has('Tapping DLO')).toBe(false);
   });
 
-  it('gates a parenthetical folk name that is itself the published canonical/alias', () => {
-    // "Gyro Torque (Mobius)" resolves through the gyro_torque alias to mobius;
-    // "Atomic Mirage (Atom Smasher)" resolves to atom_smasher.
-    expect(has('Gyro Torque (Mobius)')).toBe(false);
-    expect(has('Atomic Mirage (Atom Smasher)')).toBe(false);
+  it('keeps a parenthetical folk name that is itself the published canonical/alias, flagged as alias for the request-time gate', () => {
+    // The universe is a pure corpus artifact that carries every documented name,
+    // including one that resolves to a published canonical or alias. Such a row is
+    // flagged evState 'alias' and dropped from the rendered surface at request time,
+    // not removed from the corpus. "Gyro Torque (Mobius)" resolves through the
+    // gyro_torque alias to mobius; "Atomic Mirage (Atom Smasher)" resolves to
+    // atom_smasher.
+    const aliasFlagged = (name: string) =>
+      OBSERVATIONAL_UNIVERSE.some(r => r.name === name && r.evState === 'alias');
+    expect(aliasFlagged('Gyro Torque (Mobius)')).toBe(true);
+    expect(aliasFlagged('Atomic Mirage (Atom Smasher)')).toBe(true);
   });
 
   it('keeps a same-side positional variant that has no explicit equivalence alias', () => {
