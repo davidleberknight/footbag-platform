@@ -837,6 +837,24 @@ NOTATION_FIELDS = [
 ]
 
 
+def check_alias_canonical_collision(
+    curated: dict[str, dict], aliases: list[tuple[str, str, str, str]]
+) -> list[str]:
+    """HARD GATE: no alias slug may equal an ACTIVE canonical trick's slug other
+    than its own trick's. Such a shadow makes the alias override win at that URL,
+    so the active trick becomes unreachable at its own page. An alias sharing an
+    INACTIVE row's slug is the legitimate archived-duplicate pattern (the alias
+    URL redirects to its canonical trick) and is allowed."""
+    active_slugs = {slug for slug, t in curated.items() if t["is_active"] == 1}
+    violations: list[str] = []
+    for alias_slug, _alias_text, trick_slug, _alias_type in aliases:
+        if alias_slug in active_slugs and alias_slug != trick_slug:
+            violations.append(
+                f"{alias_slug}: alias of {trick_slug} shadows the active canonical trick '{alias_slug}'"
+            )
+    return violations
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -859,6 +877,15 @@ def run(db_path: Path, scrape_path: Path) -> dict:
     if naming_violations:
         print("NAMING INVARIANT VIOLATIONS (hard gate):", file=sys.stderr)
         for v in naming_violations:
+            print(f"  {v}", file=sys.stderr)
+        sys.exit(1)
+
+    # HARD GATE: an alias slug that shadows an active canonical trick makes that
+    # trick unreachable at its own URL, so it must never load.
+    alias_collisions = check_alias_canonical_collision(curated, aliases)
+    if alias_collisions:
+        print("ALIAS/CANONICAL COLLISION VIOLATIONS (hard gate):", file=sys.stderr)
+        for v in alias_collisions:
             print(f"  {v}", file=sys.stderr)
         sys.exit(1)
 
