@@ -100,7 +100,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     slug:           'blurry',
     name:           'Blurry',
     category:       'compound-set',
-    oneLineMeaning: 'A stepping treatment with a paradox-style second dex. Operational form: CLIP > OP IN [DEX] > OP OUT [DEX] > (op side).',
+    oneLineMeaning: 'Recorded as a +1 set modifier. Some named blurry compounds (Blur, Blurry Whirl) have expanded Stepping Paradox structures whose ADD follows the full decomposition rather than a flat blurry-plus-base sum. Operational form: CLIP > OP IN [DEX] > OP OUT [DEX] > (op side).',
     decomposition:  'stepping paradox',
     pendingNote:    null,
     workedExamples: ['Blurry (Stepping Paradox)'],
