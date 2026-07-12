@@ -65,11 +65,14 @@ function neighborCard(html: string, slug: string): string {
 }
 
 describe('Glossary — eight closest relatives (movement-neighbor figure)', () => {
-  it('renders the figure with its heading and teaching caption in the Dexterities section', async () => {
+  it('renders the figure with its heading, framing, and teaching caption in the Dexterities section', async () => {
     const html = await glossary();
     expect(html).toContain('The eight closest relatives');
     expect(html).toContain('class="glossary-neighbor-figure"');
-    expect(html).toContain('Change just one thing');
+    // Pre-figure framing: the eight are variations of one movement pattern.
+    expect(html).toContain('variations of the same underlying movement pattern');
+    // Figure caption: the reading instruction.
+    expect(html).toContain('Change just one of those three choices');
     // Sits inside Dexterities, after the section opens and before Execution window.
     const dexAt = html.indexOf('id="section-dexterities"');
     const figureAt = html.indexOf('The eight closest relatives');
