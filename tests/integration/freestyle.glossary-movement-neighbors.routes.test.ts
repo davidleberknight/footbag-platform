@@ -69,8 +69,10 @@ describe('Glossary — eight closest relatives (movement-neighbor figure)', () =
     const html = await glossary();
     expect(html).toContain('The eight closest relatives');
     expect(html).toContain('class="glossary-neighbor-figure"');
-    // Pre-figure framing: the eight are variations of one movement pattern.
+    // Pre-figure framing: the eight are variations of one movement pattern,
+    // each one movement change away from three others (the named relation).
     expect(html).toContain('variations of the same underlying movement pattern');
+    expect(html).toContain('movement change away');
     // Figure caption: the reading instruction.
     expect(html).toContain('Change just one of those three choices');
     // Sits inside Dexterities, after the section opens and before Execution window.

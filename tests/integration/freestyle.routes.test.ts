@@ -2366,12 +2366,20 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                canonization, the ADD-provenance subsection, and the
     //                cohort-test naming. Curator-approved reference pedagogy,
     //                not prose drift.
+    //   295K → 300K  Movement-neighbor teaching surface: the "eight closest
+    //                relatives" figure in Dexterities (the eight one-dex toe
+    //                tricks, each with the three tricks one movement change
+    //                away) with its framing, plus the "reading a compound
+    //                name" decoder in Reading the Dictionary (the read-from-
+    //                the-end rule and the Whirling Swirl / Swirling Whirl
+    //                minimal pair). Curator-directed structural teaching
+    //                content, not prose drift.
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
     // again. The empirical family-parent roster (24 families, each carded)
     // raised the floor, so the ceiling moves with it; the two measured
     // topology histograms (family + entry) raised it once more.
-    expect(res.text.length).toBeLessThan(295_000);
+    expect(res.text.length).toBeLessThan(300_000);
   });
 });
 
