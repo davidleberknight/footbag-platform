@@ -42,8 +42,8 @@ export type OperatorReferenceCategory =
   | 'compound-set'     // a set treatment that decomposes into other operators
   | 'compound-body'    // a body operator that decomposes into other operators
   | 'historical-nickname' // a legacy/nickname naming pattern (Miraging, Barraging),
-                       //  not a canonical set or operator of its own; a downtime-
-                       //  analogy name that resolves to an official set
+                       //  not a canonical set or operator of its own; a
+                       //  descriptive-movement name that resolves to an official set
   | 'quantifier';      // a quantifier-style operator (double)
 
 export interface OperatorReferenceEntry {
@@ -78,22 +78,22 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     slug:           'atomic',
     name:           'Atomic',
     category:       'set',
-    oneLineMeaning: 'A single outward uptime dex, +1: TOE > OP OUT [DEX] > (op-side component). An X-Dex, when present, is a separate +1 marked [XDEX] in the notation, not part of atomic.',
+    oneLineMeaning: 'A single outward dex realized with a set role, +1: TOE > OP OUT [DEX] > (op-side component). An X-Dex, when present, is a separate +1 marked [XDEX] in the notation, not part of atomic.',
     decomposition:  null,
     pendingNote:    'Atomic is +1. Any X-Dex is a separate +1 scored only where the notation carries [XDEX]; it is not part of atomic and is never inferred from the operator name. Some atomic tricks carry an [XDEX] (e.g. Atom Smasher = Atomic Mirage, reading 4) and some do not.',
     workedExamples: ['Atom Smasher = Atomic Mirage'],
-    lineageNote:    'Operational form from the historical moves reference. Atomic is the official uptime set; Illusioning is a historical downtime nickname some players used by analogy, not the set and not an equivalent name for Atomic.',
+    lineageNote:    'Operational form from the historical moves reference. Atomic is the outward movement pattern realized with a set role; Illusioning is descriptive standalone-movement language some players used by analogy, not the set and not an equivalent name for Atomic.',
     curatorConfirmPending: false,
   },
   {
     slug:           'miraging',
     name:           'Miraging',
     category:       'historical-nickname',
-    oneLineMeaning: 'The historical mirage-family name for a single inward dex, SET > OP IN [DEX] >. That inward dex scores as a dex from a trick\'s own notation; "miraging" is not a scored, formula-bearing operator in its own right. A descriptive downtime nickname, not a canonical set. Quantum is the official uptime set concept; miraging is not a modern set or a Quantum equivalent, and its terminology is not replaced by Quantum except where the movement is actually a Quantum set.',
+    oneLineMeaning: 'The historical mirage-family name for a single inward dex, SET > OP IN [DEX] >. That inward dex scores as a dex from a trick\'s own notation; "miraging" is not a scored, formula-bearing operator in its own right. A descriptive name for the inward standalone movement, not a launch set. Quantum is the same inward movement pattern realized with a set role; miraging is not a launch set or a Quantum equivalent, and its terminology is not replaced by Quantum except where the movement is actually a Quantum set.',
     decomposition:  null,
     pendingNote:    'Miraging names a single inward dex, which scores as a dex from a trick\'s own notation; it is retired as a scored, formula-bearing operator, so no decomposition presents a "miraging" scored component. Older sources described it as atomic\'s inward-dex mirror, but under current doctrine miraging is a historical nickname, not a modern set. Any X-Dex is a separate +1 marked [XDEX] in the notation, not part of miraging.',
     workedExamples: ['Historically read as Miraging Clipper (Drifter)', 'Historically read as Miraging Legover (Double Leg Over)'],
-    lineageNote:    'Operational form from the historical moves reference. Retained as descriptive or downtime mirage-family language, not a modern set.',
+    lineageNote:    'Operational form from the historical moves reference. Retained as descriptive standalone inward-movement language, not a launch set.',
     curatorConfirmPending: false,
   },
   {
@@ -133,11 +133,11 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     slug:           'barraging',
     name:           'Barraging',
     category:       'historical-nickname',
-    oneLineMeaning: 'A legacy name pattern for the Furious set, not a canonical set of its own. Furious is the official two-dex uptime set (+2 ADD, two in-direction dexes; operational form CLIP > OP IN [DEX] > SAME IN [DEX] >, historically called high stepping). Some tricks carry barraging-based names by analogy to similar motions; those names persist for continuity, but the set is Furious, and decomposition resolves to Furious.',
+    oneLineMeaning: 'A legacy name pattern for the Furious set, not a canonical set of its own. Furious is the official two-dex set (+2 ADD, two in-direction dexes; operational form CLIP > OP IN [DEX] > SAME IN [DEX] >, historically called high stepping). Some tricks carry barraging-based names by analogy to similar motions; those names persist for continuity, but the set is Furious, and decomposition resolves to Furious.',
     decomposition:  'high stepping',
     pendingNote:    null,
     workedExamples: ['Baroque = Furious Osis', 'Fury = Furious Paradox Mirage'],
-    lineageNote:    'A legacy name pattern for the Furious set; Furious is the official two-dex +2 uptime set.',
+    lineageNote:    'A legacy name pattern for the Furious set; Furious is the official two-dex +2 set.',
     curatorConfirmPending: false,
   },
   {
