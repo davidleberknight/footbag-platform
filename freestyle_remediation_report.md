@@ -1,454 +1,225 @@
-# Freestyle Remediation Report
-
-> **Status: single active work-list for freestyle (rewritten 2026-07-12). This is the definitive, forward-looking home for all remaining freestyle work.** Earlier this file was a five-pass historical archive; a sixth full audit on 2026-07-12 re-verified it against current code, folded the still-open items into one consolidated backlog, added the newly-found defects, and collapsed the finished work into a compact closed ledger at the end (Appendix A) so nothing is lost. `IMPLEMENTATION_PLAN.md` keeps only the launch gate, the cross-team blockers, the standing rule and summary, and a pointer here; the detailed freestyle backlog lives in this file. This report is a scoped remediation document for the freestyle maintainers, not canonical product doctrine: where it says a canonical document is wrong, it names the document and proposes the edit rather than restating doctrine here.
-
-Severity scale: **P0** must fix before go-live (public surface broken, misleading, data-unsafe, or production-destructive); **P1** must fix before freestyle launch signoff (serious standard violation, runtime source-of-truth risk, major usability or trust defect, missing deployed-route story, major test gap); **P2** should fix before launch or external testing; **P3** non-blocking cleanup or post-V1 prep. Each backlog item carries an owner and a done-condition. No em dashes or delivery-epoch labels are used in this document, matching the repo copy standard.
-
----
-
-## 1. Executive verdict (2026-07-12)
-
-**Launch readiness: the deployed freestyle surface renders coherently and has genuine strengths, but it is not launch-clean. Three P0 defects and a cluster of P1 defects block signoff.** The three P0 defects are: alias URLs that shadow active canonical tricks, so six tricks are unreachable at their own address and twenty-three more render duplicate pages (FS-48); trick editorial prose that has no in-app edit path and would freeze permanently at the source-of-truth cutover (FS-49); and roughly 262 of 923 active trick descriptions rendering internal ADD-shorthand and raw notation as public copy, a content-policy violation at scale on the highest-traffic surface (FS-57). Alongside those, a live public feature (the symbolic topology and education panels) silently renders empty for essentially every compound trick because the symbolic tables are keyed in the wrong slug format (FS-58), and a public media surface links to hidden tricks through a query missing its active-only filter (FS-59).
-
-**Live-site coherence: strong where it renders, with real seams.** All twenty-nine mounted routes return correct statuses (200s, the designed redirects, 404s on garbage slugs), novice on-ramps (landing, learn, about) are genuinely good, and expert trust signals (asserted-versus-computed ADD, provenance footers, honest hedging of unresolved doctrine) are consistently present and impressive. The seams are the collisions and drift above plus a set of smaller consistency issues (a foundations count that differs between pages, a landing page that does not funnel beginners to the learn path, run-quality vocabulary missing from the glossary, hyphenated deep-links that 404).
-
-**Repo-standard compliance: good bones, a handful of real violations.** SQL discipline, error classes, route ordering, controller thinness, and the four-color symbolic budget are mostly clean. The genuine violations: one public query missing its active-only filter (FS-59); a second, out-of-budget color system on the trick hero (FS-58 is data, this is FS-63, code); the description-prose policy breach (FS-57); and a latent code path that would leak an internal parser status string and an internal doc reference onto a public page (FS-73).
-
-**Database and source-of-truth: runtime is provably database-only; the build-time guard is soft.** No runtime code reads pipeline files from disk; the symbolic layer loads from committed CSVs; the runtime-reads-database contract is test-pinned. The remaining risks are a rebuild guard enforced only by the shell wrapper and bypassable by invoking a loader directly (FS-68, mitigated because the pipeline is never shipped to a live host), a runtime-readonly guard test that only watches three of about sixteen tables (FS-66), and canonical values duplicated between compiled content and the database with no test cross-checking them (FS-60, FS-67).
-
-**Curation cutover: the pre-go-live model is coherent and mostly built; the maintainer has ruled that all freestyle curation must work after go-live, which widens the remaining gap.** The admin curation surfaces for trick scalars, aliases, source links, modifier links, records, and consecutive-kicks records are built, audited, and tested; the destructive rebuild is refused post-cutover by a host-side marker with no bypass. But every freestyle content type a curator edits must have a working in-app path before cutover, so the editorial-prose editor (FS-49) plus the previously-deferred surfaces (trick-tip moderation, source- and modifier-registry creation, trick relations, and the symbolic layers) are now all required before cutover, tracked as FS-91. The operator-run staging rehearsal (FS-19) remains a separate launch blocker.
-
-**Story and test coverage: deep on rendering contracts, with named gaps.** Every mounted route now traces to a named story except the per-modifier detail page (FS-69). The safety-net gaps are search adversarial-input tests (FS-70), a positional-alias structural invariant with no regression test that the admin alias path can bypass (FS-71), and the narrow runtime-readonly guard (FS-66).
-
-**Plan cleanup: largely executed; the remainder is in section 14.** The plan now carries the launch gate, cross-team blockers, the standing rule and summary, accepted deviations, and the pointer to this report; the remaining pieces are the standing-summary trim and the closed-decisions move (decision 4, FS-92).
-
-**Top risks:** (1) a trick identity model that is silently wrong for six tricks and duplicate-rendered for twenty-three (FS-48); (2) content and canonical values that freeze or drift at cutover (FS-49, FS-57, FS-60); (3) a live public feature that is silently empty for most of the dictionary (FS-58). **Top fixes, in order:** the alias-collision resolution and its curator rulings (FS-48); the editorial-prose edit path (FS-49); the description-prose cleanup and the suppression mechanism behind it (FS-57); the symbolic slug-key normalization (FS-58); the media-card active filter (FS-59); then the operator/registry drift (FS-60, FS-61) and the standard and test cleanups.
-
----
-
-## 2. Scope and method
-
-**In scope:** all twenty-nine mounted routes serving freestyle (twenty-eight `/freestyle/*` paths, counting the search page and its JSON suggest endpoint on one row, plus the `/media/freestyle-tutorials` redirect); `freestyleController.ts`, `adminFreestyleController.ts`, and `mediaController.freestyleMedia`; `freestyleService.ts` and its supporting freestyle and symbolic services; the `src/content/freestyle*.ts` modules; the freestyle views and partials; the freestyle statement groups in `src/db/db.ts`; the `freestyle/` pipeline (orchestrator, loaders, QC scripts, inputs, symbolic grammar, doctrine, tools); the freestyle and symbolic tables in `database/schema.sql`; the freestyle test corpus; the freestyle-relevant skills (audited as subjects, not used as authority); the freestyle docs and doctrine; the `exploration/` disposition; and every freestyle-related `IMPLEMENTATION_PLAN.md` item.
-
-**Out of scope:** delivery infrastructure, non-freestyle code, re-architecture beyond conforming to existing standards. Curated-media code was consulted only as the conformance yardstick. Per the audit charter for this run, git status, diff, and history were not used.
-
-**Method (2026-07-12 audit):** standards loaded first (root and nested `CLAUDE.md`, the path-scoped rules whose globs reach freestyle paths, `docs/DATA_GOVERNANCE.md`, `docs/TESTING.md`, `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md`, `docs/USER_STORIES.md`, `docs/MIGRATION_PLAN.md`, `freestyle/doctrine/*`). Then nine parallel read-only passes: a novice persona walk and an expert persona walk of the live CloudFront site via HTTP GET only; a code-standards audit; a source-of-truth and loader audit; a curation-cutover audit; a story and test coverage audit; a data and doctrine audit running read-only SQLite queries against `database/footbag.db`; an IMPLEMENTATION_PLAN reconciliation; and targeted external UX and cutover research. Every load-bearing finding was independently re-verified in the main thread with read-only queries and file reads before entering this report. No file outside this report was written; no loader, migration, deploy, or database-mutating command was run; no git commands; live-site checks were read-only GETs with no admin login or form posts.
-
-**Terms** (so a reader needs no prior context):
-- **ADD ("adds")**: a trick's additive difficulty value, the count of its difficulty components; stored in `freestyle_tricks.adds`. Modifier ADD bonuses live in the separate `freestyle_trick_modifiers` registry.
-- **Dex**: a dexterity component (circling the bag with a foot mid-trick).
-- **Jobs notation**: the community's structural movement notation (Ben Job, 1995); stored as opaque text per trick, not parsed.
-- **Set**: a named entry primitive (pixie, fairy, atomic, quantum) that tricks compose from; sets have encyclopedia pages.
-- **Operator / modifier**: a transformation applied to a base trick (spinning, ducking, paradox); the two words are used interchangeably on the public surface.
-- **Trick family**: the structural grouping keyed by a trick's terminal mechanic (whirl, butterfly, mirage), stored in `freestyle_tricks.trick_family`.
-- **Slug / hashtag / display name**: a trick's URL token (lowercase underscore form, e.g. `around_the_world`), its media hashtag (`#` plus the slug), and its human name (the same words with spaces). The naming invariant requires the three to correspond.
-- **Curated media model**: the repository's reference curation architecture. Before go-live committed files seed the database and object store; at go-live the database becomes the source of truth, the seeder is barred from production, and edits happen through an admin surface with an actor guard and audit logging. It is the yardstick the freestyle dictionary follows.
-- **Cutover**: the go-live moment at which the live database replaces the committed CSVs as the source of truth for freestyle content.
-- **Red (Red Husted)**: the sport's rules expert; open doctrine questions await his answers in `freestyle/doctrine/RED_QUEUE.md`, settled ones in `RED_RULINGS.md`.
-- **The curator / James**: the freestyle content and historical-pipeline maintainer. **Dave**: the primary platform maintainer and the only authorized deploy operator.
-- **Personas**: "novice" is a hacky-sack-curious visitor with zero freestyle knowledge; "expert" is a top competitive player who needs precise trick identity, ADD, notation, records, and sources.
-- **IFPA**: the International Footbag Players Association, the sport's governing body and owner of footbag.org.
-- **BAP (Big Add Posse)**: the community honor roster; its Individual Shred Collection is seventy-two curated player videos.
-- **The cutover gates**: the migration plan names two freestyle preconditions before the final go-live state. The first (call it the URL-identity gate) requires that no alias row claims the slug of an active canonical trick and that every active trick renders at its own URL. The second (call it the editorial-prose gate) requires the admin trick editor to cover the seven prose fields so no trick content freezes at cutover. Both are named in `docs/MIGRATION_PLAN.md` and are addressed by FS-48 and FS-49.
-
-**Verification discipline:** every finding was re-checked against its evidence; conflicting subagent claims were resolved by direct re-testing. Items that could not be confirmed against current code are marked "for author confirmation" rather than asserted.
-
----
-
-## 3. Source-of-truth map
-
-- **Code and runtime are the truth for what the system does.** The runtime reads only SQLite plus compiled `src/content/*.ts` constants; no `src/` code reads pipeline CSVs, `freestyle/inputs`, `freestyle/out`, `freestyle/reports`, or `exploration/` (grep-verified; test-pinned by the pipeline-path-isolation unit test). The freestyle pipeline (Python loaders under `freestyle/loaders/`, orchestrated by `freestyle/run_freestyle.sh`) is a build-time-only producer of the database and is never shipped to a live host.
-- **Canonical docs are the truth for design intent.** `docs/USER_STORIES.md` (the thirteen freestyle stories), `docs/DESIGN_DECISIONS.md`, `docs/DATA_GOVERNANCE.md`, `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md`, and `freestyle/doctrine/RED_RULINGS.md` (settled doctrine) define what the surface should do and say. Where code contradicts them with no tracked deviation, this report treats it as a defect, not as intent.
-- **`IMPLEMENTATION_PLAN.md` is the operational tracker for David-level planning:** the launch gate, cross-team blockers, accepted deviations, and the standing rule and summary. It is not the home for the detailed engineering backlog; this report is.
-- **`docs/MIGRATION_PLAN.md` is the launch/cutover authority.** It carries the two freestyle cutover gates (URL identity and editorial prose) and the rehearsal gate. It is relevant to this report only where a finding affects launch, cutover, production safety, or the runtime source of truth.
-- **This report is the detailed remediation backlog for the freestyle maintainers.** New findings land here. Canonical-doc gaps become tasks here that name the exact document to change; doctrine text is not moved into this report.
-
----
-
-## 4. Freestyle surface inventory
-
-Routes mount on `src/routes/publicRoutes.ts` (public) and `src/routes/adminRoutes.ts` (admin); literal routes register before `:slug` catch-alls (correct, test-pinned). Live status is from HTTP GETs against the production CloudFront distribution and the local dev server this run.
-
-| Route | Live | Template | Test coverage (representative) | Dedicated story |
-|---|---|---|---|---|
-| `/freestyle` | 200 | `landing.hbs` | `freestyle-landing.routes`, `landing-cards.routes` | `V_Learn_Freestyle` (landing not itemized) |
-| `/freestyle/tricks` (+8 `?view=`) | 200 all | `tricks.hbs` | per-view suites + card-contract test | `V_Browse_Trick_Dictionary` |
-| `/freestyle/tricks/:slug` | 200; 301 modifier/operator/migrated-set; 404 garbage | `trick-shell.hbs` + partials | `trick-detail-*.routes` + per-trick probes | `V_View_Trick_Detail` |
-| `/freestyle/search` + `/search/suggest` | 200 | `search.hbs` + JSON | `trick-search.routes` | `V_Search_Tricks` |
-| `/freestyle/records` | 200 | `records.hbs` | `freestyle.routes`, `record-linkage.routes` | `V_View_Trick_Records` |
-| `/freestyle/leaders` | 200 | `leaders.hbs` | `freestyle.routes` | `V_View_Trick_Records` |
-| `/freestyle/competition` | 200 | `competition.hbs` | `record-linkage.routes` | `V_Learn_Freestyle` |
-| `/freestyle/partnerships` | 200 | `partnerships.hbs` | `freestyle.routes` | `V_Learn_Freestyle` |
-| `/freestyle/history` | 200 | `history.hbs` | `freestyle.routes` | `V_Learn_Freestyle` |
-| `/freestyle/about` | 200 | `about.hbs` | `freestyle.routes` | `V_Learn_Freestyle` |
-| `/freestyle/add-analysis` | 200 | `add-analysis.hbs` | `add-analysis.routes` | `V_View_Freestyle_Reference` |
-| `/freestyle/combo-analysis` | 200 | `combo-analysis.hbs` | `combo-analysis.routes` | `V_View_Freestyle_Reference` |
-| `/freestyle/insights` | 200 | `insights.hbs` | `tricks-insights.routes` | `V_View_Freestyle_Reference` |
-| `/freestyle/sets` (+`/reference`, +`:slug`) | 200; 301 legacy; 404 garbage | `sets-encyclopedia.hbs`, `moves.hbs`, `set-detail.hbs` | `sets-encyclopedia.routes`, `set-detail.routes` | `V_View_Set_Encyclopedia` |
-| `/freestyle/compositional-sets` | 200 | `compositional-sets.hbs` | `compositional-sets.routes` | `V_View_Set_Encyclopedia` |
-| `/freestyle/glossary` | 200 | `glossary.hbs` | 20 `glossary-*.routes` files | `V_View_Freestyle_Reference` |
-| `/freestyle/notation-article` | 200 | `jobs-notation-article.hbs` | `notation-article.routes` | `V_View_Freestyle_Reference` |
-| `/freestyle/operators` | 200 | `operators.hbs` | `operators.routes` | `V_View_Freestyle_Reference` |
-| `/freestyle/observational` | 200 | `observational.hbs` | `observational.routes`, `emerging-view-redirect.routes` | `V_View_Emerging_Vocabulary` |
-| `/freestyle/learn` | 200 | `learn.hbs` | `symbolic-*` suites | `V_Learn_Freestyle` |
-| `/freestyle/progression/walking-family` | 200 | `walking-progression.hbs` | `walking-progression.routes` | `V_Learn_Freestyle` |
-| `/freestyle/modifier/:slug` | 200 (family or stub); 404 garbage | `modifier-family.hbs` / `modifier-stub.hbs` | `modifier-family.routes` | **none (FS-69)** |
-| `/freestyle/families/:slug` | 200; 404 garbage | `family-detail.hbs` | `family-detail.routes` | `V_Learn_Freestyle` |
-| `/freestyle/families` | 302 to `?view=family` | (redirect) | controller test | `V_Browse_Trick_Dictionary` |
-| `/freestyle/media` | 200 | `media.hbs` (mediaController) | `trick-media-link.routes` | `V_View_Freestyle_Media_Hub` |
-| `/media/freestyle-tutorials` | 301 to `/freestyle/media` | (redirect) | route test | `V_View_Freestyle_Media_Hub` |
-| `/admin/freestyle/tricks` (+edit, alias, source, modifier) | admin | admin views | `admin-freestyle-browse.routes`, `admin-freestyle-edit.routes` (64 cases) | `A_Browse_Freestyle_Content`, `A_Edit_Freestyle_Trick` |
-| `/admin/freestyle/records` (+new, edit) | admin | admin views | `admin-freestyle-record-edit.routes` | `A_Edit_Freestyle_Record` |
-| `/admin/freestyle/consecutive-records` (CRUD) | admin | admin views | `admin-consecutive-record-edit.routes` | `A_Edit_Consecutive_Kicks_Record` |
-
-**Data behind the surface (2026-07-12 read-only counts):** `freestyle_tricks` 963 rows, **923 active** (887 expert_reviewed, 36 curated; 40 inactive); `freestyle_trick_aliases` with **29 alias slugs that collide with a canonical slug (6 active, 23 inactive), see FS-48**; `freestyle_trick_modifiers` registry populated (with the `blurry` value wrong, FS-60); `freestyle_trick_modifier_links` populated (25 rows point at inactive tricks, FS-84); `freestyle_trick_relations` **0 rows (empty by design)**; `freestyle_trick_tips` 419 (414 published, of which 4 point at missing/inactive tricks, FS-72; 2 unresolved_freestyle, 1 unresolved_frontier, 2 future_net); `freestyle_records` 204; `consecutive_kicks_records` 138; all six `symbolic_*` tables populated but keyed in the wrong slug format (FS-58). Active tricks with blank fields: 9 blank adds (all `category='modifier'`, expected), 6 blank descriptions, 97 blank notation (schema-permitted), 10 blank trick_family. Media coverage: 822 of 923 active tricks carry no slug-tagged media, consistent with the tracked closed baseline (about sixteen genuine gaps after indirect coverage lanes).
-
-**Readiness:** every route renders at the 200 level, but the surface is not launch-clean: FS-48 makes six tricks unreachable and duplicate-renders twenty-three; FS-57 renders internal shorthand as public copy on hundreds of trick pages; FS-58 silently empties a live panel across most of the dictionary; FS-59 links public media cards to hidden tricks.
-
----
-
-## 5. Novice UX findings
-
-The novice on-ramp is genuinely good: the landing page defines the sport in plain language, `/freestyle/learn` is a real ordered six-page curriculum, the trick index carries a "New to freestyle? Start here" section, trick pages ship coaching and prerequisites, and no route dead-ends at an error. The remaining novice friction:
-
-- **FS-89 (P1, human decision) foundations count is inconsistent.** The landing page heads "The 12 Foundations of Freestyle" with "See All Foundations", while `/freestyle/learn` and the trick index say "the six foundations" and "read these six pages in order." A beginner told to learn "the foundations" meets two counts on adjacent pages with no explanation of the relationship. Needs a product decision on framing (see section 16).
-- **FS-76 (P1, VERIFIED CLOSED: learn pointer present) the landing page does not funnel a beginner to the learn path.** Verified against `landing.hbs`: the landing carries a "New to freestyle? Start here" pointer to `/freestyle/learn`. No action needed. The landing calls to action are browse and media; there is no "New to freestyle? Start here" pointer to `/freestyle/learn`, which is the site's strongest beginner asset. The trick index already has exactly this pattern; the landing lacks it.
-- **FS-75 (P2) notation codes and jargon appear on beginner surfaces before they are explained.** Formulas like `SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]` and terms ADD, dex, shred appear on the trick index, trick pages, and records with no inline gloss. Per the research (NN/g progressive disclosure capped at two levels; Wikipedia lead-section convention; MDN abbreviation markup), add a one-line "what is this notation?" affordance beside formulas and a beginner-first lead sentence on trick pages, deferring the notation string below it.
-- **FS-74 (P2, VERIFIED CLOSED: gloss already present) the records page uses "recorded versus canonical ADD" without defining ADD or the relationship.** Verified against `records.hbs`: the page carries an inline gloss defining recorded versus canonical ADD and a link to the ADD accounting explanation. No action needed. Records are a likely shared inbound page; its central difficulty column is opaque to a newcomer. Add a one-line gloss and a link to the notation or glossary explanation.
-- **FS-77 (P2) search returns a flat fifty-plus list with no beginner cue.** A beginner searching "butterfly" gets fifty variants (atomic, ducking, spinning) with numeric ratings and no signal which is the plain base trick. The family grouping at the top helps; add a clear "the basic trick" affordance and onward links (browse, learn, glossary) on the results and empty states.
-- **FS-90 (P2, RESOLVED: delete the card) the home page says "Tutorials - Coming soon" while freestyle tutorials already exist.** The home card reads "Tutorials - Coming soon" but `/freestyle/media` already offers tutorial collections and trick pages list available tutorials. Maintainer ruling (David): delete the card, do not repoint or keep it. Remediation: remove the "Tutorials - Coming soon" card from the home page template. Owner: Dave/platform (this is a home-page, not freestyle-owned, surface). Done: the card no longer renders on the home page.
-
-Honest positives to preserve: the plain-language landing definition and the compositional-naming hook; the ordered learn curriculum; the "start here" index section; per-trick coaching and prerequisites; the tiered glossary; and the competition page's explicit "unfamiliar terms are explained in the glossary."
-
----
-
-## 6. Expert UX findings
-
-The expert-trust verdict is positive: ADD math is internally coherent across independently rendered pages, direction-reversed identity is handled correctly (mirage and illusion are distinct root families; orbit is distinct from around-the-world; spinning, inspinning, and gyro each score separately), provenance is genuinely scholarly (Ben Job's 1995 message reproduced, Holden's 2003 compilation marked community-cited, footbag.org credited), asserted-versus-computed ADD is shown side by side, and unresolved doctrine is hedged honestly. The defects are consistency seams, not fabrications:
-
-- **FS-78 (P2) hyphen-form slugs 404 with no redirect.** `/freestyle/tricks/atom-smasher` returns 404; the canonical slug is `atom_smasher`. Slugs are underscore-form throughout, so external deep-links and hand-typed hyphen guesses dead-end. Add hyphen-to-underscore normalization (redirect or resolve) on the trick, set, family, and modifier slug routes. Distinct from the alias-redirect work (FS-48): this is a separator-format normalization, not an alias.
-- **FS-79 (P2, VERIFIED CLOSED: ladder present) the run-quality ladder is absent from the glossary.** Verified against `glossary.hbs`: a Run-quality ladder section defines Tiltless through Godly. No action needed. The vocabulary tiltless (2+), guiltless (3+), tripless (4+), fearless (5+), beastly (6+), godly (7+) is defined only on `/freestyle/combo-analysis`, not the glossary, which is where an expert looks first. Add the ladder to the glossary or cross-link it from there. (The definitions themselves are correct and honestly hedged.)
-- **FS-61 (P1) retired "barraging" is still scored as an operator on live surfaces.** See section 10; an expert cross-reading the flurry page against the operators page hits a contradiction on a flagship trick.
-- **FS-73 (P3 code, but expert-visible when triggered) raw parser status strings render on a public trick page.** The expert observed `inferred_self_canonical_atom` and "Equivalent readings: not yet confirmed" on the atom-smasher page. That literal is not in `src/` (so it renders from a database status value, not checked-in text), but the mechanism is the status-label fallback in `freestyleService.ts:2403-2405`, which also embeds an internal doc reference. See FS-73 in section 7. Replace machine status labels and the doc reference with human-worded hedges.
-- **FS-86 (P3, RESOLVED) count seams between overview and detail.** Two distinct seams, investigated and both addressed. **Mirage 97 vs 98 (a real derivation bug): FIXED.** The By-family landing chip counts were tallied from raw `trick_family` strings with no sub-label fold, while the browse sections derive from the membership map that folds sub-labels (for example `paradox_mirage` under `mirage`); the chip undercounted such a family by exactly its folded rows. The chip counts now derive from that same membership map, so every family's chip equals its rendered section; a route test pins chip-equals-section for a folded family. **17 vs 26 groups (intentionally different sets): a label reconciliation, not a data fix.** 17 is the "Family Parent" display tier (curated descendant count above ten); 26 is the full public roster (18 roots plus 8 branches, all tiers), and the 26 splits on the browse into 17 first-class sections plus 9 minor lineages. Both derive from one family list. The remaining defect was presentational: the landing card labeled its 17 as "families" while the browse it links to said "26 family groupings", with the subset relationship not explained side by side. **RESOLVED (labels, James-approved):** the landing card now reads "17 core families" (previewing the full curated Family-Parent roster, independent of what the current data populates) and the browse reads "N family groupings organize tricks by structural anchor: C core families and M smaller lineages that may later roll into broader family hierarchies", with the browse's three numbers all derived from the same rendered parent/minor arrays so it stays internally consistent (N equals C plus M). Both surfaces name the tier with the same "core families" wording, which the route test pins along with the browse's internal math. No membership or data change was made.
-- **FS-87 (P3) the search-suggest JSON shape is inconsistent.** Family hits use `typeLabel` and omit `adds`; trick hits carry `adds` as a string; `matchedAlias` is null even for alias-driven queries. Normalize the shape (numeric `adds`, consistent fields) for API consumers.
-- **FS-88 (P3, RESOLVED: keep full names, no code change) person-identity presentation on records surfaces.** Ruling (James): full names are the standard on the records and leaders surfaces; no change to the current rendering. All 204 displayed records resolve to a full name, through the linked historical person or the record's stored fallback. Full names give consistent, unambiguous attribution on a formal achievement surface; the available nickname/handle field is sparse and would create an inconsistent handle-or-name mixture, so no nickname backfill or handle-primary presentation is justified for launch. A future optional "Full Name (handle)" display may be considered only if nickname coverage becomes sufficiently complete and the added community context is worth the complexity. Any rare archive-faithful stored handle stays as-is under the no-change ruling.
-
-Verified against the database and resolved as not defects (recorded so they are not re-investigated): `catwalk` genuinely is an alias of `eclipse`; `dada_curve` is a real active trick at 4 ADD; pogo's whirl-swirl set classification is a deliberate movement-system axis, not a family claim; the `>>` token in flurry's notation is a legitimate reused grammar token; and the family/media counts above are seams, not corruption.
-
----
-
-## 7. Code-standard findings
-
-- **FS-59 (P1, RESOLVED: already fixed in code) media-card active-only filter.** Fixed: `resolveTrickTags` now filters `AND is_active = 1` on both the direct-slug and alias branches, so an inactive or pending trick's tag produces no destination chip. Original finding, retained for context: `resolveTrickTags()` in `src/db/db.ts:6496-6512` filters neither branch on `is_active = 1`, unlike every other public trick statement (`listAll`, `getBySlug`, `listByFamily`, `searchFreestyleTricksByText`, `getCanonicalForAlias`). It is called from `mediaService.attachDestinations()` (`src/services/mediaService.ts:578`), which serves the public `/media/browse` gallery and item viewers. An inactive or pending trick's name renders as a clickable chip whose `/freestyle/tricks/<slug>` link then 404s (the detail route filters `is_active`). The function's own comment claims "no broken links." At minimum a broken link, at worst a leak of un-promoted dictionary content; it violates the anti-enumeration contract in the service file header. Fix: add `AND ft.is_active = 1` to both branches; add a regression test.
-- **FS-63 (P2) a second, out-of-budget token-color system on the trick hero.** The canonical four-color symbolic budget lives in the `.sem-token--*` classes (`src/public/css/style.css:8869-8877`, mapping to `:root` tokens). The trick hero (`partials/trick-hero.hbs`, every trick page) uses a parallel `hero-decomp-*` / `hero-formula-*` system (`style.css:5756-5830`) driven by `modifierCssRole()` (`src/services/freestyleService.ts:6344-6348`), which introduces `set` and `rotation` as two extra hues beyond the four the doctrine names, expressed as raw `rgba()` literals rather than `:root` tokens. This is the "no additional role colors without curator approval" and "no visual overload" constraint. Fix: repoint the hero strip onto the four `.sem-token--*` classes, or get curator approval for a documented dark-background variant of the same four roles.
-- **FS-64 (withdrawn, not a finding) database reading a services-layer visibility constant.** An earlier pass flagged `src/db/db.ts:62` importing `PUBLIC_FREESTYLE_RECORD_CONFIDENCES` from `../services/freestyleRecordVisibility` as a layering inversion, claiming it was the only `../services/` import in `db.ts`. Withdrawn on re-check: `db.ts:58-61` imports `PUBLIC_EVENT_DETAIL_VISIBLE_STATUSES` and `PUBLIC_UPCOMING_VISIBLE_STATUSES` from `../services/eventVisibility` with the identical pattern, so a `db.ts` reading a `PUBLIC_*` visibility constant from a `services/*Visibility` module is established house style, not a freestyle-only inversion. No action; changing only the freestyle one would make it inconsistent with the event precedent.
-- **FS-73 (P2, RESOLVED) internal-status, doc-reference, and raw-parse-warning leak on a public trick page.** Fixed: the public structural-decomposition panel no longer renders the raw status value in parentheses or the machine-formatted parse-warning codes (they stay internal QC), and the unrecognized-status fallback now renders a neutral hedge ("Analysis status pending review.") with no raw value and no internal-document reference; the human status label, asserted-versus-computed ADD, and agreement indicator still render. A route test pins that no warning family, raw status value, or document reference appears and that an unknown status yields the neutral hedge. Original finding, retained for context: `src/services/freestyleService.ts:2403-2405` falls back to `{ label: status, description: 'Status produced by the parser. See PROPOSAL §7.2.' }` for an unrecognized `add_formula_status`, which would render the raw internal status value and an internal doc reference (itself a comments-rule violation for human-readable strings) on a live page. Not currently triggered (all ten rows with a null status also have null parse JSON), but it is the mechanism behind the expert-observed status-string leak (FS-73/FS-86 in section 6). Fix: replace with a human-worded hedge and drop the doc reference; add a test for the unrecognized-status path.
-- **FS-65 (P2) inline SVG duplicates `:root` token hex values invisibly to the CI color gate.** The glossary "trick clock" diagram (`src/views/freestyle/glossary.hbs:573-587`) hard-codes hex values (`#7f9a6b`, `#5a7b48`, `#8a8470`) that each match an existing `:root` token, but the CI color gate scans only `style.css`, so this template duplication is undetected and drifts if a token is retinted. Fix: reference the tokens via `currentColor` or CSS-variable-driven presentation, or extend the color gate to templates.
-- **FS-80 (P3, CLOSED: both removed) dead exports with stale contract comments.** Done: `freestyleTricks.getAnyStatusBySlug` and `freestyleService.searchTricks`, verified to have no callers anywhere in `src/` or `tests/` (and no dynamic string reference), are removed along with their stale comments; the build type-checks and the search route tests stay green (the live search path uses `runTrickSearch` directly, and `FreestyleTrickSearchResult` is still used there, so it is retained). Original finding, retained for context: both had no callers yet carried JSDoc describing usage that does not exist.
-- **FS-81 (P3, CLOSED: header corrected) stale service file-header JSDoc.** Done: the `freestyleRecordCurationService.ts` file-header now owns the new-record surface, drops "adding new records" from the not-owned list, describes createRecord's validation and transaction, and lists `freestyle.record.created` in the persistence audit actions. Original finding, retained for context: the header said it does not own adding new records, but `createRecord()` is implemented, routed, audited, and tested; the service-layer rule makes JSDoc drift a real bug.
-
-Conforms well (recorded to keep the audit honest): controllers are thin and 404 cleanly through `NotFoundError`; all core public trick statements filter `is_active = 1`; no `db.prepare()` outside `db.ts`; `runSqliteRead` wrapping is consistent; route ordering is correct with no shadowing; no inline styles, scripts, or event handlers in templates; the Modifier Reference is confined to the glossary; trick names render as plain text; hashtags and family badges are service-shaped single-variable hrefs; ADD chips are confined to dictionary and glossary surfaces; no comment-rule violations in sampled freestyle `src/` files.
-
----
-
-## 8. CSV / database / source-of-truth findings
-
-- **FS-68 (P2) the rebuild guard is orchestrator-only and bypassable by direct loader invocation.** `freestyle/_assert_dev_db.sh` refuses the rebuild unless the target is a disposable dev database, with no bypass flag, and `run_freestyle.sh` calls it before any loader; realpath canonicalization blocks a symlink end-run. But none of the Python loaders check the guard themselves, and each accepts an arbitrary `--db` path, so `python3 freestyle/loaders/17_load_trick_dictionary.py --db <path>` wipes and reloads that target with no guard. Mitigated in practice because the deploy scripts never rsync `freestyle/` to any live host, so this is only reachable from a full local checkout. Per the cutover research (put the destructive guard in each loader against a durable database-resident marker, not only in the wrapper), fix: add a shared guard check in the loaders' database-open helper. Low practical exploitability; real defense-in-depth gap.
-- **FS-66 (P2) the runtime-readonly guard test watches only three of about sixteen tables.** `tests/integration/freestyle.content-runtime-readonly.test.ts` snapshots `freestyle_tricks`, `freestyle_records`, and `consecutive_kicks_records` for byte-identity across public reads, but not aliases, modifiers, sources, source links, modifier links, tips, or the six symbolic tables. A regression writing to any of those during a public GET would go undetected. Fix: extend the snapshot to all freestyle and symbolic tables.
-- **FS-60 (P1) the `blurry` modifier registry value contradicts every blurry compound.** See section 10; `freestyle_trick_modifiers` declares `blurry` at +1, but every active `blurry_*` compound shows a +2 delta from its base. The ADD-math validation against modifier links is deferred, so no page is corrupted yet, but the registry row is wrong and will corrupt any future auto-computed-ADD feature. Fix: correct the registry value to +2 (stepping +1 plus paradox +1, per the operator reference), verified against the five compound pairs. DISPOSITION (maintainer, doctrine-blocked): this is not drift. The +1 is intentional and documented on the source row with worked examples, and the +2 compounds are fuller Stepping Paradox decompositions rather than a uniform blurry(+2) operator; the operator reference has been clarified so it no longer overgeneralizes blurry as "stepping paradox". Whether a blurry-named trick inherits the paradox term is the open blurry-expansion predicate, so the registry stays +1 pending the ruling. Reclassified in section 13.
-- **FS-67 (P2) operator ADD values are duplicated in prose with no cross-check test.** `src/content/freestyleOperatorReference.ts` (the stated single authority) carries operator ADD values in prose; the `freestyle_trick_modifiers` registry carries them as data. Nothing tests that they agree, so drift like FS-60 goes unnoticed. Fix: add a test that parses the reference values and asserts they match the registry.
-- **FS-83 (P3, CLOSED) orphaned pipeline inputs, dispositioned individually (James-approved).** `footbag_org_moves_metadata.ndjson` is not dead: it is a sealed provenance artifact (in the legacy-archive seal manifest) and a recorded future source for upgrading trick descriptions, written by `legacy_data/scripts/extract_footbag_org_moves_metadata.py`. It is **kept and documented** in the freestyle inputs register (`freestyle/README.md`) with its origin, purpose, immutability, and no-loader-consumes-it status. `freestyle/inputs/pb_setlist.png` is a genuine stray: **deleted**, having been verified byte-identical (md5 `70c30198...`) to the rendered public asset `src/public/img/pb_setlist.png` and referenced by no code, doc, provenance, or regeneration path; the public asset is untouched and not replaced.
-- **FS-82 (P3, VERIFIED CLOSED: whole comment-drift class re-audited, all claims already fixed) the pipeline comment-drift class.** Each claim re-checked against current code and found already synced, with no remaining stale comment: the loader-22 docstring states `freestyle/out/`; loader 11 references `run_freestyle.sh` (not `run_pipeline.sh`) and loader 20 has no such reference; loader 17 carries only `freestyle/...` input paths; the scripts/18 usage line is `python freestyle/scripts/18_...` with no `event_results/scripts/`; the `freestyle_trick_aliases` table comment and its column comment list the identical eight alias types; the `freestyle_trick_sources` banner lists loaders 17/19/20/21, covering all three source writers (17/19/20); and the source-links comment names the freestyle trick-dictionary QC loader generically with no legacy path. No code change.
-
-Confirmed accurate and not defects: the runtime reads only the database and compiled constants; the symbolic layer loads from committed CSVs, never `exploration/`; the additive records loader (`INSERT OR IGNORE`, no delete) is documented and warns loudly on edited-but-skipped rows; `freestyle/CLAUDE.md` and `freestyle/README.md` accurately describe the loader semantics.
-
----
-
-## 9. Pre / post-go-live curator findings
-
-The pre-go-live model (edit committed CSVs, rebuild a disposable database, git as the audit trail) is coherent and guarded. The admin curation surfaces are built, audited (one `appendAuditEntry` per write), persona-guarded, and tested for trick scalars, aliases, source links, modifier links, records, and consecutive-kicks records. The destructive rebuild is refused post-cutover by the host-side `FOOTBAG_CUTOVER_COMPLETE` marker with no bypass.
-
-**Ratified requirement (maintainer, this review): all freestyle curation must work after go-live.** Every freestyle content type a curator edits must have a working, audited in-app path before cutover; no curator-editable surface may freeze when the CSV rebuild retires from production. This overturns the earlier item-by-item deferrals below: each surface that a curator would touch post-launch is now required before cutover, not optional. Where a surface's authoring and validation model is not yet designed (the symbolic layers in particular), designing that model and building the surface is part of the requirement.
-
-The gaps:
-
-- **FS-49 (P0, CLOSED: already resolved) trick editorial prose in-app edit path.** Resolved in commit `d47105f2`: the admin trick-edit form, its controller, and the curation service all cover the seven prose fields end to end (verified), so no field freezes at cutover. Original finding, retained for context: the admin trick editor covered nine scalar fields plus aliases, sources, and modifier links, but none of `description`, `short_description`, `execution_summary`, `learning_notes`, `prerequisite_notes`, `pronunciation`, `operational_notation_source` (`src/services/freestyleCurationService.ts`; `src/db/db.ts` `updateScalars`). These fields are populated at scale (917 of 923 active tricks have a description; about 208 carry technique notes) and render on every trick page; their only edit mechanism today is a CSV plus rebuild, which dies at cutover. The migration plan lists this as a go-live gate (the editorial-prose gate), and the `A_Edit_Freestyle_Trick` story requires every database-backed field to have an in-app edit path, but `IMPLEMENTATION_PLAN.md` does not currently track it and its Freestyle launch-gate section reads as if the admin build is complete. This is the authority-order conflict flagged in section 16 (human decision 1). Fix: extend the trick edit form and service with the seven fields, same transaction-plus-audit pattern as the scalar update; amend the story to the shipped field list (a canonical-doc edit needing Dave's approval); and add the item to the plan.
-- **FS-19 (P1, launch blocker, cutover-timed) the in-app curation cutover staging rehearsal.** The cutover feature is code-complete; the remaining piece is the operator-run staging rehearsal: make one admin edit of each kind, run a code-only deploy, verify the edits persist with the live database untouched, and demonstrate one destructive-rebuild refusal on a host carrying the marker. Owner: Dave (the only authorized deploy operator); James completed the admin-UI half. This is the single remaining launch blocker apart from the P0s.
-- **Trick-tip moderation must have a working in-app path before cutover (required by the ratified requirement above).** `A_Moderate_Freestyle_Trick_Tip` has no mounted route today; tips are display-only legacy-imported advice. Build the moderation surface (edit tip text, hide/unhide, resolve a tip to a trick, with audited writes) before cutover; the small unresolved set is finalized in the final pre-cutover rebuild, but ongoing moderation cannot depend on a rebuild that is retired from production.
-- **The previously-deferred curation surfaces are now dispositioned (see the FS-91 entry for the full rulings).** Provenance-source creation is built and shipped. Modifier-registry creation is blocked on the operator-authority model and stays code-managed (not launch-gating). Trick relations need no editor (derived and read-only). The six symbolic layers are removed from the launch-gating bundle as explicit generated, doctrine-blocked, or intentionally code-managed exceptions. Only linking to existing sources and modifiers was exposed when this finding was written; source creation closed that gap, and the rest are ruled exceptions rather than unbuilt CRUD.
-- **The schema-migrating deploy path does not exist yet.** `scripts/deploy-migrate.sh` is an unimplemented stub, so a post-cutover freestyle change needing a schema change has no deploy path; the failure mode today is "blocked," not "silent data loss" (the destructive rebuild is correctly refused). Already tracked in the plan as its own item; status, not a new finding.
-
-Coherence with the curated-media yardstick holds where it matters: production writes for both go to the database; freestyle trick curation writes no sidecar files at all, so it has no dev/prod divergence risk on that axis; the freestyle-adjacent seeder shares the media seeder's only-sanctioned-inside-the-guarded-deploy invocation.
-
----
-
-## 10. Data and doctrine findings
-
-- **FS-57 (P1, RESOLVED for the rendering violation; source rewrite deferred) description-policy violation at scale.** The About block now suppresses shorthand-bearing descriptions via `isDescriptionStructuralPlaceholder`, with a route test; the source rewrite of the ~262 suppressed placeholders to prose is a deferred, non-launch-blocking content pass. Original finding, retained for context: about 262 of 923 active tricks carry descriptions containing internal ADD-shorthand and raw Jobs notation, rendered live on public trick pages (example `inspinning_paradox_illusion`: "4 ADD = inspinning(+1) + paradox-illusion(3); JOB CLIP > (front) SPIN [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL]"). The dictionary skill forbids internal modifier shorthand and raw notation in descriptions. The suppression mechanism (`isDescriptionRedundantWithNotation` in `src/content/freestyleSemanticOverrides.ts:93-100`) only hides a description that is a verbatim match of the `notation` column, and the semantic-description override map covers only about fifteen slugs, far short of the 262. Fix: rewrite the affected descriptions to neutral instructional prose (the largest single content task), and widen or replace the suppression mechanism so shorthand-bearing descriptions cannot render. This is separate from the em-dash sweep (FS-51).
-- **FS-58 (P1, RESOLVED: already fixed in code) symbolic-grammar slug-key normalization.** Fixed by the commit that resolves symbolic-grammar slug keys to the underscore canonical form: `normalizeSymbolicSlug` is applied both when the membership map is built and on every lookup, so compound tricks resolve their memberships; the symbolic topology-panel and grammar-service tests pass. Original finding, retained for context: `symbolic_group_membership.trick_slug` and `symbolic_equivalence_clusters.member_trick_slugs` store hyphenated slugs ("atom-smasher"), while every code lookup uses underscore slugs. `symbolicGrammarService.ts:169-174` builds the membership map keyed by the raw hyphenated slug with no normalization; `getMembershipsForSlug` (`symbolicGrammarService.ts:305-309`) is called with the underscore canonical slug unconditionally for every trick page (`freestyleService.ts:7611`). For any compound trick (the majority of the dictionary) the lookup returns empty, so the symbolic topology panel and education CTAs never render, with no error surfaced. The allowlist in `symbolicTrickPanels.ts:31-40` even contains hyphenated entries (`dada-curve`, `spinning-whirl`) that can never match real route slugs. Fix: normalize slugs to underscore form at load or lookup (and fix the allowlist entries); add a test asserting a compound trick resolves its memberships.
-- **FS-48 (P0, CLOSED: already resolved) alias slugs shadow canonical tricks.** Resolved in commits `fbfbb64a` and `f1e1dc49` (see the owner entry): zero active tricks are shadowed by an alias, all six active pairs are ruled, and the QC gate hard-fails on a collision. Original finding, retained for context: twenty-nine alias rows carried an `alias_slug` equal to a `freestyle_tricks.slug`. Six shadow an active canonical row and the alias wins, so those six tricks (`maelstrom`, `ripped_warrior`, `tapping_mobius`, `paradox_fusion`, `surging_ducking_blender`, `zulu_clipper`) have no reachable URL: `/freestyle/tricks/maelstrom` renders Spinning Ducking Whirl. The other twenty-three shadow an inactive row and render a 200 duplicate page whose canonical tag points at the alias URL instead of a 301. This violates the URL-identity cutover gate. Fix (code): an active canonical row always wins its own slug (both in `trickRouteRedirectTarget`, which needs `is_active` from `categoryBySlug`, and in `getTrickDetailPage`, whose alias override must not fire for an active canonical slug); an alias shadowing only an inactive row 301s to its target; strengthen the shadowing test to assert body identity plus the inactive-shadow 301 and inactive-no-alias 404 cases. Fix (loader): loader 19 skips with a loud warning any alias whose slug is an active canonical trick; QC gate 22 hard-fails on the collision. Fix (curator): the six active pairs each need an explicit "one trick" (merge) or "two tricks" (remove the alias) ruling, checkable against Red's original notes since all six came from the Red corrections load (human decision 2, section 16).
-- **FS-61 (P1, CLOSED: already resolved) retired "barraging" scoring on live surfaces.** Verified: no active description scores barraging (the `barraging_double_leg_over` and `nemesis` readings are corrected), the notation-rendering gloss now describes barraging as "not a separately scored operator" and uses Furious for ADD, and the dictionary-surface skill example scores through Furious. No rendered surface scores the retired operator. The Furious-versus-Barraging timing-distinction wording remains a separate doctrine matter for James, independent of this rendering closure. Original finding, retained for context: two active descriptions still score it: `barraging_double_leg_over` ("5 ADD = barraging(+2) + double-leg-over(3)") and `nemesis` ("A barraging barfly", though ruled Furious Barfly). Additionally `src/services/notationRendering.ts:134` glosses `BARRAGING` as "body modifier (+1 ADD; underlies Flurry)", a scored-operator gloss contradicting the operator authority, and the dictionary-surface skill's examples table still teaches `barraging(+1)` and `miraging(+1)` (this last is the previously-recorded FS-56). Fix: rewrite the two descriptions to read Furious; correct the notation-rendering gloss; and rule and fix the skill examples (FS-56). This is the single-authority drift the operator-reference rule exists to prevent.
-- **FS-62 (P1, CLOSED: resolved, `inside_stall` intentionally kept as a first-class family) a dead family-retirement mechanism disagreed with a publicly-exposed family.** Ruled (James): `inside_stall` remains an intentional first-class public family, the terminal-surface family the Guay lineage lands into; it is not retired, hidden, renamed, or demoted, and this is not an open taxonomy decision. Resolution: the unused `RETIRED_FAMILIES` deny-list was deleted, so `freestylePublicFamilies.ts` is the sole family-exposure authority; a route test (`tests/integration/freestyle.inside-stall-family-exposure.routes.test.ts`) pins that the `inside_stall` family section renders when it has active members; and there was no public behavior change because the family was already correctly exposed. Original finding, retained for context: a dead `RETIRED_FAMILIES` list marked `inside_stall` retired while the exposure authority rendered it, a contradiction between two content modules with the governance code dead.
-- **FS-72 (P2, CLOSED: already resolved) four published tips point at missing or inactive tricks.** Verified: zero published tips point at a missing or inactive trick; the four were remapped or unpublished. Original finding, retained for context: `ducking_paradox_whirl`, `stepping_p_s_whirling_x_body_rake` (twice), and `symposium_barfly` are published tips whose `trick_slug` has no active trick; two correspond to tricks retired without remapping their tips to the `unresolved:<name>` convention. Fix: remap or unpublish these four.
-- **FS-84 (P3, CLOSED: already resolved) stale modifier links on inactive tricks.** Verified zero `freestyle_trick_modifier_links` rows now point at inactive tricks; the earlier twenty-five are gone. Original finding, retained for context: twenty-five rows across twenty-one inactive tricks were not cleaned up on retirement. Not publicly visible (the trick is hidden). Fix: prune on retirement, or a one-time cleanup.
-- **FS-85 (P3, VERIFIED CLOSED: retag already in red_corrections) one mistagged trick family.** Verified: `red_corrections_2026_04_20.csv` already carries a `trick_family` override retagging `pogo-paradox-da-da-curve` from its own slug to `dada-curve` alongside its siblings, so the orphaned family-of-one is corrected at the seed. No action needed. Original finding, retained for context: the row's `trick_family` equalled its own slug, orphaned from the six `dada_curve` siblings.
-- **FS-24 (P2, blocked) unresolved world-record trick names.** Six record names resolve to no dictionary row (`Stepping Ducking Blurry Whirl`, `Blink`, `Double Dyno`, `Double Whip`, `Solestice`, `Toe Spinning Toe`); six more await curator video viewings; three "Unique N-Dex" categories correctly badge no trick by design. Each needs a dictionary resolution or a recorded ruling. Blocked on Red answers and curator viewings.
-- **Data-model documentation is a dead-end delegation (doc-sync note, not a defect).** `docs/DATA_MODEL.md` intentionally declines column-level docs for the freestyle and symbolic tables and delegates to `legacy_data/CLAUDE.md`, which does not provide them either; `schema.sql` inline comments are the sole documentation. The fix is specified in FS-92 (the maintainer-doc pair and its alignment edits); not an audit finding.
-
-Spot-checks that passed (recorded so they are not re-run): atom smasher 4 ADD, flurry 4 ADD, eclipse 3 ADD; mirage and illusion distinct and active; the nine Red-named tricks all exist and are active; the operator registry matches the reference for every operator except `blurry`; surging is a 3-ADD compound with no modifier row; the consecutive-kicks rank tie is genuine. Open doctrine in `RED_QUEUE.md` (POD versus Dimmier, Kiwi source contradiction, the Omelette naming tension) is human-owned status, not findings.
-
----
-
-## 11. Story and test coverage findings
-
-Every mounted route traces to a named story except one, and the admin write paths, 404 behavior, admin auth, link-integrity crawl, and loader guards are well covered. The gaps:
-
-- **FS-69 (P2, CLOSED) the per-modifier detail page has no user story.** Resolved: `V_View_Freestyle_Reference` in `docs/USER_STORIES.md` now names `/freestyle/modifier/{slug}` and its definition, scoring and structural role, related examples, and clearly-labeled stub state (a maintainer-ratified one-sentence amendment). Original finding, retained for context: `/freestyle/modifier/:slug` is mounted, tested, and renders a teaching-or-stub split, but no story named it; `V_View_Freestyle_Reference` names only `/freestyle/operators`. This is a coverage gap under the deployed-surface rule, distinct from the deferred modifier-registry write-path work. Fix: extend `V_View_Freestyle_Reference` to name the per-modifier page and its teaching/stub duality (a canonical-doc edit needing Dave's approval).
-- **FS-70 (P2) search has no adversarial-input tests.** Neither `/freestyle/search` nor `/search/suggest` has a SQL-injection, unicode, or oversized-query test, though the testing rule requires SQL-injection cases in every free-text input. Fix: add representative cases (the queries use parameterized statements, so this pins behavior, not a known hole).
-- **FS-71 (P2, RESOLVED: moot, closed, no code change) the positional-alias structural invariant and the admin alias path.** The invariant constrains the autonomous resolver, forbidding it from treating a multi-component positional name as a safe alias without an explicit curated equivalence. Adding an alias through the admin surface is itself that explicit curator-authored equivalence, which is the sanctioned exception the invariant carves out, not a bypass around it. Closed with no code change and not handed to Dave for a regression test; the existing canonical-slug-collision and duplicate-alias checks on the admin alias path remain required and unchanged. A positional-formula-lookalike warning is possible future curator UX but is not a correctness requirement and is not carried here. Full rationale under Decision 3.
-- **FS-13 (P3) freestyle test comments carry epoch and dated labels.** About 86 test files carry epoch labels and dated change-markers, violating the comment rule. Mechanical rewrite to plain contract descriptions.
-
-Recorded as adequate: the route-wiring crawl covers freestyle; 404 tests exist for every `:slug` route; admin auth (403 non-admin, 302 unauthenticated, 403 persona) is asserted on every write path; loader guards have pytests; accessibility and mobile have representative e2e coverage by design.
-
----
-
-## 12. Current IMPLEMENTATION_PLAN freestyle task audit
-
-Every freestyle-related plan item, with its disposition. The move recommended here has since been executed: the engineering detail lives in this report and the plan keeps the David-level items; section 14 records what remains.
-
-**Keep in the plan (David-level):**
-- The surface-propagation rule (standing definition of done). Keep verbatim.
-- The "State of freestyle" standing summary. Keep, but trim the engineering-mechanism sub-bullets to status-only prose and let the detail live here (human decision on how much to trim).
-- The Freestyle launch gate (maps to the migration plan rehearsal gate). Keep; it is David-owned. The editorial-prose gate (FS-49) is now stated in it.
-- The accepted deviations and closed-decisions block. Keep the deviations (code-marked, they belong in the plan). The closed rulings are freestyle doctrine and curation decisions, so their home is freestyle's own documentation, not the project design-decisions doc: settled doctrine belongs in `freestyle/doctrine/RED_RULINGS.md` or the relevant doctrine paper (several already live there), and the curation/scope decisions belong in a freestyle curation record. James confirms the exact home per ruling; the plan keeps only a one-line pointer (human decision 4, section 16).
-- The External row (IFPA Sick 3 wording, via Julie) and the Red-doctrine dependency. Keep as cross-team blockers; consider surfacing the Red dependency at the same level as the other external blockers.
-- The multi-pipeline post-refactor doc-sync item. Keep; it spans three pipelines, not just freestyle.
-
-**Absorb into this report (engineering detail):** the "unfinished freestyle business" rows (post-launch media, code and test hygiene, contingent/doctrine-gated audits, deferred tooling, curator tasks). These are now the backlog in section 13.
-
-**Deleted from the plan as done or stale (executed):** the "strip embedded design-doc references" item and the terraging-rider caveat are gone from the plan.
-
-**Reconciled (executed):** the plan's launch-gate section now states the open build requirement (FS-49 and FS-91) rather than implying the admin edit build is complete.
-
-No plan item was dropped silently; each maps to a keep, absorb, delete, or reconcile above.
-
----
-
-## 13. Consolidated remediation backlog
-
-Template per item: ID; title; severity; owner; status; context; evidence; remediation; done condition. Common conventions: owner default is Dave for platform code and tests with James for freestyle content and data; "audience" is who a defect affects, not who fixes it. Items carried from the prior audit keep their IDs; new items from the 2026-07-12 audit are FS-57 and above. FS-55 was never assigned.
-
-### P0 (block go-live)
-
-**FS-48 (P0, DONE) resolve alias/canonical slug collisions.** Owner: Dave (code) plus James (curator rulings). Six active tricks unreachable, twenty-three duplicate-rendered. Evidence and remediation in section 10. Done: every active trick renders its own page at its own slug; all twenty-three inactive-shadow alias URLs return 301; the loader prints skip warnings and QC hard-fails on collisions; the strengthened tests fail against pre-fix code and pass after; the six active pairs each carry a recorded ruling. Status: resolved in commits `fbfbb64a` and `f1e1dc49`; all six pairs ruled (three "two tricks" with the incorrect alias removed, three "one trick" with the shadowing row retired to a 301 alias), and the QC gate hard-fails on any alias slug equal to another trick's active canonical slug.
-
-The six active-collision pairs, each needing an explicit "one trick" (merge: one row goes inactive and its name becomes an alias of the other) or "two tricks" (the alias row is wrong and is removed from the source data) ruling. All six alias rows came from the rules-expert corrections load (`source_id red-husted-2026-04-20`), so each ruling is checked against the rules expert's original notes before deciding.
-
-| # | Alias slug (unreachable trick) | Alias currently renders | Contention | Ruling |
-|---|---|---|---|---|
-| 1 | `maelstrom` | `spinning_ducking_whirl` | difficulty values disagree (6 vs 5), so the alias claim contradicts one row's scoring | Two tricks: alias removed (maelstrom is the 6-ADD paradox variant; spinning ducking whirl is 5) |
-| 2 | `zulu_clipper` | `diving_clipper` | the settled zulu-vs-diving distinction in the ducking family says these differ | Two tricks: alias removed (settled zulu/diving split) |
-| 3 | `ripped_warrior` | `stepping_ducking_butterfly` | folk name paired with a structural name at equal difficulty and family; likely one trick recorded twice | Two tricks: alias removed (far vs same-side) |
-| 4 | `tapping_mobius` | `irish_cream` | folk name paired with a structural name at equal difficulty and family; likely one trick recorded twice | One trick: retired to a 301 alias of irish_cream (identical notation; family torque) |
-| 5 | `paradox_fusion` | `cold_fusion` | folk name paired with a structural name at equal difficulty and family; likely one trick recorded twice | One trick: retired to a 301 alias of cold_fusion (paradox on the entry dex) |
-| 6 | `surging_ducking_blender` | `cheese_processor` | folk name paired with a structural name at equal difficulty and family; likely one trick recorded twice | One trick: retired to a 301 alias of cheese_processor (back-back spin form) |
-
-Each row's ruling is recorded in the Ruling column as it is decided; every pair must be non-pending before FS-48's data half is done.
-
-**FS-49 (P0, RATIFIED, do ASAP, DONE) trick editorial prose in-app edit path.** Status: resolved in commit `d47105f2`. Owner: Dave (code), James (content), Dave (story approval). Ratified by the maintainer in this review as an open pre-launch blocker, to build first. Fix plan: extend the admin trick editor and its curation service with the seven prose fields (description, short description, execution summary, learning notes, prerequisite notes, pronunciation, operational notation source), using the same single-transaction, one-audit-entry, persona-guarded save the existing scalar fields already use, and add the matching prepared UPDATE columns; amend the trick-edit story to the shipped field list (a gated canonical-doc edit). Without this the seven fields freeze permanently when the CSV pipeline retires from production at cutover. Done: all seven fields editable in-app, each write audited and tested (audit row asserted, persona 403, non-admin 403/302), the story amended, and the item tracked in the plan.
-
-**FS-57 (CLOSED: public rendering defect fixed) description-policy rendering violation.** The public rendering defect is closed. The trick About block now follows the same structural-placeholder rule already used elsewhere (`isDescriptionStructuralPlaceholder`, alongside the narrower notation-echo check), so structural-placeholder descriptions no longer appear in the About block, while genuine prose continues to render; a route test pins both. The notation and structural-facts sections remain available, so the page does not lose its actual structural explanation. This fix is complete. Separately tracked and not part of this fix, a non-launch-blocking content backlog item: rewriting the roughly 262 stored placeholder descriptions into genuine instructional prose.
-
-### P1 (block launch signoff)
-
-**FS-58 (P1, RESOLVED: already fixed in code, not Dave-pending) normalize symbolic-grammar slug keys.** Done: underscore normalization (`normalizeSymbolicSlug`) is applied at load and lookup, and the symbolic topology-panel and grammar-service tests pass. No further work.
-
-**FS-59 (P1, RESOLVED: already fixed in code, not Dave-pending) active-only filter on `resolveTrickTags`.** Done: both branches filter `is_active = 1`. No further work.
-
-**FS-60 (P1, DOCTRINE-BLOCKED, not an actionable defect) the `blurry` modifier registry value.** Owner: James. Section 10. Disposition (maintainer): do not change the registry from +1 to +2. The +1 is intentional and curator-authored, documented on the `trick_modifiers.csv` row with worked examples (blurry clipper 3, blurry butterfly 4, blurry mirage 3). The +2 seen on named compounds arises from their fuller Stepping Paradox decompositions (Blur is Stepping Paradox Mirage), not from a uniform blurry(+2) operator. The operator-reference wording overgeneralized blurry as "stepping paradox" and has been clarified to the neutral +1-set-modifier-with-named-expansions form. Whether a blurry-named trick inherits the paradox term is the open blurry-expansion predicate in the doctrine queue, so this is not a mechanical drift correction, and corpus recurrence does not overturn the documented registry rule. Held pending that ruling; the FS-67 cross-check is written only after it settles.
-
-**FS-61 (P1, CLOSED: already resolved) remove retired-operator scoring for barraging.** Verified: no active description scores barraging, the notation gloss no longer scores it, and the skill example scores through Furious; no rendered surface scores the retired operator. The Furious-versus-Barraging timing-distinction wording below remains a separate doctrine matter for James. Original owner note: Section 10. Done: the two descriptions read Furious, the notation gloss no longer scores barraging, and the skill examples are ruled and fixed (FS-56); no rendered surface scores a retired operator. Doctrine caveat from the documentation audit: `RED_RULINGS.md`'s latest timing clarification holds Furious and Barraging distinct by timing and not globally merged, with any historical Barraging name audited before a rename or rewire; that conflicts with this item's re-point-to-Furious premise and with the plan's closed-decision wording. James reconciles the ruling wording before the two descriptions are rewritten (the Nemesis reading, Furious Barfly, is already ruled).
-
-**FS-62 (P1, CLOSED) reconcile the dead family-retirement mechanism with the exposed family.** Resolved: the dead `RETIRED_FAMILIES` deny-list is deleted, `freestylePublicFamilies.ts` is the sole exposure authority, a route test pins the `inside_stall` family section rendering with active members, and `inside_stall` is intentionally kept as a first-class family (the terminal surface the Guay lineage lands into). No public behavior change; not a taxonomy decision to reopen.
-
-**FS-19 (P1, launch blocker) in-app curation cutover staging rehearsal.** Owner: Dave. Section 9. Done: one admin edit of each kind survives a real code-only staging deploy with the live database untouched, and one destructive-rebuild refusal is demonstrated on a marked host; both captured as cutover-log evidence.
-
-**FS-91 (P1, cutover gate, RATIFIED) all freestyle curation must work after go-live.** Owner: Dave (code) and James (content model). Ratified maintainer requirement: every freestyle content type a curator edits has a working, audited in-app path before cutover; nothing freezes when the CSV rebuild retires from production. Surfaces required (beyond the already-built trick scalars, aliases, source links, modifier links, records, and consecutive-kicks records): the seven editorial-prose fields (FS-49, SHIPPED); trick-tip moderation (edit, hide/restore, remap-to-trick) (SHIPPED); creating provenance-source registry rows; creating modifier-registry rows; and the six symbolic-layer surfaces. **Tip moderation shipped:** a cross-trick admin index at `/admin/freestyle/tips` lists and searches every tip across every status; a curator edits tip text, hides a published tip and restores it (published↔hidden only; the import's granular unresolved buckets are read but never flattened), and remaps an unresolved tip to an active canonical trick (rejecting a missing, inactive, non-canonical, or unchanged target) with the original slug and status preserved in the audit trail. Each write is one transaction with one audit entry behind the persona guard; route tests cover every write path, the persona 403, the non-admin 403/302, and the public-page effect. **Provenance-source creation shipped:** an admin registry at `/admin/freestyle/sources` (labeled dictionary provenance, distinct from the media-source registry) lists the existing sources and creates a new one with a curator-supplied permanent id (validated to a lowercase slug shape, unique), a fixed source-type selector (curated/scraped/expert/imported), a required label, a required ISO-8601 UTC retrieval timestamp that is never silently defaulted, and optional url and notes; the write is one transaction with one `freestyle.trick_source.created` audit entry behind the persona guard, and a created source is immediately attachable on the trick-edit page. Creation only, no edit/delete/merge. Remaining FS-91 surfaces: none launch-gating; the symbolic layers are dispositioned below. **Modifier-registry creation: RULED (James) BLOCKED on the operator-authority model, not launch-gating.** Modifier vocabulary stays code-managed: a new modifier is published through the governed doctrine/code path (the curator-locked operator reference plus the modifier seed), not an in-app create. An in-app free-create was rejected because creating a modifier immediately publishes its name, type, and ADD on public surfaces, the database registry is secondary to the curator-locked operator reference, and a form reminder cannot enforce consistency; it would only ask a curator to maintain two authorities by hand. A source-of-truth gap is not solved by adding unrestricted CRUD. Prerequisite before an in-app creator can exist: the canonical operator authority must expose a complete machine-readable contract for every modifier (at least permanent slug, public name, modifier type, normal ADD, rotational ADD where distinct, structural/timing classification, and active/historical/non-scoring status), and one durable direction must be chosen: either the structured operator authority generates or validates the database registry, or the live database becomes the sole operator authority and the code reference reads from it. No workflow that requires manual synchronization between both. Evidence for that future reconciliation: the modifier seed carries 33 scored modifiers, but the operator reference exposes full structured entries for only 16, and the sets diverge both ways: the reference lists `barraging`, `double`, and `miraging` that the registry does not, while roughly twenty registry modifiers (including `stepping`, `pixie`, `fairy`, `xdex`, `furious`, `pogo`, `shooting`, `railing`, `sailing`, `terraging`, `warping`, `splicing`, `floating`, `surfing`, `rooted`, `backside`, `zulu`, `blazing`, `weaving`, `swirling`) have no full structured entry there; and the reference states each ADD only in prose, with no numeric field the database could validate against. Reopen this item only on a real new-operator need or an authority-model project. Disposition: no modifier create page now; existing modifier rows unchanged. **Trick relations: RULED (James) no editor required.** Relations remain derived and read-only; the empty stored `freestyle_trick_relations` table is not an incomplete curation surface. No relation editor is built without a demonstrated curator-authored relation that the derivation system cannot represent, to avoid running stored and derived relation authorities in parallel. This portion is closed as "no editor required," and a future evidence-backed proposal (a concrete relation that cannot be derived) may reopen it. **Symbolic-layer authoring: RULED (James) removed from the launch-gating bundle.** The six symbolic-grammar layers are explicit generated, doctrine-blocked, or intentionally code-managed exceptions, not incomplete CRUD. Per-layer disposition: (1) **Group membership** closed as generated/derived; all 323 rows are produced from mechanical sources (topology heuristic, modifier-links, base-trick mapping, execution-pattern rule, canonical-name heuristic), so it must continue to be produced from those sources and must never gain a competing hand-edit path. (2) **Equivalence clusters** doctrine-blocked and code-managed; reopen only after the referenced identity/normalization rulings are settled. (3) **Modifier groups** authority-model blocked and code-managed, downstream of the unresolved modifier-authority contract. (4) **Movement archetypes** intentionally code-managed, non-launch-gating: genuine editorial synthesis, but too small and infrequently changed to justify an in-app editor without a demonstrated post-cutover workflow. (5) **Topology groups** intentionally code-managed, non-launch-gating, for the same reason. (6) **Glossary crosslinks** intentionally code-managed, non-launch-gating; not built merely because it is the least doctrine-coupled layer, an editor requires evidence of recurring post-cutover edits first. **Shared source-of-truth rule for these code-managed research layers:** the committed source spreadsheets remain authoritative; the live database is a rendered/runtime copy of them, not an independent editing authority; their loader must not run as part of a general live-database rebuild that would overwrite unrelated in-app curation; and any future editor proposal must first specify how the spreadsheet authority is retired or synchronized without creating two writable sources of truth. The in-app curation build is therefore resolved: every curator-editable content type has a working audited in-app path (trick scalars and the seven editorial-prose fields, aliases, source links, modifier links, records, consecutive-kicks records, trick tips, and provenance-source creation), and every remaining surface is an explicit exception ruled above (modifier-registry creation blocked on the operator-authority model; trick relations no editor required; the six symbolic layers generated, doctrine-blocked, or code-managed). Each built write goes through a prepared statement, one transaction, one audit entry, and the persona guard. Done: a curator can create, edit, and moderate every freestyle content type that has an in-app path, each proven by a test (audit row asserted, persona 403, non-admin 403/302); no curator-editable surface depends on the retired CSV rebuild; and the code-managed exceptions are recorded here rather than left as unbuilt CRUD.
-
-**FS-89 (P1, human decision) settle the foundations-count framing.** Owner: James (decision 5). The landing page heads twelve foundations while the learn path and trick index say six; full finding in section 5. Done: the framing is ruled and both surfaces state one count or the relationship between the two.
-
-### P2 (fix before launch or external testing)
-
-**FS-50 (P2, DONE) suppress the two dead internal links.** Status: resolved in commit `3e745721`. Owner: James plus Dave. `/freestyle/modifier/illusioning` and `/freestyle/modifier/rooting` 404 from rendered "see also" links (`freestyleService.ts` ~7565 via `trick-about.hbs:84`; `freestyleCanonicalSets.ts:1054`). Done: neither URL is emitted; a full crawl shows zero internal 404s.
-
-**FS-51 (P2, DONE) em-dash sweep of database-stored trick prose.** Status: resolved in commit `0d4abace`. Owner: James. About 86 em dashes in the curated correction CSV prose render across trick pages. Done: a crawl finds zero em dashes in trick prose and meta descriptions.
-
-**FS-54 (P2, cutover-timed, DONE) make the generated-content drift guard see live edits.** Status: resolved in commit `93ba897b` (a request-time runtime gate with a test). Owner: Dave. The guard regenerates against a CSV-rebuilt database only, so post-cutover live edits desync the observational surface with CI still green. Done: an admin alias or status edit provably cannot leave the observational surface stale (a runtime gate with a test, or a recorded and rehearsed post-cutover regeneration step).
-
-**FS-56 (P2, CLOSED: skill edit landed) fix the retired-operator examples in the dictionary-surface skill.** Ruling (James) implemented in `.claude/skills/freestyle-dictionary-surface/SKILL.md`: the corrected structural-alias example table keeps six unchanged valid rows (Gyro Torque, Atomic Legover, Atomic Mirage, Blurry Butterfly, Pixie DLO, Stepping DLO); corrects Barraging Legover to score through Furious (`furious(+2) + legover(2) = 4`) while keeping the historical/community label (barraging is not independently scored); removes both Miraging additive rows (Miraging Clipper, Miraging Legover) because miraging is a historical mirage-family nickname, not a reusable scored operator; and removes Blurry Mirage entirely because it stays tied to the unresolved blurry-expansion doctrine and was not reconciled by arithmetic. The taxonomy-row inline example that cited `Blurry Mirage` → blur was swapped to `Pixie DLO` → smog. Verified: the skill passes the harness SKILL.md checks and the conventions gate; the registry carries no general miraging operator row, and Miraging Kick (a legitimate self-based movement, active, 1 ADD) is preserved and untouched. No retired operator is scored in the examples.
-
-**FS-63 (P2) consolidate the trick-hero color system onto the four-color budget.** Owner: Dave. Section 7. Done: the hero strip uses the four `.sem-token--*` classes (or a curator-approved documented variant); no raw extra-role hues remain.
-
-**FS-65 (P2) de-duplicate the inline SVG hex against tokens.** Owner: Dave. Section 7. Done: the diagram references tokens, or the color gate covers templates.
-
-**FS-66 (P2) widen the runtime-readonly guard test.** Owner: Dave. Section 8. Done: the snapshot covers all freestyle and symbolic tables.
-
-**FS-67 (P2) cross-check operator ADD values against the registry.** Owner: Dave. Section 8. Done: a test asserts the reference prose values match `freestyle_trick_modifiers`.
-
-**FS-68 (P2) add a loader-level rebuild guard.** Owner: Dave. Section 8. Done: a shared guard in the loaders' database-open helper refuses a non-dev target even on direct invocation; a pytest proves it.
-
-**FS-69 (P2, CLOSED) author the per-modifier-page story.** Done: `V_View_Freestyle_Reference` names the per-modifier detail page (`/freestyle/modifier/{slug}`) and its definition, scoring/structural role, related examples, and clearly-labeled stub state.
-
-**FS-70 (P2) add search adversarial-input tests.** Owner: Dave. Section 11. Done: SQL-injection, unicode, and oversized-query cases exist for the search and suggest endpoints.
-
-**FS-71 (P2) protect the positional-alias invariant. RESOLVED (James): moot, closed, no code change; not handed to Dave.** Section 11. The admin alias write is the sanctioned curator-authored equivalence the invariant defers to, not a bypass; recorded closed with James's reason under Decision 3.
-
-**FS-72 (P2, CLOSED: already resolved) remap or unpublish the four dangling tips.** Verified: no published tip points at a missing or inactive trick.
-
-**FS-73 (P2, RESOLVED, not Dave-pending) replace the parser status-label leak path.** Done: the fallback renders a neutral hedge with no internal status value or doc reference; the raw parse-warning codes and the raw status value no longer render on the public panel; a route test covers the unrecognized-status path and the no-leak contract.
-
-**FS-74 (P2, VERIFIED CLOSED) gloss ADD on the records page.** Owner: James. Section 5. Done: the recorded-versus-canonical ADD column has an inline gloss and a link to the explanation.
-
-**FS-75 (P2) progressive disclosure for notation on beginner surfaces.** Owner: James plus Dave. Section 5. Done: formulas carry a "what is this notation?" affordance and trick pages lead with a beginner sentence before the notation string.
-
-**FS-76 (P1, VERIFIED CLOSED) funnel the landing page to the learn path.** Owner: James. Section 5. Done: the landing carries a "New to freestyle? Start here" pointer to `/freestyle/learn`.
-
-**FS-77 (P2) improve the search results for beginners.** Owner: James plus Dave. Section 5. Done: results and empty states cue the base trick and offer onward links.
-
-**FS-78 (P2) normalize hyphen-form slugs.** Owner: Dave. Section 6. Done: hyphenated slugs resolve or 301 to the underscore canonical on the trick, set, family, and modifier routes; a test pins it.
-
-**FS-79 (P2, VERIFIED CLOSED) add the run-quality ladder to the glossary.** Owner: James. Section 6. Done: the glossary defines or cross-links tiltless through godly.
-
-**FS-24 (P2, blocked) resolve the unresolved world-record names.** Owner: James plus Red. Section 10. Done: each name gains a dictionary resolution or a recorded ruling; the record badges render accordingly.
-
-**FS-90 (P2, ruled) delete the home page "Tutorials - Coming soon" card.** Owner: Dave (a home-page surface, not freestyle-owned). Ruling and detail in section 5 and decision 6. Done: the card no longer renders on the home page.
-
-**FS-92 (P2, cutover-timed, AWAITING DAVE APPROVAL, not fully closed) freestyle maintainer documentation pair.** Owner of the remaining action: Dave. **James's portion is complete:** the canonical maintainer-guide draft (`docs/FREESTYLE.md`), the rewritten `freestyle/README.md`, the placement rationale, and the exact cross-document alignment patches are all prepared (patch A repoints the `docs/DATA_MODEL.md` freestyle/records/symbolic delegation to `docs/FREESTYLE.md`; patch B repoints the tips-block delegation; patch C fixes the `freestyle/doctrine/README.md` broken exploration pointer; patch D completes its index with the `papers/` and `reconciliation/` series). The two drafts are written and uncommitted; patches A-D are prepared and unapplied. The publication contract and the freestyle glossary document are intentionally left unchanged in this slice. **Dave's remaining action:** review and approve the `docs/FREESTYLE.md` canonical placement and the proposed cross-document edits. **After approval:** apply patches A-D, commit the documentation package together, and run the documentation-link, conventions, and harness checks. **No further James action unless Dave requests revisions.** Context (retained, the requirement the drafts fulfill): freestyle has no document a human maintainer other than James can learn the area from. `docs/DATA_MODEL.md` delegates the freestyle and symbolic table semantics to `legacy_data/CLAUDE.md`, which does not carry them, so `database/schema.sql` inline comments are the only column-level documentation; the settled curation and scope decisions live only in the plan's closed-decisions block; and `freestyle/README.md` mixes durable intent into a thin runbook and does not follow the repo's subtree-README pattern, for which `legacy_data/README.md` is the exemplar (quick start, committed-versus-gitignored input register, script catalog with per-script mutation and rerun-safety notes, workflow picker, cross-references, and an authoritative-documentation section). Remediation, two documents:
-
-(1) `docs/FREESTYLE.md`, the canonical freestyle maintainer doc. Audience: a future human freestyle maintainer who is not James and starts from zero, working against the live production database; the committed CSVs are pre-go-live only and this doc says so unambiguously. Pedantic and complete; durable intent only (no dated status or sprint labels; role labels, never personal names). Required structure, in this order, each section mandatory with the stated design intent:
-- Section 1, Orientation. What the freestyle area is (the public dictionary, search, records, sets, families, glossary, learn, and media surfaces; the doctrine record; the curated media lane; the retired build pipeline) and how the pieces relate. Design intent: a new maintainer knows the whole territory in one page.
-- Section 2, How freestyle maintenance works (the operative model, the bulk of the doc). The live production database is the sole source of truth and every edit happens in the running app through the audited admin surfaces; the destructive CSV rebuild is refused in production and is never a maintenance path. For every content type a curator touches (trick scalars and editorial prose, aliases, the modifier registry and modifier links, sources and source links, records, consecutive-kicks records, trick tips, the symbolic layers, curated media), state which admin surface edits it, what is audited on each write, the invariants the edit must respect (for example the alias and slug identity rules, the operator single-authority rule, the surface-propagation rule by pointer), and for a surface not yet built, point at FS-91 rather than restating it. Design intent: the maintainer can perform or correctly refuse any freestyle edit without asking James.
-- Section 3, The data model. Table-level semantics for all sixteen freestyle-owned tables (the ten freestyle_ tables and the six symbolic_ tables): each table's purpose and load-bearing columns (for example adds, review_status, is_active, alias_type and alias_display, the parse-block columns, the tips status values), stating explicitly that column-level detail lives in the schema.sql inline comments and this doc is the table-level home `docs/DATA_MODEL.md` points to. Design intent: close the delegation dead-end; one authoritative place to understand any freestyle table.
-- Section 4, The pre-go-live history (clearly marked as historical, not operative). Before cutover the committed CSVs were the source of truth, hand-edited and loaded by the disposable rebuild with git as the audit trail; name every input class (the base dictionary tricks, modifiers, and aliases CSVs plus the alias additions and overrides; the curated Red addition and correction overlays; the records masters; the footbag.org moves snapshot and member tips; the symbolic_grammar CSVs) and what each owned, and state that after cutover these files and the pipeline are a development tool for local databases only, never a production path. Design intent: the maintainer can read the git history and the provenance columns and understand where the data came from, without ever mistaking a CSV for a live edit path.
-- Section 5, Doctrine. What `freestyle/doctrine/` is, the RED_QUEUE to RED_RULINGS flow, the papers series, and the reconciliation studies, as a map that never restates ruling text. Design intent: the maintainer knows where every ruling lives and how a new one is recorded.
-- Section 6, The canonical-trick publication contract. The full content of `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md` merges in here as its own section (the promotion gate a trick must pass, the independence of ADD arithmetic and structural decomposition, honest incompleteness, no fabricated structure), and that file is retired with every referrer repointed (the freestyle-bug-hunt skill's pre-read list, the bug-hunt skill's DESIGN.md, and this report). Design intent: the publication gate lives inside the one canonical freestyle doc instead of a satellite file.
-- Section 7, Curation decisions. The settled curation and scope decisions (the zero-media audit closure, the BAP Individual Shred exclusion, the Far Butterfly and Infinity version-1 scope) recorded here per decision 4, with the plan keeping a one-line pointer; James confirms this home before writing. Design intent: closed decisions are findable and never re-litigated.
-- Section 8, Terminology and the glossary layer. The dictionary tables and doctrine own terminology; the public glossary page is the reader-facing explanation; `docs/GLOSSARY.md` is the project technical glossary; Glossary V2 is a gated exploration track, not a doc of record. The maintainer-relevant content of `docs/Freestyle_Footbag_Glossary.md` (the run-quality ladder; the X-Dex statement, whose canonical home is already the operator reference) merges in here and that file is retired: it is explanatory-only by its own disclaimer, the public glossary page serves readers, and its only consumers are a completed one-shot exploration generator (research history under the exploration fence) and skill pre-read lists, which are repointed. Design intent: one sentence answers "who owns a term's meaning," with no third explanatory copy to drift.
-- Section 9, Doc map. Every freestyle doc, skill, and rule with the one thing each owns. Design intent: no fact has two homes; every other doc points here or is pointed to from here.
-
-(2) `freestyle/README.md`, rewritten to the repo subtree-README pattern as the operational runbook and nothing more: the rebuild command and the dev-database guard; the loader inventory in actual run order (10, 11, 17, 19, 20, 21, 21a, 21b, 27, the notation-parser apply step, 26, then QC 22 as the hard gate with 24 and 25 advisory) with each loader's inputs, outputs, and rerun semantics; the committed-versus-gitignored register; the footbag.org snapshot-refresh procedure; the TS content generators; the symbolic-grammar regeneration step, stating that loader 26 loads six of the ten committed symbolic_grammar CSVs (whether the other four are wired in or retired is James's call, recorded when made); what is pre-go-live versus post-go-live for every mechanism it describes; the exploration/ fence; the governing skills and rules named the way legacy_data routes to its runbooks (the freestyle skills including the bug-hunt skill, pipeline-invariant-enforcer where its globs reach freestyle paths, and the path-scoped `.claude/rules/*` that govern the area); and one pointer up to `docs/FREESTYLE.md` for everything durable.
-
-Alignment edits in the same slice, each shown as literal before and after text for approval: repoint the `docs/DATA_MODEL.md` delegation from `legacy_data/CLAUDE.md` to `docs/FREESTYLE.md` and move the `freestyle_trick_tips` render contract there; retire `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md` and `docs/Freestyle_Footbag_Glossary.md` once their content is merged in (sections 6 and 8 above), repointing every referrer; add the papers/ series to the `freestyle/doctrine/README.md` index, which today lists only the seven operational doctrine docs. Done: both documents exist with every element above; the delegation dead-end is closed; a reader who is not James can run a rebuild, make one pre-cutover edit of each content type, and name the post-cutover path for each, using only these two documents plus what they point to; each fact lives in exactly one home with the other documents pointing to it.
-
-**FS-93 (P2, REASSIGNED TO DAVE, content direction settled) revise the freestyle agent-facing docs (the skills and the subtree CLAUDE.md) and verify the freestyle-reaching rules against the documentation audit's per-artifact notes.** Owner: Dave (implementation and `.claude` approval). The content direction is settled and recorded in the per-artifact notes below, and the trigger conditions those notes cite are now met: the FS-91 curation surfaces and the FS-49 prose editor have landed, so the dictionary skill's "re-orient to the database-first admin model when FS-91 lands" item and the `service-layer.md` read-only-service JSDoc-exemption item are unblocked. On the alias-taxonomy reconciliation, the parent `footbag-freestyle-dictionary` skill's alias layer is authoritative and the `freestyle-dictionary-surface` five-category taxonomy points to it. The harness self-check (`scripts/ci/assert_claude_harness.sh`) runs after each edit. Distinct from FS-56, which is the ADD values themselves. Revision notes, one per artifact:
-- `footbag-freestyle-dictionary`: REFERENCE.md claims loader 21 is not run by `scripts/reset-local-db.sh`; stale, the reset invokes `freestyle/run_freestyle.sh`, which runs loader 21 (correct the claim). Separately, the skill's CSV-first guidance ("never write descriptions directly to the database; the reset wipes them on reload") is pre-go-live-only; mark it so now, and re-orient the skill to the database-first admin model when FS-91 lands.
-- `freestyle-dictionary-surface`: the ADD-example values (blurry at both +1 and +2; barraging and miraging scored) stay FS-56. Additionally: reconcile its five-category alias taxonomy with the parent dictionary skill's alias layer so one taxonomy is authoritative and the other points to it.
-- `freestyle-topology-governance`: no defect found; no revision.
-- `footbag-curated-media`: remove the dated phase labels ("Reclassified 2026-05-10 (Phase 2b)" and the 2026-05-06 and 2026-05-31 narrative dates) and the rot-prone hard sidecar counts, keeping the plain rationale; the skill's pre-go-live scope statement gains a pointer to the post-go-live admin model rather than a restatement.
-- `migrate-browse-view`: five cited DSC2 slice-report files under `exploration/dictionary-symbolic-card/` do not exist (repoint to the files that do, or remove the citations); resolve the view-count ambiguity (eight view keys are listed while the prose says "the current set is eight" ambiguously against the two DSC precedents).
-- `freestyle-bug-hunt`: no defect found; no revision.
-- `freestyle/CLAUDE.md`: two accuracy notes and one gap. The read-inputs invariant says loaders read from `freestyle/inputs/`, but loader 26 reads `freestyle/symbolic_grammar/` and QC loader 24 reads `freestyle/tools/trick_video_discovery/embedded_coverage.csv` plus `database/schema.sql`; restate the invariant as self-containment within committed `freestyle/` locations rather than the single directory. The blanket "loaders are DELETE+INSERT with one exception" label does not match loader 19 (upsert for trick rows, scoped DELETE+INSERT only for its links and aliases) or 21b (targeted retype and delete overrides); keep the accurate halves (idempotent, re-run safe, loader 10 additive so record edits need a fresh build) and drop the mechanism label. Gap against the subtree-CLAUDE pattern (`legacy_data/CLAUDE.md` is the exemplar): no routing to `freestyle/doctrine/`, the freestyle skills, or the exploration/ fence; add those routing lines. Verified accurate: the no-live-fetch guard (`scripts/ci/check_no_live_pipeline_fetch.sh`), the hard-versus-advisory QC split, the shared-helper imports, the run command, and the absence of any authority-order restatement or dated status.
-- Rules, verify-only unless a defect is confirmed: `comments.md` and `db-write-safety.md` globs (freestyle/loaders, scripts, tools) are current, no change; `view-layer.md` and `template-conventions.md` freestyle invariants verified current, no change; `service-layer.md` lists freestyle among the read-only services exempt from the file-header JSDoc, which the FS-49 and FS-91 write-path freestyle curation services make stale, so verify and revise that list when those land; `testing.md` says "the coming freestyle sidecar curation reuses the same curator service", which is transitional status phrasing and appears to contradict the audited fact that freestyle trick curation writes no sidecar files, so verify which is true and correct the rule.
-Done: each note above is applied or recorded as verified-no-change; no skill teaches a pre-go-live procedure as if operative post-cutover; the harness self-check passes.
-
-### P3 (non-blocking cleanup and post-V1 prep)
-
-**FS-13** de-epoch freestyle test comments (86 files). Owner: Dave.
-**FS-15** freestyleService extraction seams; opportunistic only, never freestanding refactoring. Owner: Dave.
-**FS-80 (CLOSED)** the two dead exports and their stale comments are removed (commit `c5cbdd8c`).
-**FS-81 (CLOSED)** the stale `freestyleRecordCurationService` file-header JSDoc is corrected (commit `1ebb46c8`).
-**FS-82 (CLOSED)** the pipeline comment-drift class was re-audited claim by claim against current code and every claim is already fixed (the loader-22 docstring, the `run_pipeline.sh` references in loaders 11 and 20, the loader-17 path comment, the scripts/18 usage line, and the schema.sql freestyle-block comment inconsistencies for `freestyle_trick_aliases`, `freestyle_trick_sources`, and source-links). No stale comment remains; no code change.
-**FS-83** remove or document the two orphaned pipeline inputs. Owner: James.
-**FS-84** CLOSED (already resolved): zero modifier-link rows point at inactive tricks.
-**FS-85** retag `pogo_paradox_da_da_curve` to the `dada_curve` family. Owner: James.
-**FS-86** reconcile or annotate the family/count seams (17 vs 26; Mirage 97 vs 98). Owner: James.
-**FS-87** normalize the search-suggest JSON shape. Owner: Dave.
-**FS-88** RESOLVED (James): keep full names on records and leaders; no code change. Full names are consistent and unambiguous on a formal achievement surface; the handle field is too sparse to present uniformly, and no nickname backfill is justified for launch.
-**FS-29** source a replacement demo for the sole-survivor clip. Owner: James.
-**FS-30** tag the 72 BAP Individual Shred clips by trick and set (viewing pass). Owner: James.
-**FS-34** local MP4 trick-clip ingestion tooling. Owner: Dave.
-**FS-35** Movement Systems completeness audit; gated behind doctrine. Owner: James.
-**FS-53** replace or remove dead and blocked external record videos. Owner: James.
-
-**FS-95 (P3, CLOSED) cross-surface set-role doctrine reconciliation.** Owner: James (content); the authority edit and the downstream alignment are kept as two separate commits. Not launch-gating: no public page returns a wrong difficulty or notation, so the divergence is a teaching-consistency defect only. **Governing ruling (set role, not timing, decides identity):** a set realization integrates the dex into the bag's launch and positioning; a standalone realization performs the movement independently after the launch; uptime, midtime, and downtime remain valid descriptions of execution timing but do not by themselves determine canonical set-versus-standalone identity; a generic SET token records the launch and does not prove the following dex is a named set; Miraging and Illusioning are descriptive movement language preserved in independently established names (Miraging Kick, Illusioning Kick), not reusable scored operators. **Background:** the ratified glossary doctrine (shipped `9daef2c4`) teaches sets by structural role, while the other freestyle surfaces still used execution timing as the sole classifier ("uptime set", "downtime move"). **Slice 1, canonical authority (`freestyleOperatorReference.ts`):** Atomic and Quantum framed as the outward and inward movement patterns realized with a set role; Miraging framed as standalone inward-movement language, not a launch set and not a scored formula-bearing operator; the historical-nickname category and the Furious/Barraging framing no longer present "uptime" as the reason something is a set. Every ADD, X-Dex, notation, and structural ruling preserved verbatim; Nuclear and Whirling untouched. **Slice 2, downstream teaching surfaces:** set-detail education (`symbolicSetEducation.ts`), sets encyclopedia and set-detail content (`freestyleCanonicalSets.ts`), the compositional-sets page (`freestyleCompositionalSets.ts` and its template), movement-system teaching (`freestyleMovementSystems.ts`), structural-fact notes (`freestyleStructuralFactNotes.ts`), the advanced-modifier reference partial, the service-owned set summaries (`freestyleService.ts`), the operator-index comments, the furious semantic override, and the landing banner. Genuine timing-as-identity sentences (Illusioning, Miraging) reworded to structural-role language; redundant "uptime set/launch" identity phrasing subordinated. Execution-timing uses that describe when a movement occurs are preserved (whirling and stepping "during uptime", the pixie/fairy uptime-reinterpretation ladders and the Around-the-World / Orbit analogies, the Set/Uptime movement-system axis identifier, and the Alpine uptime/downtime split). **Deliberately excluded, unchanged:** Nuclear; observational and frontier candidates; skills; trick data; the modifier-registry CSV notes and their generated dictionary-snapshot mirror; and the ADD-derivation readings whose job is to state a difficulty (`freestyleResolvedFormulas.ts`, `freestyleAddAnalysisContent.ts`, `freestyleGlossaryAddExamples.ts`, and the trick-detail mechanical-delta, ontology-role, and progressive-readings modules), which still carry "two-dex uptime set" inside scoring text; realign those only if the maintainer later wants the phrase changed there too. **Tests:** a focused unit suite (`tests/unit/freestyleSetRoleDoctrine.test.ts`) pins that Atomic and Quantum are defined by set role, that Miraging and Illusioning are not launch sets or scored operators, that the uptime/midtime/downtime timing vocabulary remains, and that no difficulty or notation output changed; the set-detail, compositional-sets, and movement-system-doctrine route tests were updated to the new copy. Full freestyle suite (2692 tests), `npm run build`, and the conventions gate pass. **Done:** every listed teaching surface presents sets by structural role and no longer teaches timing as the reason a movement is a set; the authority file and the downstream surfaces agree; scoring, notation, and the excluded surfaces are unchanged; landed as three commits (operator-authority framing `ceb74a86`, downstream teaching-surface alignment `55d99f5a`, and this report bookkeeping `e3d4446f`).
-
-### Accepted deviations (tracked, no action unless re-opened at cutover review)
-
-**FS-26** count and quantifier tokens render like operators in symbolic notation (`semanticNotationRendering.ts:115-120`, Current/Target marked).
-**FS-27** PassBack compound difficulty tags not yet split into source plus difficulty; blocks FS-21.
-**FS-37** Butterfly stored notation keeps SAME/OP while the public atom renders far-default.
-**FS-38** Around-the-World stored notation keeps IN/OUT while the public atom renders inward-only.
-**FS-21** (blocked behind FS-27) record the difficulty-tag design in the canonical docs once the split lands.
-
-### External and doctrine blockers (not repository work)
-
-**FS-23** Red doctrine papers: Notation, Scoring, and History drafted and unsent; Frontier sent and awaiting; Identity answered and integrated. Owner: Red answers, James routes.
-**FS-33** IFPA Sick 3 competition-format rules wording. Owner: IFPA via Julie; the freestyle rules buttons re-enable when it lands.
-
-### Curator and doctrine track (surfaced by the formula-identity work; curator and identity decisions, not code)
-
-About 63 rows remain, itemized as: positional equivalence settle-now (about 12 rows, actionable now); positional equivalence operator-blocked (about 28 rows, held until each operator is defined); down-family per-trick embedded-base verification (21 rows, once the coordinate-frame ruling lands); competing multi-name identities (10 rows); source/video reviews (2 rows, POD versus Dimmier and the Kiwi contradiction); curator notation for two doctrine-clear tricks (`paradox_blur`, `big_apple_sauce`); the parked structural and folk-alias display shortlist; and the single miraging-operator ruling that releases the held Drifter and DLO readings. The four remaining Red-facing doctrine-paper sections to draft are Zulu/Weaving token-or-variant, cross-body rake base, "inward" on gyro, and repeated-operator/terraging arithmetic. Owner: James (curator) and Red (answers). Also in this track: the butterfly default-catch-side status is recorded inconsistently (POSITIONAL_IDENTITY, the Notation paper, and the Identity paper carry it as open while RED_QUEUE records it resolved for V1 as far/opposite); James rules which status is current and it is recorded consistently across the four documents.
-
----
-
-## 14. `IMPLEMENTATION_PLAN.md` cleanup for David: status and remainder
-
-The cleanup this audit recommended is executed: the unfinished-freestyle table is absorbed into section 13, the stale items (the strip-references item and the terraging-rider caveat) are deleted from the plan, the launch-gate wording states the open build requirement (FS-49 and FS-91), and the plan carries the pointer to this report as the single freestyle work-list. Two pieces remain:
-
-- **Rewrite** the plan's "State of freestyle" standing summary to status-only prose, moving the engineering-mechanism detail here (pending David's call on trim depth).
-- **Move** the plan's closed freestyle decisions to their freestyle-doc homes per decision 4, executed as part of FS-92 section 6, after which the plan keeps a one-line pointer.
-
----
-
-## 15. Recommended implementation batches
-
-1. **Launch blockers (P0) and the ratified curation gate:** FS-48 (alias collisions plus the six curator rulings), FS-49 (editorial-prose edit path), FS-57 (description cleanup plus suppression mechanism), and FS-91 (all remaining post-go-live curation surfaces must work; FS-49 is its first piece).
-2. **P1 correctness and live-feature repair:** FS-58 (symbolic slug keys), FS-59 (media-card filter), FS-60 and FS-61 (registry and barraging drift), FS-62 (family retirement), then FS-19 (staging rehearsal).
-3. **Source-of-truth and production guards:** FS-66, FS-67, FS-68, FS-54.
-4. **Stale live copy and navigation:** FS-50, FS-51, FS-74, FS-75, FS-76, FS-77, FS-78, FS-79.
-5. **Code standards and stories/tests:** FS-63, FS-65, FS-69, FS-70, FS-71, FS-73.
-6. **Data hygiene:** FS-72, FS-84, FS-85, FS-56, FS-24.
-7. **Plan cleanup and documentation:** section 14, then the maintainer-doc pair and the skills-and-rules revision pass (FS-92, FS-93, with FS-82's comment-drift class).
-8. **P3 and post-V1:** the remaining P3 items, deviations at cutover review, the curator and doctrine track.
-
----
-
-## 16. Human decision cards
-
-**Decision 1: post-go-live freestyle curation. RESOLVED (maintainer, this review).** Ruling: all freestyle curation must work after go-live, ASAP. Nothing a curator edits may freeze at cutover. The editorial-prose editor is built as the first piece (FS-49), and every other previously-deferred curation surface (trick-tip moderation, provenance-source and modifier-registry creation, trick relations, and the symbolic layers) is required before cutover, tracked together as FS-91. The plan's launch-gate wording was corrected so it no longer implies the admin build is complete. Not a deferral of any curation surface.
-
-**Decision 2: the six alias-collision identity pairs. DISPOSITION: curator adjudication, tracked in FS-48.** All six pairs are now enumerated explicitly as a per-pair checklist with a Ruling column inside the FS-48 remediation task, so each is ruled and recorded there against the rules expert's original notes. Each needs a ruling of "one trick" (merge: one row goes inactive and its name becomes an alias of the other) or "two tricks" (the alias row is wrong and is removed). This is not resolved here; it is a per-pair curator decision, and every pair must be non-pending before FS-48's data half is done. What it blocks: FS-48's data half.
-
-**Decision 3: the positional-alias invariant (FS-71). RESOLVED (James): moot, closed, no code change.** The positional invariant constrains autonomous name resolution: it prevents the resolver from collapsing a multi-component positional name into a base without curated-equivalence evidence. Adding an alias through the admin surface is itself an explicit curator-authored equivalence decision, so the admin path is the sanctioned exception the invariant describes, not a bypass around it. The existing admin-alias protections against canonical-slug collisions and duplicate aliases remain required and unchanged. A future warning for aliases that resemble positional formulas could be useful curator UX, but it is not a correctness requirement and is not carried by this finding. Not handed to Dave for a regression test. What it blocks: nothing.
-
-**Decision 4: where the settled freestyle rulings live. DISPOSITION: freestyle's own doctrine docs, not the project design-decisions doc; James confirms the exact home per ruling.** Correction: an earlier draft recommended moving these to `docs/DESIGN_DECISIONS.md`. That was wrong. Freestyle has its own documentation stack (its READMEs, path-scoped rules, skills, and the `freestyle/doctrine/` files), and settled freestyle doctrine belongs there, not in the project-wide design-decisions doc. The plan's "closed decisions" block splits two ways: the doctrine rulings (Quantum-vs-Miraging; the barraging retirement into Furious) belong in the freestyle doctrine record, and several already live there (Quantum-vs-Miraging in the Identity doctrine paper, the barraging retirement in `RED_RULINGS.md`); the curation and scope decisions (the zero-media audit closure; the Far Butterfly and Infinity version-1 scope) are curation decisions, not doctrine, so their home is a freestyle curation/decision record rather than a doctrine paper. James owns freestyle doctrine and content, so he confirms the exact freestyle-doc home for each and whether any curation-decision record needs creating; the plan then keeps only a one-line pointer. What it blocks: plan hygiene only. Any freestyle-doc edit is James's call and is shown before writing.
-
-**Decision 5 (novice framing, FS-89): the foundations count. DISPOSITION: James decides.** The landing page says twelve foundations; the learn path says six. They appear to be different concepts (a set of foundational tricks versus a six-lesson starter path). Because this is public freestyle content wording, James owns the framing: distinguish the two in wording and add a relating sentence, unify on one count, or rule otherwise. What it blocks: nothing; beginner clarity.
-
-**Decision 6 (FS-90): the home page "Tutorials - Coming soon" card. RESOLVED (David): delete the card.** Freestyle tutorials already exist, so the stale home-page card is removed rather than repointed or kept. Implementation is a home-page template change owned by Dave/platform (not freestyle). What it blocks: nothing; a novice funnel leak.
-
----
-
-## 17. Approval request
-
-Please confirm which of the following to proceed with, so the work can be sequenced:
-1. The three P0 fixes as batch 1 (FS-48, FS-49, FS-57), including the six curator rulings in decision 2 (decision 1 is resolved: all curation works post-go-live).
-2. The P1 batch (FS-58 through FS-62, then FS-19).
-3. The plan cleanup in section 14, including the proposed pointer text. The settled-rulings home is James's call (human decision 4): the freestyle doctrine docs, not the project design-decisions doc.
-4. Answers to the open human-decision cards in section 16 (decisions 1 and 6 are resolved).
-A bare "go" is taken as approving batches 1 and 2, the plan cleanup, and the recommended answer on each decision card.
-
----
-
-## Appendix A. Closed-work ledger (already done, not remaining work)
-
-Retained for traceability. Each item was verified closed against current code in the 2026-07-12 pass; see git history for the implementing changes. Not part of the active backlog.
-
-FS-01 alias slug 301-redirect (pure aliases; the canonical-shadow case is reopened as FS-48). FS-02 production refuse-guard for the rebuild (host-side marker; the loader-level gap is FS-68). FS-03 freestyle safety-net tests (crawl, e2e, a11y, mobile, runtime-reads; the table-coverage gap is FS-66). FS-04 freestyle skill corrections (slug convention, modifier-reference note). FS-05 em-dash sweep of templates and content modules (the database-prose layer is FS-51). FS-07 controller 404 and branching cleanup. FS-08 remove delivery-epoch labels from identifiers. FS-09 persona copy and orientation fixes (the remaining novice items are FS-74 through FS-77, FS-89, FS-90). FS-10 generated-content drift guards (the post-cutover blind spot is FS-54). FS-11 loader idempotency and scoped-delete pytests. FS-12 trick-detail and family empty-state tests. FS-14 rename `inputs/noise` to `inputs/base_dictionary` and extend rule globs. FS-16 freestyle user stories (the per-modifier-page gap is FS-69). FS-17 records-correction edited-but-skipped warning. FS-18 terraging-rider send caveat (subsumed by the queue posture). FS-20 family and set media-gallery links. FS-22 freestyle demo poster frames. FS-25 fence `exploration/` from live dependencies. FS-28 the four canonical set teaching pages. FS-31 member-tips remainder (re-scoped: the unresolved set is now 2 freestyle plus 1 frontier plus 2 net, each blocked on a curator authoring decision; carried as curator-track status). FS-32 technique notes for four source-blocked tricks. FS-36 the Quantum/Miraging one-set-or-two ruling (settled distinct). FS-39 butterfly-family compound notation propagation (V1 ruling: not migrated). FS-40 the Infinity/Far Butterfly model (V1 ruling: as-is). FS-41 barfly terminal bracket order (confirmed intentional). FS-42 Orbit atom label. FS-43 Zulu/Weaving set notation (re-scoped to a curator notation-governance decision; carried in the curator track). FS-44 the dead modifier-teaching branch. FS-45 the stale barraging set reference in the operator reference (the remaining live-scoring instances are FS-61). FS-46 the Emerging Vocabulary resolver gate. FS-47 the Emerging Vocabulary formula-identity audit (research artifact).
-
-### Follow-up findings (logged during the em-dash prose work)
-
-- **FS-94 (P3, DONE) em dashes in the symbolic-grammar source data (latent source-data hygiene, not a live rendered defect).** Status: resolved in commit `b1e4e478`. During the trick-prose em-dash sweep (FS-51), a check of the other freestyle data found em dashes in the symbolic-grammar data: `freestyle/symbolic_grammar/movement_archetype_registry.csv` (11), `glossary_crosslinks.csv` (1), and `symbolic_topology_groups.csv` (1).
-  *What was proved:* these sit in fields that no route currently renders. The movement-archetype reader is called by no route; the topology `description` is carried into a panel object the template never outputs; the glossary crosslinks are read into a map no route consumes. So this was not a live visitor-facing defect, but latent source-data hygiene: a future rendering of any of those fields would surface the punctuation past the convention gate, which scans only source literals and cannot see database-driven values.
-  *Fix applied:* each em dash was normalized to a colon or semicolon at the generator literals (`build_symbolic_grammar_2.py`) and in the hand-authored crosslink CSV, then the two generated CSVs were regenerated; 13 rows changed by punctuation only, with row counts and ordering unchanged and zero em dashes remaining. The two generated content modules (`freestyleObservationalUniverse.ts`, `freestyleTrackedNames.ts`) carry em dashes only in generated code comments, which do not render and are exempt.
+# Freestyle Closure Plan
+
+Single active work list for freestyle. Goal: drive this file to zero entries.
+Every entry has an owner, a next action, an unlock, and a done condition.
+Closed work is deleted, not archived; git history and the prior remediation
+report preserve history. Counts are recomputed from the live database and the
+2026-07-10 formula-identity audit CSV, not inherited. Last full
+reverification: 2026-07-13. Active entries: 17 (9 James, 1 James + Dave,
+4 James + Red, 3 Other).
+
+Outside this plan by design, not forgotten: the Identity paper's four
+generalization questions and the Frontier paper's by-design questions
+(open-ended, no row unlock, no reachable done state); the whirling-on-body
+(~8 rows) and sailing-gyro holds (ruled HOLD KEPT 2026-07-02, decided, reopen
+only on new evidence); the single pogo-reactivation-deferred row (deliberate
+deferral recorded in the formula-identity audit); and the preserved historical
+Jobs-notation fields (never mutated by doctrine).
+
+Urgency labels: Launch/cutover, Promotion blocker, Doctrine blocker,
+Non-blocking cleanup, External dependency.
+
+## 1. James only
+
+**J1. Positional-equivalence ruling session.** Promotion blocker.
+46 rows: 40 tagged positional-equivalence-needs-curator (same-side, near,
+and far forms awaiting one same-side-equivalence ruling), 5 ambiguous
+multi-component same-side forms (Double Leg Over, Eggbeater, Fairy Double
+Leg Over, Pigbeater, Smog), 1 no-notation hold (Pixie DSO). Blocks those
+promotions only. Next: one ruling session over the 46, applying the ratified
+configuration doctrine. Done when each row is promoted, aliased, or rejected
+and its audit tag is cleared.
+
+**J2. Competing-identity rulings.** Promotion blocker. 10 rows where one
+name maps to two formulas (Butterfly Dragon, Double/Reverse/Hopover/Swirl
+Dragon, Neutron Mirage, Nuclear DDD, Rooting/Rooted, High Stepping DDD).
+Next: pick the canonical formula or split per name. Done when the 10 rows
+carry one identity each.
+
+**J3. Author notation for settled rows.** Promotion blocker. 35 notations
+whose doctrine is already settled, plus one decomposition review:
+paradox_blur and big_apple_sauce (active rows, operational notation empty);
+13 blurry rows carrying their own footbag.org JOB (author under source
+priority, independent of the Red blurry answer); 18 rows still gated on the
+settled Zulu/Weaving question (free-text annotation, no new tokens);
+2 paradox-miraging compounds unblocked by the 2026-07-02 placement ruling;
+and the dada_curve decomposition hold, whose stated blocker (miraging as a
+scored component) was settled by the set-role ruling, so re-derive the
+decomposition or re-affirm the hold with a current reason. Done when all 35
+rows carry notation, the stale gate tags are removed, and dada_curve's hold
+is re-derived or re-justified.
+
+**J4. Fury duplicate merge.** Promotion blocker. Red ruled Fury = Furious
+Paradox Mirage; the database ships both as active unlinked rows differing
+only by the entry token. Next: choose the alias target (folk name versus
+structural name, the same precedent as omelette) and merge. Done when one
+row remains and the other is its alias.
+
+**J5. Clipper-matrix residuals.** Doctrine blocker. Two rulings plus one
+transfer: (a) stepping_reverse_whirl is stored in the reverse-swirl cell,
+byte-identical to tombstone and stepping_reverse_swirl; confirm the intended
+structure, then merge, rename, or re-derive. (b) surgery is claimed "kept in
+rev-whirl family" by a code comment but is absent from the family-override
+roster and carries a BACK WHIRL token; rule its family and fix the mismatch
+(this also decides whether the rev-whirl family clears the 3-member floor).
+(c) Blink, the documented notation exception, transfers to the Red rider
+list (R3). Depends on J6 for the token vocabulary that (b) reads. Done when
+the two residuals are resolved and the Blink question is recorded in the
+R3 packet; J5 does not wait on Red's answer.
+
+**J6. Swirl-token vocabulary completion.** Doctrine blocker. 48 active rows
+still use rotational dex tokens outside the ratified IN/OUT vocabulary:
+FRONT WHIRL 31, bare WHIRL 10, FRONT SWIRL 5, BACK WHIRL 2 (counts from the
+live database). Next: decide whether the matrix vocabulary absorbs them or
+they are ratified as named rotation variants. Runs before J5, which reads
+this vocabulary for the surgery ruling. Done when one written rule covers
+every rotational dex token in active notation.
+
+**J7. Video and source reviews.** Promotion blocker. POD vs Dimmier (one
+viewing decides one row), Kiwi (source-internal contradiction: rule it
+unrulable-reject or hold), Toe Spinning Toe (record name: entry, rotation,
+side, and terminal interpretation), the sole-survivor demo replacement, and
+the dead or blocked external record videos. Next: one viewing session. Done
+when each name is ruled or explicitly rejected and dead links are replaced
+or removed.
+
+**J8. Doctrine-file hygiene before the packet ships.** Doctrine blocker.
+Strike the settled butterfly catch-side question from the Notation paper;
+strike the three framing questions (authority order, whether ADD rewards one
+thing, the X-Dex receiver boundary) from the Scoring paper per the narrowed
+five-group scope; correct the Red queue's Blink text (promoted; the open
+question is now the path-vocabulary exception); record the whirl/swirl
+evidence note that the cross-body bracket appears on both sides; reconcile
+the arctic contradiction (queue text says fully blocked, rows sit in
+authoring with a recorded frigidosis-pixie reading); refresh the positional
+doctrine's butterfly entry; re-derive every count cited in the packet from
+the live audit CSV. Done when the doctrine files carry no settled question
+and no stale count.
+
+**J9. Explicit confirmations and de-scopes.** Non-blocking cleanup. Confirm
+or veto in one pass: (a) the six-lesson relabel resolved the twelve-versus-
+six foundations wording collision; confirm closed or request a cross-
+reference sentence. (b) The ~262 placeholder trick descriptions (rendering
+already suppressed; the prose rewrite is optional content work: schedule or
+drop). (c) The observational module's layer-versus-section classification
+ambiguity and its unsorted disclosure lists: schedule for Dave or drop.
+(d) The clipper (15), motion (4), and rake (6) unregistered family-roster
+candidates: register or leave un-tiered. (e) The staging-rehearsal
+requirement in O1: keep or amend the gate. Done when each is either an
+owned entry or deleted from this plan.
+
+## 2. James + Dave
+
+**JD1. Maintainer documentation package.** Non-blocking cleanup. The
+canonical freestyle maintainer guide and the rewritten subtree README are
+committed as a proposal (commit 06895b47); the four cross-document
+alignment patches are unapplied. Next: Dave reviews; on approval apply the
+patches and retire the two superseded documents. Done when the doc
+delegation chain resolves to the new guide and no canonical doc points at
+the legacy tree for freestyle semantics.
+
+## 3. James + Red
+
+**R1. Scoring packet.** Doctrine blocker, largest unlock. The paper is
+drafted, not sent. Its open ruling groups are the narrowed five: blurry /
+paradox inheritance (48 gated rows after J3 releases its 13); undefined or
+folk operators (9 tokens already in the draft covering 56 rows, plus a
+19-token addendum covering 35 more rows found in the current audit: frootie,
+fyro, leaning, twisted, twisting, arctic, flailing, neutron, snapping,
+wonton, wrecking, flapper, floating, slicing, splicing, spyro, surfing,
+symp, zipper); double and count-quantifier scoring (21 rows); repeated
+same-operator use (4 rows); terraging arithmetic (2 rows). Unlock:
+48 + 91 + 21 + 4 + 2 = 166 gated rows, plus the blurry registry-versus-
+reference consistency test Dave writes once the answer lands. Next: revise
+with the addendum and the J8 strikes, then send. Done when Red's answers
+are integrated, the consistency test lands, and the audit tags clear.
+
+**R2. Notation packet.** Doctrine blocker. Drafted, not sent. Questions:
+the down-family embedded-base coordinate frame (21 gated rows plus 3
+shipped tension rows: shooting_star, tapping_double_over_down, venom = 24);
+the cross-body rake base (12 rows now, a ~47-slug parser drain later); the
+osis spin-to-catch relationship; the paradox-bracket record-versus-
+convention ruling (proposal already drafted in the paper); whether the
+cross-body bracket encodes opposite-side (now evidence-informed by the
+matrix); and the path/catch terminal framing (103 ambiguous-terminal rows
+plus 5 directional-syntax rows, framing only, no promotions until tokens
+are proposed). Unlock: 24 + 12 = 36 promotion-relevant rows, framing for
+108 more. Next: revise per J8, send with R1. Done when sent and the
+answers are integrated.
+
+**R3. Rider list.** Doctrine blocker. The implicit-paradox hypothesis
+(Blurrage, Predator, Schmoe rows; the sumo X-Dex value ships provisionally
+until ruled); the Blink path-vocabulary exception (transferred from J5);
+the jani-walker / sidewinder structure; the Motorfly memory check; the
+general osis-suffix rule; the twisting/twisted exemplar (6 rows, counted in
+R1's token total); and the record names Double Dyno, Double Whip, Stepping
+Ducking Blurry Whirl, and Solestice (four of the five curator-review
+records; the fifth is J7's Toe Spinning Toe). Unlock: the named rows plus
+the four record badges. Done when each rider is answered, ruled unrulable,
+or retired.
+
+**R4. History paper.** External dependency. Testimony and oral history
+only; unlocks no promotion, no doctrine, no launch item. Binary decision:
+send it to Red or retire it. Done on either.
+
+## 4. Other
+
+**O1. Dave: staging cutover rehearsals.** Launch/cutover. Tracked
+independently in the implementation plan and the migration plan's cutover
+gate: one code-only-deploy run proving the database persists, one
+destructive-rebuild attempt proving it is refused, both logged as cutover
+evidence. James may instead amend the gate (J9e). Done when both runs are
+captured or the requirement is formally amended.
+
+**O2. Dave: code and test batch.** Non-blocking cleanup, one batch, no Red
+dependency (the blurry consistency test moved into R1's done condition):
+
+| Item | Action |
+|---|---|
+| Hero formula color system | Repoint to the sem-token classes |
+| Glossary color literals | Same pass |
+| Runtime-readonly guard | Widen the snapshot to all freestyle tables |
+| Loader guard | Shared guard in the loader DB-open helper |
+| Search adversarial tests | Injection, unicode, oversize inputs |
+| Hyphen slug redirects | Normalize or redirect |
+| Search-suggest JSON shape | Normalize |
+| Home Tutorials card | Delete from comingSoonSections |
+| Test-comment de-epoch | ~70 files, mechanical |
+| Skills stale claim | Fix the loader-21 claim in the dictionary skill reference |
+| freestyleFamilyOverrides.ts:66 | Remove the dangling RETIRED_FAMILIES reference |
+| Glossary modifier-weight table | Add quantum, pogo, shooting, rooted rows |
+| Observational list sort | Unless dropped in J9c |
+
+Done when the batch lands green or an item is explicitly de-scoped.
+
+**O3. IFPA (Julie): Sick 3 rules wording.** External dependency. The
+freestyle rules buttons stay absent until the official wording lands.
+Next: follow up with Julie, or James formally drops the buttons for V1.
+Done when the wording ships or the feature is formally dropped.
+
+## Closure sequence
+
+Wave 1 (James, one resolution and authoring session): J3 and J8 first (they
+shrink the packet), then J6 before J5, then J1, J2, J4, J7, J9. Eliminates
+9 of the 17 entries, authors 35 notations, and rules 56 rows without anyone
+else acting.
+
+Wave 2 (James to Red): send the revised combined packet: R1 + R2 + R3, with
+the R4 send-or-retire decision in the same message. No overlapping papers,
+no previously answered questions.
+
+Wave 3 (Red, then James): receive Red's rulings and integrate them: apply
+the answers to the gated rows, clear the audit tags, and land the blurry
+consistency test.
+
+Wave 4 (Dave): the JD1 review and patches, the O2 batch, and the O1
+rehearsals unless amended in J9e.
+
+Wave 5 (External): receive Julie's wording or formally drop the rules
+buttons.
+
+Wave 6 (zero-entry audit): rerun the open-marker sweep and confirm no
+active entry is closed work, every open doctrine question lives in this
+file, every tracked unpublished trick has a named blocker, and the entry
+count is zero or every remaining entry is awaiting a named human response
+already requested.
