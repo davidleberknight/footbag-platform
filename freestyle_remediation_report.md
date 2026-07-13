@@ -5,7 +5,7 @@ Every entry has an owner, a next action, an unlock, and a done condition.
 Closed work is deleted, not archived; git history and the prior remediation
 report preserve history. Counts are recomputed from the live database and the
 2026-07-10 formula-identity audit CSV, not inherited. Last full
-reverification: 2026-07-13. Active entries: 16 (8 James, 1 James + Dave,
+reverification: 2026-07-13. Active entries: 15 (7 James, 1 James + Dave,
 4 James + Red, 3 Other).
 
 Outside this plan by design, not forgotten: the Identity paper's four
@@ -55,10 +55,10 @@ structure, then merge, rename, or re-derive. (b) surgery is claimed "kept in
 rev-whirl family" by a code comment but is absent from the family-override
 roster and carries a BACK WHIRL token; rule its family and fix the mismatch
 (this also decides whether the rev-whirl family clears the 3-member floor).
-(c) Blink, the documented notation exception, transfers to the Red rider
-list (R3). Depends on J6 for the token vocabulary that (b) reads. Done when
-the two residuals are resolved and the Blink question is recorded in the
-R3 packet; J5 does not wait on Red's answer.
+The Blink transfer is done: its path-vocabulary exception is recorded in
+the Red queue's rider list, the R3 vehicle. Depends on J6 for the token
+vocabulary that (b) reads. Done when the two residuals are resolved; J5
+does not wait on Red's answer.
 
 **J6. Swirl-token vocabulary completion.** Doctrine blocker. 48 active rows
 still use rotational dex tokens outside the ratified IN/OUT vocabulary:
@@ -75,19 +75,6 @@ side, and terminal interpretation), the sole-survivor demo replacement, and
 the dead or blocked external record videos. Next: one viewing session. Done
 when each name is ruled or explicitly rejected and dead links are replaced
 or removed.
-
-**J8. Doctrine-file hygiene before the packet ships.** Doctrine blocker.
-Strike the settled butterfly catch-side question from the Notation paper;
-strike the three framing questions (authority order, whether ADD rewards one
-thing, the X-Dex receiver boundary) from the Scoring paper per the narrowed
-five-group scope; correct the Red queue's Blink text (promoted; the open
-question is now the path-vocabulary exception); record the whirl/swirl
-evidence note that the cross-body bracket appears on both sides; reconcile
-the arctic contradiction (queue text says fully blocked, rows sit in
-authoring with a recorded frigidosis-pixie reading); refresh the positional
-doctrine's butterfly entry; re-derive every count cited in the packet from
-the live audit CSV. Done when the doctrine files carry no settled question
-and no stale count.
 
 **J9. Explicit confirmations and de-scopes.** Non-blocking cleanup. Confirm
 or veto in one pass: (a) the six-lesson relabel resolved the twelve-versus-
@@ -115,7 +102,9 @@ the legacy tree for freestyle semantics.
 
 **R1. Scoring packet.** Doctrine blocker, largest unlock. The paper is
 drafted, not sent. Its open ruling groups are the narrowed five: blurry /
-paradox inheritance (48 gated rows); undefined or
+paradox inheritance (61 gated rows in the formula-identity audit; the 13
+already-canonical blurry rows author independently but their blurry-named
+audit rows still gate on the alias-versus-distinct predicate); undefined or
 folk operators (9 tokens already in the draft covering 56 rows, plus a
 19-token addendum covering 35 more rows found in the current audit: frootie,
 fyro, leaning, twisted, twisting, arctic, flailing, neutron, snapping,
@@ -123,11 +112,12 @@ wonton, wrecking, flapper, floating, slicing, splicing, spyro, surfing,
 symp, zipper); double and count-quantifier scoring (21 rows); repeated
 same-operator use (4 audit rows, plus the active canonical paradox_blur,
 a double-paradox whose empty notation waits on this answer); terraging
-arithmetic (2 rows). Unlock: 48 + 91 + 21 + 4 + 2 = 166 gated rows plus
+arithmetic (2 rows). Unlock: 61 + 91 + 21 + 4 + 2 = 179 gated rows plus
 the paradox_blur notation, plus the blurry registry-versus-reference
-consistency test Dave writes once the answer lands. Next: revise with
-the addendum and the J8 strikes, then send. Done when Red's answers
-are integrated, the consistency test lands, and the audit tags clear.
+consistency test Dave writes once the answer lands. The framing strikes
+are applied (the paper carries only its ruling groups). Next: revise with
+the addendum, then send. Done when Red's answers are integrated, the
+consistency test lands, and the audit tags clear.
 
 **R2. Notation packet.** Doctrine blocker. Drafted, not sent. Questions:
 the down-family embedded-base coordinate frame (21 gated rows plus 3
@@ -139,8 +129,9 @@ cross-body bracket encodes opposite-side (now evidence-informed by the
 matrix); and the path/catch terminal framing (103 ambiguous-terminal rows
 plus 5 directional-syntax rows, framing only, no promotions until tokens
 are proposed). Unlock: 24 + 12 = 36 promotion-relevant rows, framing for
-108 more. Next: revise per J8, send with R1. Done when sent and the
-answers are integrated.
+108 more. The hygiene revisions are applied (the settled butterfly
+question is struck; the cross-body question carries the matrix evidence).
+Next: send with R1. Done when sent and the answers are integrated.
 
 **R3. Rider list.** Doctrine blocker. The implicit-paradox hypothesis
 (Blurrage, Predator, Schmoe rows; the sumo X-Dex value ships provisionally
@@ -194,10 +185,9 @@ Done when the wording ships or the feature is formally dropped.
 
 ## Closure sequence
 
-Wave 1 (James, one resolution and authoring session): J8 first (it
-shrinks the packet), then J6 before J5, then J1, J2, J4, J7, J9.
-Eliminates 8 of the 16 entries and rules 56 rows without anyone else
-acting.
+Wave 1 (James, one resolution and authoring session): J6 before J5, then
+J1, J2, J4, J7, J9. Eliminates 7 of the 15 entries and rules 56 rows
+without anyone else acting.
 
 Wave 2 (James to Red): send the revised combined packet: R1 + R2 + R3, with
 the R4 send-or-retire decision in the same message. No overlapping papers,

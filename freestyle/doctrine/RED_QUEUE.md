@@ -39,9 +39,9 @@ packet, send or resend it to Red, and then update each item's delivery status fr
 ## With Red
 
 1. **Blurry expansion predicate** — when does a blurry-named trick carry the paradox
-   term? The largest gate (64 rows gated `blurry_expansion` in the current universe,
-   plus ten deferred blurry-form aliases and 5 active canonical blurry rows flagged
-   `approximate` in ADD status). The question is asked with the source-split evidence: footbag.org JOBs
+   term? The largest gate (61 rows gated `blurry_expansion` in the formula-identity
+   audit, plus ten deferred blurry-form aliases and 5 active canonical blurry rows
+   flagged `approximate` in ADD status). The question is asked with the source-split evidence: footbag.org JOBs
    carry `[PDX]` where PassBack's stepping-only technical names omit it (Bedwetter,
    Blizzard, Blurrage, Spike Hammer), with Ripwalk the only both-sources-agree
    no-paradox case — so is the paradox term physical content footbag.org records and
@@ -88,17 +88,25 @@ packet, send or resend it to Red, and then update each item's delivery status fr
    this question has not reached Red. Add it to the next Red packet, send or resend
    it, and only then mark it as pending with Red.
 6. **The rider list** (one combined section in the letter):
-   - same-operator-twice scoring (four rows gated `repeated_operator`);
+   - same-operator-twice scoring (four rows gated `repeated_operator`, plus the
+     active canonical paradox_blur, a double-paradox whose empty operational
+     notation waits on the same answer);
    - jani-walker structure (also decides Sidewinder = fairy gyro jani-walker);
    - the general osis-suffix rule (would accelerate the per-row curator path);
-   - arctic (undefined operator: the parser does not recognize the arctic modifier
-     token, so Arctic Butterfly and Arctic Whirl sit in the authoring queue but
-     cannot author until the movement is defined — the ask is to define it; the
-     "Arctic (frigidosis Pixie)" archive row is a folk reading, not a usable
-     structure);
+   - arctic (undefined operator: Arctic Butterfly and Arctic Whirl hold in the
+     audit's authoring state with the arctic definition as their named blocker,
+     delivered via the Scoring paper's operator addendum — the ask is to define
+     the movement; the "Arctic (frigidosis Pixie)" folk reading and the "Arc
+     Walk" name are recorded in the audit as duplicate-alias rows of these same
+     held formulas, readings on file, not usable definitions);
    - solestice (an undefined "osis flapper" operator);
-   - blink / twisting (degenerate structures with no exemplar — Blink, Toe Spinning
-     Toe, and the "What!?" name hang on them);
+   - the Blink path-vocabulary exception (Blink is promoted and ships at 2 ADD as
+     the documented notation exception: its dexterity is written with a BACK SWIRL
+     path token outside the ratified IN/OUT vocabulary; the ask is the
+     path-vocabulary ruling — sanction rotational path tokens, or re-derive the
+     movement in IN/OUT terms);
+   - twisting (a degenerate structure with no exemplar — Toe Spinning Toe and the
+     "What!?" name hang on it);
    - Motorfly (a memory check: PassBack carries the name with no technical name,
      and nothing else anywhere);
    - "Double Dyno" and "Double Whip" ("double" is a structural prefix and the

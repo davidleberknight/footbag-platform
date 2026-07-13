@@ -42,15 +42,18 @@ guessed.
    open half of the down-family question; it decides the base label of the
    compounds that carry the tension today. No ADD rides on it; the reading does.
    (Red.)
-2. **The default catch side of a butterfly.** A butterfly's side is assumed in
-   readings that do not state it; the default is unruled. (Red.)
-3. **Whether cross-body inherently encodes opposite-side.** Does an `[XBD]`
+2. **Whether cross-body inherently encodes opposite-side.** Does an `[XBD]`
    traversal by itself imply an OP side configuration, or is side independent of
    the cross-body flag? This governs how positional identity reads any
-   clipper-terminal trick. (Red.)
-4. **The osis spin-to-catch relationship.** How the spin an osis carries relates
+   clipper-terminal trick. Evidence from the ratified clipper-terminal matrix:
+   the `[XBD]` bracket is written on both sides — whirl and reverse whirl
+   terminate `OP CLIP [XBD] [DEL]` while swirl and reverse swirl terminate
+   `SAME CLIP [XBD] [DEL]` — so the built canon writes side independently of the
+   cross-body flag. The ruling is still Red's; the matrix is evidence, not the
+   answer. (Red.)
+3. **The osis spin-to-catch relationship.** How the spin an osis carries relates
    to the side it catches on — the last of the atom-level foundations. (Red.)
-5. **Notation as record versus notation as convention.** When two lineages write
+4. **Notation as record versus notation as convention.** When two lineages write
    the same movement differently (one carrying a token the other omits), is the
    token physical content one lineage records and the other elides, or a
    convention of the writer? This is the general form of the paradox question in
@@ -117,10 +120,9 @@ other evidence shows the paradox component is present.
   Paradox Blizzard pairs are already written this way.
 
 **Scope.** This section rules only what `[PDX]` asserts. It does not touch the
-other notation axioms (the embedded-base coordinate frame, the butterfly default
-side, whether cross-body encodes opposite-side, the osis spin-to-catch
-relationship) and creates no new Red question beyond the existing
-record-versus-convention item.
+other notation axioms (the embedded-base coordinate frame, whether cross-body
+encodes opposite-side, the osis spin-to-catch relationship) and creates no new
+Red question beyond the existing record-versus-convention item.
 
 ## Proposed framing: the path/catch encoding standard
 
@@ -204,7 +206,7 @@ definitions, or the blurry and paradox rulings.
   Blizzard, Blurrage, and Spike Hammer where PassBack's stepping-only names omit
   it; Ripwalk is the one case both lineages agree carries none. The same split
   recurs FootbagMoves-versus-PassBack on Cheese Processor and King Koopa. This is
-  question 5 made concrete: is the paradox bracket a record of a hip pivot, or a
+  question 4 made concrete: is the paradox bracket a record of a hip pivot, or a
   notation habit?
 - **The core-atom shorthand exception.** Toe-stall and clipper-stall carry a
   `[set] > toe` shorthand that intentionally does not bracket-count to their ADD.
@@ -212,19 +214,19 @@ definitions, or the blurry and paradox rulings.
   own exception rather than pretending none exists.
 - **Side compression in practice.** `SAME/OP CLIP [XBD] [DEL]` writes a catch
   whose side the reader is expected to resolve from configuration — which is
-  exactly why question 3 (does `[XBD]` fix the side) is load-bearing.
+  exactly why question 2 (does `[XBD]` fix the side) is load-bearing.
 
 ## Encyclopedia impact
 
 Every trick page renders from this notation; the positional resolver reads its
-side markers; Scoring counts its brackets. The five axioms are currently answered
+side markers; Scoring counts its brackets. The four axioms are currently answered
 implicitly and inconsistently at the margins. Settling them turns the notation
 from a well-followed habit into a stated standard, and it closes the atom-level
 foundations that the positional resolver holds open today.
 
 ## Who should review it
 
-Red owns all five axioms — they are movement-language calls about what the written
-form means and assumes. The source-lineage evidence for question 5 also has a
+Red owns all four axioms — they are movement-language calls about what the written
+form means and assumes. The source-lineage evidence for question 4 also has a
 second respondent: the authors of the outside notations (FootbagMoves in
 particular), who can say whether a token is a convention of their own writing.
