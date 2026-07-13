@@ -9278,21 +9278,16 @@ export const freestyleService = {
     };
     const fmtCount = (n: number): string => n.toLocaleString('en-US');
 
-    // Public-family hit counts (curated 23-family browse layer): active-trick
-    // count per raw trick_family, for the By-family jump menu.
+    // Public-family hit counts for the By-family jump menu, derived from the same
+    // membership map the browse sections render, so a family's chip count always
+    // matches its rendered section count. The map already folds sub-labels (for
+    // example paradox_mirage under mirage), aggregates an umbrella root (the Down
+    // family) from its branches, and applies dual memberships. A separate raw
+    // trick_family tally omitted the sub-label fold and undercounted such a family
+    // by exactly its folded rows.
     const familyTrickCounts = new Map<string, number>();
-    for (const r of activeRows) {
-      if (!isTrickRow(r)) continue;
-      const f = (r.trick_family ?? '').trim();
-      if (f) familyTrickCounts.set(f, (familyTrickCounts.get(f) ?? 0) + 1);
-    }
-    // Umbrella roots with no raw rows (the Down family) count the union of
-    // their contained raw labels, matching what their ?family= filter shows.
-    for (const fam of PUBLIC_DISPLAY_FAMILIES) {
-      if (fam.parent || familyTrickCounts.has(fam.slug)) continue;
-      const total = rawFamilyLabelsUnder(fam.slug)
-        .reduce((sum, label) => sum + (familyTrickCounts.get(label) ?? 0), 0);
-      if (total > 0) familyTrickCounts.set(fam.slug, total);
+    for (const [fslug, rows] of familyMap) {
+      familyTrickCounts.set(fslug, rows.length);
     }
 
     // Display tier (current editorial standard, reversible): split the rendered
