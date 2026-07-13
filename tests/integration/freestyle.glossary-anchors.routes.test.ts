@@ -117,6 +117,12 @@ describe('GET /freestyle/glossary — fragment anchors render', () => {
     expect(res.text).toContain('id="term-fairy"');
   });
 
+  it('renders id="term-set-realization" and id="term-standalone-realization" anchors for the two set-role definitions', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('id="term-set-realization"');
+    expect(res.text).toContain('id="term-standalone-realization"');
+  });
+
   it('every glossary deep-link anchor id is unique (no term-/modifier-/panel- shadow)', async () => {
     // Each operator owns exactly one anchor across the Modifiers & Operators
     // surfaces. A duplicated id="term-{slug}" (the set-primitive grid re-rendering

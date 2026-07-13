@@ -125,11 +125,11 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
   it('the atomic set definition states the single-dex +1 doctrine, not the retired double-dexterity reading', async () => {
     const html = await glossary();
     // Atomic is set vocabulary, defined in the Timing & Sets chapter. Settled
-    // doctrine: a single outward dex, +1, with any X-Dex as a separate event;
-    // not the retired double-dexterity (+2-conflation) framing.
+    // doctrine: the outward dex realized as a set, +1, with any X-Dex as a
+    // separate event; not the retired double-dexterity (+2-conflation) framing.
     const def = html.match(/id="term-set-atomic"[\s\S]*?<\/dd>/);
     expect(def, 'atomic set definition').not.toBeNull();
-    expect(def![0]).toMatch(/single outward dex/i);
+    expect(def![0]).toMatch(/outward dex realized as a set/i);
     expect(def![0]).toMatch(/\+1/);
     expect(def![0]).not.toContain('double-dexterity');
     expect(def![0]).not.toMatch(/double dex/i);

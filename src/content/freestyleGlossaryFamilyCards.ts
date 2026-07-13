@@ -347,7 +347,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Mirror of mirage',
-        body:  'Illusion is the out-to-in mirror of mirage: the bag follows the same path, the body the inverse. Both are leggy downtime dexes that finish on an opposite-foot toe delay.',
+        body:  'Illusion is the out-to-in mirror of mirage: the bag follows the same path, the body the inverse. Both are leggy dexes that finish on an opposite-foot toe delay.',
       },
     ],
     teaching: {
