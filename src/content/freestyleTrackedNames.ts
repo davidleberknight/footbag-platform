@@ -41,7 +41,7 @@ export interface TrackedNameGroup {
  *  recorded as a canonical trick in the committed canonical CSVs. Test
  *  fixture only; not a live publication filter (a name here may be a
  *  registered alias in the live database). */
-export const TRACKED_DOCUMENTED_TOTAL = 1500;
+export const TRACKED_DOCUMENTED_TOTAL = 1499;
 
 export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -1100,7 +1100,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Barraging near Double Down', slug: 'barraging_near_double_down' },
     { displayName: 'Big Orange', slug: 'big_orange' },
     { displayName: 'Bladerunner (Atomic Eggbeater)', slug: 'bladerunner_atomic_eggbeater', operationalNotation: 'Toe > Op Out (DEX) >> Op Out (DEX)(XDEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Blink', slug: 'blink' },
     { displayName: 'Blurtigo', slug: 'blurtigo' },
     { displayName: 'BS Blurriest', slug: 'bs_blurriest' },
     { displayName: 'BS Fury', slug: 'bs_fury' },

@@ -11946,6 +11946,19 @@
 "notation": null,
 "operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL]",
 "sort_order": 1916
+},
+{
+"slug": "blink",
+"canonical_name": "Blink",
+"adds": "2",
+"base_trick": null,
+"trick_family": null,
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": "BLINK",
+"operational_notation": "SET > OP BACK SWIRL [DEX] > OP TOE [DEL]",
+"sort_order": 1917
 }
 ],
 "modifiers": [
