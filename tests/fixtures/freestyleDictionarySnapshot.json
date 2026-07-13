@@ -11870,19 +11870,6 @@
 "sort_order": 1915
 },
 {
-"slug": "furious_paradox_mirage",
-"canonical_name": "furious paradox mirage",
-"adds": "5",
-"base_trick": "mirage",
-"trick_family": "mirage",
-"category": "compound",
-"description": null,
-"aliases_json": null,
-"notation": null,
-"operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL]",
-"sort_order": 1916
-},
-{
 "slug": "blink",
 "canonical_name": "Blink",
 "adds": "2",
@@ -12846,7 +12833,7 @@
 },
 {
 "alias_text": "barraging paradox mirage",
-"trick_slug": "furious_paradox_mirage"
+"trick_slug": "fury"
 },
 {
 "alias_text": "atomic double over down",
@@ -13707,6 +13694,22 @@
 {
 "alias_text": "stepping reverse whirl",
 "trick_slug": "stepping_rev_whirl"
+},
+{
+"alias_text": "furious paradox mirage",
+"trick_slug": "fury"
+},
+{
+"alias_text": "furious george",
+"trick_slug": "archnemesis"
+},
+{
+"alias_text": "high stepping ddd",
+"trick_slug": "archnemesis"
+},
+{
+"alias_text": "nuclear ddd",
+"trick_slug": "cold_fusion"
 }
 ]
 }
