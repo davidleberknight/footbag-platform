@@ -2255,16 +2255,6 @@ export const freestyleTricks = {
     ORDER BY sort_order ASC
   `); },
 
-  // TT Series view needs to distinguish "trick exists but pending" from
-  // "trick not in dictionary at all". listAll / getBySlug filter is_active=1
-  // so pending rows are invisible to them; this getter exposes the row
-  // including is_active so the TT view can render PENDING vs MISSING.
-  get getAnyStatusBySlug() { return db.prepare(`
-    SELECT slug, canonical_name, is_active
-    FROM freestyle_tricks
-    WHERE slug = ?
-  `); },
-
   // Category and active flag for a slug regardless of is_active, so the
   // trick-detail route can redirect modifier / operator rows to their operator
   // page, and let an active canonical trick always win its own URL even when an

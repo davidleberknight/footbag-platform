@@ -7103,15 +7103,6 @@ export const freestyleService = {
   },
 
   /**
-   * Alias-aware substring search over active tricks, shared by the
-   * server-rendered results page and the typeahead suggest endpoint. Returns
-   * up to `limit` results, deduped by slug.
-   */
-  searchTricks(query: string, limit = 10): FreestyleTrickSearchResult[] {
-    return runTrickSearch(query, limit);
-  },
-
-  /**
    * Combined typeahead suggestions: up to three family pages first (the broader
    * hub destinations, never many), then tricks filling the remainder of the
    * limit. Family items carry `typeLabel`; trick items keep their exact shape,
