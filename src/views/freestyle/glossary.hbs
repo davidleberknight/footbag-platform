@@ -143,7 +143,10 @@
     </p>
     <p class="detail-muted">
       Word order carries the meaning, not just the words. The same two words in
-      the opposite order name two different tricks in two different families:
+      the opposite order name two different tricks in two different families.
+      These are not the same two movements performed in a different sequence:
+      they are coordinated movements whose identities differ because the base
+      trick differs.
     </p>
     <div class="glossary-add-weight-table-wrap">
       <table class="glossary-add-weight-table">
@@ -455,6 +458,77 @@
       <li>Mirage uses one dex.</li>
       <li>Double Around the World uses two dexes.</li>
     </ul>
+
+    <h3 class="section-heading">The eight closest relatives</h3>
+    <p>
+      These movements are usually learned one at a time. Understanding how they
+      relate makes the rest of freestyle much easier to learn.
+    </p>
+    <p>
+      These eight tricks are not eight unrelated moves. They are closely related
+      variations of the same underlying movement pattern: a single dex shaped by
+      three simple choices, the direction the leg circles, the side it circles
+      on, and the side the bag comes down on. Every one of the eight is just one
+      movement change away from three of the others, as the figure below shows.
+    </p>
+    <figure class="glossary-neighbor-figure">
+      <figcaption class="glossary-neighbor-figure-caption">
+        Start with any of the eight. Change just one of those three choices, and
+        you land on another of the eight.
+      </figcaption>
+      <ul class="glossary-neighbor-grid">
+        {{#each content.movementNeighbors.cards}}
+        <li class="glossary-neighbor-card">
+          <a class="glossary-neighbor-card-trick" href="{{href}}">{{name}}</a>
+          <ul class="glossary-neighbor-moves">
+            {{#each moves}}
+            <li class="glossary-neighbor-move">
+              <span class="glossary-neighbor-change">{{changeLabel}}</span>
+              <a class="glossary-neighbor-dest" href="{{toHref}}">{{toName}}</a>
+            </li>
+            {{/each}}
+          </ul>
+        </li>
+        {{/each}}
+      </ul>
+    </figure>
+
+    <h3 class="section-heading">Clipper counterparts</h3>
+    <p>
+      Each of the eight has a closely related clipper counterpart: a
+      corresponding movement that finishes on a clipper instead of a toe. If
+      you know the toe movement, its counterpart is already half familiar.
+      Whirl is easier to understand if you already know Mirage.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>Toe movement</th><th>Clipper counterpart</th></tr></thead>
+        <tbody>
+          <tr><td><a href="/freestyle/tricks/mirage">Mirage</a></td><td><a href="/freestyle/tricks/whirl">Whirl</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/illusion">Illusion</a></td><td><a href="/freestyle/tricks/rev_whirl">Reverse Whirl</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/pickup">Pickup</a></td><td><a href="/freestyle/tricks/drifter">Drifter</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/legover">Legover</a></td><td><a href="/freestyle/tricks/reverse_drifter">Reverse Drifter</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/around_the_world">Around the World</a></td><td><a href="/freestyle/tricks/rev_swirl">Reverse Swirl</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/orbit">Orbit</a></td><td><a href="/freestyle/tricks/swirl">Swirl</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Read down the table and the clipper vocabulary suddenly shrinks: every
+      entry is the counterpart of something you already know.
+    </p>
+
+    <h3 class="section-heading">Repeating a movement</h3>
+    <p>
+      One common way freestyle vocabulary grows is by repeating an existing
+      movement. Three familiar ladders show the idea:
+    </p>
+    <ul>
+      <li><a href="/freestyle/tricks/swirl">Swirl</a> &rarr; <a href="/freestyle/tricks/ripstein">Ripstein</a> &rarr; <a href="/freestyle/tricks/triple_swirl">Triple Swirl</a></li>
+      <li><a href="/freestyle/tricks/around_the_world">Around the World</a> &rarr; <a href="/freestyle/tricks/double_around_the_world">Double Around the World</a> &rarr; <a href="/freestyle/tricks/triple_around_the_world">Triple Around the World</a></li>
+      <li><a href="/freestyle/tricks/orbit">Orbit</a> &rarr; <a href="/freestyle/tricks/double_orbit">Double Orbit</a> &rarr; <a href="/freestyle/tricks/triple_orbit">Triple Orbit</a></li>
+    </ul>
+
     <dl class="glossary-term-list">
       <dt id="term-dexless">Dexless</dt>
       <dd>A trick or component that contains no dex. Dexes are so central to freestyle that the absence of one is itself a named category.</dd>
@@ -518,36 +592,6 @@
       <dt id="term-op-not-xdex"><code>OP</code> is not X-Dex</dt>
       <dd>Performing a dex on the far / opposite side does not by itself add difficulty. <a href="#term-x-dex">X-Dex</a> is a separate +1 scored only where the operational notation carries <code>[XDEX]</code>. A far dex changes the side but not the score unless the notation marks it <code>[XDEX]</code>.</dd>
     </dl>
-
-    <h3 class="section-heading">The eight closest relatives</h3>
-    <p>
-      These eight tricks are not eight unrelated moves. They are closely related
-      variations of the same underlying movement pattern: a single dex shaped by
-      three simple choices, the direction the leg circles, the side it circles
-      on, and the side the bag comes down on. Every one of the eight is just one
-      movement change away from three of the others, as the figure below shows.
-    </p>
-    <figure class="glossary-neighbor-figure">
-      <figcaption class="glossary-neighbor-figure-caption">
-        Start with any of the eight. Change just one of those three choices, and
-        you land on another of the eight.
-      </figcaption>
-      <ul class="glossary-neighbor-grid">
-        {{#each content.movementNeighbors.cards}}
-        <li class="glossary-neighbor-card">
-          <a class="glossary-neighbor-card-trick" href="{{href}}">{{name}}</a>
-          <ul class="glossary-neighbor-moves">
-            {{#each moves}}
-            <li class="glossary-neighbor-move">
-              <span class="glossary-neighbor-change">{{changeLabel}}</span>
-              <a class="glossary-neighbor-dest" href="{{toHref}}">{{toName}}</a>
-            </li>
-            {{/each}}
-          </ul>
-        </li>
-        {{/each}}
-      </ul>
-    </figure>
 
     <h3 class="section-heading">Execution window</h3>
     <p>The phantom space the leg draws around the bag while the dex is performed. The terms below describe where in that space the dex lives.</p>
