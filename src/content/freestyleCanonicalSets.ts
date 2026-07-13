@@ -140,7 +140,7 @@ export const SET_SUBTYPE_SPECS: readonly SubtypeSpec[] = [
     label: 'True core sets',
     intro:
       'Foundational single-dex primitives. One dexterity step over a single set surface, ' +
-      'no body modifier inside the chain, no second dex. Reusable uptime structures the ' +
+      'no body modifier inside the chain, no second dex. Reusable structures the ' +
       'rest of the language composes from.',
   },
   {
@@ -195,7 +195,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'TOE >',
     movementExplanation:
       'The foundational entry surface: the bag is set up from a toe delay with no added ' +
-      'dexterity. Most uptime sets are this toe set plus a pre-base motion.',
+      'dexterity. Most sets are this toe set plus a pre-base motion.',
     equivalenceNotes: [],
     derivedSystems: [],
     relatedSystems: [
@@ -222,7 +222,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'pixie', hashtag: '#set_pixie', displayName: 'Pixie', subtype: 'true-core',
     formula: 'TOE > SAME IN [DEX] >',
     movementExplanation:
-      'A toe set with a same-side inward dex; the basic uptime ATW-style entry and the ' +
+      'A toe set with a same-side inward dex; the basic ATW-style entry and the ' +
       'directional mirror of fairy.',
     equivalenceNotes: [],
     derivedSystems: [
@@ -245,7 +245,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'fairy', hashtag: '#set_fairy', displayName: 'Fairy', subtype: 'true-core',
     formula: 'TOE > SAME OUT [DEX] >',
     movementExplanation:
-      'A toe set with a same-side outward dex; the basic uptime orbit-style entry and the ' +
+      'A toe set with a same-side outward dex; the basic orbit-style entry and the ' +
       'directional mirror of pixie.',
     equivalenceNotes: [],
     derivedSystems: [
@@ -308,10 +308,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'atomic', hashtag: '#set_atomic', displayName: 'Atomic', subtype: 'true-core',
     formula: 'TOE > OP OUT [DEX] > (op side component)',
     movementExplanation:
-      'Atomic is an uptime set built around an outward dex. Hippy Atomic and leggy ' +
+      'Atomic is the outward dex realized with a set role. Hippy Atomic and leggy ' +
       'Atomic are execution styles of Atomic. Older sources may blur Atomic, leggy ' +
       'Atomic, and Illusioning language, but current doctrine keeps them distinct: ' +
-      'Illusioning is a downtime move, not an equivalent name for Atomic.',
+      'Illusioning is that same movement realized standalone, not an equivalent name for Atomic.',
     equivalenceNotes: [
       { reading: 'Toe set Illusion', citation: 'Holden parenthetical (historical; not formalized by the platform)' },
     ],
@@ -403,7 +403,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'furious', hashtag: '#set_furious', displayName: 'Furious', subtype: 'composite-derived',
     formula: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',
     movementExplanation:
-      'Furious is the two-dex uptime set: a clipper set opening with an ' +
+      'Furious is the two-dex set: a clipper set opening with an ' +
       'opposite-side inward dex followed by a same-side inward dex. Barraging is not a ' +
       'canonical set but a legacy name pattern for this set; some tricks carry ' +
       'barraging-based names for historical continuity, but the set is Furious and their ' +
@@ -417,7 +417,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'stepping', label: 'Stepping (single-dex base)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Platform-tracked as the two-dex uptime set; Barraging is a legacy name pattern for this set, not a canonical set of its own.',
+    sourceCitation: 'Platform-tracked as the two-dex set; Barraging is a legacy name pattern for this set, not a canonical set of its own.',
     auditStatus: 'partial',
     tier: 'compositional-system',
   },
@@ -1154,8 +1154,8 @@ export function resolveCanonicalSetAlias(slug: string): string | null {
 
 /**
  * Old /freestyle/sets/:slug routes for concepts that are NOT confirmed sets.
- * Under current doctrine Illusioning is a distinct downtime move, and Miraging
- * and Barraging are held / non-set terminology; none is a set page. Their old set
+ * Under current doctrine Illusioning is a standalone movement rather than a launch
+ * set, and Miraging and Barraging are held / non-set terminology; none is a set page. Their old set
  * URLs redirect to the glossary term that explains each as a non-set concept, so
  * existing deep links resolve without teaching a set page. Only fires for slugs
  * that are not themselves a live canonical set.

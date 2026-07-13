@@ -50,10 +50,10 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
       'compound set modifiers (nuclear = paradox + illusion, quantum = ' +
       'compressed atomic).',
     // Order: pixie / fairy (pre-base uptime compressors); atomic (the outward-dex
-    // uptime set); quantum / nuclear; stepping / surging (set-foot relocations);
+    // set); quantum / nuclear; stepping / surging (set-foot relocations);
     // whirling (the whirl dex performed during uptime, before the bag peaks).
-    // Miraging is deliberately absent: it is descriptive / downtime mirage-family
-    // language, not a modern set, so trick pages rely on the modifier row instead
+    // Miraging is deliberately absent: it is descriptive standalone inward-movement
+    // language, not a launch set, so trick pages rely on the modifier row instead
     // of a set-uptime movement-system row.
     modifierSlugs:  ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'stepping', 'surging', 'whirling'],
   },
@@ -155,11 +155,11 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
     'Blurry = stepping paradox; compounds: STEP + WHIRL, STEP + OSIS.',
   ],
   ['pixie',
-    'PIX + base: a compressed pre-base uptime set; tighter motion than stepping. ' +
+    'PIX + base: a compressed pre-base set; tighter motion than stepping. ' +
     'Compounds: PIX + BUTTERFLY (dimwalk), PIX + MIRAGE (smear), PIX + DRIFTER (smoke).',
   ],
   ['fairy',
-    'FAIRY + base: an uptime orbit-style set; the bag is set from toe while the leg ' +
+    'FAIRY + base: an orbit-style set; the bag is set from toe while the leg ' +
     'circles in the outside direction before the next trick, rather than the standard pixie compression. ' +
     'Compounds: FAIRY + MIRAGE, FAIRY + BUTTERFLY.',
   ],
@@ -194,8 +194,8 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
   ],
   ['miraging',
     'MIRAGING + base: a historical mirage-family nickname for a single inward dex ' +
-    '(SET > OP IN [DEX]) at the front of the base trick. Descriptive or downtime ' +
-    'language, not a canonical set; specific compound decompositions are held for curator review.',
+    '(SET > OP IN [DEX]) at the front of the base trick. Descriptive standalone ' +
+    'language, not a launch set; specific compound decompositions are held for curator review.',
   ],
   ['whirling',
     'WHIRLING + base: a whirl dex during uptime before the bag peaks, ' +

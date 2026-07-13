@@ -3629,7 +3629,7 @@ const SET_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     name:        'Fairy',
     glyph:       'FAIRY',
     feel:        'Fairy sets the bag from a toe delay, then dexes outward on the same side before the base; the outward-circling mirror of pixie.',
-    intuition:   'A set primitive in its own right, the directional opposite of pixie: pixie dexes inward, fairy outward. It pairs with most bases like the other uptime sets.',
+    intuition:   'A set primitive in its own right, the directional opposite of pixie: pixie dexes inward, fairy outward. It pairs with most bases like the other sets.',
     example:     'Appears as both a standalone base and a modifier on other bases.',
     familyHint:  null,
     midtimeBody: false,
@@ -8990,12 +8990,12 @@ export const freestyleService = {
       gyro:      'A half-body 180° rotation carried through the dex moment.',
       whirling:  'A whirl-family launch set: a rotational opening before the base (whirling + osis = blender).',
       stepping:  'A foot relocation during uptime that compresses or lengthens the set.',
-      pixie:     'A compressed pre-base uptime set; tighter motion than stepping.',
-      atomic:    'A cross-body uptime set (+1). X-Dex, when present, is a separate [XDEX] flag on the following dex.',
-      quantum:   'The compressed form of atomic: a tighter uptime treatment.',
+      pixie:     'A compressed pre-base set; tighter motion than stepping.',
+      atomic:    'A cross-body set (+1). X-Dex, when present, is a separate [XDEX] flag on the following dex.',
+      quantum:   'The compressed form of atomic: a tighter set treatment.',
       nuclear:   'A +2 set modifier; structurally paradox + illusion.',
-      fairy:     'A pre-base uptime set treatment closely related to pixie.',
-      furious:   'A +2 two-dex uptime set. Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator.',
+      fairy:     'A pre-base set treatment closely related to pixie.',
+      furious:   'A +2 two-dex set. Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator.',
     };
 
     const componentSortByAddThenName = (
@@ -11110,11 +11110,11 @@ export const freestyleService = {
     // that anchor most of the compositional vocabulary. Mirrors the
     // flagship-marker discipline on /freestyle/glossary.
     const FLAGSHIP_SET_TOOLTIPS: Record<string, string> = {
-      pixie:    'Flagship set: the simplest +1 uptime entry; anchors terraging / sailing / frantic.',
+      pixie:    'Flagship set: the simplest +1 set entry; anchors terraging / sailing / frantic.',
       fairy:    "Flagship set: pixie's directional mirror (out-dex); anchors the fairy-spinning family.",
       stepping: 'Flagship set: clipper-entry +1; anchors blurry / furious / shooting / leaning.',
-      atomic:   'Flagship set: out-dex toe entry resolving to op-side; the outward-dex uptime set, anchors nuclear / fairy-atomic.',
-      quantum:  "Flagship set: atomic's in-dex sibling; the inward-dex uptime set, the platform-canonical replacement for toe-prefix naming.",
+      atomic:   'Flagship set: out-dex toe entry resolving to op-side; the outward-dex set, anchors nuclear / fairy-atomic.',
+      quantum:  "Flagship set: atomic's in-dex sibling; the inward-dex set, the platform-canonical replacement for toe-prefix naming.",
     };
 
     // Pre-load trick rows + modifier-link rows ONCE for the whole encyclopedia
@@ -11270,7 +11270,7 @@ export const freestyleService = {
       seo: {
         title:       'Set Encyclopedia',
         description:
-          'Canonical sets as first-class compositional vocabulary: the named uptime ' +
+          'Canonical sets as first-class compositional vocabulary: the named ' +
           'movement primitives that open a trick. One card per set; detail pages carry ' +
           'the deep ontology.',
       },

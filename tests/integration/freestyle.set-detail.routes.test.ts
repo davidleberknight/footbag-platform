@@ -278,14 +278,14 @@ describe('GET /freestyle/sets/:slug — non-set slug redirects to its glossary t
 });
 
 describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name equivalences)', () => {
-  it('atomic does not show Illusioning as an equivalent name; it is a distinct downtime move', async () => {
+  it('atomic does not show Illusioning as an equivalent name; it is a distinct standalone movement', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/atomic');
     expect(res.status).toBe(200);
     // Atomic and Illusioning are distinct under current doctrine, so atomic has
     // no equivalent-name section, and its Set Encyclopedia teaching page states
     // the distinction rather than presenting Illusioning as a synonym.
     expect(res.text).not.toContain('Equivalent names');
-    expect(res.text).toContain('illusioning is a downtime move, not another name for the atomic uptime set');
+    expect(res.text).toContain('illusioning is the outward dex realized standalone, not another name for atomic');
   });
 
   it('keeps the equivalent name out of the structural Equivalence readings slot', async () => {
@@ -312,18 +312,18 @@ describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name eq
     // exactly as the atomic page disambiguates illusioning; it is never presented as
     // an equivalent or alternate name for the quantum set.
     expect(res.text).not.toContain('href="/freestyle/sets/miraging"');
-    expect(res.text).toContain('not a canonical set, and not an equivalent term for Quantum');
+    expect(res.text).toContain('not a launch set, and not an equivalent term for Quantum');
   });
 });
 
-// Under current doctrine Furious is the confirmed two-dex uptime set page.
+// Under current doctrine Furious is the confirmed two-dex set page.
 // Barraging and Miraging are not sets and their old set URLs redirect to their
 // glossary terms; Illusioning redirects to its glossary term, not to Atomic.
 describe('GET /freestyle/sets/:slug — set vs non-set concepts', () => {
-  it('furious renders a set detail page for the two-dex uptime concept', async () => {
+  it('furious renders a set detail page for the two-dex set concept', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/furious').redirects(0);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('two-dex uptime set');
+    expect(res.text).toContain('two-dex set');
     // Historically related to Barraging, but never presented as the same set.
     expect(res.text).toContain('Barraging');
     expect(res.text).not.toContain('third dex extension');

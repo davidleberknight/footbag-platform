@@ -19,14 +19,14 @@
 export const MODIFIER_BEGINNER_NOTES: ReadonlyMap<string, string> = new Map([
   // ── Paraphrased from curator feel cards (jargon removed) ──
   ['pixie',      'A tight, compressed set right before the trick begins.'],
-  ['fairy',      'An alternate uptime set that circles the bag on an outside path before the base.'],
+  ['fairy',      'An alternate set that circles the bag on an outside path before the base.'],
   ['stepping',   'A launch set that opens the trick as the support foot relocates.'],
   ['atomic',     'A launch set that adds one dexterity before the base (+1); any X-Dex is a separate +1 marked [XDEX] in the notation, not part of atomic.'],
   ['quantum',    'A quicker, compressed version of the atomic launch.'],
   ['blurry',     'Stepping momentum combined with a paradox side-change.'],
   ['nuclear',    'A heavy launch that stacks a paradox with a downtime illusion dexterity.'],
   ['barraging',  'Two same-direction dexterity moves on a single set.'],
-  ['furious',    'Two same-direction dexterity moves on one set (+2); a two-dex uptime set.'],
+  ['furious',    'Two same-direction dexterity moves on one set (+2); a two-dex set.'],
   ['paradox',    'The hips pivot between two dexterity moves; the body changes sides mid-trick.'],
   ['spinning',   'A full-body turn carried through the dexterity moment.'],
   ['ducking',    'A head dip near the top so the bag passes around the neck.'],
@@ -37,11 +37,11 @@ export const MODIFIER_BEGINNER_NOTES: ReadonlyMap<string, string> = new Map([
   ['diving',     'The upper body dives over the bag and back during the trick.'],
   ['swirling',   'The whirl-and-swirl launch set: a rotational opening carried by a swirl dexterity.'],
   ['inspinning', 'An inward body turn carried into the dexterity moment.'],
-  ['miraging',   'Descriptive or downtime mirage-family language that adds one inward dexterity before the base (+1). Under the current working ruling, Quantum is the uptime set concept; miraging is not treated as a modern set or a Quantum equivalent.'],
+  ['miraging',   'Descriptive mirage-family language for the inward standalone movement that adds one inward dexterity before the base (+1). Quantum is the same inward movement realized with a set role; miraging is not a launch set or a Quantum equivalent.'],
   ['whirling',   'The whirl-family launch set: a rotational opening run before the base (whirling osis is the blender).'],
   ['tapping',    'Adds a quick extra dexterity tap before the base.'],
-  ['sailing',    'A compound uptime set that runs two set treatments before the base.'],
-  ['railing',    'A compound uptime set combining a held position with a sailing set.'],
+  ['sailing',    'A compound set that runs two set treatments before the base.'],
+  ['railing',    'A compound set combining a held position with a sailing set.'],
 ]);
 
 export function resolveModifierBeginnerNote(slug: string): string | null {

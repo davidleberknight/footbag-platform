@@ -183,20 +183,20 @@ describe('/freestyle/compositional-sets — uptime reinterpretation ladders', ()
     expect(res.text).toContain('Source:');
   });
 
-  it('does not describe miraging as an uptime set; quantum is the modern uptime inward-dex set', async () => {
+  it('describes miraging as inward standalone-movement language, not a launch set; quantum is that movement realized with a set role', async () => {
     const res = await request(createApp()).get('/freestyle/compositional-sets');
-    // The stale uptime-set framing is gone from every compositional-set surface.
+    // Set-versus-standalone identity follows structural role, not execution timing.
     expect(res.text).not.toMatch(/uptime mirage structure/i);
-    expect(res.text).toMatch(/miraging is not treated as a modern set|not a modern set/i);
-    expect(res.text).toMatch(/Quantum is the modern uptime inward-dex set/i);
+    expect(res.text).toMatch(/miraging is not treated as a launch set/i);
+    expect(res.text).toMatch(/Quantum is the same inward movement realized with a set role/i);
   });
 
-  it('does not describe illusioning as an uptime set; illusioning is distinct from atomic', async () => {
+  it('describes illusioning as a standalone movement distinct from atomic, not a launch set', async () => {
     const res = await request(createApp()).get('/freestyle/compositional-sets');
     expect(res.text).not.toMatch(/uptime illusion structure/i);
-    // Illusioning is a distinct downtime move, not a set or an Atomic equivalent.
-    expect(res.text).toMatch(/illusioning is a distinct downtime move/i);
-    expect(res.text).toMatch(/Atomic is the modern uptime outward-dex set/i);
+    // Illusioning is the outward standalone movement, not a launch set or an Atomic equivalent.
+    expect(res.text).toMatch(/illusioning is not a launch set or an Atomic equivalent/i);
+    expect(res.text).toMatch(/Atomic is the same outward movement realized with a set role/i);
   });
 
   it('illusioning ladder honestly notes it is a structural inference (not in Holden)', async () => {
