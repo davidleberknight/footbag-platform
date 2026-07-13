@@ -220,6 +220,13 @@ legacy_data/reports/
 # Local working planning doc (never commit)
 /PLANNING.md
 
+# Retired freestyle planning surfaces (local historical and working records
+# only). One root file carries both retired lineages: the freestyle
+# reconciliation/remediation report and the Freestyle Closure Plan that
+# replaced it in place at the same path. The single tracked authority for
+# active freestyle work is the Freestyle section of IMPLEMENTATION_PLAN.md.
+/freestyle_remediation_report.md
+
 # Per-session commit handoff script (staged-and-handed-off, never committed)
 /commit.sh
 

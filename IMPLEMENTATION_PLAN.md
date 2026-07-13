@@ -136,7 +136,7 @@ Pipeline defects, deviations, and cleanup the cutover load and onboarding matchi
 - **[DEVIATION] The club-classification override procedure (the CSV behind Dave's admin-cleanup item).** Before go-live, forcing a club to be kept or junked is done by hand-editing rows in `overrides/club_classification_overrides.csv`. The procedure: look up the club's key by name from the seed file (never guess it), fill in the name and reason so the row explains itself, re-run the club-classification build script and check the override count and the difference from the last run, then run QC. The loader deliberately fails loudly on an unknown category or a club key that no longer exists.
 - **[PRE-KANBAN] QC does not run on the `--all-data` dev build.** `run_dev.sh --all-data` takes the csv_only pipeline path, which skips `pipeline/qc/run_qc.py` entirely, and no build path runs the read-only `crosscheck_member_profile_ids.py` or `report_legacy_member_honors.py`; on such a build "no QC failures" means "QC did not run", which a dress-rehearsal reader can mistake for a clean gate. Ruled: wire the QC gate and the two read-only reports into the all-data path — a manual side-procedure the operator must remember is the failure mode to avoid, and the reports are read-only so the wiring is safe. Done when `run_dev.sh --all-data` runs `pipeline/qc/run_qc.py`, `crosscheck_member_profile_ids.py`, and `report_legacy_member_honors.py`, and a QC failure fails the build loudly.
 
-- **[PRE-KANBAN] Full audit and doc-sync of the post-refactor pipeline reality.** The legacy_data, freestyle, and net pipelines were refactored (the symbolic-grammar CSVs moved into `freestyle/`, moved-input reads were repointed, loaders were renumbered and some retired), so the prose that describes them has drifted from what the scripts now do. Do a full documentation-sync pass over everything that references the pipeline file layout and loader inventory: the root `CLAUDE.md` and any per-subtree `CLAUDE.md`, `README.md`, every `.claude/skills/*` and `.claude/rules/*` that names a `legacy_data`, `freestyle`, or net path, the pipeline script header comments, and the migration and data-model docs. Re-derive the actual current scripts and artifacts under `legacy_data/`, `freestyle/`, and the net loaders, then bring every reference into line with reality (correct loader numbers, current input and output paths, retired-loader removals). The blanket loader-invariant overstatements in `freestyle/CLAUDE.md` and `legacy_data/CLAUDE.md` are already corrected (and loader 08 now re-runs with scoped deletes, not a refusal); what remains for this item is the broad file-layout and loader-numbering drift across the other docs. Use the doc-sync skill and propose the doc edits for approval before writing. The freestyle share of this item is now specified as FS-92 in `freestyle_remediation_report.md` (the maintainer-doc pair plus its alignment edits) with the comment-level drift as FS-82 there; this item keeps the legacy_data and net shares.
+- **[PRE-KANBAN] Full audit and doc-sync of the post-refactor pipeline reality.** The legacy_data, freestyle, and net pipelines were refactored (the symbolic-grammar CSVs moved into `freestyle/`, moved-input reads were repointed, loaders were renumbered and some retired), so the prose that describes them has drifted from what the scripts now do. Do a full documentation-sync pass over everything that references the pipeline file layout and loader inventory: the root `CLAUDE.md` and any per-subtree `CLAUDE.md`, `README.md`, every `.claude/skills/*` and `.claude/rules/*` that names a `legacy_data`, `freestyle`, or net path, the pipeline script header comments, and the migration and data-model docs. Re-derive the actual current scripts and artifacts under `legacy_data/`, `freestyle/`, and the net loaders, then bring every reference into line with reality (correct loader numbers, current input and output paths, retired-loader removals). The blanket loader-invariant overstatements in `freestyle/CLAUDE.md` and `legacy_data/CLAUDE.md` are already corrected (and loader 08 now re-runs with scoped deletes, not a refusal); what remains for this item is the broad file-layout and loader-numbering drift across the other docs. Use the doc-sync skill and propose the doc edits for approval before writing. The freestyle share of this item is the maintainer documentation package (the JD1 entry in the Freestyle section below: the committed guide-and-README proposal plus its four alignment patches); this item keeps the legacy_data and net shares.
 
 - **[DEVIATION] The two person-id generators normalize names with local rules weaker than the canonical resolver, risking duplicate or mismatched historical persons (accents, and spaced/doubled hyphens).** Both id generators reimplement name normalization rather than using the canonical `legacy_data/pipeline/identity/alias_resolver.py:52-80` `normalize_name` (which applies NFKD accent-folding plus a defined punctuation/artifact strip), against the one-canonical-normalizer invariant: `legacy_data/clubs/scripts/01_build_club_person_universe.py:24-28` (`normalize_name`) and `legacy_data/persons/scripts/05_build_persons_master.py:30-31` (`norm_name`) both only lowercase, replace hyphens with spaces, and collapse whitespace, with no NFKD. Two consequences. (1) Accent-duplicate risk: neither id generator folds accents, while the canonical `AliasResolver.resolve` (used in `persons/05` at line 203) does, so accent variants of one name (for example `Bélanger` vs `Belanger`) hash to distinct `membership_only::` / `master_person::` ids and can surface as two historical persons the resolver would merge into one; whether this actually produces duplicates depends on the source data and must be checked against it. (2) Spaced-hyphen mismatch (verified): the two generators order whitespace-collapse and hyphen-replacement differently (`clubs/01` collapses after replacing, `persons/05` does not), so `"Jean - Pierre"` normalizes to `jean pierre` in `clubs/01` but `jean   pierre` in `persons/05`, and the load-time bridge `translate_membership_only_pid` in `legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py:116-164` (which keys on the normalized name) misses for that name, leaving the membership-only person's `historical_persons.historical_person_id` NULL. For ordinary names the two agree, so the bridge docstring's "consistent across both upstream scripts" holds in the common case and should be corrected to note these exceptions. Fix (data-and-freestyle maintainer's call: it changes some ids and needs a full pipeline rebuild): route name normalization in `clubs/01`, `persons/05`, and any other id generator through the canonical `alias_resolver.normalize_name`; correct the bridge docstring; and verify against the legacy data that an accent-variant pair collapses to one historical person and a spaced-hyphen name resolves to a non-NULL `historical_person_id`, with `pipeline/qc/run_qc.py` passing after the rebuild. The onboarding review checked the accent-duplicate half against the local data: zero accent-variant duplicate pairs exist today, so the fix stays deferred to a post-cutover slice; the final-dump sign-off re-verifies (see the data-remainder item above).
 - **[DEVIATION] The persons-master id generator mints duplicate historical persons when one person arrives from two source types (a separate mechanism from the normalizer divergence above).** `stable_master_person_id(name_norm, source_types)` in `legacy_data/persons/scripts/05_build_persons_master.py:49-51` hashes the source-type string into the person id, and nothing merges same-normalized-name candidate rows across source types before hashing, so the same person arriving once via membership-derived and once via club-derived candidate rows mints two `master_person::` ids for byte-identical names. One confirmed instance in the current database ("Georg Waldispühl", one MEMBERSHIP-sourced and one CLUB-sourced provisional row, neither linked to a legacy account); the reconciliation stage routes same-name multi-person cases to manual review, so member claims cannot silently attach to the wrong half — the exposure is a split public person page. Ruled at the onboarding review: hand-adjudicate the confirmed pair now through the existing merge/alias workflow (with the post-merge alias rebind), and fix the mechanism (merge same-name candidates across source types before id minting) in the same post-cutover pipeline-rebuild slice as the normalizer unification above. The final-dump duplicate scan (data-remainder item) re-checks this class; if the final dump reveals multiple instances, revisit whether the pipeline fix moves forward.
@@ -186,13 +186,14 @@ launch gate and cross-team items.
   doctrine integration and promotions remain James-led. The remaining first-edition
   doctrine papers (`freestyle/doctrine/papers/0..5`) have a mixed send state: the
   Identity and Frontier papers were sent to Red, answered, and integrated; the
-  Scoring paper is sent and awaiting Red's answer; and the Notation and History
-  papers are drafted, committed, and not yet sent. Every
+  Scoring, Notation, and History papers are drafted and their delivery is not
+  confirmed, so they are treated as not sent (the R1, R2, and R4 entries below
+  carry their send steps). Every
   unresolved doctrine question is isolated where it cannot
   leak into published values: the doctrine queue in `freestyle/doctrine/RED_QUEUE.md`
   with its blocked items (the Red-dependent promotion and world-record-name decisions
-  carried in the live priority list below), and the divergence registries in the
-  content layer.
+  carried in the active freestyle work section below), and the divergence registries
+  in the content layer.
 - *Promotion.* The major promotion arc is finished: everything independently
   derivable from the sources is promoted, the clean no-cascade runway is exhausted,
   and the curator's one-line-call queue is cleared. What remains unpromoted is
@@ -201,17 +202,149 @@ launch gate and cross-team items.
   blockers and four should-fix items are fixed and re-verified against rendered
   output; the full test suite is green. Version 1 is ready to freeze.
 
-**Freestyle 1.2 launch gate.** The in-app curation cutover evidence. The scalar-field admin edit, the cutover mechanics, and their guard tests are done; two operator-run staging rehearsals and an open build requirement remain. The open build requirement (ratified this review): all freestyle curation must work after go-live, so every freestyle content type a curator edits must have a working, audited in-app path before cutover, and nothing may freeze when the CSV rebuild retires from production. This covers the seven editorial-prose fields the admin trick editor does not yet reach (description, short description, execution summary, learning notes, prerequisite notes, pronunciation, operational notation source) and the previously-deferred surfaces (trick-tip moderation, provenance-source and modifier-registry creation, trick relations, and the symbolic layers). The go-live blocker index in `docs/MIGRATION_PLAN.md` lists the editable-prose requirement as a cutover precondition; the full requirement is detailed as FS-49 and FS-91 in `freestyle_remediation_report.md`. The two operator-run rehearsals, both needing AWS deploy and host access:
-- *Code-only deploy persistence rehearsal.* On staging, an admin edit made through the app survives a code-only deploy that never touches the live database.
-- *Destructive-rebuild refusal rehearsal.* On staging, with the post-cutover marker set, the database-replacing rebuild deploy refuses before any mutation, with no bypass.
+**Active freestyle work (single tracked authority).** This section is the
+sole tracked source of truth for all remaining freestyle work. The former
+freestyle planning surfaces (the reconciliation/remediation report and the
+Freestyle Closure Plan that replaced it) are retired local working records,
+gitignored and no longer tracked; every genuinely open item they carried was
+transferred here, and nothing may cite them as an active backlog. Every entry
+below is open; closed work is deleted, never archived here.
 
-Owner and lane: Dave, the authorized deploy operator, runs both on staging and captures the evidence; James completed the admin-UI rehearsal half and is not authorized to run the AWS deploy path. Close condition: both evidence blocks (code-only-deploy persistence, and destructive-rebuild refusal) captured and recorded against this gate. This is the freestyle curation-cutover rehearsal gate in the go-live blocker index.
+#### James only
 
-**Freestyle backlog moved to the remediation report.** The detailed freestyle engineering and content backlog (post-launch media, code and test hygiene, doctrine-gated audits, deferred tooling, and curator tasks) now lives in `freestyle_remediation_report.md`, the single freestyle work-list, so it is not duplicated here. That report also carries the defects found in the latest audit, including three that affect the public launch surface: alias URLs that shadow active canonical tricks (six tricks unreachable, twenty-three duplicate-rendered), trick editorial prose with no post-cutover edit path, and internal shorthand rendering in public trick descriptions at scale. None of the moved items is a Freestyle 1.2 release blocker; the launch-surface defects are, and are flagged as such in the report.
+- **J1. Positional-equivalence ruling session.** Urgency: promotion blocker.
+  Status: 46 rows verified open in the formula-identity audit ledger (40
+  tagged as needing the same-side-equivalence call, 5 ambiguous
+  multi-component same-side forms: Double Leg Over, Eggbeater, Fairy Double
+  Leg Over, Pigbeater, Smog, and the Pixie DSO no-notation hold). Remaining:
+  one ruling session applying the ratified identity-by-configuration
+  doctrine to each row. Blocks: those 46 promotions only. Unlocks: each row
+  promoted, aliased, or rejected. Next: stage the session from the
+  positional curator worklist
+  (`exploration/positional-evidence-audit-2026-06-23/CURATOR_WORKLIST.md`).
+  Done when each of the 46 carries a ruling and its audit tag is cleared.
+- **J7. Video and source reviews.** Urgency: promotion blocker. Status:
+  open; every item needs a viewing, not a document. Remaining: one viewing
+  session covering POD versus Dimmier (one viewing decides one row), Kiwi
+  (rule it unrulable-reject or hold), Toe Spinning Toe (the record name's
+  entry, rotation, side, and terminal), the sole-survivor demo replacement,
+  and the dead or blocked external record videos. Blocks: those rows and
+  their record badges. Unlocks: each name ruled or rejected; dead links
+  replaced or removed. Next: James schedules the viewing session. Done when
+  every named item is ruled or explicitly rejected and the dead links are
+  replaced or removed.
 
-Cross-team freestyle blockers (waited on from outside the freestyle code):
-- **IFPA Sick 3 competition-format rules wording** (IFPA, via Julie). The freestyle-page rules buttons re-enable when the wording lands.
-- **Red Husted doctrine answers.** The Notation, Scoring, and History papers and the open queue questions gate the remaining content promotions and the six unresolved world-record trick names; none blocks the Freestyle 1.2 release.
+#### James + Dave
+
+- **FS-19. In-app curation cutover: staging rehearsals and launch
+  approval.** Urgency: launch/cutover (a go-live blocker-index gate in
+  `docs/MIGRATION_PLAN.md`). Status: the cutover feature is code-complete,
+  and the ratified all-curation-works-after-go-live build requirement is
+  satisfied in code and verified: the admin trick editor covers all seven
+  editorial-prose fields (description, short description, execution
+  summary, learning notes, prerequisite notes, pronunciation, operational
+  notation source) with audited writes and route tests; trick-tip
+  moderation is mounted and tested; provenance-source creation shipped; the
+  registry and symbolic surfaces are ruled exceptions. Remaining: the
+  in-app freestyle curation cutover still requires the operator-run staging
+  rehearsals and shared launch approval — two rehearsals, both needing AWS
+  deploy and host access (a code-only deploy under which an in-app admin
+  edit survives with the live database untouched; a destructive-rebuild
+  attempt refused before any mutation on a host carrying the post-cutover
+  marker). Dave is the authorized deploy operator; James completed the
+  admin-UI rehearsal half and is not authorized to run the AWS deploy path.
+  Blocks: the freestyle curation cutover. Unlocks: the cutover evidence for
+  the go-live gate. Next: Dave schedules the two staging runs; James and
+  Dave record the shared launch approval. Done when both evidence blocks
+  are captured against the gate and the launch approval is recorded.
+- **JD1. Maintainer documentation package.** Urgency: non-blocking cleanup.
+  Status: the canonical freestyle maintainer guide and the rewritten
+  subtree README are committed as a proposal (commit 06895b47); the four
+  cross-document alignment patches are unapplied. Remaining: Dave reviews;
+  on approval apply the patches and retire the two superseded documents.
+  Blocks: documentation-delegation coherence only. Unlocks: one canonical
+  maintainer guide. Next: Dave's review. Done when the doc delegation chain
+  resolves to the new guide and no canonical doc points at the legacy tree
+  for freestyle semantics.
+
+#### James + Red
+
+- **R1. Scoring packet.** Urgency: doctrine blocker, the largest unlock.
+  Status: drafted, not sent. Its five ruling groups: blurry/paradox
+  inheritance (61 gated audit rows; the 13 already-canonical blurry rows
+  author independently but their blurry-named audit rows still gate on the
+  alias-versus-distinct predicate); undefined or folk operators (9 tokens
+  drafted covering 56 rows, plus a 19-token addendum covering 35 more:
+  frootie, fyro, leaning, twisted, twisting, arctic, flailing, neutron,
+  snapping, wonton, wrecking, flapper, floating, slicing, splicing, spyro,
+  surfing, symp, zipper); double and count-quantifier scoring (21 rows);
+  repeated same-operator use (4 audit rows plus the active canonical
+  paradox_blur, a double-paradox whose empty notation waits on this
+  answer); and terraging arithmetic (2 rows). Delivery map: three groups
+  are drafted as paper sections; repeated-operator and terraging ride the
+  queue letter's rider items; the addendum joins at revision. Blocks: 179
+  gated rows plus the paradox_blur notation. Unlocks: the largest promotion
+  band, plus the blurry registry-versus-reference consistency test Dave
+  writes once the answer lands. Next: revise the paper with the addendum,
+  then send. Done when Red's answers are integrated, the consistency test
+  lands, and the audit tags clear.
+- **R2. Notation packet.** Urgency: doctrine blocker. Status: drafted, not
+  sent; the hygiene revisions are applied (the settled butterfly question
+  is struck; the cross-body question carries the clipper-terminal matrix
+  evidence). Questions: the down-family embedded-base coordinate frame (21
+  gated rows plus 3 shipped tension rows: shooting_star,
+  tapping_double_over_down, venom); the cross-body rake base (12 rows now,
+  a ~47-slug parser drain later); the osis spin-to-catch relationship; the
+  paradox-bracket record-versus-convention proposal; whether the cross-body
+  bracket encodes opposite-side; and the path/catch terminal framing (103
+  ambiguous-terminal rows plus 5 directional-syntax rows, framing only).
+  Blocks: 36 promotion-relevant rows and the terminal-encoding standard for
+  108 more. Unlocks: those rows and the standard. Next: send with R1. Done
+  when sent and the answers are integrated.
+- **R3. Rider list.** Urgency: doctrine blocker. Status: recorded in the
+  Red queue's rider items, delivered with the packet. Riders: the
+  implicit-paradox hypothesis (Blurrage, Predator, Schmoe; the sumo X-Dex
+  value ships provisionally until ruled); the Blink path-vocabulary
+  exception; the jani-walker / sidewinder structure; the Motorfly memory
+  check; the general osis-suffix rule; the twisting/twisted exemplar
+  (counted in R1's token total); and the record names Double Dyno, Double
+  Whip, Stepping Ducking Blurry Whirl, and Solestice (four of the five
+  curator-review records; the fifth is J7's Toe Spinning Toe). Blocks: the
+  named rows and four record badges. Unlocks: those rows and badges. Next:
+  send with the packet. Done when each rider is answered, ruled unrulable,
+  or retired.
+- **R4. History paper.** Urgency: external dependency. Status: drafted, not
+  sent; testimony and oral history only. Remaining: the binary decision.
+  Blocks: nothing (no promotion, doctrine, or launch item rides on it).
+  Unlocks: the historical record only. Next: James sends it to Red or
+  retires it, decided in the same message as the packet. Done on either
+  outcome.
+
+#### Other
+
+- **O2. Dave: code and test batch.** Urgency: non-blocking cleanup, one
+  batch, no Red dependency (the blurry consistency test lives in R1's done
+  condition). Status: open. The batch: repoint the hero formula color
+  system and the glossary color literals to the sem-token classes; widen
+  the runtime-readonly guard snapshot to all freestyle tables; add the
+  shared guard in the loader DB-open helper; add search adversarial tests
+  (injection, unicode, oversize inputs); normalize or redirect hyphen
+  slugs; normalize the search-suggest JSON shape; delete the Home
+  Tutorials card from comingSoonSections; the mechanical test-comment
+  de-epoch pass (~70 files); fix the stale loader-21 claim in the
+  dictionary skill reference; remove the dangling RETIRED_FAMILIES
+  reference in freestyleFamilyOverrides.ts; add the quantum, pogo,
+  shooting, and rooted rows to the glossary modifier-weight table; and
+  sort the observational disclosure lists. Blocks: nothing user-facing;
+  hygiene and hardening. Unlocks: the named guards, tests, and cleanups.
+  Next: Dave picks up the batch. Done when the batch lands green or an
+  item is explicitly de-scoped.
+- **O3. IFPA (Julie): Sick 3 competition-format rules wording.** Urgency:
+  external dependency. Status: the freestyle-page rules buttons stay
+  absent until the official wording lands. Remaining: the wording from
+  IFPA. Blocks: the freestyle rules buttons. Unlocks: re-enabling them.
+  Next: follow up with Julie, or James formally drops the buttons for V1.
+  Done when the wording ships or the feature is formally dropped.
 
 **Accepted freestyle deviations and closed decisions (tracked; no action now).**
 - *Deviations (the Current/Target markers stay in the code):* count and quantifier tokens (double, triple, surging, high) render like operators in the symbolic notation; the PassBack tutorial galleries use compound difficulty tags; the Butterfly stored notation keeps its side-either SAME/OP entry while the public atom renders far-default; and the Around-the-World stored notation keeps its IN/OUT direction while the public atom renders inward-only.
