@@ -17,12 +17,14 @@ answered (its rulings are integrated in `RED_RULINGS.md`, `DOWN_FAMILY.md`, and 
 topic docs), the Frontier paper was sent and answered (its ruling is integrated in
 `4_Frontier.md` and `RED_RULINGS.md`: the frontier is too vast to enumerate,
 "physically impossible" is not a permanent category, and combo compatibility is the
-one hard distinction), and the Scoring, Notation, and History papers are drafted
-with delivery not confirmed, so all three are treated as not yet sent (the Scoring
-paper's five ruling groups: the blurry-expansion predicate, the undefined-operator
-definitions, the double-prefix and count-quantifier disposition, repeated-operator
-scoring, and the terraging-chain arithmetic; the cross-dex receiver-boundary
-question was deliberately held back for a later scoring follow-up). Questions settled by the
+one hard distinction), the Scoring paper is sent and pending Red's reply (the send
+confirmed by James 2026-07-13; its five ruling groups: the blurry-expansion
+predicate, the undefined-operator definitions, the double-prefix and
+count-quantifier disposition, repeated-operator scoring, and the terraging-chain
+arithmetic; the cross-dex receiver-boundary question was deliberately held back for
+a later scoring follow-up, and the 19-token operator addendum drafted after the
+send follows in the next message), and the Notation and History papers are drafted
+and not yet sent. Questions settled by the
 Identity paper's answers are integrated and removed from this list; the down-family
 one-family ruling is the clearest example (see `DOWN_FAMILY.md`), with only its
 embedded-base labeling frame still open. The remaining open questions map onto their

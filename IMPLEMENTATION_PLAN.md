@@ -186,9 +186,9 @@ launch gate and cross-team items.
   doctrine integration and promotions remain James-led. The remaining first-edition
   doctrine papers (`freestyle/doctrine/papers/0..5`) have a mixed send state: the
   Identity and Frontier papers were sent to Red, answered, and integrated; the
-  Scoring, Notation, and History papers are drafted and their delivery is not
-  confirmed, so they are treated as not sent (the R1, R2, and R4 entries below
-  carry their send steps). Every
+  Scoring paper is sent and pending Red's reply (the R1 entry below tracks it);
+  and the Notation and History papers are drafted and not yet sent (the R2 and
+  R4 entries below carry their send steps). Every
   unresolved doctrine question is isolated where it cannot
   leak into published values: the doctrine queue in `freestyle/doctrine/RED_QUEUE.md`
   with its blocked items (the Red-dependent promotion and world-record-name decisions
@@ -270,7 +270,8 @@ below is open; closed work is deleted, never archived here.
 #### James + Red
 
 - **R1. Scoring packet.** Urgency: doctrine blocker, the largest unlock.
-  Status: drafted, not sent. Its five ruling groups: blurry/paradox
+  Status: sent — pending reply (James confirmed the send 2026-07-13). Its
+  five ruling groups: blurry/paradox
   inheritance (61 gated audit rows; the 13 already-canonical blurry rows
   author independently but their blurry-named audit rows still gate on the
   alias-versus-distinct predicate); undefined or folk operators (9 tokens
@@ -282,12 +283,14 @@ below is open; closed work is deleted, never archived here.
   paradox_blur, a double-paradox whose empty notation waits on this
   answer); and terraging arithmetic (2 rows). Delivery map: three groups
   are drafted as paper sections; repeated-operator and terraging ride the
-  queue letter's rider items; the addendum joins at revision. Blocks: 179
-  gated rows plus the paradox_blur notation. Unlocks: the largest promotion
-  band, plus the blurry registry-versus-reference consistency test Dave
-  writes once the answer lands. Next: revise the paper with the addendum,
-  then send. Done when Red's answers are integrated, the consistency test
-  lands, and the audit tags clear.
+  queue letter's rider items; the 19-token addendum was drafted after the
+  send, so it follows in the next message to Red rather than blocking the
+  pending reply. Blocks: 179 gated rows plus the paradox_blur notation.
+  Unlocks: the largest promotion band, plus the blurry
+  registry-versus-reference consistency test Dave writes once the answer
+  lands. Next: send the addendum alongside the Notation packet and rider
+  list; integrate Red's reply when it arrives. Done when Red's answers are
+  integrated, the consistency test lands, and the audit tags clear.
 - **R2. Notation packet.** Urgency: doctrine blocker. Status: drafted, not
   sent; the hygiene revisions are applied (the settled butterfly question
   is struck; the cross-body question carries the clipper-terminal matrix
@@ -299,10 +302,12 @@ below is open; closed work is deleted, never archived here.
   bracket encodes opposite-side; and the path/catch terminal framing (103
   ambiguous-terminal rows plus 5 directional-syntax rows, framing only).
   Blocks: 36 promotion-relevant rows and the terminal-encoding standard for
-  108 more. Unlocks: those rows and the standard. Next: send with R1. Done
+  108 more. Unlocks: those rows and the standard. Next: send alongside the
+  R1 addendum follow-up. Done
   when sent and the answers are integrated.
 - **R3. Rider list.** Urgency: doctrine blocker. Status: recorded in the
-  Red queue's rider items, delivered with the packet. Riders: the
+  Red queue's rider items; delivery not confirmed, so the riders are
+  treated as not yet sent and ride the next message to Red. Riders: the
   implicit-paradox hypothesis (Blurrage, Predator, Schmoe; the sumo X-Dex
   value ships provisionally until ruled); the Blink path-vocabulary
   exception; the jani-walker / sidewinder structure; the Motorfly memory
@@ -311,14 +316,14 @@ below is open; closed work is deleted, never archived here.
   Whip, Stepping Ducking Blurry Whirl, and Solestice (four of the five
   curator-review records; the fifth is J7's Toe Spinning Toe). Blocks: the
   named rows and four record badges. Unlocks: those rows and badges. Next:
-  send with the packet. Done when each rider is answered, ruled unrulable,
-  or retired.
+  send alongside the R1 addendum follow-up and the Notation packet. Done
+  when each rider is answered, ruled unrulable, or retired.
 - **R4. History paper.** Urgency: external dependency. Status: drafted, not
   sent; testimony and oral history only. Remaining: the binary decision.
   Blocks: nothing (no promotion, doctrine, or launch item rides on it).
   Unlocks: the historical record only. Next: James sends it to Red or
-  retires it, decided in the same message as the packet. Done on either
-  outcome.
+  retires it, decided in the same message as the addendum follow-up. Done
+  on either outcome.
 
 #### Other
 
