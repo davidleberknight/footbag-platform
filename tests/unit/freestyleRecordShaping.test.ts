@@ -8,6 +8,7 @@ import {
   modifierSurfaceHashtag,
 } from '../../src/services/freestyleRecordShaping';
 import type { FreestyleRecordRow } from '../../src/db/db';
+import { recordCuratorReviewNote } from '../../src/content/freestyleRecordCuratorReview';
 
 function makeRow(overrides: Partial<FreestyleRecordRow> = {}): FreestyleRecordRow {
   return {
@@ -185,5 +186,29 @@ describe('modifierSurfaceHashtag', () => {
 
   it('honors the curator role override over modifier_type (whirling is a set)', () => {
     expect(modifierSurfaceHashtag('whirling', 'body')).toBe('#set_whirling');
+  });
+});
+
+describe('record curator-review status', () => {
+  it('carries no review note and links normally for an ordinary record', () => {
+    const vm = shapeFreestyleRecord(makeRow({ trick_name: 'Mirage' }), new Set(['mirage']));
+    expect(vm.reviewNote).toBeNull();
+    expect(vm.trickHref).toBe('/freestyle/tricks/mirage');
+  });
+
+  it('flags a review record and suppresses its link even when the slug resolves', () => {
+    // 'double_dyno' is a resolvable slug here, yet the review record must not link.
+    const vm = shapeFreestyleRecord(makeRow({ trick_name: 'Double Dyno' }), new Set(['double_dyno']));
+    expect(vm.reviewNote).toMatch(/reversed Blender \/ Dyno structure/);
+    expect(vm.trickHref).toBeNull();
+  });
+
+  it('resolves review notes only for the exact five record names', () => {
+    for (const name of ['Double Dyno', 'Double Whip', 'Solestice', 'Stepping Ducking Blurry Whirl', 'Toe Spinning Toe']) {
+      expect(recordCuratorReviewNote(name), name).not.toBeNull();
+    }
+    expect(recordCuratorReviewNote('Blink')).toBeNull();
+    expect(recordCuratorReviewNote('Mirage')).toBeNull();
+    expect(recordCuratorReviewNote(null)).toBeNull();
   });
 });

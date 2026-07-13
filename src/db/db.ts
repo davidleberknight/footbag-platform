@@ -1851,7 +1851,9 @@ export const freestyleRecords = {
     WHERE fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
       AND fr.superseded_by IS NULL
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
-    ORDER BY fr.record_type ASC, fr.value_numeric DESC
+    ORDER BY fr.record_type ASC,
+             LOWER(COALESCE(fr.trick_name, fr.sort_name, '')) ASC,
+             fr.value_numeric DESC
   `); },
 
   get countPublicByType() { return db.prepare(`

@@ -5,6 +5,7 @@ import {
   modifierHashtagRole,
   type HashtagRole,
 } from '../content/freestyleHashtagRoles';
+import { recordCuratorReviewNote } from '../content/freestyleRecordCuratorReview';
 
 export function trickNameToSlug(name: string): string {
   // The slug is the lexical form of the name only: lowercase, non-alphanumeric
@@ -115,6 +116,9 @@ export interface FreestyleRecordViewModel {
   dateApproximate: boolean;
   videoUrl: string | null;
   videoTimecode: string | null;
+  // Curator-review status: a concise note when the record's canonical identity
+  // is under review, else null. A reviewed record never carries a trick link.
+  reviewNote: string | null;
 }
 
 /**
@@ -160,12 +164,15 @@ function trickHrefFor(name: string | null, resolvable?: ReadonlySet<string>): st
 
 export function shapeFreestyleRecord(row: FreestyleRecordRow, resolvableSlugs?: ReadonlySet<string>): FreestyleRecordViewModel {
   const placeholderDate = dateIsPlaceholder(row.achieved_date);
+  // A record under curator review must not link to a speculative canonical
+  // trick, even if its name happens to slugify onto one.
+  const reviewNote = recordCuratorReviewNote(row.trick_name);
   return {
     id:              row.id,
     holderName:      row.holder_name,
     holderHref:      personHref(row.holder_member_slug, row.person_id),
     trickName:       row.trick_name,
-    trickHref:       trickHrefFor(row.trick_name, resolvableSlugs),
+    trickHref:       reviewNote ? null : trickHrefFor(row.trick_name, resolvableSlugs),
     sortName:        row.sort_name,
     addsCount:       row.adds_count,
     valueNumeric:    row.value_numeric,
@@ -173,5 +180,6 @@ export function shapeFreestyleRecord(row: FreestyleRecordRow, resolvableSlugs?: 
     dateApproximate: !placeholderDate && row.date_precision !== 'day',
     videoUrl:        safeVideoUrl(row.video_url),
     videoTimecode:   row.video_timecode,
+    reviewNote,
   };
 }

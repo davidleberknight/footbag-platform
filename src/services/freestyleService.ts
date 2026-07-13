@@ -414,6 +414,10 @@ export interface FreestyleRecordsContent {
   // entry, so its name renders without a link; drives an honest note that
   // some historical record names are not in the current dictionary.
   hasUnlinkedRecords: boolean;
+  // Count of records whose canonical identity is under curator review, each
+  // shown with a "Needs curator review" status and its open question; drives
+  // the explanatory note for that cohort.
+  curatorReviewCount: number;
 }
 
 export interface FreestyleTrickSearchResult {
@@ -7073,7 +7077,11 @@ export const freestyleService = {
 
     const groups = groupByType(rows);
     const holderSet = new Set(rows.map(r => r.person_id ?? r.holder_name));
-    const hasUnlinkedRecords = groups.some(g => g.records.some(r => r.trickHref == null));
+    const shapedRecords = groups.flatMap(g => g.records);
+    // Curator-review records carry their own explanation, so they are excluded
+    // from the generic "name not in the dictionary" note.
+    const hasUnlinkedRecords = shapedRecords.some(r => r.trickHref == null && r.reviewNote == null);
+    const curatorReviewCount = shapedRecords.filter(r => r.reviewNote != null).length;
 
     return {
       seo: {
@@ -7098,6 +7106,7 @@ export const freestyleService = {
         totalRecords: rows.length,
         totalHolders: holderSet.size,
         hasUnlinkedRecords,
+        curatorReviewCount,
       },
     };
   },
