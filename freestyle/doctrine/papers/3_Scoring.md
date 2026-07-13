@@ -46,10 +46,13 @@ applied at scoring time but not itself a scoring rule.
    whether, once present, it counts. Its largest concrete instance, the
    blurry-expansion predicate, is drafted as a proposed ruling below. (Red.)
 
-The paper's ask is deliberately narrowed to its ruling groups: the paradox and
-blurry predicate, the undefined-operator definitions, the double-prefix and
-count-quantifier disposition, repeated same-operator scoring, and the terraging
-arithmetic. The X-Dex receiver-boundary edge case (an X-Dex fed into a dex whose
+The packet's ask is deliberately narrowed to five ruling groups. Three are
+drafted as sections of this paper: the paradox and blurry predicate, the
+undefined-operator definitions (nine tokens below; a broader-token addendum
+joins at revision), and the double-prefix and count-quantifier disposition. The
+remaining two, repeated same-operator scoring and the terraging arithmetic, are
+carried as rider items in the accompanying queue letter and are answered with
+this paper. The X-Dex receiver-boundary edge case (an X-Dex fed into a dex whose
 base is down-adjacent, motion's leading dex after an atomic set) is deliberately
 held back for a later scoring follow-up and is not asked here.
 
