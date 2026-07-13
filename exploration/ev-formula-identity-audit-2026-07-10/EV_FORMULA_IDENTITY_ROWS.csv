@@ -407,24 +407,24 @@ Spinning far Miraging Symp. Miraging Refraction,spinningmiragingsymposiummiragin
 Symp. Illusioning Illusioning Mirage,sympillusioningillusioningmirage,,,,doctrine,repeated_operator,unknown-modifier-token,C,doctrine:repeated_operator,Scoring paper,high,PB,section=frontier intake=unresolved_candidate
 Terraging Clipper,terragingclipper,,,,doctrine,terraging_chain,ambiguous-terminal-mechanic,C,doctrine:terraging_chain,Scoring paper,high,SG,section=parser intake=low_confidence
 Terraging near Clipper,terragingnearclipper,,,,doctrine,terraging_chain,ambiguous-terminal-mechanic,C,doctrine:terraging_chain,Scoring paper,high,PB,section=parser intake=low_confidence
-Gyro Weaving Butterfly,gyroweavingbutterfly,,,,authoring,authoring,,C,notation-governance:weaving,Notation paper,high,SG,section=doctrine intake=doctrine_unresolved
-Quantum Weaving Butterfly,quantumweavingbutterfly,,,,authoring,authoring,parser-ambiguity,C,notation-governance:weaving,Notation paper,high,FM,section=doctrine intake=doctrine_unresolved
-Tapping Weaving Mirage,tappingweavingmirage,,,,authoring,authoring,,C,notation-governance:weaving,Notation paper,high,SG,section=doctrine intake=doctrine_unresolved
-Atomic Zulu Mirage,atomiczulumirage,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Fairy Zulu Butterfly,fairyzulubutterfly,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Fairy Zulu Mirage,fairyzulumirage,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Pixie Zulu Butterfly,pixiezulubutterfly,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Pixie Zulu Mirage,pixiezulumirage,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Pixie Zulu Osis,pixiezuluosis,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Pixie Zulu Symposium Mirage,pixiezulusymposiummirage,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Pixie Zulu Whirl,pixiezuluwhirl,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Spinning Zulu Butterfly,spinningzulubutterfly,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Zulu Eclipse,zulueclipse,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Zulu Paradox Drifter,zuluparadoxdrifter,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Zulu Paradox Mirage,zuluparadoxmirage,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Zulu Paradox Whirl,zuluparadoxwhirl,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Zulu Reverse Guay,zulureverseguay,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
-Zulu Symposium Mirage,zulusymposiummirage,,,,authoring,authoring,unknown-modifier-token,C,notation-governance:zulu,Notation paper,high,SG,section=parser intake=low_confidence
+Gyro Weaving Butterfly,gyroweavingbutterfly,,,,deferred,mirror-ineligible,,C,mirror-ineligible:no-canonical-mirror,none (deferred by design),high,SG,section=doctrine intake=doctrine_unresolved mirror=gyro_ducking_butterfly-absent
+Quantum Weaving Butterfly,quantumweavingbutterfly,,,,deferred,mirror-ineligible,parser-ambiguity,C,mirror-ineligible:no-canonical-mirror,none (deferred by design),high,FM,section=doctrine intake=doctrine_unresolved mirror=quantum_ducking_butterfly-absent
+Tapping Weaving Mirage,tappingweavingmirage,,,,deferred,mirror-ineligible,,C,mirror-ineligible:no-canonical-mirror,none (deferred by design),high,SG,section=doctrine intake=doctrine_unresolved mirror=tapping_ducking_mirage-absent
+Atomic Zulu Mirage,atomiczulumirage,,atomic_zulu_mirage,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
+Fairy Zulu Butterfly,fairyzulubutterfly,,fairy_zulu_butterfly,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
+Fairy Zulu Mirage,fairyzulumirage,,fairy_zulu_mirage,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
+Pixie Zulu Butterfly,pixiezulubutterfly,,pixie_zulu_butterfly,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
+Pixie Zulu Mirage,pixiezulumirage,,,,deferred,mirror-ineligible,unknown-modifier-token,C,mirror-ineligible:mirror-inactive,none (deferred by design),high,SG,section=parser intake=low_confidence mirror=pixie_ducking_mirage-inactive
+Pixie Zulu Osis,pixiezuluosis,,pixie_zulu_osis,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
+Pixie Zulu Symposium Mirage,pixiezulusymposiummirage,,pixie_zulu_symposium_mirage,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
+Pixie Zulu Whirl,pixiezuluwhirl,,pixie_zulu_whirl,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
+Spinning Zulu Butterfly,spinningzulubutterfly,,spinning_zulu_butterfly,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
+Zulu Eclipse,zulueclipse,,zulu_eclipse,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
+Zulu Paradox Drifter,zuluparadoxdrifter,,zulu_paradox_drifter,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
+Zulu Paradox Mirage,zuluparadoxmirage,,zulu_paradox_mirage,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
+Zulu Paradox Whirl,zuluparadoxwhirl,,,,deferred,mirror-ineligible,unknown-modifier-token,C,mirror-ineligible:mirror-inactive,none (deferred by design),high,SG,section=parser intake=low_confidence mirror=ducking_paradox_whirl-inactive
+Zulu Reverse Guay,zulureverseguay,,zulu_reverse_guay,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
+Zulu Symposium Mirage,zulusymposiummirage,,zulu_symposium_mirage,promoted-canonical,canonical,canonical,,A,,,high,SG,section=parser intake=low_confidence promoted=2026-07-13-mirror-rule
 Pogo Clipper,pogoclipper,,,,authoring,authoring,ambiguous-terminal-mechanic,C,operator-reactivation-deferred:pogo,internal / curator (tracked deferral),high,SG,section=frontier intake=unresolved_candidate
 Atomic DSO,atomicdso,,,,parser,parser,ambiguous-terminal-mechanic,C,parser:ambiguous-terminal-mechanic,parser (internal),medium,PB,section=parser intake=low_confidence
 Atomic far DLO,atomicfardlo,,,,parser,parser,ambiguous-terminal-mechanic,C,parser:ambiguous-terminal-mechanic,parser (internal),medium,PB,section=parser intake=low_confidence

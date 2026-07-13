@@ -41,7 +41,7 @@ export interface TrackedNameGroup {
  *  recorded as a canonical trick in the committed canonical CSVs. Test
  *  fixture only; not a live publication filter (a name here may be a
  *  registered alias in the live database). */
-export const TRACKED_DOCUMENTED_TOTAL = 1499;
+export const TRACKED_DOCUMENTED_TOTAL = 1486;
 
 export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -67,7 +67,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Atomic Symposium Whirl (Gary Coleman)', slug: 'atomic_symposium_whirl_gary_coleman' },
     { displayName: 'Atomic Torque (Silo)', slug: 'atomic_torque_silo' },
     { displayName: 'Atomic Whirl (Reactor)', slug: 'atomic_whirl_reactor' },
-    { displayName: 'Atomic Zulu Mirage', slug: 'atomic_zulu_mirage' },
     { displayName: 'Barfly Reverse Swirl', slug: 'barfly_reverse_swirl' },
     { displayName: 'Barraging Legover (Flurry)', slug: 'barraging_legover_flurry' },
     { displayName: 'Barraging Osis (Baroque)', slug: 'barraging_osis_baroque' },
@@ -201,8 +200,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Fairy ss XBD Rake (Swish)', slug: 'fairy_ss_xbd_rake_swish' },
     { displayName: 'Fairy Torque (Forque) (Ferocious)', slug: 'fairy_torque_forque_ferocious' },
     { displayName: 'Fairy XBD Rake (Freak)', slug: 'fairy_xbd_rake_freak' },
-    { displayName: 'Fairy Zulu Butterfly', slug: 'fairy_zulu_butterfly' },
-    { displayName: 'Fairy Zulu Mirage', slug: 'fairy_zulu_mirage' },
     { displayName: 'Far Butterfly (Infinity)', slug: 'far_butterfly_infinity' },
     { displayName: 'Far Clipper', slug: 'far_clipper' },
     { displayName: 'Far Crossbody Rake', slug: 'far_crossbody_rake' },
@@ -386,11 +383,7 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Pixie Symposium Eggbeater (Pandemonium)', slug: 'pixie_symposium_eggbeater_pandemonium' },
     { displayName: 'Pixie Symposium Whirling Swirl (Croissant)', slug: 'pixie_symposium_whirling_swirl_croissant' },
     { displayName: 'Pixie XBD Rake (Swerve)', slug: 'pixie_xbd_rake_swerve' },
-    { displayName: 'Pixie Zulu Butterfly', slug: 'pixie_zulu_butterfly' },
     { displayName: 'Pixie Zulu Mirage', slug: 'pixie_zulu_mirage' },
-    { displayName: 'Pixie Zulu Osis', slug: 'pixie_zulu_osis' },
-    { displayName: 'Pixie Zulu Symposium Mirage', slug: 'pixie_zulu_symposium_mirage' },
-    { displayName: 'Pixie Zulu Whirl', slug: 'pixie_zulu_whirl' },
     { displayName: 'Pogo Clipper', slug: 'pogo_clipper' },
     { displayName: 'Pogo ss Clipper', slug: 'pogo_ss_clipper' },
     { displayName: 'Pogo ss Flail', slug: 'pogo_ss_flail' },
@@ -493,7 +486,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Spinning Symposium Whirl (Whirlwind)', slug: 'spinning_symposium_whirl_whirlwind' },
     { displayName: 'Spinning Torque (Marius)', slug: 'spinning_torque_marius' },
     { displayName: 'Spinning XBD Rake', slug: 'spinning_xbd_rake' },
-    { displayName: 'Spinning Zulu Butterfly', slug: 'spinning_zulu_butterfly' },
     { displayName: 'Splicing Infinity', slug: 'splicing_infinity' },
     { displayName: 'Splicing Paradox Mirage', slug: 'splicing_paradox_mirage' },
     { displayName: 'Stepping Baroque', slug: 'stepping_baroque' },
@@ -598,16 +590,11 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Wrecking Torque (Spinning Mobius)', slug: 'wrecking_torque_spinning_mobius' },
     { displayName: 'X(unwrap)', slug: 'x_unwrap' },
     { displayName: 'X_(walk)', slug: 'x_walk' },
-    { displayName: 'Zulu Eclipse', slug: 'zulu_eclipse' },
     { displayName: 'Zulu Far Clipper (Red Ribbon)', slug: 'zulu_far_clipper_red_ribbon' },
     { displayName: 'Zulu Far Legover', slug: 'zulu_far_legover' },
     { displayName: 'Zulu Far Pickup', slug: 'zulu_far_pickup' },
     { displayName: 'Zulu Infinity (Zulu Le Loup)', slug: 'zulu_infinity_zulu_le_loup' },
-    { displayName: 'Zulu Paradox Drifter', slug: 'zulu_paradox_drifter' },
-    { displayName: 'Zulu Paradox Mirage', slug: 'zulu_paradox_mirage' },
     { displayName: 'Zulu Paradox Whirl', slug: 'zulu_paradox_whirl' },
-    { displayName: 'Zulu Reverse Guay', slug: 'zulu_reverse_guay' },
-    { displayName: 'Zulu Symposium Mirage', slug: 'zulu_symposium_mirage' },
   ] },
   { sourceLabel: 'FootbagMoves', names: [
     { displayName: '69', slug: '69', operationalNotation: 'Clip > Same Out (DEX)(PDX) >> Op In (DEX)(XDEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },

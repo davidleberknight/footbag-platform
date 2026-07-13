@@ -5,7 +5,7 @@ Every entry has an owner, a next action, an unlock, and a done condition.
 Closed work is deleted, not archived; git history and the prior remediation
 report preserve history. Counts are recomputed from the live database and the
 2026-07-10 formula-identity audit CSV, not inherited. Last full
-reverification: 2026-07-13. Active entries: 17 (9 James, 1 James + Dave,
+reverification: 2026-07-13. Active entries: 16 (8 James, 1 James + Dave,
 4 James + Red, 3 Other).
 
 Outside this plan by design, not forgotten: the Identity paper's four
@@ -13,8 +13,14 @@ generalization questions and the Frontier paper's by-design questions
 (open-ended, no row unlock, no reachable done state); the whirling-on-body
 (~8 rows) and sailing-gyro holds (ruled HOLD KEPT 2026-07-02, decided, reopen
 only on new evidence); the single pogo-reactivation-deferred row (deliberate
-deferral recorded in the formula-identity audit); and the preserved historical
-Jobs-notation fields (never mutated by doctrine).
+deferral recorded in the formula-identity audit); the five Zulu/Weaving rows
+ineligible under the ratified Mirror Rule and deferred by design (Gyro
+Weaving Butterfly, Quantum Weaving Butterfly, and Tapping Weaving Mirage
+have no canonical ducking mirror; Pixie Zulu Mirage and Zulu Paradox Whirl
+mirror inactive rows; each re-enters authoring only if its mirror becomes
+canonical and active, and their audit rows are retagged mirror-ineligible
+with no residual paper home); and the preserved historical Jobs-notation
+fields (never mutated by doctrine).
 
 Urgency labels: Launch/cutover, Promotion blocker, Doctrine blocker,
 Non-blocking cleanup, External dependency.
@@ -35,19 +41,6 @@ name maps to two formulas (Butterfly Dragon, Double/Reverse/Hopover/Swirl
 Dragon, Neutron Mirage, Nuclear DDD, Rooting/Rooted, High Stepping DDD).
 Next: pick the canonical formula or split per name. Done when the 10 rows
 carry one identity each.
-
-**J3. Author notation for settled rows.** Promotion blocker. 35 notations
-whose doctrine is already settled, plus one decomposition review:
-paradox_blur and big_apple_sauce (active rows, operational notation empty);
-13 blurry rows carrying their own footbag.org JOB (author under source
-priority, independent of the Red blurry answer); 18 rows still gated on the
-settled Zulu/Weaving question (free-text annotation, no new tokens);
-2 paradox-miraging compounds unblocked by the 2026-07-02 placement ruling;
-and the dada_curve decomposition hold, whose stated blocker (miraging as a
-scored component) was settled by the set-role ruling, so re-derive the
-decomposition or re-affirm the hold with a current reason. Done when all 35
-rows carry notation, the stale gate tags are removed, and dada_curve's hold
-is re-derived or re-justified.
 
 **J4. Fury duplicate merge.** Promotion blocker. Red ruled Fury = Furious
 Paradox Mirage; the database ships both as active unlinked rows differing
@@ -122,16 +115,18 @@ the legacy tree for freestyle semantics.
 
 **R1. Scoring packet.** Doctrine blocker, largest unlock. The paper is
 drafted, not sent. Its open ruling groups are the narrowed five: blurry /
-paradox inheritance (48 gated rows after J3 releases its 13); undefined or
+paradox inheritance (48 gated rows); undefined or
 folk operators (9 tokens already in the draft covering 56 rows, plus a
 19-token addendum covering 35 more rows found in the current audit: frootie,
 fyro, leaning, twisted, twisting, arctic, flailing, neutron, snapping,
 wonton, wrecking, flapper, floating, slicing, splicing, spyro, surfing,
 symp, zipper); double and count-quantifier scoring (21 rows); repeated
-same-operator use (4 rows); terraging arithmetic (2 rows). Unlock:
-48 + 91 + 21 + 4 + 2 = 166 gated rows, plus the blurry registry-versus-
-reference consistency test Dave writes once the answer lands. Next: revise
-with the addendum and the J8 strikes, then send. Done when Red's answers
+same-operator use (4 audit rows, plus the active canonical paradox_blur,
+a double-paradox whose empty notation waits on this answer); terraging
+arithmetic (2 rows). Unlock: 48 + 91 + 21 + 4 + 2 = 166 gated rows plus
+the paradox_blur notation, plus the blurry registry-versus-reference
+consistency test Dave writes once the answer lands. Next: revise with
+the addendum and the J8 strikes, then send. Done when Red's answers
 are integrated, the consistency test lands, and the audit tags clear.
 
 **R2. Notation packet.** Doctrine blocker. Drafted, not sent. Questions:
@@ -199,10 +194,10 @@ Done when the wording ships or the feature is formally dropped.
 
 ## Closure sequence
 
-Wave 1 (James, one resolution and authoring session): J3 and J8 first (they
-shrink the packet), then J6 before J5, then J1, J2, J4, J7, J9. Eliminates
-9 of the 17 entries, authors 35 notations, and rules 56 rows without anyone
-else acting.
+Wave 1 (James, one resolution and authoring session): J8 first (it
+shrinks the packet), then J6 before J5, then J1, J2, J4, J7, J9.
+Eliminates 8 of the 16 entries and rules 56 rows without anyone else
+acting.
 
 Wave 2 (James to Red): send the revised combined packet: R1 + R2 + R3, with
 the R4 send-or-retire decision in the same message. No overlapping papers,
