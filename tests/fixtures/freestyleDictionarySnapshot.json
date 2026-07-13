@@ -8919,16 +8919,16 @@
 "sort_order": 1680
 },
 {
-"slug": "atomic_kick",
-"canonical_name": "atomic kick",
+"slug": "illusioning_kick",
+"canonical_name": "illusioning kick",
 "adds": "1",
-"base_trick": "atomic_kick",
-"trick_family": "atomic_kick",
+"base_trick": "illusioning_kick",
+"trick_family": "illusioning_kick",
 "category": "dex",
 "description": null,
 "aliases_json": null,
-"notation": "ATOMIC KICK",
-"operational_notation": "TOE > OP OUT [DEX] [KICK]",
+"notation": "ILLUSIONING KICK",
+"operational_notation": "SET > OP OUT [DEX] [KICK]",
 "sort_order": 1681
 },
 {
@@ -12313,7 +12313,7 @@
 },
 {
 "alias_text": "illusion kick",
-"trick_slug": "atomic_kick"
+"trick_slug": "illusioning_kick"
 },
 {
 "alias_text": "illusioning symposium butterfly",

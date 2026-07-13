@@ -1717,8 +1717,8 @@ stepping-clipper,operational_notation,,CLIP > OP IN [DEX] > SAME CLIP [XBD] [DEL
 pixie-clipper,operational_notation,,TOE > SAME IN [DEX] > SAME/OP CLIP [XBD] [DEL],James curator: promote generic pixie-clipper to direction-unspecified 3 ADD (no fborg generic precedent); pixie dex(1) + clipper-stall(2) = 3. 3 brackets matches 3 ADD.
 miraging-kick,notation,,MIRAGING KICK,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
 miraging-kick,operational_notation,,SET > OP IN [DEX] [KICK],James curator ruling: curator-approved miraging-kick (kick-only dex atom). 1 bracket matches 1 ADD.
-atomic-kick,notation,,ATOMIC KICK,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
-atomic-kick,operational_notation,,TOE > OP OUT [DEX] [KICK],James curator ruling: curator-approved illusioning-kick (kick-only dex atom). 1 bracket matches 1 ADD.
+illusioning-kick,notation,,ILLUSIONING KICK,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+illusioning-kick,operational_notation,,SET > OP OUT [DEX] [KICK],James curator ruling: curator-approved illusioning-kick (kick-only dex atom). 1 bracket matches 1 ADD.
 double-illusion,notation,,DOUBLE ILLUSION,James PassBack-reconciliation: JOB per mechanical uppercase rule.
 double-illusion,operational_notation,,SET > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL],James ruling: multiplicity of illusion. 3 brackets matches 3 ADD.
 double-whirl,notation,,DOUBLE WHIRL,James PassBack-reconciliation: JOB per mechanical uppercase rule.

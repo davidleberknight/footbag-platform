@@ -77,7 +77,7 @@ const NEIGHBORHOOD_GROUPS: readonly (readonly string[])[] = [
   // 1-ADD dex-kicks: a dexterity finished with a kick instead of a terminal
   // stall. Each sits in its own family/base, so only this overlay connects them
   // to one another.
-  ['around_the_world_kick', 'pixie_kick', 'fairy_kick', 'orbit_kick', 'legover_kick', 'miraging_kick', 'atomic_kick'],
+  ['around_the_world_kick', 'pixie_kick', 'fairy_kick', 'orbit_kick', 'legover_kick', 'miraging_kick', 'illusioning_kick'],
   // Trick and its kick/stall counterpart: the stalled trick and its drop-the-
   // stall kick (or a surface and its stall) sit in different families, so
   // neither surfaces the other without this overlay. Legover and its kick

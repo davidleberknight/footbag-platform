@@ -48,7 +48,7 @@ function link(trick_slug: string, modifier_slug: string, apply_order = 1): Frees
 //   diving-whirl ≡ hatchet (twin)
 //   osis -> torque -> mobius{gyro}; gyro-osis{gyro} (operator-kin of mobius)
 //   pixie -> pixie-kick (+ trixie, a 0-op folk member that must NOT be a sibling)
-//   atomic-kick (self-based, childless 0-op -> null block)
+//   illusioning-kick (self-based, childless 0-op -> null block)
 const ROWS: FreestyleTrickRow[] = [
   row('whirl',                 '3', 'whirl',  'whirl'),
   row('rev-whirl',             '3', 'whirl',  'whirl'),
@@ -65,7 +65,7 @@ const ROWS: FreestyleTrickRow[] = [
   row('pixie',                 '2', 'pixie',  'pixie'),
   row('pixie-kick',            '1', 'pixie',  'pixie'),
   row('trixie',                '5', 'pixie',  'pixie'),
-  row('atomic-kick',           '1', 'atomic-kick', 'atomic-kick'),
+  row('illusioning-kick',      '1', 'illusioning-kick', 'illusioning-kick'),
 ];
 
 const LINKS: FreestyleModifierLinkPairRow[] = [
@@ -150,7 +150,7 @@ describe('buildStructuralNeighbors', () => {
   });
 
   it('a self-based, childless 0-operator trick yields a null block', () => {
-    expect(neighborsOf('atomic-kick')).toBeNull();
+    expect(neighborsOf('illusioning-kick')).toBeNull();
   });
 
   it('caps each bucket at six groups and reports the remainder as moreCount', () => {
