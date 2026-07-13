@@ -9306,6 +9306,9 @@ export const freestyleService = {
         count: FAMILY_DESCENDANT_COUNTS.get(g.familySlug) ?? g.cards.length,
         href:  `/freestyle/tricks?family=${g.familySlug}`,
       }));
+    // The full curated Family-Parent roster (tier from the descendant-count map,
+    // independent of what the current data populates). The landing By-family card
+    // previews all of these; the browse renders only the populated ones.
     const familyParentRoster = PUBLIC_DISPLAY_FAMILIES.filter(
       f => familyTier(f.slug) === 'family-parent',
     );
@@ -9405,9 +9408,14 @@ export const freestyleService = {
               // has one, otherwise the ?family={slug} filtered list; the card
               // label and the Open link still open the full By-family browse.
               // Minor lineages render in their own band inside that browse.
+              // First-class Family Parents (curated roster tier, DB-independent):
+              // the landing previews every core family the dictionary defines, not
+              // only the ones the current data populates. Each chip opens that
+              // family's encyclopedia page when it has one, else the ?family={slug}
+              // filtered list; minor lineages render in their own browse band.
               count:        familyParentRoster.length,
               countDisplay: fmtCount(familyParentRoster.length),
-              countSuffix:  'families',
+              countSuffix:  'core families',
               lensQuestion: 'What core movement pattern does the trick build on?',
               chips:        familyParentRoster.map(f => ({
                 label: f.label,
@@ -9482,7 +9490,9 @@ export const freestyleService = {
     const familyDistinct = new Set(familyGroups.flatMap(g => g.cards.map(c => c.slug))).size;
     const familyScale =
       `${familyGroups.length} family ${plural(familyGroups.length, 'grouping', 'groupings')} organize tricks by ` +
-      'structural anchor; some are fine-grained and may later roll into broader family hierarchies. ' +
+      `structural anchor: ${familyParentGroups.length} core ${plural(familyParentGroups.length, 'family', 'families')} ` +
+      `and ${minorLineages.length} smaller ${plural(minorLineages.length, 'lineage', 'lineages')} that may later roll ` +
+      'into broader family hierarchies. ' +
       `${familyMemberships} trick-row ${plural(familyMemberships, 'membership', 'memberships')} shown` +
       (familyMemberships > familyDistinct ? ', and some tricks belong to more than one family.' : '.');
 
