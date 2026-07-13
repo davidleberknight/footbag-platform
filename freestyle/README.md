@@ -25,6 +25,14 @@ a live scrape.
   snapshot) and the notation parser.
 - `inputs/` — all committed pipeline inputs (curated trick CSVs, records,
   aliases, the move snapshot).
+  - `inputs/footbag_org_moves_metadata.ndjson` — 303 rows of footbag.org move
+    metadata (pronunciation, author/holder, and similar), extracted from the
+    legacy dump by `legacy_data/scripts/extract_footbag_org_moves_metadata.py`.
+    Kept as preserved provenance: it is a sealed archive artifact (immutable,
+    recorded in the legacy-archive seal manifest) and a future source for
+    upgrading trick descriptions where the imported human-authored text beats
+    generated copy. No loader consumes it, so the rebuild never reads it and it is
+    not regenerated on a build.
 - `tools/` — trick-video discovery + coverage prep.
 - `out/`, `reports/` — gitignored build artifacts.
 
