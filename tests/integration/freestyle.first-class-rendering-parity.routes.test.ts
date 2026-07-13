@@ -409,7 +409,7 @@ describe('First-class cohort expansion — Tier 1 atom parity', () => {
     ['mirage',     'SET &gt; OP IN [DEX] &gt; OP TOE [DEL]',            'dex(1) + stall(1)'],
     ['whirl',      'SET &gt; OP IN [DEX] &gt; OP CLIP [XBD] [DEL]',     'xbody(1) + dex(1) + stall(1)'],
     ['butterfly',  'SET &gt; OP OUT [DEX] &gt; OP CLIP [XBD] [DEL]',    'dex(1) + xbody(1) + stall(1)'],
-    ['swirl',      'SET &gt; OP BACK SWIRL [DEX] &gt; OP CLIP [XBD] [DEL]', 'xbody(1) + dex(1) + stall(1)'],
+    ['swirl',      'SET &gt; SAME OUT [DEX] &gt; SAME CLIP [XBD] [DEL]', 'xbody(1) + dex(1) + stall(1)'],
   ])('%s renders JOB + ADD rows in the first-class summary (full parity)', async (slug, expectedJobText, expectedAddText) => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');

@@ -219,7 +219,7 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
     slug: 'ripstein',
     prose:
-      "Ripstein stacks two same-side back-swirl dexes in sequence, ending on a cross-body clipper. The body works through two reverse-rotational dex moments (back, back) without alternating direction or switching the leading leg. The rhythm is a paired cadence reminiscent of barrage but with rotational rather than linear dexes; the body has to sustain the back-rotational character across both beats before the catch arrives on the cross-body clipper.",
+      "Ripstein stacks two same-side out dexes (the swirl-cell dexterity) in sequence, ending on a cross-body clipper. The body works through two outward circles without alternating direction or switching the leading leg. The rhythm is a paired cadence reminiscent of barrage; the body has to sustain the same outward circling character across both beats before the catch arrives on the cross-body clipper.",
     attribution: '',
   },
   {

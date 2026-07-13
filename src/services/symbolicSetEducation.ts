@@ -700,7 +700,7 @@ const SWIRLING_SET_CONTENT: SetEducationInput = {
     },
     {
       name:  'surfing',
-      prose: 'A composite set that carries swirling as its back-swirl dex (fairy symposium swirling).',
+      prose: 'A composite set that carries swirling as its out dex (fairy symposium swirling).',
     },
   ],
 };
@@ -798,15 +798,15 @@ const SURFING_SET_CONTENT: SetEducationInput = {
   whyItExists:
     'Surfing exists to name a settled composite launch, the Fairy Symposium Swirling stack, as a single set rather than spelling out the expansion on every trick card. Surfing-family cards reference this set by a surfing-set shorthand. The dexterity is the same; the set records the composite opening, scored as a +3 set treatment.',
   howItLaunches:
-    'Surfing is the launch itself, a three-event set sequence. The fairy outward dex, the no-plant symposium body, and the back-swirl dex open the chain, and the bag is delivered into whatever dexterity follows, which stays recognizable: surfing blender is still a blender (the named trick big papa smurf). What surfing determines is how the trick is set up and entered, contributing +3 from the composite set treatment.',
+    'Surfing is the launch itself, a three-event set sequence. The fairy outward dex, the no-plant symposium body, and swirling\'s out dex open the chain, and the bag is delivered into whatever dexterity follows, which stays recognizable: surfing blender is still a blender (the named trick big papa smurf). What surfing determines is how the trick is set up and entered, contributing +3 from the composite set treatment.',
   jobNotation:
-    'Surfing lives in the set portion of the notation, at the front of the chain, reading TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP BACK SWIRL [DEX] >, the Fairy Symposium Swirling stack; the rest of the chain is the unchanged base. So surfing blender (the named trick big papa smurf) decomposes as surfing(+3) + blender(4) = 7, the leading composite set carrying the +3 and the trailing base carrying its own count. This is what marks surfing as a launch: it is the opening set sequence, not body tokens inserted alongside the dexterity.',
+    'Surfing lives in the set portion of the notation, at the front of the chain, reading TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP OUT [DEX] >, the Fairy Symposium Swirling stack; the rest of the chain is the unchanged base. So surfing blender (the named trick big papa smurf) decomposes as surfing(+3) + blender(4) = 7, the leading composite set carrying the +3 and the trailing base carrying its own count. This is what marks surfing as a launch: it is the opening set sequence, not body tokens inserted alongside the dexterity.',
   whereItAppears:
-    'Surfing is a composite set and appears on the surfing family of compounds. Its blender case is the named trick big papa smurf. Because it carries +3, surfing compounds sit among the higher-ADD tricks. It opens with the fairy toe-set entry and carries swirling as its back-swirl dex.',
+    'Surfing is a composite set and appears on the surfing family of compounds. Its blender case is the named trick big papa smurf. Because it carries +3, surfing compounds sit among the higher-ADD tricks. It opens with the fairy toe-set entry and carries swirling as its out dex.',
   howItComposes:
     'Surfing is itself a composition of set treatments, Fairy Symposium Swirling, taken as one launch. It opens a base dexterity while contributing its +3, and the trailing base carries its own count. As a composite set it is a worked-out stack rather than a single primitive launch, which is why it is presented as one named set instead of repeating the expansion on each card.',
   launchNotes:
-    'The defining structure is the composite set Fairy Symposium Swirling: a fairy toe-set outward dex, a no-plant symposium body, and a back-swirl dex, contributing +3. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged.',
+    'The defining structure is the composite set Fairy Symposium Swirling: a fairy toe-set outward dex, a no-plant symposium body, and swirling\'s out dex, contributing +3. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged.',
   confusions: [
     {
       heading: 'Surfing is one named set, not three separate operators',
@@ -860,7 +860,7 @@ const SURFING_SET_CONTENT: SetEducationInput = {
     },
     {
       name:  'swirling',
-      prose: 'The back-swirl dex inside the surfing stack.',
+      prose: 'The out dex inside the surfing stack.',
     },
     {
       name:  'symposium',

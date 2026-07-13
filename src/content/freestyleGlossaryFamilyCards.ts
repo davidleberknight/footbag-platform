@@ -483,47 +483,47 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     slug:              'swirl',
     displayName:       'Swirl',
     kind:              'branch',
-    canonicalFormula:  'SET > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]',
+    canonicalFormula:  'SET > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]',
     familyAnchorAdds:  3,
     commonDescendants: ['paradox swirl', 'hop over swirl', 'butterfly swirl'],
     siblingFamilies:   ['whirl', 'osis'],
     notableCompounds:  ['paradox whirling swirl', 'spyro gyro (≡ gyro butterfly swirl)'],
     observationalNotes: [],
     teaching: {
-      hook: 'Swirl is the whirl run the other way, and it shows one of the ways freestyle grows: by varying a move you already know.',
+      hook: 'Swirl is one cell of the clipper-terminal matrix: the same-side leg circles outward and the bag lands on a same-side clipper.',
       physicalDescription:
-        'The base swirl uses the reverse-direction swirl dex and lands cross-body on a clipper: like the whirl, but the leg takes the bag around the back instead of over the top. Like the whirl it can be entered from a clipper or a toe delay, and it finishes on a clipper. The swirl family extends that ending pattern through different entries, sets, and modifiers.',
+        'In a swirl the same-side leg (the leg on the side the bag occupies) circles outward around the bag once, and the bag is caught on a same-side clipper. The entry is flexible: it can be set from a clipper, a toe delay, or a plain set; the clipper is the terminus, not the start. The swirl family extends that ending pattern through different entries, sets, and modifiers.',
       importance:
-        'Swirl illustrates one of the ways freestyle expanded. Once players understood a movement, they naturally explored what happened when they changed one dimension of it, and here that dimension is the direction of the circle. Taking a known move and reversing it, rather than inventing something new from scratch, is one of the most productive ways the vocabulary has grown, and the swirl is a clean early example. Its own family, butterfly swirl, spinning swirl, and symposium swirl, is that same habit applied again.',
+        'Swirl matters because it completes a structural family. Whirl, reverse whirl, swirl, and reverse swirl are the four cells of one clipper-terminal matrix: which leg performs the dexterity (opposite or same side) crossed with which way it circles (in or out). All four launch from a flexible set, all four land on a clipper, and all four score the same three ADD. Seeing the four together turns four separate trick names into one small system.',
       variantsIntro:
-        'Swirl is the whirl\'s shape with the circling reversed: from a clipper, the leg takes the bag around the back and returns to a clipper. Like the whirl, it is a base others build on, so its family is swirl with an operator added.',
+        'Swirl occupies the same-side, out-direction cell of the matrix. Like its three siblings it is a base others build on, so its family is swirl with an operator added.',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
-        'From a clipper, back to a clipper, like a whirl.',
-        'But the bag travels around the back, not over the top.',
-        'One circling dex, reversed.',
-        'If it looks like a whirl going the other way, it is a swirl.',
+        'The dexterity is performed by the same-side leg, not the opposite leg.',
+        'The leg circles outward around the bag.',
+        'The catch is a same-side clipper.',
+        'Opposite leg circling instead? That is a whirl or reverse whirl. Same leg circling inward? That is a reverse swirl.',
       ],
       howToThink:
-        'See swirl as variation in action. It is a whirl with one dimension changed, and that habit, taking a move you know and changing a single thing about it, is how much of the vocabulary you will ever learn came to be. Recognizing the whirl and swirl pair is the start of seeing freestyle as a system you can extend, not just a set of tricks to memorize.',
+        'Hold the four clipper-terminal siblings as one grid: whirl (opposite leg, in), reverse whirl (opposite leg, out), swirl (same leg, out), reverse swirl (same leg, in). Two choices, leg and direction, generate all four. Thinking in cells rather than in isolated names is the start of seeing freestyle as a system you can extend, not just a set of tricks to memorize.',
       misconceptions: [
-        'Swirl is not a harder whirl; it is the same whirl shape circled the other way.',
-        'A swirl is not defined by its entry; the direction of the circle is what makes it a swirl.',
-        'Learning the whirl does not cover the swirl; the reversed direction is its own skill, even though the frame is shared.',
+        'Swirl is not a whirl run backward; the two differ in which leg performs the dexterity, not just its direction.',
+        'A swirl is not defined by its entry; the same-side out dexterity into a clipper is what makes it a swirl.',
+        'Learning the whirl does not cover the swirl; the same-side dexterity is its own skill.',
       ],
       seeItIn: ['butterfly_swirl', 'spinning_swirl', 'symposium_swirl'],
       notationIntro:
-        'For readers interested in the formal notation, a swirl runs from a clipper through one back-circling dex to a clipper: CLIP > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL] (3 ADD). It differs from the whirl only in that circling dex.',
+        'For readers interested in the formal notation, a swirl is a same-side out dex into a same-side clipper: SET > SAME OUT [DEX] > SAME CLIP [XBD] [DEL] (3 ADD). Its three matrix siblings differ only in the leg and direction tokens: whirl is SET > OP IN [DEX] > OP CLIP [XBD] [DEL], reverse whirl is SET > OP OUT [DEX] > OP CLIP [XBD] [DEL], and reverse swirl is SET > SAME IN [DEX] > SAME CLIP [XBD] [DEL].',
       takeaway:
-        'Swirl is the whirl run the other way, and it shows how freestyle grows: by taking a movement you already know and varying it.',
+        'Swirl is the same-side, out-direction cell of the clipper-terminal matrix: four sibling tricks, one grid of leg times direction.',
     },
   },
   {
     slug:              'rev_whirl',
     displayName:       'Rev Whirl',
     kind:              'branch',
-    canonicalFormula:  'CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
+    canonicalFormula:  'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  3,
     commonDescendants: ['hatchet', 'mullet', 'rev-up'],
     siblingFamilies:   ['whirl'],
@@ -531,7 +531,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Whirl ↔ rev-whirl mirror pair',
-        body:  'Rev-whirl is the direction-mirror sibling of whirl: whirl uses an opposite-in dex, rev-whirl uses an opposite-out dex. The pair is the canonical sibling example: same structural anchor, mirror terminal mechanics.',
+        body:  'Rev-whirl is the direction-mirror sibling of whirl inside the clipper-terminal matrix: both use the opposite leg and land on an opposite clipper, whirl circling in and rev-whirl circling out. The same-side cells of that matrix are swirl (out) and reverse swirl (in).',
       },
     ],
   },
@@ -898,7 +898,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     slug:              'butterfly_swirl',
     displayName:       'Butterfly-Swirl',
     kind:              'branch',
-    canonicalFormula:  'SET > SAME/OP OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',
+    canonicalFormula:  'SET > SAME/OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]',
     familyAnchorAdds:  4,
     commonDescendants: ['ducking butterfly-swirl', 'gyro butterfly-swirl', 'spinning butterfly-swirl'],
     siblingFamilies:   ['butterfly', 'eclipse'],
@@ -906,7 +906,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Butterfly-entry swirl',
-        body:  'Butterfly-Swirl pairs a butterfly-style out-dex with the back-swirl terminal: a same/opposite out-dex precedes the back swirl, which catches on a same-side cross-body clipper. It leads its own branch (gyro / spinning / ducking butterfly-swirl) off the swirl anchor.',
+        body:  'Butterfly-Swirl pairs a butterfly-style out-dex with the swirl ending: a same/opposite out-dex precedes a second out dex, which catches on a same-side cross-body clipper. It leads its own branch (gyro / spinning / ducking butterfly-swirl) off the swirl anchor.',
       },
     ],
   },

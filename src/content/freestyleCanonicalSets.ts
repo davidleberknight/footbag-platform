@@ -1060,10 +1060,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
   },
   {
     slug: 'surfing', hashtag: '#set_surfing', displayName: 'Surfing', subtype: 'composite-derived',
-    formula: 'TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP BACK SWIRL [DEX] >',
+    formula: 'TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP OUT [DEX] >',
     movementExplanation:
       'Surfing is a composite set reading Fairy Symposium Swirling: a fairy toe-set outward ' +
-      'dex, a no-plant symposium body, and a back-swirl dex, contributing 3 ADD. Surfing-' +
+      'dex, a no-plant symposium body, and swirling\'s out dex, contributing 3 ADD. Surfing-' +
       'family trick cards reference this entry by the (surfing set) shorthand instead of ' +
       'repeating the expansion.',
     equivalenceNotes: [
@@ -1072,7 +1072,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     derivedSystems: [],
     relatedSystems: [
       { slug: 'fairy', label: 'Fairy (the toe-set outward entry)' },
-      { slug: 'swirling', label: 'Swirling (the back-swirl dex)' },
+      { slug: 'swirling', label: 'Swirling (the same-side out dex)' },
     ],
     source: 'platform-tracked',
     sourceCitation: 'Derived from the surfing trick cohort expansion (FootbagMoves single-source).',

@@ -1757,8 +1757,8 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'paradox(+1) + whirling-swirl(4) = 5 ADD ([PDX] + [DEX] + [DEX] + [XBD] + [DEL])',
-    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed. Paradox prefix on whirling-swirl chassis (preserves OP BACK SWIRL second dex + SAME CLIP terminal).
-    provenance:  'Deferred-candidate promotion. paradox = +1 PDX modifier (Red-settled canonical inventory); whirling-swirl = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. Standard paradox-prefix pattern: SAME IN [PDX] [DEX] replaces the base\'s leading OP IN [DEX]; OP BACK SWIRL second dex + SAME CLIP terminator unchanged.',
+    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed. Paradox prefix on whirling-swirl chassis (preserves the out-dex second dex + SAME CLIP terminal).
+    provenance:  'Deferred-candidate promotion. paradox = +1 PDX modifier (Red-settled canonical inventory); whirling-swirl = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. Standard paradox-prefix pattern: SAME IN [PDX] [DEX] replaces the base\'s leading OP IN [DEX]; the out second dex + SAME CLIP terminator unchanged.',
   },
 
   // ─── Symposium-pixie promotion (deferred-candidate follow-on).
@@ -1826,7 +1826,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   //     Pixie(+1) + swirl(3) = 4 ADD. FB.org-confirmed JOB. Standard
   //     pixie-prefix pattern: SAME IN [DEX]
   //     prepended to swirl base. fb.org preserves SAME/OP variant on the
-  //     BACK SWIRL second dex (player choice).
+  //     out-direction second dex (player choice).
 
   {
     slug:        'pixie_swirl',
@@ -1836,8 +1836,8 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'pixie(+1) + swirl(3) = 4 ADD ([DEX] + [DEX] + [XBD] + [DEL])',
-    operationalNotation: 'TOE > SAME IN [DEX] > SAME/OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed. SAME/OP variant on BACK SWIRL preserved verbatim per fb.org.
-    provenance:  'Deferred-candidate promotion. pixie = +1 PDX modifier (Red pt12 settled); swirl = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim. Pixie prefix adds SAME IN [DEX] before swirl base; fb.org preserves SAME/OP variant on the BACK SWIRL second dex (player choice).',
+    operationalNotation: 'TOE > SAME IN [DEX] > SAME/OP OUT [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed. SAME/OP variant on the out dex preserved verbatim per fb.org.
+    provenance:  'Deferred-candidate promotion. pixie = +1 PDX modifier (Red pt12 settled); swirl = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim. Pixie prefix adds SAME IN [DEX] before swirl base; fb.org preserves SAME/OP variant on the out-direction second dex (player choice).',
   },
 
   // ─── Down-family follow-ons + flux (deferred-candidate
@@ -1880,7 +1880,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   },
 
   // ─── Double-over-down-swirl promotion (extends just-shipped
-  //     double-over-down chassis with a back-swirl third dex). FB.org-confirmed
+  //     double-over-down chassis with a third out dex). FB.org-confirmed
   //     JOB. Atom-level: 3 [DEX] tokens + cross-body clipper terminator.
 
   {
@@ -1890,9 +1890,9 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     base:        'double-over-down',
     baseAdd:     4,
     totalAdd:    5,
-    derivation:  'double-over-down(4) + back-swirl dex(1) = 5 ADD ([DEX] + [DEX] + [DEX] + [XBD] + [DEL])',
-    operationalNotation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed. Extends double-over-down with OP BACK SWIRL third dex; terminator swaps OP CLIP → SAME CLIP.
-    provenance:  'Deferred-candidate promotion. Extension of double-over-down (4 ADD canonical compound in DB). JOB FB.org-confirmed verbatim. The two SAME OUT dex pair from double-over-down is preserved; third dex is an OP BACK SWIRL (rotation-variant fused token); terminator swaps from OP CLIP to SAME CLIP per fb.org source.',
+    derivation:  'double-over-down(4) + out dex(1) = 5 ADD ([DEX] + [DEX] + [DEX] + [XBD] + [DEL])',
+    operationalNotation: 'TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed. Extends double-over-down with a third out dex; terminator swaps to SAME CLIP.
+    provenance:  'Deferred-candidate promotion. Extension of double-over-down (4 ADD canonical compound in DB). JOB FB.org-confirmed verbatim. The out-dex pair from double-over-down is preserved; the third dex is a further out dex; terminator swaps from OP CLIP to SAME CLIP per fb.org source.',
   },
 
   // ─── Quantum-symposium-mirage promotion (with backside-symposium-
@@ -1998,7 +1998,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    7,
     derivation:  'spinning(1) + paradox(1) + symposium(1) + whirling(1) + swirl(3) = 7 ADD',
-    operationalNotation: 'CLIP > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // sibling-composed from whirling-swirl + the spinning-ducking-paradox-symposium-whirl no-plant-dex pattern; bracket count 7 matches ADD; not curator-confirmed.
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]',  // sibling-composed from whirling-swirl + the spinning-ducking-paradox-symposium-whirl no-plant-dex pattern; bracket count 7 matches ADD; not curator-confirmed.
     provenance:  'FootbagMoves single-source 7-ADD promotion (folk name swirlwind; technical reading Spinning Paradox Symposium Whirling Swirl). All operators defined (spinning, paradox, symposium, whirling on a 3-ADD swirl atom), ADD closes at 7, swirl family. FootbagMoves is the only source; structure uncorroborated. Notation sibling-composed; not curator-confirmed.',
   },
   {
@@ -2039,7 +2039,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    7,
     derivation:  'surfing(3) + blender(4) = 7 ADD',
-    operationalNotation: 'TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP BACK SWIRL [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',  // surfing set (fairy entry + no-plant symposium + swirling dex) on the blender chassis; bracket count 7 matches ADD; not curator-confirmed.
+    operationalNotation: 'TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP OUT [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',  // surfing set (fairy entry + no-plant symposium + swirling dex) on the blender chassis; bracket count 7 matches ADD; not curator-confirmed.
     provenance:  'FootbagMoves single-source 7-ADD promotion. surfing resolves to fairy + symposium + swirling (a +3 set); blender is a 4-ADD canonical. ADD closes at 7, blender family, no divergence. FootbagMoves is the only source; notation sibling-composed; not curator-confirmed.',
   },
   {
@@ -2355,7 +2355,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'spinning(+1) + whirling-swirl(4) = 5 ADD',
-    operationalNotation: 'CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // standard spinning back-spin chassis; bracket count 5 matches ADD.
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]',  // standard spinning back-spin chassis; bracket count 5 matches ADD.
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 5 matches ADD. Observational (SG).',
   },
   {
@@ -2421,7 +2421,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    6,
     derivation:  'spinning(+1) + symposium(+1) + whirling-swirl(4) = 6 ADD',
-    operationalNotation: 'CLIP > (back) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // standard spinning back-spin chassis; bracket count 6 matches ADD.
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]',  // standard spinning back-spin chassis; bracket count 6 matches ADD.
     provenance:  'Spinning-chassis promotion. spinning(+1) back-spin prefix; bracket count 6 matches ADD. Observational (PB).',
   },
   {
@@ -2531,7 +2531,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'diving(+1) + swirl(3) = 4 ADD',
-    operationalNotation: 'CLIP > DIVE [BOD] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // standard diving DIVE [BOD] chassis; bracket count 4 matches ADD.
+    operationalNotation: 'CLIP > DIVE [BOD] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]',  // standard diving DIVE [BOD] chassis; bracket count 4 matches ADD.
     provenance:  'Diving-chassis promotion. diving(+1) DIVE [BOD] insertion; bracket count 4 matches ADD. Observational (SG).',
   },
   {
@@ -2652,7 +2652,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'fairy(+1) + ripstein(4) = 5 ADD',
-    operationalNotation: 'TOE > SAME OUT [DEX] > SAME BACK SWIRL [DEX] >> SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // standard fairy TOE>SAME OUT [DEX] entry chassis; bracket count 5 matches ADD.
+    operationalNotation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] >> SAME OUT [DEX] > SAME CLIP [XBD] [DEL]',  // standard fairy TOE>SAME OUT [DEX] entry chassis; bracket count 5 matches ADD.
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 5 matches ADD. Observational (PB).',
   },
   {
@@ -2674,7 +2674,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    5,
     derivation:  'fairy(+1) + swirling(+1) + swirl(3) = 5 ADD',
-    operationalNotation: 'TOE > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // standard fairy TOE>SAME OUT [DEX] entry chassis; bracket count 5 matches ADD.
+    operationalNotation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]',  // standard fairy TOE>SAME OUT [DEX] entry chassis; bracket count 5 matches ADD.
     provenance:  'Fairy-chassis promotion. fairy(+1) entry set; bracket count 5 matches ADD. Observational (PB).',
   },
   {
@@ -2828,7 +2828,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'symposium(+1) + swirl(3) = 4 ADD',
-    operationalNotation: 'CLIP > (no plant while) SAME BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL]',  // standard symposium no-plant chassis; bracket count 4 matches ADD.
+    operationalNotation: 'CLIP > (no plant while) SAME OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL]',  // standard symposium no-plant chassis; bracket count 4 matches ADD.
     provenance:  'Symposium-chassis promotion. symposium(+1) no-plant on the first dex; bracket count 4 matches ADD. Observational (PB).',
   },
   {
@@ -2850,7 +2850,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'symposium(+1) + whirling-swirl(4) = 5 ADD',
-    operationalNotation: 'CLIP > (no plant while) OP IN [BOD] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // standard symposium no-plant chassis; bracket count 5 matches ADD.
+    operationalNotation: 'CLIP > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL]',  // standard symposium no-plant chassis; bracket count 5 matches ADD.
     provenance:  'Symposium-chassis promotion. symposium(+1) no-plant on the first dex; bracket count 5 matches ADD. Observational (FB/PB).',
   },
   {
@@ -2872,7 +2872,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'swirling(+1) + butterfly(3) = 4 ADD',
-    operationalNotation: 'SET > OP BACK SWIRL [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // standard swirling OP BACK SWIRL [DEX] prefix chassis; bracket count 4 matches ADD.
+    operationalNotation: 'SET > SAME OUT [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // standard swirling same-side out-dex prefix chassis; bracket count 4 matches ADD.
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 4 matches ADD. Observational (SG).',
   },
   {
@@ -2883,7 +2883,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'swirling(+1) + mirage(2) = 3 ADD',
-    operationalNotation: 'SET > OP BACK SWIRL [DEX] > OP IN [DEX] > OP TOE [DEL]',  // standard swirling OP BACK SWIRL [DEX] prefix chassis; bracket count 3 matches ADD.
+    operationalNotation: 'SET > SAME OUT [DEX] > OP IN [DEX] > OP TOE [DEL]',  // standard swirling same-side out-dex prefix chassis; bracket count 3 matches ADD.
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 3 matches ADD. Observational (SG).',
   },
   {
@@ -2894,7 +2894,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'swirling(+1) + paradox-mirage(3) = 4 ADD',
-    operationalNotation: 'CLIP > OP BACK SWIRL [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL]',  // standard swirling OP BACK SWIRL [DEX] prefix chassis; bracket count 4 matches ADD.
+    operationalNotation: 'CLIP > SAME OUT [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL]',  // standard swirling same-side out-dex prefix chassis; bracket count 4 matches ADD.
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 4 matches ADD. Observational (SG).',
   },
   {
@@ -2905,7 +2905,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'swirling(+1) + swirl(3) = 4 ADD',
-    operationalNotation: 'CLIP > OP BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // standard swirling OP BACK SWIRL [DEX] prefix chassis; bracket count 4 matches ADD.
+    operationalNotation: 'CLIP > SAME OUT [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]',  // standard swirling same-side out-dex prefix chassis; bracket count 4 matches ADD.
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 4 matches ADD. Observational (PB).',
   },
   {
@@ -2916,7 +2916,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'swirling(+1) + symposium-whirl(4) = 5 ADD',
-    operationalNotation: 'SET > OP BACK SWIRL [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]',  // standard swirling OP BACK SWIRL [DEX] prefix chassis; bracket count 5 matches ADD.
+    operationalNotation: 'SET > SAME OUT [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]',  // standard swirling same-side out-dex prefix chassis; bracket count 5 matches ADD.
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 5 matches ADD. Observational (SG).',
   },
   {
@@ -2927,7 +2927,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'swirling(+1) + whirl(3) = 4 ADD',
-    operationalNotation: 'SET > OP BACK SWIRL [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]',  // standard swirling OP BACK SWIRL [DEX] prefix chassis; bracket count 4 matches ADD.
+    operationalNotation: 'SET > SAME OUT [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]',  // standard swirling same-side out-dex prefix chassis; bracket count 4 matches ADD.
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 4 matches ADD. Observational (SG).',
   },
   {
@@ -2938,7 +2938,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'swirling(+1) + whirling-swirl(4) = 5 ADD',
-    operationalNotation: 'CLIP > OP BACK SWIRL [DEX] > OP IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // standard swirling OP BACK SWIRL [DEX] prefix chassis; bracket count 5 matches ADD.
+    operationalNotation: 'CLIP > SAME OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]',  // standard swirling same-side out-dex prefix chassis; bracket count 5 matches ADD.
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 5 matches ADD. Observational (SG).',
   },
   {
@@ -3015,7 +3015,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    6,
     derivation:  'pixie(+1) + symposium(+1) + whirling-swirl(4) = 6 ADD',
-    operationalNotation: 'TOE > SAME IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // standard pixie TOE>SAME IN [DEX] entry chassis; bracket count 6 matches ADD.
+    operationalNotation: 'TOE > SAME IN [DEX] >> OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL]',  // standard pixie TOE>SAME IN [DEX] entry chassis; bracket count 6 matches ADD.
     provenance:  'Pixie-chassis promotion. pixie(+1) entry set; bracket count 6 matches ADD. Observational (FM).',
   },
   {
@@ -3389,7 +3389,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     5,
     totalAdd:    7,
     derivation:  'furious(+2) + barfly-swirl(5) = 7 ADD',
-    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // Furious two-dex chassis (historical name barraging) on canonical barfly-swirl; bracket count 7 matches ADD.
+    operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]',  // Furious two-dex chassis (historical name barraging) on canonical barfly-swirl; bracket count 7 matches ADD.
     provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set on canonical barfly-swirl; bracket count 7 matches ADD. Observational (SG).',
   },
   {

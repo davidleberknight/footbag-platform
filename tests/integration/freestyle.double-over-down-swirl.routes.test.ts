@@ -1,11 +1,9 @@
 /**
- * Double-over-down-swirl canonical trick promotion: routes and rendering.
- * double-over-down-swirl. Single-row promotion. Extension of the
- * double-over-down chassis (shipped earlier this session) with an
- * OP BACK SWIRL third dex and SAME CLIP terminator swap.
- *
- * JOB FB.org-confirmed verbatim from fborg-5add.txt:
- *   TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]
+ * Double-over-down-swirl canonical trick: routes and rendering.
+ * Extension of the double-over-down chassis with a third out dex (the
+ * swirl-cell dexterity) and a SAME CLIP terminator swap. The canonical
+ * notation uses the ordinary IN/OUT vocabulary:
+ *   TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]
  *
  * ADD breakdown: [DEX] + [DEX] + [DEX] + [XBD] + [DEL] = 5 ADD.
  */
@@ -47,28 +45,27 @@ describe('RESOLVED_ADD_FORMULAS — double-over-down-swirl entry', () => {
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.baseAdd).toBe(4);
     expect(entry?.base).toBe('double-over-down');
-    expect(entry?.operationalNotation).toBe('TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]');
+    expect(entry?.operationalNotation).toBe('TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]');
     expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
     expect(entry?.provenance ?? '').toMatch(/double-over-down/i);
   });
 
-  it('preserves the double-over-down chassis prefix (SAME OUT / SAME OUT dex pair) and ends with SAME CLIP terminator', () => {
+  it('preserves the double-over-down chassis prefix (the out-dex pair) and ends with SAME CLIP terminator', () => {
     const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'double_over_down_swirl');
-    expect(entry?.operationalNotation ?? '').toMatch(/TOE > SAME OUT \[DEX\] > SAME OUT \[DEX\]/);
+    expect(entry?.operationalNotation ?? '').toMatch(/TOE > OP OUT \[DEX\] > OP OUT \[DEX\]/);
     expect(entry?.operationalNotation ?? '').toMatch(/SAME CLIP \[XBD\] \[DEL\]$/);
-    // OP BACK SWIRL fuses into rotation-variant token
-    expect(entry?.operationalNotation ?? '').toContain('OP BACK SWIRL [DEX]');
+    // The third dex is an ordinary out dex; the retired swirl token never reappears.
+    expect(entry?.operationalNotation ?? '').not.toContain('BACK SWIRL');
   });
 });
 
 describe('double-over-down-swirl detail page — first-class JOB + ADD', () => {
-  it('/freestyle/tricks/double-over-down-swirl renders 5 ADD + 3 dex tokens + BACK SWIRL rotation-variant', async () => {
+  it('/freestyle/tricks/double-over-down-swirl renders 5 ADD + 3 dex tokens, no retired swirl token', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/double_over_down_swirl');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
-    // BACK SWIRL fuses into rotation_variant per operationalNotationRendering
-    expect(res.text).toMatch(/class="op-token[^"]*rotation-variant[^"]*"[^>]*>BACK SWIRL</);
+    expect(res.text).not.toContain('BACK SWIRL');
     for (const token of ['TOE', 'SAME', 'OUT', '[DEX]', 'OP', 'CLIP', '[XBD]', '[DEL]']) {
       const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const pattern = new RegExp(`class="op-token[^"]*"[^>]*>${escaped}<`);

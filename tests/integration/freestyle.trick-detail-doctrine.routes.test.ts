@@ -196,7 +196,7 @@ beforeAll(async () => {
     slug: 'ripstein', canonical_name: 'ripstein', adds: '4',
     base_trick: null, trick_family: 'ripstein', category: 'compound',
     description: 'Popular freestyle trick.',
-    operational_notation: 'CLIP >> SAME BACK SWIRL [DEX] >> SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',
+    operational_notation: 'CLIP >> SAME OUT [DEX] >> SAME OUT [DEX] > SAME CLIP [XBD] [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
 
@@ -603,10 +603,10 @@ describe('ripstein folk-name rescue (intuition + placeholder suppression)', () =
     expect(res.text).not.toMatch(/<p class="trick-description">Popular freestyle trick\.<\/p>/);
   });
 
-  it('ripstein renders L1 intuition with the doubled-back-swirl coach prose', async () => {
+  it('ripstein renders L1 intuition with the doubled-out-dex coach prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/ripstein');
     expect(res.text).toContain('class="content-section trick-intuition"');
-    expect(res.text).toMatch(/Ripstein stacks two same-side back-swirl dexes/);
+    expect(res.text).toMatch(/Ripstein stacks two same-side out dexes/);
   });
 
   it('ripstein SUPPRESSES L4 productivity and L5 family-evolution (leaf compound; rescue case)', async () => {

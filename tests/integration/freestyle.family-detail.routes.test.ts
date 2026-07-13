@@ -448,18 +448,19 @@ describe('GET /freestyle/families/whirl — the connector (why it became central
   });
 });
 
-describe('GET /freestyle/families/swirl — variation as a creative force', () => {
-  it('frames swirl as a pattern of expansion, not a claim about the inventor', async () => {
+describe('GET /freestyle/families/swirl — four-sibling matrix framing', () => {
+  it('frames swirl as one cell of the clipper-terminal matrix, not a whirl reversal story', async () => {
     const res = await request(await createApp()).get('/freestyle/families/swirl');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Swirl illustrates one of the ways freestyle expanded');
-    expect(res.text).toContain('changed one dimension of it');
+    expect(res.text).toContain('Swirl matters because it completes a structural family');
+    expect(res.text).toContain('the four cells of one clipper-terminal matrix');
+    expect(res.text).not.toContain('whirl run the other way');
     expect(res.text).not.toContain('marks the moment');
   });
 
-  it('closes on the grow-by-varying-what-you-know takeaway', async () => {
+  it('closes on the sibling-cells takeaway', async () => {
     const res = await request(await createApp()).get('/freestyle/families/swirl');
-    expect(res.text).toContain('by taking a movement you already know and varying it');
+    expect(res.text).toContain('four sibling tricks, one grid of leg times direction');
   });
 });
 
@@ -519,7 +520,7 @@ describe('GET /freestyle/families/:slug — family cards distinguish base from f
   it('swirl card describes the base swirl with entry-generic wording and notes the family extends the ending pattern', async () => {
     const res = await request(await createApp()).get('/freestyle/families/swirl');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Like the whirl it can be entered from a clipper or a toe delay');
+    expect(res.text).toContain('the clipper is the terminus, not the start');
     expect(res.text).toContain('The swirl family extends that ending pattern');
     expect(res.text).not.toContain('clipper-to-clipper');
   });
