@@ -76,6 +76,10 @@ export const FAMILY_DESCENDANT_COUNTS: ReadonlyMap<string, number> = new Map([
   ['illusion', 34], ['swirl', 29], ['pickup', 27], ['blender', 22], ['torque', 22],
   ['double_leg_over', 16], ['drifter', 14], ['barfly', 13], ['eggbeater', 13],
   ['double_over_down', 12], ['inside_stall', 11],
+  // Reverse Whirl is its own family by curator ruling (a distinct terminal
+  // identity, never folded under whirl); ten documented descendants under the
+  // root keep it a Minor Lineage.
+  ['rev_whirl', 10],
   ['eclipse', 9], ['flail', 9], ['barrage', 8], ['paradon', 6], ['dyno', 5],
   ['down_double_down', 5],
   ['butterfly_swirl', 5], ['dada_curve', 4], ['flurry', 3],

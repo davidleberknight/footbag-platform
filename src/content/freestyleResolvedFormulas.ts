@@ -3261,15 +3261,15 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. pixie on canonical ducking-mirage; bracket count 4 matches ADD. Observational (SG).',
   },
   {
-    slug:        'pixie_symposium_reverse_whirl',
-    name:        'pixie symposium reverse whirl',
+    slug:        'pixie_symposium_rev_whirl',
+    name:        'pixie symposium rev whirl',
     operator:    'pixie',
     base:        'symposium-reverse-whirl',
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'pixie(+1) + symposium-reverse-whirl(4) = 5 ADD',
-    operationalNotation: 'TOE > SAME IN [DEX] > (no plant while) SAME OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]',  // pixie chassis on canonical symposium-reverse-whirl; bracket count 5 matches ADD.
-    provenance:  'Clean Tier-1 sweep. pixie on canonical symposium-reverse-whirl; bracket count 5 matches ADD. Observational (SG).',
+    operationalNotation: 'TOE > SAME IN [DEX] >> (no plant while) OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]',  // pixie chassis on canonical symposium-reverse-whirl; bracket count 5 matches ADD.
+    provenance:  'Clean Tier-1 sweep. pixie on canonical symposium-reverse-whirl; bracket count 5 matches ADD. Observational (SG). The spelled-out duplicate canonical was merged into this row; its Tier-1 reading and the pixie + symposium + rev-whirl reading decompose the same formula.',
   },
   {
     slug:        'fairy_ducking_mirage',

@@ -4787,7 +4787,6 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'pixie_double_pickup',
   'darkwalk',
   'pixie_ducking_butterfly',
-  'pixie_symposium_reverse_whirl',
   'fairy_ducking_mirage',
   'fairy_torque',
   'diving_clipper',

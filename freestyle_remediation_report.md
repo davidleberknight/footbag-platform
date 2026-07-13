@@ -5,7 +5,7 @@ Every entry has an owner, a next action, an unlock, and a done condition.
 Closed work is deleted, not archived; git history and the prior remediation
 report preserve history. Counts are recomputed from the live database and the
 2026-07-10 formula-identity audit CSV, not inherited. Last full
-reverification: 2026-07-13. Active entries: 15 (7 James, 1 James + Dave,
+reverification: 2026-07-13. Active entries: 13 (5 James, 1 James + Dave,
 4 James + Red, 3 Other).
 
 Outside this plan by design, not forgotten: the Identity paper's four
@@ -47,26 +47,6 @@ Paradox Mirage; the database ships both as active unlinked rows differing
 only by the entry token. Next: choose the alias target (folk name versus
 structural name, the same precedent as omelette) and merge. Done when one
 row remains and the other is its alias.
-
-**J5. Clipper-matrix residuals.** Doctrine blocker. Two rulings plus one
-transfer: (a) stepping_reverse_whirl is stored in the reverse-swirl cell,
-byte-identical to tombstone and stepping_reverse_swirl; confirm the intended
-structure, then merge, rename, or re-derive. (b) surgery is claimed "kept in
-rev-whirl family" by a code comment but is absent from the family-override
-roster and carries a BACK WHIRL token; rule its family and fix the mismatch
-(this also decides whether the rev-whirl family clears the 3-member floor).
-The Blink transfer is done: its path-vocabulary exception is recorded in
-the Red queue's rider list, the R3 vehicle. Depends on J6 for the token
-vocabulary that (b) reads. Done when the two residuals are resolved; J5
-does not wait on Red's answer.
-
-**J6. Swirl-token vocabulary completion.** Doctrine blocker. 48 active rows
-still use rotational dex tokens outside the ratified IN/OUT vocabulary:
-FRONT WHIRL 31, bare WHIRL 10, FRONT SWIRL 5, BACK WHIRL 2 (counts from the
-live database). Next: decide whether the matrix vocabulary absorbs them or
-they are ratified as named rotation variants. Runs before J5, which reads
-this vocabulary for the surgery ruling. Done when one written rule covers
-every rotational dex token in active notation.
 
 **J7. Video and source reviews.** Promotion blocker. POD vs Dimmier (one
 viewing decides one row), Kiwi (source-internal contradiction: rule it
@@ -115,9 +95,13 @@ a double-paradox whose empty notation waits on this answer); terraging
 arithmetic (2 rows). Unlock: 61 + 91 + 21 + 4 + 2 = 179 gated rows plus
 the paradox_blur notation, plus the blurry registry-versus-reference
 consistency test Dave writes once the answer lands. The framing strikes
-are applied (the paper carries only its ruling groups). Next: revise with
-the addendum, then send. Done when Red's answers are integrated, the
-consistency test lands, and the audit tags clear.
+are applied. Delivery map: three groups are drafted as paper sections
+(the blurry/paradox ruling, the 9-token operator ask, the quantifier
+disposition); repeated-operator and terraging ride the queue letter's
+rider items sent with the paper; the 19-token addendum is the pending
+revision. Next: revise with the addendum, then send. Done when Red's
+answers are integrated, the consistency test lands, and the audit tags
+clear.
 
 **R2. Notation packet.** Doctrine blocker. Drafted, not sent. Questions:
 the down-family embedded-base coordinate frame (21 gated rows plus 3
@@ -135,7 +119,8 @@ Next: send with R1. Done when sent and the answers are integrated.
 
 **R3. Rider list.** Doctrine blocker. The implicit-paradox hypothesis
 (Blurrage, Predator, Schmoe rows; the sumo X-Dex value ships provisionally
-until ruled); the Blink path-vocabulary exception (transferred from J5);
+until ruled); the Blink path-vocabulary exception (recorded in the Red
+queue rider list by the closed clipper-matrix residuals entry);
 the jani-walker / sidewinder structure; the Motorfly memory check; the
 general osis-suffix rule; the twisting/twisted exemplar (6 rows, counted in
 R1's token total); and the record names Double Dyno, Double Whip, Stepping
@@ -185,9 +170,9 @@ Done when the wording ships or the feature is formally dropped.
 
 ## Closure sequence
 
-Wave 1 (James, one resolution and authoring session): J6 before J5, then
-J1, J2, J4, J7, J9. Eliminates 7 of the 15 entries and rules 56 rows
-without anyone else acting.
+Wave 1 (James, one resolution and authoring session): J1, J2, J4, J7,
+J9. Eliminates 5 of the 13 entries and rules 56 rows without anyone
+else acting.
 
 Wave 2 (James to Red): send the revised combined packet: R1 + R2 + R3, with
 the R4 send-or-retire decision in the same message. No overlapping papers,

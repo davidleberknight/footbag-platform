@@ -21,6 +21,23 @@ inherits them.
   caps (`SPIN`, `DUCK`, `JUMP`); parenthetical annotations are lowercase
   (`(back)`, `(no plant while)`, `(land)`). `>>` is a major sequence boundary,
   `>` a continuous sub-step; the two never collapse.
+- **The rotational dex register (ratified).** An embedded rotational (wrapping)
+  dex, the dex a whirling or swirling operator injects mid-compound, is written
+  in its own register: `<side> <FRONT|BACK> <WHIRL|SWIRL> [DEX]`, with the side
+  marker and the FRONT/BACK direction qualifier both mandatory. A bare `WHIRL`
+  or `SWIRL` dex token is malformed (it under-specifies direction). The IN/OUT
+  vocabulary remains the register for the terminal matrix tricks (whirl,
+  reverse whirl, swirl, reverse swirl) and never absorbs rotational dex tokens:
+  the rotational wrap is movement content the direction axis cannot carry, and
+  mechanical translation provably collapses distinct canonicals (a whirling
+  compound becomes byte-identical to its miraging, stepping, or doubled
+  sibling). The rotational register applies when an embedded FRONT/BACK WHIRL
+  or SWIRL is preserved as an identity-bearing rotational dex. Compounds
+  previously re-derived by the ratified clipper-terminal matrix into plain
+  IN/OUT dexes remain valid directional decompositions and are not reopened by
+  this rule. No additional folding or unfolding follows without a separate
+  structural ruling. Whether `BACK SWIRL` remains confined to the documented
+  Blink exception is the rider's separate path-vocabulary question.
 - **The twelve core atoms are the foundational terminal vocabulary.** Toe-stall,
   clipper-stall, around-the-world, orbit, legover, pickup, mirage, illusion,
   butterfly, osis, whirl, swirl. Many tricks terminate directly in one of them,

@@ -159,7 +159,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     decomposition:  null,
     pendingNote:    null,
     workedExamples: ['Whirling Swirl', 'Double-Blender = Whirling Blender'],
-    lineageNote:    'A +1 body modifier, seen in tricks such as Whirling Swirl.',
+    lineageNote:    'A +1 body modifier, seen in tricks such as Whirling Swirl. Its injected dex writes in the rotational dex register (a side marker plus a mandatory FRONT or BACK qualifier, e.g. OP FRONT WHIRL [DEX]), never as a bare WHIRL token and never folded into the IN/OUT direction vocabulary, which cannot carry the rotational wrap.',
     curatorConfirmPending: false,
   },
   {

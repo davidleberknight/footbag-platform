@@ -16,7 +16,7 @@ const APPROVED = [
   { slug: 'pixie-guay',                    adds: 3, notation: 'TOE > SAME IN [DEX] >> OP IN [DEX] > SAME INSIDE [DEL]' },
   { slug: 'pixie-double-pickup',           adds: 4, notation: 'TOE > SAME IN [DEX] >> OP IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]' },
   { slug: 'pixie-dolomite',                adds: 6, notation: 'TOE > SAME IN [DEX] >> (no plant while) OP OUT [DEX] [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]' },
-  { slug: 'pixie-symposium-reverse-whirl', adds: 5, notation: 'TOE > SAME IN [DEX] >> (no plant while) OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'pixie-symposium-rev-whirl',     adds: 5, notation: 'TOE > SAME IN [DEX] >> (no plant while) OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'stepping-mirage',               adds: 3, notation: 'CLIP > OP IN [DEX] >> OP IN [DEX] > OP TOE [DEL]' },
   { slug: 'stepping-rev-whirl',            adds: 4, notation: 'CLIP > OP IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'stepping-illusion',             adds: 3, notation: 'CLIP > OP IN [DEX] >> OP OUT [DEX] > OP TOE [DEL]' },

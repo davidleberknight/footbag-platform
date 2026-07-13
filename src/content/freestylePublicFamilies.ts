@@ -56,6 +56,10 @@ export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
   { slug: 'legover',           label: 'Legover' },
   { slug: 'pickup',            label: 'Pickup' },
   { slug: 'whirl',             label: 'Whirl' },
+  // Reverse Whirl is its own root by curator ruling: the whirl and
+  // reverse-whirl movements are distinct terminal identities and are not
+  // grouped under one umbrella.
+  { slug: 'rev_whirl',         label: 'Reverse Whirl' },
   { slug: 'osis',              label: 'Osis' },
   { slug: 'eclipse',           label: 'Eclipse' },
   { slug: 'drifter',           label: 'Drifter' },
@@ -95,8 +99,8 @@ export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
 /**
  * Sub-label → the family whose terminal ending topology it conserves. A
  * trick_family label that is neither a family above nor listed here is NOT a
- * family: it either has too few descendants to clear the ≥3 floor (rev-whirl,
- * twirl, around-the-world, orbit) or is a universal catch surface above the
+ * family: it either has too few descendants to clear the ≥3 floor (twirl,
+ * around-the-world, orbit) or is a universal catch surface above the
  * ceiling (toe-stall, clipper-stall). Such labels do not render in the By-family
  * browse; their rows stay reachable through the raw `?family={slug}` filter.
  *

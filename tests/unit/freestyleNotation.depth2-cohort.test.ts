@@ -10,9 +10,9 @@ const APPROVED = [
   { slug: 'reverse-swirling-symposium-mirage', add: 4, family: 'mirage', notation: 'SET > SAME SWIRL [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > SAME TOE [DEL]' },
   { slug: 'reverse-swirling-paradox-torque',   add: 6, family: 'osis',   notation: 'SET > SAME SWIRL [DEX] > SAME IN [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]' },
   { slug: 'symposium-reverse-swirling-pickup', add: 4, family: 'pickup', notation: 'SET > SAME SWIRL [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > OP TOE [DEL]' },
-  { slug: 'symposium-reverse-whirling-swirl',  add: 5, family: 'swirl',  notation: 'CLIP > OP WHIRL [DEX] > SAME SYMP [DEX] > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]' },
-  { slug: 'whirling-gyro-mirage',              add: 4, family: 'mirage', notation: 'SET > GYRO [BOD] > OP WHIRL [DEX] > OP IN [DEX] > OP TOE [DEL]' },
-  { slug: 'whirling-paradox-mirage',           add: 4, family: 'mirage', notation: 'SET > OP WHIRL [DEX] > OP IN [DEX] [PDX] > OP TOE [DEL]' },
+  { slug: 'symposium-reverse-whirling-swirl',  add: 5, family: 'swirl',  notation: 'CLIP > OP BACK WHIRL [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]' },
+  { slug: 'whirling-gyro-mirage',              add: 4, family: 'mirage', notation: 'SET > GYRO [BOD] > OP FRONT WHIRL [DEX] > OP IN [DEX] > OP TOE [DEL]' },
+  { slug: 'whirling-paradox-mirage',           add: 4, family: 'mirage', notation: 'SET > OP FRONT WHIRL [DEX] > OP IN [DEX] [PDX] > OP TOE [DEL]' },
 ];
 
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;
