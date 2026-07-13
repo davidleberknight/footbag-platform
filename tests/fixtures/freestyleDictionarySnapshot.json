@@ -153,7 +153,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "BUTTERFLY",
-"operational_notation": "SET > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 11
 },
 {
@@ -166,7 +166,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SWIRL",
-"operational_notation": "CLIP > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "SET > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 12
 },
 {
@@ -330,12 +330,12 @@
 "canonical_name": "rev whirl",
 "adds": "3",
 "base_trick": "whirl",
-"trick_family": "whirl",
+"trick_family": "rev_whirl",
 "category": "dex",
 "description": null,
 "aliases_json": null,
 "notation": "REV WHIRL",
-"operational_notation": "CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 54
 },
 {
@@ -686,7 +686,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "RIPSTEIN",
-"operational_notation": "CLIP >> SAME BACK SWIRL [DEX] >> SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP >> SAME OUT [DEX] >> SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1019
 },
 {
@@ -933,7 +933,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "WHIRLING SWIRL",
-"operational_notation": "CLIP > OP IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1038
 },
 {
@@ -2397,7 +2397,7 @@
 "canonical_name": "symposium reverse whirl",
 "adds": "4",
 "base_trick": "rev_whirl",
-"trick_family": "whirl",
+"trick_family": "rev_whirl",
 "category": "compound",
 "description": null,
 "aliases_json": null,
@@ -2701,7 +2701,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "PIXIE PARADON",
-"operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME TOE [DEL]",
+"operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
 "sort_order": 1181
 },
 {
@@ -2753,7 +2753,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "STEPPING WHIRLING SWIRL",
-"operational_notation": "CLIP > OP IN [DEX] (plant) > SAME IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > OP IN [DEX] (plant) > SAME IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1185
 },
 {
@@ -3208,7 +3208,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "BLING BLANG",
-"operational_notation": "CLIP > OP FRONT WHIRL [DEX] >> SAME BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > OP FRONT WHIRL [DEX] >> SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1220
 },
 {
@@ -3338,7 +3338,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "BUTTERFLY SWIRL",
-"operational_notation": "SET > SAME/OP OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "SET > SAME/OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1230
 },
 {
@@ -3351,7 +3351,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "PARADON SWIRL",
-"operational_notation": "TOE > OP OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > OP OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1231
 },
 {
@@ -3364,7 +3364,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "BARFLY SWIRL",
-"operational_notation": "CLIP > SAME OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > SAME OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1232
 },
 {
@@ -3624,7 +3624,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "PARADOX WHIRLING SWIRL",
-"operational_notation": "CLIP > SAME IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > SAME IN [PDX] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1252
 },
 {
@@ -3676,7 +3676,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "PIXIE SWIRL",
-"operational_notation": "TOE > SAME IN [DEX] > SAME/OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > SAME IN [DEX] > SAME/OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1256
 },
 {
@@ -3754,7 +3754,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "DOUBLE OVER DOWN SWIRL",
-"operational_notation": "TOE > OP OUT [DEX] > OP OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1262
 },
 {
@@ -4560,7 +4560,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "FAIRY SWIRL",
-"operational_notation": "TOE > SAME OUT [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > SAME OUT [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1327
 },
 {
@@ -4872,7 +4872,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SPINNING SWIRL",
-"operational_notation": "CLIP > (back) SPIN [BOD] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1351
 },
 {
@@ -5184,7 +5184,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SPINNING SYMPOSIUM SWIRL",
-"operational_notation": "CLIP > (back) SPIN [BOD] > (no plant while) SAME BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (back) SPIN [BOD] > (no plant while) SAME OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1375
 },
 {
@@ -5197,7 +5197,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SPINNING BUTTERFLY SWIRL",
-"operational_notation": "CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1376
 },
 {
@@ -5392,7 +5392,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "GYRO BUTTERFLY SWIRL",
-"operational_notation": "CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1393
 },
 {
@@ -5405,7 +5405,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "GYRO SYMPOSIUM SWIRL",
-"operational_notation": "CLIP > (back) SPIN [BOD] > (no plant while) SAME BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (back) SPIN [BOD] > (no plant while) SAME OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1394
 },
 {
@@ -5418,7 +5418,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "GYRO WHIRLING SWIRL",
-"operational_notation": "CLIP > (back) SPIN [BOD] > SAME IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (back) SPIN [BOD] > SAME IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1395
 },
 {
@@ -5561,7 +5561,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "DUCKING BUTTERFLY SWIRL",
-"operational_notation": "TOE > DUCK [BOD] > OP OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > DUCK [BOD] > OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1407
 },
 {
@@ -5639,7 +5639,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "STEPPING SWIRL",
-"operational_notation": "CLIP > OP IN [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > OP IN [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1413
 },
 {
@@ -5704,7 +5704,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "STEPPING BUTTERFLY SWIRL",
-"operational_notation": "CLIP > OP IN [DEX] > SAME/OP OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > OP IN [DEX] > SAME/OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1418
 },
 {
@@ -5860,7 +5860,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "FAIRY BUTTERFLY SWIRL",
-"operational_notation": "TOE > SAME OUT [DEX] > SAME/OP OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > SAME OUT [DEX] > SAME/OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1433
 },
 {
@@ -6419,7 +6419,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "HOP OVER SWIRL",
-"operational_notation": "INSIDE > JUMP [BOD] > OP SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "INSIDE > JUMP [BOD] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1480
 },
 {
@@ -6458,7 +6458,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SPINNING PARADOX MIRAGING SYMPOSIUM TORQUE",
-"operational_notation": null,
+"operational_notation": "SET > (back) SPIN [BOD] > OP IN [PDX] [DEX] > (no plant while) OP IN [DEX] [BOD] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
 "sort_order": 1483
 },
 {
@@ -6484,7 +6484,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SPINNING PARADOX SYMPOSIUM WHIRLING SWIRL",
-"operational_notation": "CLIP > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1485
 },
 {
@@ -6523,7 +6523,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SURFING BLENDER",
-"operational_notation": "TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP BACK SWIRL [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP OUT [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1488
 },
 {
@@ -6739,7 +6739,7 @@
 "canonical_name": "stepping rev whirl",
 "adds": "4",
 "base_trick": "rev_whirl",
-"trick_family": "whirl",
+"trick_family": "rev_whirl",
 "category": "compound",
 "description": null,
 "aliases_json": null,
@@ -6843,7 +6843,7 @@
 "canonical_name": "spinning rev whirl",
 "adds": "4",
 "base_trick": "rev_whirl",
-"trick_family": "whirl",
+"trick_family": "rev_whirl",
 "category": "compound",
 "description": null,
 "aliases_json": null,
@@ -6887,7 +6887,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SPINNING WHIRLING SWIRL",
-"operational_notation": "CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1518
 },
 {
@@ -6965,7 +6965,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SPINNING SYMPOSIUM WHIRLING SWIRL",
-"operational_notation": "CLIP > (back) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (back) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1524
 },
 {
@@ -7095,7 +7095,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "DIVING SWIRL",
-"operational_notation": "CLIP > DIVE [BOD] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > DIVE [BOD] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1534
 },
 {
@@ -7220,7 +7220,7 @@
 "canonical_name": "fairy rev whirl",
 "adds": "4",
 "base_trick": "rev_whirl",
-"trick_family": "whirl",
+"trick_family": "rev_whirl",
 "category": "compound",
 "description": null,
 "aliases_json": null,
@@ -7238,7 +7238,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "FAIRY RIPSTEIN",
-"operational_notation": "TOE > SAME OUT [DEX] > SAME BACK SWIRL [DEX] >> SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > SAME OUT [DEX] > SAME OUT [DEX] >> SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1545
 },
 {
@@ -7264,7 +7264,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "FAIRY SWIRLING SWIRL",
-"operational_notation": "TOE > SAME OUT [DEX] > SAME BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > SAME OUT [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1547
 },
 {
@@ -7433,7 +7433,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SYMPOSIUM SWIRL",
-"operational_notation": "CLIP > (no plant while) SAME BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (no plant while) SAME OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1561
 },
 {
@@ -7459,7 +7459,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SYMPOSIUM WHIRLING SWIRL",
-"operational_notation": "CLIP > OP IN [DEX] > (no plant while) OP BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1563
 },
 {
@@ -7485,7 +7485,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SWIRLING BUTTERFLY",
-"operational_notation": "SET > SAME BACK SWIRL [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "SET > SAME OUT [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1565
 },
 {
@@ -7498,7 +7498,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SWIRLING MIRAGE",
-"operational_notation": "SET > SAME BACK SWIRL [DEX] > OP IN [DEX] > OP TOE [DEL]",
+"operational_notation": "SET > SAME OUT [DEX] > OP IN [DEX] > OP TOE [DEL]",
 "sort_order": 1566
 },
 {
@@ -7511,7 +7511,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SWIRLING PARADOX MIRAGE",
-"operational_notation": "CLIP > SAME BACK SWIRL [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL]",
+"operational_notation": "CLIP > SAME OUT [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL]",
 "sort_order": 1567
 },
 {
@@ -7524,7 +7524,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SWIRLING SWIRL",
-"operational_notation": "CLIP > SAME BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > SAME OUT [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1568
 },
 {
@@ -7537,7 +7537,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SWIRLING SYMPOSIUM WHIRL",
-"operational_notation": "SET > SAME BACK SWIRL [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "SET > SAME OUT [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1569
 },
 {
@@ -7550,7 +7550,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SWIRLING WHIRL",
-"operational_notation": "SET > SAME BACK SWIRL [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "SET > SAME OUT [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1570
 },
 {
@@ -7563,7 +7563,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SWIRLING WHIRLING SWIRL",
-"operational_notation": "CLIP > SAME BACK SWIRL [DEX] > OP IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > SAME OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1571
 },
 {
@@ -7584,7 +7584,7 @@
 "canonical_name": "pixie rev whirl",
 "adds": "4",
 "base_trick": "rev_whirl",
-"trick_family": "whirl",
+"trick_family": "rev_whirl",
 "category": "compound",
 "description": null,
 "aliases_json": null,
@@ -7636,7 +7636,7 @@
 "canonical_name": "pixie symposium rev whirl",
 "adds": "5",
 "base_trick": "rev_whirl",
-"trick_family": "whirl",
+"trick_family": "rev_whirl",
 "category": "compound",
 "description": null,
 "aliases_json": null,
@@ -7654,7 +7654,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "PIXIE SYMPOSIUM WHIRLING SWIRL",
-"operational_notation": "TOE > SAME IN [DEX] >> OP IN [DEX] > (no plant while) OP BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > SAME IN [DEX] >> OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1578
 },
 {
@@ -7892,19 +7892,6 @@
 "sort_order": 1599
 },
 {
-"slug": "pixie_symposium_reverse_whirl",
-"canonical_name": "pixie symposium reverse whirl",
-"adds": "5",
-"base_trick": "symposium_reverse_whirl",
-"trick_family": "whirl",
-"category": "compound",
-"description": null,
-"aliases_json": null,
-"notation": "PIXIE SYMPOSIUM REVERSE WHIRL",
-"operational_notation": "TOE > SAME IN [DEX] >> (no plant while) OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1601
-},
-{
 "slug": "fairy_ducking_mirage",
 "canonical_name": "fairy ducking mirage",
 "adds": "4",
@@ -8031,7 +8018,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "BARRAGING BARFLY SWIRL",
-"operational_notation": "CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1612
 },
 {
@@ -8039,7 +8026,7 @@
 "canonical_name": "ducking symposium reverse whirl",
 "adds": "5",
 "base_trick": "symposium_reverse_whirl",
-"trick_family": "whirl",
+"trick_family": "rev_whirl",
 "category": "compound",
 "description": null,
 "aliases_json": null,
@@ -8187,7 +8174,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "REVERSE SWIRLING SYMPOSIUM MIRAGE",
-"operational_notation": "SET > SAME SWIRL [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > SAME TOE [DEL]",
+"operational_notation": "SET > SAME IN [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > SAME TOE [DEL]",
 "sort_order": 1624
 },
 {
@@ -8200,7 +8187,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "REVERSE SWIRLING PARADOX TORQUE",
-"operational_notation": "SET > SAME SWIRL [DEX] > SAME IN [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "SET > SAME IN [DEX] > SAME IN [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1625
 },
 {
@@ -8213,7 +8200,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SYMPOSIUM REVERSE SWIRLING PICKUP",
-"operational_notation": "SET > SAME SWIRL [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > OP TOE [DEL]",
+"operational_notation": "SET > SAME IN [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > OP TOE [DEL]",
 "sort_order": 1626
 },
 {
@@ -8226,7 +8213,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SYMPOSIUM REVERSE WHIRLING SWIRL",
-"operational_notation": "CLIP > OP WHIRL [DEX] > SAME SYMP [DEX] > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > OP BACK WHIRL [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1627
 },
 {
@@ -8239,7 +8226,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "WHIRLING GYRO MIRAGE",
-"operational_notation": "SET > GYRO [BOD] > OP WHIRL [DEX] > OP IN [DEX] > OP TOE [DEL]",
+"operational_notation": "SET > GYRO [BOD] > OP FRONT WHIRL [DEX] > OP IN [DEX] > OP TOE [DEL]",
 "sort_order": 1628
 },
 {
@@ -8252,7 +8239,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "WHIRLING PARADOX MIRAGE",
-"operational_notation": "SET > OP WHIRL [DEX] > OP IN [DEX] [PDX] > OP TOE [DEL]",
+"operational_notation": "SET > OP FRONT WHIRL [DEX] > OP IN [DEX] [PDX] > OP TOE [DEL]",
 "sort_order": 1629
 },
 {
@@ -8356,7 +8343,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "REVERSE WHIRLING TWIRL",
-"operational_notation": "CLIP >> OP FRONT SWIRL [DEX] > OP WHIRL [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP >> OP FRONT SWIRL [DEX] > OP BACK WHIRL [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1637
 },
 {
@@ -8382,7 +8369,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "REV SWIRL",
-"operational_notation": "CLIP > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "SET > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1639
 },
 {
@@ -8395,7 +8382,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "DIVING REVERSE SWIRL",
-"operational_notation": "CLIP > DIVE [BOD] > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > DIVE [BOD] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1640
 },
 {
@@ -8408,7 +8395,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "FAIRY REVERSE SWIRL",
-"operational_notation": "TOE > SAME OUT [DEX] >> OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "TOE > SAME OUT [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1641
 },
 {
@@ -8421,7 +8408,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "PIXIE REVERSE SWIRL",
-"operational_notation": "TOE > SAME IN [DEX] >> OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "TOE > SAME IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1642
 },
 {
@@ -8434,7 +8421,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SPINNING REVERSE SWIRL",
-"operational_notation": "CLIP > (back) SPIN [BOD] > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1643
 },
 {
@@ -8447,7 +8434,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "STEPPING REVERSE SWIRL",
-"operational_notation": "CLIP > OP IN [DEX] >> OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > OP IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1644
 },
 {
@@ -8460,7 +8447,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SWIRLING REVERSE SWIRL",
-"operational_notation": "CLIP > OP BACK SWIRL [DEX] > SAME SWIRL [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > OP OUT [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1645
 },
 {
@@ -8473,7 +8460,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "TOE SYMPOSIUM SWIRL",
-"operational_notation": "TOE > SAME SYMP [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > SAME SYMP [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1646
 },
 {
@@ -8486,7 +8473,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "TOE WHIRLING SWIRL",
-"operational_notation": "TOE > OP WHIRL [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > OP FRONT WHIRL [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1647
 },
 {
@@ -8529,68 +8516,16 @@
 "sort_order": 1650
 },
 {
-"slug": "fairy_reverse_whirl",
-"canonical_name": "fairy reverse whirl",
-"adds": "4",
-"base_trick": "whirl",
-"trick_family": "whirl",
-"category": "compound",
-"description": null,
-"aliases_json": null,
-"notation": "FAIRY REVERSE WHIRL",
-"operational_notation": "TOE > SAME OUT [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1651
-},
-{
-"slug": "pixie_reverse_whirl",
-"canonical_name": "pixie reverse whirl",
-"adds": "4",
-"base_trick": "whirl",
-"trick_family": "whirl",
-"category": "compound",
-"description": null,
-"aliases_json": null,
-"notation": "PIXIE REVERSE WHIRL",
-"operational_notation": "TOE > SAME IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1652
-},
-{
-"slug": "spinning_reverse_whirl",
-"canonical_name": "spinning reverse whirl",
-"adds": "4",
-"base_trick": "whirl",
-"trick_family": "whirl",
-"category": "compound",
-"description": null,
-"aliases_json": null,
-"notation": "SPINNING REVERSE WHIRL",
-"operational_notation": "SET > (back) SPIN [BOD] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1653
-},
-{
-"slug": "stepping_reverse_whirl",
-"canonical_name": "stepping reverse whirl",
-"adds": "4",
-"base_trick": "whirl",
-"trick_family": "whirl",
-"category": "compound",
-"description": null,
-"aliases_json": null,
-"notation": "STEPPING REVERSE WHIRL",
-"operational_notation": "CLIP > OP IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1654
-},
-{
 "slug": "whirling_reverse_whirl",
 "canonical_name": "whirling reverse whirl",
 "adds": "4",
 "base_trick": "whirl",
-"trick_family": "whirl",
+"trick_family": "rev_whirl",
 "category": "compound",
 "description": null,
 "aliases_json": null,
 "notation": "WHIRLING REVERSE WHIRL",
-"operational_notation": "SET > SAME IN [DEX] > OP WHIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "SET > OP FRONT WHIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1655
 },
 {
@@ -8629,7 +8564,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "REVERSE SWIRLING BLENDER",
-"operational_notation": "SET > SAME SWIRL [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
+"operational_notation": "SET > SAME IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
 "sort_order": 1658
 },
 {
@@ -8668,7 +8603,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "REVERSE SWIRLING OSIS",
-"operational_notation": "SET > OP SWIRL [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]",
+"operational_notation": "SET > OP IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]",
 "sort_order": 1661
 },
 {
@@ -8720,7 +8655,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "REVERSE SWIRLING PICKUP",
-"operational_notation": "SET > SAME SWIRL [DEX] > SAME IN [DEX] > OP TOE [DEL]",
+"operational_notation": "SET > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]",
 "sort_order": 1665
 },
 {
@@ -8746,7 +8681,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "REVERSE WHIRLING RAKE",
-"operational_notation": "SET > OP WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL]",
+"operational_notation": "SET > OP BACK WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL]",
 "sort_order": 1667
 },
 {
@@ -8759,7 +8694,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "PARADOX WHIRLING RAKE",
-"operational_notation": "SET > OP WHIRL [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]",
+"operational_notation": "SET > OP FRONT WHIRL [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]",
 "sort_order": 1668
 },
 {
@@ -8772,7 +8707,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "PARADOX SYMPOSIUM WHIRLING RAKE",
-"operational_notation": "SET > OP WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]",
+"operational_notation": "SET > OP FRONT WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]",
 "sort_order": 1669
 },
 {
@@ -8919,16 +8854,16 @@
 "sort_order": 1680
 },
 {
-"slug": "atomic_kick",
-"canonical_name": "atomic kick",
+"slug": "illusioning_kick",
+"canonical_name": "illusioning kick",
 "adds": "1",
-"base_trick": "atomic_kick",
-"trick_family": "atomic_kick",
+"base_trick": "illusioning_kick",
+"trick_family": "illusioning_kick",
 "category": "dex",
 "description": null,
 "aliases_json": null,
-"notation": "ATOMIC KICK",
-"operational_notation": "TOE > OP OUT [DEX] [KICK]",
+"notation": "ILLUSIONING KICK",
+"operational_notation": "SET > OP OUT [DEX] [KICK]",
 "sort_order": 1681
 },
 {
@@ -8967,7 +8902,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "TRIPLE SWIRL",
-"operational_notation": "CLIP > SAME BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > SAME OUT [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1684
 },
 {
@@ -9435,7 +9370,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SURGING DUCKING PARADOX SYMPOSIUM WHIRLING RAKE",
-"operational_notation": "CLIP > OP IN [DEX] >> (back) SPIN [BOD] >> DUCK [BOD] >> OP WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]",
+"operational_notation": "CLIP > OP IN [DEX] >> (back) SPIN [BOD] >> DUCK [BOD] >> OP FRONT WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]",
 "sort_order": 1723
 },
 {
@@ -9448,7 +9383,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "REVERSE SWIRLING PARADOX SYMPOSIUM WHIRL",
-"operational_notation": "SET > SAME SWIRL [DEX] > SAME SYMP [DEX] > SAME IN [DEX] [PDX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "SET > SAME IN [DEX] > SAME SYMP [DEX] > SAME IN [DEX] [PDX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1724
 },
 {
@@ -9898,7 +9833,7 @@
 "canonical_name": "nuclear rev whirl",
 "adds": "5",
 "base_trick": "rev_whirl",
-"trick_family": "whirl",
+"trick_family": "rev_whirl",
 "category": "compound",
 "description": null,
 "aliases_json": null,
@@ -9968,7 +9903,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "QUANTUM BUTTERFLY SWIRL",
-"operational_notation": "TOE > OP IN [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > OP IN [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1764
 },
 {
@@ -9994,7 +9929,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "PIXIE DUCKING BUTTERFLY SWIRL",
-"operational_notation": "TOE > SAME IN [DEX] >> DUCK [BOD] >> SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > SAME IN [DEX] >> DUCK [BOD] >> SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1766
 },
 {
@@ -10072,7 +10007,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "STEPPING DUCKING BUTTERFLY SWIRL",
-"operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1772
 },
 {
@@ -10150,7 +10085,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "TAPPING WHIRLING SWIRL",
-"operational_notation": "TOE > OP OUT [DEX] >> OP IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > OP OUT [DEX] >> OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1778
 },
 {
@@ -10163,7 +10098,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "PIXIE BUTTERFLY SWIRL",
-"operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1779
 },
 {
@@ -10267,7 +10202,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SPINNING WHIRLING SYMPOSIUM SWIRL",
-"operational_notation": "CLIP > (back) SPIN [BOD] > OP IN [DEX] > (no plant while) OP BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (back) SPIN [BOD] > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1787
 },
 {
@@ -10319,7 +10254,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "SWIRLING PARADOX SYMPOSIUM WHIRL",
-"operational_notation": "CLIP > SAME BACK SWIRL [DEX] > (no plant while) SAME IN [BOD] [PDX] [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > SAME OUT [DEX] > (no plant while) SAME IN [BOD] [PDX] [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1791
 },
 {
@@ -10462,7 +10397,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
-"operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1802
 },
 {
@@ -11190,7 +11125,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "POGO WHIRLING SWIRL",
-"operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1858
 },
 {
@@ -11203,7 +11138,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "ATOMIC SWIRL",
-"operational_notation": "TOE > OP OUT [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "TOE > OP OUT [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1859
 },
 {
@@ -11281,7 +11216,7 @@
 "description": null,
 "aliases_json": null,
 "notation": null,
-"operational_notation": "TOE > OP OUT [DEX] > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "TOE > OP OUT [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1865
 },
 {
@@ -11489,7 +11424,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "CLIP > OP IN [DEX] > OP IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
-"operational_notation": "CLIP > OP IN [DEX] > OP IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > OP IN [DEX] > OP IN [PDX] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1881
 },
 {
@@ -11840,7 +11775,7 @@
 "description": null,
 "aliases_json": null,
 "notation": null,
-"operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > SAME/OP OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > SAME/OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1908
 },
 {
@@ -11935,8 +11870,151 @@
 "sort_order": 1915
 },
 {
-"slug": "furious_paradox_mirage",
-"canonical_name": "furious paradox mirage",
+"slug": "blink",
+"canonical_name": "Blink",
+"adds": "2",
+"base_trick": null,
+"trick_family": null,
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": "BLINK",
+"operational_notation": "SET > OP BACK SWIRL [DEX] > OP TOE [DEL]",
+"sort_order": 1917
+},
+{
+"slug": "atomic_zulu_mirage",
+"canonical_name": "atomic zulu mirage",
+"adds": "4",
+"base_trick": "mirage",
+"trick_family": "mirage",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE > OP OUT [DEX] > (across body) DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]",
+"sort_order": 1918
+},
+{
+"slug": "zulu_eclipse",
+"canonical_name": "zulu eclipse",
+"adds": "4",
+"base_trick": "eclipse",
+"trick_family": "eclipse",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE > (across body) DUCK [BOD] JUMP [BOD] > SAME INSIDE [DEL] > SAME TOE [DEL]",
+"sort_order": 1919
+},
+{
+"slug": "zulu_paradox_drifter",
+"canonical_name": "zulu paradox drifter",
+"adds": "5",
+"base_trick": "drifter",
+"trick_family": "drifter",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "CLIP > (across body) DUCK [BOD] > OP IN [PDX] [DEX] > SAME CLIP [XBD] [DEL]",
+"sort_order": 1920
+},
+{
+"slug": "zulu_paradox_mirage",
+"canonical_name": "zulu paradox mirage",
+"adds": "4",
+"base_trick": "mirage",
+"trick_family": "mirage",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "CLIP > (across body) DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]",
+"sort_order": 1921
+},
+{
+"slug": "zulu_reverse_guay",
+"canonical_name": "zulu reverse guay",
+"adds": "3",
+"base_trick": "reverse_guay",
+"trick_family": "inside_stall",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "SET > (across body) DUCK [BOD] > SAME IN [DEX] > OP INSIDE [DEL]",
+"sort_order": 1922
+},
+{
+"slug": "zulu_symposium_mirage",
+"canonical_name": "zulu symposium mirage",
+"adds": "4",
+"base_trick": "mirage",
+"trick_family": "mirage",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE > (across body) DUCK [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]",
+"sort_order": 1923
+},
+{
+"slug": "fairy_zulu_butterfly",
+"canonical_name": "fairy zulu butterfly",
+"adds": "5",
+"base_trick": "butterfly",
+"trick_family": "butterfly",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE > SAME OUT [DEX] >> (across body) DUCK [BOD] >> SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
+"sort_order": 1924
+},
+{
+"slug": "fairy_zulu_mirage",
+"canonical_name": "fairy zulu mirage",
+"adds": "4",
+"base_trick": "mirage",
+"trick_family": "mirage",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE > SAME OUT [DEX] >> (across body) DUCK [BOD] >> OP IN [DEX] > OP TOE [DEL]",
+"sort_order": 1925
+},
+{
+"slug": "pixie_zulu_butterfly",
+"canonical_name": "pixie zulu butterfly",
+"adds": "5",
+"base_trick": "butterfly",
+"trick_family": "butterfly",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE > SAME IN [DEX] >> (across body) DUCK [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
+"sort_order": 1926
+},
+{
+"slug": "pixie_zulu_osis",
+"canonical_name": "pixie zulu osis",
+"adds": "5",
+"base_trick": "osis",
+"trick_family": "osis",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE > SAME IN [DEX] >> (across body) DUCK [BOD] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
+"sort_order": 1927
+},
+{
+"slug": "pixie_zulu_symposium_mirage",
+"canonical_name": "pixie zulu symposium mirage",
 "adds": "5",
 "base_trick": "mirage",
 "trick_family": "mirage",
@@ -11944,8 +12022,34 @@
 "description": null,
 "aliases_json": null,
 "notation": null,
-"operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL]",
-"sort_order": 1916
+"operational_notation": "TOE > SAME IN [DEX] >> (across body) DUCK [BOD] >> (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]",
+"sort_order": 1928
+},
+{
+"slug": "pixie_zulu_whirl",
+"canonical_name": "pixie zulu whirl",
+"adds": "5",
+"base_trick": "whirl",
+"trick_family": "whirl",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE > SAME IN [DEX] >> (across body) DUCK [BOD] >> OP IN [DEX] > OP CLIP [XBD] [DEL]",
+"sort_order": 1929
+},
+{
+"slug": "spinning_zulu_butterfly",
+"canonical_name": "spinning zulu butterfly",
+"adds": "5",
+"base_trick": "butterfly",
+"trick_family": "butterfly",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "CLIP > (back) SPIN [BOD] > (across body) DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
+"sort_order": 1930
 }
 ],
 "modifiers": [
@@ -12019,7 +12123,7 @@
 "add_bonus": 1,
 "add_bonus_rotational": 1,
 "modifier_type": "body",
-"notes": "Swirling contributes +1 ADD as a body-spin modifier, parallel to spinning. The bonus is the same on rotational and non-rotational bases."
+"notes": "Swirling contributes +1 ADD by inserting the swirl-cell dexterity (a same-side out dex) ahead of the base. The bonus is the same on rotational and non-rotational bases."
 },
 {
 "slug": "symposium",
@@ -12313,7 +12417,7 @@
 },
 {
 "alias_text": "illusion kick",
-"trick_slug": "atomic_kick"
+"trick_slug": "illusioning_kick"
 },
 {
 "alias_text": "illusioning symposium butterfly",
@@ -12729,7 +12833,7 @@
 },
 {
 "alias_text": "barraging paradox mirage",
-"trick_slug": "furious_paradox_mirage"
+"trick_slug": "fury"
 },
 {
 "alias_text": "atomic double over down",
@@ -13570,6 +13674,42 @@
 {
 "alias_text": "whirlwalk",
 "trick_slug": "whirling_whirl"
+},
+{
+"alias_text": "fairy reverse whirl",
+"trick_slug": "fairy_rev_whirl"
+},
+{
+"alias_text": "pixie reverse whirl",
+"trick_slug": "pixie_rev_whirl"
+},
+{
+"alias_text": "pixie symposium reverse whirl",
+"trick_slug": "pixie_symposium_rev_whirl"
+},
+{
+"alias_text": "spinning reverse whirl",
+"trick_slug": "spinning_rev_whirl"
+},
+{
+"alias_text": "stepping reverse whirl",
+"trick_slug": "stepping_rev_whirl"
+},
+{
+"alias_text": "furious paradox mirage",
+"trick_slug": "fury"
+},
+{
+"alias_text": "furious george",
+"trick_slug": "archnemesis"
+},
+{
+"alias_text": "high stepping ddd",
+"trick_slug": "archnemesis"
+},
+{
+"alias_text": "nuclear ddd",
+"trick_slug": "cold_fusion"
 }
 ]
 }

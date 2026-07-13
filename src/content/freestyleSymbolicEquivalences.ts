@@ -48,8 +48,9 @@
  *     provenance.
  *   - curatorConfirmPending=true entries ship with the rendered pending flag
  *     until Red adjudication locks them.
- *   - Fury is deliberately omitted: pt1 (barraging paradox mirage) vs pt6
- *     (furious paradox mirage) conflict is unresolved. Add after Red rules.
+ *   - Fury's chain entry carries the Red-ruled reading (furious paradox
+ *     mirage); the earlier barraging reading survives only as an alias on
+ *     the dictionary row, never as a chain reading.
  *   - Royale is lineage-only (no chain authored yet); Layer 3 ("Built on
  *     illusion") will render today from its row.base_trick=illusion.
  *

@@ -1851,7 +1851,9 @@ export const freestyleRecords = {
     WHERE fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
       AND fr.superseded_by IS NULL
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
-    ORDER BY fr.record_type ASC, fr.value_numeric DESC
+    ORDER BY fr.record_type ASC,
+             LOWER(COALESCE(fr.trick_name, fr.sort_name, '')) ASC,
+             fr.value_numeric DESC
   `); },
 
   get countPublicByType() { return db.prepare(`
@@ -2253,16 +2255,6 @@ export const freestyleTricks = {
     FROM freestyle_tricks
     WHERE trick_family = ? AND is_active = 1
     ORDER BY sort_order ASC
-  `); },
-
-  // TT Series view needs to distinguish "trick exists but pending" from
-  // "trick not in dictionary at all". listAll / getBySlug filter is_active=1
-  // so pending rows are invisible to them; this getter exposes the row
-  // including is_active so the TT view can render PENDING vs MISSING.
-  get getAnyStatusBySlug() { return db.prepare(`
-    SELECT slug, canonical_name, is_active
-    FROM freestyle_tricks
-    WHERE slug = ?
   `); },
 
   // Category and active flag for a slug regardless of is_active, so the

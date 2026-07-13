@@ -60,10 +60,10 @@ describe('RESOLVED_ADD_FORMULAS — paradox family entries', () => {
     expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
   });
 
-  it('paradox-whirling-swirl overlay carries FB.org-confirmed JOB (preserves OP BACK SWIRL + SAME CLIP)', () => {
+  it('paradox-whirling-swirl overlay carries FB.org-confirmed JOB (preserves the out second dex + SAME CLIP)', () => {
     const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'paradox_whirling_swirl');
     expect(entry?.totalAdd).toBe(5);
-    expect(entry?.operationalNotation).toBe('CLIP > SAME IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]');
+    expect(entry?.operationalNotation).toBe('CLIP > SAME IN [PDX] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]');
   });
 
   it('both paradox compounds use the standard paradox-prefix pattern SAME IN [PDX] [DEX]', () => {
@@ -89,12 +89,11 @@ describe('Paradox-family detail pages — first-class JOB + ADD', () => {
     expect(res.text).toMatch(/class="op-token[^"]*"[^>]*>\(NO PLANT WHILE\)</);
   });
 
-  it('/freestyle/tricks/paradox_whirling_swirl renders 5 ADD + OP BACK SWIRL rotation-variant token', async () => {
+  it('/freestyle/tricks/paradox_whirling_swirl renders 5 ADD with the ordinary IN/OUT vocabulary, no retired swirl token', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/paradox_whirling_swirl');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
-    // BACK SWIRL fuses into rotation_variant token per operationalNotationRendering
-    expect(res.text).toMatch(/class="op-token[^"]*rotation-variant[^"]*"[^>]*>BACK SWIRL</);
+    expect(res.text).not.toContain('BACK SWIRL');
     // Standard PDX + tokens
     for (const token of ['[PDX]', '[DEX]', '[XBD]', '[DEL]']) {
       const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

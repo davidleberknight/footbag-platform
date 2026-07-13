@@ -53,6 +53,7 @@ const STATIC_PUBLIC_PATHS = [
   '/freestyle/observational',
   '/freestyle/insights',
   '/freestyle/learn',
+  '/freestyle/start',
   '/freestyle/add-analysis',
   '/freestyle/combo-analysis',
   '/freestyle/media',

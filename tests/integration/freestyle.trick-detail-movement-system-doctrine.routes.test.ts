@@ -1,7 +1,8 @@
 /**
  * Trick-detail Movement-system row doctrine.
  *
- * Miraging is descriptive or downtime mirage-family language, not a modern set,
+ * Miraging is descriptive mirage-family language for the inward standalone
+ * movement, not a launch set,
  * so a Miraging trick page must NOT render the "Set / Uptime Systems"
  * movement-system row (that row is derived from the set-uptime axis, and
  * miraging was removed from it). The corrected Miraging modifier row still
@@ -72,11 +73,11 @@ describe('GET /freestyle/tricks/:slug — Miraging pages drop the stale set-upti
     expect(text).not.toContain('Set / Uptime Systems');
   });
 
-  it('miraging pages still carry the corrected Miraging modifier row (descriptive/downtime, not a modern set)', async () => {
+  it('miraging pages still carry the corrected Miraging modifier row (descriptive standalone movement, not a launch set)', async () => {
     for (const slug of ['miraging_pickup', 'miraging_eclipse']) {
       const { text } = await trick(slug);
       expect(text, slug).toMatch(/mirage-family language/i);
-      expect(text, slug).toMatch(/not treated as a modern set/i);
+      expect(text, slug).toMatch(/not a launch set/i);
     }
   });
 

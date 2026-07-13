@@ -133,23 +133,21 @@ export const CORE_ATOM_EDUCATIONAL: readonly CoreAtomEducationalCard[] = [
     relates:     "Osis is the rotational cross-body atom, a cousin of whirl, swirl, and butterfly. It is the base a single operator turns into a famous-sounding compound: quantum osis is torque, whirling osis is blender (see Torque, and Name vs Structure).",
   },
   {
-    // Surface Frame note (author-only, not rendered): do not publish the larger
-    // whirl / swirl / whip / reverse-swirl explanation until the reverse-swirl
-    // notation is verified. The deeper framework is unsettled, not the entries;
-    // the public whirl and swirl cards below may still state the settled
-    // whirl/swirl distinction, and they do.
+    // The four clipper-terminal tricks (whirl, reverse whirl, swirl, reverse
+    // swirl) are one ratified 2x2 matrix: dexing leg (OP or SAME) by direction
+    // (IN or OUT), all from a flexible set into a clipper terminal.
     slug:        'whirl',
     displayName: 'Whirl',
     adds:        '3',
     line:        "Formula: set + opposite-side in-dex + cross-body clipper catch. An inward dex that finishes not on an open toe but across the body on a clipper, behind the leg.",
-    relates:     "Whirl is one of the sport's major rotational bases. Many body and set modifiers have whirling forms, and whirling an osis gives blender, one of the two great osis compounds alongside torque. It is structurally distinct from swirl: the two are separate atoms with different entry surfaces, dex forms, and catch relationships.",
+    relates:     "Whirl is one of the sport's major rotational bases. Many body and set modifiers have whirling forms, and whirling an osis gives blender, one of the two great osis compounds alongside torque. It is one cell of the clipper-terminal matrix: the opposite leg circling in, beside reverse whirl (opposite leg, out), swirl (same leg, out), and reverse swirl (same leg, in).",
   },
   {
     slug:        'swirl',
     displayName: 'Swirl',
     adds:        '3',
-    line:        "Formula: clipper set + same-side back-swirl dex + cross-body clipper catch. A back-circling swirl dex from a clipper entry, finishing on a same-side clipper.",
-    relates:     "Swirl is its own cross-body atom, structurally distinct from whirl. It enters from clipper, uses a back-swirl dex, and catches same-side; whirl enters from an open set, uses an in-dex, and catches opposite. Swirl heads its own line of swirling compounds.",
+    line:        "Formula: set + same-side out dex + same-side cross-body clipper catch. The same-side leg circles outward once and the bag lands on a same-side clipper; the entry is flexible.",
+    relates:     "Swirl is its own cross-body atom, structurally distinct from whirl: swirl's dex is the same-side leg circling out, where whirl's is the opposite leg circling in, and each catches on its own side's clipper. The four clipper-terminal siblings form one leg-by-direction matrix, and swirl heads its own line of swirling compounds.",
   },
 ];
 

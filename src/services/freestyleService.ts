@@ -414,6 +414,10 @@ export interface FreestyleRecordsContent {
   // entry, so its name renders without a link; drives an honest note that
   // some historical record names are not in the current dictionary.
   hasUnlinkedRecords: boolean;
+  // Count of records whose canonical identity is under curator review, each
+  // shown with a "Needs curator review" status and its open question; drives
+  // the explanatory note for that cohort.
+  curatorReviewCount: number;
 }
 
 export interface FreestyleTrickSearchResult {
@@ -764,15 +768,15 @@ const OPERATOR_BOARD_PROSE: Record<OperatorBoardSurface, { heading: string; lede
   // do the structural teaching.
   landing: {
     heading: 'The operators of freestyle',
-    lede:    'Fourteen primitives. Combine them to build every named trick.',
+    lede:    'Named sets, body movements, and structural relationships. Combine them to build every named trick.',
   },
   glossary: {
     heading: 'The compositional vocabulary',
-    lede:    'Fourteen primitive operators. The sections below define each in depth.',
+    lede:    'Named sets, body movements, and structural relationships. The sections below define each in depth.',
   },
   learn: {
-    heading: 'Start with the operators',
-    lede:    'Learn these fourteen primitives first; every other surface assumes their vocabulary.',
+    heading: 'Explore the movement-language index',
+    lede:    'A reference board of named sets, body movements, and structural relationships. The lessons and progressions above teach them in context; come back here when a name needs a definition.',
   },
 };
 
@@ -3629,7 +3633,7 @@ const SET_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     name:        'Fairy',
     glyph:       'FAIRY',
     feel:        'Fairy sets the bag from a toe delay, then dexes outward on the same side before the base; the outward-circling mirror of pixie.',
-    intuition:   'A set primitive in its own right, the directional opposite of pixie: pixie dexes inward, fairy outward. It pairs with most bases like the other uptime sets.',
+    intuition:   'A set primitive in its own right, the directional opposite of pixie: pixie dexes inward, fairy outward. It pairs with most bases like the other sets.',
     example:     'Appears as both a standalone base and a modifier on other bases.',
     familyHint:  null,
     midtimeBody: false,
@@ -3718,7 +3722,7 @@ const ENTRY_TOPOLOGY_FEEL_CARDS: readonly ModifierFeelCard[] = [
     slug:        'paradox',
     name:        'Paradox',
     glyph:       null,
-    feel:        'Paradox pivots the hips between two dexes on the same set; the body changes sides mid-trick.',
+    feel:        'Paradox pivots the hips on a single dex; the body changes sides mid-trick without adding another dex.',
     intuition:   'A dex relationship, not a body movement: the body changes sides between dex events without changing the set foot.',
     example:     'Paradox Whirl; Paradox Mirage.',
     familyHint:  'Paradox pairs naturally with symposium and stacks inside nuclear.',
@@ -4744,7 +4748,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'symposium_tomahawk',
   'symposium_whirling_swirl',
   'symposium_miraging_mirage',
-  // Swirling + base batch (OP BACK SWIRL [DEX] prefix chassis; swirling=+1; all bases canonical).
+  // Swirling + base batch (same-side out-dex prefix chassis; swirling=+1; all bases canonical).
   'swirling_butterfly',
   'swirling_mirage',
   'swirling_paradox_mirage',
@@ -4783,7 +4787,6 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'pixie_double_pickup',
   'darkwalk',
   'pixie_ducking_butterfly',
-  'pixie_symposium_reverse_whirl',
   'fairy_ducking_mirage',
   'fairy_torque',
   'diving_clipper',
@@ -4974,7 +4977,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'avalanche',                   // stepping(+1) + ducking(+1) + paradox-illusion(3) = 5 ADD (alias: Stepping Ducking Paradox Illusion)
   'spike_hammer',                // stepping(+1) + ducking(+1) + paradox-mirage(3) = 5 ADD (alias: Stepping Ducking Paradox Mirage)
   // ── Double-over-down-swirl (extends double-over-down chassis; FB.org-confirmed JOB):
-  'double_over_down_swirl',      // [DEX] + [DEX] + [DEX] + [XBD] + [DEL] = 5 ADD (double-over-down + OP BACK SWIRL third dex)
+  'double_over_down_swirl',      // [DEX] + [DEX] + [DEX] + [XBD] + [DEL] = 5 ADD (double-over-down + a third out dex into the clipper)
   // ── Quantum-symposium-mirage ('toe X → quantum X' retirement; FB.org-confirmed JOB):
   'quantum_symposium_mirage',    // quantum(+1) + symposium-mirage(3) = 4 ADD ([DEX] + [BOD] + [DEX] + [DEL]); folk-name alias "Backside Symposium Toe Blur"
 ]);
@@ -5169,7 +5172,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   ['swirl', {
     decomposition:    'xbody(1) + dex(1) + stall(1) = 3 ADD',
     totalAdd:         3,
-    operationalChain: 'SET > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]',
+    operationalChain: 'SET > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]',
   }],
   ['osis', {
     decomposition:    'spin(1) + xbod(1) + stall(1) = 3 ADD',
@@ -5184,7 +5187,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     // foundational primitives.
     decomposition:    'dex(1) + stall(1) = 2 ADD',
     totalAdd:         2,
-    operationalChain: 'TOE > SAME IN [DEX] > SAME TOE [DEL]',
+    operationalChain: 'TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]',
   }],
   // ── Foundational 1-ADD surface vocabulary (added with the
   //    foundational-band first-class widening). Anatomical surface stalls
@@ -7073,7 +7076,11 @@ export const freestyleService = {
 
     const groups = groupByType(rows);
     const holderSet = new Set(rows.map(r => r.person_id ?? r.holder_name));
-    const hasUnlinkedRecords = groups.some(g => g.records.some(r => r.trickHref == null));
+    const shapedRecords = groups.flatMap(g => g.records);
+    // Curator-review records carry their own explanation, so they are excluded
+    // from the generic "name not in the dictionary" note.
+    const hasUnlinkedRecords = shapedRecords.some(r => r.trickHref == null && r.reviewNote == null);
+    const curatorReviewCount = shapedRecords.filter(r => r.reviewNote != null).length;
 
     return {
       seo: {
@@ -7098,17 +7105,9 @@ export const freestyleService = {
         totalRecords: rows.length,
         totalHolders: holderSet.size,
         hasUnlinkedRecords,
+        curatorReviewCount,
       },
     };
-  },
-
-  /**
-   * Alias-aware substring search over active tricks, shared by the
-   * server-rendered results page and the typeahead suggest endpoint. Returns
-   * up to `limit` results, deduped by slug.
-   */
-  searchTricks(query: string, limit = 10): FreestyleTrickSearchResult[] {
-    return runTrickSearch(query, limit);
   },
 
   /**
@@ -8990,7 +8989,7 @@ export const freestyleService = {
     // One-line body-mechanics definitions for the priority modifiers. Curator-authored;
     // a future slice may expand this map to additional modifiers.
     const COMPONENT_DEFINITIONS: Record<string, string> = {
-      paradox:   'A hip pivot between two dexes on the same set: the body changes sides without changing the set foot.',
+      paradox:   'A hip pivot on a single dex: the body changes sides around it without adding another dex or changing the set foot.',
       symposium: 'A no-plant body discipline: the support leg stays off the ground during the dex.',
       spinning:  'A full-body 360° rotation carried through the dex moment.',
       ducking:   'A head dip that lets the bag pass around the neck; head moves toward the bag, bag falls opposite.',
@@ -8999,12 +8998,12 @@ export const freestyleService = {
       gyro:      'A half-body 180° rotation carried through the dex moment.',
       whirling:  'A whirl-family launch set: a rotational opening before the base (whirling + osis = blender).',
       stepping:  'A foot relocation during uptime that compresses or lengthens the set.',
-      pixie:     'A compressed pre-base uptime set; tighter motion than stepping.',
-      atomic:    'A cross-body uptime set (+1). X-Dex, when present, is a separate [XDEX] flag on the following dex.',
-      quantum:   'The compressed form of atomic: a tighter uptime treatment.',
+      pixie:     'A compressed pre-base set; tighter motion than stepping.',
+      atomic:    'A cross-body set (+1). X-Dex, when present, is a separate [XDEX] flag on the following dex.',
+      quantum:   'The compressed form of atomic: a tighter set treatment.',
       nuclear:   'A +2 set modifier; structurally paradox + illusion.',
-      fairy:     'A pre-base uptime set treatment closely related to pixie.',
-      furious:   'A +2 two-dex uptime set. Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator.',
+      fairy:     'A pre-base set treatment closely related to pixie.',
+      furious:   'A +2 two-dex set. Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator.',
     };
 
     const componentSortByAddThenName = (
@@ -9287,21 +9286,16 @@ export const freestyleService = {
     };
     const fmtCount = (n: number): string => n.toLocaleString('en-US');
 
-    // Public-family hit counts (curated 23-family browse layer): active-trick
-    // count per raw trick_family, for the By-family jump menu.
+    // Public-family hit counts for the By-family jump menu, derived from the same
+    // membership map the browse sections render, so a family's chip count always
+    // matches its rendered section count. The map already folds sub-labels (for
+    // example paradox_mirage under mirage), aggregates an umbrella root (the Down
+    // family) from its branches, and applies dual memberships. A separate raw
+    // trick_family tally omitted the sub-label fold and undercounted such a family
+    // by exactly its folded rows.
     const familyTrickCounts = new Map<string, number>();
-    for (const r of activeRows) {
-      if (!isTrickRow(r)) continue;
-      const f = (r.trick_family ?? '').trim();
-      if (f) familyTrickCounts.set(f, (familyTrickCounts.get(f) ?? 0) + 1);
-    }
-    // Umbrella roots with no raw rows (the Down family) count the union of
-    // their contained raw labels, matching what their ?family= filter shows.
-    for (const fam of PUBLIC_DISPLAY_FAMILIES) {
-      if (fam.parent || familyTrickCounts.has(fam.slug)) continue;
-      const total = rawFamilyLabelsUnder(fam.slug)
-        .reduce((sum, label) => sum + (familyTrickCounts.get(label) ?? 0), 0);
-      if (total > 0) familyTrickCounts.set(fam.slug, total);
+    for (const [fslug, rows] of familyMap) {
+      familyTrickCounts.set(fslug, rows.length);
     }
 
     // Display tier (current editorial standard, reversible): split the rendered
@@ -9320,6 +9314,9 @@ export const freestyleService = {
         count: FAMILY_DESCENDANT_COUNTS.get(g.familySlug) ?? g.cards.length,
         href:  `/freestyle/tricks?family=${g.familySlug}`,
       }));
+    // The full curated Family-Parent roster (tier from the descendant-count map,
+    // independent of what the current data populates). The landing By-family card
+    // previews all of these; the browse renders only the populated ones.
     const familyParentRoster = PUBLIC_DISPLAY_FAMILIES.filter(
       f => familyTier(f.slug) === 'family-parent',
     );
@@ -9419,9 +9416,14 @@ export const freestyleService = {
               // has one, otherwise the ?family={slug} filtered list; the card
               // label and the Open link still open the full By-family browse.
               // Minor lineages render in their own band inside that browse.
+              // First-class Family Parents (curated roster tier, DB-independent):
+              // the landing previews every core family the dictionary defines, not
+              // only the ones the current data populates. Each chip opens that
+              // family's encyclopedia page when it has one, else the ?family={slug}
+              // filtered list; minor lineages render in their own browse band.
               count:        familyParentRoster.length,
               countDisplay: fmtCount(familyParentRoster.length),
-              countSuffix:  'families',
+              countSuffix:  'core families',
               lensQuestion: 'What core movement pattern does the trick build on?',
               chips:        familyParentRoster.map(f => ({
                 label: f.label,
@@ -9496,7 +9498,9 @@ export const freestyleService = {
     const familyDistinct = new Set(familyGroups.flatMap(g => g.cards.map(c => c.slug))).size;
     const familyScale =
       `${familyGroups.length} family ${plural(familyGroups.length, 'grouping', 'groupings')} organize tricks by ` +
-      'structural anchor; some are fine-grained and may later roll into broader family hierarchies. ' +
+      `structural anchor: ${familyParentGroups.length} core ${plural(familyParentGroups.length, 'family', 'families')} ` +
+      `and ${minorLineages.length} smaller ${plural(minorLineages.length, 'lineage', 'lineages')} that may later roll ` +
+      'into broader family hierarchies. ' +
       `${familyMemberships} trick-row ${plural(familyMemberships, 'membership', 'memberships')} shown` +
       (familyMemberships > familyDistinct ? ', and some tricks belong to more than one family.' : '.');
 
@@ -9630,7 +9634,7 @@ export const freestyleService = {
             { label: 'By modifier / set', note: 'grouped by the layers added' },
           ],
           links: [
-            { label: 'Start with six beginner lessons', href: '/freestyle/learn' },
+            { label: 'Start with the six vocabulary lessons', href: '/freestyle/learn' },
             { label: 'What is an ADD?', href: '/freestyle/glossary#section-add-accounting' },
             { label: 'How trick names work', href: '/freestyle/glossary#section-notation' },
             { label: 'How to read the dictionary', href: '/freestyle/glossary#section-reading-the-dictionary' },
@@ -9808,6 +9812,33 @@ export const freestyleService = {
         ],
       },
       content: FREESTYLE_COMBO_ANALYSIS_CONTENT,
+    };
+  },
+
+  /** The novice entry page: a first session for a visitor with no freestyle
+   *  background. Copy lives in the template (static, like About); the service
+   *  supplies the frame plus the reused landing demo video. The educational
+   *  pathways index at /freestyle/learn stays the broader vocabulary surface. */
+  getStartPage(): PageViewModel<{ demoVideo: FreestyleDemoVideo | null }> {
+    return {
+      seo: {
+        title: 'Getting Started',
+        description:
+          'New to freestyle footbag? What it is, what you need, and your first kicks, stalls, and tricks.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_start',
+        title:      'Getting Started with Freestyle',
+        intro:      'Everything you need for a first session: no experience assumed.',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Getting Started' },
+        ],
+      },
+      content: { demoVideo: loadSiteVideo('freestyle_demo') },
     };
   },
 
@@ -11114,11 +11145,11 @@ export const freestyleService = {
     // that anchor most of the compositional vocabulary. Mirrors the
     // flagship-marker discipline on /freestyle/glossary.
     const FLAGSHIP_SET_TOOLTIPS: Record<string, string> = {
-      pixie:    'Flagship set: the simplest +1 uptime entry; anchors terraging / sailing / frantic.',
+      pixie:    'Flagship set: the simplest +1 set entry; anchors terraging / sailing / frantic.',
       fairy:    "Flagship set: pixie's directional mirror (out-dex); anchors the fairy-spinning family.",
       stepping: 'Flagship set: clipper-entry +1; anchors blurry / furious / shooting / leaning.',
-      atomic:   'Flagship set: out-dex toe entry resolving to op-side; the outward-dex uptime set, anchors nuclear / fairy-atomic.',
-      quantum:  "Flagship set: atomic's in-dex sibling; the inward-dex uptime set, the platform-canonical replacement for toe-prefix naming.",
+      atomic:   'Flagship set: out-dex toe entry resolving to op-side; the outward-dex set, anchors nuclear / fairy-atomic.',
+      quantum:  "Flagship set: atomic's in-dex sibling; the inward-dex set, the platform-canonical replacement for toe-prefix naming.",
     };
 
     // Pre-load trick rows + modifier-link rows ONCE for the whole encyclopedia
@@ -11274,7 +11305,7 @@ export const freestyleService = {
       seo: {
         title:       'Set Encyclopedia',
         description:
-          'Canonical sets as first-class compositional vocabulary: the named uptime ' +
+          'Canonical sets as first-class compositional vocabulary: the named ' +
           'movement primitives that open a trick. One card per set; detail pages carry ' +
           'the deep ontology.',
       },
@@ -11611,7 +11642,7 @@ export const freestyleService = {
             op('SPIN',  'Spinning',   'Full-body 360° rotation through the dex moment.', 'SPIN + BUTTERFLY',      'SPINNING BUTTERFLY', MOD_PEDAGOGY('spinning')),
             op('GY',    'Gyro',       'Half-rotation body modifier (180°).',           'GY + TORQUE',             'MOBIUS',             NOTATION('gyro')),
             op('DUCK',  'Duck / Dive','Head dip or arc; duck/dive/weave/zulu family.', 'PIX + DUCK + BUTTERFLY', 'PHOENIX',           MOD_PEDAGOGY('ducking')),
-            op('PDX',   'Paradox',    'Hip pivot between two dexes; body switches sides.', 'PDX + LEG-OVER',     'PARADOX LEG-OVER',   MOD_PEDAGOGY('paradox')),
+            op('PDX',   'Paradox',    'Hip pivot on a single dex; body switches sides.', 'PDX + LEG-OVER',     'PARADOX LEG-OVER',   MOD_PEDAGOGY('paradox')),
             op('SYMP',  'Symposium',  'Active leg jumps + lands solo while the other holds.', 'SYMP + ILLUSION', 'FLAIL',              GLOSSARY('symposium'), true),
           ],
         },

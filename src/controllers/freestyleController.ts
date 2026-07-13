@@ -187,6 +187,16 @@ export const freestyleController = {
     }
   },
 
+  /** GET /freestyle/start */
+  start(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getStartPage();
+      res.render('freestyle/start', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
   /** GET /freestyle/notation-article */
   notationArticle(_req: Request, res: Response, next: NextFunction): void {
     try {

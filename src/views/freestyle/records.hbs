@@ -37,6 +37,15 @@
   </p>
   {{/if}}
 
+  {{#if content.curatorReviewCount}}
+  <p class="text-muted fs-sm">
+    Records marked <span class="record-review-flag">Needs curator review</span>
+    are valid historical records whose name does not yet map to a settled trick
+    in the dictionary. They are kept exactly as recorded and are not linked to a
+    canonical trick until the identity is confirmed.
+  </p>
+  {{/if}}
+
   {{#if content.groups}}
     {{#each content.groups}}
     <section class="records-group">
@@ -65,6 +74,10 @@
                 {{/if}}
                 {{#if sortName}}
                 <span class="trick-sort-name">{{sortName}}</span>
+                {{/if}}
+                {{#if reviewNote}}
+                <span class="record-review-flag">Needs curator review</span>
+                <span class="record-review-note">{{reviewNote}}</span>
                 {{/if}}
               </td>
               <td class="col-adds">
@@ -110,9 +123,9 @@
   <p class="source-note">
     These records are drawn from documented freestyle video archives and
     community tracking; historical coverage is incomplete and keeps growing.
-    Dates marked <em>approx.</em> are confirmed only to the month or year,
-    and records shown with a disclaimer are probable but not independently
-    verified.
+    Dates marked <em>approx.</em> are confirmed only to the month or year.
+    The records are well documented from video evidence, but most have not
+    been independently verified.
   </p>
 
 </div>

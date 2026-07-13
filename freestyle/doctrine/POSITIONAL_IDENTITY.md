@@ -145,21 +145,29 @@ also carried by the freestyle dictionary skill.
 ## Atom-level foundations
 
 The foundational-bases audit (2026-06-23) settled the polarity of the four
-single-dex atoms and isolated the three genuinely unresolved ones:
+single-dex atoms; the butterfly default has since been ruled, leaving two
+genuinely unresolved atoms:
 
 - **Settled — OP at the dex: mirage, whirl, legover, pickup.** Each has a single
   `OP` dex in notation, corroborated by corpus naming (the same-side form is the
   marked deviation). For these atoms `far-X` is an alias of the base and
   `X-same-side` is the distinct variant. legover and pickup are the precedent that
   the qualifier targets the dex, not the same-side catch.
-- **Open — butterfly.** Its dex is `SAME/OP` in notation and both sides are heavily
-  documented: genuine two-sidedness, not under-documentation. Whether butterfly has
-  a historical default side or is side-neutral (a true three-way: base / same-side /
-  far all distinct) is unruled; until then no `far-butterfly` alias call stands.
+- **Settled — butterfly defaults to the far / opposite side.** The published
+  canonical form is the opposite-side execution (`SET > OP OUT [DEX] > OP CLIP
+  [XBD] [DEL]`), superseding the side-either `SAME/OP` fold in the canonical row.
+  The same-side execution is the marked distinct canonical
+  (`butterfly_same_side`), so a `far-butterfly` name is an alias of the base and
+  a same-side name resolves to the same-side canonical.
 - **Open — clipper.** Clipper is a catch surface with no scored dex; a side word
   targets the `[XBD]` catch itself. Whether cross-body `[XBD]` inherently encodes OP
   (making `same-side-clipper` the marked distinct and `far-clipper` redundant), or
-  the cross-body axis is independent of the SAME/OP axis, is unruled.
+  the cross-body axis is independent of the SAME/OP axis, is unruled. Evidence from
+  the ratified clipper-terminal matrix: the `[XBD]` bracket is written on both
+  sides — whirl and reverse whirl terminate `OP CLIP [XBD] [DEL]` while swirl and
+  reverse swirl terminate `SAME CLIP [XBD] [DEL]` — so the built canon writes side
+  independently of the cross-body flag. The matrix is evidence for the
+  independent-axes reading, not the ruling itself, which stays with Red.
 - **Open — osis.** Two compounding ambiguities (back-or-front spin plus an ambiguous
   `SAME/OP` catch) mean polarity cannot fix the side; osis needs a ruling tying spin
   direction to catch side before any `*-osis` side qualifier resolves.

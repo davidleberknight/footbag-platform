@@ -52,6 +52,9 @@ export const FAMILY_HISTOGRAM: readonly TopologyHistogramRow[] = [
   { label: 'Eggbeater',        count: 13,  tier: 'family' },
   { label: 'Double-Over-Down', count: 12,  tier: 'family' },
   { label: 'Inside Stall',     count: 11,  tier: 'family' },
+  // Reverse Whirl is its own family by curator ruling (a distinct terminal
+  // identity, never folded under whirl); ten documented descendants.
+  { label: 'Reverse Whirl',    count: 10,  tier: 'family' },
   { label: 'Eclipse',          count: 9,   tier: 'family' },
   { label: 'Flail',            count: 9,   tier: 'family' },
   { label: 'Barrage',          count: 8,   tier: 'family' },

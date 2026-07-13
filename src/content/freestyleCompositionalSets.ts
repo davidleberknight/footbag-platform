@@ -174,7 +174,7 @@ export const COMPOSITIONAL_SET_FAMILIES: readonly CompositionalSetFamily[] = [
       { name: 'Pixie',     notation: 'TOE > SAME IN [DEX] >',                              statusHint: 'platform-tracked', structuralNote: null },
       { name: 'Fairy',     notation: 'TOE > SAME OUT [DEX] >',                             statusHint: 'platform-tracked', structuralNote: null },
       { name: 'Nuclear',   notation: 'CLIP > SAME OUT >',                                  statusHint: 'platform-tracked', structuralNote: 'Holden reads it short; the platform notation is CLIP > SAME OUT [DEX] >.' },
-      { name: 'Miraging',  notation: 'SET > OP IN [DEX] >',                                statusHint: 'platform-tracked', structuralNote: 'Retained as descriptive or downtime mirage-family language, not a modern set; the modern uptime inward-dex set concept is Quantum (see ladder §3).' },
+      { name: 'Miraging',  notation: 'SET > OP IN [DEX] >',                                statusHint: 'platform-tracked', structuralNote: 'Retained as descriptive mirage-family language for the inward standalone movement, not a launch set; the same inward movement realized with a set role is Quantum (see ladder §3).' },
       { name: 'Stepping',  notation: 'CLIP > OP IN [DEX] >',                               statusHint: 'platform-tracked', structuralNote: null },
       { name: 'Quantum',   notation: 'TOE > OP IN [DEX] > (op side component)',            statusHint: 'platform-tracked', structuralNote: 'Holden reads as: compressed atomic.' },
       { name: 'Slapping',  notation: 'TOE > OP IN [DEX] > (same side component)',          statusHint: 'holden-only',       structuralNote: 'Holden\'s compilation; no current platform canonical.' },
@@ -199,7 +199,7 @@ export const COMPOSITIONAL_SET_FAMILIES: readonly CompositionalSetFamily[] = [
       { name: 'Flailing',    notation: 'SET > (no plant while) OP OUT [BOD] [DEX] >',                    statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Symposium Reverse Miraging.' },
       { name: 'Fairy Atomic',notation: 'TOE > SAME OUT [DEX] > OP OUT [DEX] >',                          statusHint: 'holden-only',       structuralNote: null },
       { name: 'Shooting',    notation: 'CLIP > OP IN [DEX] > OP OUT [PDX][DEX] >',                       statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Stepping Paradox Illusion.' },
-      { name: 'Furious',     notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',                           statusHint: 'platform-tracked', structuralNote: 'A two-dex uptime set (+2). Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator; an older three-dex Barraging Paradox Miraging reading is superseded.' },
+      { name: 'Furious',     notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',                           statusHint: 'platform-tracked', structuralNote: 'A two-dex set (+2). Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator; an older three-dex Barraging Paradox Miraging reading is superseded.' },
       { name: 'Infracting',  notation: 'opposite of a Refraction, done as a set',                        statusHint: 'holden-only',       structuralNote: 'Inverse pattern, not a literal grammar string.' },
     ],
   },
@@ -290,10 +290,10 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
     steps: [
       'mirage   (atom)     =  SET > OP IN [DEX] > OP TOE [DEL]',
       'miraging (reading)  =  SET > OP IN [DEX] >   (the toe-stall terminal omitted as the dex continues into the next move)',
-      'Reading: the inward mirage shape read as descriptive language. Miraging is retained as descriptive or downtime mirage-family language; Quantum is the modern uptime inward-dex set concept, and miraging is not treated as a modern set or a Quantum equivalent.',
+      'Reading: the inward mirage shape read as descriptive language. Miraging is retained as descriptive mirage-family language for the inward standalone movement; Quantum is the same inward movement realized with a set role, and miraging is not treated as a launch set or a Quantum equivalent.',
     ],
     sourceCitation:  'Per the platform\'s operational notation system; aligned with Holden\'s basic-set listing.',
-    conflictNote:    'Retained as descriptive or downtime mirage-family language, not a modern set. Under the current working ruling, Quantum is the modern uptime inward-dex set concept.',
+    conflictNote:    'Retained as descriptive mirage-family language for the inward standalone movement, not a launch set. Quantum is the same inward movement realized with a set role.',
   },
   {
     setName:         'illusioning',
@@ -302,10 +302,10 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
     steps: [
       'illusion    (atom)    =  SET > OP OUT [DEX] > OP TOE [DEL]',
       'illusioning (reading) =  SET > OP OUT [DEX] >   (structurally analogous to miraging, but not explicitly in Holden\'s compilation)',
-      'Reading: the illusion shape read as descriptive language. Illusioning is retained as historical or downtime illusion-family language; Atomic is the modern uptime outward-dex set concept, and illusioning is a distinct downtime move, not a modern set or an Atomic equivalent.',
+      'Reading: the illusion shape read as descriptive language. Illusioning is retained as descriptive illusion-family language for the outward standalone movement; Atomic is the same outward movement realized with a set role, and illusioning is not a launch set or an Atomic equivalent.',
     ],
     sourceCitation:  'Structural inference from the mirage/illusion direction-mirror sibling pair; not in Holden\'s compilation.',
-    conflictNote:    'Named "illusioning" is not in Holden\'s list or the platform canonical, and current doctrine holds it a distinct downtime move, not a modern set or an Atomic equivalent. Some instructional and historical sources describe sets by reference to familiar downtime motions; the encyclopedia preserves those as teaching / source language, not as equivalent canonical set names.',
+    conflictNote:    'Named "illusioning" is not in Holden\'s list or the platform canonical, and current doctrine holds it a standalone movement, not a launch set or an Atomic equivalent. Some instructional and historical sources describe sets by reference to familiar standalone motions; the encyclopedia preserves those as teaching / source language, not as equivalent canonical set names.',
   },
   {
     setName:         'blurry',
@@ -322,13 +322,13 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
   {
     setName:         'furious',
     setNotation:     'CLIP > OP IN [DEX] > SAME IN [DEX] >',
-    reinterpretation:'A two-dex uptime set (+2); barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator. The older third-dex reading is superseded.',
+    reinterpretation:'A two-dex set (+2); barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator. The older third-dex reading is superseded.',
     steps: [
       'barraging  =  CLIP > OP IN [DEX] > SAME IN [DEX] >',
       'barraging is a legacy name pattern for the Furious set, not a separate timing-defined operator; barraging-named rows and aliases are preserved for name continuity and resolve to Furious',
       'a superseded reading extended this with a third dex (OP IN [DEX]) as "Barraging Paradox Miraging"',
     ],
-    sourceCitation:  'Holden compilation; barraging is a legacy name pattern for the Furious set, and barraging-named tricks resolve to the Furious two-dex uptime set.',
+    sourceCitation:  'Holden compilation; barraging is a legacy name pattern for the Furious set, and barraging-named tricks resolve to the Furious two-dex set.',
     conflictNote:    'The earlier three-dex Barraging Paradox Miraging chain is historical lineage, not current structure.',
   },
   {
@@ -409,7 +409,7 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
   {
     holdenName:      'Furious',
     holdenReading:   'CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] >; Holden parenthetical: Barraging Paradox Miraging.',
-    platformReading: 'A two-dex uptime set (+2); barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator. The earlier three-dex extension reading is superseded.',
+    platformReading: 'A two-dex set (+2); barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator. The earlier three-dex extension reading is superseded.',
     status:          'partial',
     note:            'The three-dex Barraging Paradox Miraging reading is historical lineage; barraging is a legacy name pattern for the Furious set, not a separate timing-defined operator, so it resolves to Furious.',
   },

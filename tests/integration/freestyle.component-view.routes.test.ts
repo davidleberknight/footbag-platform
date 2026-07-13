@@ -262,7 +262,7 @@ describe('component view — group rendering', () => {
     const nextGroupStart = res.text.indexOf('id="component-', paradoxStart + 1);
     const paradoxBlock = res.text.slice(paradoxStart, nextGroupStart > paradoxStart ? nextGroupStart : paradoxStart + 2500);
     expect(paradoxBlock).toContain('class="component-group-definition"');
-    expect(paradoxBlock).toMatch(/hip pivot between two dexes/);
+    expect(paradoxBlock).toMatch(/hip pivot on a single dex/);
   });
 
   it('group heading wraps the component name in a self-anchored link', async () => {

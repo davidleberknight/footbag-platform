@@ -14,9 +14,10 @@ describe('dex-kick description overrides', () => {
     expect(d).toMatch(/no longer the only one/i);
   });
 
-  it('Atomic Kick reads as the kick form of the Illusion dexterity, rarely practiced', () => {
-    const d = getCompoundSemanticDescription('atomic_kick') ?? '';
-    expect(d).toMatch(/same dexterity pattern as Illusion/);
+  it('Illusioning Kick reads as the kick form of the illusion-direction dexterity, rarely practiced', () => {
+    const d = getCompoundSemanticDescription('illusioning_kick') ?? '';
+    expect(d).toMatch(/illusion-direction dexterity/);
+    expect(d).toMatch(/direction-reversed sibling of Miraging Kick/);
     expect(d).toMatch(/rarely encountered/i);
   });
 

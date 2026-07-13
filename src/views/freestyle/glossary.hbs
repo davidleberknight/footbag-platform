@@ -143,7 +143,10 @@
     </p>
     <p class="detail-muted">
       Word order carries the meaning, not just the words. The same two words in
-      the opposite order name two different tricks in two different families:
+      the opposite order name two different tricks in two different families.
+      These are not the same two movements performed in a different sequence:
+      they are coordinated movements whose identities differ because the base
+      trick differs.
     </p>
     <div class="glossary-add-weight-table-wrap">
       <table class="glossary-add-weight-table">
@@ -455,6 +458,77 @@
       <li>Mirage uses one dex.</li>
       <li>Double Around the World uses two dexes.</li>
     </ul>
+
+    <h3 class="section-heading">The eight closest relatives</h3>
+    <p>
+      These movements are usually learned one at a time. Understanding how they
+      relate makes the rest of freestyle much easier to learn.
+    </p>
+    <p>
+      These eight tricks are not eight unrelated moves. They are closely related
+      variations of the same underlying movement pattern: a single dex shaped by
+      three simple choices, the direction the leg circles, the side it circles
+      on, and the side the bag comes down on. Every one of the eight is just one
+      movement change away from three of the others, as the figure below shows.
+    </p>
+    <figure class="glossary-neighbor-figure">
+      <figcaption class="glossary-neighbor-figure-caption">
+        Start with any of the eight. Change just one of those three choices, and
+        you land on another of the eight.
+      </figcaption>
+      <ul class="glossary-neighbor-grid">
+        {{#each content.movementNeighbors.cards}}
+        <li class="glossary-neighbor-card">
+          <a class="glossary-neighbor-card-trick" href="{{href}}">{{name}}</a>
+          <ul class="glossary-neighbor-moves">
+            {{#each moves}}
+            <li class="glossary-neighbor-move">
+              <span class="glossary-neighbor-change">{{changeLabel}}</span>
+              <a class="glossary-neighbor-dest" href="{{toHref}}">{{toName}}</a>
+            </li>
+            {{/each}}
+          </ul>
+        </li>
+        {{/each}}
+      </ul>
+    </figure>
+
+    <h3 class="section-heading">Clipper counterparts</h3>
+    <p>
+      Each of the eight has a closely related clipper counterpart: a
+      corresponding movement that finishes on a clipper instead of a toe. If
+      you know the toe movement, its counterpart is already half familiar.
+      Whirl is easier to understand if you already know Mirage.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>Toe movement</th><th>Clipper counterpart</th></tr></thead>
+        <tbody>
+          <tr><td><a href="/freestyle/tricks/mirage">Mirage</a></td><td><a href="/freestyle/tricks/whirl">Whirl</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/illusion">Illusion</a></td><td><a href="/freestyle/tricks/rev_whirl">Reverse Whirl</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/pickup">Pickup</a></td><td><a href="/freestyle/tricks/drifter">Drifter</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/legover">Legover</a></td><td><a href="/freestyle/tricks/reverse_drifter">Reverse Drifter</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/around_the_world">Around the World</a></td><td><a href="/freestyle/tricks/rev_swirl">Reverse Swirl</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/orbit">Orbit</a></td><td><a href="/freestyle/tricks/swirl">Swirl</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Read down the table and the clipper vocabulary suddenly shrinks: every
+      entry is the counterpart of something you already know.
+    </p>
+
+    <h3 class="section-heading">Repeating a movement</h3>
+    <p>
+      One common way freestyle vocabulary grows is by repeating an existing
+      movement. Three familiar ladders show the idea:
+    </p>
+    <ul>
+      <li><a href="/freestyle/tricks/swirl">Swirl</a> &rarr; <a href="/freestyle/tricks/ripstein">Ripstein</a> &rarr; <a href="/freestyle/tricks/triple_swirl">Triple Swirl</a></li>
+      <li><a href="/freestyle/tricks/around_the_world">Around the World</a> &rarr; <a href="/freestyle/tricks/double_around_the_world">Double Around the World</a> &rarr; <a href="/freestyle/tricks/triple_around_the_world">Triple Around the World</a></li>
+      <li><a href="/freestyle/tricks/orbit">Orbit</a> &rarr; <a href="/freestyle/tricks/double_orbit">Double Orbit</a> &rarr; <a href="/freestyle/tricks/triple_orbit">Triple Orbit</a></li>
+    </ul>
+
     <dl class="glossary-term-list">
       <dt id="term-dexless">Dexless</dt>
       <dd>A trick or component that contains no dex. Dexes are so central to freestyle that the absence of one is itself a named category.</dd>
@@ -488,7 +562,7 @@
       <dd>A dex that travels <em>outward</em>: the bag arcs away from the body's center line. Paired with out-direction set primitives (atomic, fairy) and visible in compounds like Atom Smasher (atomic mirage).</dd>
 
       <dt id="term-rev-zero">Direction reversal (<code>rev(0)</code>)</dt>
-      <dd>The operator that reverses a dex's in&harr;out direction while adding no difficulty. Putting <code>rev(0)</code> in front of a trick names its direction-reversed sibling: <a href="/freestyle/tricks/illusion">illusion</a> is the reverse of <a href="/freestyle/tricks/mirage">mirage</a>, pickup the reverse of legover, and orbit the reverse of around-the-world. Because only the direction flips, the reversed trick keeps the <em>same</em> ADD as its base. The same reversal applies to modifiers: the <em>illusioning</em> modifier is reversed <em>miraging</em>, exactly as the illusion trick is the reverse of mirage. Hippy and leggy execution notes are stylistic; a reversed pair differs only in dex direction once those are set aside.</dd>
+      <dd>The operator that reverses a dex's in&harr;out direction while adding no difficulty. Putting <code>rev(0)</code> in front of a trick names its direction-reversed sibling: <a href="/freestyle/tricks/illusion">illusion</a> is the reverse of <a href="/freestyle/tricks/mirage">mirage</a>, pickup the reverse of legover, and orbit the reverse of around-the-world. A reversal preserves entry, terminal, side configuration, and structural role, and keeps the <em>same</em> ADD when direction is the only changed dimension; it never moves a trick between the set and standalone roles. The same direction reversal relates the standalone movement names: illusioning is reversed miraging, exactly as the illusion trick is the reverse of mirage. Hippy and leggy execution notes are stylistic; a reversed pair differs only in dex direction once those are set aside.</dd>
     </dl>
 
     <h3 class="section-heading">Relative-side relationships</h3>
@@ -518,36 +592,6 @@
       <dt id="term-op-not-xdex"><code>OP</code> is not X-Dex</dt>
       <dd>Performing a dex on the far / opposite side does not by itself add difficulty. <a href="#term-x-dex">X-Dex</a> is a separate +1 scored only where the operational notation carries <code>[XDEX]</code>. A far dex changes the side but not the score unless the notation marks it <code>[XDEX]</code>.</dd>
     </dl>
-
-    <h3 class="section-heading">The eight closest relatives</h3>
-    <p>
-      These eight tricks are not eight unrelated moves. They are closely related
-      variations of the same underlying movement pattern: a single dex shaped by
-      three simple choices, the direction the leg circles, the side it circles
-      on, and the side the bag comes down on. Every one of the eight is just one
-      movement change away from three of the others, as the figure below shows.
-    </p>
-    <figure class="glossary-neighbor-figure">
-      <figcaption class="glossary-neighbor-figure-caption">
-        Start with any of the eight. Change just one of those three choices, and
-        you land on another of the eight.
-      </figcaption>
-      <ul class="glossary-neighbor-grid">
-        {{#each content.movementNeighbors.cards}}
-        <li class="glossary-neighbor-card">
-          <a class="glossary-neighbor-card-trick" href="{{href}}">{{name}}</a>
-          <ul class="glossary-neighbor-moves">
-            {{#each moves}}
-            <li class="glossary-neighbor-move">
-              <span class="glossary-neighbor-change">{{changeLabel}}</span>
-              <a class="glossary-neighbor-dest" href="{{toHref}}">{{toName}}</a>
-            </li>
-            {{/each}}
-          </ul>
-        </li>
-        {{/each}}
-      </ul>
-    </figure>
 
     <h3 class="section-heading">Execution window</h3>
     <p>The phantom space the leg draws around the bag while the dex is performed. The terms below describe where in that space the dex lives.</p>
@@ -663,7 +707,11 @@
 
     <dl class="glossary-term-list">
       <dt id="term-set">Set</dt>
-      <dd>The action used to position the bag before a trick. In modern usage, &ldquo;set&rdquo; refers to the uptime and midtime components together.</dd>
+      <dd>The launch action that begins the trick and positions the bag. A dex performed as part of that launch is realized as a set; the same movement performed independently after the launch, before the terminal, is a standalone realization. Which role a trick uses follows its established structure and execution, not a single timing instant.</dd>
+      <dt id="term-set-realization">Set realization</dt>
+      <dd>A dex performed as part of launching and positioning the bag. It can terminate immediately on a toe and still be a genuine set; a following component often makes the role easier to recognize but is not required. The inward and outward movement patterns realized as sets are named Quantum and Atomic.</dd>
+      <dt id="term-standalone-realization">Standalone realization</dt>
+      <dd>A dex movement realized independently after the bag is launched, before the terminal. The inward and outward standalone trick patterns are Mirage and Illusion. Miraging and Illusioning may describe those movement patterns in independently established names such as Miraging Kick and Illusioning Kick, but they are not reusable scored operators and do not automatically license arbitrary compounds.</dd>
       <dt id="term-uptime">Uptime</dt>
       <dd>Before the peak. The bag is rising.</dd>
       <dt id="term-midtime">Midtime (hangtime)</dt>
@@ -706,9 +754,12 @@
       Three ideas sit close together and are easy to confuse. A <strong>set
       surface</strong> (toe or clip) is simply where the set begins. A
       <strong>named set</strong> (pixie, atomic, and the others below) is a
-      specific launch system layered on that surface. A <strong>timing
-      relationship</strong> (illusioning, miraging) describes when a motion
-      happens, not a set at all.
+      specific launch system layered on that surface. <strong>Execution
+      timing</strong> (uptime, midtime, downtime) describes when a motion
+      happens. On its own, timing does not decide whether a dex has a set role
+      or a standalone role; that follows the trick's established structure and
+      execution. Miraging and Illusioning are descriptive movement terms, not
+      launch sets or independently scored operators.
     </p>
 
     {{! Named-set vocabulary. This is the home for the confirmed set terms, not
@@ -724,31 +775,31 @@
     </p>
     <dl class="glossary-term-list">
       <dt id="term-set-launches">Pixie, fairy, stepping</dt>
-      <dd>The core launch sets. Pixie and fairy are toe-anchored; stepping is clipper-anchored. Each opens a trick and can also broadcast across other bases as a set modifier. Pixie traces an uptime around-the-world motion and fairy traces an uptime orbit motion, the same shapes as those atoms performed on the set rather than as a landing trick.</dd>
+      <dd>The core launch sets. Pixie and fairy are toe-anchored; stepping is clipper-anchored. Each opens a trick and can also broadcast across other bases as a set modifier. Pixie is the Around-the-World movement realized with a set role, and Fairy is the Orbit movement realized with a set role. They preserve those directional movement shapes while integrating the dex into the bag's launch.</dd>
       <dt id="term-set-atomic">Atomic</dt>
-      <dd>An uptime set built around a single outward dex, contributing +1; any X-Dex is a separate event, not part of atomic. Hippy Atomic and leggy Atomic are execution styles of Atomic, not separate tricks.</dd>
+      <dd>The outward dex realized as a set, contributing +1; any X-Dex is a separate event, not part of atomic. Hippy Atomic and leggy Atomic are execution styles of Atomic, not separate tricks.</dd>
       <dt id="term-set-quantum">Quantum</dt>
-      <dd>An uptime set built around an inward dex; the compressed-atomic launch. Under the current working ruling, Quantum is the uptime set concept on the inward side.</dd>
+      <dd>The inward dex realized as a set; the direction-reversed sibling of Atomic on the inward side.</dd>
       <dt id="term-set-furious">Furious</dt>
-      <dd>A two-dex uptime set: a clipper set opening with an opposite-side inward dex followed by a same-side inward dex. Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator; barraging-named tricks resolve to Furious.</dd>
+      <dd>A two-dex set beginning from clipper with an opposite-side inward dex followed by a same-side inward dex. Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator; barraging-named tricks resolve to Furious.</dd>
       <dt id="term-set-blurry">Blurry</dt>
-      <dd>A set modifier that adds one uptime dex. Some named blurry compounds, such as Blur, expand to a deeper decomposition rather than a flat blurry-plus-base sum.</dd>
+      <dd>A set modifier that adds one dex as part of the set. Some named blurry compounds, such as Blur, expand to a deeper decomposition rather than a flat blurry-plus-base sum.</dd>
       <dt id="term-set-nuclear">Nuclear</dt>
       <dd>A two-dex set (2 ADD): a paradox dex followed by a downtime illusioning dex.</dd>
     </dl>
 
-    <h3 class="section-heading">Related timing terms that are not sets</h3>
+    <h3 class="section-heading">Related terms that are not launch sets</h3>
     <p>
-      A few terms sit near the set vocabulary but are <strong>not</strong> listed
-      as sets under current doctrine.
+      A few terms sit near the set vocabulary but are <strong>not</strong> launch
+      sets: they are standalone realizations or legacy names.
     </p>
     <dl class="glossary-term-list">
       <dt id="term-illusioning">Illusioning</dt>
-      <dd>A distinct downtime move, not an equivalent name for Atomic and not a set.</dd>
+      <dd>A descriptive name for the outward standalone dex movement, as preserved in Illusioning Kick. It is not equivalent to Atomic: Atomic names the same directional movement pattern when it has a set role. Illusioning is not a reusable scored operator.</dd>
       <dt id="term-miraging-not-a-set">Miraging</dt>
-      <dd>Descriptive or downtime mirage-family language; Quantum is the uptime set concept. Not listed as a set.</dd>
+      <dd>A descriptive name for the inward standalone dex movement, as preserved in Miraging Kick. Quantum names the same directional movement pattern when it has a set role. Miraging is not a launch set or a reusable scored operator.</dd>
       <dt id="term-barraging-not-a-set">Barraging</dt>
-      <dd>A legacy name pattern for the Furious two-dex uptime set, not a separate set or operator; barraging-named tricks resolve to Furious, and their rows and aliases are preserved for name continuity.</dd>
+      <dd>A legacy name pattern for the Furious two-dex set, not a separate set or operator; barraging-named tricks resolve to Furious, and their rows and aliases are preserved for name continuity.</dd>
       <dt id="term-barrage-not-a-set">Barrage</dt>
       <dd>A separate standalone base trick concept, not the same as Barraging.</dd>
     </dl>
@@ -801,7 +852,7 @@
       Modifiers form <strong>ecosystems</strong>. A single modifier transforms
       <em>many</em> different base tricks: body and rotational ecosystems
       (ducking, gyro, spinning) reshape the midtime. The named sets (pixie,
-      fairy, stepping, and the uptime sets atomic, quantum, and furious) are set
+      fairy, stepping, atomic, quantum, and furious) are set
       vocabulary, defined in the
       <a href="#section-timing-sets">Timing &amp; Sets section</a>; several of
       them also broadcast across other bases as a set modifier, which is why
@@ -930,7 +981,9 @@
       as the productive root of a family; it has its own trick-detail page.
       Not every trick is a family anchor (flurry, witchdoctor, and paradox-mirage
       are tricks, not anchors). The cards below render anchors; the dictionary's
-      <a href="/freestyle/tricks?view=family">family-view browse</a> renders every trick.
+      <a href="/freestyle/tricks?view=family">family-view browse</a> renders the
+      registered family roster, and every trick, in or out of a family, remains
+      findable in the <a href="/freestyle/tricks">main dictionary</a> and search.
     </p>
 
     <p class="glossary-note">
@@ -1194,9 +1247,10 @@
       Within that scope, several named "sets" turn out to be recognizable
       trick structures under a different reading: <em>blurry</em> decomposes
       to stepping with a paradox second dex. <em>Miraging</em> is retained as
-      descriptive or downtime mirage-family language, not a modern set; the
-      modern uptime inward-dex set concept is <em>quantum</em>. The systematic
-      exploration of these compositional relationships lives at
+      descriptive language for the inward standalone movement, including the
+      established Miraging Kick name; the same directional movement pattern with
+      a set role is <em>quantum</em>. The systematic exploration of these
+      compositional relationships lives at
       <a href="/freestyle/compositional-sets">Compositional Sets</a>.
     </p>
     <p class="glossary-note">
@@ -1529,7 +1583,7 @@
         <code>BACK</code> describes the arc; when followed by
         <code>WHIRL</code> or <code>SWIRL</code>, the two tokens fuse
         into a single rotational-variant move (e.g.
-        <code>FRONT WHIRL</code>, <code>BACK SWIRL</code>).
+        <code>FRONT WHIRL</code>, <code>FRONT SWIRL</code>).
       </dd>
     </dl>
 
@@ -1558,7 +1612,7 @@
     <ul>
       <li><code>CLIP</code>, <code>TOE</code>: plant or landing surfaces</li>
       <li><code>SPIN</code>, <code>DUCK</code>, <code>DIVE</code>: body actions</li>
-      <li><code>FRONT WHIRL</code> / <code>BACK WHIRL</code> / <code>FRONT SWIRL</code> / <code>BACK SWIRL</code>: rotational dex variants on a rotational base</li>
+      <li><code>FRONT WHIRL</code> / <code>BACK WHIRL</code> / <code>FRONT SWIRL</code>: rotational dex variants on a rotational base (the plain swirl and reverse-swirl dexes are written with the ordinary IN / OUT vocabulary)</li>
     </ul>
 
     <p class="detail-muted">
@@ -1657,7 +1711,7 @@
           <tr><td>inspinning</td><td>+1</td><td>body (rotation)</td></tr>
           <tr><td>whirling</td><td>+1</td><td>set</td></tr>
           <tr><td>atomic</td><td>+1</td><td>set</td></tr>
-          <tr><td>furious</td><td>+2</td><td>two-dex uptime set (barraging is a legacy name for this same set, not a separate operator)</td></tr>
+          <tr><td>furious</td><td>+2</td><td>two-dex set (barraging is a legacy name for this same set, not a separate operator)</td></tr>
           <tr><td>nuclear</td><td>+2</td><td>set (composite ≡ paradox+illusion)</td></tr>
           <tr><td>blurry</td><td>+1 / +2</td><td>set (folk shorthand, scored per trick)</td></tr>
           <tr><td>pixie</td><td>+1</td><td>set</td></tr>

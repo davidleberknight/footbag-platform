@@ -244,8 +244,8 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     slug:        'ripstein',
     parentSlugs: [],
     prose:
-      "Ripstein's DB row sits as a standalone anchor (no base_trick assigned); structurally, the operational notation reveals a doubled same-side back-swirl reading: CLIP >> SAME BACK SWIRL [DEX] >> SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]. Two reverse-rotational dex moments in sequence, with a cross-body clipper terminal closing the compound.\n\n" +
-      "The 4-ADD count is consistent with both readings: as an atom-class anchor (doubled-back-swirl carrying its own family status, parallel to barrage's standalone reading at 3 ADD) and as a derived reading from swirl(3) + doubled-dex(+1). The doctrine accepts the standalone reading per the DB while surfacing the structural-grammar decomposition for compositional understanding.\n\n" +
+      "Ripstein's DB row sits as a standalone anchor (no base_trick assigned); structurally, the operational notation reveals a doubled same-side out-dex reading: CLIP >> SAME OUT [DEX] >> SAME OUT [DEX] > SAME CLIP [XBD] [DEL]. Two same-side out dexes (the swirl-cell dexterity) in sequence, with a cross-body clipper terminal closing the compound.\n\n" +
+      "The 4-ADD count is consistent with both readings: as an atom-class anchor (the doubled swirl-cell dex carrying its own family status, parallel to barrage's standalone reading at 3 ADD) and as a derived reading from swirl(3) + doubled-dex(+1). The doctrine accepts the standalone reading per the DB while surfacing the structural-grammar decomposition for compositional understanding.\n\n" +
       "Ripstein is the doctrine's canonical folk-name rescue case. Its DB description, \"Popular freestyle trick.\", was the worst-offending placeholder pattern in the dictionary. The L1-L6 layers recover a meaningful structural reading from the operational notation alone, demonstrating how the trick-detail ontology pipeline salvages culturally-canonical names whose DB rows carry no structural content beyond a folk-name label.",
     topologyKind: 'atom',
   },

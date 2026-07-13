@@ -52,8 +52,9 @@ export const UNRESOLVED_COMPOUNDS: ReadonlySet<string> = new Set<string>([
   // resolution state.
   // Folk name; curator-flagged.
   'fury',
-  // Mechanically resembles rev-whirl/hatchet but no curator
-  // confirmation yet (kept in rev-whirl family).
+  // Mechanically resembles rev-whirl/hatchet; decomposition still
+  // unconfirmed. Sits in the reverse-whirl family, its own minor
+  // lineage by curator ruling (never folded under whirl).
   'surgery',
   // 'tomahawk' is not flagged: strong external consensus
   // (FM 'Ducking Paradox Whirl' + PB 'Clipper Ducking far Whirl')

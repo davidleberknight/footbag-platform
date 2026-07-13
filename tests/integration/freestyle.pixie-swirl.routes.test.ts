@@ -44,20 +44,19 @@ describe('RESOLVED_ADD_FORMULAS — pixie_swirl entry', () => {
     expect(entry?.baseAdd).toBe(3);
     expect(entry?.operator).toBe('pixie');
     expect(entry?.base).toBe('swirl');
-    expect(entry?.operationalNotation).toBe('TOE > SAME IN [DEX] > SAME/OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]');
+    expect(entry?.operationalNotation).toBe('TOE > SAME IN [DEX] > SAME/OP OUT [DEX] > SAME CLIP [XBD] [DEL]');
     expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
     expect(entry?.provenance ?? '').toMatch(/SAME\/OP variant/i);
   });
 });
 
 describe('pixie_swirl detail page — first-class JOB + ADD', () => {
-  it('/freestyle/tricks/pixie_swirl renders 4 ADD + SAME IN [DEX] prefix + BACK SWIRL rotation-variant', async () => {
+  it('/freestyle/tricks/pixie_swirl renders 4 ADD + SAME IN [DEX] prefix, no retired swirl token', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/pixie_swirl');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
-    // BACK SWIRL fuses into rotation_variant per operationalNotationRendering
-    expect(res.text).toMatch(/class="op-token[^"]*rotation-variant[^"]*"[^>]*>BACK SWIRL</);
+    expect(res.text).not.toContain('BACK SWIRL');
     for (const token of ['TOE', 'SAME', 'IN', '[DEX]', 'CLIP', '[XBD]', '[DEL]']) {
       const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const pattern = new RegExp(`class="op-token[^"]*"[^>]*>${escaped}<`);

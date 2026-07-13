@@ -118,3 +118,50 @@ describe('Glossary — eight closest relatives (movement-neighbor figure)', () =
     }
   });
 });
+
+describe('Dexterities teaching spine — mindset, counterparts, repetition', () => {
+  it('opens the relatives figure with the mindset sentence, before the figure', async () => {
+    const html = await glossary();
+    const mindset = html.indexOf('makes the rest of freestyle much easier to learn');
+    const figure = html.indexOf('class="glossary-neighbor-figure"');
+    expect(mindset).toBeGreaterThan(0);
+    expect(figure).toBeGreaterThan(mindset);
+  });
+
+  it('renders the clipper-counterparts table directly after the figure with all six pairs', async () => {
+    const html = await glossary();
+    const figure = html.indexOf('class="glossary-neighbor-figure"');
+    const bridge = html.indexOf('Clipper counterparts');
+    expect(bridge).toBeGreaterThan(figure);
+    const pairs: Array<[string, string]> = [
+      ['/freestyle/tricks/mirage', '/freestyle/tricks/whirl'],
+      ['/freestyle/tricks/illusion', '/freestyle/tricks/rev_whirl'],
+      ['/freestyle/tricks/pickup', '/freestyle/tricks/drifter'],
+      ['/freestyle/tricks/legover', '/freestyle/tricks/reverse_drifter'],
+      ['/freestyle/tricks/around_the_world', '/freestyle/tricks/rev_swirl'],
+      ['/freestyle/tricks/orbit', '/freestyle/tricks/swirl'],
+    ];
+    const table = html.slice(bridge, html.indexOf('Repeating a movement'));
+    for (const [toe, clip] of pairs) {
+      expect(table).toContain(`href="${toe}"`);
+      expect(table).toContain(`href="${clip}"`);
+    }
+    // Counterpart language only: the section never claims the movements are the same.
+    expect(table).not.toMatch(/the same movement/i);
+  });
+
+  it('renders the repetition callout with its three ladders after the counterparts table', async () => {
+    const html = await glossary();
+    const bridge = html.indexOf('Clipper counterparts');
+    const repeat = html.indexOf('One common way freestyle vocabulary grows is by repeating an existing');
+    expect(repeat).toBeGreaterThan(bridge);
+    for (const slug of ['ripstein', 'triple_swirl', 'double_around_the_world', 'triple_around_the_world', 'double_orbit', 'triple_orbit']) {
+      expect(html).toContain(`href="/freestyle/tricks/${slug}"`);
+    }
+  });
+
+  it('the compound-name table clarifies coordinated movements, not reordered sequences', async () => {
+    const html = await glossary();
+    expect(html).toContain('coordinated movements whose identities differ because the base');
+  });
+});

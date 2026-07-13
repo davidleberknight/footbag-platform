@@ -94,10 +94,10 @@ describe('scoring-bracket parity: the swing movement element', () => {
   it('keeps every real swing-family row in parity, and skips the pendulum primitive', () => {
     const swingRows: Array<[string, number]> = [
       ['SET > OP FRONT WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL]', 3],
-      ['SET > OP WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL]', 3],
-      ['SET > OP WHIRL [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]', 4],
-      ['SET > OP WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]', 5],
-      ['CLIP > OP IN [DEX] >> (back) SPIN [BOD] >> DUCK [BOD] >> OP WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]', 8],
+      ['SET > OP BACK WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL]', 3],
+      ['SET > OP FRONT WHIRL [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]', 4],
+      ['SET > OP FRONT WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]', 5],
+      ['CLIP > OP IN [DEX] >> (back) SPIN [BOD] >> DUCK [BOD] >> OP FRONT WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]', 8],
     ];
     for (const [notation, add] of swingRows) {
       expect(checkAddMatchesScoringBrackets(String(add), notation)).toEqual({ add, bracketCount: add, ok: true });

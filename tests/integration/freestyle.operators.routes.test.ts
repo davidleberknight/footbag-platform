@@ -145,7 +145,7 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     const res = await request(await createApp()).get('/freestyle/operators');
     // Paradox section: definition + the canonical entry formula as the example.
     expect(res.text).toContain('id="paradox"');
-    expect(res.text).toMatch(/side relationship between the support leg and the dexterity/);
+    expect(res.text).toMatch(/side relationship between the support leg and that dexterity/);
     expect(res.text).toContain('CLIP &gt; OP IN [DEX]');
     expect(res.text).toMatch(/classic paradox entry topology/);
     // Notation/ADD components vocabulary.

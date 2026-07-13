@@ -232,7 +232,7 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
   // Each portal-card count badge must show a VISIBLE noun (what the number
   // counts), not only an aria-label. The number sits in a
   // .dict-landing-card-count-num span; the noun follows as visible text.
-  const NOUNS = ['ADD buckets', 'dex buckets', 'families', 'modifier groups', 'axes + surfaces', 'neighborhoods', 'unconfirmed names'];
+  const NOUNS = ['ADD buckets', 'dex buckets', 'core families', 'modifier groups', 'axes + surfaces', 'neighborhoods', 'unconfirmed names'];
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
   it('every portal-card badge renders a visible noun label after the number', async () => {
@@ -267,7 +267,7 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     // lineages live in their own band inside the By-family view.
     // 17 Family Parents: the 16 long-standing parents plus the Down umbrella
     // (expert-ruled one family aggregating its four variant branches).
-    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">17<\/span> families/);
+    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">17<\/span> core families/);
     // Each family-name chip opens that family's encyclopedia page, not the
     // filtered trick list, so the landing no longer bypasses the family article.
     for (const slug of ['mirage', 'osis', 'drifter']) {

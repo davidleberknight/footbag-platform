@@ -36,10 +36,10 @@ describe('Freestyle onboarding — foundations vs lessons framing', () => {
     expect(res.text).not.toMatch(/six foundations/i);
   });
 
-  it('the learning path presents six beginner lessons, not foundations', async () => {
+  it('the learning path presents six lessons, not foundations', async () => {
     const res = await request(await createApp()).get('/freestyle/learn');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('six beginner lessons');
+    expect(res.text).toContain('Six lessons: how the vocabulary fits together');
     expect(res.text).not.toMatch(/six foundations/i);
   });
 
@@ -51,9 +51,9 @@ describe('Freestyle onboarding — foundations vs lessons framing', () => {
     }
   });
 
-  it('the trick index onboarding link starts newcomers with the six beginner lessons', async () => {
+  it('the trick index onboarding link starts newcomers with the six vocabulary lessons', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Start with six beginner lessons');
+    expect(res.text).toContain('Start with the six vocabulary lessons');
   });
 });

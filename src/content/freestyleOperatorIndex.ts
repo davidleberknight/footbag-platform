@@ -5,7 +5,7 @@
  * Presentation grouping for the /freestyle/operators compact index: which
  * modifiers appear under each movement-system axis, in display order. The page
  * carries only relationship, body, and no-plant modifiers; set primitives (the
- * uptime systems like pixie, fairy, atomic, barraging) are first-class objects
+ * set systems like pixie, fairy, atomic, barraging) are first-class objects
  * of the Set Encyclopedia and are intentionally excluded here, so the same
  * concept is never presented as both a set and an operator on two surfaces.
  *
@@ -47,7 +47,7 @@ export const OPERATOR_INDEX_AXES: readonly OperatorIndexAxis[] = [
     // pins to the set role), and it is a productive +1 modifier across many
     // bases. Its only set form is a Holden-only reading with no platform
     // canonical, which lives in the Set Encyclopedia and is referenced there as
-    // related, so it does not belong with the uptime set systems.
+    // related, so it does not belong with the set systems.
     // Weaving and zulu are NOT here: they are platform-canonical ducking launch
     // sets (like whirling), so they belong only in the Set Encyclopedia and the
     // modifier route redirects them to their set page.

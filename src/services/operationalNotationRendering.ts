@@ -15,7 +15,10 @@
 //   - Directions (IN, OUT, FRONT, BACK) — secondary; FRONT/BACK fuse into
 //     rotation-variant when followed by WHIRL/SWIRL
 //   - Body actions (SPIN, DUCK, DIVE) — primary
-//   - Rotation variants (FRONT WHIRL, BACK WHIRL, FRONT SWIRL, BACK SWIRL) — primary; 2-token fusion
+//   - Rotation variants (FRONT WHIRL, BACK WHIRL, FRONT SWIRL) — primary; 2-token fusion.
+//     BACK SWIRL is retired from canonical notation (the swirl and reverse-swirl
+//     dexes use the ordinary IN/OUT vocabulary); the fusion rule still tolerates
+//     it so a non-canonical source string renders without breaking.
 //   - Sequence operators (>, >>) — neutral
 //
 // Color palette (warm, distinct from semantic notation's cool palette).
@@ -28,7 +31,7 @@ export type OperationalTokenRole =
   | 'side'              // SAME, OP
   | 'direction'         // IN, OUT, FRONT, BACK (when standalone)
   | 'body_action'       // SPIN, DUCK, DIVE
-  | 'rotation_variant'  // FRONT WHIRL, BACK WHIRL, FRONT SWIRL, BACK SWIRL — 2-token fusion
+  | 'rotation_variant'  // FRONT WHIRL, BACK WHIRL, FRONT SWIRL — 2-token fusion (BACK SWIRL tolerated for non-canonical sources)
   | 'component_flag'    // [DEX], [DEL], [BOD], [XBD], [PDX], [XDEX]
   | 'sequence_op'       // > or >>
   | 'pre_state'         // (back), (front), (no plant while), (rooted)

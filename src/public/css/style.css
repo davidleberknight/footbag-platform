@@ -3253,6 +3253,28 @@ section.home-media { padding-top: 0; }
   margin-top: 2px;
 }
 
+/* Record under curator review: a small status pill plus the open question,
+   shown in place of a canonical-trick link. */
+.record-review-flag {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 0.05em 0.45em;
+  border-radius: var(--radius-sm);
+  background: var(--bg-light);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.record-review-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
 .trick-hashtag {
   display: block;
   font-family: var(--font-body);
@@ -3906,9 +3928,6 @@ section.home-media { padding-top: 0; }
   color: var(--text-primary);
 }
 .family-badge:hover { background: var(--slate-200); }
-
-/* Rows backed by probable (not fully verified) records */
-.record-probable td { color: var(--gray-800); }
 
 /* Video link */
 .video-link {

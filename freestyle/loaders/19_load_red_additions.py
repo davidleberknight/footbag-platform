@@ -53,6 +53,15 @@ CURATED_V1_SOURCE_ID = "curated-v1"
 # Fields on freestyle_tricks that source_links can carry asserted_* values for.
 SOURCE_ASSERTABLE_FIELDS = {"adds", "notation", "category"}
 
+# Explicit SQL-NULL sentinel for corrections. A blank new_value means "no
+# correction" (skip), and an empty base_trick otherwise defaults the family to
+# the trick's own slug, so there is no way to express "no family / no base" for a
+# canonical folk compound without an explicit marker. A new_value of \N clears
+# the column to SQL NULL. Only the nullable relationship columns accept it; every
+# other field rejects it so a stray \N never lands as literal text.
+NULL_CLEAR_SENTINEL = r"\N"
+NULLABLE_RELATIONSHIP_FIELDS = frozenset({"trick_family", "base_trick"})
+
 
 def trick_name_to_slug(name: str) -> str:
     slug = name.lower()
@@ -292,6 +301,20 @@ def load_corrections(conn: sqlite3.Connection, corrections_csv: Path, loaded_at:
             ).fetchone()
             if existing is None:
                 skipped.append((slug, field, "trick not found"))
+                continue
+
+            # Explicit null-clear: \N sets a nullable relationship column to SQL
+            # NULL. Rejected on any other field so the sentinel never becomes a
+            # literal value; empty (skip) and ordinary slugs keep their behavior.
+            if new_value == NULL_CLEAR_SENTINEL:
+                if field not in NULLABLE_RELATIONSHIP_FIELDS:
+                    skipped.append((slug, field, r"\N null-clear unsupported for this field"))
+                    continue
+                conn.execute(
+                    f"UPDATE freestyle_tricks SET {field} = NULL, updated_at = ? WHERE slug = ?",
+                    (loaded_at, slug),
+                )
+                applied += 1
                 continue
 
             # trick_family and base_trick are slug-valued relationship columns:

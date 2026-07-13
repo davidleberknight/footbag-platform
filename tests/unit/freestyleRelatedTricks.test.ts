@@ -322,7 +322,7 @@ describe('buildRelatedTricks — dex-kick group + kick/stall pairs (R0 overlay)'
     row('orbit_kick',            '1', 'dex',      'orbit',            'orbit'),
     row('legover_kick',          '1', 'dex',      'legover',          'legover'),
     row('miraging_kick',         '1', 'dex',      'miraging_kick',    'miraging_kick'),
-    row('atomic_kick',           '1', 'dex',      'atomic_kick',      'atomic_kick'),
+    row('illusioning_kick',      '1', 'dex',      'illusioning_kick', 'illusioning_kick'),
     row('clipper',               '1', 'body',     'clipper',          'clipper'),
     row('clipper_stall',         '2', 'surface',  'clipper_stall',    'clipper_stall'),
     row('around_the_world',      '2', 'dex',      'around_the_world', 'around_the_world'),
@@ -337,7 +337,7 @@ describe('buildRelatedTricks — dex-kick group + kick/stall pairs (R0 overlay)'
   };
 
   it('the seven dex-kicks cross-reference one another as movement neighbours', () => {
-    const slugs = buildRelatedTricks(get('atomic_kick'), KICKS)
+    const slugs = buildRelatedTricks(get('illusioning_kick'), KICKS)
       .filter(r => r.rule === 'neighborhood').map(r => r.slug);
     expect(slugs).toEqual(expect.arrayContaining([
       'around_the_world_kick', 'pixie_kick', 'fairy_kick', 'orbit_kick',
@@ -345,9 +345,9 @@ describe('buildRelatedTricks — dex-kick group + kick/stall pairs (R0 overlay)'
     ]));
   });
 
-  it('dex-kick group is mutual (pixie-kick surfaces atomic-kick and the rest)', () => {
+  it('dex-kick group is mutual (pixie-kick surfaces illusioning-kick and the rest)', () => {
     const slugs = buildRelatedTricks(get('pixie_kick'), KICKS).map(r => r.slug);
-    expect(slugs).toContain('atomic_kick');
+    expect(slugs).toContain('illusioning_kick');
     expect(slugs).toContain('around_the_world_kick');
   });
 

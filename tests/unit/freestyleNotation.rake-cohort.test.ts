@@ -9,9 +9,9 @@ import { describe, it, expect } from 'vitest';
 const RAKE_BASE = { slug: 'rake', add: 2, notation: 'SET > SWING [DEX] > SAME TOE [DEL]' };
 
 const COHORT = [
-  { slug: 'reverse-whirling-rake', add: 3, notation: 'SET > OP WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL]' },
-  { slug: 'paradox-whirling-rake', add: 4, notation: 'SET > OP WHIRL [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]' },
-  { slug: 'paradox-symposium-whirling-rake', add: 5, notation: 'SET > OP WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]' },
+  { slug: 'reverse-whirling-rake', add: 3, notation: 'SET > OP BACK WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL]' },
+  { slug: 'paradox-whirling-rake', add: 4, notation: 'SET > OP FRONT WHIRL [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]' },
+  { slug: 'paradox-symposium-whirling-rake', add: 5, notation: 'SET > OP FRONT WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]' },
 ];
 
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;

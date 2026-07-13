@@ -545,15 +545,15 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Operational notation as evidence',
-        reading: "The op notation reveals a structural reading: CLIP >> SAME BACK SWIRL [DEX] >> SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]. Doubled same-side back-swirl with cross-body clipper terminal.",
+        reading: "The op notation reveals a structural reading: CLIP >> SAME OUT [DEX] >> SAME OUT [DEX] > SAME CLIP [XBD] [DEL]. Doubled same-side out dex with cross-body clipper terminal.",
       },
       {
         stage:   'Doubled-dex reading',
-        reading: "Two reverse-rotational dex moments in sequence, parallel to barrage's doubled-mirage-class reading at 3 ADD, but with rotational rather than linear dexes.",
+        reading: "Two same-side out dexes (the swirl-cell dexterity) in sequence, parallel to barrage's doubled-mirage-class reading at 3 ADD.",
       },
       {
         stage:   'ADD accounting',
-        reading: "4 ADD consistent with both an atom-class anchor reading (doubled-back-swirl as standalone, paralleling barrage) and a derived reading (swirl(3) + doubled-dex(+1)).",
+        reading: "4 ADD consistent with both an atom-class anchor reading (the doubled swirl-cell dex as standalone, paralleling barrage) and a derived reading (swirl(3) + doubled-dex(+1)).",
       },
       {
         stage:   'Folk-name rescue pattern',

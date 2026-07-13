@@ -700,7 +700,7 @@ const SWIRLING_SET_CONTENT: SetEducationInput = {
     },
     {
       name:  'surfing',
-      prose: 'A composite set that carries swirling as its back-swirl dex (fairy symposium swirling).',
+      prose: 'A composite set that carries swirling as its out dex (fairy symposium swirling).',
     },
   ],
 };
@@ -798,15 +798,15 @@ const SURFING_SET_CONTENT: SetEducationInput = {
   whyItExists:
     'Surfing exists to name a settled composite launch, the Fairy Symposium Swirling stack, as a single set rather than spelling out the expansion on every trick card. Surfing-family cards reference this set by a surfing-set shorthand. The dexterity is the same; the set records the composite opening, scored as a +3 set treatment.',
   howItLaunches:
-    'Surfing is the launch itself, a three-event set sequence. The fairy outward dex, the no-plant symposium body, and the back-swirl dex open the chain, and the bag is delivered into whatever dexterity follows, which stays recognizable: surfing blender is still a blender (the named trick big papa smurf). What surfing determines is how the trick is set up and entered, contributing +3 from the composite set treatment.',
+    'Surfing is the launch itself, a three-event set sequence. The fairy outward dex, the no-plant symposium body, and swirling\'s out dex open the chain, and the bag is delivered into whatever dexterity follows, which stays recognizable: surfing blender is still a blender (the named trick big papa smurf). What surfing determines is how the trick is set up and entered, contributing +3 from the composite set treatment.',
   jobNotation:
-    'Surfing lives in the set portion of the notation, at the front of the chain, reading TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP BACK SWIRL [DEX] >, the Fairy Symposium Swirling stack; the rest of the chain is the unchanged base. So surfing blender (the named trick big papa smurf) decomposes as surfing(+3) + blender(4) = 7, the leading composite set carrying the +3 and the trailing base carrying its own count. This is what marks surfing as a launch: it is the opening set sequence, not body tokens inserted alongside the dexterity.',
+    'Surfing lives in the set portion of the notation, at the front of the chain, reading TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP OUT [DEX] >, the Fairy Symposium Swirling stack; the rest of the chain is the unchanged base. So surfing blender (the named trick big papa smurf) decomposes as surfing(+3) + blender(4) = 7, the leading composite set carrying the +3 and the trailing base carrying its own count. This is what marks surfing as a launch: it is the opening set sequence, not body tokens inserted alongside the dexterity.',
   whereItAppears:
-    'Surfing is a composite set and appears on the surfing family of compounds. Its blender case is the named trick big papa smurf. Because it carries +3, surfing compounds sit among the higher-ADD tricks. It opens with the fairy toe-set entry and carries swirling as its back-swirl dex.',
+    'Surfing is a composite set and appears on the surfing family of compounds. Its blender case is the named trick big papa smurf. Because it carries +3, surfing compounds sit among the higher-ADD tricks. It opens with the fairy toe-set entry and carries swirling as its out dex.',
   howItComposes:
     'Surfing is itself a composition of set treatments, Fairy Symposium Swirling, taken as one launch. It opens a base dexterity while contributing its +3, and the trailing base carries its own count. As a composite set it is a worked-out stack rather than a single primitive launch, which is why it is presented as one named set instead of repeating the expansion on each card.',
   launchNotes:
-    'The defining structure is the composite set Fairy Symposium Swirling: a fairy toe-set outward dex, a no-plant symposium body, and a back-swirl dex, contributing +3. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged.',
+    'The defining structure is the composite set Fairy Symposium Swirling: a fairy toe-set outward dex, a no-plant symposium body, and swirling\'s out dex, contributing +3. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged.',
   confusions: [
     {
       heading: 'Surfing is one named set, not three separate operators',
@@ -860,7 +860,7 @@ const SURFING_SET_CONTENT: SetEducationInput = {
     },
     {
       name:  'swirling',
-      prose: 'The back-swirl dex inside the surfing stack.',
+      prose: 'The out dex inside the surfing stack.',
     },
     {
       name:  'symposium',
@@ -948,31 +948,31 @@ const WARPING_SET_CONTENT: SetEducationInput = {
 const ATOMIC_SET_CONTENT: SetEducationInput = {
   slug:         'atomic',
   displayName:  'Atomic',
-  pageSubtitle: 'A toe-anchored launch set that opens a trick from a single opposite-side outward dex, an uptime set worth +1 that determines how the bag is delivered into the dexterity while the dexterity itself stays the same.',
+  pageSubtitle: 'A toe-anchored launch set that opens a trick from a single opposite-side outward dex, a set worth +1 that determines how the bag is delivered into the dexterity while the dexterity itself stays the same.',
   definition:
-    'Atomic is a launch set: it determines how a trick is opened, rather than adding a movement to the trick itself. It opens from a toe set with a single opposite-side outward dex, delivering the bag into the dexterity that follows. The dexterity is unchanged; what atomic sets is the launch. In notation the set reads TOE > OP OUT [DEX], and as an uptime set treatment it contributes +1. Any following dex marked [XDEX] is a separate +1, recorded explicitly in the notation and never inferred from atomic.',
+    'Atomic is a launch set: it determines how a trick is opened, rather than adding a movement to the trick itself. It opens from a toe set with a single opposite-side outward dex, delivering the bag into the dexterity that follows. The dexterity is unchanged; what atomic sets is the launch. In notation the set reads TOE > OP OUT [DEX], and as a set treatment it contributes +1. Any following dex marked [XDEX] is a separate +1, recorded explicitly in the notation and never inferred from atomic.',
   whyItExists:
-    'Atomic exists to name a specific toe-anchored, opposite-side outward launch, separate from a stationary toe set and separate from its inward counterpart quantum, whose dex runs opposite-side inward. Both finish on an opposite-side component; atomic dexes outward where quantum dexes inward. The dexterity is the same either way; the set records the outward-uptime opening, scored independently as a +1 set treatment.',
+    'Atomic exists to name a specific toe-anchored, opposite-side outward launch, separate from a stationary toe set and separate from its inward counterpart quantum, whose dex runs opposite-side inward. Both finish on an opposite-side component; atomic dexes outward where quantum dexes inward. The dexterity is the same either way; the set records the outward opening, scored independently as a +1 set treatment.',
   howItLaunches:
     'Atomic is the launch itself, not a movement added after launch. The toe set opens with an opposite-side outward dex, and the bag is delivered into whatever dexterity follows, which stays recognizable: an atomic whirl is still a whirl, an atomic butterfly is still a butterfly. What atomic determines is how the trick is set up and entered, contributing +1 from the set treatment, separate from the dexterity count and separate from any X-Dex.',
   jobNotation:
     'Atomic lives in the set portion of the notation, at the front of the chain. An atomic trick opens TOE > OP OUT [DEX] >, the toe set with an opposite-side outward dex; the rest of the chain is the unchanged base. So atomic whirl decomposes as atomic(+1) + whirl(3) = 4, the leading set carrying the +1 and the trailing base carrying the rest. A following dex marked [XDEX] scores its own separate +1: atom smasher, the atomic mirage, reads 4 because it carries an X-Dex, while an atomic trick without one does not.',
   whereItAppears:
-    'Atomic is one of the core uptime launch sets and appears across a wide range of bases. Its clearest named case is atom smasher, the atomic mirage. It seeds its own derived set systems, including fairy atomic and neutron, and the tapping set builds on the same toe-anchored opening. Among the launch sets it is the outward-uptime counterpart of quantum, distinct from the clipper-anchored and downtime launches.',
+    'Atomic is one of the core launch sets and appears across a wide range of bases. Its clearest named case is atom smasher, the atomic mirage. It seeds its own derived set systems, including fairy atomic and neutron, and the tapping set builds on the same toe-anchored opening. Among the launch sets it is the outward counterpart of quantum, distinct from the clipper-anchored and downtime launches.',
   howItComposes:
-    'Atomic composes with almost any dexterity while contributing its outward-uptime launch, and the body operators layer on top of it on their own axes. Because atomic is the launch and operators such as symposium, ducking, and paradox are body movements, the two layer without competing. Atomic also seeds its own derived set systems, where a further set treatment is layered onto the atomic launch.',
+    'Atomic composes with almost any dexterity while contributing its outward launch, and the body operators layer on top of it on their own axes. Because atomic is the launch and operators such as symposium, ducking, and paradox are body movements, the two layer without competing. Atomic also seeds its own derived set systems, where a further set treatment is layered onto the atomic launch.',
   launchNotes:
     'The defining structure is a toe set with a single opposite-side outward dex, written TOE > OP OUT [DEX]. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged. In notation the launch is recorded at the front of the chain, and any X-Dex is a separate [XDEX] token, never part of atomic.',
   confusions: [
     {
       heading: 'Atomic vs quantum',
       prose:
-        'Both are toe-anchored uptime launch sets that finish on an opposite-side component, but they open in opposite directions. Atomic opens with an opposite-side outward dex (TOE > OP OUT [DEX]); quantum opens with an opposite-side inward dex (TOE > OP IN [DEX]). They are directional counterparts, separate launch identities, not two names for one launch.',
+        'Both are toe-anchored launch sets that finish on an opposite-side component, but they open in opposite directions. Atomic opens with an opposite-side outward dex (TOE > OP OUT [DEX]); quantum opens with an opposite-side inward dex (TOE > OP IN [DEX]). They are directional counterparts, separate launch identities, not two names for one launch.',
     },
     {
       heading: 'Atomic vs illusioning',
       prose:
-        'Older sources sometimes used illusioning language for atomic, but current doctrine keeps them distinct: illusioning is a downtime move, not another name for the atomic uptime set.',
+        'Older sources sometimes used illusioning language for atomic, but current doctrine keeps them distinct: illusioning is the outward dex realized standalone, not another name for atomic, which is that same movement realized with a set role.',
     },
     {
       heading: 'Atomic is a launch, not a body movement',
@@ -1028,7 +1028,7 @@ const ATOMIC_SET_CONTENT: SetEducationInput = {
         slug:      'atomic_butterfly',
         baseLabel: 'Butterfly family',
         prose:
-          'Atomic opening a butterfly, the outward-uptime launch delivering the bag into the butterfly, 4 ADD.',
+          'Atomic opening a butterfly, the outward launch delivering the bag into the butterfly, 4 ADD.',
       },
       {
         slug:      'atomic_illusion',
@@ -1061,26 +1061,26 @@ const ATOMIC_SET_CONTENT: SetEducationInput = {
 const QUANTUM_SET_CONTENT: SetEducationInput = {
   slug:         'quantum',
   displayName:  'Quantum',
-  pageSubtitle: 'A toe-anchored launch set that opens a trick from a single opposite-side inward dex, an uptime set worth +1 and the inward counterpart of atomic.',
+  pageSubtitle: 'A toe-anchored launch set that opens a trick from a single opposite-side inward dex, a set worth +1 and the inward counterpart of atomic.',
   definition:
-    'Quantum is a launch set: it determines how a trick is opened rather than adding a movement to the trick itself. It opens from a toe set with a single opposite-side inward dex, delivering the bag into the dexterity that follows. The dexterity is unchanged; what quantum sets is the launch. In notation the set reads TOE > OP IN [DEX], and as an uptime set treatment it contributes +1. Any following dex marked [XDEX] is a separate +1, recorded explicitly and never inferred from quantum. Its historical name is Toe Blur.',
+    'Quantum is a launch set: it determines how a trick is opened rather than adding a movement to the trick itself. It opens from a toe set with a single opposite-side inward dex, delivering the bag into the dexterity that follows. The dexterity is unchanged; what quantum sets is the launch. In notation the set reads TOE > OP IN [DEX], and as a set treatment it contributes +1. Any following dex marked [XDEX] is a separate +1, recorded explicitly and never inferred from quantum. Its historical name is Toe Blur.',
   whyItExists:
-    'Quantum exists to name the inward-uptime toe launch, the directional counterpart of atomic: both open from a toe set and finish on an opposite-side component, but quantum dexes inward where atomic dexes outward. The dexterity is the same either way; the set records the inward-uptime opening, scored independently as a +1 set treatment.',
+    'Quantum exists to name the inward toe launch, the directional counterpart of atomic: both open from a toe set and finish on an opposite-side component, but quantum dexes inward where atomic dexes outward. The dexterity is the same either way; the set records the inward opening, scored independently as a +1 set treatment.',
   howItLaunches:
     'Quantum is the launch itself, not a movement added after launch. The toe set opens with an opposite-side inward dex, and the bag is delivered into whatever dexterity follows, which stays recognizable: a quantum whirl is still a whirl, a quantum mirage is still a mirage. What quantum determines is how the trick is entered, contributing +1 from the set treatment, separate from the dexterity count and any X-Dex.',
   jobNotation:
     'Quantum lives in the set portion of the notation, at the front of the chain. A quantum trick opens TOE > OP IN [DEX] >, the toe set with an opposite-side inward dex; the rest of the chain is the unchanged base. So quantum mirage decomposes as quantum(+1) + mirage(2) = 3, and its historical name is Toe Blur. A following dex marked [XDEX] scores its own separate +1.',
   whereItAppears:
-    'Quantum is one of the core uptime launch sets and appears across many bases; its named case quantum mirage is Toe Blur. It seeds the derived set system frantic. Among the launch sets it is the inward-uptime counterpart of atomic and a same-side-terminal sibling of slapping.',
+    'Quantum is one of the core launch sets and appears across many bases; its named case quantum mirage is Toe Blur. It seeds the derived set system frantic. Among the launch sets it is the inward counterpart of atomic and a same-side-terminal sibling of slapping.',
   howItComposes:
-    'Quantum composes with almost any dexterity while contributing its inward-uptime launch, and the body operators layer on top of it on their own axes. Because quantum is the launch and operators such as symposium, ducking, and paradox are body movements, the two layer without competing. Quantum also seeds derived systems such as frantic, where a further set treatment is layered onto the quantum launch.',
+    'Quantum composes with almost any dexterity while contributing its inward launch, and the body operators layer on top of it on their own axes. Because quantum is the launch and operators such as symposium, ducking, and paradox are body movements, the two layer without competing. Quantum also seeds derived systems such as frantic, where a further set treatment is layered onto the quantum launch.',
   launchNotes:
     'The defining structure is a toe set with a single opposite-side inward dex, written TOE > OP IN [DEX]. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged. In notation the launch is recorded at the front of the chain, and any X-Dex is a separate [XDEX] token.',
   confusions: [
     {
       heading: 'Quantum vs atomic',
       prose:
-        'Both are toe-anchored uptime launches that finish on an opposite-side component, but they open in opposite directions. Quantum opens inward (TOE > OP IN [DEX]); atomic opens outward (TOE > OP OUT [DEX]). Directional counterparts, separate launch identities.',
+        'Both are toe-anchored launches that finish on an opposite-side component, but they open in opposite directions. Quantum opens inward (TOE > OP IN [DEX]); atomic opens outward (TOE > OP OUT [DEX]). Directional counterparts, separate launch identities.',
     },
     {
       heading: 'Quantum vs Toe Blur',
@@ -1090,7 +1090,7 @@ const QUANTUM_SET_CONTENT: SetEducationInput = {
     {
       heading: 'Quantum vs Miraging',
       prose:
-        'Miraging is a historical, mirage-family name from an older downtime reading; it is a nickname, not a canonical set, and not an equivalent term for Quantum. Miraging names may persist for continuity, but Quantum is the official set identity for this inward-uptime launch, and its own historical name is Toe Blur.',
+        'Miraging is a descriptive mirage-family name for the inward standalone movement; it is a nickname, not a launch set, and not an equivalent term for Quantum. Miraging names may persist for continuity, but Quantum is the same inward movement realized with a set role, and its own historical name is Toe Blur.',
     },
     {
       heading: 'Quantum is a launch, not a body movement',
@@ -1140,7 +1140,7 @@ const QUANTUM_SET_CONTENT: SetEducationInput = {
         slug:      'quantum_butterfly',
         baseLabel: 'Butterfly family',
         prose:
-          'Quantum opening a butterfly, the inward-uptime launch delivering the bag into the butterfly, 4 ADD.',
+          'Quantum opening a butterfly, the inward launch delivering the bag into the butterfly, 4 ADD.',
       },
       {
         slug:      'quantum_legover',
@@ -1292,17 +1292,17 @@ const NUCLEAR_SET_CONTENT: SetEducationInput = {
 const FURIOUS_SET_CONTENT: SetEducationInput = {
   slug:         'furious',
   displayName:  'Furious',
-  pageSubtitle: 'A clipper-anchored two-dex uptime set worth +2, opening a trick from an opposite-side inward dex followed by a same-side inward dex.',
+  pageSubtitle: 'A clipper-anchored two-dex set worth +2, opening a trick from an opposite-side inward dex followed by a same-side inward dex.',
   definition:
-    'Furious is a launch set built from two dexes: it opens a trick from a clipper set with an opposite-side inward dex, then a same-side inward dex, delivering the bag into the base that follows. The base is unchanged; what furious sets is the launch. In notation the set reads CLIP > OP IN [DEX] > SAME IN [DEX], and as a two-dex uptime set it contributes +2. Its historical name is high stepping.',
+    'Furious is a launch set built from two dexes: it opens a trick from a clipper set with an opposite-side inward dex, then a same-side inward dex, delivering the bag into the base that follows. The base is unchanged; what furious sets is the launch. In notation the set reads CLIP > OP IN [DEX] > SAME IN [DEX], and as a two-dex set it contributes +2. Its historical name is high stepping.',
   whyItExists:
-    'Furious exists to name the two-dex clipper-anchored uptime opening, separate from the single-dex stepping launch. Where stepping opens with one opposite-side inward dex, furious runs two inward dexes before the base, and the set records that doubled opening as a +2 treatment.',
+    'Furious exists to name the two-dex clipper-anchored opening, separate from the single-dex stepping launch. Where stepping opens with one opposite-side inward dex, furious runs two inward dexes before the base, and the set records that doubled opening as a +2 treatment.',
   howItLaunches:
     'Furious is the launch itself, two dexes run before the base. The clipper set opens with an opposite-side inward dex, then a same-side inward dex, and the bag is delivered into whatever base follows, which stays recognizable. What furious determines is how the trick is entered, contributing +2 from the two-dex set treatment, separate from the base count.',
   jobNotation:
     'Furious lives in the set portion of the notation, at the front of the chain, and spans two dexes: CLIP > OP IN [DEX] > SAME IN [DEX] >. So a furious mirage decomposes as furious(+2) + mirage(2) = 4, the leading two-dex set carrying the +2 and the trailing base carrying the rest.',
   whereItAppears:
-    'Furious is the two-dex uptime set and appears across many bases; named cases include baroque and fury. Among the launch sets it is the two-dex counterpart of the single-dex stepping launch. Some dictionary trick rows for this set keep barraging-based names for historical name continuity; those names are naming residue, and the set is Furious.',
+    'Furious is the two-dex set and appears across many bases; named cases include baroque and fury. Among the launch sets it is the two-dex counterpart of the single-dex stepping launch. Some dictionary trick rows for this set keep barraging-based names for historical name continuity; those names are naming residue, and the set is Furious.',
   howItComposes:
     'Furious composes with a wide range of bases while contributing its two-dex clipper-anchored launch, and the body operators layer on top of it on their own axes. Because furious is the launch and operators such as paradox and symposium are body movements, the two layer without competing.',
   launchNotes:
@@ -1311,7 +1311,7 @@ const FURIOUS_SET_CONTENT: SetEducationInput = {
     {
       heading: 'Furious vs Barraging',
       prose:
-        'Furious is the canonical set for this two-dex uptime opening. Barraging is not a canonical set. Some dictionary trick rows keep barraging-based names for historical name continuity, but those names are naming residue, not evidence that Barraging is a set; the set taught here is Furious.',
+        'Furious is the canonical set for this two-dex opening. Barraging is not a canonical set. Some dictionary trick rows keep barraging-based names for historical name continuity, but those names are naming residue, not evidence that Barraging is a set; the set taught here is Furious.',
     },
     {
       heading: 'Furious vs stepping',

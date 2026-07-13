@@ -65,7 +65,7 @@ beforeAll(async () => {
     t('pixie-kick', '1', 'pixie', 'pixie', 'dex'),
     t('trixie', '5', 'pixie', 'pixie'),
     // self-based, childless 0-op -> no block
-    t('atomic-kick', '1', 'atomic-kick', 'atomic-kick', 'dex'),
+    t('illusioning-kick', '1', 'illusioning-kick', 'illusioning-kick', 'dex'),
   ];
   for (const r of rows) insertFreestyleTrick(db, r);
 
@@ -144,7 +144,7 @@ describe('Trick-detail Structural Neighbors — suppression and hidden block', (
   });
 
   it('a self-based childless 0-operator trick renders no Structural Neighbors block', async () => {
-    const html = await page('atomic-kick');
+    const html = await page('illusioning-kick');
     expect(neighborsSection(html)).toBeNull();
   });
 });

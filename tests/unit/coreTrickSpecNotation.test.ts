@@ -15,10 +15,15 @@ const EXPECTED: Record<string, { notation: string; adds: number }> = {
   'pickup':           { notation: 'SET > OP IN [DEX] > SAME TOE [DEL]',         adds: 2 },
   'illusion':         { notation: 'SET > OP OUT [DEX] > OP TOE [DEL]',          adds: 2 },
   'whirl':            { notation: 'SET > OP IN [DEX] > OP CLIP [XBD] [DEL]',    adds: 3 },
+  // Butterfly publishes the far / opposite-side default form per the
+  // default-catch-side ruling; the side-either fold is superseded.
   'butterfly':        { notation: 'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]',   adds: 3 },
-  'swirl':            { notation: 'SET > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]', adds: 3 },
+  // Clipper-terminal matrix: swirl is the same-side out cell (whirl OP IN,
+  // rev whirl OP OUT, rev swirl SAME IN); BACK SWIRL is retired as a token.
+  'swirl':            { notation: 'SET > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]', adds: 3 },
   'osis':             { notation: 'SET > (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL]', adds: 3 },
-  'around_the_world': { notation: 'TOE > SAME IN [DEX] > SAME TOE [DEL]',       adds: 2 },
+  // Around-the-world folds both circling directions into one canonical row.
+  'around_the_world': { notation: 'TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]',   adds: 2 },
   'orbit':            { notation: 'TOE > SAME OUT [DEX] > SAME TOE [DEL]',      adds: 2 },
 };
 

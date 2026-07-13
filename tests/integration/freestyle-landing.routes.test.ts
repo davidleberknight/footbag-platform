@@ -155,12 +155,12 @@ describe('freestyle landing foundational-tricks mosaic', () => {
 });
 
 describe('freestyle landing beginner on-ramp', () => {
-  it('funnels newcomers to the learn path above the foundations mosaic', async () => {
+  it('funnels newcomers to the getting-started page above the foundations mosaic', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="freestyle-learn-pointer"');
     expect(res.text).toMatch(/New to freestyle\?/i);
-    expect(res.text).toContain('href="/freestyle/learn"');
+    expect(res.text).toContain('href="/freestyle/start"');
     const pointerAt = res.text.indexOf('freestyle-learn-pointer');
     const mosaicAt = res.text.indexOf('The 12 Foundations of Freestyle');
     expect(pointerAt).toBeGreaterThan(-1);
