@@ -59,7 +59,7 @@ fi
 DELETED_DOCS='SERVICE_CATALOG\.md|VIEW_CATALOG\.md'
 if refs=$(git grep -lE "$DELETED_DOCS" -- ":!$self" ':!exploration' 2>/dev/null); then
   echo "[harness] FAIL: reference(s) to a deleted doc (SERVICE_CATALOG.md / VIEW_CATALOG.md):" >&2
-  printf '  %s\n' $refs >&2
+  ( IFS=$'\n'; printf '  %s\n' $refs >&2 )
   fail=1
 else
   echo "[harness] no references to deleted docs"
@@ -109,7 +109,7 @@ sqlite_bad=$(jq -r '(.permissions.allow // [])[]' "$SETTINGS" 2>/dev/null \
   | grep -iE 'sqlite3' | grep -v -- '-readonly' || true)
 if [ -n "$sqlite_bad" ]; then
   echo "[harness] FAIL: sqlite3 allowed without -readonly:" >&2
-  printf '  %s\n' $sqlite_bad >&2
+  ( IFS=$'\n'; printf '  %s\n' $sqlite_bad >&2 )
   fail=1
 else
   echo "[harness] sqlite3 is not auto-allowed without -readonly"
@@ -156,7 +156,7 @@ fi
 memory_refs=$(harness_md | xargs grep -lE '(^|[^A-Za-z0-9_./-])memory/[A-Za-z0-9_-]+\.md' 2>/dev/null || true)
 if [ -n "$memory_refs" ]; then
   echo "[harness] FAIL: harness file(s) reference a memory-store entry (promote the fact or state it inline):" >&2
-  printf '  %s\n' $memory_refs >&2
+  ( IFS=$'\n'; printf '  %s\n' $memory_refs >&2 )
   fail=1
 else
   echo "[harness] no harness file references a memory-store path"
@@ -196,7 +196,7 @@ if [ -f "$LOCAL" ] && jq empty "$LOCAL" >/dev/null 2>&1; then
   } 2>/dev/null | grep -v '^[[:space:]]*$' | sort -u || true )
   if [ -n "$local_bad" ]; then
     echo "[harness] FAIL: $LOCAL carries dangerous broad allow(s) — promote a safe scoped rule to $SETTINGS, or delete:" >&2
-    printf '  %s\n' $local_bad >&2
+    ( IFS=$'\n'; printf '  %s\n' $local_bad >&2 )
     fail=1
   else
     echo "[harness] $LOCAL carries no dangerous broad allow"

@@ -27,11 +27,15 @@ hooks:
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-dangerous-git.sh"
         - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-rm.sh"
+        - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-full-suite-vitest.sh"
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-readonly-bash.sh"
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-find-exec.sh"
+        - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-leading-cd.sh"
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/allow-readonly-bash.sh"
 ---

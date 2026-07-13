@@ -19,6 +19,14 @@ INPUT="$(cat)"
 COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 [ -n "$COMMAND" ] || exit 0
 
+# ANSI-C `$'...'` quoting follows different escape rules than ordinary quotes: a
+# backslash-escaped quote (`\'`) does NOT close the string. The quote walks below do
+# not model that, so a `$'...'` region can desync quote state and make a live
+# separator or command substitution look quoted (and be wrongly neutralized). Never
+# reasoned about; fall through. The only cost is an extra prompt on a rare read-only
+# argument like `grep $'\t' f`.
+case "$COMMAND" in *\$\'*) exit 0 ;; esac
+
 # Command heads that never write. Dangerous flags on these (sed -i, find
 # -delete) are handled by sibling ask/deny hooks, which win over allow.
 # `env`/`command` are command-runners (`env rm`, `command rm` execute their
@@ -27,29 +35,262 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 # bailed on a mid-arg flag) so only their genuinely read-only uses reach `allow`.
 readonly_heads='ls cat head tail wc grep egrep fgrep rg find tree stat file echo printf pwd which type dirname basename realpath readlink sort uniq cut comm tr nl tac fold column jq date id whoami hostname uname sed true false : diff cmp strings od hexdump base64 base32 cksum md5sum sha1sum sha224sum sha256sum sha384sum sha512sum shasum b2sum sum rev fmt expand unexpand paste join pr look seq numfmt tsort ps pgrep pidof df du free uptime groups users who w tty nproc arch getconf locale lscpu lsblk lsmem getent lsof cd pushd popd dirs test'
 
-# Git subcommands that only read. Anything else under git falls through.
+# Git subcommands that only read. Anything else under git falls through. Every entry must be
+# read-only in ALL its subverbs; `reflog` is the one exception (its `expire`/`delete` mutate) and
+# is gated in head_arg_unsafe below, so it can stay here for its read-only `show`/`list` forms.
 readonly_git='status log diff show blame rev-parse describe shortlog ls-files ls-tree cat-file for-each-ref reflog rev-list merge-base show-ref name-rev ls-remote var count-objects cherry whatchanged verify-commit verify-tag grep annotate range-diff show-branch check-ignore check-attr check-mailmap'
 
 contains() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
+
+# Does a write/exec-capable flag or operand ride mid-arguments on an otherwise
+# read-only head? A prefix allow-rule cannot see it. Shared by the top-level segment
+# loop and the substitution-inner vetting so the two cannot drift: the class of bug
+# where `$(sed -i ...)`, `$(find . -delete)`, `$(sort -o f)`, or
+# `$(git ls-remote --upload-pack=cmd)` slip through because the inner was head-vetted
+# only. Args: head, the command text to scan for sed's w/e script commands, then the
+# args AFTER the head. Returns 0 (true) if a write/exec form is present.
+head_arg_unsafe() {
+  local head="$1" cmdtext="$2"; shift 2
+  local a b ops=0
+  case "$head" in
+    sed)
+      # In-place edit (-i, -i.bak, -ni, --in-place[=x]) writes; -f/--file runs an external
+      # script whose contents are opaque to this checker. Both are unsafe.
+      for a in "$@"; do case "$a" in -i*|-[!-]*i*|--in-place|--in-place=*|-f*|-[!-]*f*|--file|--file=*) return 0 ;; esac; done
+      # The w/W write-command and the s///w write-flag are always followed by a filename, so
+      # a boundary/address-prefixed w/W before whitespace flags them in every address form
+      # (1w, $w, /re/w, 1,5w) and either quote style, while a `w` inside an s/// pattern
+      # (s/w/x/) is followed by a delimiter, not whitespace, and a word ending in w before a
+      # space (a replacement like `new file`) is preceded by a letter, not a boundary. The e
+      # exec-command is a boundary/address-prefixed e before whitespace, a quote, or end of
+      # script (covering `1e cmd`, bare `e`, and the s///e flag).
+      if printf '%s' "$cmdtext" | grep -Eq "(^|[;&|[:space:]])sed([[:space:]]|\$).*([[:space:]'\";}/][0-9\$,~+]*([wW][[:space:]]|e([[:space:]]|['\"]|\$))|s[^[:alnum:][:space:]].*[^[:alnum:][:space:]][gpimIM0-9]*[weWE])"; then return 0; fi ;;
+    find)
+      # Action predicates run a command or write/delete a file; they ride anywhere and can
+      # be quote/backslash-obfuscated (find . '-exec' rm ...), so strip quotes and
+      # backslashes per arg before matching.
+      for a in "$@"; do
+        b="$a"; b="${b//\'/}"; b="${b//\"/}"; b="${b//\\/}"
+        case "$b" in -exec|-execdir|-ok|-okdir|-delete|-fprint|-fprintf|-fls) return 0 ;; esac
+      done ;;
+    sort) for a in "$@"; do case "$a" in -o|-o*|--output|--output=*) return 0 ;; esac; done ;;
+    date) for a in "$@"; do case "$a" in -s|-s*|--set|--set=*) return 0 ;; esac; done ;;
+    hostname) for a in "$@"; do case "$a" in -*) : ;; *) return 0 ;; esac; done ;;   # hostname NAME sets it
+    rg) for a in "$@"; do case "$a" in --pre|--pre=*|--pre-glob|--pre-glob=*) return 0 ;; esac; done ;;
+    tree) for a in "$@"; do case "$a" in -o|-o*|--output|--output=*) return 0 ;; esac; done ;;
+    uniq)
+      # A 2nd non-option operand is an output file uniq truncates. Over-count only over-prompts.
+      for a in "$@"; do case "$a" in -*) : ;; *) ops=$((ops + 1)) ;; esac; done
+      [ "$ops" -ge 2 ] && return 0 ;;
+    git)
+      # `git reflog` reads in its show/list forms but MUTATES via `expire` (prune) and `delete`
+      # (drop entries); the subverb is the first arg after `reflog`. Refuse those here so the
+      # entry can stay on the read-only git list for its read-only forms.
+      case "${1:-}" in reflog) case "${2:-}" in expire|delete) return 0 ;; esac ;; esac
+      # An exec/write flag on a read-only git subcommand (`git log --output=f`,
+      # `git ls-remote --upload-pack=cmd`).
+      for a in "$@"; do
+        case "$a" in --output|--output=*|--upload-pack|--upload-pack=*|--receive-pack|--receive-pack=*|--open-files-in-pager|--open-files-in-pager=*|--exec-path|--exec-path=*|-O*) return 0 ;; esac
+      done ;;
+  esac
+  return 1
+}
 
 # Is the given string a single, simple read-only command? Used to vet the
 # content of a command substitution. Rejects anything that is not one plain
 # read-only-headed command with only argument text after it.
 simple_readonly_command() {
   local content="$1"
-  # No backtick, no separators, no write redirect inside the substitution.
+  # No backtick, no separators (an unquoted newline separates commands like `;`), no
+  # write redirect inside the substitution.
   case "$content" in
-    *'`'*|*';'*|*'|'*|*'&'*|*'>'*|*'<('*|*'>('*) return 1 ;;
+    *'`'*|*';'*|*'|'*|*'&'*|*'>'*|*'<('*|*'>('*|*$'\n'*) return 1 ;;
   esac
   # Word-split (no globbing) and drop leading env-assignment prefixes.
   set -f; set -- $content; set +f
   while [ $# -gt 0 ]; do case "$1" in *=*) shift ;; *) break ;; esac; done
   [ $# -gt 0 ] || return 1
-  if [ "$1" = git ]; then
-    contains "$readonly_git" "${2:-}" || return 1
+  local head="$1"; shift
+  if [ "$head" = git ]; then
+    contains "$readonly_git" "${1:-}" || return 1
+    head_arg_unsafe git "$content" "$@" && return 1
     return 0
   fi
-  contains "$readonly_heads" "$1" || return 1
+  contains "$readonly_heads" "$head" || return 1
+  head_arg_unsafe "$head" "$content" "$@" && return 1
+  return 0
+}
+
+# Vet a sqlite3 invocation as a provably read-only inline query. Shared by the
+# top-level segment loop and the command-substitution vetting so the two cannot
+# drift. Args: $1 = the full command text to scan for dangerous SQL / dot-commands;
+# $@ (after the shift) = the argv AFTER `sqlite3`. Returns 0 iff read-only.
+#
+# sqlite3 escapes the database even opened read-only: dot-commands can run a shell
+# (.shell/.system/.!) or write a file (.output/.once/.backup/...), an ATTACH opens a
+# second database that -readonly does not cover, and a value-setting PRAGMA mutates.
+# The read-only open is required via the -readonly flag or the file:...?mode=ro URI;
+# the URI is rejected if it also carries a writable/alternate mode (mode=rw / rwc /
+# memory) or a vfs= parameter, so a duplicate-mode spoof (file:db?mode=rwc&mode=ro)
+# does not read as read-only. A query read from stdin/pipe/redirect is invisible here
+# and is refused. This function refuses every write/exec form itself rather than
+# leaning on a sibling guard.
+readonly_sqlite3_ok() {
+  local cmdtext="$1"; shift
+  local a b ro=0 operands=0
+  for a in "$@"; do
+    case "$a" in
+      -readonly|--readonly) ro=1 ;;
+      *) b="$a"; b="${b//\"/}"; b="${b//\'/}"
+         case "$b" in
+           file:*)
+             case "$b" in
+               *vfs=*|*mode=rw*|*mode=memory*) : ;;   # writable / alt vfs -> not read-only
+               *mode=ro*) ro=1 ;;
+             esac ;;
+         esac ;;
+    esac
+  done
+  [ "$ro" = 1 ] || return 1
+  case "$cmdtext" in
+    *.shell*|*.system*|*'.!'*|*.output*|*.once*|*.excel*|*.import*|*.backup*|\
+    *.save*|*.clone*|*.log*|*.read*|*.recover*|*.expert*|*.archive*) return 1 ;;
+  esac
+  # ATTACH (opens another db that -readonly does not cover), a write DML/DDL verb, and
+  # a value-setting PRAGMA (`PRAGMA name = ...`) are refused directly rather than left
+  # to the engine's read-only enforcement or a sibling guard. A read-only PRAGMA query
+  # carries no `=`. Word-boundary anchored, so an identifier or string that merely
+  # contains a verb (a `delete_log` column) does not trip it; the cost of a false
+  # match is only an extra prompt.
+  if printf '%s' "$cmdtext" \
+    | grep -Eqi '(^|[^[:alpha:]])(attach|insert|update|delete|drop|create|alter|replace|truncate|reindex|vacuum)[[:space:]]|(^|[^[:alpha:]])pragma[[:space:]]+[[:alpha:]_]+[[:space:]]*='; then
+    return 1
+  fi
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      '<'|'<<'|'>'|'>>'|'0<') return 1 ;;
+      -init|-cmd|-separator|-nullvalue|-newline) shift; [ $# -gt 0 ] && shift ;;
+      -lookaside|-pagecache) shift; [ $# -gt 0 ] && shift; [ $# -gt 0 ] && shift ;;
+      -*) shift ;;
+      *) operands=$((operands + 1)); shift ;;
+    esac
+  done
+  # Fewer than two operands means no inline query (a db alone reads stdin).
+  [ "$operands" -ge 2 ] || return 1
+  return 0
+}
+
+# Does the string carry a shell-significant character OUTSIDE quotes -- a separator
+# (; | &), a redirect (< >), a subshell/grouping paren, a command substitution `$(`,
+# or a backtick? Quote-aware: inside single quotes nothing is significant; inside
+# double quotes `$(` and a backtick are still active (command substitution runs in
+# double quotes) but a bare paren/separator is literal. Used to reject a substitution
+# inner that hides a second command around a read-only sqlite3 (e.g. `sqlite3 ... ; rm x`).
+inner_has_unquoted_sep() {
+  local s="$1"
+  local n=${#s} i=0 c q="" esc=0
+  while [ "$i" -lt "$n" ]; do
+    c="${s:i:1}"
+    if [ "$esc" = 1 ]; then esc=0; i=$((i+1)); continue; fi
+    if [ "$q" = "'" ]; then [ "$c" = "'" ] && q=""; i=$((i+1)); continue; fi
+    if [ "$q" = '"' ]; then
+      if [ "$c" = '\' ]; then esc=1; i=$((i+1)); continue; fi
+      if [ "$c" = '"' ]; then q=""; i=$((i+1)); continue; fi
+      if [ "$c" = '`' ]; then return 0; fi
+      if [ "$c" = '$' ] && [ "${s:i+1:1}" = "(" ]; then return 0; fi
+      i=$((i+1)); continue
+    fi
+    # An unquoted newline is a command separator exactly like `;`.
+    if [ "$c" = $'\n' ]; then return 0; fi
+    case "$c" in
+      '\') esc=1 ;;
+      "'") q="'" ;;
+      '"') q='"' ;;
+      ';'|'|'|'&'|'<'|'>'|'('|')'|'`') return 0 ;;
+      '$') [ "${s:i+1:1}" = "(" ] && return 0 ;;
+    esac
+    i=$((i+1))
+  done
+  return 1
+}
+
+# Vet the inner content of a command substitution. A read-only head / read-only git
+# goes through simple_readonly_command (its raw separator reject is fine: a genuine
+# read-only pipeline is never wrapped in one substitution). A sqlite3 head goes
+# through the shared read-only-sqlite3 vetting, but first the inner must carry no
+# UNQUOTED separator, so `$(sqlite3 -readonly db "SELECT 1"; rm x)` is refused while
+# `$(sqlite3 -readonly db "SELECT count(*) FROM t")` (parens/`;` only inside quotes)
+# is allowed.
+vet_readonly_sub_inner() {
+  local inner="$1"
+  set -f; set -- $inner; set +f
+  while [ $# -gt 0 ]; do case "$1" in *=*) shift ;; *) break ;; esac; done
+  [ $# -gt 0 ] || return 1
+  if [ "$1" = sqlite3 ]; then
+    inner_has_unquoted_sep "$inner" && return 1
+    shift
+    readonly_sqlite3_ok "$inner" "$@"
+    return $?
+  fi
+  simple_readonly_command "$inner"
+}
+
+# Resolve ONE command substitution in the global SCAN, innermost first, quote-aware.
+# The rightmost active `$(` (in an unquoted or double-quoted context, never single
+# quoted, never `$((` arithmetic) is always innermost, so nested read-only
+# substitutions resolve one per call over successive loop iterations. Its inner is
+# read fresh (unquoted) from just after `$(` to the first unquoted `)`; a bare
+# unquoted `(` inside is a subshell and is not proven safe. A vetted inner is
+# replaced with the inert placeholder. Returns 0 on a replacement, 1 otherwise
+# (caller then falls through to a prompt). Quoted parens (a sqlite3 `count(*)`, a
+# grep `"(a|b)"`) never move the boundary, because the scan skips quoted regions.
+resolve_one_sub() {
+  local s="$SCAN"
+  local n=${#s} i=0 c q="" esc=0 open=-1
+  while [ "$i" -lt "$n" ]; do
+    c="${s:i:1}"
+    if [ "$esc" = 1 ]; then esc=0; i=$((i+1)); continue; fi
+    if [ "$q" = "'" ]; then [ "$c" = "'" ] && q=""; i=$((i+1)); continue; fi
+    if [ "$q" = '"' ]; then
+      if [ "$c" = '\' ]; then esc=1; i=$((i+1)); continue; fi
+      if [ "$c" = '"' ]; then q=""; i=$((i+1)); continue; fi
+      if [ "$c" = '$' ] && [ "${s:i+1:1}" = "(" ] && [ "${s:i+2:1}" != "(" ]; then open="$i"; fi
+      i=$((i+1)); continue
+    fi
+    case "$c" in
+      '\') esc=1 ;;
+      "'") q="'" ;;
+      '"') q='"' ;;
+      '$') if [ "${s:i+1:1}" = "(" ] && [ "${s:i+2:1}" != "(" ]; then open="$i"; fi ;;
+    esac
+    i=$((i+1))
+  done
+  [ "$open" -ge 0 ] || return 1
+  local j=$((open+2)) close=-1
+  q=""; esc=0
+  while [ "$j" -lt "$n" ]; do
+    c="${s:j:1}"
+    if [ "$esc" = 1 ]; then esc=0; j=$((j+1)); continue; fi
+    if [ "$q" = "'" ]; then [ "$c" = "'" ] && q=""; j=$((j+1)); continue; fi
+    if [ "$q" = '"' ]; then
+      if [ "$c" = '\' ]; then esc=1; j=$((j+1)); continue; fi
+      if [ "$c" = '"' ]; then q=""; fi
+      j=$((j+1)); continue
+    fi
+    case "$c" in
+      '\') esc=1 ;;
+      "'") q="'" ;;
+      '"') q='"' ;;
+      '(') return 1 ;;
+      ')') close="$j"; break ;;
+    esac
+    j=$((j+1))
+  done
+  [ "$close" -ge 0 ] || return 1
+  local mlen=$((close-open+1)) istart=$((open+2)) ilen=$((close-open-2))
+  local matched="${s:open:mlen}" inner="${s:istart:ilen}"
+  vet_readonly_sub_inner "$inner" || return 1
+  SCAN="${SCAN/"$matched"/__ROSUB__}"
   return 0
 }
 
@@ -58,13 +299,15 @@ simple_readonly_command() {
 # separator split below. Redirections to real files are left in place.
 SCAN="$(printf '%s' "$COMMAND" | sed -E 's/&>>?[[:space:]]*\/dev\/null//g; s/[0-9]*>>?[[:space:]]*\/dev\/null//g; s/[0-9]*>&[0-9-]+//g')"
 
-# The AI's own session scratch directory (/tmp/claude-*) is a sanctioned write target, so
-# strip a redirect that lands there too, exactly like /dev/null, so a read-only command
-# parking output in the scratchpad survives the write check below. Fail closed if the
-# command contains `..`: a path-escape attempt stays unexempted and keeps prompting.
+# The AI's own session scratchpad (/tmp/claude-*/.../scratchpad/) is a sanctioned write target,
+# so strip a redirect that lands there too, exactly like /dev/null, so a read-only command
+# parking output in the scratchpad survives the write check below. The `/scratchpad/` segment is
+# required, so a bare /tmp/claude-* path (not the scratchpad) is not exempt and keeps prompting;
+# this matches the delete exemption in guard-rm.sh. Fail closed if the command contains `..`: a
+# path-escape attempt stays unexempted and keeps prompting.
 case "$COMMAND" in
   *..*) : ;;
-  *) SCAN="$(printf '%s' "$SCAN" | sed -E 's#[0-9]*>>?[[:space:]]*/tmp/claude-[A-Za-z0-9._/-]+##g')" ;;
+  *) SCAN="$(printf '%s' "$SCAN" | sed -E 's#[0-9]*>>?[[:space:]]*/tmp/claude-[A-Za-z0-9._/-]*/scratchpad/[A-Za-z0-9._/-]*##g')" ;;
 esac
 
 # Neutralize LITERAL backticks first: inside single quotes, or backslash-escaped
@@ -81,24 +324,15 @@ case "$SCAN" in *'`'*) exit 0 ;; esac
 # ${...} that ordinary parameter expansion never would. Never reasoned about; fall through.
 case "$SCAN" in *'${ '*|*'${|'*|*"\${"$'\t'*) exit 0 ;; esac
 
-# Resolve `$( ... )` command substitutions fail-closed. Each accepted
-# substitution is replaced with an inert placeholder so the remaining
-# write-redirect check and segment vetting run on substitution-free text. A
-# substitution that is not provably a single simple read-only command -- or any
-# `$(` that does not form a paren-free `$( ... )` (nested, arithmetic `$((`,
-# quoted parens) -- causes a fall-through to the normal permission flow.
-sub_re='\$\(([^()]*)\)'
+# Resolve `$( ... )` command substitutions fail-closed, innermost first. Each
+# accepted substitution is replaced with an inert placeholder so the remaining
+# write-redirect check and segment vetting run on substitution-free text.
+# resolve_one_sub is quote-and-paren aware, so a quoted `count(*)` in a read-only
+# sqlite3 query does not defeat boundary finding; a substitution it cannot prove
+# read-only, an arithmetic `$((`, a subshell `$( ( ) )`, or an unbalanced `$(` all
+# cause a fall-through to the normal permission flow.
 while [[ "$SCAN" == *'$('* ]]; do
-  if [[ "$SCAN" =~ $sub_re ]]; then
-    matched="${BASH_REMATCH[0]}"
-    inner="${BASH_REMATCH[1]}"
-    simple_readonly_command "$inner" || exit 0
-    SCAN="${SCAN/"$matched"/__ROSUB__}"
-  else
-    # A `$(` remains but no simple `$( ... )` matched: nested, arithmetic, or
-    # parens inside the substitution. Not proven safe.
-    exit 0
-  fi
+  resolve_one_sub || exit 0
 done
 
 # Quote-aware neutralization: walk the (substitution-resolved) command character by
@@ -222,12 +456,8 @@ while IFS= read -r seg; do
     contains "$readonly_git" "${1:-}" || exit 0
     # An exec/write flag can ride mid-arguments on a read-only git subcommand
     # (`git log --output=f`, `git ls-remote --upload-pack=cmd`); a prefix rule
-    # cannot see it, so bail here.
-    for a in "$@"; do
-      case "$a" in
-        --output|--output=*|--upload-pack|--upload-pack=*|--receive-pack|--receive-pack=*|--open-files-in-pager|--open-files-in-pager=*|--exec-path|--exec-path=*|-O*) exit 0 ;;
-      esac
-    done
+    # cannot see it, so bail here (shared with the substitution-inner vetting).
+    head_arg_unsafe git "$COMMAND" "$@" && exit 0
     continue
   fi
   if [ "$head" = gh ]; then
@@ -295,88 +525,33 @@ while IFS= read -r seg; do
     continue
   fi
   if [ "$head" = sqlite3 ]; then
-    # sqlite3 escapes the database even with -readonly: its dot-commands can run a shell
-    # (.shell / .system / .!) or write a file (.output / .once / .backup / ...), and a
-    # script read from stdin, a pipe, a heredoc, or an input redirect hides its contents
-    # from this check. Approve only a read-only, inline query carrying none of those.
-    # The -readonly flag and the file:...?mode=ro URI spelling both open the
-    # database read-only; accept either. Quotes are stripped from the operand before
-    # matching (a URI argument is normally quoted for its `?`), and a `_` counts as
-    # the parameter separator alongside `&` because the quote-neutralizing pass
-    # above rewrites a quoted `&` to `_` before this block sees the word.
-    ro=0
+    shift                                       # drop `sqlite3`
+    readonly_sqlite3_ok "$COMMAND" "$@" || exit 0
+    continue
+  fi
+  if [ "$head" = unzip ]; then
+    # unzip writes (extracts to disk) in its default and -d/-o forms, so it is not on
+    # the read-only head list. Its read-only modes never write: -p streams a member to
+    # stdout, -l/-v list the archive, -t tests it, -Z is zipinfo. Approve only when one
+    # of those mode flags is present AND no -d extract-target is given; every extracting
+    # form falls through to the normal prompt. Mirrors the flag-gated sqlite3 handling:
+    # the approver alone must never approve a disk write. Failing to match a rarer
+    # read-only spelling only over-prompts, never over-allows.
+    ro=0 extract_dir=0
     for a in "$@"; do
       case "$a" in
-        -readonly|--readonly) ro=1 ;;
-        *) b="$a"; b="${b//\"/}"; b="${b//\'/}"
-           case "$b" in
-             file:*\?mode=ro|file:*\?mode=ro[\&_]*|file:*[\&_]mode=ro|file:*[\&_]mode=ro[\&_]*) ro=1 ;;
-           esac ;;
+        -p|-l|-v|-t|-z|-Z) ro=1 ;;
+        -d|-d*) extract_dir=1 ;;
       esac
     done
-    [ "$ro" = 1 ] || exit 0
-    case "$COMMAND" in
-      *.shell*|*.system*|*'.!'*|*.output*|*.once*|*.excel*|*.import*|*.backup*|\
-      *.save*|*.clone*|*.log*|*.read*|*.recover*|*.expert*|*.archive*) exit 0 ;;
-    esac
-    shift                                       # drop `sqlite3`
-    operands=0
-    while [ $# -gt 0 ]; do
-      case "$1" in
-        '<'|'<<'|'>'|'>>'|'0<') exit 0 ;;       # a redirect: hidden input, or a write
-        -init|-cmd|-separator|-nullvalue|-newline) shift; [ $# -gt 0 ] && shift ;;
-        -lookaside|-pagecache) shift; [ $# -gt 0 ] && shift; [ $# -gt 0 ] && shift ;;
-        -*) shift ;;
-        *) operands=$((operands + 1)); shift ;;
-      esac
-    done
-    # Fewer than two operands means no inline query (a db alone reads stdin), so the
-    # actual SQL is invisible here; fall through to a prompt.
-    [ "$operands" -ge 2 ] || exit 0
+    { [ "$ro" = 1 ] && [ "$extract_dir" = 0 ]; } || exit 0
     continue
   fi
   contains "$readonly_heads" "$head" || exit 0
 
-  # Exec/write flags that ride mid-arguments on an otherwise read-only head.
-  case "$head" in
-    sed)
-      # In-place edit in any spelling (-i, -i.bak, -i's/../', -ni, --in-place[=x]) writes.
-      for a in "$@"; do case "$a" in -i*|-[!-]*i*|--in-place|--in-place=*) exit 0 ;; esac; done
-      # The w/W write-commands, the s///w write-flag, and the e exec-command act through
-      # the script argument, so refuse them here too: the approver alone must never
-      # approve a sed that writes a file or runs a shell command.
-      if printf '%s' "$COMMAND" | grep -Eq "(^|[;&|[:space:]])sed([[:space:]]|\$).*([[:space:]']([wW]|[0-9,~+]*e)[[:space:]]|s[/|,#].*[/|,#][gpimw0-9]*w([[:space:]]|\$))"; then exit 0; fi ;;
-    find)
-      # find action predicates run a command or write/delete a file. They ride anywhere
-      # in the args and can be quote- or backslash-obfuscated (find . '-exec' rm ...),
-      # which a sibling regex guard misses; strip quotes and backslashes per arg before
-      # matching so every spelling of the predicate is caught here.
-      for a in "$@"; do
-        b="$a"; b="${b//\'/}"; b="${b//\"/}"; b="${b//\\/}"
-        case "$b" in
-          -exec|-execdir|-ok|-okdir|-delete|-fprint|-fprintf|-fls) exit 0 ;;
-        esac
-      done ;;
-    sort)
-      # -o / --output makes sort truncate and write a file operand.
-      for a in "$@"; do case "$a" in -o|-o*|--output|--output=*) exit 0 ;; esac; done ;;
-    date)
-      # -s / --set writes the system clock.
-      for a in "$@"; do case "$a" in -s|-s*|--set|--set=*) exit 0 ;; esac; done ;;
-    hostname)
-      # `hostname` prints the name; `hostname NAME` (any non-flag operand) sets it.
-      shift; for a in "$@"; do case "$a" in -*) ;; *) exit 0 ;; esac; done ;;
-    rg)
-      for a in "$@"; do case "$a" in --pre|--pre=*|--pre-glob|--pre-glob=*) exit 0 ;; esac; done ;;
-    tree)
-      for a in "$@"; do case "$a" in -o|-o*|--output|--output=*) exit 0 ;; esac; done ;;
-    uniq)
-      # uniq [opts] [INPUT [OUTPUT]]: a 2nd non-option operand is an output file it
-      # truncates. Over-count (e.g. a separated option-argument) only over-prompts.
-      shift; ops=0
-      for a in "$@"; do case "$a" in -*) ;; *) ops=$((ops + 1)) ;; esac; done
-      [ "$ops" -ge 2 ] && exit 0 ;;
-  esac
+  # Exec/write flags that ride mid-arguments on an otherwise read-only head, via the
+  # shared check so a substitution inner is vetted identically (no drift).
+  head_arg_unsafe "$head" "$COMMAND" "${@:2}" && exit 0
 done <<<"$segments"
 
 jq -n '{

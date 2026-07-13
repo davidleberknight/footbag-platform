@@ -36,6 +36,33 @@ expect() {
   fi
 }
 
+SETTINGS=".claude/settings.json"
+
+# expect_chain_deny <command>: pipe the command through EVERY Bash PreToolUse hook
+# wired in settings.json, in order, and assert at least one returns `deny`. Because
+# deny is the most-restrictive decision and always wins the harness merge, one deny
+# means the whole chain denies. This pins the cross-guard outcome that a single-hook
+# fixture cannot: the read-only approver treats `cd` as a read-only head and would
+# ALLOW `cd src && ls`, so only running the full chain proves guard-leading-cd's deny
+# overrides that and the command is blocked end to end.
+expect_chain_deny() {
+  local cmd="$1" any_deny=0 hook path out decision event
+  event="$(printf '{"tool_input":{"command":%s}}' "$(printf '%s' "$cmd" | jq -Rs .)")"
+  while IFS= read -r hook; do
+    [ -n "$hook" ] || continue
+    path="${hook#\"\$CLAUDE_PROJECT_DIR\"/}"
+    [ -x "$path" ] || continue
+    out="$(printf '%s' "$event" | "./$path" 2>/dev/null)" || true
+    [ -n "$out" ] || continue
+    decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "defer"')"
+    [ "$decision" = deny ] && any_deny=1
+  done < <(jq -r '.hooks.PreToolUse[] | select(.matcher=="Bash") | .hooks[].command' "$SETTINGS")
+  if [ "$any_deny" -ne 1 ]; then
+    echo "[hooks] FAIL (chain): expected a deny somewhere in the Bash chain for: $cmd" >&2
+    fail=1
+  fi
+}
+
 H=guard-secret-reads.sh
 
 # Secret-bearing reads and writes must be denied.
@@ -122,6 +149,17 @@ expect "$H" 'echo git restore drops local edits' defer
 expect "$H" 'echo "run git reset --hard to undo"' defer
 expect "$H" 'grep -rn "git reset --hard" docs' defer
 expect "$H" 'git log --oneline -20' defer
+# A command-running or file-writing git flag on ANY subcommand asks -- notably git fetch,
+# which is a static allow yet shell-execs via --upload-pack; a plain fetch and a read-only
+# mention still defer.
+expect "$H" 'git fetch --upload-pack=/tmp/evil.sh repo' ask
+expect "$H" 'git fetch --upload-pack="touch /tmp/x; git-upload-pack" origin' ask
+expect "$H" 'git ls-remote --receive-pack=cmd repo' ask
+expect "$H" 'git grep --open-files-in-pager=cmd foo' ask
+expect "$H" 'git log --output=/tmp/f -1' ask
+expect "$H" 'git fetch origin' defer
+expect "$H" 'git fetch --depth=1 origin main' defer
+expect "$H" 'echo "run git fetch --upload-pack=x to exploit"' defer
 
 H=guard-prod-ops.sh
 
@@ -143,6 +181,14 @@ expect "$H" 'jq . a.json > b.json' ask
 expect "$H" 'cat a.txt >> b.txt' ask
 expect "$H" 'find . -name "*.bak" -delete' ask
 expect "$H" 'sort -o out.txt in.txt' ask
+# A dangerous-flag token belonging to a DIFFERENT command than the guarded head -- past a
+# ; & or | separator, or only argument text -- must not false-trigger: the span between a
+# head and its flag cannot cross a command separator. A real flag in the head's own
+# command still asks, including when the head follows a pipe.
+expect "$H" 'echo "x sort y"; ls -o /tmp/z' defer
+expect "$H" 'echo find here; grep -delete x' defer
+expect "$H" 'sort -n -o out.txt in.txt' ask
+expect "$H" 'ls | sort -o out.txt' ask
 expect "$H" 'curl -X POST https://example.com' ask
 expect "$H" 'curl -d @payload https://example.com' ask
 # curl to a discard target (/dev/null, or - for stdout) is a read-only probe, not a
@@ -157,6 +203,11 @@ expect "$H" 'grep foo bar.txt > /dev/null' defer
 # so it must defer, like /dev/null; a scratch path escaping via .. still asks.
 expect "$H" 'grep foo src > /tmp/claude-1000/x/scratchpad/list.txt' defer
 expect "$H" 'grep foo src > /tmp/claude-1000/x/../etc/o.txt' ask
+# Only the scratchpad is exempt, not the whole /tmp/claude-* namespace: a /tmp/claude-* path
+# without a scratchpad segment still asks (write must gate exactly where delete gates in guard-rm).
+expect "$H" 'grep foo src > /tmp/claude-1000/notscratch.txt' ask
+expect "$H" 'grep foo src > /tmp/claude-x' ask
+expect "$H" 'grep foo f > /tmp/claude-1000scratchpad.txt' ask
 
 # A write redirect must gate no matter which command head precedes it, because a static allow
 # rule for that head (egrep, fgrep, date, pgrep, a read-only git subcommand) would otherwise
@@ -198,6 +249,21 @@ expect "$H" 'sqlite3 -readonly "$DB" "SELECT a FROM t WHERE x<>2"' defer
 expect "$H" 'sqlite3 -readonly "$DB" "SELECT a FROM t WHERE c<3 AND d>1"' defer
 expect "$H" 'sqlite3 -readonly "$DB" "SELECT 1" > out.txt' ask
 expect "$H" 'echo "$(date > f.txt)"' ask
+# A benign > (arrow, comparison) sharing ONE quoted region with a parameter expansion is
+# still inert: the shell parses redirections before expanding a variable, so a value can
+# never introduce one. A plain $x / ${n} / $HOME in the region must NOT force the arrow to
+# be read as a redirect -- these defer.
+expect "$H" 'echo "a -> b $x"' defer
+expect "$H" 'echo "count ${n} -> done"' defer
+expect "$H" 'echo "path=$HOME -> $PWD"' defer
+expect "$H" 'echo "$user wrote a->b"' defer
+# ...but a command substitution in the region runs a command, so a > stays gated (a real
+# hidden redirect must be caught); a real redirect after a substitution, a backtick, and
+# arithmetic all keep asking as the conservative, safe direction.
+expect "$H" 'echo "a -> $(date)"' ask
+expect "$H" 'echo "$(cat f)" > realfile.txt' ask
+expect "$H" 'echo "a -> `date`"' ask
+expect "$H" 'echo "$((3>2))"' ask
 
 # sed writing or executing without -i: w/W write-command, s///w write-flag, e exec.
 expect "$H" 'sed -i "s/a/b/" f.txt' ask
@@ -253,6 +319,56 @@ expect "$H" 'npm test' defer
 expect "$H" 'npm run test:integration' defer
 expect "$H" './run_all_tests.sh' defer
 expect "$H" 'npx tsc -p tsconfig.json' defer
+
+H=guard-leading-cd.sh
+
+# A command that begins with cd/pushd is denied so it gets rewritten with an absolute
+# path or a directory flag; a leading cd even just inside a subshell paren is caught.
+expect "$H" 'cd src && ls' deny
+expect "$H" '  cd ..' deny
+expect "$H" 'cd' deny
+expect "$H" 'cd /tmp/x' deny
+expect "$H" '(cd terraform/staging && terraform plan)' deny
+expect "$H" '( cd x && ls )' deny
+expect "$H" 'pushd src' deny
+# Must NOT over-block: cd not at the start, a different head that merely starts "cd",
+# or cd appearing only as an argument or match text, all defer.
+expect "$H" 'ls src' defer
+expect "$H" 'git -C /repo log' defer
+expect "$H" 'grep -rn cd src/' defer
+expect "$H" 'echo "cd later"' defer
+expect "$H" 'cdb --version' defer
+expect "$H" 'find . -name cd' defer
+expect "$H" 'foo && cd x' defer
+
+H=guard-rm.sh
+
+# rm that deletes ONLY files under the AI session scratchpad auto-approves (allow); flags
+# and multiple scratch operands are fine.
+expect "$H" 'rm /tmp/claude-1000/proj/sess/scratchpad/f.txt' allow
+expect "$H" 'rm -rf /tmp/claude-1000/proj/sess/scratchpad/sub' allow
+expect "$H" 'rm /tmp/claude-1000/a/scratchpad/x /tmp/claude-1000/a/scratchpad/y' allow
+expect "$H" 'rm -f /tmp/claude-1000/a/b/c/scratchpad/deep/file' allow
+# Any rm that leaves scratch, could hide a target, or climbs out via .. must ask.
+expect "$H" 'rm /etc/passwd' ask
+expect "$H" 'rm -rf /' ask
+expect "$H" 'rm file.txt' ask
+expect "$H" 'rm /tmp/claude-1000/a/scratchpad/../../../etc/passwd' ask
+expect "$H" 'rm /tmp/claude-1000/a/notscratch/f' ask
+expect "$H" 'rm -rf /tmp/claude-1000/a/scratchpad' ask
+expect "$H" 'rm /tmp/claude-1000/a/scratchpad/f /etc/x' ask
+expect "$H" 'rm /tmp/claude-1000/a/scratchpad/f; rm /etc/x' ask
+expect "$H" 'rm /tmp/claude-1000/a/scratchpad/f && rm /etc/y' ask
+expect "$H" 'rm "$(echo /etc/passwd)"' ask
+expect "$H" 'rm /tmp/claude-1000/a/scratchpad/f > /etc/log' ask
+expect "$H" 'rm' ask
+# An embedded newline is a statement separator: a scratch-scoped rm line must not smuggle a
+# second command (here, executing a scratchpad script) past the word-split into an allow.
+expect "$H" 'rm /tmp/claude-1000/a/scratchpad/f
+/tmp/claude-1000/a/scratchpad/evil.sh' ask
+# rm merely named as an argument (not the command) is not gated here (defers).
+expect "$H" 'echo "rm -rf /tmp/x"' defer
+expect "$H" 'grep -rn rm src/' defer
 
 H=allow-readonly-bash.sh
 
@@ -473,6 +589,12 @@ expect "$H" 'grep -rn foo src > /tmp/claude-1000/x/scratchpad/list.txt' allow
 expect "$H" 'grep foo src | sort -u > /tmp/claude-1000/x/scratchpad/o.txt' allow
 expect "$H" 'grep foo src > realfile.txt' defer
 expect "$H" 'grep foo src > /tmp/claude-1000/x/../etc/o.txt' defer
+# The write exemption is the scratchpad, not the whole /tmp/claude-* namespace: a /tmp/claude-*
+# path without a scratchpad segment (a bare session-root file, or a lookalike name) is not the
+# sanctioned target and still falls through.
+expect "$H" 'grep foo src > /tmp/claude-1000/notscratch.txt' defer
+expect "$H" 'grep foo src > /tmp/claude-x' defer
+expect "$H" 'grep foo f > /tmp/claude-1000scratchpad.txt' defer
 
 # curl is auto-approved ONLY as a loopback health probe that discards its body (-o /dev/null);
 # a content-returning curl, a non-loopback host, a file write, a mutating method, or a
@@ -487,6 +609,128 @@ expect "$H" 'curl -X POST -o /dev/null http://localhost/x' defer
 expect "$H" 'curl -o /dev/null -x http://proxy:3128 http://localhost/x' defer
 expect "$H" 'curl -o /dev/null --resolve localhost:80:1.2.3.4 http://localhost/x' defer
 expect "$H" 'curl -o /dev/null -L http://localhost/redir' defer
+
+# unzip auto-approves ONLY in a read-only mode that never writes to disk: -p streams a
+# member to stdout, -l/-v list, -t tests, -Z is zipinfo. Every extracting form -- the
+# default, -o overwrite, -d extract-to-dir -- writes files and falls through to a prompt.
+expect "$H" 'unzip -p archive.zip member' allow
+expect "$H" 'unzip -l archive.zip' allow
+expect "$H" 'unzip -v archive.zip' allow
+expect "$H" 'unzip -t archive.zip' allow
+expect "$H" 'unzip -Z archive.zip' allow
+expect "$H" 'unzip -p archive.zip tfstate | jq .' allow
+expect "$H" 'unzip archive.zip' defer
+expect "$H" 'unzip -o archive.zip' defer
+expect "$H" 'unzip -d /tmp/x archive.zip' defer
+expect "$H" 'unzip -p -d /tmp/x archive.zip' defer
+
+# Read-only sqlite3 inside a command substitution auto-approves: the quote-aware
+# resolver reads past a quoted count(*) and vets the inner as a read-only query, the
+# same rigor as a top-level sqlite3. Loops and assignments wrapping it are covered too.
+expect "$H" 'echo "$(sqlite3 -readonly db "SELECT count(*) FROM t")"' allow
+expect "$H" 'for t in $(sqlite3 -readonly db "SELECT name FROM sqlite_schema"); do echo "$t"; done' allow
+expect "$H" 'n=$(sqlite3 "file:db?mode=ro" "SELECT count(*) FROM t")' allow
+# A read-only sub nested inside another read-only sub still resolves (innermost first)...
+expect "$H" 'cat "$(dirname "$(pwd)")/x"' allow
+# ...but the catastrophic substitution cases must STILL defer: a hidden mutation, a
+# hidden write redirect, a nested non-read-only sub (the inner runs even inside double
+# quotes), arithmetic, and a quoted-paren sub whose head is not read-only.
+expect "$H" 'echo "$(rm -rf x)"' defer
+expect "$H" 'echo "$(cat a > b)"' defer
+expect "$H" 'echo "$(a $(b))"' defer
+expect "$H" 'echo "$((1 + 2))"' defer
+expect "$H" 'echo "$(grep -E "(a|b)" f)"' defer
+expect "$H" 'cat "$(dirname "$p")/x"' allow
+expect "$H" 'cat "$(dirname "$(rm x)")/y"' defer
+# A read-only sqlite3 sub carrying a second command or a redirect in its inner defers.
+expect "$H" 'echo "$(sqlite3 -readonly db "SELECT 1"; rm x)"' defer
+expect "$H" 'echo "$(sqlite3 -readonly db "SELECT 1" > f)"' defer
+# ANSI-C $'...' quoting is never reasoned about: the whole command falls through, which
+# also closes a pre-existing desync where a following separator was wrongly approved.
+expect "$H" "grep x \$'a\\'b' ; rm y" defer
+expect "$H" "echo \$'a\\'b' \$(rm x)" defer
+# Read-only sqlite3 detection is not fooled by a duplicate/writable URI mode, a writable
+# statement, or an ATTACH, at top level or reached through a substitution.
+expect "$H" 'sqlite3 "file:db?mode=rwc&mode=ro" "PRAGMA journal_mode=WAL"' defer
+expect "$H" 'sqlite3 "file:db?mode=ro&mode=rwc" "SELECT 1"' defer
+expect "$H" 'echo "$(sqlite3 "file:db?mode=rwc&mode=ro" "SELECT 1")"' defer
+expect "$H" 'sqlite3 -readonly db "SELECT 1; DROP TABLE t"' defer
+expect "$H" "echo \"\$(sqlite3 -readonly db \"ATTACH 'o.db' AS o; SELECT 1\")\"" defer
+# An unquoted newline inside a substitution separates commands just like `;`, so a
+# read-only head or a read-only sqlite3 followed by a newline-and-mutation still defers.
+expect "$H" 'echo "$(grep foo f
+rm x)"' defer
+expect "$H" 'echo "$(sqlite3 -readonly db "SELECT 1"
+rm x)"' defer
+# A write/exec flag that rides mid-arguments on an otherwise read-only head must defer
+# INSIDE a substitution exactly as at top level: the inner is vetted for the same
+# per-head flags, not just its head word. Each of these executes a write/exec in bash.
+expect "$H" 'echo "$(git ls-remote --upload-pack=/tmp/evil.sh /tmp/r)"' defer
+expect "$H" 'X=$(rg --pre=/tmp/evil.sh foo src/)' defer
+expect "$H" 'X=$(sed -i s/a/b/ f.txt)' defer
+expect "$H" "echo \"\$(sed -n 'w out.txt' f.txt)\"" defer
+expect "$H" "X=\$(find . -name '*.bak' -delete)" defer
+expect "$H" 'echo "$(git log --output=/tmp/pwned -1)"' defer
+expect "$H" 'X=$(uniq in.txt out.txt)' defer
+expect "$H" 'X=$(sort -o out.txt in.txt)' defer
+expect "$H" 'X=$(date -s 2020-01-01)' defer
+expect "$H" 'X=$(hostname evil)' defer
+expect "$H" 'X=$(tree -o out.txt src)' defer
+expect "$H" 'X=$(git grep --open-files-in-pager=/tmp/evil.sh foo)' defer
+# ...while the genuinely read-only forms of those same heads still auto-approve in a sub.
+expect "$H" 'echo "$(find src -name "*.ts")"' allow
+expect "$H" 'X=$(sort in.txt)' allow
+expect "$H" 'echo "$(sed -n 1,5p f.txt)"' allow
+expect "$H" 'echo "$(uniq in.txt)"' allow
+expect "$H" 'echo "$(git log --oneline -5)"' allow
+# sed's write (w/W command, s///w flag) and exec (e command / s///e flag) are detected in
+# every address form (1w, $w, /re/w, 1,5w) and either quote style, and -f/--file (an opaque
+# external script) is refused -- at top level and inside a substitution. A `w` inside an
+# s/// pattern, and read-only print/substitute, still auto-approve.
+expect "$H" "sed -n '1w /tmp/out' /tmp/in" defer
+expect "$H" 'sed -n "w /tmp/out" /tmp/in' defer
+expect "$H" 'sed "3e id" /tmp/in' defer
+expect "$H" "sed '\$w /tmp/out' /tmp/in" defer
+expect "$H" "sed 's/a/b/w out.txt' f.txt" defer
+expect "$H" 'sed -f script.sed /tmp/in' defer
+expect "$H" 'sed --file=script.sed /tmp/in' defer
+expect "$H" 'sed -nf script.sed /tmp/in' defer
+expect "$H" "echo \$(sed -n '1w /tmp/out' /tmp/in)" defer
+expect "$H" 'echo "$(sed "3e id" /tmp/in)"' defer
+expect "$H" "sed 's/w/x/' f.txt" allow
+expect "$H" "sed 's/new file/x/' f.txt" allow
+expect "$H" 'echo "$(sed -n 1,5p f.txt)"' allow
+# The s///-flag write (s/a/b/gw file) and exec (s/a/b/ge cmd) have other flags before the
+# w/e, and a quoted ; earlier in the args must not hide a later write from the approver
+# (its span across the command text is unbounded, so over-scan only over-prompts). A plain
+# read-only s/// flag set still auto-approves.
+expect "$H" "sed 's/a/b/gw out.txt' f.txt" defer
+expect "$H" "sed 's@a@b@w /tmp/out' f.txt" defer
+expect "$H" "sed 's|a|b|gw out.txt' f.txt" defer
+expect "$H" "sed 's/a/b/ew /tmp/pwned' f.txt" defer
+expect "$H" "sed 's/a/b/we /tmp/pwned' f.txt" defer
+expect "$H" "sed 's,a,b,ew /tmp/pwned' f.txt" defer
+expect "$H" "sed 's/a/b/e' f.txt" defer
+expect "$H" "sed 's/a/b/gp' f.txt" allow
+# git subcommands that can mutate (branch/remote/tag create, --output writes) are not in
+# the approver's read-only git set / are refused by its flag check, so the approver defers
+# and -- with their over-broad static allows now removed -- they prompt.
+expect "$H" 'git branch feature' defer
+expect "$H" 'git remote add evil https://example.com/x.git' defer
+expect "$H" 'git tag v9.9.9' defer
+# git reflog is read-only in its show/list forms but MUTATES via expire/delete (prune or drop
+# reflog entries). Those subverbs must fall through; the read-only forms still auto-approve --
+# at top level and reached through a substitution.
+expect "$H" 'git reflog delete --rewrite --updateref HEAD@{0}' defer
+expect "$H" 'git reflog expire --expire=now --all' defer
+expect "$H" 'echo "$(git reflog delete HEAD@{0})"' defer
+expect "$H" 'git reflog show' allow
+expect "$H" 'git reflog' allow
+expect "$H" 'git reflog --oneline -5' allow
+expect "$H" "sed 's/a/b/ge cmd' f.txt" defer
+expect "$H" "sed -n 'x;y' 's/a/b/gw /tmp/out' in.txt" defer
+expect "$H" 'sed -n "x;y" -n "1w /tmp/out" in.txt' defer
+expect "$H" "sed 's/a/b/g' f.txt" allow
 
 # guard-question-quality.sh is a Stop hook, not a PreToolUse hook: it reads the
 # last assistant message from a transcript file and blocks a question that carries
@@ -526,6 +770,11 @@ expect_q 'Should the S3 bucket stay private?' defer
 expect_q 'I applied the fix and verified it end to end.' defer
 # Not a question at all: never enforced.
 expect_q 'State 4 is where the cutover lands.' defer
+
+# Cross-guard precedence: a leading-cd command that the read-only approver would
+# otherwise auto-allow must still be denied once the full Bash chain runs.
+expect_chain_deny 'cd src && ls'
+expect_chain_deny '(cd terraform/staging && terraform plan)'
 
 if [ "$fail" -ne 0 ]; then
   echo "[hooks] FAIL: one or more hook fixtures failed." >&2

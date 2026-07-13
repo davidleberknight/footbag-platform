@@ -27,7 +27,6 @@
       "Bash(stat:*)",
       "Bash(file:*)",
       "Bash(wc:*)",
-      "Bash(tree:*)",
       "Bash(head:*)",
       "Bash(tail:*)",
       "Bash(cat:*)",
@@ -35,24 +34,29 @@
       "Bash(egrep:*)",
       "Bash(fgrep:*)",
       "Bash(git status:*)",
-      "Bash(git log:*)",
-      "Bash(git diff:*)",
-      "Bash(git show:*)",
       "Bash(git blame:*)",
       "Bash(git rev-parse:*)",
-      "Bash(git branch:*)",
-      "Bash(git remote:*)",
-      "Bash(git tag:*)",
       "Bash(npm show:*)",
       "Bash(bash scripts/ci/assert_claude_harness.sh)",
       "Bash(bash scripts/ci/test_hooks.sh)",
+      "Bash(bash scripts/ci/assert_generated_content_current.sh)",
       "Bash(bash scripts/e2e/reclaim-e2e-ports.sh)",
+      "Bash(whois footbag.org)",
+      "Bash(dig +short footbag.org NS)",
+      "Bash(dig +short footbag.org MX)",
+      "Bash(dig +short footbag.org A)",
+      "Bash(dig +short ifpa.footbag.org MX)",
+      "Bash(dig +short ifpa.footbag.org A)",
       "WebFetch(domain:docs.anthropic.com)",
       "WebFetch(domain:code.claude.com)",
       "WebFetch(domain:www.anthropic.com)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:developer.mozilla.org)",
       "WebFetch(domain:www.footbag.org)",
+      "WebFetch(domain:rdap.publicinterestregistry.org)",
+      "WebFetch(domain:rdap.org)",
+      "WebFetch(domain:rdap.identitydigital.services)",
+      "WebFetch(domain:www.whois.com)",
       "WebSearch",
       "mcp__playwright__browser_navigate",
       "mcp__playwright__browser_navigate_back",
@@ -73,7 +77,6 @@
     "ask": [
       "Bash(sed -i:*)",
       "Bash(sed --in-place:*)",
-      "Bash(rm:*)",
       "Bash(chmod -R:*)",
       "Bash(chown -R:*)",
       "Bash(chgrp -R:*)",
@@ -225,6 +228,7 @@
       "Bash(git filter-branch*)",
       "Bash(git filter-repo*)",
       "Bash(git reflog expire*)",
+      "Bash(git reflog delete*)",
       "Bash(git gc --aggressive*)",
       "Bash(git stash drop*)",
       "Bash(git stash clear*)",
@@ -272,6 +276,10 @@
           },
           {
             "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-rm.sh"
+          },
+          {
+            "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-full-suite-vitest.sh"
           },
           {
@@ -281,6 +289,10 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-find-exec.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-leading-cd.sh"
           },
           {
             "type": "command",
