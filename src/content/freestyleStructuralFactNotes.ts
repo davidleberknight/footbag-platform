@@ -25,18 +25,19 @@ export const MODIFIER_BEGINNER_NOTES: ReadonlyMap<string, string> = new Map([
   ['quantum',    'A quicker, compressed version of the atomic launch.'],
   ['blurry',     'Stepping momentum combined with a paradox side-change.'],
   ['nuclear',    'A heavy launch that stacks a paradox with a downtime illusion dexterity.'],
-  ['barraging',  'Two same-direction dexterity moves on a single set.'],
+  // No 'barraging' entry: it is a legacy name for the Furious set, not an
+  // active operator, so it never earns a structural-fact chip of its own.
   ['furious',    'Two same-direction dexterity moves on one set (+2); a two-dex set.'],
-  ['paradox',    'The hips pivot between two dexterity moves; the body changes sides mid-trick.'],
-  ['spinning',   'A full-body turn carried through the dexterity moment.'],
+  ['paradox',    'The hips pivot on a single dexterity; the body changes sides mid-trick without adding another dex.'],
+  ['spinning',   'A full-body turn carried through the middle of the trick.'],
   ['ducking',    'A head dip near the top so the bag passes around the neck.'],
-  ['symposium',  'The support leg stays off the ground through the dexterity moment (no plant).'],
+  ['symposium',  'The support leg stays off the ground through the middle of the trick (no plant).'],
 
   // ── Well-defined operators with no curator feel card (NEEDS-CURATOR review) ──
-  ['gyro',       'A half body turn carried into the dexterity moment.'],
+  ['gyro',       'A half body turn carried into the middle of the trick, on the same foot that set the bag.'],
   ['diving',     'The upper body dives over the bag and back during the trick.'],
-  ['swirling',   'The whirl-and-swirl launch set: a rotational opening carried by a swirl dexterity.'],
-  ['inspinning', 'An inward body turn carried into the dexterity moment.'],
+  ['swirling',   'Inserts the swirl-cell dexterity, a same-side out dex, ahead of the base (+1).'],
+  ['inspinning', 'A forward body turn carried through the middle of the trick.'],
   ['miraging',   'Descriptive mirage-family language for the inward standalone movement that adds one inward dexterity before the base (+1). Quantum is the same inward movement realized with a set role; miraging is not a launch set or a Quantum equivalent.'],
   ['whirling',   'The whirl-family launch set: a rotational opening run before the base (whirling osis is the blender).'],
   ['tapping',    'Adds a quick extra dexterity tap before the base.'],

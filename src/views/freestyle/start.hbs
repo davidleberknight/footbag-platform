@@ -1,0 +1,159 @@
+{{! /freestyle/start — novice entry page. A first session for a visitor with no
+    freestyle background: what the sport is, what to try physically, and where
+    to go after the basics. Plain language only: terms (stall, set, catch,
+    dexterity) are defined here before they are used, and no notation
+    abbreviations appear on this page. }}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <section class="content-section">
+    <h2 class="section-heading">What is freestyle footbag?</h2>
+    <p>
+      Freestyle footbag is a movement discipline. Players keep a small bag in
+      the air with their feet and link contacts and movements into sequences:
+      catches, circles of the leg around the bag, spins, and jumps, all while
+      the bag traces an unbroken path through the air.
+    </p>
+    {{#if content.demoVideo}}
+    <figure class="demo-video">
+      <video autoplay loop muted playsinline preload="metadata" poster="{{content.demoVideo.posterUrl}}">
+        <source src="{{content.demoVideo.mp4Url}}" type="video/mp4">
+        <p>{{content.demoVideo.caption}}</p>
+      </video>
+      <figcaption>{{content.demoVideo.caption}}</figcaption>
+    </figure>
+    {{/if}}
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">What you need</h2>
+    <p>
+      A footbag (any small, soft, slightly under-filled bag works to start),
+      flat-soled shoes with a usable toe and inside surface, and a small clear
+      space. That is all.
+    </p>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">Begin with contact and control</h2>
+    <p>
+      Your first goal is simple: touch the bag and make it go where you want.
+      Drop the bag from your hands onto the top of your foot near the toes,
+      the <strong>toe surface</strong>, and kick it gently straight up. Catch
+      it in your hands. Then try the <strong>inside surface</strong>: the flat
+      inner edge of the shoe, kicking across your body's centre. When you can
+      pop the bag up and catch it five times in a row from each surface, you
+      have the two contacts most of freestyle is built on.
+    </p>
+    <p class="text-muted fs-sm">
+      One term for later: a <strong>clipper</strong> is a particular use of the
+      inside surface, catching the bag on the inside of the foot crossed behind
+      the other leg. It is not another word for an ordinary inside kick; it
+      comes later, once basic contacts feel comfortable.
+    </p>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">Learn a stall</h2>
+    <p>
+      A <strong>stall</strong> (also called a <strong>delay</strong>) is
+      catching the bag flat on a surface so it comes to rest instead of
+      bouncing away. This is the skill freestyle is built on. Start with the
+      toe stall: drop the bag from your hand, meet it with the top of your
+      foot, and lower your foot as the bag lands to absorb its fall, like
+      catching an egg. When the bag rests on your shoe, you have your first
+      stall.
+    </p>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">Set and catch</h2>
+    <p>
+      A <strong>set</strong> sends the bag upward; a <strong>catch</strong>
+      regains control, usually as a stall. Tricks happen between those two
+      moments. Exercise: from a toe stall, pop the bag up about head height
+      with the same foot, let it fall, and stall it again. Every trick you ever
+      learn will live inside that loop.
+    </p>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">What is a dexterity?</h2>
+    <p>
+      A <strong>dexterity</strong> (players say "dex") happens when a leg
+      circles around the bag while it is in the air. Set the bag up, circle
+      your leg over or around it while it hangs, and regain control. The
+      circling leg never touches the bag; the circle itself is the trick.
+    </p>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">Your first named trick: the Mirage</h2>
+    <p>
+      The Mirage is the simplest complete dexterity trick: one leg circles the
+      bag once, and the bag is caught on a toe stall. Set the bag up from a
+      stall, swing your other leg over it as it rises and falls, and catch it
+      on the toe. That whole movement is a Mirage, and it is the idea much of
+      freestyle is built from.
+    </p>
+    <p>
+      <a href="/media/browse?context=mirage" class="btn btn-outline">Watch a Mirage Clip</a>
+      <a href="/freestyle/families/mirage" class="btn btn-outline">Read About the Mirage</a>
+    </p>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">Clipper control, then Butterfly</h2>
+    <p>
+      Many famous tricks end on the clipper, that behind-the-leg use of the
+      inside surface. Practice a basic clipper stall next: cross one foot
+      behind the other leg and catch the bag flat on its inside surface. Once
+      that feels stable, the <a href="/freestyle/families/butterfly">Butterfly</a>
+      is a classic example of linking the two skills: a dexterity that flows
+      into a clipper catch across the body. It is a real step up from the
+      Mirage, so treat it as something to grow into, not your immediate next
+      trick.
+    </p>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">How trick names grow</h2>
+    <p>
+      Freestyle trick names are compositional: a spinning mirage adds a body
+      spin to the mirage movement, and the name says exactly that. Once you
+      know a handful of movements, you can read most trick names before you
+      have ever seen the trick performed.
+    </p>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">Where to go next</h2>
+    <p>
+      Practice the loop: stall on both feet, then the Mirage in both
+      directions. When you want more,
+      <a href="/media/freestyle-tutorials">the tutorial collections</a> hold
+      lesson videos for dozens of tricks. When you are curious how it all fits
+      together:
+    </p>
+    <ul>
+      <li><a href="/freestyle/learn">Learn the movement vocabulary</a>: guided lessons and progressions.</li>
+      <li><a href="/freestyle/tricks">Look up a trick</a>: the full dictionary.</li>
+      <li><a href="/freestyle/glossary">Understand a term</a>: plain-language definitions.</li>
+    </ul>
+  </section>
+
+</div>

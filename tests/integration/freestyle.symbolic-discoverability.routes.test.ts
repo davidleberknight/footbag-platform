@@ -64,10 +64,10 @@ describe('GET /freestyle/learn', () => {
     expect(res.text).toContain('Educational pathways through freestyle footbag');
   });
 
-  it('renders the start-here beginner-lessons path: the six lessons in learning order, linked, above the advanced pathways', async () => {
+  it('renders the six-lesson vocabulary tour: the six lessons in reading order, linked, above the advanced pathways', async () => {
     const res = await request(createApp()).get('/freestyle/learn');
-    expect(res.text).toContain('Start here: six beginner lessons');
-    // The six beginner lessons appear in learning order, each linked to its family page.
+    expect(res.text).toContain('Six lessons: how the vocabulary fits together');
+    // The six lessons appear in reading order, each linked to its family page.
     const order = ['mirage', 'butterfly', 'whirl', 'osis', 'swirl', 'down'];
     let last = -1;
     for (const slug of order) {
@@ -75,8 +75,8 @@ describe('GET /freestyle/learn', () => {
       expect(at, slug).toBeGreaterThan(last);
       last = at;
     }
-    // The start-here path sits above the more advanced Progressions section.
-    expect(res.text.indexOf('Start here: six beginner lessons')).toBeLessThan(res.text.indexOf('Progressions'));
+    // The lesson tour sits above the more advanced Progressions section.
+    expect(res.text.indexOf('Six lessons: how the vocabulary fits together')).toBeLessThan(res.text.indexOf('Progressions'));
   });
 
   it('renders all three sections in order: Progressions, Modifier pedagogy, Reference surfaces', async () => {
@@ -127,12 +127,14 @@ describe('GET /freestyle/learn', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/learn — operator-board onboarding surface', () => {
-  it('renders the learn-surface operator-board heading and (compressed) lede', async () => {
-    // Lede compressed to one short sentence; "fourteen primitives" framing
-    // preserved.
+  it('renders the learn-surface operator-board heading and reference-board lede', async () => {
+    // The board is a reference index, never a learn-first mandate, and no
+    // hardcoded count appears (the rendered card count is what it is).
     const res = await request(createApp()).get('/freestyle/learn');
-    expect(res.text).toContain('Start with the operators');
-    expect(res.text).toContain('Learn these fourteen primitives first');
+    expect(res.text).toContain('Explore the movement-language index');
+    expect(res.text).toContain('A reference board of named sets, body movements, and structural relationships');
+    expect(res.text).not.toContain('fourteen primitives');
+    expect(res.text).not.toMatch(/learn these .* first/i);
   });
 
   it('does not render the landing- or glossary-surface operator-board prose', async () => {
@@ -155,14 +157,16 @@ describe('GET /freestyle/learn — operator-board onboarding surface', () => {
     }
   });
 
-  it('embeds the operator board after the page intro and before the section list', async () => {
+  it('demotes the operator board below the guided pathway sections', async () => {
+    // The card wall never sits between a reader and the lessons or the
+    // pathway sections; it closes the page as reference material.
     const res = await request(createApp()).get('/freestyle/learn');
     const introIdx    = res.text.indexOf('class="learn-intro"');
     const boardIdx    = res.text.indexOf('class="operator-board');
     const firstSecIdx = res.text.indexOf('class="learn-section"');
     expect(introIdx).toBeGreaterThan(0);
-    expect(boardIdx).toBeGreaterThan(introIdx);
-    expect(firstSecIdx).toBeGreaterThan(boardIdx);
+    expect(firstSecIdx).toBeGreaterThan(introIdx);
+    expect(boardIdx).toBeGreaterThan(firstSecIdx);
   });
 
   it('renders eleven restrained operator-card deep-links onboarding to mature surfaces', async () => {
@@ -260,13 +264,13 @@ describe('symbolic full-page cross-links — modifier-family footer', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle — beginner on-ramp', () => {
-  it('landing page carries a beginner on-ramp linking to the freestyle learn page', async () => {
+  it('landing page carries a beginner on-ramp linking to the getting-started page', async () => {
     // The landing page opens with a beginner on-ramp that points newcomers at
-    // the freestyle learn page. The learn route is also cross-linked from
-    // modifier-family pages and the symbolic-discoverability surface.
+    // the novice getting-started page; /freestyle/learn remains the
+    // educational-pathways index cross-linked from modifier-family pages.
     const res = await request(createApp()).get('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).toContain('freestyle-learn-pointer');
-    expect(res.text).toContain('href="/freestyle/learn"');
+    expect(res.text).toContain('href="/freestyle/start"');
   });
 });

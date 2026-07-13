@@ -203,9 +203,10 @@ export const TIER1_OPERATOR_DEFINITIONS: readonly Tier1OperatorDefinition[] = [
   {
     slug: 'paradox',
     definition:
-      'Paradox is a hip pivot between two dexes on the same set: it changes the side ' +
-      'relationship between the support leg and the dexterity, so the body switches sides ' +
-      'around the dex without changing the set foot. It is a +1 body modifier.',
+      'Paradox is a hip and plant relationship applied to a single dexterity: it changes ' +
+      'the side relationship between the support leg and that dexterity, so the body ' +
+      'switches sides around the dex without adding another dex or changing the set foot. ' +
+      'It is a +1 body modifier, and [PDX] co-tags the same dexterity event.',
   },
   {
     slug: 'spinning',

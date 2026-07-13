@@ -3929,9 +3929,6 @@ section.home-media { padding-top: 0; }
 }
 .family-badge:hover { background: var(--slate-200); }
 
-/* Rows backed by probable (not fully verified) records */
-.record-probable td { color: var(--gray-800); }
-
 /* Video link */
 .video-link {
   font-size: 0.85rem;

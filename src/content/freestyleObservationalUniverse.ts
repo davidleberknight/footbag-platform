@@ -1141,7 +1141,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "FB": 51,
       "MULTI": 14
     },
-    "foldedJunk": 182,
+    "foldedJunk": 181,
     "generatedOn": "2026-07-13"
   };
 

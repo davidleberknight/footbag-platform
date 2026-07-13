@@ -240,7 +240,7 @@ describe('compact structural-fact block', () => {
     expect(block).toContain('href="/freestyle/modifier/paradox"');
     // Each classification carries a one-line beginner explanation.
     expect(block).toContain('structural-fact-note');
-    expect(block).toContain('The hips pivot between two dexterity moves');
+    expect(block).toContain('The hips pivot on a single dexterity');
     // The neighborhood grouping carries the observational layer badge, matching
     // the glossary's defined term.
     expect(block).toContain('>observational<');

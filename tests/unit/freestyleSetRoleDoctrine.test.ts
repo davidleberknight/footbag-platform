@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   getOperatorReferenceEntry,
+  getTier1OperatorDefinition,
   OPERATOR_REFERENCE_ENTRIES,
 } from '../../src/content/freestyleOperatorReference';
 import { MOVEMENT_SYSTEM_AXES } from '../../src/content/freestyleMovementSystems';
@@ -52,6 +53,16 @@ describe('Miraging and Illusioning are not launch sets or reusable scored operat
       expect(e.oneLineMeaning, e.slug).not.toMatch(/uptime set/i);
       expect(e.lineageNote, e.slug).not.toMatch(/uptime set/i);
     }
+  });
+});
+
+describe('Paradox is a single-dex relationship in the operator authority', () => {
+  it('the tier-1 definition applies paradox to a single dexterity, never between two dexes', () => {
+    const def = getTier1OperatorDefinition('paradox');
+    expect(def).not.toBeNull();
+    expect(def!.definition).toMatch(/single dexterity/i);
+    expect(def!.definition).not.toMatch(/between two dex/i);
+    expect(def!.definition).toMatch(/without adding another dex/i);
   });
 });
 

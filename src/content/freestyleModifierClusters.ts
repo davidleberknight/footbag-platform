@@ -64,7 +64,10 @@ export const MODIFIER_CLUSTERS: readonly ModifierCluster[] = [
     key:   'dexterity-structural',
     label: 'Dexterity / body-path / structural operators',
     blurb: 'Added dexes and body-path transformations.',
-    modifiers: ['miraging', 'barraging', 'terraging', 'tapping', 'ducking', 'diving', 'weaving', 'flailing'],
+    // Miraging and barraging are deliberately absent: miraging is descriptive
+    // standalone-movement language and barraging is a legacy name for the
+    // Furious set, so neither may sit in an active-operator cluster.
+    modifiers: ['terraging', 'tapping', 'ducking', 'diving', 'weaving', 'flailing'],
   },
   {
     key:   'surface-specialized',

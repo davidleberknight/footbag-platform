@@ -54,21 +54,21 @@ export interface SymbolicLearnIndexContent {
   layerSource:   'observational';
 }
 
-// The six beginner lessons, in learning order: each teaches one idea the rest of
-// the sport is built on, walking from the simplest dexterity to how the vocabulary
-// is organized. "Foundations" is reserved for the twelve foundational movements on
-// the landing page; this six-page path is the beginner lessons. Order and lessons
-// are the curator-set beginner curriculum.
+// A six-lesson guided tour of the movement vocabulary and how the dictionary is
+// organized, in reading order: conceptual pedagogy, not a physical beginner
+// curriculum (the getting-started page owns the first physical steps).
+// "Foundations" is reserved for the twelve foundational movements on the
+// landing page. Order and lessons are the curator-set sequence.
 const FOUNDATIONAL_PATH: FoundationalPath = {
-  heading: 'Start here: six beginner lessons',
+  heading: 'Six lessons: how the vocabulary fits together',
   intro:
-    'New to freestyle? Read these six pages in order. Each teaches one idea the rest of the sport is built on, and together they are the shortest path from your first dexterity to how the whole vocabulary fits together.',
+    'A guided tour of freestyle\'s movement vocabulary. Read these six pages in order: each teaches one idea about how tricks, families, and names are organized. For your first physical steps with a bag, start with the getting-started page instead.',
   steps: [
     { step: 1, name: 'Mirage',    lesson: 'The simplest dexterity, and the idea most of freestyle is built from.',  href: '/freestyle/families/mirage' },
-    { step: 2, name: 'Butterfly', lesson: 'Your first linked movement: two dexterities flowing as one.',            href: '/freestyle/families/butterfly' },
+    { step: 2, name: 'Butterfly', lesson: 'A dexterity flowing into a cross-body clipper catch.',                   href: '/freestyle/families/butterfly' },
     { step: 3, name: 'Whirl',     lesson: 'The connector a combo keeps returning to.',                              href: '/freestyle/families/whirl' },
-    { step: 4, name: 'Osis',      lesson: 'The terminal ending a whole branch of tricks grows from.',               href: '/freestyle/families/osis' },
-    { step: 5, name: 'Swirl',     lesson: 'How the vocabulary grows: by varying a move you already know.',          href: '/freestyle/families/swirl' },
+    { step: 4, name: 'Osis',      lesson: 'The ending a whole branch of tricks grows from.',                        href: '/freestyle/families/osis' },
+    { step: 5, name: 'Swirl',     lesson: 'How the vocabulary grows: sibling cells in one movement matrix.',        href: '/freestyle/families/swirl' },
     { step: 6, name: 'Down',      lesson: 'How tricks are organized: four famous names, one family.',               href: '/freestyle/families/down' },
   ],
 };
@@ -94,14 +94,14 @@ const MODIFIER_PEDAGOGY_SECTION: LearnIndexSection = {
     {
       title:      'Spinning',
       href:       '/freestyle/modifier/spinning',
-      shortBlurb: 'A full-body rotation that carries through the dex moment. Six teaching sections: mechanical lead, common confusions with gyro and inspin, a progression on whirl, and cross-base examples.',
+      shortBlurb: 'A full-body rotation carried through the middle of the trick. Six teaching sections: mechanical lead, common confusions with gyro and inspin, a progression on whirl, and cross-base examples.',
       status:     'shipped',
       isShipped:  true,
     },
     {
       title:      'Paradox',
       href:       '/freestyle/modifier/paradox',
-      shortBlurb: 'A hip pivot between two dexes on the same set. Six teaching sections: mechanical lead, common confusions with xdex / symposium / spinning, a progression on mirage, and cross-base examples including folk single-token names that hide paradox in their canonical reading.',
+      shortBlurb: 'A hip pivot on a single dex, changing its side relationship without adding another dex. Six teaching sections: mechanical lead, common confusions with xdex / symposium / spinning, a progression on mirage, and cross-base examples including folk single-token names that hide paradox in their canonical reading.',
       status:     'shipped',
       isShipped:  true,
     },

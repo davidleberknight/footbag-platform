@@ -110,6 +110,9 @@ publicRouter.get('/freestyle/observational', freestyleController.observational);
 publicRouter.get('/freestyle/tricks',      freestyleController.tricksIndex);
 publicRouter.get('/freestyle/insights',    freestyleController.insights);
 publicRouter.get('/freestyle/learn',       freestyleController.symbolicLearn);
+// Novice entry page: the landing "Start here" CTA destination. /freestyle/learn
+// stays the broader educational-pathways index.
+publicRouter.get('/freestyle/start',       freestyleController.start);
 publicRouter.get('/freestyle/progression/walking-family', freestyleController.walkingProgression);
 publicRouter.get('/freestyle/modifier/:slug', freestyleController.modifierFamily);
 // Family detail pages: first-class Family Parents only (anything else 404s

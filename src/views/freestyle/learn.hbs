@@ -22,9 +22,9 @@
 
     <p class="learn-intro">{{content.pageIntro}}</p>
 
-    {{! Start-here path: the six beginner lessons in learning order, the beginner
-        on-ramp above the more advanced pathways. }}
-    <section class="learn-foundational-path" aria-label="Start here: six beginner lessons">
+    {{! Six-lesson vocabulary tour: conceptual pedagogy in reading order. The
+        first physical steps live on the getting-started page. }}
+    <section class="learn-foundational-path" aria-label="Six lessons: how the vocabulary fits together">
       <div class="section-heading">
         <h2>{{content.foundationalPath.heading}}</h2>
       </div>
@@ -41,9 +41,6 @@
         {{/each}}
       </ol>
     </section>
-
-    {{! Operator board — symbolic-onboarding surface. Anchors the educational pathways below in the same compositional vocabulary they teach. }}
-    {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
 
     {{#each content.sections}}
     <section class="learn-section">
@@ -63,6 +60,10 @@
       </ul>
     </section>
     {{/each}}
+
+    {{! Operator board — the movement-language index, demoted below the guided
+        pathways so the card wall never sits between a reader and the lessons. }}
+    {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
 
     <p class="symbolic-layer-footer">Guided learning paths. For the official trick definitions, ADD values, and modifier rules, see the <a href="/freestyle/tricks">trick dictionary</a>, the <a href="/freestyle/glossary">glossary</a>, and the <a href="/freestyle/operators">operator reference</a>.</p>
   </article>

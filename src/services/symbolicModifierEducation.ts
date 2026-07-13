@@ -148,7 +148,7 @@ const SPINNING_CONTENT: ModifierEducationInput = {
   slug:        'spinning',
   displayName: 'Spinning',
   pageTitle:   'Spinning',
-  pageSubtitle: 'A body-rotation operator: a full-body rotation carried through the dex, with the underlying dexterity unchanged.',
+  pageSubtitle: 'A body-rotation operator: a full-body rotation carried through the middle of the trick, with the underlying trick unchanged.',
   whyItExists:
     'Spinning exists to distinguish tricks that incorporate a full-body rotational event. The underlying trick remains the same; the operator records that the body rotates while performing it. This rotational event is significant enough to score independently as [BOD].',
   howItChangesBase:
@@ -175,7 +175,7 @@ const SPINNING_CONTENT: ModifierEducationInput = {
     {
       heading: 'Rotation vs dexterity',
       prose:
-        'Spinning does not add a dexterity. It records a body rotation carried through a dex that is already there, scored +1 as a body event. The dex count is unchanged; the rotation is a separate component alongside it.',
+        'Spinning does not add a dexterity. It records a body rotation carried through the trick\'s central movement, scored +1 as a body event: through the dex where the base has one, or through the spin-into-stall structure of a base like osis, which has no dex at all. The dex count is unchanged either way; the rotation is a separate component alongside the base.',
     },
     {
       heading: 'Body event vs body orientation',
@@ -404,7 +404,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
     },
     {
       name:  'miraging',
-      prose: 'A +1 uptime dex set; paradox commonly transforms miraging-family bases such as mirage and drifter.',
+      prose: 'Descriptive mirage-family language for the inward standalone movement, not a launch set and not a scored operator; paradox commonly transforms mirage-family bases such as mirage and drifter.',
     },
     {
       name:  'nuclear',
@@ -605,7 +605,7 @@ const SYMPOSIUM_CONTENT: ModifierEducationInput = {
     {
       heading: 'Symposium vs paradox',
       prose:
-        'Both are +1 body modifiers, and they stack so often that the pair has its own shorthand, PS (Paradox Symposium), as in PS Whirl. They are different mechanics: paradox is a hip pivot that switches sides between two dexes, symposium is the no-plant leg discipline. They run at the same time without interfering, which is why PS is two operators, not one.',
+        'Both are +1 body modifiers, and they stack so often that the pair has its own shorthand, PS (Paradox Symposium), as in PS Whirl. They are different mechanics: paradox is a hip pivot that switches sides on a single dex, symposium is the no-plant leg discipline. They run at the same time without interfering, which is why PS is two operators, not one.',
     },
     {
       heading: 'Symposium is not a dex',
