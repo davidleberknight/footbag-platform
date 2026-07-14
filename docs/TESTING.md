@@ -742,7 +742,7 @@ Not every test runs every time. This section defines the named gates, what runs 
 - *Local fast loop.* Typecheck plus lint plus changed-file unit tests via test impact analysis (`vitest --changed`). Sub-30s. Developer-triggered. No gate enforcement; convenience for the working developer.
 - *Pre-PR.* Full unit plus integration plus security regression. Sub-2min on a fresh checkout. Optional local git hook that runs `npm run test:pre-pr` before allowing push.
 - *CI on PR.* Same as pre-PR plus db-load smoke plus lightweight Playwright plus staging-safe security checks plus per-PR dependency review (`actions/dependency-review-action` over the PR diff, alongside the whole-tree `npm audit`). Sub-10min. Blocks merge.
-- *CI nightly or on-demand.* Mutation testing on the safety-critical short list (auth, privacy filters, migration matchers, role gates), dependency audit, header check across the route table, production-residue audit against the production DB. Reports, does not block.
+- *On-demand deep audits.* Mutation testing on the safety-critical short list (auth, privacy filters, migration matchers, role gates), dependency audit, header check across the route table, production-residue audit against the production DB. Operator-invoked when a covered surface changes or ahead of a production deploy; a scheduled nightly trigger is optional future depth on top of the required on-push CI gate. Reports, does not block.
 - *Post-deploy smoke gate.* Runs automatically inside both deploy scripts (`scripts/smoke-local.sh` + `scripts/smoke-security.sh`) against the deployed target: health and route smoke plus the blocking security probes — auth-gate enforcement, anti-enumeration response equivalence, and the dev-surface environment contract (dev harness present on staging, absent in production). Sub-1min. Blocks deploy promotion on failure. Before a production deploy, the deploy script first runs this same gate against staging and aborts on failure. Distinct from the staging-AWS adapter smoke (§5.4), which exercises live-AWS adapters, not the deployed HTTP surface.
 - *On-demand heavyweight pentest.* Human invokes (`npm run test:pentest:heavy`). May include OWASP ZAP baseline, upload-abuse probes, internal-route probes, header checks, dependency scanning. Browser-driven attack flows are operator-invoked via the `browser-qa` skill. Never runs against production unless explicitly authorized.
 - *Periodic third-party pentest.* At major launches (per §9.4). Reports findings; findings produce regression tests at the cheapest appropriate layer.
@@ -753,7 +753,7 @@ The db-load smoke gate runs the loader pipeline against fixed fixtures on every 
 
 - *Test impact analysis* for the local fast loop. `vitest --changed` plus git-diff-driven file selection. The fast loop runs only tests that touch changed code paths.
 - *Tag-based selection* across all gates. The tag taxonomy in §6.3 (`@smoke`, `@security`, `@a11y`, `@migration`, `@quarantined`) drives which tests run at each gate.
-- *Risk-severity-based selection* for nightly and on-demand gates. Catastrophic and high surfaces (per §3) run in CI on every push. Medium surfaces run nightly or when the surface changes. Low surfaces run weekly or when the surface changes.
+- *Risk-severity-based selection* for the on-demand deep audits. Catastrophic and high surfaces (per §3) run in CI on every push. Medium and low surfaces run when the surface changes; a periodic sweep is optional future depth on top of the on-push gate.
 - *Parallel sharding* where the test runner supports it. Vitest workers for unit and integration; Playwright workers are constrained to 1 by SQLite WAL serialization, so Playwright sharding happens via separate processes against separate ephemeral databases.
 - *Skip-on-unchanged-inputs* where tooling supports it. Layers whose inputs have not changed since the last green can be skipped.
 
@@ -772,7 +772,7 @@ Tests that fail intermittently are quarantined, not ignored. The quarantine mech
 
 - *CI on PR* blocks merge.
 - *Post-deploy smoke gate* blocks deploy promotion (the production deploy script first runs the same gate against the staging deployment and aborts on failure).
-- *CI nightly or on-demand* reports only. A failing nightly does not block in-flight PRs but does block the next intentional production deploy until investigated.
+- *On-demand deep audits* report only. A failing audit does not block in-flight PRs but does block the next intentional production deploy until investigated.
 - *On-demand heavyweight pentest* reports only. Findings produce regression tests (§9.6).
 - *Periodic third-party pentest* reports only. Findings produce regression tests and may block a major launch if a catastrophic-risk finding is open.
 
@@ -786,7 +786,7 @@ The project is AI-assisted. Every test-run output is tokens in the agent's conte
 | Pre-commit | Before commit | Tests touching files in the uncommitted diff, plus lint + typecheck | `npx vitest run --changed && npm run lint && npx tsc --noEmit` |
 | Pre-push | Before push to remote | Full unit + integration suite | `npm test` |
 | CI on push | Automated | Full suite + `audit-ci --moderate` + full Playwright e2e + CodeQL | CI workflow |
-| CI on main / nightly | Post-merge or scheduled | Full Playwright e2e, dependency audit, optional ZAP | Scheduled workflow |
+| On-demand deep audits | Operator-invoked when a covered surface changes | Mutation short list, header walk, production-residue audit, optional ZAP | `npm run test:pentest:heavy` and per-audit scripts |
 | Post-deploy smoke gate | Every staging or production deploy | `scripts/smoke-local.sh` + `scripts/smoke-security.sh`, invoked by the deploy scripts | Automatic |
 | Staging-AWS adapter smoke | After changes to staging AWS identity, keys, or IAM | `npm run test:smoke` | Operator-invoked |
 

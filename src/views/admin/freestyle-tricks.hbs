@@ -9,12 +9,12 @@
   <section>
     <form method="GET" action="/admin/freestyle/tricks" class="freestyle-admin-filter">
       <input type="text" name="q" placeholder="Search name or slug" value="{{content.filters.query}}" />
-      <select name="active">
+      <select name="active" aria-label="Filter by active state">
         {{#each content.filters.activeOptions}}
           <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
         {{/each}}
       </select>
-      <select name="reviewStatus">
+      <select name="reviewStatus" aria-label="Filter by review status">
         {{#each content.filters.reviewStatusOptions}}
           <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
         {{/each}}

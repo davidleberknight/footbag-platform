@@ -8,14 +8,14 @@
 <div class="wrapper">
   <section>
     <form method="GET" action="/admin/club-cleanup" class="cleanup-filter-form">
-      <select name="category" class="cleanup-action-select">
+      <select name="category" class="cleanup-action-select" aria-label="Filter by category">
         <option value="">All categories</option>
         {{#each content.filters.categoryOptions}}
           <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
         {{/each}}
       </select>
       <input type="text" name="region" placeholder="Region or country" class="cleanup-reason-input" value="{{content.filters.region}}" />
-      <select name="sort" class="cleanup-action-select">
+      <select name="sort" class="cleanup-action-select" aria-label="Sort order">
         <option value="">Default order</option>
         {{#each content.filters.sortOptions}}
           <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>

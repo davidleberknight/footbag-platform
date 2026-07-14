@@ -1401,3 +1401,36 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
   return id;
 }
 
+// ── System config tunable ───────────────────────────────────────────────────
+//
+// One row in the append-only system_config table. `readIntConfig` and the
+// rate-limit buckets read the latest effective value per key through the
+// system_config_current view, so effective_start_at defaults to a past
+// timestamp and value_json is the raw JSON string (e.g. '2' for an integer cap).
+
+export interface SystemConfigOverrides {
+  id?: string;
+  config_key: string;
+  value_json: string;
+  effective_start_at?: string;
+  reason_text?: string;
+  changed_by_member_id?: string | null;
+  created_at?: string;
+}
+
+export function insertSystemConfig(db: BetterSqlite3.Database, o: SystemConfigOverrides): string {
+  const id = o.id ?? `syscfg_${uid()}`;
+  const ts = o.created_at ?? TS;
+  db.prepare(`
+    INSERT INTO system_config
+      (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, ts, o.config_key, o.value_json,
+    o.effective_start_at ?? ts,
+    o.reason_text ?? 'Test tunable',
+    o.changed_by_member_id ?? null,
+  );
+  return id;
+}
+

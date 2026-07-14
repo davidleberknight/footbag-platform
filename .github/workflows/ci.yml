@@ -260,6 +260,42 @@ jobs:
           path: tests/test-results/
           if-no-files-found: ignore
 
+  security-probes:
+    name: Staging-safe security probes
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install sqlite3 CLI
+        # scripts/e2e/start-stack.sh applies database/schema.sql via sqlite3.
+        run: sudo apt-get update && sudo apt-get install -y sqlite3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Boot the local stack, seed personas, and run the security probes
+        run: |
+          bash scripts/e2e/start-stack.sh &
+          STACK_PID=$!
+          trap 'kill -TERM "${STACK_PID}" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:3000/health/ready >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/health/ready >/dev/null
+          # The anti-enumeration probe needs the canonical personas registered.
+          curl -fsS -X POST -H "Origin: http://127.0.0.1:3000" \
+            http://127.0.0.1:3000/dev/personas/refresh >/dev/null
+          BASE_URL=http://127.0.0.1:3000 SMOKE_ENV=development \
+            bash scripts/smoke-security.sh
+
   codeql:
     name: CodeQL static analysis
     runs-on: ubuntu-latest
@@ -286,7 +322,7 @@ jobs:
 
   ci-complete:
     name: Type-check and test
-    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, harness, unit-tests, integration-tests, db-load-smoke, e2e, codeql, terraform]
+    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, harness, unit-tests, integration-tests, db-load-smoke, e2e, security-probes, codeql, terraform]
     runs-on: ubuntu-latest
     if: always()
 
@@ -303,6 +339,7 @@ jobs:
              [ "${{ needs.integration-tests.result }}" != "success" ] || \
              [ "${{ needs.db-load-smoke.result }}" != "success" ] || \
              [ "${{ needs.e2e.result }}" != "success" ] || \
+             [ "${{ needs.security-probes.result }}" != "success" ] || \
              [ "${{ needs.codeql.result }}" != "success" ] || \
              [ "${{ needs.terraform.result }}" != "success" ]; then
             echo "One or more jobs failed:"
@@ -316,6 +353,7 @@ jobs:
             echo "  integration-tests: ${{ needs.integration-tests.result }}"
             echo "  db-load-smoke: ${{ needs.db-load-smoke.result }}"
             echo "  e2e: ${{ needs.e2e.result }}"
+            echo "  security-probes: ${{ needs.security-probes.result }}"
             echo "  codeql: ${{ needs.codeql.result }}"
             echo "  terraform: ${{ needs.terraform.result }}"
             exit 1

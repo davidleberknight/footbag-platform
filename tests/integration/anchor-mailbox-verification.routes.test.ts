@@ -149,6 +149,53 @@ describe('round trip', () => {
   });
 });
 
+describe('send-verification is non-revealing for bogus anchors', () => {
+  it('a non-existent anchorId returns the same 303 with no mail sent', async () => {
+    const baseline = seedMemberWithAnchor();
+    const valid = await request(createApp())
+      .post('/register/wizard/legacy_claim/anchors/send-verification')
+      .set('Cookie', cookieFor(baseline.memberId))
+      .type('form')
+      .send({ anchorId: baseline.anchorId });
+    expect(valid.status).toBe(303);
+    const validLocation = valid.headers.location;
+
+    const other = seedMemberWithAnchor();
+    const bogus = await request(createApp())
+      .post('/register/wizard/legacy_claim/anchors/send-verification')
+      .set('Cookie', cookieFor(other.memberId))
+      .type('form')
+      .send({ anchorId: 'no-such-anchor' });
+    expect(bogus.status).toBe(303);
+    expect(bogus.headers.location).toBe(validLocation);
+    expect(outboxFor(other.memberId)).toHaveLength(0);
+  });
+
+  it("a foreign member's anchorId returns the same 303, sends no mail, leaves the anchor untouched", async () => {
+    const owner = seedMemberWithAnchor();
+    const attacker = seedMemberWithAnchor();
+
+    const res = await request(createApp())
+      .post('/register/wizard/legacy_claim/anchors/send-verification')
+      .set('Cookie', cookieFor(attacker.memberId))
+      .type('form')
+      .send({ anchorId: owner.anchorId });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toContain('anchor_verification=sent');
+
+    // No mail to the attacker and none to the owner's declared address: probing
+    // another member's anchor id neither confirms it exists nor triggers a send.
+    expect(outboxFor(attacker.memberId)).toHaveLength(0);
+    expect(outboxFor(owner.memberId)).toHaveLength(0);
+
+    const anchor = db.prepare(
+      `SELECT verified_via_link_click_at, verification_token_id FROM member_declared_anchors WHERE id = ?`,
+    ).get(owner.anchorId) as Record<string, unknown>;
+    expect(anchor.verified_via_link_click_at).toBeNull();
+    expect(anchor.verification_token_id).toBeNull();
+  });
+});
+
 describe('verified anchor upgrades staged evidence', () => {
   it('a batch match through a VERIFIED declared old email proposes the hard mailbox tier', async () => {
     insertLegacyMember(db, {
