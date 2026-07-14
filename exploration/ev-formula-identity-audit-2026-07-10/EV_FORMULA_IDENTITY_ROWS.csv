@@ -717,8 +717,8 @@ Stepping Ducking Far Double Pickup,steppingduckingfardoublepickup,stepping + duc
 Surfing ss Pickup,surfingsspickup,,,positional,undefined_operator,surfing,unknown-modifier-token,C,undefined-operator:surfing,Scoring paper,high,SG,section=parser intake=low_confidence positional=ruled-2026-07-13-distributive
 Zulu Far Legover,zulufarlegover,,zulu_legover,formula-identity,alias,alias,,A,,,high,SG,section=parser intake=low_confidence positional=ruled-2026-07-13-redundant-far-alias
 Zulu Far Pickup,zulufarpickup,,zulu_pickup,formula-identity,alias,alias,,A,,,high,SG,section=parser intake=low_confidence positional=ruled-2026-07-13-redundant-far-alias
-Full Symp Kiwi,fullsympkiwi,,,,parser,parser,ambiguous-terminal-mechanic,E,source/video-required,source / video review (Red queue: with the curator),high,PB,section=parser intake=low_confidence
-"POD, Pixie Over Down",podpixieoverdown,,,,identification,identity,ambiguous-terminal-mechanic,E,source/video-required,source / video review (Red queue: with the curator),high,PB,section=doctrine intake=doctrine_unresolved
+Full Symp Kiwi,fullsympkiwi,,,,folk,folk,ambiguous-terminal-mechanic,F,,,high,PB,section=parser intake=low_confidence identity=unrulable-reject-2026-07-13-no-footage-found-and-source-internal-contradiction-tapping-paradon-alias-vs-full-symposium-reading-search-exhausted-repo-staging-plus-four-channel-inventories-plus-public-term-search
+"POD, Pixie Over Down",podpixieoverdown,pixie + over-down (the setting leg performs the pixie dex and returns for the second downtime dex),,,authoring,authoring,,B,,,high,PB,section=doctrine intake=doctrine_unresolved identity=ruled-POD-2026-07-13-from-footage-distinct-from-dimmier-pixie-DOD
 BS Fusion,bsfusion,,,,folk,folk,unknown-modifier-token,F,,,medium,PB,section=parser intake=low_confidence
 BS Paste,bspaste,,,,folk,folk,unknown-modifier-token,F,,,medium,PB,section=parser intake=low_confidence
 BS Pigbeater,bspigbeater,,,,folk,folk,unknown-modifier-token,F,,,medium,PB,section=parser intake=low_confidence

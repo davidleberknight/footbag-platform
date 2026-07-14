@@ -194,19 +194,6 @@ local planning records it replaced are gitignored, and nothing may cite them
 as an active backlog. Every entry below is open; closed work is deleted,
 never archived here.
 
-#### James only
-
-- **J7. Video and source reviews.** Urgency: promotion blocker. Status:
-  open; every item needs a viewing, not a document. Remaining: one viewing
-  session covering POD versus Dimmier (one viewing decides one row), Kiwi
-  (rule it unrulable-reject or hold), Toe Spinning Toe (the record name's
-  entry, rotation, side, and terminal), the sole-survivor demo replacement,
-  and the dead or blocked external record videos. Blocks: those rows and
-  their record badges. Unlocks: each name ruled or rejected; dead links
-  replaced or removed. Next: James schedules the viewing session. Done when
-  every named item is ruled or explicitly rejected and the dead links are
-  replaced or removed.
-
 #### James + Dave
 
 - **FS-19. In-app curation cutover: staging rehearsals and launch
@@ -290,7 +277,9 @@ never archived here.
   check; the general osis-suffix rule; the twisting/twisted exemplar
   (counted in R1's token total); and the record names Double Dyno, Double
   Whip, Stepping Ducking Blurry Whirl, and Solestice (four of the five
-  curator-review records; the fifth is J7's Toe Spinning Toe). Blocks: the
+  curator-review records; the fifth, Toe Spinning Toe, has an
+  unavailable-footage disposition and rides here as a record-name
+  question only). Blocks: the
   named rows and four record badges. Unlocks: those rows and badges. Next:
   send alongside the R1 addendum follow-up and the Notation packet. Done
   when each rider is answered, ruled unrulable, or retired.

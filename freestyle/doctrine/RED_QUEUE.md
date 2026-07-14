@@ -128,11 +128,6 @@ packet, send or resend it to Red, and then update each item's delivery status fr
 
 ## With the curator
 
-- **POD versus Dimmier** — needs a video viewing to settle. (The archive alias
-  layer reads Dimmier = "Pixie DOD", suggesting one trick; the curator ruled the
-  confirmation requires the videos.)
-- **Kiwi** — a source-internal contradiction in PassBack's row (the archive alias
-  reads Kiwi = "Tapping Paradon"); not rulable from the record.
 - **Clipper Symposium Whirl** — what it is structurally.
 - **The atomic-pickup alias target** — "atomic pickup" is already omelette's alias
   carrying Red's own naming ruling (omelette = illusioning pickup, and illusioning
