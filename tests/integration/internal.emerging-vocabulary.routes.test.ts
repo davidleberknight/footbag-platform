@@ -53,11 +53,13 @@ describe('workbench access gate', () => {
 });
 
 describe('workbench content', () => {
-  it('renders every decision group with its packet fields, unanswered', async () => {
+  it('renders every populated decision group with its packet fields', async () => {
     const res = await request(createApp()).get(PATH).set('Cookie', ADMIN_COOKIE);
     for (const g of EMERGING_DECISION_GROUPS) {
-      expect(res.text, `decision group ${g.id} missing`).toContain(`id="decision-${g.id}"`);
-      expect(res.text).toContain(g.title);
+      if (g.memberCount > 0) {
+        expect(res.text, `decision group ${g.id} missing`).toContain(`id="decision-${g.id}"`);
+        expect(res.text).toContain(g.title);
+      }
     }
     expect(res.text).toContain('Recommended');
     expect(res.text).toContain('Alternatives');
@@ -73,10 +75,12 @@ describe('workbench content', () => {
 
   it('filters the table by an exact dimension value', async () => {
     const res = await request(createApp())
-      .get(`${PATH}?dimension=blockerId&value=D5`)
+      .get(`${PATH}?dimension=blockerId&value=D1`)
       .set('Cookie', ADMIN_COOKIE);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Nuclear ss Reverse Guay');
-    expect(res.text).toMatch(/1 shown/);
+    // The table narrows to the one held D1 row (the decision packet above the
+    // table still lists every group's members, so assert via the shown count).
+    expect(res.text).toContain('Pixie near Double Down');
+    expect(res.text).toMatch(/>1 shown</);
   });
 });

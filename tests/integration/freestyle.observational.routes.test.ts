@@ -113,10 +113,8 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
     // Cluster prose renders: the smallest exact decision plus its facts.
     expect(html).toContain('observed-decision-question');
     expect(html).toContain('Recommendation and evidence');
-    // The down-family group and the alias-target hold are present.
-    expect(html).toContain('id="decision-D1"');
-    expect(html).toContain('id="decision-D5"');
-    expect(html).toContain('Nuclear ss Reverse Guay');
+    // A populated decision group renders; an answered (empty) group vanishes.
+    expect(html).toMatch(/id="decision-(D\d|A0)"/);
     // Decision members render as observational cards, never canonical links.
     expect(html).not.toMatch(/href="\/freestyle\/tricks\/[a-z]/);
   });

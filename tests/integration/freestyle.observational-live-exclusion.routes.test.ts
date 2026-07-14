@@ -8,7 +8,7 @@
  *
  * Pins: active-canonical exclusion, alias exclusion, hyphen/underscore slug
  * normalization at the comparison boundary, an unaffected control row, and the
- * decide-now count recomputed from the runtime-filtered universe.
+ * waiting-on-a-ruling count recomputed from the runtime-filtered universe.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -25,12 +25,12 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 // Pick real candidates from the generated universe so the test tracks the
-// module. Decide-now primaries are the stable active population.
-const DECIDE = OBSERVATIONAL_UNIVERSE.filter(c => c.groupPrimary && c.publicSection === 'decide');
-const EXCLUDED_ACTIVE = DECIDE[0];                                 // excluded via active trick
-const CONTROL = DECIDE[1];                                        // unaffected control (decide, unseeded)
-const EXCLUDED_ALIAS = OBSERVATIONAL_UNIVERSE.find(c =>            // excluded via alias (non-decide)
-  c.groupPrimary && c.publicSection !== 'decide' && c.slug !== EXCLUDED_ACTIVE?.slug && /[a-z]/i.test(c.name));
+// module. Ruling-gated primaries are the stable active population.
+const RULING = OBSERVATIONAL_UNIVERSE.filter(c => c.groupPrimary && c.publicSection === 'ruling');
+const EXCLUDED_ACTIVE = RULING[0];                                 // excluded via active trick
+const CONTROL = RULING[1];                                        // unaffected control (ruling, unseeded)
+const EXCLUDED_ALIAS = OBSERVATIONAL_UNIVERSE.find(c =>            // excluded via alias (non-ruling)
+  c.groupPrimary && c.publicSection !== 'ruling' && c.slug !== EXCLUDED_ACTIVE?.slug && /[a-z]/i.test(c.name));
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -73,18 +73,18 @@ describe('GET /freestyle/observational — live publication exclusion', () => {
 });
 
 describe('observational counts recomputed from the runtime-filtered universe', () => {
-  it('the decide-now tile equals the filtered decide count, not the baked census', async () => {
+  it('the waiting-on-a-ruling tile equals the filtered ruling count, not the baked census', async () => {
     const { freestyleService } = await import('../../src/services/freestyleService');
     const vm = freestyleService.getObservationalLayerPage();
     const publishedKeys = new Set([
       key(EXCLUDED_ACTIVE!.slug), key('zzz_alias_target'), key(EXCLUDED_ALIAS!.slug),
     ]);
-    const expectedDecide = DECIDE.filter(c => !publishedKeys.has(key(c.slug))).length;
-    const decideTile = vm.content.stats.find(s => s.label === 'Decide now');
-    expect(decideTile).toBeDefined();
-    expect(Number(decideTile!.value)).toBe(expectedDecide);
-    // The seeded active-canonical candidate was a decide row, so the filtered
+    const expectedRuling = RULING.filter(c => !publishedKeys.has(key(c.slug))).length;
+    const rulingTile = vm.content.stats.find(s => s.label === 'Waiting on a ruling');
+    expect(rulingTile).toBeDefined();
+    expect(Number(rulingTile!.value)).toBe(expectedRuling);
+    // The seeded active-canonical candidate was a ruling row, so the filtered
     // count is strictly below the raw census (proving at least one live exclusion).
-    expect(expectedDecide).toBeLessThan(DECIDE.length);
+    expect(expectedRuling).toBeLessThan(RULING.length);
   });
 });

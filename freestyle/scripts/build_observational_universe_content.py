@@ -717,6 +717,12 @@ def main() -> None:
                 note_warn("registry-defines-gated-operator", f"{r['name']} ({tok})")
 
         resolved, conflict = resolve_identity(r)
+        if conflict and L is not None and (L.get("final_disposition") or "").strip() == "A" \
+                and (L.get("matched_existing_object") or "").strip():
+            # The curator adjudicated this conflict: the ledger's recorded
+            # target governs and the tension is history, not a live finding.
+            conflict = False
+            resolved = f"ledger:{(L.get('matched_existing_object') or '').strip()}"
         if conflict:
             note_warn("conflicting-parenthetical-resolutions", f"{r['name']} -> {resolved}")
             r["resolvedTarget"] = resolved

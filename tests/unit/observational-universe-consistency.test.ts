@@ -183,44 +183,63 @@ describe('operator-registry precedence over stale ledger labels', () => {
     expect(STATS.reconciliationWarnings['registry-defines-gated-operator'] ?? 0).toBe(0);
   });
 
-  it('the registry-defined-operator compounds sit in the decide section, unpromoted', () => {
+  it('the registry-defined-operator compounds are decide-batch members until authored, then suppressed as represented', () => {
     for (const name of ['Railing Butterfly', 'Surfing Osis', 'Splicing Paradox Mirage', 'Floating Mirage']) {
-      const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === name)!;
-      expect(row.blockerId, `${name} belongs to the registry-confirmation decision group`).toBe('D2');
-      expect(row.publicSection).toBe('decide');
+      const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === name);
+      if (!row) continue;   // dropped by the canonical gate: the compound is authored
+      const pending = row.publicSection === 'decide' && row.blockerId === 'D2';
+      const authored = row.publicationState === 'already-represented' && row.resolvedTarget !== '';
+      expect(pending || authored, `${name}: neither pending D2 nor authored (${row.publicSection}/${row.blockerId})`).toBe(true);
     }
   });
 });
 
-describe('curator decisions preserved, unanswered', () => {
-  it('the decision groups are present with their members intact', () => {
+describe('curator decision groups', () => {
+  it('the seven decision-group metas exist and member counts match the data', () => {
+    const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const primaryKeys = new Set(primaries.map(r => key(r.name)));
     const byId = new Map(EMERGING_DECISION_GROUPS.map(g => [g.id, g]));
     for (const id of ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'A0']) {
-      expect(byId.has(id), `decision group ${id} missing`).toBe(true);
-      expect(byId.get(id)!.memberCount, `decision group ${id} has no members`).toBeGreaterThan(0);
+      expect(byId.has(id), `decision group ${id} missing from the registry`).toBe(true);
+      const g = byId.get(id)!;
+      const derived = primaries.filter(r => r.blockerId === id).length
+        + Object.values(EXTERNAL_ADJUDICATIONS)
+            .filter(x => x.blockerId === id && !primaryKeys.has(key(x.name))).length;
+      expect(g.memberCount, `member count for ${id}`).toBe(derived);
     }
-    expect(byId.get('A0')!.members).toContain('POD, Pixie Over Down');
   });
 
-  it('Nuclear ss Reverse Guay stays held as the alias-target decision', () => {
+  it('Nuclear ss Reverse Guay resolved to nuclear_rev_guay (distributive default)', () => {
     const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === 'Nuclear ss Reverse Guay')!;
-    expect(row.blockerId).toBe('D5');
-    expect(row.publicSection).toBe('decide');
+    expect(row.publicationState).toBe('already-represented');
+    expect(row.resolvedTarget).toContain('nuclear_rev_guay');
   });
 
-  it('the down-family rows stay pending the grouped cell-label decision', () => {
-    const d1 = OBSERVATIONAL_UNIVERSE.filter(r => r.groupPrimary && r.blockerId === 'D1');
-    expect(d1.length).toBeGreaterThan(20);
-    for (const r of d1) expect(r.publicSection).toBe('decide');
-  });
-
-  it('the authorable candidates are NOT promoted: none carries a canonical slug in the committed trick CSVs', () => {
-    const tricksCsv = fs.readFileSync(
-      path.join(__dirname, '../../freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv'), 'utf8');
-    for (const name of ['Sailing ss Butterfly', 'Railing Butterfly', 'Butterfly Dragon', 'POD, Pixie Over Down']) {
+  it('the six down-family folk positional names resolved to their grid cells', () => {
+    for (const [name, cell] of [
+      ['Clipper far Double Down', 'down_double_down'], ['Clipper near Double Down', 'barfly'],
+      ['Toe far Double Down', 'paradon'], ['Toe near Double Down', 'double_over_down'],
+      ['Toe set os Double Over Down', 'paradon'], ['Clipper set ss Double Over Down', 'barfly'],
+    ] as const) {
       const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === name)!;
-      expect(row.publicSection, `${name} must remain a decision, not a promotion`).toBe('decide');
-      expect(tricksCsv.toLowerCase()).not.toContain(`\n${name.toLowerCase()},`);
+      expect(row.publicationState, name).toBe('already-represented');
+      expect(row.resolvedTarget, name).toContain(cell);
+    }
+  });
+
+  it('the Pixie near Double Down hold stands: never resolved to the three-dex pixie_double_over_down', () => {
+    const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === 'Pixie near Double Down')!;
+    expect(row.resolvedTarget).not.toContain('pixie_double_over_down');
+    const held = row.publicSection === 'decide' && row.blockerId === 'D1';
+    const traced = row.publicationState === 'already-represented' && row.resolvedTarget.includes('pixie_over_down');
+    expect(held || traced, `hold or exact-match trace only (${row.publicSection}/${row.resolvedTarget})`).toBe(true);
+  });
+
+  it('a decide-section row is never a promoted identity', () => {
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      if (r.publicSection !== 'decide') continue;
+      expect(/^(canonical|alias):/.test(r.resolvedTarget) && !r.resolutionConflict,
+        `${r.name}: decide row resolves to ${r.resolvedTarget}`).toBe(false);
     }
   });
 });
