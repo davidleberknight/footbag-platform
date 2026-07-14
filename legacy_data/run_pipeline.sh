@@ -224,31 +224,11 @@ run_csv_only_canonical_bootstrap_and_qc() {
     echo "  out/canonical refreshed from event_results/canonical_input"
     echo ""
     echo "── QC GATE ────────────────────────────────────────────────────────────"
-    # Current: TEMPORARY NON-BLOCKING GATE. Seven stale alias-registry rows
-    # (aliases whose person_id no longer exists in canonical persons.csv:
-    # initial-only names, one prize-line artifact, one mojibake variant) fail
-    # the gate hard until they are hand-triaged, so a QC failure here prints a
-    # conspicuous warning and the build continues. Set FOOTBAG_QC_GATE_ENFORCE=1
-    # to restore the hard abort.
-    # Target: the gate is unconditionally blocking; once the stale registry
-    # rows are triaged, delete the flag and the warning branch so a QC failure
-    # aborts the build.
+    # Blocking: a hard QC failure aborts the build unconditionally (the
+    # line-numbered alias-registry artifact is out/qc_alias_registry.csv).
     if ! python pipeline/qc/run_qc.py; then
-        if [[ "${FOOTBAG_QC_GATE_ENFORCE:-0}" == "1" ]]; then
-            echo "ERROR: QC gate failed and FOOTBAG_QC_GATE_ENFORCE=1; aborting." >&2
-            exit 1
-        fi
-        echo ""
-        echo "╔════════════════════════════════════════════════════════════════════╗"
-        echo "║  WARNING: QC GATE FAILED. TEMPORARILY NON-BLOCKING.                ║"
-        echo "║                                                                    ║"
-        echo "║  The build continues despite hard QC failures (see the QC GATE     ║"
-        echo "║  SUMMARY above; alias-registry rows: out/qc_alias_registry.csv).   ║"
-        echo "║  This bypass exists only until the stale alias-registry rows are   ║"
-        echo "║  hand-triaged. Set FOOTBAG_QC_GATE_ENFORCE=1 to restore the hard   ║"
-        echo "║  abort.                                                            ║"
-        echo "╚════════════════════════════════════════════════════════════════════╝"
-        echo ""
+        echo "ERROR: QC gate failed; aborting the build." >&2
+        exit 1
     fi
     echo ""
 }

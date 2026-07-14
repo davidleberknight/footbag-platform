@@ -72,7 +72,6 @@ Alex Dworetzky,337dc937-b022-51ef-8470-99fff306e2c9,Alex Dworetzky,verified,
 Alex Dworetzsky,337dc937-b022-51ef-8470-99fff306e2c9,Alex Dworetzky,verified,
 Alex Faber,16b2083f-d41a-5944-8669-d41494e21159,Alex Faber,verified,
 Alex Frazier,1f2d14aa-31e7-5d1f-a338-9ae43af68af5,Alex Frazier,verified,
-Alex G.,b3044e91-1827-5e9a-b5da-8468c657c443,Alex G.,verified,stub:abbreviated_name; rebound stale pid after alias cleanup
 Alex Ibardaloza,be0d9849-db58-5aa2-90cc-df475a8c43bd,Alex Ibardaloza,verified,
 ALEX LOPEZ,0d90bb3c-6c67-5057-9ac2-d85f9f94fa26,ALEX LOPEZ,verified,
 Alex Michalewski,f83826ed-30c2-5608-9dad-50453e899eff,Alex Michelewski,verified,
@@ -225,7 +224,7 @@ Antonio Linero Castro,da631353-0d65-5a29-9572-37f115385c15,Antonio Linero Castro
 Antony Arnaud,f5204064-f32c-562e-9cfe-9820060fc8e3,Antony Arnaud,verified,
 Antti Lehikoinen,eeaf3114-ed2a-5933-988e-535e9f5c70dc,Antti Lehikoinen,verified,
 Antti Lehtovirta,80396562-c2a1-5de8-81ea-cb22f17f884a,Antti Lehtovirta,verified,
-Arek Dudzi?ski,cbe4d2b2-48cf-5a8c-98d5-57eb65cf60a6,Arek Dudzi?ski,verified,
+Arek Dudzi?ski,c8b304b5-9268-54ef-8e11-3a1b8d2252d8,Arek Dudzinski,verified,encoding_corrupt_variant: mojibake of Dudzinski; rebound from dropped stale pid to the properly-encoded canonical person
 Arek Hutnik,6640fdb5-ce0a-551f-ac7e-b5673e17e9a5,Arek Hutnik,verified,
 Aric McIntosh,a9cb54c3-9f91-563a-a953-4de8dda05ffe,Aric McIntosh,verified,
 Ariel Santesteban,63846eb8-93a6-5795-a5bb-a9538ef3f1ee,Ariel Santetesteban,verified,
@@ -434,7 +433,6 @@ Chris �Gator� Routh,b08606fb-8072-5d14-ae24-b1881c22be54,Chris 'Gator' Routh
 Chris Gregory,552a9fb8-e63c-5f87-b431-06f68b0a1323,Chris Gregory,verified,
 Chris Hughes,078f83ff-ffba-5e46-a0e8-2e4a5e6fb1c6,Chris Hughes,verified,
 Chris ÏGatorÓ Routh,b08606fb-8072-5d14-ae24-b1881c22be54,Chris Routh,verified,merged: Last-First format swap or confirmed variant
-Chris J.,4d88e588-7fee-54f6-be7e-e53e322e12de,Chris J.,verified,stub:abbreviated_name; rebound stale pid after alias cleanup
 Chris James,383f6f61-a855-5091-9d27-f91312e7a7c5,Chris James,verified,
 Chris Kovacs,6469ade8-02a6-5a6f-8b42-c277458d05d7,Chris Kovacs,verified,
 Chris Loew,77077fa3-e070-5728-87d5-88c81b58466a,Chris Loew,verified,
@@ -592,7 +590,6 @@ DAVID JEZEK,ed164484-6327-5287-8693-127ff18394ca,David Jezek,verified,
 David Jezek,ed164484-6327-5287-8693-127ff18394ca,David Jezek,verified,
 David Kaufmann,2cf525b7-ae53-56ff-98f2-0f845d6d998f,David Kaufmann,verified,
 David Kaufmann FCFootstar,2cf525b7-ae53-56ff-98f2-0f845d6d998f,David Kaufmann,verified,
-David P.,a07b118a-810a-5673-bcea-2b82e66cee69,David P.,verified,stub:abbreviated_name; rebound stale pid after alias cleanup
 David Rambaud,9dd1729e-cd7f-5412-93ee-f08166e75fc7,David Rambaud,verified,
 David Rambaud Maël Nantes,9dd1729e-cd7f-5412-93ee-f08166e75fc7,David Rambaud,verified,quarantine_split:redirect_from_concat
 David Robinson,895b0608-34df-509a-853d-684ffa24e824,David Robinson,verified,
@@ -1320,7 +1317,6 @@ Jussi Lahtinen,23f60613-fbe8-5442-9981-114fd3cf4c14,Jussi Lahtinen,verified,
 Justin Dale,91dbdc03-080b-5170-a2b4-6fcbc7b4f053,Justin Dale,verified,
 Justin Eichenlaub,c476f406-2f03-5f67-88aa-f90dcc36ac42,Justin Eichenlaub,verified,
 Justin Sexton,092d4205-dbd7-59e7-8ec4-53b306eb83b3,Justin Sexton,verified,
-Justin W.,dc66a5cd-a64c-587c-800c-1bf682ec4a9d,Justin W.,verified,stub:abbreviated_name; rebound stale pid after alias cleanup
 Juuso Huopalainen,88986418-05a3-5493-81f5-b630b7890c0c,Juuso Huopalainen,verified,
 Jyri Ilama,8769fa9e-200a-505d-b008-889add42a38b,Jyri Ilama,verified,
 K Shults,2a6a7c9e-1d8a-4f9a-a8f5-6f3a3c1e9b0f,"Kenneth ""Kenny"" Shults",verified,
@@ -2576,7 +2572,6 @@ R Lavign,290519a0-7c5d-5068-98a5-ec9f8847801f,Rober Lavign,verified,abbreviated_
 R McCloskey,6842b20a-a927-5b6b-9501-4fae0e547a1f,Rob McCloskey,verified,abbreviated_name:single_match
 R Mulroney,4cf390be-81e9-586c-95c7-aa90dd752ba8,Ryan Mulroney,verified,abbreviated_name:single_match
 S Durfee,cd035f70-1e6d-5620-b8eb-bf5809c756ab,Scott Durfee,verified,abbreviated_name:single_match
-S Goldberg,bc83226e-9947-5213-a4a6-9014419545de,S Goldberg,verified,abbreviated_name:single_match; Steve/Steven L. merge deferred (identity_review_queue R-10)
 S Jani,8f15594c-f3f9-53d9-bfe5-409e746b7c29,Sunil Jani,verified,abbreviated_name:single_match
 T Bergamasco,c0bc24e3-dd5f-5ad7-8570-77d685dd5638,Thomas Bergamasco,verified,abbreviated_name:single_match
 Y ARCHAMBAUTL,691f48a0-1dbd-5ef5-99ea-13615a7437d2,Yves Archambault,verified,abbreviated_name:single_match
@@ -2740,7 +2735,6 @@ Gary Laut,66a5ee0b-abd2-5b24-9d53-5c4f6e3fee14,Gary Lautt,verified,typo
 Greg Grande,03ffa350-fa0f-5075-8d07-418305ee55f5,Greg Grandy,verified,typo
 James Deans,6257b1c3-bbae-5937-b773-ffd5c2152715,James Dean,verified,typo
 Phil Less,87216aed-3048-50f7-8c54-d7e9e7bb52f3,Philippe Lessard,verified,truncated; rebound after Phil Lessard → Philippe Lessard merge
-B Solonoski-prizes,e17d0227-d08b-5d5d-a7f0-0a2533dd7b9c,B Solonoski,verified,prize_suffix
 Dave Robinson,895b0608-34df-509a-853d-684ffa24e824,David Robinson,verified,nickname; consolidates 24 post-1984 placements; HOF cross-ref (David is HOF formal form)
 Jenny Davidson,3f48caf5-14c9-59f1-8255-1db7ef2fd049,Jenny Davison,verified,spelling variant; davidson form orphaned post merge; authoritative-results-1980-1985.txt consistent on davison
 Jodi Chandler,2224d6ba-5be4-56a5-90e1-aaa61a15bcb0,Jodi Sebastian,verified,name variant across sources; same person confirmed via 1984 Tricia George partnership (Women's Doubles Consec WR + Women's Team Freestyle p1)
