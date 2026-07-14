@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   OBSERVATIONAL_UNIVERSE,
   OBSERVATIONAL_UNIVERSE_STATS as STATS,
@@ -146,5 +148,109 @@ describe('emerging vocabulary: published names are gated, positional variants ar
     // same-side variant: the parenthetical positional marker is kept, not stripped,
     // so the row is never folded into the base.
     expect(has('Fairy DLO (ss)')).toBe(true);
+  });
+});
+
+// The ruling ledger is the classification authority: where it has adjudicated
+// a name, its state overrides the frozen ingestion CSVs, and a name resolving
+// to a published canonical name or a registered alias files as alias archive,
+// never as authoring backlog. These guards pin the authority chain so a
+// regeneration that regresses to CSV-only classification fails loudly.
+describe('emerging vocabulary: the ruling ledger governs classification', () => {
+  const FREESTYLE = path.join(__dirname, '../../freestyle');
+  const byName = (name: string) => OBSERVATIONAL_UNIVERSE.filter(r => r.name === name);
+
+  // Mirror of the generator's comparison keys: alphanumeric-lowercase, with
+  // community abbreviations expanded. Positional tokens are never expanded or
+  // stripped, so a same-side name only matches an explicit same-side alias.
+  const ABBREV: Record<string, string> = {
+    dlo: 'double_leg_over', dso: 'double_switch_over', dod: 'double_over_down',
+    ddd: 'down_double_down', datw: 'double_around_the_world',
+  };
+  const normKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const expandKey = (s: string) => normKey(
+    s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+      .split('_').map(t => ABBREV[t] ?? t).join('_'));
+  const csvColumn = (file: string, header: string): string[] => {
+    const lines = fs.readFileSync(file, 'utf8').split('\n').filter(l => l.trim());
+    const cols = lines[0].split(',');
+    const idx = cols.indexOf(header);
+    // Header-position parse is enough here: the columns read (slug + pipe-list
+    // alias columns) sit before any quoted free-text column in these CSVs.
+    return lines.slice(1).map(l => l.split(',')[idx] ?? '').filter(Boolean);
+  };
+
+  const publishedKeys = (() => {
+    const keys = new Set<string>();
+    const add = (text: string) => {
+      if (!text.trim()) return;
+      keys.add(normKey(text));
+      keys.add(expandKey(text));
+    };
+    const tricksCsv = path.join(FREESTYLE, 'inputs/base_dictionary/tricks.csv');
+    const redCsv = path.join(FREESTYLE, 'inputs/curated/tricks/red_additions_2026_04_20.csv');
+    for (const s of csvColumn(tricksCsv, 'trick_canon')) add(s);
+    for (const s of csvColumn(redCsv, 'canonical_name')) add(s);
+    for (const cell of csvColumn(tricksCsv, 'aliases')) cell.split('|').forEach(add);
+    for (const cell of csvColumn(redCsv, 'aliases')) cell.split('|').forEach(add);
+    for (const s of csvColumn(path.join(FREESTYLE, 'inputs/base_dictionary/trick_aliases.csv'), 'alias')) add(s);
+    for (const s of csvColumn(path.join(FREESTYLE, 'inputs/base_dictionary/alias_additions.csv'), 'alias_text')) add(s);
+    return keys;
+  })();
+
+  it('no authoring-ladder row resolves to a published canonical name or a registered alias', () => {
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      if (r.evState !== 'authoring' && r.evState !== 'ready') continue;
+      const rowKeys = [normKey(r.name), expandKey(r.name), normKey(r.slug)];
+      const hit = rowKeys.find(k => publishedKeys.has(k));
+      expect(hit, `${r.name}: authoring-ladder row resolves to published/alias key "${hit}"`)
+        .toBeUndefined();
+    }
+  });
+
+  it('every authoring-ladder row the ledger has adjudicated carries an author-now ledger tag (B or C)', () => {
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      if (r.evState !== 'authoring') continue;
+      expect(
+        r.ledger === 'absent' || /^authoring\/(B|C)$/.test(r.ledger),
+        `${r.name}: authoring row carries ledger tag "${r.ledger}"`,
+      ).toBe(true);
+    }
+  });
+
+  it('every row records its classification provenance', () => {
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      expect(typeof r.ledger).toBe('string');
+      expect(r.ledger.length, `${r.name}: empty ledger provenance`).toBeGreaterThan(0);
+    }
+  });
+
+  it('a ledger-moved row renders in its ruled state, not the stale CSV state (Zulu Far Legover)', () => {
+    // The frozen CSVs classify this row as an unresolved parser name; the
+    // ledger rules it a redundant-far alias of the published zulu_legover.
+    const rows = byName('Zulu Far Legover');
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r.evState).toBe('alias');
+  });
+
+  it('a name already represented by a live alias is archive, not backlog (Nuclear far Mirage → sumo)', () => {
+    const rows = byName('Nuclear far Mirage');
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r.evState).toBe('alias');
+  });
+
+  it('a bare operator/set name never enters the authoring ladder (object-type guard on Nuclear)', () => {
+    const rows = byName('Nuclear');
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(r.evState).toBe('alias');
+      expect(r.ledger).toContain('/F');
+    }
+  });
+
+  it('a ledger not-a-trick ruling overrides a CSV authoring state ("Butterfly, Down")', () => {
+    const rows = byName('Butterfly, Down');
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r.evState).toBe('folk');
   });
 });

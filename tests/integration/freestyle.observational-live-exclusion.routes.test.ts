@@ -24,12 +24,13 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 // slug and an underscore database slug collapse to the same key.
 const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-// Pick real candidates from the generated universe so the test tracks the module.
-const READY = OBSERVATIONAL_UNIVERSE.filter(c => c.evState === 'ready');
-const EXCLUDED_ACTIVE = READY[0];                                  // excluded via active trick
-const CONTROL = READY[1];                                         // unaffected control (ready, unseeded)
-const EXCLUDED_ALIAS = OBSERVATIONAL_UNIVERSE.find(c =>            // excluded via alias (non-ready)
-  c.evState !== 'ready' && c.slug !== EXCLUDED_ACTIVE?.slug && /[a-z]/i.test(c.name));
+// Pick real candidates from the generated universe so the test tracks the
+// module. The authoring step is the stable populated frontier state.
+const AUTHORING = OBSERVATIONAL_UNIVERSE.filter(c => c.evState === 'authoring');
+const EXCLUDED_ACTIVE = AUTHORING[0];                              // excluded via active trick
+const CONTROL = AUTHORING[1];                                     // unaffected control (authoring, unseeded)
+const EXCLUDED_ALIAS = OBSERVATIONAL_UNIVERSE.find(c =>            // excluded via alias (non-authoring)
+  c.evState !== 'authoring' && c.slug !== EXCLUDED_ACTIVE?.slug && /[a-z]/i.test(c.name));
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -72,18 +73,18 @@ describe('GET /freestyle/observational — live publication exclusion', () => {
 });
 
 describe('observational counts recomputed from the runtime-filtered universe', () => {
-  it('the Ready-for-curation tile equals the filtered ready count, not the baked census', async () => {
+  it('the Needs-authoring tile equals the filtered authoring count, not the baked census', async () => {
     const { freestyleService } = await import('../../src/services/freestyleService');
     const vm = freestyleService.getObservationalLayerPage();
     const publishedKeys = new Set([
       key(EXCLUDED_ACTIVE.slug), key('zzz_alias_target'), key(EXCLUDED_ALIAS!.slug),
     ]);
-    const expectedReady = READY.filter(c => !publishedKeys.has(key(c.slug))).length;
-    const readyTile = vm.content.stats.find(s => s.label === 'Ready for curation');
-    expect(readyTile).toBeDefined();
-    expect(readyTile!.value).toBe(String(expectedReady));
-    // The seeded active-canonical candidate was a ready row, so the filtered
+    const expectedAuthoring = AUTHORING.filter(c => !publishedKeys.has(key(c.slug))).length;
+    const authoringTile = vm.content.stats.find(s => s.label === 'Needs authoring');
+    expect(authoringTile).toBeDefined();
+    expect(authoringTile!.value).toBe(String(expectedAuthoring));
+    // The seeded active-canonical candidate was an authoring row, so the filtered
     // count is strictly below the raw census (proving at least one live exclusion).
-    expect(expectedReady).toBeLessThan(READY.length);
+    expect(expectedAuthoring).toBeLessThan(AUTHORING.length);
   });
 });

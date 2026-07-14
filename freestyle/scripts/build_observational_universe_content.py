@@ -23,6 +23,19 @@ Inputs:
   freestyle/inputs/observational/promotion_candidates_curator_confirm.csv
   freestyle/inputs/observational/promotion_candidates_deferred.csv
   freestyle/inputs/observational/CLASSIFIED_UNIVERSE.csv   (stats only)
+  exploration/ev-formula-identity-audit-2026-07-10/EV_FORMULA_IDENTITY_ROWS.csv
+      (the ruling ledger — the classification AUTHORITY; see below)
+
+Classification authority: the observational CSVs are a frozen ingestion
+snapshot, while the ruling ledger records every per-name disposition made
+since. Where the ledger has a name, its state/disposition OVERRIDES the
+CSV-derived classification; where it does not, a name that resolves to a
+published canonical name or a registered alias is reclassified into the alias
+archive, and a name that IS a registered operator/set (bare "Nuclear") never
+enters the authoring ladder. Precedence: ledger > canonical/alias-name
+resolution > observational CSV. Disagreements print a warning summary at
+regen time, and every row carries its ledger provenance in the emitted
+`ledger` field.
 
 Output:
   src/content/freestyleObservationalUniverse.ts
@@ -36,6 +49,7 @@ import csv
 import json
 import os
 import re
+import sys
 from collections import Counter
 from datetime import date
 from pathlib import Path
@@ -53,6 +67,19 @@ OUT = REPO / "src/content/freestyleObservationalUniverse.ts"
 # next regen even when the upstream packet CSVs still list it.
 TRICKS_CSV = FREESTYLE / "inputs/base_dictionary/tricks.csv"
 RED_ADD_CSV = FREESTYLE / "inputs/curated/tricks/red_additions_2026_04_20.csv"
+# The ruling ledger: one row per adjudicated observational name, carrying the
+# current ev_state / final_disposition / blocker_subtype. It is the ONE
+# exception to the freestyle-inputs-only rule, because it is the committed
+# ruling record this generator must treat as the classification authority
+# (never legacy_data, never the network). Missing ledger = fatal: without it
+# the classification would silently regress to the frozen CSV snapshot.
+LEDGER_CSV = REPO / "exploration/ev-formula-identity-audit-2026-07-10/EV_FORMULA_IDENTITY_ROWS.csv"
+# Registered alias texts and operator/set names. A queue name that resolves to
+# one of these is already represented (alias archive) or is not a trick at all
+# (operator/set object), so it must never render as authoring backlog.
+MODIFIERS_CSV = FREESTYLE / "inputs/base_dictionary/trick_modifiers.csv"
+TRICK_ALIASES_CSV = FREESTYLE / "inputs/base_dictionary/trick_aliases.csv"
+ALIAS_ADDITIONS_CSV = FREESTYLE / "inputs/base_dictionary/alias_additions.csv"
 
 # Doctrine-blocked clusters whose STRUCTURE is known (blocked only on an ADD /
 # policy ruling, not on the movement reading) — promotion-frontier eligible. The
@@ -363,6 +390,89 @@ def _represented_norm_candidates(name: str, slug: str) -> set[str]:
     return {_norm_slug(c) for c in cands if c}
 
 
+def _alias_name_norms() -> set[str]:
+    """Normalized comparison keys for every registered alias text.
+
+    Sources: the pipe-delimited `aliases` columns on the two canonical trick
+    CSVs plus the two standalone alias files. Each text is added both verbatim
+    and with community abbreviations expanded, so "stepping DLO" and "stepping
+    double legover" resolve to the same key. Positional qualifiers are part of
+    the text and are never stripped, so a same-side name only ever matches an
+    explicit same-side alias.
+    """
+    norms: set[str] = set()
+
+    def add(text: str) -> None:
+        base = re.sub(r"[^a-z0-9]+", "_", (text or "").lower()).strip("_")
+        if not base:
+            return
+        norms.add(_norm_slug(base))
+        norms.add(_norm_slug("_".join(_EV_ABBREV.get(t, t) for t in base.split("_"))))
+
+    for p in (TRICKS_CSV, RED_ADD_CSV):
+        if p.exists():
+            for c in read(p):
+                for a in (c.get("aliases", "") or "").split("|"):
+                    add(a)
+    if TRICK_ALIASES_CSV.exists():
+        for c in read(TRICK_ALIASES_CSV):
+            add(c.get("alias", ""))
+    if ALIAS_ADDITIONS_CSV.exists():
+        for c in read(ALIAS_ADDITIONS_CSV):
+            add(c.get("alias_text", ""))
+    return norms
+
+
+def _operator_object_norms() -> set[str]:
+    """Registered operator / set names (the modifier registry), normalized."""
+    if not MODIFIERS_CSV.exists():
+        return set()
+    return {_norm_slug(c.get("modifier", "")) for c in read(MODIFIERS_CSV)} - {""}
+
+
+def _ledger_classification(L: dict, is_operator_object: bool) -> tuple[str, str]:
+    """The (evState, holdKind) a ruling-ledger row assigns its name.
+
+    Ledger semantics: disposition A resolves to an existing object (alias
+    archive; includes rows the ledger marks canonical), B is author-now, C is
+    blocked with the block named in blocker_subtype, D is the per-trick
+    down-family verification, and F is not a trick. An F-row that names a
+    registered operator/set (bare "Nuclear") is represented by the operator
+    surface, so it files as alias archive rather than an unrecoverable folk
+    string. Count-quantifier rider rows stay in the authoring state: the open
+    question there is a display-label normalization, not the movement reading,
+    so a doctrine hold would overstate the block.
+    """
+    st = (L.get("ev_state") or "").strip()
+    disp = (L.get("final_disposition") or "").strip()
+    sub = (L.get("blocker_subtype") or "").strip()
+    if disp == "A" or st in ("alias", "canonical"):
+        return "alias", "alias"
+    if disp == "F":
+        return ("alias", "alias") if is_operator_object else ("folk", "not_a_trick")
+    if disp == "D" or sub == "down-family-per-trick-verification":
+        return "governance", "down_family_verification"
+    if sub.startswith("undefined-operator:"):
+        return "undefined_operator", sub.split(":", 1)[1]
+    if sub.startswith("doctrine:"):
+        return "doctrine", sub.split(":", 1)[1]
+    if sub.startswith("parser:"):
+        return "parser", "parser"
+    if sub.startswith("mirror-ineligible"):
+        return "doctrine", "mirror_ineligible"
+    if sub.startswith("operator-reactivation-deferred"):
+        return "doctrine", "operator_reactivation_deferred"
+    if sub.startswith("rider:"):
+        return "authoring", "authoring"
+    if disp == "B":
+        return "authoring", "authoring"
+    if st == "deferred":
+        return "doctrine", "deferred"
+    if st in EV_STATES:
+        return st, st
+    return "folk", "folk"
+
+
 def _lev1(a: str, b: str) -> bool:
     """True if edit distance(a, b) <= 1 (cheap, length-gated by the caller)."""
     if a == b:
@@ -426,6 +536,7 @@ def main() -> None:
             "provisionalAdd": add or "", "decomposition": decomp or "",
             "semanticJob": job or "", "failureClass": fc or "",
             "intakeBucket": intake, "lexicalVariants": [], "layer": "",
+            "ledger": "absent",
         }
 
     # clean + curator-confirm rows are mechanically-coherent modifier+base
@@ -610,6 +721,68 @@ def main() -> None:
         r["holdKind"] = hold
         r["flags"] = ev_flags(r, state)
 
+    # ── ruling-ledger precedence ── the classification authority. The state
+    # stamped above derives from the frozen ingestion CSVs; every disposition
+    # ruled since lives in the ledger. Precedence: ledger > canonical/alias-name
+    # resolution > CSV. A ledger-absent row keeps its CSV state only after the
+    # name fails to resolve to a registered alias or operator/set object, and
+    # every row records its ledger provenance so a rendered classification can
+    # be traced to its authority. Reclassifications print a warning summary so
+    # source drift is visible at regen time. Dedup/alias archive rows are
+    # structural bookkeeping the ledger never reopens: a conflicting ledger tag
+    # on one is reported, not applied.
+    if not LEDGER_CSV.exists():
+        raise SystemExit(f"ruling ledger missing: {LEDGER_CSV} — the classification authority is unavailable")
+    ledger = {(L.get("normalized_name") or "").strip(): L for L in read(LEDGER_CSV)}
+    alias_norms = _alias_name_norms()
+    operator_norms = _operator_object_norms()
+    reclass: Counter = Counter()
+    reclass_examples: dict[tuple[str, str], list[str]] = {}
+
+    def note_reclass(frm: str, to: str, name: str) -> None:
+        reclass[(frm, to)] += 1
+        ex = reclass_examples.setdefault((frm, to), [])
+        if len(ex) < 3:
+            ex.append(name)
+
+    for r in rows:
+        csv_state = r["evState"]
+        name_key = _norm_slug(r["name"])
+        L = ledger.get(name_key)
+        if L is not None:
+            new_state, new_hold = _ledger_classification(L, name_key in operator_norms)
+            provenance = f"{(L.get('ev_state') or '').strip()}/{(L.get('final_disposition') or '').strip()}"
+        elif _represented_norm_candidates(r["name"], r["slug"]) & alias_norms:
+            new_state, new_hold = "alias", "alias"
+            provenance = "absent; resolves to a registered alias"
+        elif name_key in operator_norms:
+            new_state, new_hold = "alias", "alias"
+            provenance = "absent; registered operator/set object"
+        else:
+            r["ledger"] = "absent"
+            continue
+        r["ledger"] = provenance
+        if new_state == csv_state:
+            continue
+        if r["intakeBucket"] in EV_ALIAS_BUCKETS and new_state != "alias":
+            note_reclass(csv_state, f"kept-archive (ledger says {new_state})", r["name"])
+            continue
+        note_reclass(csv_state, new_state, r["name"])
+        r["evState"] = new_state
+        r["holdKind"] = new_hold
+        if new_state == "alias" and r["intakeBucket"] not in EV_ALIAS_BUCKETS:
+            r["intakeBucket"] = "alias"
+            r["layer"] = "archive"
+        r["flags"] = ev_flags(r, new_state)
+
+    if reclass:
+        print(f"  WARNING ledger precedence: {sum(reclass.values())} rows reclassified "
+              "away from the CSV-derived state (frozen-CSV drift; the ledger governs)",
+              file=sys.stderr)
+        for (frm, to), n in sorted(reclass.items(), key=lambda kv: -kv[1]):
+            ex = "; ".join(reclass_examples[(frm, to)])
+            print(f"    {frm} -> {to}: {n}  (e.g. {ex})", file=sys.stderr)
+
     # ── stats (headline scale of the governed universe) ──
     canonical = sum(1 for c in classified if c["governance_state"].startswith("1"))
     total = len(rows)
@@ -770,6 +943,11 @@ def main() -> None:
         "  /** Orthogonal, stackable row flags: positional_variant |\n"
         "   *  duplicate_or_alias_candidate | verification_needed. */\n"
         "  flags: string[];\n"
+        "  /** Ruling-ledger provenance for the classification: the ledger's\n"
+        "   *  'ev_state/disposition' when the name is adjudicated there,\n"
+        "   *  'absent; …' when a registered alias or operator/set resolution\n"
+        "   *  reclassified it, or 'absent' when the frozen-CSV state stands. */\n"
+        "  ledger: string;\n"
         "}\n\n"
         "export interface ObservationalUniverseStats {\n"
         "  /** Intake-queue size: promotion-packet rows (a work subset, NOT the universe, NOT unique tricks). */\n"

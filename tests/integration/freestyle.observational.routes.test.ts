@@ -99,27 +99,37 @@ describe('GET /freestyle/observational — nine-state ladder surface', () => {
 
   it('every rendered section count equals the generated per-state count (no hardcoded magnitudes)', async () => {
     const html = await page();
-    // Full card sections carry <h2> + section-count.
-    const sectionCount = (title: string): number => {
+    // A ladder step renders as a section only while it has rows; an empty
+    // step is legitimately absent from the page (its health tile still
+    // shows the zero). When present, the count is the generated one.
+    const sectionCount = (title: string, expected: number): void => {
       const m = html.match(new RegExp(`<h2>${title}</h2>\\s*<span class="section-count">(\\d+)</span>`));
+      if (expected === 0) {
+        expect(m, `section "${title}" must not render when its state is empty`).toBeNull();
+        return;
+      }
       expect(m, `section "${title}" with count not found`).not.toBeNull();
-      return Number(m![1]);
+      expect(Number(m![1])).toBe(expected);
     };
     // Disclosure sections carry the count in the summary line.
-    const disclosureCount = (label: string): number => {
+    const disclosureCount = (label: string, expected: number): void => {
       const m = html.match(new RegExp(`${label} <span class="text-muted">\\((\\d+)\\)</span>`));
+      if (expected === 0) {
+        expect(m, `disclosure "${label}" must not render when its state is empty`).toBeNull();
+        return;
+      }
       expect(m, `disclosure "${label}" with count not found`).not.toBeNull();
-      return Number(m![1]);
+      expect(Number(m![1])).toBe(expected);
     };
-    expect(sectionCount('Ready for Curation')).toBe(stateCount('ready'));
-    expect(sectionCount('Needs Authoring')).toBe(stateCount('authoring'));
-    expect(sectionCount('Awaiting Doctrine')).toBe(stateCount('doctrine'));
-    expect(sectionCount('Awaiting Curator Review')).toBe(stateCount('governance'));
-    expect(sectionCount('Awaiting Identification')).toBe(stateCount('identification'));
-    expect(disclosureCount('Awaiting parser resolution')).toBe(stateCount('parser'));
-    expect(disclosureCount('Undefined operator')).toBe(stateCount('undefined_operator'));
-    expect(disclosureCount('Folk / unrecoverable')).toBe(stateCount('folk'));
-    expect(disclosureCount('Alias / duplicate archive')).toBe(stateCount('alias'));
+    sectionCount('Ready for Curation', stateCount('ready'));
+    sectionCount('Needs Authoring', stateCount('authoring'));
+    sectionCount('Awaiting Doctrine', stateCount('doctrine'));
+    sectionCount('Awaiting Curator Review', stateCount('governance'));
+    sectionCount('Awaiting Identification', stateCount('identification'));
+    disclosureCount('Awaiting parser resolution', stateCount('parser'));
+    disclosureCount('Undefined operator', stateCount('undefined_operator'));
+    disclosureCount('Folk / unrecoverable', stateCount('folk'));
+    disclosureCount('Alias / duplicate archive', stateCount('alias'));
   });
 
   it('the health tiles render one tile per ladder step 1-8, values from the generated data', async () => {
@@ -159,18 +169,28 @@ describe('GET /freestyle/observational — nine-state ladder surface', () => {
 
   it('sections render in ladder order, closest to canonical first', async () => {
     const html = await page();
-    const anchors = [
-      'id="ready-for-curation"', 'id="needs-authoring"', 'id="awaiting-doctrine"',
-      'id="awaiting-curator-review"', 'id="awaiting-identification"',
-      'id="awaiting-parser-resolution"', 'id="undefined-operator"',
-      'id="folk-names"', 'id="alias-archive"',
+    // One anchor per ladder step, in ladder order. An empty step renders no
+    // section, so the order contract applies to the populated steps.
+    const anchorByState: readonly (readonly [string, string])[] = [
+      ['ready', 'id="ready-for-curation"'], ['authoring', 'id="needs-authoring"'],
+      ['doctrine', 'id="awaiting-doctrine"'], ['governance', 'id="awaiting-curator-review"'],
+      ['identification', 'id="awaiting-identification"'],
+      ['parser', 'id="awaiting-parser-resolution"'], ['undefined_operator', 'id="undefined-operator"'],
+      ['folk', 'id="folk-names"'], ['alias', 'id="alias-archive"'],
     ];
-    const positions = anchors.map(a => html.indexOf(a));
-    for (let i = 0; i < anchors.length; i++) {
-      expect(positions[i], `${anchors[i]} missing`).toBeGreaterThan(-1);
+    const expected = anchorByState.filter(([state]) => stateCount(state) > 0).map(([, a]) => a);
+    expect(expected.length).toBeGreaterThan(3);
+    const positions = expected.map(a => html.indexOf(a));
+    for (let i = 0; i < expected.length; i++) {
+      expect(positions[i], `${expected[i]} missing`).toBeGreaterThan(-1);
     }
-    for (let i = 1; i < anchors.length; i++) {
-      expect(positions[i]!, `${anchors[i]} out of ladder order`).toBeGreaterThan(positions[i - 1]!);
+    for (let i = 1; i < expected.length; i++) {
+      expect(positions[i]!, `${expected[i]} out of ladder order`).toBeGreaterThan(positions[i - 1]!);
+    }
+    for (const [state, a] of anchorByState) {
+      if (stateCount(state) === 0) {
+        expect(html.includes(a), `${a} must not render for an empty ladder step`).toBe(false);
+      }
     }
   });
 
@@ -181,12 +201,19 @@ describe('GET /freestyle/observational — nine-state ladder surface', () => {
     expect(html).toMatch(/observed-eco-heading">(\d+ ADD|ADD Unknown)/);
     // Provisional ADD stays labelled extrapolated, never canonical.
     expect(html).toMatch(/ADD \d+ \(extrapolated\)/);
-    // Within each card section, numeric ADD groups ascend (ADD Unknown sorts last).
-    for (const [from, to] of [
-      ['id="ready-for-curation"', 'id="needs-authoring"'],
-      ['id="needs-authoring"', 'id="awaiting-doctrine"'],
-    ] as const) {
-      const block = html.slice(html.indexOf(from), html.indexOf(to));
+    // Within each populated card section, numeric ADD groups ascend (ADD
+    // Unknown sorts last). An empty ladder step renders no section, so the
+    // grouping contract applies to whichever of the two card sections exist.
+    const cardSections: readonly (readonly [string, string, string])[] = [
+      ['ready', 'id="ready-for-curation"', '</section>'],
+      ['authoring', 'id="needs-authoring"', '</section>'],
+    ];
+    let checked = 0;
+    for (const [state, from, to] of cardSections) {
+      if (stateCount(state) === 0) continue;
+      const start = html.indexOf(from);
+      expect(start, `${from} missing`).toBeGreaterThan(-1);
+      const block = html.slice(start, html.indexOf(to, start));
       const heads = [...block.matchAll(/observed-eco-heading">(\d+ ADD|ADD Unknown)/g)].map(m => m[1]!);
       expect(heads.length, `${from} has no ADD groups`).toBeGreaterThan(0);
       const nums = heads.filter(h => h !== 'ADD Unknown').map(h => Number.parseInt(h, 10));
@@ -194,7 +221,9 @@ describe('GET /freestyle/observational — nine-state ladder surface', () => {
       if (heads.includes('ADD Unknown')) {
         expect(heads[heads.length - 1]).toBe('ADD Unknown');
       }
+      checked += 1;
     }
+    expect(checked, 'at least one ADD-grouped card section must render').toBeGreaterThan(0);
   });
 
   // ── Doctrine-hold copy reflects the CURRENT open questions ──
@@ -217,9 +246,17 @@ describe('GET /freestyle/observational — nine-state ladder surface', () => {
 
   it('curator review and identification are separate ladder steps with their own framing', async () => {
     const html = await page();
-    expect(html).toMatch(/editorial or verification call/);
-    expect(html).toMatch(/down-family names awaiting a per-trick check/);
-    expect(html).toMatch(/which movement it refers to is not yet confirmed/);
+    // Each step's framing renders with its section, so it appears only while
+    // the step has rows; an empty step contributes neither section nor copy.
+    if (stateCount('governance') > 0) {
+      expect(html).toMatch(/editorial or verification call/);
+      expect(html).toMatch(/down-family names awaiting a per-trick check/);
+    }
+    if (stateCount('identification') > 0) {
+      expect(html).toMatch(/which movement it refers to is not yet confirmed/);
+    } else {
+      expect(html).not.toContain('id="awaiting-identification"');
+    }
   });
 
   it('keeps the count framing honest and the intake buckets reconciled', async () => {

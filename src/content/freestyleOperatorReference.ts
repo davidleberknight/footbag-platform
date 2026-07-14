@@ -122,7 +122,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     slug:           'nuclear',
     name:           'Nuclear',
     category:       'compound-set',
-    oneLineMeaning: "A +2 set modifier combining paradox's hip pivot with a downtime illusioning dex. Operational form: CLIP > SAME OUT >.",
+    oneLineMeaning: "A +2 set modifier combining paradox's hip pivot with a downtime illusioning dex. Operational form: CLIP > SAME OUT [PDX] [DEX] >.",
     decomposition:  'paradox + illusion',
     pendingNote:    null,
     workedExamples: ['Sumo = Nuclear Mirage', 'Matador = Nuclear Butterfly'],

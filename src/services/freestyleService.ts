@@ -11204,12 +11204,16 @@ export const freestyleService = {
         }));
     };
 
-    // Public status pill: keeps internal source names off the card. A
-    // documented disagreement (partial / conflict audit) reads "Under review";
-    // canonical and platform-tracked sets read "Listed here"; remaining
-    // compilation-only sets read "Community-cited".
+    // Public status pill: keeps internal source names off the card. Only a
+    // genuine documented disagreement (conflict audit) reads "Under review".
+    // A 'partial' audit means an outside compilation frames the set
+    // differently while the platform contract is settled and in shipped use
+    // (atomic +1, nuclear +2), so those read as tracked, not under review;
+    // the framing difference stays documented on the compositional-sets
+    // audit surface. Canonical and platform-tracked sets read "Listed
+    // here"; remaining compilation-only sets read "Community-cited".
     const deriveStatusPill = (s: typeof CANONICAL_SETS[number]): { label: string; key: string } => {
-      if (s.auditStatus === 'conflict' || s.auditStatus === 'partial') {
+      if (s.auditStatus === 'conflict') {
         return { label: 'Under review', key: 'under-review' };
       }
       if (s.source === 'canonical' || s.source === 'platform-tracked') {
