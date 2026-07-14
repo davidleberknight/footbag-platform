@@ -149,7 +149,7 @@ go-live blocker index in `docs/MIGRATION_PLAN.md`. Doctrine, Red questions, cont
 promotions, and the freestyle fix queue remain James-led; this plan carries the
 launch gate and cross-team items.
 
-- *Implementation.* The dictionary (about 900 active canonical tricks; core-atom
+- *Implementation.* The dictionary (about 950 active canonical tricks; core-atom
   termination is the design intent but not yet a universal data invariant, since a
   pytest-guarded cohort of active tricks still awaits complete notation; new admin
   saves enforce scoring-bracket parity for a numeric ADD where the execution
@@ -252,11 +252,14 @@ never archived here.
   gated rows plus 3 shipped tension rows: shooting_star,
   tapping_double_over_down, venom); the cross-body rake base (12 rows now,
   a ~47-slug parser drain later); the osis spin-to-catch relationship (one
-  audit row, Butterfly near Osis, now holds on it); the
+  audit row, Butterfly near Osis, now holds on it); the inward-gyro
+  direction question (what "inward" denotes on a gyro: the three Inward
+  Gyro rows plus Pixie Inward Gyro Mirage, withdrawn from author-now by
+  the authoring-queue correction); the
   paradox-bracket record-versus-convention proposal; whether the cross-body
   bracket encodes opposite-side; and the path/catch terminal framing (103
   ambiguous-terminal rows plus 5 directional-syntax rows, framing only).
-  Blocks: 36 promotion-relevant rows and the terminal-encoding standard for
+  Blocks: 40 promotion-relevant rows and the terminal-encoding standard for
   108 more. Unlocks: those rows and the standard. Next: send alongside the
   R1 addendum follow-up. Done
   when sent and the answers are integrated.
@@ -264,7 +267,9 @@ never archived here.
   Red queue's rider items; delivery not confirmed, so the riders are
   treated as not yet sent and ride the next message to Red. Riders: the
   implicit-paradox hypothesis (Blurrage, Predator, Schmoe; the sumo X-Dex
-  value ships provisionally until ruled); the Blink path-vocabulary
+  value ships provisionally until ruled, and the same ruling unblocks
+  Nuclear Ducking Mirage and its Sumo Thong twin, both held so neither
+  ADD choice prejudges it); the Blink path-vocabulary
   exception; the jani-walker / sidewinder structure; the Motorfly memory
   check; the general osis-suffix rule; the twisting/twisted exemplar
   (counted in R1's token total); and the record names Double Dyno, Double
@@ -307,6 +312,18 @@ never archived here.
   IFPA. Blocks: the freestyle rules buttons. Unlocks: re-enabling them.
   Next: follow up with Julie, or James formally drops the buttons for V1.
   Done when the wording ships or the feature is formally dropped.
+- **O4. James: Nuclear ss Reverse Guay identity call.** Urgency: small
+  curator call, one row. Status: the authoring-queue promotion batch
+  stopped this row on a configuration collision: every dex of the plain
+  nuclear reverse guay is already same-side, so the distributive
+  same-side reading restates the plain trick's notation verbatim, and the
+  catch-targeted reading restates nuclear guay same side; its ledger row
+  holds in the identification step with the collision recorded. Remaining:
+  decide which trick the name denotes and register it as an alias of that
+  canonical, or retire the name; no new row is warranted either way.
+  Blocks: one queue row. Unlocks: the last author-now disposition from the
+  authoring-queue correction. Next: James rules the alias target. Done
+  when the ledger row is retagged alias and the alias is registered.
 
 **Accepted freestyle deviations and closed decisions (tracked; no action now).**
 - *Deviations (the Current/Target markers stay in the code):* count and quantifier tokens (double, triple, surging, high) render like operators in the symbolic notation; the PassBack tutorial galleries use compound difficulty tags; the Butterfly stored notation keeps its side-either SAME/OP entry while the public atom renders far-default; and the Around-the-World stored notation keeps its IN/OUT direction while the public atom renders inward-only.
