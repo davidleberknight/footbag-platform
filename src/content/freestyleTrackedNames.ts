@@ -41,7 +41,7 @@ export interface TrackedNameGroup {
  *  recorded as a canonical trick in the committed canonical CSVs. Test
  *  fixture only; not a live publication filter (a name here may be a
  *  registered alias in the live database). */
-export const TRACKED_DOCUMENTED_TOTAL = 1467;
+export const TRACKED_DOCUMENTED_TOTAL = 1463;
 
 export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -695,7 +695,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Fairy Beater', slug: 'fairy_beater', operationalNotation: 'Toe > Same Out (DEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Fairy Crossbody Rake', slug: 'fairy_crossbody_rake' },
     { displayName: 'Fairy Legover (same side)', slug: 'fairy_legover_same_side' },
-    { displayName: 'Fairy Spinning Double Over Down', slug: 'fairy_spinning_double_over_down' },
     { displayName: 'Fairy Spyro Symposium Torque', slug: 'fairy_spyro_symposium_torque' },
     { displayName: 'Fairy ss Butterfly', slug: 'fairy_ss_butterfly' },
     { displayName: 'Fairy ss Double Legover', slug: 'fairy_ss_double_legover' },
@@ -844,8 +843,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Pixie Legover (same side)', slug: 'pixie_legover_same_side' },
     { displayName: 'Pixie Miraging Symposium Miraging Legover', slug: 'pixie_miraging_symposium_miraging_legover' },
     { displayName: 'Pixie Pickup (same side)', slug: 'pixie_pickup_same_side' },
-    { displayName: 'Pixie Quantum Double Over Down Swirl', slug: 'pixie_quantum_double_over_down_swirl' },
-    { displayName: 'Pixie Spinning Double Over Down', slug: 'pixie_spinning_double_over_down' },
     { displayName: 'Pixie ss Double Over Down', slug: 'pixie_ss_double_over_down' },
     { displayName: 'Pixie ss Drifter', slug: 'pixie_ss_drifter' },
     { displayName: 'Pixie ss Dyno', slug: 'pixie_ss_dyno' },
@@ -916,7 +913,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Spinning Pdx Illusion', slug: 'spinning_pdx_illusion' },
     { displayName: 'Spinning Pdx Mirage', slug: 'spinning_pdx_mirage' },
     { displayName: 'Spinning Pdx Whirl', slug: 'spinning_pdx_whirl' },
-    { displayName: 'Spinning Symposium Double Over Down', slug: 'spinning_symposium_double_over_down' },
     { displayName: 'Spitfire', slug: 'spitfire', operationalNotation: 'Clip >> (same) Back Swirl (DEX) >> Same Dragon (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'low' },
     { displayName: 'Splicing ss Blender', slug: 'splicing_ss_blender' },
     { displayName: 'Spyro Diving Symposium Whirl', slug: 'spyro_diving_symposium_whirl' },

@@ -50,3 +50,7 @@ Toe near Double Down,double_over_down,technical,0,down-family cell label: toe se
 Toe set os Double Over Down,paradon,technical,0,down-family cell label: the os marker flips the toe-set Double-Over Down name to the other-leg Paradon cell (curator session 2026-07-14)
 Clipper set ss Double Over Down,barfly,technical,0,down-family cell label: the clipper set with setting-leg dexes is the Barfly cell (curator session 2026-07-14)
 Nuclear ss Reverse Guay,nuclear_rev_guay,technical,0,distributive same-side reading restates the plain form verbatim (both dexes already same-side); catch-targeted reading recorded as superseded (curator session 2026-07-14)
+Toe near Symp. Double Down,symposium_double_over_down,technical,0,down-family cell label: toe set with setting-leg dexes under a symposium lead is the live symposium double over down (curator session 2026-07-14)
+Toe far Symp. Double Down,symposium_paradon,technical,0,down-family cell label: toe set with other-leg dexes under a symposium lead is the live symposium paradon (curator session 2026-07-14)
+Clipper far Symp. Double Down,shaft,technical,0,down-family cell label: clipper set with other-leg dexes under a symposium lead is the live shaft (symposium down double down) (curator session 2026-07-14)
+Clipper near Symp. Double Down,superfly,technical,0,down-family cell label: clipper set with setting-leg dexes under a symposium lead is the live superfly (symposium barfly) (curator session 2026-07-14)
