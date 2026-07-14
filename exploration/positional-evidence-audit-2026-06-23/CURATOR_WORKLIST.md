@@ -9,6 +9,13 @@ Reproduce: `python3 exploration/positional-evidence-audit-2026-06-23/resolver.py
 > canonicals with their resolver-derived configurations, and 12 of the 18 `(ss)` record names
 > now resolve. Still open from this list: the five AMBIGUOUS_MULTI_COMPONENT rows (which
 > component the qualifier targets) and the NO_NOTATION `Pixie DSO (ss)` row.
+>
+> **COMPLETED (2026-07-13).** The distributive rule was curator-ratified (a trick-level
+> same-side qualifier binds every dex component whose side can vary; the unique-component
+> convention is its single-variable case; recorded in the positional identity doctrine). The
+> five AMBIGUOUS_MULTI_COMPONENT rows promoted as `<base> same side` canonicals at their base
+> ADD values with distributive configurations, all verified collision-free. Only the
+> NO_NOTATION `Pixie DSO (ss)` row remains held, on its missing base notation.
 
 ## Status counts
 

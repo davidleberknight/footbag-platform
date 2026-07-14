@@ -196,17 +196,6 @@ never archived here.
 
 #### James only
 
-- **J1. Positional-equivalence ruling session.** Urgency: promotion blocker.
-  Status: 46 rows verified open in the formula-identity audit ledger (40
-  tagged as needing the same-side-equivalence call, 5 ambiguous
-  multi-component same-side forms: Double Leg Over, Eggbeater, Fairy Double
-  Leg Over, Pigbeater, Smog, and the Pixie DSO no-notation hold). Remaining:
-  one ruling session applying the ratified identity-by-configuration
-  doctrine to each row. Blocks: those 46 promotions only. Unlocks: each row
-  promoted, aliased, or rejected. Next: stage the session from the
-  positional curator worklist
-  (`exploration/positional-evidence-audit-2026-06-23/CURATOR_WORKLIST.md`).
-  Done when each of the 46 carries a ruling and its audit tag is cleared.
 - **J7. Video and source reviews.** Urgency: promotion blocker. Status:
   open; every item needs a viewing, not a document. Remaining: one viewing
   session covering POD versus Dimmier (one viewing decides one row), Kiwi
@@ -259,17 +248,19 @@ never archived here.
   inheritance (61 gated audit rows; the 13 already-canonical blurry rows
   author independently but their blurry-named audit rows still gate on the
   alias-versus-distinct predicate); undefined or folk operators (9 tokens
-  drafted covering 56 rows, plus a 19-token addendum covering 35 more:
+  drafted covering 62 rows, plus a 19-token addendum covering 42 more:
   frootie, fyro, leaning, twisted, twisting, arctic, flailing, neutron,
   snapping, wonton, wrecking, flapper, floating, slicing, splicing, spyro,
-  surfing, symp, zipper); double and count-quantifier scoring (21 rows);
-  repeated same-operator use (4 audit rows plus the active canonical
-  paradox_blur, a double-paradox whose empty notation waits on this
-  answer); and terraging arithmetic (2 rows). Delivery map: three groups
-  are drafted as paper sections; repeated-operator and terraging ride the
-  queue letter's rider items; the 19-token addendum was drafted after the
-  send, so it follows in the next message to Red rather than blocking the
-  pending reply. Blocks: 179 gated rows plus the paradox_blur notation.
+  surfing, symp, zipper; the counts grew when the positional-equivalence
+  ruling cleared its rows into these operator gates); double and
+  count-quantifier scoring (22 rows); repeated same-operator use (4 audit
+  rows plus the active canonical paradox_blur, a double-paradox whose empty
+  notation waits on this answer); and terraging arithmetic (2 rows).
+  Delivery map: three groups are drafted as paper sections;
+  repeated-operator and terraging ride the queue letter's rider items; the
+  19-token addendum was drafted after the send, so it follows in the next
+  message to Red rather than blocking the pending reply. Blocks: 193 gated
+  rows plus the paradox_blur notation.
   Unlocks: the largest promotion band, plus the blurry
   registry-versus-reference consistency test Dave writes once the answer
   lands. Next: send the addendum alongside the Notation packet and rider
@@ -281,7 +272,8 @@ never archived here.
   evidence). Questions: the down-family embedded-base coordinate frame (21
   gated rows plus 3 shipped tension rows: shooting_star,
   tapping_double_over_down, venom); the cross-body rake base (12 rows now,
-  a ~47-slug parser drain later); the osis spin-to-catch relationship; the
+  a ~47-slug parser drain later); the osis spin-to-catch relationship (one
+  audit row, Butterfly near Osis, now holds on it); the
   paradox-bracket record-versus-convention proposal; whether the cross-body
   bracket encodes opposite-side; and the path/catch terminal framing (103
   ambiguous-terminal rows plus 5 directional-syntax rows, framing only).

@@ -12050,6 +12050,71 @@
 "notation": null,
 "operational_notation": "CLIP > (back) SPIN [BOD] > (across body) DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1930
+},
+{
+"slug": "double_leg_over_same_side",
+"canonical_name": "double leg over same side",
+"adds": "3",
+"base_trick": "double_leg_over",
+"trick_family": "legover",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "SET > SAME IN [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
+"sort_order": 1931
+},
+{
+"slug": "eggbeater_same_side",
+"canonical_name": "eggbeater same side",
+"adds": "3",
+"base_trick": "eggbeater",
+"trick_family": "legover",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE >> SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
+"sort_order": 1932
+},
+{
+"slug": "fairy_double_leg_over_same_side",
+"canonical_name": "fairy double leg over same side",
+"adds": "4",
+"base_trick": "fairy_double_leg_over",
+"trick_family": "double_leg_over",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE > SAME OUT [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
+"sort_order": 1933
+},
+{
+"slug": "pigbeater_same_side",
+"canonical_name": "pigbeater same side",
+"adds": "4",
+"base_trick": "pigbeater",
+"trick_family": "legover",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE > SAME IN [DEX] >> SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
+"sort_order": 1934
+},
+{
+"slug": "smog_same_side",
+"canonical_name": "smog same side",
+"adds": "4",
+"base_trick": "smog",
+"trick_family": "double_leg_over",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE > SAME IN [DEX] >> SAME IN [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
+"sort_order": 1935
 }
 ],
 "modifiers": [
@@ -13710,6 +13775,38 @@
 {
 "alias_text": "nuclear ddd",
 "trick_slug": "cold_fusion"
+},
+{
+"alias_text": "double leg over (ss)",
+"trick_slug": "double_leg_over_same_side"
+},
+{
+"alias_text": "eggbeater (ss)",
+"trick_slug": "eggbeater_same_side"
+},
+{
+"alias_text": "fairy double leg over (ss)",
+"trick_slug": "fairy_double_leg_over_same_side"
+},
+{
+"alias_text": "pigbeater (ss)",
+"trick_slug": "pigbeater_same_side"
+},
+{
+"alias_text": "pogo far mirage",
+"trick_slug": "pogo_mirage"
+},
+{
+"alias_text": "smog (ss)",
+"trick_slug": "smog_same_side"
+},
+{
+"alias_text": "zulu far legover",
+"trick_slug": "zulu_legover"
+},
+{
+"alias_text": "zulu far pickup",
+"trick_slug": "zulu_pickup"
 }
 ]
 }

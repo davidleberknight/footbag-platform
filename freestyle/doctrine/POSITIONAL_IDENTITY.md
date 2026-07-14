@@ -73,10 +73,19 @@ When a base has more than one side-bearing element, the qualifier modifies the
   terraging-opposite-clipper toggle only the terminal `CLIP`).
 
 These are one rule ("modify the unique off-side element") applied to whichever
-element type is uniquely off-side. No active example contradicts it. It does NOT
-resolve the multi-off-side cases (two or more elements on the off-side); those stay
-ambiguous — the corpus does not establish which off-side element the qualifier pins,
-and each such name is held for a curator call.
+element type is uniquely off-side. No active example contradicts it.
+
+**The distributive rule (curator-ratified) resolves the multi-off-side case.**
+When a trick-level same-side (or far) qualifier has two or more candidate dex
+targets, it binds distributively: it asserts the stated side for EVERY dex
+component whose side relationship can vary, not for an arbitrarily selected
+"base" dex. The catch keeps the existing rule (it changes only when it is the
+unique off-side element). The unique-component rule above is the
+single-variable case of this broader doctrine, so the two never conflict. A
+qualifier whose asserted side already matches every side-bearing component is
+redundant, and the ratification supplies the curated equivalence the
+multi-component collapse requires: the qualified name resolves as an alias of
+the plain form.
 
 For compounds built from a settled OP-dex atom behind a SAME-side entry operator
 (fairy / pixie / nuclear / sailing prefixes), the legover/pickup precedent applies:
