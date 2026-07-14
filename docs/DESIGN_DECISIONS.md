@@ -571,7 +571,7 @@ Impact:
 
 Decision:
 
-Internal-only code (operator, maintainer, and QC tools that are not reachable from public navigation and are gated by role) lives under dedicated subtrees at `src/internal-<purpose>/**` with matching view trees at `src/views/internal-<purpose>/**`. It is kept separate from the permanent product surface in `src/services/**`, `src/controllers/**`, and `src/views/**`. Internal-only subtrees are present in every environment (dev, staging, production): the separation is role-based, not environment-based, and is orthogonal to the dev/staging/production adapter parity model defined in §1.9 and §5.3.
+Internal-only code (operator, maintainer, and QC tools that are not reachable from public navigation and are gated by role) lives under dedicated subtrees at `src/internal-<purpose>/**` with matching view trees at `src/views/internal-<purpose>/**`. It is kept separate from the permanent product surface in `src/services/**`, `src/controllers/**`, and `src/views/**`. `src/internal-admin/**` is present in every environment (dev, staging, production): its separation is role-based, not environment-based. `src/internal-qc/**` is dev- and staging-only: it is temporary tooling that retires before go-live (the QC-subsystem retirement gate in `docs/MIGRATION_PLAN.md`), and a production deployment never carries it. Both separations are orthogonal to the dev/staging/production adapter parity model defined in §1.9 and §5.3.
 
 Internal-only subtrees:
 
@@ -583,7 +583,7 @@ Rationale:
 - A distinct subtree signals at a glance whether code serves the public product or serves operator/maintainer needs. Nothing in `src/services/` or `src/controllers/` is silently QC-only.
 - The QC-only banner on every source file makes the "delete with pipeline-qc subsystem" scope mechanically greppable at retirement time.
 - Keeping internal-only code out of `src/services/` keeps the permanent product service surface free of internal-only tooling. Internal-only code is documented in its relevant runbook.
-- Role-based separation is orthogonal to environment-based adapter parity: dev, staging, and production differ only at the `<Purpose>Adapter` seam (§5.3). Internal-only surfaces exist in every environment and are gated by auth role, not by env config.
+- Role-based separation is orthogonal to environment-based adapter parity: dev, staging, and production differ only at the `<Purpose>Adapter` seam (§5.3). Internal-admin surfaces exist in every environment and are gated by auth role; internal-qc surfaces are additionally excluded from production because the QC subsystem is temporary and retires before go-live.
 
 Trade-offs:
 
