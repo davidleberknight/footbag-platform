@@ -12362,6 +12362,19 @@
 "notation": null,
 "operational_notation": "SET >> OP IN [DEX] > (no plant while) OP OUT [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1954
+},
+{
+"slug": "pixie_over_down",
+"canonical_name": "pixie over down",
+"adds": "4",
+"base_trick": "double_over_down",
+"trick_family": "double_over_down",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": null,
+"operational_notation": "TOE > SAME IN [DEX] (plant) > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
+"sort_order": 1955
 }
 ],
 "modifiers": [
@@ -13489,7 +13502,7 @@
 },
 {
 "alias_text": "pod",
-"trick_slug": "pixie_double_over_down"
+"trick_slug": "pixie_over_down"
 },
 {
 "alias_text": "pixie double pickup (ss)",

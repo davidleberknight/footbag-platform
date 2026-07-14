@@ -582,7 +582,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Pixie near Double Down", "slug": "pixie-near-double-down", "source": "PB", "ecosystem": "pixie", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier", "ledger": "governance/D", "resolvedTarget": "", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "D1", "owner": "james", "publicationState": "adjudication-pending", "publicSection": "decide", "resolutionConflict": false, "identityKey": "pixieneardoubledown", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Pixie Quantum Double Over Down Swirl", "slug": "pixie-quantum-double-over-down-swirl", "source": "FM", "ecosystem": "pixie", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier", "ledger": "authoring/B", "resolvedTarget": "", "objectType": "complete-trick", "evidenceState": "derivable-notation", "blockerId": "A0", "owner": "james", "publicationState": "adjudication-pending", "publicSection": "decide", "resolutionConflict": false, "identityKey": "pixiequantumdoubleoverdownswirl", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Pixie Spinning Double Over Down", "slug": "pixie-spinning-double-over-down", "source": "FM", "ecosystem": "pixie", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier", "ledger": "authoring/B", "resolvedTarget": "", "objectType": "complete-trick", "evidenceState": "derivable-notation", "blockerId": "A0", "owner": "james", "publicationState": "adjudication-pending", "publicSection": "decide", "resolutionConflict": false, "identityKey": "pixiespinningdoubleoverdown", "groupPrimary": true, "alsoRecordedAs": []},
-  {"name": "POD, Pixie Over Down", "slug": "pod-pixie-over-down", "source": "PB", "ecosystem": "pixie", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive", "ledger": "authoring/B", "resolvedTarget": "", "objectType": "complete-trick", "evidenceState": "verified-footage", "blockerId": "A0", "owner": "james", "publicationState": "adjudication-pending", "publicSection": "decide", "resolutionConflict": false, "identityKey": "podpixieoverdown", "groupPrimary": true, "alsoRecordedAs": []},
+  {"name": "POD, Pixie Over Down", "slug": "pod-pixie-over-down", "source": "PB", "ecosystem": "pixie", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive", "ledger": "canonical/A", "resolvedTarget": "ledger:pixie_over_down", "objectType": "complete-trick", "evidenceState": "verified-footage", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "podpixieoverdown", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Pogo Clipper", "slug": "pogo-clipper", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "doctrine/C", "resolvedTarget": "", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "Q12", "owner": "james+red", "publicationState": "doctrine-blocked", "publicSection": "ruling", "resolutionConflict": false, "identityKey": "pogoclipper", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Pogo far Mirage", "slug": "pogo-far-mirage", "source": "PB", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "alias/A", "resolvedTarget": "alias:pogo_mirage", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "pogofarmirage", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Pogo ss Clipper", "slug": "pogo-ss-clipper", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "doctrine/C", "resolvedTarget": "", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "Q12", "owner": "james+red", "publicationState": "doctrine-blocked", "publicSection": "ruling", "resolutionConflict": false, "identityKey": "pogossclipper", "groupPrimary": true, "alsoRecordedAs": []},
@@ -1158,14 +1158,14 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       }
     },
     "publicSections": {
-      "archive": 543,
-      "decide": 43,
+      "archive": 544,
+      "decide": 42,
       "evidence": 8,
       "ruling": 286
     },
     "publicationStates": {
-      "adjudication-pending": 43,
-      "already-represented": 443,
+      "adjudication-pending": 42,
+      "already-represented": 444,
       "doctrine-blocked": 286,
       "evidence-pending": 8,
       "not-a-trick": 17,
@@ -1173,7 +1173,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "rejected": 4
     },
     "blockerCounts": {
-      "A0": 17,
+      "A0": 16,
       "D1": 1,
       "D2": 11,
       "D3": 8,
@@ -1196,9 +1196,9 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     },
     "ownerCounts": {
       "evidence": 8,
-      "james": 43,
+      "james": 42,
       "james+red": 286,
-      "mechanical": 377,
+      "mechanical": 378,
       "none": 166
     },
     "identityCount": 880,
@@ -1470,7 +1470,7 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
       "alternatives": "None: the identity ruling is recorded; only the clerical authoring remains.",
       "consequences": "One canonical row per name; full surface propagation per the standing rule.",
       "evidence": "The POD footage ruling (setting leg performs the pixie dex and returns for the second downtime dex).",
-      "memberCount": 17,
+      "memberCount": 16,
       "members": [
         "Atomic far Symp. Double Down",
         "Atomic os Symposium Double Over Down",
@@ -1480,7 +1480,6 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
         "Fairy Spinning Double Over Down",
         "Gyro Shooting Double Down (Gyro Shooting Star)",
         "Miraging far Symp. Double Down",
-        "POD, Pixie Over Down",
         "Pixie Quantum Double Over Down Swirl",
         "Pixie Spinning Double Over Down",
         "Sailing DOD",
