@@ -287,7 +287,12 @@ import {
 import {
   OBSERVATIONAL_UNIVERSE,
   OBSERVATIONAL_UNIVERSE_STATS,
+  EMERGING_QUESTIONS,
+  EMERGING_DECISION_GROUPS,
+  EXTERNAL_ADJUDICATIONS,
   type ObservationalUniverseRow,
+  type EmergingQuestion,
+  type EmergingDecisionGroup,
 } from '../content/freestyleObservationalUniverse';
 import {
   DERIVATION_PILOT_ENTRIES,
@@ -4164,23 +4169,6 @@ export interface ObservationalCard {
   hasDetails:         boolean;
 }
 
-export interface ObservationalEcosystemGroup {
-  ecosystem: string;
-  label:     string;
-  count:     number;
-  cards:     readonly ObservationalCard[];
-}
-
-export interface ObservationalEcosystemRow {
-  ecosystem:  string;
-  label:      string;
-  ready:      number;
-  authoring:  number;
-  holds:      number;
-  unresolved: number;
-  total:      number;
-}
-
 export interface ObservationalSummaryRow {
   name:   string;
   source: string;
@@ -4193,46 +4181,91 @@ export interface ObservationalSummarySection {
   fullList:    readonly ObservationalSummaryRow[];
 }
 
-// Page organization: the nine-state distance-to-canonical ladder emitted by the
-// generator (row field evState). Sections render in ladder order, closest to
-// canonical publication first; every universe row appears in exactly one section.
+// One decide-now cluster: a compact curator decision whose one answer resolves
+// every member name. Meta comes from the generated decision-group registry;
+// members are live-filtered at request time.
+export interface EmergingDecisionClusterVM {
+  id:             string;
+  title:          string;
+  question:       string;
+  recommendation: string;
+  alternatives:   string;
+  evidence:       string;
+  consequences:   string;
+  count:          number;
+  cards:          readonly ObservationalCard[];
+  /** Database-tracked external members (no universe card). */
+  externalNames:  readonly ObservationalSummaryRow[];
+}
+
+// One named open doctrine question with the identities it gates. The question
+// meta comes from the committed question registry via the generator; unlock
+// counts are recomputed over the live-filtered rows.
+export interface EmergingQuestionVM {
+  id:          string;
+  title:       string;
+  question:    string;
+  status:      string;
+  owner:       string;
+  vehicle:     string;
+  unlockCount: number;
+  names:       readonly { name: string; source: string; publishedTarget: string }[];
+}
+
+export interface EmergingEvidenceRowVM {
+  name:    string;
+  source:  string;
+  missing: string;
+}
+
+// Page organization: four sections derived from the six-dimension lifecycle
+// model stamped on the generated universe (publicSection field). Decide now
+// (curator decisions), waiting on a named ruling (grouped by question),
+// needs evidence, and the documented vocabulary archive. Malformed and
+// rejected rows never render; duplicate identities render once.
 export interface FreestyleObservationalContent {
   stats:               readonly ObservationalStat[];
   statsNote:           string;
-  /** Headline progress figure, rendered verbatim from the generated
-   *  evProgress metric (never computed at request time). */
-  progressHeadline:    string;
   layerNote:           string;
-  /** Ladder step 1 — ready for curation: fully resolved, grouped by derived ADD. */
-  readyTotal:          number;
-  readyGroups:         readonly ObservationalEcosystemGroup[];
-  /** Ladder step 2 — needs authoring: one authoring pass away, grouped by derived ADD. */
-  authoringTotal:      number;
-  authoringGroups:     readonly ObservationalEcosystemGroup[];
-  /** Ladder step 3 — awaiting doctrine: rests on an open expert ruling. */
-  doctrineHold:        ObservationalSummarySection;
-  /** Ladder step 4 — awaiting curator review: editorial / verification calls. */
-  curatorHold:         ObservationalSummarySection;
-  /** Ladder step 5 — awaiting identification: which movement the name is. */
-  identificationHold:  ObservationalSummarySection;
-  /** Ladder step 6 — awaiting parser resolution: no single decomposition yet. */
-  parserHold:          ObservationalSummarySection;
-  /** Ladder step 7 — undefined operator: folk term with no settled definition. */
-  undefinedOperatorHold: ObservationalSummarySection;
-  /** Ladder step 8 — folk / unrecoverable: no recoverable structure yet. */
-  folkHold:            ObservationalSummarySection;
-  /** Ladder step 9 — alias / duplicate archive: resolves to an existing trick. */
-  aliasArchive:        ObservationalSummarySection;
-  /** External / unadjudicated rows tracked in the database (is_active=0 +
-   *  review_status='pending'). Excluded from canonical browse; their home is
-   *  this Emerging Vocabulary surface. The generator excludes every
-   *  database-tracked slug from the universe, so these never double-count. */
-  externalEntries:     ObservationalSummarySection;
-  ecosystemMatrix:     readonly ObservationalEcosystemRow[];
+  /** Section 1 — Decide now: curator decisions with sufficient evidence. */
+  decideClusters:      readonly EmergingDecisionClusterVM[];
+  decideTotal:         number;
+  /** Section 2 — Waiting on a named ruling: grouped by open question. */
+  questions:           readonly EmergingQuestionVM[];
+  rulingTotal:         number;
+  openQuestionCount:   number;
+  /** Section 3 — Needs evidence: identity unrecoverable without new sources. */
+  evidenceRows:        readonly EmergingEvidenceRowVM[];
+  /** Section 4 — Documented vocabulary archive (history, not work). */
+  archiveRepresented:  ObservationalSummarySection;
+  archiveObservational: ObservationalSummarySection;
+  archiveTerms:        ObservationalSummarySection;
+  archiveTotal:        number;
+  /** Database-tracked pending rows with no ledger adjudication yet. */
+  externalUnadjudicated: readonly ObservationalSummaryRow[];
   sources:             readonly { badge: string; label: string }[];
   canonicalReferences: readonly { label: string; href: string }[];
   generatedOn:         string;
   isEmpty:             boolean;
+}
+
+// Internal (admin) Emerging Vocabulary workbench: the James decision packet
+// plus the full-dimension row table with filters. Diagnostics (parser
+// confidence, failure class, ledger provenance) are visible ONLY here.
+export interface FreestyleEmergingInternalContent {
+  decisionGroups: readonly EmergingDecisionClusterVM[];
+  warnings:       readonly { kind: string; count: number }[];
+  filters:        { dimension: string; value: string; options: readonly { dimension: string; values: readonly string[] }[] };
+  rows:           readonly {
+    name: string; slug: string; source: string; objectType: string;
+    evidenceState: string; blockerId: string; owner: string;
+    publicationState: string; publicSection: string; resolvedTarget: string;
+    resolutionConflict: boolean; identityKey: string; groupPrimary: boolean;
+    alsoRecordedAs: string; parserConfidence: string; failureClass: string;
+    ledger: string; rendered: boolean;
+  }[];
+  rowTotal:       number;
+  shownTotal:     number;
 }
 
 const OBSERVED_SOURCE_LABELS: Record<string, string> = {
@@ -4240,23 +4273,8 @@ const OBSERVED_SOURCE_LABELS: Record<string, string> = {
   FB: 'Footbag.org', FF: 'Footbag Finland', IFPA: 'IFPA', MULTI: 'Multiple sources',
 };
 
-const OBSERVED_ECOSYSTEM_LABELS: Record<string, string> = {
-  'pixie': 'Pixie', 'fairy': 'Fairy', 'stepping': 'Stepping', 'quantum': 'Quantum',
-  'atomic': 'Atomic', 'ducking': 'Ducking', 'spinning/gyro': 'Spinning / Gyro',
-  'symposium/paradox': 'Symposium / Paradox', 'whirl/osis/other': 'Whirl / Osis',
-  'blurry/furious': 'Blurry / Furious',
-  'blurry': 'Blurry transitivity', 'dod-ddd': 'DOD / DDD policy',
-  'pogo': 'Pogo composition', 'weaving': 'Weaving operator', 'shooting': 'Shooting operator',
-  'other': 'Other', '(unclassified)': 'Other compounds',
-};
-
 function observedSourceLabel(badge: string): string {
   return OBSERVED_SOURCE_LABELS[badge] ?? badge;
-}
-
-function observedEcosystemLabel(slug: string): string {
-  return OBSERVED_ECOSYSTEM_LABELS[slug]
-    ?? (slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : 'Other');
 }
 
 function shapeObservationalCard(
@@ -10147,11 +10165,14 @@ export const freestyleService = {
     // published, held, or aliased in the database; that db-tracked-and-alias
     // exclusion is applied HERE at request time, so an in-app publish / hold /
     // alias edit takes effect immediately (after cutover the live database owns
-    // publication state). Classification (evState / provisional ADD) is never
-    // re-derived at request time; only the publication membership filter is live.
+    // publication state). The lifecycle classification (object type, evidence,
+    // blocker, owner, section) is never re-derived at request time; only the
+    // publication membership filter is live. Duplicate identities render once
+    // (groupPrimary); malformed and rejected rows never render.
     const publishedKeys = observationalPublishedSlugKeys();
     const universe = OBSERVATIONAL_UNIVERSE.filter(
       r => !publishedKeys.has(observationalSlugKey(r.slug)));
+    const visible = universe.filter(r => r.groupPrimary && r.publicationState !== 'rejected');
 
     // Curator-note overrides: preserve the hand-authored notes from the legacy
     // curator module, keyed by slug. Notes only — no lane forcing, no data.
@@ -10160,190 +10181,151 @@ export const freestyleService = {
       if (t.curatorNote) curatorNotes.set(t.folkSlug, t.curatorNote);
     }
     const shape = (r: ObservationalUniverseRow) => shapeObservationalCard(r, curatorNotes);
-    const isAliasArchive = (r: ObservationalUniverseRow) =>
-      r.intakeBucket === 'alias' || r.intakeBucket === 'duplicate_variant';
+    const inSection = (s: string) => visible.filter(r => r.publicSection === s);
 
-    // ADD-first grouping for the Promotion-Ready and Needs-Authoring sections.
-    // Groups by the provisional (derived) ADD already carried on each row — the
-    // curator-blessed value that encodes the atomic +1 / X-dex-on-far-dex rules.
-    // This never re-derives ADD. Numeric ascending; ADD Unknown last.
-    const groupByAdd = (rows: ObservationalUniverseRow[]): ObservationalEcosystemGroup[] => {
-      const byAdd = new Map<string, ObservationalUniverseRow[]>();
-      for (const r of rows) {
-        const key = /^[0-9]+$/.test(r.provisionalAdd) ? r.provisionalAdd : 'unknown';
-        const list = byAdd.get(key);
-        if (list) list.push(r); else byAdd.set(key, [r]);
-      }
-      return [...byAdd.keys()]
-        .sort((a, b) => (a === 'unknown' ? 1 : b === 'unknown' ? -1 : Number(a) - Number(b)))
-        .map(k => {
-          const list = byAdd.get(k)!;
-          return {
-            ecosystem: k,
-            label:     k === 'unknown' ? 'ADD Unknown' : `${k} ADD`,
-            count:     list.length,
-            cards:     list.map(shape),
-          };
-        });
-    };
-
-    // Section A/B/C card data is built below, after the frontier classifier, so
-    // each section is partitioned by the same model as the frontier-health tiles.
-
-    // Sections D + E — summarized: sample cards + a full list behind disclosure.
     const summarizeRows = (rows: ObservationalUniverseRow[], intro: string): ObservationalSummarySection => ({
       total:       rows.length,
       intro,
       sampleCards: rows.slice(0, 6).map(shape),
       fullList:    rows.map(r => ({ name: r.name, source: r.source })),
     });
-    // The long-tail content summaries (Folk names, Undefined operator, Parser
-    // ambiguity) are built further down from the reason classifier, so the listed
-    // contents match the frontier-health metrics exactly. The alias archive is
-    // built here because it needs no classifier; it is lookup-only, never frontier.
-    const aliasArchive = summarizeRows(universe.filter(isAliasArchive),
-      'Documented names that resolve to an existing canonical trick, folded as aliases ' +
-      'or wording / source duplicates. Kept for lookup; not part of the promotion frontier.');
 
     // External / unadjudicated rows tracked in the database (is_active=0 +
     // review_status='pending'). Distinct from the generated observational
     // universe above (which is in_db=false): these are real freestyle_tricks
-    // rows held out of canonical browse until a curator adjudicates them. This
-    // Emerging Vocabulary surface is their home.
+    // rows held out of canonical browse. Where the ruling ledger has
+    // adjudicated one (the generated EXTERNAL_ADJUDICATIONS map), it joins its
+    // lifecycle section here; the remainder surface as unadjudicated.
     const externalRows = runSqliteRead('freestyleTricks.listExternalPending', () =>
       freestyleTricks.listExternalPending.all() as {
         slug: string; canonical_name: string; adds: string | null;
         base_trick: string | null; trick_family: string | null; category: string;
       }[],
     );
-    const externalEntries: ObservationalSummarySection = {
-      total:       externalRows.length,
-      intro:
-        'Names recorded in the database from outside sources but not yet adjudicated. ' +
-        'They are held out of the canonical dictionary browse and live here as Emerging ' +
-        'Vocabulary until a curator adjudicates them. No canonical ADD, no detail page.',
-      sampleCards: [],
-      fullList:    externalRows.map(r => ({ name: r.canonical_name, source: 'external' })),
-    };
+    const externalBySection = new Map<string, { name: string; source: string; blockerId: string }[]>();
+    const externalUnadjudicated: { name: string; source: string }[] = [];
+    for (const x of externalRows) {
+      const adj = EXTERNAL_ADJUDICATIONS[x.slug];
+      if (!adj) {
+        externalUnadjudicated.push({ name: x.canonical_name, source: 'external' });
+        continue;
+      }
+      const list = externalBySection.get(adj.publicSection) ?? [];
+      list.push({ name: x.canonical_name, source: 'external', blockerId: adj.blockerId });
+      externalBySection.set(adj.publicSection, list);
+    }
+    const externalWithBlocker = (blockerId: string) =>
+      [...externalBySection.values()].flat().filter(x => x.blockerId === blockerId)
+        .map(x => ({ name: x.name, source: x.source }));
 
-    // Nine-state distance-to-canonical ladder. The generator stamps every
-    // universe row with exactly one evState, computed once at generation time;
-    // this method only reads that field. Sections, health tiles, the ecosystem
-    // matrix, and every rendered count derive from the same generated data, so
-    // the page and the data cannot disagree.
-    type EvState =
-      | 'ready' | 'authoring' | 'doctrine' | 'governance' | 'identification'
-      | 'parser' | 'undefined_operator' | 'folk' | 'alias';
-    const inState = (s: EvState): ObservationalUniverseRow[] =>
-      universe.filter(r => r.evState === s);
-    // Frontier counts and progress are recomputed from the runtime-filtered
-    // universe, so every visible / frontier / unpublished count reflects live
-    // publication state rather than the baked build-time census. The evProgress
-    // formula matches the generator: (ready + authoring) over (total - alias).
-    const filteredEvCounts: Record<string, number> = {};
-    for (const r of universe) filteredEvCounts[r.evState] = (filteredEvCounts[r.evState] ?? 0) + 1;
-    const cc = (s: EvState): number => filteredEvCounts[s] ?? 0;
-    const evDenominator = universe.length - cc('alias');
-    const evNumerator = cc('ready') + cc('authoring');
-    const progress = {
-      numerator: evNumerator,
-      denominator: evDenominator,
-      pct: evDenominator ? Math.round((100 * evNumerator) / evDenominator) : 0,
-    };
-    const progressHeadline =
-      `${progress.pct}% of the non-alias frontier (${progress.numerator} of ` +
-      `${progress.denominator} names) is a candidate or one authoring step away.`;
+    // Section 1 — Decide now: the compact curator decision clusters. Meta from
+    // the generated decision-group registry; members live-filtered. Empty
+    // clusters vanish (a fully answered group leaves the page on regen).
+    const decideClusters: EmergingDecisionClusterVM[] = EMERGING_DECISION_GROUPS
+      .map((g: EmergingDecisionGroup) => {
+        const memberRows = inSection('decide').filter(r => r.blockerId === g.id);
+        const externalNames = externalWithBlocker(g.id);
+        return {
+          id: g.id, title: g.title, question: g.question,
+          recommendation: g.recommendation, alternatives: g.alternatives,
+          evidence: g.evidence, consequences: g.consequences,
+          count: memberRows.length + externalNames.length,
+          cards: memberRows.map(shape),
+          externalNames,
+        };
+      })
+      .filter(c => c.count > 0);
+    const decideTotal = decideClusters.reduce((n, c) => n + c.count, 0);
 
-    // Ladder steps 3 to 8: summary sections in ladder order. Each intro states
-    // what the names in it are waiting on, in plain words. The doctrine copy
-    // names the currently open expert questions: the blurry paradox predicate,
-    // the terraging chain value, the cross-body rake base, repeated-operator
-    // scoring, and the side conventions for foundational positions.
-    const doctrineHold = summarizeRows(inState('doctrine'),
-      'These names rest on an open expert ruling rather than an authoring step. The open ' +
-      'questions: when a blurry-named trick carries the extra paradox element, how the ' +
-      'terraging chain is valued, what the cross-body rake base is structurally, how a ' +
-      'repeated operator inside one compound is scored, and the side conventions for ' +
-      'foundational positions. Answering one question releases its whole cluster.');
-    const curatorHold = summarizeRows(inState('governance'),
-      'Structure understood; each needs an editorial or verification call from a curator, ' +
-      'not an expert ruling. Most are down-family names awaiting a per-trick check of ' +
-      'which embedded base the name describes.');
-    const identificationHold = summarizeRows(inState('identification'),
-      'The name is documented, but which movement it refers to is not yet confirmed. ' +
-      'Several carry two or more competing folk names for what may be the same trick, ' +
-      'so the identity call comes before any authoring.');
-    const parserHold = summarizeRows(inState('parser'),
-      'Execution is documented, but the name cannot yet be resolved to a single ' +
-      'decomposition: an ambiguous ending, a compressed name, or unclear direction ' +
-      'syntax. Not folk names and not aliases.');
-    const undefinedOperatorHold = summarizeRows(inState('undefined_operator'),
-      'These names carry a folk movement term whose weight or structure is not yet ' +
-      'defined. They cannot be authored until that term is settled; defining the ' +
-      'operator unblocks every name that uses it.');
-    const folkHold = summarizeRows(inState('folk'),
-      'Community names with no recoverable structure yet: the name is in use, but it is ' +
-      'not yet known which trick it refers to. Misspellings, undefined operators, and ' +
-      'parser gaps are listed under their own headings, not here.');
+    // Section 2 — Waiting on a named ruling: one card per open question from
+    // the committed question registry, unlock counts recomputed live. A row
+    // renders here ONLY via its ledger blocker referencing a registered
+    // question; a published identity whose name form rides a question carries
+    // its published target beside the name.
+    const questionVMs: EmergingQuestionVM[] = EMERGING_QUESTIONS
+      .map((q: EmergingQuestion) => {
+        const gated = inSection('ruling').filter(r => r.blockerId === q.id);
+        const externalNames = externalWithBlocker(q.id);
+        return {
+          id: q.id, title: q.title, question: q.question, status: q.status,
+          owner: q.owner, vehicle: q.vehicle,
+          unlockCount: gated.length + externalNames.length,
+          names: [
+            ...gated.map(r => ({
+              name: r.name, source: r.source,
+              publishedTarget: r.resolvedTarget.replace(/^(canonical|alias|ledger):/, '').split(';')[0] ?? '',
+            })),
+            ...externalNames.map(x => ({ name: x.name, source: x.source, publishedTarget: '' })),
+          ],
+        };
+      })
+      .filter(q => q.unlockCount > 0);
+    const rulingTotal = questionVMs.reduce((n, q) => n + q.unlockCount, 0);
 
-    // Health tiles, one per ladder step 1 to 8, in ladder order. Aliases and
-    // duplicates are intentionally NOT a tile: a name that resolves to an
-    // existing trick is not frontier work, so it lives only in the lookup
-    // archive section and never inflates the frontier counts.
+    // Section 3 — Needs evidence: the identity is unrecoverable without new
+    // sources; state exactly what would suffice.
+    const missingFor = (r: ObservationalUniverseRow): string =>
+      r.evidenceState === 'none'
+        ? 'No recoverable evidence yet: footage or notation of the movement itself.'
+        : 'No canonical mirror sibling to derive from: footage, notation, or a stronger source for this form.';
+    const evidenceRows: EmergingEvidenceRowVM[] = [
+      ...inSection('evidence').map(r => ({ name: r.name, source: r.source, missing: missingFor(r) })),
+      ...(externalBySection.get('evidence') ?? []).map(x => ({
+        name: x.name, source: x.source,
+        missing: 'No recoverable structure yet: footage, notation, or a stronger source.',
+      })),
+    ];
+
+    // Section 4 — Documented vocabulary archive: history, never active work.
+    // Already-represented names (published canonicals, aliases, duplicates),
+    // observational folk names, and non-trick terms. Malformed fragments were
+    // excluded from `visible` above and never render.
+    const archiveRepresented = summarizeRows(
+      inSection('archive').filter(r => r.publicationState === 'already-represented'),
+      'Documented names that resolve to a published canonical trick or a registered ' +
+      'alias, including wording and source duplicates. Kept for lookup; never active ' +
+      'publication candidates.');
+    const archiveObservational = summarizeRows(
+      inSection('archive').filter(r => r.publicationState === 'observational'),
+      'Community names preserved as documented vocabulary: the name is recorded, but ' +
+      'no structure has been recovered and no publication action is planned. History, ' +
+      'not backlog.');
+    const archiveTerms = summarizeRows(
+      inSection('archive').filter(r => r.publicationState === 'not-a-trick'),
+      'Operator, set, and notation terms recorded by the sources as if they were trick ' +
+      'names. Their home is the operator reference and glossary, not the trick backlog.');
+    const archiveTotal = archiveRepresented.total + archiveObservational.total + archiveTerms.total;
+
+    // Health tiles: the four sections plus the open-question figure. Every
+    // number derives from the live-filtered lifecycle fields.
     const statBlocks: ObservationalStat[] = [
-      { label: 'Ready for curation',         value: String(cc('ready')),              hint: 'fully resolved; a curator can review and publish these as-is' },
-      { label: 'Needs authoring',            value: String(cc('authoring')),          hint: 'structure understood; the notation write-up is the one remaining step' },
-      { label: 'Awaiting doctrine',          value: String(cc('doctrine')),           hint: 'rests on an open expert ruling: the blurry paradox question, the terraging chain value, the cross-body rake base, or repeated-operator scoring' },
-      { label: 'Awaiting curator review',    value: String(cc('governance')),         hint: 'needs an editorial or verification call, chiefly the down-family per-trick base check' },
-      { label: 'Awaiting identification',    value: String(cc('identification')),     hint: 'which movement the name refers to is not yet confirmed' },
-      { label: 'Awaiting parser resolution', value: String(cc('parser')),             hint: 'documented execution, but the notation resolves to no single reading yet' },
-      { label: 'Undefined operator',         value: String(cc('undefined_operator')), hint: 'carries a folk movement term with no settled definition; defining it unblocks every name that uses it' },
-      { label: 'Folk / unrecoverable',       value: String(cc('folk')),               hint: 'community names with no recoverable structure yet' },
+      { label: 'Decide now',          value: String(decideTotal),       hint: 'enough evidence for a curator decision; one answer clears a whole cluster' },
+      { label: 'Open questions',      value: String(questionVMs.length), hint: 'named doctrine questions currently gating names; each shows what it unlocks' },
+      { label: 'Waiting on a ruling', value: String(rulingTotal),       hint: 'names gated by one of the open questions; they move when its answer lands' },
+      { label: 'Needs evidence',      value: String(evidenceRows.length), hint: 'identity unrecoverable without footage, notation, or a stronger source' },
+      { label: 'Documented archive',  value: String(archiveTotal),      hint: 'resolved, historical, and non-trick vocabulary kept for reference' },
     ];
 
     // Source badges reflect the runtime-filtered universe: a source whose names
     // have all been published no longer shows a chip.
-    const sources = [...new Set(universe.map(r => r.source))].map(badge => ({
+    const sources = [...new Set(visible.map(r => r.source))].map(badge => ({
       badge, label: observedSourceLabel(badge),
     }));
-
-    // Ladder steps 1 and 2: full card sections, grouped by derived ADD.
-    const readyRows = inState('ready');
-    const readyGroups = groupByAdd(readyRows);
-    const authoringRows = inState('authoring');
-    const authoringGroups = groupByAdd(authoringRows);
-
-    const ecoKeys = new Set<string>();
-    for (const r of universe) ecoKeys.add(r.ecosystem || '(unclassified)');
-    const ecosystemMatrix: ObservationalEcosystemRow[] = [...ecoKeys].map(eco => {
-      const ofEco = universe.filter(r => (r.ecosystem || '(unclassified)') === eco);
-      const inCat = (states: EvState[]) =>
-        ofEco.filter(r => states.includes(r.evState as EvState)).length;
-      return {
-        ecosystem:  eco,
-        label:      observedEcosystemLabel(eco),
-        ready:      inCat(['ready']),
-        authoring:  inCat(['authoring']),
-        holds:      inCat(['doctrine', 'governance', 'identification', 'undefined_operator']),
-        unresolved: inCat(['parser', 'folk']),
-        total:      ofEco.length,
-      };
-    }).sort((a, b) => (b.ready - a.ready) || (b.total - a.total));
 
     return {
       seo: {
         title: 'Emerging Vocabulary',
         description:
           'The frontier of the freestyle movement language: community-documented trick ' +
-          'names classified by how close each is to canonical promotion.',
+          'names organized by what each one actually waits on.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_observational',
         title:      'Emerging Vocabulary',
         // Orientation first: this page is the not-yet-official side of the
-        // canonical line, and its sections are a distance-to-publication ladder.
-        intro:      'The waiting room of the freestyle dictionary. Nothing on this page is an official trick yet: these are community-documented names on their way toward the canonical dictionary, and the sections below order them by how close each one is to publication, closest first. The official vocabulary lives in the Trick Dictionary.',
+        // canonical line, organized by what each name actually waits on.
+        intro:      'The waiting room of the freestyle dictionary. Nothing on this page is an official trick yet: these are community-documented names on their way toward the canonical dictionary, organized by what each one actually waits on. The official vocabulary lives in the Trick Dictionary.',
       },
       navigation: {
         breadcrumbs: [
@@ -10354,32 +10336,27 @@ export const freestyleService = {
       content: {
         stats: statBlocks,
         statsNote:
-          `The frontier, ordered by distance to canonical publication. ` +
-          `${cc('ready')} ${cc('ready') === 1 ? 'name is' : 'names are'} ready for curation and ${cc('authoring')} remain in the authoring lane, pending formula-authority, operator, or curator checks before promotion; ` +
-          `${cc('doctrine')} rest on an open expert ruling and ${cc('governance')} on a curator call; ` +
-          `${cc('identification')} await identification, ${cc('parser')} a parser resolution, and ` +
-          `${cc('undefined_operator')} a settled operator definition. The remaining ${cc('folk')} are folk names ` +
-          `with no recoverable structure, and ${cc('alias')} resolve to existing tricks (archived). ` +
-          `Nothing here duplicates a published canonical trick.`,
-        progressHeadline,
+          `${decideTotal} ${decideTotal === 1 ? 'name is' : 'names are'} ready for a curator decision; ` +
+          `${rulingTotal} wait on ${questionVMs.length} named open ${questionVMs.length === 1 ? 'question' : 'questions'}; ` +
+          `${evidenceRows.length} need new evidence; and ${archiveTotal} are documented vocabulary kept ` +
+          `for reference. Nothing here duplicates a published canonical trick, and duplicate ` +
+          `spellings of one identity are shown once.`,
         layerNote:
           'These are community-documented freestyle trick names being canonicalized. ' +
           'Provisional ADD and decomposition are observationally extrapolated: they ' +
           'are NOT canonical, carry a tracked tag rather than a hashtag, and have no ' +
           'detail page until a curator promotes them.',
-        readyTotal:     readyRows.length,
-        readyGroups,
-        authoringTotal: authoringRows.length,
-        authoringGroups,
-        doctrineHold,
-        curatorHold,
-        identificationHold,
-        parserHold,
-        undefinedOperatorHold,
-        folkHold,
-        aliasArchive,
-        externalEntries,
-        ecosystemMatrix,
+        decideClusters,
+        decideTotal,
+        questions: questionVMs,
+        rulingTotal,
+        openQuestionCount: questionVMs.length,
+        evidenceRows,
+        archiveRepresented,
+        archiveObservational,
+        archiveTerms,
+        archiveTotal,
+        externalUnadjudicated,
         sources,
         canonicalReferences: [
           { label: 'Trick Dictionary (canonical)', href: '/freestyle/tricks' },
@@ -10387,7 +10364,78 @@ export const freestyleService = {
           { label: 'ADD Analysis',                  href: '/freestyle/add-analysis' },
         ],
         generatedOn: OBSERVATIONAL_UNIVERSE_STATS.generatedOn,
-        isEmpty:     universe.length === 0,
+        isEmpty:     visible.length === 0,
+      },
+    };
+  },
+
+  /**
+   * Internal (admin) Emerging Vocabulary workbench: the curator decision
+   * packet plus the full-dimension row table with query-param filters.
+   * Diagnostics (parser confidence, failure class, ledger provenance) render
+   * only here, never on the public page.
+   */
+  getInternalEmergingVocabularyPage(filter?: { dimension?: string; value?: string }): PageViewModel<FreestyleEmergingInternalContent> {
+    const publishedKeys = observationalPublishedSlugKeys();
+    const curatorNotes = new Map<string, string>();
+    for (const t of OBSERVATIONAL_TRICKS) {
+      if (t.curatorNote) curatorNotes.set(t.folkSlug, t.curatorNote);
+    }
+    const shape = (r: ObservationalUniverseRow) => shapeObservationalCard(r, curatorNotes);
+    const rendered = (r: ObservationalUniverseRow) => !publishedKeys.has(observationalSlugKey(r.slug));
+
+    const decisionGroups: EmergingDecisionClusterVM[] = EMERGING_DECISION_GROUPS.map((g: EmergingDecisionGroup) => {
+      const memberRows = OBSERVATIONAL_UNIVERSE.filter(r => r.groupPrimary && r.blockerId === g.id && rendered(r));
+      const externalNames = Object.values(EXTERNAL_ADJUDICATIONS)
+        .filter(x => x.blockerId === g.id)
+        .map(x => ({ name: x.name, source: 'external' }));
+      return {
+        id: g.id, title: g.title, question: g.question,
+        recommendation: g.recommendation, alternatives: g.alternatives,
+        evidence: g.evidence, consequences: g.consequences,
+        count: memberRows.length + externalNames.length,
+        cards: memberRows.map(shape),
+        externalNames,
+      };
+    }).filter(g => g.count > 0);
+
+    const FILTERABLE = ['objectType', 'evidenceState', 'blockerId', 'owner', 'publicationState', 'publicSection', 'source'] as const;
+    type Filterable = (typeof FILTERABLE)[number];
+    const dimension = FILTERABLE.includes((filter?.dimension ?? '') as Filterable)
+      ? (filter!.dimension as Filterable) : '';
+    const value = dimension ? (filter?.value ?? '') : '';
+    const all = OBSERVATIONAL_UNIVERSE;
+    const shown = dimension && value ? all.filter(r => String(r[dimension]) === value) : all;
+    const options = FILTERABLE.map(d => ({
+      dimension: d,
+      values: [...new Set(all.map(r => String(r[d])).filter(Boolean))].sort(),
+    }));
+
+    return {
+      seo: { title: 'Emerging Vocabulary workbench', description: 'Internal Emerging Vocabulary adjudication workbench.' },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'internal_emerging_vocabulary',
+        title:      'Emerging Vocabulary workbench',
+        intro:      'The curator decision packet and the full-dimension row table behind the public Emerging Vocabulary page.',
+      },
+      navigation: { breadcrumbs: [{ label: 'Internal' }, { label: 'Emerging Vocabulary workbench' }] },
+      content: {
+        decisionGroups,
+        warnings: Object.entries(OBSERVATIONAL_UNIVERSE_STATS.reconciliationWarnings)
+          .map(([kind, count]) => ({ kind, count })),
+        filters: { dimension, value, options },
+        rows: shown.map(r => ({
+          name: r.name, slug: r.slug, source: r.source, objectType: r.objectType,
+          evidenceState: r.evidenceState, blockerId: r.blockerId, owner: r.owner,
+          publicationState: r.publicationState, publicSection: r.publicSection,
+          resolvedTarget: r.resolvedTarget, resolutionConflict: r.resolutionConflict,
+          identityKey: r.identityKey, groupPrimary: r.groupPrimary,
+          alsoRecordedAs: r.alsoRecordedAs.join('; '), parserConfidence: r.parserConfidence,
+          failureClass: r.failureClass, ledger: r.ledger, rendered: rendered(r),
+        })),
+        rowTotal: all.length,
+        shownTotal: shown.length,
       },
     };
   },

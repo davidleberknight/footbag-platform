@@ -1,0 +1,92 @@
+{{! /internal/freestyle/emerging-vocabulary — curator workbench: decision packet + full-dimension row table }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{page.intro}}</p>
+    <div class="hero-stats">
+      <span>{{content.rowTotal}} rows</span>
+      <span>{{content.shownTotal}} shown</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ── Reconciliation warnings ── }}
+  {{#if content.warnings.length}}
+  <section class="content-section">
+    <h2>Reconciliation findings</h2>
+    <ul>
+      {{#each content.warnings}}
+      <li><strong>{{kind}}</strong>: {{count}}</li>
+      {{/each}}
+    </ul>
+  </section>
+  {{/if}}
+
+  {{! ── Decision packet ── }}
+  <section class="content-section">
+    <h2>Curator decision packet</h2>
+    {{#each content.decisionGroups}}
+    <details class="observed-disclosure" id="decision-{{id}}">
+      <summary class="observed-disclosure-summary">{{id}} — {{title}} <span class="text-muted">({{count}} names)</span></summary>
+      <dl class="observed-decision-facts">
+        <dt>Decision</dt><dd>{{question}}</dd>
+        <dt>Recommended</dt><dd>{{recommendation}}</dd>
+        <dt>Alternatives</dt><dd>{{alternatives}}</dd>
+        <dt>Evidence</dt><dd>{{evidence}}</dd>
+        <dt>Consequence</dt><dd>{{consequences}}</dd>
+      </dl>
+      <ul class="observational-tracked-list">
+        {{#each cards}}<li>{{name}}</li>{{/each}}
+        {{#each externalNames}}<li>{{name}} <span class="tracked-tag">database-tracked</span></li>{{/each}}
+      </ul>
+    </details>
+    {{/each}}
+  </section>
+
+  {{! ── Full-dimension table ── }}
+  <section class="content-section">
+    <h2>All rows</h2>
+    <form method="GET" action="/internal/freestyle/emerging-vocabulary" class="filter-bar">
+      <label>
+        Dimension
+        <select name="dimension">
+          <option value="">(all rows)</option>
+          {{#each content.filters.options}}
+          <option value="{{dimension}}"{{#if (eq dimension ../content.filters.dimension)}} selected{{/if}}>{{dimension}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>
+        Value
+        <input type="text" name="value" value="{{content.filters.value}}" placeholder="exact value">
+      </label>
+      <button type="submit">Filter</button>
+    </form>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Name</th><th>Src</th><th>Object</th><th>Evidence</th><th>Blocker</th>
+            <th>Owner</th><th>Publication</th><th>Section</th><th>Resolves to</th>
+            <th>Identity</th><th>Primary</th><th>Also recorded as</th>
+            <th>Parser</th><th>Failure</th><th>Ledger</th><th>Rendered</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.rows}}
+          <tr{{#if resolutionConflict}} class="severity-high"{{/if}}>
+            <td>{{name}}</td><td>{{source}}</td><td>{{objectType}}</td><td>{{evidenceState}}</td>
+            <td>{{blockerId}}</td><td>{{owner}}</td><td>{{publicationState}}</td><td>{{publicSection}}</td>
+            <td>{{resolvedTarget}}</td><td>{{identityKey}}</td><td>{{#if groupPrimary}}yes{{/if}}</td>
+            <td>{{alsoRecordedAs}}</td><td>{{parserConfidence}}</td><td>{{failureClass}}</td>
+            <td>{{ledger}}</td><td>{{#if rendered}}yes{{else}}suppressed{{/if}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

@@ -4,253 +4,274 @@ import path from 'node:path';
 import {
   OBSERVATIONAL_UNIVERSE,
   OBSERVATIONAL_UNIVERSE_STATS as STATS,
+  EMERGING_QUESTIONS,
+  EMERGING_DECISION_GROUPS,
+  EXTERNAL_ADJUDICATIONS,
 } from '../../src/content/freestyleObservationalUniverse';
 
-// Drift guard for the generated Emerging Vocabulary snapshot. The per-section
-// counts the page renders (ready / frontier / doctrine / folk / parser) are
-// computed live from the array, so they cannot drift from it. The stat that CAN
-// drift is the aggregate `total`, which must equal the row count, and every row
-// must carry a section and intakeBucket. A regeneration that left the stats block
-// inconsistent with the array (or a hand edit) fails here. No DB needed.
-const KNOWN_SECTIONS = new Set(['ready', 'frontier', 'doctrine', 'folk', 'parser']);
+// Drift guard for the generated Emerging Vocabulary data spine: the
+// six-dimension lifecycle model (object type, evidence, blocker, owner,
+// publication state, public section), the question and decision registries,
+// identity-level duplicate grouping, and the canonical/alias suppression
+// chain. A regeneration that violates any invariant fails here. No DB needed.
 
-describe('observational universe snapshot internal consistency', () => {
-  it('STATS.total equals the number of rows in the array', () => {
+const OBJECT_TYPES = new Set([
+  'complete-trick', 'set-operator', 'modifier', 'terminal-contact',
+  'generic-term', 'observational-name', 'source-fragment', 'malformed',
+]);
+const EVIDENCE_STATES = new Set([
+  'exact-notation', 'verified-footage', 'authoritative-prose',
+  'derivable-notation', 'partial-structure', 'compositional-name-only',
+  'folk-name-only', 'contradictory', 'none', 'not-applicable',
+]);
+const OWNERS = new Set(['mechanical', 'james', 'james+dave', 'james+red', 'evidence', 'none']);
+const SECTIONS = new Set(['decide', 'ruling', 'evidence', 'archive']);
+const PUBLICATION_STATES = new Set([
+  'already-represented', 'not-a-trick', 'doctrine-blocked', 'evidence-pending',
+  'adjudication-pending', 'observational', 'rejected',
+]);
+const QUESTION_IDS = new Set(EMERGING_QUESTIONS.map(q => q.id));
+const DECISION_IDS = new Set(EMERGING_DECISION_GROUPS.map(g => g.id));
+const primaries = OBSERVATIONAL_UNIVERSE.filter(r => r.groupPrimary);
+
+describe('lifecycle model: every row carries valid orthogonal dimensions', () => {
+  it('object type, evidence state, owner, section, and publication state are enumerated values', () => {
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      expect(OBJECT_TYPES.has(r.objectType), `${r.name}: objectType "${r.objectType}"`).toBe(true);
+      expect(EVIDENCE_STATES.has(r.evidenceState), `${r.name}: evidenceState "${r.evidenceState}"`).toBe(true);
+      expect(OWNERS.has(r.owner), `${r.name}: owner "${r.owner}"`).toBe(true);
+      expect(SECTIONS.has(r.publicSection), `${r.name}: publicSection "${r.publicSection}"`).toBe(true);
+      expect(PUBLICATION_STATES.has(r.publicationState), `${r.name}: publicationState "${r.publicationState}"`).toBe(true);
+    }
+  });
+
+  it('every blocker is a registered question, a decision group, source-recovery, or empty', () => {
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      const ok = r.blockerId === '' || r.blockerId === 'source-recovery'
+        || QUESTION_IDS.has(r.blockerId) || DECISION_IDS.has(r.blockerId);
+      expect(ok, `${r.name}: blocker "${r.blockerId}" is not registered`).toBe(true);
+    }
+  });
+
+  it('a doctrine-blocked row always references an open registered question', () => {
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      if (r.publicationState !== 'doctrine-blocked') continue;
+      expect(QUESTION_IDS.has(r.blockerId), `${r.name}: doctrine block without a question id`).toBe(true);
+      const q = EMERGING_QUESTIONS.find(x => x.id === r.blockerId)!;
+      expect(q.status.toLowerCase().startsWith('answered'),
+        `${r.name}: gated by closed question ${q.id}`).toBe(false);
+    }
+  });
+
+  it('a non-trick object never appears as an unresolved trick candidate', () => {
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      if (['set-operator', 'modifier', 'terminal-contact', 'generic-term'].includes(r.objectType)) {
+        expect(r.publicSection, `${r.name}: non-trick object in "${r.publicSection}"`).toBe('archive');
+      }
+      if (r.objectType === 'malformed' || r.objectType === 'source-fragment') {
+        expect(r.publicationState, `${r.name}: fragment not rejected`).toBe('rejected');
+      }
+    }
+  });
+
+  it('parser diagnostics never determine lifecycle: an active-section row is placed by its blocker or owner, not its failure class', () => {
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      if (r.publicSection === 'ruling') {
+        expect(/^Q\d\d$/.test(r.blockerId), `${r.name}: ruling row without question id`).toBe(true);
+      }
+      if (r.publicSection === 'decide') {
+        expect(r.owner, `${r.name}: decide row not curator-owned`).toBe('james');
+      }
+      if (r.publicSection === 'evidence') {
+        expect(r.blockerId, `${r.name}: evidence row without source-recovery blocker`).toBe('source-recovery');
+      }
+    }
+  });
+});
+
+describe('identity grouping: one public entity per identity', () => {
+  it('every identity group has exactly one primary, and non-primaries fold into alsoRecordedAs', () => {
+    const byKey = new Map<string, typeof OBSERVATIONAL_UNIVERSE[number][]>();
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      const list = byKey.get(r.identityKey) ?? [];
+      list.push(r);
+      byKey.set(r.identityKey, list);
+    }
+    for (const [key, members] of byKey) {
+      const prim = members.filter(m => m.groupPrimary);
+      expect(prim.length, `identity "${key}" has ${prim.length} primaries`).toBe(1);
+      const others = members.filter(m => !m.groupPrimary).map(m => m.name).sort();
+      expect([...prim[0]!.alsoRecordedAs].sort()).toEqual(others);
+      for (const m of members.filter(x => !x.groupPrimary)) {
+        expect(m.alsoRecordedAs.length, `${m.name}: non-primary carries alsoRecordedAs`).toBe(0);
+      }
+    }
+  });
+
+  it('a duplicated identity never renders twice (the blurry twin pairs share one primary)', () => {
+    const twins = OBSERVATIONAL_UNIVERSE.filter(r =>
+      r.name === 'Blurry Mirage' || r.name === 'Blurry Mirage (Blur)');
+    expect(twins.length).toBe(2);
+    expect(new Set(twins.map(t => t.identityKey)).size).toBe(1);
+    expect(twins.filter(t => t.groupPrimary).length).toBe(1);
+  });
+
+  it('genuinely distinct identities stay separate (positional parentheticals never fold)', () => {
+    const plain = OBSERVATIONAL_UNIVERSE.find(r => r.name === 'Symple Swirl (same side)');
+    const far = OBSERVATIONAL_UNIVERSE.find(r => r.name === 'Symple Swirl (far)');
+    expect(plain && far && plain.identityKey !== far.identityKey,
+      'same-side and far configurations must remain distinct identities').toBe(true);
+  });
+});
+
+describe('canonical/alias suppression: published identities never render as backlog', () => {
+  // Mirror of the generator's comparison keys against the committed canonical
+  // and alias sources; a live match may only sit in the archive or ride the
+  // blurry name-form question (Q01), never plain backlog.
+  it('a row resolving to a live identity is archived or carries the name-form question', () => {
+    for (const r of OBSERVATIONAL_UNIVERSE) {
+      if (!/^(canonical|alias):/.test(r.resolvedTarget) || r.resolutionConflict) continue;
+      const ok = r.publicSection === 'archive' || r.blockerId === 'Q01';
+      expect(ok, `${r.name}: resolves to ${r.resolvedTarget} but sits in ${r.publicSection}/${r.blockerId}`).toBe(true);
+    }
+  });
+
+  it('a primary displayed name matching a live canonical is suppressed (Stepping DDD = blurrier)', () => {
+    const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === 'Stepping DDD (Blurrier)')!;
+    expect(row.publicationState).toBe('already-represented');
+    expect(row.resolvedTarget).toContain('blurrier');
+  });
+
+  it('a parenthetical folk name matching a live canonical is suppressed (Quantanamera)', () => {
+    const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === 'Slapping Weaving Butterfly (Quantanamera)')!;
+    expect(row.publicationState).toBe('already-represented');
+    expect(row.resolvedTarget).toContain('quantanamera');
+  });
+
+  it('a parenthetical folk name matching a live alias is suppressed (Grifter)', () => {
+    const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === 'Illusioning Clipper (Grifter)')!;
+    expect(row.publicationState).toBe('already-represented');
+    expect(row.resolvedTarget).toContain('reverse_drifter');
+  });
+
+  it('multiple folk names resolving to one target suppress together (the blurry canonical twins ride Q01 as name-form questions)', () => {
+    for (const name of ['Blurry Butterfly (Ripwalk)', 'Blurry Mirage (Blur)', 'Blurry Illusion (Blizzard)', 'Blurry Eggbeater (Bed Wetter)', 'Blurry Barrage (Blurrage)']) {
+      const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === name)!;
+      expect(row.blockerId, `${name} must ride the blurry name-form question`).toBe('Q01');
+      expect(/^(canonical|alias):/.test(row.resolvedTarget), `${name} must carry its published target`).toBe(true);
+    }
+  });
+
+  it('conflicting parenthetical resolutions are surfaced for adjudication, never silently suppressed', () => {
+    const conflicted = OBSERVATIONAL_UNIVERSE.filter(r => r.resolutionConflict);
+    for (const r of conflicted) {
+      expect(r.resolvedTarget).toContain(';');
+    }
+    const warned = STATS.reconciliationWarnings['conflicting-parenthetical-resolutions'] ?? 0;
+    expect(warned).toBe(conflicted.length);
+  });
+
+  it('a bare operator/set name never enters an active section (object guard on Nuclear)', () => {
+    const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === 'Nuclear')!;
+    expect(row.objectType).toBe('set-operator');
+    expect(row.publicSection).toBe('archive');
+  });
+});
+
+describe('operator-registry precedence over stale ledger labels', () => {
+  it('no doctrine-gated row names an operator the registry defines', () => {
+    expect(STATS.reconciliationWarnings['registry-defines-gated-operator'] ?? 0).toBe(0);
+  });
+
+  it('the registry-defined-operator compounds sit in the decide section, unpromoted', () => {
+    for (const name of ['Railing Butterfly', 'Surfing Osis', 'Splicing Paradox Mirage', 'Floating Mirage']) {
+      const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === name)!;
+      expect(row.blockerId, `${name} belongs to the registry-confirmation decision group`).toBe('D2');
+      expect(row.publicSection).toBe('decide');
+    }
+  });
+});
+
+describe('curator decisions preserved, unanswered', () => {
+  it('the decision groups are present with their members intact', () => {
+    const byId = new Map(EMERGING_DECISION_GROUPS.map(g => [g.id, g]));
+    for (const id of ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'A0']) {
+      expect(byId.has(id), `decision group ${id} missing`).toBe(true);
+      expect(byId.get(id)!.memberCount, `decision group ${id} has no members`).toBeGreaterThan(0);
+    }
+    expect(byId.get('A0')!.members).toContain('POD, Pixie Over Down');
+  });
+
+  it('Nuclear ss Reverse Guay stays held as the alias-target decision', () => {
+    const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === 'Nuclear ss Reverse Guay')!;
+    expect(row.blockerId).toBe('D5');
+    expect(row.publicSection).toBe('decide');
+  });
+
+  it('the down-family rows stay pending the grouped cell-label decision', () => {
+    const d1 = OBSERVATIONAL_UNIVERSE.filter(r => r.groupPrimary && r.blockerId === 'D1');
+    expect(d1.length).toBeGreaterThan(20);
+    for (const r of d1) expect(r.publicSection).toBe('decide');
+  });
+
+  it('the authorable candidates are NOT promoted: none carries a canonical slug in the committed trick CSVs', () => {
+    const tricksCsv = fs.readFileSync(
+      path.join(__dirname, '../../freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv'), 'utf8');
+    for (const name of ['Sailing ss Butterfly', 'Railing Butterfly', 'Butterfly Dragon', 'POD, Pixie Over Down']) {
+      const row = OBSERVATIONAL_UNIVERSE.find(r => r.name === name)!;
+      expect(row.publicSection, `${name} must remain a decision, not a promotion`).toBe('decide');
+      expect(tricksCsv.toLowerCase()).not.toContain(`\n${name.toLowerCase()},`);
+    }
+  });
+});
+
+describe('question registry integrity', () => {
+  it('exactly the fourteen registered questions exist', () => {
+    expect(EMERGING_QUESTIONS.length).toBe(14);
+    expect(EMERGING_QUESTIONS.map(q => q.id)).toEqual(
+      Array.from({ length: 14 }, (_, i) => `Q${String(i + 1).padStart(2, '0')}`));
+  });
+
+  it('unlock counts match the gated primaries plus externals-only adjudications (no double-count)', () => {
+    const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const primaryKeys = new Set(primaries.map(r => key(r.name)));
+    for (const q of EMERGING_QUESTIONS) {
+      const gated = primaries.filter(r => r.blockerId === q.id).length
+        + Object.values(EXTERNAL_ADJUDICATIONS)
+            .filter(x => x.blockerId === q.id && !primaryKeys.has(key(x.name))).length;
+      expect(q.unlockCount, `unlock count for ${q.id}`).toBe(gated);
+    }
+  });
+});
+
+describe('generated stats partition the data', () => {
+  it('STATS.total equals the row count and identityCount equals the primary count', () => {
     expect(STATS.total).toBe(OBSERVATIONAL_UNIVERSE.length);
+    expect(STATS.identityCount).toBe(primaries.length);
   });
 
-  it('every row has a known section and a non-empty intakeBucket', () => {
-    for (const r of OBSERVATIONAL_UNIVERSE) {
-      expect(KNOWN_SECTIONS.has(r.section), `unknown section "${r.section}" on ${r.slug}`).toBe(true);
-      expect(typeof r.intakeBucket).toBe('string');
-      expect(r.intakeBucket.length).toBeGreaterThan(0);
+  it('publicSections, ownerCounts, and publicationStates partition the primaries', () => {
+    for (const [dim, counts] of [
+      ['publicSection', STATS.publicSections],
+      ['owner', STATS.ownerCounts],
+      ['publicationState', STATS.publicationStates],
+    ] as const) {
+      let sum = 0;
+      for (const [value, n] of Object.entries(counts)) {
+        const derived = primaries.filter(r => String(r[dim]) === value).length;
+        expect(n, `${dim}=${value}`).toBe(derived);
+        sum += n;
+      }
+      expect(sum).toBe(primaries.length);
     }
   });
 
-  // ---- Universe accounting guards ----
-  // The five sections partition the universe; Alias/Duplicate is a cross-cutting
-  // layer inside those sections, never a sixth summable bucket. These guards stop
-  // the double-count proven in the reconciliation (summing the buckets over-counts
-  // by the alias rows that sit in ready/frontier).
-  const ALIAS = new Set(['alias', 'duplicate_variant']);
-
-  it('section rows partition the universe: their sum equals OBSERVATIONAL_UNIVERSE.length', () => {
-    const sectionSum = [...KNOWN_SECTIONS].reduce(
-      (n, s) => n + OBSERVATIONAL_UNIVERSE.filter(r => r.section === s).length,
-      0,
-    );
-    expect(sectionSum).toBe(OBSERVATIONAL_UNIVERSE.length);
-  });
-
-  it('alias/duplicate is a cross-cutting layer fully inside the sections (never added to section counts)', () => {
-    const aliasRows = OBSERVATIONAL_UNIVERSE.filter(r => ALIAS.has(r.intakeBucket));
-    // Every alias row already carries a section, so it is already counted in a
-    // section total; adding the alias archive on top would double-count it.
-    for (const r of aliasRows) {
-      expect(KNOWN_SECTIONS.has(r.section), `alias row ${r.slug} has no section`).toBe(true);
-    }
-  });
-
-  // ---- Nine-state ladder guards ----
-  // The generator stamps every row with exactly one evState; the stats block
-  // carries the per-state counts and the progress metric. A regeneration (or
-  // hand edit) that breaks the partition or the arithmetic fails here.
-  const LADDER = [
-    'ready', 'authoring', 'doctrine', 'governance', 'identification',
-    'parser', 'undefined_operator', 'folk', 'alias',
-  ];
-
-  it('every row carries one of the nine ladder states, a holdKind, and a flags array', () => {
-    for (const r of OBSERVATIONAL_UNIVERSE) {
-      expect(LADDER.includes(r.evState), `unknown evState "${r.evState}" on ${r.slug}`).toBe(true);
-      expect(typeof r.holdKind).toBe('string');
-      expect(r.holdKind.length).toBeGreaterThan(0);
-      expect(Array.isArray(r.flags)).toBe(true);
-    }
-  });
-
-  it('STATS.evStates matches the row-derived counts and partitions the universe', () => {
-    let sum = 0;
-    for (const s of LADDER) {
-      const derived = OBSERVATIONAL_UNIVERSE.filter(r => r.evState === s).length;
-      expect(STATS.evStates[s], `evStates.${s} disagrees with the rows`).toBe(derived);
-      sum += derived;
-    }
-    expect(sum).toBe(OBSERVATIONAL_UNIVERSE.length);
-  });
-
-  it('an alias-bucket row is always in the alias state, and vice versa', () => {
-    for (const r of OBSERVATIONAL_UNIVERSE) {
-      const isArchive = ALIAS.has(r.intakeBucket);
-      expect(r.evState === 'alias', `${r.slug}: alias state and archive bucket must coincide`)
-        .toBe(isArchive);
-    }
-  });
-
-  it('STATS.evProgress is (ready + authoring) over the non-alias universe, pct rounded', () => {
-    const ready = OBSERVATIONAL_UNIVERSE.filter(r => r.evState === 'ready').length;
-    const authoring = OBSERVATIONAL_UNIVERSE.filter(r => r.evState === 'authoring').length;
-    const alias = OBSERVATIONAL_UNIVERSE.filter(r => r.evState === 'alias').length;
-    expect(STATS.evProgress.numerator).toBe(ready + authoring);
-    expect(STATS.evProgress.denominator).toBe(OBSERVATIONAL_UNIVERSE.length - alias);
-    expect(STATS.evProgress.pct).toBe(
-      Math.round((100 * STATS.evProgress.numerator) / STATS.evProgress.denominator));
-  });
-});
-
-// A name whose trick is already published must not also sit on the Emerging
-// Vocabulary surface, even when the observational name carries a folk-nickname
-// suffix, an abbreviation, or a parenthetical folk name. The gate resolves each
-// of those forms to its canonical/alias slug and drops the row. The one form it
-// must never resolve away is a side configuration: a same-side / far / near
-// positional variant is a distinct trick and stays on the surface unless it has
-// its own explicit equivalence alias.
-describe('emerging vocabulary: published names are gated, positional variants are kept', () => {
-  const has = (name: string) => OBSERVATIONAL_UNIVERSE.some(r => r.name === name);
-
-  it('gates a name carrying a folk-nickname suffix (resolves to the published base)', () => {
-    // "Nuclear Drifter (69)" is nuclear_drifter; "Shooting Barfly (Porn Star)" is
-    // shooting_barfly. The folk nickname in parentheses is decoration, not identity.
-    expect(has('Nuclear Drifter (69)')).toBe(false);
-    expect(has('Shooting Barfly (Porn Star)')).toBe(false);
-  });
-
-  it('gates an abbreviation form that expands to a published trick', () => {
-    // DLO expands to double_leg_over: "Nuclear DLO (Terminator)" is
-    // nuclear_double_leg_over, "Spinning DLO" is spinning_double_leg_over.
-    expect(has('Nuclear DLO (Terminator)')).toBe(false);
-    expect(has('Spinning DLO')).toBe(false);
-    expect(has('Tapping DLO')).toBe(false);
-  });
-
-  it('keeps a parenthetical folk name that is itself the published canonical/alias, flagged as alias for the request-time gate', () => {
-    // The universe is a pure corpus artifact that carries every documented name,
-    // including one that resolves to a published canonical or alias. Such a row is
-    // flagged evState 'alias' and dropped from the rendered surface at request time,
-    // not removed from the corpus. "Gyro Torque (Mobius)" resolves through the
-    // gyro_torque alias to mobius; "Atomic Mirage (Atom Smasher)" resolves to
-    // atom_smasher.
-    const aliasFlagged = (name: string) =>
-      OBSERVATIONAL_UNIVERSE.some(r => r.name === name && r.evState === 'alias');
-    expect(aliasFlagged('Gyro Torque (Mobius)')).toBe(true);
-    expect(aliasFlagged('Atomic Mirage (Atom Smasher)')).toBe(true);
-  });
-
-  it('keeps a same-side positional variant that has no explicit equivalence alias', () => {
-    // The base exists (nuclear_guay, shooting_clipper) but there is no ss-form
-    // alias, so the side configuration is a distinct trick and must stay.
-    expect(has('Nuclear ss Guay')).toBe(true);
-    expect(has('Shooting ss Clipper')).toBe(true);
-  });
-
-  it('keeps a positional variant even when its base IS published (never collapses to the base)', () => {
-    // fairy_double_leg_over is a published trick, but "Fairy DLO (ss)" is its
-    // same-side variant: the parenthetical positional marker is kept, not stripped,
-    // so the row is never folded into the base.
-    expect(has('Fairy DLO (ss)')).toBe(true);
-  });
-});
-
-// The ruling ledger is the classification authority: where it has adjudicated
-// a name, its state overrides the frozen ingestion CSVs, and a name resolving
-// to a published canonical name or a registered alias files as alias archive,
-// never as authoring backlog. These guards pin the authority chain so a
-// regeneration that regresses to CSV-only classification fails loudly.
-describe('emerging vocabulary: the ruling ledger governs classification', () => {
-  const FREESTYLE = path.join(__dirname, '../../freestyle');
-  const byName = (name: string) => OBSERVATIONAL_UNIVERSE.filter(r => r.name === name);
-
-  // Mirror of the generator's comparison keys: alphanumeric-lowercase, with
-  // community abbreviations expanded. Positional tokens are never expanded or
-  // stripped, so a same-side name only matches an explicit same-side alias.
-  const ABBREV: Record<string, string> = {
-    dlo: 'double_leg_over', dso: 'double_switch_over', dod: 'double_over_down',
-    ddd: 'down_double_down', datw: 'double_around_the_world',
-  };
-  const normKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const expandKey = (s: string) => normKey(
-    s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-      .split('_').map(t => ABBREV[t] ?? t).join('_'));
-  const csvColumn = (file: string, header: string): string[] => {
-    const lines = fs.readFileSync(file, 'utf8').split('\n').filter(l => l.trim());
-    const cols = lines[0].split(',');
-    const idx = cols.indexOf(header);
-    // Header-position parse is enough here: the columns read (slug + pipe-list
-    // alias columns) sit before any quoted free-text column in these CSVs.
-    return lines.slice(1).map(l => l.split(',')[idx] ?? '').filter(Boolean);
-  };
-
-  const publishedKeys = (() => {
-    const keys = new Set<string>();
-    const add = (text: string) => {
-      if (!text.trim()) return;
-      keys.add(normKey(text));
-      keys.add(expandKey(text));
-    };
-    const tricksCsv = path.join(FREESTYLE, 'inputs/base_dictionary/tricks.csv');
-    const redCsv = path.join(FREESTYLE, 'inputs/curated/tricks/red_additions_2026_04_20.csv');
-    for (const s of csvColumn(tricksCsv, 'trick_canon')) add(s);
-    for (const s of csvColumn(redCsv, 'canonical_name')) add(s);
-    for (const cell of csvColumn(tricksCsv, 'aliases')) cell.split('|').forEach(add);
-    for (const cell of csvColumn(redCsv, 'aliases')) cell.split('|').forEach(add);
-    for (const s of csvColumn(path.join(FREESTYLE, 'inputs/base_dictionary/trick_aliases.csv'), 'alias')) add(s);
-    for (const s of csvColumn(path.join(FREESTYLE, 'inputs/base_dictionary/alias_additions.csv'), 'alias_text')) add(s);
-    return keys;
-  })();
-
-  it('no authoring-ladder row resolves to a published canonical name or a registered alias', () => {
-    for (const r of OBSERVATIONAL_UNIVERSE) {
-      if (r.evState !== 'authoring' && r.evState !== 'ready') continue;
-      const rowKeys = [normKey(r.name), expandKey(r.name), normKey(r.slug)];
-      const hit = rowKeys.find(k => publishedKeys.has(k));
-      expect(hit, `${r.name}: authoring-ladder row resolves to published/alias key "${hit}"`)
-        .toBeUndefined();
-    }
-  });
-
-  it('every authoring-ladder row the ledger has adjudicated carries an author-now ledger tag (B or C)', () => {
-    for (const r of OBSERVATIONAL_UNIVERSE) {
-      if (r.evState !== 'authoring') continue;
-      expect(
-        r.ledger === 'absent' || /^authoring\/(B|C)$/.test(r.ledger),
-        `${r.name}: authoring row carries ledger tag "${r.ledger}"`,
-      ).toBe(true);
-    }
-  });
-
-  it('every row records its classification provenance', () => {
-    for (const r of OBSERVATIONAL_UNIVERSE) {
-      expect(typeof r.ledger).toBe('string');
-      expect(r.ledger.length, `${r.name}: empty ledger provenance`).toBeGreaterThan(0);
-    }
-  });
-
-  it('a ledger-moved row renders in its ruled state, not the stale CSV state (Zulu Far Legover)', () => {
-    // The frozen CSVs classify this row as an unresolved parser name; the
-    // ledger rules it a redundant-far alias of the published zulu_legover.
-    const rows = byName('Zulu Far Legover');
-    expect(rows.length).toBeGreaterThan(0);
-    for (const r of rows) expect(r.evState).toBe('alias');
-  });
-
-  it('a name already represented by a live alias is archive, not backlog (Nuclear far Mirage → sumo)', () => {
-    const rows = byName('Nuclear far Mirage');
-    expect(rows.length).toBeGreaterThan(0);
-    for (const r of rows) expect(r.evState).toBe('alias');
-  });
-
-  it('a bare operator/set name never enters the authoring ladder (object-type guard on Nuclear)', () => {
-    const rows = byName('Nuclear');
-    expect(rows.length).toBeGreaterThan(0);
-    for (const r of rows) {
-      expect(r.evState).toBe('alias');
-      expect(r.ledger).toContain('/F');
-    }
-  });
-
-  it('a ledger not-a-trick ruling overrides a CSV authoring state ("Butterfly, Down")', () => {
-    const rows = byName('Butterfly, Down');
-    expect(rows.length).toBeGreaterThan(0);
-    for (const r of rows) expect(r.evState).toBe('folk');
+  it('the old nine-state ladder fields are gone from rows and stats', () => {
+    const row = OBSERVATIONAL_UNIVERSE[0] as unknown as Record<string, unknown>;
+    expect(row['evState']).toBeUndefined();
+    expect(row['holdKind']).toBeUndefined();
+    const stats = STATS as unknown as Record<string, unknown>;
+    expect(stats['evStates']).toBeUndefined();
+    expect(stats['evProgress']).toBeUndefined();
   });
 });

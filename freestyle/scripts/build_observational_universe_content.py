@@ -7,16 +7,14 @@ typed TS content module that the freestyle service reads to render the
 build_tracked_names_content.py → freestyleTrackedNames.ts pattern (generated TS
 content, schema-free, reversible — no DB).
 
-The module is the DATA spine (one row per unresolved observational name +
-overall stats), and it carries the classification: every row is stamped with
-one of the nine Emerging Vocabulary ladder states (evState) plus a finer hold
-kind and orthogonal flags, all computed HERE, once. The service reads those
-fields and owns only sampling / presentation; it never re-derives the state at
-request time, so the generated data and the rendered page cannot disagree.
-
-Overlap-safe by construction: the source CSVs already exclude in_db /
-governance_state∈{1,2} / alias-to-canon rows, so nothing here collides with a
-published canonical trick.
+The module is the DATA spine (one row per documented observational name +
+identity grouping + question/decision registries + overall stats), and it
+carries the classification: every row is stamped with the six orthogonal
+lifecycle dimensions (object type, resolved identity target, evidence state,
+blocker, decision owner, derived publication state and public section), all
+computed HERE, once. The service reads those fields and owns only sampling /
+presentation; it never re-derives state at request time, so the generated
+data and the rendered page cannot disagree.
 
 Inputs:
   freestyle/inputs/observational/promotion_candidates_clean.csv
@@ -24,18 +22,29 @@ Inputs:
   freestyle/inputs/observational/promotion_candidates_deferred.csv
   freestyle/inputs/observational/CLASSIFIED_UNIVERSE.csv   (stats only)
   exploration/ev-formula-identity-audit-2026-07-10/EV_FORMULA_IDENTITY_ROWS.csv
-      (the ruling ledger — the classification AUTHORITY; see below)
+      (the ruling ledger — the adjudication AUTHORITY; see below)
+  freestyle/doctrine/QUESTION_REGISTRY.csv
+      (the named open doctrine questions — the only valid doctrine blockers)
 
-Classification authority: the observational CSVs are a frozen ingestion
-snapshot, while the ruling ledger records every per-name disposition made
-since. Where the ledger has a name, its state/disposition OVERRIDES the
-CSV-derived classification; where it does not, a name that resolves to a
-published canonical name or a registered alias is reclassified into the alias
-archive, and a name that IS a registered operator/set (bare "Nuclear") never
-enters the authoring ladder. Precedence: ledger > canonical/alias-name
-resolution > observational CSV. Disagreements print a warning summary at
-regen time, and every row carries its ledger provenance in the emitted
-`ledger` field.
+Source precedence (highest first):
+  1. The live canonical database decides publication (applied at REQUEST time
+     by the service; this generator applies the committed-CSV mirror of it).
+  2. Registered aliases decide whether a name already resolves to a published
+     identity (full name, parenthetical folk names, normalized variants, and
+     abbreviations are all tested).
+  3. The operator registry (trick_modifiers.csv) decides whether an operator
+     is defined; a ledger blocker claiming an operator undefined while the
+     registry defines it is a reconciliation defect and the registry wins.
+  4. The ruling ledger decides adjudication: object type, identity target,
+     evidence state, blocker, owner.
+  5. The question registry decides what each doctrine blocker means; a
+     doctrine block must reference a known, open question.
+  6. The observational CSVs supply evidence and provenance only.
+  7. Parser results are internal diagnostics, never lifecycle.
+The retired nine-state ladder heading has no authoritative role; the frozen
+`section`/`intakeBucket` fields remain on rows as migration provenance only.
+Disagreements print a warning summary at regen time; unknown or closed
+question references are fatal.
 
 Output:
   src/content/freestyleObservationalUniverse.ts
@@ -74,12 +83,79 @@ RED_ADD_CSV = FREESTYLE / "inputs/curated/tricks/red_additions_2026_04_20.csv"
 # (never legacy_data, never the network). Missing ledger = fatal: without it
 # the classification would silently regress to the frozen CSV snapshot.
 LEDGER_CSV = REPO / "exploration/ev-formula-identity-audit-2026-07-10/EV_FORMULA_IDENTITY_ROWS.csv"
+# The named open doctrine questions. A row may only be doctrine-blocked by
+# referencing one of these; free-text doctrine labels are invalid.
+QUESTION_REGISTRY_CSV = FREESTYLE / "doctrine/QUESTION_REGISTRY.csv"
 # Registered alias texts and operator/set names. A queue name that resolves to
 # one of these is already represented (alias archive) or is not a trick at all
 # (operator/set object), so it must never render as authoring backlog.
 MODIFIERS_CSV = FREESTYLE / "inputs/base_dictionary/trick_modifiers.csv"
 TRICK_ALIASES_CSV = FREESTYLE / "inputs/base_dictionary/trick_aliases.csv"
 ALIAS_ADDITIONS_CSV = FREESTYLE / "inputs/base_dictionary/alias_additions.csv"
+
+# ── Curator decision groups ── the compact decide-now clusters. Each groups
+# rows one answer resolves; membership comes from the ledger's blocker_id.
+# These are curator decisions, NOT doctrine questions (those live in the
+# question registry); nothing here is answered by this generator.
+DECISION_GROUPS = [
+    {
+        "id": "D1", "title": "Down-family cell labels",
+        "question": "Confirm that a down-family name's own set and side markers (or a leg-parity trace where a JOB exists) assign its cell in the ratified four-cell grid, then label each row's cell.",
+        "recommendation": "Yes: the four-cell grid is ratified doctrine, every cell is a live canonical, and each held name carries explicit set/side markers; the labeling is mechanical once the convention is confirmed.",
+        "alternatives": "Route each row to the rules expert individually (rejected by the audit: the grid ruling already decides the structure; only the label is open).",
+        "evidence": "The down-family doctrine records the ratified 2x2 grid with all four cells live and bare-attested; the deterministic parity-trace classifier reproduces every traceable corpus JOB.",
+        "consequences": "Each answered row files as an alias of its cell canonical or as a positional variant of it; no ADD changes anywhere.",
+    },
+    {
+        "id": "D2", "title": "Registry-defined operators govern",
+        "question": "Confirm that the operator registry's definitions of railing (+2), surfing (+3), splicing (+2), and floating (+3) supersede the ledger's stale undefined-operator tags on their compounds.",
+        "recommendation": "Yes: the registry is the ruled single authority for operator weight and structure, each definition carries a worked example, and live canonical compounds already use these operators.",
+        "alternatives": "Treat the ledger tags as authoritative and re-ask the definitions (rejected: it would re-open settled registry contracts).",
+        "consequences": "Eleven compounds become mechanically authorable in a later promotion batch; nothing authors in this phase.",
+        "evidence": "trick_modifiers.csv rows for railing/surfing/splicing/floating with worked examples; live canonicals rail_warrior, big_papa_smurf, liquifier, floatation.",
+    },
+    {
+        "id": "D3", "title": "Sailing and inspinning same-side derivations",
+        "question": "Confirm the distributive same-side rule derives the sailing ss and inspinning ss rows from their live plain siblings, exactly as the shipped nuclear/pogo/shooting same-side batches.",
+        "recommendation": "Yes: every plain sibling is live and the ratified distributive rule is the same one already applied three times.",
+        "alternatives": "Hold for per-row footage (rejected: positional configuration is derivable and positional change never alters ADD).",
+        "consequences": "Eight rows become mechanically authorable in a later promotion batch.",
+        "evidence": "Live sailing_butterfly / _double_leg_over / _illusion / _legover / _mirage / _pickup and inspinning_illusion / inspinning_mirage; the ratified distributive same-side ruling.",
+    },
+    {
+        "id": "D4", "title": "Dragon catch token",
+        "question": "Name the operational-notation token for the dragon catch (the ruled terminal contact behind the five dragon compounds).",
+        "recommendation": "Write it as a named unusual-surface delay (DRAGON [UNS] [DEL]), mirroring how other named unusual surfaces are notated.",
+        "alternatives": "Introduce a new dedicated token class for posture catches (heavier; no second exemplar yet).",
+        "consequences": "Five dragon rows become authorable, and Miraging Dragon follows mechanically.",
+        "evidence": "The 2026-07-13 identity rulings (single-form Firefly / Spitfire) and the ledger formulas (dex + dragon catch with bracket parity).",
+    },
+    {
+        "id": "D5", "title": "Nuclear ss Reverse Guay alias target",
+        "question": "Decide which live identity the name denotes: the plain nuclear_rev_guay (distributive reading restates it verbatim) or nuclear_guay_same_side (catch-targeted reading restates it), or retire the name.",
+        "recommendation": "Alias to nuclear_rev_guay: the distributive reading is the ratified default for a trick-level ss qualifier.",
+        "alternatives": "Alias to nuclear_guay_same_side (catch-targeted reading), or retire the name as redundant.",
+        "consequences": "One row leaves the surface as an alias; no new dictionary row under any answer.",
+        "evidence": "Both candidate notations are live and character-identical to the two readings; recorded at the stopped promotion.",
+    },
+    {
+        "id": "D6", "title": "Pyro folds into fyro",
+        "question": "Confirm Pyro Torque is a misspelling of the fyro token and folds into the fyro operator gate rather than standing as its own name.",
+        "recommendation": "Yes: single-source, one edit-distance from fyro, no independent evidence.",
+        "alternatives": "Keep it as an independent folk name (rejected: no distinguishing evidence).",
+        "consequences": "One row leaves the decide pile and joins the fyro rows under the operator-definitions question.",
+        "evidence": "FootbagMoves carries Fyro Torque and Pyro Torque with no structural difference recorded.",
+    },
+    {
+        "id": "A0", "title": "Author the adjudicated rows",
+        "question": "Author the rows whose identity is already adjudicated and whose notation is derivable (currently POD, ruled from footage).",
+        "recommendation": "Author POD via the standard red_additions + red_corrections path in a promotion batch.",
+        "alternatives": "None: the identity ruling is recorded; only the clerical authoring remains.",
+        "consequences": "One canonical row per name; full surface propagation per the standing rule.",
+        "evidence": "The POD footage ruling (setting leg performs the pixie dex and returns for the second downtime dex).",
+    },
+]
+DECISION_GROUP_IDS = {g["id"] for g in DECISION_GROUPS}
 
 # Doctrine-blocked clusters whose STRUCTURE is known (blocked only on an ADD /
 # policy ruling, not on the movement reading) — promotion-frontier eligible. The
@@ -128,157 +204,6 @@ def doctrine_blocker(name: str) -> str | None:
         if folk in n:
             return "other"
     return None
-# ── Emerging Vocabulary nine-state ladder ────────────────────────────────────
-# Every emitted row lands in exactly ONE of these states. The order is the
-# distance-to-canonical ladder (closest to publication first); the public page
-# renders its sections, health tiles, and counts straight from this field, so
-# the classification lives here, at generation time, and nowhere else.
-EV_STATES = [
-    "ready",               # fully resolved; a curator can review and publish as-is
-    "authoring",           # structure understood; the notation write-up is pending
-    "doctrine",            # rests on an open expert ruling, not an authoring step
-    "governance",          # needs a curator editorial / verification call
-    "identification",      # which movement the name refers to is unconfirmed
-    "parser",              # documented execution; notation resolves to no single reading
-    "undefined_operator",  # carries a folk operator with no settled definition
-    "folk",                # community name with no recoverable structure yet
-    "alias",               # resolves to an existing trick; lookup archive, not frontier
-]
-
-# Folk operators with no settled definition or weight. A name carrying one of
-# these cannot be authored until the operator itself is defined; defining the
-# operator unblocks every name that uses it. Curator-tunable.
-EV_UNDEFINED_OPERATORS = {
-    "blazing", "symple", "slapping", "fusing", "phasing", "slaying", "sonic",
-    "twinspinning", "frootie", "fyro", "leaning", "twisted", "twisting",
-    "wonton", "wrecking", "snapping", "zipper",
-}
-# Named structures whose identity (which movement the name refers to) is the
-# open question, not their operators.
-EV_IDENTIFICATION_NAMED = {"dragon", "refraction"}
-# Open expert-ruling gates. Blurry-named compounds wait on the ruling that
-# decides when a blurry name carries the extra paradox element; terraging waits
-# on the ruling reconciling its chain value; the cross-body rake base has no
-# settled structural definition; a repeated operator inside one compound has no
-# scoring rule yet. Weaving and zulu are NOT here: their compounds author
-# mechanically as the matching ducking compound, so they are authoring work.
-EV_BLURRY_TOKENS = {"blurry", "blurrier", "blurriest"}
-# Parser failure classes that are genuine notation gaps (ambiguous terminal,
-# compression, directional syntax), distinct from an undefined operator.
-EV_PARSER_CLASSES = {
-    "ambiguous-terminal-mechanic", "compression-ambiguity",
-    "unresolved-directional-syntax", "parser-ambiguity",
-}
-# Source-data spelling typos that resolve to a known operator; they are not new
-# frontier operators, so normalize before the known-token check.
-EV_TYPO_FIXES = {
-    "butterfy": "butterfly", "baragging": "barraging",
-    "royall": "royale", "eggbeating": "eggbeater",
-}
-# X-Dex receiver bases: a "far" qualifier on one of these fires a conditional
-# +1 that must be confirmed in the stored decomposition.
-EV_XDEX_RECEIVERS = {"mirage", "illusion", "whirl", "torque", "drifter"}
-# Side qualifiers (never blocking on their own; the notation encodes the side).
-EV_POSITIONAL = {"ss", "near", "far", "op", "os"}
-# Intake buckets that make a row archive material rather than frontier work.
-EV_ALIAS_BUCKETS = {"alias", "duplicate_variant"}
-
-
-def ev_resolves_known(name: str) -> bool:
-    """Every token of the name resolves to a settled operator / atom / directional."""
-    toks = name_tokens(name)
-    if not toks:
-        return False
-    return all(len(t) <= 1 or EV_TYPO_FIXES.get(t, t) in KNOWN_TOKENS for t in toks)
-
-
-def ev_fully_derived(r: dict) -> bool:
-    """Derivation complete: numeric provisional ADD and a decomposition present."""
-    return bool(re.fullmatch(r"[0-9]+", r["provisionalAdd"] or "")
-                and (r["decomposition"] or "").strip())
-
-
-def ev_classify(r: dict) -> tuple[str, str]:
-    """One (state, holdKind) per row, most-binding gate first."""
-    name = r["name"]
-    toks = name_tokens(name)
-    lead = name.split("(")[0].lower()
-    if r["intakeBucket"] in EV_ALIAS_BUCKETS:
-        return "alias", "alias"
-    # Open expert-ruling gates outrank everything but the alias archive.
-    if any(t in EV_BLURRY_TOKENS for t in toks):
-        return "doctrine", "blurry_expansion"
-    if "terraging" in toks or "terrage" in toks:
-        return "doctrine", "terraging_chain"
-    if "rake" in toks and ("xbd" in toks or "crossbody" in toks
-                           or ("x" in toks and "body" in toks)):
-        return "doctrine", "crossbody_rake_base"
-    ing_ops = [t for t in toks if t.endswith("ing") and t in KNOWN_TOKENS]
-    if any(ing_ops.count(t) >= 2 for t in set(ing_ops)):
-        return "doctrine", "repeated_operator"
-    # Multi-alias parentheticals are an identity question: which movement (and
-    # which of the competing folk names) the row actually is.
-    if name.count("(") >= 2:
-        return "identification", "identity"
-    if "nuclear" in lead and "osis" in lead:
-        return "identification", "identity"
-    if r["section"] == "doctrine":
-        if r["cluster"] == "weaving":
-            # Weaving itself is settled (compounds author as the matching ducking
-            # compound); the row is undefined-operator work only when another
-            # unsettled operator rides the same name, else it is authoring work.
-            und = [t for t in toks if t in EV_UNDEFINED_OPERATORS]
-            if und:
-                return "undefined_operator", und[0]
-            return "authoring", "authoring"
-        if r["cluster"] == "dod-ddd":
-            # Down-family names need a per-trick curator verification of which
-            # embedded base the name describes, not an expert ruling.
-            return "governance", "down_family_verification"
-        return "identification", "identity"
-    if r["section"] in ("ready", "frontier"):
-        return ("ready", "ready") if ev_fully_derived(r) else ("authoring", "authoring")
-    if r["failureClass"] == "unknown-modifier-token":
-        # Many of these flags are stale: when every token now resolves to a
-        # settled operator the row is not blocked, only unauthored.
-        if ev_resolves_known(name):
-            return ("ready", "ready") if ev_fully_derived(r) else ("authoring", "authoring")
-        und = [t for t in toks if t in EV_UNDEFINED_OPERATORS]
-        if und:
-            return "undefined_operator", und[0]
-        if any(t in EV_IDENTIFICATION_NAMED for t in toks):
-            return "identification", "identity"
-        return "folk", "folk"
-    if r["failureClass"] in EV_PARSER_CLASSES:
-        return "parser", "parser"
-    return "folk", "folk"
-
-
-def ev_flags(r: dict, state: str) -> list[str]:
-    """Orthogonal, stackable row flags (a row may carry several or none)."""
-    name = r["name"]
-    toks = name_tokens(name)
-    low = name.lower()
-    flags: list[str] = []
-    if any(t in EV_POSITIONAL for t in toks) or "opposite" in low or "same side" in low:
-        flags.append("positional_variant")
-    if r["intakeBucket"] in ("duplicate_variant", "alias", "equivalence", "low_confidence"):
-        flags.append("duplicate_or_alias_candidate")
-    verification = False
-    if state == "governance":
-        verification = True            # per-trick down-family check owed
-    if state == "identification" and name.count("(") >= 2:
-        verification = True            # competing identities to reconcile
-        if "duplicate_or_alias_candidate" not in flags:
-            flags.append("duplicate_or_alias_candidate")
-    if state == "ready" and "far" in toks and "paradox" not in toks and "pdx" not in toks \
-            and any(t in EV_XDEX_RECEIVERS for t in toks):
-        verification = True            # far X-Dex +1 to confirm in the decomposition
-    if verification:
-        flags.append("verification_needed")
-    return flags
-
-
 # corpus → short source badge (reuses the template's PB/FM/SG/FB chip vocab)
 SOURCE_BADGE = {
     "stanford": "SG", "passback": "PB", "footbagmoves": "FM",
@@ -390,37 +315,55 @@ def _represented_norm_candidates(name: str, slug: str) -> set[str]:
     return {_norm_slug(c) for c in cands if c}
 
 
-def _alias_name_norms() -> set[str]:
-    """Normalized comparison keys for every registered alias text.
+def _alias_name_targets() -> dict[str, str]:
+    """Normalized alias-text key -> canonical target slug, for every registered
+    alias.
 
     Sources: the pipe-delimited `aliases` columns on the two canonical trick
-    CSVs plus the two standalone alias files. Each text is added both verbatim
+    CSVs plus the two standalone alias files. Each text is keyed both verbatim
     and with community abbreviations expanded, so "stepping DLO" and "stepping
     double legover" resolve to the same key. Positional qualifiers are part of
     the text and are never stripped, so a same-side name only ever matches an
-    explicit same-side alias.
+    explicit same-side alias. Carrying the TARGET (not just membership) makes
+    every suppression explainable in the emitted metadata.
     """
-    norms: set[str] = set()
+    targets: dict[str, str] = {}
 
-    def add(text: str) -> None:
+    def add(text: str, target: str) -> None:
         base = re.sub(r"[^a-z0-9]+", "_", (text or "").lower()).strip("_")
-        if not base:
+        if not base or not target:
             return
-        norms.add(_norm_slug(base))
-        norms.add(_norm_slug("_".join(_EV_ABBREV.get(t, t) for t in base.split("_"))))
+        targets.setdefault(_norm_slug(base), target)
+        targets.setdefault(_norm_slug("_".join(_EV_ABBREV.get(t, t) for t in base.split("_"))), target)
 
-    for p in (TRICKS_CSV, RED_ADD_CSV):
+    for p, name_col in ((TRICKS_CSV, "trick_canon"), (RED_ADD_CSV, "canonical_name")):
         if p.exists():
             for c in read(p):
+                target = _norm_slug(c.get(name_col, "")) and re.sub(r"[^a-z0-9]+", "_", (c.get(name_col, "") or "").lower()).strip("_")
                 for a in (c.get("aliases", "") or "").split("|"):
-                    add(a)
+                    add(a, target)
     if TRICK_ALIASES_CSV.exists():
         for c in read(TRICK_ALIASES_CSV):
-            add(c.get("alias", ""))
+            add(c.get("alias", ""), re.sub(r"[^a-z0-9]+", "_", (c.get("trick_canon", "") or "").lower()).strip("_"))
     if ALIAS_ADDITIONS_CSV.exists():
         for c in read(ALIAS_ADDITIONS_CSV):
-            add(c.get("alias_text", ""))
-    return norms
+            add(c.get("alias_text", ""), re.sub(r"[^a-z0-9]+", "_", (c.get("target_canonical_slug", "") or "").lower()).strip("_"))
+    return targets
+
+
+def _canonical_name_targets() -> dict[str, str]:
+    """Normalized canonical name/slug key -> canonical slug (loader 17 + 19)."""
+    targets: dict[str, str] = {}
+    for p, name_col in ((TRICKS_CSV, "trick_canon"), (RED_ADD_CSV, "canonical_name")):
+        if p.exists():
+            for c in read(p):
+                raw = (c.get(name_col, "") or "").strip()
+                if not raw:
+                    continue
+                slug = re.sub(r"[^a-z0-9]+", "_", raw.lower()).strip("_")
+                targets.setdefault(_norm_slug(raw), slug)
+                targets.setdefault(_norm_slug("_".join(_EV_ABBREV.get(t, t) for t in slug.split("_"))), slug)
+    return targets
 
 
 def _operator_object_norms() -> set[str]:
@@ -428,49 +371,6 @@ def _operator_object_norms() -> set[str]:
     if not MODIFIERS_CSV.exists():
         return set()
     return {_norm_slug(c.get("modifier", "")) for c in read(MODIFIERS_CSV)} - {""}
-
-
-def _ledger_classification(L: dict, is_operator_object: bool) -> tuple[str, str]:
-    """The (evState, holdKind) a ruling-ledger row assigns its name.
-
-    Ledger semantics: disposition A resolves to an existing object (alias
-    archive; includes rows the ledger marks canonical), B is author-now, C is
-    blocked with the block named in blocker_subtype, D is the per-trick
-    down-family verification, and F is not a trick. An F-row that names a
-    registered operator/set (bare "Nuclear") is represented by the operator
-    surface, so it files as alias archive rather than an unrecoverable folk
-    string. Count-quantifier rider rows stay in the authoring state: the open
-    question there is a display-label normalization, not the movement reading,
-    so a doctrine hold would overstate the block.
-    """
-    st = (L.get("ev_state") or "").strip()
-    disp = (L.get("final_disposition") or "").strip()
-    sub = (L.get("blocker_subtype") or "").strip()
-    if disp == "A" or st in ("alias", "canonical"):
-        return "alias", "alias"
-    if disp == "F":
-        return ("alias", "alias") if is_operator_object else ("folk", "not_a_trick")
-    if disp == "D" or sub == "down-family-per-trick-verification":
-        return "governance", "down_family_verification"
-    if sub.startswith("undefined-operator:"):
-        return "undefined_operator", sub.split(":", 1)[1]
-    if sub.startswith("doctrine:"):
-        return "doctrine", sub.split(":", 1)[1]
-    if sub.startswith("parser:"):
-        return "parser", "parser"
-    if sub.startswith("mirror-ineligible"):
-        return "doctrine", "mirror_ineligible"
-    if sub.startswith("operator-reactivation-deferred"):
-        return "doctrine", "operator_reactivation_deferred"
-    if sub.startswith("rider:"):
-        return "authoring", "authoring"
-    if disp == "B":
-        return "authoring", "authoring"
-    if st == "deferred":
-        return "doctrine", "deferred"
-    if st in EV_STATES:
-        return st, st
-    return "folk", "folk"
 
 
 def _lev1(a: str, b: str) -> bool:
@@ -713,75 +613,207 @@ def main() -> None:
     for r in rows:
         r["layer"] = "frontier" if r["intakeBucket"] in FRONTIER_BUCKETS else "archive"
 
-    # ── nine-state ladder classification ── stamped after every bucket
-    # reassignment above so the state reflects the row's final intake bucket.
-    for r in rows:
-        state, hold = ev_classify(r)
-        r["evState"] = state
-        r["holdKind"] = hold
-        r["flags"] = ev_flags(r, state)
-
-    # ── ruling-ledger precedence ── the classification authority. The state
-    # stamped above derives from the frozen ingestion CSVs; every disposition
-    # ruled since lives in the ledger. Precedence: ledger > canonical/alias-name
-    # resolution > CSV. A ledger-absent row keeps its CSV state only after the
-    # name fails to resolve to a registered alias or operator/set object, and
-    # every row records its ledger provenance so a rendered classification can
-    # be traced to its authority. Reclassifications print a warning summary so
-    # source drift is visible at regen time. Dedup/alias archive rows are
-    # structural bookkeeping the ledger never reopens: a conflicting ledger tag
-    # on one is reported, not applied.
+    # ── six-dimension lifecycle classification ── the ledger carries the
+    # adjudicated dimensions (object type, evidence state, blocker, owner);
+    # identity resolution against the canonical/alias layer and the operator
+    # registry is re-derived here every run under the precedence order in the
+    # module docstring, so a published identity or a defined operator always
+    # wins over a stale ledger label, loudly.
     if not LEDGER_CSV.exists():
-        raise SystemExit(f"ruling ledger missing: {LEDGER_CSV} — the classification authority is unavailable")
+        raise SystemExit(f"ruling ledger missing: {LEDGER_CSV} — the adjudication authority is unavailable")
+    if not QUESTION_REGISTRY_CSV.exists():
+        raise SystemExit(f"question registry missing: {QUESTION_REGISTRY_CSV} — doctrine blockers cannot be validated")
+    questions = {(q.get("question_id") or "").strip(): q for q in read(QUESTION_REGISTRY_CSV)}
     ledger = {(L.get("normalized_name") or "").strip(): L for L in read(LEDGER_CSV)}
-    alias_norms = _alias_name_norms()
+    alias_targets = _alias_name_targets()
+    canonical_targets = _canonical_name_targets()
     operator_norms = _operator_object_norms()
-    reclass: Counter = Counter()
-    reclass_examples: dict[tuple[str, str], list[str]] = {}
+    warn: Counter = Counter()
+    warn_examples: dict[str, list[str]] = {}
 
-    def note_reclass(frm: str, to: str, name: str) -> None:
-        reclass[(frm, to)] += 1
-        ex = reclass_examples.setdefault((frm, to), [])
-        if len(ex) < 3:
-            ex.append(name)
+    def note_warn(kind: str, detail: str) -> None:
+        warn[kind] += 1
+        ex = warn_examples.setdefault(kind, [])
+        if len(ex) < 5:
+            ex.append(detail)
+
+    VALID_BLOCKERS = set(questions) | set(DECISION_GROUP_IDS) | {"source-recovery", ""}
+    NON_TRICK_OBJECTS = {"set-operator", "modifier", "terminal-contact", "generic-term"}
+
+    def resolve_identity(r: dict) -> tuple[str, bool]:
+        """(resolved canonical/alias endpoint, conflict?) for a row's name.
+
+        Tests the full name, the parenthetical-stripped name, the
+        abbreviation-expanded name, the slug, and EVERY non-positional
+        parenthetical folk name against the canonical names/slugs and the
+        registered alias texts. Distinct endpoints from different candidates
+        are a conflict to surface, never a silent suppression.
+        """
+        endpoints: dict[str, str] = {}
+        for cand in _represented_norm_candidates(r["name"], r["slug"]):
+            if cand in canonical_targets:
+                endpoints[canonical_targets[cand]] = f"canonical:{canonical_targets[cand]}"
+            elif cand in alias_targets:
+                endpoints[alias_targets[cand]] = f"alias:{alias_targets[cand]}"
+        primary_endpoints = set(endpoints)
+        for inner in re.findall(r"\(([^)]*)\)", r["name"]):
+            if inner.strip().lower() in _EV_POSITIONAL_PAREN:
+                continue
+            for key in (_norm_slug(inner), _norm_slug("_".join(_EV_ABBREV.get(t, t) for t in re.findall(r"[a-z0-9]+", inner.lower())))):
+                if key in canonical_targets:
+                    endpoints[canonical_targets[key]] = f"canonical:{canonical_targets[key]}"
+                elif key in alias_targets:
+                    endpoints[alias_targets[key]] = f"alias:{alias_targets[key]}"
+        # Positional identity guard: a folk-name parenthetical registered on a
+        # BASE trick never collapses a positional variant onto that base (the
+        # side configuration is structural identity). A paren-only resolution
+        # on a positional name is a curated-equivalence question, surfaced,
+        # never a silent suppression.
+        positional = any(t in ("ss", "os", "op", "near", "far", "opposite", "same")
+                         for t in re.findall(r"[a-z]+", r["name"].split("(")[0].lower()))
+        paren_only = {e for e in endpoints if e not in primary_endpoints}
+        if positional and paren_only and not primary_endpoints:
+            note_warn("positional-paren-resolution-held", f"{r['name']} -> " + "; ".join(sorted(endpoints[e] for e in paren_only)))
+            return "", False
+        if len(endpoints) > 1:
+            return "; ".join(sorted(endpoints.values())), True
+        return next(iter(endpoints.values()), ""), False
 
     for r in rows:
-        csv_state = r["evState"]
         name_key = _norm_slug(r["name"])
         L = ledger.get(name_key)
         if L is not None:
-            new_state, new_hold = _ledger_classification(L, name_key in operator_norms)
-            provenance = f"{(L.get('ev_state') or '').strip()}/{(L.get('final_disposition') or '').strip()}"
-        elif _represented_norm_candidates(r["name"], r["slug"]) & alias_norms:
-            new_state, new_hold = "alias", "alias"
-            provenance = "absent; resolves to a registered alias"
-        elif name_key in operator_norms:
-            new_state, new_hold = "alias", "alias"
-            provenance = "absent; registered operator/set object"
+            r["ledger"] = f"{(L.get('ev_state') or '').strip()}/{(L.get('final_disposition') or '').strip()}"
+            obj = (L.get("object_type") or "").strip()
+            evid = (L.get("evidence_state") or "").strip()
+            blocker = (L.get("blocker_id") or "").strip()
+            owner = (L.get("owner") or "").strip()
+            if not (obj and evid and owner):
+                note_warn("ledger-row-missing-dimensions", r["name"])
+                obj = obj or "complete-trick"
+                evid = evid or "folk-name-only"
+                owner = owner or "none"
         else:
             r["ledger"] = "absent"
-            continue
-        r["ledger"] = provenance
-        if new_state == csv_state:
-            continue
-        if r["intakeBucket"] in EV_ALIAS_BUCKETS and new_state != "alias":
-            note_reclass(csv_state, f"kept-archive (ledger says {new_state})", r["name"])
-            continue
-        note_reclass(csv_state, new_state, r["name"])
-        r["evState"] = new_state
-        r["holdKind"] = new_hold
-        if new_state == "alias" and r["intakeBucket"] not in EV_ALIAS_BUCKETS:
-            r["intakeBucket"] = "alias"
-            r["layer"] = "archive"
-        r["flags"] = ev_flags(r, new_state)
+            obj, evid, blocker, owner = "complete-trick", "folk-name-only", "", "none"
 
-    if reclass:
-        print(f"  WARNING ledger precedence: {sum(reclass.values())} rows reclassified "
-              "away from the CSV-derived state (frozen-CSV drift; the ledger governs)",
-              file=sys.stderr)
-        for (frm, to), n in sorted(reclass.items(), key=lambda kv: -kv[1]):
-            ex = "; ".join(reclass_examples[(frm, to)])
-            print(f"    {frm} -> {to}: {n}  (e.g. {ex})", file=sys.stderr)
+        if blocker not in VALID_BLOCKERS:
+            raise SystemExit(f"unknown blocker '{blocker}' on '{r['name']}' — not a registered question or decision group")
+        if blocker in questions:
+            q = questions[blocker]
+            if (q.get("status") or "").strip().lower().startswith("answered"):
+                raise SystemExit(f"closed question {blocker} still blocks '{r['name']}' — retag the ledger row")
+            q_owner = (q.get("owner") or "").strip()
+            if owner and q_owner and owner != q_owner:
+                note_warn("row-owner-conflicts-with-question", f"{r['name']} ({owner} vs {blocker}={q_owner})")
+
+        # registry-over-ledger operator definedness: a doctrine block on an
+        # operator the registry defines is a stale gate, not doctrine. The
+        # gated token is the one named by the ledger's blocker subtype.
+        if blocker == "Q02" and L is not None:
+            sub = (L.get("blocker_subtype") or "").strip()
+            tok = sub.split(":", 1)[1] if sub.startswith("undefined-operator:") else ""
+            if tok and _norm_slug(tok) in operator_norms:
+                note_warn("registry-defines-gated-operator", f"{r['name']} ({tok})")
+
+        resolved, conflict = resolve_identity(r)
+        if conflict:
+            note_warn("conflicting-parenthetical-resolutions", f"{r['name']} -> {resolved}")
+            r["resolvedTarget"] = resolved
+            resolved_final = ""       # surfaced for adjudication, never silently suppressed
+        else:
+            r["resolvedTarget"] = resolved
+            resolved_final = resolved
+        if resolved_final and L is not None and (L.get("final_disposition") or "").strip() not in ("A",) and blocker != "Q01":
+            note_warn("live-resolution-overrides-ledger", f"{r['name']} -> {resolved_final}")
+
+        # derived publication state + public section
+        ledger_disp = (L.get("final_disposition") or "").strip() if L is not None else ""
+        if not resolved_final and L is not None and ledger_disp == "A":
+            # the ledger adjudicated the name an alias/duplicate even where the
+            # committed-CSV name maps cannot re-derive the target (formula-row
+            # matches, historical targets); carry its recorded target through.
+            resolved_final = (L.get("matched_existing_object") or "").strip()
+            if resolved_final and not r["resolvedTarget"]:
+                r["resolvedTarget"] = f"ledger:{resolved_final}"
+        if obj == "malformed":
+            pub, section = "rejected", "archive"
+        elif obj == "source-fragment":
+            pub, section = "rejected", "archive"
+        elif obj in NON_TRICK_OBJECTS:
+            pub, section = "not-a-trick", "archive"
+        elif blocker == "Q01" and r["resolvedTarget"] and not conflict:
+            pub, section = "doctrine-blocked", "ruling"   # published identity; name form rides Q01
+        elif (resolved_final or ledger_disp == "A" or owner == "mechanical") and blocker != "Q01":
+            pub, section = "already-represented", "archive"
+        elif blocker in questions:
+            pub, section = "doctrine-blocked", "ruling"
+        elif blocker == "source-recovery":
+            pub, section = "evidence-pending", "evidence"
+        elif blocker in DECISION_GROUP_IDS or (owner == "james" and blocker == ""):
+            pub, section = "adjudication-pending", "decide"
+            if owner == "james" and blocker == "":
+                blocker = "A0"        # the authorable cluster (POD class)
+        elif obj == "observational-name" or owner in ("none", ""):
+            pub, section = "observational", "archive"
+        else:
+            note_warn("unclassifiable-row", r["name"])
+            pub, section = "observational", "archive"
+
+        r["objectType"] = obj
+        r["evidenceState"] = evid
+        r["blockerId"] = blocker
+        r["owner"] = owner
+        r["publicationState"] = pub
+        r["publicSection"] = section
+        r["resolutionConflict"] = conflict
+
+    # ── identity-level duplicate grouping ── one public entity per identity.
+    # Grouping key: the parenthetical-stripped, abbreviation-expanded name (the
+    # same identity under multiple source spellings). Positional parentheticals
+    # never strip, so side configurations stay distinct identities. The primary
+    # spelling prefers the member carrying a folk-name parenthetical; the
+    # others render only through the primary's `alsoRecordedAs`.
+    def identity_key(r: dict) -> str:
+        stripped = r["name"]
+        for inner in re.findall(r"\(([^)]*)\)", r["name"]):
+            if inner.strip().lower() not in _EV_POSITIONAL_PAREN:
+                stripped = stripped.replace(f"({inner})", " ")
+        toks = re.findall(r"[a-z0-9]+", stripped.lower())
+        return _norm_slug("_".join(_EV_ABBREV.get(t, t) for t in toks)) or _norm_slug(r["slug"])
+
+    groups: dict[str, list[dict]] = {}
+    for r in rows:
+        groups.setdefault(identity_key(r), []).append(r)
+    SECTION_RANK = {"decide": 0, "ruling": 1, "evidence": 2, "archive": 3}
+    for key, members in groups.items():
+        # A LIVE resolution on any spelling covers the whole identity: the
+        # twins share the published target. (A ledger formula-row match does
+        # not imply published, so it never propagates.)
+        live = next((m for m in members
+                     if m["resolvedTarget"].startswith(("canonical:", "alias:"))
+                     and not m["resolutionConflict"] and m["blockerId"] != "Q01"), None)
+        if live is not None:
+            for m in members:
+                if m["publicationState"] not in ("already-represented", "rejected", "not-a-trick"):
+                    m["publicationState"] = "already-represented"
+                    m["publicSection"] = "archive"
+                    m["resolvedTarget"] = m["resolvedTarget"] or live["resolvedTarget"]
+        # Primary spelling: the most actionable member first (decide > ruling >
+        # evidence > archive), then prefer a folk-name parenthetical spelling.
+        primary = sorted(members, key=lambda m: (SECTION_RANK[m["publicSection"]], "(" not in m["name"], m["name"]))[0]
+        blockers = {m["blockerId"] for m in members if m["publicSection"] in ("decide", "ruling")}
+        if len(blockers) > 1:
+            note_warn("duplicate-group-dimension-conflict", f"{key}: " + "; ".join(sorted(m["name"] for m in members)))
+        for m in members:
+            m["identityKey"] = key
+            m["groupPrimary"] = m is primary
+            m["alsoRecordedAs"] = sorted(x["name"] for x in members if x is not primary) if m is primary else []
+
+    if warn:
+        print(f"  WARNING reconciliation: {sum(warn.values())} findings across {len(warn)} classes", file=sys.stderr)
+        for kind, n in sorted(warn.items(), key=lambda kv: -kv[1]):
+            print(f"    {kind}: {n}  (e.g. {'; '.join(warn_examples[kind])})", file=sys.stderr)
 
     # ── stats (headline scale of the governed universe) ──
     canonical = sum(1 for c in classified if c["governance_state"].startswith("1"))
@@ -834,21 +866,64 @@ def main() -> None:
     def pct(x: int) -> int:
         return round(100 * x / total) if total else 0
 
-    # ── nine-state ladder counts + the generated progress metric ──
-    # The page's headline progress figure is (ready + authoring) over the
-    # non-alias universe: the share of genuine frontier names that are a
-    # candidate or one authoring step away. Computed here so the rendered
-    # number can never drift from the row data.
-    ev_states = {s: 0 for s in EV_STATES}
-    for r in rows:
-        ev_states[r["evState"]] += 1
-    ev_denominator = len(rows) - ev_states["alias"]
-    ev_numerator = ev_states["ready"] + ev_states["authoring"]
-    ev_progress = {
-        "numerator": ev_numerator,
-        "denominator": ev_denominator,
-        "pct": round(100 * ev_numerator / ev_denominator) if ev_denominator else 0,
-    }
+    # ── lifecycle-model counts ── per-section, per-blocker, per-owner counts
+    # over PRIMARY identity rows (duplicate spellings never double-count), plus
+    # the reconciliation-warning tallies, all computed here so the rendered
+    # numbers can never drift from the row data. The service recomputes the
+    # live-filtered variants at request time.
+    primaries = [r for r in rows if r["groupPrimary"]]
+    section_counts = Counter(r["publicSection"] for r in primaries)
+    blocker_counts = Counter(r["blockerId"] for r in primaries if r["blockerId"])
+    owner_counts = Counter(r["owner"] for r in primaries)
+    publication_counts = Counter(r["publicationState"] for r in primaries)
+
+    # external database-tracked adjudications (ledger rows carrying an
+    # external-db-row slug marker); the service joins these to the live
+    # is_active=0 pending rows at request time.
+    external_adjudications: dict[str, dict] = {}
+    for L in ledger.values():
+        m = re.search(r"external-db-row slug=([a-z0-9_]+)", L.get("note", "") or "")
+        if not m:
+            continue
+        b = (L.get("blocker_id") or "").strip()
+        ext_section = ("ruling" if b in questions
+                       else "evidence" if b == "source-recovery"
+                       else "decide" if b in DECISION_GROUP_IDS else "archive")
+        external_adjudications[m.group(1)] = {
+            "name": (L.get("submitted_name") or "").strip(),
+            "objectType": (L.get("object_type") or "").strip(),
+            "evidenceState": (L.get("evidence_state") or "").strip(),
+            "blockerId": b,
+            "owner": (L.get("owner") or "").strip(),
+            "publicSection": ext_section,
+        }
+
+    # An external database row whose name is ALSO a universe row (same corpus
+    # name, now DB-tracked) counts once: the universe primary carries it in the
+    # build-time census, and the service's live filter swaps in the external
+    # row at request time.
+    primary_keys = {_norm_slug(r["name"]) for r in primaries}
+    externals_only = {slug: x for slug, x in external_adjudications.items()
+                      if _norm_slug(x["name"]) not in primary_keys}
+
+    emerging_questions = []
+    for qid, q in sorted(questions.items()):
+        gated = blocker_counts.get(qid, 0) + sum(1 for x in externals_only.values() if x["blockerId"] == qid)
+        emerging_questions.append({
+            "id": qid,
+            "title": (q.get("title") or "").strip(),
+            "question": (q.get("exact_question") or "").strip(),
+            "status": (q.get("status") or "").strip(),
+            "owner": (q.get("owner") or "").strip(),
+            "vehicle": (q.get("vehicle") or "").strip(),
+            "unlockCount": gated,
+        })
+
+    decision_groups = []
+    for g in DECISION_GROUPS:
+        members = sorted(r["name"] for r in primaries if r["blockerId"] == g["id"])
+        members += sorted(x["name"] for x in externals_only.values() if x["blockerId"] == g["id"])
+        decision_groups.append({**g, "memberCount": len(members), "members": members})
 
     classified_total = len(classified)
     stats = {
@@ -871,8 +946,14 @@ def main() -> None:
         "promotionFrontier": promotion_frontier,
         "lexicalArchive": lexical_archive,
         "intakeBuckets": intake_buckets,
-        "evStates": ev_states,
-        "evProgress": ev_progress,
+        # Lifecycle-model counts over primary identities (build-time census;
+        # the service recomputes live-filtered variants at request time).
+        "publicSections": dict(sorted(section_counts.items())),
+        "publicationStates": dict(sorted(publication_counts.items())),
+        "blockerCounts": dict(sorted(blocker_counts.items())),
+        "ownerCounts": dict(sorted(owner_counts.items())),
+        "identityCount": len(primaries),
+        "reconciliationWarnings": dict(sorted(warn.items())),
         "ready": by_section["ready"],
         "frontier": by_section["frontier"],
         "doctrineBlocked": by_section["doctrine"],
@@ -931,23 +1012,76 @@ def main() -> None:
         "  layer: string;\n"
         "  /** Folded wording/source variants of this slug (on the surviving row). */\n"
         "  lexicalVariants: string[];\n"
-        "  /** Nine-state Emerging Vocabulary ladder (distance to canonical, closest\n"
-        "   *  first): ready | authoring | doctrine | governance | identification |\n"
-        "   *  parser | undefined_operator | folk | alias. Every row is in exactly\n"
-        "   *  one state; the page sections, tiles, and counts read this field. */\n"
-        "  evState: string;\n"
-        "  /** Finer hold label inside the state (e.g. blurry_expansion,\n"
-        "   *  terraging_chain, down_family_verification, identity, or the\n"
-        "   *  undefined operator's own token). */\n"
-        "  holdKind: string;\n"
-        "  /** Orthogonal, stackable row flags: positional_variant |\n"
-        "   *  duplicate_or_alias_candidate | verification_needed. */\n"
-        "  flags: string[];\n"
-        "  /** Ruling-ledger provenance for the classification: the ledger's\n"
-        "   *  'ev_state/disposition' when the name is adjudicated there,\n"
-        "   *  'absent; …' when a registered alias or operator/set resolution\n"
-        "   *  reclassified it, or 'absent' when the frozen-CSV state stands. */\n"
+        "  /** Ruling-ledger provenance: 'ev_state/disposition', or 'absent'. */\n"
         "  ledger: string;\n"
+        "  /** Object type: complete-trick | set-operator | modifier |\n"
+        "   *  terminal-contact | generic-term | observational-name |\n"
+        "   *  source-fragment | malformed. A non-trick object never renders as\n"
+        "   *  an unresolved trick candidate. */\n"
+        "  objectType: string;\n"
+        "  /** Evidence basis: exact-notation | verified-footage |\n"
+        "   *  authoritative-prose | derivable-notation | partial-structure |\n"
+        "   *  compositional-name-only | folk-name-only | contradictory | none |\n"
+        "   *  not-applicable. Parser confidence never drives this. */\n"
+        "  evidenceState: string;\n"
+        "  /** '' (none), a question-registry id (Q01..Q14), a decision-group id\n"
+        "   *  (D1..D6, A0), or 'source-recovery'. A doctrine block MUST carry a\n"
+        "   *  registered question id. */\n"
+        "  blockerId: string;\n"
+        "  /** Decision owner: mechanical | james | james+dave | james+red |\n"
+        "   *  evidence | none. */\n"
+        "  owner: string;\n"
+        "  /** Derived: already-represented | not-a-trick | doctrine-blocked |\n"
+        "   *  evidence-pending | adjudication-pending | observational | rejected. */\n"
+        "  publicationState: string;\n"
+        "  /** Derived public section: decide | ruling | evidence | archive. */\n"
+        "  publicSection: string;\n"
+        "  /** Canonical/alias endpoint(s) the name resolves to ('' when none);\n"
+        "   *  'canonical:slug' or 'alias:slug', semicolon-joined on a conflict. */\n"
+        "  resolvedTarget: string;\n"
+        "  /** True when distinct candidates resolve to different endpoints; the\n"
+        "   *  row is surfaced for adjudication, never silently suppressed. */\n"
+        "  resolutionConflict: boolean;\n"
+        "  /** Identity-group key (parenthetical-stripped, abbreviation-expanded).\n"
+        "   *  All spellings of one identity share it. */\n"
+        "  identityKey: string;\n"
+        "  /** True on the one spelling that renders publicly for its identity. */\n"
+        "  groupPrimary: boolean;\n"
+        "  /** Other recorded spellings of this identity (primary rows only). */\n"
+        "  alsoRecordedAs: string[];\n"
+        "}\n\n"
+        "export interface EmergingQuestion {\n"
+        "  id: string;\n"
+        "  title: string;\n"
+        "  /** The exact unresolved issue, in full. */\n"
+        "  question: string;\n"
+        "  /** drafted | sent | answered (answered never gates a row). */\n"
+        "  status: string;\n"
+        "  owner: string;\n"
+        "  /** Controlling paper / packet (Scoring paper, Notation paper, Rider list). */\n"
+        "  vehicle: string;\n"
+        "  /** Names this question currently gates (primary identities + external rows). */\n"
+        "  unlockCount: number;\n"
+        "}\n\n"
+        "export interface EmergingDecisionGroup {\n"
+        "  id: string;\n"
+        "  title: string;\n"
+        "  /** The smallest exact decision. */\n"
+        "  question: string;\n"
+        "  recommendation: string;\n"
+        "  alternatives: string;\n"
+        "  evidence: string;\n"
+        "  consequences: string;\n"
+        "  memberCount: number;\n"
+        "  members: string[];\n"
+        "}\n\n"
+        "export interface ExternalAdjudication {\n"
+        "  name: string;\n"
+        "  objectType: string;\n"
+        "  evidenceState: string;\n"
+        "  blockerId: string;\n"
+        "  owner: string;\n"
+        "  publicSection: string;\n"
         "}\n\n"
         "export interface ObservationalUniverseStats {\n"
         "  /** Intake-queue size: promotion-packet rows (a work subset, NOT the universe, NOT unique tricks). */\n"
@@ -968,11 +1102,14 @@ def main() -> None:
         "  lexicalArchive: number;\n"
         "  /** Per-bucket name + distinct-structure counts (8 intake buckets). */\n"
         "  intakeBuckets: Record<string, { names: number; distinctStructures: number }>;\n"
-        "  /** Row count per nine-state ladder state; sums to `total`. */\n"
-        "  evStates: Record<string, number>;\n"
-        "  /** Headline progress: (ready + authoring) over the non-alias universe.\n"
-        "   *  pct = round(100 * numerator / denominator). */\n"
-        "  evProgress: { numerator: number; denominator: number; pct: number };\n"
+        "  /** Lifecycle-model counts over primary identities (build-time census). */\n"
+        "  publicSections: Record<string, number>;\n"
+        "  publicationStates: Record<string, number>;\n"
+        "  blockerCounts: Record<string, number>;\n"
+        "  ownerCounts: Record<string, number>;\n"
+        "  identityCount: number;\n"
+        "  /** Reconciliation findings by class (source disagreement visibility). */\n"
+        "  reconciliationWarnings: Record<string, number>;\n"
         "  ready: number;\n"
         "  frontier: number;\n"
         "  doctrineBlocked: number;\n"
@@ -998,21 +1135,22 @@ def main() -> None:
     body.append("  " + json.dumps(stats, ensure_ascii=False, indent=2).replace("\n", "\n  ") + ";\n")
     body.append("export const DOCTRINE_BLOCKING_QUESTIONS: Record<string, string> =")
     body.append("  " + json.dumps(BLOCKING_QUESTION, ensure_ascii=False, indent=2).replace("\n", "\n  ") + ";\n")
+    body.append("export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =")
+    body.append("  " + json.dumps(emerging_questions, ensure_ascii=False, indent=2).replace("\n", "\n  ") + ";\n")
+    body.append("export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =")
+    body.append("  " + json.dumps(decision_groups, ensure_ascii=False, indent=2).replace("\n", "\n  ") + ";\n")
+    body.append("export const EXTERNAL_ADJUDICATIONS: Record<string, ExternalAdjudication> =")
+    body.append("  " + json.dumps(external_adjudications, ensure_ascii=False, indent=2).replace("\n", "\n  ") + ";\n")
 
     OUT.write_text(header + "\n".join(body) + "\n", encoding="utf-8")
-    print(f"Wrote {OUT.relative_to(REPO)} — {total} rows")
+    print(f"Wrote {OUT.relative_to(REPO)} — {total} rows, {stats['identityCount']} identities")
     print(f"  folded {len(junk)} junk rows out to {junk_csv.relative_to(REPO)} "
           f"(public universe is now {total}, was {total + len(junk)} before folding)")
-    print(f"  sections: {dict(by_section)}")
-    print(f"  stats: ready={stats['ready']} frontier={stats['frontier']} "
-          f"doctrine={stats['doctrineBlocked']} folk={stats['folkUnresolved']} "
-          f"parser={stats['parserUnresolved']}")
-    print(f"  promotion-ready={stats['promotionReadyPct']}%  "
-          f"doctrine-blocked={stats['doctrineBlockedPct']}%  "
-          f"canonical-coverage={stats['canonicalCoveragePct']}%")
-    print("  ladder: " + "  ".join(f"{s}={ev_states[s]}" for s in EV_STATES))
-    print(f"  progress: {ev_progress['numerator']}/{ev_progress['denominator']} "
-          f"= {ev_progress['pct']}% (ready or one authoring step away, non-alias)")
+    print(f"  sections: {stats['publicSections']}")
+    print(f"  owners:   {stats['ownerCounts']}")
+    print(f"  blockers: {stats['blockerCounts']}")
+    print(f"  publication: {stats['publicationStates']}")
+    print(f"  canonical-coverage={stats['canonicalCoveragePct']}%")
 
 
 if __name__ == "__main__":

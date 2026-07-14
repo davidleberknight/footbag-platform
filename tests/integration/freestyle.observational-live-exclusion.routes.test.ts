@@ -3,12 +3,12 @@
  * CSV artifact and carries every documented name, including ones already published
  * or aliased in the database. The rendered surface excludes any candidate whose
  * name is a db-tracked trick (any status) or a registered alias, applied at
- * request time so an in-app edit takes effect immediately, and every frontier
+ * request time so an in-app edit takes effect immediately, and every rendered
  * count is recomputed from the filtered rows.
  *
  * Pins: active-canonical exclusion, alias exclusion, hyphen/underscore slug
  * normalization at the comparison boundary, an unaffected control row, and the
- * "Ready for curation" tile recomputed from the runtime-filtered universe.
+ * decide-now count recomputed from the runtime-filtered universe.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -25,20 +25,20 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 // Pick real candidates from the generated universe so the test tracks the
-// module. The authoring step is the stable populated frontier state.
-const AUTHORING = OBSERVATIONAL_UNIVERSE.filter(c => c.evState === 'authoring');
-const EXCLUDED_ACTIVE = AUTHORING[0];                              // excluded via active trick
-const CONTROL = AUTHORING[1];                                     // unaffected control (authoring, unseeded)
-const EXCLUDED_ALIAS = OBSERVATIONAL_UNIVERSE.find(c =>            // excluded via alias (non-authoring)
-  c.evState !== 'authoring' && c.slug !== EXCLUDED_ACTIVE?.slug && /[a-z]/i.test(c.name));
+// module. Decide-now primaries are the stable active population.
+const DECIDE = OBSERVATIONAL_UNIVERSE.filter(c => c.groupPrimary && c.publicSection === 'decide');
+const EXCLUDED_ACTIVE = DECIDE[0];                                 // excluded via active trick
+const CONTROL = DECIDE[1];                                        // unaffected control (decide, unseeded)
+const EXCLUDED_ALIAS = OBSERVATIONAL_UNIVERSE.find(c =>            // excluded via alias (non-decide)
+  c.groupPrimary && c.publicSection !== 'decide' && c.slug !== EXCLUDED_ACTIVE?.slug && /[a-z]/i.test(c.name));
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   // Active canonical trick whose underscore slug matches the hyphen candidate
   // slug once normalized: proves active-canonical exclusion + slug normalization.
   insertFreestyleTrick(db, {
-    slug: EXCLUDED_ACTIVE.slug.replace(/-/g, '_'),
-    canonical_name: EXCLUDED_ACTIVE.name, adds: '2', category: 'dex',
+    slug: EXCLUDED_ACTIVE!.slug.replace(/-/g, '_'),
+    canonical_name: EXCLUDED_ACTIVE!.name, adds: '2', category: 'dex',
     review_status: 'expert_reviewed', is_active: 1,
   });
   // A canonical trick to be the alias target, with a slug that is NOT a candidate.
@@ -58,7 +58,7 @@ describe('GET /freestyle/observational — live publication exclusion', () => {
   it('excludes a candidate now published as an active canonical trick (slug normalized)', async () => {
     const res = await request(await createApp()).get('/freestyle/observational');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain(EXCLUDED_ACTIVE.name);
+    expect(res.text).not.toContain(EXCLUDED_ACTIVE!.name);
   });
 
   it('excludes a candidate now registered as an alias', async () => {
@@ -68,23 +68,23 @@ describe('GET /freestyle/observational — live publication exclusion', () => {
 
   it('still renders an unaffected control candidate', async () => {
     const res = await request(await createApp()).get('/freestyle/observational');
-    expect(res.text).toContain(CONTROL.name);
+    expect(res.text).toContain(CONTROL!.name);
   });
 });
 
 describe('observational counts recomputed from the runtime-filtered universe', () => {
-  it('the Needs-authoring tile equals the filtered authoring count, not the baked census', async () => {
+  it('the decide-now tile equals the filtered decide count, not the baked census', async () => {
     const { freestyleService } = await import('../../src/services/freestyleService');
     const vm = freestyleService.getObservationalLayerPage();
     const publishedKeys = new Set([
-      key(EXCLUDED_ACTIVE.slug), key('zzz_alias_target'), key(EXCLUDED_ALIAS!.slug),
+      key(EXCLUDED_ACTIVE!.slug), key('zzz_alias_target'), key(EXCLUDED_ALIAS!.slug),
     ]);
-    const expectedAuthoring = AUTHORING.filter(c => !publishedKeys.has(key(c.slug))).length;
-    const authoringTile = vm.content.stats.find(s => s.label === 'Needs authoring');
-    expect(authoringTile).toBeDefined();
-    expect(authoringTile!.value).toBe(String(expectedAuthoring));
-    // The seeded active-canonical candidate was an authoring row, so the filtered
+    const expectedDecide = DECIDE.filter(c => !publishedKeys.has(key(c.slug))).length;
+    const decideTile = vm.content.stats.find(s => s.label === 'Decide now');
+    expect(decideTile).toBeDefined();
+    expect(Number(decideTile!.value)).toBe(expectedDecide);
+    // The seeded active-canonical candidate was a decide row, so the filtered
     // count is strictly below the raw census (proving at least one live exclusion).
-    expect(expectedAuthoring).toBeLessThan(AUTHORING.length);
+    expect(expectedDecide).toBeLessThan(DECIDE.length);
   });
 });

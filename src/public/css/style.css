@@ -8222,6 +8222,41 @@ a.trick-hero-meta-chip--media:hover {
   margin: 4px 0 12px 0;
   max-width: 70ch;
 }
+.observed-decision-question {
+  font-size: 0.9rem;
+  margin: 4px 0 8px 0;
+  max-width: 70ch;
+}
+.observed-decision-detail {
+  margin: 0 0 10px 0;
+}
+.observed-decision-detail-summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--earth-550);
+}
+.observed-decision-facts {
+  font-size: 0.82rem;
+  margin: 8px 0 0 0;
+  max-width: 75ch;
+}
+.observed-decision-facts dt {
+  font-weight: 600;
+  margin-top: 6px;
+}
+.observed-decision-facts dd {
+  margin: 2px 0 0 0;
+}
+.observed-question-text {
+  font-size: 0.88rem;
+  margin: 8px 0 4px 0;
+  max-width: 75ch;
+}
+.observed-question-meta {
+  font-size: 0.78rem;
+  color: var(--earth-550);
+  margin: 0 0 8px 0;
+}
 .observed-disclosure {
   margin: 14px 0;
   border-top: 1px solid var(--parch-350);
@@ -8280,24 +8315,6 @@ a.trick-hero-meta-chip--media:hover {
   flex-wrap: wrap;
   justify-content: flex-start;
 }
-/* Ecosystem frontier matrix */
-.observed-matrix-wrap { overflow-x: auto; margin: 8px 0 14px 0; }
-.observed-matrix {
-  border-collapse: collapse;
-  width: 100%;
-  font-size: 0.85rem;
-}
-.observed-matrix th,
-.observed-matrix td {
-  text-align: right;
-  padding: 5px 10px;
-  border-bottom: 1px solid var(--parch-300);
-  font-variant-numeric: tabular-nums;
-}
-.observed-matrix th { color: var(--earth-550); font-weight: 600; }
-.observed-matrix th:first-child,
-.observed-matrix td:first-child { text-align: left; }
-.observed-matrix-eco { color: var(--earth-750); font-weight: 500; }
 /* Doctrine bottleneck clusters */
 .observed-cluster-grid {
   display: grid;
@@ -8346,9 +8363,6 @@ a.trick-hero-meta-chip--media:hover {
   .observed-card-grid { grid-template-columns: 1fr; }
   .observed-cluster-grid { grid-template-columns: 1fr; }
   .observed-fulllist-grid { columns: 1; }
-  .observed-matrix { font-size: 0.78rem; }
-  .observed-matrix th,
-  .observed-matrix td { padding: 4px 6px; }
 }
 
 /* PassBack-vs-IFPA ADD framing: §3c subsection on /freestyle/add-analysis */

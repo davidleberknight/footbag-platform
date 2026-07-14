@@ -110,10 +110,10 @@ describe('Generated census reconciles', () => {
     );
   });
 
-  it('every observational row carries exactly one evState, so the ladder totals cover the surface', () => {
-    const evSum = Object.values(OBSERVATIONAL_UNIVERSE_STATS.evStates)
+  it('every primary identity carries exactly one public section, so the section totals cover the surface', () => {
+    const sectionSum = Object.values(OBSERVATIONAL_UNIVERSE_STATS.publicSections)
       .reduce((a, b) => a + b, 0);
-    expect(evSum).toBe(OBSERVATIONAL_UNIVERSE.length);
+    expect(sectionSum).toBe(OBSERVATIONAL_UNIVERSE_STATS.identityCount);
 
     const bucketSum = Object.values(OBSERVATIONAL_UNIVERSE_STATS.intakeBuckets)
       .reduce((a, b) => a + b.names, 0);
@@ -121,22 +121,20 @@ describe('Generated census reconciles', () => {
   });
 });
 
-describe('Emerging Vocabulary bucket totals reconcile to the generated surface', () => {
-  it('renders the alias-archive total from the generated intake buckets', async () => {
+describe('Emerging Vocabulary section totals reconcile to the generated surface', () => {
+  it('renders the documented-archive disclosures with live-derived totals', async () => {
     const res = await request(await createApp()).get('/freestyle/observational');
     expect(res.status).toBe(200);
-    const s = OBSERVATIONAL_UNIVERSE_STATS;
-    const aliasArchiveTotal = s.intakeBuckets.alias.names + s.intakeBuckets.duplicate_variant.names;
-    // The alias / duplicate archive disclosure summary shows this generated total.
-    expect(res.text).toContain(`Alias / duplicate archive <span class="text-muted">(${aliasArchiveTotal})`);
+    // The archive subsections carry numeric counts computed from the
+    // runtime-filtered rows (never hard-coded census figures).
+    expect(res.text).toMatch(/Already represented <span class="text-muted">\(\d+\)/);
+    expect(res.text).toMatch(/Observational names <span class="text-muted">\(\d+\)/);
   });
 
-  it('frames itself as the unresolved work queue plus the resolved archive', async () => {
+  it('frames itself as the active decision surface plus the resolved archive', async () => {
     const res = await request(await createApp()).get('/freestyle/observational');
     const html = res.text;
-    // EV states it shows the frontier and that aliases resolve to existing tricks
-    // (accounting for already-represented names), not the whole universe.
-    expect(html).toContain('resolve to existing tricks');
     expect(html).toContain('Nothing here duplicates a published canonical trick');
+    expect(html).toContain('not active publication candidates');
   });
 });

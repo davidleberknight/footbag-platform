@@ -1,14 +1,16 @@
 {{!--
-  /freestyle/observational — Emerging Vocabulary distance-to-canonical ladder.
+  /freestyle/observational — Emerging Vocabulary, organized by what each name
+  actually waits on.
 
   Observational layer ONLY: provisional ADD / decomposition are observationally
   extrapolated, NEVER canonical; cards carry a tracked tag (not a canonical
-  hashtag), no detail-page link, no media. The page renders the nine-state
-  ladder the generator stamps on every row (evState), closest to canonical
-  publication first: ready for curation, needs authoring, awaiting doctrine,
-  awaiting curator review, awaiting identification, awaiting parser resolution,
-  undefined operator, folk / unrecoverable, then the alias archive. Every count
-  comes from the generated data; the template computes nothing.
+  hashtag), no detail-page link, no media. Four sections derived from the
+  lifecycle model the generator stamps on every row (publicSection): decide now
+  (curator decision clusters), waiting on a named ruling (grouped by open
+  question with unlock counts), needs evidence, and the documented vocabulary
+  archive. Duplicate spellings of one identity render once; malformed and
+  rejected rows never render. Every count comes from the generated data plus
+  the live publication filter; the template computes nothing.
 --}}
 <div class="hero hero-sm">
   <div>
@@ -36,30 +38,8 @@
 
     <p class="text-muted">Source key: PB is PassBack, FM is FootbagMoves, SG is Stanford shorthand.</p>
 
-    {{! ── Step 1 — Ready for Curation (closest to canonical; grouped by derived ADD) ── }}
-    {{#if content.readyTotal}}
-    <section class="observed-section" id="ready-for-curation" aria-label="Ready for curation">
-      <div class="section-heading">
-        <h2>Ready for Curation</h2>
-        <span class="section-count">{{content.readyTotal}}</span>
-      </div>
-      <p class="observed-section-intro">
-        Every part of these names is understood and the derived ADD is complete, so a
-        curator can review and publish them as-is. Ordered by derived ADD, lowest first.
-      </p>
-      {{#each content.readyGroups}}
-      <div class="observed-eco-group">
-        <h3 class="observed-eco-heading">{{label}} <span class="text-muted">({{count}})</span></h3>
-        <div class="observed-card-grid">
-          {{#each cards}}{{> observed-card-fields}}{{/each}}
-        </div>
-      </div>
-      {{/each}}
-    </section>
-    {{/if}}
-
-    {{! ── Ladder overview (one tile per step, closest to canonical first) ── }}
-    <div class="observed-stats" aria-label="Distance to canonical publication">
+    {{! ── Overview tiles (four sections + the open-question figure) ── }}
+    <div class="observed-stats" aria-label="Emerging Vocabulary overview">
       {{#each content.stats}}
       <div class="observed-stat">
         <span class="observed-stat-value">{{value}}</span>
@@ -68,8 +48,7 @@
       </div>
       {{/each}}
     </div>
-    <p class="observed-stats-note fw-600">{{content.progressHeadline}}</p>
-    <p class="observed-stats-note text-muted">{{content.statsNote}}</p>
+    <p class="observed-stats-note fw-600">{{content.statsNote}}</p>
     {{#if content.sources.length}}
     <p class="observed-source-strip" aria-label="Sources represented on this page">
       Sources:
@@ -80,87 +59,133 @@
     {{/if}}
     <p class="observational-layer-note">{{content.layerNote}}</p>
 
-    {{! ── Step 2 — Needs Authoring (one authoring pass away; grouped by derived ADD) ── }}
-    {{#if content.authoringTotal}}
-    <section class="observed-section" id="needs-authoring" aria-label="Needs authoring">
+    {{! ── Section 1 — Decide now ── }}
+    {{#if content.decideTotal}}
+    <section class="observed-section" id="decide-now" aria-label="Decide now">
       <div class="section-heading">
-        <h2>Needs Authoring</h2>
-        <span class="section-count">{{content.authoringTotal}}</span>
+        <h2>Decide now</h2>
+        <span class="section-count">{{content.decideTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        The movement is understood, but the notation or decomposition write-up is not done
-        yet: one authoring pass separates these from curator review. Grouped by derived ADD.
+        Names with enough evidence for a curator decision, grouped so one answer
+        resolves a whole cluster. Nothing here is promoted automatically.
       </p>
-      {{#each content.authoringGroups}}
-      <div class="observed-eco-group">
-        <h3 class="observed-eco-heading">{{label}} <span class="text-muted">({{count}})</span></h3>
+      {{#each content.decideClusters}}
+      <div class="observed-eco-group" id="decision-{{id}}">
+        <h3 class="observed-eco-heading">{{title}} <span class="text-muted">({{count}})</span></h3>
+        <p class="observed-decision-question">{{question}}</p>
+        <details class="observed-decision-detail">
+          <summary class="observed-decision-detail-summary">Recommendation and evidence</summary>
+          <dl class="observed-decision-facts">
+            <dt>Recommended</dt><dd>{{recommendation}}</dd>
+            <dt>Alternatives</dt><dd>{{alternatives}}</dd>
+            <dt>Evidence</dt><dd>{{evidence}}</dd>
+            <dt>Consequence</dt><dd>{{consequences}}</dd>
+          </dl>
+        </details>
+        {{#if cards.length}}
         <div class="observed-card-grid">
           {{#each cards}}{{> observed-card-fields}}{{/each}}
         </div>
+        {{/if}}
+        {{#if externalNames.length}}
+        <ul class="observational-tracked-list">
+          {{#each externalNames}}
+          <li>{{name}} <span class="tracked-tag">database-tracked</span></li>
+          {{/each}}
+        </ul>
+        {{/if}}
       </div>
       {{/each}}
     </section>
     {{/if}}
 
-    {{! ── Steps 3-5 — the holds, most binding first ── }}
-    {{> observed-summary-section section=content.doctrineHold title="Awaiting Doctrine" anchor="awaiting-doctrine"}}
-    {{> observed-summary-section section=content.curatorHold title="Awaiting Curator Review" anchor="awaiting-curator-review"}}
-    {{> observed-summary-section section=content.identificationHold title="Awaiting Identification" anchor="awaiting-identification"}}
-
-    {{! ── Steps 6-9 — the long tail, collapsed by default ── }}
-    {{#if content.parserHold.total}}
-    <details class="observed-disclosure">
-      <summary class="observed-disclosure-summary">Awaiting parser resolution <span class="text-muted">({{content.parserHold.total}})</span></summary>
-      {{> observed-summary-section section=content.parserHold title="Documented execution, decomposition unresolved" anchor="awaiting-parser-resolution"}}
-    </details>
-    {{/if}}
-
-    {{#if content.undefinedOperatorHold.total}}
-    <details class="observed-disclosure">
-      <summary class="observed-disclosure-summary">Undefined operator <span class="text-muted">({{content.undefinedOperatorHold.total}})</span></summary>
-      {{> observed-summary-section section=content.undefinedOperatorHold title="Blocked on an undefined operator" anchor="undefined-operator"}}
-    </details>
-    {{/if}}
-
-    <details class="observed-disclosure">
-      <summary class="observed-disclosure-summary">Folk / unrecoverable <span class="text-muted">({{content.folkHold.total}})</span></summary>
-      {{> observed-summary-section section=content.folkHold title="Community names, structure not yet recovered" anchor="folk-names"}}
-    </details>
-
-    <details class="observed-disclosure">
-      <summary class="observed-disclosure-summary">Alias / duplicate archive <span class="text-muted">({{content.aliasArchive.total}})</span></summary>
-      {{> observed-summary-section section=content.aliasArchive title="Resolves to an existing trick" anchor="alias-archive"}}
-    </details>
-
-    {{! ── Database-tracked pending names (outside the generated universe; never double-counted) ── }}
-    {{#if content.externalEntries.total}}
-    <details class="observed-disclosure">
-      <summary class="observed-disclosure-summary">External / unadjudicated (database-tracked) <span class="text-muted">({{content.externalEntries.total}})</span></summary>
-      {{> observed-summary-section section=content.externalEntries title="Tracked in the database, not yet adjudicated" anchor="external-unadjudicated"}}
-    </details>
-    {{/if}}
-
-    {{#if content.ecosystemMatrix.length}}
-    <details class="observed-disclosure">
-      <summary class="observed-disclosure-summary">Frontier by ecosystem</summary>
-      <div class="observed-matrix-wrap">
-        <table class="observed-matrix">
-          <thead>
-            <tr><th>Ecosystem</th><th>Ready</th><th>Authoring</th><th>Holds</th><th>Unresolved</th><th>Total</th></tr>
-          </thead>
-          <tbody>
-            {{#each content.ecosystemMatrix}}
-            <tr>
-              <td class="observed-matrix-eco">{{label}}</td>
-              <td>{{ready}}</td><td>{{authoring}}</td><td>{{holds}}</td><td>{{unresolved}}</td>
-              <td class="fw-600">{{total}}</td>
-            </tr>
-            {{/each}}
-          </tbody>
-        </table>
+    {{! ── Section 2 — Waiting on a named ruling ── }}
+    {{#if content.rulingTotal}}
+    <section class="observed-section" id="waiting-on-a-ruling" aria-label="Waiting on a named ruling">
+      <div class="section-heading">
+        <h2>Waiting on a named ruling</h2>
+        <span class="section-count">{{content.rulingTotal}}</span>
       </div>
-    </details>
+      <p class="observed-section-intro">
+        Every name here is gated by one of the {{content.openQuestionCount}} named open
+        questions below, shown with exactly what each answer unlocks. Nothing waits on a
+        vague category.
+      </p>
+      {{#each content.questions}}
+      <details class="observed-disclosure" id="question-{{id}}">
+        <summary class="observed-disclosure-summary">{{title}} <span class="text-muted">(unlocks {{unlockCount}})</span></summary>
+        <p class="observed-question-text">{{question}}</p>
+        <p class="observed-question-meta">Status: {{status}} &middot; Owner: {{owner}} &middot; Vehicle: {{vehicle}}</p>
+        <ul class="observational-tracked-list observed-fulllist-grid">
+          {{#each names}}
+          <li>{{name}} <span class="tracked-tag">{{source}}</span>{{#if publishedTarget}} <span class="text-muted">published as {{publishedTarget}}; name form only</span>{{/if}}</li>
+          {{/each}}
+        </ul>
+      </details>
+      {{/each}}
+    </section>
     {{/if}}
+
+    {{! ── Section 3 — Needs evidence ── }}
+    {{#if content.evidenceRows.length}}
+    <section class="observed-section" id="needs-evidence" aria-label="Needs evidence">
+      <div class="section-heading">
+        <h2>Needs evidence</h2>
+        <span class="section-count">{{content.evidenceRows.length}}</span>
+      </div>
+      <p class="observed-section-intro">
+        The identity cannot be recovered from the record; each entry states the missing
+        evidence.
+      </p>
+      <ul class="observational-tracked-list">
+        {{#each content.evidenceRows}}
+        <li>{{name}} <span class="tracked-tag">{{source}}</span> <span class="text-muted">{{missing}}</span></li>
+        {{/each}}
+      </ul>
+    </section>
+    {{/if}}
+
+    {{! ── Section 4 — Documented vocabulary archive ── }}
+    <section class="observed-section" id="documented-archive" aria-label="Documented vocabulary archive">
+      <div class="section-heading">
+        <h2>Documented vocabulary archive</h2>
+        <span class="section-count">{{content.archiveTotal}}</span>
+      </div>
+      <p class="observed-section-intro">
+        Recorded vocabulary kept for reference, not active publication candidates:
+        names already represented by a published trick or alias, observational history,
+        and operator or notation terms.
+      </p>
+      {{#if content.archiveRepresented.total}}
+      <details class="observed-disclosure">
+        <summary class="observed-disclosure-summary">Already represented <span class="text-muted">({{content.archiveRepresented.total}})</span></summary>
+        {{> observed-summary-section section=content.archiveRepresented title="Already represented" anchor="archive-represented"}}
+      </details>
+      {{/if}}
+      {{#if content.archiveObservational.total}}
+      <details class="observed-disclosure">
+        <summary class="observed-disclosure-summary">Observational names <span class="text-muted">({{content.archiveObservational.total}})</span></summary>
+        {{> observed-summary-section section=content.archiveObservational title="Observational names" anchor="archive-observational"}}
+      </details>
+      {{/if}}
+      {{#if content.archiveTerms.total}}
+      <details class="observed-disclosure">
+        <summary class="observed-disclosure-summary">Recorded terms (not tricks) <span class="text-muted">({{content.archiveTerms.total}})</span></summary>
+        {{> observed-summary-section section=content.archiveTerms title="Recorded terms" anchor="archive-terms"}}
+      </details>
+      {{/if}}
+      {{#if content.externalUnadjudicated.length}}
+      <details class="observed-disclosure">
+        <summary class="observed-disclosure-summary">Database-tracked, not yet adjudicated <span class="text-muted">({{content.externalUnadjudicated.length}})</span></summary>
+        <ul class="observational-tracked-list">
+          {{#each content.externalUnadjudicated}}
+          <li>{{name}} <span class="tracked-tag">{{source}}</span></li>
+          {{/each}}
+        </ul>
+      </details>
+      {{/if}}
+    </section>
 
     {{/if}}
 

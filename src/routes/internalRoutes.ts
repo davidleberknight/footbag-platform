@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { emergingVocabController } from '../internal-qc/controllers/emergingVocabController';
 import { netQcController } from '../internal-qc/controllers/netQcController';
 import { personsQcController } from '../internal-qc/controllers/personsQcController';
 import { requireAuth } from '../middleware/auth';
@@ -18,6 +19,9 @@ internalRouter.use(requireAuth, requireAdmin);
 // Persons QC + browse
 internalRouter.get('/persons/qc', personsQcController.qcPage);
 internalRouter.get('/persons/browse', personsQcController.browsePage);
+
+// Emerging Vocabulary workbench (decision packet + full-dimension row table)
+internalRouter.get('/freestyle/emerging-vocabulary', emergingVocabController.workbenchPage);
 
 // Net team corrections triage
 internalRouter.get('/net/team-corrections',                    netQcController.teamCorrectionsPage);
