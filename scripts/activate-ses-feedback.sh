@@ -87,6 +87,17 @@ if [[ -z "$SSH_ALIAS" ]]; then
   SSH_ALIAS="footbag-$TARGET"
 fi
 
+# Operator-only preflight: this script reaches the deployed host over ssh.
+# Fail fast with a plain message on a machine without the deploy alias (a
+# tester workstation), rather than a raw ssh resolution error mid-run.
+# Avoid `awk ... exit` (SIGPIPE under pipefail); mirror the deploy wrapper.
+RESOLVED_HOST=$(ssh -G "$SSH_ALIAS" 2>/dev/null | awk '/^hostname / {print $2}' | tail -1)
+if [[ -z "$RESOLVED_HOST" || "$RESOLVED_HOST" == "$SSH_ALIAS" ]]; then
+  echo "ERROR: SSH alias '$SSH_ALIAS' is not configured; this activation script is operator-only." >&2
+  echo "Recommendation: operators add the deploy alias stanza to ~/.ssh/config." >&2
+  exit 1
+fi
+
 # -----------------------------------------------------------------------------
 # Step 1: fetch the host env file (or use the local override).
 # -----------------------------------------------------------------------------

@@ -112,7 +112,7 @@ Every new adapter, or change to an existing adapter's contract, requires three t
 
 3. **Staging-smoke test** (in `tests/smoke/`). Hits real staging AWS via the assumed-role chain. Gated behind `RUN_STAGING_SMOKE=1` and excluded from the default `npm test` run. Asserts the permanent contract that staging runtime identity is reachable and the adapter's AWS API calls succeed. A failure means staging AWS wiring is broken or incomplete (not that the test is "Phase H-specific" or any other sprint label).
 
-The `tests/smoke/` suite is run by operators on the staging host (or from a workstation with the staging profile configured) after any change to staging AWS runtime identity, KMS keys, SES identities, or IAM policies the app depends on, via `npm run test:smoke`. It is not part of CI and is never run against production.
+The `tests/smoke/` suite is run by operators on the staging host (or from a workstation with the staging profile configured) after any change to staging AWS runtime identity, KMS keys, SES identities, or IAM policies the app depends on, via `npm run test:smoke`. It is not part of CI; against production it runs only as the pre-cutover wiring check (`SMOKE_TARGET_ENV=production`), never routinely.
 
 ## Fixture-staging scripts: never clobber real data
 

@@ -19,6 +19,19 @@ case "$SMOKE_TARGET_ENV" in
 esac
 TF_DIR="terraform/${SMOKE_TARGET_ENV}"
 
+# Operator-only guard: this suite reaches live AWS. Fail fast with a clear
+# message on a machine without the operator's AWS profile or an initialized
+# terraform tree, rather than dying on a raw terraform or aws-cli error
+# mid-run. Testers do not run this suite.
+if ! grep -qs "footbag-${SMOKE_TARGET_ENV}-runtime" "$HOME/.aws/config" "$HOME/.aws/credentials"; then
+  echo "ERROR: the staging-AWS adapter smoke is operator-only: the footbag-${SMOKE_TARGET_ENV}-runtime AWS profile is not configured on this machine." >&2
+  exit 1
+fi
+if [[ ! -d "$TF_DIR/.terraform" ]]; then
+  echo "ERROR: the staging-AWS adapter smoke is operator-only: $TF_DIR is not initialized (run terraform init there); the runner reads terraform outputs." >&2
+  exit 1
+fi
+
 JWT_KMS_KEY_ID="$(terraform -chdir="$TF_DIR" output -raw jwt_signing_key_arn)"
 SES_FROM_IDENTITY="$(terraform -chdir="$TF_DIR" output -raw ses_sender_identity)"
 MEDIA_STORAGE_S3_BUCKET="$(terraform -chdir="$TF_DIR" output -raw media_bucket_name)"
@@ -28,6 +41,9 @@ MEDIA_STORAGE_S3_BUCKET="$(terraform -chdir="$TF_DIR" output -raw media_bucket_n
 # message rather than the script dying under set -e on `output -raw` of null.
 STAGING_CLOUDFRONT_DOMAIN="$(terraform -chdir="$TF_DIR" output -raw cloudfront_domain 2>/dev/null || true)"
 
+# Exported so target-aware tests can gate themselves (the persona-catalog
+# smoke is staging-only and skips under a production target).
+export SMOKE_TARGET_ENV
 export AWS_PROFILE="footbag-${SMOKE_TARGET_ENV}-runtime"
 export AWS_REGION=us-east-1
 export JWT_KMS_KEY_ID

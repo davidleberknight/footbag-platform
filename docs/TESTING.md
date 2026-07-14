@@ -252,7 +252,7 @@ Does not belong:
 - Tests requiring application HTTP layer
 - Tests that mutate live data
 
-### 5.4 Staging smoke
+### 5.4 Staging-AWS adapter smoke
 
 `tests/smoke/`, gated behind `RUN_STAGING_SMOKE=1`, excluded from default `npm test`. Runs against real staging AWS (KMS, SES, S3, SSM) via the assumed-role chain configured by `scripts/test-smoke.sh`. The canonical regression gate for staging-AWS adapter parity.
 
@@ -402,7 +402,7 @@ The platform targets four environments. Each has parity contracts that tests ver
 
 - *Local development.* Runs on the maintainer workstation via `./run_dev.sh`. SQLite at `./database/footbag.db`. Local stub adapters (JWT signing stub, SES outbox stub, media storage local-disk stub). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=development`.
 - *CI.* Runs every test job (typecheck, lint, dependency audit, secret scan, conventions, harness self-check, unit, integration, db-load smoke, e2e, CodeQL static analysis, terraform) against ephemeral SQLite. No real AWS. Adapters are the same local stubs the workstation uses.
-- *Staging.* The real AWS staging account (KMS, SES, S3, SSM, Lightsail). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=staging`. The staging smoke suite (`tests/smoke/`) runs here, gated by `RUN_STAGING_SMOKE=1`.
+- *Staging.* The real AWS staging account (KMS, SES, S3, SSM, Lightsail). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=staging`. The staging-AWS adapter smoke suite (`tests/smoke/`) runs here, gated by `RUN_STAGING_SMOKE=1`.
 - *Production.* The real AWS production account. `src/testkit/`, `src/dev-bootstrap/`, and the `src/internal-qc/` QC subsystem are excluded from the production image at build time (when `INCLUDE_DEV_SHORTCUTS=0` the Dockerfile strips all three subtrees and replaces `dist/routes/internalRoutes.js` with a null stub); boot-time guards in `src/config/env.ts` fail-fast if any `FOOTBAG_DEV_*` env var is set; `scripts/audit-dev-shortcuts.sh` returns zero against the production DB. `src/testkit/` and `src/dev-bootstrap/` are both permanent in source (build-excluded from prod, never deleted); `src/internal-qc/` is temporary: build-excluded from production, and its source subtree is deleted when the QC subsystem retires.
 
 ### 7.2 Adapter parity tests are mandatory
@@ -419,11 +419,13 @@ The staging-smoke leg applies to adapters that reach an external service over th
 
 `PaymentAdapter` carries boot-config and interface-parity tests but no workstation staging-smoke. Its live implementation reaches Stripe, but a smoke test that created a real Checkout session or delivered a real charge has side effects no read-only probe should: the live path is instead verified by the signed-webhook integration tests (signature acceptance, tamper rejection, and replay idempotency against the real verifier) and by the stub checkout pass-through that drives the same handler. Live-Stripe end-to-end exercise is the operator-run production-only verification in §7.7, not the smoke suite.
 
-### 7.3 Staging smoke entry point
+### 7.3 Staging-AWS adapter smoke entry point
 
-`scripts/test-smoke.sh` is the canonical entry. It reads terraform output for environment-specific values (KMS key ARN, SES sender identity, S3 bucket name), exports the staging AWS profile and region, fetches operator-supplied SSM secrets via the assumed-role chain, and execs `vitest run tests/smoke/`. The operator runs it locally or from the staging host after any change to staging AWS runtime identity, KMS keys, SES identities, or IAM policies the app depends on.
+`scripts/test-smoke.sh` is the canonical entry. It reads terraform output for environment-specific values (KMS key ARN, SES sender identity, S3 bucket name), exports the staging AWS profile and region, fetches operator-supplied SSM secrets via the assumed-role chain, and execs `vitest run tests/smoke/`. The operator runs it locally or from the staging host after any change to staging AWS runtime identity, KMS keys, SES identities, or IAM policies the app depends on. The entry point targets staging by default; `SMOKE_TARGET_ENV=production` points every environment-specific read (terraform dir, AWS profile, SSM path) at the production account for its one sanctioned use, the pre-cutover production-AWS wiring check the migration plan's production checklist requires. The persona-catalog smoke is staging-only (personas are never seeded in production) and gates itself off under a production target.
 
 The script does not accept passwords or secrets as command-line arguments. Secrets that the smoke suite needs are read from SSM via the assumed-role chain or piped via stdin from approved secret-manager flows.
+
+The suite is operator-only. It reaches live AWS with the operator's credentials and depends on workstation state only the operator holds: the staging runtime AWS profile, an initialized `terraform/staging/` tree, the `footbag-staging` ssh alias, and — for the persona-catalog check — the operator credential file the deploy scripts read. Every entry point fails fast with a plain message when these are absent, as do the deploy and activation scripts. A tester loses nothing by skipping it: `./run_all_tests.sh --full` deliberately excludes this suite (its summary row shows SKIP), and every other gate runs without AWS.
 
 ### 7.4 Staging personas: model and reset
 
@@ -440,6 +442,7 @@ Reset semantics:
 
 - An operator-runnable reset that re-creates the persona set from the gitignored or secret-manager seed file.
 - The reset uses `bash scripts/manage-test-personas.sh` (or an equivalent extension), which pipes JSON via stdin per the existing pattern. No password as command-line argument.
+- The seed runner is self-healing on the password hash: a persona kept across code-only deploys whose stored hash predates the current scheme is re-hashed in place on the next seed run, its accumulated rows untouched. Restoring a persona's fuller baseline (reverting tester-driven ledger changes) still needs the delete-and-reseed reset.
 
 ### 7.5 Test scaffolding and dev-bootstrap conveniences
 
@@ -615,13 +618,13 @@ Static taint analysis over `src/` is part of this gate: a pinned CodeQL (or Semg
 
 ### 9.2 Lightweight staging-safe pentest
 
-A small set of probes that run safely against staging without mutating data. Four of them — auth-gate enforcement, anti-enumeration response equivalence, the no-stack-trace probe, and the dev-shortcut absence probe — also run inside the post-deploy staging smoke and block deploy promotion there (§11.1). The remaining probes (security headers, contact-field leakage) and the wall-clock timing measurements report security signal that the maintainer reviews without blocking.
+A small set of probes that run safely against staging. Three of them — auth-gate enforcement, anti-enumeration response equivalence, and the dev-surface environment contract — run inside the post-deploy smoke (`scripts/smoke-security.sh`, invoked by both deploy scripts) and block deploy promotion there (the post-deploy smoke gate, §11.1 The seven gates). The anti-enumeration probe is deliberately not read-only: its registered branch issues a real reset token and enqueues mail to a seeded non-deliverable test address, so it runs against staging and development targets only, never production. The no-stack-trace contract cannot be probed read-only against a live target (nothing deployed can be made to 5xx on demand), so it is enforced in CI by the forced-throw integration test in the security regression floor. The remaining probes (security headers, contact-field leakage) and the wall-clock timing measurements report security signal that the maintainer reviews without blocking.
 
 Probes:
 
 - Security headers present and correct (CSP, X-Content-Type-Options, X-Frame-Options, Strict-Transport-Security, Referrer-Policy).
-- No stack traces in 5xx responses.
-- No dev-shortcut env vars accepted on the staging endpoint (the boot-time guards from `src/config/env.ts` enforce this; the probe verifies operationally).
+- No stack traces in 5xx responses (CI-enforced by the forced-throw integration test; no read-only request can induce a 5xx on a live target).
+- Dev-surface environment contract: the dev/test harness (`/dev/*`) and internal QC tooling (`/internal/*`) are absent (404) in production and present on staging, where persona seeding depends on them. The production first-admin route `/admin/bootstrap-claim` is a real production route and is not part of this surface. (The boot-time guard in `src/config/env.ts` rejects the dev-admin allowlist var in production; the probe verifies the deployed surface operationally.)
 - Auth-gate enforcement on every member-only and admin-only route (probe attempts unauthenticated access; expects 302 or 403).
 - Anti-enumeration timing equivalence within tolerance on login, password-reset, email-verification, and claim-lookup surfaces.
 - Public surfaces never return contact fields (probe asserts no email-like or phone-like patterns in public response bodies).
@@ -740,7 +743,7 @@ Not every test runs every time. This section defines the named gates, what runs 
 - *Pre-PR.* Full unit plus integration plus security regression. Sub-2min on a fresh checkout. Optional local git hook that runs `npm run test:pre-pr` before allowing push.
 - *CI on PR.* Same as pre-PR plus db-load smoke plus lightweight Playwright plus staging-safe security checks plus per-PR dependency review (`actions/dependency-review-action` over the PR diff, alongside the whole-tree `npm audit`). Sub-10min. Blocks merge.
 - *CI nightly or on-demand.* Mutation testing on the safety-critical short list (auth, privacy filters, migration matchers, role gates), dependency audit, header check across the route table, production-residue audit against the production DB. Reports, does not block.
-- *Post-deploy staging smoke.* Read-only health check, auth-gate enforcement, anti-enumeration response equivalence, no-stack-trace probe, dev-shortcut absence probe. Sub-1min. Blocks deploy promotion on failure.
+- *Post-deploy smoke gate.* Runs automatically inside both deploy scripts (`scripts/smoke-local.sh` + `scripts/smoke-security.sh`) against the deployed target: health and route smoke plus the blocking security probes — auth-gate enforcement, anti-enumeration response equivalence, and the dev-surface environment contract (dev harness present on staging, absent in production). Sub-1min. Blocks deploy promotion on failure. Before a production deploy, the deploy script first runs this same gate against staging and aborts on failure. Distinct from the staging-AWS adapter smoke (§5.4), which exercises live-AWS adapters, not the deployed HTTP surface.
 - *On-demand heavyweight pentest.* Human invokes (`npm run test:pentest:heavy`). May include OWASP ZAP baseline, upload-abuse probes, internal-route probes, header checks, dependency scanning. Browser-driven attack flows are operator-invoked via the `browser-qa` skill. Never runs against production unless explicitly authorized.
 - *Periodic third-party pentest.* At major launches (per §9.4). Reports findings; findings produce regression tests at the cheapest appropriate layer.
 
@@ -768,7 +771,7 @@ Tests that fail intermittently are quarantined, not ignored. The quarantine mech
 ### 11.4 What blocks what
 
 - *CI on PR* blocks merge.
-- *Post-deploy staging smoke* blocks deploy promotion (the production deploy script must verify smoke passed against the staging deployment before promoting).
+- *Post-deploy smoke gate* blocks deploy promotion (the production deploy script first runs the same gate against the staging deployment and aborts on failure).
 - *CI nightly or on-demand* reports only. A failing nightly does not block in-flight PRs but does block the next intentional production deploy until investigated.
 - *On-demand heavyweight pentest* reports only. Findings produce regression tests (§9.6).
 - *Periodic third-party pentest* reports only. Findings produce regression tests and may block a major launch if a catastrophic-risk finding is open.
@@ -784,7 +787,8 @@ The project is AI-assisted. Every test-run output is tokens in the agent's conte
 | Pre-push | Before push to remote | Full unit + integration suite | `npm test` |
 | CI on push | Automated | Full suite + `audit-ci --moderate` + full Playwright e2e + CodeQL | CI workflow |
 | CI on main / nightly | Post-merge or scheduled | Full Playwright e2e, dependency audit, optional ZAP | Scheduled workflow |
-| Smoke post-deploy | After staging deploy | `RUN_STAGING_SMOKE=1 npm run test:smoke` | Operator-invoked |
+| Post-deploy smoke gate | Every staging or production deploy | `scripts/smoke-local.sh` + `scripts/smoke-security.sh`, invoked by the deploy scripts | Automatic |
+| Staging-AWS adapter smoke | After changes to staging AWS identity, keys, or IAM | `npm run test:smoke` | Operator-invoked |
 
 **Catastrophic-surface override.** When edits touch auth (`src/services/identityAccessService.ts`, `src/middleware/auth*`, session helpers), privacy boundaries (member-PII reads, anti-enumeration surfaces), or future payment code, run the full test files for those surfaces in the inner loop even if `--related` would skip them. Catastrophic surfaces never skip on inner-loop convenience.
 
@@ -989,7 +993,7 @@ Live Stripe checkout-session creation and the `stripe listen` / `trigger` loop b
 
 ### 16.6 Staging loop
 
-On the staging host the harness is seeded after a deploy with `./deploy_to_aws.sh --seed-test-personas` (allowlisted to the staging target only). `/dev/personas`, `/dev/switch`, the simulated-email card, and the stub purchase flow behave as in development. Operator staging-smoke checks run with `RUN_STAGING_SMOKE=1 npm run test:smoke`.
+On the staging host the harness is seeded after a deploy with `./deploy_to_aws.sh --seed-test-personas` (allowlisted to the staging target only). `/dev/personas`, `/dev/switch`, the simulated-email card, and the stub purchase flow behave as in development. Operator staging-AWS adapter smoke checks run with `npm run test:smoke`.
 
 ### 16.7 Pre-flight checklist
 
@@ -1148,8 +1152,8 @@ A periodic audit of test completeness walks this checklist top to bottom. Each l
 1. **Deployed user-story coverage.** Cross the deployed-route inventory to its user stories and to the charters in §17. Pass: every deployed story has a charter, and every applicable charter dimension is met by a test or carries an `IMPLEMENTATION_PLAN.md` gap entry. A deployed route that maps to no story is unintended scope (§4.1).
 2. **Adapter parity, three legs (§7.2).** Every adapter in `src/adapters/` has a boot-config test (`tests/unit/env-config.test.ts`) and an interface-parity test (`tests/integration/adapter-parity.test.ts`). Every external-service adapter (JWT-KMS, SES, MediaStorage-S3, Secrets-SSM, SafeBrowsing) also has a staging-smoke leg (`tests/smoke/`, including `staging-readiness.test.ts` for the KMS-sign and SES-send round-trips). The internal docker-network adapters (HttpReachability, ImageProcessing, VideoTranscoding) carry only the first two legs. Pass: the matrix has no missing required leg.
 3. **Stub-versus-live parity.** Every adapter with both a stub and a live implementation asserts identical observable output; single-code-path adapters assert through an injected client. Pass: no stub diverges from its live counterpart untested.
-4. **Staging-smoke comprehensiveness (§5.4, §7.3).** `tests/smoke/` probes the assumed-role identity, KMS sign and verify, SES send (default sender and per-message override), S3 round-trip, SSM-plus-KMS secret decryption, Safe Browsing, persona-seed idempotency, and health and readiness. Run: `RUN_STAGING_SMOKE=1 npm run test:smoke` (`scripts/test-smoke.sh`) or `./run_all_tests.sh --with-smoke`. Pass: every external surface has a smoke probe.
-5. **Production safety (§7.1, §9.5).** No test targets or mutates production, by design. Production safety is the build-time strip of `src/testkit/` and `src/dev-bootstrap/`, the `FOOTBAG_DEV_*` fail-fast guards in `src/config/env.ts`, and the zero-residue gate `scripts/audit-dev-shortcuts.sh` returning zero against the production database, with post-deploy staging-smoke gating promotion. Pass: the residue gate exists and passes; no test writes to production.
+4. **Staging-smoke comprehensiveness (§5.4, §7.3).** `tests/smoke/` probes the assumed-role identity, KMS sign and verify, SES send (default sender and per-message override), S3 round-trip, SSM-plus-KMS secret decryption, Safe Browsing, persona-seed idempotency, and health and readiness. Run: `npm run test:smoke` (`scripts/test-smoke.sh`) or `./run_all_tests.sh --with-smoke`. Pass: every external surface has a smoke probe.
+5. **Production safety (§7.1, §9.5).** No test targets or mutates production, by design. Production safety is the build-time strip of `src/testkit/` and `src/dev-bootstrap/`, the `FOOTBAG_DEV_*` fail-fast guards in `src/config/env.ts`, and the zero-residue gate `scripts/audit-dev-shortcuts.sh` returning zero against the production database, with the post-deploy smoke gate gating promotion. Pass: the residue gate exists and passes; no test writes to production.
 6. **Security regression floor (§9.1).** The `@security` baseline exists across layers: anti-enumeration response equivalence, login timing, SQL injection, XSS, transaction atomicity, no-stack-trace-in-5xx, public-contact-field leakage, security headers, CSRF Origin-pin, and rate-limit boundaries. Pass: each baseline class has a test.
 7. **Penetration tiers (§9).** Regression-grade automated (CI), static taint analysis pre-merge (§9.1), lightweight staging-safe probes (§9.2), the operator-invoked heavyweight pass `npm run test:pentest:heavy` (§9.3), and third-party periodic engagement (§9.4). Pass: each tier is wired, or its absence is a tracked `IMPLEMENTATION_PLAN.md` deviation. The audit records which tiers are wired.
 8. **Legacy migration (§8).** The `db-load-smoke` CI gate asserts loader row counts and shape; the claim confidence outcomes (high, medium, low, no-match), auto-link classification, club-affiliation cases, and alias and name-change edges each have tests. Pass: every `MIGRATION_PLAN.md` validation gate has a test.

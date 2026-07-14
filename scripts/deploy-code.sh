@@ -104,6 +104,32 @@ echo "==> Deploy target: $REMOTE ($HOST_IP)"
 echo "==> Confirming SSH connectivity..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 
+# ── Verify staging before a production deploy ────────────────────────────────
+# A production deploy promotes what staging is already running, so the full
+# smoke gate (route smoke + security probes) must pass against staging first;
+# a failure aborts before anything on the production host is touched.
+# SKIP_SMOKE=yes remains the operator's deliberate override.
+if [[ "$FOOTBAG_ENV" == "production" && "$SKIP_SMOKE" != "yes" ]]; then
+  STAGING_BASE_URL=""
+  if [[ -f "$REPO_ROOT/.env" ]]; then
+    STAGING_BASE_URL=$(awk -F= -v k="PUBLIC_BASE_URL_STAGING" '$1==k {sub(/^[^=]*=/,""); print}' "$REPO_ROOT/.env" | tail -1)
+  fi
+  if [[ -z "$STAGING_BASE_URL" ]]; then
+    echo "ERROR: a production deploy first verifies the smoke gate against staging, but PUBLIC_BASE_URL_STAGING is not set in .env (see .env.example)." >&2
+    echo "       Add it, or SKIP_SMOKE=yes to skip deliberately." >&2
+    exit 1
+  fi
+  echo "==> Verifying staging smoke gate before production deploy ($STAGING_BASE_URL) ..."
+  if ! BASE_URL="$STAGING_BASE_URL" bash scripts/smoke-local.sh; then
+    echo "ERROR: staging smoke check failed; refusing to deploy production." >&2
+    exit 1
+  fi
+  if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash scripts/smoke-security.sh; then
+    echo "ERROR: staging security probes failed; refusing to deploy production." >&2
+    exit 1
+  fi
+fi
+
 # ── Step 1: Prepare upload directory ─────────────────────────────────────────
 
 echo "==> Preparing remote upload directory..."
@@ -291,6 +317,15 @@ else
   echo "==> Running smoke check against $SMOKE_BASE_URL ..."
   if ! BASE_URL="$SMOKE_BASE_URL" bash scripts/smoke-local.sh; then
     echo "ERROR: post-deploy smoke check failed against $SMOKE_BASE_URL" >&2
+    echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
+    exit 1
+  fi
+  # Blocking security probes (auth gates, anti-enumeration equivalence, the
+  # dev-harness environment contract). Same fail-hard stance as the route
+  # smoke above.
+  echo "==> Running security smoke probes against $SMOKE_BASE_URL ..."
+  if ! BASE_URL="$SMOKE_BASE_URL" SMOKE_ENV="$FOOTBAG_ENV" bash scripts/smoke-security.sh; then
+    echo "ERROR: security smoke probes failed against $SMOKE_BASE_URL" >&2
     echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
     exit 1
   fi

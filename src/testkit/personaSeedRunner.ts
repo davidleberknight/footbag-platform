@@ -5,8 +5,11 @@
  * Env guard: ./personaSecrets throws on import unless FOOTBAG_ENV is
  * 'development' or 'staging'. Production is hard-blocked.
  *
- * Idempotent: a persona whose slug already exists as a member is skipped, so
- * re-running after a partial seed (or alongside other seeds) is safe.
+ * Idempotent: a persona whose slug already exists is not re-created, so
+ * re-running after a partial seed (or alongside other seeds) is safe. An
+ * existing persona whose stored password hash predates the current argon2id
+ * scheme is re-hashed in place (its accumulated rows untouched), so successive
+ * code-only deploys never leave a persona on a stale hash.
  *
  * Input: CANONICAL_PERSONAS, the maintainer-curated catalog in code
  * (personaFactory.ts has the full PersonaSpec type; canonicalPersonas.ts has live examples).
@@ -47,8 +50,25 @@ export async function main(): Promise<number> {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
 
-  const existsBySlug = db.prepare(`SELECT 1 FROM members WHERE slug = ?`);
+  const findBySlug = db.prepare(
+    `SELECT password_hash AS passwordHash FROM members WHERE slug = ?`,
+  );
+  // Re-hash a persona whose stored hash predates the current argon2id scheme,
+  // in place, without disturbing the persona's accumulated rows. The seed is
+  // idempotent by slug, so an old persona kept by successive code-only deploys
+  // would otherwise carry a stale hash forever; this heals it on every seed run
+  // so no rebuild or manual refresh is needed.
+  const rehashBySlug = db.prepare(
+    `UPDATE members
+        SET password_hash = ?, password_changed_at = ?, password_version = password_version + 1,
+            updated_at = ?, updated_by = 'system', version = version + 1
+      WHERE slug = ?`,
+  );
+  const isCurrentScheme = (hash: unknown): boolean =>
+    typeof hash === 'string' && hash.startsWith('$argon2id$');
+
   let created = 0;
+  let healed = 0;
   let skipped = 0;
   let skippedBlocked = 0;
   try {
@@ -60,9 +80,17 @@ export async function main(): Promise<number> {
         console.log(`[persona-seed] skip (blocked: ${spec.blockedBy}): ${spec.slug}`);
         continue;
       }
-      if (existsBySlug.get(spec.slug)) {
-        skipped += 1;
-        console.log(`[persona-seed] skip (slug exists): ${spec.slug}`);
+      const existing = findBySlug.get(spec.slug) as { passwordHash: unknown } | undefined;
+      if (existing) {
+        if (isCurrentScheme(existing.passwordHash)) {
+          skipped += 1;
+          console.log(`[persona-seed] skip (slug exists): ${spec.slug}`);
+        } else {
+          const now = new Date().toISOString();
+          rehashBySlug.run(passwordHash, now, now, spec.slug);
+          healed += 1;
+          console.log(`[persona-seed] re-hashed stale password: ${spec.slug}`);
+        }
         continue;
       }
       db.transaction(() => seedPersona(db, spec, { passwordHash }))();
@@ -74,7 +102,7 @@ export async function main(): Promise<number> {
   }
 
   console.log(
-    `[persona-seed] done. created=${created} skipped=${skipped} skippedBlocked=${skippedBlocked}`,
+    `[persona-seed] done. created=${created} healed=${healed} skipped=${skipped} skippedBlocked=${skippedBlocked}`,
   );
   return 0;
 }

@@ -22,17 +22,18 @@
 #   - db-load-smoke: CI-only (writes legacy_data fixtures; safe only on an empty
 #     checkout). Do not run it locally.
 #   - test:smoke: operator workstation against staging AWS; opt in with
-#     --with-smoke (requires RUN_STAGING_SMOKE=1 + AWS credentials).
+#     --with-smoke (needs the staging AWS profile and an initialized
+#     terraform/staging; the entry point sets its own vitest gating).
 #   - test:pentest:heavy: heavyweight operator pentest; opt in with --pentest
 #     (boots a throwaway stack; the OWASP ZAP leg needs Docker, else it skips).
 #
 # Usage:
 #   ./run_all_tests.sh              # full safe suite: build, lint, audit, conventions, generated-content, secret-scan, unit, integration, python-pipeline, e2e, terraform
 #   ./run_all_tests.sh --quick      # fast loop: skips e2e + terraform
-#   ./run_all_tests.sh --with-smoke # additionally run the staging-AWS smoke suite (needs RUN_STAGING_SMOKE=1)
+#   ./run_all_tests.sh --with-smoke # additionally run the staging-AWS adapter smoke suite
 #   ./run_all_tests.sh --with-realdata-invariants # read-only whole-population invariants over a loaded real dataset (dev load or staging)
 #   ./run_all_tests.sh --pentest    # additionally run the heavyweight pentest harness (boots a stack; ZAP leg needs Docker)
-#   ./run_all_tests.sh --full       # everything: full suite + pentest + staging smoke (smoke SKIPs without AWS creds)
+#   ./run_all_tests.sh --full       # everything a non-operator can run: full suite + pentest (the operator-only staging-AWS smoke shows as SKIP)
 #   ./run_all_tests.sh --fail-fast  # stop at the first failing gate
 #   ./run_all_tests.sh --help
 
@@ -43,9 +44,9 @@ QUICK=0
 WITH_SMOKE=0
 PENTEST=0
 FULL=0
-# Set when smoke runs only because --full implied it (not an explicit
-# --with-smoke). In that case missing staging credentials SKIP the smoke gate
-# instead of failing the whole run, so --full is usable without an AWS profile.
+# Set when the smoke gate appears only because --full implied it (not an
+# explicit --with-smoke). The gate then renders a SKIP row and never runs:
+# the staging-AWS adapter smoke is operator-only and not part of --full.
 SMOKE_OPTIONAL=0
 # Set when the persona crawl runs only because --full implied it (not an explicit
 # --with-persona-crawl). In that case an absent dev DB (a fixture-seeded clone with
@@ -83,8 +84,8 @@ secret-scan, unit, integration, e2e, terraform.
 Options:
   --quick       Fast inner loop: skips e2e + terraform.
   --with-smoke  Additionally run the staging-AWS adapter smoke suite
-                (npm run test:smoke). Requires RUN_STAGING_SMOKE=1 and a
-                configured staging AWS profile; errors out otherwise.
+                (npm run test:smoke). Needs the staging AWS profile and an
+                initialized terraform/staging; errors out otherwise.
   --with-persona-crawl
                 Additionally run the real-claim crawl (npm run test:persona-crawl):
                 it builds a claimed account for a real migrated record via
@@ -109,10 +110,10 @@ Options:
                 the security-header walk, internal-route, and upload-abuse
                 probes plus the Docker-gated OWASP ZAP baseline. Opt-in because
                 it is slow and the ZAP leg needs Docker; CI does not run it.
-  --full        Everything: the full suite plus --pentest, the staging-AWS smoke,
-                and the persona crawl. Unlike --with-smoke, smoke SKIPs (rather
-                than fails) when RUN_STAGING_SMOKE / AWS creds are absent, so
-                --full runs end to end without an AWS profile. The persona crawl
+  --full        Everything a non-operator can run: the full suite plus --pentest
+                and the persona crawl. The staging-AWS adapter smoke is
+                operator-only and never part of --full; it shows as a SKIP row.
+                Run it deliberately with --with-smoke (operator workstation). The persona crawl
                 likewise SKIPs (with a warning) when the dev DB lacks the operator
                 dataset (no claimable real record), so --full also completes for a
                 developer or tester without the data handoff.
@@ -149,9 +150,14 @@ done
 # DB lacks the operator dataset, so --full completes on a fixture-seeded clone too.
 if (( FULL == 1 )); then
   QUICK=0
-  WITH_SMOKE=1
   PENTEST=1
-  SMOKE_OPTIONAL=1
+  # The staging-AWS adapter smoke is operator-only and never part of --full;
+  # the implied gate below only renders a SKIP row for visibility. An explicit
+  # --with-smoke alongside --full runs it for real, fail-hard.
+  if (( WITH_SMOKE == 0 )); then
+    WITH_SMOKE=1
+    SMOKE_OPTIONAL=1
+  fi
   WITH_PERSONA_CRAWL=1
   PERSONA_CRAWL_OPTIONAL=1
   WITH_REALDATA_INVARIANTS=1
@@ -508,14 +514,26 @@ gate_realdata_invariants() {
 }
 
 gate_smoke() {
-  if [[ "${RUN_STAGING_SMOKE:-}" != "1" ]]; then
-    if (( SMOKE_OPTIONAL == 1 )); then
-      echo "  staging smoke needs RUN_STAGING_SMOKE=1 + a staging AWS profile; skipping under --full."
-      echo "  Recommendation: RUN_STAGING_SMOKE=1 ./run_all_tests.sh --full (from the operator workstation)."
-      return 77
-    fi
-    echo "ERROR: --with-smoke requires RUN_STAGING_SMOKE=1 and a configured staging AWS profile." >&2
-    echo "Recommendation: RUN_STAGING_SMOKE=1 ./run_all_tests.sh --with-smoke (from the operator workstation)." >&2
+  # The staging-AWS adapter smoke is operator-only: it reaches live AWS and
+  # needs the operator's credentials, so --full never runs it — the row is
+  # shown as a SKIP for visibility, and only an explicit --with-smoke runs it.
+  if (( SMOKE_OPTIONAL == 1 )); then
+    echo "  operator-only live-AWS suite; not part of --full. Opt in explicitly with --with-smoke."
+    return 77
+  fi
+  # Explicit --with-smoke: fail fast with a clear message when the operator
+  # prerequisites are absent (the runtime AWS profile, and an initialized
+  # terraform/staging that the smoke entry point reads outputs from), rather
+  # than dying on a raw terraform or aws-cli error mid-run.
+  local missing=""
+  if ! grep -qs "footbag-staging-runtime" ~/.aws/config ~/.aws/credentials; then
+    missing="the footbag-staging-runtime AWS profile"
+  fi
+  if [[ ! -d terraform/staging/.terraform ]]; then
+    missing="${missing:+${missing} and }an initialized terraform/staging (run terraform init there)"
+  fi
+  if [[ -n "$missing" ]]; then
+    echo "ERROR: the staging-AWS adapter smoke is operator-only; this machine is missing ${missing}." >&2
     return 1
   fi
   npm run test:smoke
@@ -616,7 +634,7 @@ if (( QUICK == 0 )); then
 fi
 
 if (( WITH_SMOKE == 1 )); then
-  run_gate smoke      gate_smoke
+  run_gate staging-aws-smoke gate_smoke
 fi
 
 if (( WITH_PERSONA_CRAWL == 1 )); then

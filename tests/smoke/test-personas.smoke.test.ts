@@ -11,11 +11,12 @@
  * The persona catalog is code and always seeds, so the expected count is derived
  * from CANONICAL_PERSONAS directly.
  *
- * Transport: scripts/verify-test-personas.sh uses ssh -t to invoke a sudo'd
- * docker compose exec on the staging host. The operator's sudo password is
- * typed directly into sudo's noecho prompt on the local terminal; nothing is
- * piped, captured, or logged. Stdout of the script is the single JSON line
- * emitted by the in-container node query.
+ * Transport: scripts/verify-test-personas.sh runs a sudo'd docker compose
+ * exec on the staging host over ssh, non-interactively: it reads the sudo
+ * password from the operator credential file the deploy scripts use and
+ * carries it only as the first line of the ssh stdin stream into
+ * `sudo -S -p ""` — never on any argv, never echoed, never logged. Stdout of
+ * the script is the single JSON line emitted by the in-container node query.
  *
  * Gating: RUN_STAGING_SMOKE=1 (set by scripts/test-smoke.sh).
  *
@@ -43,7 +44,13 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { CANONICAL_PERSONAS } from '../../src/testkit/canonicalPersonas';
 
-const RUN = process.env.RUN_STAGING_SMOKE === '1';
+// Personas are seeded on staging only (the seeder is allowlisted to the
+// staging target), so this suite is meaningful only against staging: a
+// production-targeted smoke run skips it rather than failing on a surface
+// that must not exist there.
+const RUN =
+  process.env.RUN_STAGING_SMOKE === '1' &&
+  (process.env.SMOKE_TARGET_ENV ?? 'staging') !== 'production';
 
 // Blocked personas (a future feature not built yet) are never seeded, so the
 // expected counts cover only the backed catalog.
@@ -56,6 +63,7 @@ interface VerifyResult {
   auditRowsSeeded: number;
   tierGrantsSeeded: number;
   passwordHashesArgon2: number;
+  staleHashSlugs?: Array<{ slug: string; hashPrefix: string }>;
 }
 
 describe.skipIf(!RUN)(
@@ -65,7 +73,7 @@ describe.skipIf(!RUN)(
 
     beforeAll(() => {
       const stdout = execFileSync('scripts/verify-test-personas.sh', [], {
-        stdio: ['inherit', 'pipe', 'inherit'],
+        stdio: ['ignore', 'pipe', 'inherit'],
         timeout: 120_000,
         encoding: 'utf8',
       });
@@ -86,7 +94,17 @@ describe.skipIf(!RUN)(
     });
 
     it('every seeded persona has a fresh argon2id password_hash (never the plaintext literal)', () => {
-      expect(result.passwordHashesArgon2).toBe(result.personasSeeded);
+      // On mismatch, name the offending personas and their hash scheme so the
+      // failure is diagnosable without a second round trip. A stale row is
+      // healed by the seed runner's in-place re-hash on the next deploy that
+      // runs --seed-test-personas; if it persists, the seed step did not run.
+      const stale = result.staleHashSlugs ?? [];
+      expect(
+        result.passwordHashesArgon2,
+        stale.length
+          ? `stale-hash personas: ${stale.map((s) => `${s.slug}(${s.hashPrefix})`).join(', ')}`
+          : undefined,
+      ).toBe(result.personasSeeded);
     });
 
     it('re-running the seed is idempotent (one audit row per seeded persona)', () => {
