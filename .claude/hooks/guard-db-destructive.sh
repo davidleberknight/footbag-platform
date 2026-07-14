@@ -57,9 +57,10 @@ if printf '%s' "$COMMAND" | grep -Eqi '(DROP[[:space:]]+TABLE|DROP[[:space:]]+IN
 fi
 
 # Writable SQLite beyond the obvious destructive verbs: write DML/DDL, ATTACH, VACUUM INTO, or a
-# write dot-command. Belt-and-suspenders for the main session — a non-readonly sqlite3 also prompts
-# because settings only auto-approve `sqlite3 -readonly`, and hooks do not run in subagents. Ask,
-# never silently allow.
+# write dot-command. The read-only approver auto-approves sqlite3 only when it is provably
+# read-only (the -readonly flag or a file:...?mode=ro URI), so a non-readonly sqlite3 has no
+# auto-allow; this guard makes that ask explicit rather than leaving it to chance. Ask, never
+# silently allow.
 if printf '%s' "$COMMAND" | grep -Eqi 'sqlite3.*(INSERT[[:space:]]+INTO|UPDATE[[:space:]]+|REPLACE[[:space:]]+INTO|CREATE[[:space:]]+(TABLE|INDEX|VIEW|TRIGGER|VIRTUAL)|ALTER[[:space:]]+TABLE|ATTACH([[:space:]]+DATABASE)?[[:space:]]|VACUUM[[:space:]]+INTO|\.(read|import|restore|output|save|backup|clone|dump)[[:space:]])'; then
   jq -n '{
     hookSpecificOutput: {

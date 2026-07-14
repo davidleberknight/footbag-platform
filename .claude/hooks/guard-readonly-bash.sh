@@ -19,16 +19,16 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])find([[:space:]][^;&|]*)
   exit 0
 fi
 
-# sort writing its output to a file (-o / --output) — a write via a flag, not a
-# shell redirect, so the redirect guard below cannot see it. `sort` is on the
-# read-only allow-list (it reads in its common form), so without this it would
-# auto-approve a file truncate.
-if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])sort([[:space:]][^;&|]*)?[[:space:]](-o[[:space:]]|-o$|--output)'; then
+# sort writing its output to a file (-o / --output) or running an external program on
+# its temp-file spill (--compress-program, an exec vector) — both ride as a flag, not a
+# shell redirect, so the redirect guard below cannot see them. `sort` is on the read-only
+# allow-list (it reads in its common form), so without this it would auto-approve them.
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])sort([[:space:]][^;&|]*)?[[:space:]](-o[[:space:]]|-o$|--output|--compress-program)'; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "ask",
-      permissionDecisionReason: "sort -o / --output writes a file. Confirm before running."
+      permissionDecisionReason: "sort -o / --output writes a file, or --compress-program runs an external program. Confirm before running."
     }
   }'
   exit 0
@@ -115,9 +115,11 @@ fi
 # writes nothing, so this guard does not ask on it: a `curl -sf -o /dev/null <loopback>`
 # health probe is auto-approved by the read-only approver (loopback discard only). Every
 # other curl still prompts (no static curl allow), because content is fetched through
-# domain-scoped WebFetch, not an auto-approved curl to an arbitrary host.
-if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]][^;&|]*)?[[:space:]](-o|--output)[[:space:]]+' \
-  && ! printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]][^;&|]*)?[[:space:]](-o|--output)[[:space:]]+(/dev/null|-)([[:space:]]|$)'; then
+# domain-scoped WebFetch, not an auto-approved curl to an arbitrary host. curl writes one
+# file per URL, so strip every discard output first and ask if any real-file -o remains: a
+# second `-o REALFILE` must not be excused by an earlier `-o /dev/null`.
+CURL_STRIPPED="$(printf '%s' "$COMMAND" | sed -E 's#(-o|--output)[[:space:]]+(/dev/null|-)([[:space:]]|$)#\3#g')"
+if printf '%s' "$CURL_STRIPPED" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]][^;&|]*)?[[:space:]](-o|--output)[[:space:]]+'; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",

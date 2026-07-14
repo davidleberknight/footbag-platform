@@ -7,12 +7,15 @@
 # -delete, git reset) are caught by sibling guards and settings ask/deny rules,
 # whose decisions always override this allow.
 #
-# Command substitution is handled fail-closed: a substitution is accepted only
-# when its whole content is one simple read-only command (a read-only head, no
-# inner parens, no separators, no write redirect, no nesting, no backtick).
-# Anything more complex (nested substitution, quoted parens, a pipeline inside
-# the substitution) is not proven safe, so the command falls through to a prompt
-# rather than being auto-approved -- an extra prompt, never an unsafe allow.
+# Command substitution `$(...)` is handled fail-closed: it is accepted only when its
+# whole content is one simple read-only command (a read-only head, no unquoted subshell
+# parens, no separators, no write redirect, no nesting, no backtick); quoted parens (a
+# sqlite3 `count(*)`) are inert and allowed. Anything more complex there (nested
+# substitution, an unquoted subshell, a pipeline) is not proven safe, so the command
+# falls through to a prompt rather than being auto-approved -- an extra prompt, never an
+# unsafe allow. Input process substitution `<(...)` is accepted as a read-only PIPELINE:
+# its inner is split on unquoted separators and every piece must be a simple read-only
+# command. Output `>(...)` writes and is never accepted here.
 set -euo pipefail
 
 INPUT="$(cat)"
@@ -73,7 +76,11 @@ head_arg_unsafe() {
         b="$a"; b="${b//\'/}"; b="${b//\"/}"; b="${b//\\/}"
         case "$b" in -exec|-execdir|-ok|-okdir|-delete|-fprint|-fprintf|-fls) return 0 ;; esac
       done ;;
-    sort) for a in "$@"; do case "$a" in -o|-o*|--output|--output=*) return 0 ;; esac; done ;;
+    sort)
+      # -o/--output writes the sorted result to a file; --compress-program runs an
+      # external program to (de)compress sort's temporary spill files, which is an exec
+      # vector whenever the input spills (a tiny -S buffer forces it). Both are unsafe.
+      for a in "$@"; do case "$a" in -o|-o*|--output|--output=*|--compress-program|--compress-program=*) return 0 ;; esac; done ;;
     date) for a in "$@"; do case "$a" in -s|-s*|--set|--set=*) return 0 ;; esac; done ;;
     hostname) for a in "$@"; do case "$a" in -*) : ;; *) return 0 ;; esac; done ;;   # hostname NAME sets it
     rg) for a in "$@"; do case "$a" in --pre|--pre=*|--pre-glob|--pre-glob=*) return 0 ;; esac; done ;;
@@ -235,12 +242,53 @@ vet_readonly_sub_inner() {
   simple_readonly_command "$inner"
 }
 
-# Resolve ONE command substitution in the global SCAN, innermost first, quote-aware.
-# The rightmost active `$(` (in an unquoted or double-quoted context, never single
-# quoted, never `$((` arithmetic) is always innermost, so nested read-only
-# substitutions resolve one per call over successive loop iterations. Its inner is
-# read fresh (unquoted) from just after `$(` to the first unquoted `)`; a bare
-# unquoted `(` inside is a subshell and is not proven safe. A vetted inner is
+# Vet the inner of a `<(...)` process substitution as a read-only PIPELINE. Unlike a
+# $(...) command substitution (one command), a process substitution routinely feeds a
+# pipeline into a diff/comm, so the inner is split on its UNQUOTED separators and pipes
+# and every piece must be one simple read-only command. A quoted separator stays inside
+# its piece, where simple_readonly_command's own raw reject still refuses it -- an extra
+# prompt, never an unsafe allow. A write redirect, a backtick, or an unresolved nested
+# substitution left in any piece is refused the same way. Only `<(` reaches here; `>(`
+# is a write form and is never peeled.
+vet_procsub_inner() {
+  local inner="$1"
+  local n=${#inner} i=0 c q="" esc=0 buf=""
+  local -a pieces=()
+  while [ "$i" -lt "$n" ]; do
+    c="${inner:i:1}"
+    if [ "$esc" = 1 ]; then esc=0; buf+="$c"; i=$((i+1)); continue; fi
+    if [ "$q" = "'" ]; then [ "$c" = "'" ] && q=""; buf+="$c"; i=$((i+1)); continue; fi
+    if [ "$q" = '"' ]; then
+      if [ "$c" = '\' ]; then esc=1; buf+="$c"; i=$((i+1)); continue; fi
+      [ "$c" = '"' ] && q=""
+      buf+="$c"; i=$((i+1)); continue
+    fi
+    case "$c" in
+      '\') esc=1; buf+="$c" ;;
+      "'") q="'"; buf+="$c" ;;
+      '"') q='"'; buf+="$c" ;;
+      ';'|'|'|'&'|$'\n') pieces+=("$buf"); buf="" ;;
+      *) buf+="$c" ;;
+    esac
+    i=$((i+1))
+  done
+  pieces+=("$buf")
+  local p
+  for p in "${pieces[@]}"; do
+    p="${p#"${p%%[![:space:]]*}"}"          # trim leading whitespace
+    [ -n "$p" ] || continue                 # empty piece (&& / || / trailing &) is inert
+    simple_readonly_command "$p" || return 1
+  done
+  return 0
+}
+
+# Resolve ONE substitution in the global SCAN, innermost first, quote-aware: a command
+# substitution `$(` (in an unquoted or double-quoted context) or an input process
+# substitution `<(` (unquoted only, and not the second `<` of a `<<` heredoc), never
+# single-quoted, never `$((` arithmetic. The rightmost active open is always innermost,
+# so nested read-only substitutions resolve one per call over successive loop iterations.
+# Its inner is read fresh (unquoted) from just after the `$(` or `<(` to the first
+# unquoted `)`; a bare unquoted `(` inside is a subshell and is not proven safe. A vetted inner is
 # replaced with the inert placeholder. Returns 0 on a replacement, 1 otherwise
 # (caller then falls through to a prompt). Quoted parens (a sqlite3 `count(*)`, a
 # grep `"(a|b)"`) never move the boundary, because the scan skips quoted regions.
@@ -262,6 +310,10 @@ resolve_one_sub() {
       "'") q="'" ;;
       '"') q='"' ;;
       '$') if [ "${s:i+1:1}" = "(" ] && [ "${s:i+2:1}" != "(" ]; then open="$i"; fi ;;
+      # `<(` opens a process substitution, but only unquoted and only when the `<` is not
+      # the second `<` of a `<<` heredoc operator. `${s:i-1:1}` at i=0 wraps to the last
+      # char, so a leading `<(` is handled explicitly.
+      '<') if [ "${s:i+1:1}" = "(" ] && { [ "$i" = 0 ] || [ "${s:i-1:1}" != "<" ]; }; then open="$i"; fi ;;
     esac
     i=$((i+1))
   done
@@ -289,7 +341,14 @@ resolve_one_sub() {
   [ "$close" -ge 0 ] || return 1
   local mlen=$((close-open+1)) istart=$((open+2)) ilen=$((close-open-2))
   local matched="${s:open:mlen}" inner="${s:istart:ilen}"
-  vet_readonly_sub_inner "$inner" || return 1
+  # A `$(...)` inner is one command (vet_readonly_sub_inner keeps the sqlite path); a
+  # `<(...)` inner is a read-only pipeline. `$((` never reaches here and `>(` is never
+  # opened, so it survives to the write-form reject below.
+  if [ "${s:open:1}" = '<' ]; then
+    vet_procsub_inner "$inner" || return 1
+  else
+    vet_readonly_sub_inner "$inner" || return 1
+  fi
   SCAN="${SCAN/"$matched"/__ROSUB__}"
   return 0
 }
@@ -324,14 +383,14 @@ case "$SCAN" in *'`'*) exit 0 ;; esac
 # ${...} that ordinary parameter expansion never would. Never reasoned about; fall through.
 case "$SCAN" in *'${ '*|*'${|'*|*"\${"$'\t'*) exit 0 ;; esac
 
-# Resolve `$( ... )` command substitutions fail-closed, innermost first. Each
-# accepted substitution is replaced with an inert placeholder so the remaining
-# write-redirect check and segment vetting run on substitution-free text.
-# resolve_one_sub is quote-and-paren aware, so a quoted `count(*)` in a read-only
+# Resolve `$( ... )` command substitutions and `<( ... )` input process substitutions
+# fail-closed, innermost first. Each accepted one is replaced with an inert placeholder
+# so the remaining write-redirect check and segment vetting run on substitution-free
+# text. resolve_one_sub is quote-and-paren aware, so a quoted `count(*)` in a read-only
 # sqlite3 query does not defeat boundary finding; a substitution it cannot prove
 # read-only, an arithmetic `$((`, a subshell `$( ( ) )`, or an unbalanced `$(` all
 # cause a fall-through to the normal permission flow.
-while [[ "$SCAN" == *'$('* ]]; do
+while [[ "$SCAN" == *'$('* || "$SCAN" == *'<('* ]]; do
   resolve_one_sub || exit 0
 done
 
@@ -353,7 +412,9 @@ NEUTRAL="$(printf '%s' "$SCAN" | awk 'BEGIN{dq=sprintf("%c",34); sq=sprintf("%c"
 
 # Refuse hidden-write forms on the quote-neutralized text: process substitution,
 # append, or a file-writing redirect that sits OUTSIDE any quote (in-quote copies are
-# now inert placeholders). Command substitution was already resolved/rejected above.
+# now inert placeholders). Command substitution and any read-only input `<(...)` were
+# already resolved to placeholders above, so a surviving `<(` is an unproven one and
+# `>(` is a write form; both are refused here.
 if printf '%s' "$NEUTRAL" | tr '\n' ' ' | grep -Eq '<\(|>\(|>>|>[[:space:]]*[^&]'; then
   exit 0
 fi
@@ -500,10 +561,16 @@ while IFS= read -r seg; do
     # through domain-scoped WebFetch, never an auto-approved curl to an arbitrary host.
     shift                                       # drop `curl`
     discard=0 loopback=0
-    for a in "$@"; do
-      case "$a" in
-        -o|--output) : ;;                       # discard target is the next token
-        -o/dev/null|--output=/dev/null|/dev/null) discard=1 ;;
+    # A step loop, not `for a in "$@"`, because a bare `-o`/`--output` names its target in
+    # the NEXT token: curl writes one output file per URL, so a second `-o REALFILE` must not
+    # hide behind an earlier `-o /dev/null`. Only /dev/null is a discard; any real file (or a
+    # missing operand) writes and falls through.
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -o|--output)
+          shift
+          case "${1:-}" in /dev/null) discard=1 ;; *) exit 0 ;; esac ;;
+        -o/dev/null|--output=/dev/null) discard=1 ;;
         -o*|--output=*) exit 0 ;;               # -o to a real file (attached form)
         -O|--remote-name|--remote-name-all|-J|--remote-header-name|\
         -c|--cookie-jar|-D|--dump-header|--trace|--trace-ascii|--trace-time|\
@@ -520,6 +587,7 @@ while IFS= read -r seg; do
         'https://[::1]'|'https://[::1]/'*|'https://[::1]:'*) loopback=1 ;;
         *://*) exit 0 ;;                        # any non-loopback URL scheme
       esac
+      shift
     done
     { [ "$discard" = 1 ] && [ "$loopback" = 1 ]; } || exit 0
     continue

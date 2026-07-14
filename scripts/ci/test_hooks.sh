@@ -274,6 +274,17 @@ expect "$H" "sed '3e touch x' f.txt" ask
 # tree writing to a file.
 expect "$H" 'tree -o out.txt src' ask
 expect "$H" 'tree --output out.txt src' ask
+# sort running an external program on its temp-file spill (--compress-program) is an exec
+# vector, like sort -o is a write; a plain read-only sort still defers.
+expect "$H" 'sort --compress-program=/tmp/evil.sh f' ask
+expect "$H" 'sort -S1 --compress-program=id big.txt' ask
+expect "$H" 'sort -u file.txt' defer
+# curl writes one output file per URL, so a second real-file -o must ask even when an
+# earlier -o discards to /dev/null; a lone discard probe still defers.
+expect "$H" 'curl -o /dev/null http://localhost/a -o real.txt http://localhost/b' ask
+expect "$H" 'curl --output /dev/null http://localhost/a --output real.txt http://localhost/b' ask
+expect "$H" 'curl http://localhost/a -o real.txt http://localhost/b -o /dev/null' ask
+expect "$H" 'curl -sf -o /dev/null http://localhost:3000/health' defer
 # sed in-place in attached / bundled spellings the -i prefix rule misses.
 expect "$H" 'sed -i.bak "s/a/b/" f.txt' ask
 expect "$H" "sed -i's/a/b/' f.txt" ask
@@ -488,6 +499,8 @@ expect "$H" 'find . -exec rm {} \;' defer
 expect "$H" "find . '-exec' rm {} \;" defer
 expect "$H" 'find . -delete' defer
 expect "$H" 'sort -o out.txt in.txt' defer
+expect "$H" 'sort --compress-program=/tmp/evil.sh f' defer
+expect "$H" 'sort -S1 --compress-program=id big.txt' defer
 expect "$H" 'date -s 2020-01-01' defer
 expect "$H" 'hostname evil' defer
 expect "$H" 'printenv' defer
@@ -609,6 +622,13 @@ expect "$H" 'curl -X POST -o /dev/null http://localhost/x' defer
 expect "$H" 'curl -o /dev/null -x http://proxy:3128 http://localhost/x' defer
 expect "$H" 'curl -o /dev/null --resolve localhost:80:1.2.3.4 http://localhost/x' defer
 expect "$H" 'curl -o /dev/null -L http://localhost/redir' defer
+# curl writes one output file per URL: a second real-file -o must fall through even when an
+# earlier -o discards to /dev/null (the bare -o names its target in the NEXT token, so the
+# real file cannot hide behind the discard). Separated --output and reordered forms too.
+expect "$H" 'curl -o /dev/null http://localhost/a -o real.txt http://localhost/b' defer
+expect "$H" 'curl -o /dev/null http://localhost/a -o /root/x http://localhost/b' defer
+expect "$H" 'curl --output /dev/null http://localhost/a --output real.txt http://localhost/b' defer
+expect "$H" 'curl http://localhost/a -o real.txt http://localhost/b -o /dev/null' defer
 
 # unzip auto-approves ONLY in a read-only mode that never writes to disk: -p streams a
 # member to stdout, -l/-v list, -t tests, -Z is zipinfo. Every extracting form -- the
@@ -731,6 +751,30 @@ expect "$H" "sed 's/a/b/ge cmd' f.txt" defer
 expect "$H" "sed -n 'x;y' 's/a/b/gw /tmp/out' in.txt" defer
 expect "$H" 'sed -n "x;y" -n "1w /tmp/out" in.txt' defer
 expect "$H" "sed 's/a/b/g' f.txt" allow
+# A read-only pipeline inside a <(...) process substitution auto-approves: the inner is
+# split on its unquoted pipes/separators and every piece is vetted as read-only, the same
+# rigor as a top-level segment. The diff/comm-of-two-pipelines idiom.
+expect "$H" 'comm -12 <(git diff --name-only | sort) <(git diff --name-only HEAD origin/main | sort)' allow
+expect "$H" 'diff <(sort a.txt) <(sort b.txt)' allow
+expect "$H" 'cat <(grep foo a) <(grep bar b)' allow
+expect "$H" 'diff <(git show HEAD:f) <(cat f)' allow
+# A write, a mutating flag, a redirect, or a second command hidden in a <(...) inner must
+# NOT auto-approve; a >(...) write form is never peeled and still falls through.
+expect "$H" 'cat <(rm -rf x)' defer
+expect "$H" 'cat <(cat a > b)' defer
+expect "$H" 'diff <(sort a) <(sed -i s/x/y/ b)' defer
+expect "$H" 'cat <(sort -o out.txt in.txt)' defer
+expect "$H" 'sort <(cat a; rm b)' defer
+expect "$H" 'diff <(cat a) >(tee out.txt)' defer
+expect "$H" 'cat <(git ls-remote --upload-pack=/tmp/evil.sh /tmp/r)' defer
+# A <<( heredoc operator is not a <( process substitution; a <( inside quotes is literal
+# text. Both stay deferring (the quoted case matches quoted $( behavior).
+expect "$H" 'cat <<(echo hi)' defer
+expect "$H" 'echo "<(rm x)"' defer
+expect "$H" 'echo '"'"'<(rm x)'"'"'' defer
+# A quoted pipe inside a procsub piece is not a split point, so the piece keeps its raw
+# pipe and stays conservative (an extra prompt, never an unsafe allow).
+expect "$H" 'cat <(grep '"'"'a|b'"'"' f)' defer
 
 # guard-question-quality.sh is a Stop hook, not a PreToolUse hook: it reads the
 # last assistant message from a transcript file and blocks a question that carries
