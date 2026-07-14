@@ -394,6 +394,16 @@ describe('GET /freestyle/about', () => {
     expect(res.text).toContain('Routines');
     expect(res.text).toContain('30 Second Shred');
     expect(res.text).toContain('Sick 3');
+    expect(res.text).toContain('Circle Contest');
+    expect(res.text).toContain('a variety phase');
+    expect(res.text).toContain('a density phase');
+  });
+
+  it('names the four routine judging axes as the rules score them, with variety inside composition', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/about');
+    expect(res.text).toContain('composition (the variety and breadth of distinct');
+    expect(res.text).not.toContain('variety (breadth of tricks');
   });
 
   it('links onward to the trick dictionary, glossary, and learn pages', async () => {
