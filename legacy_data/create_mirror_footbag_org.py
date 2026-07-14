@@ -33,13 +33,49 @@ Quick setup
 Usage (current CLI)
     python create_mirror_footbag_org.py <username_or_email> <password>
     python create_mirror_footbag_org.py <username_or_email> <password> -fresh
+    python create_mirror_footbag_org.py <username_or_email> <password> --skip-videos
 
 Notes
 - '-fresh' wipes previous mirror state before starting.
 - '-log' enables logging to file (mirror.log).
 - Progress is periodically saved and also saved on Ctrl+C / SIGTERM.
-- Output is written under ./mirror_footbag_org by default.
+- Output is written under <script dir>/mirror_footbag_org; progress, robots
+  cache, and log files also anchor to the script directory, so the crawl
+  resumes correctly no matter which directory it is invoked from.
 - Passing a password on the command line is convenient but not ideal (it may end up in shell history / process lists).
+
+Video exclusion ('--skip-videos'; the mode for the primary archival crawl)
+- The primary (and final) frozen-site crawl runs WITHOUT video binaries: the
+  video corpus is large, dominated the previous multi-day crawl through the
+  per-file ffmpeg re-encode, and its preservation is a separate
+  recovery/workstream decision. Excluding binaries makes the page crawl fast,
+  restartable, and auditable.
+- What IS still captured in this mode: every HTML page (including pages that
+  contain or link to videos), images and gallery thumbnails, video poster
+  images, captions and surrounding text, PDFs/documents, CSS/JS, and redirect
+  pages. A page is never skipped because it contains a video.
+- What is skipped: recognized video BINARIES only, detected by normalized URL
+  extension (the accepted video set below plus .ogv) or, when the extension is
+  not a video, by a video/* response Content-Type read from the streamed
+  response headers before the body is consumed. An HTML page whose URL merely
+  contains the word "video" is NOT a video.
+- Every skipped video is recorded (deduplicated by normalized URL, all
+  referring pages retained) in <mirror dir>/skipped_videos.json, with a
+  human-readable rollup in <mirror dir>/skipped_videos_summary.txt. The
+  manifest carries enough (original URL, referrers, extension, content type,
+  declared length where known) to drive a future videos-only download pass.
+- Skipped video links in the mirror keep their ORIGINAL absolute URL (no
+  rewrite to a nonexistent local file), each marked with an HTML comment noting
+  the binary was not mirrored. Skipped videos are a distinct state from
+  downloaded/failed/blocked: they are never counted as failures and are not
+  re-requested on resume.
+
+Accepted robustness trade-off (documented per the mirror-gaps item): the crawl
+loop marks a URL visited before its page file is written, so a crash in the
+narrow window between the two loses that one page on resume. Page writes are
+atomic (temp + rename), so the mirror never contains truncated files; the
+visited-first ordering itself is kept because it prevents re-crawl loops after
+mid-write crashes, which cost far more than one lost page.
 """
 
 import os
@@ -64,8 +100,23 @@ import shutil
 USERNAME = None # '<<YOU>>@footbag.org'
 PASSWORD = None # '<<YOUR PASSWORD>>'
 
-MIRROR_DIR = "./mirror_footbag_org"
+# All state paths anchor to the script directory, never the process CWD: a
+# resume invoked from any directory must find the same progress file, robots
+# cache, and mirror tree, or it silently restarts the multi-day crawl.
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+MIRROR_DIR = str(SCRIPT_DIR / "mirror_footbag_org")
 BASE_URL = 'http://www.footbag.org'
+
+# --skip-videos mode: exclude video BINARIES from the crawl while still
+# capturing every page, poster, thumbnail, caption, and link that surrounds
+# them. Set from the CLI in main(); the primary archival crawl enables it.
+SKIP_VIDEOS = False
+# Distinct return marker for a deliberately skipped video: callers must keep
+# the original reference (it is neither a local filepath nor a failure).
+SKIPPED_VIDEO = '__SKIPPED_VIDEO__'
+SKIPPED_VIDEO_MANIFEST = 'skipped_videos.json'
+SKIPPED_VIDEO_SUMMARY = 'skipped_videos_summary.txt'
 
 START_URLS = [
     BASE_URL + '/members/home/',
@@ -77,10 +128,10 @@ DELAY_SECONDS = 0.25 # Polite delay between requests to live site.
 MAX_RETRIES = 1  # Retry only once after failure
 TRANSIENT_RETRY_CODES = {500, 502, 503, 504} # as opposed to permanent failures 
 SITEMAP_FILE = 'sitemap.txt'
-LOG_FILE = 'mirror.log'
+LOG_FILE = str(SCRIPT_DIR / 'mirror.log')
 LOG_TO_FILE = False  # default off; set True if you want mirror.log
-PROGRESS_FILE = 'mirror_progress.json'
-ROBOTS_CACHE_FILE = 'robots_cache.json'
+PROGRESS_FILE = str(SCRIPT_DIR / 'mirror_progress.json')
+ROBOTS_CACHE_FILE = str(SCRIPT_DIR / 'robots_cache.json')
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -98,6 +149,18 @@ def parse_args():
         dest="log_to_file",
         action="store_true",
         help="Enable logging to file"
+    )
+    parser.add_argument(
+        "--skip-videos",
+        dest="skip_videos",
+        action="store_true",
+        help=(
+            "Exclude video binaries from the crawl (the mode for the primary "
+            "archival crawl). Pages, posters, thumbnails, captions, and links "
+            "are still captured; every skipped video is recorded in "
+            f"{SKIPPED_VIDEO_MANIFEST} inside the mirror directory, and its "
+            "link keeps the original URL. See the header for the full contract."
+        )
     )
 
     # If run with no args, show the full help text (instead of just a terse error)
@@ -165,6 +228,7 @@ MEDIA_FORMATS = {
     '.mpeg': ('video/mpeg', True),
     '.flv':  ('video/x-flv', True),
     '.m4v':  ('video/mp4', True),
+    '.ogv':  ('video/ogg', True),
     '.jpg':  ('image/jpeg', True),
     '.jpeg': ('image/jpeg', True),
     '.png':  ('image/png', True),
@@ -193,11 +257,24 @@ CONVERTIBLE_EXTENSIONS = {ext for ext, (_, convertible) in MEDIA_FORMATS.items()
 # /registration/listevent?eid= (We ignore event ids but we could add this feature)
 # /newmoves/addhint?id=21 (ignored for now, creates incorrect newmoves/addhint/index.html, not a big deal)
 
+def _atomic_write_text(path, text):
+    """Write a text file via temp + rename so a crash never leaves a truncated
+    file that a resumed crawl (which trusts visited/exists state) would keep."""
+    temp_path = str(path) + '.tmp'
+    with open(temp_path, 'w', encoding='utf-8') as f:
+        f.write(text)
+    os.replace(temp_path, path)
+
+
 class MirrorState:
     def __init__(self):
         self.visited = set()
-        self.failed_urls = set()  
-        self.failed_conversion_videos = set()  
+        self.failed_urls = set()
+        self.failed_conversion_videos = set()
+        # Deliberately skipped videos (--skip-videos): normalized URL -> record.
+        # A distinct state from downloaded / failed / blocked / unvisited; never
+        # counted as a failure and never re-requested on resume.
+        self.skipped_videos = {}
         self.sitemap = []
         self.queue = []
         self.url_depth = {}
@@ -215,8 +292,110 @@ class MirrorState:
         self.stats['video_conversions'] = 0
         self.stats['image_conversions'] = 0
         self.stats['magic_byte_failures'] = 0
+        self.stats['skipped_videos'] = 0
+        self.stats['skipped_video_declared_bytes'] = 0
         self.session_start = time.time()
-        self.duplicate_redirects = {}  
+        self.duplicate_redirects = {}
+
+    def record_skipped_video(self, url, referrer=None, ext='', content_type='',
+                             reason='extension', status=None, content_length=None,
+                             thumbnail_or_poster=False):
+        """Record a deliberately skipped video, deduplicated by normalized URL.
+
+        Every referring page is retained on the one record. The record carries
+        enough to drive a future videos-only download pass, and notes whether
+        the URL's localized output already exists from a prior full crawl.
+        """
+        norm = normalize_url(url)
+        rec = self.skipped_videos.get(norm)
+        if rec is None:
+            local_target = url_to_filepath(strip_query(url))
+            previously_localized = False
+            if local_target:
+                sanitized_target = str(Path(local_target).with_suffix('.mp4'))
+                previously_localized = os.path.exists(local_target) or os.path.exists(sanitized_target)
+            rec = {
+                'url': url,
+                'normalized_url': norm,
+                'referrers': [],
+                'host': urlparse(url).netloc,
+                'extension': ext or get_extension(url),
+                'content_type': content_type,
+                'detection': reason,
+                'first_seen': datetime.now().isoformat(),
+                'status': status,
+                'content_length': int(content_length) if content_length else None,
+                'thumbnail_or_poster_captured': bool(thumbnail_or_poster),
+                'previously_localized': previously_localized,
+                'disposition': 'skipped_video',
+            }
+            self.skipped_videos[norm] = rec
+            self.stats['skipped_videos'] = len(self.skipped_videos)
+            if content_length:
+                try:
+                    self.stats['skipped_video_declared_bytes'] += int(content_length)
+                except (TypeError, ValueError):
+                    pass
+            logging.info(f"Skipped video ({reason}): {norm}")
+        else:
+            # A later sighting may carry evidence the first lacked.
+            if content_type and not rec['content_type']:
+                rec['content_type'] = content_type
+            if status is not None and rec['status'] is None:
+                rec['status'] = status
+            if content_length and not rec['content_length']:
+                try:
+                    rec['content_length'] = int(content_length)
+                    self.stats['skipped_video_declared_bytes'] += int(content_length)
+                except (TypeError, ValueError):
+                    pass
+            if thumbnail_or_poster:
+                rec['thumbnail_or_poster_captured'] = True
+        if referrer and referrer not in rec['referrers']:
+            rec['referrers'].append(referrer)
+            rec['referrers'].sort()
+        return rec
+
+    def write_skipped_video_manifest(self):
+        """Write the machine-readable manifest + human summary (atomic, sorted)."""
+        if not SKIP_VIDEOS and not self.skipped_videos:
+            return
+        os.makedirs(MIRROR_DIR, exist_ok=True)
+        manifest_path = os.path.join(MIRROR_DIR, SKIPPED_VIDEO_MANIFEST)
+        records = [self.skipped_videos[k] for k in sorted(self.skipped_videos)]
+        _atomic_write_text(manifest_path, json.dumps(records, indent=2, ensure_ascii=False))
+
+        by_host, by_ext, by_area = {}, {}, {}
+        total_bytes = 0
+        for rec in records:
+            host = rec['host'] or '(unknown host)'
+            ext = rec['extension'] or rec['content_type'] or '(unknown type)'
+            by_host[host] = by_host.get(host, 0) + 1
+            by_ext[ext] = by_ext.get(ext, 0) + 1
+            for ref in rec['referrers'] or ['(direct)']:
+                segs = [s for s in urlparse(ref).path.split('/') if s]
+                area = segs[0] if segs else '(root)'
+                by_area[area] = by_area.get(area, 0) + 1
+            if rec['content_length']:
+                total_bytes += rec['content_length']
+        lines = [
+            '# Skipped videos summary (--skip-videos mode)',
+            f'# Generated: {datetime.now().isoformat()}',
+            f'Total skipped video URLs: {len(records)}',
+            f'Declared byte total (where the server stated a length): {total_bytes}',
+            '',
+            'By host:',
+            *(f'  {h}: {n}' for h, n in sorted(by_host.items())),
+            '',
+            'By extension / content type:',
+            *(f'  {e}: {n}' for e, n in sorted(by_ext.items())),
+            '',
+            'By referring site area (per referrer):',
+            *(f'  {a}: {n}' for a, n in sorted(by_area.items())),
+            '',
+        ]
+        _atomic_write_text(os.path.join(MIRROR_DIR, SKIPPED_VIDEO_SUMMARY), '\n'.join(lines))
+        logging.info(f"Skipped-video manifest written: {manifest_path} ({len(records)} records)")
 
     def save_progress(self):
         """Save progress atomically to prevent corruption on interruption."""
@@ -224,12 +403,13 @@ class MirrorState:
             'visited': list(self.visited),
             'failed_urls': list(self.failed_urls),
             'failed_conversion_videos': list(self.failed_conversion_videos),
+            'skipped_videos': self.skipped_videos,
             'sitemap': self.sitemap,
             'queue': self.queue,
             'url_depth': self.url_depth,
             'content_hashes': self.content_hashes,
             'stats': self.stats,
-            'regsummary_map': self.regsummary_map, 
+            'regsummary_map': self.regsummary_map,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -261,6 +441,7 @@ class MirrorState:
             self.visited = set(data.get('visited', []))
             self.failed_urls = set(data.get('failed_urls', []))
             self.failed_conversion_videos = set(data.get('failed_conversion_videos', []))
+            self.skipped_videos = data.get('skipped_videos', {})
             self.sitemap = data.get('sitemap', [])
             self.queue = data.get('queue', [])
             self.url_depth = data.get('url_depth', {})
@@ -279,6 +460,8 @@ class MirrorState:
             self.stats.setdefault('video_conversions', 0)
             self.stats.setdefault('image_conversions', 0)
             self.stats.setdefault('magic_byte_failures', 0)
+            self.stats.setdefault('skipped_videos', len(self.skipped_videos))
+            self.stats.setdefault('skipped_video_declared_bytes', 0)
             logging.info(f"Progress loaded from {PROGRESS_FILE}")
             logging.info(f"Resuming with {len(self.visited)} visited URLs, {len(self.queue)} queued")
             return True
@@ -286,11 +469,99 @@ class MirrorState:
             logging.error(f"Failed to load progress: {e}")
             return False
 
+def _parse_robots_groups(text):
+    """Parse robots.txt into [(user_agent_tokens, [(kind, path), ...]), ...].
+
+    Standard group semantics: one or more consecutive User-agent lines open a
+    group; the Allow/Disallow rules that follow belong to every agent named.
+    Unknown directives and comments are ignored; malformed lines are skipped.
+    """
+    groups = []
+    agents, rules, collecting_agents = [], [], True
+    for raw in (text or '').splitlines():
+        line = raw.split('#', 1)[0].strip()
+        if not line or ':' not in line:
+            continue
+        field, value = line.split(':', 1)
+        field, value = field.strip().lower(), value.strip()
+        if field == 'user-agent':
+            if not collecting_agents and agents:
+                groups.append((agents, rules))
+                agents, rules = [], []
+            agents.append(value.lower())
+            collecting_agents = True
+        elif field in ('allow', 'disallow'):
+            if agents:
+                rules.append((field, value))
+                collecting_agents = False
+        # sitemap/crawl-delay/unknown fields end the agent-collection run but
+        # otherwise do not affect matching.
+        elif agents:
+            collecting_agents = False
+    if agents:
+        groups.append((agents, rules))
+    return groups
+
+
+def _select_robots_group(groups, user_agent):
+    """The applicable rule set for our crawler: the group whose agent token is
+    the LONGEST case-insensitive substring match of our User-Agent product
+    token wins; the '*' group applies only when no specific group matches."""
+    ua = (user_agent or '').lower()
+    best_rules, best_len = None, -1
+    star_rules = None
+    for agents, rules in groups:
+        for agent in agents:
+            if agent == '*':
+                if star_rules is None:
+                    star_rules = rules
+            elif agent and agent in ua and len(agent) > best_len:
+                best_rules, best_len = rules, len(agent)
+    return best_rules if best_rules is not None else star_rules
+
+
+def _robots_rule_matches(pattern, path):
+    """RFC 9309 path matching: '*' matches any run, '$' anchors the end."""
+    if not pattern:
+        return False
+    anchored = pattern.endswith('$')
+    if anchored:
+        pattern = pattern[:-1]
+    regex = ''.join('.*' if ch == '*' else re.escape(ch) for ch in pattern)
+    regex = '^' + regex + ('$' if anchored else '')
+    return re.match(regex, path) is not None
+
+
+def _robots_decision(rules, path):
+    """Longest-match precedence between Allow and Disallow; ties go to Allow;
+    no matching rule (or an empty Disallow) means allowed."""
+    best_kind, best_len = None, -1
+    for kind, pattern in rules or []:
+        if not pattern:
+            continue          # 'Disallow:' with no path allows everything
+        if _robots_rule_matches(pattern, path):
+            plen = len(pattern.rstrip('$'))
+            if plen > best_len or (plen == best_len and kind == 'allow'):
+                best_kind, best_len = kind, plen
+    return best_kind != 'disallow'
+
+
 class RobotChecker:
+    """robots.txt enforcement with correct group semantics.
+
+    The raw robots text (or an 'unavailable' marker) is cached per host in
+    ROBOTS_CACHE_FILE, so a resumed crawl makes the same decisions without a
+    refetch; parsing is deterministic over the cached text. The robots file is
+    fetched with the crawl's own scheme and the crawler's own User-Agent.
+    Documented fallback: an unfetchable, error-status, or malformed robots
+    file allows the crawl — this is an authorized archival crawl of the
+    operator's own site, so a missing robots file must not stall it.
+    """
     def __init__(self):
         self.robots_cache = {}
+        self._parsed = {}
         self.load_cache()
-    
+
     def load_cache(self):
         if os.path.exists(ROBOTS_CACHE_FILE):
             try:
@@ -298,7 +569,7 @@ class RobotChecker:
                     self.robots_cache = json.load(f)
             except json.JSONDecodeError:
                 self.robots_cache = {}
-    
+
     def save_cache(self):
         """Save robots.txt cache atomically to prevent corruption."""
         temp_file = ROBOTS_CACHE_FILE + '.tmp'
@@ -314,45 +585,45 @@ class RobotChecker:
                 except:
                     pass
             raise
-    
+
+    def _rules_for(self, domain):
+        if domain in self._parsed:
+            return self._parsed[domain]
+        entry = self.robots_cache.get(domain)
+        rules = None
+        if entry and entry.get('status') == 'ok':
+            rules = _select_robots_group(_parse_robots_groups(entry.get('text', '')), USER_AGENT)
+        self._parsed[domain] = rules
+        return rules
+
     def can_fetch(self, url):
         if not RESPECT_ROBOTS_TXT:
             return True
-        
+
         parsed = urlparse(url)
         domain = parsed.netloc
         if domain not in self.robots_cache:
             self.robots_cache[domain] = self._fetch_robots(domain)
+            self._parsed.pop(domain, None)
             self.save_cache()
-        
-        robots_data = self.robots_cache[domain]
-        if not robots_data:
+
+        rules = self._rules_for(domain)
+        if rules is None:
             return True
-        
-        # Simple robots.txt parsing - in production, use robotparser
-        disallowed = robots_data.get('disallow', [])
-        for pattern in disallowed:
-            if parsed.path.startswith(pattern):
-                return False
-        return True
-    
+        return _robots_decision(rules, parsed.path or '/')
+
     def _fetch_robots(self, domain):
-        robots_url = f"https://{domain}/robots.txt"
+        # Same effective scheme as the crawl itself, and the crawler's own UA.
+        scheme = urlparse(BASE_URL).scheme or 'http'
+        robots_url = f"{scheme}://{domain}/robots.txt"
         try:
-            response = requests.get(robots_url, timeout=10)
+            response = requests.get(robots_url, timeout=10,
+                                    headers={'User-Agent': USER_AGENT})
             if response.status_code == 200:
-                lines = response.text.split('\n')
-                disallow = []
-                for line in lines:
-                    line = line.strip()
-                    if line.startswith('Disallow:'):
-                        path = line.split(':', 1)[1].strip()
-                        if path:
-                            disallow.append(path)
-                return {'disallow': disallow}
+                return {'status': 'ok', 'text': response.text}
         except requests.RequestException:
             pass
-        return None
+        return {'status': 'unavailable'}
 
 # Global instances
 session = requests.Session()
@@ -379,6 +650,11 @@ def signal_handler(signum, frame):
         logging.info("Progress saved successfully")
     except Exception as e:
         logging.error(f"Failed to save progress during shutdown: {e}")
+
+    try:
+        mirror_state.write_skipped_video_manifest()
+    except Exception as e:
+        logging.error(f"Failed to write skipped-video manifest during shutdown: {e}")
     
     try:
         robot_checker.save_cache()
@@ -714,8 +990,7 @@ def create_news_list_redirector():
     <p>Redirecting to <a href="{rel_path}">{rel_path}</a></p>
   </body>
 </html>"""
-    with open(from_path, 'w', encoding='utf-8') as f:
-        f.write(html)
+    _atomic_write_text(from_path, html)
     logging.info(f"Redirector created: /news/list/index.html → /list_{current_year}/index.html")
 
 def create_events_results_redirector():
@@ -739,8 +1014,7 @@ def create_events_results_redirector():
     <p>Redirecting to <a href="{rel_path}">{rel_path}</a></p>
   </body>
 </html>"""
-    with open(from_path, 'w', encoding='utf-8') as f:
-        f.write(html)
+    _atomic_write_text(from_path, html)
     logging.info(f"Redirector created: /events/results/index.html → /results_year_{current_year}/index.html")
 
 def create_events_past_redirector():
@@ -764,8 +1038,7 @@ def create_events_past_redirector():
     <p>Redirecting to <a href="{rel_path}">{rel_path}</a></p>
   </body>
 </html>"""
-    with open(from_path, 'w', encoding='utf-8') as f:
-        f.write(html)
+    _atomic_write_text(from_path, html)
     logging.info(f"Redirector created: /events/past/index.html → /past_year_{current_year}/index.html")
 
 def login():
@@ -1066,9 +1339,11 @@ def convert_and_cleanup(filepath, ext):
         mirror_state.stats['media_output_bytes'] += orig_size
         return filepath
 
-def download_and_process_media(url, session):
+def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=False):
     # Download media file and convert formats (video/audio/image) as needed.
-    # Returns the final usable filepath (converted or original), or None if unavailable.
+    # Returns the final usable filepath (converted or original), None if
+    # unavailable, or SKIPPED_VIDEO when --skip-videos deliberately excluded a
+    # video binary (callers keep the original reference for that case).
     if is_unsafe_url(url):
         logging.info(f"Refusing admin/mutating URL (media): {url}")
         return None
@@ -1077,12 +1352,12 @@ def download_and_process_media(url, session):
             logging.debug(f"Skipping JS-based media placeholder: {url}")
             return None  # will be handled later.
 
-        # Early skip for conversion-failed videos 
+        # Early skip for conversion-failed videos
         if is_failed_conversion_video(url):
             key = media_fail_key(url)
             logging.info(f"Skipping failed-conversion media URL: {key}")
             return None
-        
+
         parsed = urlparse(url)
         if not is_footbag_domain(url):
             logging.warning(f"Skipping offsite media file: {url}")
@@ -1091,6 +1366,17 @@ def download_and_process_media(url, session):
         clean_url = strip_query(url)
         filepath = url_to_filepath(clean_url)
         ext = get_extension(url)
+
+        # --skip-videos: a recognized video extension is excluded before any
+        # request is made (zero network cost, no retries, no hashing). The
+        # record keeps every referring page; a re-sighting from another page
+        # only appends its referrer.
+        if SKIP_VIDEOS and ext in VIDEO_EXTENSIONS:
+            mime, _ = MEDIA_FORMATS.get(ext, ('', False))
+            mirror_state.record_skipped_video(
+                url, referrer=referrer, ext=ext, content_type=mime,
+                reason='extension', thumbnail_or_poster=thumbnail_or_poster)
+            return SKIPPED_VIDEO
 
         is_convertible = ext in CONVERTIBLE_EXTENSIONS
 
@@ -1157,6 +1443,21 @@ def download_and_process_media(url, session):
                 return None
 
         content_length = response.headers.get('Content-Length')
+
+        # --skip-videos: a video Content-Type on a non-video extension (a
+        # mislabeled or extensionless media URL) is rejected from the streamed
+        # response headers, before the body is read.
+        if SKIP_VIDEOS:
+            served_type = (response.headers.get('Content-Type') or '').split(';')[0].strip().lower()
+            if served_type.startswith('video/'):
+                mirror_state.record_skipped_video(
+                    url, referrer=referrer, ext=ext, content_type=served_type,
+                    reason='content-type', status=response.status_code,
+                    content_length=content_length,
+                    thumbnail_or_poster=thumbnail_or_poster)
+                response.close()
+                return SKIPPED_VIDEO
+
         if content_length and int(content_length) > MAX_FILE_SIZE:
             mirror_state.stats['skipped_too_large'] += 1
             logging.warning(f"Media file too large, skipping: {url} ({content_length} bytes)")
@@ -1519,8 +1820,15 @@ def rewrite_links(html, page_url):
 
                 if is_media_file(abs_url):
                     clean_url = strip_query(abs_url)
-                    processed_path = download_and_process_media(clean_url, session)
-                    if processed_path:
+                    has_poster = bool(tag.get('poster')) or bool(tag.find_parent('video') and tag.find_parent('video').get('poster'))
+                    processed_path = download_and_process_media(clean_url, session, referrer=page_url,
+                                                                thumbnail_or_poster=has_poster)
+                    if processed_path == SKIPPED_VIDEO:
+                        # Deliberate skip: keep the element and its poster, point
+                        # src at the ORIGINAL absolute URL, never a local path.
+                        tag['src'] = abs_url
+                        tag.insert_before(Comment("Mirror: video binary not mirrored (skip-videos); original URL retained"))
+                    elif processed_path:
                         rel_path = calculate_relative_path(current_filepath, processed_path)
                         tag['src'] = rel_path
                         # Only <source> should get a type attribute
@@ -1543,8 +1851,14 @@ def rewrite_links(html, page_url):
 
                 if is_media_file(abs_url):
                     clean_url = strip_query(abs_url)
-                    processed_path = download_and_process_media(clean_url, session)
-                    if processed_path:
+                    processed_path = download_and_process_media(clean_url, session, referrer=page_url,
+                                                                thumbnail_or_poster=bool(a.find('img')))
+                    if processed_path == SKIPPED_VIDEO:
+                        # Deliberate skip: keep the link and its text/thumbnail,
+                        # pointing at the ORIGINAL absolute URL.
+                        a['href'] = abs_url
+                        a.insert_before(Comment("Mirror: video binary not mirrored (skip-videos); original URL retained"))
+                    elif processed_path:
                         rel_path = calculate_relative_path(current_filepath, processed_path)
                         a['href'] = rel_path  # Rewrite to local .mp4 path
 
@@ -1648,7 +1962,19 @@ def rewrite_links(html, page_url):
                                 element.decompose()
                             continue
 
-                        processed_filepath = download_and_process_media(resolved_video_url, session)
+                        processed_filepath = download_and_process_media(
+                            resolved_video_url, session, referrer=page_url,
+                            thumbnail_or_poster=bool(tag_name == 'a' and element.find('img')))
+
+                        # Deliberate skip (--skip-videos): rewrite the JS popup to
+                        # the ORIGINAL video URL so the link stays intelligible;
+                        # keep the thumbnail; remove the redundant viewer row
+                        # exactly as the success path does.
+                        if processed_filepath == SKIPPED_VIDEO:
+                            element[attr_name] = resolved_video_url
+                            element.insert_before(Comment("Mirror: JS popup rewritten to original video URL; binary not mirrored (skip-videos)"))
+                            remove_fallback_viewer_row(element, page_url, soup)
+                            continue
 
                         # B) Resolved but conversion failed → fallback and remove legacy viewer row
                         if not processed_filepath:
@@ -1739,8 +2065,11 @@ def rewrite_links(html, page_url):
 
                                 if is_media_file(full_url):
                                     clean_url = strip_query(full_url)
-                                    processed_filepath = download_and_process_media(clean_url, session)
-                                    if processed_filepath:
+                                    processed_filepath = download_and_process_media(clean_url, session, referrer=page_url)
+                                    if processed_filepath == SKIPPED_VIDEO:
+                                        # Deliberate skip: keep the original URL in the srcset.
+                                        new_items.append(full_url + (' ' + descriptor if descriptor else ''))
+                                    elif processed_filepath:
                                         relative_path = calculate_relative_path(current_filepath, processed_filepath)
                                         new_items.append(relative_path + (' ' + descriptor if descriptor else ''))
                                     else:
@@ -1774,7 +2103,16 @@ def rewrite_links(html, page_url):
                     if is_footbag_domain(full_url) and is_media_file(full_url):
                         clean_url = strip_query(full_url)
                         try:
-                            processed_filepath = download_and_process_media(clean_url, session)
+                            processed_filepath = download_and_process_media(
+                                clean_url, session, referrer=page_url,
+                                thumbnail_or_poster=bool(attr_name == 'poster' or (tag_name == 'a' and element.find('img'))))
+                            if processed_filepath == SKIPPED_VIDEO:
+                                # Deliberate skip: retain the original absolute URL
+                                # (idempotent when an earlier pass already set it).
+                                if element.get(attr_name) != full_url:
+                                    element[attr_name] = full_url
+                                    element.insert_before(Comment("Mirror: video binary not mirrored (skip-videos); original URL retained"))
+                                continue
                             if processed_filepath:
                                 relative_path = calculate_relative_path(current_filepath, processed_filepath)
                                 element[attr_name] = relative_path
@@ -2160,8 +2498,7 @@ def save_content(url, content, is_html):
     <p>Redirecting to <a href="{rel_path}">{rel_path}</a></p>
   </body>
 </html>"""
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(html)
+            _atomic_write_text(filepath, html)
 
             mirror_state.stats['successful_downloads'] += 1
             mirror_state.sitemap.append(filepath)
@@ -2169,26 +2506,47 @@ def save_content(url, content, is_html):
             logging.info(f"Created local redirect: {filepath} → {rel_path}")
             return
 
-        # Skip saving if duplicate hash
+        # Content dedup preserves every URL: two distinct URLs with identical
+        # rendered bytes each keep a resolvable file at their own path (the
+        # first stored copy stays the canonical hash owner). HTML duplicates
+        # write their (already link-rewritten) content in place, so relative
+        # links keep working from both locations; non-HTML duplicates hard-link
+        # to the canonical copy where the filesystem allows, so large identical
+        # binaries share storage, falling back to a plain copy.
         content_hash = hashlib.sha256(content if isinstance(content, bytes) else content.encode()).hexdigest()
-        if content_hash in mirror_state.content_hashes:
-            existing_path = mirror_state.content_hashes[content_hash]
-            logging.debug(f"Duplicate content detected: {url} → already saved at: {existing_path}")
-            return
+        existing_path = mirror_state.content_hashes.get(content_hash)
+        is_duplicate = bool(
+            existing_path
+            and os.path.exists(existing_path)
+            and os.path.abspath(existing_path) != os.path.abspath(filepath)
+        )
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
-        if is_html:
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(content)
+        if is_duplicate and not is_html:
+            if not os.path.exists(filepath):
+                try:
+                    os.link(existing_path, filepath)
+                except OSError:
+                    shutil.copyfile(existing_path, filepath)
+            logging.info(f"Duplicate content preserved (shared storage): {url} == {existing_path}")
+            mirror_state.stats['duplicate_content_preserved'] = mirror_state.stats.get('duplicate_content_preserved', 0) + 1
         else:
-            with open(filepath, 'wb') as f:
-                f.write(content)
+            if is_html:
+                _atomic_write_text(filepath, content)
+            else:
+                with open(filepath, 'wb') as f:
+                    f.write(content)
+            if is_duplicate:
+                logging.info(f"Duplicate content preserved (own copy): {url} == {existing_path}")
+                mirror_state.stats['duplicate_content_preserved'] = mirror_state.stats.get('duplicate_content_preserved', 0) + 1
+            else:
+                mirror_state.content_hashes[content_hash] = filepath
+            mirror_state.stats['bytes_downloaded'] += len(content if isinstance(content, bytes) else content.encode())
 
-        mirror_state.content_hashes[content_hash] = filepath
-        mirror_state.stats['bytes_downloaded'] += len(content if isinstance(content, bytes) else content.encode())
         mirror_state.stats['successful_downloads'] += 1
-        mirror_state.sitemap.append(filepath)
+        if filepath not in mirror_state.sitemap:
+            mirror_state.sitemap.append(filepath)
         logging.info(f"Saved: {filepath}")
 
     except Exception as e:
@@ -2240,6 +2598,9 @@ def print_stats():
     print(f"Media output bytes: {fmt_bytes(mo)}")
     print(f"Video conversions: {s.get('video_conversions', 0):,}")
     print(f"Failed video conversions: {len(mirror_state.failed_conversion_videos)}")
+    if mirror_state.skipped_videos or s.get('skipped_videos', 0):
+        print(f"Skipped videos (skip-videos mode): {len(mirror_state.skipped_videos):,}")
+        print(f"Skipped video declared bytes: {fmt_bytes(s.get('skipped_video_declared_bytes', 0))}")
     print(f"Image conversions: {s.get('image_conversions', 0):,}")
     print(f"Magic-byte failures: {s.get('magic_byte_failures', 0):,}")
     if s.get('skipped_too_large', 0) > 0:
@@ -2250,24 +2611,22 @@ def print_stats():
 def save_redirect_map():
     # Save all known redirect mappings from original URL to final URL
     redirect_path = os.path.join(MIRROR_DIR, 'redirect_map.json')
-    with open(redirect_path, 'w', encoding='utf-8') as f:
-        json.dump(mirror_state.duplicate_redirects, f, indent=2)
+    _atomic_write_text(redirect_path, json.dumps(mirror_state.duplicate_redirects, indent=2))
     logging.info(f"Saved redirect map to {redirect_path}")
 
 def save_sitemap():
     sitemap_path = os.path.join(MIRROR_DIR, SITEMAP_FILE)
-    
-    with open(sitemap_path, 'w') as f:
-        f.write(f"# Footbag.org Mirror Sitemap\n")
-        f.write(f"# Generated: {datetime.now().isoformat()}\n")
-        f.write(f"# Total files: {len(mirror_state.sitemap)}\n")
-        f.write(f"# Mirror statistics:\n")
-        for key, value in mirror_state.stats.items():
-            f.write(f"#   {key}: {value}\n")
-        f.write("\n")
 
-        for path in sorted(mirror_state.sitemap):
-            f.write(path + '\n')
+    lines = [
+        "# Footbag.org Mirror Sitemap",
+        f"# Generated: {datetime.now().isoformat()}",
+        f"# Total files: {len(mirror_state.sitemap)}",
+        "# Mirror statistics:",
+    ]
+    lines += [f"#   {key}: {value}" for key, value in mirror_state.stats.items()]
+    lines.append("")
+    lines += sorted(mirror_state.sitemap)
+    _atomic_write_text(sitemap_path, '\n'.join(lines) + '\n')
     logging.info(f"Sitemap written to {sitemap_path}")
 
 def verify_authenticated_session():
@@ -2297,9 +2656,21 @@ def create_root_index():
     <p>If you are not redirected automatically, <a href="www.footbag.org/index.html">click here</a>.</p>
 </body>
 </html>"""
-    with open(root_index_path, 'w', encoding='utf-8') as f:
-        f.write(html_content)
+    _atomic_write_text(root_index_path, html_content)
     logging.info(f"Created root index.html at {root_index_path}")
+
+def _looks_like_login_page_bytes(content):
+    """True when an HTML body is the site's login page (session lapsed and the
+    server answered 200 with the sign-in form instead of redirecting). Keyed on
+    the login form's own markers, the same ones login() verifies against, so an
+    ordinary member page that merely mentions passwords does not match."""
+    try:
+        sample = content[:20000].decode('utf-8', errors='ignore').lower()
+    except Exception:
+        return False
+    return ('name="loginform"' in sample or 'member sign-in' in sample) \
+        and 'memberpassword' in sample
+
 
 def is_dns_error(exception):
     error_msg = str(exception).lower()
@@ -2406,12 +2777,46 @@ def fetch(url):
                     last_failure_kind = 'permanent_http'
                     break
 
+            # --skip-videos: reject a video Content-Type from the streamed
+            # headers before resp.content reads the whole body. Detection is by
+            # served type (and extension as a backstop), never by the URL
+            # containing the word "video": an HTML page under /video/ passes.
+            if SKIP_VIDEOS:
+                served_type = (resp.headers.get('Content-Type') or '').split(';')[0].strip().lower()
+                if served_type.startswith('video/') or get_extension(final_url) in VIDEO_EXTENSIONS:
+                    mirror_state.record_skipped_video(
+                        final_url, referrer=original_url if final_url != original_url else None,
+                        ext=get_extension(final_url), content_type=served_type,
+                        reason='content-type' if served_type.startswith('video/') else 'extension',
+                        status=resp.status_code,
+                        content_length=resp.headers.get('Content-Length'))
+                    resp.close()
+                    time.sleep(DELAY_SECONDS)
+                    return None, final_url
+
             # Check size limit
             content = resp.content
             if len(content) > MAX_FILE_SIZE:
                 mirror_state.stats['skipped_too_large'] += 1
                 logging.warning(f"Content too large ({len(content)} bytes), skipping: {original_url}")
                 return None, None
+
+            # Session-expiry backstop: a session that lapsed mid-crawl can
+            # return HTTP 200 with the login form as the BODY (no redirect),
+            # which the URL-based newauthorize check above never sees. Detect
+            # the login page by its own markers and re-authenticate once
+            # rather than saving it as real content.
+            served_type = (resp.headers.get('Content-Type') or '').lower()
+            if 'text/html' in served_type and _looks_like_login_page_bytes(content) \
+                    and 'newauthorize' not in final_url:
+                auth_redirects += 1
+                if auth_redirects >= 3:
+                    logging.warning(f"URL {original_url} keeps returning the login page after {auth_redirects} re-auths, skipping")
+                    return None, None
+                logging.warning(f"Login-form body detected at {final_url}; re-authenticating.")
+                login()
+                mirror_state.session_start = time.time()
+                continue
 
             time.sleep(DELAY_SECONDS)
             return resp, final_url
@@ -2626,8 +3031,7 @@ def crawl(start_urls):
     <p>Redirecting to <a href="{rel_path}">{rel_path}</a></p>
   </body>
 </html>"""
-                    with open(redirect_source_path, 'w', encoding='utf-8') as f:
-                        f.write(html)
+                    _atomic_write_text(redirect_source_path, html)
                     mirror_state.sitemap.append(redirect_source_path)
                     mirror_state.stats['successful_downloads'] += 1
                     logging.debug(f"Incremental redirect created: {redirect_source_path} → {rel_path}")
@@ -2670,8 +3074,7 @@ def crawl(start_urls):
                 )
                 rewritten_html = inject_as_of_note(rewrite_links(resp.text, final_url))
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                with open(filepath, 'w', encoding='utf-8') as f:
-                    f.write(rewritten_html)
+                _atomic_write_text(filepath, rewritten_html)
                 mirror_state.stats['bytes_downloaded'] += len(resp.content)  
                 mirror_state.sitemap.append(filepath)
                 mirror_state.stats['successful_downloads'] += 1
@@ -2706,8 +3109,7 @@ def crawl(start_urls):
                     filepath = os.path.join(MIRROR_DIR, 'www.footbag.org', 'news', f'list_{year}', 'index.html')
                     rewritten_html = inject_as_of_note(rewrite_links(resp.text, final_url))
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                    with open(filepath, 'w', encoding='utf-8') as f:
-                        f.write(rewritten_html)
+                    _atomic_write_text(filepath, rewritten_html)
                     mirror_state.stats['bytes_downloaded'] += len(resp.content)  
                     mirror_state.sitemap.append(filepath)
                     mirror_state.stats['successful_downloads'] += 1
@@ -2727,8 +3129,7 @@ def crawl(start_urls):
                 filepath = os.path.join(MIRROR_DIR, 'www.footbag.org', 'events', f'past_year_{current_year}', 'index.html')
                 rewritten_html = inject_as_of_note(rewrite_links(resp.text, final_url))
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                with open(filepath, 'w', encoding='utf-8') as f:
-                    f.write(rewritten_html)
+                _atomic_write_text(filepath, rewritten_html)
                 mirror_state.stats['bytes_downloaded'] += len(resp.content)  
                 mirror_state.sitemap.append(filepath)
                 mirror_state.stats['successful_downloads'] += 1
@@ -2749,8 +3150,7 @@ def crawl(start_urls):
                 filepath = os.path.join(MIRROR_DIR, 'www.footbag.org', 'events', f'results_year_{current_year}', 'index.html')
                 rewritten_html = inject_as_of_note(rewrite_links(resp.text, final_url))
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                with open(filepath, 'w', encoding='utf-8') as f:
-                    f.write(rewritten_html)
+                _atomic_write_text(filepath, rewritten_html)
                 mirror_state.stats['bytes_downloaded'] += len(resp.content)  
                 mirror_state.sitemap.append(filepath)
                 mirror_state.stats['successful_downloads'] += 1
@@ -2770,8 +3170,7 @@ def crawl(start_urls):
                     )
                     rewritten_html = rewrite_links(resp.text, final_url)
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                    with open(filepath, 'w', encoding='utf-8') as f:
-                        f.write(rewritten_html)
+                    _atomic_write_text(filepath, rewritten_html)
                     mirror_state.stats['bytes_downloaded'] += len(resp.content)  
                     mirror_state.sitemap.append(filepath)
                     mirror_state.stats['successful_downloads'] += 1
@@ -2791,8 +3190,7 @@ def crawl(start_urls):
                     )
                     rewritten_html = rewrite_links(resp.text, final_url)
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                    with open(filepath, 'w', encoding='utf-8') as f:
-                        f.write(rewritten_html)
+                    _atomic_write_text(filepath, rewritten_html)
                     mirror_state.stats['bytes_downloaded'] += len(resp.content)  
                     mirror_state.sitemap.append(filepath)
                     mirror_state.stats['successful_downloads'] += 1
@@ -2843,6 +3241,12 @@ def crawl(start_urls):
                     if is_failed_conversion_video(norm_link):
                         logging.info(f"Skipping enqueue of failed-conversion video: {norm_link}")
                         continue
+                    if SKIP_VIDEOS and get_extension(norm_link) in VIDEO_EXTENSIONS:
+                        # Never enqueue a recognized video binary: record it with
+                        # its discovering page and spend zero requests on it.
+                        mirror_state.record_skipped_video(norm_link, referrer=final_url,
+                                                          reason='extension')
+                        continue
                     if norm_link not in mirror_state.visited and norm_link not in mirror_state.queue:
                         mirror_state.queue.append(norm_link)
                         mirror_state.url_depth[norm_link] = current_depth + 1
@@ -2850,8 +3254,10 @@ def crawl(start_urls):
                 logging.error(f"Error processing HTML {final_url}: {e}")
         else:
             if is_media_file(final_url):
-                processed_filepath = download_and_process_media(final_url, session)
-                if not processed_filepath:
+                processed_filepath = download_and_process_media(final_url, session, referrer=original_url)
+                if processed_filepath == SKIPPED_VIDEO:
+                    logging.debug(f"Video deliberately skipped (skip-videos): {final_url}")
+                elif not processed_filepath:
                     logging.error(f"Failed to process media file: {final_url}")
             else:
                 save_content(final_url, resp.content, is_html=False)
@@ -2861,12 +3267,17 @@ def crawl(start_urls):
             print_stats()
 
 def main():
-    global USERNAME, PASSWORD, LOG_TO_FILE
+    global USERNAME, PASSWORD, LOG_TO_FILE, SKIP_VIDEOS
 
     args = parse_args()
     LOG_TO_FILE = args.log_to_file   # if your parser uses dest="log", change this to: args.log
     USERNAME = args.username
     PASSWORD = args.password
+    SKIP_VIDEOS = args.skip_videos
+    if SKIP_VIDEOS:
+        logging.info("--skip-videos enabled: video binaries excluded; pages, posters, "
+                     "thumbnails, and captions still captured; skipped videos recorded "
+                     f"in {SKIPPED_VIDEO_MANIFEST}")
 
     try:
         if args.fresh:
@@ -2920,6 +3331,7 @@ def main():
         save_sitemap()
         save_redirect_map()
         mirror_state.save_progress()
+        mirror_state.write_skipped_video_manifest()
         robot_checker.save_cache()
         print_stats()
         logging.info("Footbag.org Mirror complete!!!")

@@ -317,7 +317,20 @@ standalone use after a mirror refresh.
 #### `legacy_data/create_mirror_footbag_org.py`
 Crawls `footbag.org` into `legacy_data/mirror_footbag_org/`. Long-running
 (multi-day per its docstring); uses checkpointing to resume after
-interruption. The mirror directory is gitignored.
+interruption, with progress/robots/log state anchored to the script
+directory so a resume works from any working directory. The mirror
+directory is gitignored.
+
+The primary (and final frozen-site) archival crawl runs with
+`--skip-videos`: video binaries dominated the previous crawl's time and
+disk (each is ffmpeg re-encoded), and their preservation is a separate
+recovery/workstream decision. In that mode every page, poster, thumbnail,
+caption, and document is still captured; each skipped video keeps its
+original URL in the mirror and is recorded (deduplicated, with all
+referring pages) in `mirror_footbag_org/skipped_videos.json` plus a
+human-readable `skipped_videos_summary.txt`, which together are the input
+for any later videos-only download pass. Without the flag the crawler
+downloads and re-encodes videos exactly as before.
 
 ### Not catalogued
 
