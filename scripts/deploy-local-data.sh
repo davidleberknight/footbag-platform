@@ -211,20 +211,8 @@ run_from_csv() {
 
   echo "    Canonical CSVs present"
 
-  # Bootstrap out/canonical/ from the committed canonical_input/ snapshot.
-  # csv_only mode skips run_v0_backbone() (the only producer of out/canonical/)
-  # because that step requires mirror access. Phase D's
-  # 02_build_legacy_club_candidates.py still reads out/canonical/events.csv,
-  # so we materialize it here from canonical_input. The two snapshots differ
-  # by ~30 events that export_canonical_platform.py drops for sparse
-  # disciplines; this is acceptable for the deploy-time enrichment build, and
-  # any subsequent run_pipeline.sh full run overwrites these files with the
-  # mirror-derived authoritative copies.
-  local out_canonical="${REPO_ROOT}/legacy_data/out/canonical"
-  run_or_print mkdir -p "${out_canonical}"
-  for f in events event_disciplines event_results event_result_participants persons; do
-    run_or_print cp "${ci}/${f}.csv" "${out_canonical}/${f}.csv"
-  done
+  # run_pipeline.sh csv_only owns the out/canonical bootstrap from the
+  # committed canonical_input snapshot, and QC-gates it before the DB load.
 
   # Same three-phase order as run_soup_to_nuts so loader 08 reseeds an empty
   # slate. csv_only does not regenerate canonical_input (both passes load the
@@ -317,6 +305,19 @@ run_all_data() {
     echo "      DB. The AWS deploy path applies it on any --all-data deploy (the"
     echo "      full migration load) to whichever target it deploys."
   fi
+
+  # Read-only data-review reports over the freshly built DB. Neither writes to
+  # the DB and neither judges the data (they always exit zero on findings, and
+  # non-zero only when a required input is missing); their markdown worklists
+  # feed the human data-review pass. The reports directory is gitignored: the
+  # worklists carry real names and must never be committed.
+  local mds="${REPO_ROOT}/legacy_data/member_data_scripts"
+  echo "==> data-review reports (read-only)"
+  run_or_print "$py" "${mds}/crosscheck_member_profile_ids.py"
+  run_or_print "$py" "${mds}/report_legacy_member_honors.py"
+  echo "    Reports written:"
+  echo "      legacy_data/reports/member_id_profile_url_crosscheck.md"
+  echo "      legacy_data/reports/legacy_member_honors_resolution.md"
 }
 
 case "$MODE" in

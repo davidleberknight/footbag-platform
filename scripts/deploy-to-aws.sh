@@ -503,10 +503,10 @@ fi
 # REBUILD_LOCAL == yes (opt-in via --from-csv / --soup-to-nuts). Two paths:
 #   --from-csv : no-mirror path. Loads committed
 #       canonical_input/*.csv and runs the enrichment phases.
-#       deploy-local-data.sh:run_from_csv() bootstraps
-#       legacy_data/out/canonical/ from the canonical_input snapshot before
-#       invoking csv_only, so phase D (which reads out/canonical/events.csv)
-#       has its input without requiring the mirror.
+#       run_pipeline.sh csv_only bootstraps legacy_data/out/canonical/ from
+#       the canonical_input snapshot and QC-gates it before the DB load, so
+#       phase D (which reads out/canonical/events.csv) has its input without
+#       requiring the mirror.
 #   --soup-to-nuts : runs the full pipeline starting from the legacy
 #       mirror. Regenerates committed canonical_input/*.csv, name
 #       variants, and seed/*.csv as a side effect; working tree will show

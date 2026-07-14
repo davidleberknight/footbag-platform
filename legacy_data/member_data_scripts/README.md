@@ -74,6 +74,10 @@ The Goldberg member-account data family lives here:
   validate, report, and drift-check the Hall-of-Fame and Big-Add-Posse honor flags.
 - `crosscheck_member_profile_ids.py` reconciles the dump member-id namespace
   against the mirror profile-URL ids.
+- The two read-only reports (`crosscheck_member_profile_ids.py`,
+  `report_legacy_member_honors.py`) also run automatically at the end of every
+  `--all-data` build, writing their worklists under the gitignored
+  `legacy_data/reports/`.
 
 The build-wrapper step that runs these as a dump-gated, warn-and-skip phase, and
 the full load design (composed birth date, email-column population, de-duplication
