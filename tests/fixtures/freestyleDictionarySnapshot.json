@@ -10405,7 +10405,7 @@
 "canonical_name": "Pogo Pickup",
 "adds": "3",
 "base_trick": null,
-"trick_family": "pogo_pickup",
+"trick_family": "pickup",
 "category": "compound",
 "description": null,
 "aliases_json": null,
