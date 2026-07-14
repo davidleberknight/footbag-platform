@@ -21,10 +21,10 @@ pieces:
   consecutive-kicks records pages, and curated media. These are read-only
   projections of the dictionary tables, shaped by `src/services/freestyleService.ts`
   and its helpers.
-- **The dictionary tables.** Ten `freestyle_*` tables plus six `symbolic_*` tables
-  hold the trick corpus, its provenance and aliases, the modifier registry, the
-  records, the community tips, and the observational symbolic-grammar layer. See
-  section 3.
+- **The dictionary tables.** Sixteen tables (nine `freestyle_*`, the
+  consecutive-kicks records table, and six `symbolic_*`) hold the trick corpus,
+  its provenance and aliases, the modifier registry, the records, the community
+  tips, and the observational symbolic-grammar layer. See section 3.
 - **The doctrine record.** `freestyle/doctrine/` holds the standing rulings that
   govern classification, scoring, and naming. See section 6.
 - **The code-side authority modules.** `src/content/freestyle*.ts` carry the
@@ -84,7 +84,8 @@ authority order in the root `CLAUDE.md`.
 
 Column-level detail lives in the inline comments in `database/schema.sql`; this
 section is the table-level home that `docs/DATA_MODEL.md` points to. Sixteen
-tables are freestyle-owned: ten `freestyle_*` and six `symbolic_*`.
+tables are freestyle-owned: nine `freestyle_*` tables, `consecutive_kicks_records`,
+and six `symbolic_*` tables.
 
 - **`freestyle_tricks`** - the trick corpus. Load-bearing columns: `adds` (the ADD
   value; may be numeric, blank, or the literal `modifier`), `review_status` and
@@ -103,10 +104,17 @@ tables are freestyle-owned: ten `freestyle_*` and six `symbolic_*`.
   its per-trick apply-ordered links.
 - **`freestyle_trick_relations`** - a stored relations table, empty by design;
   relations are derived, not stored (section 4).
-- **`freestyle_trick_tips`** - imported community advice. `status` is one of
-  `published`, `hidden`, or the granular unresolved buckets
-  (`unresolved_freestyle`, `unresolved_frontier`, `unresolved_ambiguous`,
-  `future_net`); only `published` tips on an active trick render publicly.
+- **`freestyle_trick_tips`** - community advice recovered from the legacy
+  footbag.org member tips. Display-only and non-doctrinal: a tip never affects
+  notation, ADD values, parser output, family membership, or canonical
+  descriptions, and no author names are stored. `status` is one of `published`,
+  `hidden`, or the granular unresolved buckets (`unresolved_freestyle`,
+  `unresolved_frontier`, `unresolved_ambiguous`, `future_net`); only `published`
+  tips on an active trick render publicly. Nothing is discarded: a tip whose
+  legacy trick name has no canonical slug is preserved under a stable
+  placeholder slug with no foreign key (`unresolved:<name>`, or
+  `unresolved:net:<name>` for net techniques held for future Net pages) and is
+  remapped when the canonical trick or Net page is authored.
 - **`freestyle_records`** and **`consecutive_kicks_records`** - the world-record
   and consecutive-kicks corpora, with confidence and superseded-by state.
 - **The six `symbolic_*` tables** - `symbolic_equivalence_clusters`,
@@ -192,13 +200,44 @@ directory's own `README.md` is the authoritative index of what lives where; the
 dated working history that produced these consolidations lives in the repository
 root `exploration/` tree.
 
-## 7. Publication governance
+## 7. Publication governance (the canonical-trick publication contract)
 
-The gate a trick must pass to become accepted canonical content is
-`docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md`: structural legibility across the
-symbolic system, the independence of ADD arithmetic from structural decomposition,
-honest incompleteness, and no fabricated structure. This guide links to that
-contract as the publication authority and does not restate it.
+This section is the publication gate. A trick must not be promoted to accepted
+canonical status unless it is structurally legible across the freestyle symbolic
+system: a canonical trick is a structurally legible symbolic object, not merely
+a database row.
+
+Minimum publication requirements:
+
+1. **Symbolic representation.** Every accepted trick carries at least one of:
+   curator-authored notation, a curated equivalence reading, a structural or
+   base-lineage rendering, or an explicit pending-curation state. Silent
+   semantic absence is not acceptable for non-core tricks.
+2. **Structural composition.** Every accepted trick exposes its core/base
+   relationship, or an explicit irreducible-core status. Intermediate operators
+   may remain compressed but must be explainable somewhere authoritative.
+3. **Discoverability across domains.** Every accepted trick appears in the
+   semantic and browse domains that apply to it: family, component, topology,
+   ADD, glossary and operator linkage, media and records, equivalence chains. A
+   trick never exists as an isolated canonical row.
+4. **Alias and equivalence governance.** Known aliases, folk names,
+   outside-source names, and equivalent readings are mapped, classified,
+   rejected, or explicitly deferred; never silently ignored.
+5. **Honest incompleteness.** Missing decomposition data is a curation gap, not
+   proof of atomicity. Pending states render honestly.
+6. **No fabricated structure.** Never infer deep decomposition from names,
+   auto-generate recursive chains, fabricate operator lineage, or normalize
+   away community vocabulary. Curator authority remains primary.
+
+Arithmetic validity is not structural certainty. A trick's ADD arithmetic and
+its structural decomposition are independent gates: the math closing (the ADD
+value derives cleanly, and any source divergence on the number resolves under
+the outlier rules) does not by itself make a trick publishable. When the number
+is settled but the structure is contested (which operators compose it, which
+base it lands on, or which of several competing readings is canonical), the
+trick is held, not published. Holding such a trick is the contract operating as
+designed, not a coverage gap; a clean ADD never licenses asserting a structure
+the sources do not agree on.
 
 ## 8. Terminology ownership
 
@@ -208,6 +247,13 @@ are owned by the dictionary tables and the operator reference
 reader-facing explanation of terms is the public glossary page. `docs/GLOSSARY.md`
 is the project technical glossary. This guide points to those homes and never
 copies their content, so a term's meaning has exactly one authoritative source.
+
+One class of terms is owned here directly, because it describes runs, never
+individual tricks, and therefore lives in no dictionary table: the run-quality
+ladder. Tiltless means every trick in the run is 2+ ADD; Guiltless 3+; Tripless
+4+; Fearless 5+; Beastly 6+; Godly 7+. Genuine is Guiltless excluding the BOP
+tricks (Butterfly, Osis, Paradox Mirage). The public glossary page renders these
+for readers; this guide is their authoritative definition.
 
 ## 9. Operational safety
 
@@ -224,13 +270,13 @@ instructions; the local rebuild runbook is `freestyle/README.md`.
 Each document owns one thing:
 
 - `docs/FREESTYLE.md` (this guide) - freestyle orientation, authority boundaries,
-  the table-level data model, and the doc map.
+  the table-level data model, the trick publication gate, the run-quality
+  ladder, and the doc map.
 - `database/schema.sql` - column-level table detail.
 - `docs/DEVOPS_GUIDE.md` - operational commands, the cutover model, deploy,
   backup, and rollback.
 - `docs/DATA_MODEL.md` - the platform data model; points here for the freestyle
   and symbolic tables.
-- `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md` - the trick publication gate.
 - `freestyle/doctrine/` (and its `README.md` index) - the doctrine of record.
 - `src/content/freestyleOperatorReference.ts` - the operator ADD, structure, and
   X-Dex authority.

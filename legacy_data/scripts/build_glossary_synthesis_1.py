@@ -4,7 +4,8 @@
 Generates Tasks A/D/F of the GS-1 brief.
 
 Inputs (read-only):
-  - docs/Freestyle_Footbag_Glossary.md (IFPA glossary v2; 25-ish terms)
+  - docs/Freestyle_Footbag_Glossary.md (IFPA glossary v2; 25-ish terms; the source
+    document is retired, so its loader degrades to an empty term set)
   - legacy_data/inputs/curated/tricks/passback-glossary.txt (613 lines; 180 terms)
   - exploration/passback-intake/passback_glossary_staging.csv (180 parsed terms)
   - exploration/freestyle-notation-grammar/UX1_GLOSSARY_TOKEN_MATRIX.csv (83 tokens)
@@ -31,7 +32,7 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-IFPA_GLOSSARY = ROOT / "docs" / "Freestyle_Footbag_Glossary.md"
+IFPA_GLOSSARY = ROOT / "docs" / "Freestyle_Footbag_Glossary.md"  # retired document; absent at this path
 PB_GLOSSARY_TXT = ROOT / "legacy_data" / "inputs" / "curated" / "tricks" / "passback-glossary.txt"
 PB_GLOSSARY_CSV = ROOT / "exploration" / "passback-intake" / "passback_glossary_staging.csv"
 UX1_TOKENS = ROOT / "exploration" / "freestyle-notation-grammar" / "UX1_GLOSSARY_TOKEN_MATRIX.csv"

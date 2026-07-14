@@ -18,7 +18,7 @@ Invoke this skill when work touches:
 - Media tier ordering on dictionary surfaces
 - Cross-cutting browse views (by ADD, by modifier, by set, by surface)
 
-If the work is purely ontology / data-layer (canonical naming decisions, alias additions, modifier table edits, dictionary CSV changes), this skill is **adjacent** but not authoritative: fall through to `footbag-freestyle-dictionary` and `CANONICALIZATION_POLICY.md`.
+If the work is purely ontology / data-layer (canonical naming decisions, alias additions, modifier table edits, dictionary CSV changes), this skill is **adjacent** but not authoritative: fall through to `footbag-freestyle-dictionary` and the doctrine of record in `freestyle/doctrine/`.
 
 If the work is media pipeline (sidecar emit, gallery seeding, source registration), fall through to `footbag-curated-media`.
 
@@ -244,7 +244,8 @@ Forward sequencing for these surfaces (alias-category surfacing, a modifier-aggr
 
 For design intent, not implementation:
 
-- `legacy_data/inputs/curated/tricks/CANONICALIZATION_POLICY.md`: ontology governance, alias policy, freeze philosophy
+- `docs/FREESTYLE.md`: the freestyle maintainer guide (authority tiers, table-level data model, publication gate, doc map)
+- `freestyle/doctrine/` (index: its `README.md`): the doctrine of record for ontology governance and alias policy
 - `.claude/skills/footbag-freestyle-dictionary/SKILL.md`: ontology layer rules (dictionary / modifiers / aliases / glossary / sequence / canonical results / media / navigation)
 - `.claude/skills/footbag-curated-media/SKILL.md`: media pipeline + tier semantics + source registry
 

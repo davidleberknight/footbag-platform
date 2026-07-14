@@ -93,8 +93,8 @@ In scope:
   with the services that consume them.
 - Curated intake artifacts as they manifest publicly: sidecars under
   `curated/freestyle_*/**`, gallery JSON, tags, source tiers.
-- The freestyle docs (`docs/Freestyle_Footbag_Glossary.md`,
-  `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md`) and the freestyle governance skills, as
+- The freestyle maintainer guide (`docs/FREESTYLE.md`: authority tiers, the
+  publication gate, terminology ownership) and the freestyle governance skills, as
   contracts to audit code against (deep doc-to-doc sync stays with bug-hunt).
 - Deterministic QC/test coverage for every category in `REFERENCE.md`: a missing
   mandatory-class check is a first-class finding, not advice.
@@ -115,8 +115,9 @@ doctrine judgment calls; editorial voice and wording of curator-authored prose; 
    governs a surface this run touches (at minimum `view-layer.md` for the hashtag and
    dictionary-filter link rules, `template-conventions.md`, `testing.md`, `comments.md`,
    `deployed-surface.md`).
-6. `docs/Freestyle_Footbag_Glossary.md`, `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md`,
-   and the freestyle sections of `docs/DATA_MODEL.md` as the categories require.
+6. `docs/FREESTYLE.md` (the maintainer guide, including its publication gate and
+   terminology sections) and the freestyle sections of `docs/DATA_MODEL.md` as the
+   categories require.
 7. `freestyle/CLAUDE.md` and any per-subtree `CLAUDE.md` for paths the run inspects.
 
 ## Method

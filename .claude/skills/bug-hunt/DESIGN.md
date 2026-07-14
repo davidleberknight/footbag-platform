@@ -465,7 +465,8 @@ propagates to all affected surfaces before its slice is done) treated as a desig
 with verification; the curated-media pipeline's pre-go-live lifecycle boundary and the
 post-go-live handoff to the production DB as source of truth; the trick-tag invariant as a
 designed control with a deterministic gate;
-`docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md` conformance of the publication design;
+conformance of the publication design to the canonical-trick publication contract in
+`docs/FREESTYLE.md`;
 naming/slug/hashtag conventions specified well enough to implement without guessing. Deep
 domain sweeps hand off to the `freestyle-bug-hunt` skill; this checklist covers only
 whether the DESIGN of these controls is complete, consistent, and testable.

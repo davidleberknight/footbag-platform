@@ -151,7 +151,7 @@ Use aliases for naming evolution, abbreviations, and alternate terms. Rules:
 
 ### 3a. Positional identity by configuration (resolver contract + invariant)
 
-Positional qualifiers (`same-side` / `near` / `far` / `opposite` / `ss` / `op`) are STRUCTURAL, not lexical. They are never stripped from the slug. A positional name's identity is its resolved side-configuration (the SAME/OP markers across its side-bearing components), not the qualifier-stripped name. Full doctrine: `CANONICALIZATION_POLICY.md` companion `POSITIONAL_IDENTITY_BY_CONFIGURATION.md`.
+Positional qualifiers (`same-side` / `near` / `far` / `opposite` / `ss` / `op`) are STRUCTURAL, not lexical. They are never stripped from the slug. A positional name's identity is its resolved side-configuration (the SAME/OP markers across its side-bearing components), not the qualifier-stripped name. Full doctrine: `freestyle/doctrine/POSITIONAL_IDENTITY.md`.
 
 **Core rule:** a fixed relationship in notation is INSUFFICIENT evidence for multi-component identity collapse. Multi-component positional aliases require an explicit curated equivalence row; the resolver may not infer them autonomously. The configuration resolver classifies a positional name into exactly one status: SAFE_ALIAS (autonomous only for single-component identities), DISTINCT_VARIANT_CANDIDATE, AMBIGUOUS_MULTI_COMPONENT, COLLISION, NO_NOTATION, NEEDS_CURATED_EQUIVALENCE.
 

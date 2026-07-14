@@ -48,3 +48,9 @@ instead of an unexplained edit.
 - `RED_QUEUE.md` — the open questions awaiting the rules expert or the curator.
 - `AUTHORITY.md` — the single authoritative source for each public freestyle
   datum, the ADD-authority order, and the duplications still to consolidate.
+- `QUESTION_REGISTRY.csv` — the registry of open doctrine questions: the only
+  identifiers an Emerging Vocabulary row may cite as its blocker (the content
+  generator fails on an unknown or closed reference).
+- `papers/` — the narrative doctrine record: the charter, identity, notation,
+  scoring, frontier, and history papers.
+- `reconciliation/` — the cross-corpus reconciliation studies and their summary.
