@@ -41,7 +41,7 @@ export interface TrackedNameGroup {
  *  recorded as a canonical trick in the committed canonical CSVs. Test
  *  fixture only; not a live publication filter (a name here may be a
  *  registered alias in the live database). */
-export const TRACKED_DOCUMENTED_TOTAL = 1486;
+export const TRACKED_DOCUMENTED_TOTAL = 1481;
 
 export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -119,7 +119,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Butterfly XBD Rake', slug: 'butterfly_xbd_rake' },
     { displayName: 'Crossbody Rake (XBD Rake)', slug: 'crossbody_rake_xbd_rake' },
     { displayName: 'Crossbody Sole Stall (Flapper)', slug: 'crossbody_sole_stall_flapper' },
-    { displayName: 'Da Da Curve Swirl', slug: 'da_da_curve_swirl' },
     { displayName: 'Da Da Curve XBD Rake', slug: 'da_da_curve_xbd_rake' },
     { displayName: 'Delusional Butterfly', slug: 'delusional_butterfly' },
     { displayName: 'Diving DDD (Down River)', slug: 'diving_ddd_down_river' },
@@ -295,6 +294,7 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Nuclear DDD (Cold Fusion) (Geesha)', slug: 'nuclear_ddd_cold_fusion_geesha' },
     { displayName: 'Nuclear DLO (Terminator)', slug: 'nuclear_dlo_terminator' },
     { displayName: 'Nuclear Drifter (69)', slug: 'nuclear_drifter_69' },
+    { displayName: 'Nuclear Mirage (Sumo)', slug: 'nuclear_mirage_sumo' },
     { displayName: 'Nuclear ss Guay', slug: 'nuclear_ss_guay' },
     { displayName: 'Nuclear ss Illusion', slug: 'nuclear_ss_illusion' },
     { displayName: 'Nuclear ss Legover', slug: 'nuclear_ss_legover' },
@@ -814,12 +814,8 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Nobius', slug: 'nobius', operationalNotation: 'Clip > (back) Spin (BOD) > Same In (DEX) >> (back) Spin (BOD) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Nuclear Double Over Down', slug: 'nuclear_double_over_down' },
     { displayName: 'Nuclear Ducking Mirage', slug: 'nuclear_ducking_mirage' },
-    { displayName: 'Nuclear Illusion (same side)', slug: 'nuclear_illusion_same_side' },
-    { displayName: 'Nuclear Legover (same side)', slug: 'nuclear_legover_same_side' },
-    { displayName: 'Nuclear Mirage (same side)', slug: 'nuclear_mirage_same_side' },
     { displayName: 'Nuclear Nova', slug: 'nuclear_nova' },
     { displayName: 'Nuclear Osis', slug: 'nuclear_osis' },
-    { displayName: 'Nuclear Pickup (same side)', slug: 'nuclear_pickup_same_side' },
     { displayName: 'Nuclear ss Butterfly', slug: 'nuclear_ss_butterfly' },
     { displayName: 'Nuclear ss Dyno', slug: 'nuclear_ss_dyno' },
     { displayName: 'Nuclear ss Whirl', slug: 'nuclear_ss_whirl' },
@@ -948,7 +944,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Stepping Ducking Far Butterfly', slug: 'stepping_ducking_far_butterfly' },
     { displayName: 'Stepping Ducking Far Butterfly Swirl', slug: 'stepping_ducking_far_butterfly_swirl' },
     { displayName: 'Stepping Ducking Far Double Over Down', slug: 'stepping_ducking_far_double_over_down' },
-    { displayName: 'Stepping Ducking Far Double Pickup', slug: 'stepping_ducking_far_double_pickup' },
     { displayName: 'Stepping Ducking Far Motion', slug: 'stepping_ducking_far_motion' },
     { displayName: 'Stepping Ducking Pdx Illusion', slug: 'stepping_ducking_pdx_illusion' },
     { displayName: 'Stepping Ducking PS Whirl', slug: 'stepping_ducking_ps_whirl', operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
