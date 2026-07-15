@@ -46,9 +46,9 @@ export const GLOSSARY_CORE_CONCEPTS: readonly GlossaryConceptCard[] = [
   },
   {
     key:     'set-vs-operator',
-    line:    "The same movement can play two jobs. When it launches a trick, putting the bag up to start the sequence, it is a set; when it modifies a trick already under way, it is an operator. Set or operator is a question of the job the movement is doing, not of the movement itself.",
-    relates: "This is the hinge between the vocabulary's atoms and its compounds: a trick is a base, often launched by a set, with operators laid over it. The clearest case is barrage and barraging, one two-dex structure in two roles: a barrage when it is the trick you perform, and barraging when the same pattern is laid over another trick as a modifier.",
-    reveal:  "Whether a movement is a set or an operator is decided by where it sits in the trick, not written into the movement. So you cannot sort the vocabulary by looking at movements in isolation; you ask what job each piece is doing. Once role comes apart from mechanic, the operator layer stops being a second pile of moves to memorize and becomes a small set of jobs the atoms you already know can be assigned to.",
+    line:    "A dexterity movement can be realized two ways: as a set that launches the trick, or as a standalone movement performed once the bag is already up. The same directional movement takes a different name in each role. Realized as a set, the outward dex is Atomic; realized standalone, the same outward movement is Illusioning.",
+    relates: "Role is separate from mechanic: Atomic and Illusioning are the one outward-dex movement in two roles, just as Quantum (set) and Miraging (standalone) are the one inward-dex movement. A set launches the trick and is scored as part of its structure; a standalone movement is realized independently and named descriptively, as in Illusioning Kick. Naming a standalone movement does not make it a reusable scored operator; the name describes a motion, it does not license arbitrary compounds.",
+    reveal:  "Because role lives in where the movement sits, not in the movement itself, you cannot classify the vocabulary by watching movements in isolation; you ask what job each piece is doing. Once role comes apart from mechanic, a short list of directional movements covers a long list of names: each direction carries a set name and a standalone name, and that two-way split organizes the whole layer instead of doubling the moves you have to memorize.",
   },
   {
     key:     'composition',

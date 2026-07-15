@@ -218,10 +218,15 @@ const DIFFICULTY_ARCHITECTURE_TERMS: readonly ComboAnalysisArchitectureTerm[] = 
     term:       'Additive layering',
     definition: 'The principle that compound tricks build ADD by summing operator weights onto a base. See ADD Accounting & Analysis for the per-trick mechanics; here the layering principle scales up to entire sequences.',
   },
+  // The plateau and its cause are stated as observations, not settled facts:
+  // both the maximum-ADD trend and whether the limit is the body's or a matter
+  // of what has been documented are contested, and the reported 9-ADD hit is
+  // uncorroborated testimony, so the text hedges and treats 8 as the documented
+  // ceiling until the account is confirmed.
   {
     anchorId:   'difficulty-plateau',
     term:       'Difficulty plateau',
-    definition: 'The observation that competitive maximum-ADD has not increased since approximately 2008. Reflects a biomechanical ceiling rather than a scoring choice: the sport bumped into the body\'s limits, not the system\'s.',
+    definition: 'The observation that competitive maximum-ADD appears to have plateaued around 2008, with no clearly documented increase since. This may reflect a biomechanical ceiling rather than a scoring choice, though whether the limit is the body\'s or a matter of what has been documented is not settled. The documented structural ceiling is 8 ADD; a reported 9 is disputed and is not treated as a verified clean performance.',
   },
 ];
 

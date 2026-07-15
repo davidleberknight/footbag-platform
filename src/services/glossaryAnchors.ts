@@ -39,8 +39,20 @@ const FOUNDATIONAL_TRICK_TERMS: ReadonlySet<string> = new Set([
   'butterfly',
   'swirl',
   'osis',
-  'around-the-world',
+  'around_the_world',
   'orbit',
+]);
+
+// A foundational term whose rendered anchor slug differs from its display form.
+// The foundational-tricks list anchors each atom by its underscore slug
+// (id="term-around_the_world"), but callers may pass the spaced or hyphenated
+// display name. Map every written form to the underscore anchor the page emits.
+// Single-word atoms (mirage, whirl, orbit) need no entry, and cross-body is
+// hyphen-anchored on both sides, so it is intentionally absent.
+const FOUNDATIONAL_ANCHOR_SLUG_OVERRIDES: ReadonlyMap<string, string> = new Map([
+  ['around-the-world', 'around_the_world'],
+  ['around the world', 'around_the_world'],
+  ['around_the_world', 'around_the_world'],
 ]);
 
 // Set-modifier anchors preserved on the glossary so that cross-link consumers
@@ -81,6 +93,10 @@ export function glossaryHrefForTerm(term: string): string {
   const normalized = term.trim().toLowerCase();
   if (CONNECTIVE_PANEL_TERMS.has(normalized)) {
     return `/freestyle/glossary#glossary-panel-${normalized}`;
+  }
+  const anchorOverride = FOUNDATIONAL_ANCHOR_SLUG_OVERRIDES.get(normalized);
+  if (anchorOverride) {
+    return `/freestyle/glossary#term-${anchorOverride}`;
   }
   if (
     FOUNDATIONAL_TRICK_TERMS.has(normalized) ||

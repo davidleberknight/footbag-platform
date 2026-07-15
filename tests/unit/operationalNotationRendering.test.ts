@@ -57,6 +57,12 @@ describe('shapeOperationalNotationDisplay — primary roles (saturated)', () => 
     expect(actions.map(t => t.text)).toEqual(['SPIN', 'DUCK', 'DIVE']);
     actions.forEach(t => expect(t.cssRole).toBe('body-action'));
   });
+  it('classifies JUMP, SWING, and SYMP as body actions (real tokens, not unknown)', () => {
+    const out = shapeOperationalNotationDisplay('SET > JUMP [BOD] > SWING [DEX] > SAME SYMP [DEX]');
+    const actions = out!.tokens.filter(t => t.role === 'body_action');
+    expect(actions.map(t => t.text)).toEqual(['JUMP', 'SWING', 'SYMP']);
+    expect(out!.tokens.some(t => t.role === 'unknown')).toBe(false);
+  });
   it('fuses FRONT WHIRL into a single rotation_variant token', () => {
     const out = shapeOperationalNotationDisplay('OP FRONT WHIRL [DEX]');
     const rot = out!.tokens.find(t => t.role === 'rotation_variant');
@@ -102,16 +108,18 @@ describe('shapeOperationalNotationDisplay — secondary roles (muted)', () => {
 });
 
 describe('shapeOperationalNotationDisplay — component flags', () => {
-  it('classifies all 6 component flags with per-flag cssRole granularity', () => {
-    const out = shapeOperationalNotationDisplay('[DEX] [DEL] [BOD] [XBD] [PDX] [XDEX]');
+  it('classifies all 8 component flags with per-flag cssRole granularity', () => {
+    const out = shapeOperationalNotationDisplay('[DEX] [DEL] [BOD] [XBD] [PDX] [XDEX] [UNS] [KICK]');
     const flags = out!.tokens.filter(t => t.role === 'component_flag');
-    expect(flags.map(t => t.text)).toEqual(['[DEX]', '[DEL]', '[BOD]', '[XBD]', '[PDX]', '[XDEX]']);
+    expect(flags.map(t => t.text)).toEqual(['[DEX]', '[DEL]', '[BOD]', '[XBD]', '[PDX]', '[XDEX]', '[UNS]', '[KICK]']);
     expect(flags[0]!.cssRole).toBe('component-flag component-flag-dex');
     expect(flags[1]!.cssRole).toBe('component-flag component-flag-del');
     expect(flags[2]!.cssRole).toBe('component-flag component-flag-bod');
     expect(flags[3]!.cssRole).toBe('component-flag component-flag-xbd');
     expect(flags[4]!.cssRole).toBe('component-flag component-flag-pdx');
     expect(flags[5]!.cssRole).toBe('component-flag component-flag-xdex');
+    expect(flags[6]!.cssRole).toBe('component-flag component-flag-uns');
+    expect(flags[7]!.cssRole).toBe('component-flag component-flag-kick');
   });
   it('attaches per-flag tooltip labels (O1c — per-token specificity)', () => {
     // Verbose-label format per commit 619d653 ("<Name> component

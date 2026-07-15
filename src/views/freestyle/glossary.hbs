@@ -1028,6 +1028,11 @@
       swing motion itself completes the trick, which may then settle into a stall, a
       kick, a catch, or a follow-on move. Pendulum and Rake are the primary examples
       (the same toe-and-swing pair in reversed order: toe then swing, swing then toe).
+      In notation the swing appears as a <code>SWING</code> token, scored as a dex
+      only when it carries <code>[DEX]</code> (as in Rake, <code>SET &gt; SWING [DEX]
+      &gt; SAME TOE [DEL]</code>); Pendulum's <code>TOE SWING (SET)</code> carries no
+      bracket flags, so its difficulty is taken from the trick's recorded ADD rather
+      than derived from the notation.
     </p>
 
     <p class="glossary-note">
@@ -1559,6 +1564,10 @@
       <dd>Paradox component: flags a cross-body far dex requiring a hip-pivot repositioning to bring the leg under the bag. Operationally: <code>CLIP &gt; OP IN [DEX]</code> (clipper set, far in-out dex). Equivalent to the <code>paradox</code> dex relationship in semantic notation.</dd>
       <dt id="op-flag-xdex"><code>[XDEX]</code></dt>
       <dd>X-Dex component. Marks the conditional +1 a dex scores when the notation carries <code>[XDEX]</code> (see <a href="#term-x-dex">X-Dex</a>). Recorded only where the notation carries it; some external references use the flag more broadly.</dd>
+      <dt id="op-flag-uns"><code>[UNS]</code></dt>
+      <dd>Unusual-surface component: the delay lands on a non-standard surface (sole, knee, head, neck, shoulder, forehead, cloud) rather than a toe or clipper. Scores like any delay; the flag records that the landing surface is unusual.</dd>
+      <dt id="op-flag-kick"><code>[KICK]</code></dt>
+      <dd>Kick action marker: the move ends in a kick rather than a stall. Non-scoring on its own; the kick carries no ADD, so a trick that ends <code>[KICK]</code> rather than <code>[DEL]</code> does not add a component for the kick.</dd>
     </dl>
 
     <h4>Sides</h4>
@@ -1610,8 +1619,10 @@
     <h4 id="op-surfaces">Surfaces &amp; body actions (reference)</h4>
     <p>The remaining vocabulary is small enough to list verbatim:</p>
     <ul>
-      <li><code>CLIP</code>, <code>TOE</code>: plant or landing surfaces</li>
-      <li><code>SPIN</code>, <code>DUCK</code>, <code>DIVE</code>: body actions</li>
+      <li><code>CLIP</code>, <code>TOE</code>: standard plant or landing surfaces; <code>INSIDE</code>, <code>OUTSIDE</code>, <code>SOLE</code>, <code>KNEE</code>, <code>HEEL</code>, <code>HEAD</code>, <code>NECK</code>, <code>SHOULDER</code>, <code>FOREHEAD</code>, <code>CLOUD</code>: unusual landing surfaces (flagged <code>[UNS]</code>)</li>
+      <li><code>SPIN</code>, <code>DUCK</code>, <code>DIVE</code>, <code>JUMP</code>, <code>FLYING</code>: body actions</li>
+      <li><code>SWING</code>: a controlled swing element (Pendulum, Rake); <code>SYMP</code>: the symposium dex movement</li>
+      <li><code>KICK</code>: a terminating kick, non-scoring (flagged <code>[KICK]</code>)</li>
       <li><code>FRONT WHIRL</code> / <code>BACK WHIRL</code> / <code>FRONT SWIRL</code>: rotational dex variants on a rotational base (the plain swirl and reverse-swirl dexes are written with the ordinary IN / OUT vocabulary)</li>
     </ul>
 
@@ -1631,9 +1642,23 @@
       sum of its base weight and each modifier's weight. The scored
       bracket-flags in operational notation are
       <code>[BOD]</code> / <code>[DEX]</code> / <code>[XBD]</code> /
-      <code>[DEL]</code> / <code>[UNS]</code>. The same additive logic lets the
+      <code>[DEL]</code> / <code>[UNS]</code> / <code>[XDEX]</code> (the last
+      scored only where the notation carries it); <code>[PDX]</code> marks a
+      dex's side relationship and <code>[KICK]</code> marks a non-scoring kick,
+      so neither adds on its own. The same additive logic lets the
       dictionary read <em><a href="/freestyle/tricks/mobius">mobius</a></em> as
       &ldquo;gyro torque&rdquo; and arrive at the same total either way.
+    </p>
+
+    {{!-- The 9-ADD wording is deliberately anonymized qualified testimony: it
+          names no witness and claims no record. It rests on an account recorded
+          for confirmation and not yet corroborated, so the ceiling is stated at
+          8 until the account is confirmed. --}}
+    <p class="glossary-note" id="difficulty-frontier">
+      <strong>The difficulty frontier.</strong> The current canonical structural
+      ceiling is 8 ADD. A 9-ADD trick has reportedly been achieved, although
+      whether it was landed cleanly is disputed. The glossary therefore does not
+      treat 9 ADD as a verified clean performance.
     </p>
 
     <h3 id="add-provenance">Where do ADD values come from?</h3>
@@ -2463,7 +2488,9 @@
     </dl>
     <p class="detail-muted">
       <strong>The settled/pending boundary is now well-defined.</strong> The
-      modifier weights, the atomic / quantum <a href="#term-x-dex">X-Dex</a> trigger, and the
+      modifier weights, the <a href="#term-x-dex">X-Dex</a> trigger (scored
+      wherever the operational notation carries <code>[XDEX]</code>, not by
+      operator name), and the
       named-compound decompositions are <strong>ratified</strong>; the pending
       set is small: chiefly the counting-frame doctrine (how the
       <code>[PDX]</code> flag is tallied) and a few source-divergence cases where

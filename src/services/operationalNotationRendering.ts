@@ -8,13 +8,13 @@
 //   - couples to the semantic-notation parser
 //
 // Pure pattern-matching tokenizer over the operational set-arc grammar:
-//   - Component flags ([DEX], [DEL], [BOD], [XBD], [PDX], [XDEX]) — square-bracket
+//   - Component flags ([DEX], [DEL], [BOD], [XBD], [PDX], [XDEX], [UNS], [KICK]) — square-bracket
 //   - Pre-state flags ((back), (front), (no plant while), (rooted)) — parens, lowercase
-//   - Surfaces (CLIP, TOE) — primary
+//   - Surfaces (CLIP, TOE, and unusual-landing surfaces) — primary
 //   - Sides (SAME, OP) — secondary
 //   - Directions (IN, OUT, FRONT, BACK) — secondary; FRONT/BACK fuse into
 //     rotation-variant when followed by WHIRL/SWIRL
-//   - Body actions (SPIN, DUCK, DIVE) — primary
+//   - Body actions (SPIN, DUCK, DIVE, FLYING, JUMP, SWING, SYMP) — primary
 //   - Rotation variants (FRONT WHIRL, BACK WHIRL, FRONT SWIRL) — primary; 2-token fusion.
 //     BACK SWIRL is retired from canonical notation (the swirl and reverse-swirl
 //     dexes use the ordinary IN/OUT vocabulary); the fusion rule still tolerates
@@ -32,7 +32,7 @@ export type OperationalTokenRole =
   | 'direction'         // IN, OUT, FRONT, BACK (when standalone)
   | 'body_action'       // SPIN, DUCK, DIVE
   | 'rotation_variant'  // FRONT WHIRL, BACK WHIRL, FRONT SWIRL — 2-token fusion (BACK SWIRL tolerated for non-canonical sources)
-  | 'component_flag'    // [DEX], [DEL], [BOD], [XBD], [PDX], [XDEX]
+  | 'component_flag'    // [DEX], [DEL], [BOD], [XBD], [PDX], [XDEX], [UNS], [KICK]
   | 'sequence_op'       // > or >>
   | 'pre_state'         // (back), (front), (no plant while), (rooted)
   | 'unknown';          // pass-through fallback; renders neutral
@@ -58,7 +58,7 @@ const SURFACES        = new Set([
 const SIDES           = new Set(['SAME', 'OP']);
 const DIRECTIONS      = new Set(['IN', 'OUT']);
 const FRONT_BACK      = new Set(['FRONT', 'BACK']);
-const BODY_ACTIONS    = new Set(['SPIN', 'DUCK', 'DIVE', 'FLYING']);
+const BODY_ACTIONS    = new Set(['SPIN', 'DUCK', 'DIVE', 'FLYING', 'JUMP', 'SWING', 'SYMP']);
 const ROTATION_NOUNS  = new Set(['WHIRL', 'SWIRL']);
 const COMPONENT_FLAGS = new Set(['DEX', 'DEL', 'BOD', 'XBD', 'PDX', 'XDEX', 'UNS', 'KICK']);
 
@@ -101,12 +101,15 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   DUCK:  'DUCK: body action (downward)',
   DIVE:  'DIVE: body action (forward-downward)',
   FLYING: 'FLYING: airborne flying body action (the flying operator)',
+  JUMP:  'JUMP: jump body action (airborne, as in eclipse / hop-over)',
+  SWING: 'SWING: controlled swing element (Pendulum, Rake); scores as a dex only where [DEX] is present',
+  SYMP:  'SYMP: symposium dex movement (scores as a dex)',
   // Standalone WHIRL/SWIRL — layer-disambiguated from semantic core_family
   WHIRL: 'WHIRL (operational): rotational dex step within the trick',
   SWIRL: 'SWIRL (operational): rotational dex step within the trick',
 };
 
-// Component-flag specific tooltip overrides. The 6 flags carry meaningfully
+// Component-flag specific tooltip overrides. The 8 flags carry meaningfully
 // different educational content. Labels are user-facing prose ("<Name>
 // component (clarifier)"); the raw token text already renders inside the
 // pill, so the tooltip avoids repeating it.

@@ -78,6 +78,15 @@ describe('glossaryHrefForTerm (pure function)', () => {
     expect(glossaryHrefForTerm('cross-body')).toBe('/freestyle/glossary#term-cross-body');
   });
 
+  it('resolves around-the-world to its underscore anchor in every written form', () => {
+    // The foundational list renders id="term-around_the_world" (underscore
+    // slug), so the hyphenated and spaced display forms must resolve there too;
+    // emitting #term-around-the-world lands on no element.
+    expect(glossaryHrefForTerm('around-the-world')).toBe('/freestyle/glossary#term-around_the_world');
+    expect(glossaryHrefForTerm('around the world')).toBe('/freestyle/glossary#term-around_the_world');
+    expect(glossaryHrefForTerm('around_the_world')).toBe('/freestyle/glossary#term-around_the_world');
+  });
+
   it('returns bare URL fallback for unknown terms', () => {
     expect(glossaryHrefForTerm('does-not-exist')).toBe('/freestyle/glossary');
     expect(glossaryHrefForTerm('')).toBe('/freestyle/glossary');

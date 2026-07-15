@@ -43,11 +43,15 @@ function card(html: string, anchorId: string): string {
 }
 
 describe('Glossary — Operators & Modifiers grammar concept cards', () => {
-  it('renders the Set vs Operator card as an insight home: line, relates, and a reveal', async () => {
+  it('renders the Set-role vs standalone-role card as an insight home: line, relates, and a reveal', async () => {
     const html = await glossary();
     expect(html).toContain('id="concept-set-vs-operator"');
     const svo = card(html, 'concept-set-vs-operator');
-    expect(svo).toContain('two jobs'); // the Line
+    expect(svo).toContain('realized two ways'); // the Line
+    // The example is the set/standalone naming split, not the trick/modifier pair.
+    expect(svo).toContain('Atomic');
+    expect(svo).toContain('Illusioning');
+    expect(svo).not.toContain('barraging');
     expect(svo).toContain('<summary>How it relates</summary>');
     expect(svo).toContain('<summary>What it reveals</summary>');
   });

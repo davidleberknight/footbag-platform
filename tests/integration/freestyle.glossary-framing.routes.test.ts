@@ -626,8 +626,10 @@ describe('Glossary X-Dex term — notation-authoritative', () => {
     expect(html).not.toMatch(/open per-base question/);
   });
 
-  it('marks the atomic / quantum X-Dex trigger as ratified and links the term', async () => {
+  it('marks the X-Dex trigger as ratified, links the term, and does not gate it by operator name', async () => {
     const html = await glossary();
-    expect(html).toMatch(/atomic \/ quantum <a href="#term-x-dex">X-Dex<\/a> trigger/);
+    expect(html).toMatch(/<a href="#term-x-dex">X-Dex<\/a> trigger/);
+    // X-Dex is notation-driven ([XDEX]), not an atomic/quantum operator whitelist.
+    expect(html).not.toMatch(/atomic \/ quantum <a href="#term-x-dex">X-Dex/);
   });
 });
