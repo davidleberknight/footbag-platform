@@ -233,7 +233,15 @@ never archived here.
   Whip, Stepping Ducking Blurry Whirl, and Solestice (four of the five
   curator-review records; the fifth, Toe Spinning Toe, has an
   unavailable-footage disposition and rides here as a record-name
-  question only). Blocks: the
+  question only); and the reported nine-ADD ceiling (an account relayed to
+  James holds that a nine-ADD trick was landed, but the landing's
+  cleanliness is disputed; the ask is the concrete record — which trick,
+  roughly when, whether footage or witnesses exist, and why the landing is
+  questioned — so the Frontier paper's ceiling note can move from
+  anonymized testimony to a corroborated or retired entry; non-blocking,
+  the documented ceiling stays at eight until the account is corroborated,
+  and the public glossary already renders it only as anonymized qualified
+  testimony that names no witness and claims no record). Blocks: the
   named rows and four record badges. Unlocks: those rows and badges. Next:
   send alongside the R1 addendum follow-up and the Notation packet. Done
   when each rider is answered, ruled unrulable, or retired.
@@ -361,6 +369,20 @@ never archived here.
   IFPA. Blocks: the freestyle rules buttons. Unlocks: re-enabling them.
   Next: follow up with Julie, or James formally drops the buttons for V1.
   Done when the wording ships or the feature is formally dropped.
+- **[KANBAN] O4. James: reconcile the set-systems chart classification with the
+  operator doctrine.** Urgency: non-blocking display consistency. Status: open.
+  The glossary's operator histogram and the "How tricks begin" prose now present
+  paradox and symposium as operators rather than sets, but the underlying
+  classifications still group them with the launch sets: the `ENTRY_HISTOGRAM`
+  snapshot in `src/content/freestyleTopologyHistograms.ts` lists Symposium and
+  Paradox as set-system rows, and the shared `MODIFIER_SET_SYSTEM_SLUGS` set in
+  `src/services/freestyleService.ts` (read by both the landing "Entry sets" card
+  and the glossary "How widely the systems appear" histogram) counts them among
+  the set systems. A fuller pass moves paradox and symposium out of the
+  set-systems grouping across the entry chart and the shared classification, or
+  records the grouping as an accepted display convention. Blocks: nothing; the
+  reader-facing labels are already correct. Done when the classification matches
+  the doctrine or the convention is recorded.
 
 **Accepted freestyle deviations and closed decisions (tracked; no action now).**
 - *Deviations (the Current/Target markers stay in the code):* count and quantifier tokens (double, triple, surging, high) render like operators in the symbolic notation; the PassBack tutorial galleries use compound difficulty tags; the Butterfly stored notation keeps its side-either SAME/OP entry while the public atom renders far-default; and the Around-the-World stored notation keeps its IN/OUT direction while the public atom renders inward-only.
