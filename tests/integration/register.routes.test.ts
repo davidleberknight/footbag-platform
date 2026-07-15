@@ -327,6 +327,100 @@ describe('POST /register', () => {
     expect(res.headers.location).toBe('/register/check-email');
   });
 
+  // UTS #39 display-name safety: reject the homograph and invisible-character
+  // spoofing vectors, normalize the stored name to NFC.
+  it('mixed-script real name (Cyrillic homoglyph) → 422', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        // "Jane" with a Cyrillic 'а' (U+0430) hidden among the Latin letters.
+        realName: 'Jаne Smith',
+        email: 'homoglyph@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('must not mix letters from different scripts');
+  });
+
+  it('real name with a bidi-control character → 422', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        // Right-to-left override (U+202E) appended to an otherwise valid name.
+        realName: 'John Smith‮',
+        email: 'bidi@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('invisible or control characters');
+  });
+
+  it('real name with a zero-width space → 422', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'John​ Smith',
+        email: 'zwsp@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('invisible or control characters');
+  });
+
+  it('display name with a Cyrillic homoglyph → 422', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'David Mockingbird',
+        // Latin display name with a Cyrillic 'о' (U+043E) in the surname.
+        displayName: 'David Mоckingbird',
+        email: 'displayhomoglyph@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('must not mix letters from different scripts');
+  });
+
+  it('accented single-script name registers and is stored NFC-normalized', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        // Decomposed input: "André Müller" as base letters + combining marks.
+        realName: 'André Müller',
+        email: 'accented@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/check-email');
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const row = db.prepare(
+      `SELECT real_name, display_name_normalized
+         FROM members WHERE login_email_normalized = ?`,
+    ).get('accented@example.com') as
+      | { real_name: string; display_name_normalized: string }
+      | undefined;
+    db.close();
+    // Stored in composed NFC form, not the decomposed input.
+    expect(row?.real_name).toBe('André Müller');
+    expect(row?.display_name_normalized).toBe('andré müller');
+  });
+
   it('slug conflict is resolved with suffix (no visible leak; unverified row exists)', async () => {
     const app = createApp();
     const res = await request(app)

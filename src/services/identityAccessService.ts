@@ -551,8 +551,10 @@ async function attemptLogin(
 }
 
 /**
- * Validate a full legal name for registration.
- * Rules: required, 2-64 chars, at least two words, at least one word 2+ chars, no digits.
+ * Validate a full legal name for registration. The name is expected NFC-normalized.
+ * Rules: required, 2-64 chars, at least two words, at least one word 2+ chars, no
+ * digits, no invisible/control/bidi characters, and a single script (the UTS #39
+ * mixed-script restriction; the confusable-skeleton collision check is deferred).
  */
 function validateRealName(name: string): void {
   if (!name) {
@@ -561,6 +563,7 @@ function validateRealName(name: string): void {
   if (name.length > MAX_DISPLAY_NAME) {
     throw new ValidationError(`Full legal name must be ${MAX_DISPLAY_NAME} characters or fewer.`);
   }
+  assertSafeNameCharacters(name, 'Full legal name');
   if (/\d/.test(name)) {
     throw new ValidationError('Full legal name must not contain digits.');
   }
@@ -581,6 +584,70 @@ function validateDisplayNameSurname(displayName: string, realName: string): void
   const realSurname = stripAccents(extractSurname(realName)).toLowerCase();
   if (displaySurname !== realSurname) {
     throw new ValidationError('Display name must include your last name.');
+  }
+}
+
+// UTS #39 display-name safety (the dependency-free subset). A member's public
+// display name is unforgeable attribution, so a name that mimics another member
+// through invisible characters or cross-script homoglyphs is a spoofing vector.
+// Two checks run on the NFC-normalized name; the heavier confusable-skeleton
+// collision check against existing names is deferred until it earns its keep.
+//
+// The scripts tested for the mixed-script rule. A name's letters must resolve to
+// a single script, with the CJK augmentations allowed (Japanese = Han + kana,
+// Korean = Han + Hangul), so an ordinary name in any one writing system passes
+// while a Latin/Cyrillic/Greek homoglyph mix is rejected.
+const NAME_SCRIPT_TESTS: ReadonlyArray<readonly [string, RegExp]> = [
+  ['Latin',      /\p{Script=Latin}/u],
+  ['Cyrillic',   /\p{Script=Cyrillic}/u],
+  ['Greek',      /\p{Script=Greek}/u],
+  ['Han',        /\p{Script=Han}/u],
+  ['Hiragana',   /\p{Script=Hiragana}/u],
+  ['Katakana',   /\p{Script=Katakana}/u],
+  ['Hangul',     /\p{Script=Hangul}/u],
+  ['Arabic',     /\p{Script=Arabic}/u],
+  ['Hebrew',     /\p{Script=Hebrew}/u],
+  ['Devanagari', /\p{Script=Devanagari}/u],
+  ['Thai',       /\p{Script=Thai}/u],
+  ['Armenian',   /\p{Script=Armenian}/u],
+  ['Georgian',   /\p{Script=Georgian}/u],
+];
+
+function resolvedNameScripts(name: string): Set<string> {
+  const scripts = new Set<string>();
+  for (const ch of name) {
+    if (!/\p{L}/u.test(ch)) continue; // only letters carry a script for this rule
+    for (const [scriptName, re] of NAME_SCRIPT_TESTS) {
+      if (re.test(ch)) { scripts.add(scriptName); break; }
+    }
+    // A letter from a script outside the tested set is left unattributed rather
+    // than forcing a false mixed-script rejection of an uncommon writing system.
+  }
+  return scripts;
+}
+
+function isSingleAllowedScript(scripts: Set<string>): boolean {
+  if (scripts.size <= 1) return true;
+  const s = [...scripts];
+  const japanese = s.every(x => x === 'Han' || x === 'Hiragana' || x === 'Katakana');
+  const korean   = s.every(x => x === 'Han' || x === 'Hangul');
+  return japanese || korean;
+}
+
+/**
+ * Reject the homograph / spoofing vectors an attacker uses to mimic another
+ * member's name. Runs on the NFC-normalized name.
+ * - `\p{C}` covers control, format (zero-width joiners, bidi overrides, BOM),
+ *   surrogate, private-use, and unassigned code points; none appear in a real name.
+ * - The mixed-script rule rejects letters drawn from more than one script (a
+ *   Cyrillic 'а' hidden inside a Latin name).
+ */
+function assertSafeNameCharacters(name: string, label: string): void {
+  if (/\p{C}/u.test(name)) {
+    throw new ValidationError(`${label} must not contain invisible or control characters.`);
+  }
+  if (!isSingleAllowedScript(resolvedNameScripts(name))) {
+    throw new ValidationError(`${label} must not mix letters from different scripts.`);
   }
 }
 
@@ -668,8 +735,8 @@ async function registerMember(
     );
   }
 
-  const trimmedRealName = realName.trim();
-  const trimmedDisplayName = displayName.trim() || trimmedRealName;
+  const trimmedRealName = realName.trim().normalize('NFC');
+  const trimmedDisplayName = displayName.trim().normalize('NFC') || trimmedRealName;
   const trimmedEmail = email.trim();
   const normalizedEmail = normalizeEmail(trimmedEmail);
 
@@ -678,6 +745,7 @@ async function registerMember(
   if (trimmedDisplayName.length > MAX_DISPLAY_NAME) {
     throw new ValidationError(`Display name must be ${MAX_DISPLAY_NAME} characters or fewer.`);
   }
+  assertSafeNameCharacters(trimmedDisplayName, 'Display name');
   if (trimmedDisplayName !== trimmedRealName) {
     validateDisplayNameSurname(trimmedDisplayName, trimmedRealName);
   }
