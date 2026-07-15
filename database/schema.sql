@@ -75,12 +75,6 @@ CREATE TABLE clubs (
   -- club-edit read still returns it so an operator can replace or remove it.
   external_url_quarantine_reason TEXT,
 
-  -- ON DELETE SET NULL: deleting a media item detaches the club logo without
-  -- requiring a before-delete trigger. The application stamps updated_at/updated_by
-  -- on the club row when it deliberately removes a logo; the FK action handles
-  -- the case where media is deleted directly (e.g., by the uploader or an admin).
-  logo_media_id TEXT REFERENCES media_items(id) ON DELETE SET NULL,
-
   status         TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive','archived')),
   hashtag_tag_id TEXT NOT NULL REFERENCES tags(id)
 );
@@ -2129,7 +2123,6 @@ CREATE INDEX idx_result_participants_person ON event_result_entry_participants(h
 --
 -- Referential cleanup on delete is handled declaratively:
 --   members.avatar_media_id  REFERENCES media_items(id) ON DELETE SET NULL
---   clubs.logo_media_id      REFERENCES media_items(id) ON DELETE SET NULL
 --
 -- Gallery membership is computed at request time by tag-AND match against
 -- member_gallery_tags / member_gallery_exclude_tags. Deleting a gallery

@@ -185,7 +185,7 @@ Two actor column patterns are used and are intentionally distinct:
 | `NOT NULL` | Required fields |
 | `UNIQUE` / partial `UNIQUE` index | A member co-leads at most one club, one avatar per member, email uniqueness for un-purged members |
 | `CHECK` | Enum values, boolean shape, conditional NOT NULL (PII purge invariant) |
-| `FOREIGN KEY` + `ON DELETE SET NULL` | Avatar/logo/gallery detachment on media delete |
+| `FOREIGN KEY` + `ON DELETE SET NULL` | Avatar/gallery detachment on media delete |
 | `FOREIGN KEY` + `ON DELETE CASCADE` | Media flags/tags cascade-delete with media |
 | Immutability triggers | Append-only tables: audit log, ballots, eligibility snapshot, tier grants, payment/subscription transitions, system_config |
 | State machine trigger | `payments.status` forward-only transitions |
@@ -233,8 +233,6 @@ The `tag_normalized` column stores the lowercased form; `tag_display` stores the
 **Views:** `clubs_open` (active and inactive), `clubs_active` (active only; the public directory surface), `clubs_all` (including archived)
 
 Clubs do **not** use soft-delete. `deleted_at` and `deleted_by` are **not** present on `clubs`. Club archival sets `status = 'archived'`. `clubs_open` filters `WHERE status IN ('active', 'inactive')`; `clubs_active` filters `WHERE status = 'active'`; `clubs_all` includes archived rows.
-
-`logo_media_id REFERENCES media_items(id) ON DELETE SET NULL`: deleting a media item automatically detaches it as the club logo. The application stamps `updated_at`/`updated_by` when explicitly removing a logo; the FK action covers deletion via other paths.
 
 Each club has a unique `hashtag_tag_id` (enforced by `UNIQUE INDEX ux_clubs_hashtag`). This hashtag is the canonical club identifier for gallery auto-linking.
 
@@ -897,7 +895,6 @@ Both `media_items` and `member_galleries` use **hard-delete only** (no `deleted_
 #### Referential cleanup (declarative FK actions)
 When a media item is deleted:
 - `members.avatar_media_id` → `SET NULL` (avatar detached, member row intact)
-- `clubs.logo_media_id` → `SET NULL` (logo detached, club row intact)
 - `media_flags` / `media_tags` → `CASCADE` delete (flags and tags removed with the media)
 
 When a gallery is deleted:
@@ -1483,7 +1480,7 @@ active | past_due → canceled (on customer.subscription.deleted)
 
 ### APP-012 — Updated-at and updated-by stamping on FK-detached rows (optional)
 
-When the application explicitly deletes a media item or gallery and wants to record the detachment on affected parent rows, it should stamp `updated_at`/`updated_by`/`version` on those rows in the same transaction (before the delete). The FK `ON DELETE SET NULL` action handles the FK nullification automatically but does not stamp metadata. For detachments that occur silently (e.g., uploader self-deletes media while the club still references it as logo), the FK action is sufficient and no stamping is required.
+When the application explicitly deletes a media item or gallery and wants to record the detachment on affected parent rows, it should stamp `updated_at`/`updated_by`/`version` on those rows in the same transaction (before the delete). The FK `ON DELETE SET NULL` action handles the FK nullification automatically but does not stamp metadata. For detachments that occur silently (e.g., an uploader self-deletes media that a member still references as an avatar), the FK action is sufficient and no stamping is required.
 
 ---
 

@@ -1119,7 +1119,7 @@ Story: As a member, I can view club details and member roster so that I learn ab
 
 Success Criteria:
 
-- Club page displays: club name, logo, description, city, country, external URL (if provided), standardized hashtag. To authenticated members it also shows each co-leader's contact email (and that co-leader's WhatsApp where they opted in).
+- Club page displays: club name, description, city, country, external URL (if provided), standardized hashtag. To authenticated members it also shows each co-leader's contact email (and that co-leader's WhatsApp where they opted in).
 - Member roster shows all members where clubId matches the club.
 - Roster displays: member display name, membership tier badge, current Active Player badge where applicable, city, country, and gender when the member has opted in to gender visibility.
 - Email addresses shown only if member has opted in to email visibility.

@@ -346,8 +346,8 @@ export function refreshAllPersonas(
       ).run(...memberIds);
     }
     delIn('media_jobs', 'admin_member_id', memberIds);
-    // media_tags and media_flags cascade; members.avatar_media_id and
-    // clubs.logo_media_id are SET NULL, so no ordering hazard. The uploaded
+    // media_tags and media_flags cascade; members.avatar_media_id is SET NULL,
+    // so no ordering hazard. The uploaded
     // media's storage-object keys are captured first so the async refresh route
     // can delete the bytes after this DB-only transaction commits.
     const deletedMediaKeys = unique(
