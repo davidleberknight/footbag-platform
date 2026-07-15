@@ -1265,6 +1265,19 @@ export function insertFreestyleTrickModifierLink(
   `).run(trick_slug, modifier_slug, apply_order);
 }
 
+export function insertFreestyleTrickRelation(
+  db: BetterSqlite3.Database,
+  from_trick_slug: string,
+  to_trick_slug: string,
+  o: { relation_type?: string; notes?: string | null } = {},
+): void {
+  db.prepare(`
+    INSERT INTO freestyle_trick_relations
+      (from_trick_slug, to_trick_slug, relation_type, notes, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(from_trick_slug, to_trick_slug, o.relation_type ?? 'equivalent_to', o.notes ?? null, TS);
+}
+
 export function insertActivePlayerVouch(
   db: BetterSqlite3.Database,
   o: ActivePlayerVouchOverrides,
