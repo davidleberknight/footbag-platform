@@ -619,6 +619,23 @@ export interface FreestyleByNumbersCard {
   bars: FreestyleByNumbersBar[];
 }
 
+// Which modifier slugs are named launch/set systems rather than movement
+// operators. The single classification the landing "by the numbers" band and
+// the glossary Operators & Modifiers histogram both read, so the two surfaces
+// cannot disagree about whether a system is a set or an operator.
+const MODIFIER_SET_SYSTEM_SLUGS: ReadonlySet<string> = new Set([
+  'symposium', 'paradox', 'pixie', 'fairy', 'stepping', 'quantum', 'atomic', 'blurry', 'nuclear', 'furious',
+]);
+
+// The two operator/set groups, each a share-of-dictionary histogram over the
+// public trick universe. Produced once by buildFreestyleByNumbers and consumed
+// by both the landing band and the glossary, so the counts, ordering, width
+// buckets, and labels are identical on both surfaces.
+export interface OperatorSystemGroups {
+  operators:  FreestyleByNumbersBar[];   // movement / body / entry / suspension operators
+  setSystems: FreestyleByNumbersBar[];   // named launch / set systems
+}
+
 // Compute the six histogram cards from the already-loaded trick rows + the
 // modifier-link feed. Trick-kind population only (resolveTrickKind === 'trick'),
 // so the counts match the dictionary browse views the cards link into.
@@ -633,7 +650,7 @@ function isDexlessBodyAtom(r: { category: string | null; base_trick: string | nu
 function buildFreestyleByNumbers(
   trickRows: readonly FreestyleTrickRow[],
   linkRows: readonly FreestyleTrickModifierLinkRow[],
-): { cards: FreestyleByNumbersCard[]; note: string } {
+): { cards: FreestyleByNumbersCard[]; note: string; operatorGroups: OperatorSystemGroups } {
   const tricks = trickRows.filter(r => resolveTrickKind(r.slug) === 'trick');
   const N = Math.max(1, tricks.length);   // uniform denominator: the trick-kind total
   const inc = <K>(m: Map<K, number>, k: K) => m.set(k, (m.get(k) ?? 0) + 1);
@@ -682,14 +699,18 @@ function buildFreestyleByNumbers(
   }
 
   const trickKind = new Set(tricks.map(r => r.slug));
-  const SET_SYSTEMS = new Set(['symposium', 'paradox', 'pixie', 'fairy', 'stepping', 'quantum', 'atomic', 'blurry', 'nuclear', 'furious']);
   const bodyMods = new Map<string, number>();
+  const setSys = new Map<string, number>();
   for (const l of linkRows) {
     if (!trickKind.has(l.trick_slug)) continue;
     // Body = movement operators only; the set-system launchers belong to Entry,
     // so Body and Entry read as genuinely different lenses.
-    if (!SET_SYSTEMS.has(l.modifier_slug)) inc(bodyMods, l.modifier_slug);
-    if (SET_SYSTEMS.has(l.modifier_slug)) inc(entry, l.modifier_slug);   // entry = catch surfaces + set systems
+    if (MODIFIER_SET_SYSTEM_SLUGS.has(l.modifier_slug)) {
+      inc(setSys, l.modifier_slug);
+      inc(entry, l.modifier_slug);   // entry = catch surfaces + set systems
+    } else {
+      inc(bodyMods, l.modifier_slug);
+    }
   }
 
   const unknownDex = dex.get('Unknown') ?? 0;
@@ -707,7 +728,18 @@ function buildFreestyleByNumbers(
     { key: 'body', eyebrow: 'What body movements shape tricks?', title: 'Body movements',
       viewKey: 'movement-system', footnote: null, bars: top(bodyMods, 10) },
   ];
-  return { cards, note: `Counts are out of ${N} active canonical tricks; ${unknownDex} still await a notation breakdown.` };
+
+  // Shared operator/set-system groups: both the body/entry cards above and the
+  // glossary Operators & Modifiers histogram read these same counts, sorted by
+  // count descending with an alphabetical tie-break for a deterministic order.
+  const groupBars = (m: Map<string, number>): FreestyleByNumbersBar[] =>
+    [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k, c]) => bar(k, c));
+  const operatorGroups: OperatorSystemGroups = {
+    operators:  groupBars(bodyMods),
+    setSystems: groupBars(setSys),
+  };
+
+  return { cards, note: `Counts are out of ${N} active canonical tricks; ${unknownDex} still await a notation breakdown.`, operatorGroups };
 }
 
 export interface FreestyleLandingContent {
@@ -4048,6 +4080,12 @@ export interface FreestyleGlossaryContent {
   // quantized 5%-step width class so the bar carries no inline style.
   familyHistogram: readonly { label: string; count: number; tier: string; widthBucket: number }[];
   entryHistogram:  readonly { label: string; count: number; tier: string; widthBucket: number }[];
+  // Two-group operator/set-system histogram, reused from the shared landing-band
+  // model (same counts and ordering, bucketed on one shared visual scale).
+  operatorSystemHistogram: {
+    operators:  readonly { label: string; count: number; tier: string; widthBucket: number }[];
+    setSystems: readonly { label: string; count: number; tier: string; widthBucket: number }[];
+  };
   // §8 ADD Accounting worked-example cards. Five compact
   // educational cards illustrating how ADD math composes for compound
   // tricks. Pulled from the curator-authored ADD_WORKED_EXAMPLES module,
@@ -10020,6 +10058,27 @@ export const freestyleService = {
     );
     const ctx = buildNotationLookupContext(allDictRows, allModifiers, allAliases);
 
+    // Operators & Modifiers histogram: reuse the one shared model the Freestyle
+    // landing band computes, so the operator/set-system counts, classification,
+    // and ordering are identical on both surfaces and cannot drift. Bucket
+    // widths run through the same topologyHistogramRows helper the family and
+    // entry histograms use, and both groups are bucketed together so they share
+    // one visual scale (the widest bar across both groups sets the scale top).
+    const operatorLinkRows = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
+      freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
+    );
+    const { operatorGroups } = buildFreestyleByNumbers(allDictRows, operatorLinkRows);
+    const OPERATOR_HISTOGRAM_CAP = 10;
+    const operatorBars = operatorGroups.operators.slice(0, OPERATOR_HISTOGRAM_CAP);
+    const setSystemBars = operatorGroups.setSystems.slice(0, OPERATOR_HISTOGRAM_CAP);
+    const operatorSystemScaled = topologyHistogramRows(
+      [...operatorBars, ...setSystemBars].map(b => ({ label: b.label, count: b.count, tier: 'system' as const })),
+    );
+    const operatorSystemHistogram = {
+      operators:  operatorSystemScaled.slice(0, operatorBars.length),
+      setSystems: operatorSystemScaled.slice(operatorBars.length),
+    };
+
     // Three illustrative examples per the bootstrap plan + style guide:
     // beginner (single base), compound (modifier + base), modifier-heavy
     // (3 modifiers + base). Each shaped through the same renderer.
@@ -10105,6 +10164,7 @@ export const freestyleService = {
           .map(f => ({ slug: f.slug, label: f.label, count: FAMILY_DESCENDANT_COUNTS.get(f.slug) ?? 0 })),
         familyHistogram: topologyHistogramRows(FAMILY_HISTOGRAM),
         entryHistogram:  topologyHistogramRows(ENTRY_HISTOGRAM),
+        operatorSystemHistogram,
         addWorkedExamples: ADD_WORKED_EXAMPLES.map((ex) => ({
           ...ex,
           statusLabel:

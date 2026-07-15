@@ -741,11 +741,10 @@
     </dl>
     <p>
       Two set surfaces dominate how tricks begin: toe (207) and clipper (197).
-      Beneath them a handful of set systems recur, the named ways a trick is
-      initiated: symposium and paradox (timing), pixie, fairy, and stepping
-      (set ecosystems). The set surface itself is too broad to be a system; the
-      systems are what players layer on top of it. Remember this shape, because
-      the ending mirrors it.
+      The launch sets Pixie, Fairy, and Stepping recur widely, with operators
+      such as Paradox and Symposium layered alongside them. The set surface
+      itself is too broad to be a system; the systems are what players layer on
+      top of it. Remember this shape, because the ending mirrors it.
     </p>
 
     <h3 class="section-heading" id="set-surface-vs-named-set">Set surface vs named set</h3>
@@ -888,6 +887,46 @@
       <strong>not a family</strong>: it has no terminal mechanic of its own; it
       modifies a base that does. Browse a single ecosystem under
       <a href="/freestyle/tricks?view=sets">By modifier</a>.
+    </p>
+
+    {{! Operator/set-system histogram: a second rendering of the shared landing-band
+        model (buildFreestyleByNumbers operatorGroups), bucketed on one scale by the
+        same topologyHistogramRows helper the family/entry histograms use. }}
+    <h3 class="section-heading" id="how-widely-systems-appear">How widely the systems appear</h3>
+    <p>
+      The same set and modifier systems recur across many unrelated base tricks.
+      These live counts show how much of the documented vocabulary carries each
+      system: documented decomposition coverage across the public canonical
+      vocabulary, read from the same shared data as the live charts on the
+      <a href="/freestyle">Freestyle overview</a>.
+    </p>
+
+    <h4>Body and movement operators</h4>
+    <p class="detail-muted">Transformations layered on a base trick already under way.</p>
+    <dl class="gloss-histogram" aria-label="Body and movement operators by number of documented tricks">
+      {{#each content.operatorSystemHistogram.operators}}
+      <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
+        <dt>{{label}}</dt>
+        <dd><span class="gloss-bar" aria-hidden="true"><span class="gloss-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span> <span class="gloss-bar-count">{{count}}</span></dd>
+      </div>
+      {{/each}}
+    </dl>
+
+    <h4>Entry, launch, and support systems</h4>
+    <p class="detail-muted">Named systems that shape how a trick begins or constrain the body and support relationship around its dexes. This group includes launch sets as well as Paradox and Symposium, which are operators rather than sets.</p>
+    <dl class="gloss-histogram" aria-label="Entry, launch, and support systems by number of documented tricks">
+      {{#each content.operatorSystemHistogram.setSystems}}
+      <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
+        <dt>{{label}}</dt>
+        <dd><span class="gloss-bar" aria-hidden="true"><span class="gloss-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span> <span class="gloss-bar-count">{{count}}</span></dd>
+      </div>
+      {{/each}}
+    </dl>
+
+    <p class="detail-muted">
+      These counts use explicit editorial decomposition links. Some structurally
+      compound tricks do not yet carry a complete link record, so the chart shows
+      documented coverage rather than every possible occurrence.
     </p>
 
 
