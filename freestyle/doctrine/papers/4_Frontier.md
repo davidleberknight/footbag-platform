@@ -18,7 +18,7 @@ It is also where two questions the other papers deferred come to rest: whether a
   source-attestation rule, and it is what keeps the canon finite and real.
 - **Frequency is evidence, never authority.** Recurrence in a corpus documents
   that a name is used; it does not by itself promote the name to canon.
-- **The current ADD ceiling is 8.** Three canonical rows reach it. Nothing above
+- **The current ADD ceiling is 8.** Four canonical rows reach it. Nothing above
   is cleanly attested. Every published 9 reading was investigated, and each fails
   one of two ways: it rests on an X-Dex application the settled rule forbids, or on
   an operator the grammar has not defined. The doctrine already decides them (see
@@ -47,6 +47,15 @@ It is also where two questions the other papers deferred come to rest: whether a
    needs people who train and judge at the top, and any answer is dated, because
    athletes change what is possible. (Elite players and competition judges first;
    Red for how such a trick would be read if it appeared.)
+
+   *Testimony under review (relayed by James, originating account attributed to
+   Red Husted): a 9-ADD trick has reportedly been achieved, but whether the
+   landing was clean is disputed. The trick, era, footage, witnesses, and the
+   exact reason the landing is questioned are all unconfirmed; a rider to Red
+   (in `RED_QUEUE.md`) carries the ask. This is recorded for confirmation, not a
+   ruling: the 8-ADD ceiling above stands until the account is corroborated. The
+   public glossary renders it only as anonymized qualified testimony — it names
+   no witness and claims no record.*
 2. **Is the operator grammar complete, and does it permit repetition?** Whether
    the primitive operator set is closed, and whether an operator may repeat in
    one compound (miraging twice), is likely answerable only as a dated editorial

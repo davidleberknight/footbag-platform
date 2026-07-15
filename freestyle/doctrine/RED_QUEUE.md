@@ -118,7 +118,13 @@ packet, send or resend it to Red, and then update each item's delivery status fr
    - "Stepping Ducking Blurry Whirl" (the folk name reads four operators at 6 ADD,
      the structured name two operators at 5);
    - slicing (Lawn Moir's base reading, if its FootbagMoves-notation authoring
-     attempt fails).
+     attempt fails);
+   - the reported 9-ADD hit (the frontier ceiling): an account relayed to us holds
+     that a 9-ADD trick was landed, but the cleanliness of the landing is disputed.
+     The ask is the concrete record — which trick, roughly when, whether footage or
+     witnesses exist, and the exact reason the landing is questioned — so the
+     Frontier paper's ceiling note can move from anonymized testimony to a
+     corroborated (or retired) entry. Until then the documented ceiling stands at 8.
 
    Solestice, Double Dyno / Double Whip, and Stepping Ducking Blurry Whirl are
    records-only questions (each blocks one world-record badge, none gates a
