@@ -63,8 +63,8 @@ export const FAMILY_OVERRIDES: ReadonlyMap<string, string> = new Map([
   ['mullet',    'rev_whirl'],   // mechanics-confirmed
 
   // high-plains-drifter follows drifter into the drifter branch family
-  // after the clipper-stall family retirement (see RETIRED_FAMILIES
-  // below). One-way redirect: row no longer bucketed under clipper-stall.
+  // after the clipper-stall family was retired as a public family. One-way
+  // redirect: the row is no longer bucketed under clipper-stall.
   ['high_plains_drifter', 'drifter'],
 
   // Curator ruling: lose rev-up from the Whirl family until its

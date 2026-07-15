@@ -8,7 +8,10 @@
  * always renders its own page and wins even when an alias row shadows the slug;
  * an inactive archived row whose slug is also an alias 301s to its canonical
  * trick; an inactive slug with no alias is a 404, as is an unknown slug; modifier
- * and operator slugs keep their existing 301 to the modifier page.
+ * and operator slugs keep their existing 301 to the modifier page. A hyphenated
+ * slug 301s to its underscore form when that form is a known trick, alias, or set,
+ * since a trick slug is a single lowercase underscore token; a hyphenated slug with
+ * no resolving underscore form is a 404, not a redirect to a dead URL.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -139,6 +142,17 @@ describe('GET /freestyle/tricks/:slug — alias canonicalization', () => {
 
   it('404s an unknown slug that is neither canonical nor alias', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/zzz_not_a_trick');
+    expect(res.status).toBe(404);
+  });
+
+  it('301-redirects a hyphenated slug to its underscore canonical URL', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/around-the-world');
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/freestyle/tricks/around_the_world');
+  });
+
+  it('404s a hyphenated slug whose underscore form is not a known trick', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/not-a-real-trick');
     expect(res.status).toBe(404);
   });
 });

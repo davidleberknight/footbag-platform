@@ -426,6 +426,8 @@ export interface FreestyleRecordsContent {
 }
 
 export interface FreestyleTrickSearchResult {
+  /** Result-kind discriminator, so a mixed-results client branches on the value rather than a missing field. */
+  type: 'trick';
   slug: string;
   name: string;
   href: string;
@@ -436,6 +438,8 @@ export interface FreestyleTrickSearchResult {
 }
 
 export interface FreestyleFamilySearchResult {
+  /** Result-kind discriminator, so a mixed-results client branches on the value rather than a missing field. */
+  type: 'family';
   slug: string;
   name: string;
   href: string;
@@ -482,6 +486,7 @@ function searchPublicFamilies(query: string, limit: number): FreestyleFamilySear
     .sort((a, b) => a.label.length - b.label.length || a.label.localeCompare(b.label))
     .slice(0, limit)
     .map(f => ({
+      type: 'family' as const,
       slug: f.slug,
       name: f.label,
       href: `/freestyle/families/${f.slug}`,
@@ -504,6 +509,7 @@ function runTrickSearch(query: string, limit: number): FreestyleTrickSearchResul
           ? r.matched_alias
           : null;
       out.push({
+        type: 'trick',
         slug: r.slug,
         name: r.canonical_name,
         href: `/freestyle/tricks/${r.slug}`,
@@ -10238,12 +10244,17 @@ export const freestyleService = {
     const shape = (r: ObservationalUniverseRow) => shapeObservationalCard(r, curatorNotes);
     const inSection = (s: string) => visible.filter(r => r.publicSection === s);
 
-    const summarizeRows = (rows: ObservationalUniverseRow[], intro: string): ObservationalSummarySection => ({
-      total:       rows.length,
-      intro,
-      sampleCards: rows.slice(0, 6).map(shape),
-      fullList:    rows.map(r => ({ name: r.name, source: r.source })),
-    });
+    const summarizeRows = (rows: ObservationalUniverseRow[], intro: string): ObservationalSummarySection => {
+      // Sort once so the preview cards (first six) and the full list below them
+      // are the same alphabetical order, not two different source-order slices.
+      const sorted = [...rows].sort((a, b) => a.name.localeCompare(b.name));
+      return {
+        total:       sorted.length,
+        intro,
+        sampleCards: sorted.slice(0, 6).map(shape),
+        fullList:    sorted.map(r => ({ name: r.name, source: r.source })),
+      };
+    };
 
     // External / unadjudicated rows tracked in the database (is_active=0 +
     // review_status='pending'). Distinct from the generated observational
@@ -10269,6 +10280,7 @@ export const freestyleService = {
       list.push({ name: x.canonical_name, source: 'external', blockerId: adj.blockerId });
       externalBySection.set(adj.publicSection, list);
     }
+    externalUnadjudicated.sort((a, b) => a.name.localeCompare(b.name));
     const externalWithBlocker = (blockerId: string) =>
       [...externalBySection.values()].flat().filter(x => x.blockerId === blockerId)
         .map(x => ({ name: x.name, source: x.source }));
@@ -10578,6 +10590,22 @@ export const freestyleService = {
   },
 
   trickRouteRedirectTarget(slug: string): string | null {
+    // A trick slug is a single lowercase underscore token with no hyphens, so a
+    // hyphenated request is a legacy or mistyped form. Normalize it to the
+    // underscore slug and 301 there when that slug resolves to a real trick,
+    // alias, or migrated set, rather than 404 on the hyphen form.
+    if (slug.includes('-')) {
+      const underscored = slug.replace(/-/g, '_');
+      if (underscored !== slug) {
+        const underscoreResolves =
+          isRouteMigratedSet(underscored) ||
+          !!runSqliteRead('freestyleTricks.categoryBySlug', () =>
+            freestyleTricks.categoryBySlug.get(underscored)) ||
+          !!runSqliteRead('freestyleTrickAliases.getCanonicalForAlias', () =>
+            freestyleTrickAliases.getCanonicalForAlias.get(underscored));
+        if (underscoreResolves) return `/freestyle/tricks/${underscored}`;
+      }
+    }
     if (isRouteMigratedSet(slug)) return `/freestyle/sets/${slug}`;
     const row = runSqliteRead('freestyleTricks.categoryBySlug', () =>
       freestyleTricks.categoryBySlug.get(slug) as { category: string | null; is_active: number } | undefined,

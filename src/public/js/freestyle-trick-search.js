@@ -42,9 +42,9 @@
       link.textContent = it.name;
       row.appendChild(link);
 
-      // Family-page suggestions carry a type label so mixed results stay
-      // distinguishable; trick items have no typeLabel and render as before.
-      if (it.typeLabel) {
+      // Every suggestion carries a type discriminator; family results also carry
+      // a badge label. Branch on the type, not on whether the label is present.
+      if (it.type === 'family') {
         var kind = document.createElement('span');
         kind.className = 'badge';
         kind.textContent = it.typeLabel;

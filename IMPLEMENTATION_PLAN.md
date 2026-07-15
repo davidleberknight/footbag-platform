@@ -262,93 +262,28 @@ never archived here.
   independently. Done when every sub-item below lands green or is
   explicitly de-scoped.
 
-  - **Remove the dangling `RETIRED_FAMILIES` reference in
-    `src/content/freestyleFamilyOverrides.ts`.** The `high_plains_drifter`
-    override comment reads "(see RETIRED_FAMILIES below)", but no
-    `RETIRED_FAMILIES` symbol exists in the file or anywhere in the
-    codebase; it is a dead pointer. Rewrite the comment so the
-    clipper-stall-family retirement is explained on its own without the
-    reference. Done when no `RETIRED_FAMILIES` mention remains and the file
-    builds.
-
-  - **Sort the observational disclosure lists on the Emerging Vocabulary
-    page (`/freestyle/observational`).** The three archive disclosure
-    sections (Already represented, Observational names, Recorded terms) and
-    the "Database-tracked, not yet adjudicated" list render in source
-    order, because `summarizeRows` and the `externalUnadjudicated` list in
-    `freestyleService.getObservationalLayerPage`
-    (`src/services/freestyleService.ts`) map their rows without sorting.
-    Sort each list alphabetically by name off a single sorted copy so the
-    preview cards and the full list agree. Done when each disclosure list
-    renders alphabetically and the observational route tests pass.
-
-  - **Normalize the freestyle search-suggest JSON shape**
-    (`GET /freestyle/search/suggest`, served by
-    `freestyleService.getSearchSuggestions`, consumed by
-    `src/public/js/freestyle-trick-search.js`). The endpoint returns a
-    mixed array in which family items carry a `typeLabel` ('Family') field
-    and trick items omit it, and the typeahead client decides whether to
-    draw the type badge by testing whether `typeLabel` is present. Give
-    every item a consistent, self-describing shape so the client no longer
-    branches on a missing field. Recommended: add an explicit
-    `type: 'family' | 'trick'` discriminator to both result interfaces and
-    populate it in the family and trick builders, keeping `typeLabel` as
-    the family badge text so nothing rendered changes; the alternative
-    (null-padding every item to identical keys) is heavier for no visible
-    gain. Update the two result interfaces, the two builder functions, the
-    client branch, and the search-suggest route-test header comment. Done
-    when every suggest item carries the discriminator, the client reads it
-    instead of field-absence, and the search-suggest route tests pass.
-
   - **Repoint the freestyle hero-formula color system and the glossary
     color literals to the shared semantic-token CSS classes** in
     `src/public/css/style.css`, so those freestyle surfaces stop carrying
-    raw color literals and inherit the shared token vocabulary. Done when
-    the freestyle formula and glossary colors reference the semantic-token
-    classes, no raw color literal remains on those surfaces, and the
-    stylesheet convention gate is green.
-
-  - **Widen the runtime-readonly guard snapshot to cover every freestyle
-    table.** The guard that refuses a freestyle CSV rebuild against a live
-    database pins its protected-table set in a snapshot that does not yet
-    list all freestyle tables. Extend it to the full freestyle table set.
-    Done when the snapshot lists every freestyle table and its guard test
-    passes.
+    raw color literals and inherit the shared token vocabulary. Status: the
+    stylesheet convention gate is already green (it flags raw hex, and these
+    surfaces carry none); the remaining literals are the `rgba()` tints in
+    the hero-formula block and scattered glossary rules. The open call is the
+    approach: promote those exact tint values to named `:root` tokens (no
+    visual change) or remap the hero roles onto the existing symbolic palette
+    (a visual change that needs review). Done when the freestyle formula and
+    glossary colors reference the token vocabulary, no raw color literal
+    remains on those surfaces, and the gate stays green.
 
   - **Add the shared runtime-readonly guard to the loader DB-open
     helper**, so any freestyle loader that opens the database picks up the
     same rebuild protection at the point it opens the connection rather
-    than relying on each caller to apply it. Done when the loader DB-open
-    helper invokes the shared guard and a test covers the refusal path.
-
-  - **Add adversarial input tests for the freestyle trick search**,
-    covering injection-style strings, unicode, and oversize inputs, so the
-    search path is proven safe against hostile queries. Ownership note:
-    this is security and test hardening on the freestyle search surface; if
-    Dave would rather own the adversarial-test work in the platform test
-    lane, move just this sub-item. Done when the freestyle search has tests
-    for the injection, unicode, and oversize cases and they pass.
-
-  - **Normalize or redirect hyphenated freestyle trick slugs.** A trick
-    slug is a single lowercase underscore token with no hyphens; a request
-    that arrives with a hyphenated slug should normalize to, or
-    301-redirect to, the underscore form rather than return a 404. Done
-    when a hyphen-slug request resolves to the correct trick and a route
-    test covers it.
-
-  - **Add the `quantum`, `pogo`, `shooting`, and `rooted` rows to the
-    glossary modifier-weight table.** These four modifiers are absent from
-    the glossary's modifier-weight table; add each with its weight so the
-    table is complete. Done when the four rows exist and the glossary tests
-    pass.
-
-  - **Fix the stale "loader 21" claim in the freestyle dictionary skill
-    reference.** The freestyle dictionary skill file under `.claude/skills/`
-    carries an out-of-date statement referring to "loader 21"; correct it
-    to the current loader reality. Because this edits a `.claude/` file it
-    needs explicit human approval before the change lands (project rule:
-    never edit `.claude/` files without approval). Done when the skill
-    reference matches the current loader and the edit was approved.
+    than relying on each caller to apply it. Status: there is no shared
+    DB-open helper today; each loader calls `sqlite3.connect(...)` directly,
+    so this is a small pipeline slice (add the helper, route the loaders
+    through it, cover the refusal path), not a one-line change. Done when the
+    loader DB-open helper invokes the shared guard and a test covers the
+    refusal path.
 
 #### Other
 

@@ -6,8 +6,10 @@
  * name was not the hit. Family results come from the gated public-family roster
  * (the same servability rule as the family detail route, so a result never
  * links to a page that would 404): they render in their own band above the
- * trick results with a Family label, and prepend to the suggest JSON with a
- * typeLabel field while trick items keep their exact prior shape.
+ * trick results with a Family label, and prepend to the suggest JSON. Every
+ * suggest item carries a `type` discriminator ('family' | 'trick'); family items
+ * also carry the `typeLabel` badge text, so the client branches on the type
+ * rather than on a missing field.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -170,13 +172,15 @@ describe('GET /freestyle/search/suggest (JSON typeahead)', () => {
     const res = await request(await createApp()).get('/freestyle/search/suggest').query({ q: 'whirl' });
     expect(res.status).toBe(200);
     const first = res.body[0];
+    expect(first.type).toBe('family');
     expect(first.typeLabel).toBe('Family');
     expect(first.href).toBe('/freestyle/families/whirl');
     expect(first.name).toBe('Whirl');
 
-    // Trick items keep their exact prior shape: no typeLabel field.
-    const paradox = res.body.find((r: { slug: string; typeLabel?: string }) => r.slug === 'paradox_whirl');
+    // Trick items carry the 'trick' discriminator and no family badge label.
+    const paradox = res.body.find((r: { slug: string; typeLabel?: string; type?: string }) => r.slug === 'paradox_whirl');
     expect(paradox).toBeDefined();
+    expect(paradox.type).toBe('trick');
     expect(paradox.typeLabel).toBeUndefined();
     expect(paradox.href).toBe('/freestyle/tricks/paradox_whirl');
   });
