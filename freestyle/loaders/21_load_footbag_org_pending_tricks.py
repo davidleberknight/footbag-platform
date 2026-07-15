@@ -357,7 +357,12 @@ def load(db_path: Path, scrape_path: Path) -> dict:
         for row in reader:
             scrape_rows.append({k: (v or "").strip() for k, v in row.items()})
 
-    conn = sqlite3.connect(db_path)
+    # Open through the shared guard so a direct run refuses a post-cutover database.
+    import os.path as _p
+    import sys as _s
+    _s.path.insert(0, _p.join(_p.dirname(_p.abspath(__file__)), "..", "..", "scripts"))
+    from _freestyle_db import open_freestyle_db
+    conn = open_freestyle_db(db_path)
     conn.execute("PRAGMA foreign_keys = ON")
     try:
         with conn:

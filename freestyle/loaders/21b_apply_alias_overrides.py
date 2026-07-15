@@ -42,7 +42,12 @@ def apply_overrides(db_path: str) -> None:
     with open(OVERRIDES_CSV, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
-    conn = sqlite3.connect(db_path)
+    # Open through the shared guard so a direct run refuses a post-cutover database.
+    import os.path as _p
+    import sys as _s
+    _s.path.insert(0, _p.join(_p.dirname(_p.abspath(__file__)), "..", "..", "scripts"))
+    from _freestyle_db import open_freestyle_db
+    conn = open_freestyle_db(db_path)
     try:
         # Idempotent additive column-ensure: this step writes alias_display, and the
         # Python rebuild runs without the Node app's connection-open ensure, so a DB

@@ -61,7 +61,12 @@ def load_additions(db_path: str) -> None:
             "note": (r.get("note") or "").strip() or None,
         })
 
-    conn = sqlite3.connect(db_path)
+    # Open through the shared guard so a direct run refuses a post-cutover database.
+    import os.path as _p
+    import sys as _s
+    _s.path.insert(0, _p.join(_p.dirname(_p.abspath(__file__)), "..", "..", "scripts"))
+    from _freestyle_db import open_freestyle_db
+    conn = open_freestyle_db(db_path)
     try:
         cols = [c[1] for c in conn.execute("PRAGMA table_info(freestyle_trick_aliases)")]
         if "alias_display" not in cols:

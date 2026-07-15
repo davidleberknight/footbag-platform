@@ -39,7 +39,12 @@ def load_records(db_path: str, source_csv: str = SOURCE_CSV) -> None:
 
     print(f"Source rows read: {len(rows)}")
 
-    con = sqlite3.connect(db_path)
+    # Open through the shared guard so a direct run refuses a post-cutover database.
+    import os.path as _p
+    import sys as _s
+    _s.path.insert(0, _p.join(_p.dirname(_p.abspath(__file__)), "..", "..", "scripts"))
+    from _freestyle_db import open_freestyle_db
+    con = open_freestyle_db(db_path)
     con.execute("PRAGMA foreign_keys = ON")
 
     # Wipe and reload (idempotent)

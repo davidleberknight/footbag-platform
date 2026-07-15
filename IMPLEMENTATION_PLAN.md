@@ -251,39 +251,6 @@ never archived here.
   responses as they arrive. Done when the responses are recorded or the
   paper is closed as reviewed.
 
-#### James
-
-- **[KANBAN] FS-20. Freestyle code and test hygiene batch.** Urgency:
-  non-blocking cleanup and hardening; no Red dependency. These are the
-  freestyle-surface code and test items that were previously bundled into
-  Dave's cleanup batch; they are freestyle work and belong to the
-  freestyle maintainer. Each sub-item stands alone and can land
-  independently. Done when every sub-item below lands green or is
-  explicitly de-scoped.
-
-  - **Repoint the freestyle hero-formula color system and the glossary
-    color literals to the shared semantic-token CSS classes** in
-    `src/public/css/style.css`, so those freestyle surfaces stop carrying
-    raw color literals and inherit the shared token vocabulary. Status: the
-    stylesheet convention gate is already green (it flags raw hex, and these
-    surfaces carry none); the remaining literals are the `rgba()` tints in
-    the hero-formula block and scattered glossary rules. The open call is the
-    approach: promote those exact tint values to named `:root` tokens (no
-    visual change) or remap the hero roles onto the existing symbolic palette
-    (a visual change that needs review). Done when the freestyle formula and
-    glossary colors reference the token vocabulary, no raw color literal
-    remains on those surfaces, and the gate stays green.
-
-  - **Add the shared runtime-readonly guard to the loader DB-open
-    helper**, so any freestyle loader that opens the database picks up the
-    same rebuild protection at the point it opens the connection rather
-    than relying on each caller to apply it. Status: there is no shared
-    DB-open helper today; each loader calls `sqlite3.connect(...)` directly,
-    so this is a small pipeline slice (add the helper, route the loaders
-    through it, cover the refusal path), not a one-line change. Done when the
-    loader DB-open helper invokes the shared guard and a test covers the
-    refusal path.
-
 #### Other
 
 - **[KANBAN] O2. Dave: mechanical test-comment de-epoch pass (~70 files).**

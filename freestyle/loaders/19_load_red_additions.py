@@ -364,7 +364,12 @@ def prune_inactive_modifier_links(conn: sqlite3.Connection) -> int:
 def load(db_path: Path, additions_csv: Path, corrections_csv: Path) -> None:
     loaded_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
-    conn = sqlite3.connect(db_path)
+    # Open through the shared guard so a direct run refuses a post-cutover database.
+    import os.path as _p
+    import sys as _s
+    _s.path.insert(0, _p.join(_p.dirname(_p.abspath(__file__)), "..", "..", "scripts"))
+    from _freestyle_db import open_freestyle_db
+    conn = open_freestyle_db(db_path)
     conn.execute("PRAGMA foreign_keys = ON")
     try:
         with conn:

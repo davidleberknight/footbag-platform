@@ -550,7 +550,12 @@ def main() -> int:
         print(f"ERROR: DB not found at {db_path}", file=sys.stderr)
         return 1
 
-    con = sqlite3.connect(str(db_path))
+    # Open through the shared guard so a direct run refuses a post-cutover database.
+    import os.path as _p
+    import sys as _s
+    _s.path.insert(0, _p.join(_p.dirname(_p.abspath(__file__)), "..", "..", "scripts"))
+    from _freestyle_db import open_freestyle_db
+    con = open_freestyle_db(str(db_path))
     canonicals = load_canonicals(con)
     modifier_weights = load_modifier_weights(con)
 

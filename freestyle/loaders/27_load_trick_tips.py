@@ -143,7 +143,12 @@ def main() -> None:
 
     tips = [json.loads(line) for line in args.tips.read_text(encoding="utf-8").splitlines() if line.strip()]
 
-    conn = sqlite3.connect(str(args.db))
+    # Open through the shared guard so a direct run refuses a post-cutover database.
+    import os.path as _p
+    import sys as _s
+    _s.path.insert(0, _p.join(_p.dirname(_p.abspath(__file__)), "..", "..", "scripts"))
+    from _freestyle_db import open_freestyle_db
+    conn = open_freestyle_db(str(args.db))
     conn.execute("PRAGMA foreign_keys = ON")
     idx = build_slug_index(conn)
 

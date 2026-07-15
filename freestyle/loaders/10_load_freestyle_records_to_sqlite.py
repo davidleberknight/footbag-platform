@@ -209,7 +209,12 @@ def main() -> None:
     skipped_edited = 0
     edited_ids    = []
 
-    with sqlite3.connect(db_path) as conn:
+    # Open through the shared guard so a direct run refuses a post-cutover database.
+    import os.path as _p
+    import sys as _s
+    _s.path.insert(0, _p.join(_p.dirname(_p.abspath(__file__)), "..", "..", "scripts"))
+    from _freestyle_db import open_freestyle_db
+    with open_freestyle_db(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON;")
         conn.execute("PRAGMA journal_mode = WAL;")
 
@@ -343,7 +348,12 @@ def main() -> None:
     # ---------------------------------------------------------------------------
     # Superseded chains
     # ---------------------------------------------------------------------------
-    with sqlite3.connect(db_path) as conn:
+    # Open through the shared guard so a direct run refuses a post-cutover database.
+    import os.path as _p
+    import sys as _s
+    _s.path.insert(0, _p.join(_p.dirname(_p.abspath(__file__)), "..", "..", "scripts"))
+    from _freestyle_db import open_freestyle_db
+    with open_freestyle_db(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON;")
         updated = compute_superseded_chains(conn)
         conn.commit()

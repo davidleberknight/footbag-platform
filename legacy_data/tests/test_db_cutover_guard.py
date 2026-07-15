@@ -25,6 +25,8 @@ import sqlite3
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GUARD_PY = REPO_ROOT / "scripts" / "lib" / "db_cutover_guard.py"
 GUARD_SH = REPO_ROOT / "scripts" / "internal" / "assert-db-pre-cutover.sh"
@@ -166,3 +168,55 @@ def test_legacy_member_loader_wires_the_guard():
         REPO_ROOT / "legacy_data" / "member_data_scripts" / "load_legacy_export.py"
     )
     assert "assert_db_pre_cutover(args.db" in body
+
+
+# ── Freestyle rebuild loaders open through the shared guard ───────────────────
+#
+# Every freestyle loader that wipes and reloads a freestyle table opens its target
+# database through scripts/_freestyle_db.open_freestyle_db, so the same post-cutover
+# refusal run_freestyle.sh applies once up front also protects a loader run directly,
+# outside the orchestrator. The read-only QC loaders never mutate the database and
+# are intentionally not in this set.
+
+FREESTYLE_WRITE_LOADERS = [
+    "freestyle/loaders/10_load_freestyle_records_to_sqlite.py",
+    "freestyle/loaders/11_load_consecutive_records_to_sqlite.py",
+    "freestyle/loaders/17_load_trick_dictionary.py",
+    "freestyle/loaders/19_load_red_additions.py",
+    "freestyle/loaders/20_link_footbag_org_sources.py",
+    "freestyle/loaders/21_load_footbag_org_pending_tricks.py",
+    "freestyle/loaders/21a_load_alias_additions.py",
+    "freestyle/loaders/21b_apply_alias_overrides.py",
+    "freestyle/loaders/26_load_symbolic_grammar.py",
+    "freestyle/loaders/27_load_trick_tips.py",
+    "freestyle/scripts/parse_freestyle_notation.py",
+]
+
+
+def _open_freestyle_db():
+    import sys
+    scripts = str(REPO_ROOT / "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    from _freestyle_db import open_freestyle_db
+    return open_freestyle_db
+
+
+def test_open_freestyle_db_refuses_a_marked_database(tmp_path):
+    db = tmp_path / "marked.db"
+    make_db(db, marker_rows=[("1", "2026-01-01T00:00:00.000Z")])
+    with pytest.raises(SystemExit):
+        _open_freestyle_db()(str(db), "a freestyle rebuild loader")
+
+
+def test_open_freestyle_db_allows_a_pre_cutover_database(tmp_path):
+    db = tmp_path / "pre.db"
+    make_db(db)
+    conn = _open_freestyle_db()(str(db), "a freestyle rebuild loader")
+    conn.close()  # returns a usable connection, not a refusal
+
+
+@pytest.mark.parametrize("rel", FREESTYLE_WRITE_LOADERS)
+def test_freestyle_write_loader_opens_through_the_guard(rel):
+    body = executable_lines(REPO_ROOT / rel)
+    assert "open_freestyle_db(" in body
