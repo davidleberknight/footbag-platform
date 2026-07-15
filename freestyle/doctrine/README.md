@@ -52,5 +52,6 @@ instead of an unexplained edit.
   identifiers an Emerging Vocabulary row may cite as its blocker (the content
   generator fails on an unknown or closed reference).
 - `papers/` — the narrative doctrine record: the charter, identity, notation,
-  scoring, frontier, and history papers.
+  scoring, frontier, and history papers, plus `riders.md`, the companion carrying
+  the per-row questions that ride to the rules expert alongside the papers.
 - `reconciliation/` — the cross-corpus reconciliation studies and their summary.

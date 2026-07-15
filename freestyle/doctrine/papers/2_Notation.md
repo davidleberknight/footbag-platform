@@ -217,6 +217,25 @@ and its reach. It applies no parser change, authors nothing, proposes no encodin
 tokens, and does not touch Zulu, Weaving, the cross-body rake, operator
 definitions, or the blurry and paradox rulings.
 
+## Further open notation questions
+
+These are encoding-level questions rather than observer axioms: each asks how a
+specific structure or direction is written, not what the notation silently assumes.
+They ride to Red as notation questions, and the path/catch framing above
+deliberately leaves them for their own rulings.
+
+1. **The cross-body rake base.** What is the cross-body rake (the `[XBD]` rake) base
+   structurally — a terminal contact posture like clipper, or a raking path? One
+   contract settles it, and every rake compound then composes defined operators onto
+   that base. Snowflake needs it now; a larger parser-section band of rake compounds
+   follows. (Red.)
+2. **The directional tokens in folk names.** Are the unresolved inward/outward-style
+   tokens some folk names carry (the alpine rows) sanctioned path vocabulary, and
+   how do they map onto the ratified IN/OUT terms? (Red.)
+3. **Inward on a gyro.** What does an inward qualifier denote on a gyro, where the
+   base already carries its own OUT direction? It decides the withdrawn Inward Gyro
+   batch. (Red.)
+
 ## Worked examples
 
 - **The paradox source split.** Footbag.org notations carry `[PDX]` on Bedwetter,
