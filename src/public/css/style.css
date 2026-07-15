@@ -215,6 +215,28 @@
   --steel-700:   #2a3a4a;   /* darkest steel */
   --steel-accent: #1a5a8a;  /* steel blue accent */
 
+  /* Freestyle trick-hero tints: the translucent formula and decomposition-strip
+     colors that sit over the dark hero gradient, plus the two glossary notation
+     tints. Named so no freestyle surface carries an inline color literal. */
+  --fs-hero-formula-text:           rgba(255, 255, 255, 0.92); /* formula body text */
+  --fs-hero-formula-weight-text:    rgba(255, 255, 255, 0.72); /* dimmer weight suffix */
+  --fs-hero-formula-op-text:        rgba(255, 255, 255, 0.66); /* dimmer operator glue */
+  --fs-hero-formula-token-bg:       rgba(255, 255, 255, 0.10); /* generic token chip */
+  --fs-hero-formula-set-bg:         rgba(255, 255, 255, 0.18); /* set role chip */
+  --fs-hero-formula-rotation-bg:    rgba(255, 230, 200, 0.20); /* rotation role chip */
+  --fs-hero-formula-modifier-bg:    rgba(255, 255, 200, 0.18); /* modifier role chip */
+  --fs-hero-formula-core-family-bg: rgba(208, 255, 220, 0.22); /* core-family role chip */
+  --fs-hero-decomp-set-bg:              rgba(255, 255, 255, 0.20); /* decomp set chip */
+  --fs-hero-decomp-set-border:          rgba(190, 220, 255, 0.85); /* decomp set underline */
+  --fs-hero-decomp-rotation-bg:         rgba(255, 220, 180, 0.22); /* decomp rotation chip */
+  --fs-hero-decomp-rotation-border:     rgba(255, 200, 140, 0.85); /* decomp rotation underline */
+  --fs-hero-decomp-modifier-bg:         rgba(255, 245, 200, 0.20); /* decomp modifier chip */
+  --fs-hero-decomp-modifier-border:     rgba(255, 230, 150, 0.85); /* decomp modifier underline */
+  --fs-hero-decomp-core-family-bg:      rgba(180, 240, 200, 0.26); /* decomp core-family chip */
+  --fs-hero-decomp-core-family-border:  rgba(140, 230, 180, 0.95); /* decomp core-family underline */
+  --glossary-inline-notation-bg:    rgba(0, 0, 0, 0.02);   /* faint inline-notation wash */
+  --operational-glossary-target-bg: rgba(180, 83, 9, 0.06); /* warm amber deep-link highlight */
+
   /* Freestyle semantic aliases (map freestyle vocabulary onto canonical tokens) */
   --text-primary: var(--text);
   --text-secondary: var(--text-muted);
@@ -3479,7 +3501,7 @@ section.home-media { padding-top: 0; }
   font-size: 0.95em;
   letter-spacing: 0.02em;
   padding: 2px 5px;
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--glossary-inline-notation-bg);
   border-radius: var(--radius-2xs);
 }
 
@@ -3503,7 +3525,7 @@ section.home-media { padding-top: 0; }
 }
 /* Honor :target highlighting when the glossary link deep-links to a token. */
 .operational-glossary dt:target {
-  background: rgba(180, 83, 9, 0.06);  /* warm amber tint to match palette */
+  background: var(--operational-glossary-target-bg);
   border-left: 3px solid var(--warn-deep);
   padding-left: 8px;
   border-radius: var(--radius-2xs);
@@ -5841,7 +5863,7 @@ section.home-media { padding-top: 0; }
   font-family: var(--font-body);
   font-size: 0.95rem;
   margin: 12px 0 0;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--fs-hero-formula-text);
   line-height: 1.6;
   letter-spacing: 0.01em;
 }
@@ -5849,21 +5871,21 @@ section.home-media { padding-top: 0; }
   padding: 1px 6px;
   border-radius: var(--radius-xs);
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.10);
+  background: var(--fs-hero-formula-token-bg);
 }
-.hero-formula-set         { background: rgba(255, 255, 255, 0.18); color: var(--white); }
-.hero-formula-rotation    { background: rgba(255, 230, 200, 0.20); color: var(--white); }
-.hero-formula-modifier    { background: rgba(255, 255, 200, 0.18); color: var(--white); }
-.hero-formula-core-family { background: rgba(208, 255, 220, 0.22); color: var(--white); font-weight: 700; }
+.hero-formula-set         { background: var(--fs-hero-formula-set-bg); color: var(--white); }
+.hero-formula-rotation    { background: var(--fs-hero-formula-rotation-bg); color: var(--white); }
+.hero-formula-modifier    { background: var(--fs-hero-formula-modifier-bg); color: var(--white); }
+.hero-formula-core-family { background: var(--fs-hero-formula-core-family-bg); color: var(--white); font-weight: 700; }
 .hero-formula-weight {
   margin-left: 2px;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--fs-hero-formula-weight-text);
   font-weight: 400;
   font-size: 0.88em;
 }
 .hero-formula-op {
   margin: 0 2px;
-  color: rgba(255, 255, 255, 0.66);
+  color: var(--fs-hero-formula-op-text);
   font-weight: 400;
 }
 .hero-formula-result {
@@ -5906,24 +5928,24 @@ section.home-media { padding-top: 0; }
   border-bottom: 2px solid transparent;
 }
 .hero-decomp-set {
-  background: rgba(255, 255, 255, 0.20);
+  background: var(--fs-hero-decomp-set-bg);
   color: var(--white);
-  border-bottom-color: rgba(190, 220, 255, 0.85);
+  border-bottom-color: var(--fs-hero-decomp-set-border);
 }
 .hero-decomp-rotation {
-  background: rgba(255, 220, 180, 0.22);
+  background: var(--fs-hero-decomp-rotation-bg);
   color: var(--white);
-  border-bottom-color: rgba(255, 200, 140, 0.85);
+  border-bottom-color: var(--fs-hero-decomp-rotation-border);
 }
 .hero-decomp-modifier {
-  background: rgba(255, 245, 200, 0.20);
+  background: var(--fs-hero-decomp-modifier-bg);
   color: var(--white);
-  border-bottom-color: rgba(255, 230, 150, 0.85);
+  border-bottom-color: var(--fs-hero-decomp-modifier-border);
 }
 .hero-decomp-core-family {
-  background: rgba(180, 240, 200, 0.26);
+  background: var(--fs-hero-decomp-core-family-bg);
   color: var(--white);
-  border-bottom-color: rgba(140, 230, 180, 0.95);
+  border-bottom-color: var(--fs-hero-decomp-core-family-border);
   font-weight: 700;
 }
 @media (max-width: 768px) {
