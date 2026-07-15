@@ -49,7 +49,7 @@ def test_default_load_path_writes_nothing() -> None:
     # Without --apply the load stops read-only after a passing gate, before any
     # writer runs: the apply writes live behind the DO_APPLY guard.
     i_default_stop = TEXT.index('if [[ "${DO_APPLY}" -eq 0 ]]')
-    i_member_apply = TEXT.index('load_legacy_export.py" --export "${RECONCILED_CSV}"')
+    i_member_apply = TEXT.index('load_legacy_export.py" --export "${LOAD_CSV}"')
     assert i_default_stop < i_member_apply       # the read-only stop precedes the writers
     tail = TEXT[TEXT.index('reconcile_legacy_members.py" --qc-gate'):i_member_apply]
     assert "Re-run with --apply to write" in tail
@@ -59,7 +59,7 @@ def test_default_load_path_writes_nothing() -> None:
 def test_apply_writes_are_guarded_by_the_apply_flag() -> None:
     # Both real writes sit after the DO_APPLY check, so nothing writes by default.
     i_apply_gate = TEXT.index('if [[ "${DO_APPLY}" -eq 0 ]]')
-    i_member_apply = TEXT.index('load_legacy_export.py" --export "${RECONCILED_CSV}"')
+    i_member_apply = TEXT.index('load_legacy_export.py" --export "${LOAD_CSV}"')
     i_link_apply = TEXT.index('apply_reconciled_links.py')
     assert i_apply_gate < i_member_apply
     assert i_apply_gate < i_link_apply
@@ -67,7 +67,7 @@ def test_apply_writes_are_guarded_by_the_apply_flag() -> None:
 
 def test_apply_loads_members_before_applying_links() -> None:
     # The member rows must exist before the links that reference them are written.
-    i_member_apply = TEXT.index('load_legacy_export.py" --export "${RECONCILED_CSV}"')
+    i_member_apply = TEXT.index('load_legacy_export.py" --export "${LOAD_CSV}"')
     i_link_apply = TEXT.index('apply_reconciled_links.py')
     assert i_member_apply < i_link_apply
 
@@ -77,14 +77,14 @@ def test_member_snapshot_runs_before_the_member_load() -> None:
     # overwrites those rows, and only inside the --apply path.
     i_apply_gate = TEXT.index('if [[ "${DO_APPLY}" -eq 0 ]]')
     i_snapshot = TEXT.index('snapshot_legacy_members.py')
-    i_member_apply = TEXT.index('load_legacy_export.py" --export "${RECONCILED_CSV}"')
+    i_member_apply = TEXT.index('load_legacy_export.py" --export "${LOAD_CSV}"')
     assert i_apply_gate < i_snapshot < i_member_apply
 
 
 def test_apply_runs_after_stage_b_qc_and_honors() -> None:
     i_qc = TEXT.index('reconcile_legacy_members.py" --qc-gate')
     i_honors_rerun = TEXT.index("--proposed-links")
-    i_member_apply = TEXT.index('load_legacy_export.py" --export "${RECONCILED_CSV}"')
+    i_member_apply = TEXT.index('load_legacy_export.py" --export "${LOAD_CSV}"')
     assert i_qc < i_member_apply
     assert i_honors_rerun < i_member_apply
 
