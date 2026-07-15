@@ -393,7 +393,7 @@ The sender worker scrubs `outbox_emails.body_text` (sets it to `NULL`) on every 
 **Views:** `system_config_current`
 
 #### Work queue
-Admin task queue with `queue_category` and `task_type`. Active `task_type` values include `member_contact_request` (member-submitted IFPA-admin contact requests under `queue_category='membership'`; see `M_Contact_IFPA_Admin` and `A_Resolve_Contact_IFPA_Admin_Request`). When any task is added, the application sends a notification to the admin-alerts mailing list containing task type and entity ID only (no sensitive data). For `member_contact_request` rows the full member message is held in the purgeable `detail_text` column (with a short `reason_text` summary preview); account erasure and the deceased contact scrub redact both, so member free text stays off the append-only audit ledger.
+Admin task queue with `queue_category` and `task_type`. Active `task_type` values include `member_contact_request` (member-submitted IFPA-admin contact requests under `queue_category='membership'`; see `M_Contact_IFPA_Admin` and `A_Resolve_Contact_IFPA_Admin_Request`). Admin notifications are routed by urgency (US §1 Global Behaviors): a task type classified urgent (a security or data-integrity event needing same-day action) emails the admin-alerts mailing list immediately on enqueue; a routine task type surfaces on the work-queue dashboard and in a periodic per-administrator digest of the open routine items. An administrator claims an item (`claimed_by_member_id`, `claimed_at`) to drop it from the other administrators' digests; an item left open and unclaimed past the stale threshold escalates once with a single email to admin-alerts. Every such notification contains task type and entity ID only (no sensitive data). For `member_contact_request` rows the full member message is held in the purgeable `detail_text` column (with a short `reason_text` summary preview); account erasure and the deceased contact scrub redact both, so member free text stays off the append-only audit ledger.
 
 #### System config
 `system_config` is an append-only effective-dated key-value store. Each row represents the value of a config key from a given `effective_start_at` forward. The current effective value per key is provided by the `system_config_current` view (latest row with `effective_start_at <= now`). Changing a config value means inserting a new row; old rows are immutable (UPDATE and DELETE blocked by triggers).
@@ -1138,6 +1138,8 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `purchase_tier_rate_limit_per_hour` | `20` | Max tier-purchase attempts per member per hour |
 | `video_submission_rate_limit_per_hour` | `5` | Max video link submissions per member per hour |
 | `reconciliation_summary_interval_days` | `7` | Cadence (days) for reconciliation digest email to admins |
+| `admin_queue_digest_interval_days` | `1` | Cadence (days) for the admin work-queue digest of open routine items |
+| `admin_queue_stale_escalation_days` | `3` | Days an unclaimed routine work-queue item may stay open before a one-time all-admins escalation |
 | `primary_snapshot_version_days` | `30` | S3 versioning retention window (days) for primary backup bucket |
 | `media_flag_rate_limit_per_hour` | `10` | Max media flags per member per hour |
 | `cross_region_backup_retention_days` | `90` | Object Lock retention (days) for cross-region DR S3 bucket |

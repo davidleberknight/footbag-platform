@@ -58,6 +58,13 @@
  *     contact-exposure transitions are owned by explicit governance flows that
  *     mutate `club_bootstrap_leaders` or `club_leaders` separately from the
  *     public-page read path.
+ *   - Clubs outside the pre_populate bootstrap cohort carry no
+ *     `club_bootstrap_leaders` rows; there the public page surfaces
+ *     affiliation-inferred leaders (`legacy_person_club_affiliations` rows
+ *     tagged leader / co-leader / contact) as provisional leaders, labeled and
+ *     never contact-exposed, deduplicated by person id against bootstrap rows
+ *     and dropped once a real member claims. This is the permanent leadership
+ *     source for those clubs; the legacy dump and mirror are the only such data.
  *
  * Persistence:
  *   clubs, clubs_open, clubs_active, clubs_all, club_leaders, club_bootstrap_leaders,
@@ -565,12 +572,11 @@ function toPublicClubDetail(
   return detail;
 }
 
-// TEMP-DEVIATION: AffiliationRow (shape returned by db.ts listMembersByClubId).
-// Current: the club detail path splits historical affiliations into leader /
-//   contact / member buckets using this row.
-// Target: replace with the permanent roster model once bootstrap leader rows
-//   cover the full club set (both pre_populate and onboarding_visible cohorts
-//   loaded).
+// AffiliationRow (shape returned by db.ts listMembersByClubId). The club detail
+// path splits historical affiliations into leader / contact / member buckets
+// from this row: leader / co-leader / contact rows surface as provisional
+// leaders for clubs outside the bootstrap cohort (affiliationRowToClubLeader),
+// and every row feeds the member roster (toClubMemberSummary).
 interface AffiliationRow {
   person_id: string | null;
   person_name: string;
@@ -625,15 +631,14 @@ function toClubMemberSummary(row: AffiliationRow): ClubMemberSummary {
   };
 }
 
-// TEMP-DEVIATION: affiliationRowToClubLeader fallback for clubs outside the
-// pre_populate bootstrap cohort.
-// Current: clubs without club_bootstrap_leaders rows surface
-//   affiliation-inferred leaders (role='leader'/'co-leader'/'contact') as
-//   provisional leaders. Contact gate stays closed; status is always
-//   'provisional' because the affiliation was inferred from mirror data,
-//   not claimed by a real member.
-// Target: delete this fallback once bootstrap leader rows cover the full
-//   club set (pre_populate plus onboarding_visible cohorts loaded).
+// Surfaces an affiliation-inferred leader as a provisional club leader for a
+// club outside the pre_populate bootstrap cohort. Those clubs carry no
+// club_bootstrap_leaders rows, and the legacy dump and mirror are their only
+// leadership source, so their historically-listed leader / co-leader / contact
+// people show here, labeled and clearly unverified, until a real member claims
+// leadership. The contact gate stays closed and status is always 'provisional'
+// because the affiliation was inferred from mirror data, not claimed by a real
+// member; a claim supersedes it (person-id dedup at the call site drops the ghost).
 function affiliationRowToClubLeader(row: AffiliationRow): ClubLeader {
   const isCoLeader = row.inferred_role === 'co-leader';
   const isContact  = row.inferred_role === 'contact';
@@ -1062,10 +1067,11 @@ export class ClubService {
         .filter((r) => r.status === 'provisional')
         .map(toClubLeader);
 
-      // TEMP-DEVIATION: fallback path for clubs without bootstrap leader rows
-      // (everything outside the pre_populate cohort). Surface affiliations
-      // tagged role='leader' / 'co-leader' / 'contact' as provisional leaders,
-      // deduplicated against bootstrap rows by person_id.
+      // Clubs without bootstrap leader rows (everything outside the pre_populate
+      // cohort) surface their affiliation-inferred leaders instead: rows tagged
+      // role='leader' / 'co-leader' / 'contact' render as provisional leaders,
+      // deduplicated against bootstrap rows by person_id so a claimed person's
+      // ghost never reappears.
       const bootstrapPersonIds = new Set(
         allBootstrapRows.map((r) => r.person_id).filter((id): id is string => !!id),
       );

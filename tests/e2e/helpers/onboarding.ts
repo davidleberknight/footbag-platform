@@ -4,6 +4,7 @@
  * that build on the existing factory/persona infrastructure.
  */
 import BetterSqlite3 from 'better-sqlite3';
+import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import {
   insertMember,
@@ -73,20 +74,18 @@ export function getMemberField(db: BetterSqlite3.Database, memberId: string, fie
 }
 
 /**
- * Recovers the legacy-claim confirmation URL out-of-band from the captured
- * outbox. The sent page never reflects this ownership-proof link (it is
- * addressed to the legacy account's email, not the claiming member), so the
- * outbox row, keyed by the claiming member, is the only path to it.
+ * Recovers the legacy-claim confirmation URL from the dev simulated-email card
+ * the stub SES adapter renders on the sent page. That card is the tester's
+ * on-page recovery surface (there is no dev-outbox route); production renders no
+ * card at all, which the live-adapter suites pin. The confirmation mail is
+ * addressed to the legacy account's email, so the card row is matched on that
+ * address to stay correct when the shared stub buffer holds other tests' mail.
  */
-export function legacyClaimConfirmUrl(db: BetterSqlite3.Database, memberId: string): string {
-  const row = db.prepare(
-    `SELECT body_text FROM outbox_emails
-     WHERE recipient_member_id = ? AND body_text LIKE '%/claim/confirm/%'
-     ORDER BY created_at DESC LIMIT 1`,
-  ).get(memberId) as { body_text: string | null } | undefined;
-  const m = row?.body_text?.match(/(\/register\/wizard\/legacy_claim\/claim\/confirm\/[A-Za-z0-9_-]+)/);
-  if (!m) throw new Error(`no claim confirm link in outbox for member ${memberId}`);
-  return m[1];
+export async function legacyClaimConfirmUrlFromCard(page: Page, legacyEmail: string): Promise<string> {
+  const row = page.locator('.sec-card-dev tbody tr', { hasText: legacyEmail });
+  const href = await row.locator('a[href*="/claim/confirm/"]').first().getAttribute('href');
+  if (!href) throw new Error(`no claim confirm link in simulated-email card for ${legacyEmail}`);
+  return new URL(href, page.url()).pathname;
 }
 
 export function isLegacyClaimed(db: BetterSqlite3.Database, legacyMemberId: string): boolean {

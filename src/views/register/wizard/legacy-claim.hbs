@@ -36,6 +36,9 @@
 
     {{#if (eq content.anchorVerificationNotice 'sent')}}
       <p class="form-success-banner" role="status">If that address can receive mail, a confirmation link is on its way. Open it while signed in to this account.</p>
+      {{#if content.emailPreview}}
+        {{> simulated-email-card content.emailPreview}}
+      {{/if}}
     {{else if (eq content.anchorVerificationNotice 'verified')}}
       <p class="form-success-banner" role="status">Mailbox confirmed. Matches found through this address are treated as a stronger link to your old account.</p>
     {{else if (eq content.anchorVerificationNotice 'invalid')}}
@@ -76,6 +79,9 @@
       </div>
       {{#if content.sentNotice.outcomeNote}}
         <p class="form-notice" role="status">{{content.sentNotice.outcomeNote}}</p>
+      {{/if}}
+      {{#if content.emailPreview}}
+        {{> simulated-email-card content.emailPreview}}
       {{/if}}
     {{/if}}
 

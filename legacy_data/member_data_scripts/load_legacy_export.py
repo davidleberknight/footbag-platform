@@ -69,6 +69,9 @@ except ImportError:
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "lib"))
+from db_cutover_guard import assert_db_pre_cutover  # noqa: E402
+
 CREDENTIAL_HEADER_RE = re.compile(
     r"password|passwd|pwd|hash|salt|secret|recovery|session|token|cookie|auth",
     re.IGNORECASE,
@@ -220,6 +223,10 @@ def main() -> None:
             "runs against production or staging. Guard tripped by "
             f"NODE_ENV={node_env!r} / FOOTBAG_ENV={footbag_env!r} / --db={args.db!r}."
         )
+    # A maintainer-machine path can still hold a copy of the live database (a
+    # restored snapshot); the in-database post-cutover marker travels with such
+    # copies and the shared guard refuses them.
+    assert_db_pre_cutover(args.db, "load_legacy_export.py")
 
     export_path = Path(args.export)
     if not export_path.exists():

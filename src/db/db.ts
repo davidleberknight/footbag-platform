@@ -5765,6 +5765,44 @@ export function countOutboxLog(filters: OutboxLogFilters): number {
   return row.n;
 }
 
+export interface EmailTemplateRow {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  updated_by: string;
+  version: number;
+  template_key: string;
+  subject_template: string;
+  body_template: string;
+  is_enabled: number;
+  pii_classification: string;
+}
+
+// Reads target the bare table, not the email_templates_enabled view: the
+// render path must distinguish a disabled row (suppress the send) from a
+// missing row (a seed invariant violation), and the admin editor and the
+// email-log template preview must see disabled rows too.
+export const emailTemplates = {
+  get getByKey() { return db.prepare(`
+    SELECT id, created_at, updated_at, updated_by, version,
+           template_key, subject_template, body_template, is_enabled, pii_classification
+    FROM email_templates WHERE template_key = ?
+  `); },
+
+  get listAll() { return db.prepare(`
+    SELECT id, created_at, updated_at, updated_by, version,
+           template_key, subject_template, body_template, is_enabled, pii_classification
+    FROM email_templates ORDER BY template_key
+  `); },
+
+  get updateByKey() { return db.prepare(`
+    UPDATE email_templates
+    SET subject_template = ?, body_template = ?, is_enabled = ?, pii_classification = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE template_key = ?
+  `); },
+};
+
 export const outbox = {
   // Operational depth probe: pending + sending rows are the deliverable
   // backlog; a growing count means the worker is down or SES is failing.
@@ -8647,13 +8685,45 @@ export const workQueue = {
     WHERE entity_type = 'member' AND entity_id = ? AND status = 'open' AND task_type = ?
   `); },
 
-  // Admin-side listing of open items, ordered by category then opened_at.
+  // Admin-side listing of open items, ordered by category then opened_at. The
+  // LEFT JOIN resolves the claiming admin's display name for the queue view.
   get listOpenForAdmin() { return db.prepare(`
-    SELECT id, created_at, opened_at, queue_category, task_type,
-           entity_type, entity_id, priority, reason_text, detail_text
+    SELECT wq.id, wq.created_at, wq.opened_at, wq.queue_category, wq.task_type,
+           wq.entity_type, wq.entity_id, wq.priority, wq.reason_text, wq.detail_text,
+           wq.claimed_by_member_id, wq.claimed_at, cm.display_name AS claimed_by_name
+    FROM work_queue_items AS wq
+    LEFT JOIN members AS cm ON cm.id = wq.claimed_by_member_id
+    WHERE wq.status = 'open'
+    ORDER BY wq.queue_category, wq.opened_at
+  `); },
+
+  // Claim an open, unclaimed item: stamp the claiming admin. The unclaimed guard
+  // makes a second concurrent claim a no-op (zero rows changed), so exactly one
+  // admin wins.
+  get claimItem() { return db.prepare(`
+    UPDATE work_queue_items
+    SET claimed_by_member_id = ?, claimed_at = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'open' AND claimed_by_member_id IS NULL
+  `); },
+
+  // All open items with their claim state, for building each administrator's
+  // digest. The service filters out the urgent task types (they are emailed per
+  // event) and, per administrator, the items another administrator has claimed.
+  get listOpenForDigest() { return db.prepare(`
+    SELECT id, queue_category, task_type, entity_id, opened_at, claimed_by_member_id
     FROM work_queue_items
     WHERE status = 'open'
-    ORDER BY queue_category, opened_at
+    ORDER BY opened_at
+  `); },
+
+  // Open, still-unclaimed items older than the stale cutoff, for the one-time
+  // escalation email. The service filters out urgent task types and relies on
+  // the per-item outbox idempotency key so each item escalates only once.
+  get listStaleUnclaimedForEscalation() { return db.prepare(`
+    SELECT id, task_type, entity_id, opened_at
+    FROM work_queue_items
+    WHERE status = 'open' AND claimed_by_member_id IS NULL AND opened_at < ?
+    ORDER BY opened_at
   `); },
 
   // Resolve an open item: transition to status=resolved with decision and note.
@@ -8760,6 +8830,15 @@ export const systemJobRuns = {
     WHERE job_name = ?
       AND status = 'running'
       AND started_at < ?
+  `); },
+
+  // Most recent successful finish time for a job name, so an interval-gated
+  // scheduled pass (e.g. the admin work-queue digest) can skip a tick when the
+  // configured cadence has not yet elapsed since its last successful run.
+  get lastSuccessAt() { return db.prepare(`
+    SELECT MAX(finished_at) AS last_success
+    FROM system_job_runs
+    WHERE job_name = ? AND status = 'succeeded'
   `); },
 };
 

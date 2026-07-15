@@ -48,28 +48,22 @@ beforeEach(async () => {
 });
 
 /**
- * Extracts the just-sent reset token from the enqueued outbox email. The
- * password-forgot-sent page never renders the reset link (it is unauthenticated
- * and the submitted email is attacker-chosen), so the outbox row body is the
- * authoritative source for the token URL.
+ * Extracts the just-sent reset token from the rendered sent page. On a dev or
+ * staging host (stub adapter) the sent page renders the reset link in the
+ * simulated-email card, scoped to the submitted address, so the page itself is
+ * the source of the token URL. The enqueued outbox row's body is scrubbed once
+ * the drain sends it, so the DB row is no longer the authoritative source.
  */
-function tokenFromOutbox(email: string): string {
-  const db = new BetterSqlite3(dbPath, { readonly: true });
-  const row = db.prepare(
-    `SELECT body_text FROM outbox_emails
-     WHERE recipient_email = ? AND body_text LIKE '%/password/reset/%'
-     ORDER BY created_at DESC LIMIT 1`,
-  ).get(email) as { body_text: string | null } | undefined;
-  db.close();
-  const match = row?.body_text?.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
-  if (!match) throw new Error('no reset link in enqueued outbox email');
+function tokenFromResetPage(html: string): string {
+  const match = html.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
+  if (!match) throw new Error('no reset link rendered in the simulated-email card');
   return match[1];
 }
 
 async function issueAndExtractResetToken(app: ReturnType<typeof createApp>, email: string): Promise<string> {
   const res = await request(app).post('/password/forgot').type('form').send({ email });
   expect(res.status).toBe(200);
-  return tokenFromOutbox(email);
+  return tokenFromResetPage(res.text);
 }
 
 function countOutboxFor(email: string): number {
@@ -93,18 +87,31 @@ describe('POST /password/forgot', () => {
     expect(countOutboxFor(MEMBER_EMAIL)).toBe(1);
   });
 
-  it('never renders the reset token in the response, even though one was enqueued', async () => {
+  it('renders the reset link in the dev card scoped to the submitter under the stub adapter', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/password/forgot')
       .type('form')
       .send({ email: MEMBER_EMAIL });
     expect(res.status).toBe(200);
-    // A reset token was genuinely minted and enqueued for the submitted address.
-    expect(tokenFromOutbox(MEMBER_EMAIL)).toBeTruthy();
-    // But the unauthenticated, attacker-chosen-email page must never surface it,
-    // or submitting a victim's email would read back the victim's reset link.
-    expect(res.text).not.toMatch(/\/password\/reset\//);
+    // On a dev or staging host the sent page shows the reset link so a tester
+    // completes the reset on the page itself. The card is scoped to the address
+    // the visitor submitted.
+    expect(res.text).toContain('Simulated email (dev)');
+    expect(res.text).toContain(MEMBER_EMAIL);
+    expect(res.text).toMatch(/\/password\/reset\/[A-Za-z0-9_-]+">CLICK THIS LINK</);
+  });
+
+  it('renders no reset link for an unknown email (nothing was enqueued, so the dev card stays empty)', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/password/forgot')
+      .type('form')
+      .send({ email: 'nobody@example.com' });
+    expect(res.status).toBe(200);
+    // Anti-enumeration is visible even in stub mode: no account, no enqueue, no
+    // link. In production the whole card is gone (covered in the prod sibling).
+    expect(res.text).not.toMatch(/\/password\/reset\/[A-Za-z0-9_-]+">CLICK THIS LINK</);
   });
 
   it('unknown email → identical generic response, no outbox row', async () => {

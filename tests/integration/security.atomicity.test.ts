@@ -333,17 +333,11 @@ describe('completePasswordReset — atomicity', () => {
       .send({ email: MEMBER_EMAIL });
     expect(forgot.status).toBe(200);
 
-    // The forgot-sent page never renders the reset link, so read the token from
-    // the enqueued outbox email body instead of the response HTML.
-    const tokenDb = new BetterSqlite3(dbPath, { readonly: true });
-    const tokenRow = tokenDb.prepare(
-      `SELECT body_text FROM outbox_emails
-       WHERE recipient_email = ? AND body_text LIKE '%/password/reset/%'
-       ORDER BY created_at DESC LIMIT 1`,
-    ).get(MEMBER_EMAIL) as { body_text: string | null } | undefined;
-    tokenDb.close();
-    const match = tokenRow?.body_text?.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
-    if (!match) throw new Error('no reset link in enqueued outbox email');
+    // On a dev or staging host the forgot-sent page renders the reset link in
+    // the simulated-email card, so read the token from the response HTML. The
+    // enqueued outbox body is scrubbed once the card's drain sends it.
+    const match = forgot.text.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
+    if (!match) throw new Error('no reset link rendered in the simulated-email card');
     const token = match[1];
 
     const before = readMember();

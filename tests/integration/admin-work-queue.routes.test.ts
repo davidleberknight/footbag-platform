@@ -10,6 +10,7 @@ const { dbPath } = setTestEnv('3130');
 
 const ADMIN_ID    = 'wq_admin_001';
 const ADMIN_SLUG  = 'wq_admin_one';
+const ADMIN2_ID   = 'wq_admin_002';
 const MEMBER_ID   = 'wq_member_001';
 const MEMBER_SLUG = 'wq_member_one';
 const OTHER_ID    = 'wq_member_002';
@@ -19,6 +20,9 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 function adminCookie(): string {
   return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
+function admin2Cookie(): string {
+  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN2_ID, role: 'admin' })}`;
+}
 function memberCookie(): string {
   return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
 }
@@ -26,6 +30,7 @@ function memberCookie(): string {
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID,  slug: ADMIN_SLUG,  display_name: 'WQ Admin',    real_name: 'WQ Admin',    login_email: 'wq-admin@example.com',  is_admin: 1 });
+  insertMember(db, { id: ADMIN2_ID, slug: 'wq_admin_two', display_name: 'WQ Admin Two', real_name: 'WQ Admin Two', login_email: 'wq-admin2@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: MEMBER_SLUG, display_name: 'WQ Member',   real_name: 'WQ Member',   login_email: 'wq-member@example.com' });
   insertMember(db, { id: OTHER_ID,  slug: 'wq_other',  display_name: 'WQ Other',    real_name: 'WQ Other',    login_email: 'wq-other@example.com' });
   db.close();
@@ -114,6 +119,65 @@ describe('GET /admin/work-queue', () => {
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(longMsg);
+  });
+});
+
+describe('POST /admin/work-queue/:id/claim', () => {
+  it('an unclaimed item shows a Claim button; claiming it → 303 and the page shows "Claimed by you"', async () => {
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+
+    const before = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(before.text).toContain(`/admin/work-queue/${queueId}/claim`);
+
+    const claim = await request(app)
+      .post(`/admin/work-queue/${queueId}/claim`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+    expect(claim.status).toBe(303);
+    expect(claim.headers.location).toBe('/admin/work-queue');
+
+    const db = new BetterSqlite3(dbPath);
+    const row = db.prepare(`SELECT claimed_by_member_id FROM work_queue_items WHERE id = ?`).get(queueId) as Record<string, unknown>;
+    db.close();
+    expect(row.claimed_by_member_id).toBe(ADMIN_ID);
+
+    const after = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(after.text).toContain('Claimed by you.');
+    // The claim control is gone once the item is claimed.
+    expect(after.text).not.toContain(`/admin/work-queue/${queueId}/claim`);
+  });
+
+  it('another admin sees the claim by name and cannot steal it (no-op claim)', async () => {
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    await request(app).post(`/admin/work-queue/${queueId}/claim`).set('Cookie', adminCookie()).type('form').send({});
+
+    // A second admin's queue view names the claimer rather than offering a Claim button.
+    const view = await request(app).get('/admin/work-queue').set('Cookie', admin2Cookie());
+    expect(view.text).toContain('Claimed by WQ Admin.');
+
+    // A second claim is a harmless no-op; the original claimer is unchanged.
+    const steal = await request(app).post(`/admin/work-queue/${queueId}/claim`).set('Cookie', admin2Cookie()).type('form').send({});
+    expect(steal.status).toBe(303);
+    const db = new BetterSqlite3(dbPath);
+    const row = db.prepare(`SELECT claimed_by_member_id FROM work_queue_items WHERE id = ?`).get(queueId) as Record<string, unknown>;
+    db.close();
+    expect(row.claimed_by_member_id).toBe(ADMIN_ID);
+  });
+
+  it('non-admin POST → 403', async () => {
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    const res = await request(app).post(`/admin/work-queue/${queueId}/claim`).set('Cookie', memberCookie()).type('form').send({});
+    expect(res.status).toBe(403);
+  });
+
+  it('claiming an unknown id is a harmless no-op → 303', async () => {
+    const app = createApp();
+    const res = await request(app).post(`/admin/work-queue/wq_no_such_item/claim`).set('Cookie', adminCookie()).type('form').send({});
+    expect(res.status).toBe(303);
   });
 });
 

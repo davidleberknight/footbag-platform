@@ -1,0 +1,7 @@
+{
+  "templateKey": "admin_role_revoked",
+  "subjectTemplate": "Your IFPA administrator role was updated",
+  "bodyTemplate": "An administrator revoked your IFPA platform administrator role.\nYour administrative access has been removed.",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

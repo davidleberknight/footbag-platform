@@ -8,6 +8,7 @@ import { adminClubLeadershipController } from '../controllers/adminClubLeadershi
 import { adminAdminRolesController } from '../controllers/adminAdminRolesController';
 import { adminAuditLogController } from '../controllers/adminAuditLogController';
 import { adminEmailLogController } from '../controllers/adminEmailLogController';
+import { adminEmailTemplateController } from '../controllers/adminEmailTemplateController';
 import { adminFreestyleController } from '../controllers/adminFreestyleController';
 import { requireAuth } from '../middleware/auth';
 import { requireAdmin } from '../middleware/requireAdmin';
@@ -28,6 +29,7 @@ adminRouter.post('/admin-roles/grant/confirm',            adminAdminRolesControl
 adminRouter.post('/admin-roles/:memberId/revoke',         adminAdminRolesController.revoke);
 adminRouter.post('/admin-roles/:memberId/revoke/confirm', adminAdminRolesController.revokeConfirm);
 adminRouter.get('/work-queue',                adminWorkQueueController.index);
+adminRouter.post('/work-queue/:id/claim',     adminWorkQueueController.claim);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);
 adminRouter.post('/work-queue/:id/dismiss',   adminWorkQueueController.dismiss);
 adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.linkHelpApprove);
@@ -36,6 +38,11 @@ adminRouter.post('/work-queue/:id/link-help/dispute-revert', adminWorkQueueContr
 adminRouter.get('/audit-log',                 adminAuditLogController.index);
 adminRouter.get('/audit-log/export',          adminAuditLogController.exportLog);
 adminRouter.get('/email-log',                 adminEmailLogController.index);
+// Email-template editor: edit wording, enabled flag, and classification of the
+// registered outbound templates. Edit-only; template existence is code.
+adminRouter.get('/email-templates',           adminEmailTemplateController.index);
+adminRouter.get('/email-templates/:key/edit', adminEmailTemplateController.edit);
+adminRouter.post('/email-templates/:key/edit', adminEmailTemplateController.update);
 adminRouter.get('/clubs/leadership',          adminClubLeadershipController.queue);
 adminRouter.get('/clubs/:clubId/leadership',  adminClubLeadershipController.detail);
 adminRouter.post('/clubs/:clubId/leadership/assign',  adminClubLeadershipController.assign);

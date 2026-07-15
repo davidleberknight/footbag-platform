@@ -1,0 +1,7 @@
+{
+  "templateKey": "payment_receipt_succeeded_tier1",
+  "subjectTemplate": "Payment received: {descriptor}",
+  "bodyTemplate": "Thank you for your payment.\n\nItem:    {descriptor}\nAmount:  {amountDisplay}\n\nYour Tier 1 IFPA Member status is now active.\n\nReference: {referenceId}",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

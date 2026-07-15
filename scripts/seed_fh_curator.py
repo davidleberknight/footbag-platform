@@ -57,6 +57,9 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _trick_canonicalization import canonicalize_slug, load_alias_map  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from db_cutover_guard import assert_db_pre_cutover  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = "./database/footbag.db"
 DEFAULT_MEDIA_DIR = "./.curated-build"
@@ -1446,6 +1449,11 @@ def main() -> None:
 
     if not source_dir.is_dir():
         sys.exit(f"ERROR: source-dir {source_dir} does not exist")
+
+    # The reconcile-and-orphan-cleanup model deletes FH-owned rows that have no
+    # sidecar on disk, so a post-cutover database (where admin edits are the
+    # source of truth) must never be seeded. Refuses before any mutation.
+    assert_db_pre_cutover(db_path, "seed_fh_curator.py")
 
     con = sqlite3.connect(db_path)
     con.execute("PRAGMA journal_mode = WAL")

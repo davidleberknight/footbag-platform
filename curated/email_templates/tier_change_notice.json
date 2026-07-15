@@ -1,0 +1,7 @@
+{
+  "templateKey": "tier_change_notice",
+  "subjectTemplate": "Your IFPA membership status was updated",
+  "bodyTemplate": "An administrator updated your IFPA membership status.\n\nMembership tier: {tierLabel}\nReason: {reasonText}",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

@@ -250,6 +250,86 @@ beforeAll(async () => {
     status:           'provisional',
   });
 
+  // Non-cohort club: NO bootstrap leader rows. Its leadership comes only from
+  // affiliation-inferred rows (legacy_person_club_affiliations tagged
+  // leader / co-leader / contact), which surface as provisional leaders. This is
+  // the permanent leadership source for clubs outside the pre_populate cohort,
+  // where the legacy dump and mirror are the only leadership data.
+  const affilTagId = insertTag(db, { standard_type: 'club', tag_normalized: '#club_test_affil_leader' });
+  const affilClubId = insertClub(db, {
+    hashtag_tag_id: affilTagId,
+    name:    'Affiliation Leader Club',
+    city:    'Affiltown',
+    country: 'USA',
+  });
+  const affilLcc = insertLegacyClubCandidate(db, {
+    mapped_club_id: affilClubId,
+    classification: 'onboarding_visible',
+  });
+  insertHistoricalPerson(db, {
+    person_id:    'person-affil-leader-001',
+    person_name:  'Petra Affilleader',
+    source_scope: 'CANONICAL',
+  });
+  insertLegacyPersonClubAffiliation(db, {
+    legacy_club_candidate_id: affilLcc,
+    historical_person_id:     'person-affil-leader-001',
+    inferred_role:            'leader',
+    resolution_status:        'confirmed_current',
+    resolved_club_id:         affilClubId,
+    display_name:             'Petra Affilleader',
+  });
+  insertHistoricalPerson(db, {
+    person_id:    'person-affil-contact-002',
+    person_name:  'Carlos Affilcontact',
+    source_scope: 'CANONICAL',
+  });
+  insertLegacyPersonClubAffiliation(db, {
+    legacy_club_candidate_id: affilLcc,
+    historical_person_id:     'person-affil-contact-002',
+    inferred_role:            'contact',
+    resolution_status:        'confirmed_current',
+    resolved_club_id:         affilClubId,
+    display_name:             'Carlos Affilcontact',
+  });
+
+  // Dedup club: a person carrying BOTH a bootstrap leader row and an
+  // affiliation-inferred leader row must render once. The affiliation ghost is
+  // dropped by the person-id dedup against bootstrap rows, so a claimed or
+  // bootstrapped person never reappears as a separate provisional entry.
+  const dedupTagId = insertTag(db, { standard_type: 'club', tag_normalized: '#club_test_affil_dedup' });
+  const dedupClubId = insertClub(db, {
+    hashtag_tag_id: dedupTagId,
+    name:    'Affiliation Dedup Club',
+    city:    'Dedupville',
+    country: 'USA',
+  });
+  insertLegacyMember(db, { legacy_member_id: 'legacy-affil-dedup-007', real_name: 'Dedup Doubleentry' });
+  insertHistoricalPerson(db, {
+    person_id:        'person-affil-dedup-007',
+    person_name:      'Dedup Doubleentry',
+    legacy_member_id: 'legacy-affil-dedup-007',
+    source_scope:     'CANONICAL',
+  });
+  insertClubBootstrapLeader(db, {
+    club_id:          dedupClubId,
+    legacy_member_id: 'legacy-affil-dedup-007',
+    role:             'leader',
+    status:           'provisional',
+  });
+  const dedupLcc = insertLegacyClubCandidate(db, {
+    mapped_club_id: dedupClubId,
+    classification: 'onboarding_visible',
+  });
+  insertLegacyPersonClubAffiliation(db, {
+    legacy_club_candidate_id: dedupLcc,
+    historical_person_id:     'person-affil-dedup-007',
+    inferred_role:            'leader',
+    resolution_status:        'confirmed_current',
+    resolved_club_id:         dedupClubId,
+    display_name:             'Dedup Doubleentry',
+  });
+
   db.close();
   createApp = await importApp();
 });
@@ -407,5 +487,48 @@ describe('GET /clubs/club_test_hpless — leader without historical_persons row'
     const app = createApp();
     const res = await request(app).get('/clubs/club_test_hpless').set('Cookie', authCookie());
     expect(res.text).toContain('Provisional leader');
+  });
+});
+
+describe('GET /clubs/club_test_affil_leader — affiliation-derived provisional leaders (no bootstrap rows)', () => {
+  it('surfaces an affiliation-inferred leader as a provisional leader', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_test_affil_leader').set('Cookie', authCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('>Leaders<');
+    expect(res.text).toContain('Petra Affilleader');
+    expect(res.text).toContain('Provisional leader');
+    expect(res.text).toContain('imported from historical records');
+  });
+
+  it('surfaces an affiliation-inferred contact as a provisional leader', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_test_affil_leader').set('Cookie', authCookie());
+    expect(res.text).toContain('Carlos Affilcontact');
+  });
+
+  it('PRIVACY GATE: exposes no contact email for affiliation-derived provisional leaders', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_test_affil_leader').set('Cookie', authCookie());
+    expect(res.text).not.toMatch(/href="mailto:[^"]*"/);
+    expect(res.text).not.toContain('class="club-leader-email"');
+  });
+
+  it('PRIVACY GATE: renders no affiliation-derived leader names to anonymous visitors', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_test_affil_leader');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Petra Affilleader');
+    expect(res.text).not.toContain('Carlos Affilcontact');
+  });
+});
+
+describe('GET /clubs/club_test_affil_dedup — a bootstrapped person is not doubled by their affiliation row', () => {
+  it('renders the person once, dropping the affiliation-inferred ghost', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_test_affil_dedup').set('Cookie', authCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Dedup Doubleentry');
+    expect((res.text.match(/Dedup Doubleentry/g) ?? []).length).toBe(1);
   });
 });

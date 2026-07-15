@@ -19,7 +19,7 @@ import {
   insertMemberTierGrant,
   insertPayment,
 } from '../fixtures/factories';
-import { honorCongratulationEmail, tierChangeNoticeEmail } from '../../src/services/emailContent';
+import { renderSidecarTemplate } from '../fixtures/testDb';
 import { uuidv7Hex } from '../../src/services/uuidv7';
 
 const { dbPath } = setTestEnv('3091');
@@ -301,7 +301,7 @@ describe('applyHonorGrant', () => {
 
     mts.applyHonorGrant(ADMIN_ID, id, 'hof');
 
-    const expected = honorCongratulationEmail({ honor: 'hof', staysTier3: false });
+    const expected = renderSidecarTemplate('honor_congratulation_hof');
     const mail = outboxFor(id);
     expect(mail).toHaveLength(1);
     expect(mail[0].recipient_email).toBe('hof-winner@example.com');
@@ -315,7 +315,7 @@ describe('applyHonorGrant', () => {
 
     mts.applyHonorGrant(ADMIN_ID, id, 'bap');
 
-    const expected = honorCongratulationEmail({ honor: 'bap', staysTier3: false });
+    const expected = renderSidecarTemplate('honor_congratulation_bap');
     expect(outboxFor(id)[0].body_text).toBe(expected.bodyText);
   });
 
@@ -327,7 +327,7 @@ describe('applyHonorGrant', () => {
 
     mts.applyHonorGrant(ADMIN_ID, id, 'hof');
 
-    const expected = honorCongratulationEmail({ honor: 'hof', staysTier3: true });
+    const expected = renderSidecarTemplate('honor_congratulation_hof_tier3');
     const mail = outboxFor(id);
     expect(mail).toHaveLength(1);
     expect(mail[0].body_text).toBe(expected.bodyText);
@@ -653,7 +653,10 @@ describe('adminOverride', () => {
 
     mts.adminOverride(ADMIN_ID, id, 'tier2', 'complimentary access');
 
-    const expected = tierChangeNoticeEmail({ newTier: 'tier2', reasonText: 'complimentary access' });
+    const expected = renderSidecarTemplate('tier_change_notice', {
+      tierLabel: 'Tier 2 (IFPA Organizer Member)',
+      reasonText: 'complimentary access',
+    });
     const mail = outboxFor(id);
     expect(mail).toHaveLength(1);
     expect(mail[0].recipient_email).toBe('overridden@example.com');

@@ -1,0 +1,7 @@
+{
+  "templateKey": "club_leaderless_contact",
+  "subjectTemplate": "{clubName} could use a co-leader",
+  "bodyTemplate": "Hi {memberName},\n\nYour footbag club \"{clubName}\" currently has no co-leader. A co-leader keeps the club's page up to date and is the club's point of contact for other members.\n\nIf you would like to step up, log in to your account, open Clubs, find \"{clubName}\", and choose \"Volunteer to co-lead\". You need Tier 1 benefits, and a member can co-lead one club at a time.\n\n-- IFPA platform",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

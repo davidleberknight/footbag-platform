@@ -1,71 +1,113 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as emailContent from '../../src/services/emailContent';
 import {
-  accountVerifyEmail,
-  accountExistsNoticeEmail,
-  legacyClaimConfirmEmail,
-  passwordChangedEmail,
-  passwordResetRequestEmail,
-  passwordResetConfirmEmail,
-  mailboxLinkConfirmEmail,
-  adminQueueAlertEmail,
-  contactRequestResolutionEmail,
-  clubMembershipMemberEmail,
-  clubMembershipLeaderEmail,
-  clubVolunteerLeadershipEmail,
-  clubCoLeaderInviteEmail,
-  clubLeaderlessContactEmail,
-  activePlayerExpiryReminderEmail,
-  paymentReceiptEmail,
-  vouchConfirmationEmail,
-  honorCongratulationEmail,
-  tierChangeNoticeEmail,
-  adminRoleChangeEmail,
-  type EmailContent,
-} from '../../src/services/emailContent';
+  shapeEmail,
+  listEmailLogicalKeys,
+  listEmailTemplateKeys,
+  emailTemplateMergeFields,
+  type EmailTemplateKey,
+  type EmailTemplateVariantKey,
+} from '../../src/services/emailTemplateRegistry';
 
 // The catalog is the single registry of every email the platform promises to
-// send. Each entry names the content builder, a sample input, its registered
-// template key, and the services that must actually send it. The sweep below
-// asserts each builder produces a valid message, each has a live send site in
-// every owning service (so a promised-but-never-sent email fails the suite),
-// and that no exported builder is missing from the catalog (so adding email
-// content forces both a catalog entry and a live send site).
+// send. Each entry names the logical send key, the services that must actually
+// send it, and sample params covering EVERY variant key the shaper can select.
+// The sweeps below assert each sample shapes to its expected variant with
+// exactly the variant's declared merge fields, each logical email has a live
+// send site in every owning service (so a promised-but-never-sent email fails
+// the suite), every registered logical key is catalogued, and every registered
+// variant key is reachable from some shaper input.
 interface CatalogEntry {
-  builder: (input?: never) => EmailContent;
-  sample: unknown;
-  templateKey: string;
+  template: EmailTemplateKey;
   services: string[];
+  samples: Array<{ params: unknown; variant: EmailTemplateVariantKey }>;
 }
 
 const CATALOG: CatalogEntry[] = [
   // identityAccessService — transactional security mail.
-  { builder: accountVerifyEmail as never, sample: { verifyUrl: 'https://x/verify/t', ttlHours: 24 }, templateKey: 'account_verify', services: ['identityAccessService'] },
-  { builder: accountExistsNoticeEmail as never, sample: { loginUrl: 'https://x/login', resetUrl: 'https://x/password/forgot' }, templateKey: 'account_exists_notice', services: ['identityAccessService'] },
-  { builder: legacyClaimConfirmEmail as never, sample: { confirmUrl: 'https://x/claim/t', ttlHours: 24 }, templateKey: 'legacy_claim_confirm', services: ['identityAccessService'] },
-  { builder: passwordChangedEmail as never, sample: undefined, templateKey: 'password_changed', services: ['identityAccessService'] },
-  { builder: passwordResetRequestEmail as never, sample: { resetUrl: 'https://x/reset/t', ttlHours: 1 }, templateKey: 'password_reset_request', services: ['identityAccessService'] },
-  { builder: passwordResetConfirmEmail as never, sample: undefined, templateKey: 'password_reset_confirm', services: ['identityAccessService'] },
-  { builder: mailboxLinkConfirmEmail as never, sample: { verifyUrl: 'https://x/anchors/verify/t', ttlHours: 24 }, templateKey: 'mailbox_link_confirm', services: ['identityAccessService'] },
+  { template: 'account_verify', services: ['identityAccessService'], samples: [
+    { params: { verifyUrl: 'https://x/verify/t', ttlHours: 24 }, variant: 'account_verify' },
+  ] },
+  { template: 'account_exists_notice', services: ['identityAccessService'], samples: [
+    { params: { loginUrl: 'https://x/login', resetUrl: 'https://x/password/forgot' }, variant: 'account_exists_notice' },
+  ] },
+  { template: 'legacy_claim_confirm', services: ['identityAccessService'], samples: [
+    { params: { confirmUrl: 'https://x/claim/t', ttlHours: 24 }, variant: 'legacy_claim_confirm' },
+  ] },
+  { template: 'password_changed', services: ['identityAccessService'], samples: [
+    { params: {}, variant: 'password_changed' },
+  ] },
+  { template: 'password_reset_request', services: ['identityAccessService'], samples: [
+    { params: { resetUrl: 'https://x/reset/t', ttlHours: 1 }, variant: 'password_reset_request' },
+  ] },
+  { template: 'password_reset_confirm', services: ['identityAccessService'], samples: [
+    { params: {}, variant: 'password_reset_confirm' },
+  ] },
+  { template: 'mailbox_link_confirm', services: ['identityAccessService'], samples: [
+    { params: { verifyUrl: 'https://x/anchors/verify/t', ttlHours: 24 }, variant: 'mailbox_link_confirm' },
+  ] },
   // Admin-alerts fan-out, sent from the single work-queue enqueue path.
-  { builder: adminQueueAlertEmail as never, sample: { taskType: 't', entityId: 'e' }, templateKey: 'admin_queue_alert', services: ['workQueueService'] },
+  { template: 'admin_queue_alert', services: ['workQueueService'], samples: [
+    { params: { taskType: 't', entityId: 'e' }, variant: 'admin_queue_alert' },
+  ] },
+  // Routine work-queue items: the per-admin digest and the one-time stale
+  // escalation, both sent from the work-queue service's scheduled passes.
+  { template: 'admin_queue_digest', services: ['workQueueService'], samples: [
+    { params: { openCount: 3, itemLines: 'Task type: t, Entity ID: e', queueUrl: 'https://x/admin/work-queue' }, variant: 'admin_queue_digest' },
+  ] },
+  { template: 'admin_queue_stale_escalation', services: ['workQueueService'], samples: [
+    { params: { taskType: 't', entityId: 'e', ageDays: 3, queueUrl: 'https://x/admin/work-queue' }, variant: 'admin_queue_stale_escalation' },
+  ] },
   // contactRequestService — member-facing resolution reply.
-  { builder: contactRequestResolutionEmail as never, sample: { memberName: 'M', displayDecision: 'D', note: 'n' }, templateKey: 'contact_request_resolution', services: ['contactRequestService'] },
+  { template: 'contact_request_resolution', services: ['contactRequestService'], samples: [
+    { params: { memberName: 'M', displayDecision: 'D', note: 'n' }, variant: 'contact_request_resolution' },
+  ] },
   // clubService / clubCleanupService — club operational notifications.
-  { builder: clubMembershipMemberEmail as never, sample: { kind: 'join', memberName: 'M', clubName: 'C' }, templateKey: 'club_membership_member', services: ['clubService'] },
-  { builder: clubMembershipLeaderEmail as never, sample: { kind: 'leave', leaderName: 'L', memberName: 'M', clubName: 'C' }, templateKey: 'club_membership_leader', services: ['clubService'] },
-  { builder: clubVolunteerLeadershipEmail as never, sample: { leaderName: 'L', joinerName: 'J', clubName: 'C' }, templateKey: 'club_volunteer_leadership', services: ['clubService'] },
-  { builder: clubCoLeaderInviteEmail as never, sample: { inviteeName: 'I', clubName: 'C' }, templateKey: 'club_coleader_invite', services: ['clubService'] },
-  { builder: clubLeaderlessContactEmail as never, sample: { memberName: 'M', clubName: 'C' }, templateKey: 'club_leaderless_contact', services: ['clubCleanupService'] },
+  { template: 'club_membership_member', services: ['clubService'], samples: [
+    { params: { kind: 'join', memberName: 'M', clubName: 'C' }, variant: 'club_membership_member_join' },
+    { params: { kind: 'leave', memberName: 'M', clubName: 'C' }, variant: 'club_membership_member_leave' },
+  ] },
+  { template: 'club_membership_leader', services: ['clubService'], samples: [
+    { params: { kind: 'join', leaderName: 'L', memberName: 'M', clubName: 'C' }, variant: 'club_membership_leader_join' },
+    { params: { kind: 'leave', leaderName: 'L', memberName: 'M', clubName: 'C' }, variant: 'club_membership_leader_leave' },
+  ] },
+  { template: 'club_volunteer_leadership', services: ['clubService'], samples: [
+    { params: { leaderName: 'L', joinerName: 'J', clubName: 'C' }, variant: 'club_volunteer_leadership' },
+  ] },
+  { template: 'club_coleader_invite', services: ['clubService'], samples: [
+    { params: { inviteeName: 'I', clubName: 'C' }, variant: 'club_coleader_invite' },
+  ] },
+  { template: 'club_leaderless_contact', services: ['clubCleanupService'], samples: [
+    { params: { memberName: 'M', clubName: 'C' }, variant: 'club_leaderless_contact' },
+  ] },
   // Membership, Active Player, payment notifications.
-  { builder: activePlayerExpiryReminderEmail as never, sample: { displayDate: 'January 1, 2030', isDayOf: false }, templateKey: 'active_player_expiry_reminder', services: ['activePlayerExpiryService'] },
-  { builder: paymentReceiptEmail as never, sample: { descriptor: 'd', amountDisplay: '$1.00 USD', outcome: 'succeeded', isMembership: true, purchasedTier: 'tier1', referenceId: 'r' }, templateKey: 'payment_receipt', services: ['paymentService'] },
-  { builder: vouchConfirmationEmail as never, sample: { voucherName: 'V', expiryDate: '2030-01-01' }, templateKey: 'vouch_confirmation', services: ['activePlayerService'] },
-  { builder: honorCongratulationEmail as never, sample: { honor: 'hof', staysTier3: false }, templateKey: 'honor_congratulation', services: ['membershipTieringService'] },
-  { builder: tierChangeNoticeEmail as never, sample: { newTier: 'tier1', reasonText: 'r' }, templateKey: 'tier_change_notice', services: ['membershipTieringService'] },
-  { builder: adminRoleChangeEmail as never, sample: { action: 'granted' }, templateKey: 'admin_role_change', services: ['membershipTieringService'] },
+  { template: 'active_player_expiry_reminder', services: ['activePlayerExpiryService'], samples: [
+    { params: { displayDate: 'January 1, 2030', isDayOf: false }, variant: 'active_player_expiry_upcoming' },
+    { params: { displayDate: 'January 1, 2030', isDayOf: true }, variant: 'active_player_expiry_day_of' },
+  ] },
+  { template: 'payment_receipt', services: ['paymentService'], samples: [
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', outcome: 'succeeded', isMembership: true, purchasedTier: 'tier1', referenceId: 'r' }, variant: 'payment_receipt_succeeded_tier1' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', outcome: 'succeeded', isMembership: true, purchasedTier: 'tier2', referenceId: 'r' }, variant: 'payment_receipt_succeeded_tier2' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', outcome: 'succeeded', isMembership: false, purchasedTier: null, referenceId: 'r' }, variant: 'payment_receipt_succeeded' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', outcome: 'failed', isMembership: true, purchasedTier: 'tier1', referenceId: 'r' }, variant: 'payment_receipt_failed' },
+  ] },
+  { template: 'vouch_confirmation', services: ['activePlayerService'], samples: [
+    { params: { voucherName: 'V', expiryDate: '2030-01-01' }, variant: 'vouch_confirmation' },
+  ] },
+  { template: 'honor_congratulation', services: ['membershipTieringService'], samples: [
+    { params: { honor: 'hof', staysTier3: false }, variant: 'honor_congratulation_hof' },
+    { params: { honor: 'hof', staysTier3: true }, variant: 'honor_congratulation_hof_tier3' },
+    { params: { honor: 'bap', staysTier3: false }, variant: 'honor_congratulation_bap' },
+    { params: { honor: 'bap', staysTier3: true }, variant: 'honor_congratulation_bap_tier3' },
+  ] },
+  { template: 'tier_change_notice', services: ['membershipTieringService'], samples: [
+    { params: { newTier: 'tier1', reasonText: 'r' }, variant: 'tier_change_notice' },
+  ] },
+  { template: 'admin_role_change', services: ['membershipTieringService'], samples: [
+    { params: { action: 'granted' }, variant: 'admin_role_granted' },
+    { params: { action: 'revoked' }, variant: 'admin_role_revoked' },
+  ] },
 ];
 
 function serviceSource(name: string): string {
@@ -73,44 +115,49 @@ function serviceSource(name: string): string {
 }
 
 describe('email catalog', () => {
-  it('every builder produces a non-empty subject and a string body', () => {
+  it('every sample shapes to its expected variant with exactly the declared merge fields', () => {
     for (const entry of CATALOG) {
-      const content = (entry.builder as (i: unknown) => EmailContent)(entry.sample);
-      expect(typeof content.subject, entry.builder.name).toBe('string');
-      expect(content.subject.length, entry.builder.name).toBeGreaterThan(0);
-      expect(typeof content.bodyText, entry.builder.name).toBe('string');
-      expect(content.bodyText.length, entry.builder.name).toBeGreaterThan(0);
+      for (const sample of entry.samples) {
+        const shaped = shapeEmail(entry.template, sample.params as never);
+        expect(shaped.variant, `${entry.template} sample`).toBe(sample.variant);
+        const declared = [...(emailTemplateMergeFields(shaped.variant) ?? [])].sort();
+        expect(Object.keys(shaped.merge).sort(), `${shaped.variant} merge fields`).toEqual(declared);
+        for (const [token, value] of Object.entries(shaped.merge)) {
+          expect(typeof value, `${shaped.variant} merge.${token}`).toBe('string');
+          expect(value.length, `${shaped.variant} merge.${token}`).toBeGreaterThan(0);
+        }
+      }
     }
+  });
+
+  it('computed duration phrases pluralize correctly', () => {
+    expect(shapeEmail('password_reset_request', { resetUrl: 'u', ttlHours: 1 }).merge.ttlPhrase).toBe('1 hour');
+    expect(shapeEmail('account_verify', { verifyUrl: 'u', ttlHours: 24 }).merge.ttlPhrase).toBe('24 hours');
   });
 
   it('every catalogued email has a live send site in each of its owning services (the firing sweep)', () => {
     for (const entry of CATALOG) {
       for (const svc of entry.services) {
         const src = serviceSource(svc);
-        // A send site is the owning service actually sending the email: either a
-        // send through the email service by its registered template key, or a
-        // direct builder call. Either proves the promised email is sent.
-        const hasSendSite =
-          src.includes(`'${entry.templateKey}'`) || src.includes(`${entry.builder.name}(`);
+        // A send site is the owning service sending through the email service
+        // by the logical template key, which proves the promised email is sent.
         expect(
-          hasSendSite,
-          `${svc} has no live send site for ${entry.templateKey} (no '${entry.templateKey}' template send and no ${entry.builder.name}() call)`,
+          src.includes(`'${entry.template}'`),
+          `${svc} has no live send site for ${entry.template} (no template: '${entry.template}' send)`,
         ).toBe(true);
       }
     }
   });
 
-  it('no exported email builder is missing from the catalog', () => {
-    const cataloged = new Set(CATALOG.map((e) => e.builder.name));
-    const exportedBuilders = Object.entries(emailContent)
-      .filter(([, v]) => typeof v === 'function')
-      .map(([k]) => k);
-    for (const name of exportedBuilders) {
-      expect(cataloged.has(name), `${name} is exported from emailContent but not in EMAIL_CATALOG`).toBe(true);
-    }
-    // And every catalog entry points at a real export.
-    for (const name of cataloged) {
-      expect(exportedBuilders, `${name} is in the catalog but not exported from emailContent`).toContain(name);
+  it('every registered logical key is catalogued and vice versa', () => {
+    const cataloged = CATALOG.map((e) => e.template).sort();
+    expect(cataloged).toEqual(listEmailLogicalKeys());
+  });
+
+  it('every registered variant key is reachable from a catalogued sample', () => {
+    const reachable = new Set(CATALOG.flatMap((e) => e.samples.map((s) => s.variant)));
+    for (const variant of listEmailTemplateKeys()) {
+      expect(reachable.has(variant as EmailTemplateVariantKey), `variant ${variant} is registered but no shaper input reaches it`).toBe(true);
     }
   });
 });

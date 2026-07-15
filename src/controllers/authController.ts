@@ -288,14 +288,18 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
   // anti-enumeration.
   try {
     await identityAccessService.resendVerifyEmail(email ?? '');
-    // The resend dev card is always empty in stub mode. Reflecting whether mail
-    // was actually sent would leak account existence (the response must be
-    // byte-identical for unverified/verified/unknown — anti-enumeration), and
-    // showing the captured buffer would leak other pending users' verify tokens
-    // (B43). The just-registered user retrieves their own link from the
-    // flash-scoped /register/check-email page. Live mode renders no card.
-    const emailPreview: SimulatedEmailPreview | undefined =
-      config.sesAdapter === 'stub' ? { mode: 'dev', messages: [] } : undefined;
+    // On a dev or staging host (stub adapter) the resend card shows the resent
+    // verification link scoped to the address the visitor just submitted, so a
+    // tester finishes the flow on the page itself. Scoping to that one recipient
+    // keeps one pending user's card from ever surfacing another user's verify
+    // token. In production the service returns null and no card renders, so the
+    // response is byte-identical whether or not the account exists
+    // (anti-enumeration).
+    const emailPreview =
+      (await simulatedEmailService.getEmailPreview({
+        urlPathPrefix: '/verify/',
+        recipientEmail: email ?? undefined,
+      })) ?? undefined;
     res.render('auth/check-email', {
       seo: { title: 'Check Your Email', noindex: true },
       page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
@@ -364,14 +368,20 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
       return;
     }
     await identityAccessService.requestPasswordReset(email ?? '');
-    // This page is unauthenticated and the submitted email is attacker-chosen,
-    // so it never renders the reset link: a dev-preview card here would hand the
-    // submitter a live reset token for whatever address they typed. Operators
-    // read dev/staging reset links from the internal outbox tooling instead.
+    // On a dev or staging host (stub adapter) the sent page shows the reset link
+    // scoped to the address the visitor just submitted, so a tester completes the
+    // reset on the page itself. In production the service returns null and no card
+    // renders, so the response is identical whether or not an account exists
+    // (anti-enumeration) and no reset token is ever exposed to a live visitor.
+    const emailPreview =
+      (await simulatedEmailService.getEmailPreview({
+        urlPathPrefix: '/password/reset/',
+        recipientEmail: email ?? undefined,
+      })) ?? undefined;
     res.render('auth/password-forgot-sent', {
       seo: { title: 'Reset Your Password', noindex: true },
       page: { sectionKey: '', pageKey: 'password_forgot_sent', title: 'Reset your password' },
-      content: {},
+      content: { emailPreview },
     } satisfies PageViewModel<PasswordForgotSentContent>);
   } catch (err) {
     next(err);

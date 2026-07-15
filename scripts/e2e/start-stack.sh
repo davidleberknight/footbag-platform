@@ -18,6 +18,10 @@ cd "$(dirname "$0")/../.."
 TEST_DB="$(mktemp -t footbag-e2e-XXXXXX.db)"
 echo "→ E2E ephemeral DB: ${TEST_DB}"
 sqlite3 "${TEST_DB}" < database/schema.sql
+# The email service renders every outbound message from email_templates rows,
+# and the E2E flows follow emailed links, so the ephemeral DB needs the
+# committed template seed.
+python3 scripts/seed_email_templates.py --db "${TEST_DB}"
 E2E_DB_PATH_FILE="${TMPDIR:-/tmp}/footbag-e2e-db-path"
 echo "${TEST_DB}" > "${E2E_DB_PATH_FILE}"
 

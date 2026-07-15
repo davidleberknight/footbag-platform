@@ -101,6 +101,24 @@ async function activePlayerExpiryLoop(): Promise<void> {
         error: err instanceof Error ? err.message : String(err),
       });
     }
+    // The admin work-queue digest rolls up open routine items to each admin on
+    // its configured cadence (self-gated, so it is safe on the daily tick), and
+    // the stale-item escalation emails a one-time nudge for items left
+    // unclaimed too long; both are idempotent, so they ride the same tick.
+    try {
+      await operationsPlatformService.runAdminQueueDigest();
+    } catch (err) {
+      logger.error('worker: admin work-queue digest unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    try {
+      await operationsPlatformService.runStaleQueueEscalation();
+    } catch (err) {
+      logger.error('worker: admin work-queue stale escalation unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     if (stopping) break;
     const intervalMs = operationsPlatformService.getActivePlayerExpiryIntervalMs();
     await sleep(intervalMs);

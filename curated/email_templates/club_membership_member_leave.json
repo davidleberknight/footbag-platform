@@ -1,0 +1,7 @@
+{
+  "templateKey": "club_membership_member_leave",
+  "subjectTemplate": "You left {clubName}",
+  "bodyTemplate": "Hi {memberName},\n\nThis confirms you left the club \"{clubName}\".\n\nYou can review your club memberships on your profile page.\n\n-- IFPA platform",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

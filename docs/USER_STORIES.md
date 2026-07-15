@@ -240,7 +240,7 @@ All UI labels and system-generated messages are English-only at launch. User-ent
 
 Reporting scope: Any dashboards/metrics described here are operational metrics (health, payment volume, job success/failure), not advanced BI or custom analytics.
 
-When any task is added to the admin work queue, the system sends an email notification to admin-alerts mailing list containing task type and entity ID only (no sensitive member data such as email addresses, payment amounts, personal information, or content details). Queue items can be viewed after resolution with status, admin who resolved, resolution timestamp, decision label, and reason text.
+Admin work-queue notifications are routed by urgency, never broadcast per event to every administrator. Task types classified urgent (security or data-integrity events needing same-day action) send an immediate email to the admin-alerts mailing list when enqueued. Routine task types send no per-event email: administrators read them on the work-queue dashboard, and a periodic digest emails each administrator a rollup of open routine items. An administrator who claims an item removes it from the other administrators' digests; an item unclaimed past a configured stale threshold escalates once with a single email to admin-alerts naming the item. Every such notification contains task type and entity ID only (no sensitive member data such as email addresses, payment amounts, personal information, or content details). Queue items can be viewed after resolution with status, admin who resolved, resolution timestamp, decision label, and reason text.
 
 ## 1.1 Hashtags
 
@@ -1126,6 +1126,7 @@ Success Criteria:
 - Roster sorted alphabetically by display name.
 - Club detail page includes a link to the club media gallery (for example, "View Club Gallery") when at least one media item exists, without showing image or video counts in the link text.
 - Co-leaders array displayed on club detail page showing all current co-leaders.
+- For a club with no bootstrap leader rows (outside the pre-populated cohort), the page also surfaces its mirror-inferred historical leader / co-leader / contact affiliations as provisional leaders: names only, labeled as imported from historical records, never with contact information, deduplicated against any bootstrap entry, and dropped once a real member claims leadership.
 
 ## 3.4 Event Participation
 
@@ -1522,7 +1523,7 @@ Success Criteria:
 
 - Flagged items remain visible until an administrator reviews and decides; visibility never changes automatically.
 - The system shall not alter visibility or ranking without explicit administrator action (no shadow banning).
-- A work queue item is created and an email notification is sent to the admin-alerts mailing list per Global Behaviors rules (task type and entity ID only; no sensitive member data).
+- A work queue item is created and its notification is routed per the Global Behaviors work-queue rules (task type and entity ID only; no sensitive member data).
 - Uploader can remove own media anytime without admin approval.
 - Multiple flags from same user for same media not counted separately.
 - Flagging is rate-limited to prevent abuse; limit is admin-configurable via `media_flag_rate_limit_per_hour` (default: 10 flags per member per hour).
@@ -2031,7 +2032,7 @@ Success Criteria:
 - A co-leader can step down at any time via the member dashboard. Stepping down removes only the co-leader role, not club membership; if they were the last co-leader, the club becomes leaderless (a tolerated state per §5.1).
 - A co-leader cannot remove or modify another co-leader; that is an admin action (A_Reassign_Club_Leader).
 - All co-leader actions (invite, accept, step down, admin removal) are audit-logged, and the acting co-leader sees a clear success message.
-- All co-leaders are displayed on the club detail page (names only on the public page). Each co-leader's contact email is visible to authenticated members; holding the co-leader role is the consent and the email cannot be hidden while the role is held. A co-leader's WhatsApp shows to authenticated members only if that co-leader opts in. Provisional (unclaimed) bootstrap entries never show contact information.
+- All co-leaders are displayed on the club detail page (names only on the public page). Each co-leader's contact email is visible to authenticated members; holding the co-leader role is the consent and the email cannot be hidden while the role is held. A co-leader's WhatsApp shows to authenticated members only if that co-leader opts in. Provisional (unclaimed) bootstrap entries, and the mirror-inferred affiliation entries shown as provisional leaders for clubs with no bootstrap rows, never show contact information.
 - After any co-leader change, a club with at least one co-leader is reachable through that co-leader's contact; a club with zero co-leaders is leaderless (tolerated per §5.1) and surfaces on the single low-priority "could use a leader" admin list under the "Needs Leader" label.
 
 ### V_Volunteer_To_CoLead
@@ -2948,6 +2949,8 @@ Seed these defaults into the database-backed configuration store during initial 
 - `ballot_retention_days = 2555 days` (governance/audit defensibility baseline)
 - `reconciliation_expiry_days = 90 days`
 - `reconciliation_summary_interval_days = 7` (cadence in days for the automated reconciliation digest email sent to admins)
+- `admin_queue_digest_interval_days = 1` (cadence in days for the admin work-queue digest of open routine items sent to each admin)
+- `admin_queue_stale_escalation_days = 3` (days an unclaimed routine work-queue item may stay open before a one-time escalation email to all admins)
 - `primary_snapshot_version_days = 30` (number of days of point-in-time snapshot versions retained in the primary S3 backup bucket; governs the S3 versioning lifecycle setting)
 - `cross_region_backup_retention_days = 90` (Object Lock retention window for backup objects in the cross-region disaster-recovery bucket)
 - `continuous_backup_interval_minutes = 5` (interval in minutes between continuous SQLite backup runs)

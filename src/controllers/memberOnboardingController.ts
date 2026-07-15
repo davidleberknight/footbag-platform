@@ -17,6 +17,7 @@ import {
 } from '../services/memberOnboardingService';
 import { memberService } from '../services/memberService';
 import { clubService } from '../services/clubService';
+import { simulatedEmailService } from '../services/simulatedEmailService';
 import { logger } from '../config/logger';
 import { handleControllerError } from '../lib/controllerErrors';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
@@ -193,6 +194,20 @@ async function renderLegacyClaim(
   data.anchorSavedNotice =
     anchorSaved === 'saved' || anchorSaved === 'removed' ? anchorSaved : null;
   if (validationMessage) data.validationMessage = validationMessage;
+  // On a dev or staging host (stub adapter) show the just-sent confirmation link
+  // on the page, scoped to the specific link type of whichever mail-sending
+  // state is active, so a tester finishes the flow without opening the dev
+  // outbox. In production the service returns null and no card renders.
+  const mailLinkPrefix =
+    data.anchorVerificationNotice === 'sent'
+      ? '/register/wizard/legacy_claim/anchors/verify/'
+      : data.sentNotice.show
+        ? '/register/wizard/legacy_claim/claim/confirm/'
+        : null;
+  if (mailLinkPrefix) {
+    data.emailPreview =
+      (await simulatedEmailService.getEmailPreview({ urlPathPrefix: mailLinkPrefix })) ?? undefined;
+  }
   res.status(statusOverride ?? 200).render('register/wizard/legacy-claim', {
     seo:  { title: 'Find your past records and clubs' },
     page: { sectionKey: 'members', pageKey: 'onboarding_legacy_claim', title: 'Find your past records and clubs' },

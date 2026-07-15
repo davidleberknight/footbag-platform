@@ -3046,6 +3046,17 @@ section.home-media { padding-top: 0; }
 .btn-link-danger:hover { color: var(--danger-text); }
 .work-queue-item { margin-bottom: 14px; }
 
+/* ── Admin: email-log template-body disclosure ───────────────── */
+.email-log-template summary { cursor: pointer; font-size: 0.85em; color: var(--text-muted); padding: 0.25rem 0; }
+.email-log-template pre {
+  white-space: pre-wrap;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0.25rem 0 0;
+  font-size: 0.85em;
+  font-family: var(--font-mono);
+}
+
 /* ── Gallery edit: current-items picker ──────────────────────── */
 .picker-grid {
   display: grid;

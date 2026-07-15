@@ -88,8 +88,10 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     expect(res.text).toMatch(/<a href="http:\/\/[^"]+\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK<\/a>/);
   });
 
-  it('renders the resent banner with an EMPTY dev card (resend must not leak tokens or existence)', async () => {
+  it('renders the resent banner and shows the submitter\'s own verify link, scoped so another pending user\'s token never appears', async () => {
     const app = createApp();
+    // Another pending user whose verify token is in the same stub buffer.
+    await registerFlash(app, 'resend-other@example.com');
     await request(app).post('/register').type('form').send({
       realName: 'Sim Card Two',
       email: 'sim-card-two@example.com',
@@ -101,14 +103,13 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     });
     expect(resendRes.status).toBe(200);
     expect(resendRes.text).toContain('new verification link has been sent');
-    // The dev card shell still renders, but with no captured rows: reflecting
-    // sent mail would leak existence (anti-enum) and showing the buffer would
-    // leak other users' verify tokens.
+    // On a dev or staging host the submitter sees their own verify link on the
+    // page, scoped to the address they submitted.
     expect(resendRes.text).toContain('Simulated email (dev)');
-    expect(resendRes.text).toContain('No messages sent yet.');
-    const openLinks = resendRes.text.match(/<a href="http:\/\/[^"]+\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK<\/a>/g);
-    expect(openLinks?.length ?? 0).toBe(0);
-    expect(resendRes.text).not.toContain('sim-card-two@example.com');
+    expect(resendRes.text).toContain('sim-card-two@example.com');
+    expect(resendRes.text).toMatch(/<a href="http:\/\/[^"]+\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK<\/a>/);
+    // Scoping keeps the other pending user's token and address out of the card.
+    expect(resendRes.text).not.toContain('resend-other@example.com');
   });
 
   it('renders a row without an Open link when the body has no URL', async () => {

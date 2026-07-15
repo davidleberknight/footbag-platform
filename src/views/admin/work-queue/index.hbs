@@ -12,6 +12,12 @@
   {{#if content.reviewedFlag}}
     <p class="form-success-banner" role="status">Item marked reviewed.</p>
   {{/if}}
+  {{#if content.claimedFlag}}
+    <p class="form-success-banner" role="status">Item claimed. It is now off the other admins' digest.</p>
+  {{/if}}
+  {{#if content.claimNoopFlag}}
+    <p class="form-notice" role="status">That item was already claimed or is no longer open.</p>
+  {{/if}}
   {{#if content.errorMessage}}
     <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
   {{/if}}
@@ -42,6 +48,14 @@
           {{/if}}
           {{#if detailText}}
             <p class="text-secondary">{{detailText}}</p>
+          {{/if}}
+
+          {{#if isClaimed}}
+            <p class="card-meta">{{#if claimedByMe}}Claimed by you.{{else}}Claimed by {{claimedByName}}.{{/if}}</p>
+          {{else}}
+            <form method="POST" action="/admin/work-queue/{{id}}/claim" class="form-block">
+              <button type="submit" class="btn btn-outline btn-sm">Claim</button>
+            </form>
           {{/if}}
 
           {{#if isLinkHelpRequest}}

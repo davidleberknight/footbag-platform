@@ -1,0 +1,7 @@
+{
+  "templateKey": "admin_role_granted",
+  "subjectTemplate": "Your IFPA administrator role was updated",
+  "bodyTemplate": "An administrator granted you the IFPA platform administrator role.\nYou now have administrative access to the platform.",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

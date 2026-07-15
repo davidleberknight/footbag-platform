@@ -6,7 +6,7 @@
  * what end users see when the live SES transport is active.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
 const { dbPath } = setTestEnv('3073');
@@ -41,5 +41,31 @@ describe('GET /register/check-email — production mode (SES_ADAPTER=live)', () 
     const res = await request(app).get('/internal/dev-outbox');
     expect(res.status).not.toBe(200);
     expect(res.text).not.toContain('Dev Outbox');
+  });
+});
+
+describe('member-login sent pages — production mode (SES_ADAPTER=live)', () => {
+  it('the password-reset sent page renders no card and never surfaces a reset link', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/password/forgot')
+      .type('form')
+      .send({ email: 'anyone@example.com' });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('If an account exists');
+    expect(res.text).not.toContain('Simulated email (dev)');
+    expect(res.text).not.toMatch(/\/password\/reset\/[A-Za-z0-9_-]+/);
+  });
+
+  it('the verify-resend page renders no card and never surfaces a verify link', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/verify/resend')
+      .type('form')
+      .send({ email: 'anyone@example.com' });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('new verification link has been sent');
+    expect(res.text).not.toContain('Simulated email (dev)');
+    expect(res.text).not.toMatch(/\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK</);
   });
 });

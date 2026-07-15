@@ -1,0 +1,7 @@
+{
+  "templateKey": "club_volunteer_leadership",
+  "subjectTemplate": "{joinerName} is now a co-leader of {clubName}",
+  "bodyTemplate": "Hi {leaderName},\n\n{joinerName} volunteered to co-lead your club \"{clubName}\" and is now part of the leadership team.\n\nYou can review the co-leaders on the club page.\n\n-- IFPA platform",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

@@ -1,0 +1,7 @@
+{
+  "templateKey": "admin_queue_digest",
+  "subjectTemplate": "IFPA admin work queue: {countPhrase} awaiting review",
+  "bodyTemplate": "You have {countPhrase} open in the admin work queue:\n\n{itemLines}\n\nReview and claim them at {queueUrl}.",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

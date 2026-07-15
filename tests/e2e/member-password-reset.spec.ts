@@ -1,11 +1,12 @@
 /**
  * Password-reset happy path in a real browser: request a reset link from the
- * forgot-password form, recover the emailed link out-of-band from the captured
- * outbox (the form never renders it, to avoid handing an attacker a live token
- * for any address they type), set a new password on the token page, and land
- * authenticated on the member's own profile. The browser layer is what proves
- * the emailed link is well-formed, the token page's form posts to the right
- * handler, and the session cookie is issued on success.
+ * forgot-password form, recover the link from the dev simulated-email card the
+ * stub SES adapter renders on the sent page, set a new password on the token
+ * page, and land authenticated on the member's own profile. Production renders
+ * no card, so no token ever reaches a live visitor; the live-adapter suites pin
+ * that. The browser layer is what proves the emailed link is well-formed, the
+ * token page's form posts to the right handler, and the session cookie is issued
+ * on success.
  */
 import { test, expect } from '@playwright/test';
 import { seedTier0Member } from '../fixtures/personas';
@@ -13,25 +14,6 @@ import { openLiveDb } from './helpers/wizard-auth';
 
 function rand(): string {
   return Math.random().toString(36).slice(2, 10);
-}
-
-// Recovers the reset link out-of-band from the captured outbox. The sent page
-// deliberately never reflects it, so the outbox row keyed by the requesting
-// member is the only path to the token.
-function passwordResetPath(memberId: string): string {
-  const db = openLiveDb();
-  try {
-    const row = db.prepare(
-      `SELECT body_text FROM outbox_emails
-       WHERE recipient_member_id = ? AND body_text LIKE '%/password/reset/%'
-       ORDER BY created_at DESC LIMIT 1`,
-    ).get(memberId) as { body_text: string | null } | undefined;
-    const m = row?.body_text?.match(/(\/password\/reset\/[A-Za-z0-9_-]+)/);
-    if (!m) throw new Error(`no password-reset link in outbox for member ${memberId}`);
-    return m[1];
-  } finally {
-    db.close();
-  }
 }
 
 test('forgot -> emailed link -> set new password -> authenticated on own profile', { tag: ['@security'] }, async ({ page }) => {
@@ -44,11 +26,16 @@ test('forgot -> emailed link -> set new password -> authenticated on own profile
   await page.locator('#email').fill(email);
   await page.getByRole('button', { name: /Send Reset Link/i }).click();
 
-  // Uniform sent page; the link itself is never on it.
+  // Uniform sent page. Under the stub SES adapter (dev and e2e) the
+  // simulated-email card shows the submitter's own reset link so a tester
+  // finishes the reset on the page; production renders no card at all, which the
+  // live-adapter suites pin. Recover the link from that card, the tester's
+  // on-page recovery surface.
   await expect(page.getByText(/reset/i).first()).toBeVisible();
-  await expect(page.locator('a[href*="/password/reset/"]')).toHaveCount(0);
-
-  const resetPath = passwordResetPath(persona.memberId);
+  const resetLink = page.locator('.sec-card-dev a[href*="/password/reset/"]');
+  await expect(resetLink).toHaveCount(1);
+  const resetHref = await resetLink.first().getAttribute('href');
+  const resetPath = new URL(resetHref ?? '', page.url()).pathname;
   await page.goto(resetPath);
 
   const newPassword = `Corr3ct-Horse-${rand()}`;

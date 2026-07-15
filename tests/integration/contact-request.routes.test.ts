@@ -315,9 +315,10 @@ describe('POST /members/:slug/contact-admin', () => {
     db.close();
   });
 
-  it('enqueues admin-alerts fan-out: one outbox row per subscribed admin, body carries task type + entity id only', async () => {
-    // Every work_queue_items insert fires an admin-alerts notification
-    // containing only task_type + entity_id.
+  it('a routine contact request opens a queue row and sends no per-event admin email', async () => {
+    // A member contact request is a routine task type: it is read on the
+    // dashboard and rolled into the admin digest, never emailed per event to
+    // every administrator.
     const app = createApp();
     await request(app)
       .post(`/members/${OWNER_SLUG}/contact-admin`)
@@ -330,26 +331,11 @@ describe('POST /members/:slug/contact-admin', () => {
       .prepare(`SELECT id FROM work_queue_items WHERE entity_id = ? AND status = 'open' LIMIT 1`)
       .get(OWNER_ID) as { id: string } | undefined;
     expect(queueRow).toBeDefined();
-    const queueItemId = queueRow!.id;
 
     const outboxRows = db.prepare(`
-      SELECT recipient_email, recipient_member_id, mailing_list_id, subject, body_text, idempotency_key
-      FROM outbox_emails
-      WHERE mailing_list_id = 'admin-alerts'
+      SELECT id FROM outbox_emails WHERE mailing_list_id = 'admin-alerts'
     `).all() as Array<Record<string, unknown>>;
     db.close();
-    expect(outboxRows.length).toBe(1);
-    const row = outboxRows[0];
-    expect(row.recipient_member_id).toBe(ADMIN_SUBSCRIBER_ID);
-    expect(row.recipient_email).toBe('admin-alerts-sub@example.com');
-    expect(row.subject).toBe('New admin queue item: member_contact_request');
-    // The alert carries the work item's entity id (the member the task concerns),
-    // consistent across every enqueue path; the work-item id keys the idempotency.
-    expect(row.body_text).toBe(`Task type: member_contact_request\nEntity ID: ${OWNER_ID}`);
-    expect(row.idempotency_key).toBe(`admin-alerts:member_contact_request:${queueItemId}:${ADMIN_SUBSCRIBER_ID}`);
-    // Body must not contain sensitive member data.
-    expect(row.body_text).not.toContain('owner@example.com');
-    expect(row.body_text).not.toContain('Contact Owner');
-    expect(row.body_text).not.toContain('route the fan-out');
+    expect(outboxRows.length).toBe(0);
   });
 });

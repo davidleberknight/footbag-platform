@@ -1,0 +1,7 @@
+{
+  "templateKey": "admin_queue_stale_escalation",
+  "subjectTemplate": "IFPA admin work queue: an item has been waiting {agePhrase}",
+  "bodyTemplate": "This work-queue item has been open and unclaimed for {agePhrase}:\n\nTask type: {taskType}\nEntity ID: {entityId}\n\nPlease claim or resolve it at {queueUrl}.",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

@@ -1,0 +1,7 @@
+{
+  "templateKey": "club_membership_leader_join",
+  "subjectTemplate": "{memberName} joined {clubName}",
+  "bodyTemplate": "Hi {leaderName},\n\n{memberName} joined your club \"{clubName}\".\n\nYou can review the roster on the club page.\n\n-- IFPA platform",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

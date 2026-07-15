@@ -1,0 +1,7 @@
+{
+  "templateKey": "admin_queue_alert",
+  "subjectTemplate": "New admin queue item: {taskType}",
+  "bodyTemplate": "Task type: {taskType}\nEntity ID: {entityId}",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

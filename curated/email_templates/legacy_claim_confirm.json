@@ -1,0 +1,7 @@
+{
+  "templateKey": "legacy_claim_confirm",
+  "subjectTemplate": "Confirm your IFPA legacy account claim",
+  "bodyTemplate": "Hello,\n\nA claim request was submitted on your legacy IFPA account. Open the link below to review and confirm the link to your current account. The link expires in {ttlPhrase}.\n\n{confirmUrl}\n\nIf you did not initiate this claim, you can ignore this message; the link will expire unused.",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

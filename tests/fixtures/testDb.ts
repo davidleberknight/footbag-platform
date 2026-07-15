@@ -126,6 +126,69 @@ function symbolicSeedData(): { table: string; cols: readonly string[]; rows: str
   return symbolicSeedCache;
 }
 
+// ── Email-template seed ────────────────────────────────────────────────────
+// emailService renders every outbound message from email_templates rows, so a
+// test DB without them fails the first send with a missing-template invariant
+// error. Seeding every test DB from the committed sidecars mirrors what
+// scripts/seed_email_templates.py does for dev and deploy builds; a suite that
+// needs a variant row uses the insertEmailTemplate factory on top.
+interface EmailTemplateSidecar {
+  templateKey: string;
+  subjectTemplate: string;
+  bodyTemplate: string;
+  piiClassification: string;
+  isEnabled: boolean;
+}
+let emailTemplateSeedCache: EmailTemplateSidecar[] | null = null;
+function emailTemplateSeedData(): EmailTemplateSidecar[] {
+  if (emailTemplateSeedCache) return emailTemplateSeedCache;
+  const dir = path.join(process.cwd(), 'curated', 'email_templates');
+  emailTemplateSeedCache = fs.readdirSync(dir)
+    .filter(f => f.endsWith('.json'))
+    .sort()
+    .map(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) as EmailTemplateSidecar);
+  return emailTemplateSeedCache;
+}
+
+/**
+ * Expected-content helper: render a committed sidecar template with the given
+ * merge values, exactly as the email service does at send time. Suites that
+ * assert an enqueued email's wording compare against this instead of
+ * restating template text inline.
+ */
+export function renderSidecarTemplate(
+  templateKey: string,
+  merge: Record<string, string> = {},
+): { subject: string; bodyText: string } {
+  const sidecar = emailTemplateSeedData().find(s => s.templateKey === templateKey);
+  if (!sidecar) throw new Error(`no committed sidecar for template key '${templateKey}'`);
+  const substitute = (text: string): string =>
+    text.replace(/\{([a-z][a-zA-Z0-9]*)\}/g, (m, token: string) => merge[token] ?? m);
+  return {
+    subject: substitute(sidecar.subjectTemplate),
+    bodyText: substitute(sidecar.bodyTemplate),
+  };
+}
+
+export function seedEmailTemplates(db: BetterSqlite3.Database): void {
+  const stmt = db.prepare(
+    `INSERT OR REPLACE INTO email_templates
+       (id, created_at, created_by, updated_at, updated_by, version,
+        template_key, subject_template, body_template, is_enabled, pii_classification)
+     VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, ?, ?, ?)`,
+  );
+  const ts = '2026-01-01T00:00:00.000Z';
+  db.transaction(() => {
+    for (const s of emailTemplateSeedData()) {
+      stmt.run(
+        `emailtpl_test_${s.templateKey}`, ts, ts,
+        s.templateKey, s.subjectTemplate, s.bodyTemplate,
+        s.isEnabled ? 1 : 0, s.piiClassification,
+      );
+    }
+  })();
+}
+
 export function seedSymbolicGrammar(db: BetterSqlite3.Database): void {
   const data = symbolicSeedData();
   db.transaction(() => {
@@ -152,6 +215,7 @@ export function createTestDb(dbPath: string): BetterSqlite3.Database {
   db.pragma('foreign_keys = ON');
   db.exec(schema);
   seedSymbolicGrammar(db);
+  seedEmailTemplates(db);
   return db;
 }
 

@@ -1,0 +1,7 @@
+{
+  "templateKey": "account_exists_notice",
+  "subjectTemplate": "Someone tried to register with your IFPA Footbag email",
+  "bodyTemplate": "Someone just tried to create an IFPA Footbag account with this email address, which already has an account.\n\nIf this was you, there is no need to register again, you can sign in:\n\n{loginUrl}\n\nIf you have forgotten your password, you can reset it:\n\n{resetUrl}\n\nIf this was not you, no action is needed and your account is unchanged.",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

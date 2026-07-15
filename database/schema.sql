@@ -750,7 +750,13 @@ CREATE TABLE work_queue_items (
   -- Full member-authored free text for the request (e.g. a contact request),
   -- kept out of the append-only audit ledger so account erasure can clear it.
   -- Scrubbed on PII purge and the deceased contact scrub.
-  detail_text           TEXT
+  detail_text           TEXT,
+  -- An administrator claims a routine item to signal they are handling it,
+  -- which drops the item from every other administrator's periodic digest.
+  -- NULL means unclaimed; the claimer is retained after resolution as a record
+  -- of who handled the item.
+  claimed_by_member_id  TEXT REFERENCES members(id),
+  claimed_at            TEXT
 );
 
 CREATE INDEX idx_work_queue_status ON work_queue_items(status, queue_category);
@@ -3155,6 +3161,24 @@ VALUES
    'reconciliation_summary_interval_days', '7',
    '2000-01-01T00:00:00.000Z',
    'Cadence in days for automated reconciliation digest email to admins (default: 7).',
+   NULL
+  ),
+
+  (
+   'seed-admin-queue-digest-interval-days',
+   '2000-01-01T00:00:00.000Z',
+   'admin_queue_digest_interval_days', '1',
+   '2000-01-01T00:00:00.000Z',
+   'Cadence in days for the admin work-queue digest email of open routine items (default: 1).',
+   NULL
+  ),
+
+  (
+   'seed-admin-queue-stale-escalation-days',
+   '2000-01-01T00:00:00.000Z',
+   'admin_queue_stale_escalation_days', '3',
+   '2000-01-01T00:00:00.000Z',
+   'Days an unclaimed routine work-queue item may stay open before a one-time escalation email to all admins (default: 3).',
    NULL
   ),
 

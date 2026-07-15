@@ -235,6 +235,19 @@ else
   echo "==> Skipping curator seed (CURATOR_SEED=no)"
 fi
 
+# Email-template seed: reconcile email_templates against the committed
+# /curated/email_templates/ sidecars. Runs here as well as inside the DB
+# rebuild so a SKIP_DB_REBUILD=yes deploy still ships the latest template
+# wording. Idempotent (key-stable INSERT OR REPLACE + orphan cleanup).
+echo "==> Seeding email templates from /curated/email_templates..."
+_venv="${REPO_ROOT}/scripts/.venv"
+if [[ ! -f "${_venv}/bin/python3" ]]; then
+  echo "    → Creating Python venv at ${_venv}"
+  python3 -m venv "${_venv}"
+  "${_venv}/bin/pip" install --quiet -r "${REPO_ROOT}/scripts/requirements.txt"
+fi
+"${_venv}/bin/python3" "${REPO_ROOT}/scripts/seed_email_templates.py" --db "${LOCAL_DB}"
+
 echo "==> Preparing remote upload directory..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -rf $REMOTE_RELEASE_DIR && mkdir -p $REMOTE_RELEASE_DIR" </dev/null
 

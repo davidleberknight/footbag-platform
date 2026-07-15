@@ -460,14 +460,21 @@ describe('scripts/reset-local-db.sh preflight', () => {
   it('exits 1 with "MISSING:" + "Recommendation:" when the committed canonical_input is absent', () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'reset-local-db-'));
     try {
-      // Minimal scaffold: copy only the script + schema. With canonical_input
-      // absent, the script falls through to the preflight error path.
-      fs.mkdirSync(path.join(tmpRoot, 'scripts'), { recursive: true });
+      // Minimal scaffold: the script, its cutover-guard dependency (a hard
+      // dependency by design: the guard refuses to reset a post-cutover
+      // database, so a copy without it must fail rather than skip the check),
+      // and the schema. With canonical_input absent, the script falls through
+      // to the preflight error path.
+      fs.mkdirSync(path.join(tmpRoot, 'scripts/internal'), { recursive: true });
+      fs.mkdirSync(path.join(tmpRoot, 'scripts/lib'), { recursive: true });
       fs.mkdirSync(path.join(tmpRoot, 'database'), { recursive: true });
-      fs.copyFileSync(
-        path.join(REPO_ROOT, 'scripts/reset-local-db.sh'),
-        path.join(tmpRoot, 'scripts/reset-local-db.sh'),
-      );
+      for (const rel of [
+        'scripts/reset-local-db.sh',
+        'scripts/internal/assert-db-pre-cutover.sh',
+        'scripts/lib/db_cutover_guard.py',
+      ]) {
+        fs.copyFileSync(path.join(REPO_ROOT, rel), path.join(tmpRoot, rel));
+      }
       fs.writeFileSync(path.join(tmpRoot, 'database/schema.sql'), '-- empty\n');
 
       // CURATOR_SEED=no skips the ffmpeg precondition; this test exercises the

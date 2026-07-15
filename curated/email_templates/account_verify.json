@@ -1,0 +1,7 @@
+{
+  "templateKey": "account_verify",
+  "subjectTemplate": "Verify your IFPA Footbag account",
+  "bodyTemplate": "Welcome to IFPA Footbag.\n\nPlease confirm your email address by opening the link below. The link expires in {ttlPhrase}.\n\n{verifyUrl}\n\nIf you did not request this account, you can ignore this message.",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

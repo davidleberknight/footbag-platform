@@ -1,0 +1,7 @@
+{
+  "templateKey": "club_membership_leader_leave",
+  "subjectTemplate": "{memberName} left {clubName}",
+  "bodyTemplate": "Hi {leaderName},\n\n{memberName} left your club \"{clubName}\".\n\nYou can review the roster on the club page.\n\n-- IFPA platform",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

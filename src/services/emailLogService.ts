@@ -2,19 +2,25 @@
  * Admin outbound-email viewer service.
  *
  * Owns: the read-and-shape surface for the admin email-log page over
- * `outbox_emails`. Does not own: enqueuing or sending email (that is
+ * `outbox_emails`, including each row's template-body preview read from
+ * `email_templates`. Does not own: enqueuing or sending email (that is
  * `emailService` / `communicationService`), or any mutation of the outbox.
  *
- * Audience: admin only (Sensitivity 4). The page is read-only and metadata-first:
- * it never shows a message body. A delivered row's `body_text` is nulled on send,
- * so a body would exist only for an un-sent or failed row; showing bodies (and the
- * classification-gated break-glass reveal a confidential body needs) is a separate
- * surface and is not part of this viewer. The recipient email is admin-visible
+ * Audience: admin only (Sensitivity 4). The page is read-only. Each message's
+ * body is shown as its underlying template with the merge fields left clearly
+ * unpopulated (the stamped variant key names the exact message sent), so the
+ * log conveys what was sent without exposing the recipient's rendered
+ * personal data. It never shows a recipient-rendered message body: a
+ * delivered row's `body_text` is nulled on send, and the classification-gated
+ * break-glass reveal a confidential rendered body would need is a separate
+ * surface, not part of this viewer. The recipient email is admin-visible
  * operational data on this role-scoped surface.
  */
 import {
+  emailTemplates,
   queryOutboxLog,
   countOutboxLog,
+  type EmailTemplateRow,
   type OutboxLogFilters,
   type OutboxLogQueryRow,
 } from '../db/db';
@@ -41,6 +47,7 @@ interface EmailLogEntryViewModel {
   classificationLabel: string | null;
   statusLabel: string;
   lastError: string | null;
+  templateBodyPreview: string | null;
 }
 
 export interface EmailLogContent {
@@ -98,6 +105,16 @@ function recipientLabel(row: OutboxLogQueryRow): string {
   return '(unknown)';
 }
 
+// The unpopulated template body for a stamped key: the stored body_template IS
+// the template with its merge fields unfilled, so it previews the message with
+// no personal data. Null (no disclosure rendered) for a null or unregistered
+// key, e.g. a row stamped before its template was renamed.
+function templateBodyPreview(templateKey: string | null): string | null {
+  if (!templateKey) return null;
+  const row = emailTemplates.getByKey.get(templateKey) as EmailTemplateRow | undefined;
+  return row ? row.body_template : null;
+}
+
 function shapeRow(row: OutboxLogQueryRow): EmailLogEntryViewModel {
   return {
     createdAtDisplay: tsDisplay(row.created_at) ?? '',
@@ -109,6 +126,7 @@ function shapeRow(row: OutboxLogQueryRow): EmailLogEntryViewModel {
     classificationLabel: emailTemplateClassification(row.template_key),
     statusLabel: row.status.replace('_', ' '),
     lastError: row.last_error,
+    templateBodyPreview: templateBodyPreview(row.template_key),
   };
 }
 

@@ -1,0 +1,7 @@
+{
+  "templateKey": "mailbox_link_confirm",
+  "subjectTemplate": "IFPA: confirm this was your footbag.org email address",
+  "bodyTemplate": "You (or someone signed in to an IFPA Footbag account) told us this email address was used on the old footbag.org site.\n\nIf that was you, open the link below WHILE SIGNED IN to your IFPA account to confirm you still control this mailbox. The link expires in {ttlPhrase}.\n\n{verifyUrl}\n\nIf this was not you, you can ignore this message.",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

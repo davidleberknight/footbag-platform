@@ -82,22 +82,41 @@ describe('GET /admin/email-log', () => {
     expect(res.text).toContain(`href="/members/${MEMBER_SLUG}"`);
   });
 
-  it('never shows a message body (metadata-only)', async () => {
+  it('shows the unpopulated template body, never the recipient-rendered message body', async () => {
     withDb((db) => insertOutboxEmail(db, {
-      recipient_email: 'el-member@example.com', subject: 'Pending note',
-      template_key: 'password_changed', status: 'pending', body_text: 'SECRET-BODY-CONTENT',
+      recipient_email: 'el-member@example.com', subject: 'Vouch note',
+      template_key: 'vouch_confirmation', status: 'pending',
+      body_text: 'SECRET-BODY-CONTENT from Jane Voucher',
     }));
     const app = createApp();
     const res = await request(app).get('/admin/email-log').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Pending note');
+    expect(res.text).toContain('Vouch note');
+    // The template body appears with its merge fields left literal...
+    expect(res.text).toContain('Template body (merge fields unpopulated)');
+    expect(res.text).toContain('{voucherName}');
+    expect(res.text).toContain('{expiryDate}');
+    // ...and the stored rendered body (real personal data) never does.
     expect(res.text).not.toContain('SECRET-BODY-CONTENT');
+    expect(res.text).not.toContain('Jane Voucher');
+  });
+
+  it('a row with an unregistered template key renders with no body disclosure', async () => {
+    withDb((db) => insertOutboxEmail(db, {
+      recipient_email: 'el-member@example.com', subject: 'Legacy-keyed row',
+      template_key: 'some_retired_key', status: 'sent',
+    }));
+    const app = createApp();
+    const res = await request(app).get('/admin/email-log').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Legacy-keyed row');
+    expect(res.text).not.toContain('Template body (merge fields unpopulated)');
   });
 
   it('status filter narrows to matching rows', async () => {
     withDb((db) => {
-      insertOutboxEmail(db, { recipient_email: 'a@example.com', subject: 'Sent one', template_key: 'payment_receipt', status: 'sent' });
-      insertOutboxEmail(db, { recipient_email: 'b@example.com', subject: 'Failed one', template_key: 'payment_receipt', status: 'failed', last_error: 'SES rejected' });
+      insertOutboxEmail(db, { recipient_email: 'a@example.com', subject: 'Sent one', template_key: 'payment_receipt_succeeded', status: 'sent' });
+      insertOutboxEmail(db, { recipient_email: 'b@example.com', subject: 'Failed one', template_key: 'payment_receipt_failed', status: 'failed', last_error: 'SES rejected' });
     });
     const app = createApp();
     const res = await request(app).get('/admin/email-log?status=failed').set('Cookie', adminCookie());
@@ -109,11 +128,11 @@ describe('GET /admin/email-log', () => {
 
   it('template filter narrows to matching rows', async () => {
     withDb((db) => {
-      insertOutboxEmail(db, { recipient_email: 'a@example.com', subject: 'Receipt mail', template_key: 'payment_receipt', status: 'sent' });
-      insertOutboxEmail(db, { recipient_email: 'b@example.com', subject: 'Role change mail', template_key: 'admin_role_change', status: 'sent' });
+      insertOutboxEmail(db, { recipient_email: 'a@example.com', subject: 'Receipt mail', template_key: 'payment_receipt_succeeded', status: 'sent' });
+      insertOutboxEmail(db, { recipient_email: 'b@example.com', subject: 'Role change mail', template_key: 'admin_role_granted', status: 'sent' });
     });
     const app = createApp();
-    const res = await request(app).get('/admin/email-log?template=admin_role_change').set('Cookie', adminCookie());
+    const res = await request(app).get('/admin/email-log?template=admin_role_granted').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Role change mail');
     expect(res.text).not.toContain('Receipt mail');
@@ -121,8 +140,8 @@ describe('GET /admin/email-log', () => {
 
   it('recipient filter matches a substring of recipient_email', async () => {
     withDb((db) => {
-      insertOutboxEmail(db, { recipient_email: 'alice@footbag.org', subject: 'To Alice', template_key: 'honor_congratulation', status: 'sent' });
-      insertOutboxEmail(db, { recipient_email: 'bob@example.com', subject: 'To Bob', template_key: 'honor_congratulation', status: 'sent' });
+      insertOutboxEmail(db, { recipient_email: 'alice@footbag.org', subject: 'To Alice', template_key: 'honor_congratulation_hof', status: 'sent' });
+      insertOutboxEmail(db, { recipient_email: 'bob@example.com', subject: 'To Bob', template_key: 'honor_congratulation_bap', status: 'sent' });
     });
     const app = createApp();
     const res = await request(app).get('/admin/email-log?recipient=footbag.org').set('Cookie', adminCookie());

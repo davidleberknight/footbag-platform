@@ -1,0 +1,7 @@
+{
+  "templateKey": "active_player_expiry_upcoming",
+  "subjectTemplate": "Your IFPA Active Player status is about to expire",
+  "bodyTemplate": "Hello,\n\nYour Active Player status expires on {displayDate}. Active Player status grants Tier 1 benefits (including inclusion on the Official IFPA Roster) to Tier 0 Registered Members. Your membership tier itself is for life and does not expire.\n\nYou can regain or extend Active Player status by any of the following:\n  - Attending a qualifying IFPA-sanctioned event.\n  - Being vouched for by a Tier 2 IFPA Organizer Member or Tier 3 Director.\n  - Joining your first club, if you have not previously used this one-time grant.\n\n--\nInternational Footbag Players Association\n",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

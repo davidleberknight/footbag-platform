@@ -214,6 +214,14 @@ export interface PasswordForgotContent {
 
 export interface PasswordForgotSentContent {
   email?: string;
+  /**
+   * Simulated-email card for the post-submit sent state. Populated only when
+   * SES_ADAPTER=stub (dev and staging); null in production, where no card
+   * renders and no reset token is ever exposed to a live visitor. Mirrors the
+   * pattern on /register/check-email so a tester completes the reset on the
+   * page.
+   */
+  emailPreview?: SimulatedEmailPreview;
 }
 
 export interface PasswordResetContent {
@@ -397,6 +405,14 @@ export interface LinkHistoryContent {
   /** Same-name collision against already-claimed records; renders the
    * "is one of these you?" prompt with the dispute affordance. */
   conflictPrompt: { records: RegistrationConflictRecord[] } | null;
+  /**
+   * Simulated-email card for the two mail-sending states on this page, the
+   * manual legacy-claim sent notice and the mailbox-control declared notice.
+   * Populated only when SES_ADAPTER=stub (dev and staging); null in production,
+   * where no card renders. Lets a tester open the confirmation link on the page
+   * instead of hopping to the dev outbox.
+   */
+  emailPreview?: SimulatedEmailPreview;
 }
 
 export interface ClaimConfirmContent {

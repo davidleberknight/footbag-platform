@@ -1,0 +1,7 @@
+{
+  "templateKey": "vouch_confirmation",
+  "subjectTemplate": "You have received Active Player status",
+  "bodyTemplate": "You have received Active Player status from {voucherName}.\nYour Active Player status is now active until {expiryDate}.\nAs an Active Player you have Tier 1 benefits while current.",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

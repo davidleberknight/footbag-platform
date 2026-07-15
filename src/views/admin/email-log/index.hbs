@@ -1,7 +1,7 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p>Browse outbound email for operational diagnostics: who it was addressed to, which template produced it, and whether it sent. Metadata only, read-only.</p>
+    <p>Browse outbound email for operational diagnostics: who it was addressed to, which template produced it, and whether it sent. Each message's body is shown as its template with the merge fields left unpopulated, never the recipient's rendered personal data. Read-only.</p>
   </div>
 </div>
 
@@ -45,6 +45,12 @@
         Created {{createdAtDisplay}}{{#if sentAtDisplay}} &middot; sent {{sentAtDisplay}}{{/if}}
       </p>
       {{#if lastError}}<p class="card-meta fs-sm">Error: {{lastError}}</p>{{/if}}
+      {{#if templateBodyPreview}}
+        <details class="email-log-template">
+          <summary>Template body (merge fields unpopulated)</summary>
+          <pre>{{templateBodyPreview}}</pre>
+        </details>
+      {{/if}}
     </div>
   {{/each}}
 

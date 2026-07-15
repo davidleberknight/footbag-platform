@@ -1434,3 +1434,37 @@ export function insertSystemConfig(db: BetterSqlite3.Database, o: SystemConfigOv
   return id;
 }
 
+// ── Email template ───────────────────────────────────────────────────────────
+//
+// One email_templates row. Every test DB is pre-seeded with the committed
+// sidecar set by createTestDb, so this factory exists for overrides: replacing
+// a seeded template's wording or flags for a suite (template_key is UNIQUE, so
+// INSERT OR REPLACE on the same key supersedes the seeded row).
+
+export interface EmailTemplateOverrides {
+  id?: string;
+  template_key: string;
+  subject_template?: string;
+  body_template?: string;
+  is_enabled?: number;
+  pii_classification?: 'public' | 'internal' | 'confidential' | 'restricted';
+}
+
+export function insertEmailTemplate(db: BetterSqlite3.Database, o: EmailTemplateOverrides): string {
+  const id = o.id ?? `emailtpl_${uid()}`;
+  db.prepare(`
+    INSERT OR REPLACE INTO email_templates
+      (id, created_at, created_by, updated_at, updated_by, version,
+       template_key, subject_template, body_template, is_enabled, pii_classification)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, SYS, TS, SYS,
+    o.template_key,
+    o.subject_template ?? `Test subject for ${o.template_key}`,
+    o.body_template ?? 'Hello {memberName},\ntest body.',
+    o.is_enabled ?? 1,
+    o.pii_classification ?? 'internal',
+  );
+  return id;
+}
+

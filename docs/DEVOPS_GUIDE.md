@@ -552,7 +552,13 @@ For both `www` and the apex, all three should return CloudFront edge IPs (the `a
 
 **T+24 hours -- TTL restore.** With the cutover stable, the operator raises the apex + `www` TTL back to the long-term default (3600s) on Route 53. Record the timestamp.
 
-**T+24 hours -- post-cutover marker.** With the cutover stable and the rollback window past, append the post-cutover marker on the production host: `sudo sh -c 'echo FOOTBAG_CUTOVER_COMPLETE=1 >> /srv/footbag/env'`. From this point `scripts/deploy-rebuild.sh` refuses the host (no bypass flag; a disaster rebuild requires deliberately removing the marker line as root first), `scripts/deploy-code.sh` is the routine deploy, and freestyle content is edited only in the admin application (§15.6). Record the timestamp in the cutover log.
+**T+24 hours -- post-cutover markers.** With the cutover stable and the rollback window past, record cutover in two places. First on the host: `sudo sh -c 'echo FOOTBAG_CUTOVER_COMPLETE=1 >> /srv/footbag/env'`; from this point `scripts/deploy-rebuild.sh` refuses the host. Second in the database itself, so the refusal travels with every copy, snapshot, and restore:
+
+```
+sqlite3 /srv/footbag/db/footbag.db "INSERT INTO system_config (id, created_at, config_key, value_json, effective_start_at, reason_text) VALUES ('cfg_post_cutover', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'post_cutover', '1', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'Production cutover complete: this database is the source of truth');"
+```
+
+Verify it took effect: `sqlite3 /srv/footbag/db/footbag.db "SELECT value_json FROM system_config_current WHERE config_key='post_cutover';"` must print `1`. From this point every destructive seeder and loader (the curator seed, the email-template seed, the freestyle rebuild, the local DB reset, the legacy member loader) refuses this database and any copy of it, with no bypass flag; `scripts/deploy-code.sh` is the routine deploy, and freestyle content is edited only in the admin application (§15.6). A deliberate disaster rebuild takes two out-of-band root steps: remove the env-file marker line, and append a superseding `post_cutover` row with `value_json` `'0'` (the config table is append-only, so the reversal is a new row, never an edit). Record the timestamps in the cutover log.
 
 Rollback (anywhere from T-0 to T+1 hour): the operator reverts the apex and `www` records to their prior values on Route 53; before the legacy-side shutdown has run, that returns service to the legacy origin (member system read-only). Fix-forward and the platform restore are the preferred paths (`MIGRATION_PLAN.md` §27). With TTLs at 60s the world resolves back within about two minutes — but not instantly everywhere: clients and resolvers that cached the new records lag by up to their cached TTL. Past T+1 hour, rollback is still possible but accumulates the cost of any writes that landed on the new origin while DNS was diverging; consult the rollback decision framework in `MIGRATION_PLAN.md` §27 before triggering.
 
@@ -933,7 +939,7 @@ AWS support tickets to move SES out of sandbox have a typical 24-48h response wi
 
 After approval:
 
-1. Confirm the production env file sets `SES_ADAPTER=live` and restart the app. Production is the only environment with live SES delivery; dev and staging run `SES_ADAPTER=stub` and surface captured mail via the in-page simulated-email card (DD §5.6).
+1. Confirm the production env file sets `SES_ADAPTER=live` and restart the app. Production is the only environment with live SES delivery; dev and staging run `SES_ADAPTER=stub` and surface captured mail in the in-page simulated-email card (DD §5.6).
 2. Smoke-test end-to-end: trigger a verification email to an unverified address (one that would have been rejected in sandbox); confirm delivery.
 3. Record the ticket ID and approval timestamp in the operations log.
 

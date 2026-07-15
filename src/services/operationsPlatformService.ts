@@ -266,6 +266,47 @@ export class OperationsPlatformService {
   }
 
   /**
+   * SYS_Admin_Queue_Digest cadence-gated entry point. Emails each administrator
+   * a rollup of the open routine work-queue items, on the cadence set by
+   * `admin_queue_digest_interval_days` (default daily). The daily worker tick
+   * calls this every day; when the configured cadence is longer than a day, the
+   * pass skips a tick if its last successful run is more recent than the
+   * interval, so the config key governs the true cadence rather than the tick.
+   */
+  async runAdminQueueDigest(
+    startTime?: Date,
+  ): Promise<{ skipped: boolean; admins: number; sent: number; openRoutineItems: number }> {
+    const intervalDays = readIntConfig('admin_queue_digest_interval_days', 1);
+    const now = startTime ?? new Date();
+    const last = systemJobRuns.lastSuccessAt.get('SYS_Admin_Queue_Digest') as
+      | { last_success: string | null }
+      | undefined;
+    if (last?.last_success && (now.getTime() - Date.parse(last.last_success)) / 86_400_000 < intervalDays) {
+      return { skipped: true, admins: 0, sent: 0, openRoutineItems: 0 };
+    }
+    const result = await this.recordJobRun(
+      'SYS_Admin_Queue_Digest',
+      () => workQueueService.sendAdminQueueDigests(),
+      startTime,
+    );
+    return { skipped: false, ...result };
+  }
+
+  /**
+   * SYS_Admin_Queue_Escalation daily entry point. Escalates each open,
+   * unclaimed routine work-queue item older than the stale threshold with a
+   * single one-time email to all administrators; the per-item outbox
+   * idempotency key makes the escalation fire exactly once per item.
+   */
+  async runStaleQueueEscalation(startTime?: Date): Promise<{ escalated: number }> {
+    return this.recordJobRun(
+      'SYS_Admin_Queue_Escalation',
+      () => workQueueService.escalateStaleQueueItems(),
+      startTime,
+    );
+  }
+
+  /**
    * Returns the daily-tick interval for the AP expiry worker, in
    * milliseconds. Reads from system_config; clamped to a one-minute floor
    * to prevent a misconfiguration from pinning the worker in a tight loop.

@@ -1,0 +1,7 @@
+{
+  "templateKey": "honor_congratulation_hof_tier3",
+  "subjectTemplate": "Congratulations from the IFPA",
+  "bodyTemplate": "Congratulations, you have been inducted into the Footbag Hall of Fame.\n\nThis permanent honor sets Tier 2 as your underlying IFPA membership, held under your current Tier 3 director status.",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

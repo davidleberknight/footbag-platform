@@ -42,3 +42,8 @@ if [ "${TARGET}" != "${ALLOWED_DEV}" ] && [ "${TARGET}" != "${ALLOWED_CI}" ]; th
   echo "  requested: ${TARGET}" >&2
   exit 1
 fi
+
+# A database can be disposable by path and still be a copy of the live one (a
+# restored snapshot placed at the dev path). The in-database post-cutover
+# marker travels with such copies, and the shared guard refuses them.
+"${REPO_ROOT}/scripts/internal/assert-db-pre-cutover.sh" "${TARGET}"

@@ -116,6 +116,8 @@ export interface ContactRequestRow {
   entityDisplayName: string | null;
   reasonText: string | null;
   detailText: string | null;
+  claimedByMemberId: string | null;
+  claimedByName: string | null;
 }
 
 function validateCategory(c: unknown): ContactCategory {
@@ -183,6 +185,12 @@ export interface WorkQueueViewItem {
   /** Internal-review flags (birth-date conflict) render a dismiss control
    * instead of the generic resolve form, which does not apply to them. */
   isReviewFlag: boolean;
+  /** Claim state for the claim-and-digest flow: an unclaimed item shows a
+   *  Claim control; a claimed item shows who is handling it. `claimedByMe`
+   *  distinguishes the viewing admin's own claim from another admin's. */
+  isClaimed: boolean;
+  claimedByMe: boolean;
+  claimedByName: string | null;
   linkHelp: {
     statement: string;
     claimedLegacyUsername: string | null;
@@ -203,6 +211,8 @@ export interface WorkQueueContent {
   totalOpen: number;
   resolvedFlag: boolean;
   reviewedFlag: boolean;
+  claimedFlag: boolean;
+  claimNoopFlag: boolean;
   errorMessage: string | null;
 }
 
@@ -238,8 +248,9 @@ function parseLinkHelpPayload(reasonText: string | null): WorkQueueViewItem['lin
   }
 }
 
-function shapeWorkQueueItem(raw: ContactRequestRow): WorkQueueViewItem {
+function shapeWorkQueueItem(raw: ContactRequestRow, viewingAdminId: string): WorkQueueViewItem {
   const isLinkHelpRequest = raw.taskType === 'member_link_help_request';
+  const isClaimed = raw.claimedByMemberId !== null;
   return {
     id: raw.id,
     queueCategory: raw.queueCategory,
@@ -257,6 +268,9 @@ function shapeWorkQueueItem(raw: ContactRequestRow): WorkQueueViewItem {
     decisionLabels: DECISION_LABELS.map((d) => ({ value: d, label: DECISION_LABEL_DISPLAY[d] })),
     isLinkHelpRequest,
     isReviewFlag: DISMISSIBLE_REVIEW_TASK_TYPES.has(raw.taskType),
+    isClaimed,
+    claimedByMe: isClaimed && raw.claimedByMemberId === viewingAdminId,
+    claimedByName: raw.claimedByName,
     linkHelp: isLinkHelpRequest ? parseLinkHelpPayload(raw.reasonText) : null,
   };
 }
@@ -455,6 +469,8 @@ export const contactRequestService = {
       entity_id: string;
       reason_text: string | null;
       detail_text: string | null;
+      claimed_by_member_id: string | null;
+      claimed_by_name: string | null;
     }>;
     return rows.map((r) => {
       // Entity-display lookup belongs in the service (db.ts is the only SQL
@@ -482,6 +498,8 @@ export const contactRequestService = {
         entityDisplayName,
         reasonText: r.reason_text,
         detailText: r.detail_text,
+        claimedByMemberId: r.claimed_by_member_id,
+        claimedByName: r.claimed_by_name,
       };
     });
   },
@@ -522,12 +540,19 @@ export const contactRequestService = {
    * the result in the standard `PageViewModel<WorkQueueContent>` envelope.
    * Controllers call this directly and render the return value.
    */
-  getAdminWorkQueuePage(opts: { resolvedFlag?: boolean; reviewedFlag?: boolean; errorMessage?: string } = {}): PageViewModel<WorkQueueContent> {
+  getAdminWorkQueuePage(opts: {
+    adminMemberId: string;
+    resolvedFlag?: boolean;
+    reviewedFlag?: boolean;
+    claimedFlag?: boolean;
+    claimNoopFlag?: boolean;
+    errorMessage?: string;
+  }): PageViewModel<WorkQueueContent> {
     const rows = this.listOpenForAdmin();
     const groupMap = new Map<string, WorkQueueViewItem[]>();
     for (const r of rows) {
       const arr = groupMap.get(r.queueCategory) ?? [];
-      arr.push(shapeWorkQueueItem(r));
+      arr.push(shapeWorkQueueItem(r, opts.adminMemberId));
       groupMap.set(r.queueCategory, arr);
     }
     const groups: WorkQueueGroup[] = [];
@@ -546,6 +571,8 @@ export const contactRequestService = {
         totalOpen: rows.length,
         resolvedFlag: opts.resolvedFlag ?? false,
         reviewedFlag: opts.reviewedFlag ?? false,
+        claimedFlag: opts.claimedFlag ?? false,
+        claimNoopFlag: opts.claimNoopFlag ?? false,
         errorMessage: opts.errorMessage ?? null,
       },
     };

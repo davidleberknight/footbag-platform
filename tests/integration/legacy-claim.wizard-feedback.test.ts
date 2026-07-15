@@ -227,3 +227,31 @@ describe('declining a classifier-only suggestion card', () => {
     }
   });
 });
+
+describe('the simulated-email card on the mailbox-control declared state', () => {
+  it('shows the just-sent mailbox-verification link on the page under the stub adapter', async () => {
+    const f = matchFixture({ memberName: 'Card Tester', personName: 'Card Tester' });
+    svc.declareAnchor(f.memberId, 'old_email', 'card-old@old.example.com');
+    const anchorId = svc.listDeclaredAnchors(f.memberId)[0].id;
+
+    const send = await request(createApp())
+      .post('/register/wizard/legacy_claim/anchors/send-verification')
+      .set('Cookie', cookieFor(f.memberId))
+      .type('form')
+      .send({ anchorId });
+    expect(send.status).toBe(303);
+    expect(send.headers.location).toContain('anchor_verification=sent');
+
+    // Following the redirect, the declared-state page shows the confirmation
+    // link so a tester opens it without leaving the page. The card reads the
+    // stub buffer, so the send's body scrub does not blank the rendered link.
+    const page = await request(createApp())
+      .get('/register/wizard/legacy_claim?anchor_verification=sent')
+      .set('Cookie', cookieFor(f.memberId));
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('Simulated email (dev)');
+    expect(page.text).toMatch(
+      /\/register\/wizard\/legacy_claim\/anchors\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK</,
+    );
+  });
+});

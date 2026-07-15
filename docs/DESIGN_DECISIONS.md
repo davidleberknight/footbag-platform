@@ -629,6 +629,8 @@ Requirements:
 
 - The seeder is idempotent and runs only against a disposable DB (dev, CI, or a pre-go-live staging rebuild), never against the persistent production DB. Re-running against unchanged inputs produces zero net DB writes; orphan rows (whose sidecar was removed from `/curated/`) are deleted on the next run. Orphan cleanup is scoped to system-member-owned, sidecar-derived rows, so a run can never delete member-owned media.
 
+- A destructive run against a persistent database is refused mechanically, not procedurally: at cutover the operator writes a post-cutover marker into the database itself (a `system_config` row, key `post_cutover`), and every destructive seeder and loader checks it through one shared guard at database-open, before any mutation, with no bypass flag. Because the marker lives in the database, it travels with every copy, snapshot, and restore, refusing cases no environment variable, path allowlist, or host-file marker can see (a restored production snapshot on a developer machine); those other guards remain as defense in depth.
+
 - Admin edit and delete on a sidecar-backed row resolve the sidecar at runtime; if the sidecar is missing on disk, edit fails (corruption guard) and delete proceeds best-effort with the DB row removal logged in audit.
 
 - Read paths must not assume sidecar reads are cheap. List-view shaping reads only DB-resident fields; per-item sidecar reads happen only at the edit form (one row).
@@ -1209,7 +1211,7 @@ Requirements:
 
 - The Tier 2 prerequisite from `A_Manage_Admin_Role` is satisfied as a side effect of every successful grant. Bootstrap does not check Tier 2 as a precondition (tier data may not exist on day one); it writes the Tier 2 row atomically alongside the admin flag. Steady-state checks the prerequisite at request time.
 
-- Every successful grant subscribes the member to the `admin-alerts` mailing list in the same transaction, on both the bootstrap and steady-state paths, so the admin work-queue fan-out reaches every administrator. A steady-state revoke unsubscribes the member from `admin-alerts` and changes none of their other subscriptions.
+- Every successful grant subscribes the member to the `admin-alerts` mailing list in the same transaction, on both the bootstrap and steady-state paths, so urgent work-queue notifications and stale-item escalations reach every administrator. A steady-state revoke unsubscribes the member from `admin-alerts` and changes none of their other subscriptions.
 
 - Dev and staging bootstrap is an email allowlist matched at registration time. Source: the workstation file `.local/initial-admins.txt` (gitignored), parsed by the deploy pipeline into the `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` env var written to `/srv/footbag/env` on the target host. The env-config layer fails fast at boot if the var is set on a production host, and the deploy pipeline refuses to write the value to a production host. The runtime mechanism lives in `src/dev-bootstrap/runtime.ts`.
 
@@ -2726,6 +2728,10 @@ Impact:
 
 - Every outbound email is sent through one email service that resolves a registered template, renders it, and stamps the template's `template_key` onto the outbox row, so each message records its email type and every email uses a registered template.
 
+- Email templates are logic-less plain text stored in the database (`email_templates`), one template per distinct message: a template carries `{token}` merge fields but no conditional syntax, and an email type whose wording genuinely branches (a payment receipt's succeeded and failed forms, a join and a leave notice) is registered as separate variant template keys, with code selecting the key and computing every merge value. Administrators edit a template's wording, enabled flag, and PII classification through the admin template editor, one audit entry per save; the editor is edit-only, because a template's existence, merge fields, and send site are code. Disabling a template suppresses that email type without deleting its content. Template content follows the Curator Content Source of Truth model: committed JSON sidecars under `/curated/email_templates/` seed `email_templates` before go-live, and the persistent production database is the sole source after.
+
+- Admin work-queue notifications are routed by urgency rather than broadcast per event: urgent task types email the admin-alerts list immediately; routine task types are read on the work-queue dashboard and a periodic per-administrator digest of open items, with a claimed item leaving the other administrators' digests and a stale unclaimed item escalating once to the full list. This keeps the alert channel meaningful for a small volunteer team instead of training administrators to ignore it.
+
 - Each registered template carries a PII classification (`public` / `internal` / `confidential` / `restricted`) that bounds how much of a sent message an admin may view: public and internal bodies may be shown, a confidential body only behind a justification-logged reveal, and a restricted (token-bearing) body never, because its `body_text` holds a live reset or magic-link token until the post-send scrub. The classification is a property of the template, not the individual message.
 
 - Controllers only enqueue outbox entries; they never call SES directly.
@@ -2805,29 +2811,32 @@ Impact:
 
 Decision:
 
-Email-gated landing pages render a conditional in-page preview card
-driven by the email adapter. SES_ADAPTER=stub in dev and staging;
-SES_ADAPTER=live in production only. A shared service
+Email-gated member-login pages render an in-page preview card of the
+captured mail, driven by the email adapter (SES_ADAPTER=stub in dev
+and staging; live in production only, where no card exists). The card
+shows the captured messages for the flow the visitor is completing,
+with subject, body, and the actionable link, so registration
+verification, password reset, verify-resend, legacy-claim
+confirmation, and mailbox-control confirmation each complete on the
+page itself, with no navigation to the outbox viewer. GET /dev/outbox
+remains the catch-all for captured notifications that have no host
+page (tier changes, vouches, receipts). The shared service
 (simulatedEmailService.getEmailPreview()) and Handlebars partial
-(simulated-email-card) produce the preview. The card renders only on
-pages where the captured link may safely be shown to the requester
-(see Requirements); other email-gated pages render no card in any
-environment and the captured link is retrieved out-of-band from the
-outbox.
+(simulated-email-card) produce the card on every one of these pages.
 
 | sesAdapter | Card | Purpose |
 |---|---|---|
-| stub | In-page preview | Table of captured StubSesAdapter in-memory messages with subject, body, and extracted action link. Newest first. Empty state when no messages have been sent. |
-| live | (no card) | Production. Page renders the standard 'check your email' copy with no preview affordance. |
+| stub | In-page preview on every email-gated login page | Captured messages for the flow being completed, with subject, body, and extracted action link. Newest first. Empty state when no messages have been sent. |
+| live | (no card) | Production. Pages render the standard 'check your email' copy with no preview affordance. |
 
 Rationale:
 
 - Paid testers and maintainers exercise email-gated flows
-  (registration verification, contact-admin acknowledgement,
-  mailing-list confirmation, future Stripe receipts) on both dev and
-  staging. A consistent in-app preview card across both environments
-  lets testers click the captured link without dependency on inbox
-  delivery.
+  (registration verification, password reset, verify-resend, legacy
+  claim, mailbox control) on both dev and staging. An in-page card at
+  the exact page where the flow says "check your email" lets the
+  tester click the captured link immediately, without inbox delivery
+  and without navigating away from the flow.
 - AWS SES sandbox restricts delivery to pre-verified recipient
   addresses. Engaging paid testers under sandbox requires per-tester
   AWS-console verification before they can receive mail, which scales
@@ -2847,21 +2856,17 @@ Rationale:
 
 Requirements:
 
-- simulatedEmailService.getEmailPreview() returns a discriminated-
-  union view-model: {mode: 'dev', messages} when sesAdapter === 'stub';
-  null otherwise.
-- The partial is reusable across any email-gated page. Controllers
-  pass the result as content.emailPreview on the PageViewModel; the
-  template renders the partial when the value is truthy.
-- A controller passes content.emailPreview only when the captured
-  message's recipient is the acting session's own identity (the
-  address it just registered, for verification). It is never passed on
-  an anti-enumeration request page (password-reset request,
-  email-verify resend) or where the recipient is a third party the
-  session is merely asserting a claim over (legacy-claim confirmation):
-  there the captured link is a side-channel ownership proof, the
-  response must match production regardless of which adapter is active,
-  and the link is retrieved out-of-band from the outbox.
+- The card renders on every email-gated member-login page whenever
+  sesAdapter === 'stub' (dev and staging); production runs live and
+  has no card. Anti-enumeration response identity is a production
+  property, verified with the stub card's adapter gate off.
+- The card is scoped to the flow the visitor is completing (the
+  existing session/flow scoping mechanism, for example the
+  flash-carried address on registration), showing that flow's
+  captured messages with subject, body, and actionable link.
+- GET /dev/outbox remains the catch-all viewer for captured
+  notifications that have no host page; it merges the web process's
+  captured buffer with the worker's.
 - Dev and staging previews read from the StubSesAdapter in-memory
   buffer, not from outbox_emails. This preserves the §5.4 body-text
   scrub contract: the scrub operates on the DB row, while adapter
@@ -3187,7 +3192,7 @@ The two sources share the same identity key (`legacy_member_id`) and converge vi
 
 **Club leader bootstrap classification.** The wizard's bootstrap leadership confirmation classifies each `(member, club)` candidate via combination gates over five structural signals (`listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`). Three modifier signals (`tier_signal`, `recent_activity`, `geographic_alignment`) display alongside structural signals in member-facing and admin surfaces but do not change classification. On user confirmation or correction, the bootstrap row promotes to a live `club_leaders` row regardless of classification strength and regardless of registrant tier; the classification (strong, weak, none) is recorded in audit metadata for post-cutover analytics. Decline transitions the bootstrap row to `'rejected'`. Claim eligibility is independent of club status; a successful claim returns an inactive or archived club to `'active'`, audit-logged as a revival. Rules are encoded in service code, not stored as data; revisions follow observed false-positive data.
 
-**Legacy-data cleanup.** Club-roster reads show confirmed members and unconfirmed `'pending'` legacy affiliations in one member-visible list on the club detail page; a `'pending'` row carries a per-entry unconfirmed label and is never asserted as current. Cleanup of that residue is admin-driven, not a background process: when an admin opens the `A_Periodic_Club_Cleanup` queue, the `crowdsource_club_viability`, `leaderless_active_club`, and `stale_provisional_leader` predicates are evaluated on demand and surface one-click recommendations; unconfirmed residue is retired by an explicit per-club de-list (`legacy_person_club_affiliations` 'pending' to 'former_only'), also cascaded when a club is demoted or archived. A `'pending'` row also drains when its member confirms or declines it in the onboarding wizard. Duplicate club candidates are merged before cutover by a curator-confirmed directive in the pipeline (the kept candidate absorbs the duplicate's roster and affiliations, recording source keys), not by automatic clustering or a platform-side process. Rationale: the migration-window `pending` backlog is made honest by labeling rather than hidden or auto-resolved; bounded admin effort comes from one-click per-club actions guided by an advisory age signal, not an unattended worker; and the handful of true duplicate clubs are reconciled by a deterministic curator merge that unions rosters rather than dropping data. Admin remains the sole decision authority for every judgment case (mistaken linkage, junk override, force-keep requests). Club content is edited directly by co-leaders with no review queue; activity signals are collected only in the onboarding wizard, counted one vote per member, and the cleanup queue names negative voters to the admin while authorship never renders publicly.
+**Legacy-data cleanup.** Club-roster reads show confirmed members and unconfirmed `'pending'` legacy affiliations in one member-visible list on the club detail page; a `'pending'` row carries a per-entry unconfirmed label and is never asserted as current. The club detail page applies the same labeled-display approach to leadership: clubs outside the bootstrap-eligible cohort carry no `club_bootstrap_leaders` rows, so their mirror-inferred `leader` / `co-leader` / `contact` affiliations surface there as provisional leaders, labeled and never contact-exposed, deduplicated by person id against any bootstrap rows and cleared once a real member claims leadership; the legacy dump and mirror are the only leadership data for those clubs. Cleanup of that residue is admin-driven, not a background process: when an admin opens the `A_Periodic_Club_Cleanup` queue, the `crowdsource_club_viability`, `leaderless_active_club`, and `stale_provisional_leader` predicates are evaluated on demand and surface one-click recommendations; unconfirmed residue is retired by an explicit per-club de-list (`legacy_person_club_affiliations` 'pending' to 'former_only'), also cascaded when a club is demoted or archived. A `'pending'` row also drains when its member confirms or declines it in the onboarding wizard. Duplicate club candidates are merged before cutover by a curator-confirmed directive in the pipeline (the kept candidate absorbs the duplicate's roster and affiliations, recording source keys), not by automatic clustering or a platform-side process. Rationale: the migration-window `pending` backlog is made honest by labeling rather than hidden or auto-resolved; bounded admin effort comes from one-click per-club actions guided by an advisory age signal, not an unattended worker; and the handful of true duplicate clubs are reconciled by a deterministic curator merge that unions rosters rather than dropping data. Admin remains the sole decision authority for every judgment case (mistaken linkage, junk override, force-keep requests). Club content is edited directly by co-leaders with no review queue; activity signals are collected only in the onboarding wizard, counted one vote per member, and the cleanup queue names negative voters to the admin while authorship never renders publicly.
 
 Rationale:
 

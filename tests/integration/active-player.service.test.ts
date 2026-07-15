@@ -23,7 +23,7 @@ import {
   insertActivePlayerGrant,
   insertMemberTierGrant,
 } from '../fixtures/factories';
-import { vouchConfirmationEmail } from '../../src/services/emailContent';
+import { renderSidecarTemplate } from '../fixtures/testDb';
 
 const { dbPath } = setTestEnv('3092');
 
@@ -484,7 +484,7 @@ describe('applyVouch', () => {
     expect(result.status).toBe('granted');
     if (result.status !== 'granted') throw new Error('expected granted');
 
-    const expected = vouchConfirmationEmail({
+    const expected = renderSidecarTemplate('vouch_confirmation', {
       voucherName: 'Jane Voucher',
       expiryDate: result.expiresAt.slice(0, 10),
     });

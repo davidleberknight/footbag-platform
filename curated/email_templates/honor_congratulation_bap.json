@@ -1,0 +1,7 @@
+{
+  "templateKey": "honor_congratulation_bap",
+  "subjectTemplate": "Congratulations from the IFPA",
+  "bodyTemplate": "Congratulations, you have been recognized in the Big Add Posse.\n\nThis permanent honor grants you Tier 2 IFPA membership.",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

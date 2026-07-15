@@ -1,80 +1,101 @@
 /**
  * Email service — the single path for sending any platform email.
  *
- * Owns: the registry mapping each registered `template_key` to its PII
- * classification and its content source, the render step, and stamping the
- * `template_key` onto the `outbox_emails` row. Does not own the outbox/SES
- * transport (that is `communicationService`).
+ * Owns: the render step over `email_templates` rows for the registry defined
+ * in `emailTemplateRegistry.ts` (logical send key → typed param shaper;
+ * variant template key → stored wording), and stamping the variant
+ * `template_key` onto the outbox row. Does not own the outbox/SES transport
+ * (`communicationService`) or template authoring (the sidecar seeder
+ * pre-go-live; the admin template editor after).
  *
- * Current: each template's subject and body come from a hard-coded generator in
- * `emailContent.ts`, an accepted deviation so the current email scenarios are
- * testable now.
- * Target: render subject and body from a curated `email_templates` row (seeded
- * from committed JSON sidecars pre-go-live, admin-edited post-go-live), the same
- * source-of-truth cutover pattern curated media uses.
+ * Render contract: the wording comes from the `email_templates` row for the
+ * shaped variant key — a disabled row suppresses that email type (warn-logged,
+ * nothing enqueued); a missing row for a registered key is a seed invariant
+ * violation and throws; an unresolved `{token}` is warn-logged and left
+ * literal rather than failing the send. The row's `pii_classification` is the
+ * effective value (admin-editable override); the registry carries the
+ * canonical default.
+ *
+ * Bodies are plain text: the SES transport sends them as a text part, so an
+ * interpolated member-supplied value cannot inject mail headers, and a
+ * newline in a value only adds body lines.
  */
-import * as emailContent from './emailContent';
 import {
   getCommunicationService,
   type EnqueueResult,
   type MailingListEnqueueResult,
 } from './communicationService';
-import { account } from '../db/db';
+import { account, emailTemplates, type EmailTemplateRow } from '../db/db';
 import { logger } from '../config/logger';
+import {
+  shapeEmail,
+  emailTemplateDefaultClassification,
+  type EmailPiiClass,
+  type EmailTemplateKey,
+  type ShapedEmail,
+  type TemplateParams,
+} from './emailTemplateRegistry';
 
-export type EmailPiiClass = 'public' | 'internal' | 'confidential' | 'restricted';
+export { listEmailTemplateKeys } from './emailTemplateRegistry';
+export type { EmailPiiClass, EmailTemplateKey, TemplateParams, TierKey } from './emailTemplateRegistry';
 
-type EmailBody = { subject: string; bodyText: string };
-type Empty = Record<string, never>;
-
-interface TemplateDef<P> {
-  classification: EmailPiiClass;
-  build: (params: P) => EmailBody;
-}
-
-function def<P>(classification: EmailPiiClass, build: (params: P) => EmailBody): TemplateDef<P> {
-  return { classification, build };
-}
-
-// The registered template set. Current source of each subject/body is the
-// hard-coded generator (deviation); the classification drives how much of a
-// message the admin email viewer may reveal.
-const TEMPLATES = {
-  account_verify:                def('restricted',   emailContent.accountVerifyEmail),
-  account_exists_notice:         def('restricted',   emailContent.accountExistsNoticeEmail),
-  password_reset_request:        def('restricted',   emailContent.passwordResetRequestEmail),
-  password_reset_confirm:        def('internal',     (_p: Empty) => emailContent.passwordResetConfirmEmail()),
-  password_changed:              def('internal',     (_p: Empty) => emailContent.passwordChangedEmail()),
-  legacy_claim_confirm:          def('restricted',   emailContent.legacyClaimConfirmEmail),
-  mailbox_link_confirm:          def('restricted',   emailContent.mailboxLinkConfirmEmail),
-  vouch_confirmation:            def('confidential', emailContent.vouchConfirmationEmail),
-  honor_congratulation:          def('internal',     emailContent.honorCongratulationEmail),
-  tier_change_notice:            def('confidential', emailContent.tierChangeNoticeEmail),
-  admin_role_change:             def('internal',     emailContent.adminRoleChangeEmail),
-  payment_receipt:               def('confidential', emailContent.paymentReceiptEmail),
-  active_player_expiry_reminder: def('internal',     emailContent.activePlayerExpiryReminderEmail),
-  club_membership_member:        def('confidential', emailContent.clubMembershipMemberEmail),
-  club_membership_leader:        def('confidential', emailContent.clubMembershipLeaderEmail),
-  club_volunteer_leadership:     def('confidential', emailContent.clubVolunteerLeadershipEmail),
-  club_coleader_invite:          def('confidential', emailContent.clubCoLeaderInviteEmail),
-  club_leaderless_contact:       def('confidential', emailContent.clubLeaderlessContactEmail),
-  contact_request_resolution:    def('confidential', emailContent.contactRequestResolutionEmail),
-  admin_queue_alert:             def('internal',     emailContent.adminQueueAlertEmail),
-};
-
-export type EmailTemplateKey = keyof typeof TEMPLATES;
-export type TemplateParams<K extends EmailTemplateKey> = Parameters<(typeof TEMPLATES)[K]['build']>[0];
-
-/** PII classification for a template_key, or null when the key is unregistered. */
+/**
+ * Effective PII classification for a template_key: the email_templates row's
+ * value when present (the admin-editable override), else the registry default;
+ * null when the key is unregistered and has no row.
+ */
 export function emailTemplateClassification(key: string | null | undefined): EmailPiiClass | null {
   if (!key) return null;
-  return key in TEMPLATES ? TEMPLATES[key as EmailTemplateKey].classification : null;
+  const row = emailTemplates.getByKey.get(key) as EmailTemplateRow | undefined;
+  if (row) return row.pii_classification as EmailPiiClass;
+  return emailTemplateDefaultClassification(key);
 }
 
-/** The registered template keys, sorted, for the admin email-log filter. */
-export function listEmailTemplateKeys(): string[] {
-  return Object.keys(TEMPLATES).sort();
+const MERGE_TOKEN_RE = /\{([a-z][a-zA-Z0-9]*)\}/g;
+
+function substituteTokens(
+  text: string,
+  merge: Record<string, string>,
+  variant: string,
+  field: 'subject' | 'body',
+): string {
+  return text.replace(MERGE_TOKEN_RE, (match, token: string) => {
+    const value = merge[token];
+    if (value === undefined) {
+      logger.warn('email template merge token unresolved; left literal', { variant, field, token });
+      return match;
+    }
+    return value;
+  });
 }
+
+type RenderOutcome =
+  | { status: 'rendered'; subject: string; bodyText: string }
+  | { status: 'suppressed' };
+
+function renderVariant(shaped: ShapedEmail): RenderOutcome {
+  const row = emailTemplates.getByKey.get(shaped.variant) as EmailTemplateRow | undefined;
+  if (!row) {
+    // Every registered variant is seeded from its committed sidecar; a
+    // missing row means this database was built without the email-template
+    // seed and cannot send mail correctly.
+    throw new Error(
+      `email_templates row missing for registered template '${shaped.variant}'; `
+      + 'run scripts/seed_email_templates.py against this database',
+    );
+  }
+  if (!row.is_enabled) {
+    logger.warn('email suppressed: template disabled', { template: shaped.variant });
+    return { status: 'suppressed' };
+  }
+  return {
+    status: 'rendered',
+    subject: substituteTokens(row.subject_template, shaped.merge, shaped.variant, 'subject'),
+    bodyText: substituteTokens(row.body_template, shaped.merge, shaped.variant, 'body'),
+  };
+}
+
+export type SendResult = EnqueueResult | { id: null; status: 'suppressed' };
 
 interface SendBase {
   recipientEmail: string;
@@ -87,19 +108,20 @@ interface SendBase {
 }
 
 export const emailService = {
-  /** Render the named template and enqueue it, stamping its template_key. */
+  /** Render the named template from its email_templates row and enqueue it, stamping the variant template_key. */
   send<K extends EmailTemplateKey>(
     input: SendBase & { template: K; params: TemplateParams<K> },
-  ): EnqueueResult {
-    const tdef = TEMPLATES[input.template] as TemplateDef<TemplateParams<K>>;
-    const content = tdef.build(input.params);
+  ): SendResult {
+    const shaped = shapeEmail(input.template, input.params);
+    const rendered = renderVariant(shaped);
+    if (rendered.status === 'suppressed') return { id: null, status: 'suppressed' };
     const comms = getCommunicationService();
     const enqueueInput = {
       recipientEmail: input.recipientEmail,
       recipientMemberId: input.recipientMemberId ?? undefined,
-      subject: content.subject,
-      bodyText: content.bodyText,
-      templateKey: input.template,
+      subject: rendered.subject,
+      bodyText: rendered.bodyText,
+      templateKey: shaped.variant,
       idempotencyKey: input.idempotencyKey,
       mailingListId: input.mailingListId,
     };
@@ -143,17 +165,18 @@ export const emailService = {
     }
   },
 
-  /** Render the named template and fan it out to a mailing list, stamping its template_key. */
+  /** Render the named template and fan it out to a mailing list, stamping the variant template_key. */
   sendToMailingList<K extends EmailTemplateKey>(
     input: { template: K; params: TemplateParams<K>; mailingListSlug: string; idempotencyKeyPrefix: string },
   ): MailingListEnqueueResult {
-    const tdef = TEMPLATES[input.template] as TemplateDef<TemplateParams<K>>;
-    const content = tdef.build(input.params);
+    const shaped = shapeEmail(input.template, input.params);
+    const rendered = renderVariant(shaped);
+    if (rendered.status === 'suppressed') return { enqueued: 0, duplicates: 0 };
     return getCommunicationService().enqueueMailingListEmail({
       mailingListSlug: input.mailingListSlug,
-      subject: content.subject,
-      bodyText: content.bodyText,
-      templateKey: input.template,
+      subject: rendered.subject,
+      bodyText: rendered.bodyText,
+      templateKey: shaped.variant,
       idempotencyKeyPrefix: input.idempotencyKeyPrefix,
     });
   },

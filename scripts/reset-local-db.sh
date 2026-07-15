@@ -38,6 +38,12 @@ if ! command -v python3 &>/dev/null; then
   exit 1
 fi
 
+# A dev-looking path can still hold a copy of the live database (a restored
+# snapshot). The in-database post-cutover marker travels with such copies; the
+# shared guard refuses them before the slate step deletes anything. SEC-DB01's
+# env/path checks above stay as defense in depth.
+"$(dirname "${BASH_SOURCE[0]}")/internal/assert-db-pre-cutover.sh" "${FOOTBAG_DB_PATH:-./database/footbag.db}"
+
 if [[ "${CURATOR_SEED:-yes}" != "no" ]] && ! command -v ffmpeg &>/dev/null; then
   echo "Error: ffmpeg not found, but the curator seed needs it to transcode the demo videos."
   echo "  Ubuntu/Debian: sudo apt-get install ffmpeg"
@@ -251,6 +257,12 @@ if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
 else
   echo "  → Skipping FH/curator seed (CURATOR_SEED=no; --no-curator-seed was passed)."
 fi
+
+# Seed email templates from the committed sidecars. Unconditional: the email
+# service renders every outbound message from these rows, so a database
+# without them cannot send mail. Reconciles the table to the sidecar set.
+echo "  → Seeding email templates..."
+"${PYTHON}" scripts/seed_email_templates.py --db "${DB_FILE}"
 
 # Rebuild tag_stats (denormalized tag discovery cache) after all seeders.
 # Uses inline Python + SQLite (matching every other seeder step) to avoid

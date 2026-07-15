@@ -6,10 +6,11 @@
  * The other /dev/outbox tests inject messages into the buffer directly; this one
  * drives the real public and admin routes, then drains the outbox the way the
  * worker does in a running stack, so the assertions cover what an operator
- * actually sees: the admin-alerts notification raised on submit and the
- * resolution email sent back to the member. The /dev router mounts only in
- * development or staging, so the file pins the staging boot (NODE_ENV=production,
- * stub adapters).
+ * actually sees: a routine contact request raises no per-event admin email and
+ * instead rolls up into the scheduled admin digest, and the resolution email is
+ * sent back to the member. The /dev router mounts only in development or
+ * staging, so the file pins the staging boot (NODE_ENV=production, stub
+ * adapters).
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -148,15 +149,24 @@ async function drainOutbox(): Promise<void> {
 }
 
 describe('Dev outbox captures the contact-request round trip', () => {
-  it('renders the admin-alerts notification at /dev/outbox after a member submits a contact request', async () => {
+  it('raises no per-event alert for a routine contact request, and rolls it into the admin digest at /dev/outbox', async () => {
     await submitContactRequest();
     await drainOutbox();
 
-    const res = await request(createApp()).get('/dev/outbox');
+    // A routine work-queue item sends no immediate admin email.
+    let res = await request(createApp()).get('/dev/outbox');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('New admin queue item: member_contact_request');
+    expect(res.text).not.toContain('New admin queue item');
+
+    // The scheduled digest rolls the open routine item up to each subscribed
+    // admin, which the operator then sees captured at /dev/outbox.
+    await operationsPlatformService.runAdminQueueDigest();
+    await drainOutbox();
+
+    res = await request(createApp()).get('/dev/outbox');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('IFPA admin work queue');
     expect(res.text).toContain(ADMIN_EMAIL);
-    expect(res.text).toContain('1 captured message(s)');
   });
 
   it('lists the request in the admin work queue and renders the resolution email at /dev/outbox when an admin resolves it', async () => {

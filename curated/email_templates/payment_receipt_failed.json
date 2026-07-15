@@ -1,0 +1,7 @@
+{
+  "templateKey": "payment_receipt_failed",
+  "subjectTemplate": "Payment failed: {descriptor}",
+  "bodyTemplate": "Your payment could not be completed.\n\nItem:    {descriptor}\nAmount:  {amountDisplay}\n\nNo charge was applied and your membership tier was not changed.\nYou can try again from your dashboard.\n\nReference: {referenceId}",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}
