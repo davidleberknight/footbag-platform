@@ -72,6 +72,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "lib"))
 from db_cutover_guard import assert_db_pre_cutover  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from member_merge import (  # noqa: E402
+    MergeAbort, apply_member_merge, load_merge_map, precheck_live_references,
+)
+
 CREDENTIAL_HEADER_RE = re.compile(
     r"password|passwd|pwd|hash|salt|secret|recovery|session|token|cookie|auth",
     re.IGNORECASE,
@@ -207,6 +212,11 @@ def main() -> None:
     ap.add_argument("--db", default=os.environ.get("FOOTBAG_DB_PATH", "database/footbag.db"))
     ap.add_argument("--apply", action="store_true",
                     help="perform the writes; without this flag the loader is a dry run")
+    ap.add_argument("--merge-map", default=None,
+                    help="final-load only: the loser->survivor auto-merge mapping CSV "
+                         "(reconcile stage_a_merged_accounts.csv). Applies the live-reference "
+                         "precheck and the pipeline-reference remap inside this loader's single "
+                         "transaction. Omit for ordinary dev/CI loads, which are unchanged.")
     args = ap.parse_args()
 
     # Production guard: refuse before any read or write when the target smells
@@ -406,8 +416,25 @@ def main() -> None:
           ?, ?, ?, ?, ?, ?, 'legacy_site_data', ?)
     """
 
+    merge_map: dict[str, str] = {}
+    if args.merge_map:
+        merge_map = load_merge_map(Path(args.merge_map))
+        stray = sorted(set(merge_map) & {field(r, "legacy_member_id") for r in raw_rows})
+        if stray:
+            fail(
+                f"merged export still contains loser id(s) {stray}; the final-load "
+                "merged CSV must carry only survivors. Nothing was written."
+            )
+
     if args.apply:
         cur.execute("BEGIN")
+        if merge_map:
+            try:
+                precheck_live_references(cur, set(merge_map))
+            except MergeAbort as exc:
+                conn.rollback()
+                conn.close()
+                fail(str(exc))
     for row in importable:
         pk = field(row, "legacy_member_id")
         existing = cur.execute(
@@ -454,7 +481,15 @@ def main() -> None:
             inserted_new += 1
             if args.apply:
                 cur.execute(insert_sql, (pk,) + values_common)
+    merge_stats: dict = {}
     if args.apply:
+        if merge_map:
+            try:
+                merge_stats = apply_member_merge(cur, merge_map)
+            except MergeAbort as exc:
+                conn.rollback()
+                conn.close()
+                fail(str(exc))
         conn.commit()
     conn.close()
 
@@ -472,6 +507,10 @@ def main() -> None:
     print(f"    updated from mirror:    {updated_from_mirror}")
     print(f"    re-applied (export):    {re_applied}")
     print(f"    inserted new:           {inserted_new}")
+    if merge_map:
+        print(f"  auto-merge losers:        {merge_stats.get('losers', len(merge_map))}")
+        for tbl, s in merge_stats.get("remap", {}).items():
+            print(f"    {tbl}: remapped {s['remapped']}, deduped {s['deduped']}")
 
 
 if __name__ == "__main__":

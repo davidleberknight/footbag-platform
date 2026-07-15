@@ -322,6 +322,388 @@ def run_stage_a(csv_path: Path, out_path: Path, excluded_out: Path) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Stage A auto-merge -- collapse a clean name+full-DOB group to one survivor
+# ---------------------------------------------------------------------------
+#
+# Ruling: at the final production load, accounts sharing an exact normalized name
+# and an exact full date of birth are one person and are auto-merged into a single
+# claimable record; only the residue where other fields actively contradict goes
+# to human review. This runs on the reconcilable universe (member_valid=1 minus
+# the shared-email / shared-user-id collision cohort, held out by construction),
+# so a collision-cohort account can never enter a merge group.
+#
+# Survivor: the lowest legacy_member_id in the group (deterministic and stable).
+#
+# Column-by-column merge policy for the survivor row (every output field is
+# specified; nothing is left to accidental survivor-row inheritance):
+#   legacy_member_id        survivor's (the lowest id)
+#   member_valid            "1" (the whole universe is member_valid=1)
+#   legacy_user_id          survivor's handle; a loser's distinct non-empty handle
+#                           is dropped only when that loser still has a preserved
+#                           email to claim by, otherwise the group goes to review
+#   legacy_email/2/3        union of every unique non-empty email across the group,
+#                           survivor's first then the rest sorted, into the three
+#                           slots; more than three unique emails -> review
+#   real_name, display_name,
+#   city, region, country,
+#   bio, street_address,
+#   postal_code             survivor's value (same person; country conflict is
+#                           already a review block, and people move, so region and
+#                           city keep the survivor's)
+#   birth_date              survivor's (identical across the group by construction)
+#   ifpa_join_date          earliest non-empty join date in the group
+#   is_hof, is_bap,
+#   legacy_is_admin,
+#   legacy_ever_paid_tier2,
+#   legacy_ever_paid_tier1_lifetime,
+#   legacy_tier1_annual_active_at_cutover,
+#   legacy_was_board_at_cutover   grant-relevant flags, OR-merged (1 if any account
+#                                 has it) so no entitlement evidence is lost
+#   legacy_board_underlying_paid_tier  first non-empty value among the board
+#                                 accounts when was-board resolved to 1, else ""
+# There is no member-modification timestamp in the extract, so the "latest
+# modification" consolidation has no field to apply to here.
+#
+# A group is routed to human review (never merged) when any safety block holds:
+#   too_many_emails         more than three unique emails to preserve
+#   country_conflict        two accounts carry different non-empty countries
+#   unpreservable_handle    a loser has a distinct non-empty handle and no email,
+#                           so its only claim key would be lost
+#   different_person_links  two accounts are already linked to different canonical
+#                           persons (merging would fuse two people)
+#   claim_state             an account already carries claim state in the database
+#   collision_cohort        an account is in the shared-email/user-id cohort
+#                           (excluded by construction; asserted defensively)
+
+# Grant-relevant flags OR-merged so a merge never drops entitlement evidence.
+_ENTITLEMENT_FLAGS = (
+    "is_hof", "is_bap", "legacy_is_admin",
+    "legacy_ever_paid_tier2", "legacy_ever_paid_tier1_lifetime",
+    "legacy_tier1_annual_active_at_cutover", "legacy_was_board_at_cutover",
+)
+
+# Profile / descriptive fields taken verbatim from the survivor account.
+_SURVIVOR_VERBATIM_FIELDS = (
+    "member_valid", "legacy_user_id", "real_name", "display_name",
+    "city", "region", "country", "bio", "birth_date",
+    "street_address", "postal_code",
+)
+
+MERGE_MAP_FIELDS = [
+    "group_id", "match_key", "survivor_legacy_member_id",
+    "loser_legacy_member_id", "survivor_email_union",
+]
+
+
+def _flag_on(v: object) -> bool:
+    return str(v or "").strip() == "1"
+
+
+def _account_emails(row: dict[str, str]) -> list[str]:
+    """The unique non-empty normalized emails an account carries, in column order."""
+    seen: list[str] = []
+    for col in EMAIL_COLS:
+        e = _norm_email(row.get(col))
+        if e and e not in seen:
+            seen.append(e)
+    return seen
+
+
+def _survivor_id(accounts: list[dict[str, str]]) -> str:
+    """Lowest legacy_member_id in the group. Numeric ids sort numerically; any
+    non-numeric id sorts after all numeric ones, then lexically -- deterministic
+    either way."""
+    def key(r: dict[str, str]) -> tuple[int, int, str]:
+        mid = (r.get("legacy_member_id") or "").strip()
+        try:
+            return (0, int(mid), mid)
+        except ValueError:
+            return (1, 0, mid)
+    return (min(accounts, key=key).get("legacy_member_id") or "").strip()
+
+
+def _union_emails(accounts: list[dict[str, str]], survivor: dict[str, str]) -> list[str]:
+    """Every unique email in the group, the survivor's first, then the rest sorted."""
+    ordered: list[str] = list(_account_emails(survivor))
+    rest: set[str] = set()
+    for a in accounts:
+        for e in _account_emails(a):
+            if e not in ordered:
+                rest.add(e)
+    return ordered + sorted(rest)
+
+
+@dataclass
+class MergeDecision:
+    group_id: str
+    match_key: str
+    accounts: list[dict[str, str]]
+    survivor_id: str
+    action: str              # "merge" or "review"
+    reason: str              # "" when merged, else the safety-block reason
+    survivor_row: dict[str, str] | None
+    loser_ids: list[str]
+
+
+def evaluate_merge_group(group: DuplicateGroup,
+                         links_by_account: dict[str, str] | None = None,
+                         claimed_ids: set[str] | None = None) -> MergeDecision:
+    """Decide whether one name+full-DOB group auto-merges or goes to review, and
+    build the survivor row when it merges. Pure and deterministic."""
+    links_by_account = links_by_account or {}
+    claimed_ids = claimed_ids or set()
+    accounts = group.accounts
+    survivor_id = _survivor_id(accounts)
+    survivor = next(a for a in accounts
+                    if (a.get("legacy_member_id") or "").strip() == survivor_id)
+    losers = [a for a in accounts
+              if (a.get("legacy_member_id") or "").strip() != survivor_id]
+
+    def review(reason: str) -> MergeDecision:
+        return MergeDecision(group.group_id, group.match_key, accounts,
+                             survivor_id, "review", reason, None, [])
+
+    ids = [(a.get("legacy_member_id") or "").strip() for a in accounts]
+
+    # Safety block: any account already carries claim state in the database.
+    if any(i in claimed_ids for i in ids):
+        return review("claim_state")
+
+    # Safety block: two accounts already linked to different canonical persons.
+    linked_persons = {links_by_account[i] for i in ids
+                      if links_by_account.get(i)}
+    if len(linked_persons) > 1:
+        return review("different_person_links")
+
+    # Safety block: conflicting non-empty countries.
+    countries = {(a.get("country") or "").strip()
+                 for a in accounts if (a.get("country") or "").strip()}
+    if len(countries) > 1:
+        return review("country_conflict")
+
+    # Safety block: more than three unique emails cannot fit the three columns.
+    emails = _union_emails(accounts, survivor)
+    if len(emails) > 3:
+        return review("too_many_emails")
+
+    # Safety block: a loser whose only claim key is a distinct handle with no
+    # email would lose that key on merge.
+    survivor_handle = (survivor.get("legacy_user_id") or "").strip()
+    for l in losers:
+        h = (l.get("legacy_user_id") or "").strip()
+        if h and h != survivor_handle and not _account_emails(l):
+            return review("unpreservable_handle")
+
+    # Clean merge: build the survivor row per the column policy above.
+    row = dict(survivor)
+    row["legacy_member_id"] = survivor_id
+    for f in _SURVIVOR_VERBATIM_FIELDS:
+        row[f] = survivor.get(f) or ""
+    row["legacy_email"] = emails[0] if len(emails) > 0 else ""
+    row["legacy_email2"] = emails[1] if len(emails) > 1 else ""
+    row["legacy_email3"] = emails[2] if len(emails) > 2 else ""
+    join_dates = sorted(d for d in ((a.get("ifpa_join_date") or "").strip()
+                                    for a in accounts) if d)
+    row["ifpa_join_date"] = join_dates[0] if join_dates else ""
+    for f in _ENTITLEMENT_FLAGS:
+        row[f] = "1" if any(_flag_on(a.get(f)) for a in accounts) else (survivor.get(f) or "")
+    if _flag_on(row.get("legacy_was_board_at_cutover")):
+        board_underlying = next(
+            ((a.get("legacy_board_underlying_paid_tier") or "").strip()
+             for a in accounts
+             if _flag_on(a.get("legacy_was_board_at_cutover"))
+             and (a.get("legacy_board_underlying_paid_tier") or "").strip()),
+            (survivor.get("legacy_board_underlying_paid_tier") or ""))
+        row["legacy_board_underlying_paid_tier"] = board_underlying
+    else:
+        row["legacy_board_underlying_paid_tier"] = \
+            survivor.get("legacy_board_underlying_paid_tier") or ""
+
+    loser_ids = sorted(((l.get("legacy_member_id") or "").strip() for l in losers),
+                       key=lambda m: (int(m) if m.isdigit() else 1 << 62, m))
+    return MergeDecision(group.group_id, group.match_key, accounts,
+                         survivor_id, "merge", "", row, loser_ids)
+
+
+def plan_auto_merges(rows: list[dict[str, str]],
+                     links_by_account: dict[str, str] | None = None,
+                     claimed_ids: set[str] | None = None) -> dict[str, object]:
+    """Evaluate every name+full-DOB group and split into merges and reviews.
+    Returns the decisions plus reason counts; writes nothing."""
+    groups = build_stage_a_groups(rows)
+    decisions = [evaluate_merge_group(g, links_by_account, claimed_ids)
+                 for g in groups]
+    merges = [d for d in decisions if d.action == "merge"]
+    reviews = [d for d in decisions if d.action == "review"]
+    return {
+        "decisions": decisions,
+        "merges": merges,
+        "reviews": reviews,
+        "reason_counts": Counter(d.reason for d in reviews),
+        "loser_count": sum(len(d.loser_ids) for d in merges),
+    }
+
+
+def load_links_by_account(proposed_links_csv: Path) -> dict[str, str]:
+    """account legacy_member_id -> historical_person_id from a Stage B proposal
+    CSV, when present; empty when it is not."""
+    out: dict[str, str] = {}
+    if not proposed_links_csv.exists():
+        return out
+    with proposed_links_csv.open(encoding="utf-8", newline="") as f:
+        for r in csv.DictReader(f):
+            mid = (r.get("legacy_member_id") or "").strip()
+            hp = (r.get("historical_person_id") or "").strip()
+            if mid and hp:
+                out[mid] = hp
+    return out
+
+
+def write_merge_map_csv(merges: list[MergeDecision], out_path: Path) -> int:
+    """Deterministic loser->survivor mapping artifact (one row per loser)."""
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    n = 0
+    with out_path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=MERGE_MAP_FIELDS, lineterminator="\n")
+        w.writeheader()
+        for d in sorted(merges, key=lambda x: x.group_id):
+            union = " ".join(e for e in (
+                d.survivor_row.get("legacy_email") if d.survivor_row else "",
+                d.survivor_row.get("legacy_email2") if d.survivor_row else "",
+                d.survivor_row.get("legacy_email3") if d.survivor_row else "",
+            ) if e)
+            for loser in d.loser_ids:
+                w.writerow({
+                    "group_id": d.group_id,
+                    "match_key": d.match_key,
+                    "survivor_legacy_member_id": d.survivor_id,
+                    "loser_legacy_member_id": loser,
+                    "survivor_email_union": union,
+                })
+                n += 1
+    return n
+
+
+def dry_run_auto_merge(csv_path: Path, proposed_links_csv: Path) -> int:
+    """Read-only: report how the auto-merge would split the current dump into
+    merges and reviews, with per-reason counts. Writes nothing, merges nothing."""
+    if not csv_path.exists():
+        print(f"error: intermediate CSV not found at {csv_path}.\n"
+              "  Produce it first with: run_legacy_members.sh --extract  (needs the dump).",
+              file=sys.stderr)
+        return 1
+    with csv_path.open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    links = load_links_by_account(proposed_links_csv)
+    plan = plan_auto_merges(rows, links_by_account=links)
+    merges, reviews = plan["merges"], plan["reviews"]
+    kept, excluded = reconcilable_rows(rows)
+    print("auto-merge dry run (read-only; no accounts merged)")
+    print(f"  reconcilable universe:     {len(kept)} accounts "
+          f"({len(excluded)} held out in the collision cohort)")
+    print(f"  name+full-DOB groups:      {len(merges) + len(reviews)}")
+    print(f"  would MERGE:               {len(merges)} groups "
+          f"({plan['loser_count']} accounts collapsed into their survivor)")
+    print(f"  routed to REVIEW:          {len(reviews)} groups")
+    for reason, count in sorted(plan["reason_counts"].items()):
+        print(f"    {reason}: {count}")
+    return 0
+
+
+DEFAULT_MERGED_CSV = Path(
+    "legacy_data/member_data_scripts/out/legacy_members_merged.csv")
+DEFAULT_MERGE_MAP_CSV = Path(
+    "legacy_data/member_data_scripts/out/stage_a_merged_accounts.csv")
+
+
+def write_merged_members_csv(csv_path: Path, plan: dict[str, object],
+                             out_path: Path) -> dict[str, int]:
+    """Write the merged member CSV for the final load: every input row except the
+    merged-away losers, with each surviving row replaced by its consolidated
+    record. Contradiction (review) groups are left as separate rows for human
+    review. The input header is preserved exactly so the loader sees the same
+    columns."""
+    with Path(csv_path).open(encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        fieldnames = list(reader.fieldnames or [])
+        rows = list(reader)
+    loser_ids: set[str] = set()
+    survivor_row_by_id: dict[str, dict[str, str]] = {}
+    for d in plan["merges"]:  # type: ignore[index]
+        loser_ids.update(d.loser_ids)
+        survivor_row_by_id[d.survivor_id] = d.survivor_row  # type: ignore[assignment]
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    written = 0
+    with out_path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
+        w.writeheader()
+        for r in rows:
+            mid = (r.get("legacy_member_id") or "").strip()
+            if mid in loser_ids:
+                continue
+            src = survivor_row_by_id.get(mid, r)
+            w.writerow({k: src.get(k, r.get(k, "")) for k in fieldnames})
+            written += 1
+    return {"written": written, "losers_removed": len(loser_ids)}
+
+
+def _claimed_ids_from_db(db_path: Path | None) -> set[str]:
+    """legacy_member_ids already carrying claim state in the destination DB, when
+    a DB is available; empty otherwise. A soft planning input -- the loader's
+    precheck is the hard, transactional guard."""
+    if not db_path or not Path(db_path).exists():
+        return set()
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            rows = conn.execute(
+                "SELECT legacy_member_id FROM legacy_members "
+                "WHERE claimed_by_member_id IS NOT NULL").fetchall()
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return set()
+    return {(r[0] or "").strip() for r in rows if r[0]}
+
+
+def run_final_merge(csv_path: Path, links_csv: Path, db_path: Path | None,
+                    merged_out: Path, map_out: Path, review_out: Path) -> int:
+    """Produce the final-load merge artifacts: the merged member CSV (survivors),
+    the deterministic loser->survivor mapping, and the Stage A review CSV holding
+    the contradiction groups. Read-only on the database; writes only out/ CSVs."""
+    if not csv_path.exists():
+        print(f"error: intermediate CSV not found at {csv_path}.\n"
+              "  Produce it first with: run_legacy_members.sh --extract  (needs the dump).",
+              file=sys.stderr)
+        return 1
+    with csv_path.open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    links = load_links_by_account(links_csv)
+    claimed = _claimed_ids_from_db(db_path)
+    plan = plan_auto_merges(rows, links_by_account=links, claimed_ids=claimed)
+
+    ms = write_merged_members_csv(csv_path, plan, merged_out)
+    n_map = write_merge_map_csv(plan["merges"], map_out)  # type: ignore[arg-type]
+    review_groups = [
+        DuplicateGroup(signal="name_dob", match_key=d.match_key,
+                       same_person_recommended=False, exclusion_reason=d.reason,
+                       accounts=d.accounts, group_id=d.group_id)
+        for d in plan["reviews"]  # type: ignore[union-attr]
+    ]
+    n_review = write_stage_a_review_csv(review_groups, review_out)
+
+    print("final-load auto-merge artifacts written")
+    print(f"  merged member CSV:  {merged_out}  "
+          f"({ms['written']} rows; {ms['losers_removed']} losers collapsed)")
+    print(f"  merge map:          {map_out}  ({n_map} loser rows)")
+    print(f"  review CSV:         {review_out}  "
+          f"({len(review_groups)} groups, {n_review} rows)")
+    for reason, count in sorted(plan["reason_counts"].items()):  # type: ignore[union-attr]
+        print(f"    review reason {reason}: {count}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Profiler -- read-only sizing of the duplicate / DOB edge-case patterns
 # ---------------------------------------------------------------------------
 
@@ -743,6 +1125,17 @@ def main() -> None:
     ap.add_argument("--qc-gate", action="store_true",
                     help="run the pre-apply QC gate over the Stage A + Stage B artifacts "
                          "(read-only; called by run_legacy_members.sh)")
+    ap.add_argument("--dry-run-merge", action="store_true",
+                    help="report how the final-load auto-merge would split the dump into "
+                         "merges and reviews, with per-reason counts (read-only; merges nothing)")
+    ap.add_argument("--final-merge", action="store_true",
+                    help="write the final-load auto-merge artifacts: the merged member CSV "
+                         "(survivors), the loser->survivor map, and the review CSV "
+                         "(contradiction groups). Writes only out/ CSVs; the loader applies them.")
+    ap.add_argument("--merged-out", type=Path, default=DEFAULT_MERGED_CSV,
+                    help="final-merge: merged member CSV output path (git-ignored out/ by default)")
+    ap.add_argument("--merge-map-out", type=Path, default=DEFAULT_MERGE_MAP_CSV,
+                    help="final-merge: loser->survivor mapping CSV output path (git-ignored out/ by default)")
     ap.add_argument("--csv", type=Path, default=DEFAULT_CSV, help="intermediate CSV to read")
     ap.add_argument("--out", type=Path, default=DEFAULT_STAGE_A_REVIEW_CSV,
                     help="Stage A review CSV output path (git-ignored out/ by default)")
@@ -764,6 +1157,11 @@ def main() -> None:
         sys.exit(run_stage_b(args.csv, args.db, args.proposed_out, args.review_out))
     if args.qc_gate:
         sys.exit(run_qc_gate(args.out, args.proposed_out, args.review_out))
+    if args.dry_run_merge:
+        sys.exit(dry_run_auto_merge(args.csv, args.proposed_out))
+    if args.final_merge:
+        sys.exit(run_final_merge(args.csv, args.proposed_out, args.db,
+                                 args.merged_out, args.merge_map_out, args.out))
     ap.print_help()
     sys.exit(2)
 

@@ -549,3 +549,123 @@ def test_stage_b_writes_both_csvs_read_only_on_the_database(tmp_path: Path) -> N
     hp_count = conn2.execute("SELECT COUNT(*) FROM historical_persons").fetchone()[0]
     conn2.close()
     assert hp_count == 3  # no persons created
+
+
+# ---------------------------------------------------------------------------
+# Stage A auto-merge (final-load path): decision engine
+# ---------------------------------------------------------------------------
+
+def _one_group(rows: list[dict[str, str]]) -> rec.DuplicateGroup:
+    groups = rec.build_stage_a_groups(rows)
+    assert len(groups) == 1, f"expected one name+DOB group, got {len(groups)}"
+    return groups[0]
+
+
+def _dupe(member_id: str, **overrides: str) -> dict[str, str]:
+    """A member_valid=1 row that shares a name + full DOB with its group."""
+    r = row(member_id, real_name="Sam Kim", birth_date="1990-05-05")
+    r.update(overrides)
+    return r
+
+
+def test_auto_merge_clean_group_collapses_to_lowest_id_survivor() -> None:
+    rows = [_dupe("200", legacy_email="a@x.com"), _dupe("100", legacy_email="b@x.com")]
+    d = rec.evaluate_merge_group(_one_group(rows))
+    assert d.action == "merge" and d.reason == ""
+    assert d.survivor_id == "100"
+    assert d.loser_ids == ["200"]
+    assert d.survivor_row["legacy_member_id"] == "100"
+
+
+def test_auto_merge_survivor_selection_is_order_independent() -> None:
+    a = [_dupe("100"), _dupe("55"), _dupe("300")]
+    b = list(reversed(a))
+    assert rec.evaluate_merge_group(_one_group(a)).survivor_id == "55"
+    assert rec.evaluate_merge_group(_one_group(b)).survivor_id == "55"
+
+
+def test_auto_merge_unions_all_unique_emails_survivor_first() -> None:
+    rows = [_dupe("100", legacy_email="s@x.com"), _dupe("200", legacy_email="l@x.com")]
+    d = rec.evaluate_merge_group(_one_group(rows))
+    assert d.survivor_row["legacy_email"] == "s@x.com"
+    assert d.survivor_row["legacy_email2"] == "l@x.com"
+    assert d.survivor_row["legacy_email3"] == ""
+
+
+def test_auto_merge_preserves_entitlements_by_or() -> None:
+    rows = [
+        _dupe("100", is_bap="0", legacy_ever_paid_tier2="0",
+              legacy_tier1_annual_active_at_cutover="0", ifpa_join_date="2010-06-01"),
+        _dupe("200", is_bap="1", legacy_ever_paid_tier2="1",
+              legacy_tier1_annual_active_at_cutover="1", ifpa_join_date="2008-01-01"),
+    ]
+    d = rec.evaluate_merge_group(_one_group(rows))
+    assert d.action == "merge"
+    assert d.survivor_row["is_bap"] == "1"
+    assert d.survivor_row["legacy_ever_paid_tier2"] == "1"
+    assert d.survivor_row["legacy_tier1_annual_active_at_cutover"] == "1"
+    assert d.survivor_row["ifpa_join_date"] == "2008-01-01"   # earliest join date
+
+
+def test_auto_merge_country_conflict_routes_to_review() -> None:
+    rows = [_dupe("100", country="United States"), _dupe("200", country="Australia")]
+    d = rec.evaluate_merge_group(_one_group(rows))
+    assert d.action == "review" and d.reason == "country_conflict"
+    assert d.survivor_row is None and d.loser_ids == []
+
+
+def test_auto_merge_differing_email_join_year_region_still_merges() -> None:
+    rows = [
+        _dupe("100", legacy_email="s@x.com", ifpa_join_date="2010-01-01",
+              region="Colorado", country="United States"),
+        _dupe("200", legacy_email="l@x.com", ifpa_join_date="2012-01-01",
+              region="Oregon", country="United States"),
+    ]
+    d = rec.evaluate_merge_group(_one_group(rows))
+    assert d.action == "merge"   # differing email / join year / region do not block
+
+
+def test_auto_merge_unpreservable_handle_routes_to_review() -> None:
+    # Loser has a distinct handle and no email: its only claim key would be lost.
+    rows = [_dupe("100", legacy_email="s@x.com", legacy_user_id="survivor"),
+            _dupe("200", legacy_email="", legacy_user_id="ghost")]
+    d = rec.evaluate_merge_group(_one_group(rows))
+    assert d.action == "review" and d.reason == "unpreservable_handle"
+
+
+def test_auto_merge_more_than_three_emails_routes_to_review() -> None:
+    rows = [_dupe(str(100 + i), legacy_email=f"e{i}@x.com") for i in range(4)]
+    d = rec.evaluate_merge_group(_one_group(rows))
+    assert d.action == "review" and d.reason == "too_many_emails"
+
+
+def test_auto_merge_claim_state_routes_to_review() -> None:
+    rows = [_dupe("100"), _dupe("200")]
+    d = rec.evaluate_merge_group(_one_group(rows), claimed_ids={"200"})
+    assert d.action == "review" and d.reason == "claim_state"
+
+
+def test_auto_merge_links_to_different_persons_route_to_review() -> None:
+    rows = [_dupe("100"), _dupe("200")]
+    links = {"100": "person-A", "200": "person-B"}
+    d = rec.evaluate_merge_group(_one_group(rows), links_by_account=links)
+    assert d.action == "review" and d.reason == "different_person_links"
+
+
+def test_auto_merge_map_artifact_is_deterministic(tmp_path) -> None:
+    rows = [
+        _dupe("100", legacy_email="a@x.com"), _dupe("200", legacy_email="b@x.com"),
+        row("300", real_name="Ana Diaz", birth_date="1988-02-02", legacy_email="c@x.com"),
+        row("400", real_name="Ana Diaz", birth_date="1988-02-02", legacy_email="d@x.com"),
+    ]
+    plan = rec.plan_auto_merges(rows)
+    assert len(plan["merges"]) == 2 and plan["loser_count"] == 2
+    out = tmp_path / "merge_map.csv"
+    n1 = rec.write_merge_map_csv(plan["merges"], out)
+    first = out.read_text(encoding="utf-8")
+    n2 = rec.write_merge_map_csv(plan["merges"], out)
+    assert n1 == n2 == 2
+    assert out.read_text(encoding="utf-8") == first   # byte-identical on rerun
+    body = [r for r in csv.DictReader(first.splitlines())]
+    assert [r["group_id"] for r in body] == sorted(r["group_id"] for r in body)
+    assert {r["loser_legacy_member_id"] for r in body} == {"200", "400"}

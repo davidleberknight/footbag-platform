@@ -54,6 +54,8 @@ OUT_DIR="${MDS}/out"
 DEFAULT_CSV="${OUT_DIR}/legacy_members_final.csv"
 PROPOSED_LINKS_CSV="${OUT_DIR}/stage_b_proposed_links.csv"
 RECONCILED_CSV="${OUT_DIR}/legacy_members_reconciled.csv"
+MERGED_CSV="${OUT_DIR}/legacy_members_merged.csv"
+MERGE_MAP_CSV="${OUT_DIR}/stage_a_merged_accounts.csv"
 
 usage() {
   cat >&2 <<'USAGE'
@@ -225,6 +227,21 @@ BLOCKED
     --members-csv "${CSV}" --db "${DB}" \
     --proposed-links "${PROPOSED_LINKS_CSV}" --out "${RECONCILED_CSV}"
 
+  # Final-load only: build the exact-name + full-DOB auto-merge artifacts (the
+  # merged member CSV with survivors consolidated, the loser->survivor map, and
+  # the review CSV holding the contradiction groups). The loader applies the map
+  # in its transaction. Ordinary dev/CI loads skip this and load RECONCILED_CSV
+  # unchanged.
+  LOAD_CSV="${RECONCILED_CSV}"
+  if [[ "${FINAL_EXPORT}" -eq 1 ]]; then
+    echo "==> final-export: build the exact-name + full-DOB auto-merge artifacts"
+    "${PY}" "${MDS}/reconcile_legacy_members.py" --final-merge \
+      --csv "${RECONCILED_CSV}" --db "${DB}" \
+      --proposed-out "${PROPOSED_LINKS_CSV}" \
+      --merged-out "${MERGED_CSV}" --merge-map-out "${MERGE_MAP_CSV}"
+    LOAD_CSV="${MERGED_CSV}"
+  fi
+
   if [[ "${DO_APPLY}" -eq 0 ]]; then
     # Read-only by default: a passing gate means the proposed links are reviewed
     # and non-duplicating, but writing them and the reconciled member rows is a
@@ -246,12 +263,17 @@ BLOCKED
   # member-first ordering.
   echo "==> apply: snapshot legacy_members for rollback (read-only, pre-write)"
   "${PY}" "${MDS}/snapshot_legacy_members.py" \
-    --members-csv "${RECONCILED_CSV}" --db "${DB}" \
+    --members-csv "${LOAD_CSV}" --db "${DB}" \
     --audit-out "${OUT_DIR}/apply_members_audit.csv" \
     --rollback-out "${OUT_DIR}/apply_members_rollback.sql"
 
   echo "==> apply: load reconciled members (writes legacy_members; preserves claim state)"
-  "${PY}" "${MDS}/load_legacy_export.py" --export "${RECONCILED_CSV}" --db "${DB}" --apply
+  if [[ "${FINAL_EXPORT}" -eq 1 ]]; then
+    "${PY}" "${MDS}/load_legacy_export.py" --export "${LOAD_CSV}" --db "${DB}" --apply \
+      --merge-map "${MERGE_MAP_CSV}"
+  else
+    "${PY}" "${MDS}/load_legacy_export.py" --export "${LOAD_CSV}" --db "${DB}" --apply
+  fi
 
   echo "==> apply: proposed historical-person links (writes historical_persons.legacy_member_id)"
   "${PY}" "${MDS}/apply_reconciled_links.py" \

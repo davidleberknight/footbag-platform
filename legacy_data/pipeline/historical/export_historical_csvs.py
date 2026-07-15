@@ -1361,7 +1361,6 @@ _HONOR_OVERRIDES: dict[str, str] = {
     "arek dzudzinski":          "Arkadiusz Dudzinski",
     # BAP members with name variants
     "dave holton":              "David Holton",
-    "phillip morrison":         "Phil Morrison",
     "olav piwowar":             "Olaf Piwowar",
 }
 
