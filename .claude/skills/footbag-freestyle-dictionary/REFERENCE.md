@@ -59,7 +59,7 @@ Promote to `is_primary=1` only if all hold: (1) target trick is active; (2) the 
 
 ### Reset-compatibility (HOLD / STAGED / SAFE)
 
-Before appending any `media_links.csv` row, classify the target slug against a fresh-reset load: **SAFE** (active after reset — append immediately), **STAGED** (pending after reset, `is_active=0` — append only with `is_primary=0`), **HOLD** (does not exist after reset — do NOT append; first add the canonical row so it loads via 17/19). Note `21_load_footbag_org_pending_tricks.py` is NOT in `reset-local-db.sh`, so historically-loaded pending rows vanish on reset.
+Before appending any `media_links.csv` row, classify the target slug against a fresh-reset load: **SAFE** (active after reset — append immediately), **STAGED** (pending after reset, `is_active=0` — append only with `is_primary=0`), **HOLD** (does not exist after reset — do NOT append; first add the canonical row so it loads via 17/19). Note `21_load_footbag_org_pending_tricks.py` runs on a fresh reset (via `freestyle/run_freestyle.sh`, which `reset-local-db.sh` invokes), so its pending rows reload as `is_active=0` (STAGED) rather than vanishing.
 
 ### Coverage dashboard
 
