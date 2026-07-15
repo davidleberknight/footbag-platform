@@ -17,6 +17,10 @@ paths = [
   # never committed, so git-mode scans already skip it, and a working-tree or
   # --no-git scan must skip it too rather than report the legacy secrets.
   '''footbag\.org/.*''',
+  # Curated email templates: long snake_case templateKey values (for example
+  # honor_congratulation_bap_tier3) trip the generic-api-key rule. The tree
+  # holds template text and keys only, no credentials by design.
+  '''curated/email_templates/.*''',
   # Scanner output from local runs must never feed back into the scan.
   '''\.gitleaks-report\.json''',
 ]
