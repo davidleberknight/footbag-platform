@@ -10,6 +10,8 @@ import csv
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 _SCRIPT = Path(__file__).resolve().parents[1] / "member_data_scripts" / "extract_legacy_members.py"
 _spec = importlib.util.spec_from_file_location("extract_legacy_members", _SCRIPT)
 elm = importlib.util.module_from_spec(_spec)
@@ -148,6 +150,85 @@ def test_no_filtering_invalid_row_emitted(tmp_path):
     assert len(rows) == 5
     assert by_id["99999"]["member_valid"] == "0"
     assert by_id["99999"]["real_name"] == "Junk User"
+
+
+# ── final-export freshness gate ─────────────────────────────────────────────
+# The gate asserts, at day granularity, that a final production dump was
+# captured after the declared write-freeze date: the dump-completion date is
+# not before the freeze, and no member was modified after it.
+
+FREEZE_DATE = "2024-06-15"
+
+
+def _epoch(y, mo, d, h=12):
+    from datetime import datetime, timezone
+    return int(datetime(y, mo, d, h, tzinfo=timezone.utc).timestamp())
+
+
+def _freshness_dump(modified_epochs, completed_on):
+    """A minimal members dump carrying a MemberModified column and a
+    `-- Dump completed on` trailer, for exercising the freshness gate."""
+    cols = ["MemberID", "MemberValid", "MemberModified",
+            "MemberIFPATier", "MemberIFPAExpiration"]
+    create = ("CREATE TABLE `members` (\n"
+              + ",\n".join(f"  `{c}` int(11) DEFAULT NULL" for c in cols)
+              + "\n) ENGINE=MyISAM DEFAULT CHARSET=utf8;\n")
+    tuples = ",".join(f"({1000 + i},1,{mod},0,0)"
+                      for i, mod in enumerate(modified_epochs, start=1))
+    insert = f"INSERT INTO `members` VALUES {tuples};\n"
+    trailer = f"-- Dump completed on {completed_on}\n"
+    return create + insert + trailer
+
+
+def _write_dump(tmp_path, sql):
+    dump = tmp_path / "members.sql"
+    dump.write_text(sql, encoding="utf-8")
+    return dump, tmp_path / "export.csv"
+
+
+def test_final_export_requires_cutover_date(tmp_path):
+    sql = _freshness_dump([_epoch(2024, 6, 14)], "2024-06-16 09:00:00")
+    dump, out = _write_dump(tmp_path, sql)
+    with pytest.raises(SystemExit) as exc:
+        elm.extract(dump, out, cutover_date=None, final_export=True)
+    assert "--final-export requires --cutover-date" in str(exc.value)
+    assert not out.exists()
+
+
+def test_final_export_rejects_stale_dump(tmp_path):
+    # Dump completed 2024-06-10, before the 2024-06-15 freeze: pre-freeze/stale.
+    sql = _freshness_dump([_epoch(2024, 6, 9)], "2024-06-10 09:00:00")
+    dump, out = _write_dump(tmp_path, sql)
+    with pytest.raises(SystemExit) as exc:
+        elm.extract(dump, out, cutover_date=FREEZE_DATE, final_export=True)
+    assert "before the declared write-freeze" in str(exc.value)
+    assert not out.exists()   # aborts before writing any CSV
+
+
+def test_final_export_rejects_post_freeze_modification(tmp_path):
+    # Dump completed after the freeze, but a member was modified 2024-06-16.
+    sql = _freshness_dump(
+        [_epoch(2024, 6, 14), _epoch(2024, 6, 16)], "2024-06-17 09:00:00")
+    dump, out = _write_dump(tmp_path, sql)
+    with pytest.raises(SystemExit) as exc:
+        elm.extract(dump, out, cutover_date=FREEZE_DATE, final_export=True)
+    assert "after the declared write-freeze" in str(exc.value)
+    assert not out.exists()
+
+
+def test_final_export_passes_fresh_dump(tmp_path):
+    # Completed after the freeze; latest modification on the freeze day itself.
+    sql = _freshness_dump(
+        [_epoch(2024, 6, 14), _epoch(2024, 6, 15, h=23)], "2024-06-16 09:00:00")
+    dump, out = _write_dump(tmp_path, sql)
+    stats = elm.extract(dump, out, cutover_date=FREEZE_DATE, final_export=True)
+    fr = stats["freshness"]
+    assert fr is not None
+    assert fr["generation_source"] == "dump-completion trailer"
+    assert fr["generation_date"] == "2024-06-16"
+    assert fr["freeze_date"] == FREEZE_DATE
+    assert fr["max_member_modified_iso"].startswith("2024-06-15")
+    assert out.exists()   # extraction proceeds after the gate passes
 
 
 def test_dump_level_counts(tmp_path):

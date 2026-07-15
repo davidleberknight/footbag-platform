@@ -57,7 +57,7 @@ RECONCILED_CSV="${OUT_DIR}/legacy_members_reconciled.csv"
 
 usage() {
   cat >&2 <<'USAGE'
-Usage: run_legacy_members.sh [--extract] [--load | --from-csv PATH] [--apply] [--dry-run] [--strict-honors] [--db PATH]
+Usage: run_legacy_members.sh [--extract] [--load | --from-csv PATH] [--apply] [--dry-run] [--strict-honors] [--final-export] [--db PATH]
 
   --extract          Extract the legacy dump into the git-ignored intermediate CSV (maintainer-only; needs the dump + a built DB).
   --load             Validate + preview, run reconciliation (Stage A, Stage B, QC gate, honors re-run), then stop before applying (read-only).
@@ -65,6 +65,7 @@ Usage: run_legacy_members.sh [--extract] [--load | --from-csv PATH] [--apply] [-
   --apply            With --load, perform the real writes after the gate passes (reconciled members, then proposed links). Refused on production/staging.
   --dry-run          Validate + preview and stop cleanly (no write attempted).
   --strict-honors    Make honor validation a hard gate (final production load).
+  --final-export     Assert the dump was captured after the declared write-freeze date (needs FOOTBAG_CUTOVER_DATE); aborts extraction on a pre-freeze dump or a post-freeze member modification. For the final production load.
   --db PATH          Target database (default: $FOOTBAG_DB_PATH or database/footbag.db).
 USAGE
 }
@@ -74,6 +75,7 @@ DO_LOAD=0
 DO_APPLY=0
 DRY_RUN=0
 STRICT_HONORS=0
+FINAL_EXPORT=0
 CSV=""
 DB="${FOOTBAG_DB_PATH:-database/footbag.db}"
 
@@ -85,6 +87,7 @@ while [[ $# -gt 0 ]]; do
     --apply)         DO_APPLY=1; shift ;;
     --dry-run)       DRY_RUN=1; shift ;;
     --strict-honors) STRICT_HONORS=1; shift ;;
+    --final-export)  FINAL_EXPORT=1; shift ;;
     --db)            DB="${2:-}"; shift 2 ;;
     -h|--help)       usage; exit 0 ;;
     *) echo "run_legacy_members: unknown argument: $1" >&2; usage; exit 2 ;;
@@ -129,7 +132,11 @@ if [[ "${DO_EXTRACT}" -eq 1 ]]; then
   WITH_ADMINS_CSV="${OUT_DIR}/legacy_members_with_admins.csv"
 
   echo "==> extract: members from the dump"
-  "${PY}" "${MDS}/extract_legacy_members.py" --members-sql "${MEMBERS_SQL}" --out "${MEMBERS_CSV}"
+  if [[ "${FINAL_EXPORT}" -eq 1 ]]; then
+    "${PY}" "${MDS}/extract_legacy_members.py" --members-sql "${MEMBERS_SQL}" --out "${MEMBERS_CSV}" --final-export
+  else
+    "${PY}" "${MDS}/extract_legacy_members.py" --members-sql "${MEMBERS_SQL}" --out "${MEMBERS_CSV}"
+  fi
 
   echo "==> extract: fill legacy_is_admin"
   if [[ -f "${ADMINS_SQL}" ]]; then

@@ -26,7 +26,7 @@ import csv
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -237,10 +237,106 @@ def parse_cutover_date(cutover_date: str | None) -> int | None:
     return int(dt.timestamp())
 
 
-def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None) -> dict:
+_DUMP_COMPLETED_RE = re.compile(r"^-- Dump completed on (\d{4}-\d{2}-\d{2})", re.MULTILINE)
+
+
+def _dump_generation_date(members_sql: Path, sql: str) -> tuple[date, str, str]:
+    """Return (generation_date, source_label, detail) for the dump. The
+    mysqldump `-- Dump completed on` trailer is the authoritative evidence of
+    when the dump was taken; the file mtime is only a fallback and the source
+    label names which was used, so the sign-off record shows it plainly."""
+    m = _DUMP_COMPLETED_RE.search(sql)
+    if m:
+        return (date.fromisoformat(m.group(1)), "dump-completion trailer",
+                f"-- Dump completed on {m.group(1)}")
+    mtime_date = datetime.fromtimestamp(
+        members_sql.stat().st_mtime, tz=timezone.utc).date()
+    return (mtime_date, "file mtime (FALLBACK: no dump-completion trailer)",
+            f"mtime {mtime_date.isoformat()}")
+
+
+def _max_member_modified(sql: str, columns: list[str]) -> int | None:
+    """Max `MemberModified` epoch across all member rows, or None when the
+    column is absent or unpopulated. `MemberModified` is the member-record
+    write timestamp; logins (`MemberLastLogin`) are deliberately not used
+    because they continue right up to dump time and would misreport member
+    activity as running past the freeze."""
+    best: int | None = None
+    for rec in iter_member_rows(sql, columns):
+        raw = rec.get("MemberModified")
+        try:
+            v = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if v > 0 and (best is None or v > best):
+            best = v
+    return best
+
+
+def assert_final_export_freshness(
+    members_sql: Path, sql: str, columns: list[str],
+    cutover_date: str, cutover_epoch: int,
+) -> dict:
+    """Freshness gate for the final production load. Asserts, at day
+    granularity, that the dump was captured after the declared write-freeze
+    date, in two directions, and aborts (SystemExit) before any CSV is written:
+
+      - the dump's own completion date is not before the freeze date, because a
+        pre-freeze dump is missing final member data, and
+      - no member was modified after the freeze date, because a later
+        modification means the freeze was not enforced or the declared date is
+        wrong, and the cutover tier derivations key off that moment.
+
+    Returns the evidence (dump date and its source, max MemberModified, freeze
+    date) for the sign-off record on PASS.
+    """
+    freeze_date = date.fromisoformat(cutover_date)
+    gen_date, gen_source, gen_detail = _dump_generation_date(members_sql, sql)
+    if gen_date < freeze_date:
+        raise SystemExit(
+            "error: final-export freshness gate FAILED — the dump was generated "
+            f"{gen_date.isoformat()} ({gen_source}), before the declared write-freeze "
+            f"date {freeze_date.isoformat()}. A pre-freeze dump is missing final member "
+            "data; recapture the dump after the write freeze and retry."
+        )
+
+    max_mod = _max_member_modified(sql, columns)
+    freeze_day_end = cutover_epoch + 86400  # start of the day after the freeze, UTC
+    if max_mod is not None and max_mod >= freeze_day_end:
+        mod_iso = datetime.fromtimestamp(max_mod, tz=timezone.utc).isoformat()
+        raise SystemExit(
+            "error: final-export freshness gate FAILED — a member was modified "
+            f"{mod_iso}, after the declared write-freeze date {freeze_date.isoformat()}. "
+            "Either the freeze was not enforced or the freeze date is wrong; the cutover "
+            "tier derivations would be computed against the wrong moment."
+        )
+
+    return {
+        "generation_date": gen_date.isoformat(),
+        "generation_source": gen_source,
+        "generation_detail": gen_detail,
+        "max_member_modified_epoch": max_mod,
+        "max_member_modified_iso":
+            datetime.fromtimestamp(max_mod, tz=timezone.utc).isoformat() if max_mod else None,
+        "freeze_date": freeze_date.isoformat(),
+    }
+
+
+def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None,
+            final_export: bool = False) -> dict:
     sql = members_sql.read_text(encoding="utf-8", errors="replace")
     columns = parse_member_columns(sql)
     cutover_epoch = parse_cutover_date(cutover_date)
+
+    freshness = None
+    if final_export:
+        if cutover_epoch is None:
+            raise SystemExit(
+                "error: --final-export requires --cutover-date / FOOTBAG_CUTOVER_DATE "
+                "(the declared write-freeze date)"
+            )
+        freshness = assert_final_export_freshness(
+            members_sql, sql, columns, cutover_date, cutover_epoch)
 
     examined = 0
     board_at_cutover = 0
@@ -279,6 +375,7 @@ def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None) -
         "tier_flags": tier_flags,
         "cutover_epoch": cutover_epoch,
         "board_at_cutover": board_at_cutover,
+        "freshness": freshness,
     }
 
 
@@ -293,15 +390,29 @@ def main() -> None:
                          "expirations are compared against; defaults to the "
                          "FOOTBAG_CUTOVER_DATE env var. Without it the annual-active "
                          "derivation is inert and flags no row.")
+    ap.add_argument("--final-export", action="store_true",
+                    help="final production-load mode: assert the dump was captured "
+                         "after the declared write-freeze date (requires --cutover-date). "
+                         "Aborts before writing any CSV if the dump's completion date "
+                         "predates the freeze date or a member was modified after it. "
+                         "Off for ordinary development and CI extraction.")
     args = ap.parse_args()
 
     if not args.members_sql.is_file():
         raise SystemExit(f"error: members dump not found: {args.members_sql}")
 
-    stats = extract(args.members_sql, args.out, args.cutover_date)
+    stats = extract(args.members_sql, args.out, args.cutover_date,
+                    final_export=args.final_export)
     ep = stats["email_population"]
     tf = stats["tier_flags"]
     print(f"extract_legacy_members -> {args.out}")
+    if stats.get("freshness"):
+        fr = stats["freshness"]
+        print("  final-export freshness:  PASS")
+        print(f"    dump generated:       {fr['generation_date']} ({fr['generation_source']})")
+        mm = fr["max_member_modified_iso"] or "n/a (MemberModified column absent)"
+        print(f"    max MemberModified:   {mm}")
+        print(f"    declared freeze date: {fr['freeze_date']}")
     print(f"  columns in dump:        {stats['columns_in_dump']}")
     print(f"  rows examined:          {stats['rows_examined']}")
     print(f"  distinct MemberID:      {stats['distinct_member_id']}")
