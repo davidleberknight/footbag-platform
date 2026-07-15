@@ -340,10 +340,10 @@ def test_geographic_alignment_handles_missing_person():
     assert is_present == 0
 
 
-# ─── compute_signals_for_leader: full 7-signal emission contract ────────────
+# ─── compute_signals_for_leader: full 8-signal emission contract ────────────
 
 
-def test_compute_signals_emits_exactly_seven_signals_in_order():
+def test_compute_signals_emits_exactly_eight_signals_in_order():
     leader = {
         "club_key": "club-x",
         "mirror_member_id": "111",
@@ -368,7 +368,7 @@ def test_compute_signals_emits_exactly_seven_signals_in_order():
 
     assert [r["signal_type"] for r in rows] == [
         "listed_contact", "affiliation", "hosting", "roster",
-        "mirror_text", "recent_activity", "geographic_alignment",
+        "mirror_text", "tier_signal", "recent_activity", "geographic_alignment",
     ]
     assert all(r["club_key"] == "club-x" for r in rows)
     assert all(r["mirror_member_id"] == "111" for r in rows)
@@ -397,6 +397,91 @@ def test_compute_signals_payload_json_is_valid_and_deterministic():
            [r["signal_payload_json"] for r in rows2]
 
 
+# ─── tier_signal: compute + source loading ──────────────────────────────────
+
+
+def _tier_leader(mid: str = "100") -> dict:
+    return {"club_key": "c", "mirror_member_id": mid, "role": "leader",
+            "person_id": "p", "person_name": "N"}
+
+
+def test_tier_signal_source_absent_degrades():
+    present, payload = mod.compute_tier_signal(_tier_leader(), {}, False)
+    assert present == 0
+    assert payload == {"member_tier_data_available": False}
+
+
+def test_tier_signal_present_but_no_matching_member():
+    present, payload = mod.compute_tier_signal(_tier_leader("999"), {}, True)
+    assert present == 0
+    assert payload["member_tier_data_available"] is True
+    assert payload["matched"] is False
+    assert payload["ever_paid_tier2"] is False
+
+
+def test_tier_signal_matched_member_with_no_paid_tier():
+    tiers = {"100": {k: False for k in mod.TIER_PAYLOAD_KEYS}}
+    present, payload = mod.compute_tier_signal(_tier_leader("100"), tiers, True)
+    assert present == 0
+    assert payload["matched"] is True
+
+
+@pytest.mark.parametrize("flag", list(mod.TIER_PAYLOAD_KEYS))
+def test_tier_signal_each_paid_flag_sets_present(flag):
+    rec = {k: (k == flag) for k in mod.TIER_PAYLOAD_KEYS}
+    present, payload = mod.compute_tier_signal(_tier_leader("100"), {"100": rec}, True)
+    assert present == 1
+    assert payload[flag] is True
+
+
+def test_tier_signal_multiple_paid_flags_present():
+    rec = {"ever_paid_tier2": True, "ever_paid_tier1_lifetime": True,
+           "tier1_annual_active_at_cutover": False}
+    present, payload = mod.compute_tier_signal(_tier_leader("100"), {"100": rec}, True)
+    assert present == 1
+    assert payload["ever_paid_tier2"] and payload["ever_paid_tier1_lifetime"]
+
+
+_TIER_HEADER = ("legacy_member_id,legacy_ever_paid_tier2,"
+                "legacy_ever_paid_tier1_lifetime,legacy_tier1_annual_active_at_cutover\n")
+
+
+def test_load_member_tiers_absent_is_graceful(tmp_path):
+    tiers, available = mod.load_member_tiers(tmp_path / "nope.csv")
+    assert tiers == {} and available is False
+
+
+def test_load_member_tiers_reads_flags(tmp_path):
+    p = tmp_path / "m.csv"
+    p.write_text(_TIER_HEADER + "100,1,0,0\n", encoding="utf-8")
+    tiers, available = mod.load_member_tiers(p)
+    assert available is True
+    assert tiers["100"] == {"ever_paid_tier2": True,
+                            "ever_paid_tier1_lifetime": False,
+                            "tier1_annual_active_at_cutover": False}
+
+
+def test_load_member_tiers_malformed_flag_fails_loudly(tmp_path):
+    p = tmp_path / "m.csv"
+    p.write_text(_TIER_HEADER + "100,YES,0,0\n", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        mod.load_member_tiers(p)
+
+
+def test_load_member_tiers_duplicate_id_fails_loudly(tmp_path):
+    p = tmp_path / "m.csv"
+    p.write_text(_TIER_HEADER + "100,1,0,0\n100,0,0,0\n", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        mod.load_member_tiers(p)
+
+
+def test_load_member_tiers_invalid_schema_fails_loudly(tmp_path):
+    p = tmp_path / "m.csv"
+    p.write_text("legacy_member_id,legacy_ever_paid_tier2\n100,1\n", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        mod.load_member_tiers(p)
+
+
 # ─── end-to-end: subprocess invocation against fixture CSVs ─────────────────
 
 
@@ -407,7 +492,7 @@ def fixture_dir(tmp_path: Path) -> Path:
     and is_present=0 branches across two leaders."""
     leaders = [
         # Leader-A: matches contact, has affiliation, club hosts, roster=10,
-        # name in desc, recent, country aligned → all 7 signals = 1.
+        # name in desc, recent, country aligned, paid tier → all 8 signals = 1.
         {
             "club_key": "club-a", "club_name": "Club A",
             "person_id": "p-a", "person_name": "Alpha Person",
@@ -418,7 +503,7 @@ def fixture_dir(tmp_path: Path) -> Path:
         },
         # Leader-B: not the contact, no affiliation row (orphan; rare but
         # tests the path), club does NOT host, roster=3, name absent from
-        # desc, not recent, country mismatch → all 7 signals = 0.
+        # desc, not recent, country mismatch, no paid tier → all 8 signals = 0.
         {
             "club_key": "club-b", "club_name": "Club B",
             "person_id": "p-b", "person_name": "Beta Person",
@@ -534,12 +619,24 @@ def fixture_dir(tmp_path: Path) -> Path:
         {"host_club": "Club A", "year": "2021"},
     ]
 
+    member_tiers = [
+        # Member 100 (Leader-A) held a paid tier -> tier_signal = 1.
+        {"legacy_member_id": "100", "legacy_ever_paid_tier2": "1",
+         "legacy_ever_paid_tier1_lifetime": "0",
+         "legacy_tier1_annual_active_at_cutover": "0"},
+        # Member 200 (Leader-B) held no paid tier -> tier_signal = 0.
+        {"legacy_member_id": "200", "legacy_ever_paid_tier2": "0",
+         "legacy_ever_paid_tier1_lifetime": "0",
+         "legacy_tier1_annual_active_at_cutover": "0"},
+    ]
+
     write("club_bootstrap_leaders.csv", leaders)
     write("legacy_club_candidates.csv", candidates)
     write("legacy_person_club_affiliations.csv", affiliations)
     write("persons_enriched_for_clubs.csv", persons)
     write("club_members.csv", club_members)
     write("events.csv", events)
+    write("legacy_members_final.csv", member_tiers)
     return tmp_path
 
 
@@ -553,6 +650,7 @@ def _run_script(fixture_dir: Path, out_path: Path) -> subprocess.CompletedProces
             "--persons-csv",      str(fixture_dir / "persons_enriched_for_clubs.csv"),
             "--club-members-csv", str(fixture_dir / "club_members.csv"),
             "--events-csv",       str(fixture_dir / "events.csv"),
+            "--member-tiers-csv", str(fixture_dir / "legacy_members_final.csv"),
             "--out-csv",          str(out_path),
         ],
         capture_output=True, text=True, check=False,
@@ -564,7 +662,7 @@ def _read_out(out_path: Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
-def test_end_to_end_emits_seven_signals_per_leader(fixture_dir: Path, tmp_path: Path):
+def test_end_to_end_emits_eight_signals_per_leader(fixture_dir: Path, tmp_path: Path):
     out_path = tmp_path / "club_bootstrap_leader_signals.csv"
     result = _run_script(fixture_dir, out_path)
     assert result.returncode == 0, (
@@ -572,7 +670,7 @@ def test_end_to_end_emits_seven_signals_per_leader(fixture_dir: Path, tmp_path: 
     )
 
     rows = _read_out(out_path)
-    assert len(rows) == 14  # 2 leaders × 7 signals
+    assert len(rows) == 16  # 2 leaders × 8 signals
 
     by_leader = {}
     for r in rows:

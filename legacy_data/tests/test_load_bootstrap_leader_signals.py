@@ -57,11 +57,11 @@ CLUB_B_KEY = "club-b"
 CLUB_A_ID = "club_id_a"
 CLUB_B_ID = "club_id_b"
 
-# Two leaders' worth of signals (2 × 7 = 14 rows). Mirrors the end-to-end
+# Two leaders' worth of signals (2 × 8 = 16 rows). Mirrors the end-to-end
 # fixture in test_bootstrap_leader_signals.py.
 SIGNAL_TYPES = [
     "listed_contact", "affiliation", "hosting", "roster",
-    "mirror_text", "recent_activity", "geographic_alignment",
+    "mirror_text", "tier_signal", "recent_activity", "geographic_alignment",
 ]
 
 
@@ -184,7 +184,7 @@ def test_loader_inserts_all_signals(fresh_db: Path, tmp_path: Path):
         "SELECT COUNT(*) FROM club_bootstrap_leader_signals"
     ).fetchone()[0]
     conn.close()
-    assert count == 14, f"expected 14 rows (2 leaders × 7 signals), got {count}"
+    assert count == 16, f"expected 16 rows (2 leaders × 8 signals), got {count}"
 
 
 def test_loader_preserves_signal_payload_json(fresh_db: Path, tmp_path: Path):
@@ -243,7 +243,7 @@ def test_loader_correctly_resolves_co_leader_role(fresh_db: Path, tmp_path: Path
         (co_leader_id,),
     ).fetchone()[0]
     conn.close()
-    assert count == 7
+    assert count == 8
 
 
 # ─── idempotency ──────────────────────────────────────────────────────────
@@ -265,7 +265,7 @@ def test_loader_idempotent_on_rerun(fresh_db: Path, tmp_path: Path):
     second = conn.execute("SELECT COUNT(*) FROM club_bootstrap_leader_signals").fetchone()[0]
     conn.close()
 
-    assert first == second == 7, (
+    assert first == second == 8, (
         f"idempotency broken: first={first}, second={second}"
     )
 
@@ -286,7 +286,7 @@ def test_signals_cascade_on_parent_delete(fresh_db: Path, tmp_path: Path):
     conn = sqlite3.connect(fresh_db)
     conn.execute("PRAGMA foreign_keys = ON")
     pre = conn.execute("SELECT COUNT(*) FROM club_bootstrap_leader_signals").fetchone()[0]
-    assert pre == 7
+    assert pre == 8
 
     conn.execute(
         "DELETE FROM club_bootstrap_leaders WHERE id = ?",

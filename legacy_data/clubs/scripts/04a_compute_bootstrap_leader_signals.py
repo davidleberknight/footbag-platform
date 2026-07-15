@@ -19,8 +19,7 @@ Output:
 Columns: club_key, mirror_member_id, role, signal_type, is_present,
          signal_payload_json, source
 
-Signal taxonomy (matches schema CHECK constraint, minus `tier_signal` which
-is deferred behind the legacy data dump blocker):
+Signal taxonomy (matches the schema CHECK constraint):
 
   Structural (gate-bearing in the schema's intent):
     - listed_contact   leader's mirror_member_id == club's contact_member_id
@@ -30,6 +29,16 @@ is deferred behind the legacy data dump blocker):
     - mirror_text      leader's normalized name matches \b<name>\b in club desc
 
   Modifier (context-only):
+    - tier_signal      leader's legacy account held any paid membership (ever-paid
+                       Tier 2, ever-paid Tier 1 Lifetime, or Tier 1 Annual active
+                       at cutover), joined by mirror_member_id against the
+                       extractor's legacy_members_final.csv. The file is
+                       dump-dependent and not produced by run_pipeline.sh; when it
+                       is absent the signal degrades to is_present=0 with
+                       member_tier_data_available=false and one run-level warning
+                       (it is context-only and never gates classification). A
+                       file that is present but malformed / duplicate-keyed fails
+                       loudly.
     - recent_activity  club-side year(s) OR person-side last_year >= 2020
     - geographic_alignment  club.country == person.country (case-insensitive)
 """
@@ -52,7 +61,25 @@ DEFAULT_AFFILIATIONS_CSV  = DEFAULT_OUT_DIR / "legacy_person_club_affiliations.c
 DEFAULT_PERSONS_CSV       = DEFAULT_OUT_DIR / "persons_enriched_for_clubs.csv"
 DEFAULT_CLUB_MEMBERS_CSV  = REPO_ROOT / "legacy_data" / "seed" / "club_members.csv"
 DEFAULT_EVENTS_CSV        = REPO_ROOT / "legacy_data" / "out" / "canonical" / "events.csv"
+# The extractor output carrying the per-account paid-tier flags. Dump-dependent
+# and not produced by run_pipeline.sh, so the tier signal degrades gracefully
+# when it is absent (see load_member_tiers / compute_tier_signal).
+DEFAULT_MEMBER_TIERS_CSV  = (
+    REPO_ROOT / "legacy_data" / "member_data_scripts" / "out" / "legacy_members_final.csv")
 DEFAULT_OUT_CSV           = DEFAULT_OUT_DIR / "club_bootstrap_leader_signals.csv"
+
+# The three paid-tier flags read from the member export, in payload order.
+TIER_FLAG_COLUMNS = (
+    "legacy_ever_paid_tier2",
+    "legacy_ever_paid_tier1_lifetime",
+    "legacy_tier1_annual_active_at_cutover",
+)
+# Payload keys, dropping the legacy_ prefix for readability.
+TIER_PAYLOAD_KEYS = (
+    "ever_paid_tier2",
+    "ever_paid_tier1_lifetime",
+    "tier1_annual_active_at_cutover",
+)
 
 # Provenance label written to `source` for every emitted row.
 SOURCE_LABEL = "pipeline_04a"
@@ -82,6 +109,7 @@ SIGNAL_ORDER = [
     "hosting",
     "roster",
     "mirror_text",
+    "tier_signal",
     "recent_activity",
     "geographic_alignment",
 ]
@@ -161,6 +189,59 @@ def build_hosting_years_by_name(
         if y is not None:
             years.setdefault(key, set()).add(y)
     return years
+
+
+def _parse_tier_flag(value, mid: str, column: str, path: Path) -> bool:
+    """A paid-tier flag is exactly '0' or '1' (the extractor always emits one).
+    Anything else is malformed source data and fails loudly."""
+    v = norm_text(value)
+    if v == "1":
+        return True
+    if v == "0":
+        return False
+    raise SystemExit(
+        f"ERROR: {path}: malformed tier flag {column}={value!r} for "
+        f"legacy_member_id {mid!r} (expected '0' or '1')"
+    )
+
+
+def load_member_tiers(path: Path) -> tuple[dict[str, dict[str, bool]], bool]:
+    """Map legacy_member_id -> {payload_key: bool} for the three paid-tier flags,
+    plus a boolean saying whether the source file was available.
+
+    The file is dump-dependent and not produced by run_pipeline.sh. Its ABSENCE
+    is the only graceful case: it returns ({}, False) so the tier signal degrades
+    to a benign is_present=0. A file that IS present but has an invalid schema, a
+    malformed flag value, or a duplicate legacy_member_id fails loudly -- graceful
+    degradation never masks a corrupt source."""
+    if not path.exists():
+        return {}, False
+    with path.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        cols = set(reader.fieldnames or [])
+        required = {"legacy_member_id", *TIER_FLAG_COLUMNS}
+        missing = required - cols
+        if missing:
+            raise SystemExit(
+                f"ERROR: {path} is present but missing required tier column(s): "
+                f"{sorted(missing)}. The tier source is corrupt; graceful "
+                "degradation applies only when the whole file is absent."
+            )
+        out: dict[str, dict[str, bool]] = {}
+        for row in reader:
+            mid = norm_text(row.get("legacy_member_id", ""))
+            if not mid:
+                continue  # an id-less row can never match a leader
+            if mid in out:
+                raise SystemExit(
+                    f"ERROR: {path}: duplicate legacy_member_id {mid!r}; the tier "
+                    "source must carry one row per account."
+                )
+            out[mid] = {
+                pk: _parse_tier_flag(row.get(col, ""), mid, col, path)
+                for pk, col in zip(TIER_PAYLOAD_KEYS, TIER_FLAG_COLUMNS)
+            }
+    return out, True
 
 
 # ─── signal computations (each returns (is_present, payload_dict)) ──────────
@@ -253,6 +334,27 @@ def compute_mirror_text(leader: dict, club: dict) -> tuple[int, dict]:
     )
 
 
+def compute_tier_signal(
+    leader: dict,
+    tier_by_member_id: dict[str, dict[str, bool]],
+    tier_data_available: bool,
+) -> tuple[int, dict]:
+    """Context-only: the leader's legacy account held any paid membership. When
+    the source file was absent the signal is a benign is_present=0 flagged
+    member_tier_data_available=false. When present, the payload records whether
+    the member id matched a row and each of the three paid-tier flags; is_present
+    is 1 iff any flag is set."""
+    if not tier_data_available:
+        return (0, {"member_tier_data_available": False})
+    mid = norm_text(leader.get("mirror_member_id", ""))
+    rec = tier_by_member_id.get(mid)
+    flags = rec if rec is not None else {pk: False for pk in TIER_PAYLOAD_KEYS}
+    is_present = int(any(flags[pk] for pk in TIER_PAYLOAD_KEYS))
+    payload = {"member_tier_data_available": True, "matched": rec is not None}
+    payload.update({pk: flags[pk] for pk in TIER_PAYLOAD_KEYS})
+    return (is_present, payload)
+
+
 def compute_recent_activity(club: dict, person: dict | None) -> tuple[int, dict]:
     club_years = [
         safe_int(club.get("last_updated_year", "")),
@@ -318,6 +420,8 @@ def compute_signals_for_leader(
     affiliation_counts: Counter,
     roster_by_club: dict[str, set[str]],
     hosting_years_by_name: dict[str, set[int]],
+    tier_by_member_id: dict[str, dict[str, bool]] | None = None,
+    tier_data_available: bool = False,
 ) -> list[dict]:
     """Emit one dict per signal_type for the given leader. Pure function;
     no I/O. Used both by main() and by unit tests."""
@@ -331,6 +435,8 @@ def compute_signals_for_leader(
         "hosting":              compute_hosting(club, person, hosting_years_by_name),
         "roster":               compute_roster(leader, roster_by_club),
         "mirror_text":          compute_mirror_text(leader, club),
+        "tier_signal":          compute_tier_signal(
+            leader, tier_by_member_id or {}, tier_data_available),
         "recent_activity":      compute_recent_activity(club, person),
         "geographic_alignment": compute_geographic_alignment(club, person),
     }
@@ -360,6 +466,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--persons-csv",      type=Path, default=DEFAULT_PERSONS_CSV)
     ap.add_argument("--club-members-csv", type=Path, default=DEFAULT_CLUB_MEMBERS_CSV)
     ap.add_argument("--events-csv",       type=Path, default=DEFAULT_EVENTS_CSV)
+    ap.add_argument("--member-tiers-csv", type=Path, default=DEFAULT_MEMBER_TIERS_CSV)
     ap.add_argument("--out-csv",          type=Path, default=DEFAULT_OUT_CSV)
     args = ap.parse_args(argv)
 
@@ -398,6 +505,7 @@ def main(argv: list[str] | None = None) -> int:
         "events.csv",
         {"host_club", "year"},
     )
+    tier_by_member_id, tier_data_available = load_member_tiers(args.member_tiers_csv)
 
     clubs_by_key = {norm_text(r["club_key"]): r for r in candidates}
     persons_by_id = {norm_text(r["person_id"]): r for r in persons}
@@ -433,6 +541,7 @@ def main(argv: list[str] | None = None) -> int:
             compute_signals_for_leader(
                 leader, club, person, affiliation_counts,
                 roster_by_club, hosting_years_by_name,
+                tier_by_member_id, tier_data_available,
             )
         )
 
@@ -462,6 +571,13 @@ def main(argv: list[str] | None = None) -> int:
               f"{sorted(set(missing_clubs))[:5]}")
     if missing_persons:
         print(f"  WARN: missing person rows for {len(missing_persons)} leader person_ids")
+    if not tier_data_available:
+        print(f"  WARN: member tier source absent ({args.member_tiers_csv}); tier_signal "
+              "is_present=0 (member_tier_data_available=false) for every leader. Produce it "
+              "with run_legacy_members.sh --extract (needs the dump) for real tier values.")
+    else:
+        print(f"  tier source:               {args.member_tiers_csv} "
+              f"({len(tier_by_member_id):,} accounts)")
 
     return 0
 
