@@ -141,12 +141,12 @@ launch gate and cross-team items.
   the curated media galleries are all live and internally consistent.
 - *Doctrine.* Open Red questions are not treated as delivered or pending a Red answer
   until James assembles and sends the current packet and delivery is confirmed;
-  doctrine integration and promotions remain James-led. The remaining first-edition
-  doctrine papers (`freestyle/doctrine/papers/0..5`) have a mixed send state: the
-  Identity and Frontier papers were sent to Red, answered, and integrated; the
-  Scoring paper is sent and pending Red's reply (the R1 entry below tracks it);
-  and the Notation and History papers are drafted and not yet sent (the R2 and
-  R4 entries below carry their send steps). Every
+  doctrine integration and promotions remain James-led. The first-edition
+  doctrine papers (`freestyle/doctrine/papers/0..5`) have all been sent to Red:
+  the Identity and Frontier papers were sent, answered, and integrated; and the
+  Scoring, Notation, and History papers, together with the rider list and the
+  nineteen-token scoring addendum, are now sent and pending Red's replies (the
+  R1 through R4 entries below track them). Every
   unresolved doctrine question is isolated where it cannot
   leak into published values: the doctrine queue in `freestyle/doctrine/RED_QUEUE.md`
   with its blocked items (the Red-dependent promotion and world-record-name decisions
@@ -194,16 +194,15 @@ never archived here.
   notation waits on this answer); and terraging arithmetic (2 rows).
   Delivery map: three groups are drafted as paper sections;
   repeated-operator and terraging ride the queue letter's rider items; the
-  19-token addendum was drafted after the send, so it follows in the next
-  message to Red rather than blocking the pending reply. Blocks: 193 gated
+  19-token addendum was drafted after the paper's send and has since gone to
+  Red as a follow-up message. Blocks: 193 gated
   rows plus the paradox_blur notation.
   Unlocks: the largest promotion band, plus the blurry
   registry-versus-reference consistency test Dave writes once the answer
-  lands. Next: send the addendum alongside the Notation packet and rider
-  list; integrate Red's reply when it arrives. Done when Red's answers are
+  lands. Next: integrate Red's reply when it arrives. Done when Red's answers are
   integrated, the consistency test lands, and the audit tags clear.
-- **[KANBAN] R2. Notation packet.** Urgency: doctrine blocker. Status: drafted, not
-  sent; the hygiene revisions are applied (the settled butterfly question
+- **[BLOCKED] R2. Notation packet.** Urgency: doctrine blocker. Status: sent —
+  pending reply; the hygiene revisions were applied before the send (the settled butterfly question
   is struck; the cross-body question carries the clipper-terminal matrix
   evidence). Questions: the down-family embedded-base coordinate frame (21
   gated rows plus 3 shipped tension rows: shooting_star,
@@ -217,12 +216,12 @@ never archived here.
   bracket encodes opposite-side; and the path/catch terminal framing (103
   ambiguous-terminal rows plus 5 directional-syntax rows, framing only).
   Blocks: 40 promotion-relevant rows and the terminal-encoding standard for
-  108 more. Unlocks: those rows and the standard. Next: send alongside the
-  R1 addendum follow-up. Done
-  when sent and the answers are integrated.
-- **[KANBAN] R3. Rider list.** Urgency: doctrine blocker. Status: recorded in the
-  Red queue's rider items; delivery not confirmed, so the riders are
-  treated as not yet sent and ride the next message to Red. Riders: the
+  108 more. Unlocks: those rows and the standard. Next: integrate Red's reply
+  when it arrives. Done
+  when the answers are integrated.
+- **[BLOCKED] R3. Rider list.** Urgency: doctrine blocker. Status: sent to Red as
+  the rider list, pending replies; recorded in the
+  Red queue's rider items. Riders: the
   implicit-paradox hypothesis (Blurrage, Predator, Schmoe; the sumo X-Dex
   value ships provisionally until ruled, and the same ruling unblocks
   Nuclear Ducking Mirage and its Sumo Thong twin, both held so neither
@@ -243,14 +242,14 @@ never archived here.
   and the public glossary already renders it only as anonymized qualified
   testimony that names no witness and claims no record). Blocks: the
   named rows and four record badges. Unlocks: those rows and badges. Next:
-  send alongside the R1 addendum follow-up and the Notation packet. Done
+  integrate Red's answers as they arrive. Done
   when each rider is answered, ruled unrulable, or retired.
-- **[KANBAN] R4. History paper.** Urgency: external dependency. Status: drafted, not
-  sent; testimony and oral history only. Remaining: the binary decision.
+- **[BLOCKED] R4. History paper.** Urgency: external dependency. Status: sent to
+  Red for the rules-era memory review; testimony and oral history only.
   Blocks: nothing (no promotion, doctrine, or launch item rides on it).
-  Unlocks: the historical record only. Next: James sends it to Red or
-  retires it, decided in the same message as the addendum follow-up. Done
-  on either outcome.
+  Unlocks: the historical record only. Next: record any memory-review
+  responses as they arrive. Done when the responses are recorded or the
+  paper is closed as reviewed.
 
 #### James
 
