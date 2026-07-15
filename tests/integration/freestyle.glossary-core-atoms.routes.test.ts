@@ -3,11 +3,11 @@
  *
  * The band renders the curator-authored CORE_ATOM_EDUCATIONAL entries as
  * three-layer cards: a `line` always visible, a "How it relates" collapsible on
- * every atom, and a "What it reveals" collapsible only on the four insight-home
- * atoms (toe stall, clipper stall, mirage, butterfly). Connective atoms carry no
- * reveal; whirl and swirl are connective, with their surface-frame reveal
- * deferred. This suite locks that structure. Cards come from the static content
- * module, so they render independent of fixture data.
+ * every atom, and a "What it reveals" collapsible now on every atom. Whirl and
+ * swirl teach a conserved-terminal reveal and a name-order reveal; their deeper
+ * surface-frame reading stays deferred and must not surface here. This suite
+ * locks that structure. Cards come from the static content module, so they
+ * render independent of fixture data.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -77,19 +77,36 @@ describe('Glossary — core trick atoms band', () => {
     expect(relatesCount).toBe(cardCount);
   });
 
-  it('carries a Reveal only on the four insight-home atoms, not the connective ones', async () => {
+  it('carries a Reveal on every one of the twelve atoms', async () => {
     const html = await glossary();
     const revealCount = (atomsBand(html).match(/<summary>What it reveals<\/summary>/g) ?? []).length;
-    expect(revealCount).toBe(4); // toe stall, clipper stall, mirage, butterfly
+    expect(revealCount).toBe(12);
 
-    // insight-home atom carries the reveal
+    // insight-home atoms keep their reveal
     expect(card(html, 'toe_stall')).toContain('What it reveals');
     expect(card(html, 'butterfly')).toContain('What it reveals');
 
-    // connective atoms do not; whirl and swirl are connective per the sign-off
-    // (their surface-frame reveal is deferred)
-    expect(card(html, 'osis')).not.toContain('What it reveals');
-    expect(card(html, 'whirl')).not.toContain('What it reveals');
-    expect(card(html, 'swirl')).not.toContain('What it reveals');
+    // the eight formerly-connective atoms now carry one too
+    for (const slug of ['around_the_world', 'orbit', 'legover', 'pickup', 'illusion', 'osis', 'whirl', 'swirl']) {
+      expect(card(html, slug), `${slug} reveal`).toContain('What it reveals');
+    }
+  });
+
+  it('ATW reveal separates terminal-contact variants from direction reversal without naming a family', async () => {
+    const atw = card(await glossary(), 'around_the_world');
+    expect(atw).toContain('Inside ATW');
+    expect(atw).toContain('Outside ATW');
+    expect(atw).toContain('separate canonical tricks');
+    expect(atw.toLowerCase()).toContain('ending contact');
+    // The contact variants are explicitly not a family.
+    expect(atw).toMatch(/without either branch being a family/);
+  });
+
+  it('whirl and swirl reveals keep the deferred surface-frame reading hidden', async () => {
+    const html = await glossary();
+    for (const slug of ['whirl', 'swirl']) {
+      expect(card(html, slug).toLowerCase(), `${slug} reveal`).not.toContain('surface frame');
+      expect(card(html, slug).toLowerCase(), `${slug} reveal`).not.toContain('surface-frame');
+    }
   });
 });

@@ -7,6 +7,7 @@
   Required view-model fields on parent `content`:
     - setModifierFeelCards: ModifierFeelCard[]
     - bodyModifierFeelCards: ModifierFeelCard[]
+    - entryTopologyFeelCards: ModifierFeelCard[]
     - intermediateOperators: OperatorReferenceEntry[]
     - setModifiers: FreestyleSetModifierEntry[]
 
@@ -96,7 +97,7 @@
     owning chapters, but the anchors stay as thin cross-links so those deep links
     keep resolving. }}
 <p class="detail-muted">Set systems:
-  {{#each content.setModifierFeelCards}}<a id="modifier-{{slug}}" class="glossary-outward-link" href="#section-timing-sets">{{name}}</a>{{#unless @last}} &middot; {{/unless}}{{/each}}{{#each content.entryTopologyFeelCards}} &middot; <a id="modifier-{{slug}}" class="glossary-outward-link" href="#term-paradox">{{name}} (entry)</a>{{/each}}.
+  {{#each content.setModifierFeelCards}}<a id="modifier-{{slug}}" class="glossary-outward-link" href="#section-timing-sets">{{name}}</a>{{#unless @last}} &middot; {{/unless}}{{/each}}.
 </p>
 
 <div class="glossary-modifier-cluster">
@@ -124,6 +125,29 @@
     The dictionary&apos;s
     <a href="/freestyle/tricks?view=movement-system">By Movement System</a>
     view groups all members of each axis together.
+  </p>
+</div>
+
+<div class="glossary-modifier-cluster">
+  <h4 class="glossary-modifier-cluster-heading">Dex Relationship <span class="glossary-modifier-cluster-axes">(entry topology)</span></h4>
+  <div class="glossary-modifier-cards">
+    {{#each content.entryTopologyFeelCards}}
+    <article class="glossary-modifier-card" id="modifier-{{slug}}">
+      <p class="glossary-modifier-card-head">
+        <span class="glossary-modifier-card-name">{{name}}</span>
+      </p>
+      <p class="glossary-modifier-card-feel">{{feel}}</p>
+      <p class="glossary-modifier-card-intuition">{{intuition}}</p>
+      <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
+      {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
+      <p class="glossary-modifier-card-tricks-link"><a class="glossary-outward-link" href="/freestyle/tricks?view=movement-system">Browse {{name}} tricks &rarr;</a></p>
+    </article>
+    {{/each}}
+  </div>
+  <p class="glossary-modifier-cluster-note">
+    Paradox is a <strong>dex relationship</strong>, not a body movement: it
+    changes which side the body works on across a dex without adding a dex. It is
+    defined in full in the <a href="#section-dexterities">Dexterities</a> chapter.
   </p>
 </div>
 

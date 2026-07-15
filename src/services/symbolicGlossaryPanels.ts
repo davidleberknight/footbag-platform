@@ -69,7 +69,7 @@ const PANEL_INPUTS: PanelInput[] = [
     term:             'paradox',
     displayName:      'Paradox',
     shortDefinition:
-      'A body modifier where the kicking leg pivots under the bag from a cross-body set. The hip leads; the dex follows along the pivot.',
+      'A hip pivot that switches the body\'s side across one dex, adding no dex. Its full teaching is in the Operators and Modifiers chapter.',
     symbolicGroupId:  'paradox-family',
     relatedSymbolicGroups: [
       { groupId: 'symposium-family' },
@@ -83,7 +83,7 @@ const PANEL_INPUTS: PanelInput[] = [
     term:             'symposium',
     displayName:      'Symposium',
     shortDefinition:
-      'A no-plant body discipline: the support leg stays off the ground during the modified beat. The active leg works while the other foot is in the air.',
+      'A no-plant body discipline: the support leg stays off the ground through the dex. Its full teaching is in the Operators and Modifiers chapter.',
     symbolicGroupId:  'symposium-family',
     relatedSymbolicGroups: [
       { groupId: 'paradox-family' },
@@ -97,7 +97,7 @@ const PANEL_INPUTS: PanelInput[] = [
     term:             'ducking',
     displayName:      'Ducking',
     shortDefinition:
-      'A head dip toward the bag, allowing the bag to pass around the neck. Part of a four-variant ducking family: ducking, diving, weaving, zulu (weaving and zulu are ducking sets).',
+      'A head dip toward the bag that lets it pass around the neck, one of the ducking, diving, weaving, and zulu family. Its full teaching is in the Operators and Modifiers chapter.',
     symbolicGroupId:  'ducking-family',
     relatedSymbolicGroups: [
       { groupId: 'diving-family' },
@@ -111,7 +111,7 @@ const PANEL_INPUTS: PanelInput[] = [
     term:             'spinning',
     displayName:      'Spinning',
     shortDefinition:
-      'A full-body rotation that carries through the dex moment. The body turns completely around during the kick rather than chasing the bag afterward.',
+      'A full-body rotation that carries through the dex moment. Its full teaching is in the Operators and Modifiers chapter.',
     symbolicGroupId:  'spinning-family',
     relatedSymbolicGroups: [
       { groupId: 'paradox-family' },
@@ -125,7 +125,7 @@ const PANEL_INPUTS: PanelInput[] = [
     term:             'whirl',
     displayName:      'Whirl',
     shortDefinition:
-      'A rotational base trick: the body turns through the dex along the whirl arc. The largest family in the dictionary; many compounds inherit its rotational shape.',
+      'A rotational base trick that turns through the dex to a cross-body clipper, the dictionary\'s largest family. Its full teaching is in the Movement Basics and Family Encyclopedia chapters.',
     symbolicGroupId:  'whirl-rotational-topology',
     relatedSymbolicGroups: [
       { groupId: 'swirl-rotational-topology' },
@@ -139,7 +139,7 @@ const PANEL_INPUTS: PanelInput[] = [
     term:             'pixie',
     displayName:      'Pixie',
     shortDefinition:
-      'A toe-anchored launch set that opens the trick from a same-side inward entry; the dex window is tight and compressed.',
+      'A toe-anchored launch set that opens the trick from a same-side inward entry with a tight dex window. Its full teaching is in the Timing and Sets chapter.',
     symbolicGroupId:  'pixie-family',
     relatedSymbolicGroups: [
       { groupId: 'quantum-family' },

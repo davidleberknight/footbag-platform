@@ -22,6 +22,16 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3094');
 
+// Decode the HTML entities Handlebars emits (apostrophes, quotes, ampersands)
+// so definition assertions verify the visible reader text rather than coupling
+// to one entity encoding.
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&#x27;|&#39;|&apos;/g, "'")
+    .replace(/&quot;|&#34;/g, '"')
+    .replace(/&amp;/g, '&');
+}
+
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
@@ -111,12 +121,13 @@ describe('GET /freestyle/glossary — connective panels section', () => {
 
   it('each panel includes a coach-tone definition', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/hip leads.+dex follows along the pivot/i);
-    expect(res.text).toMatch(/no-plant body discipline/i);
-    expect(res.text).toMatch(/A head dip toward the bag/i);
-    expect(res.text).toMatch(/full-body rotation that carries through the dex moment/i);
-    expect(res.text).toMatch(/A rotational base trick/i);
-    expect(res.text).toMatch(/A toe-anchored launch set that opens the trick/i);
+    const text = decodeEntities(res.text);
+    expect(text).toMatch(/hip pivot that switches the body's side across one dex/i);
+    expect(text).toMatch(/no-plant body discipline/i);
+    expect(text).toMatch(/A head dip toward the bag/i);
+    expect(text).toMatch(/full-body rotation that carries through the dex moment/i);
+    expect(text).toMatch(/A rotational base trick/i);
+    expect(text).toMatch(/A toe-anchored launch set that opens the trick/i);
   });
 
   it('renders related-tricks chips for each panel that has members', async () => {

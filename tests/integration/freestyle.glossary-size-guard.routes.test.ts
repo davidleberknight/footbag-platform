@@ -44,6 +44,15 @@
  *                  live full-database render, confirming the fixture is
  *                  representative. Ceiling 320,000 leaves about 13,400 bytes
  *                  (~4.4%) of headroom.
+ *   323,020 bytes  the same full dictionary after every core atom gained a
+ *                  "what it reveals" panel (twelve of twelve, up from four), the
+ *                  early Operators and Modifiers section gained a Paradox and
+ *                  Symposium comparison plus a Paradox dex-relationship cluster,
+ *                  and the connective panels kept their trick chips, symbolic-
+ *                  group links, and notation hints while their definitions were
+ *                  compressed to one line each. Ceiling raised to 330,000, about
+ *                  7,000 bytes of headroom for a further compact addition. The
+ *                  guard still fails on unexplained growth beyond that.
  */
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -65,9 +74,9 @@ import {
 const { dbPath } = setTestEnv('3565');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
-// Ceiling set with modest documented headroom above the representative baseline
-// (306,564 bytes). See the baseline history in the file header.
-const CEILING = 320_000;
+// Ceiling set with modest documented headroom above the representative render
+// (currently 323,020 bytes). See the baseline history in the file header.
+const CEILING = 330_000;
 
 interface Snapshot {
   tricks: Record<string, unknown>[];
