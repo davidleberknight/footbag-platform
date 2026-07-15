@@ -9,10 +9,16 @@
 #                  route must redirect to the login page, never serve content.
 #   anti-enum      POST /password/forgot must return an identical response for
 #                  a registered and an unregistered address, so the endpoint
-#                  leaks nothing about account existence. Not run against
-#                  production (the registered-address branch enqueues a real
-#                  reset email). Note: this probe is deliberately not read-only
-#                  on staging/dev — the registered branch mints a reset token
+#                  leaks nothing about account existence. One exception by
+#                  design: hosts running the stub email adapter (development
+#                  and staging) render a simulated-email tester card for the
+#                  submitted address's captured mail, so the card differs by
+#                  account existence there; production never renders it. The
+#                  probe strips the card before comparing and asserts identity
+#                  on everything else. Not run against production (the
+#                  registered-address branch enqueues a real reset email).
+#                  Note: this probe is deliberately not read-only on
+#                  staging/dev — the registered branch mints a reset token
 #                  and enqueues mail to the non-deliverable test address.
 #   dev-surface    the dev/test harness must match the environment contract:
 #                  absent (404) in production, where the image strip and the
@@ -87,12 +93,15 @@ check_status() {
   fi
 }
 
-# Strip per-render attribute values that legitimately differ between two
-# renders of the same page (form value refill), then collapse whitespace, so
-# the comparison sees only structural/content difference — the signal that
-# would leak account existence.
+# Strip what legitimately differs between two renders of the same page before
+# comparing: the simulated-email tester card (stub-adapter hosts render it only
+# for an address with captured mail, so it tracks account existence by design,
+# and production never renders it) and per-render attribute values (form value
+# refill), then collapse whitespace. What remains is the structural/content
+# difference that would leak account existence.
 normalize_body() {
-  sed 's/value="[^"]*"//g' | tr -s '[:space:]' ' '
+  sed '/<section class="sec-card sec-card-dev"/,/<\/section>/d' \
+    | sed 's/value="[^"]*"//g' | tr -s '[:space:]' ' '
 }
 
 echo "Security smoke: ${BASE_URL} (env: ${SMOKE_ENV})"
