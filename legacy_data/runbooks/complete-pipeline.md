@@ -29,10 +29,10 @@ This runs all stages in order and **fails fast on QC hard failures** — stages 
 
 | Mode | What it does |
 |------|-------------|
-| `full` | V0 backbone (stages 1–7) → net enrichment → enrichment phases C–G (soup to nuts) |
+| `full` | V0 backbone (stages 1–7) → net enrichment → enrichment phases C–H plus V (soup to nuts) |
 | `canonical_only` | V0 backbone only (stages 1–7, mirror access required) |
-| `enrichment_only` | Enrichment phases C–G only (requires canonical outputs to exist) |
-| `csv_only` | DB load from existing CSVs → enrichment C–G (no mirror access required) |
+| `enrichment_only` | Enrichment phases C–H plus V only (requires canonical outputs to exist) |
+| `csv_only` | DB load from existing CSVs → enrichment C–H plus V (no mirror access required) |
 | `net_enrichment` | Net enrichment layer only — scripts 12→13→14 (requires canonical DB loaded) |
 
 ---

@@ -103,7 +103,7 @@ committed as the curated, seed, and identity inputs below.
 | `inputs/identity_lock/*.csv` | committed (older `Persons_Truth_Final_v*` / `Placements_ByPerson_v*` snapshots are gitignored; the latest of each is whitelisted) | `pipeline/identity/build_name_variants.py` | frozen identity lock (patch-toolchain only) |
 | `inputs/bap_data_updated.csv` | committed | `build_name_variants.py` | Big-Add-Posse honor names |
 | `inputs/canonical_discipline_fixes.csv` | committed | canonical pipeline | discipline-name corrections |
-| `inputs/consecutives_records.csv`, `inputs/curated/**/*.csv` | committed | workbook, canonical, and records builders | curated pre-1997 sources and records |
+| `inputs/consecutives_records.csv`, `inputs/curated/**/*.csv` | committed | workbook, canonical | curated pre-1997 sources and records |
 | `overrides/*.csv` | committed | `build_name_variants.py`, canonical pipeline | curated person and event overrides |
 
 **Missing-input handling.** The gitignored member roster fails loudly with
@@ -360,8 +360,6 @@ blindly.
 ### Curated source data
 - `inputs/curated/events/structured/*.csv` (pre-1997 structured event
   CSVs)
-- `inputs/curated/records/records_master.csv` (freestyle passback
-  records)
 - `inputs/canonical_discipline_fixes.csv` (discipline name corrections)
 
 ### Overrides (all files in `overrides/` are curated)

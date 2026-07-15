@@ -92,8 +92,8 @@ These may exist in legacy builders (v17, v13) but should not be ported.
 
 | Script | Why deprecated |
 |--------|----------------|
-| `pipeline/03_build_excel.py` | Summary-column format; not the release deliverable |
-| `pipeline/04_build_analytics.py` | Companion to 03; same issue |
+| `pipeline/03_build_excel.py` | Removed; do not reintroduce (was summary-column format) |
+| `pipeline/04_build_analytics.py` | Removed; do not reintroduce (companion to 03) |
 | `pipeline/04B_create_community_excel.py` | Predates v13 port |
 
 `build_workbook_v17.py` (in FOOTBAG_DATA repo) **is** the correct migration base for

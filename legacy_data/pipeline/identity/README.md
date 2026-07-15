@@ -33,22 +33,22 @@ python pipeline/identity/build_name_variants.py
 ```
 
 Review the `git diff` of `inputs/name_variants.csv`. The file is a curated
-seed, not a pipeline cache; diffs are intentional and human-reviewable. No
-stage in `run_pipeline.sh` consumes it yet — the loader and QC check are
-drafted but not wired (see `scripts/load_name_variants_seed.py` and
-`pipeline/qc/check_name_variants.py`).
+seed, not a pipeline cache; diffs are intentional and human-reviewable. The
+DB load is wired: `run_pipeline.sh` loads it in PHASE V (and
+`scripts/reset-local-db.sh` loads it too), and
+`pipeline/qc/check_name_variants.py` runs under `run_qc.py`.
 
-## Loader policy (draft, not yet wired)
+## Loader policy
 
-- **high**-confidence rows are eligible for production use: the loader will
-  write them to the DB `name_variants` table (source=`mirror_mined`) when
-  wiring lands.
+- **high**-confidence rows are eligible for production use: the loader
+  writes them to the DB `name_variants` table (source=`mirror_mined`).
 - **medium**-confidence rows are reported but not loaded. They surface in
   the loader's staging artifact for human review; they do not participate
   in registration-time auto-linking.
 
-Wiring is blocked on the platform-side auto-link code path (MIGRATION_PLAN
-§7). Do not add the loader to `run_pipeline.sh` until that consumer exists.
+The DB load runs in the pipeline today; the platform-side consumer that
+reads the table — the registration / email-verify auto-link path
+(MIGRATION_PLAN §7) — is still deferred.
 
 ## Integration hook — where name_variants plugs into the identity flow
 
@@ -67,7 +67,7 @@ are the places where a future consumer should consult the table.
   (`--apply --db <path>`) and loads only HIGH-confidence rows with
   `source='mirror_mined'`. MEDIUM rows write to
   `out/name_variants_deferred.csv` for review; they are NEVER inserted
-  by this loader. Not auto-invoked by `run_pipeline.sh` or
+  by this loader. Auto-invoked by `run_pipeline.sh` (PHASE V) and
   `scripts/reset-local-db.sh`.
 
 ### Phase 3 (deferred): auto-link at registration (platform-side)
