@@ -6,6 +6,7 @@ import { adminClubCleanupController } from '../controllers/adminClubCleanupContr
 import { adminBootstrapController } from '../controllers/adminBootstrapController';
 import { adminClubLeadershipController } from '../controllers/adminClubLeadershipController';
 import { adminAdminRolesController } from '../controllers/adminAdminRolesController';
+import { adminHonorGrantsController } from '../controllers/adminHonorGrantsController';
 import { adminAuditLogController } from '../controllers/adminAuditLogController';
 import { adminEmailLogController } from '../controllers/adminEmailLogController';
 import { adminEmailTemplateController } from '../controllers/adminEmailTemplateController';
@@ -28,6 +29,11 @@ adminRouter.post('/admin-roles/grant',                    adminAdminRolesControl
 adminRouter.post('/admin-roles/grant/confirm',            adminAdminRolesController.grantConfirm);
 adminRouter.post('/admin-roles/:memberId/revoke',         adminAdminRolesController.revoke);
 adminRouter.post('/admin-roles/:memberId/revoke/confirm', adminAdminRolesController.revokeConfirm);
+// Post-go-live HoF/BAP honor tier grants: an honoree resolved after claiming, or
+// a new inductee, gets Tier 2 from the honor here (claim-time grants never re-fire).
+adminRouter.get('/honor-grants',               adminHonorGrantsController.index);
+adminRouter.post('/honor-grants/grant',         adminHonorGrantsController.grant);
+adminRouter.post('/honor-grants/grant/confirm', adminHonorGrantsController.grantConfirm);
 adminRouter.get('/work-queue',                adminWorkQueueController.index);
 adminRouter.post('/work-queue/:id/claim',     adminWorkQueueController.claim);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);

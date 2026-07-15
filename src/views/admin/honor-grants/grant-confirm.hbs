@@ -1,0 +1,32 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.alreadyGranted}}
+      <div class="card mb-6">
+        <p class="m-0 fw-500">{{content.displayName}} already holds a {{content.honorLabel}} honor grant.</p>
+        <p class="m-0 mt-1 text-muted">Current membership: {{content.tierLabel}}. A second {{content.honorLabel}} grant is not written.</p>
+      </div>
+      <p class="mt-4"><a href="{{content.cancelHref}}">Back to honor grants</a></p>
+    {{else}}
+      <div class="card mb-6">
+        <p class="m-0 fw-500">Grant the {{content.honorLabel}} honor tier to {{content.displayName}} <span class="badge">{{content.slug}}</span>?</p>
+        <p class="m-0 mt-1 text-muted">Current membership: {{content.tierLabel}} &rarr; Tier 2 (honor).</p>
+      </div>
+
+      <p>This writes the Tier 2 honor grant, records the honor provenance in the audit trail, and emails the member a congratulations.</p>
+
+      <form method="POST" action="{{content.confirmHref}}">
+        <input type="hidden" name="member_key" value="{{content.memberKey}}" />
+        <input type="hidden" name="honor" value="{{content.honor}}" />
+        <button type="submit" class="btn btn-primary">Yes, Grant the {{content.honorLabel}} Tier</button>
+      </form>
+
+      <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>
+    {{/if}}
+  </section>
+</div>

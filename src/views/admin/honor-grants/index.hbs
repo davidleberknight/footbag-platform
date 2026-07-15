@@ -1,0 +1,45 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.errorMessage}}
+    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
+  {{/if}}
+
+  <section>
+    <div class="section-heading"><h2>Grant a Hall of Fame or Big Add Posse tier</h2></div>
+    <p class="text-muted fs-sm">Grants Tier 2 from the honor and records the honor provenance. Hall of Fame and Big Add Posse are independent, so a member may hold one of each; the same honor is granted only once.</p>
+    <form method="POST" action="/admin/honor-grants/grant" class="form-block">
+      <div class="form-field">
+        <label for="grant_member">Member id or slug</label>
+        <input id="grant_member" name="member_key" required maxlength="200" />
+      </div>
+      <div class="form-field">
+        <label for="grant_honor">Honor</label>
+        <select id="grant_honor" name="honor" required>
+          <option value="hof">Hall of Fame</option>
+          <option value="bap">Big Add Posse</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Review Honor Grant</button>
+    </form>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Recent honor grants ({{content.recent.length}})</h2></div>
+    {{#unless content.recent.length}}
+      <p class="text-muted">No honor grants recorded yet.</p>
+    {{/unless}}
+    {{#each content.recent}}
+      <div class="card">
+        <div class="card-title">{{displayName}} <span class="badge">{{slug}}</span></div>
+        <p class="m-0 text-muted fs-sm">{{honorLabel}} &middot; {{occurredAt}}</p>
+      </div>
+    {{/each}}
+  </section>
+
+  <p class="mt-4"><a href="/admin">Back to the admin dashboard</a></p>
+</div>

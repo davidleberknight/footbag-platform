@@ -32,6 +32,10 @@
  *     `governance_removed` requires non-null `old_underlying_tier_status`.
  *   - HoF/BAP grant on a Tier 3 member writes `governance_set` updating
  *     `new_underlying_tier_status = tier2`; otherwise writes a plain Tier 2 grant.
+ *   - At most one honor grant per member per honor: a repeat of the same honor
+ *     throws `ConflictError` inside the grant transaction before any write, so no
+ *     ledger row, audit row, or congrats email is produced. HoF and BAP are
+ *     independent; a member may hold one of each.
  *   - Refund does not write a `revoke` row.
  *   - A legacy-claim grant never lowers the member's tier: a member's claimed
  *     bases are evaluated together, so a lower later source never discards a
@@ -568,6 +572,21 @@ export function revokeAdminRole(
   return { ok: true };
 }
 
+const HONOR_REASON_CODE: Record<'hof' | 'bap', string> = {
+  hof: 'honor.hof_tier2_grant',
+  bap: 'honor.bap_tier2_grant',
+};
+
+/**
+ * True when the member already holds a tier grant for this exact honor. HoF and
+ * BAP are independent, so a member may hold one of each. The admin honor-grant
+ * surface calls this to block a duplicate before offering it; applyHonorGrant
+ * re-checks the same condition inside its transaction as the authoritative guard.
+ */
+export function hasHonorGrant(memberId: string, honor: 'hof' | 'bap'): boolean {
+  return memberTier.hasHonorGrant.get(memberId, HONOR_REASON_CODE[honor]) !== undefined;
+}
+
 /**
  * Apply a HoF or BAP induction Tier 2 grant.
  *
@@ -576,15 +595,25 @@ export function revokeAdminRole(
  * - Current Tier 3: writes a governance_set row preserving Tier 3 with
  *   new_underlying_tier_status='tier2' so that future governance removal
  *   reverts to Tier 2 instead of the prior underlying tier.
+ * - Duplicate guard: a member holds at most one grant per honor. A repeat of the
+ *   SAME honor throws ConflictError inside the transaction before any write, so no
+ *   ledger row, audit row, or congrats email is produced (HoF and BAP stay
+ *   independent). hasHonorGrant exposes the same check for a pre-commit preview.
  */
 export function applyHonorGrant(
   actorId: string,
   memberId: string,
   honor: 'hof' | 'bap',
 ): { ok: true } {
-  const reasonCode = honor === 'hof' ? 'honor.hof_tier2_grant' : 'honor.bap_tier2_grant';
+  const reasonCode = HONOR_REASON_CODE[honor];
 
   const result = transaction(() => {
+    if (memberTier.hasHonorGrant.get(memberId, reasonCode) !== undefined) {
+      throw new ConflictError(
+        `This member already holds a ${honor.toUpperCase()} honor grant; ` +
+        `a second ${honor.toUpperCase()} grant is not written.`,
+      );
+    }
     const now = new Date().toISOString();
     const current = getCurrent(memberId);
 

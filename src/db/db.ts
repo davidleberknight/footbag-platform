@@ -8351,6 +8351,27 @@ export const memberTier = {
     WHERE member_id = ?
   `); },
 
+  // Honor-grant duplicate guard: one row per (member, honor reason_code) is the
+  // block condition for the admin honor-grant surface. HoF and BAP use distinct
+  // reason codes, so a member may hold one of each.
+  get hasHonorGrant() { return db.prepare(`
+    SELECT 1 FROM member_tier_grants
+    WHERE member_id = ? AND reason_code = ?
+    LIMIT 1
+  `); },
+
+  // Recent honor grants for the admin surface's accountability list, sourced
+  // from the audit trail (the HoF/BAP grant actions), newest first.
+  get listRecentHonorGrants() { return db.prepare(`
+    SELECT a.occurred_at, a.action_type, a.actor_member_id,
+           a.entity_id AS member_id, m.display_name, m.slug
+    FROM audit_entries a
+    LEFT JOIN members m ON m.id = a.entity_id
+    WHERE a.action_type IN ('tier.hof_grant', 'tier.bap_grant')
+    ORDER BY a.occurred_at DESC, a.id DESC
+    LIMIT ?
+  `); },
+
   // Most recent governance_set row for this member, used by removeGovernanceTier3
   // to read old_underlying_tier_status when writing the paired governance_removed row.
   get getLatestGovernanceSet() { return db.prepare(`
