@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { contactRequestService } from '../services/contactRequestService';
+import { adminWorkQueueService } from '../services/adminWorkQueueService';
 import { identityAccessService } from '../services/identityAccessService';
 import { workQueueService } from '../services/workQueueService';
 import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
@@ -35,7 +35,7 @@ export const adminWorkQueueController = {
         claimNoopFlag = flash.payload !== 'claimed';
         clearFlash(res, req);
       }
-      res.render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({
+      res.render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({
         adminMemberId: req.user!.userId,
         resolvedFlag,
         reviewedFlag,
@@ -73,7 +73,7 @@ export const adminWorkQueueController = {
     const decisionLabel = String(req.body?.decision_label ?? '');
     const resolutionNote = String(req.body?.resolution_note ?? '');
     try {
-      await contactRequestService.resolve({
+      await adminWorkQueueService.resolve({
         queueItemId,
         adminMemberId: req.user!.userId,
         decisionLabel: decisionLabel as never,
@@ -83,11 +83,11 @@ export const adminWorkQueueController = {
       res.redirect(303, '/admin/work-queue');
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
+        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
         return;
       }
       if (err instanceof NotFoundError) {
-        res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That queue item is no longer open.' }));
+        res.status(404).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That queue item is no longer open.' }));
         return;
       }
       if (err instanceof RateLimitedError) {
@@ -106,16 +106,16 @@ export const adminWorkQueueController = {
     const queueItemId = req.params['id'] ?? '';
     const note = String(req.body?.note ?? '');
     try {
-      contactRequestService.dismiss({ queueItemId, adminMemberId: req.user!.userId, note });
+      adminWorkQueueService.dismiss({ queueItemId, adminMemberId: req.user!.userId, note });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_REVIEWED, queueItemId);
       res.redirect(303, '/admin/work-queue');
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
+        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
         return;
       }
       if (err instanceof NotFoundError) {
-        res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That review item is no longer open.' }));
+        res.status(404).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That review item is no longer open.' }));
         return;
       }
       if (err instanceof RateLimitedError) {
@@ -140,11 +140,11 @@ export const adminWorkQueueController = {
       res.redirect(303, '/admin/work-queue');
     } catch (err) {
       if (err instanceof ValidationError || err instanceof ConflictError) {
-        res.status(422).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
+        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
         return;
       }
       if (err instanceof NotFoundError) {
-        res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That queue item is no longer open.' }));
+        res.status(404).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That queue item is no longer open.' }));
         return;
       }
       if (err instanceof RateLimitedError) {
@@ -170,18 +170,18 @@ export const adminWorkQueueController = {
       }
       const result = identityAccessService.revertClaimForDispute(req.user!.userId, queueItemId, holderMemberId, reason);
       if (result.status === 'nothing_to_revert') {
-        res.status(422).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That member holds no claim to revert.' }));
+        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That member holds no claim to revert.' }));
         return;
       }
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, req.params['id'] ?? '');
       res.redirect(303, '/admin/work-queue');
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
+        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
         return;
       }
       if (err instanceof NotFoundError) {
-        res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'No member with that id.' }));
+        res.status(404).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'No member with that id.' }));
         return;
       }
       if (err instanceof RateLimitedError) {
@@ -202,11 +202,11 @@ export const adminWorkQueueController = {
       res.redirect(303, '/admin/work-queue');
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
+        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
         return;
       }
       if (err instanceof NotFoundError) {
-        res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That queue item is no longer open.' }));
+        res.status(404).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That queue item is no longer open.' }));
         return;
       }
       if (err instanceof RateLimitedError) {

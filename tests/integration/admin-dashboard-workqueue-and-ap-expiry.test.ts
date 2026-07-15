@@ -17,7 +17,7 @@ const TS = '2025-01-01T00:00:00.000Z';
 
 let db: BetterSqlite3.Database;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let contactRequestService: typeof import('../../src/services/contactRequestService').contactRequestService;
+let adminWorkQueueService: typeof import('../../src/services/adminWorkQueueService').adminWorkQueueService;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let memberService: typeof import('../../src/services/memberService').memberService;
 
@@ -48,7 +48,7 @@ beforeAll(async () => {
 
   db.close();
 
-  contactRequestService = (await import('../../src/services/contactRequestService')).contactRequestService;
+  adminWorkQueueService = (await import('../../src/services/adminWorkQueueService')).adminWorkQueueService;
   memberService = (await import('../../src/services/memberService')).memberService;
 });
 
@@ -56,7 +56,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('admin dashboard work-queue summary', () => {
   it('counts open items per category, flags urgent, and omits resolved/empty categories', () => {
-    const summary = contactRequestService.getWorkQueueSummary();
+    const summary = adminWorkQueueService.getWorkQueueSummary();
     expect(summary.hasOpen).toBe(true);
     expect(summary.totalOpen).toBe(3);
 

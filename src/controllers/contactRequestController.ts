@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { contactRequestService, CONTACT_CATEGORIES, CONTACT_CATEGORY_LABELS } from '../services/contactRequestService';
+import { adminWorkQueueService, CONTACT_CATEGORIES, CONTACT_CATEGORY_LABELS } from '../services/adminWorkQueueService';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { PageViewModel } from '../types/page';
@@ -80,7 +80,7 @@ export const contactRequestController = {
     const category = String(req.body?.category ?? '');
     const message = String(req.body?.message ?? '');
     try {
-      contactRequestService.submit({
+      adminWorkQueueService.submit({
         requestingMemberId: req.user!.userId,
         category: category as never, // service validates
         message,

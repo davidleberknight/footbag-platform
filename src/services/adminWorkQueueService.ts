@@ -1,6 +1,6 @@
 /**
- * ContactRequestService -- member contact-IFPA-admin requests and the admin
- * work-queue page.
+ * AdminWorkQueueService -- the admin work-queue page and dashboard summary, plus
+ * the member contact-IFPA-admin requests that feed the queue.
  *
  * Owns:
  *   - Contact-request submission (category-validated, per-member open-request cap)
@@ -275,7 +275,7 @@ function shapeWorkQueueItem(raw: ContactRequestRow, viewingAdminId: string): Wor
   };
 }
 
-export const contactRequestService = {
+export const adminWorkQueueService = {
   /**
    * Submit a new contact-IFPA-admin request from an authenticated member.
    * Throws RateLimitedError if member already has MAX_OPEN_PER_MEMBER open

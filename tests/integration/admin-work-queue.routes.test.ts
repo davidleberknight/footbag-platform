@@ -278,7 +278,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
   // Anti-enumeration: resolving an already-resolved item returns 404, the same
   // status (and body) an unknown id returns, so a caller cannot tell "already
   // handled" apart from "never existed". The service guard requires
-  // status === 'open' (contactRequestService), mapping non-open rows to
+  // status === 'open' (adminWorkQueueService), mapping non-open rows to
   // NotFoundError → 404.
   it('already-resolved id → 404, indistinguishable from an unknown id', async () => {
     const app = createApp();

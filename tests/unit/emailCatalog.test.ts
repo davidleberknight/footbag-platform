@@ -59,8 +59,8 @@ const CATALOG: CatalogEntry[] = [
   { template: 'admin_queue_stale_escalation', services: ['workQueueService'], samples: [
     { params: { taskType: 't', entityId: 'e', ageDays: 3, queueUrl: 'https://x/admin/work-queue' }, variant: 'admin_queue_stale_escalation' },
   ] },
-  // contactRequestService — member-facing resolution reply.
-  { template: 'contact_request_resolution', services: ['contactRequestService'], samples: [
+  // adminWorkQueueService — member-facing resolution reply.
+  { template: 'contact_request_resolution', services: ['adminWorkQueueService'], samples: [
     { params: { memberName: 'M', displayDecision: 'D', note: 'n' }, variant: 'contact_request_resolution' },
   ] },
   // clubService / clubCleanupService — club operational notifications.

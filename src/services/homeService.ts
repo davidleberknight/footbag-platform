@@ -115,9 +115,6 @@ export const homeService = {
           description: 'Browse by hashtag or visit named galleries.',
         },
       ],
-      comingSoonSections: [
-        { heading: 'Tutorials', body: 'Rules, how-to guides, and reference material for all levels.' },
-      ],
     };
   },
 };

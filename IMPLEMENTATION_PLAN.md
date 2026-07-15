@@ -53,7 +53,6 @@ Dave owns the platform code and coordinates every open question to a decision: h
 
 Each item is tagged by category; the tag legend is in the header above.
 
-- **[DEVIATION] Retire the club-classification override CSV.** The admin work-queue actions that force-keep or force-junk a club against the live database are built, registered in `src/routes/adminRoutes.ts` and handled by `src/controllers/adminClubCleanupController.ts` over `src/services/clubCleanupService.ts`: `GET /admin/club-cleanup` (the queue), `POST /admin/club-cleanup/claim`, `POST /admin/club-cleanup/bulk-resolve`, `POST /admin/club-cleanup/bulk-delist-residue`, `POST /admin/club-cleanup/:clubId/resolve`, `POST /admin/club-cleanup/:clubId/contact-members`, `POST /admin/club-cleanup/:clubId/delist-residue`, `POST /admin/club-cleanup/candidates/:candidateId/promote`, and `POST /admin/club-cleanup/candidates/:candidateId/resolve`. Until the legacy pipeline stops rebuilding the database from CSVs on every reload, club-classification fixes are still hand-edited rows in `legacy_data/overrides/club_classification_overrides.csv` (James owns that procedure, below). Retire the CSV at the go-live switch to a persistent database, when the live-database actions become the sole path.
 - **[KANBAN] Run the human legacy-claim strata walk on staging before cutover.** The automated real-claim crawl and the read-only whole-population invariant gate cover the machine-checkable real-data behavior; the messy-data judgement calls (near-duplicate names, shared addresses, no-email stubs, collision clusters) still need a human pass across every claim risk class. `legacy_data/member_data_scripts/sample_legacy_claim_strata.py` emits a git-ignored per-stratum sample (linked-with-email, paid-tier evidence, honoree, same-name disambiguated only by birth date, no-email, bare collision stub, historical-person-without-account) naming who to register as and the expected wizard behavior; for each sampled row the tester registers on staging, reads the captured mail at `GET /dev/outbox`, and confirms the claim wizard does exactly what the row predicts, including the enumeration-safe outcomes where an absent record and an already-claimed record are indistinguishable from outside. The sample carries real names and emails, so it stays a local-only input the tester reads on their own machine and is never committed; report any defect by record id and a structural description, never by a real name, email, or address. Done when every stratum is walked end to end on staging at least once and the pass is recorded in the data-review sign-off.
 - **[BLOCKED] Activate real Stripe payments (needs Julie, the Board, and the IFPA bank account).** The live payment adapter is built (`src/adapters/paymentAdapter.ts` reads the API key lazily from Parameter Store), so going live is activation, not code. Blocked on the IFPA governance decision in Julie's section and, per bylaws Article IV, Board and Treasurer authorization to link the IFPA bank account to a Stripe account. The activation and professional end-to-end verification are the migration plan's live-payments gates (EX5: live keys and webhook secret in Parameter Store with one webhook delivery confirmed; EX8: the full go-live procedure). The Parameter Store plumbing for the webhook secret needs no external input and is split out as the `STRIPE_WEBHOOK_SECRET` item below.
 - **[KANBAN] Source `STRIPE_WEBHOOK_SECRET` from Parameter Store.** Today the operator pastes the webhook secret into the server's env file by hand because no Parameter Store entry exists for it. Add the secret to Parameter Store in both staging and production Terraform, grant the server permission to read it, and have the deploy pull it from there, updating the DevOps guide to match. Done when the deploy sources the secret from Parameter Store in both environments and the hand-pasted env-file step is gone from the DevOps guide.
@@ -69,8 +68,6 @@ Each item is tagged by category; the tag legend is in the header above.
 - **[KANBAN] Resolve the last staging/production Terraform parity items.** The two-tree parity audit is the migration plan's OR18 gate, and every divergence is addressed in HCL except the tracked items here: (1) the staging `dr` bucket (with its versioning/encryption/public-access-block resources and the `dr` output in `terraform/staging/outputs.tf`) is marked a removal candidate but not yet removed, so either remove it or wire snapshot replication to it and record reset-tolerance; and (2) the staging SES send grant is deliberately widened to the account-wide `identity/*` resource in `terraform/staging/iam.tf` because SES sandbox mode IAM-checks both the sender and the recipient identity on every send, while production scopes `ses:SendEmail` to the single sender-identity ARN in `terraform/production/iam.tf` — an accepted, in-code-documented divergence; tighten staging to the sender-identity ARN once staging leaves the SES sandbox and sends from a verified domain identity. Accepted divergence, no action: the backup bucket names differ by environment (staging `-snapshots` / `-dr`; production `-db-snapshots` / `-db-snapshots-dr`); each tree is internally consistent, scripts consume the name via the `BACKUP_S3_BUCKET` env var rather than a literal, and the operator docs name both variants. Done when the `dr`-bucket and SES items are resolved and `terraform plan` shows the intended state for both trees, satisfying OR18.
 - **[KANBAN] Build and test the recurring-donation subscription handlers (pre-launch).** Recurring donations open at launch, so the subscription path is pre-launch, not deferred. Today `startDonation` and `cancelRecurringDonation` (`src/services/paymentService.ts`) throw `ServiceUnavailableError`, and the webhook dispatcher has no `invoice.payment_succeeded` / `invoice.payment_failed` / `customer.subscription.deleted` cases. Build the donation entry points and the subscription/invoice handlers to the state machine already specified in `docs/USER_STORIES.md` (`M_Donate`, `SYS_Process_Recurring_Donations`: active on `customer.subscription.created`, new payment row on `invoice.payment_succeeded`, `past_due` on `invoice.payment_failed`, `canceled` on `customer.subscription.deleted`), under the same professional-payments standard and production-only verification as one-time payments. Activation still depends on the IFPA bank/Stripe authorization tracked in the Stripe-activation item. Done when donations can be started and canceled, all four subscription/invoice events are handled idempotently, and firing tests cover each transition.
 - **[KANBAN] Build the pre-launch payment-readiness pieces the live-payments gate requires.** The professional live-payments go-live gate (the live-payments row in the Migration Plan external-dependencies block) requires capabilities not yet built: a nightly reconciliation job comparing the Stripe ledger to the platform `payments` rows, writing `reconciliation_issues` rows for mismatches and missed webhooks, plus an admin view to resolve them (the `reconciliation_issues` table and config are seeded but have no producer or consumer; `docs/USER_STORIES.md` `SYS_Reconcile_Payments_Nightly`, `A_Reconcile_Payments`); and webhook-delivery-failure alerting (a CloudWatch metric filter + alarm in production and staging `cloudwatch.tf`, because recoverable webhook failures log at `warn`, below the error-only alarm, so a bad secret rotation would not alert until Stripe disabled the endpoint). Done when the reconciliation job and admin view and the webhook-failure alarm are built and tested, satisfying the live-payments gate.
-- **[KANBAN] Rename `src/services/contactRequestService.ts` to match its real scope, and sweep all service and controller names for accuracy.** The service's documented ownership is wider than its name: besides member contact-IFPA-admin requests it owns the admin work-queue page shaping (`getAdminWorkQueuePage`, rendered by `src/controllers/adminWorkQueueController.ts` at `/admin/work-queue`) and the per-category dashboard work-queue summary, so display concerns such as the work-queue task-type labels live there while the file name says "contact request". Rename the file and its singleton to a name matching the documented boundary (for example an admin-work-queue service keeping the contact-request submission and resolution methods, or a split into two services if that reads cleaner), update every import and the file-header JSDoc in the same change, and keep the write side in `workQueueService` untouched. In the same pass, review every `src/services/*.ts` and `src/controllers/*.ts` file name against its file-header JSDoc and actual scope, and rename any whose name misstates what it owns; good names are load-bearing for human and AI readers alike. Rename-only, no behavior change. Done when every service and controller file name matches its documented ownership, a grep for each old name returns nothing, and `npm test` and `npm run build` pass.
-
 - **[KANBAN] Add the no-gratuitous-concurrency prevention layer (Claude harness-config, approval-gated).** Prevent unapproved concurrency, or a second writer to a shared store, from being introduced silently. Two layers, because neither covers the other. (1) A rule that the app is synchronous by default and that any concurrency, async background work, worker thread, or second writer to a shared store is a deliberate architecture decision requiring explicit human approval; candidate home is the "Transactions" section of `.claude/rules/db-layer.md` (which already documents the single-writer, synchronous model) or a short new `.claude/rules/concurrency.md`. (2) A mechanical gate in `scripts/ci/assert_conventions.sh` that fails the build on `setInterval`, `new Worker(`, `worker_threads`, `child_process`, and fire-and-forget `void <call>` in `src/` outside a named allowlist of the declared worker entrypoints (`src/imageWorker.ts`, `src/transcodeWorker.ts`, `src/worker.ts`), the ffmpeg `spawn` in `src/lib/videoProcessing.ts`, and the `setTimeout(() => controller.abort(), ...)` fetch-timeout idiom in the adapters; a blanket `setTimeout` ban is wrong and must not be used. Add two deterministic unit tests that pin the decidable roots: that every database primary-key id generator derives from `randomUUID()` entropy rather than a resettable counter, and that every `INSERT OR IGNORE` / `INSERT OR REPLACE` in `src/db/db.ts` is annotated as an intentional idempotency primitive so a silent drop can never be accidental. A trial scan of `src/` under that gate surfaced six review candidates, and all six were reviewed and ruled approved: the `setInterval` in `src/controllers/adminCuratorController.ts` is the SSE heartbeat the asynchronous admin-upload design specifies, cleared unconditionally on connection close, so it joins the allowlist; and the five `void` calls in the upload path (`src/controllers/memberMediaUploadController.ts`, `src/controllers/memberGalleryController.ts`, `src/controllers/adminCuratorController.ts`) are async request-completion promises that own the HTTP response (each ends by rendering or redirecting, with every error caught and routed to the response or `next`), the standard idiom for async work started from a non-awaitable parser callback, not background work. The mechanical gate must therefore target detached `void` calls that do not own the response, and allowlist the response-owning `void handle().catch(...)` idiom. This prevention layer edits `.claude/` and CI, so it needs explicit approval and, per `.claude/rules/claude-harness-governance.md`, Plan Mode and a fixture test; it is not to be applied silently.
 
 ### Gaps between what the site promises and what it does
@@ -109,10 +106,7 @@ The one intake that reads the live legacy site's database export and lands it in
 
 Pipeline defects, deviations, and cleanup the cutover load and onboarding matching depend on.
 
-- **[KANBAN] Re-verify the honor rosters before go-live.** The Hall-of-Fame and Big-Add-Posse flags are validated against captured roster snapshots. Shortly before go-live, re-run the read-only drift check (`diff_live_honor_rosters.py`) in case the public rosters changed, and refresh the snapshots if it reports real drift.
-- **[DEVIATION] The club-classification override procedure (the CSV behind Dave's admin-cleanup item).** Before go-live, forcing a club to be kept or junked is done by hand-editing rows in `overrides/club_classification_overrides.csv`. The procedure: look up the club's key by name from the seed file (never guess it), fill in the name and reason so the row explains itself, re-run the club-classification build script and check the override count and the difference from the last run, then run QC. The loader deliberately fails loudly on an unknown category or a club key that no longer exists.
-
-- **[BUG] The two person-id generators normalize names with local rules weaker than the canonical resolver, risking duplicate or mismatched historical persons (accents, and spaced/doubled hyphens).** Both id generators reimplement name normalization rather than using the canonical `legacy_data/pipeline/identity/alias_resolver.py:52-80` `normalize_name` (which applies NFKD accent-folding plus a defined punctuation/artifact strip), against the one-canonical-normalizer invariant: `legacy_data/clubs/scripts/01_build_club_person_universe.py:24-28` (`normalize_name`) and `legacy_data/persons/scripts/05_build_persons_master.py:30-31` (`norm_name`) both only lowercase, replace hyphens with spaces, and collapse whitespace, with no NFKD. Two consequences. (1) Accent-duplicate risk: neither id generator folds accents, while the canonical `AliasResolver.resolve` (used in `persons/05` at line 203) does, so accent variants of one name (for example `Bélanger` vs `Belanger`) hash to distinct `membership_only::` / `master_person::` ids and can surface as two historical persons the resolver would merge into one; whether this actually produces duplicates depends on the source data and must be checked against it. (2) Spaced-hyphen mismatch (verified): the two generators order whitespace-collapse and hyphen-replacement differently (`clubs/01` collapses after replacing, `persons/05` does not), so `"Jean - Pierre"` normalizes to `jean pierre` in `clubs/01` but `jean   pierre` in `persons/05`, and the load-time bridge `translate_membership_only_pid` in `legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py:116-164` (which keys on the normalized name) misses for that name, leaving the membership-only person's `historical_persons.historical_person_id` NULL. For ordinary names the two agree, so the bridge docstring's "consistent across both upstream scripts" holds in the common case and should be corrected to note these exceptions. Fix (data-and-freestyle maintainer's call: it changes some ids and needs a full pipeline rebuild): route name normalization in `clubs/01`, `persons/05`, and any other id generator through the canonical `alias_resolver.normalize_name`; correct the bridge docstring; and verify against the legacy data that an accent-variant pair collapses to one historical person and a spaced-hyphen name resolves to a non-NULL `historical_person_id`, with `pipeline/qc/run_qc.py` passing after the rebuild. The onboarding review checked the accent-duplicate half against the local data: zero accent-variant duplicate pairs exist today, so the fix stays deferred to a post-cutover slice; the final-dump sign-off re-verifies (see the data-remainder item above).
+- **[BUG] The two person-id generators normalize names with local rules weaker than the canonical resolver, risking duplicate or mismatched historical persons (accents, and spaced/doubled hyphens).** Both id generators reimplement name normalization rather than using the canonical `legacy_data/pipeline/identity/alias_resolver.py:52-80` `normalize_name` (which applies NFKD accent-folding plus a defined punctuation/artifact strip), against the one-canonical-normalizer invariant: `legacy_data/clubs/scripts/01_build_club_person_universe.py:24-28` (`normalize_name`) and `legacy_data/persons/scripts/05_build_persons_master.py:30-31` (`norm_name`) both only lowercase, replace hyphens with spaces, and collapse whitespace, with no NFKD. Two consequences. (1) Accent-duplicate risk: neither id generator folds accents, while the canonical `AliasResolver.resolve` (used in `persons/05` at line 203) does, so accent variants of one name (for example `Bélanger` vs `Belanger`) hash to distinct `membership_only::` / `master_person::` ids and can surface as two historical persons the resolver would merge into one; whether this actually produces duplicates depends on the source data and must be checked against it. (2) Spaced-hyphen mismatch (verified): the two generators order whitespace-collapse and hyphen-replacement differently (`clubs/01` collapses after replacing, `persons/05` does not), so `"Jean - Pierre"` normalizes to `jean pierre` in `clubs/01` but `jean   pierre` in `persons/05`, and the load-time bridge `translate_membership_only_pid` in `legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py:116-164` (which keys on the normalized name) misses for that name, leaving the membership-only person's `historical_persons.historical_person_id` NULL. For ordinary names the two agree, so the bridge docstring's "consistent across both upstream scripts" holds in the common case and should be corrected to note these exceptions. Fix (owned by the data-and-freestyle maintainer; it changes some ids and needs a full pipeline rebuild): route name normalization in `clubs/01`, `persons/05`, and any other id generator through the canonical `alias_resolver.normalize_name`; correct the bridge docstring; and verify against the legacy data that an accent-variant pair collapses to one historical person and a spaced-hyphen name resolves to a non-NULL `historical_person_id`, with `pipeline/qc/run_qc.py` passing after the rebuild. Scheduling: this is pre-cutover cleanup, sequenced before the final production dump load in the data-remainder item above, because that load builds the production `historical_persons` universe and it must be built on the canonical normalizer the first time rather than loaded through a divergent one and repaired afterward. A read-only scan of the current data shows the defect is real at the source yet currently absorbed downstream: the legacy member export carries 765 accented names and 18 accent-fold same-person source pairs (one of them a spaced-hyphen-and-accent name that trips both defects at once), while the built `historical_persons` universe shows zero accent-variant duplicate pairs and only four spaced/doubled-hyphen names, because on this test dump the accent-variant members almost never reach the person universe. Those counts are test-dump-specific and will move on the final dump, and the zero is a property of this dump's membership-to-person overlap, not of the normalizer, which still diverges. The final-dump sign-off in the data-remainder item then re-verifies zero collisions on the production data.
 - **[BUG] The persons-master id generator mints duplicate historical persons when one person arrives from two source types (a separate mechanism from the normalizer divergence above).** `stable_master_person_id(name_norm, source_types)` in `legacy_data/persons/scripts/05_build_persons_master.py:49-51` hashes the source-type string into the person id, and nothing merges same-normalized-name candidate rows across source types before hashing, so the same person arriving once via membership-derived and once via club-derived candidate rows mints two `master_person::` ids for byte-identical names. The one previously-confirmed instance ("Georg Waldispühl", one MEMBERSHIP-sourced and one CLUB-sourced provisional row) has been adjudicated and resolved: "Georg" was the formal name of the existing canonical competitor "Geri Waldispühl", who is recorded under that nickname, so the two stubs were merged into the canonical person through the alias registry rather than being a genuine cross-source split, and no confirmed instance remains in the current database. The reconciliation stage routes same-name multi-person cases to manual review, so member claims cannot silently attach to the wrong half; the exposure would be a split public person page. The mechanism fix (merge same-name candidates across source types before id minting) stays deferred to the same post-cutover pipeline-rebuild slice as the normalizer unification above. The final-dump duplicate scan (data-remainder item) re-checks this class; if the final dump reveals multiple instances, revisit whether the pipeline fix moves forward.
 
 - **[KANBAN] Remove the unused `contact_email` column from the committed club seed.** The `contact_email` column in `legacy_data/seed/clubs.csv` is empty in every row and is never populated or loaded into the database: `legacy_data/scripts/extract_clubs.py` writes it as `""` by design (club contact is leader-supplied, not carried from the mirror), and the cutover and enrichment loaders (`legacy_data/clubs/scripts/06_cutover_pre_populated_clubs.py`, `legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py`) intentionally never write it; the `has_contact_email` leader signal derived from it in `legacy_data/clubs/scripts/02_build_legacy_club_candidates.py` is therefore always false. Drop the column from `clubs.csv` and from the extractor, candidate-builder, and test references that carry it (`extract_clubs.py`, `02_build_legacy_club_candidates.py`, and the `contact_email` rows in `legacy_data/tests/test_loader_idempotency.py` and `test_clubs_url_verdict_stamping.py`), so the committed seed no longer carries a dead, email-shaped column. If a real club-contact email is ever wanted, it can be re-derived from the footbag.org dump. Done when `clubs.csv` and its producers and consumers no longer reference `contact_email`, the pipeline build runs clean, and the `legacy_data` tests pass. Mirror-blocked: clean removal needs `clubs.csv` regenerated from `extract_clubs.py`, but the local mirror's `clubs/show` tree holds only 1 of the 312 clubs, so a regeneration would lose 311 (the extractor's refuse-to-shrink guard blocks it). Do not hand-edit `clubs.csv`. Unblock when a complete club mirror is in the checkout; then the extractor edit plus a regen drops the column.
@@ -172,26 +166,16 @@ never archived here.
 #### James + Dave
 
 - **[KANBAN] FS-19. In-app curation cutover: staging rehearsals and launch
-  approval.** Urgency: launch/cutover (a go-live blocker-index gate in
-  `docs/MIGRATION_PLAN.md`). Status: the cutover feature is code-complete,
-  and the ratified all-curation-works-after-go-live build requirement is
-  satisfied in code and verified: the admin trick editor covers all seven
-  editorial-prose fields (description, short description, execution
-  summary, learning notes, prerequisite notes, pronunciation, operational
-  notation source) with audited writes and route tests; trick-tip
-  moderation is mounted and tested; provenance-source creation shipped; the
-  registry and symbolic surfaces are ruled exceptions. Remaining: the
-  in-app freestyle curation cutover still requires the operator-run staging
-  rehearsals and shared launch approval — two rehearsals, both needing AWS
-  deploy and host access (a code-only deploy under which an in-app admin
-  edit survives with the live database untouched; a destructive-rebuild
-  attempt refused before any mutation on a host carrying the post-cutover
-  marker). Dave is the authorized deploy operator; James completed the
-  admin-UI rehearsal half and is not authorized to run the AWS deploy path.
-  Blocks: the freestyle curation cutover. Unlocks: the cutover evidence for
-  the go-live gate. Next: Dave schedules the two staging runs; James and
-  Dave record the shared launch approval. Done when both evidence blocks
-  are captured against the gate and the launch approval is recorded.
+  approval.** The cutover feature is code-complete; what remains is the
+  operator-run part. Dave (the authorized deploy operator) runs the two
+  staging rehearsals that need AWS deploy and host access — a code-only
+  deploy under which an in-app admin edit survives with the live database
+  untouched, and a destructive-rebuild attempt refused before any mutation
+  on a host carrying the post-cutover marker — then Dave and James record
+  the shared launch approval. This is the actionable side of the
+  persistent-database cutover-rehearsal gate in `docs/MIGRATION_PLAN.md`.
+  Done when both evidence blocks are captured against the gate and the
+  launch approval is recorded.
 #### James + Red
 
 - **[BLOCKED] R1. Scoring packet.** Urgency: doctrine blocker, the largest unlock.
@@ -260,25 +244,117 @@ never archived here.
   retires it, decided in the same message as the addendum follow-up. Done
   on either outcome.
 
+#### James
+
+- **[KANBAN] FS-20. Freestyle code and test hygiene batch.** Urgency:
+  non-blocking cleanup and hardening; no Red dependency. These are the
+  freestyle-surface code and test items that were previously bundled into
+  Dave's cleanup batch; they are freestyle work and belong to the
+  freestyle maintainer. Each sub-item stands alone and can land
+  independently. Done when every sub-item below lands green or is
+  explicitly de-scoped.
+
+  - **Remove the dangling `RETIRED_FAMILIES` reference in
+    `src/content/freestyleFamilyOverrides.ts`.** The `high_plains_drifter`
+    override comment reads "(see RETIRED_FAMILIES below)", but no
+    `RETIRED_FAMILIES` symbol exists in the file or anywhere in the
+    codebase; it is a dead pointer. Rewrite the comment so the
+    clipper-stall-family retirement is explained on its own without the
+    reference. Done when no `RETIRED_FAMILIES` mention remains and the file
+    builds.
+
+  - **Sort the observational disclosure lists on the Emerging Vocabulary
+    page (`/freestyle/observational`).** The three archive disclosure
+    sections (Already represented, Observational names, Recorded terms) and
+    the "Database-tracked, not yet adjudicated" list render in source
+    order, because `summarizeRows` and the `externalUnadjudicated` list in
+    `freestyleService.getObservationalLayerPage`
+    (`src/services/freestyleService.ts`) map their rows without sorting.
+    Sort each list alphabetically by name off a single sorted copy so the
+    preview cards and the full list agree. Done when each disclosure list
+    renders alphabetically and the observational route tests pass.
+
+  - **Normalize the freestyle search-suggest JSON shape**
+    (`GET /freestyle/search/suggest`, served by
+    `freestyleService.getSearchSuggestions`, consumed by
+    `src/public/js/freestyle-trick-search.js`). The endpoint returns a
+    mixed array in which family items carry a `typeLabel` ('Family') field
+    and trick items omit it, and the typeahead client decides whether to
+    draw the type badge by testing whether `typeLabel` is present. Give
+    every item a consistent, self-describing shape so the client no longer
+    branches on a missing field. Recommended: add an explicit
+    `type: 'family' | 'trick'` discriminator to both result interfaces and
+    populate it in the family and trick builders, keeping `typeLabel` as
+    the family badge text so nothing rendered changes; the alternative
+    (null-padding every item to identical keys) is heavier for no visible
+    gain. Update the two result interfaces, the two builder functions, the
+    client branch, and the search-suggest route-test header comment. Done
+    when every suggest item carries the discriminator, the client reads it
+    instead of field-absence, and the search-suggest route tests pass.
+
+  - **Repoint the freestyle hero-formula color system and the glossary
+    color literals to the shared semantic-token CSS classes** in
+    `src/public/css/style.css`, so those freestyle surfaces stop carrying
+    raw color literals and inherit the shared token vocabulary. Done when
+    the freestyle formula and glossary colors reference the semantic-token
+    classes, no raw color literal remains on those surfaces, and the
+    stylesheet convention gate is green.
+
+  - **Widen the runtime-readonly guard snapshot to cover every freestyle
+    table.** The guard that refuses a freestyle CSV rebuild against a live
+    database pins its protected-table set in a snapshot that does not yet
+    list all freestyle tables. Extend it to the full freestyle table set.
+    Done when the snapshot lists every freestyle table and its guard test
+    passes.
+
+  - **Add the shared runtime-readonly guard to the loader DB-open
+    helper**, so any freestyle loader that opens the database picks up the
+    same rebuild protection at the point it opens the connection rather
+    than relying on each caller to apply it. Done when the loader DB-open
+    helper invokes the shared guard and a test covers the refusal path.
+
+  - **Add adversarial input tests for the freestyle trick search**,
+    covering injection-style strings, unicode, and oversize inputs, so the
+    search path is proven safe against hostile queries. Ownership note:
+    this is security and test hardening on the freestyle search surface; if
+    Dave would rather own the adversarial-test work in the platform test
+    lane, move just this sub-item. Done when the freestyle search has tests
+    for the injection, unicode, and oversize cases and they pass.
+
+  - **Normalize or redirect hyphenated freestyle trick slugs.** A trick
+    slug is a single lowercase underscore token with no hyphens; a request
+    that arrives with a hyphenated slug should normalize to, or
+    301-redirect to, the underscore form rather than return a 404. Done
+    when a hyphen-slug request resolves to the correct trick and a route
+    test covers it.
+
+  - **Add the `quantum`, `pogo`, `shooting`, and `rooted` rows to the
+    glossary modifier-weight table.** These four modifiers are absent from
+    the glossary's modifier-weight table; add each with its weight so the
+    table is complete. Done when the four rows exist and the glossary tests
+    pass.
+
+  - **Fix the stale "loader 21" claim in the freestyle dictionary skill
+    reference.** The freestyle dictionary skill file under `.claude/skills/`
+    carries an out-of-date statement referring to "loader 21"; correct it
+    to the current loader reality. Because this edits a `.claude/` file it
+    needs explicit human approval before the change lands (project rule:
+    never edit `.claude/` files without approval). Done when the skill
+    reference matches the current loader and the edit was approved.
+
 #### Other
 
-- **[KANBAN] O2. Dave: code and test batch.** Urgency: non-blocking cleanup, one
-  batch, no Red dependency (the blurry consistency test lives in R1's done
-  condition). Status: open. The batch: repoint the hero formula color
-  system and the glossary color literals to the sem-token classes; widen
-  the runtime-readonly guard snapshot to all freestyle tables; add the
-  shared guard in the loader DB-open helper; add search adversarial tests
-  (injection, unicode, oversize inputs); normalize or redirect hyphen
-  slugs; normalize the search-suggest JSON shape; delete the Home
-  Tutorials card from comingSoonSections; the mechanical test-comment
-  de-epoch pass (~70 files); fix the stale loader-21 claim in the
-  dictionary skill reference; remove the dangling RETIRED_FAMILIES
-  reference in freestyleFamilyOverrides.ts; add the quantum, pogo,
-  shooting, and rooted rows to the glossary modifier-weight table; and
-  sort the observational disclosure lists. Blocks: nothing user-facing;
-  hygiene and hardening. Unlocks: the named guards, tests, and cleanups.
-  Next: Dave picks up the batch. Done when the batch lands green or an
-  item is explicitly de-scoped.
+- **[KANBAN] O2. Dave: mechanical test-comment de-epoch pass (~70 files).**
+  Urgency: non-blocking cleanup; no Red dependency. Status: open. Strip the
+  sprint, slice, and phase epoch labels from the test comments across the
+  roughly seventy affected test files so each test comment states the
+  long-term contract in plain words, per the code-comment standard in
+  `.claude/rules/comments.md`. Repo-wide comment hygiene, not scoped to
+  freestyle; the freestyle-surface code and test items that were bundled
+  here have moved to the freestyle maintainer's freestyle code and test
+  hygiene batch (FS-20) above. Blocks: nothing user-facing. Next: Dave
+  picks up the pass. Done when no test comment carries an epoch label and
+  `npm test` and `npm run build` pass.
 - **[BLOCKED] O3. IFPA (Julie): Sick 3 competition-format rules wording.** Urgency:
   external dependency. Status: the freestyle-page rules buttons stay
   absent until the official wording lands. Remaining: the wording from
