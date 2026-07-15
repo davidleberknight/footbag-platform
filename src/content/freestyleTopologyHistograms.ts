@@ -66,7 +66,12 @@ export const FAMILY_HISTOGRAM: readonly TopologyHistogramRow[] = [
   { label: 'Flurry',           count: 3,   tier: 'family' },
 ];
 
-/** How tricks BEGIN: the two set surfaces, then the set-timing and set-ecosystem systems. */
+/**
+ * How tricks BEGIN: the two set surfaces, then the set-timing and set-ecosystem
+ * systems. The 'system' tier is a display grouping for the chart, not a canonical
+ * operator classification: paradox and symposium are operators by doctrine and
+ * appear here only because they shape how a trick enters.
+ */
 export const ENTRY_HISTOGRAM: readonly TopologyHistogramRow[] = [
   { label: 'Toe set',   count: 207, tier: 'surface' },
   { label: 'Clip set',  count: 197, tier: 'surface' },

@@ -619,10 +619,15 @@ export interface FreestyleByNumbersCard {
   bars: FreestyleByNumbersBar[];
 }
 
-// Which modifier slugs are named launch/set systems rather than movement
-// operators. The single classification the landing "by the numbers" band and
-// the glossary Operators & Modifiers histogram both read, so the two surfaces
-// cannot disagree about whether a system is a set or an operator.
+// The pedagogical display grouping that splits the systems chart into two
+// readable columns: named launch/set systems in one, movement operators in the
+// other. This is a chart reading aid, not the canonical operator classification.
+// The authoritative per-operator role lives in freestyleOperatorReference; by that
+// doctrine paradox and symposium are operators, and they sit in this set-systems
+// column only so the chart can show how launch systems and body operators spread
+// differently across the vocabulary. The landing "by the numbers" band and the
+// glossary systems histogram both read this one set, so the two surfaces cannot
+// disagree about which column a system falls in.
 const MODIFIER_SET_SYSTEM_SLUGS: ReadonlySet<string> = new Set([
   'symposium', 'paradox', 'pixie', 'fairy', 'stepping', 'quantum', 'atomic', 'blurry', 'nuclear', 'furious',
 ]);
