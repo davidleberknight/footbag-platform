@@ -4305,7 +4305,6 @@ export interface FreestyleObservationalContent {
   externalUnadjudicated: readonly ObservationalSummaryRow[];
   sources:             readonly { badge: string; label: string }[];
   canonicalReferences: readonly { label: string; href: string }[];
-  generatedOn:         string;
   isEmpty:             boolean;
 }
 
@@ -10449,7 +10448,6 @@ export const freestyleService = {
           { label: 'Operators & Modifiers',         href: '/freestyle/operators' },
           { label: 'ADD Analysis',                  href: '/freestyle/add-analysis' },
         ],
-        generatedOn: OBSERVATIONAL_UNIVERSE_STATS.generatedOn,
         isEmpty:     visible.length === 0,
       },
     };

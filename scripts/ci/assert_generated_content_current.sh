@@ -11,10 +11,6 @@
 # publication-state exclusion for the rendered Emerging Vocabulary surface is
 # applied at request time by the service, not baked into these modules.)
 #
-# The volatile generatedOn stamp is excluded from the comparison: the generator
-# writes the current date on every run, so without the exclusion the gate fails
-# on any day after the last regeneration even when no input changed.
-#
 # On failure the regenerated modules are left in place so the diff is
 # inspectable and directly committable; the workspace is disposable in CI.
 set -euo pipefail
@@ -28,7 +24,7 @@ MODULES=(
 python3 freestyle/scripts/build_observational_universe_content.py >/dev/null
 python3 freestyle/scripts/build_tracked_names_content.py >/dev/null
 
-if git diff --exit-code -I '"generatedOn"' -- "${MODULES[@]}" >/dev/null; then
+if git diff --exit-code -- "${MODULES[@]}" >/dev/null; then
   echo "[generated-content] current: regeneration is a no-op."
 else
   echo "[generated-content] FAIL: a committed generated module is stale vs its inputs." >&2

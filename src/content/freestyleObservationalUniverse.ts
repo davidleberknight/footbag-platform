@@ -150,7 +150,6 @@ export interface ObservationalUniverseStats {
   sources: Record<string, number>;
   /** Long-tail rows folded out to the internal junk CSV (not in this universe). */
   foldedJunk: number;
-  generatedOn: string;
 }
 
 export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
@@ -1195,8 +1194,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "FB": 49,
       "MULTI": 14
     },
-    "foldedJunk": 181,
-    "generatedOn": "2026-07-16"
+    "foldedJunk": 181
   };
 
 export const DOCTRINE_BLOCKING_QUESTIONS: Record<string, string> =

@@ -60,7 +60,6 @@ import os
 import re
 import sys
 from collections import Counter
-from datetime import date
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -977,7 +976,6 @@ def main() -> None:
         # Long-tail rows folded OUT of the public surface to the internal junk CSV
         # (aliases stay in the TS archive; this counts only the dropped junk).
         "foldedJunk": len(junk),
-        "generatedOn": date.today().isoformat(),
     }
 
     # ── emit TS ──
@@ -1129,7 +1127,6 @@ def main() -> None:
         "  sources: Record<string, number>;\n"
         "  /** Long-tail rows folded out to the internal junk CSV (not in this universe). */\n"
         "  foldedJunk: number;\n"
-        "  generatedOn: string;\n"
         "}\n\n"
     )
 
