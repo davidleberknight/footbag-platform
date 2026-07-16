@@ -130,9 +130,8 @@ function evaluateClubViability(clubId: string): ClubViabilityResult {
   const s3 = (counts?.not_active_count ?? 0) >= 2;
 
   const candidateRow = legacyClubCandidates.findByMappedClubId.get(clubId) as
-    | { classification: string; r1: number; r2: number; r3: number; r4: number } | undefined;
-  const l1 = candidateRow?.classification === 'pre_populate'
-    && candidateRow.r1 === 1 && candidateRow.r2 === 1;
+    | { classification: string } | undefined;
+  const l1 = candidateRow?.classification === 'pre_populate';
 
   const leaderCount = (clubLeaders.countByClubId.get(clubId) as { c: number } | undefined)?.c ?? 0;
   const memberCount = (memberClubAffiliations.countCurrentByClubId.get(clubId) as { c: number } | undefined)?.c ?? 0;

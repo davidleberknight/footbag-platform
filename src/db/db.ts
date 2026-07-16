@@ -1036,7 +1036,7 @@ export const legacyClubCandidates = {
   `); },
 
   get findByMappedClubId() { return db.prepare(`
-    SELECT id, classification, r1, r2, r3, r4
+    SELECT classification
       FROM legacy_club_candidates
      WHERE mapped_club_id = ?
      LIMIT 1

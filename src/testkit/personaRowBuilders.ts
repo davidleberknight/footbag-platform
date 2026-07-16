@@ -1017,18 +1017,9 @@ export interface LegacyClubCandidateOverrides {
   lifecycle_state?: 'archived' | 'junk_confirmed' | null;
   confidence_score?: number | null;
   bootstrap_eligible?: 0 | 1;
-  // Classifier evidence columns on legacy_club_candidates (rule firings and
-  // rule inputs), read by the club-cleanup classification logic.
-  r1?: 0 | 1;
-  r2?: 0 | 1;
-  r3?: 0 | 1;
-  r4?: 0 | 1;
-  r5?: 0 | 1;
-  r6?: 0 | 1;
-  r7?: 0 | 1;
-  r8?: 0 | 1;
-  r9?: 0 | 1;
-  r10?: 0 | 1;
+  // Classifier provenance on legacy_club_candidates: the substitute-contact
+  // marker and the raw rule inputs. The club-cleanup logic reads the derived
+  // classification; these columns are audit provenance only.
   contact_signal_substitute_applied?: 0 | 1;
   last_hosted_year?: number | null;
   max_affiliated_member_last_year?: number | null;
@@ -1048,7 +1039,6 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
       description, external_url, mapped_club_id, classification,
       lifecycle_state,
       confidence_score, bootstrap_eligible,
-      r1, r2, r3, r4, r5, r6, r7, r8, r9, r10,
       contact_signal_substitute_applied,
       last_hosted_year, max_affiliated_member_last_year, contact_member_last_year,
       created_year, last_updated_year, unique_member_names, linkable_member_count,
@@ -1059,7 +1049,6 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
       ?, ?, ?, ?,
       ?,
       ?, ?,
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
       ?,
       ?, ?, ?,
       ?, ?, ?, ?,
@@ -1080,8 +1069,6 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
     o.lifecycle_state !== undefined ? o.lifecycle_state : null,
     o.confidence_score !== undefined ? o.confidence_score : null,
     o.bootstrap_eligible ?? 0,
-    o.r1 ?? 0, o.r2 ?? 0, o.r3 ?? 0, o.r4 ?? 0, o.r5 ?? 0,
-    o.r6 ?? 0, o.r7 ?? 0, o.r8 ?? 0, o.r9 ?? 0, o.r10 ?? 0,
     o.contact_signal_substitute_applied ?? 0,
     o.last_hosted_year !== undefined ? o.last_hosted_year : null,
     o.max_affiliated_member_last_year !== undefined ? o.max_affiliated_member_last_year : null,

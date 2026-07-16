@@ -26,6 +26,7 @@ const CLUB_DUP_MEMBER  = 'viab-club-dup-member';
 const CLUB_CHANGED     = 'viab-club-changed';
 const CLUB_DETAIL_ONLY = 'viab-club-detail-only';
 const CLUB_OF_PROMOTED = 'viab-club-of-promoted';
+const CLUB_MAPPED_ONBOARDING = 'viab-club-mapped-onboarding';
 
 const CAND_FLAGGED  = 'viab-cand-flagged';
 const CAND_PROMOTED = 'viab-cand-promoted';
@@ -73,9 +74,16 @@ beforeAll(async () => {
   // G3: 1 inactive, no active, no operational life, weak legacy -> weak inactive
   insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_WEAK, activity_signal: 'not_active' });
 
-  // G4: 1 inactive, no active, no operational life, strong legacy -> needs_review
+  // G4: 1 inactive, no active, no operational life, strong legacy -> needs_review.
+  // Strong legacy is the pre_populate classification alone; no rule-firing flags.
   insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_REVIEW, activity_signal: 'not_active' });
-  insertLegacyClubCandidate(db, { id: 'lcc-review-001', mapped_club_id: CLUB_REVIEW, classification: 'pre_populate', r1: 1, r2: 1 });
+  insertLegacyClubCandidate(db, { id: 'lcc-review-001', mapped_club_id: CLUB_REVIEW, classification: 'pre_populate' });
+
+  // A mapped candidate that is NOT pre_populate is not strong legacy: the same
+  // lone-inactive shape stays G3, proving classification alone gates l1.
+  insertClub(db, { id: CLUB_MAPPED_ONBOARDING, name: 'Mapped Onboarding Club' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_MAPPED_ONBOARDING, activity_signal: 'not_active' });
+  insertLegacyClubCandidate(db, { id: 'lcc-mapped-onb-001', mapped_club_id: CLUB_MAPPED_ONBOARDING, classification: 'onboarding_visible' });
 
   // Mixed: active + inactive -> G1 wins
   insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_MIXED, activity_signal: 'not_active' });
@@ -160,6 +168,13 @@ describe('evaluateClubViability', () => {
     const result = clubCleanupService.evaluateClubViability(CLUB_REVIEW);
     expect(result.gate).toBe('G4_needs_review');
     expect(result.l1StrongLegacy).toBe(true);
+  });
+
+  it('a mapped non-pre_populate candidate is not strong legacy -> stays G3', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const result = clubCleanupService.evaluateClubViability(CLUB_MAPPED_ONBOARDING);
+    expect(result.gate).toBe('G3_weak_inactive');
+    expect(result.l1StrongLegacy).toBe(false);
   });
 
   it('no signals -> no_signals', async () => {

@@ -3676,20 +3676,10 @@ CREATE TABLE legacy_club_candidates (
   -- the candidate is still live in the admin cleanup queue.
   lifecycle_state    TEXT CHECK (lifecycle_state IN ('archived','junk_confirmed')),
 
-  -- Classification evidence: one 0/1 flag per named classifier rule
-  -- (r1-r10), the substitute-contact marker, and the raw rule inputs
-  -- below. Persisted so an admin can audit a candidate's classification
-  -- rationale without re-running the classifier.
-  r1  INTEGER NOT NULL DEFAULT 0 CHECK (r1  IN (0,1)),
-  r2  INTEGER NOT NULL DEFAULT 0 CHECK (r2  IN (0,1)),
-  r3  INTEGER NOT NULL DEFAULT 0 CHECK (r3  IN (0,1)),
-  r4  INTEGER NOT NULL DEFAULT 0 CHECK (r4  IN (0,1)),
-  r5  INTEGER NOT NULL DEFAULT 0 CHECK (r5  IN (0,1)),
-  r6  INTEGER NOT NULL DEFAULT 0 CHECK (r6  IN (0,1)),
-  r7  INTEGER NOT NULL DEFAULT 0 CHECK (r7  IN (0,1)),
-  r8  INTEGER NOT NULL DEFAULT 0 CHECK (r8  IN (0,1)),
-  r9  INTEGER NOT NULL DEFAULT 0 CHECK (r9  IN (0,1)),
-  r10 INTEGER NOT NULL DEFAULT 0 CHECK (r10 IN (0,1)),
+  -- Classification evidence: the substitute-contact marker and the raw rule
+  -- inputs below. The derived classification is the only enforcement input the
+  -- app reads; the per-rule firing flags are audit provenance that lives in the
+  -- classifier's source output, not persisted here.
   contact_signal_substitute_applied INTEGER NOT NULL DEFAULT 0
     CHECK (contact_signal_substitute_applied IN (0,1)),
 
