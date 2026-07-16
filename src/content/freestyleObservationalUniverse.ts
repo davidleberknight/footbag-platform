@@ -1195,7 +1195,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "MULTI": 14
     },
     "foldedJunk": 181,
-    "generatedOn": "2026-07-16"
+    "generatedOn": "2026-07-15"
   };
 
 export const DOCTRINE_BLOCKING_QUESTIONS: Record<string, string> =
@@ -1238,7 +1238,7 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
     {
       "id": "Q04",
       "title": "Repeated same-operator scoring",
-      "question": "When the same scored operator appears twice in one compound (miraging ... miraging, illusioning ... illusioning), does the second occurrence add again? Also decides the active canonical paradox_blur's empty operational notation.",
+      "question": "When the same scored operator appears twice in one compound (miraging ... miraging, illusioning ... illusioning), does the second occurrence add again?",
       "status": "sent",
       "owner": "james+red",
       "vehicle": "Scoring paper",
