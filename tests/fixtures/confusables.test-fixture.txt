@@ -1,0 +1,25 @@
+# confusables.txt TEST FIXTURE -- NOT official Unicode data. NOT complete threat coverage.
+#
+# A tiny hand-authored subset in the Unicode confusables.txt line format, used ONLY
+# to exercise the parser and the skeleton transform in unit tests. It must never be
+# used for production registration enforcement or to backfill persisted skeletons.
+# The real check is gated on vendoring the official Unicode confusables.txt.
+#
+# Version: 0.0.0
+#
+# Format per line: SOURCE ; TARGET(one or more) ; CLASS # comment
+#
+# A few lowercase Cyrillic letters that read like Latin letters (whole-script
+# lookalikes), plus a fullwidth letter and one multi-codepoint prototype so the
+# parser's sequence handling is covered.
+0430 ;	0061 ;	MA	# ( а → a ) CYRILLIC SMALL LETTER A → LATIN SMALL LETTER A
+0441 ;	0063 ;	MA	# ( с → c ) CYRILLIC SMALL LETTER ES → LATIN SMALL LETTER C
+0435 ;	0065 ;	MA	# ( е → e ) CYRILLIC SMALL LETTER IE → LATIN SMALL LETTER E
+043E ;	006F ;	MA	# ( о → o ) CYRILLIC SMALL LETTER O → LATIN SMALL LETTER O
+0440 ;	0070 ;	MA	# ( р → p ) CYRILLIC SMALL LETTER ER → LATIN SMALL LETTER P
+0443 ;	0079 ;	MA	# ( у → y ) CYRILLIC SMALL LETTER U → LATIN SMALL LETTER Y
+0445 ;	0078 ;	MA	# ( х → x ) CYRILLIC SMALL LETTER HA → LATIN SMALL LETTER X
+0456 ;	0069 ;	MA	# ( і → i ) CYRILLIC SMALL LETTER BYELORUSSIAN-UKRAINIAN I → LATIN SMALL LETTER I
+0455 ;	0073 ;	MA	# ( ѕ → s ) CYRILLIC SMALL LETTER DZE → LATIN SMALL LETTER S
+FF41 ;	0061 ;	MA	# ( ａ → a ) FULLWIDTH LATIN SMALL LETTER A → LATIN SMALL LETTER A
+0133 ;	0069 006A ;	MA	# ( ĳ → ij ) LATIN SMALL LIGATURE IJ → i j
