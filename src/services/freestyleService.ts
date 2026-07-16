@@ -5244,7 +5244,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     // foundational primitives.
     decomposition:    'dex(1) + stall(1) = 2 ADD',
     totalAdd:         2,
-    operationalChain: 'TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]',
+    operationalChain: 'TOE > SAME IN [DEX] > SAME TOE [DEL]',
   }],
   // ── Foundational 1-ADD surface vocabulary (added with the
   //    foundational-band first-class widening). Anatomical surface stalls

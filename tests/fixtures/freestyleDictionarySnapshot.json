@@ -114,7 +114,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "ATW",
-"operational_notation": "TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]",
+"operational_notation": "TOE > SAME IN [DEX] > SAME TOE [DEL]",
 "sort_order": 8
 },
 {

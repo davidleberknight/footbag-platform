@@ -46,7 +46,7 @@ export const TRACKED_DOCUMENTED_TOTAL = 1463;
 export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
     { displayName: 'Arctic Whirl', slug: 'arctic_whirl' },
-    { displayName: 'Around The World (ATW)', slug: 'around_the_world_atw', operationalNotation: 'TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
+    { displayName: 'Around The World (ATW)', slug: 'around_the_world_atw', operationalNotation: 'TOE > SAME IN [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Atomic Blacula (Your Mom)', slug: 'atomic_blacula_your_mom' },
     { displayName: 'Atomic Butterfly (Leg Beater)', slug: 'atomic_butterfly_leg_beater' },
     { displayName: 'Atomic Butterfly Swirl (Leg Beater Swirl)', slug: 'atomic_butterfly_swirl_leg_beater_swirl' },

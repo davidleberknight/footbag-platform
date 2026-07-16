@@ -22,8 +22,9 @@ const EXPECTED: Record<string, { notation: string; adds: number }> = {
   // rev whirl OP OUT, rev swirl SAME IN); BACK SWIRL is retired as a token.
   'swirl':            { notation: 'SET > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]', adds: 3 },
   'osis':             { notation: 'SET > (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL]', adds: 3 },
-  // Around-the-world folds both circling directions into one canonical row.
-  'around_the_world': { notation: 'TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]',   adds: 2 },
+  // Around-the-world is the inward circle; orbit is the outward mirror on its
+  // own row. Direction is structural, so the two never fold into one.
+  'around_the_world': { notation: 'TOE > SAME IN [DEX] > SAME TOE [DEL]',       adds: 2 },
   'orbit':            { notation: 'TOE > SAME OUT [DEX] > SAME TOE [DEL]',      adds: 2 },
 };
 
