@@ -2,16 +2,14 @@
 //
 // Operational notation encodes each scoring component of a trick as a
 // square-bracket flag, and the number of scoring flags equals the trick's ADD.
-// The scoring flags are BOD, DEX, XBD, DEL, UNS, PDX, XDEX, and CATCH. The KICK
-// action marker is non-scoring and never counts, and non-flag brackets such as
-// [set] or paren pre-states are ignored. CATCH is the between-the-thighs catch, an
-// otherwise-undocumented catching surface that scores once and is distinct from the
-// [DEL] stall (see the glossary catch note).
+// The scoring flags are BOD, DEX, XBD, DEL, UNS, PDX, and XDEX. The KICK action
+// marker is non-scoring and never counts, and non-flag brackets such as [set]
+// or paren pre-states are ignored.
 
 // Matched globally so a single call counts every occurrence. Kept private
 // because a shared global-flagged RegExp carries lastIndex state across
 // .test()/.exec() calls; callers go through the functions below instead.
-const SCORING_BRACKET_RE = /\[(BOD|DEX|XBD|DEL|UNS|PDX|XDEX|CATCH)\]/gi;
+const SCORING_BRACKET_RE = /\[(BOD|DEX|XBD|DEL|UNS|PDX|XDEX)\]/gi;
 
 export function countScoringBrackets(operationalNotation: string): number {
   const matches = operationalNotation.match(SCORING_BRACKET_RE);

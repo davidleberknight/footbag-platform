@@ -37,7 +37,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = REPO_ROOT / "database" / "footbag.db"
 
 # Must stay in sync with SCORING_BRACKET_RE in src/lib/freestyleNotation.ts.
-SCORING_BRACKET_RE = re.compile(r"\[(BOD|DEX|XBD|DEL|UNS|PDX|XDEX|CATCH)\]", re.IGNORECASE)
+SCORING_BRACKET_RE = re.compile(r"\[(BOD|DEX|XBD|DEL|UNS|PDX|XDEX)\]", re.IGNORECASE)
 
 
 def _bracket_parity_violations(conn):
