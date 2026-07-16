@@ -682,7 +682,8 @@ DESTRUCTIVE_ROUTES = frozenset({
     'clubs/edit2', 'clubs/delete', 'clubs/updatecontact', 'clubs/addcontact',
     'clubs/leaveclub', 'clubs/new2', 'clubs/deactivate', 'clubs/removecontact',
     'clubs/editclubinfo2', 'clubs/editclub2',
-    'events/convertdates', 'events/edit2', 'events/new2', 'events/addresults2',
+    'events/convertdates', 'events/edit', 'events/edit2', 'events/new2',
+    'events/addresults2', 'events/rm',
     'faq/new2', 'faq/newsection2',
     'gallery/fixthumbnails', 'gallery/newalt2', 'gallery/new2', 'gallery/newset2',
     'gallery2/fixthumbnails', 'gallery2/newalt2', 'gallery2/newset2', 'gallery2/new2',
@@ -849,12 +850,43 @@ def _slugify(s: str) -> str:
     s = re.sub(r'-{2,}', '-', s).strip('-')
     return s or 'untitled'
 
+def _collapse_amp_entities(url):
+    # Collapse an HTML-escaped ampersand ('&amp;', and the double-escaped
+    # '&amp;amp;' the live gallery emits) back to a literal '&', so a URL parsed
+    # out of an HTML attribute canonicalizes identically for fetching and for
+    # local-link rewriting. A media filename carrying a literal '&' (e.g.
+    # 'Lisa&Andy.mp4') otherwise round-trips to 'Lisa&amp;amp;Andy.mp4' in the
+    # rewritten link while the file on disk is 'Lisa&Andy.mp4', breaking it.
+    # Scoped to the '&amp;' sequence only, so a query parameter named like a
+    # legacy entity (e.g. '?copy=1', '?reg=2') is never mangled the way a blanket
+    # html.unescape would mangle it. Idempotent.
+    while '&amp;' in url:
+        url = url.replace('&amp;', '&')
+    return url
+
+
+def _canonicalize_calendar_scheme(url):
+    # The event pages link their iCalendar exports with the 'webcal://' scheme
+    # ('webcal://.../events/vcal/<id>.ics' per event, 'webcal://.../events/ical'
+    # for the whole-calendar feed). webcal is http over the wire, so canonicalize
+    # it to http:// here; the crawler then fetches, scopes, saves, and rewrites
+    # those exports through the ordinary path instead of skipping an unknown
+    # scheme.
+    for prefix in ('webcal://', 'WEBCAL://'):
+        if url.startswith(prefix):
+            return 'http://' + url[len(prefix):]
+    return url
+
+
 def normalize_url(url):
     # Normalize a URL by:
+    #  - collapsing HTML-escaped ampersands and the webcal:// calendar scheme
     #  - stripping UI-only query parameters like 'mode' and 'really' and cachebuster
     #  - stripping fragments (#...)
     #  - normalizing gallery/show/-ID to gallery/show/ID
     #  - preserving trailing slash only if present in original
+    url = _collapse_amp_entities(url)
+    url = _canonicalize_calendar_scheme(url)
     p = urlparse(url)
 
     decoded_path = unquote(p.path)
@@ -1344,6 +1376,9 @@ def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=
     # Returns the final usable filepath (converted or original), None if
     # unavailable, or SKIPPED_VIDEO when --skip-videos deliberately excluded a
     # video binary (callers keep the original reference for that case).
+    # Collapse any HTML-escaped ampersand so the fetched URL, the on-disk path,
+    # and the rewritten link all agree on the literal '&' in a media filename.
+    url = _collapse_amp_entities(url)
     if is_unsafe_url(url):
         logging.info(f"Refusing admin/mutating URL (media): {url}")
         return None
@@ -1549,6 +1584,25 @@ def url_to_filepath(url):
         except Exception:
             current_year = str(datetime.now().year)
             path = f'events/results_year_{current_year}/index.html'
+
+    elif parsed.path in ('/events/ical', '/events/ical/'):
+        # The whole-calendar iCalendar feed carries no per-event id and returns
+        # text/calendar, so give it a stable '.ics' file instead of the generic
+        # '.../index.html' the fallthrough would assign (which mislabels a
+        # calendar as HTML and left the feed uncaptured). Per-event exports are
+        # the distinct '/events/vcal/<id>.ics' route, which already resolves to
+        # its own '.ics' file through the general handler.
+        path = 'events/ical/index.ics'
+
+    elif parsed.path in ('/forum', '/forum/'):
+        # The forum is permanently retired; the live section root serves the flat
+        # 'forum-down.html' notice, which is present in the mirror. Map the root
+        # straight to that file so the site-wide nav link (every page carries it)
+        # resolves to a real file, rather than the 'forum/index.html' directory
+        # index the fallthrough would invent — the flat file being treated as a
+        # directory. Deeper cached forum URLs ('/forum/viewforum.php', ...) keep
+        # their own paths under 'forum/' and are unaffected.
+        path = 'forum-down.html'
 
     elif parsed.path == '/registration/register':
         tid = query_parts.get('tid', [None])[0]
