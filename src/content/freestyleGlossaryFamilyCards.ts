@@ -163,7 +163,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
       importance:
         'Whirl became the hub because it starts and ends in the same position, a clipper: you can enter it from almost anything that lands in a clipper and leave it into almost anything that starts from one. That points at something larger about advanced freestyle. Many tricks are valuable not simply because they are hard, but because they leave the player in a position where the next trick is possible. Whirl became central because it returns the player to one of the most reusable positions in the sport, which is a large part of why the clipper became the language advanced freestyle is built on.',
       variantsIntro:
-        'Whirl is a base other tricks build on. Add an operator on the way in and you get its family: paradox whirl, gyro whirl, spinning whirl, symposium whirl. The whirl underneath stays the same; the operator is what changes.',
+        'Paradox whirl, gyro whirl, spinning whirl, and symposium whirl each add one operator on the way in to the same underlying whirl.',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
@@ -386,7 +386,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
       importance:
         'The Mirage and Illusion pair is the clearest lesson in one of the sport\'s core habits: reversing the direction of a move does not give you a variation of the same trick, it gives you a new one. Much of the vocabulary doubles this way, the same movement kept and its direction flipped, and once you have felt how different an Illusion is from a Mirage you start to expect the reversed half of everything you learn to be its own skill with its own name.',
       variantsIntro:
-        'Illusion is a base other tricks build on, the same way Mirage is. Add an operator on the way in and you get its family: paradox illusion, spinning illusion, ducking illusion. The illusion underneath stays the same; the operator is what changes.',
+        'Paradox illusion, spinning illusion, and ducking illusion each add one operator on the way in to the same underlying illusion, the reversed-dex twin of the mirage.',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
@@ -612,7 +612,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
       importance:
         'Torque is one of the first places you see the osis working as a base rather than a single trick. Mobius, fury, and the paradox and spinning torques all grow from the same osis ending with a dex in front. Once you can name the osis inside a torque, and then name the dex that was added, the branch stops being a list of hard tricks and becomes one ending you reach different ways.',
       variantsIntro:
-        'Torque is a base other tricks build on. Add an operator and you get its family: paradox torque, spinning torque, blurry torque. Its gyro form is the mobius. The torque underneath stays the same; the operator is what changes.',
+        'Paradox torque, spinning torque, and blurry torque each add an operator to the same underlying torque, and its gyro form is the mobius.',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
@@ -657,7 +657,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
       importance:
         'Blender sits beside torque as the other main way into the osis. Torque adds a quantum dex, blender a whirling one, and seeing them as a pair is the lesson: once freestyle has a base ending like the osis, the different dexes you can put in front of it generate an entire branch rather than a handful of separate tricks.',
       variantsIntro:
-        'Blender is a base other tricks build on. Add an operator and you get its family: paradox blender, spinning blender, symposium blender. Its blurry form is the food processor. The blender underneath stays the same; the operator is what changes.',
+        'Paradox blender, spinning blender, and symposium blender each add an operator to the same underlying blender, and its blurry form is the food processor.',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
