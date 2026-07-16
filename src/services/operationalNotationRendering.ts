@@ -60,7 +60,7 @@ const DIRECTIONS      = new Set(['IN', 'OUT']);
 const FRONT_BACK      = new Set(['FRONT', 'BACK']);
 const BODY_ACTIONS    = new Set(['SPIN', 'DUCK', 'DIVE', 'FLYING', 'JUMP', 'SWING', 'SYMP']);
 const ROTATION_NOUNS  = new Set(['WHIRL', 'SWIRL']);
-const COMPONENT_FLAGS = new Set(['DEX', 'DEL', 'BOD', 'XBD', 'PDX', 'XDEX', 'UNS', 'KICK']);
+const COMPONENT_FLAGS = new Set(['DEX', 'DEL', 'BOD', 'XBD', 'PDX', 'XDEX', 'UNS', 'CATCH', 'KICK']);
 
 // Educational tooltip text per role. Used in the `title` attribute of each
 // rendered <span> for native browser hover-disclosure. Generic fallbacks;
@@ -121,6 +121,7 @@ export const COMPONENT_FLAG_LABELS: Record<string, string> = {
   PDX:  'Paradox component (paradox-direction dex)',
   XDEX: 'X-Dex component (conditional +1, scored only where [XDEX] is present)',
   UNS:  'Unusual-surface component (stall on a non-standard landing surface)',
+  CATCH: 'Catch component (bag secured between the thighs, an undocumented catching surface; scores once, and is not a [DEL] stall)',
   KICK: 'Kick action marker (non-scoring; the kick itself carries no ADD)',
 };
 

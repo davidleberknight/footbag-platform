@@ -1,7 +1,7 @@
 /**
  * Scoring-bracket parity helper for freestyle operational notation.
  *
- * Counts the scoring bracket flags (BOD, DEX, XBD, DEL, UNS, PDX, XDEX) in an
+ * Counts the scoring bracket flags (BOD, DEX, XBD, DEL, UNS, PDX, XDEX, CATCH) in an
  * execution-notation string and checks that the count equals a numeric ADD.
  * KICK is a non-scoring marker; non-flag brackets such as [set] are ignored.
  * A row is not checkable (returns null) when the ADD is non-numeric or the
@@ -16,7 +16,11 @@ describe('countScoringBrackets', () => {
   });
 
   it('counts every scoring flag in the vocabulary', () => {
-    expect(countScoringBrackets('[BOD] [DEX] [XBD] [DEL] [UNS] [PDX] [XDEX]')).toBe(7);
+    expect(countScoringBrackets('[BOD] [DEX] [XBD] [DEL] [UNS] [PDX] [XDEX] [CATCH]')).toBe(8);
+  });
+
+  it('counts the thigh-catch surface flag as one scoring event', () => {
+    expect(countScoringBrackets('SET > THIGH [catch]')).toBe(1);
   });
 
   it('excludes the non-scoring KICK marker', () => {
@@ -51,6 +55,11 @@ describe('checkAddMatchesScoringBrackets', () => {
   it('reports not-ok when the count differs from a numeric ADD', () => {
     expect(checkAddMatchesScoringBrackets('5', 'OP IN [DEX] [DEL]'))
       .toEqual({ add: 5, bracketCount: 2, ok: false });
+  });
+
+  it('reports ok for the 1-ADD thigh catch scored by [catch]', () => {
+    expect(checkAddMatchesScoringBrackets('1', 'SET > THIGH [catch]'))
+      .toEqual({ add: 1, bracketCount: 1, ok: true });
   });
 
   it('is not checkable when the notation has no scoring brackets (blank)', () => {
