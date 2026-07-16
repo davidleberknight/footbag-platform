@@ -421,6 +421,11 @@ def _inv_row(label: str, source_type: str, info: dict, structure: str, notes: st
 
 def build_snippet_candidates(state: dict, pixie_compounds, named, misc) -> list[dict]:
     rows: list[dict] = []
+    # PassBack snippet candidates carry no proposed compound difficulty. The
+    # adds_proposed value is optional staging metadata; a computed compound sum on
+    # an unreviewed decomposition candidate must not ride into promotion or be read
+    # as a difficulty claim, so every snippet row emits adds_proposed blank. The
+    # canonical ADD lives on the matched trick row, never here.
     seq = 0
     seen: set[str] = set()
     for label, structure in pixie_compounds:
@@ -439,7 +444,7 @@ def build_snippet_candidates(state: dict, pixie_compounds, named, misc) -> list[
             "start_seconds": "",
             "end_seconds": "",
             "structure_decomposition": "+".join(structure),
-            "adds_proposed": _adds_from_structure(state, structure) or "",
+            "adds_proposed": "",
             "our_slug_match": info["matched_slug"] or "",
             "our_match_kind": info["matched_kind"] or "",
             "status": "needs_review" if info["matched_kind"] is None else "known",
@@ -461,7 +466,7 @@ def build_snippet_candidates(state: dict, pixie_compounds, named, misc) -> list[
             "start_seconds": "",
             "end_seconds": "",
             "structure_decomposition": "+".join(nt["structure"]),
-            "adds_proposed": _adds_from_structure(state, nt["structure"]) or "",
+            "adds_proposed": "",
             "our_slug_match": info["matched_slug"] or "",
             "our_match_kind": info["matched_kind"] or "",
             "status": _named_status(state, nt, info),
@@ -483,7 +488,7 @@ def build_snippet_candidates(state: dict, pixie_compounds, named, misc) -> list[
             "start_seconds": "",
             "end_seconds": "",
             "structure_decomposition": "+".join(m["structure"]),
-            "adds_proposed": _adds_from_structure(state, m["structure"]) or "" if m["structure"] else "",
+            "adds_proposed": "",
             "our_slug_match": info["matched_slug"] or "",
             "our_match_kind": info["matched_kind"] or "",
             "status": "needs_review" if info["matched_kind"] is None else "known",
