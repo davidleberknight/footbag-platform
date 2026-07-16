@@ -260,7 +260,7 @@ run_all_data() {
   local intermediate="${REPO_ROOT}/legacy_data/member_data_scripts/out/legacy_members_final.csv"
   if [[ -z "$dump_root" && ! -f "$intermediate" ]]; then
     echo "ERROR: no legacy member-data source." >&2
-    echo "       Need either the footbag.org dump (repo-root symlink or FOOTBAG_LEGACY_DUMP_ROOT)" >&2
+    echo "       Need either the footbag.org dump (repo-root footbag_legacy_repo symlink or FOOTBAG_LEGACY_REPO)" >&2
     echo "       or a prior intermediate CSV at ${intermediate}." >&2
     exit 1
   fi

@@ -144,6 +144,7 @@
       "mcp__playwright__browser_take_screenshot"
     ],
     "deny": [
+      "Edit(./footbag_legacy_repo/**)",
       "Edit(./.env)",
       "Edit(./.env.local)",
       "Edit(./.env.production)",

@@ -4,7 +4,7 @@
 #
 # The legacy database dump lives only on maintainer machines, reached read-only
 # through the git-ignored repo-root `footbag.org` symlink or the
-# FOOTBAG_LEGACY_DUMP_ROOT override, so extraction is maintainer-only. Extraction
+# FOOTBAG_LEGACY_REPO override, so extraction is maintainer-only. Extraction
 # writes a PII-bearing intermediate CSV under the git-ignored out/ directory,
 # which is the shareable artifact: a developer without the dump loads a copy
 # handed to them out of band via --from-csv.
@@ -111,7 +111,7 @@ db_has_historical_persons() {
 if [[ "${DO_EXTRACT}" -eq 1 ]]; then
   ROOT="$("${PY}" -c 'import sys; sys.path.insert(0, "legacy_data/member_data_scripts"); from _dump_parser import resolve_dump_root; r = resolve_dump_root(); print(r or "")')"
   if [[ -z "${ROOT}" ]]; then
-    echo "run_legacy_members --extract: no legacy dump present (set FOOTBAG_LEGACY_DUMP_ROOT or create the repo-root footbag.org symlink)." >&2
+    echo "run_legacy_members --extract: no legacy dump present (set FOOTBAG_LEGACY_REPO or create the repo-root footbag_legacy_repo symlink)." >&2
     echo "  The dump lives only on maintainer machines; a developer without it loads a shared CSV via --from-csv instead." >&2
     exit 1
   fi

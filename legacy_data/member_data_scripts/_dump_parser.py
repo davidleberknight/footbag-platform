@@ -10,8 +10,8 @@ copy, so quoting, escape, and NULL handling cannot drift between extractors.
 
 The dump itself holds clear-text credentials and personal data and lives only
 on maintainer machines, outside this repository. Its location is never
-committed: `resolve_dump_root()` reads the `FOOTBAG_LEGACY_DUMP_ROOT`
-environment variable, falling back to the git-ignored `footbag.org` symlink at
+committed: `resolve_dump_root()` reads the `FOOTBAG_LEGACY_REPO`
+environment variable, falling back to the git-ignored `footbag_legacy_repo` symlink at
 the repository root when present, and returns None when neither exists (the
 correct state for CI and for a fresh clone, where dump-driven steps skip).
 """
@@ -23,7 +23,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-DUMP_ROOT_ENV_VAR = "FOOTBAG_LEGACY_DUMP_ROOT"
+DUMP_ROOT_ENV_VAR = "FOOTBAG_LEGACY_REPO"
 
 _ESCAPES = {"0": "\0", "b": "\b", "n": "\n", "r": "\r", "t": "\t",
             "Z": "\x1a", "\\": "\\", "'": "'", '"': '"'}
@@ -93,7 +93,7 @@ def resolve_dump_root() -> Path | None:
     """The operator's legacy-dump root, or None when no dump is available.
 
     Precedence: the environment variable names the root explicitly; otherwise
-    the git-ignored `footbag.org` symlink at the repository root is used when
+    the git-ignored `footbag_legacy_repo` symlink at the repository root is used when
     it resolves to a directory. An environment variable that points at a
     missing directory is an operator error and fails loudly rather than
     silently falling through to the symlink.
@@ -104,10 +104,10 @@ def resolve_dump_root() -> Path | None:
         if not p.is_dir():
             raise SystemExit(
                 f"error: {DUMP_ROOT_ENV_VAR}={env} is not a directory; unset it "
-                "to fall back to the repo-root footbag.org symlink, or point it "
+                "to fall back to the repo-root footbag_legacy_repo symlink, or point it "
                 "at the private footbag.org clone's checkout root")
         return p
-    symlink = REPO_ROOT / "footbag.org"
+    symlink = REPO_ROOT / "footbag_legacy_repo"
     if symlink.is_dir():
         return symlink
     return None

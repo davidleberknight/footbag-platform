@@ -1,30 +1,30 @@
 # sources.yaml — where each app's dump comes from, and the dump date we expect.
 #
 # dump_path values are relative to the repo root, where seal.py is run. They
-# point at the git-ignored `footbag.org` symlink at the repo root — the same
-# read-only legacy-dump checkout the member-data extractors resolve through
-# _dump_parser.resolve_dump_root (repo-root `footbag.org` symlink, or the
-# FOOTBAG_LEGACY_DUMP_ROOT override). Create the symlink or set that variable
+# point at the git-ignored `footbag_legacy_repo` symlink at the repo root — the
+# same read-only legacy-dump checkout the member-data extractors resolve through
+# _dump_parser.resolve_dump_root (repo-root `footbag_legacy_repo` symlink, or the
+# FOOTBAG_LEGACY_REPO override). Create the symlink or set that variable
 # before running seal.py; nothing reads these paths until then.
 #
 # expected_dump_date is recorded into the audit report for provenance; confirm it
 # against the actual dump before sealing.
 
 news:
-  dump_path: "footbag.org/news/backups/latest.sql"
+  dump_path: "footbag_legacy_repo/news/backups/latest.sql"
   expected_dump_date: "2026-05-29"
 
 rules:
-  dump_path: "footbag.org/rules/backups/latest.sql"
+  dump_path: "footbag_legacy_repo/rules/backups/latest.sql"
   expected_dump_date: "TODO"
 
 clubs:
-  dump_path: "footbag.org/clubs/backups/latest.sql"
+  dump_path: "footbag_legacy_repo/clubs/backups/latest.sql"
   expected_dump_date: "2026-05-28"
 
 moves2:
   # Freestyle move database: the source behind recovered Member Tips plus the
   # moves metadata (pronunciation, descriptions, nicknames, video refs, per-trick
   # records) kept for future recovery work.
-  dump_path: "footbag.org/moves2/backups/latest.sql"
+  dump_path: "footbag_legacy_repo/moves2/backups/latest.sql"
   expected_dump_date: "2026-06-25"

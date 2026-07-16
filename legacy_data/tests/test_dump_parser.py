@@ -5,11 +5,11 @@ test_dump_parser.py
 Unit tests for the shared dump-root resolver
 (legacy_data/member_data_scripts/_dump_parser.py):
 
-  * resolve_dump_root(): the FOOTBAG_LEGACY_DUMP_ROOT environment variable wins
+  * resolve_dump_root(): the FOOTBAG_LEGACY_REPO environment variable wins
     when it names a real directory; an env var pointing at a missing directory
     exits with an actionable error naming the variable; with no env var the
-    repo-root `footbag.org` symlink is used when present; None when neither
-    exists (the correct state for CI and a fresh clone).
+    repo-root `footbag_legacy_repo` symlink is used when present; None when
+    neither exists (the correct state for CI and a fresh clone).
   * module_dump_path(): maps an app name to <root>/<app>/backups/latest.sql.
 
 Run from repo root:
@@ -44,8 +44,8 @@ def test_env_var_pointing_at_a_missing_directory_exits_actionably(tmp_path, monk
 def test_symlink_fallback_used_when_env_unset(tmp_path, monkeypatch):
     monkeypatch.delenv(_dump_parser.DUMP_ROOT_ENV_VAR, raising=False)
     monkeypatch.setattr(_dump_parser, "REPO_ROOT", tmp_path)
-    (tmp_path / "footbag.org").mkdir()
-    assert _dump_parser.resolve_dump_root() == tmp_path / "footbag.org"
+    (tmp_path / "footbag_legacy_repo").mkdir()
+    assert _dump_parser.resolve_dump_root() == tmp_path / "footbag_legacy_repo"
 
 
 def test_none_when_neither_env_nor_symlink(tmp_path, monkeypatch):

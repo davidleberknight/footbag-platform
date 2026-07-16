@@ -41,7 +41,7 @@ readonly_heads='ls cat head tail wc grep egrep fgrep rg find tree stat file echo
 # Git subcommands that only read. Anything else under git falls through. Every entry must be
 # read-only in ALL its subverbs; `reflog` is the one exception (its `expire`/`delete` mutate) and
 # is gated in head_arg_unsafe below, so it can stay here for its read-only `show`/`list` forms.
-readonly_git='status log diff show blame rev-parse describe shortlog ls-files ls-tree cat-file for-each-ref reflog rev-list merge-base show-ref name-rev ls-remote var count-objects cherry whatchanged verify-commit verify-tag grep annotate range-diff show-branch check-ignore check-attr check-mailmap'
+readonly_git='status log diff show blame rev-parse describe shortlog ls-files ls-tree cat-file for-each-ref reflog rev-list merge-base show-ref name-rev ls-remote remote var count-objects cherry whatchanged verify-commit verify-tag grep annotate range-diff show-branch check-ignore check-attr check-mailmap'
 
 contains() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
 
@@ -94,6 +94,11 @@ head_arg_unsafe() {
       # (drop entries); the subverb is the first arg after `reflog`. Refuse those here so the
       # entry can stay on the read-only git list for its read-only forms.
       case "${1:-}" in reflog) case "${2:-}" in expire|delete) return 0 ;; esac ;; esac
+      # `git remote` reads in its bare / `-v` / `show` / `get-url` forms but MUTATES via add,
+      # rename, remove, set-url, set-head, set-branches, prune, and update; the subverb is the
+      # first arg after `remote`. Refuse those so `remote` can stay on the read-only git list
+      # for its read forms.
+      case "${1:-}" in remote) case "${2:-}" in add|rename|remove|rm|set-head|set-branches|set-url|prune|update) return 0 ;; esac ;; esac
       # An exec/write flag on a read-only git subcommand (`git log --output=f`,
       # `git ls-remote --upload-pack=cmd`).
       for a in "$@"; do
@@ -497,9 +502,9 @@ while IFS= read -r seg; do
     # like `git --no-pager diff` is vetted on `diff`. `-c` is deliberately NOT
     # skipped: it can change behavior, so it falls through. `-C` targets another
     # repo, so it is accepted only for the project directory or a path under it
-    # (an in-project symlink to a read-only reference clone counts) -- the form
-    # CLAUDE.md prefers over a leading cd; a `..`-bearing or out-of-tree target
-    # falls through.
+    # (an in-project symlink to a read-only reference clone or companion checkout
+    # counts) -- the form CLAUDE.md prefers over a leading cd; a `..`-bearing or
+    # out-of-tree target falls through.
     while [ $# -gt 0 ]; do
       case "$1" in
         --no-pager|-P|--paginate|--no-optional-locks|--literal-pathspecs) shift ;;
@@ -544,6 +549,7 @@ while IFS= read -r seg; do
       "pr view"|"pr list"|"pr checks"|"pr diff"|"pr status"|\
       "issue view"|"issue list"|"issue status"|\
       "release view"|"release list"|"repo view"|"repo list"|\
+      "project list"|"project view"|"project item-list"|"project field-list"|\
       "workflow view"|"workflow list"|"cache list"|"label list"|\
       "search prs"|"search issues"|"search repos"|"search code"|"search commits")
         continue ;;

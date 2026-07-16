@@ -3,6 +3,8 @@ paths:
   - "tests/**"
   - "src/adapters/**"
   - "scripts/ci/stage_*.sh"
+  - "run_all_tests.sh"
+  - "legacy_data/tests/**"
 ---
 
 # Testing rules
@@ -132,6 +134,8 @@ No test, test fixture, or local test-runner entry point writes into the irreplac
 The only script permitted to write a real-data path is the CI loader tool `scripts/reset-local-db.sh` (the `db-load-smoke` gate). It is **CI-only**: GitHub Actions runs it against a clean, empty checkout where there is nothing to clobber. It is NEVER invoked by the local test runner. Running it on a workstation that holds the real `legacy_data/` dump is forbidden; if a loader failure must be reproduced locally, do it in an isolated `git worktree` with an empty `legacy_data/`, and confirm with the maintainer first. (It also carries the refuse-on-real-data guards from the section above, but the by-design rule is upstream of that: do not point it at a real checkout at all.)
 
 `./run_all_tests.sh` is the canonical local full-suite runner and is safe on a workstation holding real `legacy_data/` by design: it excludes the loader gate, and it fingerprints `legacy_data/` and `curated/` before and after the run, aborting non-zero if any tree changed. Any new suite added to `run_all_tests.sh` must preserve this — the new gate writes only to tmp.
+
+Python test gates never let bytecode land in the real-data trees. Because pytest resolves its rootdir to `legacy_data/` and writes `__pycache__` bytecode and a `.pytest_cache` directory next to the source it collects, any pytest gate over `legacy_data/tests/` runs with `PYTHONPYCACHEPREFIX` pointed at a throwaway temp dir and `-p no:cacheprovider`, so every bytecode and cache write goes outside the tree. The fingerprint deliberately prunes bytecode-cache artifacts (`__pycache__`, `*.pyc`, `.pytest_cache`) from what it hashes: those are regenerable build output, not real data, so a stray write from an ad-hoc manual `pytest legacy_data/tests/` run (which does not inherit the gate's environment) can never masquerade as a real-data change, while a genuine write to a data file still aborts the run.
 
 ## /curated guardrail (pre-go-live; dev-only)
 

@@ -190,6 +190,11 @@ bash scripts/clean_up_rubbish.sh
 
 # -----------------------------------------------------------------------------
 # No-real-data guard. Fingerprint the trees that hold irreplaceable local data.
+# Python bytecode caches (__pycache__, *.pyc, .pytest_cache) are regenerable build
+# artifacts, not real data, so they are pruned from the fingerprint. A stray
+# bytecode write from any pytest invocation, including an ad-hoc manual run, can
+# then never masquerade as a real-data change, while a genuine write to a data
+# file still trips the guard.
 # The find segment tolerates its own non-zero exit (broken symlinks etc.) so a
 # fingerprint is always produced under 'set -o pipefail'.
 # -----------------------------------------------------------------------------
@@ -197,7 +202,7 @@ REAL_DATA_DIRS=(legacy_data curated)
 fingerprint() {
   local dir="$1"
   if [[ -e "$dir" ]]; then
-    { find "$dir" -printf '%T@ %s %p\n' 2>/dev/null || true; } | LC_ALL=C sort | sha256sum | awk '{print $1}'
+    { find "$dir" \( -name '__pycache__' -o -name '.pytest_cache' \) -prune -o -name '*.pyc' -prune -o -printf '%T@ %s %p\n' 2>/dev/null || true; } | LC_ALL=C sort | sha256sum | awk '{print $1}'
   else
     echo "absent"
   fi
@@ -588,10 +593,11 @@ gate_audit() {
 # on every full local pass. Every test writes only to pytest tmp_path fixtures,
 # but pytest itself would otherwise write into legacy_data/ (a .pytest_cache
 # directory there, since its rootdir resolves to legacy_data, plus __pycache__
-# bytecode), tripping the real-data fingerprint guard. PYTHONDONTWRITEBYTECODE
-# suppresses the bytecode writes and -p no:cacheprovider disables the pytest
-# cache, so the gate leaves legacy_data/ byte-for-byte untouched. Any change to
-# this invocation must preserve that (verify with the fingerprint guard).
+# bytecode), landing build artifacts in the real-data tree. PYTHONPYCACHEPREFIX
+# redirects every bytecode write to a throwaway temp dir outside the tree, and
+# -p no:cacheprovider disables the pytest cache, so the gate leaves legacy_data/
+# byte-for-byte untouched. Any change to this invocation must preserve that
+# (verify with the fingerprint guard).
 gate_python_pipeline() {
   # Prefer the project venv: system python3 may lack pytest and the pipeline
   # deps, and a workstation with the venv provisioned should run this gate,
@@ -606,7 +612,7 @@ gate_python_pipeline() {
     echo "  pytest not importable — skipping (pip install pytest into scripts/.venv or system python3 to enable)."
     return 77
   fi
-  PYTHONDONTWRITEBYTECODE=1 "$py" -m pytest legacy_data/tests/ -q -p no:cacheprovider
+  PYTHONPYCACHEPREFIX="${LOG_DIR}/pytest-pycache" "$py" -m pytest legacy_data/tests/ -q -p no:cacheprovider
 }
 
 # =============================================================================

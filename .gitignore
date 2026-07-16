@@ -4,8 +4,11 @@
 /.local/
 .local/**
 
-# Local symlink into the operator's footbag.org mirror checkout (machine-specific)
-/footbag.org
+# Local symlink into the legacy footbag.org repository clone (canonical link name; machine-specific target)
+/footbag_legacy_repo
+
+# Local symlink into the maintainers' private ops checkout (canonical link name; machine-specific target)
+/footbag_private_repo
 
 #=========================
 # Legacy migration data (keep code, ignore generated/mirrored data)

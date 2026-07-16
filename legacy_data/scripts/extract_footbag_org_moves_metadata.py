@@ -33,11 +33,11 @@ import re
 from pathlib import Path
 
 # The dump root is operator-supplied, never a committed machine path: the
-# FOOTBAG_LEGACY_DUMP_ROOT environment variable, else the git-ignored
-# footbag.org symlink at the repo root.
+# FOOTBAG_LEGACY_REPO environment variable, else the git-ignored
+# footbag_legacy_repo symlink at the repo root.
 _DUMP_ROOT = Path(
-    os.environ.get("FOOTBAG_LEGACY_DUMP_ROOT")
-    or Path(__file__).resolve().parents[2] / "footbag.org"
+    os.environ.get("FOOTBAG_LEGACY_REPO")
+    or Path(__file__).resolve().parents[2] / "footbag_legacy_repo"
 )
 DEFAULT_SOURCE = _DUMP_ROOT / "moves2" / "backups" / "latest.sql"
 DEFAULT_OUT = (

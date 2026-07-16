@@ -406,7 +406,7 @@ H=allow-readonly-bash.sh
 # Plain read-only commands, pipelines, and loops auto-approve.
 expect "$H" 'grep -rn "foo" src/' allow
 expect "$H" 'cat a.txt | wc -l' allow
-expect "$H" 'find footbag.org -path "*/backups/latest.sql"' allow
+expect "$H" 'find footbag_legacy_repo -path "*/backups/latest.sql"' allow
 expect "$H" 'for f in a b c; do cat "$f"; done' allow
 expect "$H" 'git status' allow
 
@@ -422,13 +422,21 @@ expect "$H" 'echo $(cat `evil`)' defer
 expect "$H" 'grep "x\`y" f.txt; rm z' defer
 
 # git -C auto-approves for the project directory and paths under it (the read-only
-# reference-clone symlink included); out-of-tree targets, ..-escapes, and mutating
-# subcommands still fall through.
+# reference-clone symlink and the maintainers' private-checkout symlink included);
+# out-of-tree targets, ..-escapes, and mutating subcommands still fall through.
 expect "$H" "git -C $CLAUDE_PROJECT_DIR log -1" allow
-expect "$H" "git -C $CLAUDE_PROJECT_DIR/footbag.org log -1 --format='%ai %s'" allow
+expect "$H" "git -C $CLAUDE_PROJECT_DIR/footbag_legacy_repo log -1 --format='%ai %s'" allow
+expect "$H" "git -C $CLAUDE_PROJECT_DIR/footbag_private_repo log -1" allow
 expect "$H" 'git -C /somewhere/else log -1' defer
 expect "$H" "git -C $CLAUDE_PROJECT_DIR/../elsewhere log -1" defer
 expect "$H" "git -C $CLAUDE_PROJECT_DIR push" defer
+
+# git remote reads (bare / -v / show / get-url) auto-approve; mutating subverbs fall through.
+expect "$H" 'git remote -v' allow
+expect "$H" "git -C $CLAUDE_PROJECT_DIR remote -v" allow
+expect "$H" 'git remote show origin' allow
+expect "$H" 'git remote add x https://example/r' defer
+expect "$H" 'git remote set-url origin https://example/r' defer
 
 # Read-only command substitution auto-approves (the case that regressed to a prompt).
 expect "$H" 'echo "size $(wc -c < f.txt)"' allow
@@ -539,9 +547,10 @@ expect "$H" 'git --no-pager diff HEAD' allow
 expect "$H" 'git --no-pager log --oneline -5' allow
 expect "$H" 'git -P show HEAD:src/app.ts' allow
 expect "$H" 'git --no-pager commit -m x' defer
-# git -C is accepted only when it targets the project directory itself (the form the
-# root CLAUDE.md prefers over a leading cd); any other -C target, any -c override,
-# and a mutation behind an accepted -C all fall through.
+# git -C is accepted for the project directory or a path under it (the in-project
+# symlink to a read-only reference clone counts -- the form the root CLAUDE.md
+# prefers over a leading cd); other -C targets, any -c override, and a mutation
+# behind an accepted -C all fall through.
 expect "$H" "git -C $CLAUDE_PROJECT_DIR log --oneline -5" allow
 expect "$H" "git -C $CLAUDE_PROJECT_DIR diff --stat notes.md" allow
 expect "$H" 'git -C /somewhere/else log' defer
@@ -569,6 +578,14 @@ expect "$H" 'gh pr diff 7' allow
 expect "$H" 'gh api repos/o/r/commits' allow
 expect "$H" 'echo hi; gh run view 123 | head -40' allow
 expect "$H" 'gh search prs --state open' allow
+expect "$H" 'gh project item-list 5 --owner o --format json' allow
+expect "$H" 'gh project view 5 --owner o' allow
+expect "$H" 'gh project field-list 5 --owner o' allow
+expect "$H" 'gh project item-edit --id X --field-id Y' defer
+expect "$H" 'gh project create --owner o --title Board' defer
+expect "$H" 'gh issue list -R "$FOOTBAG_PRIVATE_REPO"' allow
+expect "$H" 'gh issue create -R o/r --title x --body y' defer
+expect "$H" 'gh repo edit o/r --enable-issues=false' defer
 expect "$H" 'gh pr create --title x --body y' defer
 expect "$H" 'gh run rerun 123' defer
 expect "$H" 'gh pr merge 7' defer
