@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { emergingVocabController } from '../internal-qc/controllers/emergingVocabController';
 import { netQcController } from '../internal-qc/controllers/netQcController';
 import { personsQcController } from '../internal-qc/controllers/personsQcController';
 import { requireAuth } from '../middleware/auth';
@@ -20,8 +19,12 @@ internalRouter.use(requireAuth, requireAdmin);
 internalRouter.get('/persons/qc', personsQcController.qcPage);
 internalRouter.get('/persons/browse', personsQcController.browsePage);
 
-// Emerging Vocabulary workbench (decision packet + full-dimension row table)
-internalRouter.get('/freestyle/emerging-vocabulary', emergingVocabController.workbenchPage);
+// The Emerging Vocabulary workbench moved to /admin/freestyle/emerging-vocabulary
+// (a keeper curator surface, off this dev-only QC router). Redirect any bookmark
+// held from when it lived here.
+internalRouter.get('/freestyle/emerging-vocabulary', (_req, res) => {
+  res.redirect(301, '/admin/freestyle/emerging-vocabulary');
+});
 
 // Net team corrections triage
 internalRouter.get('/net/team-corrections',                    netQcController.teamCorrectionsPage);

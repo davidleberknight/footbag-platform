@@ -5,8 +5,8 @@
 // ratified, they must not appear on the PUBLIC Emerging Vocabulary surface
 // (/freestyle/observational): an obvious alias, abbreviation, retired name, or
 // spelling variant must never be shown to visitors as if it were novel vocabulary.
-// They remain fully visible with provenance on the internal workbench
-// (/internal/freestyle/emerging-vocabulary), which is where the reconciliation runs.
+// They remain fully visible with provenance on the admin curator workbench
+// (/admin/freestyle/emerging-vocabulary), which is where the reconciliation runs.
 //
 // A name leaves this set one of two ways: it resolves to a canonical (an alias is
 // registered, and the request-time DB filter drops it on its own), or the

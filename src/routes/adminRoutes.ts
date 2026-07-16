@@ -11,6 +11,7 @@ import { adminAuditLogController } from '../controllers/adminAuditLogController'
 import { adminEmailLogController } from '../controllers/adminEmailLogController';
 import { adminEmailTemplateController } from '../controllers/adminEmailTemplateController';
 import { adminFreestyleController } from '../controllers/adminFreestyleController';
+import { emergingVocabController } from '../controllers/emergingVocabController';
 import { requireAuth } from '../middleware/auth';
 import { requireAdmin } from '../middleware/requireAdmin';
 
@@ -77,6 +78,9 @@ adminRouter.post('/freestyle/tricks/:slug/sources',                    adminFree
 adminRouter.post('/freestyle/tricks/:slug/sources/:sourceId/delete',   adminFreestyleController.detachSource);
 adminRouter.post('/freestyle/tricks/:slug/modifiers',                                    adminFreestyleController.attachModifier);
 adminRouter.post('/freestyle/tricks/:slug/modifiers/:modifierSlug/:applyOrder/delete',   adminFreestyleController.detachModifier);
+// Emerging Vocabulary workbench (decision packet + full-dimension row table).
+// Read-only curator surface; adjudications land through the ruling ledger.
+adminRouter.get('/freestyle/emerging-vocabulary', emergingVocabController.workbenchPage);
 // Moderation of the imported community trick tips: a cross-trick index, and
 // per-tip edit / hide / restore / remap. Tips are keyed by numeric id (unresolved
 // tips have no trick page), so this is its own index rather than a per-trick sub-surface.

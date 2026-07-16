@@ -1,12 +1,14 @@
 /**
- * Internal Emerging Vocabulary workbench (/internal/freestyle/emerging-vocabulary).
+ * Emerging Vocabulary workbench (/admin/freestyle/emerging-vocabulary).
  *
- * Admin-gated like every /internal route. Renders the curator decision packet
- * (the compact decision groups with question, recommendation, alternatives,
- * evidence, and consequences — presented for decision, never auto-applied) and
- * the full-dimension row table with query-param filters. Diagnostics (parser
- * confidence, failure class, ledger provenance) are internal-only and render
- * here, never on the public page.
+ * A keeper curator surface on the admin mount (it outlives the internal-QC
+ * subsystem). Admin-gated: unauthenticated requests redirect to /login,
+ * authenticated non-admins get 403. Renders the curator decision packet (the
+ * compact decision groups with question, recommendation, alternatives, evidence,
+ * and consequences — presented for decision, never auto-applied) and the
+ * full-dimension row table with query-param filters. Diagnostics (parser
+ * confidence, failure class, ledger provenance) are operator-only and render
+ * here, never on the public page. The former internal URL redirects here.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -22,7 +24,8 @@ const MEMBER_ID = 'member-ev-workbench';
 const ADMIN_ID  = 'admin-ev-workbench';
 const MEMBER_COOKIE = `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
 const ADMIN_COOKIE  = `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID })}`;
-const PATH = '/internal/freestyle/emerging-vocabulary';
+const PATH = '/admin/freestyle/emerging-vocabulary';
+const LEGACY_PATH = '/internal/freestyle/emerging-vocabulary';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -73,6 +76,11 @@ describe('workbench content', () => {
     }
   });
 
+  it('points its filter form at its own admin URL', async () => {
+    const res = await request(createApp()).get(PATH).set('Cookie', ADMIN_COOKIE);
+    expect(res.text).toContain(`action="${PATH}"`);
+  });
+
   it('filters the table by an exact dimension value', async () => {
     const res = await request(createApp())
       .get(`${PATH}?dimension=blockerId&value=D1`)
@@ -82,5 +90,13 @@ describe('workbench content', () => {
     // table still lists every group's members, so assert via the shown count).
     expect(res.text).toContain('Pixie near Double Down');
     expect(res.text).toMatch(/>1 shown</);
+  });
+});
+
+describe('legacy internal URL', () => {
+  it('permanently redirects an admin bookmark to the admin workbench', async () => {
+    const res = await request(createApp()).get(LEGACY_PATH).set('Cookie', ADMIN_COOKIE);
+    expect(res.status).toBe(301);
+    expect(res.headers['location']).toBe(PATH);
   });
 });

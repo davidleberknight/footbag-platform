@@ -1,4 +1,4 @@
-{{! /internal/freestyle/emerging-vocabulary — curator workbench: decision packet + full-dimension row table }}
+{{! /admin/freestyle/emerging-vocabulary — curator workbench: decision packet + full-dimension row table }}
 
 <div class="hero hero-sm">
   <div>
@@ -30,7 +30,7 @@
     <h2>Curator decision packet</h2>
     {{#each content.decisionGroups}}
     <details class="observed-disclosure" id="decision-{{id}}">
-      <summary class="observed-disclosure-summary">{{id}} — {{title}} <span class="text-muted">({{count}} names)</span></summary>
+      <summary class="observed-disclosure-summary">{{id}}: {{title}} <span class="text-muted">({{count}} names)</span></summary>
       <dl class="observed-decision-facts">
         <dt>Decision</dt><dd>{{question}}</dd>
         <dt>Recommended</dt><dd>{{recommendation}}</dd>
@@ -49,7 +49,7 @@
   {{! ── Full-dimension table ── }}
   <section class="content-section">
     <h2>All rows</h2>
-    <form method="GET" action="/internal/freestyle/emerging-vocabulary" class="filter-bar">
+    <form method="GET" action="/admin/freestyle/emerging-vocabulary" class="filter-bar">
       <label>
         Dimension
         <select name="dimension">
