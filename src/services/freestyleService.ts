@@ -3455,6 +3455,11 @@ export interface FamilyDetailTeaching {
   seeItIn: { name: string; href: string }[];
   notationIntro: string;
   takeaway: string;
+  // Formula-first additions. Null when the card does not author them (the page
+  // then falls back to the variant-intro "structural model" flow).
+  plainLanguageReading: string | null;
+  structuralSignature: { conserved: string; mayChange: string; nearestNeighbors: string } | null;
+  atlasRelationship: { lines: string[]; note: string } | null;
 }
 
 export interface FreestyleFamilyDetailContent {
@@ -10892,6 +10897,17 @@ export const freestyleService = {
             .filter((x): x is { name: string; href: string } => x !== null),
           notationIntro:       card.teaching.notationIntro,
           takeaway:            card.teaching.takeaway,
+          plainLanguageReading: card.teaching.plainLanguageReading ?? null,
+          structuralSignature: card.teaching.structuralSignature
+            ? {
+                conserved:        card.teaching.structuralSignature.conserved,
+                mayChange:        card.teaching.structuralSignature.mayChange,
+                nearestNeighbors: card.teaching.structuralSignature.nearestNeighbors,
+              }
+            : null,
+          atlasRelationship: card.teaching.atlasRelationship
+            ? { lines: [...card.teaching.atlasRelationship.lines], note: card.teaching.atlasRelationship.note }
+            : null,
         }
       : null;
 

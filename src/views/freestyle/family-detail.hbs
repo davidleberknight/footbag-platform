@@ -39,6 +39,18 @@
   {{/if}}
 
   {{#if content.teaching}}
+  {{#if content.overview}}
+  <section class="content-section" aria-label="Canonical formula">
+    <div class="section-heading">
+      <h2>Canonical formula</h2>
+    </div>
+    <p class="trick-family-shared-structure"><code>{{content.overview.canonicalFormula}}</code></p>
+    {{#if content.teaching.plainLanguageReading}}
+    <p class="section-intro">{{content.teaching.plainLanguageReading}}</p>
+    {{/if}}
+  </section>
+  {{/if}}
+
   <section class="content-section" aria-label="What is {{content.displayArticle}} {{content.displayName}}">
     <div class="section-heading">
       <h2>What is {{content.displayArticle}} {{content.displayName}}?</h2>
@@ -46,18 +58,23 @@
     <p>{{content.teaching.physicalDescription}}</p>
   </section>
 
-  <section class="content-section" aria-label="Why it matters">
+  {{#if content.teaching.structuralSignature}}
+  <section class="content-section" aria-label="Structural signature">
     <div class="section-heading">
-      <h2>Why the {{content.displayName}} family matters</h2>
+      <h2>Structural signature</h2>
     </div>
-    <p>{{content.teaching.importance}}</p>
+    <dl class="glossary-family-card-fields">
+      <dt>Conserved</dt><dd>{{content.teaching.structuralSignature.conserved}}</dd>
+      <dt>May change</dt><dd>{{content.teaching.structuralSignature.mayChange}}</dd>
+      <dt>Nearest neighbors</dt><dd>{{content.teaching.structuralSignature.nearestNeighbors}}</dd>
+    </dl>
   </section>
-
+  {{else}}
   <section class="content-section" aria-label="Structural model">
     <div class="section-heading">
       <h2>Structural model</h2>
     </div>
-    <p>{{content.teaching.variantsIntro}}</p>
+    {{#if content.teaching.variantsIntro}}<p>{{content.teaching.variantsIntro}}</p>{{/if}}
     {{#if content.teaching.variants.length}}
     <dl class="glossary-family-card-fields">
       {{#each content.teaching.variants}}
@@ -70,6 +87,26 @@
     <p>{{content.teaching.variantsRuling}}</p>
     {{/if}}
   </section>
+  {{/if}}
+
+  <section class="content-section" aria-label="Why it matters">
+    <div class="section-heading">
+      <h2>Why the {{content.displayName}} family matters</h2>
+    </div>
+    <p>{{content.teaching.importance}}</p>
+  </section>
+
+  {{#if content.teaching.atlasRelationship}}
+  <section class="content-section" aria-label="Atlas relationship">
+    <div class="section-heading">
+      <h2>Atlas relationship</h2>
+    </div>
+    {{#each content.teaching.atlasRelationship.lines}}
+    <p class="trick-family-shared-structure"><code>{{this}}</code></p>
+    {{/each}}
+    <p>{{content.teaching.atlasRelationship.note}}</p>
+  </section>
+  {{/if}}
   {{else}}
   <section class="content-section" aria-label="Overview">
     <div class="section-heading">

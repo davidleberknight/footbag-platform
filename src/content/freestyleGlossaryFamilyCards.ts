@@ -81,6 +81,35 @@ export interface FamilyTeaching {
   notationIntro:       string;
   /** The one-sentence memorable takeaway that closes the page. */
   takeaway:            string;
+  /**
+   * One-line plain-language reading of the canonical formula. Present on the
+   * formula-first pages: rendered directly under the dominant formula so a
+   * reader who cannot parse the notation still gets the move in a sentence.
+   */
+  plainLanguageReading?: string;
+  /**
+   * Structural signature: what the family conserves across every member, what
+   * may vary, and its nearest neighbors. Replaces the generic "structural model"
+   * boilerplate with the exact invariant. When present, the page renders the
+   * Structural signature block instead of the variant-intro prose.
+   */
+  structuralSignature?: {
+    /** The one thing every member keeps (the conserved structure + terminal). */
+    conserved:        string;
+    /** What members are free to vary (sets, operators, preceding movements). */
+    mayChange:        string;
+    /** The adjacent families and the single axis that separates each. */
+    nearestNeighbors: string;
+  };
+  /**
+   * One restrained Atlas-derived relationship: a couple of comparison lines plus
+   * a one-line insight naming the axis that draws the family boundary. Rendered
+   * as its own compact block; omit when no single comparison genuinely clarifies.
+   */
+  atlasRelationship?: {
+    lines: readonly string[];
+    note:  string;
+  };
 }
 
 export interface GlossaryFamilyCard {
@@ -398,11 +427,10 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Legover is where the leg-over motion enters freestyle, the leg passing over the bag, and a whole lineage of tricks grows from it.',
       physicalDescription:
-        'A Legover is one dexterity caught on a toe stall, like a Mirage, but the performing leg passes over the top of the bag and the same leg catches it. That over-the-bag motion, and the same-foot catch, are what make it a legover rather than one of its neighbors.',
+        'A Legover is one outward dexterity followed by a same-side toe stall. Its closest directional neighbor is Illusion: both use an outward dex, but Illusion finishes on the opposite toe. The catch side, not simply the impression of a leg passing over the bag, is what distinguishes the two structurally.',
       importance:
-        'Legover matters because it introduces a movement other tricks are built out of, not just a single move to own. Its atomic form is the eggbeater, and the double-leg-over and the flurry carry the same leg-over motion forward. Once you can see the legover inside a harder trick, that branch stops looking like unrelated advanced moves and starts looking like one motion with additions on top.',
-      variantsIntro:
-        'Legover is a base other tricks build on. Add an operator or a set and you get its family: spinning legover, ducking legover, and the eggbeater, which is the legover in its atomic form. The legover underneath stays the same; what is added on top is what changes.',
+        'Legover occupies one of the four basic single-dex toe positions created by combining dex direction with catch side. It shares its outward direction with Illusion and its same-side catch with Pickup, so three apparently separate tricks become neighboring cells of one movement system. Legover also provides the terminal movement inside more complicated tricks: Double Legover adds an inward dex before it, Eggbeater reaches it through an atomic set, and Flurry places a larger dex sequence in front of the same outward-dex-to-toe resolution.',
+      variantsIntro: '',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
@@ -423,6 +451,20 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
         'For readers interested in the formal notation, a legover is a single dexterity caught on the same-side toe stall: SET > OP OUT [DEX] > SAME TOE [DEL] (2 ADD). The same-side toe catch is what separates it from the illusion, which catches on the opposite foot.',
       takeaway:
         'Legover is where the leg-over motion enters the vocabulary, and recognizing it is what turns a branch of advanced freestyle into one lineage you can read.',
+      plainLanguageReading: 'One outward dexterity, ending on the same-side toe.',
+      structuralSignature: {
+        conserved:        'An outward dexterity resolving to a same-side toe stall.',
+        mayChange:        'The set, the body operator, and the movements preceding the terminal dex.',
+        nearestNeighbors: 'Pickup changes the dex direction; Illusion changes the catch side.',
+      },
+      atlasRelationship: {
+        lines: [
+          'Legover: OP OUT to SAME TOE',
+          'Illusion: OP OUT to OP TOE',
+          'Pickup: OP IN to SAME TOE',
+        ],
+        note: 'The four single-dex toe tricks are the combinations of dex direction and catch side.',
+      },
     },
   },
   {
@@ -443,11 +485,10 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Pickup is the dexterity that scoops under the bag instead of circling over the top, and it opens an axis of freestyle the mirage does not.',
       physicalDescription:
-        'A Pickup is one dexterity caught on a toe stall, and it carries the same ADD as a Mirage, but the leg scoops under the bag and lifts it rather than passing over the top. That scoop-from-below is what makes it a pickup, even though the two tricks look similar at a glance.',
+        'A Pickup is one inward dexterity followed by a same-side toe stall. Players often experience it as scooping beneath the bag, but its structural identity is the combination of inward dex direction and same-side catch. Mirage uses the same inward dexterity but finishes on the opposite toe, and that single catch-side change is the cleanest distinction between the two.',
       importance:
-        'Pickup matters because it introduces a whole way of catching, from underneath, that other tricks are built out of. Its atomic form is the scrambled eggbeater, and paste and the legeater carry the same scooping motion forward. Learning to see the pickup scoop inside a trick lets you read that axis of the vocabulary as one motion with additions, rather than a set of separate advanced moves.',
-      variantsIntro:
-        'Pickup is a base other tricks build on. Add an operator or a set and you get its family: spinning pickup, ducking pickup, double pickup, and the scrambled eggbeater, which is the pickup in its atomic form. The pickup underneath stays the same; what is added on top is what changes.',
+        'Pickup completes the same-side half of the basic toe-dex grid. Legover reaches the same toe through an outward dex; Pickup reaches it through an inward dex, which makes Pickup part of a larger movement relationship rather than an isolated scooping trick. The family grows by placing sets and operators before that inward-dex-to-same-toe terminal. Paste is Pixie Pickup, Legeater extends the dex sequence, and Scrambled Eggbeater is the atomic form of Pickup. Omelette belongs to the Illusion line, not the Pickup line.',
+      variantsIntro: '',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
@@ -468,6 +509,20 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
         'For readers interested in the formal notation, a pickup is a single inward dexterity caught on the same-side toe stall: SET > OP IN [DEX] > SAME TOE [DEL] (2 ADD). The scoop from below is the movement the notation does not spell out; the catch is the same-side toe.',
       takeaway:
         'Pickup is the scoop-from-below dexterity, and recognizing it opens a branch of freestyle the mirage never reaches.',
+      plainLanguageReading: 'One inward dexterity, ending on the same-side toe.',
+      structuralSignature: {
+        conserved:        'An inward dexterity resolving to a same-side toe stall.',
+        mayChange:        'The set, the body operator, and the preceding dex sequence.',
+        nearestNeighbors: 'Mirage changes the catch side; Legover changes the dex direction.',
+      },
+      atlasRelationship: {
+        lines: [
+          'Pickup: OP IN to SAME TOE',
+          'Mirage: OP IN to OP TOE',
+          'Legover: OP OUT to SAME TOE',
+        ],
+        note: 'Mirage changes the catch side; Legover changes the dex direction.',
+      },
     },
   },
 ];
@@ -633,7 +688,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     familyAnchorAdds:  3,
     commonDescendants: ['paradox drifter', 'high plains drifter', 'gyro drifter'],
     siblingFamilies:   ['torque', 'blender'],
-    notableCompounds:  ['royale (≡ paradox reverse drifter)', 'vortex (≡ gyro drifter)'],
+    notableCompounds:  ['vortex (≡ gyro drifter)', 'paradox drifter'],
     observationalNotes: [
       {
         title: 'Family Parent from clipper',
@@ -643,11 +698,10 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Drifter is a clipper reached by adding a dexterity in front, and it seeds a small branch of well-known tricks.',
       physicalDescription:
-        'A Drifter runs one inward circling dexterity and catches the bag on a clipper on the same side. It ends on a clipper like a whirl, but where a whirl loops from a clipper back to a clipper, a drifter is a single dex arriving on one.',
+        'A Drifter is one inward dexterity followed by a same-side clipper stall. Its clearest structural neighbor is Pickup: both use the same inward dexterity and preserve the same-side relationship, but Pickup finishes on a toe while Drifter finishes on a cross-body clipper. That terminal-surface substitution explains Drifter more accurately than treating it as a whirl that begins somewhere else.',
       importance:
-        'Drifter shows the clipper working as a base you reach with a dex in front, the same idea the torque and blender apply to the osis. Two of freestyle\'s more recognizable tricks grow directly from it: the royale and the vortex are both a drifter with an operator added. Recognizing the drifter underneath keeps that small branch reading as one shape.',
-      variantsIntro:
-        'Drifter is a base other tricks build on. Add an operator and you get its family: paradox drifter, gyro drifter, and the reversed forms. The royale is a drifter reversed with paradox on it; the vortex is a gyro drifter. The drifter underneath stays the same; the operator is what changes.',
+        'Drifter demonstrates how a familiar dexterity can seed a new lineage when its terminal surface changes. The inward dex stays recognizable, but moving the catch from toe to clipper introduces cross-body position and creates a base for several compounds. Vortex is Gyro Drifter, and Paradox Drifter adds the paradox relationship to the same chassis. Reverse Drifter is a neighboring lineage with the dex-and-terminal relationship reversed; Royale belongs to that reverse line as Paradox Reverse Drifter, not to the Drifter line.',
+      variantsIntro: '',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
@@ -660,14 +714,27 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
         'Read drifter as a clipper reached with a dex in front. When you meet a royale or a vortex, name the drifter underneath first, then the operator that was added to reach it. That is usually most of the work of reading the trick.',
       misconceptions: [
         'Drifter is not a whirl; a whirl loops the leg all the way around to a clipper, while a drifter is one dex arriving on a clipper.',
-        'The royale and the vortex are not separate tricks; each is a drifter with an operator added.',
+        'Vortex is a gyro drifter, a drifter with an operator added; Royale is not a drifter descendant, it sits on the neighboring reverse-drifter line as a paradox reverse drifter.',
         'Drifter is not defined by the set that launches it; the set can change while the drifter stays the same.',
       ],
-      seeItIn: ['royale', 'vortex', 'paradox_drifter', 'gyro_drifter'],
+      seeItIn: ['vortex', 'paradox_drifter', 'high_plains_drifter'],
       notationIntro:
         'For readers interested in the formal notation, a drifter is one inward dexterity caught on a same-side clipper: SET > OP IN [DEX] > SAME CLIP [XBD] [DEL] (3 ADD). The single dex arriving on the clipper is what separates it from the whirl.',
       takeaway:
-        'Drifter is a clipper reached with a dex in front, and naming it is how the royale and the vortex stop looking like separate tricks.',
+        'Drifter is a clipper reached with a dex in front, and naming it is how the vortex and its reverse-line neighbor royale stop looking like separate tricks.',
+      plainLanguageReading: 'One inward dexterity, ending on the same-side clipper.',
+      structuralSignature: {
+        conserved:        'An inward dexterity resolving to a same-side clipper.',
+        mayChange:        'The entry set, rotation, posture, and paradox relationship.',
+        nearestNeighbors: 'Pickup preserves the dex and side relationship but changes the terminal from toe to clipper.',
+      },
+      atlasRelationship: {
+        lines: [
+          'Pickup: OP IN to SAME TOE',
+          'Drifter: OP IN to SAME CLIP',
+        ],
+        note: 'The family boundary appears at the terminal surface.',
+      },
     },
   },
   {
@@ -758,11 +825,10 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Barfly is one of the downs, and on its own it anchors a small family that stacks onto its double-dex shape.',
       physicalDescription:
-        'A Barfly runs two circling dexterities of the same kind and brings the bag down onto a clipper across the body. It shares the finishing movement that names the down family, and it is the member of that family that starts from a clipper.',
+        'A Barfly begins from a clipper, carries two outward dexterities through the setting-leg side, and resolves on the opposite clipper. The two dexes and the cross-body terminal form one continuous double-dex structure. Barfly is one member of the Down grid; it is not defined by an additional movement called the down occurring after the two dexes, because the Down identity belongs to the complete double-out-to-clipper topology.',
       importance:
-        'Barfly matters in two directions at once. As one of the downs it shares an ending with three tricks that look nothing like it, which is the down family\'s whole lesson. On its own it is a base a small family builds on, including the blurriest, which stacks a third dex onto the same shape. Reading barfly as a down first, then as its own base, is how the down branch stays organized instead of scattering into unrelated moves.',
-      variantsIntro:
-        'Barfly is a base other tricks build on. Add an operator or a set and you get its family: gyro barfly, pixie barfly, spinning barfly, stepping barfly. The barfly underneath stays the same; what is added on top is what changes.',
+        'Barfly reveals that several famous double-dex tricks differ through a small number of structural variables rather than unrelated movement inventions. Change the set surface or which leg performs the dexes and Barfly moves into a neighboring cell occupied by Double-Over-Down, Paradon, or Double-Down-Down. Its own descendants retain the Barfly chassis while adding sets and operators, including Gyro Barfly, Pixie Barfly, Stepping Barfly, Superfly, and Blurriest.',
+      variantsIntro: '',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
@@ -783,6 +849,21 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
         'For readers interested in the formal notation, a barfly runs two same-side outward dexes into a cross-body clipper: CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD] (4 ADD). The two outward dexes are its signature; the cross-body clipper is the down ending. Its terminal brackets read [DEL] [XBD] rather than the usual [XBD] [DEL]; this reversed order is intentional and curator-preserved, and does not change the ADD value.',
       takeaway:
         'Barfly is one of the downs and a base of its own, and holding both readings is how a corner of the down branch comes together.',
+      plainLanguageReading: 'Clipper set, two outward dexterities by the setting leg, opposite-side clipper catch.',
+      structuralSignature: {
+        conserved:        'A clipper set, a setting-leg double-out sequence, and an opposite clipper terminal.',
+        mayChange:        'The preceding set and body operators.',
+        nearestNeighbors: 'Double-Over-Down is the toe-set cell; Paradon and Double-Down-Down circle with the other leg.',
+      },
+      atlasRelationship: {
+        lines: [
+          'Toe set, setting leg: Double-Over-Down',
+          'Toe set, other leg: Paradon',
+          'Clipper set, setting leg: Barfly',
+          'Clipper set, other leg: Double-Down-Down',
+        ],
+        note: 'Two variables, the set surface and which leg circles, place Barfly in the four-cell Down grid.',
+      },
     },
   },
   {
@@ -835,11 +916,10 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Double-Over-Down is the one down whose name is its structure: two dexterities over, and then the down.',
       physicalDescription:
-        'A Double-Over-Down sends the bag around with two outward dexterities, the double over, and then brings it down onto a clipper across the body, the down. It launches from a toe set. If you can read its name, you can already picture the trick.',
+        'A Double-Over-Down begins from a toe set, carries two outward dexterities through the setting-leg side, and resolves on the opposite clipper. Its name does not describe two overs followed by a separate third movement called down; the two dexes and the cross-body clipper resolution together form the Down structure.',
       importance:
-        'Double-Over-Down is the clearest window into the down family, because its name spells out the shared ending the whole family is built on. Once you see the two-over-then-down shape here, you can find the same ending inside barfly and paradon, which reach it from a different set or a different leg. It also leads its own line of descendants, the deepest of which is the down diver.',
-      variantsIntro:
-        'Double-Over-Down is a base other tricks build on. Add an operator or a set and you get its family: gyro double-over-down, pixie double-over-down, and the down diver deeper along. The double-over-down underneath stays the same; what is added on top is what changes.',
+        'Double-Over-Down is the clearest entrance to the Down grid. Two variables explain the four principal forms: the set may come from toe or clipper, and the two dexes may be performed by the setting leg or the other leg. This grid connects tricks that older descriptions often presented as unrelated names, and Double-Over-Down also anchors its own descendants, including Gyro Double-Over-Down, Pixie Double-Over-Down, and Down Diver.',
+      variantsIntro: '',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
@@ -860,6 +940,21 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
         'For readers interested in the formal notation, a double-over-down runs two same-side outward dexes into a cross-body clipper from a toe set: TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL] (4 ADD). The setting leg circles both dexes (the double over); the cross-body clipper is the down.',
       takeaway:
         'Double-Over-Down is the down whose name is its structure, which makes it the easiest way into the whole down family.',
+      plainLanguageReading: 'Toe set, two outward dexterities by the setting leg, opposite-side clipper catch.',
+      structuralSignature: {
+        conserved:        'A toe set, a setting-leg double-out sequence, and an opposite clipper terminal.',
+        mayChange:        'The sets and body operators added before or around the chassis.',
+        nearestNeighbors: 'Paradon circles with the other leg; Barfly is the clipper-set cell.',
+      },
+      atlasRelationship: {
+        lines: [
+          'Toe set, setting leg: Double-Over-Down',
+          'Toe set, other leg: Paradon',
+          'Clipper set, setting leg: Barfly',
+          'Clipper set, other leg: Double-Down-Down',
+        ],
+        note: 'Two variables, the set surface and which leg circles, place Double-Over-Down in the four-cell Down grid.',
+      },
     },
   },
   {
@@ -926,33 +1021,45 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
       },
     ],
     teaching: {
-      hook: 'Double Legover is a legover done twice: two passes over the bag before the catch, and it grows a branch of its own.',
+      hook: 'Double Legover is not a legover done twice; it is an inward dex added in front of a legover, and it grows a branch of its own.',
       physicalDescription:
-        'A Double Legover sends the leg over the bag twice, two circling dexterities in a row, before the bag is caught on the same-side toe. It is the legover extended by one more pass, held together as a single movement.',
+        'A Double Legover does not repeat the Legover motion twice. It combines two different dex directions, first inward and then outward, before resolving to a same-side toe stall. The final outward dex and toe catch are the Legover-shaped part of the trick, and the preceding inward dex is what extends that terminal movement into Double Legover.',
       importance:
-        'Double Legover shows one of the plain ways freestyle grows a lineage: take a base and repeat its motion. The single legover pass becomes two, and that doubled shape then carries its own named descendants, including the haze and the predator. Seeing the legover repeated is what keeps this branch attached to its root instead of floating free.',
-      variantsIntro:
-        'Double Legover is a base other tricks build on. Add an operator or a set and you get its family: paradox double-leg-over, pixie double-leg-over, fairy double-leg-over. The double legover underneath stays the same; what is added on top is what changes.',
+        'Double Legover shows that a family can grow by adding a different movement before its conserved terminal, not only by repeating the base movement. This matters because Double Legover and Eggbeater both contain two dexes and finish alike, but their internal paths differ: Double Legover follows inward then outward, while Eggbeater follows outward then outward, with the first outward event serving as an atomic set.',
+      variantsIntro: '',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
-        'The leg passes over the bag twice.',
-        'Two circling dexterities in a row.',
+        'An inward dex, then an outward dex.',
+        'Two dexes of different directions, not one motion repeated.',
         'Caught on the same-side toe, like a legover.',
         'Strip the operators and a double legover is what remains.',
       ],
       howToThink:
-        'Read it as a legover with a second pass added. Name the legover motion first, then the doubling, then any operator on top. That order ties the haze and the predator back to the legover they came from.',
+        'Read it as a legover with an inward dex added in front. Name the legover terminal (the outward dex to the same-side toe) first, then the inward dex that leads into it, then any operator on top. That order ties the haze and the predator back to the legover they came from and keeps double legover distinct from the eggbeater.',
       misconceptions: [
-        'Double Legover is not two separate legovers; it is one linked movement with two passes.',
-        'It is not a harder trick from a different family; it is the legover motion repeated.',
+        'Double Legover is not two legovers; the first dex is inward and the second is outward, and only the second dex plus the toe catch is the legover shape.',
+        'It is not a harder trick from a different family; it is a legover with an inward dex added in front.',
         'The haze and the predator are not unrelated advanced moves; they are a double legover with something added.',
       ],
       seeItIn: ['haze', 'predator', 'paradox_double_leg_over', 'pixie_double_leg_over'],
       notationIntro:
         'For readers interested in the formal notation, a double legover runs two dexes into a same-side toe: SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL] (3 ADD). The two dex tokens are the two passes over the bag; the toe is the catch.',
       takeaway:
-        'Double Legover is the legover motion done twice, and it shows how freestyle grows a lineage by repeating a base rather than inventing a new one.',
+        'Double Legover is an inward dex added in front of a legover, and seeing the inward-then-outward path is what separates it from the eggbeater.',
+      plainLanguageReading: 'One inward dexterity followed by one outward dexterity, ending on the same-side toe.',
+      structuralSignature: {
+        conserved:        'An inward dex followed by an outward dex, resolving to a same-side toe.',
+        mayChange:        'The set and body operators placed before the two-dex chassis.',
+        nearestNeighbors: 'Eggbeater changes the first dex direction and its structural role.',
+      },
+      atlasRelationship: {
+        lines: [
+          'Double Legover: OP IN to OP OUT to SAME TOE',
+          'Eggbeater: OP OUT (set) to OP OUT to SAME TOE',
+        ],
+        note: 'Same two-dex length and toe finish; the first dex differs in direction and role.',
+      },
     },
   },
   {
@@ -971,13 +1078,12 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
       },
     ],
     teaching: {
-      hook: 'Eggbeater is the legover in its atomic form, and it became a base other tricks build on in its own right.',
+      hook: 'Eggbeater is the legover in its atomic form, and it became a base of its own.',
       physicalDescription:
-        'An Eggbeater carries the legover\'s over-the-bag motion, launched from an atomic set, which adds a second pass: two outward circling dexterities in a row, caught on the same-side toe. It is the atomic form of the legover that grew into a family.',
+        'Eggbeater is the atomic form of Legover. Its first outward dexterity performs the set role, and the second outward dexterity completes the Legover terminal and returns the bag to the same-side toe. Although the formula contains two outward dexes, Eggbeater is not best understood as Legover performed twice: the two dexes have different jobs, one launches the trick and one resolves it.',
       importance:
-        'Eggbeater is a clear example of a set turning a base into a new base. Put the atomic set in front of a legover and you get the eggbeater, and the eggbeater then carries its own descendants: paradox eggbeater, gyro eggbeater, quantum eggbeater. Recognizing the legover inside it keeps the two attached, so the eggbeater reads as the legover\'s atomic form rather than an unrelated trick.',
-      variantsIntro:
-        'Eggbeater is a base other tricks build on. Add an operator and you get its family: paradox eggbeater, gyro eggbeater, quantum eggbeater. The eggbeater underneath stays the same; the operator is what changes.',
+        'Eggbeater is a strong example of a set-plus-base composition becoming a recognizable base in its own right. Once established, the whole Eggbeater chassis can receive further operators and sets, producing Paradox Eggbeater, Gyro Eggbeater, Quantum Eggbeater, Pigbeater, and other compounds.',
+      variantsIntro: '',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
@@ -998,6 +1104,19 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
         'For readers interested in the formal notation, an eggbeater runs two outward dexes into a same-side toe from an atomic set: TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL] (3 ADD). The two outward dexes are the paired passes; the toe is the catch.',
       takeaway:
         'Eggbeater is the legover in its atomic form, and it shows how a set can turn one base into another that leads a family of its own.',
+      plainLanguageReading: 'An atomic outward set flowing into an outward legover dex and a same-side toe catch.',
+      structuralSignature: {
+        conserved:        'An atomic outward set feeding an outward-dex-to-same-toe terminal.',
+        mayChange:        'The operators and additional sets placed around that chassis.',
+        nearestNeighbors: 'Double Legover shares the final outward dex and toe catch but begins with an inward dex rather than an atomic outward set.',
+      },
+      atlasRelationship: {
+        lines: [
+          'Eggbeater: OP OUT (set) to OP OUT to SAME TOE',
+          'Double Legover: OP IN to OP OUT to SAME TOE',
+        ],
+        note: 'The atomic set stands in for the leading inward dex of double legover.',
+      },
     },
   },
   {
