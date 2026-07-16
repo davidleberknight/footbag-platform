@@ -136,6 +136,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Reconcile_Payments](#a_reconcile_payments)
   - [7.2 Data Management](#72-data-management)
     - [A_Override_Member_Data](#a_override_member_data)
+    - [A_Message_Member](#a_message_member)
     - [A_Grant_HoF_BAP_Board_Status](#a_grant_hof_bap_board_status)
     - [A_View_Member_History](#a_view_member_history)
     - [A_View_Official_Roster_Reports](#a_view_official_roster_reports)
@@ -2229,6 +2230,29 @@ Success Criteria:
 - All manual data overrides audit-logged with admin ID, member ID, old values, new values, reason, timestamp.
 - Admin sees a clear success message when adjustment completes successfully.
 - Admin sees a clear error message when adjustment fails, including a short explanation.
+
+### A_Message_Member
+
+Access: An IFPA administrator can send a direct message or question to a specific member, from the admin member-detail view or in one click from a work-queue item that concerns that member. Members read and answer in-app; the channel never carries message content over email.
+
+Story: As an Admin, I can send a member a message or question and receive their answer back in my work queue, so that I can resolve an account or data-quality matter that needs the member's input (for example, confirming a date of birth flagged by a claim-time conflict) without falling back to out-of-band email and without exposing private data.
+
+Success Criteria:
+
+- The admin member-detail view surfaces a "Message member" action that opens a composer with a subject, an admin-authored message body (up to 2000 characters), and the expected answer kind: Acknowledge, or Confirm/correct date of birth.
+- A member work-queue item that needs the member's input deep-links into the same composer, prefilled. The date-of-birth-conflict review item (the near-miss or mismatch enqueued at claim time) prefills the subject and sets the expected answer to confirm/correct date of birth, and records the message's link to that originating item.
+- Sending writes one `member_messages` row (recipient member ID, sender admin ID, subject, purgeable message body, expected answer kind, optional originating `work_queue_items` ID, `status='sent'`, created timestamp) and one `audit_entries` row (`actor_type='admin'`, `action_type='member_message.sent'`, `metadata_json` carrying the expected answer kind and the body length; never the body).
+- A message sent from a work-queue item moves that item to an `awaiting_member` state, so it leaves the active queue while staying tracked.
+- The member receives a content-free email nudge to their verified login address ("An IFPA administrator has sent you a message. Log in to read it."). The message body never appears in email, because it may concern date of birth, which is owner-and-admin private.
+- On login, a member holding any unanswered admin message is shown an unmissable prompt front and center: a prominent interstitial naming that the IFPA administrator has a question, with an "Answer now" action and a one-line subject preview (never the private body). The prompt is non-blocking: the member can dismiss it and continue using the site.
+- Because it is non-blocking, the login prompt reappears on every login until the message is answered, and a persistent high-visibility "Answer the IFPA administrator" banner stays at the top of every member page in the meantime, so the request is never buried.
+- The read and answer surface is owner-only and slug-scoped; a slug mismatch returns 404 (anti-enumeration), matching the owner-only-slug pattern used elsewhere.
+- The member answers with the structured control the message specifies (Acknowledge, or Confirm/Correct date of birth, a correction writing the new value back to the member's record through the owning service), plus an optional free-text note up to 2000 characters.
+- Answering sets the `member_messages` row to `status='answered'` and records the structured outcome (acknowledged, confirmed, or corrected-to-value), the optional note (purgeable), and the answered timestamp; it clears the login prompt and the banner.
+- The member's answer returns to the admin as a work-queue item, routed per the Global Behaviors work-queue rules (task type and entity ID only in any notification; no member data). A message that originated from a work-queue item reactivates that original item with the answer attached rather than creating a duplicate.
+- The admin sees in one place the message sent, the structured outcome, the member's optional note (escaped on render), and the timestamps. A date-of-birth correction routes the admin to apply or reconcile it through `A_Override_Member_Data` and then close the item.
+- HTML, unicode, and other adversarial input in the member's free-text note is stored verbatim in the purgeable column and escaped when rendered on the admin surface, matching the `M_Contact_IFPA_Admin` handling.
+- The message body and the member's note are owner-and-admin-private content held in purgeable columns; both are cleared on account erasure and on the deceased contact-scrub, each appending an `erasure_log` row, consistent with `birth_date` and other Sensitivity-4 handling.
 
 ### A_Grant_HoF_BAP_Board_Status
 

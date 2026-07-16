@@ -894,10 +894,6 @@ export const clubs = {
   // affiliation. Counted scope mirrors listMembersByClubId so the count and
   // the auth-gated list agree. Clubs with zero matching affiliations are
   // simply absent from the result; service treats absence as count = 0.
-  // Current: filters legacy affiliation status to mirror listMembersByClubId so the
-  //          snapshot count and the auth-gated list agree during legacy coexistence.
-  // Target: once legacy affiliation data is retired, count directly from members by
-  //         mapped_club_id with no status filter.
   get listMemberCountsForAllClubs() { return db.prepare(`
     SELECT
       lcc.mapped_club_id AS club_id,

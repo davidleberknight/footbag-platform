@@ -37,6 +37,8 @@ hooks:
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-leading-cd.sh"
         - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-shell-loop.sh"
+        - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/allow-readonly-bash.sh"
 ---
 

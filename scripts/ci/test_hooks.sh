@@ -352,6 +352,26 @@ expect "$H" 'cdb --version' defer
 expect "$H" 'find . -name cd' defer
 expect "$H" 'foo && cd x' defer
 
+H=guard-shell-loop.sh
+
+# A shell loop (while/for/until ... do) is denied so it gets rewritten as simple
+# statically-analyzable commands or the Grep/Read tools; the loop makes the whole command
+# un-analyzable and would otherwise trip the built-in approval prompt. A loop after a pipe
+# (the common read-only-scan shape) is caught, not only a leading loop.
+expect "$H" 'grep -n x f | while read -r l; do sed -n "${l}p" f; done' deny
+expect "$H" 'for f in *.ts; do wc -l "$f"; done' deny
+expect "$H" 'until curl -sf localhost; do sleep 1; done' deny
+expect "$H" '(for f in a b; do echo "$f"; done)' deny
+# Must NOT over-block: a loop keyword only as an argument, inside quotes, as part of a
+# longer word, or a quoted separator+keyword with no `do`, all defer.
+expect "$H" 'grep -w for file' defer
+expect "$H" 'grep -rn "for " src/' defer
+expect "$H" 'echo "while true"' defer
+expect "$H" 'echo "a; while b"' defer
+expect "$H" 'cat foreground.txt' defer
+expect "$H" 'grep -n x file' defer
+expect "$H" 'find . -name "*.ts" | sort | uniq' defer
+
 H=guard-rm.sh
 
 # rm that deletes ONLY files under the AI session scratchpad auto-approves (allow); flags
