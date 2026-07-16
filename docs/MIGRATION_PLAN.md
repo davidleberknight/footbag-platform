@@ -1322,15 +1322,14 @@ Sign-off on QC retirement is a prerequisite for §24 State 3 → State 4 transit
 
 - Controllers: `src/internal-qc/controllers/netQcController.ts`, `src/internal-qc/controllers/personsQcController.ts`.
 - Services: `src/internal-qc/services/netQcService.ts`, `src/internal-qc/services/personsQcChecks.ts`, `src/internal-qc/services/personsQcService.ts`.
-- Views: every `.hbs` file under `src/views/internal-qc/` except the emerging-vocabulary view (keeper — see carve-out below).
+- Views: every `.hbs` file under `src/views/internal-qc/`.
 - `src/db/db.ts`: every prepared-statement group banner-marked `// ---- QC-only (delete with pipeline-qc subsystem) ----`.
 - Schema tables in `database/schema.sql`: `net_review_queue` (and any future QC-only tables added under the same banner). Before deleting, resolve whether `net_candidate_match`, `net_curated_match`, and `net_raw_fragment` are QC-only or pipeline-load tables.
-- Club QC-panel evidence: the `legacy_club_candidates.r1`..`r10` classifier columns and their writers/readers; realign the `clubCleanupService` viability predicate off `r1`/`r2` to `classification` alone before dropping them.
-- Tests: `tests/integration/persons.qc.routes.test.ts` and the six Net route tests (`net.candidates`, `net.candidate-curation-conflict`, `net.curated`, `net.curated-browse`, `net.events`, `net.review`), plus any others that exercise the deleted routes.
+- Tests: `tests/integration/persons.qc.routes.test.ts` and every `net.*.routes.test.ts` (`net.candidates`, `net.candidate-curation-conflict`, `net.curated`, `net.curated-browse`, `net.events`, `net.home`, `net.review`, `net.routes`), plus any others that exercise the deleted routes.
 - Route mounting in `src/app.ts` for the `/internal/*` router (and the router file itself if it serves only QC).
 - Production image hygiene: `docker/web/Dockerfile` strips `dist/internal-qc` from the production stage as an interim safeguard until source deletion lands; the retirement PR removes the strip line together with the source.
 
-**Keeper carve-out.** The emerging-vocabulary workbench (`emergingVocabController.ts`, its view under `src/views/internal-qc/freestyle/`, and `/internal/freestyle/emerging-vocabulary`) is a keeper, not QC. Relocate it out of `src/internal-qc/` and off `internalRouter` before retirement so the views deletion, the `dist/internal-qc` strip, the router deletion, and the CI grep all spare it.
+**Keeper carve-out.** The emerging-vocabulary workbench is already relocated out of the internal-QC subsystem: its controller is `src/controllers/emergingVocabController.ts`, its view is `src/views/admin/emerging-vocabulary.hbs`, and it is served at `/admin/freestyle/emerging-vocabulary` on the production admin router under the same admin gate. It sits under no internal-qc path, so the views deletion, the `dist/internal-qc` strip, the router deletion, and the CI grep do not touch it. The former `/internal/freestyle/emerging-vocabulary` URL redirects there until `internalRouter` is removed.
 
 **Automated enforcement**: two layers, paired so a typo or rename can't silently slip through:
 
