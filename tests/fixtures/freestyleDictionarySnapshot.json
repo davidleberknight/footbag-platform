@@ -3416,7 +3416,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "TOE > SAME IN/OUT [DEX] > SAME IN/OUT [DEX] > SAME HEEL [UNS] [DEL]",
-"operational_notation": "TOE > SAME IN/OUT [DEX] > SAME IN/OUT [DEX] > SAME HEEL [UNS] [DEL]",
+"operational_notation": "TOE > SAME IN [DEX] > SAME IN [DEX] > SAME HEEL [UNS] [DEL]",
 "sort_order": 1236
 },
 {
@@ -3429,7 +3429,7 @@
 "description": null,
 "aliases_json": null,
 "notation": null,
-"operational_notation": "TOE > SAME IN/OUT [DEX] > SAME HEEL [UNS] [DEL]",
+"operational_notation": "TOE > SAME IN [DEX] > SAME HEEL [UNS] [DEL]",
 "sort_order": 1237
 },
 {
