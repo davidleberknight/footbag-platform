@@ -1,6 +1,6 @@
 # Atlas Index and Closeout
 
-Status: exploratory research under `exploration/`. Not production data, not doctrine, not a change to the live dictionary. The map of the Freestyle Movement Atlas research program, so a future return can begin without reconstructing context.
+Status: exploratory research under `freestyle/research/`. Not production data, not doctrine, not a change to the live dictionary. The map of the Freestyle Movement Atlas research program, so a future return can begin without reconstructing context.
 
 > **The Atlas is paused after Volume IV. Its next use is application to doctrine, QC, promotion analysis, or a separately approved future research phase.**
 
@@ -8,21 +8,21 @@ Status: exploratory research under `exploration/`. Not production data, not doct
 
 ### The Atlas volumes
 
-- **Volume I: the zero- and one-dexterity movement universe.** `volume-1` is the root-level file set (`ATLAS_VOLUME_I.md`, `ATLAS_GUIDE.md`, `LANDSCAPE_ANALYSIS.md`, `KNOWN_BOUNDARIES.md`, `atlas_catalog.csv`, `generate_atlas.py`) directly under `exploration/movement-atlas/`. Mapped the one-circle universe as a surface-fiber bundle with a name-free coordinate system; found the named vocabulary fills one small, lopsided region.
-- **Volume II: the two-dexterity movement universe.** `exploration/movement-atlas/volume-2/`. Proposed the two-circle universe as the free product of two one-circle cubes (the "six-cube"), 1920 coordinates over 30 fibers.
-- **Volume III: representation.** `exploration/movement-atlas/volume-3/`. Studied the operational notation as a mapping from movement to written form. Result: the notation is a scoring-and-identity shorthand; it omits movement state totally (the reference frame and legs are absent from 100% of the corpus), and it is measurably lossy (36 notation strings shared by 2+ distinctly-named tricks).
-- **Volume IV: taxonomy.** `exploration/movement-atlas/volume-4/`. Derived a structural taxonomy from the dexterity-pair relation. Result: the geometry is a uniform hypercube (no natural clumping); the taxonomy is a lattice of orthogonal axes; historical families classify by landing mechanic, orthogonal to the structural axes.
+- **Volume I: the zero- and one-dexterity movement universe.** `volume-1` is the root-level file set (`ATLAS_VOLUME_I.md`, `ATLAS_GUIDE.md`, `LANDSCAPE_ANALYSIS.md`, `KNOWN_BOUNDARIES.md`, `atlas_catalog.csv`, `generate_atlas.py`) directly under `freestyle/research/movement-atlas/`. Mapped the one-circle universe as a surface-fiber bundle with a name-free coordinate system; found the named vocabulary fills one small, lopsided region.
+- **Volume II: the two-dexterity movement universe.** `freestyle/research/movement-atlas/volume-2/`. Proposed the two-circle universe as the free product of two one-circle cubes (the "six-cube"), 1920 coordinates over 30 fibers.
+- **Volume III: representation.** `freestyle/research/movement-atlas/volume-3/`. Studied the operational notation as a mapping from movement to written form. Result: the notation is a scoring-and-identity shorthand; it omits movement state totally (the reference frame and legs are absent from 100% of the corpus), and it is measurably lossy (36 notation strings shared by 2+ distinctly-named tricks).
+- **Volume IV: taxonomy.** `freestyle/research/movement-atlas/volume-4/`. Derived a structural taxonomy from the dexterity-pair relation. Result: the geometry is a uniform hypercube (no natural clumping); the taxonomy is a lattice of orthogonal axes; historical families classify by landing mechanic, orthogonal to the structural axes.
 
 ### Volume II errata and handoff studies
 
-- **Falsification erratum.** `exploration/movement-atlas/volume-2/VOLUME_II_FALSIFICATION.md`. The unrestricted six-cube is false: frame transport defeats flatness, hidden state defeats completeness, the far-receiver grade defeats separability. 64 is an upper bound, not a count.
-- **Handoff-state interlude.** `exploration/movement-atlas/volume-2/handoff-interlude/` (the paper, state-variable inventory, composability matrix, grammar-gap report, and the interlude's own decision). Proposed the minimal four-part handoff state and showed the notation is an event language, not a state-transition language.
+- **Falsification erratum.** `freestyle/research/movement-atlas/volume-2/VOLUME_II_FALSIFICATION.md`. The unrestricted six-cube is false: frame transport defeats flatness, hidden state defeats completeness, the far-receiver grade defeats separability. 64 is an upper bound, not a count.
+- **Handoff-state interlude.** `freestyle/research/movement-atlas/volume-2/handoff-interlude/` (the paper, state-variable inventory, composability matrix, grammar-gap report, and the interlude's own decision). Proposed the minimal four-part handoff state and showed the notation is an event language, not a state-transition language.
 - **Handoff-state validation.** Same folder (`VALIDATION_PAPER.md`, `handoff_validation_rows.csv`, scorecard, counterexample catalog, transport-rule proposal, decision). Tested the four-part model against 395 real two-dex tricks: incomplete (59% force a body-or-orientation join the model lacks) and never fully recoverable (reference foot and leg parity absent from 100%). Decision: extend the model and re-validate before repairing the grammar.
 
 ### Architecture and closeout
 
-- **Architecture blueprint.** `exploration/movement-atlas/ATLAS_ARCHITECTURE.md`. The volume template, principles, and roadmap.
-- **Closeout (this phase).** `ATLAS_EXECUTIVE_SUMMARY.md`, `DOCTRINE_HARVEST_AND_GLOSSARY_PROPOSAL.md`, `ATLAS_INFORMED_PRODUCTION_QC.md`, `PRODUCTION_HANDOFF.md`, and this index, all under `exploration/movement-atlas/`.
+- **Architecture blueprint.** `freestyle/research/movement-atlas/ATLAS_ARCHITECTURE.md`. The volume template, principles, and roadmap.
+- **Closeout (this phase).** `ATLAS_EXECUTIVE_SUMMARY.md`, `DOCTRINE_HARVEST_AND_GLOSSARY_PROPOSAL.md`, `ATLAS_INFORMED_PRODUCTION_QC.md`, `PRODUCTION_HANDOFF.md`, and this index, all under `freestyle/research/movement-atlas/`.
 
 ### Adjacent and upstream research (context, not Atlas volumes)
 

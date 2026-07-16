@@ -42,7 +42,7 @@ The complete path that builds the page:
 | `freestyle/inputs/observational/promotion_candidates_{clean,curator_confirm,deferred}.csv` | Frozen May/June ingestion snapshot; row inventory + failure classes | provenance only |
 | `freestyle/inputs/observational/CLASSIFIED_UNIVERSE.csv` | Census stats; per-name sources, n_sources, source ADDs, parser notes | evidence + provenance |
 | `freestyle/inputs/observational/RECONCILIATION.csv`, `SYMBOLIC_GRAMMAR_MASTER.csv` | Upstream reconciliation artifacts (not read by the generator) | provenance only |
-| `exploration/ev-formula-identity-audit-2026-07-10/EV_FORMULA_IDENTITY_ROWS.csv` (ruling ledger) | Classification authority since the 2026-07-14 generator fix: per-name state, disposition, blocker subtype, residual home | identity + doctrine status + decision ownership |
+| `freestyle/inputs/observational/EV_FORMULA_IDENTITY_ROWS.csv` (ruling ledger) | Classification authority since the 2026-07-14 generator fix: per-name state, disposition, blocker subtype, residual home | identity + doctrine status + decision ownership |
 | `freestyle/inputs/base_dictionary/tricks.csv`, `red_additions`, `trick_aliases.csv`, `alias_additions.csv` | Canonical/alias suppression (slug dual-gate + name/alias resolution) | publication state |
 | `freestyle/inputs/base_dictionary/trick_modifiers.csv` (operator registry) | Object-type guard for bare names only | object type + operator definedness |
 | `freestyle/scripts/build_observational_universe_content.py` | The generator; stamps evState/holdKind/flags/ledger provenance | display derivation |

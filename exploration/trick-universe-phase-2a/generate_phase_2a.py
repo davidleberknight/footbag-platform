@@ -7,7 +7,7 @@ Exploratory research under exploration/. Not production data, not doctrine, not 
 change to the live dictionary. Reads nothing from production code and writes only
 under this folder. It enumerates every structurally valid movement FORMULA (never
 a name) within an aggressive limit, using only the established grammar documented
-in exploration/trick-universe-matrix/ (Slices 0-7): the 5-D surface lattice
+in freestyle/research/trick-universe-matrix/ (Slices 0-7): the 5-D surface lattice
 launch x dex_side x direction x terminal_side x landing, the eight-vertex dex
 cube, and the three preservation rules (grade / laterality / launch-symmetry).
 

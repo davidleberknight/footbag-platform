@@ -7,7 +7,7 @@ Companion files in this folder:
 - `UNNAMED_CATALOG.md` : the grammar-valid-but-unnamed formulas grouped by structural family.
 - `generate_phase_2a.py` : the read-only enumerator that produced the CSV.
 
-This phase builds directly on Phase I (`exploration/trick-universe-matrix/`, Slices 0-7), which defined the movement grammar from first principles, established the ADD-equals-scored-events invariant across the whole corpus, and mapped the eight-vertex dexterity cube and its surface-fiber lattice. Phase 1.5 (`exploration/ev-formula-identity-audit-2026-07-10/`) validated the movement-language approach against the Emerging Vocabulary backlog. Phase II-A does not re-derive any of that; it uses the completed grammar as a generator.
+This phase builds directly on Phase I (`freestyle/research/trick-universe-matrix/`, Slices 0-7), which defined the movement grammar from first principles, established the ADD-equals-scored-events invariant across the whole corpus, and mapped the eight-vertex dexterity cube and its surface-fiber lattice. Phase 1.5 (`exploration/ev-formula-identity-audit-2026-07-10/`) validated the movement-language approach against the Emerging Vocabulary backlog. Phase II-A does not re-derive any of that; it uses the completed grammar as a generator.
 
 ---
 

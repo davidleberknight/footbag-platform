@@ -108,11 +108,11 @@ Every volume, without exception, contains the following, in this order. This is 
 
 ### Standard volume file layout
 
-Each volume lives in its own folder under `exploration/movement-atlas/` and carries the same file set:
+Each volume lives in its own folder under `freestyle/research/movement-atlas/` and carries the same file set:
 
 ```
-exploration/movement-atlas/volume-N/
-  generate_volume_N.py     generation + validation + census (reads only exploration/)
+freestyle/research/movement-atlas/volume-N/
+  generate_volume_N.py     generation + validation + census (reads only freestyle/research/)
   volume_N_catalog.csv      the machine-readable catalog (required content 10)
   VOLUME_N.md               the canonical volume (contents 1-8, with the final question)
   VOLUME_N_GUIDE.md         reader's guide: how to read a coordinate and each status

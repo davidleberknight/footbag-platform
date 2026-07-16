@@ -11,7 +11,7 @@ exploration forever.
 Two things are already true, so the integration is small by construction:
 
 1. The Atlas already ruled on itself. Its harvest document
-   (`exploration/movement-atlas/DOCTRINE_HARVEST_AND_GLOSSARY_PROPOSAL.md`) sorts
+   (`freestyle/research/movement-atlas/DOCTRINE_HARVEST_AND_GLOSSARY_PROPOSAL.md`) sorts
    every conclusion into four bins: PUBLIC-NOW (rows 1 to 7), PUBLIC-CAUTIOUS (rows
    8 to 9), INTERNAL (rows 10 to 12), RESEARCH-ONLY (rows 13 to 15). Its production
    handoff (`PRODUCTION_HANDOFF.md`, Lane D) names the machinery that must never

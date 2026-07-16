@@ -9,7 +9,7 @@ produced no contradiction with it.
 ## Source data
 
 Structural source: the Atlas one-dex toe cube coordinates, read from the Atlas catalog
-(`exploration/movement-atlas/atlas_catalog.csv`), region 1-DEX, sub cube, launch toe,
+(`freestyle/research/movement-atlas/atlas_catalog.csv`), region 1-DEX, sub cube, launch toe,
 landing toe. Each of the eight atoms carries three explicit binary attribute columns
 (`dex_side`, `direction`, `term_side`) and a structural coordinate string
 (`atlas_coord`, e.g. `toe:toe/S.IN.S`). Identity is that Atlas coordinate, never the

@@ -49,7 +49,7 @@ These are conclusions the research produced that are **not** for the public dict
 - **The falsification and handoff-state findings** (Volume II erratum and interlude), including the frame-transport and leg-parity gaps. Internal research context for any future volume, not production.
 - **Any count of "possible movements."** The Atlas produces upper bounds over a describable space, not counts of performable tricks; no such number should reach a public surface.
 
-Close condition for lane D: these remain in `exploration/movement-atlas/` and are cited only by future research, never by production content, doctrine, or tests.
+Close condition for lane D: these remain in `freestyle/research/movement-atlas/` and are cited only by future research, never by production content, doctrine, or tests.
 
 ## Priority and sequencing
 

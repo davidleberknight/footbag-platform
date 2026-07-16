@@ -2,11 +2,11 @@
 """
 The Movement Atlas, Volume I: generator.
 
-Exploratory research under exploration/. Not production data, not doctrine, not a
+Exploratory research under freestyle/research/. Not production data, not doctrine, not a
 change to the live dictionary. Reads nothing from production code; writes only under
 this folder. It does not modify, extend, or re-derive the movement grammar. It uses
 Grammar v1 exactly as frozen (the four-generator basis and the 0-and-1-dexterity
-surface-fiber lattice established in exploration/trick-universe-matrix/, Phase II-A,
+surface-fiber lattice established in freestyle/research/trick-universe-matrix/, Phase II-A,
 and the grammar-closure study) and enumerates every movement COORDINATE so the atlas
 documents can be written from real data.
 

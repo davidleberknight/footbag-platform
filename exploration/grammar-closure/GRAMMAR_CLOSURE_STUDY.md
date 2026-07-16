@@ -2,7 +2,7 @@
 
 Status: exploratory research under `exploration/`. Not production data, not doctrine, not a change to the live dictionary. No production code, no dictionary rows, no trick names, no generation. This is a grammar-completeness study only. It asks one question and answers it, and it deliberately does not enumerate any movement space.
 
-Companion of the Phase I trick-universe work in `exploration/trick-universe-matrix/`, especially the movement-algebra slice (the four-generator basis) and the state-of-the-theory snapshot (the confidence ladder and the merges). This study does not re-derive that work; it tests it for closure.
+Companion of the Phase I trick-universe work in `freestyle/research/trick-universe-matrix/`, especially the movement-algebra slice (the four-generator basis) and the state-of-the-theory snapshot (the confidence ladder and the merges). This study does not re-derive that work; it tests it for closure.
 
 ## 0. The question, stated exactly
 

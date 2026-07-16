@@ -42,7 +42,7 @@ import csv, os, re, sqlite3
 from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
+REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..', '..'))
 DB = os.path.join(REPO, 'database', 'footbag.db')
 
 SIDES = ['SAME', 'OP']

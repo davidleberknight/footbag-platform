@@ -21,7 +21,7 @@ import os
 from itertools import combinations
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-ATLAS_CATALOG = os.path.join(REPO_ROOT, "exploration", "movement-atlas", "atlas_catalog.csv")
+ATLAS_CATALOG = os.path.join(REPO_ROOT, "freestyle", "research", "movement-atlas", "atlas_catalog.csv")
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 NEIGHBORHOOD_ID = "one_dex_toe"

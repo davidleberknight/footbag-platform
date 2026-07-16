@@ -2,7 +2,7 @@
 
 Status: exploratory research under `exploration/`. Not production data, not doctrine, not a change to the live dictionary. No production code, no dictionary rows, no trick names, no promotions. This is a generation experiment against a frozen grammar. It does not improve the grammar and does not resolve any open question; it runs the grammar and observes where it breaks.
 
-Companion to the Phase I trick-universe work (`exploration/trick-universe-matrix/`), the Phase II-A enumeration (`exploration/trick-universe-phase-2a/`), and the grammar-closure study (`exploration/grammar-closure/GRAMMAR_CLOSURE_STUDY.md`), which defines the frozen basis under test here.
+Companion to the Phase I trick-universe work (`freestyle/research/trick-universe-matrix/`), the Phase II-A enumeration (`exploration/trick-universe-phase-2a/`), and the grammar-closure study (`exploration/grammar-closure/GRAMMAR_CLOSURE_STUDY.md`), which defines the frozen basis under test here.
 
 Generator: `generate_v1.py` (read-only; writes only the two CSVs in this folder). Do not hand-edit the CSVs.
 

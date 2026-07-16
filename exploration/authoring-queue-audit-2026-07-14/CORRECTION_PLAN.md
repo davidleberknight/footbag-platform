@@ -143,7 +143,7 @@ its (Sumo Thong) twin row (sumo X-Dex rider coupling; folk name reserved).
 Responsible: `freestyle/scripts/build_observational_universe_content.py`,
 which classifies from `freestyle/inputs/observational/promotion_candidates_*.csv`
 and `CLASSIFIED_UNIVERSE.csv` (May/June vintage) and never reads the ruling
-ledger (`exploration/ev-formula-identity-audit-2026-07-10/EV_FORMULA_IDENTITY_ROWS.csv`).
+ledger (`freestyle/inputs/observational/EV_FORMULA_IDENTITY_ROWS.csv`).
 
 Fix (classification authority, not a count patch):
 1. The generator joins each observational row to the ledger by normalized

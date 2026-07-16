@@ -21,7 +21,7 @@ Inputs:
   freestyle/inputs/observational/promotion_candidates_curator_confirm.csv
   freestyle/inputs/observational/promotion_candidates_deferred.csv
   freestyle/inputs/observational/CLASSIFIED_UNIVERSE.csv   (stats only)
-  exploration/ev-formula-identity-audit-2026-07-10/EV_FORMULA_IDENTITY_ROWS.csv
+  freestyle/inputs/observational/EV_FORMULA_IDENTITY_ROWS.csv
       (the ruling ledger — the adjudication AUTHORITY; see below)
   freestyle/doctrine/QUESTION_REGISTRY.csv
       (the named open doctrine questions — the only valid doctrine blockers)
@@ -82,7 +82,7 @@ RED_ADD_CSV = FREESTYLE / "inputs/curated/tricks/red_additions_2026_04_20.csv"
 # ruling record this generator must treat as the classification authority
 # (never legacy_data, never the network). Missing ledger = fatal: without it
 # the classification would silently regress to the frozen CSV snapshot.
-LEDGER_CSV = REPO / "exploration/ev-formula-identity-audit-2026-07-10/EV_FORMULA_IDENTITY_ROWS.csv"
+LEDGER_CSV = OBS / "EV_FORMULA_IDENTITY_ROWS.csv"
 # The named open doctrine questions. A row may only be doctrine-blocked by
 # referencing one of these; free-text doctrine labels are invalid.
 QUESTION_REGISTRY_CSV = FREESTYLE / "doctrine/QUESTION_REGISTRY.csv"

@@ -39,7 +39,7 @@ Per move, two ends and the state between them:
 
 ## 4. What data we already have
 
-- **Terminal surface and role** and the **launch token** are already encoded in `freestyle_tricks.operational_notation` for every trick with complete notation, and the Phase I corpus parse (`exploration/trick-universe-matrix/full_corpus_parse.csv`) already tokenizes them. For those tricks, the entry and terminal contacts are machine-readable with no new data.
+- **Terminal surface and role** and the **launch token** are already encoded in `freestyle_tricks.operational_notation` for every trick with complete notation, and the Phase I corpus parse (`freestyle/research/trick-universe-matrix/full_corpus_parse.csv`) already tokenizes them. For those tricks, the entry and terminal contacts are machine-readable with no new data.
 - The Fog and Blurry Whirl fields above were read straight from their stored notation, which is the proof of concept for the extraction.
 
 ## 5. What data is missing or needs curator annotation

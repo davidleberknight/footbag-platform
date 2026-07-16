@@ -64,14 +64,14 @@ An inventory of everything that now exists because of the Atlas.
 
 | Asset | What it is | Where it lives |
 |---|---|---|
-| Movement Neighbor doctrine | The durable definition and invariants of a movement neighbor | `exploration/atlas-glossary-integration-2026-07-11/MOVEMENT_NEIGHBOR_DOCTRINE.md` |
+| Movement Neighbor doctrine | The durable definition and invariants of a movement neighbor | `freestyle/research/atlas-glossary-integration-2026-07-11/MOVEMENT_NEIGHBOR_DOCTRINE.md` |
 | Generated neighbor table | The verified node, edge, and directed CSVs for the eight one-dex toe atoms | `exploration/movement-neighbor-v1-2026-07-11/movement_neighbor_{nodes,edges,directed}.csv` |
 | Verified invariants | A reusable invariant suite (closure, one-change, symmetry, irreflexivity, no-parallel, regularity, derived count, label accuracy, relation separation) run as an audit | the generator's audit pass plus `MOVEMENT_NEIGHBOR_QC.md` |
 | Reusable generator | The read-only generate-then-audit script, the compiler for future neighborhoods | `exploration/movement-neighbor-v1-2026-07-11/generate_movement_neighbors.py` |
-| Movement-language framing | The public-safe framing and the harvest that ruled each Atlas conclusion public, cautious, internal, or research-only | `exploration/movement-atlas/DOCTRINE_HARVEST_AND_GLOSSARY_PROPOSAL.md` and the glossary integration plan |
-| Glossary integration plan | The museum-curator plan: one figure, one expander, three wording refinements, and a firm exclusion list | `exploration/atlas-glossary-integration-2026-07-11/INTEGRATION_PLAN.md` |
-| Movement Explorer design | The guided-then-free interactive design, powered by the neighbor table, with its risks and governance flag | `exploration/atlas-glossary-integration-2026-07-11/MOVEMENT_EXPLORER_DESIGN.md` |
-| Ownership determination | The finding that structural neighbor is already a first-class production concept, and how the movement-neighbor relation fits beside it | `exploration/atlas-glossary-integration-2026-07-11/STRUCTURAL_NEIGHBOR_OWNERSHIP.md` |
+| Movement-language framing | The public-safe framing and the harvest that ruled each Atlas conclusion public, cautious, internal, or research-only | `freestyle/research/movement-atlas/DOCTRINE_HARVEST_AND_GLOSSARY_PROPOSAL.md` and the glossary integration plan |
+| Glossary integration plan | The museum-curator plan: one figure, one expander, three wording refinements, and a firm exclusion list | `freestyle/research/atlas-glossary-integration-2026-07-11/INTEGRATION_PLAN.md` |
+| Movement Explorer design | The guided-then-free interactive design, powered by the neighbor table, with its risks and governance flag | `freestyle/research/atlas-glossary-integration-2026-07-11/MOVEMENT_EXPLORER_DESIGN.md` |
+| Ownership determination | The finding that structural neighbor is already a first-class production concept, and how the movement-neighbor relation fits beside it | `freestyle/research/atlas-glossary-integration-2026-07-11/STRUCTURAL_NEIGHBOR_OWNERSHIP.md` |
 | QC opportunities | Atlas-informed production QC: match by structural formula, not by name string or notation, for dedup and promotion | the Atlas production-QC notes (internal doctrine) |
 
 ---
