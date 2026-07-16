@@ -128,7 +128,9 @@ describe('Emerging Vocabulary section totals reconcile to the generated surface'
     // The archive subsections carry numeric counts computed from the
     // runtime-filtered rows (never hard-coded census figures).
     expect(res.text).toMatch(/Already represented <span class="text-muted">\(\d+\)/);
-    expect(res.text).toMatch(/Observational names <span class="text-muted">\(\d+\)/);
+    // The observational-names archive sub-section is empty while its members are held
+    // for review (publication gate), so its disclosure does not render.
+    expect(res.text).not.toContain('Observational names');
   });
 
   it('frames itself as the active decision surface plus the resolved archive', async () => {

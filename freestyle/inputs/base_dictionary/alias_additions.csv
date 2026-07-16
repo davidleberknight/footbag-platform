@@ -54,3 +54,13 @@ Toe near Symp. Double Down,symposium_double_over_down,technical,0,down-family ce
 Toe far Symp. Double Down,symposium_paradon,technical,0,down-family cell label: toe set with other-leg dexes under a symposium lead is the live symposium paradon (curator session 2026-07-14)
 Clipper far Symp. Double Down,shaft,technical,0,down-family cell label: clipper set with other-leg dexes under a symposium lead is the live shaft (symposium down double down) (curator session 2026-07-14)
 Clipper near Symp. Double Down,superfly,technical,0,down-family cell label: clipper set with setting-leg dexes under a symposium lead is the live superfly (symposium barfly) (curator session 2026-07-14)
+BS Paste,backside_paste,technical,0,BS abbreviates Backside and backside paste is the active canonical
+Xbd Sole Stall,cross_body_sole_stall,technical,0,Xbd abbreviates cross-body and cross-body sole stall is the active canonical
+Gryo DLO,gyro_double_leg_over,technical,0,Gryo is a source typo for Gyro and DLO is double leg over; resolves to the active gyro double leg over
+double-dex ATW,double_around_the_world,technical,0,a double-dex Around the World is two repeated inward dexes matching the canonical double around the world
+triple-dex ATW,triple_around_the_world,technical,0,a triple-dex Around the World is three repeated inward dexes matching the canonical triple around the world
+Double Reverse ATW,double_orbit,technical,0,Reverse Around the World is the outward Orbit counterpart by ratified direction doctrine and the double form is the canonical double orbit
+Triple Reverse ATW,triple_orbit,technical,0,Reverse Around the World is the outward Orbit counterpart by ratified direction doctrine and the triple form is the canonical triple orbit
+Rasmus,atomic_ducking_mirage,technical,0,folk name; source structure (toe op-out dex > duck bod > op-in dex > op-toe del) matches atomic ducking mirage exactly; source 5-ADD X-Dex reading kept as provenance vs the canonical 4
+Leaning Jowler,surging_mirage,technical,0,folk name; source structure (clip op-in dex > front-spin bod > same-in dex > op-toe del) matches surging mirage exactly
+Grifter (same side),reverse_drifter,technical,0,same-side grifter; source structure (clip op-out dex > same-clip xbd del) matches reverse drifter exactly including the same-side terminal

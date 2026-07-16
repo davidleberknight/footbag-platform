@@ -144,11 +144,14 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
     }
   });
 
-  it('the documented archive holds resolved, observational, and term vocabulary as reference, not work', async () => {
+  it('the documented archive holds resolved and term vocabulary; review-held observational names are suppressed', async () => {
     const html = await page();
     expect(html).toContain('Documented vocabulary archive');
     expect(html).toContain('Already represented');
-    expect(html).toContain('Observational names');
+    // Observational (folk / documented) names are held off the public surface while
+    // the synonym / historical-vocabulary reconciliation runs (the publication gate),
+    // so the observational-names archive sub-section does not render publicly.
+    expect(html).not.toContain('Observational names');
     expect(html).toContain('Recorded terms (not tricks)');
     expect(html).toContain('not active publication candidates');
   });

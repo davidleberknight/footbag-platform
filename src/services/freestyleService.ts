@@ -294,6 +294,7 @@ import {
   type EmergingQuestion,
   type EmergingDecisionGroup,
 } from '../content/freestyleObservationalUniverse';
+import { EV_REVIEW_HELD_NAMES } from '../content/freestyleEvReviewHold';
 import {
   DERIVATION_PILOT_ENTRIES,
   type DerivationPanelEntry,
@@ -1291,6 +1292,21 @@ function observationalPublishedSlugKeys(): Set<string> {
   );
   for (const r of aliasSlugs) keys.add(observationalSlugKey(r.alias_slug));
   return keys;
+}
+
+// The single public-facing view of the observational universe. Two exclusions,
+// applied at this service boundary so every PUBLIC consumer (the observational
+// page, the dictionary Emerging Vocabulary tile count, and any future one) gets the
+// same gated payload rather than each route re-filtering: a name already published
+// or aliased in the database drops out, and a name still under synonym /
+// historical-vocabulary reconciliation (the publication hold) is suppressed. The
+// internal workbench does NOT call this — it shows the full universe with provenance.
+function publicObservationalUniverse(): ObservationalUniverseRow[] {
+  const publishedKeys = observationalPublishedSlugKeys();
+  return OBSERVATIONAL_UNIVERSE.filter(
+    r => !publishedKeys.has(observationalSlugKey(r.slug))
+      && !EV_REVIEW_HELD_NAMES.has(r.name.trim().toLowerCase()),
+  );
 }
 
 function buildOperatorIndexAxes(
@@ -8550,13 +8566,10 @@ export const freestyleService = {
     );
 
     // The Emerging Vocabulary tile counts unconfirmed (unpublished) names, so it
-    // uses the runtime-filtered universe, not the raw generated census, matching
-    // the exclusion the /freestyle/observational page applies.
-    const emergingVocabUnconfirmed = (() => {
-      const publishedKeys = observationalPublishedSlugKeys();
-      return OBSERVATIONAL_UNIVERSE.filter(
-        r => !publishedKeys.has(observationalSlugKey(r.slug))).length;
-    })();
+    // uses the same public view the /freestyle/observational page does: published /
+    // aliased names and review-held names are both excluded, so the tile count never
+    // exceeds what the page actually shows.
+    const emergingVocabUnconfirmed = publicObservationalUniverse().length;
 
     // Apply optional family filter (driven by ?family= hashtag click). An
     // umbrella root with no raw rows of its own (the Down family) filters as
@@ -10230,9 +10243,10 @@ export const freestyleService = {
     // blocker, owner, section) is never re-derived at request time; only the
     // publication membership filter is live. Duplicate identities render once
     // (groupPrimary); malformed and rejected rows never render.
-    const publishedKeys = observationalPublishedSlugKeys();
-    const universe = OBSERVATIONAL_UNIVERSE.filter(
-      r => !publishedKeys.has(observationalSlugKey(r.slug)));
+    // The public view already excludes DB-published/aliased names and the
+    // review-held publication set (see publicObservationalUniverse); this route only
+    // narrows further to the rendered rows.
+    const universe = publicObservationalUniverse();
     const visible = universe.filter(r => r.groupPrimary && r.publicationState !== 'rejected');
 
     // Curator-note overrides: preserve the hand-authored notes from the legacy
