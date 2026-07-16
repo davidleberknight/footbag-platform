@@ -132,9 +132,61 @@ packet, send or resend it to Red, and then update each item's delivery status fr
    item in `IMPLEMENTATION_PLAN.md`, and the letter is only the delivery vehicle, so
    they are not double-tracked as dictionary gates here.
 
+7. **Royale paradox construction on the reverse-drifter line** — royale is placed on
+   the reverse-drifter line (base `reverse_drifter`, alias "paradox grifter"), and that
+   historical placement is preserved, but its notation
+   `CLIP >> SAME OUT [DEX] [PDX] >> SAME CLIP [XBD] [DEL]` disagrees with its base twice,
+   so its exact paradox construction is not presented as settled. Two separable asks:
+   (a) should the reverse-drifter dex read `SAME OUT [PDX]`, or preserve the base
+   `reverse_drifter` relationship of `OP OUT`? The corpus applies paradox inconsistently
+   (paradox_drifter, paradox_mirage, and paradox_torque preserve the base's `OP`, while
+   paradox_whirl flips to `SAME`), so the direction is not mechanically decidable.
+   (b) Are the two `>>` atomic links intentional structural markers or notation drift,
+   given plain `reverse_drifter` uses single `>`?
+
+8. **High Plains Drifter as a double drifter** — `high_plains_drifter`
+   (`CLIP > SAME IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]`, family `clipper_stall`
+   by override) and `toe_double_drifter`
+   (`TOE > OP IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]`, family `clipper`) are both
+   double-drifters (two inward dexes onto a clipper) but differ in set surface and lead-dex
+   direction and sit in different families. Three asks: (a) are the two distinct
+   set-surface / parity cells of one double-drifter movement? (b) is High Plains Drifter
+   correctly `SAME IN > SAME IN`, or should its lead dex preserve drifter's `OP IN`
+   relationship (as toe_double_drifter's lead does)? (c) should the answer produce one
+   Double Drifter grouping, a Drifter-family branch, or two distinct lineages? Until ruled,
+   the current placement stands provisionally: the rows are not merged, the
+   `SAME IN > SAME IN` core is unchanged, no Double Drifter family is created, and High
+   Plains Drifter is not used as a settled Drifter descendant or structural exemplar.
+
+9. **Three-outward clipper sequence** — a cluster of rows carries three consecutive
+   outward dexes resolving to a clipper, which the two-dex Down grid cannot classify:
+   `fusion` (`TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]`,
+   labeled `base_trick=double_over_down`), its descendants `cold_fusion` (a `[PDX]` on
+   the lead dex) and `id` (a `DUCK` inserted between dexes), and
+   `sailing_double_over_down` (a sailing `SAME IN` entry in front of the same three
+   outward dexes). The ask: do three outward dexes resolving to a clipper contain a
+   two-dex Down chassis plus one added dex, or do they constitute a distinct Triple /
+   Fusion movement whose parity must be defined independently of the four-cell grid?
+   `cold_fusion`, `id`, and `sailing_double_over_down` ride on the answer.
+
+10. **Plasma identity and parity** — `plasma`
+    (`TOE > OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]`, family
+    `plasma`, no `base_trick` set) is named a quantum double-over-down, but its
+    `OP OUT > SAME OUT` core matches neither the double-over-down cell (`SAME OUT >
+    SAME OUT`) nor the paradon cell (`OP OUT > OP OUT`). The ask: is plasma genuinely a
+    quantum double-over-down, what should its base trick be, and is the mixed
+    `OP OUT > SAME OUT` pair intentional or a parity drift?
+
 ## With the curator
 
 - **Clipper Symposium Whirl** — what it is structurally.
+- **Pixie Paradon identity** — `pixie_paradon`
+  (`TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]`)
+  is filed under the paradon family but resolves on a same-side toe stall (`SAME TOE`)
+  rather than the paradon clipper terminal (`OP CLIP`). The ask: is it correctly named
+  and classified as a paradon, or a distinct toe-terminal trick mis-filed under paradon
+  (its source form ended in a back swirl onto a toe, which a later notation pass
+  flattened)?
 - **The atomic-pickup alias target** — "atomic pickup" is already omelette's alias
   carrying Red's own naming ruling (omelette = illusioning pickup, and illusioning
   later merged into atomic), while scrambled-eggbeater is the byte-identical

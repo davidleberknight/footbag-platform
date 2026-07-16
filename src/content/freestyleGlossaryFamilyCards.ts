@@ -686,7 +686,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     kind:              'branch',
     canonicalFormula:  'SET > OP IN [DEX] > SAME CLIP [XBD] [DEL]',
     familyAnchorAdds:  3,
-    commonDescendants: ['paradox drifter', 'high plains drifter', 'gyro drifter'],
+    commonDescendants: ['paradox drifter', 'gyro drifter'],
     siblingFamilies:   ['torque', 'blender'],
     notableCompounds:  ['vortex (≡ gyro drifter)', 'paradox drifter'],
     observationalNotes: [
@@ -711,13 +711,13 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
         'Strip the operators and a drifter is what remains.',
       ],
       howToThink:
-        'Read drifter as a clipper reached with a dex in front. When you meet a royale or a vortex, name the drifter underneath first, then the operator that was added to reach it. That is usually most of the work of reading the trick.',
+        'Read drifter as a clipper reached with a dex in front. When you meet a vortex, name the drifter underneath first, then the gyro added to reach it. A royale looks similar but is built on the neighboring reverse drifter, not on this one.',
       misconceptions: [
         'Drifter is not a whirl; a whirl loops the leg all the way around to a clipper, while a drifter is one dex arriving on a clipper.',
         'Vortex is a gyro drifter, a drifter with an operator added; Royale is not a drifter descendant, it sits on the neighboring reverse-drifter line as a paradox reverse drifter.',
         'Drifter is not defined by the set that launches it; the set can change while the drifter stays the same.',
       ],
-      seeItIn: ['vortex', 'paradox_drifter', 'high_plains_drifter'],
+      seeItIn: ['vortex', 'paradox_drifter'],
       notationIntro:
         'For readers interested in the formal notation, a drifter is one inward dexterity caught on a same-side clipper: SET > OP IN [DEX] > SAME CLIP [XBD] [DEL] (3 ADD). The single dex arriving on the clipper is what separates it from the whirl.',
       takeaway:
