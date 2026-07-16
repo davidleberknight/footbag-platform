@@ -54,13 +54,6 @@ KNOWN_INCOMPLETE_NOTATION = {
     # the down-family embedded-base coordinate frame is pending, so this cell's
     # notation is held.
     "down_double_down",
-    # doctrine-clear, but curator notation required: the doctrine blocker is
-    # cleared (every component operator is settled), but the exact JOB notation
-    # needs a curator's movement-authoritative reading before it becomes canonical.
-    #   paradox_blur: a derived candidate exists, but it creates two [PDX]
-    #     brackets, so it needs explicit curator confirmation of that exact
-    #     notation before it becomes canonical.
-    "paradox_blur",
     # flailing's operator definition is pending an expert confirm/deny, so this
     # compound's notation is held: doctrine-blocked, not curator-ready.
     "bill_ted_s_excellent_adventure",

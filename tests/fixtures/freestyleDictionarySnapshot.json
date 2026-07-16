@@ -9240,7 +9240,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "PARADOX BLUR",
-"operational_notation": null,
+"operational_notation": "CLIP > OP IN [DEX] [PDX] >> OP IN [DEX] [PDX] > OP TOE [DEL]",
 "sort_order": 1712
 },
 {
