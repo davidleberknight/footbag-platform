@@ -60,10 +60,7 @@ KNOWN_INCOMPLETE_NOTATION = {
     #   paradox_blur: a derived candidate exists, but it creates two [PDX]
     #     brackets, so it needs explicit curator confirmation of that exact
     #     notation before it becomes canonical.
-    #   big_apple_sauce: a five-operator stack on torque; needs authoritative
-    #     curator notation, not a mechanical derivation.
     "paradox_blur",
-    "big_apple_sauce",
     # flailing's operator definition is pending an expert confirm/deny, so this
     # compound's notation is held: doctrine-blocked, not curator-ready.
     "bill_ted_s_excellent_adventure",
