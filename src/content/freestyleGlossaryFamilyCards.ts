@@ -204,7 +204,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     // Representative chassis: the double-over-down cell. The family's four
     // variants share the two-outward-dex motif; the set and the performing
     // foot select the variant.
-    canonicalFormula:  'TOE > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
+    canonicalFormula:  'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  4,
     commonDescendants: ['fusion', 'scorpions tail', 'superfly', 'dolomite', 'nemesis'],
     siblingFamilies:   ['barfly', 'double_over_down', 'paradon', 'down_double_down'],
@@ -433,7 +433,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     familyAnchorAdds:  2,
     commonDescendants: ['double pickup', 'spinning pickup', 'ducking pickup', 'paste'],
     siblingFamilies:   ['mirage', 'illusion', 'legover'],
-    notableCompounds:  ['omelette', 'paste', 'legeater'],
+    notableCompounds:  ['scrambled eggbeater', 'paste', 'legeater'],
     observationalNotes: [
       {
         title: 'Upward-catching dex',
@@ -445,9 +445,9 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
       physicalDescription:
         'A Pickup is one dexterity caught on a toe stall, and it carries the same ADD as a Mirage, but the leg scoops under the bag and lifts it rather than passing over the top. That scoop-from-below is what makes it a pickup, even though the two tricks look similar at a glance.',
       importance:
-        'Pickup matters because it introduces a whole way of catching, from underneath, that other tricks are built out of. Its atomic form is the omelette, and paste and the legeater carry the same scooping motion forward. Learning to see the pickup scoop inside a trick lets you read that axis of the vocabulary as one motion with additions, rather than a set of separate advanced moves.',
+        'Pickup matters because it introduces a whole way of catching, from underneath, that other tricks are built out of. Its atomic form is the scrambled eggbeater, and paste and the legeater carry the same scooping motion forward. Learning to see the pickup scoop inside a trick lets you read that axis of the vocabulary as one motion with additions, rather than a set of separate advanced moves.',
       variantsIntro:
-        'Pickup is a base other tricks build on. Add an operator or a set and you get its family: spinning pickup, ducking pickup, double pickup, and the omelette, which is the pickup in its atomic form. The pickup underneath stays the same; what is added on top is what changes.',
+        'Pickup is a base other tricks build on. Add an operator or a set and you get its family: spinning pickup, ducking pickup, double pickup, and the scrambled eggbeater, which is the pickup in its atomic form. The pickup underneath stays the same; what is added on top is what changes.',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
@@ -457,13 +457,13 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
         'Strip the operators and a plain pickup is what remains.',
       ],
       howToThink:
-        'When a single dex reads like a mirage but the bag is lifted from below rather than circled over the top, name it a pickup. Naming the pickup underneath first, then the addition, keeps the omelette, paste, and legeater organized as one scooping lineage.',
+        'When a single dex reads like a mirage but the bag is lifted from below rather than circled over the top, name it a pickup. Naming the pickup underneath first, then the addition, keeps the scrambled eggbeater, paste, and legeater organized as one scooping lineage.',
       misconceptions: [
         'Pickup is not a mirage variant; it carries the same ADD but scoops under the bag rather than circling over it, which makes it a separate trick.',
-        'The omelette is not a separate trick from pickup; it is the pickup in its atomic form.',
+        'The scrambled eggbeater is the pickup in its atomic form; the omelette, despite the egg naming, is the atomic illusion and belongs to the illusion line.',
         'Pickup is not defined by the set that launches it; the set can change while the pickup stays the same.',
       ],
-      seeItIn: ['omelette', 'paste', 'spinning_pickup', 'ducking_pickup', 'double_pickup'],
+      seeItIn: ['scrambled_eggbeater', 'paste', 'spinning_pickup', 'ducking_pickup', 'double_pickup'],
       notationIntro:
         'For readers interested in the formal notation, a pickup is a single inward dexterity caught on the same-side toe stall: SET > OP IN [DEX] > SAME TOE [DEL] (2 ADD). The scoop from below is the movement the notation does not spell out; the catch is the same-side toe.',
       takeaway:
@@ -813,7 +813,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Toe-set double out-dex',
-        body:  'Paradon is a 4-ADD toe-set branch: an opposite-out dex, then a same-side out dex, closing on an opposite cross-body clipper. It sits beside double-over-down, which repeats the opposite-out dex instead of switching to same-side, and feeds named descendants including symposium paradon (folk-named Dolomite).',
+        body:  'Paradon is a 4-ADD toe-set branch: two opposite-side out dexes circled by the other leg, closing on an opposite cross-body clipper. It sits beside double-over-down, which circles both dexes with the setting leg instead (two same-side out dexes), and feeds named descendants including symposium paradon (folk-named Dolomite).',
       },
     ],
   },
@@ -821,7 +821,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     slug:              'double_over_down',
     displayName:       'Double-Over-Down',
     kind:              'branch',
-    canonicalFormula:  'TOE > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
+    canonicalFormula:  'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  4,
     commonDescendants: ['down diver', 'gyro double-over-down', 'pixie double-over-down'],
     siblingFamilies:   ['legover', 'paradon'],
@@ -829,7 +829,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Name is the structure',
-        body:  'Double-Over-Down is named for what it does: two opposite-out dexes (the double over) come down onto an opposite cross-body clipper (the down), all from a toe set, for 4 ADD. It sits beside paradon, which switches the second dex to same-side, and beside the legover family; its deepest named descendant is the down diver.',
+        body:  'Double-Over-Down is named for what it does: two same-side out dexes (the double over), circled by the setting leg, come down onto an opposite cross-body clipper (the down), all from a toe set, for 4 ADD. It sits beside paradon, which circles with the other leg instead (two opposite-side out dexes), and beside the legover family; its deepest named descendant is the down diver.',
       },
     ],
     teaching: {
@@ -857,7 +857,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
       ],
       seeItIn: ['down_diver', 'gyro_double_over_down', 'pixie_double_over_down'],
       notationIntro:
-        'For readers interested in the formal notation, a double-over-down runs two outward dexes into a cross-body clipper from a toe set: TOE > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL] (4 ADD). The two OUT dexes are the double over; the cross-body clipper is the down.',
+        'For readers interested in the formal notation, a double-over-down runs two same-side outward dexes into a cross-body clipper from a toe set: TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL] (4 ADD). The setting leg circles both dexes (the double over); the cross-body clipper is the down.',
       takeaway:
         'Double-Over-Down is the down whose name is its structure, which makes it the easiest way into the whole down family.',
     },
