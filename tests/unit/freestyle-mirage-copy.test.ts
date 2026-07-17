@@ -8,14 +8,15 @@
  * differ only by dex direction, as do pickup and legover; mirage and pickup
  * share a direction but differ by catching foot, as do illusion and legover.
  *
- * This pins the relational-token semantics against the shipped notation, checks
- * the corrected catch prose on the settled tricks (the four atoms plus the two
- * unambiguous mirage/illusion-terminal compounds, flail and double illusion),
- * confirms that the verified pixie/fairy/leg-over compounds keep their correct
- * opposite-of-the-setting-foot catches, and holds the four compounds whose
- * catch-foot reading is still pending so they cannot be silently rewritten. It
- * does not reject the phrase "opposite toe" corpus-wide: that phrase is correct
- * for tricks whose catch genuinely lands opposite the setting foot.
+ * This pins the relational-token semantics against the shipped notation and
+ * checks the corrected catch prose on the setting-toe tricks (the four atoms, the
+ * mirage/illusion-terminal compounds flail and double illusion, and the set-entry
+ * compounds pixie-mirage and fairy-mirage, whose chains resolve to the setting
+ * toe), and confirms that the compounds whose chains resolve opposite the setting
+ * foot (the pixie/fairy/leg-over family plus quantum-mirage and
+ * pixie-same-side-illusion) keep their correct opposite-toe catches. It does not
+ * reject the phrase "opposite toe" corpus-wide: that phrase is correct for tricks
+ * whose catch genuinely lands opposite the setting foot.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -118,7 +119,7 @@ describe('the beginner paragraph and grid state the ruled relationships', () => 
 
 // mirage, illusion, flail, and double illusion resolve to the setting toe.
 describe('setting-toe tricks are caught back on the setting toe', () => {
-  for (const slug of ['mirage', 'illusion', 'flail', 'double_illusion']) {
+  for (const slug of ['mirage', 'illusion', 'flail', 'double_illusion', 'pixie_mirage', 'fairy_mirage']) {
     it(`${slug} execution summary says setting toe and not the opposite toe`, () => {
       const text = execSummary(slug);
       expect(text).toMatch(/setting toe/i);
@@ -148,28 +149,13 @@ describe('dexing-foot tricks are caught by the leg that dexed', () => {
 
 // ── Verified-correct compounds: opposite-of-setting-foot catch is right ──────
 
+// Ruled 2026-07: each side marker reads against the previous component, so
+// quantum-mirage (OP,OP,OP) and pixie-same-side-illusion (SAME,SAME,OP) both
+// resolve to the opposite (dexing) toe — their existing wording is correct.
 describe('compounds that genuinely catch opposite the setting foot keep that wording', () => {
-  for (const slug of ['pixie', 'double_pixie', 'double_fairy', 'double_switch_over']) {
+  for (const slug of ['pixie', 'double_pixie', 'double_fairy', 'double_switch_over',
+                      'quantum_mirage', 'pixie_same_side_illusion']) {
     it(`${slug} keeps its correct opposite-toe catch`, () => {
-      expect(execSummary(slug)).toMatch(OPP_TOE);
-    });
-  }
-});
-
-// ── Held compounds: catch-foot reading pending, must not be silently changed ──
-
-// This allowlist is the four compounds whose catch-foot reading is unresolved.
-// Their catch prose must stay exactly as it is until each is ruled: a global
-// sweep that rewrote them to "setting toe" would fail these assertions, so they
-// cannot be silently changed without also, deliberately, updating this list.
-const HELD = ['pixie_mirage', 'fairy_mirage', 'quantum_mirage', 'pixie_same_side_illusion'];
-
-describe('the four held compounds are the bounded allowlist and are unchanged until ruled', () => {
-  it('holds exactly these four compounds', () => {
-    expect(HELD).toHaveLength(4);
-  });
-  for (const slug of HELD) {
-    it(`${slug} still carries its current opposite-toe catch prose (change only by ruling)`, () => {
       expect(execSummary(slug)).toMatch(OPP_TOE);
     });
   }

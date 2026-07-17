@@ -49,6 +49,19 @@ silently reshaping either side.
   reverse-ATW, drifter ≠ reverse-drifter. `reverse` is never a modifier row.
   Within-trick CW/CCW execution variants the community treats as one trick stay one
   row.
+- **Toe-dexterity catch foot reads by component-relative side markers** (maintainer
+  ruling on the four-atom correction). Each `SAME` / `OP` side marker in the
+  operational notation is read against the previous side-bearing component, not a
+  fixed setting foot, so two opposite markers chain back to the setting foot. The
+  four basic toe dexterities split by catching foot: mirage and illusion (two `OP`
+  markers) return to the setting toe and the dexing leg does not catch; pickup and
+  legover (`OP` dex, `SAME` catch) are caught by the dexing foot. The four set-entry
+  and multi-dex compounds resolve by the same chain: pixie-mirage and fairy-mirage
+  catch on the setting toe (their teaching prose corrected from "opposite toe"),
+  while quantum-mirage and pixie-same-side-illusion catch on the opposite (dexing)
+  toe (their prose already correct). Canonical home: the public teaching copy in
+  `src/content/freestyleCoreAtomEducational.ts` and the family cards, with the
+  per-component marker rule in `POSITIONAL_IDENTITY.md`.
 - **Timing can individuate operators** (latest timing clarification). Red's latest
   timing clarification settles the tested pairs: Atomic is an uptime set and
   Illusioning is a distinct downtime move, so they do not merge; hippy Atomic and
