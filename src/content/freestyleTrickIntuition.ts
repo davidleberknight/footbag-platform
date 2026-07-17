@@ -81,7 +81,7 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
     slug: 'pickup',
     prose:
-      'A pickup swings the support leg inward and under the footbag, scooping it up from below, then catches it on the toe of the same foot that set it. The scoop from underneath is what makes it a pickup, and it is why the pickup feels different from a mirage even though the two are worth the same. Set the bag a comfortable height, bring the leg under it, and let the foot rise into the catch rather than reaching over the top.',
+      'A pickup swings the support leg inward and under the footbag, scooping it up from below, then catches it on the toe of that same leg, the one that scooped. The scoop from underneath is what makes it a pickup, and it is why the pickup feels different from a mirage even though the two are worth the same. Set the bag a comfortable height, bring the leg under it, and let the foot rise into the catch rather than reaching over the top.',
     attribution: '',
   },
   {

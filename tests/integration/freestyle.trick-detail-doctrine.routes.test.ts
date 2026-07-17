@@ -44,7 +44,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, {
     slug: 'mirage', canonical_name: 'mirage', adds: '2',
     base_trick: 'mirage', trick_family: 'mirage', category: 'dex',
-    description: "Toe-set dex'd outside the supporting leg, recaught on the opposite toe (in-to-out dex).",
+    description: "Toe-set dex'd outside the supporting leg, recaught on the setting toe (in-to-out dex).",
     operational_notation: 'TOE > OP IN [DEX] > OP TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });

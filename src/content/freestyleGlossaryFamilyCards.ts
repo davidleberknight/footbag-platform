@@ -290,13 +290,13 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Mirage / illusion symmetry',
-        body:  'Mirage and illusion are reverse-direction siblings: mirage takes an opposite-in dex, illusion takes the mirror reverse. Both terminate on an opposite-foot toe delay. The pair is the canonical example of direction-variant family symmetry.',
+        body:  'Mirage and illusion are reverse-direction siblings: mirage takes an opposite-leg inside dex, illusion takes the mirror reverse. Both return to the toe that set the bag, the dexing leg not making the catch. The pair is the canonical example of direction-variant family symmetry.',
       },
     ],
     teaching: {
       hook: 'A great first dexterity to learn: Mirage is one of the simplest complete dexterity movements, and the idea much of freestyle is built from.',
       physicalDescription:
-        'A Mirage is one of the simplest complete dexterity movements. One leg circles the bag once before it is caught on a toe stall. That is the whole trick, which is why it is usually one of the first dexterities a player learns.',
+        'A Mirage is one of the simplest complete dexterity movements. The opposite leg circles the bag once, from inside to outside, and the bag returns to the same toe that set it; the circling leg performs the dexterity but does not make the catch. That is the whole trick, which is why it is usually one of the first dexterities a player learns.',
       importance:
         'Much of freestyle grows from Mirage. Once you understand it, a large part of the harder material becomes combinations or modifications of the same idea: add an operator, change the surface, or stack it, and you have dozens of tricks that all rest on the mirage you already know.',
       variantsIntro:
@@ -318,7 +318,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
       ],
       seeItIn: ['paradox_mirage', 'symposium_mirage', 'spinning_mirage'],
       notationIntro:
-        'For readers interested in the formal notation, a mirage is a single dexterity caught on a toe stall: SET > OP IN [DEX] > OP TOE [DEL] (2 ADD). The one dex is the pass around the bag; the toe stall is the catch.',
+        'For readers interested in the formal notation, a mirage is a single dexterity caught on a toe stall: SET > OP IN [DEX] > OP TOE [DEL] (2 ADD). Each side marker is read against the previous component, so the opposite-leg dex followed by an opposite-side catch returns the bag to the toe that set it. The one dex is the pass around the bag; the toe stall is the catch, back on the setting toe.',
       takeaway:
         'Once you can recognize the Mirage inside more advanced tricks, freestyle begins to look like one connected system instead of hundreds of unrelated names.',
     },
@@ -376,7 +376,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Mirror of mirage',
-        body:  'Illusion is the out-to-in mirror of mirage: the bag follows the same path, the body the inverse. Both are leggy dexes that finish on an opposite-foot toe delay.',
+        body:  'Illusion is the out-to-in mirror of mirage: the bag follows the same path, the body the inverse. Both are leggy dexes that return to the toe that set the bag.',
       },
     ],
     teaching: {
@@ -427,20 +427,20 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Legover is where the leg-over motion enters freestyle, the leg passing over the bag, and a whole lineage of tricks grows from it.',
       physicalDescription:
-        'A Legover is one outward dexterity followed by a same-side toe stall. Its closest directional neighbor is Illusion: both use an outward dex, but Illusion finishes on the opposite toe. The catch side, not simply the impression of a leg passing over the bag, is what distinguishes the two structurally.',
+        'A Legover is one outward dexterity caught by the dexing foot, the leg that passes over the bag. Its closest directional neighbor is Illusion: both use an outward dex, but Illusion returns to the setting toe instead. The catching foot, not simply the impression of a leg passing over the bag, is what distinguishes the two structurally.',
       importance:
-        'Legover occupies one of the four basic single-dex toe positions created by combining dex direction with catch side. It shares its outward direction with Illusion and its same-side catch with Pickup, so three apparently separate tricks become neighboring cells of one movement system. Legover also provides the terminal movement inside more complicated tricks: Double Legover adds an inward dex before it, Eggbeater reaches it through an atomic set, and Flurry places a larger dex sequence in front of the same outward-dex-to-toe resolution.',
+        'Legover occupies one of the four basic single-dex toe positions created by combining dex direction with catching foot. It shares its outward direction with Illusion and its dexing-foot catch with Pickup, so three apparently separate tricks become neighboring cells of one movement system. Legover also provides the terminal movement inside more complicated tricks: Double Legover adds an inward dex before it, Eggbeater reaches it through an atomic set, and Flurry places a larger dex sequence in front of the same outward-dex-to-toe resolution.',
       variantsIntro: '',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
         'The leg passes over the top of the bag.',
-        'One dex, caught on the same-side toe.',
+        'One dex, caught by the dexing foot.',
         'The same leg that circles is the one that catches.',
         'Strip the operators and a plain legover is what remains.',
       ],
       howToThink:
-        'Name the legover underneath first. When a trick sends the leg over the bag to a same-foot catch, treat it as a legover with something added, then name the addition. That keeps the eggbeater, the double-leg-over, and the flurry organized as one lineage instead of three separate skills.',
+        'Name the legover underneath first. When a trick sends the leg over the bag and catches on that same leg, treat it as a legover with something added, then name the addition. That keeps the eggbeater, the double-leg-over, and the flurry organized as one lineage instead of three separate skills.',
       misconceptions: [
         'Legover is not defined by the set that launches it; the set can change while the legover stays the same.',
         'The eggbeater is not a separate trick from legover; it is the legover in its atomic form.',
@@ -448,12 +448,12 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
       ],
       seeItIn: ['eggbeater', 'double_leg_over', 'flurry', 'spinning_legover'],
       notationIntro:
-        'For readers interested in the formal notation, a legover is a single dexterity caught on the same-side toe stall: SET > OP OUT [DEX] > SAME TOE [DEL] (2 ADD). The same-side toe catch is what separates it from the illusion, which catches on the opposite foot.',
+        'For readers interested in the formal notation, a legover is a single dexterity caught by the dexing foot: SET > OP OUT [DEX] > SAME TOE [DEL] (2 ADD). Read against the previous component, the same-side catch stays on the leg that dexed, which is what separates it from the illusion, whose opposite-side catch returns to the setting toe.',
       takeaway:
         'Legover is where the leg-over motion enters the vocabulary, and recognizing it is what turns a branch of advanced freestyle into one lineage you can read.',
-      plainLanguageReading: 'One outward dexterity, ending on the same-side toe.',
+      plainLanguageReading: 'One outward dexterity, caught by the dexing foot.',
       structuralSignature: {
-        conserved:        'An outward dexterity resolving to a same-side toe stall.',
+        conserved:        'An outward dexterity caught by the dexing foot.',
         mayChange:        'The set, the body operator, and the movements preceding the terminal dex.',
         nearestNeighbors: 'Pickup changes the dex direction; Illusion changes the catch side.',
       },
@@ -485,15 +485,15 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Pickup is the dexterity that scoops under the bag instead of circling over the top, and it opens an axis of freestyle the mirage does not.',
       physicalDescription:
-        'A Pickup is one inward dexterity followed by a same-side toe stall. Players often experience it as scooping beneath the bag, but its structural identity is the combination of inward dex direction and same-side catch. Mirage uses the same inward dexterity but finishes on the opposite toe, and that single catch-side change is the cleanest distinction between the two.',
+        'A Pickup is one inward dexterity caught by the dexing foot, the leg that scooped. Players often experience it as scooping beneath the bag, but its structural identity is the combination of inward dex direction and a catch on the dexing foot. Mirage uses the same inward dexterity but returns to the setting toe instead, and that single change of catching foot is the cleanest distinction between the two.',
       importance:
-        'Pickup completes the same-side half of the basic toe-dex grid. Legover reaches the same toe through an outward dex; Pickup reaches it through an inward dex, which makes Pickup part of a larger movement relationship rather than an isolated scooping trick. The family grows by placing sets and operators before that inward-dex-to-same-toe terminal. Paste is Pixie Pickup, Legeater extends the dex sequence, and Scrambled Eggbeater is the atomic form of Pickup. Omelette belongs to the Illusion line, not the Pickup line.',
+        'Pickup completes the dexing-foot-catch half of the basic toe-dex grid. Legover reaches the dexing foot through an outward dex; Pickup reaches it through an inward dex, which makes Pickup part of a larger movement relationship rather than an isolated scooping trick. The family grows by placing sets and operators before that inward-dex-to-same-toe terminal. Paste is Pixie Pickup, Legeater extends the dex sequence, and Scrambled Eggbeater is the atomic form of Pickup. Omelette belongs to the Illusion line, not the Pickup line.',
       variantsIntro: '',
       variants: [],
       variantsRuling: '',
       howToRecognize: [
         'The leg scoops under the bag and lifts it.',
-        'One dex, caught on the same-side toe.',
+        'One dex, caught by the dexing foot.',
         'It carries a mirage\'s ADD but not a mirage\'s motion.',
         'Strip the operators and a plain pickup is what remains.',
       ],
@@ -506,12 +506,12 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
       ],
       seeItIn: ['scrambled_eggbeater', 'paste', 'spinning_pickup', 'ducking_pickup', 'double_pickup'],
       notationIntro:
-        'For readers interested in the formal notation, a pickup is a single inward dexterity caught on the same-side toe stall: SET > OP IN [DEX] > SAME TOE [DEL] (2 ADD). The scoop from below is the movement the notation does not spell out; the catch is the same-side toe.',
+        'For readers interested in the formal notation, a pickup is a single inward dexterity caught by the dexing foot: SET > OP IN [DEX] > SAME TOE [DEL] (2 ADD). Read against the previous component, the same-side catch stays on the leg that dexed. The scoop from below is the movement the notation does not spell out; the catch is on the toe of the leg that scooped.',
       takeaway:
         'Pickup is the scoop-from-below dexterity, and recognizing it opens a branch of freestyle the mirage never reaches.',
-      plainLanguageReading: 'One inward dexterity, ending on the same-side toe.',
+      plainLanguageReading: 'One inward dexterity, caught by the dexing foot.',
       structuralSignature: {
-        conserved:        'An inward dexterity resolving to a same-side toe stall.',
+        conserved:        'An inward dexterity caught by the dexing foot.',
         mayChange:        'The set, the body operator, and the preceding dex sequence.',
         nearestNeighbors: 'Mirage changes the catch side; Legover changes the dex direction.',
       },
@@ -985,7 +985,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Branch of illusion',
-        body:  'Flail ≡ symposium illusion: the symposium (no-plant) operator on the illusion terminal, conserving illusion\'s opposite-foot toe delay.',
+        body:  'Flail ≡ symposium illusion: the symposium (no-plant) operator on the illusion terminal, conserving illusion\'s return to the setting toe.',
       },
     ],
   },
