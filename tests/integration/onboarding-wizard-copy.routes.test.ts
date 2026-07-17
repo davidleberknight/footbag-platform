@@ -40,7 +40,7 @@ beforeAll(async () => {
     id: 'copy-pd-member', slug: 'copy_pd_member', login_email: 'copy-pd-member@example.com',
     real_name: 'Copy PD Member', display_name: 'Copy PD Member',
   });
-  insertClub(db, { name: 'Copy Test Club', country: 'Freedonia', publiclyVisible: true });
+  insertClub(db, { id: 'club-copy-real', name: 'Copy Test Club', country: 'Freedonia', publiclyVisible: true });
   createApp = await importApp();
 });
 

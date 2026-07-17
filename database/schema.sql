@@ -79,7 +79,11 @@ CREATE TABLE clubs (
   hashtag_tag_id TEXT NOT NULL REFERENCES tags(id)
 );
 
--- clubs_open: active and inactive rows (excludes archived clubs)
+-- clubs_open: active and inactive rows (excludes archived clubs). Shared by the
+-- public listing queries AND the by-tag detail lookup, so it does NOT filter test
+-- fixtures: fixture exclusion is a per-query concern applied only to the listing
+-- surfaces (see listActive / listOpen in db.ts), so a fixture's detail page stays
+-- reachable by direct link for the dev persona crawl. Admin queries use clubs_all.
 CREATE VIEW clubs_open AS
   SELECT * FROM clubs WHERE status IN ('active', 'inactive');
 

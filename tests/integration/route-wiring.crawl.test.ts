@@ -111,7 +111,10 @@ beforeAll(async () => {
   const clubTag = insertTag(db, {
     tag_normalized: '#club_crawlville', tag_display: '#club_crawlville', standard_type: 'club',
   });
-  insertClub(db, { name: 'Crawlville Footbag', city: 'Crawlville', country: 'US', hashtag_tag_id: clubTag });
+  // A real (non-fixture) club in the same country the persona clubs use, so the
+  // country directory (/clubs/usa) has a visible club and the persona clubs'
+  // country links resolve even though the persona fixtures are excluded from it.
+  insertClub(db, { id: 'club-crawlville-real', name: 'Crawlville Footbag', city: 'Crawlville', country: 'USA', hashtag_tag_id: clubTag });
 
   insertEvent(db, { title: 'Crawl Open', status: 'published' });
 

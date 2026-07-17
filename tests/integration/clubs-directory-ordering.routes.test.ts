@@ -24,7 +24,8 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // A live club with member activity, named so it sorts LAST alphabetically.
-  const liveId = insertClub(db, { name: 'Zeta Live Club', country: 'USA', publiclyVisible: true });
+  // Real (non-fixture) ids so both appear in the public directory.
+  const liveId = insertClub(db, { id: 'club-zeta-live', name: 'Zeta Live Club', country: 'USA', publiclyVisible: true });
   const personId = insertHistoricalPerson(db, { person_id: 'dir-order-person', person_name: 'Dir Member' });
   const candidateId = insertLegacyClubCandidate(db, {
     legacy_club_key: 'legacy_dir_order',
@@ -40,7 +41,7 @@ beforeAll(async () => {
 
   // A dormant record (active row, no leaders, no members), named to sort FIRST
   // alphabetically. Discovery order must still place the live club above it.
-  insertClub(db, { name: 'Alpha Dormant Club', country: 'USA', publiclyVisible: true });
+  insertClub(db, { id: 'club-alpha-dormant', name: 'Alpha Dormant Club', country: 'USA', publiclyVisible: true });
 
   db.close();
   createApp = await importApp();

@@ -18,7 +18,7 @@ const MALICIOUS_COUNTRY = '</script><img src=x onerror=alert(1)>';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertClub(db, { name: 'Island Break Club', country: MALICIOUS_COUNTRY, status: 'active', publiclyVisible: true });
+  insertClub(db, { id: 'club-island-real', name: 'Island Break Club', country: MALICIOUS_COUNTRY, status: 'active', publiclyVisible: true });
   db.close();
   createApp = await importApp();
 });

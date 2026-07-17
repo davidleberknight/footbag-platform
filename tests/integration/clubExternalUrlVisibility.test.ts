@@ -41,7 +41,9 @@ beforeAll(async () => {
   });
   // Quarantined (a quarantine_reason hides it even when validated) -> hidden.
   insertClub(db, {
-    id: QUARANTINED_ID, name: 'Quarantined Club',
+    id: QUARANTINED_ID,
+    hashtag_tag_id: insertTag(db, { standard_type: 'club', tag_normalized: '#club_vis_quarantined' }),
+    name: 'Quarantined Club',
     external_url: QUARANTINED_URL, external_url_quarantine_reason: 'This URL is not allowed.',
   });
   db.close();

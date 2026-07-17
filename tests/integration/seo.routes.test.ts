@@ -29,8 +29,8 @@ beforeAll(async () => {
   insertEvent(db, { hashtag_tag_id: eventTag, status: 'completed', start_date: '2019-08-01', end_date: '2019-08-03' });
 
   // An open club, so its detail URL appears in the sitemap.
-  const clubTag = insertTag(db, { standard_type: 'club', tag_normalized: '#club_test_seattle' });
-  insertClub(db, { hashtag_tag_id: clubTag, name: 'Seattle Footbag' });
+  const clubTag = insertTag(db, { standard_type: 'club', tag_normalized: '#club_seattle' });
+  insertClub(db, { id: 'club-seattle-real', hashtag_tag_id: clubTag, name: 'Seattle Footbag' });
 
   // A named gallery, so its detail URL appears in the sitemap.
   insertMemberGallery(db, { id: 'gallery_seo_test', owner_member_id: 'seo-member-1', name: 'SEO Test Gallery' });
@@ -79,7 +79,7 @@ describe('GET /sitemap.xml', () => {
     const res = await request(createApp()).get('/sitemap.xml');
     expect(res.text).toContain(`<loc>${ORIGIN}/events/event_2019_test_worlds</loc>`);
     expect(res.text).toContain(`<loc>${ORIGIN}/events/year/2019</loc>`);
-    expect(res.text).toContain(`<loc>${ORIGIN}/clubs/club_test_seattle</loc>`);
+    expect(res.text).toContain(`<loc>${ORIGIN}/clubs/club_seattle</loc>`);
     // Rules and IFPA documents come from committed content, so at least one of
     // each is always present.
     expect(res.text).toMatch(new RegExp(`<loc>${ORIGIN}/rules/[^<]+</loc>`));

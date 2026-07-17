@@ -743,6 +743,11 @@ export const clubs = {
     WHERE
       t.is_standard = 1
       AND t.standard_type = 'club'
+      -- Fixture exclusion, both markers, so a fixture is never emitted to the
+      -- public sitemap: the reserved 'club-test-' internal id (authoritative) and
+      -- the reserved '#club_test_' tag namespace.
+      AND c.id NOT LIKE 'club-test-%'
+      AND t.tag_normalized NOT LIKE '#club\\_test\\_%' ESCAPE '\\'
     ORDER BY
       c.country COLLATE NOCASE ASC,
       CASE WHEN c.region IS NULL OR c.region = '' THEN 1 ELSE 0 END ASC,
@@ -774,12 +779,14 @@ export const clubs = {
     WHERE
       t.is_standard = 1
       AND t.standard_type = 'club'
-      -- Test-fixture clubs are written into the real clubs table under the
-      -- reserved '#club_test_' tag namespace. They must never reach the public
-      -- directory. The slug namespace is the authoritative, deterministic guard
-      -- here; the 'Testville' fixture city is handled only as a build-time
-      -- diagnostic in the loader-count QC gate, not at read time, because it is
-      -- the test factory's default city for ordinary (non-fixture) test clubs.
+      -- Test-fixture clubs are written into the real clubs table at runtime (the
+      -- persona seed). They must never reach the public directory. Both markers
+      -- are excluded: the reserved 'club-test-' internal id is the authoritative
+      -- fixture identity (a persona club can carry an ordinary public tag, which a
+      -- tag-only guard missed), and the reserved '#club_test_' tag namespace is the
+      -- second independent marker. The detail lookup (getByTagNormalized) does NOT
+      -- apply these, so a fixture's page stays reachable by direct link.
+      AND c.id NOT LIKE 'club-test-%'
       AND t.tag_normalized NOT LIKE '#club\\_test\\_%' ESCAPE '\\'
     ORDER BY
       c.country COLLATE NOCASE ASC,
@@ -3490,13 +3497,13 @@ export const netTeams = {
 };
 
 /**
- * Dynamic team query with optional division (canonical_group) and player-search
- * filters. Uses runtime db.prepare() for the optional JOIN clause.
+ * Shared filter clauses for the optional division (canonical_group) and
+ * player-search filters, so the paginated fetch and the count query filter the
+ * identical universe. The 'Unknown' placeholder is always excluded.
  */
-export function queryFilteredTeams(filters: {
-  division?: string;
-  search?: string;
-}): NetTeamStatsRow[] {
+function buildFilteredTeamsClauses(filters: { division?: string; search?: string }): {
+  joins: string; where: string; params: string[];
+} {
   const joins: string[] = [];
   const conditions: string[] = [];
   const params: string[] = [];
@@ -3510,13 +3517,25 @@ export function queryFilteredTeams(filters: {
     const like = `%${filters.search}%`;
     params.push(like, like);
   }
-
-  // Always exclude Unknown placeholder
   conditions.push("pa.person_name != 'Unknown'");
   conditions.push("pb.person_name != 'Unknown'");
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { joins: joins.join('\n    '), where: `WHERE ${conditions.join(' AND ')}`, params };
+}
 
+/**
+ * One page of teams matching the optional division / player-search filter, in the
+ * same order and universe as the unfiltered directory. No HAVING or fixed LIMIT:
+ * pagination (LIMIT ? OFFSET ?) governs how many rows render, so a filter can
+ * never dump thousands of rows at once. Uses runtime db.prepare() for the
+ * optional JOIN clause.
+ */
+export function queryFilteredTeams(
+  filters: { division?: string; search?: string },
+  limit: number,
+  offset: number,
+): NetTeamStatsRow[] {
+  const { joins, where, params } = buildFilteredTeamsClauses(filters);
   return db.prepare(`
     SELECT
       t.team_id,
@@ -3543,13 +3562,30 @@ export function queryFilteredTeams(filters: {
     LEFT JOIN members mb
       ON mb.historical_person_id = pb.person_id
       AND mb.deleted_at IS NULL
-    ${joins.join('\n    ')}
+    ${joins}
     ${where}
     GROUP BY t.team_id
-    HAVING COUNT(*) >= 2
     ORDER BY appearance_count DESC, win_count DESC, last_year DESC, pa.person_name ASC
-    LIMIT 50
-  `).all(...params) as NetTeamStatsRow[];
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset) as NetTeamStatsRow[];
+}
+
+/** Total unique teams matching the same filter, for the filtered page count. */
+export function countFilteredTeams(filters: { division?: string; search?: string }): number {
+  const { joins, where, params } = buildFilteredTeamsClauses(filters);
+  const row = db.prepare(`
+    SELECT COUNT(*) AS total FROM (
+      SELECT t.team_id
+      FROM net_team t
+      JOIN historical_persons pa ON pa.person_id = t.person_id_a
+      JOIN historical_persons pb ON pb.person_id = t.person_id_b
+      JOIN net_team_appearance_canonical a ON a.team_id = t.team_id
+      ${joins}
+      ${where}
+      GROUP BY t.team_id
+    )
+  `).get(...params) as { total: number };
+  return row.total;
 }
 
 // ---- QC-only (delete with pipeline-qc subsystem) ----

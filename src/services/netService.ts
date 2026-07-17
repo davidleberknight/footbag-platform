@@ -23,6 +23,7 @@ import {
   netTeams,      NetTeamSummaryRow, NetTeamAppearanceRow,
                  NetTeamStatsRow, NetDivisionOptionRow,
   queryFilteredTeams,
+  countFilteredTeams,
   netEvents,     NetEventSummaryRow,
   netHome,       NetHomeRecentEventRow,
                  NetNotablePlayerRow,
@@ -219,8 +220,8 @@ interface DivisionFilterOption {
   selected: boolean;
 }
 
-// Server-side pagination of the unfiltered directory (thousands of teams). A
-// filtered result is already bounded, so it carries no pagination.
+// Server-side pagination for the team directory, filtered or not: the filter is
+// applied first, then the filtered universe is counted and paged.
 interface NetTeamsPagination {
   page:      number;
   totalPages: number;
@@ -243,9 +244,9 @@ interface NetTeamsContent {
   activeDivision:  string | null;
   activeSearch:    string | null;
   disclaimer:      string;
-  // Present only on the unfiltered directory; null when a division/search filter
-  // is active (that result is already bounded).
-  pagination:      NetTeamsPagination | null;
+  // Always present: both the unfiltered directory and any filter are paginated,
+  // so the filtered universe cannot dump thousands of rows at once.
+  pagination:      NetTeamsPagination;
 }
 
 export interface NetEventQcHints {
@@ -533,34 +534,42 @@ export const netService = {
 
   getTeamsPage(division?: string, search?: string, page = 1): PageViewModel<NetTeamsContent> {
     const hasFilter = !!(division || search);
+    const filters = { division, search };
 
-    // The unfiltered directory is thousands of teams, so it is paginated
-    // server-side; a filtered result is already bounded and shows in full.
-    let pagination: NetTeamsPagination | null = null;
-    let rankStart = 1;
-    let rows: NetTeamStatsRow[];
-    if (hasFilter) {
-      rows = queryFilteredTeams({ division, search });
-    } else {
-      const total = (netTeams.countAll.get() as { total: number }).total;
-      const totalPages = Math.max(1, Math.ceil(total / NET_TEAMS_PAGE_SIZE));
-      const current = Math.min(Math.max(1, page), totalPages);
-      const offset = (current - 1) * NET_TEAMS_PAGE_SIZE;
-      rankStart = offset + 1;
-      rows = netTeams.listAllPaged.all(NET_TEAMS_PAGE_SIZE, offset) as NetTeamStatsRow[];
-      const hasPrev = current > 1;
-      const hasNext = current < totalPages;
-      const pageHref = (p: number): string => (p <= 1 ? '/net/teams' : `/net/teams?page=${p}`);
-      pagination = {
-        page: current,
-        totalPages,
-        total,
-        hasPrev,
-        hasNext,
-        ...(hasPrev ? { prevHref: pageHref(current - 1) } : {}),
-        ...(hasNext ? { nextHref: pageHref(current + 1) } : {}),
-      };
-    }
+    // Both the unfiltered directory and any filter are paginated server-side: the
+    // filter is applied first, then the filtered universe is counted and paged, so
+    // no filter can ever render thousands of rows. Out-of-range pages clamp to the
+    // last page. Page links carry the active filter so navigation preserves it.
+    const total = hasFilter
+      ? countFilteredTeams(filters)
+      : (netTeams.countAll.get() as { total: number }).total;
+    const totalPages = Math.max(1, Math.ceil(total / NET_TEAMS_PAGE_SIZE));
+    const current = Math.min(Math.max(1, page), totalPages);
+    const offset = (current - 1) * NET_TEAMS_PAGE_SIZE;
+    const rankStart = offset + 1;
+
+    const rows: NetTeamStatsRow[] = hasFilter
+      ? queryFilteredTeams(filters, NET_TEAMS_PAGE_SIZE, offset)
+      : netTeams.listAllPaged.all(NET_TEAMS_PAGE_SIZE, offset) as NetTeamStatsRow[];
+
+    const hasPrev = current > 1;
+    const hasNext = current < totalPages;
+    const pageHref = (p: number): string => {
+      const qs: string[] = [];
+      if (division) qs.push(`division=${encodeURIComponent(division)}`);
+      if (search)   qs.push(`q=${encodeURIComponent(search)}`);
+      if (p > 1)    qs.push(`page=${p}`);
+      return qs.length ? `/net/teams?${qs.join('&')}` : '/net/teams';
+    };
+    const pagination: NetTeamsPagination = {
+      page: current,
+      totalPages,
+      total,
+      hasPrev,
+      hasNext,
+      ...(hasPrev ? { prevHref: pageHref(current - 1) } : {}),
+      ...(hasNext ? { nextHref: pageHref(current + 1) } : {}),
+    };
 
     const teams: NetTeamListViewModel[] = rows.map(r => ({
       teamId:          r.team_id,

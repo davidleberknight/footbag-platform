@@ -287,11 +287,14 @@ describe('GET /net/teams', () => {
     expect(res.text).toContain('Page 1 of 1');
   });
 
-  it('does not paginate a filtered result (already bounded)', async () => {
+  it('paginates a filtered result too (single page here, so no Prev/Next)', async () => {
     const app = createApp();
     const res = await request(app).get('/net/teams?division=open_doubles');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('class="gallery-pagination"');
+    // One team matches, under the page size, so a single page with its status.
+    expect(res.text).toContain('class="gallery-pagination"');
+    expect(res.text).toContain('Page 1 of 1');
+    expect(res.text).not.toContain('rel="next"');
   });
 
   it('does not contain forbidden stat language', async () => {

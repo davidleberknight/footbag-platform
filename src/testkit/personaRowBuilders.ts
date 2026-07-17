@@ -389,11 +389,12 @@ export interface ClubOverrides {
   external_url_validated_at?: string | null;
   external_url_quarantine_reason?: string | null;
   status?: 'active' | 'inactive' | 'archived';
-  // Opt-out for a test that needs an ordinary, publicly visible club. By default
-  // a factory club is a fixture (reserved '#club_test_' public tag) the public
-  // directory excludes; set this to give it an ordinary public tag instead. The
-  // 'club-test-' internal id (which teardown and deploy QC key on) is kept either
-  // way, so an opted-out public club is still unmistakably test-created.
+  // Gives the club an ordinary '#club_' public tag instead of the reserved
+  // '#club_test_' fixture tag, so its detail page is a normal public page (the
+  // persona crawl navigates these). It does NOT make the club appear in the public
+  // directory: the 'club-test-' internal id is the authoritative fixture identity
+  // and the directory views exclude it whatever the tag. A test that needs a club
+  // to appear IN the directory must also pass a real (non 'club-test-') id.
   publiclyVisible?: boolean;
 }
 

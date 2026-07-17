@@ -66,6 +66,7 @@ beforeAll(async () => {
       tag_normalized: `#${slug}`,
     });
     return insertClub(db, {
+      id:      `club-${slug}`,
       hashtag_tag_id: tagId,
       name,
       city:    'Testopolis',
@@ -207,6 +208,7 @@ beforeAll(async () => {
   // Inactive → "Historical club" appended even when leaders/members present.
   const histTagId = insertTag(db, { standard_type: 'club', tag_normalized: '#club_country_historical' });
   const histId = insertClub(db, {
+    id:      'club-country-historical',
     hashtag_tag_id: histTagId,
     name:    'Country Historical Club',
     city:    'Yesteryear',

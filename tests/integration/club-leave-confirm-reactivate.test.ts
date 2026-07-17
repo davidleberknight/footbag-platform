@@ -162,9 +162,9 @@ describe('reactivateClub', () => {
 
 describe('public directory excludes inactive clubs', () => {
   it('an inactive-only country drops out of the index, and a mixed country counts active only', () => {
-    insertClub(db, { name: 'Active In Canada', country: 'Canada', status: 'active', publiclyVisible: true });
-    insertClub(db, { name: 'Inactive In Canada', country: 'Canada', status: 'inactive', publiclyVisible: true });
-    insertClub(db, { name: 'Inactive In Brazil', country: 'Brazil', status: 'inactive', publiclyVisible: true });
+    insertClub(db, { id: 'club-canada-active', name: 'Active In Canada', country: 'Canada', status: 'active', publiclyVisible: true });
+    insertClub(db, { id: 'club-canada-inactive', name: 'Inactive In Canada', country: 'Canada', status: 'inactive', publiclyVisible: true });
+    insertClub(db, { id: 'club-brazil-inactive', name: 'Inactive In Brazil', country: 'Brazil', status: 'inactive', publiclyVisible: true });
 
     const countries = clubSvc.getPublicClubsIndexPage().content.countries;
     const canada = countries.find((c) => c.country === 'Canada');
