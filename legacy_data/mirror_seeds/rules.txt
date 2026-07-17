@@ -1,0 +1,16 @@
+http://www.footbag.org/rules/chapter/0
+http://www.footbag.org/rules/chapter/10
+http://www.footbag.org/rules/chapter/20
+http://www.footbag.org/rules/chapter/30
+http://www.footbag.org/rules/chapter/40
+http://www.footbag.org/rules/chapter/50
+http://www.footbag.org/rules/chapter/60
+http://www.footbag.org/rules/chapter/100
+http://www.footbag.org/rules/chapter/200
+http://www.footbag.org/rules/chapter/300
+http://www.footbag.org/rules/chapter/400
+http://www.footbag.org/rules/chapter/500
+http://www.footbag.org/rules/chapter/800
+http://www.footbag.org/rules/chapter/910
+http://www.footbag.org/rules/chapter/920
+http://www.footbag.org/rules/chapter/1000

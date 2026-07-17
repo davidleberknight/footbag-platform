@@ -1,0 +1,14 @@
+http://www.footbag.org/ranking/showranks?set=1&method=1
+http://www.footbag.org/ranking/showranks?set=2&method=1
+http://www.footbag.org/ranking/showranks?set=3&method=1
+http://www.footbag.org/ranking/showranks?set=4&method=1
+http://www.footbag.org/ranking/showranks?set=5&method=1
+http://www.footbag.org/ranking/showranks?set=6&method=1
+http://www.footbag.org/ranking/showranks?set=7&method=1
+http://www.footbag.org/ranking/showranks?set=8&method=1
+http://www.footbag.org/ranking/showranks?set=9&method=1
+http://www.footbag.org/ranking/showranks?set=10&method=1
+http://www.footbag.org/ranking/showranks?set=11&method=1
+http://www.footbag.org/ranking/showranks?set=12&method=1
+http://www.footbag.org/ranking/showranks?set=13&method=1
+http://www.footbag.org/ranking/showranks?set=14&method=1
