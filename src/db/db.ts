@@ -744,6 +744,13 @@ export const clubs = {
     WHERE
       t.is_standard = 1
       AND t.standard_type = 'club'
+      -- Test-fixture clubs are written into the real clubs table under the
+      -- reserved '#club_test_' tag namespace. They must never reach the public
+      -- directory. The slug namespace is the authoritative, deterministic guard
+      -- here; the 'Testville' fixture city is handled only as a build-time
+      -- diagnostic in the loader-count QC gate, not at read time, because it is
+      -- the test factory's default city for ordinary (non-fixture) test clubs.
+      AND t.tag_normalized NOT LIKE '#club\\_test\\_%' ESCAPE '\\'
     ORDER BY
       c.country COLLATE NOCASE ASC,
       CASE WHEN c.region IS NULL OR c.region = '' THEN 1 ELSE 0 END ASC,

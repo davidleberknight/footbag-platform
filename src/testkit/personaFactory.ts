@@ -570,7 +570,9 @@ export function seedPersona(
 
   let clubId: string | undefined;
   if (spec.club) {
-    clubId = insertClub(db, { name: spec.club.clubName ?? 'Persona Club' });
+    // Persona clubs are reachable public pages the route-wiring crawl exercises,
+    // so they use ordinary public tags; they keep the 'club-test-' id for teardown.
+    clubId = insertClub(db, { name: spec.club.clubName ?? 'Persona Club', publiclyVisible: true });
     insertMemberClubAffiliation(db, memberId, clubId, {
       is_current: 1,
       source: 'member_self_service',
@@ -607,7 +609,7 @@ export function seedPersona(
   }
 
   for (const c of spec.clubs ?? []) {
-    const cid = insertClub(db, { name: c.clubName ?? 'Persona Club' });
+    const cid = insertClub(db, { name: c.clubName ?? 'Persona Club', publiclyVisible: true });
     insertMemberClubAffiliation(db, memberId, cid, {
       is_current: c.current === false ? 0 : 1,
       is_primary: c.primary ? 1 : 0,
@@ -637,7 +639,7 @@ export function seedPersona(
     // resolved card implies a mapped club regardless of the `mapped` flag.
     const needsClub = cand.mapped === true || resolution === 'confirmed_current';
     const mappedClubId = needsClub
-      ? insertClub(db, { name: cand.clubName ?? 'Legacy Club Candidate' })
+      ? insertClub(db, { name: cand.clubName ?? 'Legacy Club Candidate', publiclyVisible: true })
       : undefined;
     const candidateId = insertLegacyClubCandidate(db, {
       display_name: cand.clubName ?? 'Legacy Club Candidate',

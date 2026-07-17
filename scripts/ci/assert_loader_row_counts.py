@@ -84,6 +84,34 @@ def table_exists(conn: sqlite3.Connection, name: str) -> bool:
     return cur.fetchone() is not None
 
 
+def find_fixture_clubs(conn: sqlite3.Connection) -> list:
+    """Return any club that looks like a test fixture.
+
+    Test factories write real `clubs` rows, and the production leak was these
+    runtime-created rows, identified in the wild by their 'club_test_' slug/id.
+    A deployable DB must carry none of them, so this rejects three independent
+    fixture signals, most authoritative first:
+      - the 'club-test-' internal id prefix that every factory club carries
+        (both the reserved-tag default and the publicly-visible opt-out), which
+        is the strongest signal that a row was test-created;
+      - the reserved '#club_test_' public tag namespace the public directory
+        excludes;
+      - the 'Testville' factory default city, a secondary diagnostic.
+    Each returned row is (id, name, city, tag_normalized).
+    """
+    return conn.execute(
+        r"""
+        SELECT c.id, c.name, c.city, t.tag_normalized
+          FROM clubs c
+          JOIN tags t ON t.id = c.hashtag_tag_id
+         WHERE t.is_standard = 1 AND t.standard_type = 'club'
+           AND (c.id LIKE 'club-test-%'
+                OR t.tag_normalized LIKE '#club\_test\_%' ESCAPE '\'
+                OR c.city = 'Testville')
+        """
+    ).fetchall()
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
@@ -184,6 +212,21 @@ def main() -> int:
     except sqlite3.Error as e:
         failures.append(f"QUERY FAILED on avatar invariant: {e}")
 
+    # Fixture-club invariant. No deployable DB may carry a test-fixture club in
+    # the public standard-club-tag namespace; the public directory read excludes
+    # them, and this is the build-time backstop that fails loudly on any
+    # persona/dev-seeder contamination.
+    try:
+        fixture_clubs = find_fixture_clubs(conn)
+        if fixture_clubs:
+            failures.append(
+                f"{len(fixture_clubs)} test-fixture club(s) present in a deployable DB; "
+                f"first: id={fixture_clubs[0][0]} name={fixture_clubs[0][1]!r} "
+                f"city={fixture_clubs[0][2]!r} tag={fixture_clubs[0][3]!r}"
+            )
+    except sqlite3.Error as e:
+        failures.append(f"QUERY FAILED on fixture-club invariant: {e}")
+
     conn.close()
 
     name_w = max(len(r[1]) for r in rows)
@@ -200,7 +243,7 @@ def main() -> int:
             print(f"  - {f}", file=sys.stderr)
         return 1
 
-    print(f"PASSED: all {len(EXPECTATIONS)} table assertions + #curated and avatar tag invariants met.")
+    print(f"PASSED: all {len(EXPECTATIONS)} table assertions + #curated, avatar, and fixture-club invariants met.")
     return 0
 
 

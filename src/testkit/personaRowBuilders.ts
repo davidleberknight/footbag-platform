@@ -388,11 +388,25 @@ export interface ClubOverrides {
   external_url_validated_at?: string | null;
   external_url_quarantine_reason?: string | null;
   status?: 'active' | 'inactive' | 'archived';
+  // Opt-out for a test that needs an ordinary, publicly visible club. By default
+  // a factory club is a fixture (reserved '#club_test_' public tag) the public
+  // directory excludes; set this to give it an ordinary public tag instead. The
+  // 'club-test-' internal id (which teardown and deploy QC key on) is kept either
+  // way, so an opted-out public club is still unmistakably test-created.
+  publiclyVisible?: boolean;
 }
 
 export function insertClub(db: BetterSqlite3.Database, o: ClubOverrides = {}): string {
+  // Every factory club is unmistakably test-created on two independent columns:
+  // the 'club-test-' internal id (which the persona refresh runner and the deploy
+  // QC gate key on for teardown and rejection) and, by default, the reserved
+  // '#club_test_' public tag the public directory excludes. A test that needs an
+  // ordinary publicly visible club opts out of only the public tag; the id stays,
+  // so the row is still caught if it ever reaches a shared or deployable database.
   const id    = o.id             ?? `club-test-${uid()}`;
-  const tagId = o.hashtag_tag_id ?? insertTag(db, { standard_type: 'club', tag_normalized: `#club_test_${uid()}` });
+  const tagNs = o.publiclyVisible ? 'club' : 'club_test';
+  const tagId = o.hashtag_tag_id
+    ?? insertTag(db, { standard_type: 'club', tag_normalized: `#${tagNs}_${uid()}` });
   const externalUrl = o.external_url !== undefined ? o.external_url : null;
   const validatedAt = o.external_url_validated_at !== undefined
     ? o.external_url_validated_at
