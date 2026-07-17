@@ -261,7 +261,7 @@ def write_metadata_csv(path: Path, rows: list[dict]) -> None:
         "file_url", "content_length", "local_path",
     ]
     with path.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        writer = csv.DictWriter(fh, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
 
