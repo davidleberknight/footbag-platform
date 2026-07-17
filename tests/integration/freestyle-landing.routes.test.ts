@@ -110,10 +110,12 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     for (const view of ['view=add', 'view=dex-count', 'view=family', 'view=sets', 'view=movement-system']) {
       expect(res.text).toContain(`/freestyle/tricks?${view}`);
     }
-    // shared denominator note states the counted population + Family endings
-    // leads with the catch-surface roots
-    expect(res.text).toContain('Counts are out of');
-    expect(res.text).toContain('active canonical tricks');
+    // shared denominator note names the counted population precisely as the
+    // browsable dictionary-trick subset, not the whole active canonical corpus,
+    // and never implies the pending-notation rows are dropped from the total.
+    expect(res.text).toContain('Counts cover');
+    expect(res.text).toContain('dictionary tricks');
+    expect(res.text).not.toContain('active canonical tricks');
     expect(res.text).toContain('Clipper Stall');
     expect(res.text).toContain('Toe Stall');
   });

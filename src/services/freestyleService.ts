@@ -751,7 +751,16 @@ function buildFreestyleByNumbers(
     setSystems: groupBars(setSys),
   };
 
-  return { cards, note: `Counts are out of ${N} active canonical tricks; ${unknownDex} still await a notation breakdown.`, operatorGroups };
+  // Name the universe precisely: N is the browsable dictionary-trick total (the
+  // trick-kind rows these histograms are shares of), not the whole active
+  // canonical corpus, which also includes modifiers, operators, and catch
+  // surfaces. The pending rows are part of that total, not additional to it, so
+  // they are stated as a subset ("of them") rather than silently dropped.
+  const pendingClause = unknownDex === 0
+    ? ''
+    : `; ${unknownDex} of them still ${unknownDex === 1 ? 'awaits' : 'await'} a complete notation breakdown`;
+  const note = `Counts cover ${N} dictionary tricks${pendingClause}.`;
+  return { cards, note, operatorGroups };
 }
 
 export interface FreestyleLandingContent {
