@@ -10,10 +10,12 @@
 <div class="wrapper">
 
   <section>
+    {{#if isNonProduction}}
     <div class="notice-card notice-card--warn mb-6">
       <p class="m-0 fw-500">Early access notice</p>
       <p class="m-0 mt-2">This site is under active development. Account data may be deleted when we update the site, which happens frequently. Your account is real, but please be aware it may need to be re-created during this early period.</p>
     </div>
+    {{/if}}
 
     <p class="text-muted fs-sm mb-4">If you had an account on the old footbag.org, start here. After creating your account, the setup wizard will help you link to your historical data, such as event results, and club affiliation.</p>
 

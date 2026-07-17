@@ -26,7 +26,7 @@ import { redactTokenPaths } from './lib/redactTokenPaths';
 import { assetUrl, renderStylesheet } from './lib/assetVersion';
 import { countryFlag } from './services/countryUtils';
 import { externalLinkHelper } from './web/helpers/externalLink';
-import { formatDate } from './lib/handlebarsHelpers';
+import { formatDate, formatDateRange } from './lib/handlebarsHelpers';
 import { ForbiddenError, RateLimitedError } from './services/serviceErrors';
 
 const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string }> = [
@@ -212,6 +212,7 @@ export function createApp(): express.Application {
         not: (a: unknown) => !a,
         or:  (a: unknown, b: unknown) => Boolean(a) || Boolean(b),
         formatDate: (iso: string) => formatDate(iso),
+        formatDateRange: (value: string) => formatDateRange(value),
         formatLocation: (city: unknown, region: unknown, country: unknown) => {
           const c = typeof city === 'string' ? city.trim() : '';
           const r = typeof region === 'string' ? region.trim() : '';
@@ -342,6 +343,12 @@ export function createApp(): express.Application {
     // Pre-shaped boolean so templates branch on `isAdmin` rather than the raw
     // `role` field (`{{#if isAdmin}}` over `{{#if (eq role 'admin')}}`).
     res.locals.isAdmin = req.user?.role === 'admin';
+    // One central environment decision for non-production-only notices (e.g. the
+    // "accounts may be deleted while the site is in development" warning). Keyed
+    // on the single source of truth for the deploy environment, so production
+    // never shows development or staging copy and template conditions do not
+    // scatter their own environment checks.
+    res.locals.isNonProduction = config.footbagEnv !== 'production';
     const flash = readFlash(req);
     if (flash?.kind === FLASH_KIND.LOGOUT) {
       res.locals.flashLoggedOut = true;

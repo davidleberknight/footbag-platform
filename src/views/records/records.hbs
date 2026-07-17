@@ -33,7 +33,7 @@
             </td>
             <td class="col-num">{{scoreFormatted}}</td>
             <td>{{#if eventName}}{{eventName}}{{else}}&mdash;{{/if}}</td>
-            <td class="col-date">{{#if eventDate}}{{eventDate}}{{else}}&mdash;{{/if}}</td>
+            <td class="col-date">{{#if eventDate}}{{formatDateRange eventDate}}{{else}}&mdash;{{/if}}</td>
             <td>{{#if location}}{{location}}{{else}}&mdash;{{/if}}</td>
           </tr>
           {{/each}}

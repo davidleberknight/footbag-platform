@@ -3,7 +3,7 @@
  * Pure functions; no DB, no HTTP.
  */
 import { describe, it, expect } from 'vitest';
-import { formatDate } from '../../src/lib/handlebarsHelpers';
+import { formatDate, formatDateRange } from '../../src/lib/handlebarsHelpers';
 
 describe('formatDate', () => {
   it('renders full ISO date as "<day> <Month> <year>"', () => {
@@ -56,5 +56,41 @@ describe('formatDate', () => {
 
   it('handles December (boundary month=12)', () => {
     expect(formatDate('2024-12-31')).toBe('31 December 2024');
+  });
+});
+
+describe('formatDateRange', () => {
+  it('formats a single ISO date exactly like formatDate', () => {
+    expect(formatDateRange('2024-09-15')).toBe('15 September 2024');
+    expect(formatDateRange('2024-09')).toBe('September 2024');
+    expect(formatDateRange('2024')).toBe('2024');
+  });
+
+  it('collapses a same-month range to shared month and year', () => {
+    // The confirmed defect value: rendered raw as "1998-03-21/1998-03-22".
+    expect(formatDateRange('1998-03-21/1998-03-22')).toBe('21–22 March 1998');
+  });
+
+  it('collapses a same-year cross-month range to a shared year', () => {
+    expect(formatDateRange('1998-03-21/1998-04-05')).toBe('21 March – 5 April 1998');
+  });
+
+  it('shows both full dates for a cross-year range', () => {
+    expect(formatDateRange('1998-12-31/1999-01-02')).toBe('31 December 1998 – 2 January 1999');
+  });
+
+  it('renders a same-day range as a single date', () => {
+    expect(formatDateRange('2001-07-04/2001-07-04')).toBe('4 July 2001');
+  });
+
+  it('leaves a legacy day/month/year string unchanged rather than mis-parsing it', () => {
+    // "14/6/1997" is a single legacy date, not an ISO range; a presentation
+    // pass must not degrade it (e.g. to "14").
+    expect(formatDateRange('14/6/1997')).toBe('14/6/1997');
+  });
+
+  it('leaves any other unrecognized value unchanged', () => {
+    expect(formatDateRange('March 1998')).toBe('March 1998');
+    expect(formatDateRange('')).toBe('');
   });
 });

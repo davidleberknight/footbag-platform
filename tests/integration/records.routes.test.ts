@@ -151,6 +151,14 @@ describe('GET /records', () => {
     expect(res.text).toContain('132,011');
   });
 
+  it('renders a multi-day event date as a human-readable range, not the raw value', async () => {
+    const app = createApp();
+    const res = await request(app).get('/records');
+    // The doubles WR spans two days (stored raw as "1998-03-21/1998-03-22").
+    expect(res.text).toContain('21–22 March 1998');
+    expect(res.text).not.toContain('1998-03-21/1998-03-22');
+  });
+
   it('shows Highest Official Scores section', async () => {
     const app = createApp();
     const res = await request(app).get('/records');
