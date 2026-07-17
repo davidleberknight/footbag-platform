@@ -56,13 +56,41 @@ fi
 # --- Check 3: no live harness/canonical file references a deleted doc ---
 # exploration/ holds frozen historical design docs that legitimately cite docs
 # deleted later; they are archives, not the live surface, so they are excluded.
-DELETED_DOCS='SERVICE_CATALOG\.md|VIEW_CATALOG\.md|IMPLEMENTATION_PLAN\.md|BUG_REPORT\.md|DEVOPS_GUIDE\.md'
+# The deleted issue-template directory and bug-tracker setup script are named here too:
+# a retired surface is a retired surface whether or not it was a .md file.
+# Names with no surviving counterpart match bare, so an extension-less mention
+# ("follow IMPLEMENTATION_PLAN") is caught as well.
+# DEVOPS_GUIDE.md is the exception: it was not deleted, it moved to the private operations
+# repository, and public text names it there deliberately. Only the dead public PATH is
+# banned, so a stale pointer at the removed copy still fails while naming the live private
+# doc stays legal.
+# The two catalogs keep their \.md anchor because their bare names legitimately appear
+# inside the doc-reference detector regexes that other checks and skills carry, and matching
+# those bare would fail the build on the detectors themselves.
+DELETED_DOCS='SERVICE_CATALOG\.md|VIEW_CATALOG\.md|IMPLEMENTATION_PLAN|BUG_REPORT|docs/DEVOPS_GUIDE|ISSUE_TEMPLATE|setup-bug-tracker-project'
 if refs=$(git grep -lE "$DELETED_DOCS" -- ":!$self" ':!exploration' 2>/dev/null); then
-  echo "[harness] FAIL: reference(s) to a deleted doc (SERVICE_CATALOG.md / VIEW_CATALOG.md / IMPLEMENTATION_PLAN.md / BUG_REPORT.md / DEVOPS_GUIDE.md):" >&2
+  echo "[harness] FAIL: reference(s) to a deleted doc or retired surface (SERVICE_CATALOG.md / VIEW_CATALOG.md / IMPLEMENTATION_PLAN.md / BUG_REPORT.md / the removed docs/DEVOPS_GUIDE.md path / .github/ISSUE_TEMPLATE / scripts/setup-bug-tracker-project.sh):" >&2
   ( IFS=$'\n'; printf '  %s\n' $refs >&2 )
   fail=1
 else
   echo "[harness] no references to deleted docs"
+fi
+
+# --- Check 3b: a named private ops doc is always marked private ---
+# Public text names the private operations docs rather than describing them vaguely, because
+# a reader is better served by a real filename than by a role. The name alone is not enough:
+# DEVOPS_GUIDE.md is also what the removed public copy was called, so a bare mention reads as
+# a file in this repository that a reader will then fail to find. Every line naming it must
+# therefore also carry the word "private". Line-level matching is deliberate (`--and --not`):
+# filtering git grep's output instead would test the file PATH too, and a path that itself
+# contains "private" would mask an unmarked line inside it.
+unmarked=$(git grep -n -e 'DEVOPS_GUIDE\.md' --and --not -e 'private' -- ":!$self" ':!exploration' 2>/dev/null || true)
+if [ -n "$unmarked" ]; then
+  echo "[harness] FAIL: DEVOPS_GUIDE.md named without marking it private on the same line:" >&2
+  printf '%s\n' "$unmarked" >&2
+  fail=1
+else
+  echo "[harness] every private ops doc mention is marked private"
 fi
 
 # --- Check 4: explicit-only skills carry disable-model-invocation ---
@@ -184,10 +212,18 @@ fi
 # runs only where the file exists (a developer's machine). It is where "always allow" clicks
 # accumulate, so it is exactly where an un-readonly sqlite3, an interpreter/shell wildcard
 # (effectively Bash(*)), or a broad container-exec allow hides from the committed-file checks.
+# Any wildcard Bash allow is refused outright rather than checked against a list of dangerous
+# command heads. A head list is a denylist, and a denylist that misses one head (a broad
+# `gh api *`, say) silently auto-approves the very mutations the guard hooks defer on purpose,
+# because a hook that defers leaves the allow list to decide. A no-wildcard rule has no list
+# to go stale. Exact commands stay allowed, so ordinary scoped conveniences survive; a
+# developer wanting a personal wildcard puts it in their user-scope settings, which is its
+# documented home.
 LOCAL=".claude/settings.local.json"
 if [ -f "$LOCAL" ] && jq empty "$LOCAL" >/dev/null 2>&1; then
   local_allows=$(jq -r '(.permissions.allow // [])[]' "$LOCAL" 2>/dev/null)
   local_bad=$( {
+    printf '%s\n' "$local_allows" | grep -E '^Bash\([^)]*\*'
     printf '%s\n' "$local_allows" | grep -iE 'sqlite3' | grep -iv -- '-readonly'
     printf '%s\n' "$local_allows" | grep -E '^Bash\((xargs|find|echo|awk|sed)([: *)]|$)'
     printf '%s\n' "$local_allows" | grep -E '^Bash\((python3?|node|nodejs|ruby|perl|bash|sh|zsh|deno|bun|npx|cd|eval|exec)([[:space:]:]\*)?\)$'

@@ -14,7 +14,7 @@ Use this file for quick orientation and document routing. For implemented behavi
 - For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema.sql`.
 - For rationale, trade-offs, and long-term design commitments, load targeted sections of `docs/DESIGN_DECISIONS.md`: read when entering a new code area or unwinding a temporary simplification; do not load by default.
 - For go-live readiness, legacy data migration scope, operational-readiness gates, phasing, or cutover planning, load `docs/MIGRATION_PLAN.md`.
-- The platform serves from a single Lightsail origin behind CloudFront; operational procedures live in the maintainers' private operations guide (in the private operations checkout `footbag_private_repo/`, when wired).
+- The platform serves from a single Lightsail origin behind CloudFront; operational procedures live in DEVOPS_GUIDE.md (private GitHub repo) (in the private operations checkout `footbag_private_repo/`, when wired).
 
 ## Project identity
 
@@ -99,7 +99,7 @@ Use this as a reasoning map; exact structure may differ in the repo:
 - **infrastructure adapters** - Stripe and AWS integrations
 - **database access module** - prepared SQL, transactions, connection helpers
 - **workers / background jobs** - outbox sending, reconciliation, maintenance tasks, isolated image/video media processing
-- **docs** - project documentation suite (specs, decisions, diagrams, DevOps, onboarding)
+- **docs** - project documentation suite (specs, decisions, diagrams, onboarding)
 - **infrastructure-as-code** - deployment/infrastructure configuration (Terraform)
 
 ## Documentation map (project doc suite categories)
@@ -134,7 +134,7 @@ Also: the agent may read the **full human-oriented documents** when needed; it i
 - Need entity relationships, persisted state conventions, schema invariants, or exact SQL surface -> **Data Model** + `database/schema.sql`
 - Need rationale / trade-offs / "why was it done this way" -> **Design Decisions**
 - Need to derive, layer, or verify tests -> **Testing Strategy** (`docs/TESTING.md`)
-- Need deployment, backups, recovery, infrastructure changes, or CI/CD -> **the maintainers' private operations guide** (in the private checkout, when wired). Use **Developer Onboarding** for blank-machine setup and first-pass bootstrap guidance.
+- Need deployment, backups, recovery, infrastructure changes, or CI/CD -> **DEVOPS_GUIDE.md (private GitHub repo)** (in the private checkout, when wired). Use **Developer Onboarding** for blank-machine setup and first-pass bootstrap guidance.
 - Need go-live readiness, legacy data migration scope, operational-readiness gates, or cutover sequencing -> **Migration Plan** (`docs/MIGRATION_PLAN.md`)
 - Need big-picture human context or document relationships -> **Project Summary** (full version)
 

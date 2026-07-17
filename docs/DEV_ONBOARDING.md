@@ -63,7 +63,7 @@ This guide helps contributors do different things: understand how the platform i
   - [4.1 Purpose](#41-purpose)
   - [4.2 Preconditions](#42-preconditions)
   - [4.3 Read this before first apply](#43-read-this-before-first-apply)
-  - [4.4 Lightsail SSH security, set your operator CIDRs](#44-lightsail-ssh-security)
+  - [4.4 Lightsail SSH security, set your operator CIDRs](#44-lightsail-ssh-security-set-your-operator-cidrs)
   - [4.5 AWS account/bootstrap setup](#45-aws-accountbootstrap-setup)
   - [4.6 Terraform staging apply](#46-terraform-staging-apply)
   - [4.7 Host bootstrap](#47-host-bootstrap)
@@ -366,7 +366,7 @@ Re-run `bash scripts/reset-local-db.sh` whenever you want a clean rebuild.
 ./run_dev.sh
 ```
 
-This launches both the web server (port 3000) and the image worker (port 4001). Avatar, photo, and curator video uploads route through the image worker over HTTP in the four-container topology (nginx + web + worker + image; see the maintainers' private operations guide); `npm run dev` alone fails uploads because no worker is listening. `./run_dev.sh` keeps both alive and tears both down on Ctrl+C; see also `npm run dev` and `npm run dev:image` if you want to run them individually for debugging.
+This launches both the web server (port 3000) and the image worker (port 4001). Avatar, photo, and curator video uploads route through the image worker over HTTP in the four-container topology (nginx + web + worker + image; see DEVOPS_GUIDE.md (private GitHub repo)); `npm run dev` alone fails uploads because no worker is listening. `./run_dev.sh` keeps both alive and tears both down on Ctrl+C; see also `npm run dev` and `npm run dev:image` if you want to run them individually for debugging.
 
 Open the running site in your browser. Pick the block for your machine; all paths reach the same `http://localhost:3000`.
 
@@ -468,7 +468,7 @@ The suite is split:
 - `npm test`; unit + integration suites only; the default everyday verification. Excludes smoke, e2e, and dev-only crawls via `vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**'`.
 - `npm run test:unit`; pure-function tests under `tests/unit/`; no DB.
 - `npm run test:integration`; HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`.
-- `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when the user explicitly asks "run ALL tests" or when verifying staging AWS wiring. Requires the `footbag-staging-runtime` AWS profile and accessible Terraform staging state; a developer granted AWS access configures that workstation profile per the maintainers' private operations guide, "Operator-workstation staging readiness smoke test".
+- `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when the user explicitly asks "run ALL tests" or when verifying staging AWS wiring. Requires the `footbag-staging-runtime` AWS profile and accessible Terraform staging state; a developer granted AWS access configures that workstation profile per DEVOPS_GUIDE.md (private GitHub repo), "Operator-workstation staging readiness smoke test".
 - `npm run test:strong-hash`; re-runs the password-hash and anti-enumeration login-timing tests at full production argon2 cost (the default suite uses a cheap test-only hash profile for speed). Run on demand to validate the real hashing path.
 - `npm run test:pre-pr`; pre-PR gate; build + conventions check + unit + integration; sub-2-minute target per `docs/TESTING.md` §11.1. Run before pushing.
 - `npm run test:e2e`; Playwright browser tests under `tests/e2e/`; spins up the full stack locally with an ephemeral DB.
@@ -488,7 +488,7 @@ npx playwright install        # one-time: Playwright e2e browsers
 
 Developers and testers should run the complete suite with `--full`, and it is meant to pass for them on a plain workstation. The default `./run_all_tests.sh` runs every gate that is safe on a workstation: build, lint, dependency audit, conventions, secret-scan, unit, integration, e2e, and terraform fmt/validate (`--quick` skips e2e and terraform for a fast loop). `--full` adds the heavyweight pentest, the staging-AWS smoke, and the persona-crawl; on a fixture-seeded clone (no operator data handoff, no AWS profile) the staging-smoke and persona-crawl SKIP with a warning while every other gate still runs, so the run completes green instead of failing on data or credentials you are not expected to have.
 
-> **Real-data testing, for developers and testers.** With the operator dataset loaded, two opt-in gates exercise the real migrated data, and both SKIP cleanly on a fixture-only clone. The **real-claim crawl** (`--with-persona-crawl`) builds a claimed account for a real migrated record via `GET /dev/build-claim?as=<legacy_member_id>` and walks its surfaces (profile, honors, results, media, any co-led club), proving migrated data renders and behaves once claimed; it defaults to the numerically-lowest Hall-of-Fame honoree carrying a legacy link, or target a specific record with `PERSONA_CRAWL_LEGACY_ID`. The **read-only invariant gate** (`--with-realdata-invariants`) runs whole-population reconciliation and referential-integrity checks over the loaded data, emitting counts and pass/fail only — never names or emails. To run either: do the full data load (below), start `./run_dev.sh`, then `./run_all_tests.sh --with-persona-crawl` and/or `./run_all_tests.sh --with-realdata-invariants`. To become a real claimed account interactively, browse to `GET /dev/build-claim?as=<legacy_member_id>`. Both gates re-point at staging with an env var — `PERSONA_CRAWL_BASE_URL` aims the crawl at a running staging stack, `FOOTBAG_DB_PATH` aims the invariant gate at the staging database. The full flag set with defaults lives in `./run_all_tests.sh -h`. The human stratified-sampling walk that complements these gates is an operator procedure in the DevOps guide.
+> **Real-data testing, for developers and testers.** With the operator dataset loaded, two opt-in gates exercise the real migrated data, and both SKIP cleanly on a fixture-only clone. The **real-claim crawl** (`--with-persona-crawl`) builds a claimed account for a real migrated record via `GET /dev/build-claim?as=<legacy_member_id>` and walks its surfaces (profile, honors, results, media, any co-led club), proving migrated data renders and behaves once claimed; it defaults to the numerically-lowest Hall-of-Fame honoree carrying a legacy link, or target a specific record with `PERSONA_CRAWL_LEGACY_ID`. The **read-only invariant gate** (`--with-realdata-invariants`) runs whole-population reconciliation and referential-integrity checks over the loaded data, emitting counts and pass/fail only — never names or emails. To run either: do the full data load (below), start `./run_dev.sh`, then `./run_all_tests.sh --with-persona-crawl` and/or `./run_all_tests.sh --with-realdata-invariants`. To become a real claimed account interactively, browse to `GET /dev/build-claim?as=<legacy_member_id>`. Both gates re-point at staging with an env var — `PERSONA_CRAWL_BASE_URL` aims the crawl at a running staging stack, `FOOTBAG_DB_PATH` aims the invariant gate at the staging database. The full flag set with defaults lives in `./run_all_tests.sh -h`. The human stratified-sampling walk that complements these gates is an operator procedure in DEVOPS_GUIDE.md (private GitHub repo).
 >
 > **Final note — the full data load needs operator data kept out of GitHub, including a PII file.** The full load (`./run_dev.sh --from-csv`) requires the operator dataset, which a fresh clone does not have. Part of it is the IFPA member roster, `legacy_data/membership/inputs/membership_input_normalized.csv`, which is deliberately kept out of GitHub because it contains member PII (email addresses and personal data). Request the dataset from the project maintainer if you need the full load. The hello-world journey above and the default `./run_all_tests.sh` need none of it; they run entirely on committed data (the committed canonical event data plus the committed seed CSVs).
 
@@ -713,7 +713,7 @@ Admin in dev confers the curator role, which authors real `/curated/` content (t
 
 For reference, the mechanism: the dev site auto-promotes a registrant whose normalized email is listed in the gitignored `.local/initial-admins.txt` allowlist (one email per line; `#` comments and blank lines allowed). A member whose email is not listed registers normally as a non-admin. The `.local/` directory is gitignored; never commit a file containing email addresses.
 
-Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's `.local/initial-admins.txt` into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9 and operationally documented in the maintainers' private operations guide, "Production first-admin bootstrap".
+Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's `.local/initial-admins.txt` into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9 and operationally documented in DEVOPS_GUIDE.md (private GitHub repo), "Production first-admin bootstrap".
 
 #### 1.14.2 Dev-only shortcuts
 
@@ -1487,7 +1487,7 @@ Remember: the running app reads /srv/footbag/env, not SSM.
 Three identities, distinct scopes, per DD §3.5 and §7.2:
 
 - **`footbag-operator`** is the env-agnostic human AWS/Terraform identity. Used from operator terminals for Terraform plans/applies and AWS CLI work. Do not mount this profile into containers.
-- **`footbag-staging-source-profile`** is a staging-scoped IAM user with a single permission: `sts:AssumeRole` on the runtime role below. Its long-lived access keys live on the host at `/root/.aws/credentials` (root-owned, mode 0600), not in `/srv/footbag/env`. This is the "source profile" in DD §7.2. Rotation: at least every 90 days (CIS Benchmark); runbook in the maintainers' private operations guide, "Source-profile access-key rotation".
+- **`footbag-staging-source-profile`** is a staging-scoped IAM user with a single permission: `sts:AssumeRole` on the runtime role below. Its long-lived access keys live on the host at `/root/.aws/credentials` (root-owned, mode 0600), not in `/srv/footbag/env`. This is the "source profile" in DD §7.2. Rotation: at least every 90 days (CIS Benchmark); runbook in DEVOPS_GUIDE.md (private GitHub repo), "Source-profile access-key rotation".
 - **`aws_iam_role.app_runtime`** (Terraform resource; IAM role name `footbag-staging-app-runtime`) is the staging-scoped IAM role the running app acts as. It holds the KMS Sign/GetPublicKey, SES SendEmail, SSM read, and S3 snapshot permissions. The app never handles this role's credentials directly. The AWS SDK default chain reads `AWS_PROFILE=footbag-staging-runtime` from `/srv/footbag/env`, looks up `role_arn` + `source_profile` in `/root/.aws/config`, calls `sts:AssumeRole`, and hands the process temporary credentials. This is the assumed runtime role and, per DD §7.2, is the authoritative runtime principal.
 
 Earlier iterations of the public slice served pages from `process.env` plus SQLite only and did not require any runtime AWS API calls. That changed when KMS-backed JWT sessions and SES-backed transactional email were introduced; the assumed-role chain above is how those calls authenticate.
@@ -1877,7 +1877,7 @@ On the host:
 cd /srv/footbag
 # Images are built on the operator workstation and shipped to the host via
 # `docker save | ssh | docker load`; the host is too small to build them and a
-# boot-time build OOMs it. See the maintainers' private operations guide,
+# boot-time build OOMs it. See DEVOPS_GUIDE.md (private GitHub repo),
 # "Deployment model", for the build-and-ship step,
 # which must run before the service starts.
 sudo cp ops/systemd/footbag.service /etc/systemd/system/
@@ -1985,7 +1985,7 @@ If CloudFront returns 403 or 502:
 
 ### 4.10 Optional: enable Safe Browsing live mode
 
-Deploys land with `SAFE_BROWSING_ADAPTER=stub` by default; submitted external URLs pass scheme + SSRF + reachability checks but no Google call is made. Enabling live mode requires a Google Cloud project with the Safe Browsing v4 API and an operator-provisioned API key. The runbook below covers a one-time bootstrap; rotation lives in the maintainers' private operations guide, "Safe Browsing API key rotation runbook".
+Deploys land with `SAFE_BROWSING_ADAPTER=stub` by default; submitted external URLs pass scheme + SSRF + reachability checks but no Google call is made. Enabling live mode requires a Google Cloud project with the Safe Browsing v4 API and an operator-provisioned API key. The runbook below covers a one-time bootstrap; rotation lives in DEVOPS_GUIDE.md (private GitHub repo), "Safe Browsing API key rotation runbook".
 
 #### Prerequisites
 
@@ -2004,7 +2004,7 @@ Deploys land with `SAFE_BROWSING_ADAPTER=stub` by default; submitted external UR
    printf %s '<paste-key>' > /tmp/sb-key && chmod 600 /tmp/sb-key
    ```
 4. (Optional) Restrict the key. API restrictions: select "Safe Browsing API" only. Application restrictions: leave "None" at first; the smoke test runs from the operator workstation, so any IP allowlist must include both the staging Lightsail IP and the operator workstation IP.
-5. Put the value into SSM with shell-history-safe hygiene per the maintainers' private operations guide, "Secret-handling rules":
+5. Put the value into SSM with shell-history-safe hygiene per DEVOPS_GUIDE.md (private GitHub repo), "Secret-handling rules":
    ```
    AWS_PROFILE=footbag-staging-runtime aws ssm put-parameter \
      --name /footbag/staging/secrets/safe_browsing_api_key \
@@ -2062,7 +2062,7 @@ The Path E staging baseline operates within these boundaries; each item is provi
 
 - `/srv/footbag/env` is operator-managed; the deploy remote-half reconciles `X_ORIGIN_VERIFY_SECRET` and `FOOTBAG_ENV` on every run (design state of staging)
 - images are built on the operator workstation and shipped via `docker save | docker load`
-- staging data is disposable through `scripts/deploy-rebuild.sh`; production schema migrations preserve live data per the maintainers' private operations guide, "Migration runbook"
+- staging data is disposable through `scripts/deploy-rebuild.sh`; production schema migrations preserve live data per DEVOPS_GUIDE.md (private GitHub repo), "Migration runbook"
 - public-edge hardening (Path G §7.2), durable backup/restore (Path G §7.4), and CloudWatch monitoring (Path G §7.6) are provisioned by Path G
 
 ### 5.4 Where the remaining work moved
@@ -2253,11 +2253,11 @@ The point of this section is not to duplicate shell source. The point is to expl
 
 ### 6.4 Routine deploy workflow
 
-Routine deploys are operational and live in the maintainers' private operations guide, "Standard deployment runbook". Schema migrations against non-disposable data live in its "Migration runbook".
+Routine deploys are operational and live in DEVOPS_GUIDE.md (private GitHub repo), "Standard deployment runbook". Schema migrations against non-disposable data live in its "Migration runbook".
 
 ### 6.5 If something goes wrong on staging
 
-Deploy troubleshooting lives in the maintainers' private operations guide: "Rollback runbook", "Restart runbook", and "Standard log-collection commands".
+Deploy troubleshooting lives in DEVOPS_GUIDE.md (private GitHub repo): "Rollback runbook", "Restart runbook", and "Standard log-collection commands".
 
 ---
 
@@ -2540,7 +2540,7 @@ curl -I "https://${CF_DOMAIN}/health/ready"
 curl -I "http://${STATIC_IP}/health/ready"
 ```
 
-Production cutover follows the same sequence in `terraform/production/`. Rotation procedure: see the maintainers' private operations guide, "Origin-verify shared-secret rotation runbook".
+Production cutover follows the same sequence in `terraform/production/`. Rotation procedure: see DEVOPS_GUIDE.md (private GitHub repo), "Origin-verify shared-secret rotation runbook".
 
 ##### Provision the maintenance page (S3 + OAC)
 
@@ -2794,7 +2794,7 @@ Rollback: `usermod -s /bin/bash ec2-user` and restore the authorized_keys file f
 
 #### Additional governance notes
 
-- Long-lived IAM access keys on `footbag-operator` remain in place until the project selects a short-lived-credential path (IAM Identity Center, workload identity federation, or equivalent). Until that decision lands, rotate keys on the 90-day cadence per the maintainers' private operations guide, "Source-profile access-key rotation".
+- Long-lived IAM access keys on `footbag-operator` remain in place until the project selects a short-lived-credential path (IAM Identity Center, workload identity federation, or equivalent). Until that decision lands, rotate keys on the 90-day cadence per DEVOPS_GUIDE.md (private GitHub repo), "Source-profile access-key rotation".
 - Lightsail browser SSH can be disabled once named-operator SSH is fully reliable. Browser SSH has no per-IP allowlist and expands the attack surface; disable it from the Lightsail console under the instance's Networking tab once an alternative recovery path is confirmed.
 
 ### 7.4 Reliability and recovery
@@ -2905,7 +2905,7 @@ Rehearse this before any migration-related work. Completing the drill is a gate 
 
 8. Time the sequence end-to-end. Target: under 5 minutes RTO from "stop service" to "smoke passes."
 
-9. Record the timing in operator notes and confirm it meets the recovery-time target in the maintainers' private operations guide, "Recovery objectives by scenario".
+9. Record the timing in operator notes and confirm it meets the recovery-time target in DEVOPS_GUIDE.md (private GitHub repo), "Recovery objectives by scenario".
 
 ### 7.5 Runtime configuration maturity
 
@@ -3076,7 +3076,7 @@ Record the CloudWatch dashboard URL, the `/health/live` and `/health/ready` URLs
 
 Earlier paths assume the running app uses only `process.env` and SQLite and makes no AWS API calls at runtime. That assumption held until KMS-backed JWT session signing and SES-backed transactional email were introduced. Those two capabilities require the app to call AWS at request time. Per DD §3.5 and §7.2, the authoritative runtime principal on Lightsail is an assumed IAM role reached through a source-profile credential chain on a root-owned host AWS config; Lightsail has no EC2 instance profile, so this chain is the supported substitute. Path H is the one-time activation runbook that extends the existing deferred runtime role (`aws_iam_role.app_runtime`), creates the source-profile IAM user, stands up the KMS signing key and the SES sender, and wires the chain on the staging host (host config files, `/srv/footbag/env`, and the production compose file).
 
-Path H is parallel to Path D in feel: executed once per environment, not part of the routine deploy workflow. Access-key rotation is stewardship, not activation; it lives in the maintainers' private operations guide, "Source-profile access-key rotation" (see §8.12 below for the pointer).
+Path H is parallel to Path D in feel: executed once per environment, not part of the routine deploy workflow. Access-key rotation is stewardship, not activation; it lives in DEVOPS_GUIDE.md (private GitHub repo), "Source-profile access-key rotation" (see §8.12 below for the pointer).
 
 ### 8.2 Scope
 
@@ -3098,17 +3098,17 @@ Before starting, confirm:
 - You are signed in to the AWS Console with your human operator identity, not root.
 - `AWS_PROFILE=footbag-operator` is active in any terminal you will use for validation.
 - The staging Lightsail host is reachable via the SSH alias `footbag-staging`.
-- You have the current staging base URL (canonical source: `README.md` and the maintainers' private operations guide).
+- You have the current staging base URL (canonical source: `README.md` and DEVOPS_GUIDE.md (private GitHub repo)).
 
 Have your local operator-specifics notes open so you can record identifiers as you go. This path will tell you which values you need to retain.
 
 ### 8.3.1 Console sign-in for the operator identity
 
-Path H is Console-driven in §8.6 through §8.9. Before starting, sign in to the AWS Console as the operator IAM user (`footbag-operator`, not root) per the maintainers' private operations guide, "Human AWS access rules" ("Operator console sign-in"). That section covers the account ID, password, and MFA TOTP mechanics, and notes where the required credentials are held.
+Path H is Console-driven in §8.6 through §8.9. Before starting, sign in to the AWS Console as the operator IAM user (`footbag-operator`, not root) per DEVOPS_GUIDE.md (private GitHub repo), "Human AWS access rules" ("Operator console sign-in"). That section covers the account ID, password, and MFA TOTP mechanics, and notes where the required credentials are held.
 
 After sign-in, confirm the Console region selector (top-right) is **US East (N. Virginia) us-east-1**. This check is repeated at the start of §8.6 because a misregioned KMS key is the most common expensive mistake in this path.
 
-For a new volunteer taking over this runbook: you need vault access before you can execute Path H. Arrange handoff with the outgoing maintainer per the maintainers' private operations guide, "Human AWS access rules", and §4.5 of this guide before proceeding.
+For a new volunteer taking over this runbook: you need vault access before you can execute Path H. Arrange handoff with the outgoing maintainer per DEVOPS_GUIDE.md (private GitHub repo), "Human AWS access rules", and §4.5 of this guide before proceeding.
 
 ### 8.4 Naming convention
 
@@ -3169,7 +3169,7 @@ Record locally:
 
 - Source-profile IAM user ARN.
 - Access key ID.
-- Date of access-key issuance (tracked for rotation cadence per the maintainers' private operations guide, "Source-profile access-key rotation").
+- Date of access-key issuance (tracked for rotation cadence per DEVOPS_GUIDE.md (private GitHub repo), "Source-profile access-key rotation").
 
 Treat the secret access key with the same custody you use for `footbag-operator` credentials. Do not paste it into checked-in files, chat logs, or shared screens. The source-profile user holds only `sts:AssumeRole` (attached in step 4): a leaked key lets an attacker only attempt to assume the runtime role, and revoking the role's trust of this user severs access instantly.
 
@@ -3277,9 +3277,9 @@ Terraform sets `aws_iam_role.app_runtime.assume_role_policy` (`iam.tf`) so the s
 }
 ```
 
-AWS resolves the `Principal` ARN to the source-profile user's internal unique ID at save time; never delete and recreate that user as a rotation strategy (a recreated user with the same name has a different unique ID and the trust silently refuses `AssumeRole`). Rotation is always "second key under the existing user" (the maintainers' private operations guide, "Source-profile access-key rotation").
+AWS resolves the `Principal` ARN to the source-profile user's internal unique ID at save time; never delete and recreate that user as a rotation strategy (a recreated user with the same name has a different unique ID and the trust silently refuses `AssumeRole`). Rotation is always "second key under the existing user" (DEVOPS_GUIDE.md (private GitHub repo), "Source-profile access-key rotation").
 
-Do not delete and recreate the source-profile user to rotate credentials. AWS resolves the principal ARN to the user's internal unique ID at save time, so a recreated user with the same name produces a trust that looks correct in JSON but silently refuses `AssumeRole` until the trust policy is re-edited. Rotate by issuing a second access key under the same user (see the maintainers' private operations guide, "Source-profile access-key rotation").
+Do not delete and recreate the source-profile user to rotate credentials. AWS resolves the principal ARN to the user's internal unique ID at save time, so a recreated user with the same name produces a trust that looks correct in JSON but silently refuses `AssumeRole` until the trust policy is re-edited. Rotate by issuing a second access key under the same user (see DEVOPS_GUIDE.md (private GitHub repo), "Source-profile access-key rotation").
 
 ### 8.10 Step 5 — Wire credentials, env, and the compose file
 
@@ -3477,11 +3477,11 @@ The latest row should show `status=sent` and a non-null `sent_at`. If it shows `
 
 Finally, confirm the verified test recipient received the reset email.
 
-For routine post-change verification of the staging runtime identity wiring (after IAM, KMS, SES, or trust-policy changes; after access-key rotation; after a host rebuild), the operator-workstation path via `npm run test:smoke` is the canonical runbook. See the maintainers' private operations guide, "Operator-workstation staging readiness smoke test".
+For routine post-change verification of the staging runtime identity wiring (after IAM, KMS, SES, or trust-policy changes; after access-key rotation; after a host rebuild), the operator-workstation path via `npm run test:smoke` is the canonical runbook. See DEVOPS_GUIDE.md (private GitHub repo), "Operator-workstation staging readiness smoke test".
 
 ### 8.12 Where rotation lives
 
-The access keys issued in §8.7 belong to the source-profile user `footbag-staging-source-profile`. They are long-lived credentials. CIS Benchmarks call for rotation at least every 90 days; current AWS IAM best-practices guidance prefers short-lived credentials overall and flags unused keys via last-accessed information. The rotation runbook (target file on the host: `/root/.aws/credentials`; target profile: `footbag-staging-source-profile`) is stewardship rather than first-time activation and lives in the maintainers' private operations guide, "Source-profile access-key rotation". Rotate by issuing a second access key under the same user; do not delete and recreate the user (see §8.9 step 4c for the principal-ARN pitfall). The runtime role's permissions and trust policy are untouched by rotation. Record the access-key issuance date in your local operator notes so the rotation schedule can be tracked against it.
+The access keys issued in §8.7 belong to the source-profile user `footbag-staging-source-profile`. They are long-lived credentials. CIS Benchmarks call for rotation at least every 90 days; current AWS IAM best-practices guidance prefers short-lived credentials overall and flags unused keys via last-accessed information. The rotation runbook (target file on the host: `/root/.aws/credentials`; target profile: `footbag-staging-source-profile`) is stewardship rather than first-time activation and lives in DEVOPS_GUIDE.md (private GitHub repo), "Source-profile access-key rotation". Rotate by issuing a second access key under the same user; do not delete and recreate the user (see §8.9 step 4c for the principal-ARN pitfall). The runtime role's permissions and trust policy are untouched by rotation. Record the access-key issuance date in your local operator notes so the rotation schedule can be tracked against it.
 
 ### 8.13 AWS SDK version pinning
 
@@ -3503,7 +3503,7 @@ This path deliberately does not cover other outstanding AWS hardening. Those ite
 - `/srv/footbag/env` manual-edits fragility threshold: §7.5. Access-key rotation is the first recurring forcing function.
 - CWAgent activation, backup-freshness metrics, SNS delivery: §7.6.
 
-Once all Path G items are complete, the durable operational content (including this path, condensed) migrates into the maintainers' private operations guide.
+Once all Path G items are complete, the durable operational content (including this path, condensed) migrates into DEVOPS_GUIDE.md (private GitHub repo).
 
 ### 8.15 Stripe activation (staging)
 
@@ -3640,7 +3640,7 @@ Before starting Path I, confirm:
 
 ### 9.4 Domain ownership and DNS coordination
 
-Production cutover requires IFPA to own `footbag.org` at the registrar level. Authoritative DNS stays on the webmaster's existing zone through cutover: the maintainer supplies each record value (the ACM validation CNAMEs, the SES DKIM CNAMEs and SPF amendment, and at cutover the `www` CNAME and apex A record) and the webmaster applies them by hand, per the hand-applied record inventory in the migration plan (MIGRATION_PLAN §29.12) and the external DNS/mail upstream coordination runbook in the maintainers' private operations guide. No registrar NS change happens at go-live. Moving authoritative DNS to Route 53 is optional and strictly post-stability, run under the DNS cutover sequence runbook in the maintainers' private operations guide, with a fresh zone snapshot first.
+Production cutover requires IFPA to own `footbag.org` at the registrar level. Authoritative DNS stays on the webmaster's existing zone through cutover: the maintainer supplies each record value (the ACM validation CNAMEs, the SES DKIM CNAMEs and SPF amendment, and at cutover the `www` CNAME and apex A record) and the webmaster applies them by hand, per the hand-applied record inventory in the migration plan (MIGRATION_PLAN §29.12) and the external DNS/mail upstream coordination runbook in DEVOPS_GUIDE.md (private GitHub repo). No registrar NS change happens at go-live. Moving authoritative DNS to Route 53 is optional and strictly post-stability, run under the DNS cutover sequence runbook in DEVOPS_GUIDE.md (private GitHub repo), with a fresh zone snapshot first.
 
 1. Registrar ownership: IFPA confirms domain renewal and registrar credentials in the operator vault. Registrar choice is outside this runbook; no NS edit is required for go-live.
 
@@ -3705,7 +3705,7 @@ A domain identity (distinct from the email identity verified in Path H §8.8) al
    - Identity: `footbag.org`
    - Enable DKIM. Accept Easy DKIM defaults (three CNAME records).
 
-2. SES returns three CNAME records. Hand them to the webmaster for the authoritative `footbag.org` zone per the external DNS/mail upstream coordination runbook in the maintainers' private operations guide. The Terraform templates for these records exist in `terraform/production/` behind `ses_enable_domain_auth`, which stays off until the optional post-stability Route 53 handover; pre-cutover the webmaster's hand-applied records are what SES sees.
+2. SES returns three CNAME records. Hand them to the webmaster for the authoritative `footbag.org` zone per the external DNS/mail upstream coordination runbook in DEVOPS_GUIDE.md (private GitHub repo). The Terraform templates for these records exist in `terraform/production/` behind `ses_enable_domain_auth`, which stays off until the optional post-stability Route 53 handover; pre-cutover the webmaster's hand-applied records are what SES sees.
 
 3. SES polls DNS and confirms verification within 72 hours (usually within 15 minutes). Poll:
 
@@ -3723,7 +3723,7 @@ A domain identity (distinct from the email identity verified in Path H §8.8) al
 
 Mirror Path H §8.6 through §8.9 with production-scoped names. Execute each Path H step against the production AWS account, substituting per the table in §9.2.
 
-Terraform: `terraform/production/` already exists, mirroring `terraform/staging/` and adding the ACM certificate, Route 53 records, SES domain identity, DR replication, and the maintenance bucket. Before the first plan, copy `terraform/production/terraform.tfvars.example` to `terraform.tfvars` and fill in the values that have no default (`aws_account_id`, `operator_cidrs`, `lightsail_origin_dns`, `route53_zone_id`, `ssh_public_key`, `alarm_email`), then run `terraform -chdir=terraform/production init` with AWS credentials that can reach the shared state bucket's `production/` key. The CloudFront and ACM resources require a real `domain_name` and a `route53_zone_id` referencing an existing Route 53 hosted zone; ACM validation completes once the validation CNAMEs are visible in the authoritative zone, which pre-cutover means the webmaster has applied them by hand (the maintainers' private operations guide, "ACM certificate for footbag.org runbook").
+Terraform: `terraform/production/` already exists, mirroring `terraform/staging/` and adding the ACM certificate, Route 53 records, SES domain identity, DR replication, and the maintenance bucket. Before the first plan, copy `terraform/production/terraform.tfvars.example` to `terraform.tfvars` and fill in the values that have no default (`aws_account_id`, `operator_cidrs`, `lightsail_origin_dns`, `route53_zone_id`, `ssh_public_key`, `alarm_email`), then run `terraform -chdir=terraform/production init` with AWS credentials that can reach the shared state bucket's `production/` key. The CloudFront and ACM resources require a real `domain_name` and a `route53_zone_id` referencing an existing Route 53 hosted zone; ACM validation completes once the validation CNAMEs are visible in the authoritative zone, which pre-cutover means the webmaster has applied them by hand (DEVOPS_GUIDE.md (private GitHub repo), "ACM certificate for footbag.org runbook").
 
 Exercise the source-profile → runtime-role chain locally with `aws sts get-caller-identity` before proceeding to §9.9.
 
@@ -3744,7 +3744,7 @@ Bounce and complaint rates determine SES sender reputation. Uncontrolled bounces
 
 2. In SES → Identities → the verified identity → Notifications, disable email feedback forwarding once the Terraform-applied bounce and complaint topics are attached. With SNS notifications enabled, SES will not also send bounce emails to the From address. (Delivery notifications: optional; noisy.)
 
-3. Provision the webhook auth secret and wire the subscription with the shipped mechanism (not a hand-rolled handler): run `scripts/activate-ses-feedback.sh --target production` (the maintainers' private operations guide, "SES feedback loop activation"). It generates the dedicated `SES_FEEDBACK_WEBHOOK_KEY`, installs it into `/srv/footbag/env`, and prints the `ses_feedback_webhook_url` (the public `/webhooks/ses-feedback` route plus `?key=…`). Set that value as the `ses_feedback_webhook_url` Terraform variable (it is sensitive; never in committed tfvars) and apply — the apply creates the SNS subscription. This key must exist before `SES_ADAPTER=live` — the production process refuses to boot without it.
+3. Provision the webhook auth secret and wire the subscription with the shipped mechanism (not a hand-rolled handler): run `scripts/activate-ses-feedback.sh --target production` (DEVOPS_GUIDE.md (private GitHub repo), "SES feedback loop activation"). It generates the dedicated `SES_FEEDBACK_WEBHOOK_KEY`, installs it into `/srv/footbag/env`, and prints the `ses_feedback_webhook_url` (the public `/webhooks/ses-feedback` route plus `?key=…`). Set that value as the `ses_feedback_webhook_url` Terraform variable (it is sensitive; never in committed tfvars) and apply — the apply creates the SNS subscription. This key must exist before `SES_ADAPTER=live` — the production process refuses to boot without it.
 
 4. SNS posts a subscription-confirmation message. The app does not auto-fetch the SubscribeURL (that would fetch an attacker-suppliable URL); it records it in an `email.sns_subscription_pending` audit row. Read `subscribe_url` from that row and confirm it once. The handler then marks hard-bounce (`bounceType=Permanent`) and complaint suppression on the recipient and appends an audit event per delivery.
 
@@ -3799,7 +3799,7 @@ Mirror Path H §8.11 against production.
 
 6. Record in operator notes: production activation date, operator who performed the cutover, KMS key ID, SES production-access approval ticket ID, validated sender identity.
 
-Path I is complete when all five validation steps pass. Production activation is now the canonical state; the maintainers' private operations guide covers routine operations from this point.
+Path I is complete when all five validation steps pass. Production activation is now the canonical state; DEVOPS_GUIDE.md (private GitHub repo) covers routine operations from this point.
 
 ### 9.13 Stripe activation (production)
 

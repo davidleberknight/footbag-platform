@@ -468,7 +468,7 @@ export const memberGalleryController = {
 // upload runs in its own transaction. If a file upload fails partway
 // through (e.g. storage put error), the gallery and any already-uploaded
 // files persist. The user can retry the missing files via the standalone
-// upload page. The plan's "single transaction" commitment is kept on
+// upload page. The atomicity design's "single transaction" commitment is kept on
 // the read-side (file pre-validation rejects bad input before any DB
 // write) and on the gallery side (no files written if gallery insert
 // fails), but does not extend to forcing all media inserts into one

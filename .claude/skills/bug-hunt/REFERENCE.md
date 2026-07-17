@@ -451,7 +451,7 @@ Complements §4.4.40, which is credentials-only. A logic bug in a deploy, backup
 - Lifecycle completeness: temp files and remote artifacts cleaned via `trap` on all exit paths — a script must not depend on a human remembering a teardown step.
 - Remote halves: quoting/interpolation of locally-expanded variables into ssh/remote shells; a remote command that silently runs against the wrong host or path.
 - Idempotency: re-running a deploy/backup/install script must not corrupt state.
-- Systemd units/timers: cadence and dependencies match the documented operational intent (backup cadence, service ordering, restart policy); a timer that silently stops matching the recovery objective documented in the maintainers' private operations guide is a finding.
+- Systemd units/timers: cadence and dependencies match the documented operational intent (backup cadence, service ordering, restart policy); a timer that silently stops matching the recovery objective documented in DEVOPS_GUIDE.md (private GitHub repo) is a finding.
 
 #### 4.4.45 Client-side JavaScript defects
 

@@ -197,7 +197,7 @@ runs:
    `docs/USER_STORIES.md`, which defers to them.
 7. `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/DATA_MODEL.md`,
    `docs/TESTING.md` (§15.2 anti-patterns especially), `docs/MIGRATION_PLAN.md` (gate
-   index), the maintainers' private operations guide (in the private operations
+   index), DEVOPS_GUIDE.md (private GitHub repo) (in the private operations
    checkout `footbag_private_repo/`, present only when that checkout is wired),
    `legacy_data/CLAUDE.md`, per the scope of the run.
 8. The external security calibration lenses listed in `REFERENCE.md` (OWASP, ASVS, WSTG,

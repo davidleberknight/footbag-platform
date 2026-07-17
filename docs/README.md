@@ -25,7 +25,7 @@ Design and specification documents for the footbag-platform modernization projec
 - What does a public page/route look like? → the owning service's file-header JSDoc + `.claude/rules/view-layer.md`
 - What does a service own? → the service's file-header JSDoc
 - How is the system tested? → `TESTING.md`
-- How do I build, deploy, or recover? → the maintainers' private operations guide
+- How do I build, deploy, or recover? → DEVOPS_GUIDE.md (private GitHub repo)
 - How do I set up the project and iterate locally? → `DEV_ONBOARDING.md`
 - How is the repo set up for Claude Code, and how do I change that setup safely? → `CLAUDE_CODE_GUIDE.md`
 

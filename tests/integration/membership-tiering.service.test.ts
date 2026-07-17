@@ -679,8 +679,8 @@ describe('adminOverride', () => {
 
 describe('DB-level governance integrity guards', () => {
   // These assert the schema CHECK constraints fire when the service contract
-  // is bypassed. The plan calls them out explicitly so they cannot regress
-  // out of the schema without a test failure.
+  // is bypassed. They are pinned explicitly so they cannot regress out of the
+  // schema without a test failure.
 
   it('rejects a governance_set row missing new_underlying_tier_status', () => {
     const id = freshMember();

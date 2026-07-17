@@ -104,7 +104,7 @@ style rule is itself violated.
 
 Compare every doc cluster where concepts overlap: USER_STORIES vs DESIGN_DECISIONS /
 DATA_MODEL / DATA_GOVERNANCE / TESTING; DESIGN_DECISIONS vs DATA_MODEL / `.claude/rules` /
-the maintainers' private operations guide / MIGRATION_PLAN; `.claude/rules` + service
+DEVOPS_GUIDE.md (private GitHub repo) / MIGRATION_PLAN; `.claude/rules` + service
 JSDoc vs actual services and routes; TESTING vs scripts/CI; the maintainers' private
 operations guide vs Terraform/Docker/deploy scripts;
 MIGRATION_PLAN vs onboarding/claim/club/email/DNS material; the project summaries and
@@ -170,7 +170,7 @@ still agree."
   matching the docs (diff the workflow's actual job list against the docs' claims), a
   claimed deterministic check that does not exist, a check that exists with no doc, tests
   asserting behavior documented nowhere or contradicting canonical design.
-- **DevOps/parity:** the maintainers' private operations guide and the decision doc's
+- **DevOps/parity:** DEVOPS_GUIDE.md (private GitHub repo) and the decision doc's
   DevOps sections vs Dockerfiles, compose and committed env files, `terraform/**`,
   workflows, `.githooks/`, deploy scripts, `ops/**` (timer cadence vs documented
   recovery objectives), config modules, and adapter factories.

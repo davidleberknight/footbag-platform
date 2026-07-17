@@ -70,11 +70,15 @@ never carry an issue number; the issue cites the file and line.
 
 ## Private ops docs
 
-The private checkout carries `AWS_OPERATIONS.md` (concrete AWS facts), the
-maintainers' operations guide (operating runbooks), and `VAULT_GOVERNANCE.md`
-(vault and board governance). Cite their content by section title, never by section number. Linking is
-one-way: private text may cite public files and commit SHAs; public text names the
-private docs only by role ("the maintainers' private operations guide").
+The private checkout carries three private ops docs. `AWS_OPERATIONS.md` holds
+concrete AWS facts, the private `DEVOPS_GUIDE.md` holds operating runbooks, and
+`VAULT_GOVERNANCE.md` holds vault and board governance. Cite their content by section title, never by section number. Linking is
+one-way: private text may cite public files and commit SHAs; public text names these
+docs by filename and marks them private ("DEVOPS_GUIDE.md (private GitHub repo)"), because
+a reader who cannot open a doc is still better served by its real name than by a vague
+role. Naming a file leaks nothing: the hidden-reference rule bans the repository's slug,
+owner, and issue numbers, which is why the tracker itself stays "the maintainers' private
+tracker" rather than a repo name.
 
 ## Questions
 

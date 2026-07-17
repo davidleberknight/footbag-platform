@@ -31,4 +31,4 @@ A secret MUST NEVER appear in any process's argv on any host: `ps -ef` (any read
 
 ## Canonical pattern and enforcement
 
-`scripts/install-cwagent-staging.sh` is the model (stdin-piped sudo password + cat-piped remote-half + `printf %q` assignments); preserve that wire-pattern verbatim. Operator-facing rationale: the maintainers' private operations guide, "CloudWatch agent install (one-time per host)" section. Enforced by code review.
+`scripts/install-cwagent-staging.sh` is the model (stdin-piped sudo password + cat-piped remote-half + `printf %q` assignments); preserve that wire-pattern verbatim. Operator-facing rationale: DEVOPS_GUIDE.md (private GitHub repo), "CloudWatch agent install (one-time per host)" section. Enforced by code review.

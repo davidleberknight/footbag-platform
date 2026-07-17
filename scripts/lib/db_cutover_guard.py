@@ -65,9 +65,9 @@ def assert_db_pre_cutover(db_path: str, script_name: str) -> None:
         "  source of truth: admin- and member-authored rows in it have no\n"
         "  committed seed inputs, and a destructive rebuild or reseed would\n"
         "  silently delete them. There is no bypass flag. If this is a\n"
-        "  deliberate disaster rebuild, follow the recovery procedure in the\n"
-        "  DevOps guide, which appends a post_cutover = 0 config row as an\n"
-        "  explicit out-of-band step before rebuilding.\n"
+        "  deliberate disaster rebuild, follow the recovery procedure in\n"
+        "  DEVOPS_GUIDE.md (private GitHub repo), which appends a post_cutover = 0\n"
+        "  config row as an explicit out-of-band step before rebuilding.\n"
     )
     sys.exit(1)
 

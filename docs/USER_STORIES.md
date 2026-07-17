@@ -169,11 +169,11 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Configure_System_Parameters](#a_configure_system_parameters)
     - [A_Manage_Admin_Role](#a_manage_admin_role)
   - [7.7 Configurable Parameters](#77-configurable-parameters)
-    - [Membership Pricing / Dues (IFPA-derived)](#membership-pricing-dues-ifpa-derived)
-    - [Active Player Windows / Lifecycle](#active-player-windows-lifecycle)
-    - [Email / Notifications / Outbox](#email-notifications-outbox)
-    - [Auth / Security Tokens](#auth-security-tokens)
-    - [Retention / Cleanup](#retention-cleanup)
+    - [Membership Pricing / Dues (IFPA-derived)](#membership-pricing--dues-ifpa-derived)
+    - [Active Player Windows / Lifecycle (IFPA-derived)](#active-player-windows--lifecycle-ifpa-derived)
+    - [Email / Notifications / Outbox](#email--notifications--outbox)
+    - [Auth / Security Tokens](#auth--security-tokens)
+    - [Retention / Cleanup](#retention--cleanup)
   - [7.8 Monitoring and Audit](#78-monitoring-and-audit)
     - [A_View_Dashboard](#a_view_dashboard)
     - [A_Resolve_Contact_IFPA_Admin_Request](#a_resolve_contact_ifpa_admin_request)
@@ -2474,7 +2474,7 @@ Success Criteria, Upload:
 - Admin uploads are not rate-limited at the member-tier rate. The audit_log is the accountability surface for admin actions.
 - Curator media is subject to the standard moderation flow per A_Moderate_Media. Curator media is public per §3.8 (the system member is a member for that rule's purpose; FH is treated like any HoF member by every other rule).
 - The system member's display_name (default "Footbag Hacky") is the uploader attribution shown on the resulting media's public render, parallel to how member-uploaded media shows the member's display_name. The display_name is editable by admin via A_Override_Member_Data.
-- The operator-run bulk curator-content seeding mechanism is a parallel path for pre-go-live content; it writes the same media_items row shape and is subject to the same processing pipeline. Operational specifics in the maintainers' private operations guide.
+- The operator-run bulk curator-content seeding mechanism is a parallel path for pre-go-live content; it writes the same media_items row shape and is subject to the same processing pipeline. Operational specifics in DEVOPS_GUIDE.md (private GitHub repo).
 
 Success Criteria, Edit:
 

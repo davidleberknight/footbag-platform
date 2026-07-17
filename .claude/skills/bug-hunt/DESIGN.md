@@ -345,7 +345,7 @@ Required scenarios:
 Search for contradictions across: user stories vs design decisions, data model, service
 contracts (JSDoc), page contracts (service JSDoc / view-layer rule), and testing
 standards; migration plan vs data governance and design decisions; service contracts vs
-the view-layer rule; data model vs schema; the maintainers' private operations guide vs
+the view-layer rule; data model vs schema; DEVOPS_GUIDE.md (private GitHub repo) vs
 Terraform/Docker/scripts; testing docs vs CI/package scripts; open private-tracker issue
 claims vs canonical docs. Report contradictions only when they affect implementation,
 testing, migration, privacy, security, operations, or go-live decisions. When two

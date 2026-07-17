@@ -21,9 +21,9 @@
 // are stable across versions, so a persisted skeleton column must be recomputed when
 // the data version changes. Production registration enforcement, the persisted
 // skeleton column, its uniqueness index, and the existing-member collision audit are
-// all gated on vendoring the official file (tracked as blocked in the plan). A small
-// hand-authored fixture drives the tests and is explicitly NOT the official data and
-// NOT complete threat coverage.
+// all gated on vendoring the official file (tracked as a blocked item in the
+// maintainers' private tracker). A small hand-authored fixture drives the tests and is
+// explicitly NOT the official data and NOT complete threat coverage.
 
 export interface ConfusablesTable {
   /** Version string parsed from the data header (e.g. "17.0.0"). */

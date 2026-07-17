@@ -14,7 +14,7 @@ Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 
 - **Humans:** read [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md)
 - **AI tools:** read [PROJECT_SUMMARY_CONCISE.md](PROJECT_SUMMARY_CONCISE.md)
-- **Active work and planning** live in a private maintainers' repository (a kanban-style issue board and bug tracker), kept private for member-data privacy.
+- **Active work, planning, and operations docs** live in two private companion repositories: a maintainers' repository holding the issue board and bug tracker plus the operations documentation these docs cite by name (`DEVOPS_GUIDE.md`, `AWS_OPERATIONS.md`, `VAULT_GOVERNANCE.md`), and the legacy footbag.org repository, used read-only as a migration fact source. Both are private for member-data privacy. Neither is needed to build, test, or contribute code.
 
 ## Current Project State
 

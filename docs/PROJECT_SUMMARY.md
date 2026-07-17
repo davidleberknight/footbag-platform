@@ -13,7 +13,7 @@ The Footbag Website Modernization Project upgrades footbag.org into the global c
 - [2. Design Philosophy](#2-design-philosophy)
 - [3. Functionality](#3-functionality)
   - [3.1 Media Content](#31-media-content)
-  - [3.2 Membership Tiers](#32-membership-tiers)
+  - [3.2 Membership Tiers and Active Player Status](#32-membership-tiers-and-active-player-status)
   - [3.3 Voting](#33-voting)
   - [3.4 Payments](#34-payments)
   - [3.5 Emails](#35-emails)
@@ -70,7 +70,7 @@ This project's knowledge base has two layers. **Canonical documents** hold durab
 
 **Migration Plan:** Source of Truth for go-live readiness, covering legacy data migration design (streams, claim flow, auto-link, merge rules, club bootstrap, name model, competition history), operational-readiness gates (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts), and the phasing, operational states, and validation gates that govern cutover. The canonical design docs above describe the long-term design; this one describes how the project transitions from where it is today to production launch.
 
-**DevOps:** Covers develop, test, build, release, operate, and recover procedures across environments (dev, stage, prod). Includes operational runbooks, CI/CD pipeline implementation, and infrastructure management procedures.
+**Operations** (listed here for orientation): develop, test, build, release, operate, and recover procedures across environments (dev, stage, prod), including operational runbooks, CI/CD pipeline implementation, and infrastructure management procedures, live in DEVOPS_GUIDE.md (private GitHub repo), not in this repository.
 
 **Developer Onboarding:** Guidance for software developers joining the project, specifically targetting the Minimum Viable First Page of functionality, to stand up the full tech stack for the first time. Covers technology-specific tutorials, architecture walkthroughs, contribution workflows, troubleshooting, and tips.
 
@@ -749,7 +749,7 @@ CloudFront exit from maintenance is automatic. When Lightsail origin returns to 
 
 **CloudFront Error Page Configuration:** When the Lightsail origin returns server errors (500, 502, 503, 504) or is unreachable, CloudFront automatically displays a custom maintenance page stored in S3 for GET/HEAD requests. Error page cached for 10 seconds, ensuring users see restored service quickly after recovery. Connection timeout set to 10 seconds with 3 retry attempts, so browsing requests typically see the maintenance page within ~30 seconds of origin failure (state-changing requests may instead fail with connection errors/timeouts).
 
-**Recovery:** CloudFront exit from maintenance is automatic. When the origin returns to health, CloudFront resumes normal operation within 10 seconds (error page cache TTL). Origin recovery may require admin intervention (restart/rollback/restore); this procedure will be defined in a DevOps runbook.
+**Recovery:** CloudFront exit from maintenance is automatic. When the origin returns to health, CloudFront resumes normal operation within 10 seconds (error page cache TTL). Origin recovery may require admin intervention (restart/rollback/restore); this procedure is documented in DEVOPS_GUIDE.md (private GitHub repo).
 
 **Monitoring and Alerting:** CloudWatch monitors origin error rates, application health, and resource utilization. Alarms trigger within 2 minutes of failures, notifying administrators via email and SMS. Documented recovery procedures enable rapid restoration (typically 15-30 minutes for application issues, up to 2 hours for complete infrastructure restore).
 
@@ -759,7 +759,7 @@ This approach provides high availability appropriate to community scale: reliabl
 
 ## 7.3 Operational Documentation
 
-Refer to the DevOps document for more details. This will serve as the authoritative guide for all build, release, operate, and recover procedures, with detailed specifications for:
+Refer to DEVOPS_GUIDE.md (private GitHub repo) for more details. It is the authoritative guide for all build, release, operate, and recover procedures, with detailed specifications for:
 
 - Environment model and lifecycle (Dev, Test/Staging, Production).
 - Configuration management and secrets handling.

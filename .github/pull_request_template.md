@@ -25,10 +25,6 @@
 - [ ] No secrets, real member data, or generated artifacts committed
 - [ ] Category B changes target a `drafts/` branch, not `main`
 
-## Related issue
-
-Closes #
-
 ## Notes
 
 <!-- Optional: migration steps, breaking changes, deployment considerations, screenshots. -->
