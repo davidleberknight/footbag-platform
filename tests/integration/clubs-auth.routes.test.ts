@@ -162,6 +162,38 @@ beforeAll(async () => {
     }),
   });
 
+  // Corpus-audit fixtures. Prose rich in capitalized place / event names but with
+  // no roster label or contact must stay public (the old name-pair proxy withheld
+  // these by mistake).
+  insertClub(db, {
+    id:   'club-placenames-001',
+    name: 'Placenames Club',
+    city: 'Erie',
+    country: 'USA',
+    description: 'We kick around Erie Pennsylvania, New Jersey, and New York. Footbag Worlds and Four Square are a blast.',
+    hashtag_tag_id: insertTag(db, { tag_normalized: '#club_placenames', tag_display: '#club_placenames', standard_type: 'club' }),
+  });
+
+  // A bare social-media URL id is not a phone number, so it must stay public.
+  insertClub(db, {
+    id:   'club-fburl-001',
+    name: 'Facebook URL Club',
+    city: 'Austin',
+    country: 'USA',
+    description: 'Find us on Facebook at https://www.facebook.com/groups/216661849514732 and come kick.',
+    hashtag_tag_id: insertTag(db, { tag_normalized: '#club_fburl', tag_display: '#club_fburl', standard_type: 'club' }),
+  });
+
+  // A named contact after a colon is a real contact-person leak and is withheld.
+  insertClub(db, {
+    id:   'club-contactcolon-001',
+    name: 'Contact Colon Club',
+    city: 'Joplin',
+    country: 'USA',
+    description: 'Come kick with us. Contact: Todd to get together in the Joplin area.',
+    hashtag_tag_id: insertTag(db, { tag_normalized: '#club_contactcolon', tag_display: '#club_contactcolon', standard_type: 'club' }),
+  });
+
   db.close();
   const mod = await import('../../src/app');
   createApp = mod.createApp;
@@ -236,6 +268,27 @@ describe('legacy club description privacy', () => {
     const res = await request(app).get('/clubs/club_cleanblurb');
     expect(res.text).toContain('every Saturday at the park');
     expect(res.text).not.toContain('imported historical description');
+  });
+
+  it('keeps prose with capitalized place and event names public (not a member roster)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_placenames');
+    expect(res.text).toContain('Erie Pennsylvania');
+    expect(res.text).not.toContain('imported historical description');
+  });
+
+  it('does not treat a bare social-media URL id as a phone number', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_fburl');
+    expect(res.text).toContain('facebook.com/groups/216661849514732');
+    expect(res.text).not.toContain('imported historical description');
+  });
+
+  it('withholds a named contact after a colon from anonymous viewers', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_contactcolon');
+    expect(res.text).not.toContain('Contact: Todd');
+    expect(res.text).toContain('imported historical description that names individual people');
   });
 });
 

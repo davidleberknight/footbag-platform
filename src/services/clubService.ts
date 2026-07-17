@@ -549,18 +549,24 @@ function toClubLeader(row: BootstrapLeaderRow): ClubLeader {
   return leader;
 }
 
-// Legacy club descriptions are free-text imports that sometimes embed member
-// lists, personal names, or contact handles. Governance keeps club rosters and
+// Legacy club descriptions are free-text imports that sometimes embed a member
+// roster, personal names, or contact handles. Governance keeps club rosters and
 // contact data member-only and off public surfaces, so a description carrying
 // that class of data is withheld from the anonymous shell and shown to logged-in
-// members only. This flags the descriptions that carry it. It deliberately errs
-// toward flagging: a false positive only member-gates a benign blurb, while a
-// miss would leak personal data, so the signals are inclusive.
+// members only.
+//
+// The signals are explicit, verifiable markers of embedded personal data, not a
+// count of capitalized words. A corpus audit against the real descriptions showed
+// a "three capitalized name pairs" proxy almost always fired on place names,
+// organisation names, and founder credits rather than a member roster (which in
+// practice always carries a roster label such as "Members:"), so it was removed.
+// A phone match must be formatted (a separator or a leading +) so a bare social
+// media URL id is not read as a number; "contact" allows a colon but ignores the
+// generic "contact me / us".
 const DESC_EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/;
 const DESC_IM_HANDLE = /\b(?:aim|msn|icq|skype|snap(?:chat)?|insta(?:gram)?|ig|kik|whatsapp)\b\s*:?\s*\S/i;
 const DESC_ROSTER_LABEL = /\b(?:members?|roster|players?|line-?up|crew|local)\s*:/i;
-const DESC_CONTACT_NAME = /\bcontact\s+[A-Z][a-z]+/;
-const DESC_NAME_PAIR = /\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/g;
+const DESC_CONTACT_NAME = /\b[Cc]ontact:?\s+(?!Me\b|Us\b|Info\b)[A-Z][a-z]+/;
 
 function descriptionMentionsIndividuals(text: string): boolean {
   if (!text) return false;
@@ -572,14 +578,13 @@ function descriptionMentionsIndividuals(text: string): boolean {
   ) {
     return true;
   }
-  // A phone-like run: nine or more digits once separators are stripped, inside a
-  // plausible phone shape, so a year or a short count does not trip it.
+  // A phone-like run: nine or more digits AND actual phone formatting (a leading
+  // + or a grouping separator), so a bare long digit run such as a Facebook group
+  // URL id does not trip it.
   const phone = text.match(/\+?\d[\d\-().\s]{7,}\d/);
-  if (phone && phone[0].replace(/\D/g, '').length >= 9) return true;
-  // Three or more consecutive First-Last capitalized pairs read as a name roster
-  // even without a label (e.g. "Mike Stoler Greg Grandy Sam Gregory").
-  const namePairs = text.match(DESC_NAME_PAIR);
-  if (namePairs && namePairs.length >= 3) return true;
+  if (phone && phone[0].replace(/\D/g, '').length >= 9 && /^\+|[-().\s]/.test(phone[0])) {
+    return true;
+  }
   return false;
 }
 
