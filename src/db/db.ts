@@ -497,6 +497,36 @@ export const publicPlayers = {
     LIMIT ?
   `); },
 
+  // On-site Hall of Fame / Big Add Posse indexes: the canonical honorees, each
+  // linked to a claimed member profile when one exists, else the history page.
+  // Dated inductees sort most-recent first; undated ones follow alphabetically.
+  get listHofHonorees() { return db.prepare(`
+    SELECT
+      hp.person_id,
+      hp.person_name,
+      hp.hof_induction_year,
+      (SELECT m.slug FROM members_searchable AS m
+       WHERE m.historical_person_id = hp.person_id LIMIT 1) AS linked_member_slug
+    FROM historical_persons AS hp
+    WHERE hp.source_scope = 'CANONICAL' AND hp.hof_member = 1
+    ORDER BY hp.hof_induction_year IS NULL, hp.hof_induction_year DESC,
+             hp.person_name COLLATE NOCASE
+  `); },
+
+  get listBapHonorees() { return db.prepare(`
+    SELECT
+      hp.person_id,
+      hp.person_name,
+      hp.bap_nickname,
+      hp.bap_induction_year,
+      (SELECT m.slug FROM members_searchable AS m
+       WHERE m.historical_person_id = hp.person_id LIMIT 1) AS linked_member_slug
+    FROM historical_persons AS hp
+    WHERE hp.source_scope = 'CANONICAL' AND hp.bap_member = 1
+    ORDER BY hp.bap_induction_year IS NULL, hp.bap_induction_year DESC,
+             hp.person_name COLLATE NOCASE
+  `); },
+
   get getById() { return db.prepare(`
     SELECT
       hp.person_id,
@@ -3365,6 +3395,53 @@ export const netTeams = {
     WHERE pa.person_name != 'Unknown' AND pb.person_name != 'Unknown'
     GROUP BY t.team_id
     ORDER BY appearance_count DESC, win_count DESC, last_year DESC, pa.person_name ASC
+  `); },
+
+  /** One page of listAll (same universe and order) for server-side pagination of
+   *  the unfiltered directory, which is otherwise several thousand rows. */
+  get listAllPaged() { return db.prepare(`
+    SELECT
+      t.team_id,
+      t.person_id_a,
+      pa.person_name  AS person_name_a,
+      pa.country      AS country_a,
+      MAX(ma.slug)    AS member_slug_a,
+      t.person_id_b,
+      pb.person_name  AS person_name_b,
+      pb.country      AS country_b,
+      MAX(mb.slug)    AS member_slug_b,
+      COUNT(*)                                              AS appearance_count,
+      SUM(CASE WHEN a.placement = 1 THEN 1 ELSE 0 END)    AS win_count,
+      SUM(CASE WHEN a.placement <= 3 THEN 1 ELSE 0 END)   AS podium_count,
+      MIN(a.event_year)                                     AS first_year,
+      MAX(a.event_year)                                     AS last_year
+    FROM net_team t
+    JOIN historical_persons pa ON pa.person_id = t.person_id_a
+    JOIN historical_persons pb ON pb.person_id = t.person_id_b
+    JOIN net_team_appearance_canonical a ON a.team_id = t.team_id
+    LEFT JOIN members ma
+      ON ma.historical_person_id = pa.person_id
+      AND ma.deleted_at IS NULL
+    LEFT JOIN members mb
+      ON mb.historical_person_id = pb.person_id
+      AND mb.deleted_at IS NULL
+    WHERE pa.person_name != 'Unknown' AND pb.person_name != 'Unknown'
+    GROUP BY t.team_id
+    ORDER BY appearance_count DESC, win_count DESC, last_year DESC, pa.person_name ASC
+    LIMIT ? OFFSET ?
+  `); },
+
+  /** Total unique-team universe for the unfiltered directory (drives page count). */
+  get countAll() { return db.prepare(`
+    SELECT COUNT(*) AS total FROM (
+      SELECT t.team_id
+      FROM net_team t
+      JOIN historical_persons pa ON pa.person_id = t.person_id_a
+      JOIN historical_persons pb ON pb.person_id = t.person_id_b
+      JOIN net_team_appearance_canonical a ON a.team_id = t.team_id
+      WHERE pa.person_name != 'Unknown' AND pb.person_name != 'Unknown'
+      GROUP BY t.team_id
+    )
   `); },
 
   /** Division filter options, distinct canonical groups with appearance counts. */

@@ -6,7 +6,11 @@
     {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
     {{#if content.totalShown}}
     <div class="hero-stats">
+      {{#if content.pagination}}
+      <span>{{content.pagination.total}} teams</span>
+      {{else}}
       <span>{{content.totalShown}} teams shown</span>
+      {{/if}}
     </div>
     {{/if}}
   </div>
@@ -53,7 +57,7 @@
       <tbody>
         {{#each content.teams}}
         <tr>
-          <td class="col-rank">{{add @index 1}}</td>
+          <td class="col-rank">{{add @index ../content.rankStart}}</td>
           <td>
             <a href="{{{teamHref}}}">{{teamName}}</a>
           </td>
@@ -66,6 +70,13 @@
       </tbody>
     </table>
   </div>
+  {{#if content.pagination}}
+    <nav class="gallery-pagination" aria-label="Pagination">
+      {{#if content.pagination.hasPrev}}<a href="{{content.pagination.prevHref}}" rel="prev">&larr; Previous</a>{{/if}}
+      <span class="gallery-pagination-status">Page {{content.pagination.page}} of {{content.pagination.totalPages}}</span>
+      {{#if content.pagination.hasNext}}<a href="{{content.pagination.nextHref}}" rel="next">Next &rarr;</a>{{/if}}
+    </nav>
+  {{/if}}
   {{else}}
   <div class="empty-state">No teams found for this division.</div>
   {{/if}}

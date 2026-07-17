@@ -5,30 +5,52 @@
  *   - GET /hof (public): canonical Hall of Fame section entry.
  *
  * Rendering contract:
- *   - getHofLandingPage() returns PageViewModel<HofContent>, service-shaped with no DB
- *     queries.
+ *   - getHofLandingPage() returns PageViewModel<HofContent>, service-shaped.
  *   - Provides content.externalLink so the template never constructs the standalone HoF URL.
- *   - Current target is the editorial landing page only; in-site inductee pages, member-linked
- *     records, and richer history are out of scope by design (future curation).
+ *   - Provides content.honorees: the on-site index of canonical inductees, each linked to a
+ *     claimed member profile when one exists, otherwise the history page. Reads the canonical
+ *     honoree list from db.ts (publicPlayers.listHofHonorees).
  *
  * Visibility:
  *   - Public official honor. HoF status is a permanent public historical record, preserved even
  *     through PII purge or deceased flows.
  */
 import { PageViewModel } from '../types/page';
+import { runSqliteRead } from './sqliteRetry';
+import { publicPlayers } from '../db/db';
 
 interface HofSection {
   heading: string;
   paragraphs: string[];
 }
 
+interface HofHonoree {
+  name: string;
+  href: string;
+  year: number | null;
+}
+
 interface HofContent {
   externalLink: { href: string; label: string };
   sections: HofSection[];
+  honorees: HofHonoree[];
 }
 
 export const hofService = {
   getHofLandingPage(): PageViewModel<HofContent> {
+    const honorees = runSqliteRead('hofService.listHofHonorees', () =>
+      (publicPlayers.listHofHonorees.all() as Array<{
+        person_id: string;
+        person_name: string;
+        hof_induction_year: number | null;
+        linked_member_slug: string | null;
+      }>).map((r) => ({
+        name: r.person_name,
+        href: r.linked_member_slug ? `/members/${r.linked_member_slug}` : `/history/${r.person_id}`,
+        year: r.hof_induction_year,
+      })),
+    );
+
     return {
       seo: { title: 'Hall of Fame' },
       page: {
@@ -39,6 +61,7 @@ export const hofService = {
       },
       content: {
         externalLink: { href: 'https://www.footbaghalloffame.net/', label: 'Visit FootbagHallOfFame.net' },
+        honorees,
         sections: [
           {
             heading: 'A Bit of History...',

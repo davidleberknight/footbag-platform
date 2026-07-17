@@ -219,13 +219,33 @@ interface DivisionFilterOption {
   selected: boolean;
 }
 
+// Server-side pagination of the unfiltered directory (thousands of teams). A
+// filtered result is already bounded, so it carries no pagination.
+interface NetTeamsPagination {
+  page:      number;
+  totalPages: number;
+  total:     number;
+  hasPrev:   boolean;
+  hasNext:   boolean;
+  prevHref?: string;
+  nextHref?: string;
+}
+
+const NET_TEAMS_PAGE_SIZE = 50;
+
 interface NetTeamsContent {
   teams:           NetTeamListViewModel[];
   totalShown:      number;
+  // The 1-based rank of the first row on this page, so the row numbers continue
+  // across pages (51, 52, ...) instead of restarting each page.
+  rankStart:       number;
   divisionOptions: DivisionFilterOption[];
   activeDivision:  string | null;
   activeSearch:    string | null;
   disclaimer:      string;
+  // Present only on the unfiltered directory; null when a division/search filter
+  // is active (that result is already bounded).
+  pagination:      NetTeamsPagination | null;
 }
 
 export interface NetEventQcHints {
@@ -511,11 +531,36 @@ export const netService = {
     };
   },
 
-  getTeamsPage(division?: string, search?: string): PageViewModel<NetTeamsContent> {
+  getTeamsPage(division?: string, search?: string, page = 1): PageViewModel<NetTeamsContent> {
     const hasFilter = !!(division || search);
-    const rows = hasFilter
-      ? queryFilteredTeams({ division, search })
-      : netTeams.listAll.all() as NetTeamStatsRow[];
+
+    // The unfiltered directory is thousands of teams, so it is paginated
+    // server-side; a filtered result is already bounded and shows in full.
+    let pagination: NetTeamsPagination | null = null;
+    let rankStart = 1;
+    let rows: NetTeamStatsRow[];
+    if (hasFilter) {
+      rows = queryFilteredTeams({ division, search });
+    } else {
+      const total = (netTeams.countAll.get() as { total: number }).total;
+      const totalPages = Math.max(1, Math.ceil(total / NET_TEAMS_PAGE_SIZE));
+      const current = Math.min(Math.max(1, page), totalPages);
+      const offset = (current - 1) * NET_TEAMS_PAGE_SIZE;
+      rankStart = offset + 1;
+      rows = netTeams.listAllPaged.all(NET_TEAMS_PAGE_SIZE, offset) as NetTeamStatsRow[];
+      const hasPrev = current > 1;
+      const hasNext = current < totalPages;
+      const pageHref = (p: number): string => (p <= 1 ? '/net/teams' : `/net/teams?page=${p}`);
+      pagination = {
+        page: current,
+        totalPages,
+        total,
+        hasPrev,
+        hasNext,
+        ...(hasPrev ? { prevHref: pageHref(current - 1) } : {}),
+        ...(hasNext ? { nextHref: pageHref(current + 1) } : {}),
+      };
+    }
 
     const teams: NetTeamListViewModel[] = rows.map(r => ({
       teamId:          r.team_id,
@@ -553,10 +598,12 @@ export const netService = {
       content: {
         teams,
         totalShown:      teams.length,
+        rankStart,
         divisionOptions,
         activeDivision:  division ?? null,
         activeSearch:    search ?? null,
         disclaimer:      TEAM_DISCLAIMER,
+        pagination,
       },
     };
   },

@@ -221,7 +221,8 @@ describe('GET /net/teams', () => {
   it('shows total teams count', async () => {
     const app = createApp();
     const res = await request(app).get('/net/teams');
-    expect(res.text).toContain('2 teams shown');
+    // The unfiltered directory is paginated, so the header states the full total.
+    expect(res.text).toContain('2 teams');
   });
 
   it('shows division filter dropdown', async () => {
@@ -246,24 +247,51 @@ describe('GET /net/teams', () => {
     const app = createApp();
     const res = await request(app).get('/net/teams');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('2 teams shown');                 // unique-team universe
+    expect(res.text).toContain('2 teams');                       // unique-team universe (paginated header)
     expect(res.text).toMatch(/Open Doubles \(2 appearances\)/);  // explicit appearances unit
     expect(res.text).not.toMatch(/Open Doubles \(2\)</);         // never a bare count read as teams
   });
 
   it('a division filter shows no more teams than the full unique-team universe', async () => {
     const app = createApp();
-    const teamsShown = (html: string): number =>
-      Number((html.match(/(\d+) teams shown/) ?? [])[1]);
+    // Unfiltered header reads "N teams" (paginated); a filter reads "N teams shown".
+    const teamCount = (html: string): number =>
+      Number((html.match(/(\d+) teams(?: shown)?/) ?? [])[1]);
     const all = await request(app).get('/net/teams');
     const filtered = await request(app).get('/net/teams?division=open_doubles');
     expect(filtered.status).toBe(200);
-    const universe = teamsShown(all.text);
-    const shown = teamsShown(filtered.text);
+    const universe = teamCount(all.text);
+    const shown = teamCount(filtered.text);
     // The appearance-count option (2) does not become the team count: the filtered
     // division shows its one unique team, and the subset never exceeds the whole.
     expect(shown).toBe(1);
     expect(shown).toBeLessThanOrEqual(universe);
+  });
+
+  it('paginates the unfiltered directory server-side', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams');
+    expect(res.status).toBe(200);
+    // With two teams (under the page size) there is a single page, so the nav
+    // renders its status but offers no Previous/Next link.
+    expect(res.text).toContain('class="gallery-pagination"');
+    expect(res.text).toContain('Page 1 of 1');
+    expect(res.text).not.toContain('rel="next"');
+    expect(res.text).not.toContain('rel="prev"');
+  });
+
+  it('clamps an out-of-range page without erroring', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams?page=999');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Page 1 of 1');
+  });
+
+  it('does not paginate a filtered result (already bounded)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams?division=open_doubles');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('class="gallery-pagination"');
   });
 
   it('does not contain forbidden stat language', async () => {

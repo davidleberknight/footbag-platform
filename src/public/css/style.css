@@ -1975,6 +1975,12 @@ section.home-media { padding-top: 0; }
 .footer-links { column-count: 3; column-gap: 32px; }
 .footer-links a { color: var(--gray-500); display: block; margin-bottom: 6px; break-inside: avoid; }
 .footer-links a:hover { color: var(--white); }
+
+/* On-site Hall of Fame / Big Add Posse honoree index: a compact multi-column
+   name list. The rem column-width fits fewer columns on narrow screens with no
+   media query, so it collapses to one column on a phone. */
+.honor-index { list-style: none; padding: 0; columns: 16rem; column-gap: 32px; margin-top: 12px; }
+.honor-index li { break-inside: avoid; margin-bottom: 6px; }
 .footer-legal {
   border-top: 1px solid var(--gray-900);
   margin-top: 40px;

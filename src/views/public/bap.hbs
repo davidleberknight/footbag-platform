@@ -22,6 +22,17 @@
     </section>
   {{/each}}
 
+  {{#if content.honorees.length}}
+    <section>
+      <h2 class="section-heading">Members</h2>
+      <ul class="honor-index">
+        {{#each content.honorees}}
+          <li><a href="{{href}}">{{name}}</a>{{#if nickname}} <span class="text-muted fs-sm">&ldquo;{{nickname}}&rdquo;</span>{{/if}}{{#if year}} <span class="text-muted fs-sm">{{year}}</span>{{/if}}</li>
+        {{/each}}
+      </ul>
+    </section>
+  {{/if}}
+
   {{#if content.externalLink}}
     <p class="mt-2 mb-10">
       <a href="{{content.externalLink.href}}" class="btn btn-outline" target="_blank" rel="noopener noreferrer">{{content.externalLink.label}}</a>

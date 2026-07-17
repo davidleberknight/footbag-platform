@@ -33,7 +33,10 @@ export const netController = {
         ? rawDivision.trim() : undefined;
       const search = typeof rawSearch === 'string' && rawSearch.trim().length >= 2
         ? rawSearch.trim() : undefined;
-      const vm = netService.getTeamsPage(division, search);
+      const rawPage = req.query['page'];
+      const parsedPage = typeof rawPage === 'string' ? parseInt(rawPage, 10) : NaN;
+      const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+      const vm = netService.getTeamsPage(division, search, page);
       res.render('net/teams', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'net controller');
