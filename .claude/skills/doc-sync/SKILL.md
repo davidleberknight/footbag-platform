@@ -36,13 +36,13 @@ When code, plan, and derived docs disagree, surface the drift explicitly. Do not
 
 ### Final design vs implementation deviation (apply before proposing any edit)
 
-Canonical docs (`docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/DATA_MODEL.md`, `docs/DIAGRAMS.md`, `docs/GLOSSARY.md`, `docs/DEVOPS_GUIDE.md`, `PROJECT_SUMMARY*`, per-service JSDoc) describe the **final, target design** — not the current build state. Code and infrastructure (including `terraform/**` and `docker/**`) are authoritative ONLY for *implemented behavior*, never for *design intent*.
+Canonical docs (`docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/DATA_MODEL.md`, `docs/DIAGRAMS.md`, `docs/GLOSSARY.md`, `PROJECT_SUMMARY*`, per-service JSDoc) describe the **final, target design** — not the current build state. Code and infrastructure (including `terraform/**` and `docker/**`) are authoritative ONLY for *implemented behavior*, never for *design intent*.
 
 So when current code or infra disagrees with a canonical doc, **the default is NOT "the doc is drifted."** Classify the gap as exactly one of:
 
 1. **The doc is genuinely wrong** — internally inconsistent, contradicts the actual final design (one canonical doc vs another, a diagram vs `DESIGN_DECISIONS.md`), or states a stale descriptive fact. → propose the smallest canonical-doc edit.
-2. **The implementation has truly deviated from the final design** — a built thing works differently than the final design says. → record an `IMPLEMENTATION_PLAN.md` deviation entry. **Never edit the canonical doc down to match the current implementation.**
-3. **The feature is simply not built yet** (future work). → neither a doc edit nor automatically an IP entry; it is roadmap, not drift.
+2. **The implementation has truly deviated from the final design** — a built thing works differently than the final design says. → record the deviation as a private-tracker issue labeled `bug` (drafted per the `tracker-ops` skill). **Never edit the canonical doc down to match the current implementation.**
+3. **The feature is simply not built yet** (future work). → neither a doc edit nor automatically a tracker issue; it is roadmap, not drift.
 
 This applies to design intent and target architecture. Purely descriptive facts a derived doc mirrors from code (a renamed identifier, a changed method signature, a schema column) still follow the code and are normal case-1 fixes.
 
@@ -53,7 +53,7 @@ Never silently pick. After verifying each gap, **present it to the human with th
 Before making any recommendation, read selectively:
 
 - `PROJECT_SUMMARY_CONCISE.md` if present
-- the top active-slice/status block in `IMPLEMENTATION_PLAN.md`
+- the open issues in the maintainers' private tracker (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`; if unwired, note it in one line and continue)
 - `docs/USER_STORIES.md`
 - the most relevant derived documentation for the affected area
 - the touched code files
@@ -93,7 +93,7 @@ Before proposing an edit, scan enough surrounding context to ensure:
 
 ### 3) Detect real drift
 Drift exists only when the docs:
-- contradict confirmed decisions or the final design, or (for descriptive facts a derived doc mirrors from code) current code — but first apply *Final design vs implementation deviation* to rule out a true implementation deviation that belongs in `IMPLEMENTATION_PLAN.md`
+- contradict confirmed decisions or the final design, or (for descriptive facts a derived doc mirrors from code) current code — but first apply *Final design vs implementation deviation* to rule out a true implementation deviation that belongs in the private tracker
 - omit information needed to understand current behavior
 - describe old behavior as if it were current
 - use identifiers or boundaries that are no longer correct
@@ -165,7 +165,7 @@ Do not:
 - infer intent not supported by code or explicit human direction
 - treat comments as authoritative if code behavior differs
 - edit docs without explicit human approval
-- edit a canonical (final-design) doc to match current code or infrastructure; an implementation that diverges from the final design is a deviation to record in `IMPLEMENTATION_PLAN.md`, not a reason to rewrite the doc
+- edit a canonical (final-design) doc to match current code or infrastructure; an implementation that diverges from the final design is a deviation to record as a private-tracker issue, not a reason to rewrite the doc
 - mix confirmed drift with speculative improvements
 - expand scope beyond the area actually under review
 - introduce implementation-status language into canonical docs (the canonical-vs-active-slice separation rule and the full list of protected docs live in `.claude/rules/doc-governance.md`)

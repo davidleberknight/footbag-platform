@@ -8,13 +8,13 @@ Use this file for quick orientation and document routing. For implemented behavi
 
 - **For tasks touching members, historical persons, search, contact fields, records, stats, exports, or auth/privacy:** load `docs/DATA_GOVERNANCE.md` first.
 - For functional requirements and user stories with acceptance criteria, loadtargeted sections of `docs/USER_STORIES.md` first.
-- For current scope, known deviations, and sequencing, read `IMPLEMENTATION_PLAN.md`.
+- For current scope, known deviations, and sequencing, read the maintainers' private tracker: `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open` (the `tracker-ops` skill; skip in one line if unwired).
 - For required public-page rendering patterns, view-model contracts, and sensitive-page invariants, load `.claude/rules/view-layer.md` and the owning service's file-header JSDoc.
 - For required service-layer ownership and patterns, read the service's file-header JSDoc and the path-scoped `.claude/rules/*.md`; pair with code/tests/types for current method shapes.
 - For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema.sql`.
 - For rationale, trade-offs, and long-term design commitments, load targeted sections of `docs/DESIGN_DECISIONS.md`: read when entering a new code area or unwinding a temporary simplification; do not load by default.
 - For go-live readiness, legacy data migration scope, operational-readiness gates, phasing, or cutover planning, load `docs/MIGRATION_PLAN.md`.
-- The platform serves from a single Lightsail origin behind CloudFront; for operational procedures load `docs/DEVOPS_GUIDE.md`.
+- The platform serves from a single Lightsail origin behind CloudFront; operational procedures live in the maintainers' private operations guide (in the private operations checkout `footbag_private_repo/`, when wired).
 
 ## Project identity
 
@@ -134,7 +134,7 @@ Also: the agent may read the **full human-oriented documents** when needed; it i
 - Need entity relationships, persisted state conventions, schema invariants, or exact SQL surface -> **Data Model** + `database/schema.sql`
 - Need rationale / trade-offs / "why was it done this way" -> **Design Decisions**
 - Need to derive, layer, or verify tests -> **Testing Strategy** (`docs/TESTING.md`)
-- Need deployment, backups, recovery, infrastructure changes, or CI/CD -> **DevOps guide**. Use **Developer Onboarding** for blank-machine setup and first-pass bootstrap guidance.
+- Need deployment, backups, recovery, infrastructure changes, or CI/CD -> **the maintainers' private operations guide** (in the private checkout, when wired). Use **Developer Onboarding** for blank-machine setup and first-pass bootstrap guidance.
 - Need go-live readiness, legacy data migration scope, operational-readiness gates, or cutover sequencing -> **Migration Plan** (`docs/MIGRATION_PLAN.md`)
 - Need big-picture human context or document relationships -> **Project Summary** (full version)
 

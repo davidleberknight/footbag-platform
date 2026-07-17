@@ -59,4 +59,4 @@ changes public rendering, so each is a scoped change, not a silent edit.
 - **Family cards** — `glossaryFamilyCards` is authored independently of the
   public-families / tier rosters.
 
-Consolidating these four is tracked as active work in `IMPLEMENTATION_PLAN.md`.
+Consolidating these four is tracked as active work in the maintainers' private tracker.

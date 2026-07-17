@@ -39,8 +39,8 @@
  *     carry no canonical-ontology weight.
  *   - The deep family / topology / modifier / set doctrine and the curator-content authoring rules
  *     are owned by the freestyle dictionary, topology-governance, and dictionary-surface skills and
- *     the committed content modules; current editorial pilots and allow-lists live in the code and
- *     IMPLEMENTATION_PLAN, not in this contract.
+ *     the committed content modules; current editorial pilots and allow-lists live in the code
+ *     and the maintainers' private tracker, not in this contract.
  */
 import {
   FreestyleLeaderRow, FreestyleRecordRow, FreestyleTrickRow, FreestyleTrickModifierRow,

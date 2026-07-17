@@ -105,7 +105,7 @@ all-or-nothing per pair.
 ## 4. Explicit policy — invariants for any merge work
 
 The following are non-negotiable. Violations require a documented exception
-in `IMPLEMENTATION_PLAN.md`.
+in the maintainers' private tracker.
 
 - **Do not remove adjudication CSV rows after completion.** They are the
   audit trail of every per-slot decision. Append-only.

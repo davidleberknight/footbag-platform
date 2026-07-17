@@ -14,7 +14,7 @@ Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 
 - **Humans:** read [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md)
 - **AI tools:** read [PROJECT_SUMMARY_CONCISE.md](PROJECT_SUMMARY_CONCISE.md)
-- **AI tools, for sprint scoping and accepted temporary deviations from long-term design:** read [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+- **Active work and planning** live in a private maintainers' repository (a kanban-style issue board and bug tracker), kept private for member-data privacy.
 
 ## Current Project State
 
@@ -26,21 +26,19 @@ A lot of functionality is done and deployed on AWS. This is the baseline for ong
 
 - [CONTRIBUTING.md](CONTRIBUTING.md).
 - [docs/DATA_GOVERNANCE.md](docs/DATA_GOVERNANCE.md) (security, privacy, and historical data publication policy).
-- [SECURITY.md](SECURITY.md) for vulnerability reporting (**do not use public issues**).
+- [SECURITY.md](SECURITY.md) for vulnerability reporting (private disclosure path).
 - See [CLAUDE.md](CLAUDE.md) for Claude Code's standard operating rules.
 - Talk to Dave.
 
 ## Reporting Bugs and Issues
 
-This tracker is for **invited testers and project contributors**, not for general footbag.org end-user support. End-user questions about the legacy footbag.org site or the upcoming modernized site belong with the IFPA contact channel, not here.
+The tracker for bug reports and active work is a private maintainers' repository, a kanban-style issue board, kept private because test evidence can involve member data. Invited testers and project contributors: report problems to the maintainers, who file and track them there.
 
-Full guide: [docs/BUG_REPORT.md](docs/BUG_REPORT.md).
+End-user questions about the legacy footbag.org site or the upcoming modernized site belong with the IFPA contact channel, not here.
 
-**Do not file security vulnerabilities in public issues.** Use the private disclosure path in [SECURITY.md](SECURITY.md) instead.
+**Do not report security vulnerabilities in public.** Use the private disclosure path in [SECURITY.md](SECURITY.md) instead.
 
-**Do not paste in public issues**: passwords, tokens, signing material, member email addresses, real names of current members, phone numbers, raw legacy archive contents, or screenshots containing member data. Redact before submitting.
-
-Each bug fix lands with a regression test in the same PR; the issue closes when the test merges.
+Each bug fix lands with a regression test in the same PR.
 
 ## Project Documentation
 
@@ -48,14 +46,12 @@ Each bug fix lands with a regression test in the same PR; the issue closes when 
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md): data model and schema semantics.
 - [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md): architectural decisions and rationale.
 - [docs/DEV_ONBOARDING.md](docs/DEV_ONBOARDING.md): developer setup and onboarding.
-- [docs/DEVOPS_GUIDE.md](docs/DEVOPS_GUIDE.md): deployment and operations.
 - [docs/DIAGRAMS.md](docs/DIAGRAMS.md): architecture diagrams.
 - [docs/GLOSSARY.md](docs/GLOSSARY.md): terminology and jargon.
 - [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md): go-live readiness steps: data migration, and validation gates.
 - [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md): project overview.
 - [docs/TESTING.md](docs/TESTING.md): testing strategy and methodology.
 - [docs/USER_STORIES.md](docs/USER_STORIES.md): intended functional behaviors and success criteria.
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md): current sprint scope, dependency analysis, and planning.
 
 ## Technology Stack
 

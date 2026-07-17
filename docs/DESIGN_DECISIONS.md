@@ -6,7 +6,7 @@ This document captures technical decisions and rationale so that volunteers can 
 
 Scoping note: Numeric values in this document may represent fixed technical constants, deployment/infrastructure resource allocations and thresholds, or implementation notes. For Administrator-configurable operational, security, reminder, pricing, and retention values, normative defaults are defined in the User Stories document and loaded via configuration seeds. DD may describe parameterization, ranges, and ownership, but if a value is Administrator-configurable, DD does not define the normative default. Any numeric value in this document that conflicts with the User Stories normative defaults section is an error; User Stories wins.
 
-Current implementation status and accepted temporary deviations are tracked in `IMPLEMENTATION_PLAN.md`. This document is the long-term architecture reference only.
+Current implementation status and accepted temporary deviations are tracked in the maintainers' private tracker. This document is the long-term architecture reference only.
 
 ## Table of Contents
 
@@ -26,6 +26,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [1.13 Curator Content Source of Truth](#113-curator-content-source-of-truth)
   - [1.14 Test-data Harness](#114-test-data-harness)
   - [1.15 Convention and Invariant Gates](#115-convention-and-invariant-gates)
+  - [1.16 Multi-repository Structure and Companion-checkout Convention](#116-multi-repository-structure-and-companion-checkout-convention)
 - [2. Data Model](#2-data-model)
   - [2.1 Schema and Versioning](#21-schema-and-versioning)
   - [2.2 Data Access Pattern](#22-data-access-pattern)
@@ -213,7 +214,7 @@ Requirements:
 
 - A host systemd backup timer writes the SQLite snapshot to the primary backup bucket on the documented cadence (default five minutes, per the backup-script description above). A dead timer or a failing upload stops the backup-age metric from refreshing, so the staleness alarm breaches and a silent backup gap cannot accrue.
 - The off-account DR replica bucket has S3 Object Lock enabled in GOVERNANCE mode for the configured retention window, so a compromised production credential cannot delete or overwrite snapshots in the disaster-recovery target.
-- Retention windows are documented per artifact class (hot snapshot, DR replica, log archive). Each class has a single source of truth in `docs/DEVOPS_GUIDE.md` and matching S3 lifecycle rules; the lifecycle rules and the documented retention table cannot drift.
+- Retention windows are documented per artifact class (hot snapshot, DR replica, log archive). Each class has a single source of truth in the maintainers' private operations guide and matching S3 lifecycle rules; the lifecycle rules and the documented retention table cannot drift.
 - The interaction between erasure (GDPR Article 17) and backup is documented: an erased record's identifier is recorded in an erasure log, and any restore from backup re-applies the erasure log before the restored data is reachable, so erasure cannot be silently undone by routine recovery.
 
 ## 1.3 Transaction Model
@@ -244,7 +245,7 @@ Paths are stored as data, not calculated at runtime based on the member id and g
 
 CloudFront serves media directly from the primary bucket via the `/media-store/*` cache behavior on the single site distribution. The `/media-store/` URL prefix is dedicated to binary storage and is disjoint from the `/media` user-facing app section so app routes and storage URLs do not share a namespace. The cache-bust mechanism is URL-versioned via a `?v={media_id}` query string (a fresh UUID per upload), and the cache key includes the query string. S3 PUT sets `Cache-Control: public, max-age=31536000, immutable`. Media objects are immutable from any cache's point of view because each emitted URL is unique to its upload; the URL is the cache identity, the S3 key is the storage location, decoupled.
 
-Scope: member-uploaded photo objects and system-account-owned media (photo + video) are stored in S3. Member video remains embed-only (YouTube/Vimeo per `M_Submit_Video`); only the system member account uploads video bytes (see §2.8 and `A_Upload_Curated_Media`). The legacy mirror at archive.footbag.org is a separate static bucket per §6.4. Pre-loaded system-account content (landing-page demo loops, page illustrations and cartoon images, well-known event photos, and similar curator items used across the platform) is written by an operator-run seeding mechanism that uses the same media storage adapter as interactive uploads. The same mechanism extends to tutorials, historical content, and any future curator categories without additional schema or render-path work. Operational specifics in DEVOPS_GUIDE.
+Scope: member-uploaded photo objects and system-account-owned media (photo + video) are stored in S3. Member video remains embed-only (YouTube/Vimeo per `M_Submit_Video`); only the system member account uploads video bytes (see §2.8 and `A_Upload_Curated_Media`). The legacy mirror at archive.footbag.org is a separate static bucket per §6.4. Pre-loaded system-account content (landing-page demo loops, page illustrations and cartoon images, well-known event photos, and similar curator items used across the platform) is written by an operator-run seeding mechanism that uses the same media storage adapter as interactive uploads. The same mechanism extends to tutorials, historical content, and any future curator categories without additional schema or render-path work. Operational specifics in the maintainers' private operations guide.
 
 Local filesystem mounted as Docker volume mirrors production S3 directory structure exactly. The media storage adapter reads identical database paths and constructs local URLs. No AWS credentials required for basic media operations in development. Path literals deferred alongside the adapter and env-var rename.
 
@@ -278,7 +279,7 @@ Impact:
 
 - Backup procedures updated to cover media separately from database.
 
-- CloudFront `/media-store/*` cache behavior uses OAC with no origin request policy. Operations in DEVOPS_GUIDE.
+- CloudFront `/media-store/*` cache behavior uses OAC with no origin request policy. Operations in the maintainers' private operations guide.
 
 Alternative Considered:
 
@@ -793,6 +794,29 @@ Impact:
 
 - Service-contract documentation correctness is owned by the bug-hunt review, which flags any write-path service missing or drifting from its file-header JSDoc.
 
+## 1.16 Multi-repository Structure and Companion-checkout Convention
+
+Decision:
+
+The project spans three git repositories: this public application repository; a private maintainers' operations repository holding the authoritative work tracker (GitHub Issues), private planning, the operations documentation (the operations guide, the canonical AWS operations reference, and the vault-governance reference), and PII-free operational evidence; and the legacy webmaster's private footbag.org repository, a read-only fact source for the migration. Companion checkouts are reached from the application repository only through gitignored repo-root symlinks whose names are canonical and identical on every maintainer machine: `footbag_legacy_repo` for the legacy clone and `footbag_private_repo` for the operations checkout. Tooling that must name the private repository on GitHub reads the machine-local `FOOTBAG_PRIVATE_REPO` environment variable. References are one-way: the private repositories may cite public files and commits; no committed public file carries the private repository's name, owner, machine path, or issue numbers.
+
+Rationale:
+
+- Privacy follows classification: PII, member data, credentials, and sensitive coordination live outside the public repository, which stays fully standalone.
+- Active work has exactly one authoritative home, preventing the two-status-homes failure mode. Accepted implementation deviations are tracked there too, as closable work items, so no standing status ledger accretes in either repository.
+- Maintainer machines lay repositories out differently; a repo-root symlink gives every tool one stable path with zero committed locality, and the environment variable does the same for GitHub-side reads.
+
+Requirements:
+
+- The symlinks are gitignored; committed files never reference a machine path or the private repository's identity.
+- The legacy clone is read-only (the harness deny-lists Edit and Write under its symlink); the credential vault is never committed to any repo (it lives in access-controlled external storage), consistent with the existing secrets-custody rule.
+- The public repository builds, tests, and operates with no companion checkout and no `FOOTBAG_PRIVATE_REPO` value present; a tool that reaches for an absent companion reports one actionable line, then skips.
+
+Trade-offs:
+
+- Private planning is deliberately undiscoverable from the public repository; contributors are routed to the maintainer contact.
+- Each maintainer machine wires two local items (the symlink and the environment variable) once, at onboarding.
+
 # 2. Data Model
 
 ## 2.1 Schema and Versioning
@@ -1235,7 +1259,7 @@ Impact:
 
 - Dev/staging bootstrap mechanism is operator-facing; the workstation file and deploy-pipeline plumbing are documented in DEV_ONBOARDING.
 
-- Production bootstrap mechanism is operator-facing; the SSM-token provisioning and claim flow are documented in DEVOPS_GUIDE.
+- Production bootstrap mechanism is operator-facing; the SSM-token provisioning and claim flow are documented in the maintainers' private operations guide.
 
 - The bootstrap grant satisfies the "could be done also by a System Administrator (a developer role not a user role)" clause in US §6.
 
@@ -1609,7 +1633,7 @@ Mitigations against the in-container threat:
 - IAM separation by capability: the ballot tally path runs under a distinct role with `kms:Decrypt` on the ballot CMK; the normal web runtime role does not. A compromised web runtime cannot decrypt cast ballots even with full SSM access.
 - KMS at rest: every SecureString parameter is KMS-encrypted at rest under the environment's CMK. The runtime needs `kms:Decrypt` on that CMK to use the parameter; revoking the role's KMS access is sufficient to instantly invalidate stored-secret reads platform-wide.
 - CloudTrail audit: SSM `GetParameter` calls on `${ssm_prefix}/secrets/*` are recorded in CloudTrail. Unusual access patterns (volume spikes, off-hours reads, non-runtime principals) are alarmable per the monitoring policy.
-- Rotation as the recovery primitive: each operator-supplied SSM secret has a documented rotation runbook in DEVOPS_GUIDE that stamps a new version and bounces the runtime to invalidate the in-process cache. Post-incident, the operator rotates the secret at the third party (Stripe Console, Google Cloud Console, etc.); the previously-leaked value stops working at the third party regardless of who still holds it.
+- Rotation as the recovery primitive: each operator-supplied SSM secret has a documented rotation runbook in the maintainers' private operations guide that stamps a new version and bounces the runtime to invalidate the in-process cache. Post-incident, the operator rotates the secret at the third party (Stripe Console, Google Cloud Console, etc.); the previously-leaked value stops working at the third party regardless of who still holds it.
 - Process-memory exposure window: the live SecretsAdapter caches resolved values for the life of the process. A container restart drops the cache. Rotation runbooks include a restart or redeploy step so the new value is in effect within minutes.
 - Operator-CLI hygiene: `aws ssm put-parameter` calls use the `--value file://` pattern so the literal secret never lands in shell history, process listings, or terminal scrollback.
 
@@ -1625,7 +1649,7 @@ Parameter Store contains:
 - Stripe webhook secret (HMAC verification).
 - Email delivery configuration (if any), admin bootstrap tokens, and other exportable credentials and configuration that must not be committed to source control.
 
-Per-host application secrets that are environment-unique and rotation-on-restart-acceptable may live directly in the host env file `/srv/footbag/env` (root:root 0600) rather than in Parameter Store. `SESSION_SECRET` is the canonical example: it is generated fresh per environment, never reused across staging and production, and rotated by editing the host env file and restarting the service. The application and the deploy script both reject any value containing the literal placeholder substring `changeme` or shorter than 32 characters. Rotation runbook: DEVOPS_GUIDE §10.8.
+Per-host application secrets that are environment-unique and rotation-on-restart-acceptable may live directly in the host env file `/srv/footbag/env` (root:root 0600) rather than in Parameter Store. `SESSION_SECRET` is the canonical example: it is generated fresh per environment, never reused across staging and production, and rotated by editing the host env file and restarting the service. The application and the deploy script both reject any value containing the literal placeholder substring `changeme` or shorter than 32 characters. Rotation runbook: the maintainers' private operations guide, "SESSION_SECRET rotation runbook".
 
 KMS is used for:
 
@@ -1850,12 +1874,12 @@ Requirements:
 Trade-offs:
 
 - A leaked secret bypasses the gate until rotated. Mitigation: the secret is one of three perimeter layers; the Lightsail port-80 CloudFront-prefix-list firewall and the trust-proxy named-range trust set are the others. Belt-and-suspenders, not single-point-of-failure.
-- A 30-to-90-second window exists during rotation where CloudFront sends the new secret and nginx still expects the old (every CloudFront request returns 444). Acceptable for an infrequent per-environment rotation; the rotation runbook in DEVOPS_GUIDE §10.9 sequences the two commands adjacent.
+- A 30-to-90-second window exists during rotation where CloudFront sends the new secret and nginx still expects the old (every CloudFront request returns 444). Acceptable for an infrequent per-environment rotation; the rotation runbook (the maintainers' private operations guide, "Origin-verify shared-secret rotation runbook") sequences the two commands adjacent.
 
 Impact:
 
 - nginx is the enforcement point; Express is unaware of `X-Origin-Verify`.
-- DEVOPS_GUIDE §10.9 holds the rotation runbook.
+- The maintainers' private operations guide holds the rotation runbook ("Origin-verify shared-secret rotation runbook").
 - The secret never appears as a literal string in committed code or docs.
 
 ## 3.12 Security header layering
@@ -3166,7 +3190,7 @@ Impact:
 
 - The main app's login and JWT-refresh middleware sets the signed cookie alongside the session JWT. Both cookies use `Domain=.footbag.org` (host-only scope is not sufficient for the subdomain to receive them).
 
-- Trusted-signer private key rotation procedure is documented in `docs/DEVOPS_GUIDE.md`.
+- Trusted-signer private key rotation procedure is documented in the maintainers' private operations guide.
 
 - The CSRF Origin-pin middleware (§3.3) rejects same-site subdomain forgery attempts because Origin verification is independent of cookie scope.
 
@@ -3409,7 +3433,7 @@ Curator-uploaded video (uploaded by the system member account, see §2.8) goes t
 
 - Poster image: a companion image goes through the standard Sharp pipeline to produce thumbnail and display variants. Stored alongside the transcoded video.
 
-Insertion paths: the operator-run curator-content seeding script (acknowledged in §1.5; details in DEVOPS_GUIDE) and the interactive admin act-as upload path (`A_Upload_Curated_Media`). Member upload controllers reject `video_platform='s3'` to enforce this restriction at the controller boundary.
+Insertion paths: the operator-run curator-content seeding script (acknowledged in §1.5; details in the maintainers' private operations guide) and the interactive admin act-as upload path (`A_Upload_Curated_Media`). Member upload controllers reject `video_platform='s3'` to enforce this restriction at the controller boundary.
 
 The same malware-stripping pipeline (Sharp for photos, ffmpeg with the options above for video) is applied uniformly to media sourced from any upstream origin: interactive member upload, interactive admin curator upload, operator-run curator seed, and legacy archive ingestion via the mirror program. Implementation consolidates the settings so a single update tightens every source path equivalently.
 
@@ -3652,7 +3676,7 @@ Trade-offs:
 Impact:
 
 - `terraform/production/route53.tf` gains the hosted zone and the mirrored records; `enable_apex_alias_records` flips at T-0 as the switch itself; `ses_enable_domain_auth` flips at the zone move; no apex-redirector Terraform exists.
-- The DNS cutover runbook in `docs/DEVOPS_GUIDE.md` scripts an operator-executed Route 53 change; the zone move follows the guide's zone-authority handoff checklist.
+- The DNS cutover runbook in the maintainers' private operations guide scripts an operator-executed Route 53 change; the zone move follows that guide's "External DNS/mail upstream coordination runbook".
 - `TRUST_PROXY` is 2 in staging and production from go-live, with no topology change at any later milestone.
 - MIGRATION_PLAN sequences the zone move (§19 item 15), the cutover (§29.12), and the mail disposition (§29.12a) against this decision.
 
@@ -3682,7 +3706,7 @@ Trade-offs:
 
 Impact:
 
-- MIGRATION_PLAN carries this as its governing principle and gates go-live on it; IMPLEMENTATION_PLAN tracks the workstreams that satisfy it (the webmaster's handover and shutdown, the secretary's discovery, the zone move, the shutdown checklist).
+- MIGRATION_PLAN carries this as its governing principle and gates go-live on it; the maintainers' private tracker tracks the workstreams that satisfy it (the webmaster's handover and shutdown, the secretary's discovery, the zone move, the shutdown checklist).
 - The DNS Cutover decision (§6.11), the Legacy Archive decision (§6.4), the Sealed Legacy Email Archive decision (§6.5a), and the canonical email architecture (§5.5) implement it.
 
 # 7. DevOps
@@ -4423,7 +4447,7 @@ Impact:
 - Terraform must remain the authority for IAM roles, policies, Parameter Store structure (per §3.6), KMS resources, CloudWatch resources, Lightsail instance configuration, Lightsail firewall rules, and any infrastructure-side inputs required by the SSH operator-access posture and the runtime-credential model in §7.2.
 - Deployment/bootstrap documentation must clearly separate one-time bootstrap actions from steady-state Terraform-managed infrastructure.
 - Workspace layout: `terraform/shared/` for one-time bootstrap (state bucket, account baseline); `terraform/staging/` and `terraform/production/` for per-environment resources, each with its own remote state.
-- Drift reconciliation procedure (`terraform import` flow, plan-clean verification, PR review) lives in DEVOPS_GUIDE §11.5. The design rule above is enforced by the requirement that `terraform plan` returns "No changes" before any further apply.
+- Drift reconciliation procedure (`terraform import` flow, plan-clean verification, PR review) lives in the maintainers' private operations guide, "Emergency console changes". The design rule above is enforced by the requirement that `terraform plan` returns "No changes" before any further apply.
 - Any agent or daemon needing host-level access (e.g. CloudWatch Agent reading host CPU/memory/disk) is bootstrapped through an idempotent script under `scripts/`, not through Terraform provisioners or AWS Console clicks.
 
 

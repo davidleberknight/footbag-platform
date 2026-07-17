@@ -5,20 +5,23 @@ Contributions are welcome. This project is maintained by
 
 ## Before you start
 
-Search existing issues first. For significant changes, open an issue before
-writing code. Read [`GOVERNANCE.md`](GOVERNANCE.md) — particularly the
-Category A / Category B distinction. For security vulnerabilities, use the
-private path in [`SECURITY.md`](SECURITY.md) — do not file public issues.
+Active work is tracked in a private maintainers' repository, and public Issues
+are disabled on this repository. Before starting significant work, contact the
+maintainer (see the README) so it can be coordinated there. Read
+[`GOVERNANCE.md`](GOVERNANCE.md) — particularly the Category A / Category B
+distinction. For security vulnerabilities, use the private path in
+[`SECURITY.md`](SECURITY.md).
 
-## Filing an issue
+## Reporting a problem or proposing work
 
-Use a clear title. Describe what is wrong or missing, the specific file or area
-affected, what you expected, and steps to reproduce for bugs.
+Contact the maintainer with a clear title, what is wrong or missing, the
+specific file or area affected, what you expected, and steps to reproduce for
+bugs; the maintainers file it on the private board.
 
-**If your issue touches IFPA rules, competition policy, ranking or eligibility
-definitions, or IFPA branding**, say so clearly. It will be labelled
-`status: pending-ifpa-board` and cannot be resolved until IFPA Board approves.
-Everything else is under maintainer authority and moves normally.
+**If it touches IFPA rules, competition policy, ranking or eligibility
+definitions, or IFPA branding**, say so clearly: it cannot be resolved until
+the IFPA Board approves. Everything else is under maintainer authority and
+moves normally.
 
 ## Pull requests
 

@@ -40,7 +40,7 @@ When future sessions encounter requests like "let's add a `family_galleries` tab
 
 These are **live production surfaces**: the trick index and detail pages (`/freestyle/tricks`, `/freestyle/tricks/:slug`), family pages (`/freestyle/families`, `/freestyle/families/:slug`), sets, glossary, operators, and search all ship and passed the V1 release audit. This skill's contract rules apply to them now — they are not exploration, and there is no "when a production phase begins" caveat.
 
-Not in scope, by design: modifier-page production routes (`/freestyle/modifiers/:name`, never planned); schema changes such as an `alias_kind` column or a `secondary_family` relation (projection over extension); auth-gated dictionary depth (never — depth is layered, not gated). Implementation status and forward sequencing live in `IMPLEMENTATION_PLAN.md`; this skill carries the durable UX contract only. The one active forward-build track is Glossary V2, whose design lives in `exploration/glossary-v2-architecture/`.
+Not in scope, by design: modifier-page production routes (`/freestyle/modifiers/:name`, never planned); schema changes such as an `alias_kind` column or a `secondary_family` relation (projection over extension); auth-gated dictionary depth (never — depth is layered, not gated). Implementation status and forward sequencing live in the maintainers' private tracker; this skill carries the durable UX contract only. The one active forward-build track is Glossary V2, whose design lives in `exploration/glossary-v2-architecture/`.
 
 ---
 
@@ -219,7 +219,7 @@ Surfacing `gyro 1 + torque 4 = 5 ✓` doesn't add information for a casual viewe
 
 ## 6. Future direction
 
-Forward sequencing for these surfaces (alias-category surfacing, a modifier-aggregator surface, search disambiguation, curated learning paths, and the Glossary V2 layering track) is tracked in `IMPLEMENTATION_PLAN.md`, not here. The dictionary's data and the existing `freestyleService.getFreestyleTrickPage` shape already support most enrichment with zero schema work — projection over extension.
+Forward sequencing for these surfaces (alias-category surfacing, a modifier-aggregator surface, search disambiguation, curated learning paths, and the Glossary V2 layering track) is tracked in the maintainers' private tracker, not here. The dictionary's data and the existing `freestyleService.getFreestyleTrickPage` shape already support most enrichment with zero schema work — projection over extension.
 
 ---
 

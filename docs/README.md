@@ -14,7 +14,6 @@ Design and specification documents for the footbag-platform modernization projec
 - [`TESTING.md`](TESTING.md): test strategy, risk-classification rubric, coverage expectations, and verification gates
 - [`DIAGRAMS.md`](DIAGRAMS.md): architecture and data-flow diagrams
 - [`GLOSSARY.md`](GLOSSARY.md): cross-document terminology
-- [`DEVOPS_GUIDE.md`](DEVOPS_GUIDE.md): build, deploy, operate, recover, and infrastructure procedures
 - [`DEV_ONBOARDING.md`](DEV_ONBOARDING.md): developer setup and local/staging iteration guidance
 - [`MIGRATION_PLAN.md`](MIGRATION_PLAN.md): legacy-data migration design, go-live readiness gates, and cutover sequencing
 
@@ -26,10 +25,10 @@ Design and specification documents for the footbag-platform modernization projec
 - What does a public page/route look like? → the owning service's file-header JSDoc + `.claude/rules/view-layer.md`
 - What does a service own? → the service's file-header JSDoc
 - How is the system tested? → `TESTING.md`
-- How do I build, deploy, or recover? → `DEVOPS_GUIDE.md`
+- How do I build, deploy, or recover? → the maintainers' private operations guide
 - How do I set up the project and iterate locally? → `DEV_ONBOARDING.md`
 - How is the repo set up for Claude Code, and how do I change that setup safely? → `CLAUDE_CODE_GUIDE.md`
 
 ## What does not belong here
 
-Near-term sequencing, current sprint-like implementation order, and dependency-aware work planning belong in `../IMPLEMENTATION_PLAN.md`, not in the canonical docs.
+Near-term sequencing, current sprint-like implementation order, and dependency-aware work planning belong in the maintainers' private tracker, not in the canonical docs.

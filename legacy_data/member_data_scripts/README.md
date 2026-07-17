@@ -81,5 +81,5 @@ The Goldberg member-account data family lives here:
 
 The build-wrapper step that runs these as a dump-gated, warn-and-skip phase, and
 the full load design (composed birth date, email-column population, de-duplication
-against `historical_persons`, the production-DB guard), are tracked in
-`IMPLEMENTATION_PLAN.md`.
+against `historical_persons`, the production-DB guard), are tracked in the
+maintainers' private tracker.

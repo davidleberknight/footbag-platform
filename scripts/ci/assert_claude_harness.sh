@@ -56,9 +56,9 @@ fi
 # --- Check 3: no live harness/canonical file references a deleted doc ---
 # exploration/ holds frozen historical design docs that legitimately cite docs
 # deleted later; they are archives, not the live surface, so they are excluded.
-DELETED_DOCS='SERVICE_CATALOG\.md|VIEW_CATALOG\.md'
+DELETED_DOCS='SERVICE_CATALOG\.md|VIEW_CATALOG\.md|IMPLEMENTATION_PLAN\.md|BUG_REPORT\.md|DEVOPS_GUIDE\.md'
 if refs=$(git grep -lE "$DELETED_DOCS" -- ":!$self" ':!exploration' 2>/dev/null); then
-  echo "[harness] FAIL: reference(s) to a deleted doc (SERVICE_CATALOG.md / VIEW_CATALOG.md):" >&2
+  echo "[harness] FAIL: reference(s) to a deleted doc (SERVICE_CATALOG.md / VIEW_CATALOG.md / IMPLEMENTATION_PLAN.md / BUG_REPORT.md / DEVOPS_GUIDE.md):" >&2
   ( IFS=$'\n'; printf '  %s\n' $refs >&2 )
   fail=1
 else

@@ -46,8 +46,8 @@ freestyle content, and every content edit happens in the running application
 through the audited admin surfaces. The destructive CSV rebuild is refused on a
 cutover-marked host and is never a production maintenance path. The operational
 statement of this, and the deploy, backup, and rollback mechanics behind it, are
-owned by `docs/DEVOPS_GUIDE.md` section 15.6 (freestyle content source of truth);
-this guide points there and does not restate it.
+owned by the maintainers' private operations guide, "Freestyle content source of
+truth"; this guide points there and does not restate it.
 
 Not everything is database-owned. Freestyle content falls into five authority
 tiers, and knowing which tier a datum sits in is the whole of making a safe edit:
@@ -257,10 +257,11 @@ for readers; this guide is their authoritative definition.
 
 ## 9. Operational safety
 
-Build, test, rebuild, deploy, backup, and rollback commands are owned by
-`docs/DEVOPS_GUIDE.md`: the freestyle content source-of-truth and cutover model in
-section 15.6, the deploy and rollback runbooks in section 13, and the backup and
-disaster-recovery runbooks in section 16. Recovery from a bad edit is a corrective
+Build, test, rebuild, deploy, backup, and rollback commands are owned by the
+maintainers' private operations guide: the freestyle content source-of-truth and
+cutover model in "Freestyle content source of truth", the deploy and rollback
+runbooks in "CI/CD, Release Promotion, and Deployment Workflow", and the backup
+and disaster-recovery runbooks in "Backup, Restore, and Disaster Recovery". Recovery from a bad edit is a corrective
 in-app edit first (every curation write is audited with recoverable metadata);
 snapshot restore is for disasters. This guide does not duplicate any of those
 instructions; the local rebuild runbook is `freestyle/README.md`.
@@ -273,8 +274,8 @@ Each document owns one thing:
   the table-level data model, the trick publication gate, the run-quality
   ladder, and the doc map.
 - `database/schema.sql` - column-level table detail.
-- `docs/DEVOPS_GUIDE.md` - operational commands, the cutover model, deploy,
-  backup, and rollback.
+- the maintainers' private operations guide - operational commands, the cutover
+  model, deploy, backup, and rollback.
 - `docs/DATA_MODEL.md` - the platform data model; points here for the freestyle
   and symbolic tables.
 - `freestyle/doctrine/` (and its `README.md` index) - the doctrine of record.

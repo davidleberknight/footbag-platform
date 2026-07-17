@@ -7,14 +7,16 @@ are the `Category:` values findings cite.
 ## Tracked-work exclusion list — how to build it (every run)
 
 The freestyle lane carries deliberate deviations, blocked decisions, and intentional gaps,
-all tracked in `IMPLEMENTATION_PLAN.md`. Re-derive the list fresh each run; an embedded
-copy here would drift. Method:
+all tracked in the maintainers' private tracker. Re-derive the list fresh each run; an
+embedded copy here would drift. Method:
 
-1. Read the freestyle and data-pipeline owner sections of `IMPLEMENTATION_PLAN.md` and the
-   Deferred / parked section.
-2. Collect every `[DEVIATION]`, `[BLOCKED]`, `[KANBAN]`, and `[PRE-KANBAN]` item whose
-   subject is freestyle or curated media, plus any standing rule stated there (the
-   surface-propagation rule is one).
+1. List the open freestyle-lane issues with `gh issue list -R "$FOOTBAG_PRIVATE_REPO"
+   --state open --label freestyle`, and again with `--label pipeline` for the
+   data-pipeline lane (read-only, auto-approved); add the local gitignored `BUGS.md`.
+2. Collect every open issue whose subject is freestyle or curated media — `bug` marks a
+   defect or an accepted deviation tracked to removal, `blocked` an item whose body opens
+   `Blocked on: <person> - <what>`, `question` an open decision — plus any standing rule
+   stated there (the surface-propagation rule is one).
 3. For each, note: what state it declares current, what it defers, and its unblock or done
    condition.
 
@@ -27,9 +29,9 @@ promotion decision packets on hold, comment/label cleanup lanes, and skill-file 
 Two-directional discipline:
 
 - A behavior the list tracks is NOT a finding. Do not re-flag it, at any severity.
-- A tracked entry whose described state no longer matches the repo IS a finding (stale
-  plan entry): the fix landed and the entry survived, or the deviation drifted into
-  something the entry no longer describes. Cite the entry's own text and the contradicting
+- An open issue whose described state no longer matches the repo IS a finding (stale
+  tracker issue): the fix landed and the issue survived, or the deviation drifted into
+  something the issue no longer describes. Cite the issue's own text and the contradicting
   repo evidence.
 
 ## Sample matrix
@@ -66,9 +68,11 @@ governing clause.
 
 ### §F1 Cross-surface propagation drift
 
-The standing rule in `IMPLEMENTATION_PLAN.md`: any freestyle change — promotion, doctrine
-change, classifier change, content backfill — must propagate to every affected surface
-before its slice is complete. Affected surfaces, as applicable: canonical trick data;
+The standing rule (single home: the `footbag-freestyle-dictionary` skill's surface
+propagation section): any freestyle change (promotion, doctrine change, classifier
+change, content backfill) must propagate to every affected
+surface before its slice is complete. Affected surfaces, as applicable: canonical trick
+data;
 aliases / duplicate archive; the emerging-vocabulary surface; the observational universe;
 tracked names; ADD analysis; trick detail; browse and search; operator/modifier pages; set
 pages; family surfaces; media and related-trick projections; metrics, counts, and copy;

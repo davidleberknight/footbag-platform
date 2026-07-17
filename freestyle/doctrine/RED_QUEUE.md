@@ -129,8 +129,8 @@ packet, send or resend it to Red, and then update each item's delivery status fr
    Solestice, Double Dyno / Double Whip, and Stepping Ducking Blurry Whirl are
    records-only questions (each blocks one world-record badge, none gates a
    dictionary row); their live tracking home is the unresolved-world-record-videos
-   item in `IMPLEMENTATION_PLAN.md`, and the letter is only the delivery vehicle, so
-   they are not double-tracked as dictionary gates here.
+   item in the maintainers' private tracker, and the letter is only the delivery
+   vehicle, so they are not double-tracked as dictionary gates here.
 
 7. **Royale paradox construction on the reverse-drifter line** — royale is placed on
    the reverse-drifter line (base `reverse_drifter`, alias "paradox grifter"), and that

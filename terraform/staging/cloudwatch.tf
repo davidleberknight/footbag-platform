@@ -50,9 +50,11 @@ resource "aws_cloudwatch_metric_alarm" "app_errors" {
 
 # ── Alarms ────────────────────────────────────────────────────────────────────
 # Lightsail does not natively push metrics to CloudWatch.
-# TODO: Install the CloudWatch agent on the Lightsail instance and configure
-# it to push CPU, memory, and disk metrics to the namespace below.
-# Reference: docs/DEVOPS_GUIDE.md §12.1
+# TODO: Install the CloudWatch agent on the Lightsail instance (via
+# scripts/install-cwagent-staging.sh) and configure it to push CPU, memory,
+# and disk metrics to the namespace below. CloudWatch is this project's
+# default monitoring substrate: logs, metrics, dashboards, alarms, and SNS
+# notification fan-out all live here rather than in an external tool.
 
 # Alarm dimensions match what amazon-cloudwatch-agent's telegraf inputs
 # actually emit on this host. The JSON config's append_dimensions block is

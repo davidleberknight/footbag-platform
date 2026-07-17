@@ -228,7 +228,8 @@ to admins without audit rationale.
 ## Migration and go-live design sweep
 
 Migration design is in scope; Python migration code is not (unless the kickoff prompt
-includes it). Review `docs/MIGRATION_PLAN.md`, `IMPLEMENTATION_PLAN.md`, governance docs,
+includes it). Review `docs/MIGRATION_PLAN.md`, the maintainers' private tracker (open
+issues plus the Launch v1 milestone), governance docs,
 onboarding/claim and club-bootstrap stories, email/DNS/cutover material, final-export and
 freeze requirements, archive/legacy-retention requirements.
 
@@ -251,9 +252,9 @@ production database becoming the source of truth.
   go-live on wrong evidence; that is a Catastrophic/High finding.
 - Completeness: every migration/cutover risk the plan names must map to a gate; a named
   risk with no gate is a missing-gate finding.
-- Consistency: the index rows, the detail rows, and the `IMPLEMENTATION_PLAN.md` release
-  gates must agree, and every go-live-relevant deviation unblock condition must map to a
-  gate that enforces it.
+- Consistency: the index rows, the detail rows, and the Launch v1 milestone issues in
+  the maintainers' private tracker must agree, and every go-live-relevant deviation
+  unblock condition must map to a gate that enforces it.
 
 Critical principle: the legacy pipeline, mirror data, dump, and CSVs are pre-go-live
 transition machinery. Flag any design implying a runtime dependency on migration inputs
@@ -344,10 +345,11 @@ Required scenarios:
 Search for contradictions across: user stories vs design decisions, data model, service
 contracts (JSDoc), page contracts (service JSDoc / view-layer rule), and testing
 standards; migration plan vs data governance and design decisions; service contracts vs
-the view-layer rule; data model vs schema; DevOps guide vs Terraform/Docker/scripts;
-testing docs vs CI/package scripts; implementation-plan current-state claims vs canonical
-docs. Report contradictions only when they affect implementation, testing, migration,
-privacy, security, operations, or go-live decisions. When two sources conflict, the
+the view-layer rule; data model vs schema; the maintainers' private operations guide vs
+Terraform/Docker/scripts; testing docs vs CI/package scripts; open private-tracker issue
+claims vs canonical docs. Report contradictions only when they affect implementation,
+testing, migration, privacy, security, operations, or go-live decisions. When two
+sources conflict, the
 conflict is the finding; never silently choose one.
 
 ## Missing-decision owner classification
@@ -370,9 +372,11 @@ Before recording a design-layer candidate, try to disprove it:
 
 1. Search the repo for the relevant term, role, table, route, service, view, test, and
    design-decision id.
-2. Check whether `IMPLEMENTATION_PLAN.md` tracks it (`[DEVIATION]`, `[BLOCKED]`, `[BUG]`,
-   kanban entries). Bidirectional: a tracked entry whose described state no longer matches
-   the repo is itself a stale-plan finding.
+2. Check whether an open issue in the maintainers' private tracker covers it (the run's
+   tracked-work exclusion list: `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`
+   plus the local `BUGS.md`; the `bug` label marks defects and accepted deviations, with
+   `blocked` and `question` for held items). Bidirectional: an open issue whose described
+   state no longer matches the repo is itself a stale-tracker-issue finding.
 3. Check whether the user story explicitly defers it.
 4. Check whether a design decision intentionally excludes it.
 5. Check whether the view-layer rule or a service JSDoc says the area is intentionally
@@ -460,9 +464,10 @@ hosts; cookie/session scope; CSRF origins; rollback behavior; legacy archive hos
 
 ### Freestyle and curated media (design layer)
 
-The standing surface-propagation rule in `IMPLEMENTATION_PLAN.md` (every freestyle change
-propagates to all affected surfaces before its slice is done) treated as a design rule
-with verification; the curated-media pipeline's pre-go-live lifecycle boundary and the
+The standing surface-propagation rule in the `footbag-freestyle-dictionary` skill (every
+freestyle change propagates to all affected surfaces before its slice is done) treated
+as a design rule with verification; the curated-media pipeline's pre-go-live lifecycle
+boundary and the
 post-go-live handoff to the production DB as source of truth; the trick-tag invariant as a
 designed control with a deterministic gate;
 conformance of the publication design to the canonical-trick publication contract in

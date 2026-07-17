@@ -227,7 +227,7 @@ legacy_data/reports/
 # only). One root file carries both retired lineages: the freestyle
 # reconciliation/remediation report and the Freestyle Closure Plan that
 # replaced it in place at the same path. The single tracked authority for
-# active freestyle work is the Freestyle section of IMPLEMENTATION_PLAN.md.
+# active freestyle work is the maintainers' private tracker.
 /freestyle_remediation_report.md
 
 # Per-session commit handoff script (staged-and-handed-off, never committed)

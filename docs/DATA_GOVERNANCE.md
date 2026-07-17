@@ -4,7 +4,7 @@
 
 **Scope:** All contributors, maintainers, and AI agents working on this codebase.
 
-**What belongs here:** short, declarative rules about data visibility, privacy boundaries, and data handling. Not behavior specs or flows (USER_STORIES), not rationale (DESIGN_DECISIONS), not implementation state (IMPLEMENTATION_PLAN). If a line needs more than two sentences, it is probably a story.
+**What belongs here:** short, declarative rules about data visibility, privacy boundaries, and data handling. Not behavior specs or flows (USER_STORIES), not rationale (DESIGN_DECISIONS), not implementation state (the maintainers' private tracker). If a line needs more than two sentences, it is probably a story.
 
 ---
 

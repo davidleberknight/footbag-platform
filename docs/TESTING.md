@@ -169,7 +169,7 @@ In addition to baseline coverage (§4.4) and STRIDE-aware threat coverage (§4.2
 
 Property-based testing (fast-check) and mutation testing (Stryker) are available techniques for catastrophic surfaces when a specific surface justifies the cost. They are not mandated per catastrophic surface. Selective adoption per §12.2 governs when and where they apply.
 
-A catastrophic surface that lacks any floor item carries a single-line entry in `IMPLEMENTATION_PLAN.md`: surface name plus the missing floor item. The entry is deleted when the gap closes. No rigor levels, no target field, no per-test ceremony; one line per gap, removed on close.
+A catastrophic surface that lacks any floor item carries an issue in the maintainers' private tracker: surface name plus the missing floor item. The issue is closed when the gap closes. No rigor levels, no target field, no per-test ceremony; one issue per gap, closed with the gap.
 
 ### 4.6 Persona derivation and the route-by-persona authorization matrix
 
@@ -189,7 +189,7 @@ Controlling combinatorial growth: the axes are orthogonal, so the full cartesian
 
 The matrix: the deployed-route inventory is crossed with the persona suite, and every cell asserts the expected gate outcome, an allow cell for each authorized persona and a deny cell for each unauthorized one. An unasserted route-by-persona cell is a visible candidate authorization gap rather than a silent one, so the matrix doubles as a coverage ledger. The deny half is mandatory: a route that asserts only its allow cells has not been tested for authorization.
 
-The canonical catalog and its maintenance: the persona suite is instantiated once, as the maintainer-curated catalog the persona harness seeds and the `/dev/switch` and `/dev/personas` affordances expose (§7.5). The catalog is the single source of truth; new test slices add a persona there rather than inventing fixture rows, and each persona records the testing dimensions it exercises so the catalog itself reads as a coverage matrix. A deployed surface that no existing persona exercises is the signal that a new persona is required. Where the catalog does not instantiate every class this section derives, the gap is a deviation tracked in `IMPLEMENTATION_PLAN.md`, not a relaxation of the target.
+The canonical catalog and its maintenance: the persona suite is instantiated once, as the maintainer-curated catalog the persona harness seeds and the `/dev/switch` and `/dev/personas` affordances expose (§7.5). The catalog is the single source of truth; new test slices add a persona there rather than inventing fixture rows, and each persona records the testing dimensions it exercises so the catalog itself reads as a coverage matrix. A deployed surface that no existing persona exercises is the signal that a new persona is required. Where the catalog does not instantiate every class this section derives, the gap is a deviation tracked in the maintainers' private tracker, not a relaxation of the target.
 
 ---
 
@@ -785,7 +785,7 @@ The db-load smoke gate runs the loader pipeline against fixed fixtures on every 
 
 Tests that fail intermittently are quarantined, not ignored. The quarantine mechanism:
 
-- A flaky test is tagged `@quarantined` with a comment giving the reason and a tracking entry in `IMPLEMENTATION_PLAN.md` (per §4.5 gap-tracking format).
+- A flaky test is tagged `@quarantined` with a comment giving the reason and a tracking issue in the maintainers' private tracker (per §4.5 gap-tracking format).
 - Quarantined tests have a 7-day deadline. The maintainer is notified at the deadline. The test is either fixed or the underlying surface is patched.
 - Quarantined tests do not block merge but are reported as a separate CI signal.
 - The quarantine count is a health metric. Sustained growth indicates test-suite or surface decay and triggers a maintenance pass.
@@ -843,7 +843,7 @@ Property-based testing (fast-check) and mutation testing (Stryker) are not unive
 - fast-check: useful for validators, encoders, anti-enumeration helpers, idempotency invariants, and security-critical pure functions. Install and adopt on the slice that introduces the first property-shaped surface; do not pre-install for hypothetical future need.
 - Stryker: useful for security-critical pure functions and parsers when there is evidence the existing test suite is structurally weak on that module. Run on-demand against the specific module, not the whole codebase.
 
-Decisions to adopt either tool, and the specific surface they target, are tracked in `IMPLEMENTATION_PLAN.md`, not here.
+Decisions to adopt either tool, and the specific surface they target, are tracked in the maintainers' private tracker, not here.
 
 ---
 
@@ -862,7 +862,7 @@ Before writing tests for a surface, the AI reads the relevant `docs/USER_STORIES
 No AI-written test lands without human review. Branch protection enforces this at the merge gate. The human review covers:
 
 - The user story success criterion has been understood and is reflected in test names and assertions.
-- For catastrophic-severity surfaces, applicable STRIDE categories (§4.2) are covered, and the verification floor (§4.5) is met or its gap is tracked in `IMPLEMENTATION_PLAN.md`.
+- For catastrophic-severity surfaces, applicable STRIDE categories (§4.2) are covered, and the verification floor (§4.5) is met or its gap is tracked in the maintainers' private tracker.
 - Technique selection is appropriate.
 - No bootstrap-stub code is cited as design signal (per `.claude/rules/doc-governance.md`).
 
@@ -1034,7 +1034,7 @@ Every harness write carries a stable marker (`reason_code = 'dev_persona_seed.ti
 
 ## 17. Per-story test charters
 
-This section prescribes, per user story, the tests the platform requires. Each charter selects from the test-dimension taxonomy (§17.1) and names the story-specific edge, scenario, time, and concurrency cases. Charters are prescriptive and timeless: they describe the tests a story warrants, not which already exist. Build status lives in `IMPLEMENTATION_PLAN.md`. Properties that every surface shares are verified once by a generative sweep (§17.2) rather than restated in each charter, so a charter that reads "covered by the CSRF sweep" is asserting the sweep includes that route, not that the property is untested.
+This section prescribes, per user story, the tests the platform requires. Each charter selects from the test-dimension taxonomy (§17.1) and names the story-specific edge, scenario, time, and concurrency cases. Charters are prescriptive and timeless: they describe the tests a story warrants, not which already exist. Build status lives in the maintainers' private tracker. Properties that every surface shares are verified once by a generative sweep (§17.2) rather than restated in each charter, so a charter that reads "covered by the CSRF sweep" is asserting the sweep includes that route, not that the property is untested.
 
 ### 17.1 Test-dimension taxonomy
 
@@ -1171,18 +1171,18 @@ Each of these surfaces gains its full charter when its routes land; the dimensio
 
 ## 18. Completeness audit checklist
 
-A periodic audit of test completeness walks this checklist top to bottom. Each line names a dimension, where its evidence lives, and the pass condition. A complete audit records a verdict per line; a dimension that cannot be verified against the codebase is itself a finding. Where a prescribed capability is not yet wired, that is a tracked deviation in `IMPLEMENTATION_PLAN.md`, not a relaxation of this checklist.
+A periodic audit of test completeness walks this checklist top to bottom. Each line names a dimension, where its evidence lives, and the pass condition. A complete audit records a verdict per line; a dimension that cannot be verified against the codebase is itself a finding. Where a prescribed capability is not yet wired, that is a tracked deviation in the maintainers' private tracker (an open issue labeled `bug`), not a relaxation of this checklist.
 
-1. **Deployed user-story coverage.** Cross the deployed-route inventory to its user stories and to the charters in §17. Pass: every deployed story has a charter, and every applicable charter dimension is met by a test or carries an `IMPLEMENTATION_PLAN.md` gap entry. A deployed route that maps to no story is unintended scope (§4.1).
+1. **Deployed user-story coverage.** Cross the deployed-route inventory to its user stories and to the charters in §17. Pass: every deployed story has a charter, and every applicable charter dimension is met by a test or carries a gap issue in the maintainers' private tracker. A deployed route that maps to no story is unintended scope (§4.1).
 2. **Adapter parity, three legs (§7.2).** Every adapter in `src/adapters/` has a boot-config test (`tests/unit/env-config.test.ts`) and an interface-parity test (`tests/integration/adapter-parity.test.ts`). Every external-service adapter (JWT-KMS, SES, MediaStorage-S3, Secrets-SSM, SafeBrowsing) also has a staging-smoke leg (`tests/smoke/`, including `staging-readiness.test.ts` for the KMS-sign and SES-send round-trips). The internal docker-network adapters (HttpReachability, ImageProcessing, VideoTranscoding) carry only the first two legs. Pass: the matrix has no missing required leg.
 3. **Stub-versus-live parity.** Every adapter with both a stub and a live implementation asserts identical observable output; single-code-path adapters assert through an injected client. Pass: no stub diverges from its live counterpart untested.
 4. **Staging-smoke comprehensiveness (§5.4, §7.3).** `tests/smoke/` probes the assumed-role identity, KMS sign and verify, SES send (default sender and per-message override), S3 round-trip, SSM-plus-KMS secret decryption, Safe Browsing, persona-seed idempotency, and health and readiness. Run: `npm run test:smoke` (`scripts/test-smoke.sh`) or `./run_all_tests.sh --with-smoke`. Pass: every external surface has a smoke probe.
 5. **Production safety (§7.1, §9.5).** No test targets or mutates production, by design. Production safety is the build-time strip of `src/testkit/` and `src/dev-bootstrap/`, the `FOOTBAG_DEV_*` fail-fast guards in `src/config/env.ts`, and the zero-residue gate `scripts/audit-dev-shortcuts.sh` returning zero against the production database, with the post-deploy smoke gate gating promotion. Pass: the residue gate exists and passes; no test writes to production.
 6. **Security regression floor (§9.1).** The `@security` baseline exists across layers: anti-enumeration response equivalence, login timing, SQL injection, XSS, transaction atomicity, no-stack-trace-in-5xx, public-contact-field leakage, security headers, CSRF Origin-pin, and rate-limit boundaries. Pass: each baseline class has a test.
-7. **Penetration tiers (§9).** Regression-grade automated (CI), static taint analysis pre-merge (§9.1), lightweight staging-safe probes (§9.2), the operator-invoked heavyweight pass `npm run test:pentest:heavy` (§9.3), and third-party periodic engagement (§9.4). Pass: each tier is wired, or its absence is a tracked `IMPLEMENTATION_PLAN.md` deviation. The audit records which tiers are wired.
+7. **Penetration tiers (§9).** Regression-grade automated (CI), static taint analysis pre-merge (§9.1), lightweight staging-safe probes (§9.2), the operator-invoked heavyweight pass `npm run test:pentest:heavy` (§9.3), and third-party periodic engagement (§9.4). Pass: each tier is wired, or its absence is a tracked deviation in the maintainers' private tracker. The audit records which tiers are wired.
 8. **Legacy migration (§8).** The `db-load-smoke` CI gate asserts loader row counts and shape; the claim confidence outcomes (high, medium, low, no-match), auto-link classification, club-affiliation cases, and alias and name-change edges each have tests. Pass: every `MIGRATION_PLAN.md` validation gate has a test.
 9. **Admin operational surfaces.** Work-queue resolution, club cleanup, leadership reassignment, curator media, audit-log view, and system-config each have allow and deny authorization cells (the matrix, §4.6) and audit-emission assertions. Pass: no admin state-changing route lacks a deny cell or an audit assertion.
 10. **UI and design conformance (§14).** The no-nested-forms convention gate (`scripts/ci/assert_conventions.sh`) plus the e2e primary-form-submission check; the card-uniformity contract across browse views; and accessibility axe `@a11y` checks on business-critical surfaces against WCAG 2.1 AA. Automated visual-diff regression is deferred (§14.3). Pass: the convention gate is green, the card contract holds, and `@a11y` runs in CI on every push and in the full local suite.
 11. **Cross-cutting generative sweeps.** CSRF Origin-pin over the live route table, the route-by-persona authorization matrix (allow, deny, and adjacent-owner), ledger-immutability triggers, anti-enumeration equivalence, and session and token temporal contracts. Pass: each sweep enumerates from the live route table or schema, so a newly added surface is covered by construction rather than by memory.
-12. **Coverage floor (§12).** The `vitest.config.ts` thresholds hold, and catastrophic surfaces are verified by inspection of the tests, not by the number alone. Pass: thresholds are met, or the shortfall is a tracked `IMPLEMENTATION_PLAN.md` item.
-13. **Email catalog (§5.9).** Every promised email has a registered template — a typed shaper, its variant keys, and a committed sidecar — covered by the catalog and conformance sweeps, plus a per-email enqueue test; the shared drain, retry, dead-letter, and idempotency mechanics are covered once over `communicationService`. Pass: the firing sweep enumerates the catalog and every entry has its send site and enqueue test, or the gap is a tracked `IMPLEMENTATION_PLAN.md` item.
+12. **Coverage floor (§12).** The `vitest.config.ts` thresholds hold, and catastrophic surfaces are verified by inspection of the tests, not by the number alone. Pass: thresholds are met, or the shortfall is a tracked item in the maintainers' private tracker.
+13. **Email catalog (§5.9).** Every promised email has a registered template — a typed shaper, its variant keys, and a committed sidecar — covered by the catalog and conformance sweeps, plus a per-email enqueue test; the shared drain, retry, dead-letter, and idempotency mechanics are covered once over `communicationService`. Pass: the firing sweep enumerates the catalog and every entry has its send site and enqueue test, or the gap is a tracked item in the maintainers' private tracker.

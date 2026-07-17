@@ -23,7 +23,7 @@ Do not claim tests or browser verification that did not actually run.
 
 ## Step 3: Verify architecture compliance
 
-Path-scoped rule files in `.claude/rules/` (auto-attached when matching files are read) define the non-negotiable patterns for service, controller, template, view-layer, and db-layer work. Confirm the change complies. Public-page work also follows the `.claude/rules/view-layer.md` rendering invariants and the owning service's file-header JSDoc; service-boundary work also follows the service's file-header JSDoc ownership and required patterns. Intentional deviations land in `IMPLEMENTATION_PLAN.md`.
+Path-scoped rule files in `.claude/rules/` (auto-attached when matching files are read) define the non-negotiable patterns for service, controller, template, view-layer, and db-layer work. Confirm the change complies. Public-page work also follows the `.claude/rules/view-layer.md` rendering invariants and the owning service's file-header JSDoc; service-boundary work also follows the service's file-header JSDoc ownership and required patterns. Intentional deviations land as private-tracker issues.
 
 Flag any violations explicitly in the summary.
 

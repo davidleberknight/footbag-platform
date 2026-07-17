@@ -11,8 +11,8 @@ criteria from the user story or design intent; if none exists and the design doe
 supply them, that is a genuine question.
 
 Order, highest authority first: (1) explicit human decisions in this task; (2)
-`IMPLEMENTATION_PLAN.md` active-slice / deviation block — current ratified scope and
-accepted, tracked deviations; (3) clear design intent — `docs/DESIGN_DECISIONS.md`
+the maintainers' private tracker, whose open issues are the current ratified scope and
+the accepted, tracked deviations (`tracker-ops` skill; skip if unwired); (3) clear design intent — `docs/DESIGN_DECISIONS.md`
 (durable intent and rationale), `docs/USER_STORIES.md` (intended behavior, success
 criteria), `docs/DATA_MODEL.md` (schema semantics), and the path-scoped `.claude/rules/*`
 and service file-header JSDoc (target per-file contract); `docs/DATA_GOVERNANCE.md`

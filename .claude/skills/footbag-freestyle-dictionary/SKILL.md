@@ -28,9 +28,13 @@ Each has different truth rules.
 
 The freestyle encyclopedia is release-ready and in **stewardship mode**. There is no active promotion campaign; the promotion arc is closed, and what remains unpromoted is blocked on doctrine questions recorded in `freestyle/doctrine/RED_QUEUE.md`.
 
-This skill carries **no project status**. For what is done, active, parked, or blocked, read the "State of freestyle" block in `IMPLEMENTATION_PLAN.md`. For what is currently held pending the rules expert's answers, read `freestyle/doctrine/RED_QUEUE.md`; for what is settled, `freestyle/doctrine/RED_RULINGS.md`. Never trust a remembered or skill-embedded status or hold list.
+This skill carries **no project status**. For what is done, active, parked, or blocked, read the open freestyle issues in the maintainers' private tracker (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open --label freestyle`; if unwired, note it in one line and rely on the human's instruction). For what is currently held pending the rules expert's answers, read `freestyle/doctrine/RED_QUEUE.md`; for what is settled, `freestyle/doctrine/RED_RULINGS.md`. Never trust a remembered or skill-embedded status or hold list.
 
-Do not begin promotion, authoring, or restructuring work from this skill. Start only from a scoped item the maintainer has pulled from the plan. The one sanctioned forward-build track is Glossary V2 (`exploration/glossary-v2-architecture/`), and it is content-first and gated on maintainer approval. The public freestyle surfaces (trick index and detail, family pages, sets, glossary, operators, browse, search) are **live production**, not exploration.
+Do not begin promotion, authoring, or restructuring work from this skill. Start only from a scoped item the maintainer has pulled from the tracker. The one sanctioned forward-build track is Glossary V2 (`exploration/glossary-v2-architecture/`), and it is content-first and gated on maintainer approval. The public freestyle surfaces (trick index and detail, family pages, sets, glossary, operators, browse, search) are **live production**, not exploration.
+
+## Surface propagation (definition of done for every freestyle slice)
+
+A standing rule, not a task. Any freestyle update — a promotion, a doctrine change, a classifier change, or a content backfill — must propagate to every affected surface before the slice is complete; a change is not complete merely because the source row was edited. Affected surfaces, as applicable: canonical trick data; aliases / duplicate archive; Emerging Vocabulary; the observational universe; tracked names; ADD analysis; trick detail pages; browse / search; operator / modifier pages; set pages; family surfaces; media / related-trick projections; metrics / counts / copy; generated content files (`src/content/freestyleObservationalUniverse.ts`, `freestyleTrackedNames.ts`, and their peers); and tests / QC gates. For every slice, explicitly verify one of: (1) all affected surfaces were updated and regenerated, or (2) a surface is intentionally unchanged, with the reason documented. This applies to human and AI work alike.
 
 ---
 

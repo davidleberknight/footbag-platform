@@ -105,7 +105,7 @@ esac
 # KEEP_MEDIA is threaded by the orchestrator (yes = skip S3 wipe; no = wipe).
 # Unset on staging = auto-wipe the S3 media bucket. On non-staging the script
 # refuses without KEEP_MEDIA=yes; operator must opt out explicitly. Production
-# media wipes are out-of-band (see DEVOPS_GUIDE).
+# media wipes are a separate operator procedure run out-of-band, never here.
 KEEP_MEDIA="${KEEP_MEDIA:-no}"
 if [[ $# -gt 0 ]]; then
   echo "ERROR: deploy-rebuild.sh takes no positional arguments; configure via env vars (see usage)." >&2

@@ -63,8 +63,8 @@ of:
   Purely descriptive facts a doc mirrors from code (a renamed identifier, a method
   signature, a schema column) follow code and are ordinary (a)-type drift.
 - (b) **the implementation has truly deviated** from the final design — a deviation that
-  belongs in `IMPLEMENTATION_PLAN.md`, never a reason to "fix" the canonical doc down to
-  current reality.
+  belongs in the maintainers' private tracker, never a reason to "fix" the canonical doc
+  down to current reality.
 - (c) **the feature is simply not built yet** — future work, not drift. Not-yet-built is
   reportable ONLY when a doc, README, plan, test, or route name CLAIMS it is already
   deployed; then the finding is the false deployment claim, not the missing feature.
@@ -86,8 +86,7 @@ surface every run instead of by luck:
   demo/preview identifiers, and team names outside the docs that doc-governance permits
   them in. Treat `currently` / `now` as candidates only: a hit is drift solely when it
   describes build, deploy, or implementation status; the same word describing a domain
-  state is ordinary prose. Exempt `IMPLEMENTATION_PLAN.md` (carrying status is its
-  purpose) and local-only operator notes.
+  state is ordinary prose. Exempt local-only operator notes.
 - **Broken internal references**: extract every `docs/…`, `ifpa/…`, `scripts/…`,
   `legacy_data/…` path and every `§N` cited target from the docs and confirm each exists
   or resolves; a reference to a missing file or absent section is a finding.
@@ -105,14 +104,15 @@ style rule is itself violated.
 
 Compare every doc cluster where concepts overlap: USER_STORIES vs DESIGN_DECISIONS /
 DATA_MODEL / DATA_GOVERNANCE / TESTING; DESIGN_DECISIONS vs DATA_MODEL / `.claude/rules` /
-DEVOPS_GUIDE / MIGRATION_PLAN; `.claude/rules` + service JSDoc vs actual services and
-routes; TESTING vs scripts/CI; DEVOPS_GUIDE vs Terraform/Docker/deploy scripts;
+the maintainers' private operations guide / MIGRATION_PLAN; `.claude/rules` + service
+JSDoc vs actual services and routes; TESTING vs scripts/CI; the maintainers' private
+operations guide vs Terraform/Docker/deploy scripts;
 MIGRATION_PLAN vs onboarding/claim/club/email/DNS material; the project summaries and
 README vs current state; DIAGRAMS and GLOSSARY vs the decision doc, service JSDoc, and
 infra. Look for: same term different meaning; same rule different default; same route
 different path; same service different owner; same page different visibility; same status
 different state machine; current-state language in canonical docs; permanent-design
-language in plan-only deviations.
+language in tracker-issue deviations.
 
 **Diagram and glossary reconciliation (mandatory).** Diagrams and glossary entries
 routinely assert a control, service, worker, managed service, or edge protection as
@@ -170,17 +170,18 @@ still agree."
   matching the docs (diff the workflow's actual job list against the docs' claims), a
   claimed deterministic check that does not exist, a check that exists with no doc, tests
   asserting behavior documented nowhere or contradicting canonical design.
-- **DevOps/parity:** DEVOPS_GUIDE and the decision doc's DevOps sections vs Dockerfiles,
-  compose and committed env files, `terraform/**`, workflows, `.githooks/`, deploy
-  scripts, `ops/**` (timer cadence vs documented recovery objectives), config modules, and
-  adapter factories.
-- **Migration/go-live:** MIGRATION_PLAN, `legacy_data/CLAUDE.md`, IMPLEMENTATION_PLAN,
+- **DevOps/parity:** the maintainers' private operations guide and the decision doc's
+  DevOps sections vs Dockerfiles, compose and committed env files, `terraform/**`,
+  workflows, `.githooks/`, deploy scripts, `ops/**` (timer cadence vs documented
+  recovery objectives), config modules, and adapter factories.
+- **Migration/go-live:** MIGRATION_PLAN, `legacy_data/CLAUDE.md`,
   governance, claim/onboarding/club stories vs each other and the repo: pre- vs
   post-go-live source-of-truth assumptions, final export, write freeze, validation gates,
   rollback, legacy-credential exclusion, identity mapping, email/DNS transition, retained
   archive scope. The gate-index accuracy/completeness/consistency audit itself is in
   `DESIGN.md` (Migration and go-live design sweep); here, additionally spot-derive cheap
-  referenced counts read-only and confirm the plan's release-gate pointers have not forked.
+  referenced counts read-only and confirm the migration plan's "Go-live blocker index"
+  and the Launch v1 milestone in the maintainers' private tracker have not forked.
 
 ## Terminology and reference sync: the four mechanical detectors
 

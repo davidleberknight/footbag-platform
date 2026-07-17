@@ -33,7 +33,8 @@ The contract sources this skill audits against are the freestyle governance skil
 `.claude/skills/freestyle-dictionary-surface/SKILL.md`,
 `.claude/skills/footbag-curated-media/SKILL.md`,
 `.claude/skills/migrate-browse-view/SKILL.md` — plus the freestyle sections of the
-canonical docs and the standing surface-propagation rule in `IMPLEMENTATION_PLAN.md`.
+canonical docs and the standing surface-propagation rule in the
+`footbag-freestyle-dictionary` skill.
 The `pipeline-invariant-enforcer` skill governs *modifying* the pipeline; this skill
 audits pipeline *outputs* as they manifest on deployed surfaces.
 
@@ -69,12 +70,12 @@ rule stays here.
    modules, seeded galleries) as deployed. The kickoff prompt can pull loader code in.
 7. **One question at a time** when blocked, per `.claude/rules/asking.md`.
 8. **Deployed-surface discipline** per `.claude/rules/deployed-surface.md`: not-yet-built
-   is never a finding. Planned freestyle work (for example a family landing page tracked in
-   `IMPLEMENTATION_PLAN.md`) is roadmap, not a gap.
-9. **Tracked work is not re-flagged.** Re-derive the freestyle items from
-   `IMPLEMENTATION_PLAN.md` every run (see the tracked-work step below); an item already
-   tracked there with an owner is excluded. The inverse IS a finding: a tracked entry whose
-   described state no longer matches the repo is a stale-plan finding.
+   is never a finding. Planned freestyle work (for example a family landing page tracked
+   as an open issue in the maintainers' private tracker) is roadmap, not a gap.
+9. **Tracked work is not re-flagged.** Re-derive the tracked freestyle items from the
+   maintainers' private tracker every run (see the tracked-work step below); an item
+   already covered by an open issue is excluded. The inverse IS a finding: an open issue
+   whose described state no longer matches the repo is a stale-tracker-issue finding.
 10. **Active refutation** before recording anything; loop to dryness (two consecutive
     passes with no new candidate).
 11. No emojis, no dates-as-status, concise output.
@@ -106,10 +107,14 @@ doctrine judgment calls; editorial voice and wording of curator-authored prose; 
 
 1. This file and this skill's `REFERENCE.md` (the category catalog §F1–§F17).
 2. Root `CLAUDE.md` — authority order.
-3. `IMPLEMENTATION_PLAN.md` — the freestyle and data-pipeline sections, every
-   `[DEVIATION]` / `[BLOCKED]` / `[KANBAN]` item touching freestyle, and the Deferred /
-   parked section. Build the tracked-work exclusion list fresh from it (REFERENCE.md
-   describes how); never trust a remembered list.
+3. The maintainers' private tracker, via `gh issue list -R "$FOOTBAG_PRIVATE_REPO"
+   --state open --label freestyle` and again with `--label pipeline` (read-only,
+   auto-approved), plus the local gitignored `BUGS.md`. Build the tracked-work
+   exclusion list fresh from them (REFERENCE.md describes how); never trust a
+   remembered list. If `FOOTBAG_PRIVATE_REPO` is unset, say exactly one line, that
+   the tracker is not wired on this machine (the env var lives in the gitignored
+   `.claude/settings.local.json`), then proceed with `BUGS.md` alone as the exclusion
+   source; never hard-fail.
 4. The five freestyle-domain skills named above — they carry the invariants.
 5. The path-scoped rules: enumerate `.claude/rules/` fresh and read every rule that
    governs a surface this run touches (at minimum `view-layer.md` for the hashtag and
@@ -128,9 +133,9 @@ doctrine judgment calls; editorial voice and wording of curator-authored prose; 
 1. **Derive the deployed freestyle surface fresh** per the deployed-surface rule: every
    `/freestyle` route, view, browse `?view=` variant, gallery, and the services and content
    modules behind them. Hold it in scratch notes.
-2. **Build the tracked-work exclusion list** from `IMPLEMENTATION_PLAN.md` (method in
-   REFERENCE.md), and verify each tracked entry still describes reality — a stale entry is
-   a finding.
+2. **Build the tracked-work exclusion list** from the maintainers' private tracker and
+   the local `BUGS.md` (method in REFERENCE.md), and verify each open issue still
+   describes reality; a stale tracker issue is a finding.
 3. **Build the sample matrix**: tricks sampled across status, kind, family, ADD range, and
    alias shape; media items across source and tier; every browse view; every named gallery.
    REFERENCE.md gives the matrix shape and read-only query recipes.
@@ -155,8 +160,8 @@ Freestyle findings go in a dedicated **Freestyle bugs (domain invariants)** grou
 after the bug-hunt skill's groups and before Leads. The group follows the established
 discipline:
 
-- Ephemeral entries: remove each finding once its fix lands; no closures, dates, or
-  RESOLVED markers.
+- Ephemeral entries: remove each finding once its issue is filed in the maintainers'
+  private tracker or its fix lands; no closures, dates, or RESOLVED markers.
 - Own sub-sequence `FBH-###` with a `Next freestyle finding ID:` pointer at the top of the
   group; never reuse or renumber. A separate counter prevents contention with the `B-###`
   sequence, which a different skill and owner produce.
@@ -190,6 +195,16 @@ skill, never `broken`); a naming/slug/hashtag violation on a public page is Medi
 propagation miss that shows a visitor wrong canonical data is Medium/High; a tag-invariant
 break that corrupts gallery membership is High; anything that crosses into privacy,
 security, or payment territory is bug-hunt's rubric and severity.
+
+**Graduation to the maintainers' private tracker.** After the human approves the
+findings, draft for each confirmed finding an issue body meeting the tracker's
+issue-body standard — title = verb + exact surface; a one-paragraph problem statement;
+exact identifiers; one "Done when" line — plus an exact ready-to-run HUMAN-RUN command
+of the form `gh issue create -R "$FOOTBAG_PRIVATE_REPO" --title "..." --label freestyle
+--label bug --body "..."`. Claude never runs the create; the human does. `BUGS.md`
+remains the local scratch sink findings are written to first; a finding leaves `BUGS.md`
+when its issue is filed or its fix lands. If `FOOTBAG_PRIVATE_REPO` is unset, skip issue
+drafting with the same one-line degradation note as the pre-reads.
 
 ## Stopping condition and self-review
 

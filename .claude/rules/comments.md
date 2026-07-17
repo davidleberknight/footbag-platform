@@ -44,7 +44,8 @@ self-contained. Forbidden everywhere:
 ## Deviations
 
 Code that does X today but is intended to do Y uses `Current:` / `Target:` lines, self-contained,
-AND the deviation is recorded in `IMPLEMENTATION_PLAN.md` (root or `legacy_data/`). No other
+AND the deviation is recorded as an issue in the maintainers' private tracker. The comment never
+carries a private issue number (the issue cites the file and line instead). No other
 planning-style content is permitted in code text.
 
 This applies to built code that behaves differently from its target. A feature not yet written

@@ -65,9 +65,9 @@ comes to cite one as its blocker, it is promoted into `QUESTION_REGISTRY.csv` fi
 ## Records-only riders
 
 These block only a world-record badge; none gates a dictionary row. Their live
-tracking home is the unresolved-world-record-videos item in
-`IMPLEMENTATION_PLAN.md`, and the letter is only their delivery vehicle, so they
-are not double-tracked as dictionary gates.
+tracking home is the unresolved-world-record-videos item in the maintainers'
+private tracker, and the letter is only their delivery vehicle, so they are not
+double-tracked as dictionary gates.
 
 - **Solestice.** An undefined "osis flapper" operator; the ask is what the movement
   is.

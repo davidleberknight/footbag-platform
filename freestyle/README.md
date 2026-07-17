@@ -13,7 +13,7 @@ After cutover the live production database is the single source of truth: freest
 content is edited only through the audited admin curation surfaces, and this
 rebuild is refused on a cutover-marked production host with no bypass. Use it to
 build a local development database; never as a way to edit production content. The
-cutover model is `docs/DEVOPS_GUIDE.md` section 15.6.
+cutover model is documented in the maintainers' private operations guide.
 
 ## Quick start
 
@@ -124,8 +124,8 @@ research and dated working history only, and is never a required build input.
 
 - `docs/FREESTYLE.md` - the maintainer guide: subsystem orientation, authority
   boundaries, the table-level data model, and the doc map.
-- `docs/DEVOPS_GUIDE.md` - operational commands, the cutover model, deploy, backup,
-  and rollback.
+- The maintainers' private operations guide - operational commands, the cutover
+  model, deploy, backup, and rollback.
 - `docs/DATA_MODEL.md` - the platform data model.
 - `database/schema.sql` - column-level detail for every table.
 - `freestyle/doctrine/README.md` - the doctrine index.

@@ -1,7 +1,6 @@
 ---
 paths:
   - "docs/**"
-  - "IMPLEMENTATION_PLAN.md"
   - "README.md"
   - "CONTRIBUTING.md"
   - "CODE_OF_CONDUCT.md"
@@ -16,17 +15,17 @@ paths:
 Long-term canonical docs describe **design intent**, not implementation status:
 
 - `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `PROJECT_SUMMARY_CONCISE.md`, `docs/DATA_MODEL.md`, `docs/TESTING.md` — pure design.
-- `docs/DEV_ONBOARDING.md`, `docs/DEVOPS_GUIDE.md` — permanent design + permanent operating procedure. Same no-current-slice rule applies.
+- `docs/DEV_ONBOARDING.md` — permanent design + permanent operating procedure. Same no-current-slice rule applies.
 
 Never add current-slice notes, deviation qualifiers, shortcut descriptions, completion status, "Last updated" dates, or sprint tracking to any of these.
 
-All implementation-state language belongs exclusively in `IMPLEMENTATION_PLAN.md`.
+All implementation-state language belongs exclusively in the maintainers' private tracker (the `tracker-ops` skill).
 
 **Where implementation detail lives.** Durable design intent and rationale live in `docs/DESIGN_DECISIONS.md`; the per-service and per-page contract (ownership, rendering, audience, sensitive-page invariants) lives in each service's file-header JSDoc; cross-cutting AI coding rules live in the path-scoped `.claude/rules/*.md` files; repeatable procedures (how to add a public page, run a review, sync docs) live in `.claude/skills/*`. A canonical doc states the design; it does not restate a contract that a service JSDoc, a rule, or a skill already owns. Page-rendering contracts live in service JSDoc and `.claude/rules/view-layer.md`, the route list lives in `src/routes/publicRoutes.ts`, and durable view design intent lives in DESIGN_DECISIONS §4.
 
-## Temporary deviations live in IP only
+## Temporary deviations live in the tracker only
 
-Substitute patterns, transitional shortcuts, and other deviations with explicit unblock conditions go in the `IMPLEMENTATION_PLAN.md` active-slice "Known deviation" / "Accepted temporary deviations" blocks. Never duplicate substitute-aware callouts into DEV_ONBOARDING.md or DEVOPS_GUIDE.md — a volunteer reads IP first for deviations, then the canonical step. When the deviation resolves, delete the IP entry; the canonical doc needs no change.
+Substitute patterns, transitional shortcuts, and other deviations with explicit unblock conditions are issues labeled `bug` in the maintainers' private tracker (the `tracker-ops` skill). Never duplicate substitute-aware callouts into DEV_ONBOARDING.md or other canonical docs: a volunteer reads the tracker first for deviations, then the canonical step. When the deviation resolves, close the issue; the canonical doc needs no change.
 
 ## "Deferred to later path" is scope, not drift
 
@@ -46,7 +45,7 @@ Rule of thumb: if deferral points to another section/path/doc as the home for th
 
 ## Plain words, not bare codes
 
-In any doc or plan, describe the thing in plain words a reader understands on its own. A gate ID, section number, finding code, state number, or item label may sit beside a self-contained explanation as a locator, never replace it. A reader who would have to open another document to know what a reference means has been handed shorthand, not a description — that is the defect. The one exception is a table whose rows are labelled by ID (the Migration Plan blocker index): there the ID is the row's own structural label. Everywhere else, lead with the words. When a locator is genuinely useful, prefer a durable one — the target's section title or feature name — over a numeric or code locator (a section number, gate ID, or item number), which rots as the doc is edited and sections renumber; titles and names stay readable and stable. The `IMPLEMENTATION_PLAN.md` front matter already states this for its own items; this is the cross-doc generalization, and it mirrors the code-comment standard in `.claude/rules/comments.md` and the question standard in `.claude/rules/asking.md`.
+In any doc or plan, describe the thing in plain words a reader understands on its own. A gate ID, section number, finding code, state number, or item label may sit beside a self-contained explanation as a locator, never replace it. A reader who would have to open another document to know what a reference means has been handed shorthand, not a description — that is the defect. The one exception is a table whose rows are labelled by ID (the Migration Plan blocker index): there the ID is the row's own structural label. Everywhere else, lead with the words. When a locator is genuinely useful, prefer a durable one — the target's section title or feature name — over a numeric or code locator (a section number, gate ID, or item number), which rots as the doc is edited and sections renumber; titles and names stay readable and stable. This is the cross-doc generalization of the same standard the private tracker guide sets for issue bodies, and it mirrors the code-comment standard in `.claude/rules/comments.md` and the question standard in `.claude/rules/asking.md`.
 
 ## Sensitive content
 
@@ -56,7 +55,7 @@ In any doc or plan, describe the thing in plain words a reader understands on it
 
 ## Style
 
-- **No "Last updated: <date>"** in any canonical doc header; git log is the authoritative source. Strip existing ones on audit passes. IP included.
+- **No "Last updated: <date>"** in any canonical doc header; git log is the authoritative source. Strip existing ones on audit passes.
 
 ## DD-specific rules (`docs/DESIGN_DECISIONS.md`)
 
@@ -78,13 +77,13 @@ When a drift-fix surfaces disagreement between a doc and another source:
 
 ## Bootstrap code is not a design signal
 
-Current code includes bootstrap stubs that will be replaced. Code-as-it-exists is not the source of truth for design intent. Design intent lives in DD, USER_STORIES, GOVERNANCE, DATA_MODEL, and per-service file-header JSDoc. Current-sprint implementation reality lives in IP.
+Current code includes bootstrap stubs that will be replaced. Code-as-it-exists is not the source of truth for design intent. Design intent lives in DD, USER_STORIES, GOVERNANCE, DATA_MODEL, and per-service file-header JSDoc. Current implementation reality lives in the maintainers' private tracker.
 
 When reviewing DD drift, cite the design sources as evidence. Do NOT cite current code unless it's explicitly marked as the final implementation. Adapter gaps (DD specifies `SesAdapter` / `JwtSigningAdapter` / `MediaStorageAdapter` / `BallotEncryptionAdapter` / `SecretsAdapter`; code must provide it) are real parity gaps, not paper architecture to delete from the DD.
 
 ## Team-member names
 
-Use role-based labels for internal team members in the **design docs** — DEV_ONBOARDING, DATA_MODEL, DESIGN_DECISIONS, USER_STORIES, PROJECT_SUMMARY_CONCISE, DEVOPS_GUIDE, GLOSSARY, DIAGRAMS, PROJECT_SUMMARY. These describe the design, not who is doing the work, so they name no one:
+Use role-based labels for internal team members in the **design docs** — DEV_ONBOARDING, DATA_MODEL, DESIGN_DECISIONS, USER_STORIES, PROJECT_SUMMARY_CONCISE, GLOSSARY, DIAGRAMS, PROJECT_SUMMARY. These describe the design, not who is doing the work, so they name no one:
 
 - "James" / "James Leberknight" → "the historical-pipeline and freestyle maintainer" (owns all legacy work).
 - "Dave" / "David" / "David Leberknight" → "the primary maintainer" / "the project maintainer".
@@ -92,7 +91,7 @@ Use role-based labels for internal team members in the **design docs** — DEV_O
 
 When replacing, preserve role/context: "James's sprint" means "the historical-pipeline sprint," not "a sprint." Translate semantically; do not delete.
 
-**MIGRATION_PLAN and `IMPLEMENTATION_PLAN.md` name people directly.** Both are coordination and plan-of-record docs about who supplies which facts and who does what, so the project's people are named by first name throughout them: the legacy-site webmaster (Steve), the IFPA secretary (Julie), the primary maintainer / project manager (Dave), the historical-pipeline and freestyle maintainer (James), and the tester (Caroline). For legacy data still use "the legacy data" / "the legacy data import", not possessive constructions like "Steve's dump" — the neutral framing is about data ownership, not naming.
+**MIGRATION_PLAN names people directly.** It is a coordination and plan-of-record doc about who supplies which facts and who does what, so the project's people are named by first name throughout it: the legacy-site webmaster (Steve), the IFPA secretary (Julie), the primary maintainer / project manager (Dave), the historical-pipeline and freestyle maintainer (James), and the tester (Caroline). Private-tracker issues name people the same way. For legacy data still use "the legacy data" / "the legacy data import", not possessive constructions like "Steve's dump" — the neutral framing is about data ownership, not naming.
 
 **Meta / governance docs** (README, CONTRIBUTING, CODE_OF_CONDUCT, GOVERNANCE) may name the maintainer for attribution and contact. Attribution is not sprint tracking.
 
@@ -101,10 +100,6 @@ When replacing, preserve role/context: "James's sprint" means "the historical-pi
 Test filenames, describe blocks, test names, and comments describe the long-term contract, never
 the sprint that prompted them, and never reference any doc. Full rules in `.claude/rules/comments.md`.
 
-## The IP is for humans and agents
+## Tracker issues are for humans and agents
 
-`IMPLEMENTATION_PLAN.md` is written to be read by both the maintainers and AI agents; each item is stated plainly enough to act on without opening another document. Edit with that in mind:
-
-- When an item is done, **delete it outright**. No "Closed" section, no one-line tombstone, no "(COMPLETE)" markers, no strike-through.
-- Keep sections as small as possible; remove empty headers after deleting their contents.
-- State each item in full inline; reference another document only to point at the work or to avoid copying a large table.
+Every private-tracker issue is written to be read by both the maintainers and AI agents: self-contained enough to act on without opening another document. The issue-body standard lives in the private tracker guide (reached per the `tracker-ops` skill), never restated here.

@@ -2,9 +2,8 @@
 test_phase_g_phase_h_count_invariants.py
 =========================================
 
-Pins the two count invariants the IP requires for the Phase G + Phase H
-cross-pipeline handoff (legacy_data/IMPLEMENTATION_PLAN.md, "Club
-cleanup pipeline" checklist):
+Pins the two count invariants the club-cleanup pipeline requires for the
+Phase G + Phase H cross-pipeline handoff:
 
   Invariant 1 — clubs-count equals bootstrap_eligible count.
     After Phase H step 06 runs against a post-Phase-G candidate set,

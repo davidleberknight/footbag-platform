@@ -13,7 +13,7 @@
 # periodic bug-hunt sweeps.
 #
 # docs/ is deliberately NOT scanned: documentation may publish real contact
-# channels (e.g. the security-disclosure mailbox in docs/BUG_REPORT.md).
+# channels (e.g. a security-disclosure mailbox or the IFPA contact address).
 # The synthetic-only rule governs fixtures and content, not published
 # contact information.
 

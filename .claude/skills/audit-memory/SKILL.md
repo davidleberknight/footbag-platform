@@ -37,7 +37,7 @@ directory. Note any file with no `MEMORY.md` pointer and any pointer with no fil
 and decide exactly one verdict:
 - DELETE — already stated or mechanically enforced by root/nested `CLAUDE.md`, a `.claude/rules/*`,
   a `.claude/hooks/*`, or a committed `docs/*`; or a one-off incident; or state re-derivable from
-  code; or implementation status (belongs in `IMPLEMENTATION_PLAN.md`).
+  code; or implementation status (belongs in the maintainers' private tracker).
 - PROMOTE — a real, durable lesson with a repo home it is not yet in. Name the destination
   (root `CLAUDE.md`, a specific rule, a doc, a hook, or a CI check) and the exact text to add.
 - REWRITE — the lesson is sound but the entry is stale: it cites a deleted doc, carries a dead

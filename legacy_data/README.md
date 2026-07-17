@@ -446,4 +446,4 @@ The mirror-driven `--soup-to-nuts` path regenerates committed
 - `run_pipeline.sh` — authoritative for modes, stages, script paths, arguments.
 - `CLAUDE.md` — pipeline rules, source hierarchy, QC requirements, non-negotiable
   constraints.
-- `IMPLEMENTATION_PLAN.md` — current sprint status and release checklist.
+- The maintainers' private tracker: current work status and the release checklist.

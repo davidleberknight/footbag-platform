@@ -7,7 +7,7 @@ Modernizing footbag.org for the International Footbag Players Association (IFPA)
 **Start here:**
 
 - `PROJECT_SUMMARY_CONCISE.md` : for orientation and document routing, if required for task.
-- `IMPLEMENTATION_PLAN.md` : for accepted deviations from the canonical documented design, tasks in scope to do asap such as known bugs and completing user stories in progress, open questions, and short-term planning.
+- The maintainers' private tracker : for active work, known bugs, open questions, and accepted deviations from the canonical documented design. Read it with `gh issue list -R "$FOOTBAG_PRIVATE_REPO"` (the `tracker-ops` skill; wiring in "Companion repositories" below).
 
 ## Repo layout
 
@@ -29,6 +29,10 @@ tests/        Integration tests
 
 
 
+## Companion repositories
+
+Two optional gitignored repo-root symlinks, canonical names on every machine: `footbag_legacy_repo` (the legacy webmaster's clone; read-only, Edit/Write denied) and `footbag_private_repo` (the maintainers' operations checkout; Claude drafts, a human commits). The maintainers' private tracker (GitHub Issues on that private repository) is the sole authority for active work; read it with `gh issue list -R "$FOOTBAG_PRIVATE_REPO"` (env var set in the gitignored `.claude/settings.local.json`). Committed text never carries the private repository's identity. Absent wiring is a supported configuration: name the wiring step in one line, then skip that part. All tracker and private-checkout work follows the `tracker-ops` skill.
+
 ## Authority order and read order
 
 Two different orders, do not conflate them. Both live only here; rules, skills, `PROJECT_SUMMARY_CONCISE.md`, and agents link here and never restate either.
@@ -40,11 +44,11 @@ Two different orders, do not conflate them. Both live only here; rules, skills, 
 3. Clear design intent: `docs/DESIGN_DECISIONS.md`, `docs/USER_STORIES.md`, `docs/DATA_MODEL:.md`, the path-scoped `.claude/rules/*`, and service file-header JSDoc. `docs/DATA_GOVERNANCE.md` is mandatory before any change touching members, historical persons, search, auth, contact fields, exports, stats, or privacy.
 4. Current code, `database/schema.sql`, and infrastructure : authoritative for *implemented behavior* only, never for design intent.
 
-The`IMPLEMENTATION_PLAN.md`'s KANBAN-style to-do list tracks current scope and records known deviations from the canonical design. Prefer design intent over code in general; but when code conflicts with design intent and no tracked deviation explains it, do not silently pick a side or guess, always stop and ask the human. It may be a code bug, a stale doc, or an untracked deliberate deviation, and only the human decides.
+The maintainers' private tracker (see "Companion repositories") tracks current scope and records known deviations from the canonical design. Prefer design intent over code in general; but when code conflicts with design intent and no tracked deviation explains it, do not silently pick a side or guess, always stop and ask the human. It may be a code bug, a stale doc, or an untracked deliberate deviation, and only the human decides.
 
 ### Read order : what to load first, to save tokens (not an authority ranking)
 
-Read the minimum the task requires. Default: the tracked items in `IMPLEMENTATION_PLAN.md`, then current code, then the path-scoped layer : the `.claude/rules/*.md` files, service file-header JSDoc, and per-subtree `CLAUDE.md` files as needed. Load targeted sections of the broader docs only as the task needs them:`docs/USER_STORIES.md` (intended behavior, success criteria), `docs/DATA_MODEL.md` (schema semantics; verify against `database/schema.sql`), `docs/TESTING.md` (before writing tests), and `docs/DESIGN_DECISIONS.md` (technical requirements and rationale) last.
+Read the minimum the task requires. Default: the open tracker issues (when wired; see "Companion repositories"), then current code, then the path-scoped layer : the `.claude/rules/*.md` files, service file-header JSDoc, and per-subtree `CLAUDE.md` files as needed. Load targeted sections of the broader docs only as the task needs them:`docs/USER_STORIES.md` (intended behavior, success criteria), `docs/DATA_MODEL.md` (schema semantics; verify against `database/schema.sql`), `docs/TESTING.md` (before writing tests), and `docs/DESIGN_DECISIONS.md` (technical requirements and rationale) last.
 
 ## Non-negotiable rules
 
@@ -53,7 +57,7 @@ Read the minimum the task requires. Default: the tracked items in `IMPLEMENTATIO
 3. **Asking the human is the last resort, not the first move.** Resolve every answer through the authority order before asking; if analysis makes it certain, do not ask. Code is reality, not authority for design intent: clear design intent (`docs/DESIGN_DECISIONS.md`, `docs/USER_STORIES.md`, `docs/DATA_MODEL.md`, the path-scoped rules and service contracts) outranks current code. When a question genuinely survives: **exactly one decision per message**, in **plain self-contained English** with no internal references the human was not given (section numbers, gate/finding codes, prior-message labels; a finding ID in a file the human is reading, is fine paired with its title), **full context inline**, and **one recommended answer derived from design intent and verified against the docs and code, never guessed** (pros and cons when the trade-offs are real). Ask in prose; reserve the multiple-choice tool (AskUserQuestion) for when the human asks to pick. Read-only investigation needs no permission. A bare "y" / "go" from the human takes the recommended answer. Full standard: `.claude/rules/asking.md`.
 4. If unclear, escalate to the human. Never guess or silently choose among materially different interpretations. If you can see two or more interpretations for a task, then name them clearly, stop and ask. Push back when you should.
 5. Never add schema, service methods, or behavioral code without grounding in a user story, design decision, or explicit human direction in the current task. If no acceptance criteria or human approval exist for the behavior, stop and ask. Think before coding; do not assume or add unscoped features, and strive for simplicity over complexity; this requires analysis before jumping in. Prefer surgical changes over sweeping edits.
-6. Code comments and human-readable text in code follow `.claude/rules/comments.md` (plain-words self-contained WHY; no sprint/slice/phase labels, dates, caller refs, or doc references; deviations use "Current:"/"Target:" and are recorded in `IMPLEMENTATION_PLAN.md`).
+6. Code comments and human-readable text in code follow `.claude/rules/comments.md` (plain-words self-contained WHY; no sprint/slice/phase labels, dates, caller refs, or doc references; deviations use "Current:"/"Target:" and are recorded as private-tracker issues).
 7. Do not change public UI wording unless instructed explicitly (no silent editing).
 8. **Pre-writing-code gate.** The skills and path-scoped rules that match the task MUST always be loaded before you write or edit code. In order: (a) invoke the matching skill as the first action; (b) enumerate every path the change will touch; (c) Read each path's `.claude/rules/*.md` and per-subtree `CLAUDE.md` yourself; (d) only then write. Do not rely on auto-attach: it fires only on Read/Edit of an in-glob file, not on grep/Bash or on reasoning about an unopened path. If you have only grepped a path, its rule is not loaded, so Read it.
 

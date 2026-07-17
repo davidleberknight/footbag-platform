@@ -107,8 +107,9 @@ speculative issues recorded as bugs, no remediation in the same session.
   finalized plan. Read-only investigation (git reads, DB SELECTs, file listings, `--help`,
   compile checks) needs no permission and no pause.
 - **Never stage, commit, push, or pull.** The maintainer owns git.
-- **No done-tracking.** Findings leave `BUGS.md` when their fix lands; no closures, dates,
-  or RESOLVED markers anywhere. The working repo is authoritative for what is fixed.
+- **No done-tracking.** Findings leave `BUGS.md` when their issue is filed in the
+  maintainers' private tracker or their fix lands; no closures, dates, or RESOLVED
+  markers anywhere. The working repo is authoritative for what is fixed.
 - **Question discipline per `.claude/rules/asking.md`.** Resolve through the authority
   order first; when a genuine question survives, ask exactly one self-contained decision
   per message, in plain English with no internal codes, with one researched recommendation
@@ -145,13 +146,13 @@ speculative issues recorded as bugs, no remediation in the same session.
   `.github/` templates): code comments and JSDoc, every README, the canonical docs,
   diagrams and glossary, governance/meta docs, script comments, test names and comments —
   accuracy against the repo as it is, respecting `doc-governance.md` (canonical docs state
-  design intent, not status; implementation state belongs only in
-  `IMPLEMENTATION_PLAN.md`). Standing scoped-out buckets are recorded in the ledger with
+  design intent, not status; implementation state belongs only in the maintainers'
+  private tracker). Standing scoped-out buckets are recorded in the ledger with
   their reason, never skipped silently (`DOCSYNC.md`).
-- **Tracked deviations are not findings.** A behavior matching a `[DEVIATION]` entry in
-  `IMPLEMENTATION_PLAN.md` is accepted; do not re-report it. The check is bidirectional: a
-  tracked entry describing a state the repo has outgrown is itself a finding (stale plan
-  entry).
+- **Tracked deviations are not findings.** A behavior matching an open issue in the
+  maintainers' private tracker is accepted; do not re-report it. The check is
+  bidirectional: an open issue describing a state the repo has outgrown is itself a
+  finding (stale tracker issue).
 - **Standing exclusions:** CAPTCHA acceptance criteria (Turnstile is deferred by design);
   the `legacy_data/` pipeline code unless the kickoff prompt includes it — migrated data
   shaping deployed routes is always in scope. Migration and go-live *design* is always in
@@ -178,7 +179,15 @@ runs:
 
 1. This file plus the three sidecars' tables of contents.
 2. Root `CLAUDE.md` — authority order (do not restate it; it lives there).
-3. `IMPLEMENTATION_PLAN.md` — every `[DEVIATION]`, `[BUG]`, `[BLOCKED]`, kanban entry.
+3. The tracked-work exclusion list, built fresh from the maintainers' private tracker
+   via `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open` (read-only,
+   auto-approved), plus the local gitignored `BUGS.md`. Each open issue carries one lane label
+   (`platform`, `pipeline`, `freestyle`, `coordination`) plus `bug` (a defect or an
+   accepted deviation tracked to removal), `blocked` (body opens
+   `Blocked on: <person> - <what>`), or `question`. If `FOOTBAG_PRIVATE_REPO` is unset,
+   say exactly one line, that the tracker is not wired on this machine (the env var
+   lives in the gitignored `.claude/settings.local.json`), then proceed with `BUGS.md`
+   alone as the exclusion source; never hard-fail.
 4. **Every rule in `.claude/rules/*.md`** — enumerate the directory fresh; the set changes.
    These are both operational constraints on the hunt and audited surfaces of it.
 5. `docs/DATA_GOVERNANCE.md` — mandatory before any finding touching members, historical
@@ -188,7 +197,9 @@ runs:
    `docs/USER_STORIES.md`, which defers to them.
 7. `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/DATA_MODEL.md`,
    `docs/TESTING.md` (§15.2 anti-patterns especially), `docs/MIGRATION_PLAN.md` (gate
-   index), `docs/DEVOPS_GUIDE.md`, `legacy_data/CLAUDE.md` — per the scope of the run.
+   index), the maintainers' private operations guide (in the private operations
+   checkout `footbag_private_repo/`, present only when that checkout is wired),
+   `legacy_data/CLAUDE.md`, per the scope of the run.
 8. The external security calibration lenses listed in `REFERENCE.md` (OWASP, ASVS, WSTG,
    NIST SSDF, CISA, CWE Top 25, CI/CD and secrets guidance) — blind-spot prevention, never
    a compliance exercise and never an override of project rules.
@@ -213,11 +224,11 @@ deployed no-story feature per `.claude/rules/deployed-surface.md`; for each comp
 partial deployed story, list and check every success criterion against code. The gray area
 between deployed and merely-documented resolves one way: a story that is deployed at all
 is held to 100% of its success criteria, so every criterion the code does not satisfy is a
-finding — unless a tracked `IMPLEMENTATION_PLAN.md` deviation already covers exactly that
+finding, unless an open private-tracker issue already covers exactly that
 gap, in which case it is never duplicated here. Audit the
 `docs/MIGRATION_PLAN.md` go-live gate index for accuracy (every referenced artifact
 resolves), completeness (every named risk maps to a gate), and consistency (index, detail
-table, and `IMPLEMENTATION_PLAN.md` release gates agree). Hold all of it in scratch notes;
+table, and the tracker's Launch v1 milestone issues agree). Hold all of it in scratch notes;
 never commit them.
 
 **C. Design-layer sweep** (method and checklists in `DESIGN.md`). Requirements quality over
@@ -247,8 +258,8 @@ documentation universe into the coverage ledger, run the mechanical pre-pass, th
 per-doc internal-consistency, cross-document, diagram/glossary, rules/skills,
 data/testing/DevOps/migration sync angles and the terminology/reference detectors,
 classifying every gap's drift direction per `DOCSYNC.md` — doc wrong, implementation
-deviated (belongs in `IMPLEMENTATION_PLAN.md`), or not built yet (reportable only as a
-false deployment claim). Drift is checked in both directions, and the
+deviated (belongs in the maintainers' private tracker), or not built yet (reportable
+only as a false deployment claim). Drift is checked in both directions, and the
 code-changed-text-stale direction gets its own dedicated pass, because reviewers (human
 and model) reliably under-detect it: for every identifier or behavior the code has moved
 past, grep `README.md`, `docs/`, `.claude/rules/*`, and `.claude/skills/*` for the
@@ -408,6 +419,16 @@ behavior-neutral except for the defect it removes. A finding that fails the re-a
 returned to the maintainer with the refutation, never silently remediated or silently
 dropped. The report author cannot certify its own findings; the fresh eyes are the
 control.
+
+**Graduation to the maintainers' private tracker.** After the human approves the
+findings, draft for each confirmed finding an issue body meeting the tracker's
+issue-body standard — title = verb + exact surface; a one-paragraph problem statement;
+exact identifiers; one "Done when" line — plus an exact ready-to-run HUMAN-RUN command
+of the form `gh issue create -R "$FOOTBAG_PRIVATE_REPO" --title "..." --label <lane>
+--label bug --body "..."`. Claude never runs the create; the human does. `BUGS.md`
+remains the local scratch sink findings are written to first; a finding leaves `BUGS.md`
+when its issue is filed or its fix lands. If `FOOTBAG_PRIVATE_REPO` is unset, skip issue
+drafting with the same one-line degradation note as the pre-reads.
 
 ## 10. Anti-patterns — what not to flag
 

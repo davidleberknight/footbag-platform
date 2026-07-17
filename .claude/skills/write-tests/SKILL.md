@@ -16,7 +16,7 @@ Tests can be written at any point. See `tests/CLAUDE.md` for conventions.
 
 ## Step 1: Confirm scope
 
-Read the top active-slice/status block in `IMPLEMENTATION_PLAN.md`. Confirm the feature being tested is in scope for the current slice. Do not write tests for out-of-scope behavior.
+Read the open issues in the maintainers' private tracker (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`; if unwired, note it in one line and rely on the human's instruction). Confirm the feature being tested is in scope. Do not write tests for out-of-scope behavior.
 
 ## Step 2: Determine test layer
 
@@ -49,7 +49,7 @@ Read:
 2. Required rendering pattern from the owning service's file-header JSDoc and `.claude/rules/view-layer.md` for the affected route (including any sensitive-page invariants that apply)
 3. Required service-layer pattern from the affected service's file-header JSDoc (boundary, required patterns, side effects)
 4. Current method shape from TypeScript and tests at the cited source path
-5. Known deviations from `IMPLEMENTATION_PLAN.md` that the test must accept
+5. Known deviations (open `bug`-labeled private-tracker issues) that the test must accept
 6. Nearby tests in the target directory; follow established patterns exactly
 
 Do not invent behavior not in the acceptance criteria.

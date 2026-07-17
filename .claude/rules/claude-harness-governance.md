@@ -44,7 +44,7 @@ When a custom agent gains or loses `Bash`, keep its frontmatter `hooks:` block i
 - `allowed-tools` only restricts what a skill may use; it never widens permissions or bypasses prompts. A skill that needs more permission gets a reviewed `settings.json` entry, never a frontmatter grant.
 - `disable-model-invocation: true` for any explicit-only or side-effect-heavy skill, so it never auto-fires and its description leaves always-loaded context.
 - Keep `SKILL.md` under ~500 lines; move long reference material into plain supporting files in the skill's folder (these are reference files, not skills — no frontmatter, no command).
-- Link the authority order; never restate it. No dated implementation status in a skill body — that belongs in `IMPLEMENTATION_PLAN.md`.
+- Link the authority order; never restate it. No dated implementation status in a skill body — that belongs in the maintainers' private tracker.
 
 ## Hook authoring (`.claude/hooks/**`)
 

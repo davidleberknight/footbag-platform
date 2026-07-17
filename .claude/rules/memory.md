@@ -20,8 +20,8 @@ The audit has five steps:
    - One-incident observation.
    - Code, file path, naming convention, or repo structure re-derivable from the codebase.
    - Ephemeral task state or in-progress work.
-   - Anything already stated or enforced by root or nested `CLAUDE.md`, any `.claude/rules/*`, any `.claude/hooks/*`, or any committed doc under `docs/` (for example DEVOPS_GUIDE, DEV_ONBOARDING, TESTING, DESIGN_DECISIONS, USER_STORIES, DATA_GOVERNANCE, DATA_MODEL). If a rule, hook, or doc could hold the lesson but does not yet, promote it there instead of saving — memory is only for machine-local or Claude-product facts with no repo home.
-   - Implementation status or dated progress (which belongs in `IMPLEMENTATION_PLAN.md`, never in memory).
+   - Anything already stated or enforced by root or nested `CLAUDE.md`, any `.claude/rules/*`, any `.claude/hooks/*`, or any committed doc under `docs/` (for example DEV_ONBOARDING, TESTING, DESIGN_DECISIONS, USER_STORIES, DATA_GOVERNANCE, DATA_MODEL). If a rule, hook, or doc could hold the lesson but does not yet, promote it there instead of saving — memory is only for machine-local or Claude-product facts with no repo home.
+   - Implementation status or dated progress (which belongs in the maintainers' private tracker, never in memory).
    - A `docs/` filename cited as live truth in the body: docs get deleted and the note goes stale, so state the concept in words; needing to name a doc is itself a signal to promote, not save.
    - Generic engineering principle (YAGNI, separation of concerns, "don't over-engineer").
 4. Announce the audit in the response, before the Write or Edit call, in the exact format above.
