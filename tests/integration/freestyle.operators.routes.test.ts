@@ -99,6 +99,20 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
   });
 
+  it('presents Symple and symp as unresolved historical vocabulary, not settled doctrine', async () => {
+    const res = await request(await createApp()).get('/freestyle/operators');
+    // The page must not assert the old settled explanation while the open
+    // question is whether Symple is a distinct operator and whether symp is only
+    // an abbreviation of the fully defined Symposium operator.
+    expect(res.text).not.toContain('Starts as symposium');
+    expect(res.text).not.toContain('can mean symposium or symple');
+    const symple = rowSlice(res.text, 'symple');
+    expect(symple, 'symple operator row should render').not.toBe('');
+    expect(symple).toContain('unresolved');
+    // Symposium itself stays presented as the established operator.
+    expect(res.text).toContain('id="operator-symposium"');
+  });
+
   it('does not list set primitives as operator rows', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
     // weaving and zulu are platform-canonical ducking launch sets, not operators,

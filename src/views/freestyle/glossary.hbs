@@ -1652,13 +1652,23 @@
     </dl>
 
     <h4>Sides</h4>
-    <p>The side prefix on a move tells you which leg performs it relative to the plant foot.</p>
+    <p>The side prefix on a move is relative to the previously referenced leg (the
+      most recent side-bearing component), not to a fixed plant foot: <code>SAME</code>
+      and <code>OP</code> say which leg acts compared with the leg that component
+      used. A component that names no leg does not reset the reference. Because each
+      side reads against the last one, the relationship chains, and two <code>OP</code>
+      steps in a row come back to the original leg.</p>
     <dl class="operational-glossary">
       <dt id="op-side-same"><code>SAME</code></dt>
-      <dd>Same side as the plant foot. Roughly equivalent to the <code>SS</code> abbreviation seen in some trick names.</dd>
+      <dd>The same leg as the most recent side-bearing component. Roughly equivalent to the <code>SS</code> abbreviation seen in some trick names.</dd>
       <dt id="op-side-op"><code>OP</code></dt>
-      <dd>Opposite side from the plant foot. The non-plant leg performs the move.</dd>
+      <dd>The opposite leg from the most recent side-bearing component. The other leg performs the move.</dd>
     </dl>
+    <p>Worked example, tracking which leg acts as you read left to right:</p>
+    <pre><code>LEFT set &gt; OP dex   = RIGHT dex
+RIGHT dex &gt; OP catch = LEFT catch</code></pre>
+    <p>So a set and a catch that are each <code>OP</code> relative to the step before
+      them land back on the setting leg, not on the opposite one.</p>
 
     <h4>Directions</h4>
     <p>The arc-direction tokens describe the bag's path during the dex.</p>

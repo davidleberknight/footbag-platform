@@ -212,7 +212,10 @@ export interface NetTeamListViewModel {
 interface DivisionFilterOption {
   value: string;
   label: string;
-  count: number;
+  // Canonical appearance count for the division, not a unique-team count: a team
+  // recurs across events, so this can exceed the unique-team total on the page.
+  // Rendered with an explicit "appearances" unit so it is never read as teams.
+  appearanceCount: number;
   selected: boolean;
 }
 
@@ -527,11 +530,11 @@ export const netService = {
 
     const divisionRows = netTeams.listDivisionOptions.all() as NetDivisionOptionRow[];
     const divisionOptions: DivisionFilterOption[] = [
-      { value: '', label: 'All divisions', count: 0, selected: !division },
+      { value: '', label: 'All divisions', appearanceCount: 0, selected: !division },
       ...divisionRows.map(r => ({
         value:    r.canonical_group,
         label:    GROUP_LABELS[r.canonical_group] || r.canonical_group,
-        count:    r.appearance_count,
+        appearanceCount: r.appearance_count,
         selected: r.canonical_group === division,
       })),
     ];

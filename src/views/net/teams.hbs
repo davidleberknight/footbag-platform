@@ -19,7 +19,7 @@
       Division
       <select name="division" data-auto-submit>
         {{#each content.divisionOptions}}
-        <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}{{#if count}} ({{count}}){{/if}}</option>
+        <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}{{#if appearanceCount}} ({{appearanceCount}} appearances){{/if}}</option>
         {{/each}}
       </select>
     </label>

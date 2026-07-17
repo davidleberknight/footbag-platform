@@ -1235,7 +1235,7 @@ function operatorAddLabel(row: FreestyleTrickModifierRow | undefined): string | 
 // card or operator-reference entry, so their index row + stub still describe
 // themselves once the shared advanced-reference is off the operators page.
 const MODIFIER_EXECUTION_NOTES: Readonly<Record<string, string>> = {
-  symple: 'Starts as symposium, but mid-component the non-symple foot returns to the ground. The shorthand "symp" can mean symposium or symple, whichever the component naturally is.',
+  symple: 'Symposium is the established operator. The historical tokens Symple and symp also appear in source material, but two things are unresolved: whether Symple names a distinct movement, and whether symp means anything beyond an abbreviation of Symposium.',
   muted:  'An active leg held in the air for an entire component without planting. Mostly used for dexes, but applies to other components too.',
 };
 
@@ -3850,7 +3850,7 @@ const GLOSSARY_ABBREVIATIONS: FreestyleGlossaryAbbreviations = {
     { short: 'PDX',      meaning: 'Paradox (dex relationship).' },
     { short: 'SS',       meaning: 'Same side / near. Component on the plant-foot side.' },
     { short: 'OP',       meaning: 'Opposite / far. Component on the non-plant-foot side.' },
-    { short: 'SYMP',     meaning: 'Symposium, or symple; context decides.' },
+    { short: 'SYMP',     meaning: 'Abbreviation of Symposium. Also appears in the historical token Symple, whose status as a distinct operator is unresolved.' },
     { short: 'DLO',      meaning: 'Double Leg Over.' },
     { short: 'ATW',      meaning: 'Around-the-World.' },
     { short: 'DATW',     meaning: 'Double Around-the-World.' },
@@ -10563,41 +10563,64 @@ export const freestyleService = {
   },
 
   trickRouteRedirectTarget(slug: string): string | null {
-    // A trick slug is a single lowercase underscore token with no hyphens, so a
-    // hyphenated request is a legacy or mistyped form. Normalize it to the
-    // underscore slug and 301 there when that slug resolves to a real trick,
-    // alias, or migrated set, rather than 404 on the hyphen form.
-    if (slug.includes('-')) {
-      const underscored = slug.replace(/-/g, '_');
-      if (underscored !== slug) {
-        const underscoreResolves =
-          isRouteMigratedSet(underscored) ||
-          !!runSqliteRead('freestyleTricks.categoryBySlug', () =>
-            freestyleTricks.categoryBySlug.get(underscored)) ||
-          !!runSqliteRead('freestyleTrickAliases.getCanonicalForAlias', () =>
-            freestyleTrickAliases.getCanonicalForAlias.get(underscored));
-        if (underscoreResolves) return `/freestyle/tricks/${underscored}`;
+    // Resolve the full redirect chain in one pass so any hyphenated spelling,
+    // alias, alias-of-alias, or retired-with-survivor slug lands on the terminal
+    // active canonical URL in a single 301, never a chain of hops. A visited set
+    // and a bounded depth make a cyclic or malformed alias chain terminate
+    // cleanly (fall through to a controlled 404) rather than loop or throw.
+    const MAX_HOPS = 8;
+    const visited = new Set<string>();
+    let current = slug;
+    let moved = false; // whether we have left the originally requested slug
+
+    for (let hop = 0; hop < MAX_HOPS; hop++) {
+      if (visited.has(current)) break; // cycle guard
+      visited.add(current);
+
+      // A trick slug is a single lowercase underscore token with no hyphens, so a
+      // hyphenated request is a legacy or mistyped form: normalize and re-resolve.
+      if (current.includes('-')) {
+        const underscored = current.replace(/-/g, '_');
+        if (underscored !== current) {
+          current = underscored;
+          moved = true;
+          continue;
+        }
       }
+
+      // A migrated set or a modifier/operator lives on its own route; redirect there.
+      if (isRouteMigratedSet(current)) return `/freestyle/sets/${current}`;
+      const row = runSqliteRead('freestyleTricks.categoryBySlug', () =>
+        freestyleTricks.categoryBySlug.get(current) as { category: string | null; is_active: number } | undefined,
+      );
+      if (row && (row.category === 'modifier' || row.category === 'operator')) {
+        return `/freestyle/modifier/${current}`;
+      }
+
+      // An active canonical trick is the terminal target. Redirect to it only when
+      // we arrived here from a different requested slug; an active canonical always
+      // renders at its own URL, one canonical URL per trick.
+      if (row && row.is_active === 1) {
+        return moved ? `/freestyle/tricks/${current}` : null;
+      }
+
+      // Not an active canonical row: a pure alias, or a slug shadowing an inactive
+      // archived row. Follow its alias edge and keep resolving toward the canonical.
+      const alias = runSqliteRead('freestyleTrickAliases.getCanonicalForAlias', () =>
+        freestyleTrickAliases.getCanonicalForAlias.get(current) as { trick_slug: string } | undefined,
+      );
+      if (alias && alias.trick_slug !== current) {
+        current = alias.trick_slug;
+        moved = true;
+        continue;
+      }
+
+      // Dead end: unknown slug, or a retired row with no registered survivor.
+      break;
     }
-    if (isRouteMigratedSet(slug)) return `/freestyle/sets/${slug}`;
-    const row = runSqliteRead('freestyleTricks.categoryBySlug', () =>
-      freestyleTricks.categoryBySlug.get(slug) as { category: string | null; is_active: number } | undefined,
-    );
-    if (row && (row.category === 'modifier' || row.category === 'operator')) {
-      return `/freestyle/modifier/${slug}`;
-    }
-    // An active canonical trick always renders at its own slug: never redirect
-    // it, even when an alias row shadows the slug. One canonical URL per trick.
-    if (row && row.is_active === 1) return null;
-    // No active canonical row here: the slug is either a pure trick alias with no
-    // row of its own (a historical name or an abbreviation like atw), or a slug
-    // that shadows only an inactive archived row. Either way the alias URL
-    // permanently redirects to the canonical trick page instead of rendering a
-    // duplicate copy of it under the alias URL.
-    const alias = runSqliteRead('freestyleTrickAliases.getCanonicalForAlias', () =>
-      freestyleTrickAliases.getCanonicalForAlias.get(slug) as { trick_slug: string } | undefined,
-    );
-    if (alias) return `/freestyle/tricks/${alias.trick_slug}`;
+
+    // No live canonical was reached: render the original slug, which the detail
+    // service turns into a controlled 404 when it has no active row or record.
     return null;
   },
 
