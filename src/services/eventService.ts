@@ -570,7 +570,12 @@ export class EventService {
 
     return {
       seo: { title: `${year} Events` },
-      page: { sectionKey: 'events', pageKey: 'events_year_archive', title: `Footbag Events from ${year}` },
+      page: {
+        sectionKey: 'events',
+        pageKey: 'events_year_archive',
+        title: `Completed Events from ${year}`,
+        intro: `Public events from ${year} that have already taken place. For events still to come, see upcoming events.`,
+      },
       navigation: {
         siblings: {
           previous: previousYear !== null ? { label: String(previousYear), href: `/events/year/${previousYear}` } : undefined,
