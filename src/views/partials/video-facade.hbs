@@ -16,9 +16,12 @@
    {{#if media.videoEmbedUrl}}data-embed-url="{{media.videoEmbedUrl}}"{{/if}}
    {{#unless media.videoEmbedUrl}}data-video-src="{{media.videoUrl}}"{{/unless}}
    aria-label="Play video: {{media.videoTitle}}">
+  {{!-- The poster is decorative: the enclosing link already carries the
+        accessible name ("Play video: {title}"), so a non-empty alt here would make
+        assistive tech announce the title twice for one control. --}}
   <img class="video-facade-thumb"
        src="{{media.thumbnailUrl}}"
-       alt="{{media.videoTitle}}"
+       alt=""
        loading="{{#if eager}}eager{{else}}lazy{{/if}}" />
   <span class="video-facade-play" aria-hidden="true">
     <svg viewBox="0 0 24 24" width="48" height="48" focusable="false">

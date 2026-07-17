@@ -1,8 +1,8 @@
 /**
- * The /media hub Member galleries card and the member-galleries list page in
- * the empty state: no member-owned named galleries exist. The card is always
- * shown but renders a "none yet" note with no link until at least one gallery
- * exists, and the list page renders its empty state.
+ * The /media hub Member galleries category and the member-galleries list page in
+ * the empty state: no member-owned named galleries exist. The hub hides the
+ * category until at least one gallery exists (no placeholder), and the list page
+ * renders its empty state.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -21,12 +21,11 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /media (hub) with no member galleries', () => {
-  it('shows the Member galleries card with a "none yet" note and no list-page link', async () => {
+  it('hides the Member galleries category when none exist, with no placeholder or link', async () => {
     const app = createApp();
     const res = await request(app).get('/media');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Member galleries');
-    expect(res.text).toContain('None yet');
+    expect(res.text).not.toContain('None yet');
     expect(res.text).not.toContain('href="/media/member-galleries"');
   });
 });

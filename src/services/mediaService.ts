@@ -946,6 +946,13 @@ export const mediaService = {
         },
       ];
 
+      // Only surface a category that has a live destination. Empty or not-yet-built
+      // categories (Net, Sideline, an empty Member galleries, or an unseeded Related
+      // Sports) are hidden until they have content, so the hub never reads as a
+      // list of "Coming soon" / "None yet" placeholders. Each reappears the moment
+      // its href resolves (a member creates a gallery, the Net collection is seeded).
+      const liveCards = cards.filter((c) => c.href != null);
+
       return {
         seo: { title: 'Media Galleries' },
         page: {
@@ -954,7 +961,7 @@ export const mediaService = {
           title: 'Footbag Media',
           intro: 'Browse by hashtag or visit named galleries.',
         },
-        content: { cards },
+        content: { cards: liveCards },
       };
     });
   },

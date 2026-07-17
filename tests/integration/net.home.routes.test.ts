@@ -271,4 +271,16 @@ describe('GET /net — portal landing sections', () => {
     expect(res.text).toContain('target="_blank"');
     expect(res.text).toContain('rel="noopener noreferrer"');
   });
+
+  it('gives each video facade one accessible name: the play link is labelled and the poster is decorative', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net');
+    // The play link carries the accessible name.
+    expect(res.text).toMatch(/aria-label="Play video: [^"]+"/);
+    // The poster image is decorative (empty alt), so the name is not announced
+    // twice for one control. No facade thumbnail carries a non-empty alt.
+    expect(res.text).toContain('class="video-facade-thumb"');
+    expect(res.text).not.toMatch(/class="video-facade-thumb"[^>]*\salt="[^"]+"/);
+    expect(res.text).not.toMatch(/alt="[^"]*"[^>]*class="video-facade-thumb"/);
+  });
 });

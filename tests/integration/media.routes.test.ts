@@ -257,25 +257,27 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /media (hub)', () => {
-  it('renders six equal-size media cards, browse-by-hashtag leading and Member galleries second', async () => {
+  it('renders only categories with a live destination; empty categories are hidden, not shown as placeholders', async () => {
     const app = createApp();
     const res = await request(app).get('/media');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Footbag Media');
-    const cardCount = (res.text.match(/class="media-hub-card/g) || []).length;
-    expect(cardCount).toBe(6);
-    for (const title of ['Browse by hashtag', 'Member galleries', 'Freestyle', 'Net', 'Sideline', 'Related Sports']) {
+    // Live categories: browse-by-hashtag leads, Member galleries (seeded here),
+    // and Freestyle. Each carries a real destination.
+    for (const title of ['Browse by hashtag', 'Member galleries', 'Freestyle']) {
       expect(res.text).toContain(title);
     }
     expect(res.text).toContain('href="/media/browse"');
-    // The freestyle cards collapse into one card opening the shared section.
     expect(res.text).toContain('href="/freestyle/media"');
-    // The browse-by-hashtag card is the same size as its siblings but carries a
-    // distinct green accent and leads the grid; Member galleries sits second.
     expect(res.text).toContain('media-hub-card--browse');
     expect(res.text.indexOf('Browse by hashtag')).toBeLessThan(res.text.indexOf('Member galleries'));
-    // Compare against a card-only title ('Freestyle' also appears in the nav).
-    expect(res.text.indexOf('Member galleries')).toBeLessThan(res.text.indexOf('Related Sports'));
+    // Not-yet-built categories are withheld until they have content: their cards
+    // and the old "Coming soon" / "None yet" placeholders never render on the hub.
+    // (Card descriptions are unique to the cards, so this does not trip on nav text.)
+    expect(res.text).not.toContain('Net footage, instructional content');
+    expect(res.text).not.toContain('Sideline and circle-kicking footage');
+    expect(res.text).not.toContain('Coming soon');
+    expect(res.text).not.toContain('None yet');
   });
 
   it('folds curated tricks, shred, photos, and the discipline taxonomy out of the primary grid', async () => {
