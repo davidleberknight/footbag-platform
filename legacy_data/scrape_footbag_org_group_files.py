@@ -43,6 +43,7 @@ import csv
 import getpass
 import logging
 import re
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -209,8 +210,36 @@ def fetch_file_metadata(session: requests.Session, file_id: int) -> tuple[dict |
     original_filename = unquote(parsed["file_href"].rstrip("/").rsplit("/", 1)[-1])
     parsed["original_filename"] = original_filename
     parsed["file_url"] = urljoin(BASE_URL, quote(parsed["file_href"], safe="/:%"))
+    parsed["content_length"] = fetch_content_length(session, parsed["file_url"])
 
     return parsed, None
+
+
+def fetch_content_length(session: requests.Session, file_url: str, timeout: int = 15) -> str:
+    """Best-effort file size in bytes via HEAD, without downloading the body.
+
+    Falls back to a streamed GET closed immediately after the headers arrive,
+    in case the server doesn't support HEAD on this path. Returns "" if
+    neither reports a Content-Length (server omitted it, or both requests
+    failed) — the caller should not assume "" means empty.
+    """
+    try:
+        resp = session.head(file_url, timeout=timeout, allow_redirects=True)
+        length = resp.headers.get("Content-Length")
+        if length is not None:
+            return length
+    except requests.RequestException:
+        pass
+
+    try:
+        with session.get(file_url, timeout=timeout, stream=True) as resp:
+            return resp.headers.get("Content-Length", "")
+    except requests.RequestException:
+        return ""
+
+
+def free_disk_bytes(path: Path) -> int:
+    return shutil.disk_usage(path).free
 
 
 def download_file(session: requests.Session, file_url: str, dest_path: Path, timeout: int = 60) -> int:
@@ -229,7 +258,7 @@ def write_metadata_csv(path: Path, rows: list[dict]) -> None:
     fieldnames = [
         "file_id", "page_url", "page_title", "group_id", "group_name",
         "uploader_name", "uploaded_date", "description", "original_filename",
-        "file_url", "local_path",
+        "file_url", "content_length", "local_path",
     ]
     with path.open("w", encoding="utf-8", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
@@ -247,7 +276,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--metadata-only", action="store_true",
         help="Parse and record each showfile page without downloading the linked file. "
-             "Use this to sanity-check the parser over a range before downloading everything.",
+             "Use this to sanity-check the parser, and see the total content_length across "
+             "a range, before downloading everything.",
+    )
+    parser.add_argument(
+        "--min-free-mb", type=int, default=200,
+        help="Stop the crawl (without downloading further files) if free disk space on "
+             "--files-dir would drop below this many MB. Default: 200.",
     )
     parser.add_argument(
         "--dump-html", type=int, default=None, metavar="FILE_ID",
@@ -304,6 +339,19 @@ def main() -> int:
 
         row["local_path"] = ""
         if not args.metadata_only:
+            min_free_bytes = args.min_free_mb * 1024 * 1024
+            needed_bytes = int(row["content_length"]) if row["content_length"].isdigit() else 0
+            free_bytes = free_disk_bytes(args.files_dir)
+            if free_bytes - needed_bytes < min_free_bytes:
+                log.error(
+                    "file %d: only %.1f MB free on %s (need ~%.1f MB for this file plus a "
+                    "%d MB buffer) — stopping crawl rather than risk filling the disk. "
+                    "Free up space and rerun with --start %d to resume.",
+                    file_id, free_bytes / 1024**2, args.files_dir, needed_bytes / 1024**2,
+                    args.min_free_mb, file_id,
+                )
+                break
+
             time.sleep(DELAY_SECONDS)
             dest_path = args.files_dir / local_filename(file_id, row["original_filename"])
             try:
@@ -316,17 +364,28 @@ def main() -> int:
                 time.sleep(DELAY_SECONDS)
                 continue
         else:
-            log.info("file %d: %r (metadata only)", file_id, row["original_filename"])
+            log.info(
+                "file %d: %r (metadata only, content_length=%s)",
+                file_id, row["original_filename"], row["content_length"] or "unknown",
+            )
 
         result_rows.append(row)
         time.sleep(DELAY_SECONDS)
 
     write_metadata_csv(args.out, result_rows)
 
+    known_sizes = [int(r["content_length"]) for r in result_rows if r["content_length"].isdigit()]
+    unknown_count = len(result_rows) - len(known_sizes)
+    total_mb = sum(known_sizes) / 1024**2
+
     log.info(
         "Done: %d file(s) captured, %d skipped. Wrote %s%s",
         len(result_rows), len(skipped), args.out,
         "" if args.metadata_only else f" and saved files under {args.files_dir}",
+    )
+    log.info(
+        "Total size of %d file(s) with a known content_length: %.1f MB (%d file(s) had no reported size)",
+        len(known_sizes), total_mb, unknown_count,
     )
     if skipped:
         log.info("Skipped IDs: %s", ", ".join(f"{fid} ({reason})" for fid, reason in skipped))
