@@ -806,6 +806,15 @@ function resolveItemSet(ctx: GalleryContext, mediaId: string): ResolvedItemSet {
 // modulo the ordered set; lifts the item's `#by_<slug>` tag to an uploader chip
 // linked to that member's gallery, lifts `#curated` to a curated-collection
 // attribution, and renders the remaining hashtags as browseable chips.
+// Shared decision for the caption-correction overlay: an item carries the mask
+// when it is one of the demo-mosaic clips, whose burnt-in lower-left caption is
+// obsolete. Keyed on the item's own tags so the gallery tile, the detail viewer,
+// and prev/next navigation all reach the same answer from one place, with the
+// clean title always coming from the media record's caption.
+function itemCarriesMosaicCaption(tagDisplays: readonly string[]): boolean {
+  return tagDisplays.some((d) => d.toLowerCase() === MOSAIC_CAPTION_TAG);
+}
+
 function buildItemPage(
   ctx: GalleryContext,
   mediaId: string,
@@ -841,6 +850,9 @@ function buildItemPage(
 
   const adapter = getMediaStorageAdapter();
   const item = shapeItem(row, [], (k) => adapter.constructURL(k));
+  // The detail viewer reuses the gallery tile's caption-correction overlay so
+  // the obsolete burnt-in caption never reappears when an item is opened.
+  item.captionMask = itemCarriesMosaicCaption(itemTagRows.map((t) => t.tag_display));
   const showPager = n > 1;
   // The item's own title. When the item is viewed within a named gallery the
   // hero shows the gallery name and this sits as a heading above the media;
@@ -1193,8 +1205,9 @@ export const mediaService = {
       const adapter = getMediaStorageAdapter();
       const galleryIdToken = encodeURIComponent(gallery.id);
       // A gallery built from the demo-mosaic clips inherits their burnt-in
-      // lower-left poster caption; mask it per tile with a clean label overlay.
-      const isMosaicGallery = tagRows.some((t) => t.tag_display.toLowerCase() === MOSAIC_CAPTION_TAG);
+      // lower-left poster caption; mask it per tile with a clean label overlay,
+      // using the same decision the detail viewer applies per item.
+      const isMosaicGallery = itemCarriesMosaicCaption(tagRows.map((t) => t.tag_display));
       const items: GalleryItem[] = rows.map((row) => {
         const item = shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k));
         item.itemHref = `/media/${galleryIdToken}/${encodeURIComponent(item.mediaId)}`;

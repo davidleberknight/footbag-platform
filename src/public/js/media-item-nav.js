@@ -22,10 +22,28 @@
     var t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+    // While a clip is fullscreen, arrows and Escape belong to the player /
+    // fullscreen exit, not to item navigation.
+    if (document.fullscreenElement) return;
     if (e.key === 'ArrowLeft') go(prevHref);
     else if (e.key === 'ArrowRight') go(nextHref);
     else if (e.key === 'Escape') go(backHref);
   });
+
+  // Fullscreen the masked wrapper (video plus correction mask together), never
+  // the bare <video>, so the burnt-in caption stays covered in fullscreen.
+  var fsBtn = document.querySelector('.caption-mask-fullscreen');
+  if (fsBtn) {
+    fsBtn.addEventListener('click', function () {
+      var wrap = fsBtn.closest('.gallery-item-media--masked');
+      if (!wrap) return;
+      if (document.fullscreenElement) {
+        if (document.exitFullscreen) document.exitFullscreen();
+      } else if (wrap.requestFullscreen) {
+        wrap.requestFullscreen().catch(function () {});
+      }
+    });
+  }
 
   // Horizontal swipe: drag left reveals the next item, drag right the previous.
   var startX = null;

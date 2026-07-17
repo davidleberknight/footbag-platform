@@ -28,7 +28,7 @@
     return iframe;
   }
 
-  function buildVideo(src) {
+  function buildVideo(src, masked) {
     var video = document.createElement('video');
     video.setAttribute('src', src);
     video.setAttribute('controls', '');
@@ -36,6 +36,13 @@
     video.setAttribute('playsinline', '');
     video.setAttribute('preload', 'metadata');
     video.className = 'video-facade-video';
+    // Corrected mosaic clips carry a burnt-in caption a mask covers. Native video
+    // fullscreen would fullscreen only the bare <video> and drop the mask, so it
+    // is suppressed here; the page provides a wrapper-fullscreen control instead.
+    if (masked) {
+      video.setAttribute('controlsList', 'nofullscreen nodownload');
+      video.setAttribute('disablePictureInPicture', '');
+    }
     return video;
   }
 
@@ -86,7 +93,7 @@
       replacement = buildIframe(vimeoSrc, label);
     } else if (platform === 's3') {
       if (!videoSrc) return;
-      replacement = buildVideo(videoSrc);
+      replacement = buildVideo(videoSrc, !!facade.closest('.caption-mask-frame'));
     } else {
       return;
     }

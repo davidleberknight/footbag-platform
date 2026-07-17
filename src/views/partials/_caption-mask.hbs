@@ -1,0 +1,8 @@
+{{!-- Decorative black mask over a demo-mosaic clip's burnt-in lower-left
+      caption, carrying the clean canonical title. Shared by the gallery tile and
+      the item detail viewer so both surfaces render the identical correction
+      from the same media record. The title also appears as real page text
+      nearby (the tile caption / the detail heading), so the mask is aria-hidden
+      to avoid a duplicate screen-reader announcement, and pointer-events are
+      disabled in CSS so it never intercepts player interaction. --}}
+<span class="gallery-tile-caption-mask" aria-hidden="true">{{caption}}</span>

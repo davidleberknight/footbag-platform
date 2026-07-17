@@ -913,9 +913,81 @@ th.sortable:hover { color: var(--primary); }
   text-align: left;
   /* Solid opaque box over the lower-left corner only: it masks the source
      clip's burnt-in caption that sits there with our own clean label, the same
-     treatment the landing mosaic uses. Sized as a share of the square tile so
-     the cover scales with it. */
+     treatment the landing mosaic uses. Sized as a share of the square content
+     rectangle so the cover scales with it on both the tile and the detail
+     viewer. */
   background: rgba(0, 0, 0, 1);
+  /* Never intercept a click, seek, or keypress meant for the player beneath it;
+     interaction passes straight through to the video. It sits above the video
+     so the burnt-in caption stays covered before, during, and after playback. */
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Detail viewer: pin the corrected clip to its own square content frame so the
+   mask lands on the caption rather than on a letterbox bar. The source clips are
+   1:1, so a square frame preserves their real aspect ratio with no bars and no
+   crop, and the mask percentages match the tile exactly. The rules target the
+   player and its click-to-play replacements so the frame holds through playback. */
+.gallery-item-media--masked {
+  position: relative;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.caption-mask-frame {
+  position: relative;
+  aspect-ratio: 1 / 1;
+}
+.caption-mask-frame > .video-facade,
+.caption-mask-frame > .video-facade-iframe,
+.caption-mask-frame > .video-facade-video,
+.caption-mask-frame > img {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: none;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+}
+/* Project-controlled fullscreen button (native video fullscreen is suppressed
+   for these clips, since it would fullscreen the bare video and drop the mask). */
+.caption-mask-fullscreen {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--white);
+  background: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+}
+.caption-mask-fullscreen:hover,
+.caption-mask-fullscreen:focus-visible {
+  background: rgba(0, 0, 0, 0.8);
+}
+/* Fullscreen: the outer wrapper fills the screen and centers the square frame,
+   so the video and its mask scale together and the mask stays on the caption. */
+.gallery-item-media--masked:fullscreen {
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 1);
+}
+.gallery-item-media--masked:fullscreen .caption-mask-frame {
+  width: auto;
+  height: 100%;
+  max-width: 100vw;
+  aspect-ratio: 1 / 1;
 }
 
 .gallery-tile-tags {

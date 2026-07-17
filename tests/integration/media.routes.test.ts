@@ -379,6 +379,9 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     const fvid = insertVideo(db, { id: 'media_video_found01', platform: 'youtube', caption: 'Toe Delay' });
     attachTag(db, fvid, CURATED_TAG_ID, '#curated');
     attachTag(db, fvid, demoTagId, '#demo_mosaic');
+    const fvid2 = insertVideo(db, { id: 'media_video_found02', platform: 'youtube', caption: 'Clipper Stall' });
+    attachTag(db, fvid2, CURATED_TAG_ID, '#curated');
+    attachTag(db, fvid2, demoTagId, '#demo_mosaic');
     db.close();
   });
 
@@ -466,6 +469,55 @@ describe('GET /media/:galleryId (named gallery)', () => {
     const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('gallery-tile-caption-mask');
+  });
+
+  it('renders the same caption correction on the item detail page (via the gallery route)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/gallery_foundations_of_freestyle/media_video_found01');
+    expect(res.status).toBe(200);
+    // The overlay travels to the detail viewer: the black mask carries the clean
+    // trick name, and the media is pinned to its own square content rectangle so
+    // the mask lands on the caption rather than on a letterbox bar.
+    expect(res.text).toContain('gallery-item-media--masked');
+    expect(res.text).toMatch(/class="gallery-tile-caption-mask"[^>]*>Toe Delay</);
+    // The canonical title is also real page text (a heading), from the same record.
+    expect(res.text).toContain('Toe Delay');
+    // The player is intact alongside the overlay; the source video is untouched.
+    expect(res.text).toContain('class="video-facade"');
+    // The video and mask share a square content frame, and a project fullscreen
+    // control fullscreens that frame (video + mask together) rather than the bare
+    // video, so native video fullscreen cannot reveal the burnt-in caption.
+    expect(res.text).toContain('class="caption-mask-frame"');
+    expect(res.text).toContain('class="caption-mask-fullscreen"');
+    expect(res.text).toContain('aria-label="View this clip fullscreen"');
+  });
+
+  it('renders the same caption correction on the standalone /media/item detail route', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/item/media_video_found01');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('gallery-item-media--masked');
+    expect(res.text).toMatch(/class="gallery-tile-caption-mask"[^>]*>Toe Delay</);
+  });
+
+  it('does not add the overlay to a non-Foundations media detail page', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/item/media_video_pbt01');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('gallery-tile-caption-mask');
+    expect(res.text).not.toContain('gallery-item-media--masked');
+  });
+
+  it('keeps each item-specific overlay across previous/next navigation', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/gallery_foundations_of_freestyle/media_video_found02');
+    expect(res.status).toBe(200);
+    // The second Foundations item carries its own caption in the mask, not the
+    // first item's, and the pager exposes previous/next within the twelve.
+    expect(res.text).toMatch(/class="gallery-tile-caption-mask"[^>]*>Clipper Stall</);
+    expect(res.text).not.toMatch(/class="gallery-tile-caption-mask"[^>]*>Toe Delay</);
+    expect(res.text).toContain('rel="prev"');
+    expect(res.text).toContain('rel="next"');
   });
 
   it('renders the tag-aware empty-state copy when the gallery matches no media', async () => {
