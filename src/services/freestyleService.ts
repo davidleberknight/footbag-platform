@@ -1228,9 +1228,7 @@ function operatorNotation(slug: string, modifierType: string | null | undefined)
 
 function operatorAddLabel(row: FreestyleTrickModifierRow | undefined): string | null {
   if (!row) return null;
-  return row.add_bonus === row.add_bonus_rotational
-    ? `+${row.add_bonus}`
-    : `+${row.add_bonus} / +${row.add_bonus_rotational} rot`;
+  return `+${row.add_bonus}`;
 }
 
 // Execution-mechanic definitions for the no-plant modifiers that have no feel
@@ -2020,9 +2018,7 @@ export interface FreestyleTrickDictEntry {
 export interface AppliedModifier {
   name: string;
   addBonus: number;
-  addBonusRotational: number;
-  isRotationalBase: boolean;
-  effectiveBonus: number;       // the actual bonus applied given whether base is rotational
+  effectiveBonus: number;       // the applied bonus (equals addBonus)
   // Display-only fields for hero quick-stat formula.
   modifierType: string;         // 'body' | 'set' | other; sourced from freestyle_trick_modifiers.modifier_type
   cssRole: string;              // semantic-notation cssRole for token coloration: 'set' | 'rotation' | 'modifier'
@@ -2142,10 +2138,8 @@ export interface EditorialDecompositionModifier {
   slug:           string;
   name:           string;
   modifierType:   string;          // 'body' | 'set'
-  addBonus:       number;          // non-rotational weight from trick_modifiers
-  addBonusRot:    number;          // rotational weight from trick_modifiers
-  effectiveBonus: number;          // selected based on parent's isRotationalBase
-  rotBonusApplied:boolean;         // true iff parent is rotational AND addBonusRot != addBonus
+  addBonus:       number;          // modifier weight from trick_modifiers
+  effectiveBonus: number;          // the applied bonus (equals addBonus)
   notes:          string | null;   // verbatim from trick_modifiers.notes
 }
 
@@ -2155,7 +2149,6 @@ export interface EditorialDecomposition {
   baseSlug:           string | null;
   baseAdds:           number | null;
   baseStatus:         'resolved' | 'broken_link';
-  isRotationalBase:   boolean;
 
   // Modifier composition — drawn from freestyle_trick_modifier_links (strict).
   // Empty when the join table has no rows for this trick — surfaced honestly
@@ -2317,19 +2310,14 @@ function shapeEditorialDecomposition(
   const baseAdds = baseRow && baseRow.adds && /^\d+$/.test(baseRow.adds)
     ? parseInt(baseRow.adds, 10)
     : null;
-  const isRotationalBase = ROTATIONAL_BASES.has(baseSlug);
-
   // Modifier list — strict B1: only the explicit join table.
   const modifiers: EditorialDecompositionModifier[] = modifierLinks.map(link => {
-    const effective = isRotationalBase ? link.add_bonus_rotational : link.add_bonus;
     return {
       slug:           link.modifier_slug,
       name:           link.modifier_name,
       modifierType:   link.modifier_type,
       addBonus:       link.add_bonus,
-      addBonusRot:    link.add_bonus_rotational,
-      effectiveBonus: effective,
-      rotBonusApplied: isRotationalBase && link.add_bonus_rotational !== link.add_bonus,
+      effectiveBonus: link.add_bonus,
       notes:          link.modifier_notes,
     };
   });
@@ -2342,12 +2330,8 @@ function shapeEditorialDecomposition(
     const totalBonus = modifiers.reduce((s, m) => s + m.effectiveBonus, 0);
     composedAdds = baseAdds + totalBonus;
     if (modifiers.length > 0) {
-      const rotSuffix = (m: EditorialDecompositionModifier) => {
-        const rotApplied = isRotationalBase && m.addBonus !== m.addBonusRot;
-        return rotApplied ? ' rot' : '';
-      };
       const parts = modifiers
-        .map(m => `${m.slug}(+${m.effectiveBonus}${rotSuffix(m)})`)
+        .map(m => `${m.slug}(+${m.effectiveBonus})`)
         .join(' + ');
       derivationText = `${parts} + ${baseSlug}(${baseAdds}) = ${composedAdds}`;
     } else {
@@ -2365,7 +2349,6 @@ function shapeEditorialDecomposition(
     baseSlug,
     baseAdds,
     baseStatus,
-    isRotationalBase,
     modifiers,
     modifierCoverage,
     composedAdds,
@@ -4531,9 +4514,6 @@ const FAMILY_NOTES: Record<string, string> = {
     'and food processor (blurry blender).',
 };
 
-// Rotational base tricks, these receive the higher modifier bonus (add_bonus_rotational)
-const ROTATIONAL_BASES = new Set(['whirl', 'mirage', 'torque', 'blender', 'swirl', 'drifter']);
-
 // Slug-keyed lookup for trick-detail Tier-4 disclosure. Built once at
 // module load from the curator-published resolved-formulas content
 // module. Missing slugs return null → silent suppression (Tier-3 absence
@@ -5182,13 +5162,6 @@ const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
   'jani-walker', 'reaper', 'refraction', 'blistering', 'nuclear',
 ]);
 
-// Rotational base tricks for ADD math. Mirrors ROTATIONAL_BASES used in
-// hero-formula building. Modifiers on these bases use add_bonus_rotational
-// instead of add_bonus.
-const FIRST_CLASS_ROTATIONAL_BASES: ReadonlySet<string> = new Set([
-  'whirl', 'mirage', 'torque', 'blender', 'swirl', 'drifter',
-]);
-
 // Curator-published flag-component decompositions for atomic singletons.
 // Each atom's ADD value derives from the count of ATAM bracket-flags in
 // its operational notation (Add-Categories doctrine: every [BOD] / [DEX]
@@ -5552,12 +5525,11 @@ function deriveComputedAdd(
   // Non-finite covers NaN from a non-numeric adds column: the documented
   // "non-numeric ADD" impossible-derivation case, not an arithmetic input.
   if (baseAdd === null || !Number.isFinite(baseAdd)) return null;
-  const isRotational = baseTrick !== null && FIRST_CLASS_ROTATIONAL_BASES.has(baseTrick);
   let total = baseAdd;
   for (const slug of modifierSlugs) {
     const row = modifierTable.get(slug);
     if (!row) return null;
-    total += isRotational ? row.add_bonus_rotational : row.add_bonus;
+    total += row.add_bonus;
   }
   return total;
 }
@@ -5568,23 +5540,16 @@ function deriveComputedAdd(
  * `base + modifiers`. Used by assertFirstClassConvergence when a slug
  * appears in COMPOSITE_DERIVATIONS. Pure function; deterministic;
  * returns null when a modifier slug is missing from the table.
- *
- * Rotational selection: uses the dictRow's base_trick (passed in by
- * the caller) to decide add_bonus vs add_bonus_rotational, NOT the
- * composite base. This is intentional: the rotational/non-rotational
- * choice is a property of the underlying movement frame, not the
- * composite trick chosen as a teaching anchor.
  */
 function deriveComputedAddFromComposite(
   composite: CompositeDerivation,
   modifierTable: Map<string, { add_bonus: number; add_bonus_rotational: number }>,
-  isRotational: boolean,
 ): number | null {
   let total = composite.compositeBaseAdd;
   for (const slug of composite.additionalModifiers) {
     const row = modifierTable.get(slug);
     if (!row) return null;
-    total += isRotational ? row.add_bonus_rotational : row.add_bonus;
+    total += row.add_bonus;
   }
   return total;
 }
@@ -5647,12 +5612,9 @@ export function assertFirstClassConvergence(
     };
   }
   // H5 + H6: three-way convergence (executable derivation == computed == official)
-  const isRotational = dictRow.base_trick !== null
-    && dictRow.base_trick !== undefined
-    && FIRST_CLASS_ROTATIONAL_BASES.has(dictRow.base_trick);
   let computed: number | null;
   if (composite) {
-    computed = deriveComputedAddFromComposite(composite, modifierTable, isRotational);
+    computed = deriveComputedAddFromComposite(composite, modifierTable);
   } else if (isAtomic) {
     computed = officialAdd;
   } else {
@@ -5781,9 +5743,7 @@ function bandCardsByAdd(
 // → atomic flag decomposition → mechanical modifier-link derivation
 // (sum-verified against canonical adds) → null (caller renders bare "ADD: N").
 // Never fabricates: the modifier-link branch only emits when the component
-// sum equals the row's canonical ADD, guarding against rotational-bonus
-// mismatches and other drift.
-const ADD_FORMULA_ROTATIONAL_BASES = new Set(['mirage', 'whirl', 'torque', 'blender', 'swirl', 'drifter']);
+// sum equals the row's canonical ADD, guarding against drift.
 function deriveAddViewFormula(
   row: FreestyleTrickRowWithStatus,
   indexRow: FreestyleTrickIndexRow,
@@ -5800,11 +5760,10 @@ function deriveAddViewFormula(
       && ctx?.addsBySlug && Number.isFinite(totalAdds)) {
     const baseAdds = ctx.addsBySlug.get(baseSlug);
     if (baseAdds !== undefined) {
-      const baseRotational = ADD_FORMULA_ROTATIONAL_BASES.has(baseSlug);
       const parts: string[] = [];
       let sum = baseAdds;
       for (const m of links) {
-        const bonus = baseRotational ? m.addBonusRotational : m.addBonus;
+        const bonus = m.addBonus;
         parts.push(`${m.name}(+${bonus})`);
         sum += bonus;
       }
@@ -6406,19 +6365,15 @@ function shapeDictEntry(
 
   if (hasBase && baseTrick && !isModifier) {
     const modifierSlugs = extractModifierSlugs(row.canonical_name, baseTrick);
-    const isRotational  = ROTATIONAL_BASES.has(baseTrickSlug ?? '');
-
     appliedModifiers = modifierSlugs
       .map(slug => {
         const mod = modifierMap.get(slug);
         if (!mod) return null;
-        const effectiveBonus = isRotational ? mod.add_bonus_rotational : mod.add_bonus;
+        const effectiveBonus = mod.add_bonus;
         const cssRole = modifierCssRole(mod.slug, mod.modifier_type);
         return {
           name:                mod.modifier_name,
           addBonus:            mod.add_bonus,
-          addBonusRotational:  mod.add_bonus_rotational,
-          isRotationalBase:    isRotational,
           effectiveBonus,
           modifierType:        mod.modifier_type,
           cssRole,
@@ -6556,7 +6511,6 @@ function buildHeroFormula(
   modifierLinks: FreestyleTrickModifierLinkDetailRow[],
   baseTrick: string | null,
   baseAdds: string | null,
-  isRotationalBase: boolean,
   tricksAdds: string | null,
 ): HeroFormulaToken[] | null {
   if (isModifier) return null;
@@ -6582,9 +6536,7 @@ function buildHeroFormula(
     if (i > 0) {
       tokens.push({ kind: 'operator', isOperator: true, isResult: false, text: '+', weight: null, cssRole: null });
     }
-    const effectiveBonus = isRotationalBase
-      ? link.add_bonus_rotational
-      : link.add_bonus;
+    const effectiveBonus = link.add_bonus;
     tokens.push({
       kind:    'modifier',
       isOperator: false,
@@ -6621,7 +6573,6 @@ function buildModifierLayering(
   modifierLinks: FreestyleTrickModifierLinkDetailRow[],
   baseTrick: string | null,
   baseAdds: string | null,
-  isRotationalBase: boolean,
   tricksAdds: string | null,
   isModifier: boolean,
 ): ModifierLayering | null {
@@ -6645,9 +6596,7 @@ function buildModifierLayering(
   // as the outermost wrapper.
   for (let i = modifierLinks.length - 1; i >= 0; i--) {
     const link = modifierLinks[i];
-    const effectiveBonus = isRotationalBase
-      ? link.add_bonus_rotational
-      : link.add_bonus;
+    const effectiveBonus = link.add_bonus;
     const cssRole = modifierCssRole(link.modifier_slug, link.modifier_type);
     layer = {
       kind:    'modifier',
@@ -7967,7 +7916,6 @@ export const freestyleService = {
                 modifierLinks,
                 dictEntry.baseTrick,
                 dictEntry.baseTrickAdds,
-                ROTATIONAL_BASES.has(dictEntry.baseTrickSlug ?? ''),
                 dictEntry.adds,
               )
             : null,
@@ -7983,7 +7931,6 @@ export const freestyleService = {
                 modifierLinks,
                 dictEntry.baseTrick,
                 dictEntry.baseTrickAdds,
-                ROTATIONAL_BASES.has(dictEntry.baseTrickSlug ?? ''),
                 dictEntry.adds,
                 dictEntry.isModifier,
               )

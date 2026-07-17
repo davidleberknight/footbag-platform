@@ -322,3 +322,28 @@ describe('assertFirstClassConvergence — guardrails (H1-H3)', () => {
     expect(result.diagnostic).toContain('awaiting');
   });
 });
+
+describe('assertFirstClassConvergence — legacy atomic-rotational path is retired', () => {
+  // paradox-mirage is a published resolved-formula slug whose base, mirage, was
+  // one of the former "rotational bases". Give paradox a rotational weight that
+  // DIFFERS from its flat weight. Every real modifier now carries equal weights,
+  // so a divergent probe is the only way to prove the computation reads the flat
+  // weight: the retired rotational branch would have scored the rotational +7 and
+  // reported a governance-blocked mismatch (mirage 2 + 7 != 3), while the flat
+  // path scores +1 and the published 3 ADD still converges.
+  const divergentParadox = new Map<string, { add_bonus: number; add_bonus_rotational: number }>([
+    ['paradox', { add_bonus: 1, add_bonus_rotational: 7 }],
+  ]);
+
+  it('scores paradox on the rotational base mirage by its flat +1, keeping paradox-mirage convergent', () => {
+    const result = assertFirstClassConvergence(
+      'paradox_mirage',
+      { canonical_name: 'paradox mirage', adds: 3, base_trick: 'mirage', notation: 'PARADOX MIRAGE' },
+      ['paradox'],
+      divergentParadox,
+      2,
+    );
+    expect(result.status).not.toBe('governance-blocked');
+    expect(result.status).toBe('first-class');
+  });
+});
