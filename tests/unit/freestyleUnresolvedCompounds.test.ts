@@ -13,7 +13,6 @@ import {
 describe('freestyleUnresolvedCompounds', () => {
   it('declares the curator-authored pilot set verbatim', () => {
     const expected = new Set([
-      'rev_up',
       'reaper',
       'surreal',
       'montage',
@@ -41,9 +40,9 @@ describe('freestyleUnresolvedCompounds', () => {
     expect(isUnresolvedCompound('')).toBe(false);
   });
 
-  it('pilot size is exactly 6 (restraint contract)', () => {
+  it('pilot size is exactly 5 (restraint contract)', () => {
     // Pilot is small by design. A growing list signals unbounded doctrine
     // accumulation and should prompt curator review before the count increases.
-    expect(UNRESOLVED_COMPOUNDS.size).toBe(6);
+    expect(UNRESOLVED_COMPOUNDS.size).toBe(5);
   });
 });

@@ -226,7 +226,7 @@ const DIFFICULTY_ARCHITECTURE_TERMS: readonly ComboAnalysisArchitectureTerm[] = 
   {
     anchorId:   'difficulty-plateau',
     term:       'Difficulty plateau',
-    definition: 'The observation that competitive maximum-ADD appears to have plateaued around 2008, with no clearly documented increase since. This may reflect a biomechanical ceiling rather than a scoring choice, though whether the limit is the body\'s or a matter of what has been documented is not settled. The documented structural ceiling is 8 ADD; a reported 9 is disputed and is not treated as a verified clean performance.',
+    definition: 'The observation that competitive maximum-ADD appears to have plateaued around 2008, with no clearly documented increase since. This may reflect a biomechanical ceiling rather than a scoring choice, though whether the limit is the body\'s or a matter of what has been documented is not settled. Carousel (Surging Ducking Paradox Symposium Whirling Rake) is currently the only video-documented 8-ADD trick. Close contenders are Surging Ducking Paradox Blender and Surging Ducking Paradox Torque. Nine-ADD tricks have been reported but not verified.',
   },
 ];
 

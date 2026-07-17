@@ -62,6 +62,31 @@ silently reshaping either side.
   toe (their prose already correct). Canonical home: the public teaching copy in
   `src/content/freestyleCoreAtomEducational.ts` and the family cards, with the
   per-component marker rule in `POSITIONAL_IDENTITY.md`.
+- **Double-drifter cells preserve the drifter lead** (maintainer ruling). High Plains
+  Drifter and Toe Double Drifter are the clipper-set and toe-set cells of one
+  double-drifter structure; both keep the drifter base's opposite-side inward lead dex
+  (`OP IN`). High Plains Drifter's lead was corrected from `SAME IN` to `OP IN` to match
+  its footbag.org source and the toe-set sibling; names, clipper terminal, and 4 ADD
+  unchanged. Home: the high-plains-drifter operational-notation correction, regression
+  in `tests/unit/freestyle-drifter-paradon-doctrine.test.ts`.
+- **Pixie Paradon is not a paradon** (maintainer ruling). The paradon family is defined
+  by its clipper terminal, but Pixie Paradon resolves on a toe delay, so its paradon
+  family assignment is cleared and left blank. Its positive identity/name is a separate
+  open evidence question (its source form ended in a back swirl onto toe that a later
+  pass flattened); it is not renamed, merged, or aliased. Home: a null-clear family
+  correction on the row.
+- **Clipper Symposium Whirl is a symposium whirl** (curator; answered by shipped
+  structure). `CLIP > SAME SYMP [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]`, whirl family,
+  4 ADD (symposium +1 on whirl); no data change.
+- **Osis-suffix compositional default** (curator). An osis-suffix compound terminates in
+  the osis spin-to-clipper structure after its preceding material. This is a
+  compositional default only; it does not by itself author or settle every osis-suffix
+  row, and the separate osis spin-polarity, side-relationship, and catch-interpretation
+  questions stay open.
+- **Blink's back-swirl path token is a narrow documented exception** (curator). Blink
+  ships at 2 ADD with a `BACK SWIRL` path token outside the ratified in/out path
+  vocabulary, sanctioned as a Blink-specific exception. It does not open a general
+  rotational-path register or ratify the provisional Atlas path vocabulary.
 - **Timing can individuate operators** (latest timing clarification). Red's latest
   timing clarification settles the tested pairs: Atomic is an uptime set and
   Illusioning is a distinct downtime move, so they do not merge; hippy Atomic and
@@ -151,14 +176,15 @@ Each lives as a row (with pt-cited provenance) in the curated CSVs; the notable 
   "Quantum Mirage" equivalence, whose math did not close).
 - Quantum is the modern naming replacing the older "toe" prefix (pt2); toe-X names
   are aliases of quantum-X canonicals.
-- Omelette = Illusioning Pickup (pt6). The clause that "illusioning since merged
-  into atomic" (the reason "atomic pickup" reads as omelette's alias) is
-  **superseded by the latest timing clarification:** Atomic and Illusioning are
-  distinct (Atomic uptime, Illusioning downtime), so the omelette / atomic-pickup
-  relationship rests on the alias data as it stands, not on a merge. The pt6
-  identity (Omelette = Illusioning Pickup) is unaffected; the open alias-rebind
-  question remains in `RED_QUEUE.md`, and the "atomic pickup" alias is audited
-  before any rewire.
+- Omelette = Illusioning Pickup (pt6); Omelette resolves to the atomic_illusion
+  canonical. The earlier reading that "atomic pickup" is Omelette's alias (on the
+  ground that "illusioning merged into atomic") is **superseded** by the later
+  formula-identity ruling: Atomic and Illusioning are distinct (Atomic uptime,
+  Illusioning downtime), and the **Atomic Pickup structural identity is
+  scrambled_eggbeater, not Omelette**. That structural-target question is settled; no
+  public "atomic pickup" alias is registered in this pass (none exists, and alias
+  publication needs direct naming evidence independent of the superseded Omelette
+  association).
 - Flail = Symposium Illusion (pt6). Fury = Furious Paradox Mirage (pt6, replacing
   the pt4 decomposition). Merkon = spinning legover (pt5). Smog = Pixie Double Leg
   Over, Smudge = Pixie Illusion, Haze = Stepping Double Leg Over (pt7). Smoke =
@@ -167,10 +193,12 @@ Each lives as a row (with pt-cited provenance) in the curated CSVs; the notable 
 - The surging compounds (pt2): Bigwalk = Surging Butterfly, Surge = Surging Paradox
   Mirage, Surreal = Surging Paradox Whirl, Surgery = Surging Symposium Reverse
   Whirl, Venom = Surging Barfly.
-- Jani Walker (pt8): ADD ruled without structure — Red declined the footbag.org
-  "Barraging Butterfly" reading; the row is active on ADD authority with structure
-  deferred (the ADD-without-structure activation precedent), and the structure sits
-  on the open rider list.
+- Jani Walker (pt8 + curator): ADD ruled without structure originally (Red declined
+  the footbag.org "Barraging Butterfly" reading; the row activated on ADD authority);
+  the structure is now authored and answered
+  (`CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]`, 5 ADD).
+  Only the Sidewinder = fairy gyro Jani Walker identity remains open, held as a
+  source/Red rider (not established by inference alone).
 - Terrage and Barrage are standalone AND compositional; Merkon is standalone;
   Sidewalk, Tombstone, Flail, and Omelette are common names that belong in the
   dictionary; Royale and Ripstein are primary entries; Eclipse counts its hop-over

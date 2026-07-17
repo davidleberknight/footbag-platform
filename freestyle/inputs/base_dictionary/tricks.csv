@@ -54,7 +54,6 @@ atomic torque,5,torque,compound,silo,Atomic-modified torque.
 spinning torque,6,torque,compound,marius,Spinning-modified torque.
 spinning symposium whirl,6,whirl,compound,,Spinning-modified symposium whirl.
 rev whirl,3,whirl,dex,reverse whirl|revwhirl,Reverse-direction whirl.
-rev up,3,whirl,dex,revup|rev-up,reverse whirl variant
 spinning osis,4,osis,compound,,Spinning-modified osis.
 ducking osis,4,osis,compound,,Ducking-modified osis.
 stepping osis,4,osis,compound,,Stepping-modified osis.

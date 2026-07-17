@@ -20,7 +20,7 @@
  *      render WITHOUT the gloss.
  *
  *   4. Unresolved-compound pill — cards for curator-flagged folk-
- *      derived slugs (rev_up / reaper / surreal / montage /
+ *      derived slugs (reaper / surreal / montage /
  *      surgery) render the "decomposition under review" pill;
  *      other cards do not.
  *
@@ -92,7 +92,6 @@ beforeAll(async () => {
 
   // ── Curator-flagged unresolved-compound pilot rows ─────────────────────
   // Each row in this set should render the pending-decomposition pill.
-  insertFreestyleTrick(db, { slug: 'rev_up',     canonical_name: 'rev up',     adds: '3', base_trick: 'whirl',     trick_family: 'whirl',     category: 'compound' });
   insertFreestyleTrick(db, { slug: 'tomahawk',   canonical_name: 'tomahawk',   adds: '5', base_trick: 'whirl',     trick_family: 'whirl',     category: 'compound' });
   insertFreestyleTrick(db, { slug: 'surreal',    canonical_name: 'surreal',    adds: '6', base_trick: 'whirl',     trick_family: 'whirl',     category: 'compound' });
   insertFreestyleTrick(db, { slug: 'montage',    canonical_name: 'montage',    adds: '7', base_trick: 'whirl',     trick_family: 'whirl',     category: 'compound' });
@@ -229,7 +228,7 @@ describe('Unresolved-compound pill', () => {
     // card must carry the pending-pill marker. tomahawk is not in
     // UNRESOLVED_COMPOUNDS (its decomposition is settled), so it is
     // excluded here.
-    for (const slug of ['rev_up', 'reaper', 'surreal', 'montage', 'surgery']) {
+    for (const slug of ['reaper', 'surreal', 'montage', 'surgery']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx, `${slug} card should render`).toBeGreaterThan(-1);
       // Look for the pending-pill class within a short window after the

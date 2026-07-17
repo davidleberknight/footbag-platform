@@ -30,7 +30,6 @@ pixie_dso,retype,technical,0,abbreviation for pixie_double_switch_over
 plo,retype,technical,0,abbreviation for pixie_legover
 pogo_dlo,retype,technical,0,abbreviation for pogo_double_leg_over
 ps_whirl,retype,technical,0,abbreviation for paradox_symposium_whirl
-revup,retype,suppressed,0,points to inactive trick rev_up
 shooting_dlo,retype,technical,0,abbreviation for shooting_double_leg_over
 spyro_pickup,retype,suppressed,0,points to inactive trick pandora
 stepping_dlo,retype,technical,0,abbreviation for haze

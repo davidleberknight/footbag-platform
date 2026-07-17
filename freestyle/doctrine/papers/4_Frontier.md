@@ -86,12 +86,10 @@ It is also where two questions the other papers deferred come to rest: whether a
   scoring rule already resolves. This is the whole ADD-ceiling question in one
   case: publishing a first 9 would mean reversing a settled rule, not filling a
   gap.
-- **Carousel, the undefined-operator 9.** Surging Ducking Paradox Symposium
-  Whirling Rake is likewise listed at 9, but its ninth point rests on the
-  `surging` operator, which the grammar has not defined. The platform publishes 8
-  and holds the ninth point pending a structural definition of surging — not a
-  settled rule this time, but the attestation premise: an undefined operator is
-  not a scored one.
+- **Carousel, the documented 8.** Carousel (Surging Ducking Paradox Symposium
+  Whirling Rake) is currently the only video-documented 8-ADD trick. Close
+  contenders are Surging Ducking Paradox Blender and Surging Ducking Paradox
+  Torque. Nine-ADD tricks have been reported but not verified.
 - **Thigh Catch, the unnamed-structure case.** A between-the-thighs catch is
   mechanically admissible — unusual-surface stalls are canonical vocabulary — but
   no tracked source attests it under any name. Under the attestation premise it
