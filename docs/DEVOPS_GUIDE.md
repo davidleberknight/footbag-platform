@@ -85,8 +85,11 @@ If any prerequisite is missing, complete the named onboarding section before pro
 
 ### 1.3 Where credentials and facts live
 
-The values an operator needs are sensitive or environment-specific, and none are committed to the repository.
-Each lives in one of a few well-known places; this guide names the place, never the value.
+The values an operator needs are sensitive or environment-specific, and none are committed to this repository.
+Each lives in one of a few well-known places; this guide names the place, never the value. The durable record
+of the concrete facts themselves (account, identities, resource inventory, connection details, constraints) is
+the maintainers' private AWS operations reference; this guide points to it by section title wherever a
+procedure needs a concrete fact.
 
 | What you need | Where it lives | How to get it |
 |---|---|---|
@@ -339,11 +342,15 @@ Resolution order:
 If SSH access fails:
 
 - verify the instance is running and that you are using the correct public IP or static IP
-- verify the Lightsail firewall still permits port 22 from your current approved source IP or CIDR
+- verify the Lightsail firewall still permits the SSH ports from your current approved source IP or CIDR
 - verify you are using the correct named host account
 - verify you are using the correct private key and that the matching public key is still installed on the host
 - verify the host account has not been disabled or had `sudo` removed
 - if emergency access requires a temporary firewall change, document the reason and narrow the rule again immediately after recovery
+
+The concrete connection facts (the operator SSH port and why it exists, the SSH alias shape, the firewall
+port map, and the browser-SSH break-glass) live in the maintainers' private AWS operations reference,
+section "Connecting to the staging host (SSH)".
 
 ### 5.6 Standard log-collection commands
 
@@ -634,9 +641,10 @@ The ordered sequence for standing up a staging or production environment from pr
 
 ## 7. AWS Account and Resource Map
 
-Every AWS resource the platform depends on, what it is for, and the section that operates it. Concrete
-account IDs, IP addresses, and bucket names are operator-local and are never committed; this map names
-resource roles, not literal identifiers.
+Every AWS resource the platform depends on, what it is for, and the section that operates it. This map
+names resource roles, not literal identifiers; the concrete identifiers (account ID, static IP, bucket
+names, key ARNs, distribution ID) live in the maintainers' private AWS operations reference, section
+"Resource inventory".
 
 | Resource | Role | Operated in |
 |---|---|---|
@@ -719,7 +727,7 @@ AWS Console sign-in for any IAM operator user requires three credential elements
 2. IAM user name.
 3. Password and a time-based one-time-password (TOTP) MFA code.
 
-The account ID, password, and TOTP seed for each operator's IAM user are held in the project's operator credential vault (see `docs/DEV_ONBOARDING.md` §4.7), managed in KeePassXC. The vault stores the TOTP seed alongside the password, so the same tool that autofills the password also generates each MFA code.
+The account ID, password, and TOTP seed for each operator's IAM user are held in the project's operator credential vault (see `docs/DEV_ONBOARDING.md` §4.7), managed in KeePassXC. The vault stores the TOTP seed alongside the password, so the same tool that autofills the password also generates each MFA code. The account facts themselves (account ID, root email, regions, operator identity and CLI profile) live in the maintainers' private AWS operations reference, section "Account".
 
 - Vault access is restricted to current project maintainers. Volunteer turnover requires explicit vault handoff through a private, unarchived channel. Never share the vault file or its master key over email, chat, any repository, or any archived medium.
 - Root sign-in is reserved for account recovery and billing. Do not use root for routine operations. See `docs/DEV_ONBOARDING.md` §4.5 for root MFA setup.
@@ -747,13 +755,9 @@ Lightsail does not support EC2 instance profiles. The runtime AWS principal is a
 
 #### Why this credential model
 
-Lightsail has no EC2 instance profile, the single hardest AWS constraint on this project: every runtime AWS call (SSM, KMS, S3, SES) needs credentials from one of three sources, and the project deliberately uses the first.
+Lightsail has no EC2 instance profile, the single hardest AWS constraint on this project: every runtime AWS call (SSM, KMS, S3, SES) needs credentials from one of three sources, and the project deliberately uses the source-profile IAM user + AssumeRole chain — simple, no agent, no startup network dependency, with the long-lived source-profile key as the accepted, rotated trade-off. The full evaluation record of the three paths (including why SSM Hybrid Activation and IAM Roles Anywhere were rejected, with the operational gotchas found in evaluation) lives in the maintainers' private AWS operations reference, section "Credential paths".
 
-- **Source-profile IAM user + AssumeRole chain (chosen).** Long-lived source-profile keys at `/root/.aws/credentials` (root-owned, 0600); the app assumes `app-runtime` via `sts:AssumeRole`. Simple, no agent, no startup network dependency. Keys rotate per §10.7.
-- **SSM Hybrid Activation (evaluated, not used).** Registers the host as a managed node so the SSM Agent vends 30-minute credentials with no long-lived keys and full CloudTrail per call. Rejected for operational weight and risk: the Agent runs as root and caches credentials under `/root/.aws/` readable by any root process; it carries a real CVE history needing ongoing patching; refresh needs continuous outbound reach to the SSM endpoints (a network blip past expiry drops AWS access with no cached fallback); and `AmazonSSMManagedInstanceCore` grants Run Command / Session Manager that a compromised node can pivot through, so it must be scoped to a custom least-privilege role.
-- **IAM Roles Anywhere (rejected).** Requires operating a certificate authority (managed Private CA is roughly $400/month, self-managed CA is high operational burden); disproportionate for this footprint.
-
-Anti-patterns to reject: do not mount the human operator's CLI credentials into containers; do not place a single-consumer secret (such as the session-signing key) in Parameter Store, which adds an AWS dependency without reducing attack surface.
+Anti-patterns to reject: do not mount the human operator's CLI credentials into containers.
 
 ### 8.5 Operator shell access
 
@@ -776,7 +780,7 @@ Host shell access is exceptional. It exists for deployment, restore, patching, d
 - Every shell session must have a clear reason: deployment, incident, restore, patching, diagnostic verification, or drill.
 - Lightsail Console browser SSH is a permanent supplement to CLI SSH, declared in HCL via the `lightsail-connect` source-IP alias on port 22. It provides stable shell access when the operator workstation IP changes faster than `operator_cidrs` can be updated (mobile networks, VPN, transient ISP DHCP). The browser path requires AWS Console MFA on the operator identity plus the host's authorized public key; it does not bypass per-operator account isolation, key custody rules, or sudo discipline. Use the CLI path for routine administration; switch to the browser path when the CLI path is unavailable from the current network.
 - Standard connection pattern: `ssh -i ~/.ssh/<keyfile> -p 2222 <operator-user>@<static-ip>`. Use port 22 only if your network does not block it.
-- If port 2222 stops responding after an instance rebuild (sshd not yet configured to listen on it), recover through the Lightsail Console browser SSH: log in, then re-add the port and reload sshd (append-only, never an in-place edit): `printf 'Port 22\nPort 2222\n' | sudo tee -a /etc/ssh/sshd_config >/dev/null && sudo systemctl reload sshd`.
+- If port 2222 stops responding after an instance rebuild (sshd not yet configured to listen on it), recover through the Lightsail Console browser SSH; the exact append-only sshd re-add command lives in the maintainers' private AWS operations reference, section "Connecting to the staging host (SSH)".
 
 #### Operator checklist
 
@@ -965,13 +969,7 @@ Do not mock the DB to reproduce these states locally; the outbox schema constrai
 
 ### 9.6 Lightsail operational constraints
 
-Lightsail differs from EC2 in ways that shape day-to-day operation:
-
-- **One namespace for instances and static IPs.** A Lightsail static IP and instance cannot share a name; the static IP carries an `-ip` suffix to stay distinct from its instance. A name clash fails the apply with `InvalidInputException: Some names are already in use`.
-- **No public DNS hostname.** Lightsail does not vend a public DNS name (`publicDnsName` is always empty), and CloudFront requires a resolvable origin hostname rather than a raw IP. Staging therefore uses `<static-ip>.nip.io` as the origin host; production uses a real DNS A record (for example `origin.footbag.org`). Never use nip.io in production.
-- **No `user_data`.** Lightsail has no cloud-init user-data hook; host bootstrap is performed manually over SSH (the host bootstrap steps live in `DEV_ONBOARDING.md` Path D).
-- **No EC2 instance profile.** The runtime AWS principal is a source-profile IAM user plus an AssumeRole chain, not an attached instance role (§8.4).
-- **Firewall is Terraform-managed.** Inbound rules come from `operator_cidrs` in `lightsail.tf`; changes made in the Lightsail console are silently overwritten on the next `terraform apply` (§8.5, §11.4).
+Lightsail differs from EC2 in five ways that shape day-to-day operation: instances and static IPs share one name namespace (the static IP carries an `-ip` suffix to stay distinct); there is no public DNS hostname (staging uses a `<static-ip>.nip.io` origin for CloudFront, production uses a real DNS A record, never nip.io); there is no `user_data` hook (host bootstrap is manual over SSH); there is no EC2 instance profile (the runtime principal is the source-profile + AssumeRole chain, §8.4); and the firewall is Terraform-managed via `operator_cidrs` (console edits are silently overwritten on the next apply; §8.5, §11.4). The constraint set with its concrete values and failure symptoms lives in the maintainers' private AWS operations reference, sections "Resource inventory" and "Non-negotiable constraints".
 
 ---
 
@@ -1625,7 +1623,7 @@ Host-level CPU / memory / disk metrics come from the Amazon CloudWatch agent, in
    ```
 3. `shred -u /tmp/cwagent-keys.json`.
 
-The agent runs in onPremise mode using the publisher user's long-lived keys at `/etc/amazon-cloudwatch-agent.aws/credentials` (root-owned, 0600), because the agent does not honor source-profile chaining. Known gotcha: `amazon-cloudwatch-agent-ctl -a fetch-config` may reject the JSON config; `sudo systemctl restart amazon-cloudwatch-agent` is the working path. The agent emits telegraf-native dimensions, so scope alarms by the emitted dims. Once metrics flow, arm the alarms by flipping the `enable_cwagent_alarms` Terraform variable.
+The agent runs in onPremise mode using the publisher user's long-lived keys, because the agent does not honor source-profile chaining; the wiring facts and known gotchas (credential file location, the fetch-config rejection, the telegraf-native dimensions that alarms must scope by) live in the maintainers' private AWS operations reference, section "CloudWatch agent (staging monitoring wiring)". Once metrics flow, arm the alarms by flipping the `enable_cwagent_alarms` Terraform variable.
 
 ---
 
@@ -1639,7 +1637,7 @@ The platform's longer-term design intent is an automated CI/CD deploy pipeline t
 
 **Why the workstation builds the images.** The host has too little memory to run `docker compose build`: a parallel web+worker build peaks well above the small Lightsail bundle's RAM and has OOM-killed the host (taking out sshd). Images are therefore built on the operator workstation and shipped via `docker save | ssh | docker load`; `footbag.service` runs `compose up --no-build` (detached) and fails fast if an image is missing rather than triggering a host-side build. The deploy feeds the host `sudo` password over stdin at every hop, never in process argv; the residual risks it does not close are a plaintext operator-credential file at rest and same-uid memory inspection on the workstation.
 
-**Recovering a host OOM.** The tell is that the Lightsail control plane reports the instance `running` with ports `open` while every TCP connection from the workstation times out. Recover with a cold `aws lightsail stop-instance` followed by `start-instance` (more reliable than `reboot-instance`, which can re-trigger a boot-loop OOM if the service was enabled at the time).
+**Recovering a host OOM.** The tell is that the Lightsail control plane reports the instance `running` with ports `open` while every TCP connection from the workstation times out. Recover with a cold stop then start, never a reboot (a reboot can re-trigger a boot-loop OOM if the service was enabled at the time); the exact commands live in the maintainers' private AWS operations reference, section "Deploy".
 
 ### 13.1.1 CI responsibilities
 
@@ -2390,7 +2388,7 @@ source_profile = footbag-operator
 region         = us-east-1
 ```
 
-The operator-IAM-user keys are already in `~/.aws/credentials` for the operator profile; no new long-lived key material on the workstation. The chained AssumeRole into the staging runtime role inherits operator credentials at AWS-API call time. `mfa_serial` is intentionally omitted: the runtime role's permissions are a strict subset of the operator's `AdministratorAccess`, so MFA on this chained AssumeRole adds no defense beyond what the operator already carries. To require MFA prompts on this profile, add `mfa_serial = arn:aws:iam::<account-id>:mfa/<operator-mfa-device>`.
+The operator-IAM-user keys are already in `~/.aws/credentials` for the operator profile; no new long-lived key material on the workstation. The chained AssumeRole into the staging runtime role inherits operator credentials at AWS-API call time. `mfa_serial` is intentionally omitted: the runtime role's permissions are a strict subset of the operator's `AdministratorAccess`, so MFA on this chained AssumeRole adds no defense beyond what the operator already carries. To require MFA prompts on this profile, add `mfa_serial = arn:aws:iam::<account-id>:mfa/<operator-mfa-device>`. The filled-in stanza with the real account ID lives in the maintainers' private AWS operations reference, section "Staging AWS wiring smoke test (concrete wiring)".
 
 #### Invocation
 
