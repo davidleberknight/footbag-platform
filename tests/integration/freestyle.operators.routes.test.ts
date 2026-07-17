@@ -137,6 +137,16 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(res.text).toContain('id="alpine"');
   });
 
+  it('names Furious as the canonical two-dex set, not barraging', async () => {
+    // The operator authority holds that Furious is the canonical two-dex uptime
+    // set and barraging is only a legacy name for it. The decomposition summary
+    // must match that and must not present barraging as an active set of its own.
+    const res = await request(await createApp()).get('/freestyle/operators');
+    expect(res.text).toMatch(/Furious is the canonical two-dex/i);
+    expect(res.text).toMatch(/barraging is a legacy name for it/i);
+    expect(res.text).not.toMatch(/barraging as a two-dex set/i);
+  });
+
   // Paradox is taught definition-first (a side relationship between the support
   // leg and the dex), with the classic entry formula shown as the concrete
   // example, not the definition. The brackets are a short notation vocabulary,
