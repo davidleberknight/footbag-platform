@@ -362,6 +362,11 @@ export interface ClubLeader {
 
 export interface PublicClubDetail extends PublicClubSummary {
   description: string;
+  // True when a legacy free-text description carries embedded personal data
+  // (member lists, names, or contact handles) and has been withheld from the
+  // anonymous public shell, shown to logged-in members only. The template then
+  // renders an archival note in place of the description.
+  descriptionGated: boolean;
   countrySlug: string;
   members: ClubMemberSummary[]; // full roster: confirmed members plus 'pending' legacy affiliations labeled unconfirmed
   leaders: ClubLeader[];
@@ -544,6 +549,62 @@ function toClubLeader(row: BootstrapLeaderRow): ClubLeader {
   return leader;
 }
 
+// Legacy club descriptions are free-text imports that sometimes embed member
+// lists, personal names, or contact handles. Governance keeps club rosters and
+// contact data member-only and off public surfaces, so a description carrying
+// that class of data is withheld from the anonymous shell and shown to logged-in
+// members only. This flags the descriptions that carry it. It deliberately errs
+// toward flagging: a false positive only member-gates a benign blurb, while a
+// miss would leak personal data, so the signals are inclusive.
+const DESC_EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+const DESC_IM_HANDLE = /\b(?:aim|msn|icq|skype|snap(?:chat)?|insta(?:gram)?|ig|kik|whatsapp)\b\s*:?\s*\S/i;
+const DESC_ROSTER_LABEL = /\b(?:members?|roster|players?|line-?up|crew|local)\s*:/i;
+const DESC_CONTACT_NAME = /\bcontact\s+[A-Z][a-z]+/;
+const DESC_NAME_PAIR = /\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/g;
+
+function descriptionMentionsIndividuals(text: string): boolean {
+  if (!text) return false;
+  if (
+    DESC_EMAIL.test(text) ||
+    DESC_IM_HANDLE.test(text) ||
+    DESC_ROSTER_LABEL.test(text) ||
+    DESC_CONTACT_NAME.test(text)
+  ) {
+    return true;
+  }
+  // A phone-like run: nine or more digits once separators are stripped, inside a
+  // plausible phone shape, so a year or a short count does not trip it.
+  const phone = text.match(/\+?\d[\d\-().\s]{7,}\d/);
+  if (phone && phone[0].replace(/\D/g, '').length >= 9) return true;
+  // Three or more consecutive First-Last capitalized pairs read as a name roster
+  // even without a label (e.g. "Mike Stoler Greg Grandy Sam Gregory").
+  const namePairs = text.match(DESC_NAME_PAIR);
+  if (namePairs && namePairs.length >= 3) return true;
+  return false;
+}
+
+// Directory discovery ordering: a visitor browsing "find a club near you" should
+// meet live clubs first, with dormant and archival records sinking so the archive
+// never dominates discovery. Live clubs (known leadership) lead, member-activity
+// clubs follow, then active-but-empty "Needs update" rows, then deactivated
+// "Historical club" rows. Records stay listed and searchable, just lower. Equal
+// rank falls back to alphabetical.
+function clubDiscoveryRank(s: PublicClubSummary): number {
+  switch (s.vitality.statusLabel) {
+    case 'Historical club': return 3;
+    case 'Needs update':    return 2;
+    case 'Member activity': return 1;
+    default:                return 0;
+  }
+}
+
+function byClubDiscovery(a: PublicClubSummary, b: PublicClubSummary): number {
+  return (
+    clubDiscoveryRank(a) - clubDiscoveryRank(b) ||
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  );
+}
+
 function toPublicClubDetail(
   row: PublicClubRow,
   vitality: ClubVitalitySignals,
@@ -555,6 +616,7 @@ function toPublicClubDetail(
     ...summary,
     leaders,
     description: row.description,
+    descriptionGated: false,
     countrySlug: slugifyCountry(row.country),
     members,
     viewerIsMember: false,
@@ -982,13 +1044,13 @@ export class ClubService {
           .map((region) => ({
             region,
             regionSlug: slugifyRegion(region),
-            clubs: regionMap.get(region)!,
+            clubs: regionMap.get(region)!.sort(byClubDiscovery),
           }));
       } else {
         regions = [{
           region: null,
           regionSlug: null,
-          clubs: matchedRows.map(buildSummary),
+          clubs: matchedRows.map(buildSummary).sort(byClubDiscovery),
         }];
       }
 
@@ -1109,6 +1171,15 @@ export class ClubService {
       // no template branch can leak them. Vitality above still counts the
       // full leader set; its chips render only in the curator panel.
       const club = toPublicClubDetail(row, vitality, members, isAuthenticated ? leaders : []);
+
+      // A legacy free-text description that embeds member lists or contact data
+      // is roster/contact-class data: member-only, never on the anonymous shell.
+      // Withhold it here at the data level (no template branch can leak it) and
+      // let the view render an archival note; logged-in members see the full text.
+      if (!isAuthenticated && descriptionMentionsIndividuals(club.description)) {
+        club.description = '';
+        club.descriptionGated = true;
+      }
 
       // Leaderless = no live co-leader. Bootstrap/affiliation provisional
       // entries are historical display, not operational leadership, so they do

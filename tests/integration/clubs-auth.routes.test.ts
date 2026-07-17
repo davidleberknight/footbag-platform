@@ -131,6 +131,37 @@ beforeAll(async () => {
     resolution_status:        'pending',
   });
 
+  // A club whose legacy free-text description embeds a member list and contact
+  // handles: the same class of data the roster gate protects.
+  insertClub(db, {
+    id:   'club-legacy-desc-001',
+    name: 'Roster Blurb Club',
+    city: 'Los Angeles',
+    country: 'USA',
+    description:
+      'Members: Mike Stoler Greg Grandy Sam Gregory Chad Devlahovich. ' +
+      'Contact Chris Pinkus to get in touch, or by AIM: toeshred.',
+    hashtag_tag_id: insertTag(db, {
+      tag_normalized: '#club_rosterblurb',
+      tag_display:    '#club_rosterblurb',
+      standard_type:  'club',
+    }),
+  });
+
+  // A club with an ordinary description that names no individuals: stays public.
+  insertClub(db, {
+    id:   'club-clean-desc-001',
+    name: 'Clean Blurb Club',
+    city: 'Denver',
+    country: 'USA',
+    description: 'We meet every Saturday at the park for casual kicking. All levels welcome.',
+    hashtag_tag_id: insertTag(db, {
+      tag_normalized: '#club_cleanblurb',
+      tag_display:    '#club_cleanblurb',
+      standard_type:  'club',
+    }),
+  });
+
   db.close();
   const mod = await import('../../src/app');
   createApp = mod.createApp;
@@ -174,6 +205,37 @@ describe('GET /clubs/club_evergreen — unauthenticated', () => {
     const app = createApp();
     const res = await request(app).get('/clubs/club_evergreen');
     expect(res.text).not.toContain('Phantom Unresolved');
+  });
+});
+
+describe('legacy club description privacy', () => {
+  it('withholds a description that embeds a member list or contact data from anonymous viewers', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_rosterblurb');
+    expect(res.status).toBe(200);
+    // None of the embedded personal data reaches the anonymous shell.
+    expect(res.text).not.toContain('Mike Stoler');
+    expect(res.text).not.toContain('Chris Pinkus');
+    expect(res.text).not.toContain('toeshred');
+    expect(res.text).not.toContain('AIM');
+    // In its place, an archival note.
+    expect(res.text).toContain('imported historical description that names individual people');
+  });
+
+  it('shows the full legacy description to a logged-in member', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/clubs/club_rosterblurb')
+      .set('Cookie', authCookie());
+    expect(res.text).toContain('Mike Stoler');
+    expect(res.text).toContain('Chris Pinkus');
+  });
+
+  it('leaves an ordinary description that names no individuals public', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_cleanblurb');
+    expect(res.text).toContain('every Saturday at the park');
+    expect(res.text).not.toContain('imported historical description');
   });
 });
 

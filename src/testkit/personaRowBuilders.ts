@@ -377,6 +377,7 @@ export interface ClubOverrides {
   id?: string;
   hashtag_tag_id?: string;
   name?: string;
+  description?: string;
   city?: string;
   region?: string | null;
   country?: string;
@@ -417,10 +418,11 @@ export function insertClub(db: BetterSqlite3.Database, o: ClubOverrides = {}): s
       id, hashtag_tag_id, name, description, city, region, country,
       external_url, external_url_validated_at, external_url_quarantine_reason, status,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, tagId,
     o.name         ?? 'Test Club',
+    o.description  ?? '',
     o.city         ?? 'Testville',
     o.region       !== undefined ? o.region : null,
     o.country      ?? 'USA',

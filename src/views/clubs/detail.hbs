@@ -37,6 +37,12 @@
     </div>
     {{/if}}
 
+    {{#if content.club.descriptionGated}}
+    <div class="club-detail-description">
+      <p class="text-muted">This club has an imported historical description that names individual people. It is shown to logged-in members only.</p>
+    </div>
+    {{/if}}
+
     {{#if content.club.contentEditHref}}
     <section class="mt-4">
       <div class="section-heading"><h2>Edit club content</h2></div>
