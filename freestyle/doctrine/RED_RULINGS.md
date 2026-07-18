@@ -110,7 +110,18 @@ silently reshaping either side.
 - **Multiplicity is descriptive unless community usage stabilizes a name** (pt3).
   "Double / Triple X" describes repeated dexterity or body-spin events; it earns a
   canonical row only on stabilized named identity (double-leg-over yes; Double
-  Fairy no).
+  Fairy no). James-ratified identity/publication threshold: a count-prefixed form
+  earns its own canonical row only when evidence supports a stabilized trick
+  identity rather than a literal instruction to repeat a movement — either stable
+  community use of the count form as the trick's own independent name, or a
+  structural reason it must be represented independently (anchoring a family or
+  base, carrying established descendants, or resolving a decomposition ambiguity).
+  Otherwise the count stays a descriptive multiplicity on the base and earns no
+  row; double-over-down, double-leg-over, the stabilized double-spinning forms, and
+  triple-mirage qualify, while records-only counts such as Double Dyno and Double
+  Whip do not. This governs row identity only: descriptive-multiplicity rendering
+  is handled separately, and the ADD treatment of an unregistered count prefix
+  remains the Red-blocked count-quantifier scoring question.
 - **Inside / outside are naming adjectives, not modifiers** (pt7); "Symp" is
   shorthand for Symposium.
 - **1-ADD delay and body tricks are included** in the dictionary; **Spyro is a

@@ -177,9 +177,15 @@ Each is separable and answered on its own.
   dex read `SAME OUT [PDX]`, or preserve the base's `OP OUT`? The corpus applies
   paradox inconsistently (paradox drifter, paradox mirage, and paradox torque keep
   the base `OP`; paradox whirl flips to `SAME`), so direction is not mechanically
-  decidable. (b) Are the two `>>` no-plant atomic links intentional structural
-  markers or notation drift, given plain reverse drifter uses a single `>`? The
-  canonical row is unchanged pending the answer.
+  decidable. (b) [Resolved, James source-intent read: no canonical correction
+  warranted.] The two `>>` no-plant links are structurally valid and corpus-attested:
+  a no-plant entry off a clipper set appears in ripstein, mobius, and bullwhip, and a
+  no-plant dex directly into a clipper terminal appears in tapping clipper
+  (`TOE > OP OUT [DEX] >> SAME CLIP [XBD] [DEL]`), Royale's exact second-link shape.
+  Link markers add no ADD (Royale remains 4). The corpus cannot prove the author's
+  intent, but absence of that proof is not evidence of drift; the curated notation
+  stands unless a primary source contradicts it. Only (a), the reverse-drifter dex
+  direction, remains open; the canonical row is unchanged.
 - **Down-family embedded-base coordinate frame.** Red has ruled the downs one family
   (a single structural decomposition with set and foot variants), which settles the
   grid; what remains is one line of doctrine: which coordinate frame names the

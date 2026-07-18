@@ -17,7 +17,11 @@ inherits them.
   `[DEX]`, `[BOD]`, `[XBD]`, `[PDX]`, `[DEL]`, `[UNS]`, `[XDEX]` — counts one, and
   the count equals the published ADD.
 - **Ratified surface conventions.** Side compression is the single-slash
-  `SAME/OP`; `IN/OUT` is the separate direction axis. Scored body verbs are bare
+  `SAME/OP`; `IN/OUT` is the separate direction axis. Folk inward/outward
+  directional words map directly onto that axis: inward is `IN`, outward is `OUT`.
+  They express ordinary dex direction, are translated to `IN/OUT` at authoring, do
+  not constitute a separate path register, and authorize no new notation tokens.
+  Scored body verbs are bare
   caps (`SPIN`, `DUCK`, `JUMP`); parenthetical annotations are lowercase
   (`(back)`, `(no plant while)`, `(land)`). `>>` is a major sequence boundary,
   `>` a continuous sub-step; the two never collapse.
@@ -241,10 +245,7 @@ deliberately leaves them for their own rulings.
    contract settles it, and every rake compound then composes defined operators onto
    that base. Snowflake needs it now; a larger parser-section band of rake compounds
    follows. (Red.)
-2. **The directional tokens in folk names.** Are the unresolved inward/outward-style
-   tokens some folk names carry (the alpine rows) sanctioned path vocabulary, and
-   how do they map onto the ratified IN/OUT terms? (Red.)
-3. **Inward on a gyro.** What does an inward qualifier denote on a gyro, where the
+2. **Inward on a gyro.** What does an inward qualifier denote on a gyro, where the
    base already carries its own OUT direction? It decides the withdrawn Inward Gyro
    batch. (Red.)
 
