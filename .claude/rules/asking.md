@@ -35,7 +35,11 @@ Multi-step analysis is not grounds to ask; only genuine undeterminability is.
 Read-only investigation needs no permission: git reads, DB SELECTs, curl GETs, file
 listings, `--help`, compile-checks — run them, never ask. Ask the human only when
 materially different interpretations survive the sources, or the call needs an external
-fact, an IFPA/governance authority, or a human preference the design does not determine.
+fact, an IFPA/governance authority, a human preference the design does not determine, or
+the task would create or choose a canonical artifact the design does not already fix: a
+new document, the single home for a body of content, or the relocation or consolidation
+of content between documents. This last case is always the human's; never settle it by
+picking the most plausible option. Name the choice and ask, one decision at a time.
 When two or more interpretations genuinely remain, name each and stop; push back when the
 evidence warrants rather than defaulting to the human's framing.
 

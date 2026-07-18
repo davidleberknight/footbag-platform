@@ -14,48 +14,48 @@ Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 
 - **Humans:** read [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md)
 - **AI tools:** read [PROJECT_SUMMARY_CONCISE.md](PROJECT_SUMMARY_CONCISE.md)
-- **Active work, planning, and operations docs** live in a private maintainers' repository: the issue board and bug tracker, private planning, and the operations documentation these docs cite by name (`DEVOPS_GUIDE.md`, `AWS_OPERATIONS.md`, `VAULT_GOVERNANCE.md`, all in that private repo). It is private for member-data privacy and is not needed to build, test, or contribute code.
+
+**Active project planning, operations, and anything private or otherwise not suitable for this public GitHub repo** live in a private repository. This includes the`DEVOPS_GUIDE.md`, `AWS_OPERATIONS.md,`the GitHub Issues task-tracking board, separate bug tracking, and more. The separate repo also holds archived and private data, and IFPA-internal docs and archives.
 
 ## Current Project State
 
-A lot of functionality is done and deployed on AWS. This is the baseline for ongoing work.
+Most functionality required for Go-Live is done and deployed on AWS. This is the baseline for ongoing work.
 
-- Soon we will begin planning the final sprint, looking to go live!
+Sneak Preview (AWS Staging): [https://doye1nvv64qep.cloudfront.net/](https://doye1nvv64qep.cloudfront.net/)
+
+- We are actively revising the User Stories to define the Minimum Viable Product (MVP) scope. We will add some new stories with the goal to fully eliminate the need to keep the legacy site running in parallel.
+
+## Claude Code
+
+- See [CLAUDE.md](CLAUDE.md) for our bespoke harness operating rules. The AI always loads this file first.
+
+- See also docs/CLAUDE_CODE_GUIDE.md. This doc explains how our custom harness works, and all the rules, skills, guardrails, question-asking preferences, and authorization approval control (human in the loop rules). Note that our harness endeavors to force Claude Code to follow all the documentated design decisions and user stories with maximum token efficiency using progressive disclosure and Anthropic guidelines.
 
 ## Contributing
 
-- [CONTRIBUTING.md](CONTRIBUTING.md).
-- [docs/DATA_GOVERNANCE.md](docs/DATA_GOVERNANCE.md) (security, privacy, and historical data publication policy).
-- [SECURITY.md](SECURITY.md) for vulnerability reporting (private disclosure path).
-- See [CLAUDE.md](CLAUDE.md) for Claude Code's standard operating rules.
 - Talk to Dave.
-
-## Reporting Bugs and Issues
-
-The tracker for bug reports and active work is a private maintainers' repository, a kanban-style issue board, kept private because test evidence can involve member data. Invited testers and project contributors: report problems to the maintainers, who file and track them there.
-
-End-user questions about the legacy footbag.org site or the upcoming modernized site belong with the IFPA contact channel, not here.
-
-**Do not report security vulnerabilities in public.** Use the private disclosure path in [SECURITY.md](SECURITY.md) instead.
-
-Each bug fix lands with a regression test in the same PR.
+- You can run this code locally by cloning this repo, but to contribute you must have an invitation to the private repo. 
+- [CONTRIBUTING.md](CONTRIBUTING.md).
+- [SECURITY.md](SECURITY.md) for vulnerability reporting (Bug reporting is in the separate private GitHub repo).
+- **Do not report security vulnerabilities in public.** 
 
 ## Project Documentation
 
-- [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md): how the Claude Code harness works, why it is built that way, and how it meets Anthropic best practice. Required reading before contributing with Claude Code: the harness governs what AI-written code must follow and what it is allowed to do.
+- [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md): our bespoke harness governs what rules the AI-written code must follow.
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md): data model and schema semantics.
 - [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md): architectural decisions and rationale.
-- [docs/DEV_ONBOARDING.md](docs/DEV_ONBOARDING.md): developer setup and onboarding.
-- [docs/DIAGRAMS.md](docs/DIAGRAMS.md): architecture diagrams.
+- [docs/DEV_ONBOARDING.md](docs/DEV_ONBOARDING.md): developer setup and onboarding, but not contributing (refer to private GitHub repo).
+- [docs/DIAGRAMS.md](docs/DIAGRAMS.md): solution architecture diagrams.
 - [docs/GLOSSARY.md](docs/GLOSSARY.md): terminology and jargon.
 - [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md): go-live readiness steps: data migration, and validation gates.
 - [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md): project overview.
 - [docs/TESTING.md](docs/TESTING.md): testing strategy and methodology.
 - [docs/USER_STORIES.md](docs/USER_STORIES.md): intended functional behaviors and success criteria.
+- DEVOPS_GUIDE.md and AWS_OPERATIONS.md are private.
 
 ## Technology Stack
 
-TypeScript · Node.js · Express · Handlebars · SQLite · AWS (Lightsail, S3, SES, CloudFront) · Docker · Terraform · Stripe 
+TypeScript · Node.js · Express · Handlebars · SQLite · AWS (Lightsail, S3, SES, CloudFront, Route53) · Docker · Terraform · Stripe 
 
 ## License and Trademarks
 

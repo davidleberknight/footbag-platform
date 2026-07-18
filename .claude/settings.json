@@ -145,7 +145,6 @@
     ],
     "deny": [
       "Edit(./footbag_legacy_repo/**)",
-      "Write(./footbag_legacy_repo/**)",
       "Edit(./.env)",
       "Edit(./.env.local)",
       "Edit(./.env.production)",

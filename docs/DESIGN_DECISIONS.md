@@ -1257,7 +1257,7 @@ Impact:
 
 - `A_Manage_Admin_Role` (US §6.6) covers the steady-state grant flow and is enforced in the app.
 
-- Dev/staging bootstrap mechanism is operator-facing; the workstation file and deploy-pipeline plumbing are documented in DEV_ONBOARDING.
+- Dev/staging bootstrap mechanism is operator-facing; the workstation file and deploy-pipeline plumbing are documented in AWS_OPERATIONS.md (private GitHub repo).
 
 - Production bootstrap mechanism is operator-facing; the SSM-token provisioning and claim flow are documented in DEVOPS_GUIDE.md (private GitHub repo).
 
