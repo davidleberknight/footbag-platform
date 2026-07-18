@@ -24,21 +24,26 @@
 <div class="wrapper">
   <section class="content-section">
     <p>
-      Modifiers are the transformations that turn one trick into many: a spin, a
-      duck, a paradox layered onto a base. Each row below shows the modifier's
-      type, its ADD weight, and its status. To see the tricks a modifier
-      produces, follow <em>Browse tricks</em> into the
-      <a href="/freestyle/tricks?view=movement-system">By Movement System</a>
-      view; for set systems as first-class objects, see the
+      Operators are the movement ideas a player applies to a trick: a spin, a
+      duck, a paradox layered onto a base. They are different from notation
+      components such as <code>[PDX]</code> or <code>[XBD]</code>, which only
+      record what happened and are listed separately at the foot of this page.
+      Each row below is a compact directory entry: the operator's type, its ADD
+      weight, and its status. Open <em>View details</em> for the full teaching
+      page, or <em>Browse tricks</em> to see the tricks an operator produces. For
+      set systems as first-class objects, see the
       <a href="/freestyle/sets">Set Encyclopedia</a>.
     </p>
+  </section>
 
+  <section class="content-section">
+    <h2 class="section-heading">Established operators by structural role</h2>
     {{#each content.indexAxes}}
+    {{#unless provisional}}
     <section class="operator-index-axis" id="axis-{{axisKey}}" aria-label="{{axisName}}">
-      <h2 class="section-heading">{{axisName}}</h2>
+      <h3 class="section-heading">{{axisName}}</h3>
       <div class="dict-trick-row-stack">
         {{#each modifiers}}
-        {{#if subFamilyLabel}}<p class="operator-subfamily-label">{{subFamilyLabel}}</p>{{/if}}
         <article class="dict-trick-row" id="operator-{{slug}}" data-modifier-slug="{{slug}}">
           <div class="dict-trick-row-head">
             <a class="dict-trick-row-title" href="/freestyle/modifier/{{slug}}">{{name}}</a>
@@ -64,37 +69,72 @@
         {{/each}}
       </div>
     </section>
+    {{/unless}}
     {{/each}}
   </section>
 
-  {{! Per-modifier depth (decomposition, worked examples, structural definition)
-      lives on each modifier's detail page. This tail keeps only the ideas that
-      cut across modifiers. The full per-term reference + its glossary anchors
-      live in the glossary's Modifiers & Operators section. }}
   <section class="content-section">
-    <h2 class="section-heading" id="advanced-decomposition-operator-theory">Operator decomposition</h2>
+    <h2 class="section-heading" id="provisional-vocabulary">Provisional and historical vocabulary</h2>
+    <p>
+      These names are listed for completeness, but they are not ratified
+      operators. Some have no settled definition yet; others have no teaching
+      guide. Each row carries its own status so an unresolved name is never
+      mistaken for an established operator.
+    </p>
+    {{#each content.indexAxes}}
+    {{#if provisional}}
+    <section class="operator-index-axis" id="axis-{{axisKey}}" aria-label="{{axisName}}">
+      <div class="dict-trick-row-stack">
+        {{#each modifiers}}
+        <article class="dict-trick-row" id="operator-{{slug}}" data-modifier-slug="{{slug}}">
+          <div class="dict-trick-row-head">
+            <a class="dict-trick-row-title" href="/freestyle/modifier/{{slug}}">{{name}}</a>
+            <span class="dict-trick-row-hashtag" aria-label="Tag identity">{{hashtag}}</span>
+            <span class="operator-meta-chip">{{typeLabel}}</span>
+            {{#if addLabel}}<span class="operator-meta-chip operator-meta-chip--add">{{addLabel}}</span>{{/if}}
+            <span class="operator-status-pill operator-status-pill--{{status.key}}">{{status.label}}</span>
+          </div>
+          {{#if descriptor}}<p class="operator-row-descriptor">{{descriptor}}</p>{{/if}}
+          <p class="operator-row-links">
+            <a class="operator-row-link" href="/freestyle/modifier/{{slug}}">View details &rarr;</a>
+            <a class="operator-row-link" href="{{{browseHref}}}">Browse tricks &rarr;</a>
+          </p>
+        </article>
+        {{/each}}
+      </div>
+    </section>
+    {{/if}}
+    {{/each}}
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading" id="how-operators-combine">How operators combine</h2>
     <p>
       Compound operators expand into simpler ones: nuclear reads as paradox plus
       illusion, and blurry as stepping paradox. Furious is the canonical two-dex
       uptime set; barraging is a legacy name for it, not a separate set. Each
-      modifier&rsquo;s own decomposition and worked examples live on its detail
-      page (open any row above). The notes below are the few ideas that cut
-      across modifiers rather than belonging to one.
+      operator&rsquo;s own decomposition and worked examples live on its detail
+      page (open any row above).
     </p>
-    <h3 class="section-heading" id="paradox">Paradox</h3>
-    <p>{{content.paradoxDefinition}} It is recorded as <code>[PDX]</code> in notation.</p>
-    <p>The most common example is the paradox entry:</p>
-    <p><code>CLIP &gt; OP IN [DEX]</code></p>
-    <p>Here the opposite-side clipper set creates the paradox relationship before the dex. This is the classic paradox entry topology, but paradox can also occur later in a trick as a mid-trick <code>[PDX]</code> dex.</p>
-    <p>The <a href="/freestyle/modifier/paradox">Paradox detail page</a> is the full reference: the three senses of paradox (operator, dex relationship, and the <code>[PDX]</code> notation component), the operational formula as the entry example, and mid-trick paradox.</p>
-    <p id="alpine">Alpine is a folk name for a trick split into uptime and downtime by an inserted duck or dive; it is not a separate operator. For the movement it inserts, see the <a href="/freestyle/modifier/ducking">Ducking</a> and <a href="/freestyle/modifier/diving">Diving</a> pages.</p>
-    <h3 class="section-heading" id="notation-components">Notation and ADD components</h3>
-    <p>Operators create structural consequences that notation records.</p>
+    <p id="alpine">
+      Alpine is a folk name for a trick split into uptime and downtime by an
+      inserted duck or dive; it is not a separate operator. For the movement it
+      inserts, see the <a href="/freestyle/modifier/ducking">Ducking</a> and
+      <a href="/freestyle/modifier/diving">Diving</a> pages.
+    </p>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading" id="notation-components">Notation components that are not operators</h2>
+    <p>
+      These record what happened during a trick. They are notation and scoring
+      components, not operators a player applies. Their full definitions live in
+      the glossary&rsquo;s Modifiers &amp; Operators section.
+    </p>
     <ul>
       {{#each content.notationVocabulary}}
       <li><code>{{token}}</code>: {{meaning}}</li>
       {{/each}}
     </ul>
-    <p>These describe what happened during the trick. They are notation components, not operators.</p>
   </section>
 </div>

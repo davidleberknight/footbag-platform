@@ -24,49 +24,61 @@ export interface OperatorIndexAxis {
   typeLabel:     string;
   modifierSlugs: readonly string[];
   /**
-   * Optional educational sub-groupings within the axis. Each entry labels the
-   * run of modifiers starting at `firstSlug` (in modifierSlugs order). Pure
-   * presentation grouping; changes no taxonomy.
+   * True for the provisional / historical group: rows whose definition is
+   * unresolved or that have no teaching guide yet. The page renders these in a
+   * section visibly separate from the ratified operators, so an unresolved name
+   * is never presented as an equivalent of an established operator.
    */
-  subFamilies?:  readonly { label: string; firstSlug: string }[];
+  provisional?:  boolean;
 }
 
+// Established operators grouped by their structural role, using the movement
+// doctrine (each definition in freestyleOperatorReference.ts), not visual
+// convenience. Roles: how the operator relates to the entry and side, whether it
+// rotates the body, passes the head or body through, prepares the base with a
+// set, or suspends the plant. Tapping prepends a preparatory toe-set dex ahead of
+// the base, so it is a set/preparatory operator, not a body-rotation or
+// head-passage modifier. Symposium is a no-plant leg discipline. Set primitives
+// (pixie, fairy, atomic, barraging and the other set systems) stay first-class
+// objects of the Set Encyclopedia and are intentionally excluded here, so the
+// same concept is never presented as both a set and an operator on two surfaces.
 export const OPERATOR_INDEX_AXES: readonly OperatorIndexAxis[] = [
   {
-    axisKey:   'entry-topology',
-    axisName:  'Entry Topology',
+    axisKey:   'entry-side-relationship',
+    axisName:  'Entry and side relationship',
     typeLabel: 'Entry',
     modifierSlugs: ['paradox'],
   },
   {
-    axisKey:   'midtime-body',
-    axisName:  'Midtime Body Modifiers',
+    axisKey:   'body-rotation',
+    axisName:  'Body rotation',
     typeLabel: 'Body',
-    // Tapping is intentionally a body modifier here, not a set. The role
-    // registry classifies it as an operator (unlike whirling, which the curator
-    // pins to the set role), and it is a productive +1 modifier across many
-    // bases. Its only set form is a Holden-only reading with no platform
-    // canonical, which lives in the Set Encyclopedia and is referenced there as
-    // related, so it does not belong with the set systems.
-    // Weaving and zulu are NOT here: they are platform-canonical ducking launch
-    // sets (like whirling), so they belong only in the Set Encyclopedia and the
-    // modifier route redirects them to their set page.
-    modifierSlugs: [
-      'spinning', 'gyro', 'inspinning',
-      'ducking', 'diving',
-      'tapping',
-    ],
-    subFamilies: [
-      { label: 'Spin family',          firstSlug: 'spinning' },
-      { label: 'Head-movement family', firstSlug: 'ducking' },
-      { label: 'Other',                firstSlug: 'tapping' },
-    ],
+    modifierSlugs: ['spinning', 'gyro', 'inspinning'],
+  },
+  {
+    axisKey:   'head-body-passage',
+    axisName:  'Head and body passage',
+    typeLabel: 'Body',
+    modifierSlugs: ['ducking', 'diving'],
+  },
+  {
+    axisKey:   'set-preparatory',
+    axisName:  'Set and preparatory operators',
+    typeLabel: 'Set',
+    modifierSlugs: ['tapping'],
   },
   {
     axisKey:   'no-plant-suspension',
-    axisName:  'No-Plant & Suspension',
+    axisName:  'No-plant and suspension',
     typeLabel: 'No-plant',
-    modifierSlugs: ['symposium', 'symple', 'muted', 'flying'],
+    modifierSlugs: ['symposium'],
+  },
+  {
+    axisKey:   'provisional-historical',
+    axisName:  'Provisional and historical vocabulary',
+    typeLabel: 'No-plant',
+    provisional: true,
+    modifierSlugs: ['symple', 'muted', 'flying'],
   },
 ];
 

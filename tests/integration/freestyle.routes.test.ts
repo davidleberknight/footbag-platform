@@ -566,9 +566,10 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).toContain('id="operator-paradox"');
     expect(res.text).not.toContain('class="glossary-modifier-card"');
-    // Tail keeps only the cross-cutting notes (decomposition concept + alpine +
-    // notation/ADD components); per-modifier depth moved to the detail pages.
-    expect(res.text).toContain('id="advanced-decomposition-operator-theory"');
+    // Tail keeps only the cross-cutting notes (how operators combine + alpine +
+    // notation components labelled as non-operators); per-modifier depth moved to
+    // the detail pages.
+    expect(res.text).toContain('id="how-operators-combine"');
     expect(res.text).toContain('id="alpine"');
     expect(res.text).toContain('id="notation-components"');
     // The per-modifier reference dl/grid no longer renders on the operators page.
@@ -815,7 +816,7 @@ describe('GET /freestyle/glossary §6 is the per-modifier reference home (operat
       expect(operators.text, `operators should not carry ${anchor}`).not.toContain(anchor);
     }
     // The operators page keeps only the cross-cutting tail.
-    expect(operators.text).toContain('id="advanced-decomposition-operator-theory"');
+    expect(operators.text).toContain('id="how-operators-combine"');
     expect(operators.text).toContain('id="notation-components"');
     // Feel cards are glossary-only.
     expect(glossary.text).toContain('class="glossary-modifier-card"');

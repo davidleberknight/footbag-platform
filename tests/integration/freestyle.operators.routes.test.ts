@@ -2,20 +2,22 @@
  * Integration tests for the Operators & Modifiers consistency layer.
  *
  * Verifies:
- *   - /freestyle/operators renders the compact index grouped by the
- *     relationship, body, and no-plant movement-system axes, in the
- *     dict-trick-row idiom shared with the dictionary and set encyclopedia.
+ *   - /freestyle/operators groups established operators by structural role
+ *     (entry and side relationship, body rotation, head and body passage, set
+ *     and preparatory, no-plant and suspension), in the dict-trick-row idiom
+ *     shared with the dictionary and set encyclopedia.
+ *   - Provisional and historical vocabulary (symple, muted, flying) renders in a
+ *     section visibly separate from the ratified operators.
  *   - Set primitives (pixie, fairy, atomic, barraging, and the rest) are NOT
  *     listed here: they are first-class objects of the Set Encyclopedia, so the
  *     same concept is never presented as both a set and an operator. The page
  *     links out to the Set Encyclopedia for them.
  *   - Each modifier row carries a type chip, an ADD weight when tracked, a
  *     status pill, and View-details / Browse-tricks click-throughs.
- *   - Body relationship modifiers (paradox, spinning) never carry a notation
- *     line; that set formula belongs to the encyclopedia.
- *   - Status pills reflect the data: a modifier with a teaching page reads
- *     "Teaching page".
- *   - The advanced decomposition reference is retained below the index.
+ *   - Paradox appears once as a directory row linking to its teaching page; the
+ *     long explanation is not duplicated at the foot of the page.
+ *   - The notation components [PDX] / [XBD] / [XDEX] sit in their own box,
+ *     labelled as not operators.
  *   - Universal detail resolution: a known modifier without a teaching page
  *     resolves to a data-driven stub (not 404); a modifier with a teaching
  *     page still resolves to the rich page; an unknown slug 404s.
@@ -70,17 +72,42 @@ function rowSlice(html: string, slug: string): string {
 }
 
 describe('GET /freestyle/operators — compact modifier index', () => {
-  it('renders the relationship, body, and no-plant axes as grouped sections', async () => {
+  it('groups established operators by structural role in separate sections', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Entry Topology');
-    expect(res.text).toContain('Midtime Body Modifiers');
-    expect(res.text).toContain('No-Plant &amp; Suspension');
+    expect(res.text).toContain('Established operators by structural role');
+    expect(res.text).toContain('Entry and side relationship');
+    expect(res.text).toContain('Body rotation');
+    expect(res.text).toContain('Head and body passage');
+    expect(res.text).toContain('Set and preparatory operators');
+    expect(res.text).toContain('No-plant and suspension');
+    // Provisional vocabulary is a visibly separate section, not mixed in.
+    expect(res.text).toContain('Provisional and historical vocabulary');
     // The set primitives no longer have their own operator axis here.
     expect(res.text).not.toContain('Set / Uptime Systems');
     // Reuses the trick-dictionary row idiom.
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).toContain('class="dict-trick-row"');
+  });
+
+  it('renders provisional vocabulary in a section separate from the established operators', async () => {
+    const res = await request(await createApp()).get('/freestyle/operators');
+    const establishedIdx = res.text.indexOf('Established operators by structural role');
+    const provisionalIdx = res.text.indexOf('Provisional and historical vocabulary');
+    const sympleIdx = res.text.indexOf('id="operator-symple"');
+    expect(establishedIdx).toBeGreaterThan(-1);
+    expect(provisionalIdx).toBeGreaterThan(establishedIdx);
+    expect(sympleIdx).toBeGreaterThan(provisionalIdx);
+  });
+
+  it('places Tapping under Set and preparatory operators, not the body axes', async () => {
+    const res = await request(await createApp()).get('/freestyle/operators');
+    const tappingIdx  = res.text.indexOf('id="operator-tapping"');
+    const setPrepIdx  = res.text.indexOf('Set and preparatory operators');
+    const noPlantIdx  = res.text.indexOf('No-plant and suspension');
+    expect(setPrepIdx).toBeGreaterThan(-1);
+    expect(tappingIdx).toBeGreaterThan(setPrepIdx);
+    expect(tappingIdx).toBeLessThan(noPlantIdx);
   });
 
   it('points sets at the Set Encyclopedia instead of listing them here', async () => {
@@ -145,10 +172,11 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(rowSlice(res.text, 'spinning')).toContain('operator-status-pill--teaching');
   });
 
-  it('retains the advanced decomposition reference below the index', async () => {
+  it('keeps a How operators combine section and a separate notation-components box', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
-    expect(res.text).toContain('id="advanced-decomposition-operator-theory"');
+    expect(res.text).toContain('id="how-operators-combine"');
     expect(res.text).toContain('id="alpine"');
+    expect(res.text).toContain('id="notation-components"');
   });
 
   it('names Furious as the canonical two-dex set, not barraging', async () => {
@@ -161,33 +189,27 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(res.text).not.toMatch(/barraging as a two-dex set/i);
   });
 
-  // Paradox is taught definition-first (a side relationship between the support
-  // leg and the dex), with the classic entry formula shown as the concrete
-  // example, not the definition. The brackets are a short notation vocabulary,
-  // distinct from the operators that leave them behind.
-  it('teaches paradox by definition with the entry formula as the example, plus the notation components', async () => {
+  // Paradox appears once as a directory row carrying its definition and a link
+  // to the full teaching page; the long tail explanation is removed so the same
+  // definition is never printed twice on the page.
+  it('gives Paradox one directory summary linking to its page, without a duplicate long explanation', async () => {
     const res = await request(await createApp()).get('/freestyle/operators');
-    // Paradox section: definition + the canonical entry formula as the example.
-    expect(res.text).toContain('id="paradox"');
+    expect(res.text).toContain('id="operator-paradox"');
+    expect(res.text).toContain('href="/freestyle/modifier/paradox"');
     expect(res.text).toMatch(/side relationship between the support leg and that dexterity/);
-    expect(res.text).toContain('CLIP &gt; OP IN [DEX]');
-    expect(res.text).toMatch(/classic paradox entry topology/);
-    // Notation/ADD components vocabulary.
+    // The definition renders exactly once (no duplicate long explanation).
+    const occurrences =
+      res.text.split('side relationship between the support leg and that dexterity').length - 1;
+    expect(occurrences).toBe(1);
+    // The old tail Paradox block and its entry formula are gone.
+    expect(res.text).not.toContain('CLIP &gt; OP IN [DEX]');
+    expect(res.text).not.toMatch(/classic paradox entry topology/);
+    // Notation components are labelled as not operators, in their own box.
+    expect(res.text).toContain('Notation components that are not operators');
     expect(res.text).toContain('id="notation-components"');
     expect(res.text).toContain('[PDX]');
     expect(res.text).toContain('[XBD]');
     expect(res.text).toContain('[XDEX]');
-    // The page must not reassert paradox as a kind of cross-body.
-    expect(res.text).not.toMatch(/paradox[^.]*\bspecies\b/i);
-  });
-
-  it('sub-labels the spin and head-movement families within the body axis', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
-    expect(res.text).toContain('>Spin family<');
-    expect(res.text).toContain('>Head-movement family<');
-    // The sub-label sits before its first member.
-    expect(res.text).toMatch(/>Spin family<[\s\S]*?id="operator-spinning"/);
-    expect(res.text).toMatch(/>Head-movement family<[\s\S]*?id="operator-ducking"/);
   });
 });
 

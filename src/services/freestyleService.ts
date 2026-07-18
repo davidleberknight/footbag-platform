@@ -1330,6 +1330,7 @@ function buildOperatorIndexAxes(
   return OPERATOR_INDEX_AXES.map(axis => ({
     axisKey:  axis.axisKey,
     axisName: axis.axisName,
+    provisional: axis.provisional ?? false,
     modifiers: axis.modifierSlugs.map((slug): OperatorIndexRow => {
       const row = rowBySlug.get(slug);
       return {
@@ -1341,7 +1342,6 @@ function buildOperatorIndexAxes(
         notation:   operatorNotation(slug, row?.modifier_type),
         descriptor: operatorDescriptor(slug),
         status:     operatorStatus(slug),
-        subFamilyLabel: axis.subFamilies?.find(sf => sf.firstSlug === slug)?.label ?? null,
         browseHref: movementSystemSlugs.has(slug)
           // The movement-system view groups by axis, so there is no per-modifier
           // anchor to deep-link to; land on the view itself.
@@ -4370,9 +4370,6 @@ export interface OperatorIndexRow {
   notation:    string | null;                // canonical-set formula; set modifiers only
   descriptor:  string | null;                // one short movement line
   status:      { key: string; label: string };
-  // Sub-family divider label, set on the first row of an educational
-  // sub-grouping within an axis (e.g. "Spin family"); null otherwise.
-  subFamilyLabel: string | null;
   // Where "Browse tricks" goes. Operators with a By-Movement-System section get
   // that in-page anchor; flying is a movement neighborhood, so it goes to the
   // topology view; the remaining operators without either surface (symple,
@@ -4386,6 +4383,9 @@ export interface OperatorIndexRow {
 export interface OperatorIndexAxisGroup {
   axisKey:   string;
   axisName:  string;
+  // True for the provisional / historical group so the template renders it in a
+  // section visibly separate from the ratified operators.
+  provisional: boolean;
   modifiers: OperatorIndexRow[];
 }
 
@@ -4400,9 +4400,6 @@ export interface FreestyleOperatorsContent {
   // has), not operators a player applies, so they sit apart from the index as
   // peers. Sourced from the canonical component-flag labels.
   notationVocabulary: { token: string; meaning: string }[];
-  // The canonical paradox definition line, rendered as the lead of the page
-  // tail's Paradox note so the tail never authors a second definition.
-  paradoxDefinition: string;
 }
 
 // Data-driven detail page for a known modifier that has no hand-authored
@@ -10518,7 +10515,6 @@ export const freestyleService = {
           { token: '[XBD]',  meaning: 'cross-body delay' },
           { token: '[XDEX]', meaning: 'conditional +1 X-Dex component' },
         ],
-        paradoxDefinition: getTier1OperatorDefinition('paradox')?.definition ?? '',
       },
     };
   },
