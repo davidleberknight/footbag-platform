@@ -1261,10 +1261,11 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
   it('uses the refined per-token tooltip for OP (O1c)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
-    // Pre-O1c the tooltip was the generic "Plant-foot side"; O1c specializes
-    // SAME and OP per-token.
-    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="OP \(operational\): step on opposite side from plant foot">OP<\/span>/);
-    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="SAME \(operational\): step on same side as plant foot">SAME<\/span>/);
+    // The per-token tooltip states the component-relative SAME/OP meaning:
+    // each side reads against the most recent side-bearing component, not a
+    // fixed plant foot.
+    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="OP \(operational\): opposite leg from the most recent side-bearing component">OP<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="SAME \(operational\): same leg as the most recent side-bearing component">SAME<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="CLIP: clipper set position \(start of trick\)">CLIP<\/span>/);
   });
 
@@ -2073,16 +2074,18 @@ describe('Freestyle landing — Featured strip', () => {
 
 describe('Freestyle glossary — [PDX] component-flag definition', () => {
   it('renders the [PDX] flag definition as mechanical (not circular)', async () => {
-    // V5 editorial sweep: source attribution lines stripped from the
-    // op-flag definitions. The mechanical content (cross-body far dex,
-    // hip-pivot, operational form) is preserved.
+    // The definition marks the paradox relationship on a dexterity, states its
+    // independence from [XBD] and from IN/OUT direction, and frames
+    // CLIP > OP IN [DEX] as an entry example rather than the definition.
     const res = await request(createApp()).get('/freestyle/glossary');
     const pdxIdx = res.text.indexOf('id="op-flag-pdx"');
     expect(pdxIdx).toBeGreaterThan(0);
     const slice = res.text.slice(pdxIdx, pdxIdx + 800);
-    expect(slice).toMatch(/cross-body far dex/);
-    expect(slice).toMatch(/hip-pivot/);
+    expect(slice).toMatch(/marks the paradox relationship on a dexterity/);
+    expect(slice).toMatch(/independent of/);
+    expect(slice).toMatch(/is not an IN\/OUT direction/);
     expect(slice).toContain('CLIP &gt; OP IN [DEX]');
+    expect(slice).toMatch(/common entry example, not the definition/);
     // The old circular phrasing is gone.
     expect(slice).not.toMatch(/performed in the paradox direction/);
   });

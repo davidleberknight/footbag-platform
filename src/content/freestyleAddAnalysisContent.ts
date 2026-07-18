@@ -197,7 +197,7 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
     example:        'atomic + mirage = atom smasher = 4 ADD; barraging + osis = baroque = 5 ADD',
   },
   {
-    componentClass: 'Entry and side relationship: where the entry dex sits relative to the plant foot and the body centreline (same-side/op, near/far). Paradox lives here. The no-plant discipline (symposium) is a separate axis, noted only for contrast (pedagogical axis, not an official grouping)',
+    componentClass: 'Entry and side relationship: the entry dex\'s SAME/OP leg relation, read against the most recent side-bearing component, together with its separate near/far position relative to the body centreline. Paradox lives here. The no-plant discipline (symposium) is a separate axis, noted only for contrast (pedagogical axis, not an official grouping)',
     contribution:   'The placement cues themselves are +0 (see positional cues below); the operators that act on the entry are scored. Paradox is the side-switch relationship between the support leg and the dexterity: the body switches sides around the dex (the [PDX] component), which is distinct from the [XBD] cross-body traversal; +1. When paradox is the entry it reads CLIP > OP IN [DEX] (its entry case), but it can also occur mid-trick as a later [PDX] dex, so that form is not paradox in every trick. Symposium, by contrast, is the no-plant case on its own axis: the support leg leaves the ground through the dex; +1.',
     example:        'paradox + mirage (2) = 3 ADD; CLIP > OP IN [DEX] is paradox as an entry, not every paradox',
   },
@@ -256,8 +256,8 @@ const BRACKET_RULE_NOTE =
 // rule; it does not compute or change any value.
 const XDEX_NOTE =
   'The X-Dex is a single extra point that a few uptime sets can add, but only ' +
-  'under specific conditions. Four sets can trigger it: atomic, quantum, ' +
-  'sailing, and frantic. It applies to the dexterity that follows the set, and ' +
+  'under specific conditions. Three settled sets can trigger it: Atomic, Quantum ' +
+  'and Sailing. It applies to the dexterity that follows the set, and ' +
   'only when that dex is a far move landing on a receiving base: a mirage, ' +
   'illusion, whirl, torque, or drifter. It does not apply to swirl, barfly, or ' +
   'the down family, and it never applies more than once. Where it fires, the ' +

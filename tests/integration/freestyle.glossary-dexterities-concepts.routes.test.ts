@@ -57,7 +57,7 @@ describe('Glossary — Dexterities section Core Concept cards', () => {
     const html = await glossary();
     expect(html).toContain('id="concept-side"');
     const side = card(html, 'concept-side');
-    expect(side).toContain('your own side'); // the Line
+    expect(side).toContain('read against the most recent side-bearing component'); // the Line
     expect(side).toContain('<summary>How it relates</summary>');
     // Side is an insight home
     expect(side).toContain('<summary>What it reveals</summary>');

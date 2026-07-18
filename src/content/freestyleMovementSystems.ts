@@ -61,9 +61,9 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
     axisKey:        'entry-topology',
     axisName:       'Entry Topologies',
     axisDefinition:
-      'Where the entry dex sits relative to the plant foot and the body ' +
-      'centreline: the same-side/op, near/far, and planted/no-plant ' +
-      'relationships. Paradox is the side-switch between the support leg and the ' +
+      'The entry dex\'s relationships: its SAME/OP leg relation, read against the ' +
+      'most recent side-bearing component; its separate near/far position; and its ' +
+      'planted/no-plant mechanics. Paradox is the side-switch between the support leg and the ' +
       'dexterity; as an entry it reads opposite-side clipper (CLIP > OP IN [DEX]), ' +
       'its cross-body entry-topology case, but it can also be a later mid-trick dex.',
     modifierSlugs:  ['paradox'],

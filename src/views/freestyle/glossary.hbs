@@ -1640,9 +1640,9 @@
       <dt id="op-flag-bod"><code>[BOD]</code></dt>
       <dd>Body-position component: the move includes a body pose change (spin, duck, dive, paradox).</dd>
       <dt id="op-flag-xbd"><code>[XBD]</code></dt>
-      <dd>Cross-body component: the delay or move sits on the opposite-side surface from the plant foot. Typically appears with <code>[DEL]</code> on the landing.</dd>
+      <dd>Cross-body component: <code>[XBD]</code> records a cross-body configuration or traversal across the body's centreline. It is independent of the component's SAME/OP relation; both SAME and OP components can be cross-body. Typically appears with <code>[DEL]</code> on the landing.</dd>
       <dt id="op-flag-pdx"><code>[PDX]</code></dt>
-      <dd>Paradox component: flags a cross-body far dex requiring a hip-pivot repositioning to bring the leg under the bag. Operationally: <code>CLIP &gt; OP IN [DEX]</code> (clipper set, far in-out dex). Equivalent to the <code>paradox</code> dex relationship in semantic notation.</dd>
+      <dd>Paradox component: marks the paradox relationship on a dexterity. It is independent of <code>[XBD]</code> and is not an IN/OUT direction. <code>CLIP &gt; OP IN [DEX]</code> is a common entry example, not the definition &mdash; a later mid-trick dexterity can also carry <code>[PDX]</code>. Equivalent to the <code>paradox</code> dex relationship in semantic notation.</dd>
       <dt id="op-flag-xdex"><code>[XDEX]</code></dt>
       <dd>X-Dex component. Marks the conditional +1 a dex scores when the notation carries <code>[XDEX]</code> (see <a href="#term-x-dex">X-Dex</a>). Recorded only where the notation carries it; some external references use the flag more broadly.</dd>
       <dt id="op-flag-uns"><code>[UNS]</code></dt>

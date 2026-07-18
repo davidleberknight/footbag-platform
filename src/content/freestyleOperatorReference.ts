@@ -239,7 +239,10 @@ export const TIER1_OPERATOR_DEFINITIONS: readonly Tier1OperatorDefinition[] = [
     slug: 'tapping',
     definition:
       'Tapping is a +1 modifier that adds a quick tap ahead of the base trick: a short ' +
-      'toe-set dex is prepended, and the base then runs unchanged.',
+      'toe-set dex is prepended, preserving the recognizable base identity. In Tapdown, ' +
+      'the Butterfly dex is encoded as SAME OUT rather than its standalone OP OUT ' +
+      'coordinate because the inserted tapping dex becomes the most recent side-bearing ' +
+      'reference. The leg relation changes; the OUT direction does not.',
   },
   {
     slug: 'symposium',

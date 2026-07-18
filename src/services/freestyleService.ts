@@ -3859,8 +3859,8 @@ export interface FreestyleGlossaryAbbreviations {
 const GLOSSARY_ABBREVIATIONS: FreestyleGlossaryAbbreviations = {
   trickNames: [
     { short: 'PDX',      meaning: 'Paradox (dex relationship).' },
-    { short: 'SS',       meaning: 'Same side / near. Component on the plant-foot side.' },
-    { short: 'OP',       meaning: 'Opposite / far. Component on the non-plant-foot side.' },
+    { short: 'SS',       meaning: 'Same side: the component acts on the same leg as the most recent side-bearing component.' },
+    { short: 'OP',       meaning: 'Opposite: the component acts on the opposite leg from the most recent side-bearing component; two OP relations in succession return to the original leg.' },
     { short: 'SYMP',     meaning: 'Abbreviation of Symposium. Also appears in the historical token Symple, whose status as a distinct operator is unresolved.' },
     { short: 'DLO',      meaning: 'Double Leg Over.' },
     { short: 'ATW',      meaning: 'Around-the-World.' },
@@ -10524,7 +10524,7 @@ export const freestyleService = {
         // teaching vocabulary on the operators page. Glosses are intentionally
         // terser than the canonical tooltip labels in COMPONENT_FLAG_LABELS.
         notationVocabulary: [
-          { token: '[PDX]',  meaning: 'paradox-direction dex' },
+          { token: '[PDX]',  meaning: 'paradox-relationship marker on a dexterity' },
           { token: '[XBD]',  meaning: 'cross-body traversal (the bag crosses the body to the opposite-side surface)' },
           { token: '[XDEX]', meaning: 'conditional +1 X-Dex component' },
         ],

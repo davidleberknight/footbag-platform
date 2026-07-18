@@ -120,9 +120,10 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
   it('enumerates the X-Dex triggers and receivers', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toMatch(/The X-Dex/);
-    // the four triggering sets and the receiving bases, so a reader can predict
+    // the settled triggering sets and the receiving bases, so a reader can predict
     // where the extra point applies rather than memorising worked examples
-    expect(res.text).toMatch(/atomic, quantum, sailing, and frantic/);
+    expect(res.text).toMatch(/Three settled sets can trigger it: Atomic, Quantum and Sailing/);
+    expect(res.text).not.toMatch(/frantic/i);
     expect(res.text).toMatch(/mirage, illusion, whirl, torque, or drifter/);
   });
 

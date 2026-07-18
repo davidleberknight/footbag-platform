@@ -299,7 +299,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
   howItChangesBase:
     'Paradox transforms an existing base trick rather than introducing a new dexterity: a mirage becomes a paradox mirage, a whirl becomes a paradox whirl, and the same holds on torque, blender, and other bases. The dex still happens once; what changes is the side relationship the body holds around it. Paradox is applied to an existing trick: the base trick remains recognizable, and paradox changes the relationship in which that trick is executed. Because it transforms a base rather than adding a contact, it does not change the dex count, and it composes onto many different bases.',
   jobNotation:
-    'In operational notation paradox is the [PDX] component, which marks the cross-body far dex that the side-switch produces: the dex crosses the centreline and the body repositions to bring the leg under the bag. [PDX] exists because that repositioning is a scored relationship worth +1, distinct from the dex itself. It is not the same as [XBD]: [XBD] is a cross-body traversal, the bag crossing the centreline to the opposite-side surface from the plant foot, while [PDX] is a cross-body dex relationship. It is also independent of [XDEX], the conditional X-Dex: applying paradox does not create X-Dex, and when both appear in one trick each records a different structural event. The familiar form CLIP > OP IN [DEX] is the canonical paradox entry example, where an opposite-side clipper set creates the relationship before the first dex, but it is only an example: paradox can also occur mid-trick as a later [PDX] dex, so the entry form is illustrative, not the definition.',
+    'In operational notation paradox is the [PDX] component, which marks the cross-body far dex that the side-switch produces: the dex crosses the centreline and the body repositions to bring the leg under the bag. [PDX] exists because that repositioning is a scored relationship worth +1, distinct from the dex itself. It is not the same as [XBD]: [XBD] records a cross-body configuration or traversal across the centreline, independent of SAME/OP, while [PDX] is the paradox relationship on a dexterity. It is also independent of [XDEX], the conditional X-Dex: applying paradox does not create X-Dex, and when both appear in one trick each records a different structural event. The familiar form CLIP > OP IN [DEX] is the canonical paradox entry example, where an opposite-side clipper set creates the relationship before the first dex, but it is only an example: paradox can also occur mid-trick as a later [PDX] dex, so the entry form is illustrative, not the definition.',
   whereItAppears:
     'Paradox can modify many dexterity-based tricks. In practice players meet it on mirages, whirls, torques, and blenders, and it stacks readily with other operators, most often with symposium as the PS pair. In the movement-system map it is a dex relationship, classed with the side and centreline relationships rather than with launches, rotations, or no-plant disciplines.',
   howItComposes:
@@ -310,7 +310,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
     {
       heading: 'Paradox vs cross-body ([XBD])',
       prose:
-        'Both involve crossing the centreline, but they are different components. [XBD] is a cross-body traversal: the bag crosses to the opposite-side surface from the plant foot. Paradox, marked [PDX], is a cross-body dex relationship: the body switches sides around the dex itself. A trick can carry one, the other, or both.',
+        'They are different components. [XBD] records a cross-body configuration or traversal across the centreline, independent of SAME/OP. Paradox, marked [PDX], is the paradox relationship on a dexterity: the body switches sides around the dex itself. A trick can carry one, the other, or both.',
     },
     {
       heading: 'Paradox vs X-Dex',
@@ -416,7 +416,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
     },
     {
       name:  'cross-body traversal',
-      prose: 'The [XBD] component: a landing on the opposite-side surface. It shares the centreline-crossing idea with paradox but marks a landing, not a dex relationship.',
+      prose: 'The [XBD] component records a cross-body landing across the centreline, independent of SAME/OP. It marks body configuration or traversal, not the paradox relationship on a dexterity.',
     },
     {
       name:  'whirl',
@@ -995,9 +995,9 @@ const TAPPING_CONTENT: ModifierEducationInput = {
   pageTitle:   'Tapping',
   pageSubtitle: 'A +1 modifier that adds a quick tap ahead of the base trick, leaving the underlying trick recognizable.',
   whyItExists:
-    'Tapping exists to distinguish tricks that prepend a quick tap before the base. The base is unchanged; the operator records the short tap performed ahead of it, scored independently as a +1 modifier.',
+    'Tapping exists to distinguish tricks that prepend a quick tap before the base. It preserves the recognizable base identity; the operator records the short tap performed ahead of it, scored independently as a +1 modifier. Because SAME/OP is component-relative, the inserted tapping dex can re-author a downstream base component\'s side coordinate.',
   howItChangesBase:
-    'Tapping transforms an existing base trick by prepending a quick tap: a mirage becomes a tapping mirage, a whirl becomes a tapping whirl, and the same holds on butterfly, clipper, drifter, and other bases. The underlying trick remains recognizable; tapping adds a short toe-set tap ahead of it rather than replacing it, and the base dexterity then follows unchanged. The platform scores the tap as a +1 modifier on the base, the same modifier-bonus pattern the other midtime-body modifiers follow.',
+    'Tapping transforms an existing base trick by prepending a quick tap: a mirage becomes a tapping mirage, a whirl becomes a tapping whirl, and the same holds on butterfly, clipper, drifter, and other bases. The underlying trick remains recognizable; tapping adds a short toe-set tap ahead of it rather than replacing it, preserving the recognizable base identity. Because SAME/OP is component-relative, the inserted tapping dex can re-author a downstream base component\'s side coordinate: in Tapdown, the Butterfly dex is encoded as SAME OUT rather than its standalone OP OUT coordinate because the inserted tapping dex becomes the most recent side-bearing reference. The leg relation changes; the OUT direction does not. The platform scores the tap as a +1 modifier on the base, the same modifier-bonus pattern the other midtime-body modifiers follow.',
   jobNotation:
     'Tapping mirage decomposes as tapping(+1) + mirage(2) = 3: the tap contributes +1 as a modifier on the base. In the notation that tap appears as the leading TOE > OP OUT [DEX], a quick toe-set dex performed ahead of the base, often with a plant, so tapping mirage reads TOE > OP OUT [DEX] >> OP IN [DEX] > OP TOE [DEL]. The tap is written as a dex because it is a quick dexterity movement, but it is scored as a +1 modifier on the trick, not as an extra dex folded into the base.',
   whereItAppears:
@@ -1005,7 +1005,7 @@ const TAPPING_CONTENT: ModifierEducationInput = {
   howItComposes:
     'Tapping composes with almost any base dexterity, prepending its tap ahead of the trick. It applies to uptime, rotational, and cross-body dexes, and it can stack with other treatments on longer compounds. Like the other midtime-body modifiers, it contributes a single +1 to the trick it is added to.',
   executionNotes:
-    'A quick toe-set tap is performed ahead of the base trick, often with a plant, and the base dexterity then follows unchanged. The defining event is that added tap, written as the leading TOE > OP OUT [DEX] in the notation and scored as a +1 modifier.',
+    'A quick toe-set tap is performed ahead of the base trick, often with a plant, preserving the recognizable base identity; because SAME/OP is component-relative, the inserted tapping dex can re-author a downstream base component\'s side coordinate (in Tapdown, the Butterfly dex is encoded SAME OUT rather than its standalone OP OUT). The defining event is that added tap, written as the leading TOE > OP OUT [DEX] in the notation and scored as a +1 modifier.',
   confusions: [
     {
       heading: 'Is the tap a dexterity or a modifier?',
@@ -1077,7 +1077,7 @@ const TAPPING_CONTENT: ModifierEducationInput = {
         slug:      'tapping_clipper',
         baseLabel: 'Cross-body',
         prose:
-          'A tap ahead of a clipper, a cross-body base; the quick dex precedes the cross-body delay (3 ADD).',
+          'A tap ahead of a clipper, a cross-body base; the quick dex precedes the cross-body landing (3 ADD).',
       },
       {
         slug:      'tapping_legover',

@@ -71,7 +71,7 @@ const COMPONENT_FLAGS = new Set(['DEX', 'DEL', 'BOD', 'XBD', 'PDX', 'XDEX', 'UNS
 // consistency; ambiguous tokens carry layer-disambiguated text.
 const ROLE_LABELS: Record<OperationalTokenRole, string> = {
   surface:          'Set position or landing surface',
-  side:             'Step side (relative to plant foot)',
+  side:             'Step side (relative to the most recent side-bearing component)',
   direction:        'Arc direction',
   body_action:      'Body action within the trick',
   rotation_variant: 'Rotational dex step within the trick',
@@ -91,8 +91,8 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   CLIP:  'CLIP: clipper set position (start of trick)',
   TOE:   'TOE (operational): toe set position (start of trick)',
   // Sides — layer-disambiguated (semantic notation uses footedness role)
-  SAME:  'SAME (operational): step on same side as plant foot',
-  OP:    'OP (operational): step on opposite side from plant foot',
+  SAME:  'SAME (operational): same leg as the most recent side-bearing component',
+  OP:    'OP (operational): opposite leg from the most recent side-bearing component',
   // Directions — IN/OUT layer-disambiguated; FRONT/BACK fuse with WHIRL/SWIRL
   IN:    'IN (operational): inward arc (toward body)',
   OUT:   'OUT (operational): outward arc (away from body)',
@@ -120,7 +120,7 @@ export const COMPONENT_FLAG_LABELS: Record<string, string> = {
   DEL:  'Delay component (final stall / landing)',
   BOD:  'Body component (body-position step, no bag-foot interaction)',
   XBD:  'Cross-body component (traversal across the body to the opposite-side surface)',
-  PDX:  'Paradox component (paradox-direction dex)',
+  PDX:  'Paradox component (paradox-relationship marker; independent of [XBD]; not an IN/OUT direction)',
   XDEX: 'X-Dex component (conditional +1, scored only where [XDEX] is present)',
   UNS:  'Unusual-surface component (stall on a non-standard landing surface)',
   KICK: 'Kick action marker (non-scoring; the kick itself carries no ADD)',

@@ -198,7 +198,7 @@ const BODY_COMPONENT_LABELS: Record<string, string> = {
   '[DEL]':  'DEL, delay component (stall landing)',
   '[BOD]':  'BOD, body-position component',
   '[XBD]':  'XBD, cross-body component',
-  '[PDX]':  'PDX, paradox-direction marker',
+  '[PDX]':  'PDX, paradox-relationship marker',
   '[XDEX]': 'XDEX, X-Dex (conditional +1; scored only where [XDEX] is present)',
 };
 

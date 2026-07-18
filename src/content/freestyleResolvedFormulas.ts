@@ -449,13 +449,13 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
 
   // ─── Atomic-specific x-dex contribution ──────────────────────────────
   // An atomic-modifier formula where the +1 atomic contribution is
-  // augmented by a doctrine-locked atomic-specific x-dex (paradox-like)
+  // augmented by a doctrine-locked atomic-specific xdex
   // contribution from the toe-start position. Red: "Atom
-  // Smasher carries x-dex like paradox from a toe." The extra +1 is part
+  // Smasher carries an extra x-dex from a toe." The extra +1 is part
   // of atomic's structural identity in this compound, not a separate
   // operator. External sources (FootbagMoves) list 3 ADD by collapsing
   // atomic into the base; IFPA treats it as 4 because atomic contributes
-  // its own +1 AND brings the x-dex/paradox-like contribution from toe.
+  // its own +1 AND brings the xdex contribution from toe.
 
   {
     slug:        'atom_smasher',
@@ -464,9 +464,9 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     base:        'mirage',
     baseAdd:     2,
     totalAdd:    4,
-    derivation:  'atomic(+1) + mirage(2) + x-dex/paradox-like contribution(+1) = 4 ADD',
+    derivation:  'atomic(+1) + mirage(2) + xdex(+1) = 4 ADD',
     operationalNotation: 'TOE > SAME OUT [DEX] >> OP IN [DEX] > OP TOE [DEL]',  // Sibling-derivation; scrambled-eggbeater (atomic-pickup X-Dex) pattern + mirage base; not Red-confirmed (Red ruled the ADD-math but not the operational notation).
-    provenance:  'Red ruling: Atom Smasher carries x-dex/paradox-like extra difficulty from toe. FootbagMoves lists 3 ADD; IFPA treats it as 4. The extra +1 is an atomic-specific x-dex/paradox-like contribution, not a separate ducking operator. Chain reading remains "atomic mirage" per freestyleSymbolicEquivalences.ts.',
+    provenance:  'Red ruling: Atom Smasher carries an xdex extra difficulty from toe. FootbagMoves lists 3 ADD; IFPA treats it as 4. The extra +1 is an atomic-specific xdex contribution (scored from [XDEX], independent of [PDX]), not a separate ducking operator. Chain reading remains "atomic mirage" per freestyleSymbolicEquivalences.ts.',
   },
 
   // ─── Movement-element components ─────────────────────────────────────

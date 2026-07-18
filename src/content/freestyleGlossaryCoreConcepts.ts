@@ -35,7 +35,7 @@ export const GLOSSARY_CORE_CONCEPTS: readonly GlossaryConceptCard[] = [
   },
   {
     key:     'side',
-    line:    "A dexterity works either on your own side, the side of the leg you are standing on, or crosses to the opposite side. Same-side and opposite-side describe where the bag travels relative to your plant leg.",
+    line:    "A dexterity works either on the same side or the opposite side, read against the most recent side-bearing component rather than a fixed plant leg. Same-side means the same leg as that component; opposite-side means the other leg, and two opposite relations in a row return to where they started.",
     relates: "Side is the second of the two choices that define a dex, alongside direction. The four two-point atoms lay both axes out: around the world and orbit are same-side, mirage and illusion opposite-side. Which side the bag travels to is part of what the trick is, not a matter of style or reach.",
     reveal:  "Two tricks can share landing, difficulty, even direction, and still be different tricks because one stays on your side and the other crosses the body. Side is a full structural axis, not a variation. Hold direction and side as two independent switches, and the crowd of near-identical pairs stops being confusing: each atom flips on either switch, and each flip is a separately named, separately scored trick.",
   },

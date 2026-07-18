@@ -127,7 +127,7 @@ describe('shapeOperationalNotationDisplay — component flags', () => {
     // so the tooltip avoids repeating it.
     const out = shapeOperationalNotationDisplay('[DEX] [PDX]');
     expect(out!.tokens[0]!.label).toBe('Dexterity component (bag-foot interaction)');
-    expect(out!.tokens[1]!.label).toBe('Paradox component (paradox-direction dex)');
+    expect(out!.tokens[1]!.label).toBe('Paradox component (paradox-relationship marker; independent of [XBD]; not an IN/OUT direction)');
   });
 });
 
@@ -223,7 +223,7 @@ describe('shapeOperationalNotationDisplay — Blur worked example', () => {
   it('Blur PDX flag receives the violet micro-distinguisher cssRole (O1c per-flag tooltip)', () => {
     const pdx = out!.tokens.find(t => t.text === '[PDX]');
     expect(pdx!.cssRole).toBe('component-flag component-flag-pdx');
-    expect(pdx!.label).toBe('Paradox component (paradox-direction dex)');
+    expect(pdx!.label).toBe('Paradox component (paradox-relationship marker; independent of [XBD]; not an IN/OUT direction)');
   });
 
   it('Blur has two distinct dex segments separated by >> (matches the IFPA Stepping-Paradox-Mirage reading)', () => {
