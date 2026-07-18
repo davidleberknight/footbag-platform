@@ -85,6 +85,26 @@ export async function validateExternalUrl(
     };
   }
 
+  // Reject a malformed or repeated scheme and an incomplete scheme with no host.
+  // The WHATWG parser slips both past the allowlist above: a double scheme like
+  // "http://https://host" parses with the literal host "https", and a bare
+  // "https:" (or "https://") parses with an empty host.
+  if (!parsed.hostname) {
+    return {
+      valid: false,
+      normalizedUrl: null,
+      error: 'URL is missing a host.',
+    };
+  }
+  if (parsed.hostname === 'http' || parsed.hostname === 'https'
+      || /^https?:\/\/https?:\/\//i.test(trimmed)) {
+    return {
+      valid: false,
+      normalizedUrl: null,
+      error: 'URL has a malformed or repeated scheme.',
+    };
+  }
+
   // SSRF guard, layer 1: hostname is a literal IP in a blocked range. The
   // WHATWG URL parser keeps brackets around IPv6 hostnames (hostname for
   // [::1] is "[::1]"), so strip outer brackets before testing.

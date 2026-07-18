@@ -149,6 +149,27 @@ describe('validateExternalUrl', () => {
     });
   });
 
+  describe('malformed or repeated scheme', () => {
+    it('rejects a double scheme http://https:// (the Austin Style club case)', async () => {
+      const result = await validateExternalUrl(
+        'http://https://www.facebook.com/groups/216661849514732/', makeStubs(),
+      );
+      expect(result.valid).toBe(false);
+      expect(result.normalizedUrl).toBeNull();
+      expect(result.error).toBe('URL has a malformed or repeated scheme.');
+    });
+    it('rejects a reversed double scheme https://http://', async () => {
+      const result = await validateExternalUrl('https://http://example.com', makeStubs());
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('URL has a malformed or repeated scheme.');
+    });
+    it('rejects an incomplete scheme with no host (https:)', async () => {
+      const result = await validateExternalUrl('https:', makeStubs());
+      expect(result.valid).toBe(false);
+      expect(result.normalizedUrl).toBeNull();
+    });
+  });
+
   describe('length cap', () => {
     it('accepts exactly 2048 characters', async () => {
       const url = 'https://example.com/' + 'a'.repeat(2048 - 'https://example.com/'.length);
