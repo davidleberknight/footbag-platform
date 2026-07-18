@@ -137,6 +137,13 @@ def extract_club(html_path, legacy_club_key):
     # Known legacy data corrections
     if country == "Basque Country":
         country = "Spain"
+    # The legacy source mis-filed these two clubs under Argentina; their cities
+    # place them elsewhere (Mglebi is in Georgia; Athens is in Greece), so the
+    # correction is pinned here rather than left to be re-broken on re-extraction.
+    if legacy_club_key == "1438092592":
+        country = "Georgia"
+    elif legacy_club_key == "1486385137":
+        country = "Greece"
 
     # Contact member ID from the .clubsContacts block: capture the FIRST
     # profile link's mirror member ID (if multiple contacts exist, the first
