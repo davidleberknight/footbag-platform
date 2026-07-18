@@ -465,7 +465,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "TOE STALL",
-"operational_notation": "[set] > toe",
+"operational_notation": "SET > SAME TOE [DEL]",
 "sort_order": 1000
 },
 {
@@ -764,7 +764,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "CLIPPER STALL",
-"operational_notation": "[set] > clipper",
+"operational_notation": "SET > OP CLIP [XBD] [DEL]",
 "sort_order": 1025
 },
 {

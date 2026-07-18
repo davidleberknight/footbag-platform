@@ -87,5 +87,15 @@ export const ALTERNATIVE_SURFACES: AlternativeSurfacesContent = {
         'knee_stall',
       ],
     },
+    {
+      slug: 'thigh-and-pincher',
+      label: 'Thigh and pincher',
+      note:
+        'The bag is trapped and held between the legs rather than balanced on a foot surface.',
+      tricks: [
+        'thigh_catch',
+        'squeeze',
+      ],
+    },
   ],
 };

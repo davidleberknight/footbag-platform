@@ -66,7 +66,7 @@ const DELAY_SURFACE_TOKENS = new Set([
 ]);
 
 const UNUSUAL_SURFACE_TOKENS = new Set([
-  'SOLE', 'KNEE', 'HEAD', 'NECK', 'SHOULDER', 'FOREHEAD', 'CLOUD',
+  'SOLE', 'KNEE', 'HEAD', 'NECK', 'SHOULDER', 'FOREHEAD', 'CLOUD', 'THIGH', 'PINCHER',
 ]);
 
 // ── Static token sets ──────────────────────────────────────────────────────
@@ -172,6 +172,8 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   NECK:     'Neck, unusual delay surface',
   SHOULDER: 'Shoulder, unusual delay surface',
   FOREHEAD: 'Forehead, unusual delay surface',
+  THIGH:    'Thigh, unusual delay surface (bag held between the thighs)',
+  PINCHER:  'Pincher, unusual delay surface (bag held in the crook of the leg)',
 
   // ── Direction prefixes ────────────────────────────────────────────────
   REV:     'Rev, reverse-direction prefix',

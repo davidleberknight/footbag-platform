@@ -163,7 +163,7 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
   {
     componentClass: 'Stall: a catch on a recognized surface',
     contribution:   '1 ADD',
-    example:        'toe-stall, clipper-stall, neck-stall',
+    example:        'toe-stall, neck-stall',
   },
   {
     componentClass: 'Dexterity (dex): one bag-foot interaction',
@@ -183,7 +183,7 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
   {
     componentClass: 'Unusual surface: a catch on a body surface other than the standard toe / instep / outstep / knee',
     contribution:   '1 ADD',
-    example:        'head-stall, shoulder-stall, cloud (calf), sole-stall, neck-stall',
+    example:        'head-stall, shoulder-stall, cloud (calf), sole-stall, neck-stall, thigh catch, pincher',
   },
   // Operator / modifier contributions, applied on top of a base
   // trick. Organized below by the four-axis operator-board grouping
@@ -329,7 +329,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '2 ADD',
     components: 'Cross-body kick + stall.',
     derivation: 'xbody(1) + stall(1) = 2 ADD',
-    whyNote:    'The clipper kick (1) finishing on the clipper surface (1). Direct arithmetic; no operators in play.',
+    whyNote:    'Unlike the toe stall (a single 1-ADD stall), the clipper first crosses the body ([XBD]) and then delays on the clipper surface ([DEL]), so it scores xbody(1) + stall(1) = 2. This cross-body traversal is the whole difference. Direct arithmetic; no operators in play.',
   },
   {
     trickName:  'Mirage',

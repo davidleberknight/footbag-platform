@@ -54,6 +54,8 @@ const SURFACES        = new Set([
   'SET', 'CLIP', 'TOE',
   // Anatomical + folk landing surfaces (stall surfaces beyond toe / clipper).
   'INSIDE', 'OUTSIDE', 'SOLE', 'KNEE', 'NECK', 'HEAD', 'FOREHEAD', 'SHOULDER', 'CLOUD', 'HEEL', 'PEAK',
+  // Between-the-legs held surfaces: the thigh, and the pincher/squeeze crook of the leg.
+  'THIGH', 'PINCHER',
 ]);
 const SIDES           = new Set(['SAME', 'OP']);
 const DIRECTIONS      = new Set(['IN', 'OUT']);
