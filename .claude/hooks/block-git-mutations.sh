@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Security gate: fails closed — any internal error (missing jq, bad input) exits 2,
+# which blocks the tool call instead of letting it through.
+trap 'exit 2' ERR
 set -euo pipefail
 
 INPUT="$(cat)"

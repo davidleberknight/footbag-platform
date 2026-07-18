@@ -767,6 +767,22 @@ if [ -n "$action_type_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: security-critical dependencies are pinned to an exact version.
+# Reason: argon2, better-sqlite3, express, helmet, and marked sit on the
+# authentication, storage, HTTP, header-hardening, and markdown-rendering
+# paths; a floating range lets a new upstream release install silently on a
+# fresh npm install. An upgrade to any of these must be a reviewed, deliberate
+# change, so their declared versions are exact x.y.z with no range operator.
+echo "[conventions] check: security-critical dependencies pinned exactly"
+pin_hits=$(grep -nE '"(argon2|better-sqlite3|express|helmet|marked)"[[:space:]]*:' package.json \
+  | grep -vE ':[[:space:]]*"[0-9]+\.[0-9]+\.[0-9]+"' \
+  || true)
+if [ -n "$pin_hits" ]; then
+  echo "$pin_hits" >&2
+  echo "  FAIL: argon2 / better-sqlite3 / express / helmet / marked must be pinned to an exact x.y.z version" >&2
+  violations=$((violations + 1))
+fi
+
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2
   exit 1

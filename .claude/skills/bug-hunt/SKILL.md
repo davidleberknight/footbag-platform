@@ -193,8 +193,8 @@ runs:
 5. `docs/DATA_GOVERNANCE.md` — mandatory before any finding touching members, historical
    persons, search, auth, contact fields, exports, stats, or privacy.
 6. The IFPA governing documents (`ifpa/*`) — mandatory before any finding on membership
-   tiers, Active Player status, voting eligibility, or published rules; they outrank
-   `docs/USER_STORIES.md`, which defers to them.
+   tiers, Active Player status, voting eligibility, or published rules; their rank
+   relative to the other sources is the authority order in root `CLAUDE.md`.
 7. `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/DATA_MODEL.md`,
    `docs/TESTING.md` (§15.2 anti-patterns especially), `docs/MIGRATION_PLAN.md` (gate
    index), DEVOPS_GUIDE.md (private GitHub repo) (in the private operations
@@ -226,7 +226,8 @@ between deployed and merely-documented resolves one way: a story that is deploye
 is held to 100% of its success criteria, so every criterion the code does not satisfy is a
 finding, unless an open private-tracker issue already covers exactly that
 gap, in which case it is never duplicated here. Audit the
-`docs/MIGRATION_PLAN.md` go-live gate index for accuracy (every referenced artifact
+go-live gate index (GO_LIVE_PLAN.md in the private checkout; skip when unwired) and the
+`docs/MIGRATION_PLAN.md` validation gates for accuracy (every referenced artifact
 resolves), completeness (every named risk maps to a gate), and consistency (index, detail
 table, and the tracker's Launch v1 milestone issues agree). Hold all of it in scratch notes;
 never commit them.

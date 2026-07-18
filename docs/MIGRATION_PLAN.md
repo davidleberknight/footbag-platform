@@ -2,9 +2,9 @@
 
 **Document Purpose:**
 
-This document is the go-live plan for the footbag.org migration: the coordination with the people who hold the legacy facts and decisions (the legacy-site webmaster, the IFPA secretary, and the project manager), the pass/fail cutover gates, the operational states and sequencing, and the operational-readiness gates (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts; the operator procedures live in the private ops docs). It is a roadmap, not a design home. The migration design it coordinates (the three-table identity model, the claim and auto-link flows, merge rules, club bootstrap and classification, the name and competition-history model, schema deltas, and the audit-event catalog) lives in the canonical docs (the Legacy Data Migration decision in DESIGN_DECISIONS, the `M_Claim_Legacy_Account` and `M_Complete_Onboarding_Wizard` user stories, DATA_MODEL, DATA_GOVERNANCE, and the legacy_data pipeline docs); this plan references those homes rather than restating them. For functional requirements see `USER_STORIES.md`; for privacy and visibility policy see `DATA_GOVERNANCE.md`.
+This document is the public migration reference for the footbag.org migration: the coordination with the people who hold the legacy facts and decisions (the legacy-site webmaster, the IFPA secretary, and the project manager), the pipeline validation gates, and the operational-readiness gate detail (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts; the operator procedures live in the private ops docs). The go-live gate index, the cutover state machine, and the launch sequencing live in GO_LIVE_PLAN.md (private GitHub repo), the authoritative go-live plan of record; section numbering here keeps gaps where sections moved there. It is a roadmap, not a design home. The migration design it coordinates (the three-table identity model, the claim and auto-link flows, merge rules, club bootstrap and classification, the name and competition-history model, schema deltas, and the audit-event catalog) lives in the canonical docs (the Legacy Data Migration decision in DESIGN_DECISIONS, the `M_Claim_Legacy_Account` and `M_Complete_Onboarding_Wizard` user stories, DATA_MODEL, DATA_GOVERNANCE, and the legacy_data pipeline docs); this plan references those homes rather than restating them. For functional requirements see `USER_STORIES.md`; for privacy and visibility policy see `DATA_GOVERNANCE.md`.
 
-It opens with front-matter sections for coordination with the people involved: a summary of the migration, the open questions that need the webmaster's input, a recap of the decisions of record, who decides what, and the group and email requirements discovery Julie leads. The numbered sections that follow carry the gates, the operational states, the sequencing, and the operational-readiness detail.
+It opens with front-matter sections for coordination with the people involved: a summary of the migration, the open questions that need the webmaster's input, a recap of the decisions of record, who decides what, and the group and email requirements discovery Julie leads. The numbered sections that follow carry the contract-grade coordination detail, the pipeline validation gates, and the operational-readiness detail.
 
 ---
 
@@ -38,7 +38,7 @@ Open questions owned by the IFPA secretary and the community-requirements discov
 
 **1. Front-door architecture: one clean DNS switch. Required by design intent: no hard dependency on legacy tech after go-live.** At go-live the `www` and bare-domain records point at the new platform and the legacy site goes dark; nothing is proxied through the legacy server, and it needs no TLS certificate. The switch is made by the operator on Route 53, since the zone moves there beforehand (question 2), with Steve involved in planning and rehearsing it. If something goes badly wrong during the watch window, recovery is fixing forward or restoring the platform from its own snapshot; any DNS change in that window is likewise made by the operator on the low-TTL zone. A smoke test proves the whole path before the switch.
 
-**2. DNS registrar and the zone move to Route 53. Still open — go-live preparation, done with Steve.** The `footbag.org` DNS zone moves to Route 53, under IFPA-controlled access, before go-live. This is advance preparation, not a phase of production delivery: after the move the records are managed by the operator, the go-live switch and any emergency DNS change no longer rest on one person being reachable, and the bare domain is served as a simple alias to the platform (Route 53 supports an alias at the bare domain; bind9 does not, which is why the earlier design needed a separate redirect server — with the move, that server is never built). IFPA is the registrant and payer of `footbag.org`, the only domain the cutover touches, so no registrar action is asked of Steve: Julie, as IFPA's representative and the domain technical contact, reclaims the registrar account under IFPA control, and the operator points the domain at Route 53 (gate WM13; the reclaim mechanics are coordinated privately). Steve's bind9 DNS service goes dark at the cutover. Separately and at low priority (not a cutover dependency): confirm whether IFPA still owns `footbag.sport` and `footbag.us`, and decide whether to keep them (to stop a look-alike site, or to redirect typos to `footbag.org`) or let them lapse.
+**2. DNS registrar and the zone move to Route 53. Still open — go-live preparation, done with Steve.** The `footbag.org` DNS zone moves to Route 53, under IFPA-controlled access, before go-live. This is advance preparation, not a phase of production delivery: after the move the records are managed by the operator, the go-live switch and any emergency DNS change no longer rest on one person being reachable, and the bare domain is served as a simple alias to the platform (Route 53 supports an alias at the bare domain; bind9 does not, which is why the earlier design needed a separate redirect server — with the move, that server is never built). IFPA is the registrant and payer of `footbag.org`, the only domain the cutover touches, so no registrar action is asked of Steve: Julie, as IFPA's representative and the domain technical contact, reclaims the registrar account under IFPA control, and the operator points the domain at Route 53 (gate WM13 in GO_LIVE_PLAN.md, private GitHub repo; the reclaim mechanics are coordinated privately). Steve's bind9 DNS service goes dark at the cutover. Separately and at low priority (not a cutover dependency): confirm whether IFPA still owns `footbag.sport` and `footbag.us`, and decide whether to keep them (to stop a look-alike site, or to redirect typos to `footbag.org`) or let them lapse.
 
 **3. Legacy subdomains. Still open — one ruling per subdomain, and none stays on legacy.** The go-live switch moves the bare domain and `www`; every other `*.footbag.org` name needs its own ruling before go-live. Checked against live DNS (July 2026), the names still resolving are: the mailing-list hosts `list.` and `lists.` (both exist), the IFPA group-mail host `ifpa.` (its mail routing is still live), the WordPress event-sites host, the media hosts `photo.` and `video.` on their own server, `v.` (a shortcut that aliases to `www` — it must be retired or re-pointed at the move, or it will silently follow `www` to the new platform and break), and two old names still pointing at the media server (`quebec.`, `ifc.`). None has a TLS certificate; all are plain HTTP, which is itself disqualifying: an HTTP host on `.footbag.org` would expose the platform's login cookie once the cookie widens to the whole domain, so no legacy name may stay resolvable after go-live. "Keep it running on legacy" is not an allowed outcome: each name is replaced by a platform or IFPA-controlled service, captured into the read-only archive, or deliberately retired with its users notified where that matters, and the legacy services behind retired names are shut down. Once the zone moves to Route 53 it carries records only for names that survive under this rule, so after go-live no `footbag.org` name resolves to legacy infrastructure. That also simplifies the session-cookie question: the only other host sharing the `.footbag.org` login cookie is the platform's own `archive.footbag.org`, which is served over HTTPS. Steve's zone file (already provided) plus this live-DNS check are the checklist for making sure every name gets a ruling; the reference wiki is a path on the main site, not a subdomain, so it goes dark with the main switch and only its content disposition remains open.
 
@@ -54,11 +54,11 @@ Open questions owned by the IFPA secretary and the community-requirements discov
 
 **8. Email cutover and the inbound receiver. Required by design intent: no hard dependency on legacy tech after go-live.** From go-live the platform sends all outbound mail through SES, and Google Workspace receives all inbound `@footbag.org` mail: the domain's MX record points at Google, and every address still in use exists on Google before legacy mail delivery is withdrawn. The supporting DNS records (the SPF change, the SES DKIM records, the Google MX) are published as advance preparation — by Steve while he still runs the zone, or by the operator once the zone is on Route 53. The MX switch itself may also run early as a discrete preparation step, with the legacy mail path kept only as a pre-go-live fallback; that is preparation inside the one coordinated go-live, not a phase of production delivery, and its exact timing is flexible. Either way, at go-live legacy mail delivery ends. The per-address and per-list inventory (questions 6-7, with Julie's discovery) supplies the provisioning facts.
 
-**9. Who owns and administers the Google Workspace account. Reopened — the facts must be verified, not assumed.** The intent stands: the IFPA board owns the Workspace, administered by the IFPA secretary together with a platform maintainer. But the account's actual state is unverified, so before it can carry the organization's mail it must be confirmed: which Workspace edition it is, who the legal and billing owner is, which domains it covers, who the current super administrators are, what the recovery contacts are, who controls domain verification, and whether a nonprofit conversion or other account change is needed. Two facts are verified by live DNS (July 2026): the Workspace's mail domain is my.footbag.org (its MX records point at Google), and the apex footbag.org zone already carries a google-site-verification TXT record, so domain-verified recovery is available on the apex as well. Super-admin control follows domain ownership, not any prior administrator: with IFPA controlling the domain's DNS (once the zone is on Route 53), IFPA regains super-admin control through Google's domain-verification admin recovery (gate EX9; the account-state findings and recovery-path detail are recorded privately). Julie then verifies the facts above, and she and the board approve the future administration and recovery model. Before go-live, at least two IFPA-authorized administrators must have tested, recoverable access. No one is promised a permanent administrative role until governance approves it.
+**9. Who owns and administers the Google Workspace account. Reopened — the facts must be verified, not assumed.** The intent stands: the IFPA board owns the Workspace, administered by the IFPA secretary together with a platform maintainer. But the account's actual state is unverified, so before it can carry the organization's mail it must be confirmed: which Workspace edition it is, who the legal and billing owner is, which domains it covers, who the current super administrators are, what the recovery contacts are, who controls domain verification, and whether a nonprofit conversion or other account change is needed. Two facts are verified by live DNS (July 2026): the Workspace's mail domain is my.footbag.org (its MX records point at Google), and the apex footbag.org zone already carries a google-site-verification TXT record, so domain-verified recovery is available on the apex as well. Super-admin control follows domain ownership, not any prior administrator: with IFPA controlling the domain's DNS (once the zone is on Route 53), IFPA regains super-admin control through Google's domain-verification admin recovery (gate EX9 in GO_LIVE_PLAN.md, private GitHub repo; the account-state findings and recovery-path detail are recorded privately). Julie then verifies the facts above, and she and the board approve the future administration and recovery model. Before go-live, at least two IFPA-authorized administrators must have tested, recoverable access. No one is promised a permanent administrative role until governance approves it.
 
 **Data and export**
 
-**10. What the export columns mean. Confirmed against the delivered test dump; re-confirm on the final export.** The delivered dump answered the column-semantics questions: the member-account id column is identified; there is no banned column, so questionable accounts go to admin review rather than being auto-blocked; the announce opt-in is present; and the old member table does contain a password column, so the extraction strips credentials out and never loads them. One item is not yet closed: that the export's id namespace matches the mirror/profile-URL namespace the back-links depend on is still pending the comprehensive namespace cross-check (§19 items 10-11; gate WM4, the namespace-agreement confirmation). All of this is re-confirmed against the final post-freeze export.
+**10. What the export columns mean. Confirmed against the delivered test dump; re-confirm on the final export.** The delivered dump answered the column-semantics questions: the member-account id column is identified; there is no banned column, so questionable accounts go to admin review rather than being auto-blocked; the announce opt-in is present; and the old member table does contain a password column, so the extraction strips credentials out and never loads them. One item is not yet closed: that the export's id namespace matches the mirror/profile-URL namespace the back-links depend on is still pending the comprehensive namespace cross-check (§19 items 10-11; gate WM4, the namespace-agreement confirmation, in GO_LIVE_PLAN.md, private GitHub repo). All of this is re-confirmed against the final post-freeze export.
 
 **11. Whether the tier and payment history is rich enough to map tiers fully. Confirmed against the delivered dump; re-confirm on the final export.** The delivered dump confirmed the paid-history inputs are present (tier, expiry, paid flags, payment dates, join date, and the payments table). Board-at-cutover status is not yet in hand: the committee tables are small but were omitted because the whole `groups/backups/` directory was left out to avoid the 1.2GB `ifpa_group_messages` archive in the same app; the webmaster will supply them in `groups/backups/latest.sql`, so the committee data exists and is pending delivery rather than empty. The board-at-cutover derivation scaffold is implemented and tested in the extractor (emitting both board fields) but ships inert, making no positive board determinations until the committee-table rows are delivered; the legacy admin PHP (`members/admin/tierconvert.php`) confirms `MemberIFPATier` is only 0/1/2 and does not encode a board tier, so the committee delivery is the sole unblock, with honors-only as the contingency only if the board data proves insufficient.
 
@@ -211,9 +211,9 @@ The output is one ruling per group and per address, approved at the right govern
 
 ### Part C -- Go-live
 
-22. [Go-live blocker index](#22-go-live-blocker-index)
-23. [Build stages](#23-build-stages)
-24. [Operational states](#24-operational-states)
+22. [Go-live blocker index](#22-go-live-blocker-index) (pipeline gate family; the full index is in GO_LIVE_PLAN.md, private GitHub repo)
+23. [Build stages (moved)](#23-build-stages-moved)
+24. [Operational states (moved)](#24-operational-states-moved)
 25. [Validation gates](#25-validation-gates)
 26. [Data quality from persons.csv analysis](#26-data-quality-from-personscsv-analysis)
 27. [Rollback posture](#27-rollback-posture)
@@ -229,7 +229,7 @@ The output is one ruling per group and per address, approved at the right govern
 The plan is long; readers usually need a subset. Where to start, by role:
 
 - **Legacy-site webmaster coordination**: the front-matter sections above (Summary, Open questions, Decisions made, Who decides what, and Julie's discovery section); §19 carries the contract-grade detail behind them.
-- **Cutover operators** (running the migration day): §22 (gate index), §24 (state transitions), §25 (validation gates), §27 (rollback), §29 (operational readiness).
+- **Cutover operators** (running the migration day): the go-live gate index, cutover state machine, and launch sequencing in GO_LIVE_PLAN.md (private GitHub repo); in this plan, §25 (validation gates), §27 (rollback), §29 (operational readiness).
 - **AWS / DNS / email infrastructure**: §29 (operational readiness). §29.12 and §29.12a carry the DNS-cutover and mail disposition.
 - **Open issues**: the open-questions table above; §28 holds internal open items.
 - **Migration design** (identity model, claim and auto-link flows, merge rules, club bootstrap and classification, name and competition-history model, schema, audit events): not in this plan. See the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5), the `M_Claim_Legacy_Account` and `M_Complete_Onboarding_Wizard` user stories, DATA_MODEL, and the legacy_data pipeline docs.
@@ -248,7 +248,7 @@ The front-matter Summary carries the orientation: the three workstreams (histori
 
 ## 2. Migration sources
 
-Two legacy data bodies feed the platform. The historical pipeline (events, results, persons, honors, clubs, affiliations, and leadership) is built under `legacy_data/`; its design is the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5), its inventory is in `legacy_data/CLAUDE.md`, and the club bootstrap rule, structural signals, and leadership activation paths are in the `M_Complete_Onboarding_Wizard` user story. The legacy member-account import populates the `legacy_members` table; the imported-row model and field set are in DATA_MODEL Legacy Members (§4.14b), and the credential exclusion, the `MemberValid > 0` source-validity filter with its counted-exclusions report, and the mirror pre-seed that the final export supersedes are owned by the loader in `legacy_data/member_data_scripts/`. The cutover sequence that runs these is the operational states (§24); the data-quality gates are the validation gates (§25).
+Two legacy data bodies feed the platform. The historical pipeline (events, results, persons, honors, clubs, affiliations, and leadership) is built under `legacy_data/`; its design is the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5), its inventory is in `legacy_data/CLAUDE.md`, and the club bootstrap rule, structural signals, and leadership activation paths are in the `M_Complete_Onboarding_Wizard` user story. The legacy member-account import populates the `legacy_members` table; the imported-row model and field set are in DATA_MODEL Legacy Members (§4.14b), and the credential exclusion, the `MemberValid > 0` source-validity filter with its counted-exclusions report, and the mirror pre-seed that the final export supersedes are owned by the loader in `legacy_data/member_data_scripts/`. The cutover sequence that runs these is the cutover state machine in GO_LIVE_PLAN.md (private GitHub repo); the data-quality gates are the validation gates (§25).
 
 ---
 
@@ -282,7 +282,7 @@ The Member, Legacy Member, and Historical Person Entity Types decision in DESIGN
 
 ## 7. Auto-link: matching legacy_members, historical_persons, and members
 
-Auto-link links each `historical_persons` row to its `legacy_members` provenance, and stages candidate matches between a live member and a `legacy_members` / `historical_persons` row for the member to confirm in the onboarding wizard (no email is sent and no live table is mutated until the member confirms). The anchors, the evidence-strength tiers, multi-record handling, the anchor-uniqueness fallbacks, name-variant matching, cross-source detection, and the a-priori honors validation are specified in the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5) and the `M_Claim_Legacy_Account` user story. The one-time batch auto-link staging job runs at cutover (gate G24 in the validation gates, §25, sequenced in the operational states, §24); the remaining dump-gated claim surfaces clear gates G22, G23, and G25.
+Auto-link links each `historical_persons` row to its `legacy_members` provenance, and stages candidate matches between a live member and a `legacy_members` / `historical_persons` row for the member to confirm in the onboarding wizard (no email is sent and no live table is mutated until the member confirms). The anchors, the evidence-strength tiers, multi-record handling, the anchor-uniqueness fallbacks, name-variant matching, cross-source detection, and the a-priori honors validation are specified in the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5) and the `M_Claim_Legacy_Account` user story. The one-time batch auto-link staging job runs at cutover (gate G24 in the validation gates, §25, sequenced by the cutover state machine in GO_LIVE_PLAN.md, private GitHub repo); the remaining dump-gated claim surfaces clear gates G22, G23, and G25.
 
 ---
 
@@ -308,7 +308,7 @@ The four-way classification (pre-populate, onboarding-visible, dormant, junk), i
 
 ### 10.2 Expanding historical_persons for club members
 
-The roughly 1,700 club-only people from the mirror are extracted into `historical_persons` with `PROVISIONAL` provenance so the classifier's contact-active and member-active signals are not deflated. This is gate G12 in the validation gates (§25), and the pipeline runs it before classification (operational states, §24, State 1). The extraction is owned by the legacy_data pipeline (`legacy_data/CLAUDE.md`).
+The roughly 1,700 club-only people from the mirror are extracted into `historical_persons` with `PROVISIONAL` provenance so the classifier's contact-active and member-active signals are not deflated. This is gate G12 in the validation gates (§25), and the pipeline runs it before classification (sequenced by the cutover state machine in GO_LIVE_PLAN.md, private GitHub repo). The extraction is owned by the legacy_data pipeline (`legacy_data/CLAUDE.md`).
 
 ### 10.3 Club onboarding flow during registration
 
@@ -334,7 +334,7 @@ The migration security and privacy rules (no credential import; `legacy_email` a
 
 ## 13. Admin flows
 
-Migration-time admin involvement is reactive. The member-initiated link-help request and the dispute revert are specified in the `A_Review_Member_Link_Help_Requests` user story, and the initial-admin bootstrap is the Administrator Role Lifecycle decision in DESIGN_DECISIONS (§2.9). The bootstrap grants satisfy go-live gate GV2 (§22).
+Migration-time admin involvement is reactive. The member-initiated link-help request and the dispute revert are specified in the `A_Review_Member_Link_Help_Requests` user story, and the initial-admin bootstrap is the Administrator Role Lifecycle decision in DESIGN_DECISIONS (§2.9). The bootstrap grants satisfy go-live gate GV2 (the go-live gate index in GO_LIVE_PLAN.md, private GitHub repo).
 
 ---
 
@@ -354,7 +354,7 @@ The schema the migration adds and the constraints it relies on are specified in 
 
 The five `legacy_*` tier-state fields read by the claim-time tier grant are specified in DATA_MODEL §4.14b (their meaning) and USER_STORIES `M_Claim_Legacy_Account` (the mapping that reads them). This section covers only their cutover handling.
 
-Schema authority: `database/schema.sql`. The cutover database is built fresh from `schema.sql` plus loaders; the data-preserving deploy path `scripts/deploy-migrate.sh` must land before cutover readiness (gates OR9/OR9a in §22). The loader populates the five fields.
+Schema authority: `database/schema.sql`. The cutover database is built fresh from `schema.sql` plus loaders; the data-preserving deploy path `scripts/deploy-migrate.sh` must land before cutover readiness (gates OR9/OR9a in the go-live gate index, GO_LIVE_PLAN.md, private GitHub repo). The loader populates the five fields.
 
 At test load (gate G6, §25), each field is spot-checked against known reference cases: members known to hold Tier-2 / organizer standing at cutover, board members at cutover, known Tier-1-lifetime members, and known active Tier-1 annual members. The three paid-tier fields derive from the member record's tier status at cutover (`MemberIFPATier` plus `MemberIFPAExpiration`); the `ifpa_memberpayments` history is not read for them — a deliberate simplification: current standing implies having paid, and lapsed standing grants on honors alone. A field whose values do not match the references (administrative corrections, refunded payments, test records, or other contamination) is left unpopulated; its basis then does not fire for any claim, and the other standings still apply. If the tier inputs are insufficient overall, the paid and board fields are left unpopulated and claims grant on honors alone. Whatever is held back is recorded in §28.
 
@@ -460,7 +460,7 @@ See §28 "Email transition" for the full picture: the platform sends outbound vi
 
 28. **Forum status and disposition. Settled: archive.** The delivered repository holds no forum application code or data, but it proves a phpBB forum existed on the production host (the character-set migration tool names the phpBB database and its tables, and a saved shell history opens that database and reads a neighbouring forum configuration file). Any surviving forum content is captured into the read-only archive with the rest of the legacy site; nothing stays live. No webmaster investigation is required.
 
-34. **Legacy-feature disclosure. Delivered.** The webmaster's legacy-repository walkthrough (per-app schemas, data dumps, sub-domains, and mail systems) has been delivered, and its facts are folded into the §28 dispositions and the item 16 subdomain inventory. Any residual gaps are filled from the delivered repository and data and from Julie's community-requirements discovery, not from further webmaster enumeration. Anything this reveals that belongs in v1 is added to the v1 scope. Gate WM19 is satisfied by the delivered disclosure.
+34. **Legacy-feature disclosure. Delivered.** The webmaster's legacy-repository walkthrough (per-app schemas, data dumps, sub-domains, and mail systems) has been delivered, and its facts are folded into the §28 dispositions and the item 16 subdomain inventory. Any residual gaps are filled from the delivered repository and data and from Julie's community-requirements discovery, not from further webmaster enumeration. Anything this reveals that belongs in v1 is added to the v1 scope. Gate WM19 (the go-live gate index in GO_LIVE_PLAN.md, private GitHub repo) is satisfied by the delivered disclosure.
 
 35. **Legacy group activity**: which legacy groups, committees, and discussion lists are still actively used, and by whom? For each, establish last real (non-spam) traffic and active participants. This generalizes the §29.12a 12-month non-spam-traffic question from `@ifpa.footbag.org` aliases to all legacy groups. Julie's community-requirements discovery establishes this from the community and the delivered data. Feeds the item 26 inventory and allocation.
 
@@ -484,7 +484,7 @@ See §28 "Email transition" for the full picture: the platform sends outbound vi
 
 ### 19.8 Action sequencing
 
-**Settled or established:** item 1 (one clean DNS switch, required by design intent); item 17 (records-actor: Steve until the zone moves, the operator after); item 6 (test export delivered, validation running); item 2 (legacy stack known: PHP/MariaDB/apache2/bind9/sendmail); item 3 (member count and activity present in the dump); item 23 (mail server is sendmail).
+**Settled or established:** item 1 (one clean DNS switch, required by design intent); item 17 (records-actor: the operator applies every record on Route 53); item 6 (test export delivered, validation running); item 2 (legacy stack known: PHP/MariaDB/apache2/bind9/sendmail); item 3 (member count and activity present in the dump); item 23 (mail server is sendmail).
 
 **Can proceed now, in parallel:** validate the delivered data (items 7-13); answer item 4 (hosting; payments resolved per item 5); answer items 21-22 and 25 (email and mailing-list inventories, mailbox types — Julie's discovery); answer item 16 (subdomain inventory and rulings); scope the native tournament rebuild from the frontend and organizers (item 27; no webmaster write-up) and note the legacy-feature disclosure is already delivered (item 34); apply the ACM validation and SES DKIM CNAMEs on Route 53 (operator applies; needed early so certificate issuance and SES domain verification complete ahead of the transitions); Julie reclaims the registrar and the operator starts the zone move to Route 53 (item 15).
 
@@ -554,19 +554,7 @@ The migration-driven design decisions live in `docs/DESIGN_DECISIONS.md`: the th
 
 ## 22. Go-live blocker index
 
-All pass/fail go-live blockers in one view. Gate definitions and failure handling live in the referenced sections. Each entry shows the blocker ID, a one-line criterion, the section with full detail, and the operational-state transition it blocks.
-
-This list is comprehensive for go-live cutover blockers. Broader product work that does not gate cutover lives in `docs/USER_STORIES.md` and `docs/DESIGN_DECISIONS.md`.
-
-**Go-live gate criteria.** This index holds real cutover gates only. A requirement permanently true once built lives in `docs/DESIGN_DECISIONS.md` or `docs/USER_STORIES.md` and is owned by the tests, not this index. A line is a real gate only if all five hold:
-
-1. Cutover-time checkpoint — verified true at a specific moment in the sequence, not "always true once shipped."
-2. Falsifiable evidence — passing yields an observable artifact (command exit, audit row, probe, signed-off line), not "works as designed."
-3. Distinct go-live consequence — skipping risks a launch-specific harm the test suite would not catch: data loss, outage, PII exposure, an irreversible or unrecallable send, a compliance breach, or an unrecoverable cutover.
-4. Not already guaranteed by CI, the build, or a standing test — if an automated check enforces it on every change, it is a requirement the suite owns; a gate may assert that the check is green at cutover, but it never re-describes the behavior.
-5. Owned and actionable before cutover.
-
-Test every candidate line: what breaks at go-live if this is skipped, and what artifact shows it passed? A concrete cutover harm plus an observable pass is a real gate — keep it, worded as the check. "Nothing breaks at cutover; the feature just behaves" is a restatement — remove it; `docs/DESIGN_DECISIONS.md` / `docs/USER_STORIES.md` and the tests own it. A real gate names its observable pass condition and owner.
+All pass/fail data-quality, pipeline-output, and code-behavior blockers in one view. This table is the pipeline gate family (the G-prefixed gates): engineering acceptance criteria for the legacy-data pipeline, defined with their failure handling in §25. The rest of the go-live gate index (the external-dependency, webmaster-coordination, operational-readiness, rehearsal, code-governance, compliance, pre-cutover, and retirement families), the gate criteria that govern the index, the cutover state machine, and the launch sequencing live in GO_LIVE_PLAN.md (private GitHub repo), the authoritative go-live plan of record. State names in the Blocks column refer to the cutover state machine there.
 
 ### Data-quality, pipeline-output, and code-behavior gates
 
@@ -601,249 +589,23 @@ Test every candidate line: what breaks at go-live if this is skipped, and what a
 | G26 | Member-initiated admin help request wired (structured evidence intake, admin review surface, audit on approval) | §25 | State 2 → State 3 |
 | G27 | Multi-record candidate ambiguity count measured against test load and within wizard confirmation throughput (or `name_variants` pruned) | §25 | State 2 → State 3 |
 
-### External dependencies
+---
 
-| ID | Criterion | Section | Blocks |
-|---|---|---|---|
-| EX1 | `footbag.org` domain owned by IFPA; zone authoritative on Route 53 under IFPA-controlled access; clean DNS switch to the new platform arranged and rehearsed by the operator on Route 53 (`www` and apex as ALIAS records → CloudFront at T-0) | §23 stage 4 prereqs; §29.12 | State 3 → State 4 |
-| EX2 | SES production access granted for AWS account | §23 stage 4 prereqs | State 3 → State 4 |
-| EX3 | `footbag.org` verified as SES sender identity at the domain level via DKIM CNAMEs in the zone (per §29.12a MX disposition) | §29.5 | State 3 → State 4 |
-| EX4 | ACM certificate for `footbag.org` issued in `us-east-1` and attached to CloudFront, and the separate ACM certificate for `archive.footbag.org` issued in `us-east-1` and attached to the archive distribution | §29.9 | State 3 → State 4 |
-| EX5 | Stripe production live API keys + webhook secret in Parameter Store; webhook endpoint configured; one end-to-end webhook delivery confirmed | §29.9 | State 3 → State 4 |
-| EX6 | SES bounce/complaint SNS subscription tested with synthetic bounce; hard-bounce suppression confirmed in app | §29.5 | State 3 → State 4 |
-| EX7 | Email cutover: platform sending via SES verified (SPF amended to authorize SES, SES DKIM applied, one real end-to-end send confirmed); legacy mail retired at cutover; Google Workspace inbound provisioned and the MX repointed before legacy mail is withdrawn | §28, §29.12a | State 3 → State 4 |
-| EX8 | Live payments verified to professional standard before payments open to members: the production-only go-live procedure passes (TESTING §7.7 — Stripe test-mode end-to-end, then a controlled live canary with a real low-value charge, refund, and webhook-replay idempotency check); payment reconciliation is operational (the Stripe ledger reconciles against the platform `payments` table, missed webhooks are detected, and mismatches surface to the admin work queue); a platform payment kill-switch can disable live payments without a redeploy; and webhook-delivery-failure alerting is wired so a sustained burst of rejected deliveries alerts an operator before Stripe disables the endpoint | §29.9; TESTING §7.7 | State 3 → State 4 |
-| EX9 | Google Workspace super-admin control confirmed under IFPA (prerequisite for EX7): super-admin regained through Google's domain-verification "Request User Promotion" recovery on IFPA-controlled DNS (or via an already-reachable IFPA super admin); the account facts verified (edition, legal and billing owner, covered domains, current super admins, recovery contacts, domain-verification control); and at least two IFPA-authorized administrators holding tested, recoverable access. No prior-admin (webmaster) dependency, provided an IFPA-affiliated person is already an active user in the Workspace instance and IFPA controls the DNS of the domain it is verified against | front-matter question 9; §20a item 7 | State 3 → State 4 |
+## 23. Build stages (moved)
 
-### Legacy-site webmaster coordination
-
-| ID | Criterion | Section | Blocks |
-|---|---|---|---|
-| WM1 | Test export delivered and validated in the canonical format | §19 items 6, 7 | State 1 → State 2 |
-| WM2 | Legacy-export field semantics confirmed (IDs, username, email, registration date, last-activity, tiers) | §19 item 8 | State 1 → State 2 |
-| WM3 | Credential exclusion enforced: extraction drops `MemberPassword`/`MemberSession`; load-step credential-header abort verified | §19 item 9 | State 1 → State 2 |
-| WM4 | Namespace agreement for `legacy_member_id` confirmed and verified by a comprehensive (100%) integer-format + cross-source overlap check | §19 items 10, 11 | State 1 → State 2 |
-| WM6 | Data-quality metrics delivered (deliverability estimate, last-activity timestamps) | §19 item 13 | State 1 → State 2 |
-| WM8 | Write-freeze coordinated: legacy member system goes permanently read-only (one-way) at the agreed moment before the final export | §19 item 29 | State 3 → State 4 |
-| WM9 | Legacy data retention committed: encrypted artifacts under IFPA custody, minimum 30 days after the 48-hour watch window, destruction dates recorded | §19 item 30 | State 3 → State 4 |
-| WM10 | DNS cutover coordination confirmed: T-7d notice, cutover-day availability, and the §27 monitored-window coverage (low TTL on `www`/apex for a fast switch) | §19 item 18; §29.12 | State 3 → State 4 |
-| WM11 | Legacy subdomain inventory enumerated and recorded; per-name ruling agreed (replace, archive, or retire — none stays on legacy; dependent on §28 feature scope by version) | §19 item 16 | State 3 → State 4 |
-| WM12 | Legacy retirement milestones agreed and recorded (the front-matter question 15 milestone list: zone moved, email transition complete, final export verified, every disposition executed, the operator DNS cutover darkens the site and Steve powers the legacy host down afterward on his own schedule, artifacts in IFPA custody), with a review cadence | §19 item 31 | State 3 → State 4 |
-| WM13 | `footbag.org` registrar reclaimed by Julie (IFPA representative and domain technical contact) under IFPA control; the zone move to Route 53 planned with a fresh zone snapshot and executed early as go-live preparation | §19 item 15; §29.12 | State 3 → State 4 |
-| WM14 | Records-actor: the operator applies every record on Route 53 (the zone moves early; nothing hand-applied on legacy) per the record inventory in AWS_OPERATIONS.md (private GitHub repo): ACM validation CNAMEs (both certificates) and SES DKIM CNAMEs early; the MAIL FROM subdomain records, apex SPF, DMARC, and the Google MX on email day; the `archive.footbag.org` record before cutover; the operator's `www`/apex ALIAS switch at T-0 | §19 item 17 | State 3 → State 4 |
-| WM15 | Reachability protocol agreed: the go-live window scheduled with Steve and a direct channel open through it for the write-freeze and the final export (the legacy host power-down follows on Steve's own schedule, off the critical path; DNS actions are operator-made on Route 53) | §19 item 19; §29.12a | State 3 → State 4 |
-| WM16 | Group, committee, and mailing-list inventory complete with per-item allocation (Google Groups / native in-app group / retire with archived history), with Julie; nothing stays on a live legacy server | §19 item 26 | State 3 → State 4 |
-| WM17 | (Removed) Retained-subdomain TLS monitoring is moot under the clean cutover; the archive's TLS is CloudFront-managed | §19 item 20 | n/a |
-| WM18 | (Removed) Front-door ratification is settled — the clean DNS cutover is the ratified design; execution coordination is WM10 | §19 item 1 | n/a |
-| WM19 | Legacy-feature disclosure satisfied by the delivered walkthrough; USER_STORIES updated with any gaps from it and from Julie's discovery | §19 item 34 | State 3 → State 4 |
-
-### Operational readiness gates
-
-| ID | Criterion | Section | Blocks |
-|---|---|---|---|
-| OR1 | Data backup and disaster recovery | §29.1 | State 3 → State 4 |
-| OR2 | Observability and monitoring readiness | §29.2 | State 3 → State 4 |
-| OR3 | Edge and origin security | §29.3 | State 3 → State 4 |
-| OR4 | IAM least-privilege scope-down | §29.4 | State 3 → State 4 |
-| OR5 | Email deliverability operations | §29.5 | State 3 → State 4 |
-| OR6 | Scheduled maintenance jobs | §29.6 | State 3 → State 4 |
-| OR7 | Secrets rotation | §29.7 | State 3 → State 4 |
-| OR9 | Post-launch admin curator authoring scheme designed and implemented, and the JSON-sidecar→DB source-of-truth switch covered by special tests (durability across a data-preserving deploy with no seeder run; admin-UI as sole authoring path; guard against seeding a persistent DB) | §29.14 | State 3 → State 4 |
-| OR9a | Email-template source-of-truth cutover: JSON sidecars seed `email_templates` pre-go-live, then the persistent DB is the source of truth (seeder not run against production; admin editor is the sole authoring path; rows survive a data-preserving deploy), covered by the same durability tests as OR9 | §29.14a | State 3 → State 4 |
-| OR9b | Club-classification override CSV retired at the go-live switch to the persistent database: forcing a club kept or junked is done through the live-database admin club-cleanup actions, and `legacy_data/overrides/club_classification_overrides.csv` is no longer a build input | - | State 3 → State 4 |
-| OR9c | Legacy member-account loader guarded against the persistent production DB: the loader refuses to run against production so a re-run cannot clobber claim state or member-authored rows; the real load stays a maintainer-only cutover step | - | State 3 → State 4 |
-| OR11 | Legacy archive subdomain reachable end-to-end (S3 bucket + OAC, archive CloudFront distribution + key group, its ACM certificate, DNS, cookie-Domain widening); the archive Terraform stack is built and applied first — no archive resource exists in Terraform yet while live redirect handlers already target the hostname | §29.15 | State 3 → State 4 |
-| OR12 | (Removed) Retained-subdomain TLS health monitoring is moot under the clean cutover — no legacy subdomains stay live; the archive's TLS is CloudFront-managed | §29.16 | n/a |
-| OR13 | Curator content seeded into the production DB and media bucket before DNS cutover (`scripts/seed_fh_curator.py` plus `aws s3 sync`); post-deploy smoke confirms landing pages and curator-tagged surfaces resolve to the production bucket, not 404 | §29.13 | State 3 → State 4 |
-| OR14 | (Removed) Retained-subdomain HTTPS-certificate audit is moot under the clean cutover — no legacy subdomains stay live; the only `.footbag.org` host receiving the widened cookie is the CloudFront-managed archive | §29.15, §29.16 | n/a |
-| OR15 | Smoke test green before the switch: `curl --resolve` against a current CloudFront edge IP returns the `www` page over the `footbag.org` certificate (verified via the test subdomain), and `https://footbag.org/` answers with a 301 to `https://www.footbag.org/` through the distribution; first run at State 3, re-run green on cutover day | §29.12 | State 3 → State 4 |
-| OR16 | Search-engine and crawler readiness: production `robots.txt` served and correct (allows all crawlers, names no private paths, points at the sitemap), per-page title / meta-description / canonical / social-preview tags rendered, XML sitemap and `llms.txt` published and the sitemap submitted to Search Console, non-production `X-Robots-Tag: noindex` verified, and the member-only legacy archive confirmed excluded from indexing | DD §4.10 | State 3 → State 4 |
-| OR17 | Production `snapshots` bucket carries `lifecycle { prevent_destroy = true }` to match the media/media_dr/dr buckets, protecting the §27 path-B rollback artifact store from accidental destroy or replace | §29.1 | State 3 → State 4 |
-| OR18 | Staging/production Terraform parity audited: every divergence is removed or asserted in the Terraform with a stated reason (CloudWatch alarm coverage, DR-bucket replication and its comment, SES IAM identity scope, `default_tags` Project value, and any metric filter keyed below the production log level) | §29.4 | State 3 → State 4 |
-| OR19 | Operator-doc security-hardening items resolved or explicitly accepted, with rationale recorded in the cutover sign-off: operator secret hygiene, production-role MFA, source-profile key-rotation cadence, break-glass alarms, feedback-webhook auth, maintenance-bucket public-access block, `/dev/*` production-404 verification, committed-secret scan coverage, and the repo clean of genuine-risk identifiers | §29.17 | State 3 → State 4 |
-| OR20 | Basic load/performance check passed on staging: one representative run meets the agreed latency and error-rate targets | §29.18 | State 3 → State 4 |
-| OR21 | Member-migration communications sent and an out-of-band status channel named and tested before cutover day | §29.18 | State 3 → State 4 |
-| OR22 | Formal go/no-go decision recorded by Dave, the primary maintainer: written criteria checked against this index, latest-safe rollback time agreed, and the §27 origin-latency and login-success thresholds set from the staging baseline beforehand | §29.18 | State 3 → State 4 |
-| OR23 | Post-launch close-watch period completed before the encrypted working copies are destroyed and Steve's role closes: the 14-day close-watch window passes with no unresolved high-severity issues and error/latency within target | §29.18 | post-cutover milestone |
-| OR24 | DNS preflight passed: the CAA check on the authoritative zone allows Amazon's certificate authorities (or no CAA exists) before ACM issuance; at T-48h the 60-second apex/`www` TTL is observed from the authoritative nameservers (Route 53 after the zone move), and the prior TTL is recorded and has expired before T-0 | §29.12 | State 3 → State 4 |
-| OR26 | Release candidate frozen: the cutover artifact is one tagged commit recorded in the cutover log, the State-3 checks ran against it, and any post-freeze fix-forward patch re-ran the smoke suite | §29.18 | State 3 → State 4 |
-| OR27a | Freestyle trick-URL identity clean before cutover: no `freestyle_trick_aliases` row claims the slug of an active canonical trick (each known collision adjudicated by the curator as one merged trick or two distinct tricks), every active trick renders its own page at its own URL, an alias URL whose slug matches only an inactive row returns a 301 to its canonical page, and the trick-dictionary rebuild QC passes with an alias/active-canonical collision check green | criterion self-contained | State 3 → State 4 |
-| OR27b | Freestyle editorial prose editable in-app before cutover: the admin trick editor covers `description`, `short_description`, `execution_summary`, `learning_notes`, `prerequisite_notes`, `pronunciation`, and `operational_notation_source` with audited writes, so no trick content freezes when the CSV rebuild pipeline retires from the production path at cutover | DEVOPS_GUIDE.md (private GitHub repo), freestyle cutover procedure | State 3 → State 4 |
-| OR28 | Honor rosters re-verified before cutover: the read-only Hall-of-Fame and Big-Add-Posse roster drift check (`legacy_data/member_data_scripts/diff_live_honor_rosters.py`) is re-run against the current public rosters (footbaghalloffame.net, bigaddposse.com) and the captured snapshots in `legacy_data/inputs/` refreshed if it reports real drift, so the honor flags match the live rosters at go-live | - | State 3 → State 4 |
-| RD1 | Legacy URL forwarding redirect handlers cover all in-flight email patterns (`/members/profile/:legacyMemberId`, `/clubs/:slug`) per §29.12b; sample-replay validation against a stored set of legacy URLs passes at test load | §29.12b | State 3 → State 4 |
-
-### Rehearsal gates
-
-Procedures whose pass evidence is a live practice run before cutover: each drill proves the human-and-tooling path end-to-end (the real host, the real zone, the real operator steps), which no automated test reaches. IDs keep their original prefixes; each row moved here from its owning table.
-
-| ID | Criterion | Section | Blocks |
-|---|---|---|---|
-| OR8 | Production database restore drill completed against a copy of production data, in an isolated environment — never an internet-reachable staging host while the `/dev/*` surface is active (per §29.17) | §29.1 | State 3 → State 4 |
-| OR10 | Pre-flip DB snapshot captured, integrity-verified, restored against staging in dry-run | §29.1a | State 3 → State 4 |
-| OR25 | Cutover rehearsal completed: the webmaster applies a test-subdomain record on his own zone by the same manual process as the T-0 switch, the smoke suite passes against it, and the record is reverted — proving the human change path end-to-end | §29.12; §19 item 4 | State 3 → State 4 |
-| OR27 | Persistent-database cutover rehearsed on staging before go-live (built and owned by the freestyle curation cutover; the evidence covers every admin-authored content domain): an admin edit made through the app survives a real code-only deploy with the host env and live database untouched, and the destructive rebuild deploy refuses with a non-zero exit on a host carrying the post-cutover marker before any database or media mutation; both runs captured as cutover-log evidence | DEVOPS_GUIDE.md (private GitHub repo), freestyle cutover procedure | State 3 → State 4 |
-| PC8 | First-admin bootstrap rehearsal on staging: provision via `scripts/admin-bootstrap-token.sh`, claim at `/admin/bootstrap-claim` with a non-admin account, confirm the token self-deletes | DEVOPS_GUIDE.md (private GitHub repo), "Production first-admin bootstrap" | State 3 → State 4 |
-| WM7 | Final member export readiness confirmed: the post-freeze export-and-import is scheduled and rehearsed against the test export in the canonical raw-dump format; the freeze, export, and import are executed as State 4 cutover steps (§24 State 4 steps 1-3), not before this gate | §19 item 14; §24 State 4 | State 3 → State 4 |
-
-### Code governance gates
-
-| ID | Criterion | Section | Blocks |
-|---|---|---|---|
-| GV1 | GitHub `main` branch protection enforced (PR required, status checks must pass, linear history) | §29.10 | State 3 → State 4 |
-| GV2 | At least one administrator account provisioned in production and login-tested | §29.10 | State 3 → State 4 |
-
-### Compliance gates
-
-| ID | Criterion | Section | Blocks |
-|---|---|---|---|
-| LEG1 | Privacy policy, Terms of Service, and cookie banner (if applicable) reviewed and accessible from the production site footer | §29.11 | State 3 → State 4 |
-| LEG2 | Member self-service data export and account deletion (data-subject request) verified end-to-end on staging: export artifact produced, deletion completes and clears identity links | §29.18 | State 3 → State 4 |
-| LEG3 | WCAG 2.1 AA accessibility checks (axe-core across high-traffic public pages) wired into the suite and green at cutover; accepted exceptions recorded in the sign-off | §29.18 | State 3 → State 4 |
-
-### Pre-cutover revert and rotation checklist
-
-| ID | Criterion | Section | Blocks |
-|---|---|---|---|
-| PC1 | JWT session TTL reverted to the DD §3.4 baseline (24h); staging observability-tuned values removed from production source path before the cutover deploy | §23 stage 4 prereqs; §29.8 | State 3 → State 4 |
-| PC2 | SES sender cutover to `noreply@footbag.org` | §29.8 | State 3 → State 4 |
-| PC3 | Lightsail SSH firewall rule restore | §29.8 | State 3 → State 4 |
-| PC4 | SES adapter set to live on production (`SES_ADAPTER=live`) once SES production access is granted | §29.8 | State 3 → State 4 |
-| PC5 | Production Terraform brought up through the staged sequence: tfvars filled with no placeholders; a saved `terraform plan` human-reviewed; hand-created resources imported; the reviewed plan applied; ACM issuance confirmed (CAA pre-checked per OR24); post-apply smoke green against the distribution's default domain and the test subdomain; the staging/production parity audit (OR18) re-run against the applied state | §29.8 | State 3 → State 4 |
-| PC6 | Preview fixture scrub | §29.8 | State 3 → State 4 |
-| PC7 | Production-first-admin SSM-token route lands per DD §2.9 | DD §2.9; DEVOPS_GUIDE.md (private GitHub repo), "Production first-admin bootstrap" | State 3 → State 4 |
-| PC9 | TRUST_PROXY hop count verified against the live chain (CloudFront → nginx = 2 in both staging and production under the clean cutover; no legacy front-door hop): env value matches, and `req.ip` resolves to the real client under a spoofed `X-Forwarded-For` probe | DEVOPS_GUIDE.md (private GitHub repo), "Configuration, Secrets, and Key Management" | State 3 → State 4 |
-| PC10 | Built production image verified to stub `dist/dev-bootstrap/` and `dist/testkit/`: the runtime has no env gate at the import sites, so the build-time strip is the production guard for the dev-admin code | docker/*/Dockerfile | State 3 → State 4 |
-| PC11 | Cloudflare Turnstile captcha live on production (`CAPTCHA_ADAPTER=live`, the Turnstile site key in the host env and the secret in Parameter Store), gating login, register, password-reset, verify-email-resend, and claim per the abuse-prevention design; the production process refuses to boot without the key | DD §8.3 | State 3 → State 4 |
-| PC12 | External-URL reachability live on production (`HTTP_REACHABILITY_ADAPTER=live`), the dead-link HEAD probe applied at form-submit time; production has no default and refuses to boot until this adapter is set explicitly | DD §3.17 | State 3 → State 4 |
-| PC13 | Safe Browsing URL screening live on production (`SAFE_BROWSING_ADAPTER=live`, its API key in Parameter Store); production has no default and refuses to boot until this adapter is set explicitly | DD §3.17 | State 3 → State 4 |
-
-### Retirement gate
-
-| ID | Criterion | Section | Blocks |
-|---|---|---|---|
-| R1 | QC subsystem retired (routes, code, tables, tests) | §30 | State 3 → State 4 |
-| R3 | Primary-maintainer test-user scaffolding retired early: the person-specific journey builder, build-then-switch route, catalog entry, and build-on-switch plumbing are removed (a grep for the old scaffolding tokens returns nothing), the real-flow assurance is preserved by the four-track testing suite, and no production-bound member carries the test user's slug | §31 | State 3 → State 4 (satisfied) |
+The build-and-preparation stages and the go-live scheduling constraints live in GO_LIVE_PLAN.md (private GitHub repo), under "Launch sequencing".
 
 ---
 
-## 23. Build stages
+## 24. Operational states (moved)
 
-These are build-and-preparation stages for the team. They are not phases of production delivery: production moves once, at the coordinated go-live (stage 4).
-
-### Stage 1: No external data (done)
-
-Name model, slug lifecycle, person links, historical name display, `first_competition_year`, `show_competitive_results`: built.
-
-### Stage 2: Historical-data pipeline (largely done)
-
-Club extraction, name-variants seeding, and world records are built (§20). Outstanding: mirror member extraction code lands in the repo, and the data review sign-off completes after the delivered-data analysis (§20 item 5).
-
-### Stage 3: Needs the legacy-account data (in progress)
-
-The delivered data is under validation (§25 gates). The code-side surfaces are built (the optional mailbox-link-click upgrade and the stage-and-confirm batch auto-link staging job with its staging table and cutover runner; the auto-link design is the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5) and the staging table is DATA_MODEL Staged Auto-Link Candidates, §4.31); what remains is the legacy-account data load and the data-side gates that clear against it (§25).
-
-### Stage 4: Go-live
-
-Scheduling constraint: go-live is sequenced to follow Worlds 2026, which runs on the legacy registration software (Decision 21); the member export does not precede Worlds 2026.
-
-External prerequisites that must land before stage 4 starts:
-
-- **Email cutover complete** (§28, §29.12a): SES sending verified (SPF amended, SES DKIM applied), legacy mail retired, Google Workspace inbound provisioned with the MX repointed, `SES_FROM_IDENTITY` at `noreply@footbag.org` (used by registration-verification, password-reset, optional mailbox-link-click round-trip, and other transactional mail; auto-link itself sends no email per §7).
-- **DNS zone on Route 53** (§29.12, §19 item 15): the `footbag.org` zone is authoritative on Route 53 under IFPA-controlled access, so the go-live switch is operator-executed. The zone move is advance preparation done with the webmaster.
-- **SES production access granted** for the AWS account. Sandbox caps are 200 sends/day and require per-recipient verification; transactional mail (registration verification, password reset, optional mailbox-link-click) is incompatible with sandbox. Production access is an AWS support ticket: AWS commits to a first response within 24 hours, but resolution can take days and may come back with questions; file it as soon as State 2 completes, and treat a denial as a State 3 blocker (see State 3 readiness checklist).
-- **`footbag.org` verified in SES at the domain level** (sender identity for the entire domain via DKIM CNAMEs, per §29.12a MX disposition) and runtime-role `ses:SendEmail` IAM policy pinned to the `footbag.org` domain identity ARN (post-production-access, the recipient-identity permission check goes away, so the sender-only pin is sufficient and least-privilege). Outbound mail uses `noreply@footbag.org` as the FROM address; no separate verification of the `noreply@` mailbox is needed.
-- **JWT session TTL at the DD §3.4 (JWT Token Lifecycle and Configuration) baseline** (24h). The TTL is a source-compiled constant, not a runtime config value; staging observability-tuned values are reverted by editing source and rebuilding before the cutover deploy. Allow source-change + deploy-cycle lead time when scheduling stage 4.
-- **Email-delivery smoke passes end-to-end** on the final pre-cutover release: enqueue a test row via the outbox, worker drains, SES accepts, recipient inbox receives. See §25 gate G10.
-- **Lightsail SSH firewall rule restored** via `terraform apply` from `terraform/staging/` (removes Console override of the port-22 rule and returns to `operator_cidrs`-constrained ingress). See §29.8.
-- **Curator content source-of-truth cutover** (the Curator Content Source of Truth decision in DESIGN_DECISIONS, §1.13): production curator media moves from the `/curated/` + seeder model to the persistent DB as source of truth. The admin UI writes curator content directly to the DB; the seeder is no longer run against production; data-preserving deploys use `scripts/deploy-migrate.sh`. See §29.14 (gate OR9).
-
-Stage 4 activities:
-
-- DNS cutover (§29.12)
-- Members sign in to the new platform and see staged auto-link candidates surfaced via the wizard. Confirmation applies effects on a per-member basis. No batch outbound communication.
-- Honors-bearing direct claims apply on confirmation; a-priori roster validation at test-load (§7) plus community self-policing and the dispute-revert path cover oversight (no daily email; the interactive feed is v2).
-- Member-initiated admin help requests accumulate in their queue; admin processes at their own cadence.
-
----
-
-## 24. Operational states
-
-### State 0: Current state
-
-- Legacy site live, accepting writes
-- New platform deployed on staging
-- Stage 1 code complete
-
-### State 1: Historical-data pipeline complete
-
-- `legacy_club_candidates` populated and classified per section 10.1 rules (pre-populate, onboarding-visible, dormant; junk excluded)
-- `legacy_person_club_affiliations` populated
-- Bootstrap eligibility decisions made for pre-populated clubs
-- Review report reviewed; admin decisions logged for ambiguous cases
-- Known name variants table seeded
-
-### State 2: Test load complete
-
-- Legacy webmaster provides test export
-- Imported legacy account rows inserted into staging `legacy_members`; no imported legacy account row is inserted into `members`
-- Tier-mapping dry-run report generated for all imported legacy accounts; `member_tier_grants` rows are written only when a member confirms a candidate through the wizard, the optional mailbox-link-click round-trip, the direct historical-record affordance, or an admin-approved help request
-- `legacy_email` and `legacy_user_id` uniqueness verified
-- Banned field evaluated (recorded as audit metadata per §13; no claim-time gating)
-- Club bootstrap candidates resolved against imported `legacy_members` rows
-- `club_bootstrap_leaders` rows created in staging
-- Batch auto-link candidate-staging pass run on staging (stages candidates; no live-table mutation; no notification emails)
-- Full claim flow rehearsed end-to-end on staging through the wizard, declared-anchor entry, optional mailbox-link-click round-trip, and direct historical-record affordance
-- All validation gates (section 25) evaluated
-
-### State 3: Go-live preparation complete
-
-- Email cutover complete per §29.12a: SPF amended to authorize SES, SES DKIM applied, one real SES send verified; Google Workspace inbound provisioned and the MX repointed; legacy mail delivery ends at go-live
-- DNS zone authoritative on Route 53 under IFPA-controlled access (§19 item 15); `www` and bare-domain records prepared (low TTL set); smoke test green against a test subdomain (§29.12)
-- All migration scripts finalized
-- Admin review of unresolved high-impact clubs complete
-- Final cutover checklist confirmed
-- Legacy webmaster briefed on final export and freeze timing
-- SES production-access ticket filed and approved (filed at State 2 completion; first response within 24h, resolution can take days; see stage 4 prerequisites)
-- `footbag.org` SES domain identity verified (DKIM CNAMEs in the zone); `SES_FROM_IDENTITY` on the production host updated to `noreply@footbag.org`; runtime-role `OutboundEmail` IAM policy resource ARN set to the `footbag.org` domain identity
-- Email-delivery smoke passes end-to-end (§25 gate G10)
-
-### State 4: Production cutover
-
-1. Legacy webmaster freezes the legacy member system read-only permanently (one-way; the coordinated moment and notice text are settled under §19 item 29). It never takes member writes again.
-2. Legacy webmaster produces the final member export from the frozen state
-3. New platform imports legacy account rows into `legacy_members` via the export dump loader: schema-validates the export, aborts if any password-bearing column is present, applies the §2 source-validity filter with a counted exclusions report, and upserts over the mirror pre-seed flipping `import_source` to `'legacy_site_data'`
-4. New platform runs the tier-mapping dry-run report script (read-only, in `scripts/`): a preview of what `member_tier_grants` would be written if all unclaimed legacy accounts were claimed today. No `member_tier_grants` rows are written during cutover; the report is read-only. Actual tier grants are written later, one row per member-confirmed claim, when each member completes the wizard's claim task after step 12 opens sign-in.
-5. New platform creates bootstrapped `clubs` rows for approved candidates
-6. New platform creates `club_bootstrap_leaders` rows
-7. New platform runs batch auto-link candidate staging (no live-table mutation; results surface to members at next sign-in via the wizard)
-8. New platform runs post-import validation checks: row-count reconciliation (every count delta reconciled to a named, counted exclusion), spot checksums over key `legacy_members` columns against the export, and the §25 data-quality gates re-confirmed against the final import, before the step 9 snapshot
-9. Pre-flip DB snapshot captured per §29.1a (load-bearing artifact for the rollback path B in §27; integrity verification automated)
-10. DNS cutover: the operator switches the `www` and bare-domain records on Route 53 to the new platform's CloudFront distribution (see §29.12) and the legacy site goes dark. The switch is gated on the smoke test (run against a test subdomain) re-run green on the day.
-11. Admin verifies the new platform is operational (smoke checks, critical flows confirmed, including one real end-to-end outbox → SES send to a verified admin inbox for transactional mail). If any critical smoke check fails, the admin evaluates against the §27 path B catastrophic-failure list before proceeding to step 12; non-catastrophic failures continue to step 12 with a fix-forward plan logged, catastrophic failures trigger path B per §27 (restore from the step 9 snapshot, with any DNS action operator-made on Route 53) and do not proceed to step 12.
-12. Admin opens the new platform for member sign-in; staged candidates surface to members through the wizard's claim task as members log in.
-
-### State 5: Post-cutover
-
-- New platform live
-- Post-cutover markers recorded at T+24 hours per the "DNS cutover sequence runbook" in DEVOPS_GUIDE.md (private GitHub repo): the host env-file marker and the in-database `post_cutover` config row, after which every destructive rebuild and reseed path refuses the live database and any copy of it
-- Legacy data retained only as encrypted, IFPA-custody artifacts (§19 item 30); the operator DNS cutover darkens the legacy site, and after go-live verification Steve powers down the legacy host on his own schedule (off the go-live critical path)
-- Members confirm their wizard-staged candidates over time as they sign in
-- Members declare additional anchors (former surname, old emails) in the legacy-claim task (reached from their profile) as needed; the platform re-runs candidate matching against the new anchors
-- Admins process member-initiated help requests and dispute reverts (§13)
-- Leadership activations accumulate as members register and claim
-
-### State 6: Migration complete
-
-- All high-priority legacy accounts confirmed by their members or resolved through admin help requests
-- All bootstrap clubs resolved or admin-reviewed
-- The staged auto-link candidates table has drained (member confirms, declines, or expirations) and may be dropped
-- Legacy working artifacts destroyed on their recorded dates (§19 item 30); only governance-approved sealed archives remain
+The cutover state machine (States 0 through 6 and the cutover-day sequence) lives in GO_LIVE_PLAN.md (private GitHub repo), under "Cutover state machine".
 
 ---
 
 ## 25. Validation gates
 
-The following must be confirmed at the test load before go-live. These are not open design questions; they are data-quality checkpoints.
+The following must be confirmed at the test load before go-live. These are not open design questions; they are data-quality checkpoints. State names in this section refer to the cutover state machine in GO_LIVE_PLAN.md (private GitHub repo).
 
 | Gate | Description | Failure handling |
 |---|---|---|
@@ -904,7 +666,7 @@ Decision authority is the primary maintainer.
 
 **Path B re-entry:** the legacy member system stays permanently frozen (the freeze is never lifted), and the final export and the pre-flip snapshot remain valid regardless of what path B did, so a cutover retry re-imports the same export and re-cuts-over once the defect is fixed. No second freeze or fresh export is needed.
 
-The pre-flip snapshot is the load-bearing artifact for path B. It is captured as State 4 step 9 (after validation in step 8, before the DNS cutover in step 10), so it includes the final import (step 3), the tier-mapping dry-run (step 4), the bootstrapped clubs and leaders (steps 5–6), and the staged auto-link candidates (step 7). Restore returns the database to this exact pre-flip state; staged candidates are present in the snapshot and surface to members when they sign in after the restore. It lives in the cross-region disaster-recovery bucket with S3 Object Lock (DEVOPS_GUIDE.md (private GitHub repo), "Nightly cross-region DR sync"). Creation, integrity verification, and a successful dry-run restore against staging are preconditions; see §29.1a.
+The pre-flip snapshot is the load-bearing artifact for path B. It is captured during the cutover sequence (GO_LIVE_PLAN.md, private GitHub repo) after the post-import validation checks and before the DNS switch, so it includes the final import, the tier-mapping dry-run, the bootstrapped clubs and leaders, and the staged auto-link candidates. Restore returns the database to this exact pre-flip state; staged candidates are present in the snapshot and surface to members when they sign in after the restore. It lives in the cross-region disaster-recovery bucket with S3 Object Lock (DEVOPS_GUIDE.md (private GitHub repo), "Nightly cross-region DR sync"). Creation, integrity verification, and a successful dry-run restore against staging are preconditions; see §29.1a.
 
 Path B does not recover from systemic bugs in the candidate-staging step itself, because those bugs' results are present in the snapshot. Staged-candidate defects are addressed by the per-member dispute path (§8) and admin revert (§13), and by the pre-cutover validation gates G23 and G24.
 
@@ -986,16 +748,14 @@ Functionality not in v1 scope is built natively afterward (complete by Worlds 20
 - §19 item 31: the retirement-milestone list (what closes Steve's role).
 - §19 item 26: per-mailing-list allocation (Google Group, native in-app group, or retire).
 
-**v1 (launch day):** member accounts, registration, login, profiles, tier management; legacy account import and claim flow (auto-link, declared anchors, mailbox verification, admin help requests); club bootstrap and onboarding; events (read-only public event pages and historical results; the organizer and registration build — create, register, pay, attendance, co-organizers, routine music — is post-MVP, below); freestyle trick dictionary and curated media; media and galleries; payments (Stripe: dues, event fees, donations, recurring); admin tools (work queues, payment reconciliation, sanctions, member help); transactional email via SES (SPF amended, SES DKIM applied), with legacy mail retired at cutover; native announce, the news feed, and live Stripe (live Stripe gated on the IFPA bank account + Board/Treasurer authorization); the clean DNS cutover itself; an archive subdomain for read-only historical content.
+**v1 (launch day):** member accounts, registration, login, profiles, tier management; legacy account import and claim flow (auto-link, declared anchors, mailbox verification, admin help requests); club bootstrap and onboarding; events, including the organizer and registration build (create, register, pay, attendance, co-organizers, routine music) alongside the read-only public event pages and historical results; freestyle trick dictionary and curated media; media and galleries; payments (Stripe: dues, event fees, donations, recurring); admin tools (work queues, payment reconciliation, sanctions, member help); transactional email via SES (SPF amended, SES DKIM applied), with legacy mail retired at cutover; native announce, the news feed, and live Stripe (live Stripe gated on the IFPA bank account + Board/Treasurer authorization); native in-app group and committee features (sequenced behind the group-disposition rulings and the story reconciliation); the public member directory; the clean DNS cutover itself; an archive subdomain for read-only historical content.
 
-**Open questions (version placement depends on webmaster's answers):**
+**Open questions (scope of the group build depends on webmaster's answers):**
 - Per-mailing-list disposition (move to Google Groups or retire; one-way announce is native) per §19 item 26, with Julie scoping which groups survive. Discussion lists never stay on a live legacy site. The platform's own outbound (SES) is settled v1 scope (§28 "Email transition").
-- Group and committee features (v2 default, but depends on which are active per §19 item 26; some may not survive on legacy).
+- Which group and committee features the v1 build carries depends on which groups are active per §19 item 26; some may not survive on legacy.
 - (Forum status: reopened — evidence shows a forum existed on the host; disposition per §19 item 28 and front-matter question 19.)
 
-**v2 (post-launch native build):** Hall of Fame and BAP (nominations, voting, honors oversight); voting and elections; native in-app group and committee features.
-
-**Post-MVP (native build, complete by Worlds 2027):** tournament in a box (built natively for Worlds 2027; see "Tournament in a box" below); event-organizer/registration; voting/elections; in-app groups/committees; public member directory; and any other functionality needed to complete the platform natively. Legacy is never relied upon; the legacy shutdown itself happens at go-live, not post-MVP.
+**Deferred past v1 (native build after launch):** the living v2 list is maintained in V2_SCOPE.md (private GitHub repo); at this writing it holds the voting-and-elections subsystem, the Hall of Fame / BAP nomination-and-voting flow (their separate external systems serve meanwhile; the in-app honor grant stays v1), and tournament in a box (built natively for Worlds 2027; see "Tournament in a box" below). Everything else ships in v1. Legacy is never relied upon; the legacy shutdown itself happens at go-live, not post-MVP.
 
 ### Tournament in a box
 
@@ -1047,9 +807,9 @@ Email architecture (settled): the platform owns outbound from go-live, sent via 
 
 ## 29. Operational readiness for go-live
 
-Non-data workstreams that must close before production cutover. Each subsection states the go-live gate (what must be true); operator setup procedures live in AWS_OPERATIONS.md (private GitHub repo) and routine runbooks live in DEVOPS_GUIDE.md (private GitHub repo). This section holds only what is required to green-light §24 State 3 / State 4.
+Non-data workstreams that must close before production cutover. Each subsection states the go-live gate (what must be true); operator setup procedures live in AWS_OPERATIONS.md (private GitHub repo) and routine runbooks live in DEVOPS_GUIDE.md (private GitHub repo). This section holds only what is required to green-light the go-live preparation and cutover transitions. Gate IDs (EX, WM, OR, PC, GV, LEG, R) and operational-state names in this section refer to the go-live gate index and the cutover state machine in GO_LIVE_PLAN.md (private GitHub repo); the G-prefixed gates are the §25 validation gates.
 
-**Subsection numbering convention.** Numeric subsections (§29.1, §29.2, ..., §29.16) are the original ordered series. Letter-suffixed subsections (§29.1a, §29.12a, §29.12b) denote later additions inserted to keep related material adjacent rather than appended at the end; the gate index in §22 refers to the exact suffix where applicable.
+**Subsection numbering convention.** Numeric subsections (§29.1, §29.2, ..., §29.16) are the original ordered series. Letter-suffixed subsections (§29.1a, §29.12a, §29.12b) denote later additions inserted to keep related material adjacent rather than appended at the end; the go-live gate index (GO_LIVE_PLAN.md, private GitHub repo) refers to the exact suffix where applicable.
 
 **Jargon used in this section.** DNS terms: A / AAAA (address records), CNAME (alias by name), ALIAS / ANAME (CNAME-like records that work at the zone apex, where plain CNAME is disallowed by RFC 1034), MX (mail exchange; routes inbound mail for the domain), DKIM (DomainKeys Identified Mail; per-domain DNS-published signing keys for outbound email authentication). AWS terms: ACM (AWS Certificate Manager; issues TLS certs), OAC (Origin Access Control; the S3-CloudFront access pattern that allows only the distribution to read), SSM (Systems Manager Parameter Store; secrets and config storage), KMS (Key Management Service; signing keys), SES (Simple Email Service; outbound mail). Reliability metrics: RPO (recovery point objective; how much recent data a restore can lose), RTO (recovery time objective; how quickly a restore returns service). Operational terms: source-profile IAM user (the long-lived IAM credentials a CLI operator assumes a role from), OOM (out of memory).
 
@@ -1059,7 +819,7 @@ Gate: host-side SQLite backup producer runs on a schedule, ships to S3, and emit
 
 ### 29.1a Pre-flip DB snapshot
 
-Gate: a dedicated snapshot of the production SQLite DB is captured as State 4 step 9 (after validation in step 8, before the DNS cutover in step 10). The snapshot contains the final import, the tier-mapping dry-run, the bootstrapped clubs and leaders, and the batch auto-link results. The snapshot is the load-bearing artifact for the rollback path B in §27. Requirements:
+Gate: a dedicated snapshot of the production SQLite DB is captured during the cutover sequence (GO_LIVE_PLAN.md, private GitHub repo), after the post-import validation checks and before the DNS switch. The snapshot contains the final import, the tier-mapping dry-run, the bootstrapped clubs and leaders, and the batch auto-link results. The snapshot is the load-bearing artifact for the rollback path B in §27. Requirements:
 
 - Snapshot is written to the cross-region DR bucket (S3 Object Lock per DEVOPS_GUIDE.md (private GitHub repo), "Nightly cross-region DR sync") under a path distinct from the routine backup stream, so the snapshot is not aged out by the routine retention policy.
 - Integrity verification is automated: snapshot SHA-256 is recorded, a `PRAGMA integrity_check` run against a temporary copy returns `ok`, and the row counts for `members`, `legacy_members`, `historical_persons`, `clubs`, `audit_entries`, and `auto_link_staged_candidates` are recorded in the cutover audit trail. The staged-candidates count is included because the snapshot carries the batch auto-link results and that table is what members act on at first sign-in, so a path-B restore with a wrong candidate count would otherwise pass the integrity check unnoticed.
@@ -1107,7 +867,7 @@ Before stage 4 cutover, the following staging-observability-only deviations must
 7. Dev-shortcut auth surface removal. Dev autologin has already been removed: `src/middleware/auth.ts` runs the cookie path unconditionally and the `FOOTBAG_DEV_AUTOLOGIN_*` env vars and their guards no longer exist. The test-data persona harness (the `devRouter` mount in `src/app.ts` for `GET /dev/switch` and `GET /dev/personas`, gated to development and staging, and the `src/testkit/` subtree of persona factory, catalog, and seed runner) is permanent test infrastructure: it is excluded from the production image at build time and never mounted in production, but it is not removed from source at cutover. The registration-time admin email-allowlist bootstrap in `src/dev-bootstrap/` is likewise permanent dev/staging infrastructure (build-excluded from production, never source-deleted): it is the dev/staging peer of the production SSM-token first-admin claim. **Scope**: this item covers dev-only auth/persona surfaces. Production first-admin uses the SSM-token `/admin/bootstrap-claim` route (the Administrator Role Lifecycle decision in DESIGN_DECISIONS, §2.9; operator runbook in DEVOPS_GUIDE.md (private GitHub repo), "Production first-admin bootstrap").
 8. JWT session TTL revert: the TTL constant in the JWT signing service is at the DD §3.4 (JWT Token Lifecycle and Configuration) baseline (24h = 86400 seconds) in the artifact shipped at cutover. This is the PC1 gate.
 
-Sign-off on this checklist is a prerequisite for §24 State 3 → State 4 transition.
+Sign-off on this checklist is a prerequisite for the State 3 → State 4 transition (the cutover state machine in GO_LIVE_PLAN.md, private GitHub repo).
 
 ### 29.9 Production-specific prerequisites
 
@@ -1134,13 +894,13 @@ Under the clean cutover the apex and `www` move to the new platform at go-live: 
 - The canonical host is `https://www.footbag.org` — the apex only redirects — so the CSRF Origin-pin, the sitemap and per-page canonical tags, and every SES-sent link derive from `www`; no template, seeded content row, or configured webhook URL names the bare apex as the site origin.
 - The cutover-day smoke test is green: the expected page served through the distribution with the `footbag.org` certificate, and the apex 301-redirecting to `www`. First run at State 3; re-run green on cutover day before the switch.
 - Email cutover ready (§29.12a): SES sending verified, Google inbound provisioned with the MX repointed, legacy mail retiring at cutover.
-- Write-freeze: the legacy member system frozen permanently read-only and the final member export imported into production (per §23 stage 4 cutover gates). Only the legacy member system needs the freeze; the pipeline data is already authoritative.
+- Write-freeze: the legacy member system frozen permanently read-only and the final member export imported into production (per the stage 4 launch sequencing in GO_LIVE_PLAN.md, private GitHub repo). Only the legacy member system needs the freeze; the pipeline data is already authoritative.
 
 The operator executes the switch and the T+0 to T+48h watch per DEVOPS_GUIDE.md (private GitHub repo), "DNS cutover sequence runbook"; the webmaster gets the agreed advance notice of the cutover window (§19 item 19); recovery is fix-forward or a platform restore, with any DNS action operator-made (§27).
 
-Post-cutover verification: as part of State 4 step 11, confirm `www` resolves to the new platform via CloudFront (not directly to the Lightsail origin, per the §29.3 origin-verification gate) and the apex 301-redirects to `www`; correct before declaring step 11 complete.
+Post-cutover verification: as part of the cutover-day operational verification step (the cutover state machine in GO_LIVE_PLAN.md, private GitHub repo), confirm `www` resolves to the new platform via CloudFront (not directly to the Lightsail origin, per the §29.3 origin-verification gate) and the apex 301-redirects to `www`; correct before declaring that step complete.
 
-Sign-off on this sequence is a prerequisite for §24 State 3 → State 4 transition.
+Sign-off on this sequence is a prerequisite for the State 3 → State 4 transition (the cutover state machine in GO_LIVE_PLAN.md, private GitHub repo).
 
 **Zone move to Route 53 (go-live preparation, §19 item 15):** the zone moves before go-live, early enough that all records are staged directly on Route 53, and resolution is verified against Route 53 before any cutover step depends on it. Julie (IFPA representative and domain technical contact) is the acting party for the registrar side. The move procedure is DEVOPS_GUIDE.md (private GitHub repo), "External DNS/mail upstream coordination runbook". DNS authority sits under IFPA-controlled access from the move onward.
 
@@ -1163,7 +923,7 @@ After cutover the legacy host serves nothing. The operator's DNS cutover is what
 - Subdomain inventory (§19 item 16): which ruling each `*.footbag.org` name gets (replace, archive, or retire).
 - Legacy retirement milestones (§19 item 31).
 - Zone move to Route 53 (§19 item 15; go-live preparation).
-- Records-actor (§19 item 17: Steve until the zone moves, the operator after), and reachability through the window (§19 item 19).
+- Records-actor (§19 item 17: the operator applies every record on Route 53), and reachability through the window (§19 item 19).
 
 **MX disposition for `@footbag.org`:** outbound SES sender identity is verified at the `footbag.org` domain level using the DKIM CNAMEs plus the SPF amendment authorizing SES; no inbound mailbox is required for SES verification, and the platform accepts no inbound mail. Inbound `@footbag.org` role addresses (`brat@`, `directors@`, `sanctioning@`, and the rest) move to Google Workspace (settled; the per-address inventory is §19 items 6-9, with Julie), provisioned before legacy delivery is withdrawn so no mail is lost; legacy mail then retires. Provisioning precedes the MX repoint: nothing moves until its Google mailbox, group, or forward exists. `@ifpa.footbag.org` is a separate mail domain served by the same third-party mail host (IFPA list mail below). Cloudflare Email Routing is not used.
 
@@ -1264,13 +1024,13 @@ Gate: the items surfaced by the operator-doc security audit are resolved or expl
 4. Break-glass has contemporaneous second-operator notification, a CloudTrail/CloudWatch alarm on privileged-role AssumeRole, and bounded auto-revocation of any console-granted temporary access (DEVOPS_GUIDE.md (private GitHub repo), "Break-glass access").
 5. SES feedback webhook auth reviewed: the `SES_FEEDBACK_WEBHOOK_KEY` query-string transport is accepted only with CloudWatch access-log read narrowed to System Administrators, or replaced by a request-body HMAC (DEVOPS_GUIDE.md (private GitHub repo), "SES feedback loop activation").
 6. The maintenance S3 bucket keeps `block_public_policy = true` and `restrict_public_buckets = true` (OAC service-principal policies are compatible); reconciles with §29.3.
-7. The `/dev/*` persona-switch surface (and all dev/test scaffolding) is dev/staging-only and unreachable in production, enforced by three independent layers: the env-gated mount in `src/app.ts` (registers `/dev` only when `FOOTBAG_ENV ∈ {development, staging}`), the null-guard (production images stub the harness module to null), and the build-time image strip (`INCLUDE_DEV_SHORTCUTS=0` removes `dist/testkit/` and `dist/dev-bootstrap/`; PC10). Cutover preflight (§24) verifies the production origin returns 404 for `/dev/switch`, `/dev/personas`, and `/dev/outbox` (the captured-email viewer, which exposes verification, password-reset, and legacy-claim links and must never be reachable in production). No real-PII dataset is loaded on an internet-reachable staging while the `/dev/*` surface is active.
+7. The `/dev/*` persona-switch surface (and all dev/test scaffolding) is dev/staging-only and unreachable in production, enforced by three independent layers: the env-gated mount in `src/app.ts` (registers `/dev` only when `FOOTBAG_ENV ∈ {development, staging}`), the null-guard (production images stub the harness module to null), and the build-time image strip (`INCLUDE_DEV_SHORTCUTS=0` removes `dist/testkit/` and `dist/dev-bootstrap/`; PC10). Cutover preflight (the cutover state machine in GO_LIVE_PLAN.md, private GitHub repo) verifies the production origin returns 404 for `/dev/switch`, `/dev/personas`, and `/dev/outbox` (the captured-email viewer, which exposes verification, password-reset, and legacy-claim links and must never be reachable in production). No real-PII dataset is loaded on an internet-reachable staging while the `/dev/*` surface is active.
 8. The committed-secret scan covers `.md`/`.txt` so a secret pasted into documentation is caught in CI; the dev/staging seed-password literal stays single-file and guarded.
 9. The repository carries no genuine-risk identifier (account id, origin IP, operator CIDR, KMS key material, live credentials); infra identifiers with no exploitation value (state-bucket name, CloudFront domain) may remain.
 
 Rationale: the operator runbooks and committed configuration are themselves an attack surface on a public repository; this gate closes (or consciously accepts) the audit's hardening items rather than carrying them silently into production.
 
-Procedure: items 1, 8, and 9 are doc/CI changes applied pre-cutover; items 2-6 are infra/process changes completed under §29.3/§29.4/§29.7; item 7 is a standing rule verified at cutover preflight (§24).
+Procedure: items 1, 8, and 9 are doc/CI changes applied pre-cutover; items 2-6 are infra/process changes completed under §29.3/§29.4/§29.7; item 7 is a standing rule verified at cutover preflight (the cutover state machine in GO_LIVE_PLAN.md, private GitHub repo).
 
 ---
 
@@ -1283,14 +1043,14 @@ Calibrated for a small, volunteer-run international nonprofit handling member PI
 - **Load and performance.** One representative load run on staging meets the agreed latency and error-rate targets. Lightest of these gates; the targets are modest and set to the expected member population.
 - **Member communications and status channel.** Members are notified of the cutover window and what changes for them, and an out-of-band status channel (reachable if the site is down) is named and tested before cutover day.
 - **Release candidate and change freeze.** The cutover deploys one tagged commit, built once and recorded in the cutover log — the same artifact the State 3 smoke and email checks ran against. From State 3 sign-off to cutover only fix-forward patches land, each re-entering the smoke suite; any other change re-opens State 3.
-- **Go / no-go decision.** Dave, the primary maintainer, records a written go/no-go against the blocker index, with the latest-safe rollback time agreed, before the cutover deploy. Precondition: the §27 monitoring thresholds not yet fixed (origin-latency p95, login-success rate) are set from the staging baseline first — a go/no-go cannot be checked against unset thresholds.
+- **Go / no-go decision.** Dave, the primary maintainer, records a written go/no-go against the go-live gate index (GO_LIVE_PLAN.md, private GitHub repo), with the latest-safe rollback time agreed, before the cutover deploy. Precondition: the §27 monitoring thresholds not yet fixed (origin-latency p95, login-success rate) are set from the staging baseline first — a go/no-go cannot be checked against unset thresholds.
 - **Post-launch close-watch period (hypercare).** Immediately after cutover the team watches the system closely and responds fast to issues. Before the encrypted working copies are destroyed and Steve's role closes, a 14-day close-watch window from cutover (inside the 30-day artifact retention) passes with no unresolved high-severity issues and error/latency within target, extendable if a high-severity issue is open when it lapses. This defines the "stable post-cutover operation" the legacy retirement milestones depend on.
 
 ## 30. QC subsystem retirement (go-live gate)
 
 The internal QC subsystem (`/internal/net/*`, `/internal/persons/*`, and supporting code, tables, and tests) is a hard go-live gate: no production deployment may carry QC code, routes, or tables. Deletion is not a post-launch tidy-up. Scope at retirement time: every `/internal/*` route, its controller and service code, its Handlebars views, its schema tables, its `db.ts` prepared-statement groups, and its tests.
 
-Sign-off on QC retirement is a prerequisite for §24 State 3 → State 4 transition.
+Sign-off on QC retirement is a prerequisite for the State 3 → State 4 transition (the cutover state machine in GO_LIVE_PLAN.md, private GitHub repo).
 
 **QC retirement inventory** (canonical list of paths and tables to delete; the retirement PR maintainer extends this list if files have been added since):
 
@@ -1318,4 +1078,4 @@ The primary-maintainer real-flow test user and its person-specific scaffolding �
 
 The real-flow assurance that scaffolding provided is preserved, and broadened, by a four-track testing suite: a synthetic register-through-co-lead journey in continuous integration; a read-only, PII-safe whole-population invariant gate over the loaded real data (counts and pass/fail only); a generic real-claim crawl that builds a claimed account for any real record through `GET /dev/build-claim?as=<legacy_member_id>` and walks its rendered surfaces; and a human stratified-sampling walk on staging. Migrated-real-data behaviour is verified by claiming any real record rather than one fixed person.
 
-Verification that the scaffolding is gone: a grep of the source tree for the old entry points (the journey builder and build-then-switch route names, the build-on-switch field, and the person slug) returns nothing, and the test suite and type-check pass. No production-bound member carries the test user's slug. This item is no longer a State 3 → State 4 blocker; it is satisfied.
+Verification that the scaffolding is gone: a grep of the source tree for the old entry points (the journey builder and build-then-switch route names, the build-on-switch field, and the person slug) returns nothing, and the test suite and type-check pass. No production-bound member carries the test user's slug. This item is no longer a cutover blocker; it is satisfied.

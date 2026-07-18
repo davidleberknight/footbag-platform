@@ -30,7 +30,7 @@ Do not use this skill for:
 
 ## Source-of-truth order
 
-Use the authority order and read order in root `CLAUDE.md`; do not restate them here. For membership, tiers, Active-Player status, voting eligibility, or published-rules content, the IFPA governing documents are the authority of record and `docs/USER_STORIES.md` defers to them; a genuine governance change is routed to IFPA, not edited in.
+Use the authority order and read order in root `CLAUDE.md`; do not restate them here. For membership, tiers, Active-Player status, voting eligibility, or published-rules content, consult the IFPA governing documents at the rank that order gives them; a genuine governance change is routed to IFPA, not edited in.
 
 When code, plan, and derived docs disagree, surface the drift explicitly. Do not flatten the disagreement into one invented source of truth.
 

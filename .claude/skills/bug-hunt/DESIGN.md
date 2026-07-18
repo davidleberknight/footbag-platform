@@ -243,8 +243,10 @@ route/DNS cutover; inbound/outbound email transition; post-go-live retirement of
 feeds; raw dump retention and access; staging test data derived from legacy data; the
 production database becoming the source of truth.
 
-**Gate-index accuracy and completeness (mandatory).** The go-live blocker index in
-`docs/MIGRATION_PLAN.md` and its validation-gate table are themselves audited surfaces:
+**Gate-index accuracy and completeness (mandatory).** The go-live gate index in
+GO_LIVE_PLAN.md (private GitHub repo; skip its rows when the private checkout is not
+wired) and the validation-gate table in `docs/MIGRATION_PLAN.md` are themselves audited
+surfaces:
 
 - Accuracy: every artifact a gate references — script, route, table, column, count,
   section, Terraform resource — must resolve against the current repo. A gate pointing at

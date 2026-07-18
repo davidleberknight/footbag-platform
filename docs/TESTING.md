@@ -12,7 +12,7 @@ This file does not duplicate:
 
 - the edge-case lists, anti-pattern lists, adversarial input list, factories pattern, adapter parity test contracts, or the coverage floor that live in `.claude/rules/testing.md` and `tests/CLAUDE.md`,
 - the security and privacy policy in `docs/DATA_GOVERNANCE.md` (member-data visibility taxonomy, anti-enumeration rules, logging hygiene, legacy archive handling, contributor obligations),
-- the validation gate and operational readiness rules for migration in `docs/MIGRATION_PLAN.md` §24 and §28.
+- the validation gates and operational-readiness rules for migration in `docs/MIGRATION_PLAN.md` (its "Validation gates" and "Operational readiness for go-live" sections).
 
 ---
 
@@ -245,7 +245,7 @@ Belongs:
 
 - Schema-load smoke
 - Loader pipeline row-count and shape assertions
-- Migration regression cases tied to `docs/MIGRATION_PLAN.md` §24 validation gates
+- Migration regression cases tied to the `docs/MIGRATION_PLAN.md` validation gates
 
 Does not belong:
 
@@ -540,7 +540,7 @@ Dev and continuous integration keep the unit, route and service integration, the
 
 ## 8. Migration and onboarding testing
 
-The validation gates in `docs/MIGRATION_PLAN.md` §24 and the operational readiness rules in `docs/MIGRATION_PLAN.md` §28 are canonical for migration and onboarding. This section adds the playbook framing for deriving migration tests and the constraints that bind to the canonical content there.
+The validation gates and the operational readiness rules in `docs/MIGRATION_PLAN.md` are canonical for migration and onboarding. This section adds the playbook framing for deriving migration tests and the constraints that bind to the canonical content there.
 
 ### 8.1 The migration anchor
 

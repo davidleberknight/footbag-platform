@@ -41,7 +41,7 @@ Two different orders, do not conflate them. Both live only here; rules, skills, 
 
 1. An explicit human decision in the current task.
 2. The IFPA governing documents (`ifpa/*`) for membership rules, tiers, voting eligibility, and published-rules content. `docs/USER_STORIES.md` defers to them.
-3. Clear design intent: `docs/DESIGN_DECISIONS.md`, `docs/USER_STORIES.md`, `docs/DATA_MODEL:.md`, the path-scoped `.claude/rules/*`, and service file-header JSDoc. `docs/DATA_GOVERNANCE.md` is mandatory before any change touching members, historical persons, search, auth, contact fields, exports, stats, or privacy.
+3. Clear design intent: `docs/DESIGN_DECISIONS.md`, `docs/USER_STORIES.md`, `docs/DATA_MODEL.md`, the path-scoped `.claude/rules/*`, and service file-header JSDoc. `docs/DATA_GOVERNANCE.md` is mandatory before any change touching members, historical persons, search, auth, contact fields, exports, stats, or privacy.
 4. Current code, `database/schema.sql`, and infrastructure : authoritative for *implemented behavior* only, never for design intent.
 
 The maintainers' private tracker (see "Companion repositories") tracks current scope and records known deviations from the canonical design. Prefer design intent over code in general; but when code conflicts with design intent and no tracked deviation explains it, do not silently pick a side or guess, always stop and ask the human. It may be a code bug, a stale doc, or an untracked deliberate deviation, and only the human decides.

@@ -180,8 +180,9 @@ still agree."
   rollback, legacy-credential exclusion, identity mapping, email/DNS transition, retained
   archive scope. The gate-index accuracy/completeness/consistency audit itself is in
   `DESIGN.md` (Migration and go-live design sweep); here, additionally spot-derive cheap
-  referenced counts read-only and confirm the migration plan's "Go-live blocker index"
-  and the Launch v1 milestone in the maintainers' private tracker have not forked.
+  referenced counts read-only and confirm the go-live gate index (GO_LIVE_PLAN.md, in the
+  private checkout; skip when unwired) and the Launch v1 milestone in the maintainers'
+  private tracker have not forked.
 
 ## Terminology and reference sync: the four mechanical detectors
 

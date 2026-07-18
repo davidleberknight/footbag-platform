@@ -1095,6 +1095,7 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `audit_retention_days` | `2555` | Audit log retention window (~7 years) |
 | `reconciliation_expiry_days` | `90` | Resolved reconciliation issue TTL |
 | `email_outbox_paused` | `0` | `1` = pause the transactional email outbox worker (DD §5.4) |
+| `payments_paused` | `0` | `1` = admin kill-switch pausing membership purchases |
 | `event_registration_reminder_days` | `7` | Days before event start to send reminder |
 | `member_cleanup_grace_days` | `90` | Grace days after soft-delete before PII purge job runs |
 | `payment_retention_days` | `2555` | Payment record compliance retention (~7 years) |
@@ -1123,6 +1124,8 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `login_rate_limit_max_attempts` | `10` | Max failed login attempts within window before lockout |
 | `login_rate_limit_window_minutes` | `15` | Sliding window (minutes) for counting failed login attempts |
 | `login_cooldown_minutes` | `30` | Lockout duration (minutes) after rate-limit threshold exceeded |
+| `login_account_rate_limit_max_attempts` | `30` | Max login attempts per account across all source IPs per window (distributed credential-stuffing cap) |
+| `login_account_rate_limit_window_minutes` | `60` | Sliding window (minutes) for the per-account login cap |
 | `password_reset_rate_limit_max_attempts` | `5` | Max password reset requests per email per window |
 | `password_reset_rate_limit_window_minutes` | `60` | Sliding window (minutes) for counting password reset requests |
 | `password_change_rate_limit_max_attempts` | `10` | Max authenticated password-change attempts per member per window |
@@ -1152,6 +1155,9 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `mailbox_link_rate_limit_max_per_target` | `3` | Max mailbox-verification links per target anchor per window (silent) |
 | `mailbox_link_rate_limit_max_per_ip` | `10` | Max mailbox-verification link requests per source IP per window (silent) |
 | `mailbox_link_rate_limit_window_minutes` | `60` | Sliding window (minutes) for mailbox-verification link requests |
+| `hp_claim_rate_limit_max_per_member` | `5` | Max direct historical-person claim confirms per requesting member per window |
+| `hp_claim_rate_limit_max_per_ip` | `10` | Max direct historical-person claim confirms per source IP per window (silent) |
+| `hp_claim_rate_limit_window_minutes` | `60` | Sliding window (minutes) for direct historical-person claim rate limiting |
 | `bootstrap_claim_rate_limit_max_per_member` | `5` | Max first-admin bootstrap-claim attempts per member per window |
 | `bootstrap_claim_rate_limit_max_per_ip` | `5` | Max first-admin bootstrap-claim attempts per source IP per window (silent) |
 | `bootstrap_claim_rate_limit_window_minutes` | `60` | Sliding window (minutes) for bootstrap-claim attempts |
@@ -1552,7 +1558,7 @@ The DB does not CHECK `reason_code` semantics; the application is the primary va
 **To verify seed data is present after initialization:**
 ```sql
 SELECT count(*) FROM mailing_lists;     -- expect 7
-SELECT count(*) FROM system_config;     -- expect 46
+SELECT count(*) FROM system_config;     -- expect 55
 ```
 
 **Prefer semantic-key verification for publishable checks/examples:**

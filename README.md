@@ -29,7 +29,7 @@ Sneak Preview (AWS Staging): [https://doye1nvv64qep.cloudfront.net/](https://doy
 
 - See [CLAUDE.md](CLAUDE.md) for our bespoke harness operating rules. The AI always loads this file first.
 
-- See also docs/CLAUDE_CODE_GUIDE.md. This doc explains how our custom harness works, and all the rules, skills, guardrails, question-asking preferences, and authorization approval control (human in the loop rules). Note that our harness endeavors to force Claude Code to follow all the documentated design decisions and user stories with maximum token efficiency using progressive disclosure and Anthropic guidelines.
+- See also [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md) for explanation of our custom harness.
 
 ## Contributing
 
@@ -41,17 +41,18 @@ Sneak Preview (AWS Staging): [https://doye1nvv64qep.cloudfront.net/](https://doy
 
 ## Project Documentation
 
-- [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md): our bespoke harness governs what rules the AI-written code must follow.
+- [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md): AI coding instructions as rules, procedures as skills, question-asking scheme, guardrails, and token-use efficiency / context-window managment harness.
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md): data model and schema semantics.
 - [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md): architectural decisions and rationale.
 - [docs/DEV_ONBOARDING.md](docs/DEV_ONBOARDING.md): developer setup and onboarding, but not contributing (refer to private GitHub repo).
 - [docs/DIAGRAMS.md](docs/DIAGRAMS.md): solution architecture diagrams.
 - [docs/GLOSSARY.md](docs/GLOSSARY.md): terminology and jargon.
-- [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md): go-live readiness steps: data migration, and validation gates.
+- [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md): migration design and coordination, and the pipeline validation gates; the go-live gate index and cutover sequencing live in GO_LIVE_PLAN.md (private GitHub repo).
 - [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md): project overview.
 - [docs/TESTING.md](docs/TESTING.md): testing strategy and methodology.
 - [docs/USER_STORIES.md](docs/USER_STORIES.md): intended functional behaviors and success criteria.
-- `DEVOPS_GUIDE.md` and `AWS_OPERATIONS.md` are private.
+
+NOTE: `DEVOPS_GUIDE.md` and `AWS_OPERATIONS.md` are private, along with Project Management tools.
 
 ## Technology Stack
 

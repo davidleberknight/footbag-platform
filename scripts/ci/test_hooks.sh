@@ -3,8 +3,8 @@
 # hook exactly as Claude Code would and assert the permission decision it emits.
 # "defer" means the hook stays silent (exit 0, no decision) and the normal
 # permission flow decides. Aggregates failures and exits non-zero if any fixture
-# mismatches. Currently covers guard-secret-reads.sh; extend with fixtures for the
-# sibling guards as they change.
+# mismatches. Covers the Bash-command guards (command-style events), the Edit/Write
+# secret-file guard (file_path-style events), and the Stop-hook question gate.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -95,6 +95,52 @@ expect "$H" "jq '.key' package.json" defer
 expect "$H" 'ls -la src' defer
 expect "$H" 'git status' defer
 expect "$H" 'npm run build' defer
+
+# expect_file <hook-file> <file-path> <deny|ask|allow|defer>: same assertion as
+# expect, but the synthetic event carries tool_input.file_path (an Edit/Write
+# event), which is what the file-matcher hooks read.
+expect_file() {
+  local hook="$1" path="$2" want="$3" out decision rc
+  out="$(printf '{"tool_input":{"file_path":%s}}' "$(printf '%s' "$path" | jq -Rs .)" \
+    | ".claude/hooks/$hook")"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "[hooks] FAIL ($hook): errored (exit $rc) on: $path" >&2
+    fail=1
+    return
+  fi
+  if [ -z "$out" ]; then
+    decision="defer"
+  else
+    decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "defer"')"
+  fi
+  if [ "$decision" != "$want" ]; then
+    echo "[hooks] FAIL ($hook): want $want, got $decision: $path" >&2
+    fail=1
+  fi
+}
+
+H=block-secrets.sh
+
+# Editing a secret-bearing or private-local file inside the project is hard-denied.
+expect_file "$H" "$CLAUDE_PROJECT_DIR/.env" deny
+expect_file "$H" "$CLAUDE_PROJECT_DIR/.env.staging" deny
+expect_file "$H" "$CLAUDE_PROJECT_DIR/server.key" deny
+expect_file "$H" "$CLAUDE_PROJECT_DIR/certs/tls.pem" deny
+expect_file "$H" "$CLAUDE_PROJECT_DIR/secrets/api.json" deny
+expect_file "$H" "$CLAUDE_PROJECT_DIR/.npmrc" deny
+expect_file "$H" "$CLAUDE_PROJECT_DIR/terraform/staging/terraform.tfstate" deny
+expect_file "$H" "$CLAUDE_PROJECT_DIR/terraform.tfstate.backup" deny
+expect_file "$H" "$CLAUDE_PROJECT_DIR/.aws/credentials" deny
+expect_file "$H" "$CLAUDE_PROJECT_DIR/.ssh/id_rsa" deny
+# The checked-in placeholder templates and ordinary project files defer, as does a
+# path outside the project (other layers own out-of-tree policy) and a command-style
+# event with no file_path at all.
+expect_file "$H" "$CLAUDE_PROJECT_DIR/.env.example" defer
+expect_file "$H" "$CLAUDE_PROJECT_DIR/src/app.ts" defer
+expect_file "$H" "$CLAUDE_PROJECT_DIR/docs/README.md" defer
+expect_file "$H" "/etc/passwd" defer
+expect "$H" 'cat .env' defer
 
 H=block-git-mutations.sh
 
