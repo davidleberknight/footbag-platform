@@ -70,6 +70,16 @@ inherits them.
   `SAME` or `OP` token, and a cross-body terminal is written on either side (both
   `SAME ... [XBD]` and `OP ... [XBD]` are valid). This is settled; its
   authoritative home is the positional-identity doctrine.
+- **Notation uniqueness is a target invariant.** Complete operational notation
+  should uniquely represent each ruled structural movement. Aliases and alternate
+  names for the same movement may share notation. When distinct canonical
+  identities have semantically equivalent complete notation — parsed structural
+  equivalence rather than merely byte equality — the collision identifies an
+  unresolved identity, data, evidence, or notation-model defect. Resolution
+  proceeds by identity merge or aliasing, correction of an existing formula,
+  evidence-based identity ruling, and only then extension of the notation model.
+  The current corpus contains known violations of this target invariant, tracked
+  as an explicit remediation cohort.
 
 ## Open questions
 
