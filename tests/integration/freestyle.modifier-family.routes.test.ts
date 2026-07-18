@@ -307,7 +307,7 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
   it('renders related concepts cross-linking the canonical surfaces', async () => {
     const res = await request(createApp()).get('/freestyle/modifier/paradox');
     expect(res.text).toContain('related-modifiers-list');
-    for (const name of ['symposium', 'atomic', 'miraging', 'nuclear', 'x-dex', 'cross-body delay', 'whirl', 'mirage']) {
+    for (const name of ['symposium', 'atomic', 'miraging', 'nuclear', 'x-dex', 'cross-body traversal', 'whirl', 'mirage']) {
       expect(res.text).toContain(name);
     }
   });

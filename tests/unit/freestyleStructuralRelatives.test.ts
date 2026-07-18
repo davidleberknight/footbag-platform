@@ -156,24 +156,33 @@ describe('buildStructuralRelatives — ranked engine for ordinary pages', () => 
   });
 
   it('produces each reason category with an accurate label', () => {
-    const cur = row('cur', '3', 'compound', 'base_a', 'fam_x');
-    const sameBase   = row('sib', '4', 'compound', 'base_a', 'fam_x');   // same base
-    const oneOp      = row('oneop', '4', 'compound', 'base_b', 'fam_x'); // same family, +1 op, close ADD
-    const familyOnly = row('famonly', '9', 'compound', 'base_c', 'fam_x'); // same family, far apart
-    const overlap    = row('ovl', '5', 'compound', 'base_d', 'fam_z');   // 2 shared ops, other family
+    const cur          = row('cur',  '3', 'compound', 'base_a', 'fam_x');  // mods p,q
+    const sameBaseOne  = row('sib1', '4', 'compound', 'base_a', 'fam_x');  // same base, +1 op (r)
+    const sameBaseMany = row('sib2', '6', 'compound', 'base_a', 'fam_x');  // same base, +3 ops
+    const familyOnly   = row('famonly', '9', 'compound', 'base_c', 'fam_x'); // same family, other base
+    const overlap      = row('ovl', '5', 'compound', 'base_d', 'fam_z');   // 2 shared ops, other base+family
     const links = [
       { trick_slug: 'cur', modifier_slug: 'p' }, { trick_slug: 'cur', modifier_slug: 'q' },
-      { trick_slug: 'sib', modifier_slug: 'p' }, { trick_slug: 'sib', modifier_slug: 'q' }, { trick_slug: 'sib', modifier_slug: 'r' },
-      { trick_slug: 'oneop', modifier_slug: 'p' }, { trick_slug: 'oneop', modifier_slug: 'q' }, { trick_slug: 'oneop', modifier_slug: 's' },
+      { trick_slug: 'sib1', modifier_slug: 'p' }, { trick_slug: 'sib1', modifier_slug: 'q' }, { trick_slug: 'sib1', modifier_slug: 'r' },
+      { trick_slug: 'sib2', modifier_slug: 'p' }, { trick_slug: 'sib2', modifier_slug: 'q' }, { trick_slug: 'sib2', modifier_slug: 'r' }, { trick_slug: 'sib2', modifier_slug: 's' }, { trick_slug: 'sib2', modifier_slug: 't' },
       { trick_slug: 'famonly', modifier_slug: 'a' }, { trick_slug: 'famonly', modifier_slug: 'b' }, { trick_slug: 'famonly', modifier_slug: 'c' },
       { trick_slug: 'ovl', modifier_slug: 'p' }, { trick_slug: 'ovl', modifier_slug: 'q' }, { trick_slug: 'ovl', modifier_slug: 'w1' }, { trick_slug: 'ovl', modifier_slug: 'w2' },
     ];
-    const rels = buildStructuralRelatives(cur, [cur, sameBase, oneOp, familyOnly, overlap], links);
+    const rels = buildStructuralRelatives(cur, [cur, sameBaseOne, sameBaseMany, familyOnly, overlap], links);
     const by = (slug: string) => rels.find(r => r.slug === slug)?.reason ?? '';
-    expect(by('sib')).toMatch(/base/i);
-    expect(by('oneop')).toMatch(/^One operator/);
+    // A one-operator delta is only claimed on the same base.
+    expect(by('sib1')).toMatch(/same .* base, one operator more: r/i);
+    expect(by('sib2')).toMatch(/same .* base, more operators/i);
     expect(by('famonly')).toMatch(/family/i);
     expect(by('ovl')).toMatch(/^Shares/);
+  });
+
+  it('never reads two family-less tricks as "Same family"', () => {
+    // Both have an empty trick_family (the Blink case); one has no base either.
+    const a = row('fa', '2', 'compound', '', '');
+    const b = row('fb', '5', 'compound', 'paradon', '');
+    const links = [{ trick_slug: 'fa', modifier_slug: 'x' }, { trick_slug: 'fb', modifier_slug: 'y' }];
+    expect(buildStructuralRelatives(a, [a, b], links)).toEqual([]);
   });
 });
 

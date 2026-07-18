@@ -107,7 +107,6 @@ import {
   baseAtomCrossLinkFor,
 } from './freestyleRelatedTricks';
 import type { FreestyleStructuralRelative, FreestyleObservationalNote } from './freestyleRelatedTricks';
-import { StructuralNeighbors, buildStructuralNeighbors } from './freestyleAdjacency';
 import { movementNeighborsFor } from './freestyleMovementNeighbors';
 import {
   SymbolicRelatedTopologyPanel,
@@ -1586,13 +1585,6 @@ export interface FreestyleTrickContent {
   // of a group spanning at least two distinct sides. Carries a glossary
   // deep-link to the SAME / OP explainer. Display projection, not a family.
   relativeSideVariants: FreestyleRelativeSideVariants | null;
-  // Structural Neighbors (Layer 1 operator-adjacency): the ±1-operator relation
-  // built from this trick's base_trick + modifier-link multiset (built on /
-  // swap the operator / extend / same operator other base / same structure).
-  // Distinct from relatedGroups, which relate by IFPA family; this relates by
-  // operator structure. Null when no bucket has members, so the block is hidden
-  // rather than rendered empty.
-  structuralNeighbors: StructuralNeighbors | null;
   // Ranked "Similar tricks": structural relatives of this trick (same base, same
   // family or terminal, established-operator overlap, or a one-operator delta),
   // each with a plain-words reason. A minimum-relationship threshold applies, so
@@ -7769,18 +7761,6 @@ export const freestyleService = {
             return { label: `${operatorTitleCase(op)} tricks`, href: `/freestyle/modifier/${op}` };
           })(),
           relativeSideVariants: dictRow ? buildRelativeSideVariants(dictRow, allDictRows) : null,
-          // Structural Neighbors owns ONLY cross-base compositional relationships:
-          // the same modifier multiset applied to a different base (operator_kin)
-          // and other names for the same structure (twins). The same-base buckets
-          // (built-on / swap / extend) are owned by the Family ladder, so they are
-          // filtered out here even though the engine still computes them.
-          structuralNeighbors: (() => {
-            if (!dictRow) return null;
-            const full = buildStructuralNeighbors(dictRow, allDictRows, allModifierLinks);
-            if (!full) return null;
-            const buckets = full.buckets.filter(b => b.key === 'operator_kin' || b.key === 'twins');
-            return buckets.length ? { ...full, buckets } : null;
-          })(),
           similarTricks:      dictRow ? buildStructuralRelatives(dictRow, allDictRows, allModifierLinks) : [],
           observationalNotes: [...observationalNotesFor(slug)],
           // Terminal-derived cohort (curated). On a terminal atom that is not a
@@ -10547,7 +10527,7 @@ export const freestyleService = {
         // terser than the canonical tooltip labels in COMPONENT_FLAG_LABELS.
         notationVocabulary: [
           { token: '[PDX]',  meaning: 'paradox-direction dex' },
-          { token: '[XBD]',  meaning: 'cross-body delay' },
+          { token: '[XBD]',  meaning: 'cross-body traversal (the bag crosses the body to the opposite-side surface)' },
           { token: '[XDEX]', meaning: 'conditional +1 X-Dex component' },
         ],
       },

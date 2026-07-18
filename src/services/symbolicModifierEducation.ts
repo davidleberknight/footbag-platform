@@ -299,7 +299,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
   howItChangesBase:
     'Paradox transforms an existing base trick rather than introducing a new dexterity: a mirage becomes a paradox mirage, a whirl becomes a paradox whirl, and the same holds on torque, blender, and other bases. The dex still happens once; what changes is the side relationship the body holds around it. Paradox is applied to an existing trick: the base trick remains recognizable, and paradox changes the relationship in which that trick is executed. Because it transforms a base rather than adding a contact, it does not change the dex count, and it composes onto many different bases.',
   jobNotation:
-    'In operational notation paradox is the [PDX] component, which marks the cross-body far dex that the side-switch produces: the dex crosses the centreline and the body repositions to bring the leg under the bag. [PDX] exists because that repositioning is a scored relationship worth +1, distinct from the dex itself. It is not the same as [XBD]: [XBD] is a cross-body delay, a landing that sits on the opposite-side surface from the plant foot, while [PDX] is a cross-body dex relationship. It is also independent of [XDEX], the conditional X-Dex: applying paradox does not create X-Dex, and when both appear in one trick each records a different structural event. The familiar form CLIP > OP IN [DEX] is the canonical paradox entry example, where an opposite-side clipper set creates the relationship before the first dex, but it is only an example: paradox can also occur mid-trick as a later [PDX] dex, so the entry form is illustrative, not the definition.',
+    'In operational notation paradox is the [PDX] component, which marks the cross-body far dex that the side-switch produces: the dex crosses the centreline and the body repositions to bring the leg under the bag. [PDX] exists because that repositioning is a scored relationship worth +1, distinct from the dex itself. It is not the same as [XBD]: [XBD] is a cross-body traversal, the bag crossing the centreline to the opposite-side surface from the plant foot, while [PDX] is a cross-body dex relationship. It is also independent of [XDEX], the conditional X-Dex: applying paradox does not create X-Dex, and when both appear in one trick each records a different structural event. The familiar form CLIP > OP IN [DEX] is the canonical paradox entry example, where an opposite-side clipper set creates the relationship before the first dex, but it is only an example: paradox can also occur mid-trick as a later [PDX] dex, so the entry form is illustrative, not the definition.',
   whereItAppears:
     'Paradox can modify many dexterity-based tricks. In practice players meet it on mirages, whirls, torques, and blenders, and it stacks readily with other operators, most often with symposium as the PS pair. In the movement-system map it is a dex relationship, classed with the side and centreline relationships rather than with launches, rotations, or no-plant disciplines.',
   howItComposes:
@@ -310,7 +310,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
     {
       heading: 'Paradox vs cross-body ([XBD])',
       prose:
-        'Both involve crossing the centreline, but they are different components. [XBD] is a cross-body delay: a landing that sits on the opposite-side surface from the plant foot. Paradox, marked [PDX], is a cross-body dex relationship: the body switches sides around the dex itself. A trick can carry one, the other, or both.',
+        'Both involve crossing the centreline, but they are different components. [XBD] is a cross-body traversal: the bag crosses to the opposite-side surface from the plant foot. Paradox, marked [PDX], is a cross-body dex relationship: the body switches sides around the dex itself. A trick can carry one, the other, or both.',
     },
     {
       heading: 'Paradox vs X-Dex',
@@ -415,7 +415,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
       prose: 'A separate conditional +1, scored only where the notation carries [XDEX] on a far dex. A paradox dex never carries it.',
     },
     {
-      name:  'cross-body delay',
+      name:  'cross-body traversal',
       prose: 'The [XBD] component: a landing on the opposite-side surface. It shares the centreline-crossing idea with paradox but marks a landing, not a dex relationship.',
     },
     {

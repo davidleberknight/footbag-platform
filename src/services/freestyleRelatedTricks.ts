@@ -737,7 +737,11 @@ export function buildStructuralRelatives(
     const candAdd = cand.adds == null ? 0 : Number.parseInt(cand.adds, 10);
     const addDistance = Math.abs(candAdd - curAdd);
     const sameBase = !!current.base_trick && cand.base_trick === current.base_trick;
-    const sameFamily = cand.trick_family === current.trick_family;
+    // A family match counts only when the current trick has a real, named family:
+    // not empty and not its own slug. Two family-less tricks (both blank) must not
+    // read as "Same family", and a self-family trick has no family peers.
+    const hasNamedFamily = !!current.trick_family && current.trick_family !== current.slug;
+    const sameFamily = hasNamedFamily && cand.trick_family === current.trick_family;
     const { shared, currentOnly, candidateOnly } = operatorSetDiff(currentMods, candMods);
     const symDiff = currentOnly.length + candidateOnly.length;
 
@@ -745,19 +749,20 @@ export function buildStructuralRelatives(
     let reason = '';
     if (sameBase) {
       score = 100;
-      const opsNote =
-        candMods.length < currentMods.length ? ', fewer operators'
-        : candMods.length > currentMods.length ? ', more operators'
-        : '';
-      reason = `Same ${nameOf(current.base_trick!)} base${opsNote}`;
-    } else if (symDiff === 1 && (sameFamily || shared >= 1) && addDistance <= 2) {
-      // A single operator changes ADD by at most its weight (0-2). A larger ADD
-      // gap alongside a one-operator link difference means the link data is
-      // incomplete, so the "one operator" claim would be misleading; skip it.
-      score = 90;
-      reason = candidateOnly.length === 1
-        ? `One operator more: ${candidateOnly[0]}`
-        : `One operator fewer: ${currentOnly[0]}`;
+      // A one-operator delta is only a claimed relationship on the same base (or a
+      // curated override). Here, on the same base, name the exact operator when the
+      // delta is a single operator within one ADD tier; otherwise a coarser note.
+      if (symDiff === 1 && addDistance <= 2) {
+        reason = candidateOnly.length === 1
+          ? `Same ${nameOf(current.base_trick!)} base, one operator more: ${candidateOnly[0]}`
+          : `Same ${nameOf(current.base_trick!)} base, one operator fewer: ${currentOnly[0]}`;
+      } else {
+        const opsNote =
+          candMods.length < currentMods.length ? ', fewer operators'
+          : candMods.length > currentMods.length ? ', more operators'
+          : '';
+        reason = `Same ${nameOf(current.base_trick!)} base${opsNote}`;
+      }
     } else if (sameFamily) {
       score = 80;
       reason = `Same ${nameOf(current.trick_family)} family`;

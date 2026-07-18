@@ -197,13 +197,13 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
     example:        'atomic + mirage = atom smasher = 4 ADD; barraging + osis = baroque = 5 ADD',
   },
   {
-    componentClass: 'Entry topology: where the entry dex sits relative to the plant foot and the body centreline, covering the same-side/op, near/far, and planted/no-plant relationships (pedagogical axis, not an official grouping)',
-    contribution:   'The placement cues themselves are +0 (see positional cues below); the operators that act on the entry are scored. Paradox is the side-switch relationship between the support leg and the dexterity (the dex crosses the centreline, an xbody traversal); +1. When paradox is the entry it reads CLIP > OP IN [DEX] (its cross-body entry-topology case), but it can also occur mid-trick as a later [PDX] dex, so that form is not paradox in every trick. Symposium is the no-plant case: the support leg leaves the ground through the dex; +1.',
-    example:        'paradox + mirage (2) = 3 ADD; CLIP > OP IN [DEX] is paradox as an entry topology, not every paradox',
+    componentClass: 'Entry and side relationship: where the entry dex sits relative to the plant foot and the body centreline (same-side/op, near/far). Paradox lives here. The no-plant discipline (symposium) is a separate axis, noted only for contrast (pedagogical axis, not an official grouping)',
+    contribution:   'The placement cues themselves are +0 (see positional cues below); the operators that act on the entry are scored. Paradox is the side-switch relationship between the support leg and the dexterity: the body switches sides around the dex (the [PDX] component), which is distinct from the [XBD] cross-body traversal; +1. When paradox is the entry it reads CLIP > OP IN [DEX] (its entry case), but it can also occur mid-trick as a later [PDX] dex, so that form is not paradox in every trick. Symposium, by contrast, is the no-plant case on its own axis: the support leg leaves the ground through the dex; +1.',
+    example:        'paradox + mirage (2) = 3 ADD; CLIP > OP IN [DEX] is paradox as an entry, not every paradox',
   },
   {
-    componentClass: 'Midtime body modifiers: spinning, ducking, diving, swirling, stepping, tapping, gyro, whirling, miraging, flying (pedagogical axis, not an official grouping)',
-    contribution:   'mostly +1 on most bases; gyro +1; whirling / miraging +1 on compatible bases; flying +1 (the jump body-action: flying inside, flying outside, flying clipper).',
+    componentClass: 'Midtime body modifiers: spinning, ducking, diving, swirling, stepping, tapping, gyro, whirling, flying (pedagogical axis, not an official grouping)',
+    contribution:   'mostly +1 on most bases; gyro +1; whirling +1 on compatible bases; flying +1 (the jump body-action: flying inside, flying outside, flying clipper). Miraging is not in this group: it is a downtime inward dex (its only standalone trick is the miraging kick), scored from a trick\'s own notation, not a scored midtime operator.',
     example:        'spinning + osis = spinning osis = 4 ADD; ducking + whirl = ducking whirl = 4 ADD; flying + clipper kick = flying clipper = 2 ADD',
   },
   {

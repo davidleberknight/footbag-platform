@@ -160,7 +160,7 @@ describe('GET /freestyle/add-analysis — component-contribution table', () => {
       'Unusual surface',
       // 4 operator-board axes (pedagogical organizing convention)
       'Set / Uptime modifiers',
-      'Entry topology:',
+      'Entry and side relationship:',
       'Midtime body modifiers',
       'Positional / directional cues',
     ];

@@ -51,6 +51,13 @@ describe('trick-detail About fallback + relatives', () => {
     expect(res.text).toContain('Spinning Whirl builds on Whirl, adding the spinning operator.');
   });
 
+  it('no longer renders a separate Structural Neighbors block (consolidated into Structurally related tricks)', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/spinning_whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('data-section="structural-neighbors"');
+    expect(res.text).not.toContain('Structural Neighbors');
+  });
+
   it('never displays a thin placeholder description and adds no generated filler when unqualified', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/popular_thing');
     expect(res.status).toBe(200);

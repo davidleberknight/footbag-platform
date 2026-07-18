@@ -310,10 +310,21 @@ def parse_trick(
 # ─── ADD math ──────────────────────────────────────────────────────────────
 
 
+# Scoring-flag brackets in operational notation (bracket count == ADD). Mirrors
+# src/lib/freestyleNotation.ts: [set]/paren pre-states and the non-scoring [KICK]
+# marker are ignored.
+_SCORING_BRACKET_RE = re.compile(r"\[(BOD|DEX|XBD|DEL|UNS|PDX|XDEX)\]", re.IGNORECASE)
+
+
+def count_scoring_brackets(op_notation: str) -> int:
+    return len(_SCORING_BRACKET_RE.findall(op_notation or ""))
+
+
 def compute_formula(
     parse: dict,
     canonicals_by_slug: dict[str, dict],
     modifier_weights: dict[str, dict],
+    op_notation: str = "",
 ) -> tuple[int | None, str | None, list[str]]:
     """Returns (computed_adds, formula_string, escalation_warnings).
     Returns (None, None, []) when the formula cannot be computed.
@@ -372,6 +383,22 @@ def compute_formula(
         # Unresolved tokens in a non-atom row would skew ADD math.
         return (None, None, [])
 
+    # Miraging is a retired historical nickname for a single downtime inward dex.
+    # It carries no operator weight (it is not a registered modifier), so the
+    # name-token sum undercounts a miraging compound by exactly that dex. Doctrine:
+    # a miraging dex scores from the trick's own notation, so source the total from
+    # the operational-notation scoring brackets, which already include it. This
+    # never revives miraging as a scored operator. Self-atom rows (miraging_kick)
+    # returned above and are unaffected; every miraging compound's bracket count
+    # equals its asserted ADD.
+    mod_tokens = [m.get("token") for m in contrib.get("modifier", [])]
+    if "miraging" in mod_tokens:
+        brackets = count_scoring_brackets(op_notation)
+        if brackets > 0:
+            return (brackets,
+                    f"notation-scored, includes the miraging downtime inward dex = {brackets}",
+                    [])
+
     formula_parts = contributions + [f"{base_slug}({base_adds})"]
     formula = " + ".join(formula_parts) + f" = {base_adds + bonus}"
     return (base_adds + bonus, formula, escalation_warnings)
@@ -384,11 +411,11 @@ def load_canonicals(con: sqlite3.Connection) -> dict[str, dict]:
     """slug → {name, adds(int|None), family, base, category, is_active, notation}."""
     rows = con.execute(
         """SELECT slug, canonical_name, adds, base_trick, trick_family, category,
-                  is_active, notation
+                  is_active, notation, operational_notation
            FROM freestyle_tricks"""
     ).fetchall()
     out = {}
-    for slug, name, adds, base, family, category, is_active, notation in rows:
+    for slug, name, adds, base, family, category, is_active, notation, op_notation in rows:
         try:
             adds_int = int(adds) if adds and adds != "modifier" else None
         except (ValueError, TypeError):
@@ -401,6 +428,7 @@ def load_canonicals(con: sqlite3.Connection) -> dict[str, dict]:
             "category":  category or "",
             "is_active": bool(is_active),
             "notation":  notation or "",
+            "operational_notation": op_notation or "",
         }
     return out
 
@@ -599,7 +627,7 @@ def main() -> int:
     for slug, info in corpus:
         parse = parse_trick(info["name"], slug, canonicals, family_canonical_tokens)
         computed, formula, escalation_warnings = compute_formula(
-            parse, canonicals, modifier_weights
+            parse, canonicals, modifier_weights, info.get("operational_notation", "")
         )
         asserted = info["adds"]
 
