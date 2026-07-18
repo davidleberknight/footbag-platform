@@ -21,6 +21,16 @@
     {{/unless}}
   {{/if}}
 
+  {{!-- Structural fallback: where no description is displayed (the DB copy was
+       empty or suppressed as a placeholder or notation echo) and no curated prose
+       exists, a high-confidence one-line structural reading (base, terminal, the
+       single added operator) stands in. The service supplies structuralAbout only
+       for confidently-known single-operator compounds, so most empty-About pages
+       stay silent rather than carry generic filler. --}}
+  {{#unless content.dictEntry.description}}{{#if content.structuralAbout}}
+  <p class="trick-description" data-structural-about>{{content.structuralAbout}}</p>
+  {{/if}}{{/unless}}
+
   {{#if content.dictEntry.isModifier}}
   <p class="trick-description">
     This is a <strong>modifier</strong> -- it has no fixed ADD value of its own. It adds a fixed

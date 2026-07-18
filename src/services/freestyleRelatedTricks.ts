@@ -1,5 +1,6 @@
 import { FreestyleTrickRow } from '../db/db';
 import { slugToHashtag } from './freestyleRecordShaping';
+import { resolveTrickKind } from '../content/freestyleTrickKindOverrides';
 
 export interface FreestyleRelatedTrick {
   slug:          string;
@@ -558,4 +559,299 @@ export function buildPreviousTricks(
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Structural relatives — ranked "similar tricks" by structural relationship
+// ---------------------------------------------------------------------------
+//
+// A structural relative is another canonical trick that shares real structure
+// with the current one: the same base, the same family / terminal, a meaningful
+// overlap in established operators, or a difference of exactly one operator. Each
+// relative carries a plain-words reason so the reader can tell WHY it is listed.
+//
+// A minimum-relationship threshold applies: a candidate that shares none of those
+// signals is not a relative, so an unrelated trick is never listed to pad the
+// section to a fixed count. The section may show as few as zero relatives.
+//
+// Exclusions: the trick itself, inactive rows (callers pass the already-active
+// dictionary), operators / modifiers / pending-review rows (resolveTrickKind must
+// be 'trick'), and alias objects (aliases are not rows in the trick table, so a
+// row-based ranker never surfaces one). Links are canonical detail URLs only.
+//
+// Curated overrides: a structurally exceptional page (a frontier compound whose
+// best relatives are editorial knowledge, not a formula score) may pin its own
+// ordered relatives, which then replace the ranked output for that page.
+
+export interface FreestyleStructuralRelative {
+  slug:          string;
+  canonicalName: string;
+  hashtag:       string;
+  adds:          string | null;
+  detailHref:    string;
+  // Plain-words reason this trick is a structural relative of the current one.
+  reason:        string;
+}
+
+// An outside-source name the platform does NOT adopt as a canonical trick, shown
+// on a page as clearly labelled context and never as a canonical link. Keyed by
+// the trick whose page carries the note.
+export interface FreestyleObservationalNote {
+  // The outside name, display text only (never a link to a canonical trick).
+  name: string;
+  // What the platform records instead, and why the outside name is not adopted.
+  note: string;
+}
+
+const STRUCTURAL_RELATIVE_MAX = 6;
+
+// Curated structural relatives for structurally exceptional pages: frontier
+// compounds whose most useful neighbours are editorial (a shared entry, a
+// cross-terminal comparison) rather than what a formula overlap surfaces. Each
+// target slug must be an active canonical trick row or it is dropped gracefully.
+const CURATED_STRUCTURAL_RELATIVES: Readonly<Record<string, readonly { slug: string; reason: string }[]>> = {
+  // Carousel — a Rake-terminal frontier compound.
+  surging_ducking_paradox_symposium_whirling_rake: [
+    { slug: 'paradox_symposium_whirling_rake', reason: 'Same Whirling Rake terminal, fewer operators' },
+    { slug: 'surging_ducking_paradox_torque',  reason: 'Shares the Surging Ducking Paradox entry on a Torque terminal' },
+  ],
+  // Big Apple Sauce — a Torque-family frontier compound. Reasons verified against
+  // the modifier-link sets: it shares paradox and spinning with the first
+  // neighbour; the second neighbour carries fewer scored operators overall, so it
+  // is described by its shared terminal and lower ADD rather than a one-operator
+  // delta that the link sets do not support.
+  big_apple_sauce: [
+    { slug: 'surging_ducking_paradox_torque',     reason: 'Torque-family neighbour sharing the paradox spin entry' },
+    { slug: 'spinning_miraging_symposium_torque', reason: 'Same Torque terminal at a lower ADD' },
+  ],
+};
+
+// Clearly-labelled, non-linked outside-source notes for a page. Used where an
+// outside name is sometimes cited as a relative but the platform records a
+// different canonical reading, so the name must not become a canonical link.
+const CURATED_OBSERVATIONAL_NOTES: Readonly<Record<string, readonly FreestyleObservationalNote[]>> = {
+  surging_ducking_paradox_symposium_whirling_rake: [
+    {
+      name: 'Surging Ducking Paradox Blender',
+      note: 'An outside-source name recorded here as the 7-ADD Cheese Processor, following the paradox-free reading; it is not adopted as an 8-ADD canonical trick.',
+    },
+  ],
+};
+
+/** Clearly-labelled outside-source notes for a page, or an empty list. */
+export function observationalNotesFor(slug: string): readonly FreestyleObservationalNote[] {
+  return CURATED_OBSERVATIONAL_NOTES[slug] ?? [];
+}
+
+// Multiset comparison of two operator lists: how many operators they share, and
+// which are unique to each side (with multiplicity).
+function operatorSetDiff(
+  currentMods: readonly string[],
+  candidateMods: readonly string[],
+): { shared: number; currentOnly: string[]; candidateOnly: string[] } {
+  const pool = [...candidateMods];
+  const currentOnly: string[] = [];
+  let shared = 0;
+  for (const m of currentMods) {
+    const i = pool.indexOf(m);
+    if (i >= 0) { pool.splice(i, 1); shared++; }
+    else currentOnly.push(m);
+  }
+  return { shared, currentOnly, candidateOnly: pool };
+}
+
+function humanizeSlug(slug: string): string {
+  return slug.replace(/[-_]/g, ' ');
+}
+
+/**
+ * Build the ranked "similar tricks" list for a trick.
+ *
+ * Ranking (highest first), each with a plain-words reason:
+ *   1. same base trick;
+ *   2. one established operator added or removed (with family or shared-operator
+ *      context, so a one-operator delta between unrelated tricks does not count);
+ *   3. same family or terminal;
+ *   4. meaningful established-operator overlap (two or more shared operators).
+ * A candidate matching none of these is below threshold and is omitted. A
+ * curated override, when present, replaces the ranked output for that page.
+ *
+ * `modifierLinks` are the (trick_slug, modifier_slug) rows for the whole
+ * dictionary; the operator multiset per trick is derived from them.
+ */
+export function buildStructuralRelatives(
+  current: FreestyleTrickRow,
+  allRows: readonly FreestyleTrickRow[],
+  modifierLinks: readonly { trick_slug: string; modifier_slug: string }[],
+): FreestyleStructuralRelative[] {
+  const rowBySlug = new Map(allRows.map(r => [r.slug, r] as const));
+  const nameOf = (slug: string | null): string =>
+    slug ? (rowBySlug.get(slug)?.canonical_name ?? humanizeSlug(slug)) : '';
+
+  const shapeRelative = (row: FreestyleTrickRow, reason: string): FreestyleStructuralRelative => ({
+    slug:          row.slug,
+    canonicalName: row.canonical_name,
+    hashtag:       slugToHashtag(row.slug),
+    adds:          row.adds,
+    detailHref:    `/freestyle/tricks/${row.slug}`,
+    reason,
+  });
+
+  // Curated override wins: pin the editorial relatives, dropping any whose target
+  // is not an active canonical row.
+  const curated = CURATED_STRUCTURAL_RELATIVES[current.slug];
+  if (curated) {
+    const out: FreestyleStructuralRelative[] = [];
+    for (const { slug, reason } of curated) {
+      const row = rowBySlug.get(slug);
+      if (row && row.slug !== current.slug && resolveTrickKind(row.slug) === 'trick') {
+        out.push(shapeRelative(row, reason));
+      }
+      if (out.length >= STRUCTURAL_RELATIVE_MAX) break;
+    }
+    return out;
+  }
+
+  const modsBySlug = new Map<string, string[]>();
+  for (const l of modifierLinks) {
+    const arr = modsBySlug.get(l.trick_slug) ?? [];
+    arr.push(l.modifier_slug);
+    modsBySlug.set(l.trick_slug, arr);
+  }
+  const currentMods = modsBySlug.get(current.slug) ?? [];
+
+  const eligible = allRows.filter(
+    r => r.slug !== current.slug && r.category !== 'modifier' && resolveTrickKind(r.slug) === 'trick',
+  );
+
+  const curAdd = current.adds == null ? 0 : Number.parseInt(current.adds, 10);
+  interface Scored { row: FreestyleTrickRow; score: number; reason: string; closeness: number }
+  const scored: Scored[] = [];
+  for (const cand of eligible) {
+    const candMods = modsBySlug.get(cand.slug) ?? [];
+    // Two operator-less tricks are not structural relatives even when they share
+    // a base or family label: there is no operator structure in common, only the
+    // empty-operator-set noise the adjacency layer also suppresses. A base atom's
+    // real relatives are the compounds that carry operators on top of it.
+    if (currentMods.length === 0 && candMods.length === 0) continue;
+    const candAdd = cand.adds == null ? 0 : Number.parseInt(cand.adds, 10);
+    const addDistance = Math.abs(candAdd - curAdd);
+    const sameBase = !!current.base_trick && cand.base_trick === current.base_trick;
+    const sameFamily = cand.trick_family === current.trick_family;
+    const { shared, currentOnly, candidateOnly } = operatorSetDiff(currentMods, candMods);
+    const symDiff = currentOnly.length + candidateOnly.length;
+
+    let score = 0;
+    let reason = '';
+    if (sameBase) {
+      score = 100;
+      const opsNote =
+        candMods.length < currentMods.length ? ', fewer operators'
+        : candMods.length > currentMods.length ? ', more operators'
+        : '';
+      reason = `Same ${nameOf(current.base_trick!)} base${opsNote}`;
+    } else if (symDiff === 1 && (sameFamily || shared >= 1) && addDistance <= 2) {
+      // A single operator changes ADD by at most its weight (0-2). A larger ADD
+      // gap alongside a one-operator link difference means the link data is
+      // incomplete, so the "one operator" claim would be misleading; skip it.
+      score = 90;
+      reason = candidateOnly.length === 1
+        ? `One operator more: ${candidateOnly[0]}`
+        : `One operator fewer: ${currentOnly[0]}`;
+    } else if (sameFamily) {
+      score = 80;
+      reason = `Same ${nameOf(current.trick_family)} family`;
+    } else if (shared >= 2) {
+      score = 40 + shared;
+      // List the shared operators so the reason names the actual overlap.
+      const sharedOps = currentMods.filter(m => candMods.includes(m));
+      reason = `Shares ${[...new Set(sharedOps)].join(' + ')}`;
+    } else {
+      continue; // below the minimum-relationship threshold
+    }
+    // Closeness: prefer the nearest structural neighbour within a score tier, by
+    // operator-set difference first, then ADD distance. This keeps a generic
+    // same-family match in a very large family from crowding out a closer one.
+    const closeness = symDiff * 100 + addDistance;
+    scored.push({ row: cand, score, reason, closeness });
+  }
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.closeness !== b.closeness) return a.closeness - b.closeness;
+    return a.row.slug.localeCompare(b.row.slug);
+  });
+
+  return scored.slice(0, STRUCTURAL_RELATIVE_MAX).map(s => shapeRelative(s.row, s.reason));
+}
+
+/**
+ * High-confidence structural About fallback: a one-line reading for a compound
+ * whose database description is empty or a suppressed placeholder, naming the
+ * base, the terminal, and the single added operator.
+ *
+ * Returns null (an absent About, i.e. accurate silence) unless every required
+ * fact is confidently known:
+ *   - the base is a real canonical row distinct from this trick, with a build
+ *     chain (a known base and terminal identity);
+ *   - the trick's family is present (a recognized terminal);
+ *   - the trick adds EXACTLY ONE operator over its parent, and that operator is
+ *     established and resolved (`isEstablishedOperator`), so the single defining
+ *     layer is unambiguous and not a misleading claim for a multi-phase stack;
+ *   - the sentence would not repeat the trick name ("X builds on X").
+ * The established-operator test is injected so the caller supplies the doctrine
+ * source (an operator with a Tier-1 definition) without this module importing it.
+ */
+export function buildStructuralAbout(
+  current: FreestyleTrickRow,
+  allRows: readonly FreestyleTrickRow[],
+  modifierLinks: readonly { trick_slug: string; modifier_slug: string }[],
+  isEstablishedOperator: (slug: string) => boolean,
+): string | null {
+  if (!current.base_trick || current.base_trick === current.slug) return null;
+  const rowBySlug = new Map(allRows.map(r => [r.slug, r] as const));
+  const baseRow = rowBySlug.get(current.base_trick);
+  if (!baseRow || !baseRow.canonical_name) return null;
+  if (!current.trick_family) return null;
+
+  // Base chain must reach at least one ancestor (a real build path).
+  let cur: string | null = current.base_trick;
+  const seen = new Set<string>([current.slug]);
+  let ancestors = 0;
+  while (cur && !seen.has(cur) && rowBySlug.has(cur)) {
+    seen.add(cur);
+    ancestors++;
+    const next: string | null = rowBySlug.get(cur)!.base_trick;
+    cur = next && next !== cur ? next : null;
+  }
+  if (ancestors === 0) return null;
+
+  const mods = new Map<string, string[]>();
+  for (const l of modifierLinks) {
+    const a = mods.get(l.trick_slug) ?? [];
+    a.push(l.modifier_slug);
+    mods.set(l.trick_slug, a);
+  }
+  const thisMods = [...(mods.get(current.slug) ?? [])];
+  const parentMods = [...(mods.get(current.base_trick) ?? [])];
+  const added: string[] = [];
+  for (const m of thisMods) {
+    const i = parentMods.indexOf(m);
+    if (i >= 0) parentMods.splice(i, 1);
+    else added.push(m);
+  }
+  if (added.length !== 1) return null;
+  if (!isEstablishedOperator(added[0]!)) return null;
+
+  const baseName = baseRow.canonical_name;
+  const thisName = current.canonical_name;
+  if (baseName.toLowerCase() === thisName.toLowerCase()) return null;
+
+  const cap = (n: string): string => n.replace(/\b\w/g, c => c.toUpperCase());
+  const familyRow = rowBySlug.get(current.trick_family);
+  const familyName = familyRow ? familyRow.canonical_name : '';
+  const op = added[0]!.replace(/[-_]/g, ' ');
+  return familyName && familyName.toLowerCase() !== baseName.toLowerCase()
+    ? `${cap(thisName)} builds on ${cap(baseName)}, adding the ${op} operator on a ${familyName} terminal.`
+    : `${cap(thisName)} builds on ${cap(baseName)}, adding the ${op} operator.`;
 }

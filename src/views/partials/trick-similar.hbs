@@ -1,0 +1,33 @@
+{{!--
+  Structurally related tricks: ranked structural relatives (same base, same family
+  or terminal, established-operator overlap, or a one-operator delta), each with a
+  plain-words reason. A minimum-relationship threshold applies, so the list can be
+  short; the section renders only when the trick has at least one relative.
+  Outside-source names cited as relatives but recorded here under a different
+  canonical reading appear as labelled context, never as canonical links.
+--}}
+{{#if content.similarTricks.length}}
+<section class="content-section" data-section="similar-tricks">
+  <div class="section-heading">
+    <h2>Structurally related tricks</h2>
+  </div>
+  <ul class="similar-tricks-list">
+    {{#each content.similarTricks}}
+    <li>
+      <a href="{{detailHref}}">{{canonicalName}}</a>{{#if adds}} <span class="text-muted fs-sm">({{adds}})</span>{{/if}}
+      <span class="text-muted fs-sm">({{reason}})</span>
+    </li>
+    {{/each}}
+  </ul>
+  {{#if content.observationalNotes.length}}
+  <div class="related-group">
+    <h3 class="related-group-label">Related outside-source names</h3>
+    <ul class="similar-tricks-list">
+      {{#each content.observationalNotes}}
+      <li><span class="fw-600">{{name}}</span>: <span class="text-muted fs-sm">{{note}}</span></li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+</section>
+{{/if}}

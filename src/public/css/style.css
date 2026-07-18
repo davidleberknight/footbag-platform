@@ -3855,7 +3855,8 @@ section.home-media { padding-top: 0; }
   text-underline-offset: 2px;
 }
 
-.related-tricks-list {
+.related-tricks-list,
+.similar-tricks-list {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -3863,11 +3864,13 @@ section.home-media { padding-top: 0; }
   flex-wrap: wrap;
   gap: 8px 16px;
 }
-.related-tricks-list li {
+.related-tricks-list li,
+.similar-tricks-list li {
   display: flex;
   flex-direction: column;
 }
-.related-tricks-list li > a { font-weight: 500; }
+.related-tricks-list li > a,
+.similar-tricks-list li > a { font-weight: 500; }
 .related-trick-reason {
   font-size: 0.78rem;
   color: var(--text-subtle);

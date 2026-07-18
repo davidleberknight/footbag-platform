@@ -72,6 +72,14 @@ export const COMPOUND_SEMANTIC_DESCRIPTIONS: ReadonlyMap<string, string> = new M
   // Double Switch-Over vs Double Around the World: same ADD and dex count, different
   // movement; deliberately not framed as a same-vs-opposite-foot mirror.
   ['double_switch_over', 'Double Switch-Over (DSO) and Double Around the World are both 3-ADD two-dex tricks, but they reach their two dexterities through very different movement patterns.'],
+  // Carousel: a Rake-terminal frontier compound. Names the major structural
+  // phases and the terminal that gives it its identity, without listing every
+  // token or restating the execution notation.
+  ['surging_ducking_paradox_symposium_whirling_rake', 'Carousel is a frontier compound built around a Rake terminal. A Surging entry leads into Ducking, followed by the Paradox, Symposium, and Whirling structure that sets up the final swing-to-toe Rake finish. It is one of the deepest Rake-terminal structures in the vocabulary.'],
+  // Big Apple Sauce: a Torque-family frontier trick. Describes its actual
+  // structural sequence (spinning/paradox entry, no-plant inward dex, Torque
+  // spin-to-clipper terminal) and avoids the retired "miraging" operator language.
+  ['big_apple_sauce', 'A Torque-family frontier trick. It opens with a spinning paradox entry, threads a no-plant inward dexterity through the middle, and resolves on a Torque spin-to-clipper terminal in the osis mold. What distinguishes it is that entry: the paradox rides the inward lead dexterity before the closing spin settles the bag onto the cross-body clipper.'],
   ['2_bag_juggling', 'Controlling two bags with a single foot, keeping both in play through alternating delays on the same surface. The foundational multi-bag primitive: where standard freestyle works one bag, two-bag juggling adds a second object the foot must track and re-stall without dropping either.'],
   ['3_bag_juggling', 'Controlling three bags with two feet, keeping all three in play through coordinated delays across both feet. A higher-order multi-bag primitive: where two-bag juggling works two bags on a single foot, three-bag juggling distributes three bags across both feet, each foot tracking and re-stalling its share without dropping any.'],
 ]);

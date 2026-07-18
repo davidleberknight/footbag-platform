@@ -287,17 +287,19 @@ describe('Shell ordering — About sits above the fold, before Movement intuitio
 });
 
 
-// Relocated content: the "vs parent" delta moves into Movement Intuition as a
-// single data-intuition-delta line, and the build-path moves into the About
-// section as a data-build-path line. Both render only for modifier-composed
-// compounds (a trick with a base trick and at least one modifier link); atoms
-// and link-less tricks carry neither.
+// Relocated content: the build-path renders in the About section as a
+// data-build-path line for modifier-composed compounds. The "vs parent" delta is
+// suppressed when a build path exists, because the build path already lists the
+// same operators, so the delta would only repeat that modifier list. Atoms and
+// link-less tricks carry neither.
 describe('Relocated delta + build-path', () => {
-  it('blur (mirage + blurry) renders the parent-delta line inside Movement Intuition naming parent + modifier', async () => {
+  it('blur (mirage + blurry) suppresses the parent-delta line because the build path already lists the modifier', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/blur');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('data-intuition-delta');
-    expect(res.text).toMatch(/Compared with mirage, blur adds blurry\./);
+    // The build path under How it's built shows "+ blurry"; the redundant
+    // "Compared with mirage, blur adds blurry" line is omitted.
+    expect(res.text).not.toContain('data-intuition-delta');
+    expect(res.text).not.toMatch(/Compared with mirage, blur adds blurry\./);
   });
 
   it('blur renders the build-path line inside the About section', async () => {

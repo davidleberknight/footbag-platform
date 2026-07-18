@@ -100,9 +100,13 @@ import {
   buildNextTricks,
   buildPreviousTricks,
   buildRelativeSideVariants,
+  buildStructuralRelatives,
+  buildStructuralAbout,
+  observationalNotesFor,
   operatorCrossLinkFor,
   baseAtomCrossLinkFor,
 } from './freestyleRelatedTricks';
+import type { FreestyleStructuralRelative, FreestyleObservationalNote } from './freestyleRelatedTricks';
 import { StructuralNeighbors, buildStructuralNeighbors } from './freestyleAdjacency';
 import { movementNeighborsFor } from './freestyleMovementNeighbors';
 import {
@@ -1589,6 +1593,16 @@ export interface FreestyleTrickContent {
   // operator structure. Null when no bucket has members, so the block is hidden
   // rather than rendered empty.
   structuralNeighbors: StructuralNeighbors | null;
+  // Ranked "Similar tricks": structural relatives of this trick (same base, same
+  // family or terminal, established-operator overlap, or a one-operator delta),
+  // each with a plain-words reason. A minimum-relationship threshold applies, so
+  // the list may be short or empty rather than padded; a structurally exceptional
+  // page may pin curated relatives. Excludes self, aliases, and non-trick rows.
+  similarTricks: FreestyleStructuralRelative[];
+  // Clearly-labelled outside-source names cited as relatives of this trick that
+  // the platform records under a different canonical reading. Rendered as context,
+  // never as a canonical link. Empty for most pages.
+  observationalNotes: FreestyleObservationalNote[];
   // Terminal-derived cohort. On a terminal-stall atom that is not a public family
   // (toe_stall, clipper_stall), the curated cross-family list of recognizable
   // tricks that finish on this surface. On a cohort member's page, the reciprocal
@@ -1602,6 +1616,11 @@ export interface FreestyleTrickContent {
   // About. Null when the trick is not a modifier-composed compound.
   intuitionDelta: string | null;
   buildPath:      string | null;
+  // Conservative structural About fallback (base + terminal + the single most-
+  // distinguishing operator), rendered only where the DB description is a
+  // suppressed placeholder so it never overwrites real or curated copy. Null for
+  // primitives and for pages that already carry a description.
+  structuralAbout: string | null;
   // Quantity ladder this trick belongs to (same base, increasing repetition
   // count) — a cross-family relationship, NOT a family. Null when not a ladder
   // member. A ladder member slug absent from the dictionary renders missing.
@@ -7650,9 +7669,9 @@ export const freestyleService = {
         // Intuition) and a base-chain build path (rendered in About). Both are
         // derived from base_trick + modifier links, so they cover every
         // modifier-composed compound, not only curated flagship pages.
-        const { derivedDelta, derivedBuildPath, derivedBuildPathTokens } = ((): { derivedDelta: string | null; derivedBuildPath: string | null; derivedBuildPathTokens: string[] } => {
+        const { derivedDelta, derivedBuildPath, derivedBuildPathTokens, derivedStructuralAbout } = ((): { derivedDelta: string | null; derivedBuildPath: string | null; derivedBuildPathTokens: string[]; derivedStructuralAbout: string | null } => {
           if (!dictRow || !dictRow.base_trick || dictRow.base_trick === dictRow.slug) {
-            return { derivedDelta: null, derivedBuildPath: null, derivedBuildPathTokens: [] };
+            return { derivedDelta: null, derivedBuildPath: null, derivedBuildPathTokens: [], derivedStructuralAbout: null };
           }
           const rowBySlug = new Map(allDictRows.map(r => [r.slug, r] as const));
           const modsBySlug = new Map<string, string[]>();
@@ -7684,8 +7703,21 @@ export const freestyleService = {
           const thisName = dictRow.canonical_name;
           const hasBuildPath = !!(thisMods.length && ancestors.length);
           const tokenize = (s: string): string[] => s.toLowerCase().split(/[\s_-]+/).filter(Boolean);
+          // High-confidence structural About fallback (base + terminal + the
+          // single added operator), rendered only for confidently-known
+          // single-operator compounds; everything else stays silent. The doctrine
+          // source for "established operator" is a Tier-1 operator definition.
+          const structuralAbout = buildStructuralAbout(
+            dictRow, allDictRows, allModifierLinks, s => getTier1OperatorDefinition(s) != null,
+          );
           return {
-            derivedDelta: addedMods.length
+            derivedStructuralAbout: structuralAbout,
+            // Suppress the parent-delta line when a build path is shown: the
+            // build path already lists every operator, so a "Compared with X,
+            // this adds Y and Z" line would only repeat that same modifier list.
+            // Keep the delta only when there is no build path, where it is the
+            // sole structural line rather than a duplicate of How it's built.
+            derivedDelta: addedMods.length && !hasBuildPath
               ? `Compared with ${nameOf(dictRow.base_trick)}, ${thisName} adds ${addedMods.join(' and ')}.`
               : null,
             derivedBuildPath: hasBuildPath
@@ -7749,6 +7781,8 @@ export const freestyleService = {
             const buckets = full.buckets.filter(b => b.key === 'operator_kin' || b.key === 'twins');
             return buckets.length ? { ...full, buckets } : null;
           })(),
+          similarTricks:      dictRow ? buildStructuralRelatives(dictRow, allDictRows, allModifierLinks) : [],
+          observationalNotes: [...observationalNotesFor(slug)],
           // Terminal-derived cohort (curated). On a terminal atom that is not a
           // public family, the cross-family "what lands here" list; on a cohort
           // member, the reciprocal "lands in" backlink. The Family ladder owns
@@ -7775,6 +7809,7 @@ export const freestyleService = {
           })(),
           intuitionDelta: derivedDelta,
           buildPath:      derivedBuildPath,
+          structuralAbout: derivedStructuralAbout,
           quantityLadder,
           modifierMemberships,
           symbolicRelatedTopology: buildSymbolicRelatedTopologyPanel(slug, allDictRows),
