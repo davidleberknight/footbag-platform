@@ -671,11 +671,13 @@ fi
 # Generic wildcard references like "*.cloudfront.net" are fine: the character
 # before the first dot is not alphanumeric, so the pattern skips them.
 echo "[conventions] check: no concrete CloudFront hostnames tracked"
-# Exempt the two documented fake hosts: the onboarding guide's "something
-# like" example domain and the Terraform bootstrap placeholder value.
+# Exempt the two documented fake hosts (the onboarding guide's "something
+# like" example domain and the Terraform bootstrap placeholder value), plus the
+# one staging sneak-preview host the README intentionally publishes as a public
+# preview link.
 cf_host_hits=$(git grep -nE '[a-z0-9]+\.cloudfront\.net' -- . \
   | grep -v 'scripts/ci/assert_conventions\.sh' \
-  | grep -vE 'd1234abcdef8\.cloudfront\.net|placeholder\.cloudfront\.net' \
+  | grep -vE 'd1234abcdef8\.cloudfront\.net|placeholder\.cloudfront\.net|doye1nvv64qep\.cloudfront\.net' \
   || true)
 if [ -n "$cf_host_hits" ]; then
   echo "$cf_host_hits" >&2

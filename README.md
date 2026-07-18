@@ -15,7 +15,7 @@ Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 - **Humans:** read [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md)
 - **AI tools:** read [PROJECT_SUMMARY_CONCISE.md](PROJECT_SUMMARY_CONCISE.md)
 
-**Active project planning, operations, and anything private or otherwise not suitable for this public GitHub repo** live in a private repository. This includes the`DEVOPS_GUIDE.md`, `AWS_OPERATIONS.md,`the GitHub Issues task-tracking board, separate bug tracking, and more. The separate repo also holds archived and private data, and IFPA-internal docs and archives.
+**Active project planning, operations, and anything private or otherwise not suitable for this public GitHub repo** live in a private repository. This includes `DEVOPS_GUIDE.md`, `AWS_OPERATIONS.md`, the GitHub Issues task-tracking board, separate bug tracking, and more. The separate repo also holds archived and private data, and IFPA-internal docs and archives.
 
 ## Current Project State
 
@@ -51,7 +51,7 @@ Sneak Preview (AWS Staging): [https://doye1nvv64qep.cloudfront.net/](https://doy
 - [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md): project overview.
 - [docs/TESTING.md](docs/TESTING.md): testing strategy and methodology.
 - [docs/USER_STORIES.md](docs/USER_STORIES.md): intended functional behaviors and success criteria.
-- DEVOPS_GUIDE.md and AWS_OPERATIONS.md are private.
+- `DEVOPS_GUIDE.md` and `AWS_OPERATIONS.md` are private.
 
 ## Technology Stack
 

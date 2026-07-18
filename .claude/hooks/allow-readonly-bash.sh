@@ -500,20 +500,25 @@ while IFS= read -r seg; do
     shift                                   # drop `git`
     # Skip read-only global options that can precede the subcommand, so a common form
     # like `git --no-pager diff` is vetted on `diff`. `-c` is deliberately NOT
-    # skipped: it can change behavior, so it falls through. `-C` targets another
-    # repo, so it is accepted only for the project directory or a path under it
-    # (an in-project symlink to a read-only reference clone or companion checkout
-    # counts) -- the form CLAUDE.md prefers over a leading cd; a `..`-bearing or
-    # out-of-tree target falls through.
+    # skipped: it can change behavior, so it falls through.
     while [ $# -gt 0 ]; do
       case "$1" in
         --no-pager|-P|--paginate|--no-optional-locks|--literal-pathspecs) shift ;;
         -C)
-          [ -n "${CLAUDE_PROJECT_DIR:-}" ] || exit 0
+          # A `-C` target points at another directory. Accept only an in-project one so
+          # read-only research through a companion-checkout symlink auto-approves: a
+          # relative path (the working directory is the repo root) or an absolute path at
+          # or under the project directory. A parent traversal (`..`), a home-relative
+          # `~`, an empty target, or an out-of-tree absolute path falls through to the
+          # prompt.
           case "${2:-}" in
-            *..*) exit 0 ;;
-            "$CLAUDE_PROJECT_DIR"|"$CLAUDE_PROJECT_DIR"/?*) ;;
-            *) exit 0 ;;
+            *..*|'~'*|"") exit 0 ;;
+            /*)
+              [ -n "${CLAUDE_PROJECT_DIR:-}" ] || exit 0
+              case "${2}" in
+                "$CLAUDE_PROJECT_DIR"|"$CLAUDE_PROJECT_DIR"/?*) ;;
+                *) exit 0 ;;
+              esac ;;
           esac
           shift; shift ;;
         *) break ;;

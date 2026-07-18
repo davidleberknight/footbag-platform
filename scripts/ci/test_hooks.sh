@@ -430,6 +430,11 @@ expect "$H" "git -C $CLAUDE_PROJECT_DIR/footbag_private_repo log -1" allow
 expect "$H" 'git -C /somewhere/else log -1' defer
 expect "$H" "git -C $CLAUDE_PROJECT_DIR/../elsewhere log -1" defer
 expect "$H" "git -C $CLAUDE_PROJECT_DIR push" defer
+expect "$H" 'git -C footbag_private_repo log -1' allow
+expect "$H" 'git -C footbag_legacy_repo status' allow
+expect "$H" 'git -C docs log -1' allow
+expect "$H" 'git -C ../elsewhere log -1' defer
+expect "$H" 'git -C ~ log -1' defer
 
 # git remote reads (bare / -v / show / get-url) auto-approve; mutating subverbs fall through.
 expect "$H" 'git remote -v' allow

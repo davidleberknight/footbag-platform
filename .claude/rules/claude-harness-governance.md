@@ -16,6 +16,7 @@ How to change the harness itself (`CLAUDE.md`, `.claude/rules/*`, `.claude/skill
 - Every harness edit needs explicit human approval, shown as literal before/after. Hooks and settings changes are security-sensitive — never land them silently.
 - New or changed hooks ship with a fixture test; new deterministic rules ship with (or note) the CI check that enforces them (`scripts/ci/assert_claude_harness.sh`).
 - Run `doc-sync` after a change that alters documented behavior.
+- Keep `docs/CLAUDE_CODE_GUIDE.md` in sync in the same change. That guide is the human-facing explanation of how this harness works, and the config files it describes stay the source of truth; so any harness change that alters behavior the guide covers (the permission policy, a hook's decision surface, the read-only approver, the layer and subagent model, or change control) updates the guide as part of the same change rather than letting it drift stale.
 
 ## Source-of-truth order has one home
 
