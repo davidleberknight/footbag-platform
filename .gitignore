@@ -236,4 +236,5 @@ legacy_data/reports/
 # Operator-run audit outputs (CSV reports etc., regenerated on demand)
 /out/
 legacy_data/freestyle_reconciliation/import_qc_report.md
+legacy_data/freestyle_reconciliation/james_adjudications.csv
 tricks-mosaic-clips/

@@ -28,7 +28,8 @@
 #   1.  Confirm SSH connectivity and run local test preflight.
 #   2.  Validate that a migration file exists and has been reviewed.
 #   3.  Back up the live DB on the host before touching anything.
-#       (Prerequisite: Path G §7.4 backup/restore path must be tested first.)
+#       (Prerequisite: the backup/restore path must be tested first; see
+#       AWS_OPERATIONS.md (private GitHub repo), "Reliability and recovery".)
 #   4.  Deploy code and images using the same steps as deploy-code.sh.
 #   5.  Stop the service.
 #   6.  Run migration SQL against the live DB using sqlite3.
@@ -49,6 +50,7 @@ echo "" >&2
 echo "Use scripts/deploy-rebuild.sh for schema or seed-data changes during" >&2
 echo "the current development phase, while staging data is still disposable." >&2
 echo "" >&2
-echo "Implement this script once the backup/restore path (Path G §7.4) is" >&2
-echo "tested and the project requires non-destructive schema migrations." >&2
+echo "Implement this script once the backup/restore path is tested (see" >&2
+echo "AWS_OPERATIONS.md, private GitHub repo, 'Reliability and recovery') and" >&2
+echo "the project requires non-destructive schema migrations." >&2
 exit 1

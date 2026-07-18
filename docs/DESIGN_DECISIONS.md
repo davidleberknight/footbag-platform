@@ -4412,7 +4412,7 @@ Infrastructure Managed by Terraform:
 
 Host-State Boundary:
 
-Terraform manages AWS API resources. Host-side filesystem and systemd state on the Lightsail VM (installed packages, agent config files, daemon lifecycle) are managed by idempotent shell scripts under `scripts/` and by documented procedures in `docs/DEV_ONBOARDING.md`. Terraform `remote-exec` and `local-exec` provisioners are excluded as a canonical pattern.
+Terraform manages AWS API resources. Host-side filesystem and systemd state on the Lightsail VM (installed packages, agent config files, daemon lifecycle) are managed by idempotent shell scripts under `scripts/` and by documented procedures in AWS_OPERATIONS.md (private GitHub repo), "Host bootstrap". Terraform `remote-exec` and `local-exec` provisioners are excluded as a canonical pattern.
 
 Constraints driving the split:
 

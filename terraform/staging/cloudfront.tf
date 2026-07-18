@@ -168,7 +168,8 @@ resource "aws_cloudfront_distribution" "main" {
 
   # Maintenance-page S3 origin intentionally omitted (deferred).
   # Re-add when OAC, ordered_cache_behavior for /maintenance.html, bucket policy,
-  # and the maintenance.html object all exist and are tested. See Path E, section 5.3.
+  # and the maintenance.html object all exist and are tested. See
+  # AWS_OPERATIONS.md (private GitHub repo), "Provision the maintenance page (S3 + OAC)".
 
   # ── Default cache behaviour ───────────────────────────────────────────────
   # All HTML uses CachingDisabled; origin (Express middleware) sets

@@ -142,7 +142,6 @@
       "Bash(git restore*)",
       "Bash(git branch -D*)",
       "Edit(./.claude/settings.local.json)",
-      "Write(./.claude/settings.local.json)",
       "mcp__playwright__browser_take_screenshot"
     ],
     "deny": [

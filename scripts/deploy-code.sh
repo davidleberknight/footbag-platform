@@ -5,9 +5,11 @@
 # Code and images only; the live database is never touched.
 #
 # Prerequisites:
-#   - ~/.ssh/config alias "footbag-staging" configured with User footbag (§6.2)
+#   - ~/.ssh/config alias "footbag-staging" configured with User footbag
+#     (AWS_OPERATIONS.md, private GitHub repo, "Fix the SSH config alias")
 #   - npm test passing locally before running this script
-#   - Initial AWS bootstrap (Path D) complete
+#   - Initial AWS bootstrap complete: AWS_OPERATIONS.md (private GitHub repo),
+#     "Path D — AWS staging deployment runbook"
 #
 # Reads sudo password from stdin (line 1). Run via:
 #   bash deploy_to_aws.sh -k

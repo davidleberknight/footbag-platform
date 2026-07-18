@@ -48,8 +48,9 @@ It is also where two questions the other papers deferred come to rest: whether a
    athletes change what is possible. (Elite players and competition judges first;
    Red for how such a trick would be read if it appeared.)
 
-   *Testimony under review (relayed by James, originating account attributed to
-   Red Husted): a 9-ADD trick has reportedly been achieved, but whether the
+   *Testimony under review (an account relayed to the project; the
+   person-attributed record is held privately): a 9-ADD trick has reportedly
+   been achieved, but whether the
    landing was clean is disputed. The trick, era, footage, witnesses, and the
    exact reason the landing is questioned are all unconfirmed; a rider to Red
    (in `RED_QUEUE.md`) carries the ask. This is recorded for confirmation, not a

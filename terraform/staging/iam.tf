@@ -137,7 +137,8 @@ resource "aws_iam_role_policy" "app_s3_media" {
 
 # JwtSigning grants here are redundant with the role-direct grant in the JWT
 # key policy (aws_kms_key.jwt_signing). Kept for parity with the live IAM
-# policy attached during Path H bootstrap and to keep SES Send authorization
+# policy attached during the runtime AWS identity bring-up (AWS_OPERATIONS.md,
+# private GitHub repo) and to keep SES Send authorization
 # alongside the JWT signing grants in one statement set.
 # OutboundEmail uses identity/* because SES sandbox mode IAM-checks both
 # sender and recipient identities per send call; tighten to the sender ARN

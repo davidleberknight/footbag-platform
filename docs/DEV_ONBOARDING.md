@@ -209,7 +209,7 @@ which node
 
 `which node` should resolve to a path under `/home/...` or `/usr/...`, not `/mnt/c/...`.
 
-These three steps are everything required to reach hello world. Git configuration and Claude Code are set up after your first green run (§1.10B); Docker is only for the parity check and AWS paths (§1.13).
+These three steps are everything required to reach hello world. Git configuration and Claude Code are set up after your first green run (§1.10B); Docker is only for the parity check (§1.13) and AWS deployment work (AWS_OPERATIONS.md, private GitHub repo).
 
 ### 1.5 Clone and Install the Project GitHub Repository
 
@@ -355,7 +355,7 @@ How the tunnel works: the app listens on `127.0.0.1:3000` *inside the guest*, wh
 
    Open `http://localhost:3000` in your Mac browser. The browser hits its own forwarded port and SSH carries the traffic to `127.0.0.1:3000` inside the VM. Only port 3000 needs forwarding; the image worker on 4001 is called server-to-server inside the VM, so the browser never contacts it. Decoupling the server window from the tunnel means restarting one never drops the other.
 
-If direct SSH to the VM IP is not reachable (depending on the UTM network mode), add a VM port forward for SSH (Mac `localhost:2222` to guest port 22) and connect through it, keeping the same app-port tunnel. This `2222` is local to UTM and unrelated to the `2222` used later for AWS Lightsail:
+If direct SSH to the VM IP is not reachable (depending on the UTM network mode), add a VM port forward for SSH (Mac `localhost:2222` to guest port 22) and connect through it, keeping the same app-port tunnel. This `2222` is local to UTM and unrelated to the `2222` used for SSH to the AWS Lightsail host (AWS_OPERATIONS.md, private GitHub repo):
 
 ```bash
 ssh -p 2222 -o ExitOnForwardFailure=yes \
@@ -638,7 +638,7 @@ docker compose \
 
 ### 1.14 Dev and tester shortcuts (advanced)
 
-> These are advanced shortcuts for maintainers and testers. None of them are needed to reach hello world or run the default test suite; a new developer can skip this section. The tester journey is the developer journey above plus the persona switching in §1.14.3.
+> These are advanced shortcuts for maintainers and testers. None of them are needed to reach hello world or run the default test suite; a new developer can skip this section. The tester journey is the developer journey above plus the persona switching in §1.14.2.
 
 #### 1.14.1 Dev admin allowlist (maintainers)
 

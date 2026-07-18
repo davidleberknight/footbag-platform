@@ -129,7 +129,7 @@ def test_empty_input_is_passed_through(empty):
 
 
 def test_surrounding_text_survives_removal():
-    text = "Contact Chase at chase@gmail.com or call 417-540-3626 today"
+    text = "Contact Pat at pat@example.com or call 212-555-0199 today"
     out = scrub(text)
-    assert "Contact Chase" in out and "today" in out
+    assert "Contact Pat" in out and "today" in out
     assert "@" not in out and not any(ch.isdigit() for ch in out)
