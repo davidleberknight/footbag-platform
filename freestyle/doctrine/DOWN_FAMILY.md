@@ -78,6 +78,13 @@ The grid is the OUT-direction motif. IN-direction double-dex structures (double
 around the world, double pickup) fall outside it on the direction axis, as the model
 requires: the ATW/pickup lineage is the motif's IN-direction twin, out of scope.
 
+The Down grid contains the clean two-dex outward cells. Source-attested mixed cells
+are not normalized into a grid cell by analogy: Plasma's OP OUT > SAME OUT core
+remains outside the grid. A three-outward-dex sequence resolving to clipper may
+contain a ruled Paradon chassis plus one added outward dexterity; Fusion, Cold
+Fusion, and ID therefore remain Down-derived compounds. The side of Fusion's added
+dexterity is tracked separately and remains frozen pending source reconciliation.
+
 ## Display-layer umbrella
 
 The public By-family browse represents the ruling as a Down umbrella in

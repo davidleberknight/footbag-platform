@@ -92,7 +92,7 @@ For compounds built from a settled OP-dex atom behind a SAME-side entry operator
 when the dex and the catch sit on different sides, the qualifier targets the
 **structural base dex**, not the prepended entry-operator dex and not the catch.
 
-## OP, X-Dex, and PDX are independent axes
+## OP, X-Dex, PDX, and cross-body are independent axes
 
 - An `OP` (far) component does not by itself add ADD. X-Dex is a separate flag
   (`[XDEX]`), never implied by `OP`: it fires only when a far-form dex lands on an
@@ -103,6 +103,10 @@ when the dex and the catch sit on different sides, the qualifier targets the
   both on one trick (sumo carries a `[PDX]` dex and a separate `OP IN [DEX] [XDEX]`
   dex). Paradox is the case where the side relationship switches, scored on its own
   terms.
+- Cross-body and side are independent dimensions. `[XBD]` records a cross-body
+  position or traversal and does not imply `OP`. The explicit `SAME` or `OP` token
+  on the component determines its side relationship; both `SAME ... [XBD]` and
+  `OP ... [XBD]` are valid.
 
 ## Identity rules in force
 
