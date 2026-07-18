@@ -7,14 +7,14 @@ Use this file for quick orientation and document routing. For implemented behavi
 ## Fast routing
 
 - **For tasks touching members, historical persons, search, contact fields, records, stats, exports, or auth/privacy:** load `docs/DATA_GOVERNANCE.md` first.
-- For functional requirements and user stories with acceptance criteria, loadtargeted sections of `docs/USER_STORIES.md` first.
+- For functional requirements and user stories with acceptance criteria, load targeted sections of `docs/USER_STORIES.md` first.
 - For current scope, known deviations, and sequencing, read the maintainers' private tracker: `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open` (the `tracker-ops` skill; skip in one line if unwired).
 - For required public-page rendering patterns, view-model contracts, and sensitive-page invariants, load `.claude/rules/view-layer.md` and the owning service's file-header JSDoc.
 - For required service-layer ownership and patterns, read the service's file-header JSDoc and the path-scoped `.claude/rules/*.md`; pair with code/tests/types for current method shapes.
 - For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema.sql`.
 - For rationale, trade-offs, and long-term design commitments, load targeted sections of `docs/DESIGN_DECISIONS.md`: read when entering a new code area or unwinding a temporary simplification; do not load by default.
 - For go-live readiness, legacy data migration scope, operational-readiness gates, phasing, or cutover planning, load `docs/MIGRATION_PLAN.md`.
-- The platform serves from a single Lightsail origin behind CloudFront; operational procedures live in DEVOPS_GUIDE.md (private GitHub repo) (in the private operations checkout `footbag_private_repo/`, when wired).
+- The platform serves from a single Lightsail origin behind CloudFront; operational procedures live in DEVOPS_GUIDE.md in the private maintainers' repo (reached via the `footbag_private_repo/` checkout when wired).
 
 ## Project identity
 
@@ -69,7 +69,7 @@ Major areas include:
 - Put business rules in **services**, not controllers/templates.
 - Keep external integrations behind infrastructure adapters.
 - Prefer small, explicit changes that preserve readability and simplicity for volunteer maintainers.
-- Enforce differences between dev staging and prod environemnts with adapter patterns.
+- Enforce differences between dev staging and prod environments with adapter patterns.
 
 ### Auth / security invariants
 
