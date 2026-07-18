@@ -45,6 +45,27 @@ inherits them.
   contacts, or other structures that may decompose through or build on the core
   vocabulary. Every canonical trick still needs a terminal contact or terminal
   resolution, but that terminal is not always itself one of the twelve core atoms.
+- **Path and endpoint are separate (the terminal-encoding convention).**
+  Operational notation separates the movement sequence from the endpoint. The
+  preceding dexterity and body components encode how the bag reaches the endpoint
+  and are not repeated there. The notation endpoint is the final encoded component.
+  In a complete formula, that component represents the movement's encoded endpoint.
+  When prose indicates a later landing or contact that has not been operationally
+  encoded, the formula is incomplete for terminal analysis; the preceding dexterity
+  or body component is not thereby reclassified as the physical terminal contact.
+  When the encoded endpoint is a contact, the final contact component is the
+  terminal contact. When a relative side relation applies, it is written explicitly
+  using `SAME` or `OP` under the established component-relative rule; the receiving
+  surface and appropriate outcome marker, such as `[DEL]` or `[KICK]`, are written
+  where applicable. Independent attributes such as `[XBD]` do not determine side.
+  Some complete movement-only formulas end on a `[BOD]` component and have no
+  contact terminal. No separate path-terminal token exists or is needed; preceding
+  rotational dexterity components are movement components, not terminal contacts.
+- **Cross-body and side are independent.** The `[XBD]` cross-body flag does not by
+  itself imply an `OP` side; a component's side is read only from its explicit
+  `SAME` or `OP` token, and a cross-body terminal is written on either side (both
+  `SAME ... [XBD]` and `OP ... [XBD]` are valid). This is settled; its
+  authoritative home is the positional-identity doctrine.
 
 ## Open questions
 
@@ -59,18 +80,9 @@ guessed.
    open half of the down-family question; it decides the base label of the
    compounds that carry the tension today. No ADD rides on it; the reading does.
    (Red.)
-2. **Whether cross-body inherently encodes opposite-side.** Does an `[XBD]`
-   traversal by itself imply an OP side configuration, or is side independent of
-   the cross-body flag? This governs how positional identity reads any
-   clipper-terminal trick. Evidence from the ratified clipper-terminal matrix:
-   the `[XBD]` bracket is written on both sides — whirl and reverse whirl
-   terminate `OP CLIP [XBD] [DEL]` while swirl and reverse swirl terminate
-   `SAME CLIP [XBD] [DEL]` — so the built canon writes side independently of the
-   cross-body flag. The ruling is still Red's; the matrix is evidence, not the
-   answer. (Red.)
-3. **The osis spin-to-catch relationship.** How the spin an osis carries relates
+2. **The osis spin-to-catch relationship.** How the spin an osis carries relates
    to the side it catches on — the last of the atom-level foundations. (Red.)
-4. **Notation as record versus notation as convention.** When two lineages write
+3. **Notation as record versus notation as convention.** When two lineages write
    the same movement differently (one carrying a token the other omits), is the
    token physical content one lineage records and the other elides, or a
    convention of the writer? This is the general form of the paradox question in
