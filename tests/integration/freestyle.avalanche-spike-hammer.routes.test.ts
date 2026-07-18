@@ -53,12 +53,12 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('RESOLVED_ADD_FORMULAS — avalanche + spike-hammer entries', () => {
-  it('avalanche carries FB.org-confirmed JOB with OP OUT [PDX] [DEX] (illusion base)', () => {
+  it('avalanche carries the canonical JOB with SAME OUT [PDX] [DEX] (illusion base)', () => {
     const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'avalanche');
     expect(entry).toBeDefined();
     expect(entry?.totalAdd).toBe(5);
     expect(entry?.base).toBe('paradox-illusion');
-    expect(entry?.operationalNotation).toBe('CLIP > OP IN [DEX] > DUCK [BOD] > OP OUT [PDX] [DEX] > OP TOE [DEL]');
+    expect(entry?.operationalNotation).toBe('CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL]');
     expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
     expect(entry?.provenance ?? '').toMatch(/Stepping Ducking Paradox Illusion/i);
     expect(entry?.provenance ?? '').toMatch(/structural\s+twin\s+of\s+spike-hammer/i);
@@ -72,7 +72,7 @@ describe('RESOLVED_ADD_FORMULAS — avalanche + spike-hammer entries', () => {
     expect(entry?.provenance ?? '').toMatch(/structural\s+twin\s+of\s+avalanche/i);
   });
 
-  it('both entries share an identical modifier stack and differ only in the dex direction', () => {
+  it('both entries share an identical modifier stack and differ only in the paradox dex coordinate', () => {
     const av = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'avalanche');
     const sh = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'spike_hammer');
     expect(av?.totalAdd).toBe(sh?.totalAdd);
@@ -81,8 +81,8 @@ describe('RESOLVED_ADD_FORMULAS — avalanche + spike-hammer entries', () => {
     expect(sh?.operationalNotation ?? '').toContain('OP IN [DEX] > DUCK [BOD]');
     expect(av?.operationalNotation ?? '').toContain('OP TOE [DEL]');
     expect(sh?.operationalNotation ?? '').toContain('OP TOE [DEL]');
-    // Difference: OP OUT (avalanche/illusion) vs OP IN (spike-hammer/mirage)
-    expect(av?.operationalNotation ?? '').toContain('OP OUT [PDX]');
+    // Difference at the paradox dex coordinate: SAME OUT (avalanche/illusion) vs OP IN (spike-hammer/mirage).
+    expect(av?.operationalNotation ?? '').toContain('SAME OUT [PDX]');
     expect(sh?.operationalNotation ?? '').toContain('OP IN [PDX]');
   });
 });

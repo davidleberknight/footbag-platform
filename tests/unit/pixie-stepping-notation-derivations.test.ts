@@ -8,7 +8,7 @@ import { join } from 'node:path';
 // inherits the base core verbatim, so the terminal (and family) is preserved.
 // Tested: exact string, parse, recognized tokens, ADD = token count.
 const APPROVED = [
-  { slug: 'pixie-mirage',                  adds: 3, notation: 'TOE > SAME IN [DEX] >> OP IN [DEX] > OP TOE [DEL]' },
+  { slug: 'smear',                         adds: 3, notation: 'TOE > SAME IN [DEX] >> OP IN [DEX] > OP TOE [DEL]' },
   { slug: 'pixie-rev-whirl',               adds: 4, notation: 'TOE > SAME IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'pixie-ducking-mirage',          adds: 4, notation: 'TOE > SAME IN [DEX] >> DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]' },
   { slug: 'pixie-diving-butterfly',        adds: 5, notation: 'TOE > SAME IN [DEX] >> DIVE [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },

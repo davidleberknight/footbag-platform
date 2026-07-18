@@ -230,7 +230,7 @@ parkwalk,notation,,PIXIE BUTTERFLY,"Wave 4-B notation back-fill 2026-05-22: per 
 royale,notation,,PARADOX REVERSE DRIFTER,"Wave 4-B notation back-fill 2026-05-22: per DB description ""Paradox-modified reverse drifter."" Parser-derivable ADD: paradox(+1) + reverse-drifter(3) = 4 ADD."
 smog,notation,,PIXIE DLO,"Wave 4-B notation back-fill 2026-05-22: per DB description ""Pixie-modified double leg over."" Parser-derivable ADD: pixie(+1) + dlo(3) = 4 ADD."
 smoke,notation,,PIXIE DRIFTER,"Wave 4-B notation back-fill 2026-05-22: per DB description ""Pixie-modified drifter."" Parser-derivable ADD: pixie(+1) + drifter(3) = 4 ADD."
-tapdown,notation,,TAPPING BUTTERFLY,"Wave 4-B notation back-fill 2026-05-22: per DB description ""Tapping-modifier butterfly."" Parser-derivable ADD: tapping(+1) + butterfly(3) = 4 ADD."
+tapdown,notation,,TAPDOWN,"JOB = canonical name uppercased, consistent with the other folk-name survivors; the compositional name Tapping Butterfly is retained as a redirect alias."
 tombstone,notation,,STEPPING DRIFTER,"Wave 4-B notation back-fill 2026-05-22: per DB description ""Stepping-modified drifter."" Parser-derivable ADD: stepping(+1) + drifter(3) = 4 ADD."
 blurriest,notation,,BLURRY BARFLY,"Wave 4-B notation back-fill 2026-05-22: per DB description ""Blurry-modified barfly."" blurriest specifically uses blurry as +1 flat (NOT the stepping+paradox carve-out in MODIFIER_COMPOSITIONS allowlist; barfly is composite-modifier-incompatible per workbook restraint comment)."
 grave-digger,notation,,STEPPING TORQUE,"Wave 4-B notation back-fill 2026-05-22: per DB description ""Stepping-modified same-side torque."" Parser-derivable ADD: stepping(+1) + torque(4) = 5 ADD."
@@ -814,8 +814,6 @@ fairy-ducking-legover,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >
 fairy-ducking-pickup,notation,,FAIRY DUCKING PICKUP,"DK-1 Wave 1 2026-05-26: JOB per T2 mechanical rule."
 fairy-ducking-pickup,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > SAME TOE [DEL],"DK-1 Wave 1 2026-05-26: assassin-style set+ducking+base pattern with fairy direction + ducking-pickup terminal. 4 brackets matches asserted 4 ADD."
 ducking-butterfly,operational_notation,SET > (DUCK) [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],SET > DUCK [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],"DK-3 format normalization 2026-05-26: two outliers fixed. (1) (DUCK) parens -> bare DUCK per universal ducking-X convention (every other ducking row uses bare DUCK [BOD]: ducking-clipper / ducking-illusion / ducking-mirage / ducking-osis / ducking-whirl / stepping-ducking-mirage / etc.). (2) SAME/OP slash -> SAME/OP per butterfly's own canonical op_notation convention (also used in osis / ducking-osis). 4 brackets unchanged ([BOD] + [DEX] + [XBD] + [DEL] = 4 ADD)."
-pixie-ducking-legover,notation,,PIXIE DUCKING LEGOVER,"DK-1 Wave 2 2026-05-26: JOB per T2 mechanical rule."
-pixie-ducking-legover,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP OUT [DEX] > SAME TOE [DEL],"DK-1 Wave 2 2026-05-26: assassin (pixie-ducking-mirage) pattern with legover dex direction (OP OUT vs assassin's OP IN) and legover terminal (SAME TOE vs assassin's OP TOE). 4 brackets matches asserted 4 ADD."
 pixie-ducking-pickup,notation,,PIXIE DUCKING PICKUP,"DK-1 Wave 2 2026-05-26: JOB per T2 mechanical rule."
 pixie-ducking-pickup,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP IN [DEX] > SAME TOE [DEL],"DK-1 Wave 2 2026-05-26: assassin pattern with pickup terminal (SAME TOE; OP IN dex matches both assassin and pickup). 4 brackets matches asserted 4 ADD."
 stepping-ducking-butterfly,notation,,STEPPING DUCKING BUTTERFLY,"DK-1 Wave 2 2026-05-26: JOB per T2 mechanical rule. SS variant per tracked-names '(same side)' provenance."
@@ -920,16 +918,12 @@ fairy-flail,notation,,FAIRY FLAIL,W5a 2026-05-27: JOB per mechanical uppercase r
 fairy-flail,operational_notation,,TOE > SAME OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W5a 2026-05-27: fairy set + flail chassis. 4 brackets matches 4 ADD.
 fairy-barrage,notation,,FAIRY BARRAGE,W5a 2026-05-27: JOB per mechanical uppercase rule.
 fairy-barrage,operational_notation,,TOE > SAME OUT [DEX] > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL],W5a 2026-05-27: fairy set + barrage's SAME IN double-dex chain. 4 brackets matches 4 ADD.
-fairy-double-leg-over,notation,,FAIRY DOUBLE LEG OVER,W5b 2026-05-27: JOB per mechanical uppercase rule.
-fairy-double-leg-over,operational_notation,,TOE > SAME OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],W5b 2026-05-27: fairy direction-flip of pixie-double-leg-over chassis. 4 brackets matches 4 ADD.
 fairy-symposium-mirage,notation,,FAIRY SYMPOSIUM MIRAGE,W5b 2026-05-27: JOB per mechanical uppercase rule.
 fairy-symposium-mirage,operational_notation,,TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],W5b 2026-05-27: fairy direction-flip of pixie-symposium-mirage chassis. 4 brackets matches 4 ADD.
 fairy-symposium-eggbeater,notation,,FAIRY SYMPOSIUM EGGBEATER,W5b 2026-05-27: JOB per mechanical uppercase rule.
 fairy-symposium-eggbeater,operational_notation,,TOE > SAME OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],W5b 2026-05-27: fairy direction-flip of pixie-symposium-eggbeater chassis. 5 brackets matches 5 ADD.
 fairy-symposium-whirl,notation,,FAIRY SYMPOSIUM WHIRL,W5b 2026-05-27: JOB per mechanical uppercase rule.
 fairy-symposium-whirl,operational_notation,,TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],W5b 2026-05-27: fairy direction-flip of pixie-symposium-whirl chassis. 5 brackets matches 5 ADD.
-fairy-diving-butterfly,notation,,FAIRY DIVING BUTTERFLY,W5b 2026-05-27: JOB per mechanical uppercase rule.
-fairy-diving-butterfly,operational_notation,,TOE > SAME OUT [DEX] >> DIVE [BOD] >> SAME OUT [DEX] > OP CLIP [XBD] [DEL],W5b 2026-05-27: fairy direction-flip of darkwalk chassis. 5 brackets matches 5 ADD.
 fairy-swirl,notation,,FAIRY SWIRL,W5c 2026-05-27: JOB per mechanical uppercase rule.
 fairy-swirl,operational_notation,,TOE > SAME OUT [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],W5c 2026-05-27: fairy set + swirl chassis. 4 brackets matches 4 ADD.
 fairy-eclipse,notation,,FAIRY ECLIPSE,W5c 2026-05-27: JOB per mechanical uppercase rule.
@@ -1202,8 +1196,6 @@ tapping-osis,notation,,TAPPING OSIS,W9l 2026-05-27: JOB per mechanical uppercase
 tapping-osis,operational_notation,,TOE > OP OUT [DEX] >> (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL],W9l 2026-05-27: tapping chassis + osis chain. 4 brackets matches 4 ADD.
 tapping-pickup,notation,,TAPPING PICKUP,W9l 2026-05-27: JOB per mechanical uppercase rule.
 tapping-pickup,operational_notation,,TOE > OP OUT [DEX] >> OP IN [DEX] > SAME TOE [DEL],W9l 2026-05-27: tapping chassis + pickup chain. 3 brackets matches 3 ADD.
-tapping-butterfly,notation,,TAPPING BUTTERFLY,W9l 2026-05-27: JOB per mechanical uppercase rule.
-tapping-butterfly,operational_notation,,TOE > OP OUT [DEX] >> SAME OUT [DEX] > OP CLIP [XBD] [DEL],W9l 2026-05-27: tapping-illusion direction-flip precedent on butterfly. 4 brackets matches 4 ADD.
 tapping-clipper,notation,,TAPPING CLIPPER,W9l 2026-05-27: JOB per mechanical uppercase rule.
 tapping-clipper,operational_notation,,TOE > OP OUT [DEX] >> SAME CLIP [XBD] [DEL],W9l 2026-05-27: tapping chassis + clipper-stall terminal. 3 brackets matches 3 ADD.
 tapping-leg-over,notation,,TAPPING LEG OVER,W9m 2026-05-27: JOB per mechanical uppercase rule.
@@ -1224,8 +1216,6 @@ miraging-dyno,notation,,MIRAGING DYNO,W9n 2026-05-27: JOB per mechanical upperca
 miraging-dyno,operational_notation,,SET > OP IN [DEX] > OP OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W9n 2026-05-27: W9k miraging prefix + dyno chain. 5 brackets matches 5 ADD.
 miraging-symposium-eggbeater,notation,,MIRAGING SYMPOSIUM EGGBEATER,W9n 2026-05-27: JOB per mechanical uppercase rule.
 miraging-symposium-eggbeater,operational_notation,,SET > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],W9n 2026-05-27: W9k miraging-symposium chassis + eggbeater chain. 5 brackets matches 5 ADD.
-symposium-double-over-down,notation,,SYMPOSIUM DOUBLE OVER DOWN,W9n 2026-05-27: JOB per mechanical uppercase rule.
-symposium-double-over-down,operational_notation,,TOE > (no plant while) SAME OUT [BOD] [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],Down-grid correction: symposium [BOD] entry + Double-Over-Down (setting-leg) core normalized to SAME OUT > SAME OUT per the four-cell Down doctrine. Bracket/ADD count unchanged (5).
 miraging-symposium-double-over-down,notation,,MIRAGING SYMPOSIUM DOUBLE OVER DOWN,W9o 2026-05-27: JOB per mechanical uppercase rule.
 miraging-symposium-double-over-down,operational_notation,,SET > OP IN [DEX] > (no plant while) SAME OUT [BOD] [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],Down-grid correction: miraging + symposium entry + Double-Over-Down (setting-leg) core normalized to SAME OUT > SAME OUT per the four-cell Down doctrine. Bracket/ADD count unchanged (6).
 paradox-symposium-eggbeater,notation,,PARADOX SYMPOSIUM EGGBEATER,W9o 2026-05-27: JOB per mechanical uppercase rule.
@@ -1342,7 +1332,6 @@ stepping-diving-mirage,notation,,STEPPING DIVING MIRAGE,JOB notation backfill (m
 stepping-diving-butterfly,notation,,STEPPING DIVING BUTTERFLY,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the stepping batch.
 stepping-ducking-drifter,notation,,STEPPING DUCKING DRIFTER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the stepping batch.
 stepping-ducking-drifter,trick_family,drifter,clipper-stall,terminal-identity family override: drifter resolves to the clipper-stall family (loader-19 default would mis-set family=drifter).
-stepping-ducking-paradox-illusion,notation,,STEPPING DUCKING PARADOX ILLUSION,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the stepping batch.
 stepping-ducking-symposium-eggbeater,notation,,STEPPING DUCKING SYMPOSIUM EGGBEATER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the stepping batch.
 stepping-ducking-symposium-eggbeater,trick_family,eggbeater,legover,terminal-identity family override: eggbeater resolves to the legover family (loader-19 default would mis-set family=eggbeater).
 spinning-eggbeater,notation,,SPINNING EGGBEATER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the spinning batch.
@@ -1476,7 +1465,6 @@ tapping-guay,notation,,TAPPING GUAY,JOB per mechanical uppercase rule.
 fairy-guay,notation,,FAIRY GUAY,JOB per mechanical uppercase rule.
 inspinning-guay,notation,,INSPINNING GUAY,JOB per mechanical uppercase rule.
 pixie-guay,notation,,PIXIE GUAY,JOB per mechanical uppercase rule.
-pixie-mirage,notation,,PIXIE MIRAGE,JOB per mechanical uppercase rule.
 pixie-clipper,notation,,PIXIE CLIPPER,JOB per mechanical uppercase rule.
 pixie-double-pickup,notation,,PIXIE DOUBLE PICKUP,JOB per mechanical uppercase rule.
 pixie-double-pickup,trick_family,double-pickup,pickup,"Family follows the base trick family, not the compound base slug."
@@ -1488,8 +1476,6 @@ pixie-ducking-mirage,notation,,PIXIE DUCKING MIRAGE,JOB per mechanical uppercase
 pixie-ducking-mirage,trick_family,ducking-mirage,mirage,"Family follows the base trick family, not the compound base slug."
 pixie-symposium-reverse-whirl,notation,,PIXIE SYMPOSIUM REVERSE WHIRL,JOB per mechanical uppercase rule.
 pixie-symposium-reverse-whirl,trick_family,symposium-reverse-whirl,whirl,"Family follows the base trick family, not the compound base slug."
-fairy-ducking-mirage,notation,,FAIRY DUCKING MIRAGE,JOB per mechanical uppercase rule.
-fairy-ducking-mirage,trick_family,ducking-mirage,mirage,"Family follows the base trick family, not the compound base slug."
 fairy-torque,notation,,FAIRY TORQUE,JOB per mechanical uppercase rule.
 fairy-torque,trick_family,torque,osis,"Family follows the base trick family, not the compound base slug."
 diving-clipper,notation,,DIVING CLIPPER,JOB per mechanical uppercase rule.
@@ -1537,7 +1523,6 @@ whirling-mirage,operational_notation,,SET > OP FRONT WHIRL [DEX] > OP IN [DEX] >
 diving-symposium-mirage,operational_notation,,SET > DIVE [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],Derived operational notation: diving body-modifier prepended onto the symposium-mirage base; ADD token count equals the stated value.
 swirling-paradox-mirage,operational_notation,,CLIP > SAME BACK SWIRL [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL],Derived operational notation: swirling operator inserts the named swirl dex ahead of the paradox-mirage core; ADD token count equals the stated value.
 symposium-miraging-mirage,operational_notation,,SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],Derived operational notation: miraging operator inserts a mirage dex ahead of the symposium-mirage core; ADD token count equals the stated value.
-fairy-ducking-mirage,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP TOE [DEL],Derived operational notation: fairy entry composed with the ducking-mirage core; ADD token count equals the stated value.
 diving-butterfly,operational_notation,,SET > DIVE [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: diving body-modifier (DIVE [BOD]) prepended onto the butterfly base; ADD token count equals the stated value.
 gyro-diving-butterfly,operational_notation,,SET > (back) SPIN [BOD] > DIVE [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: gyro and diving body-modifiers prepended onto the butterfly base; ADD token count equals the stated value.
 barraging-butterfly,operational_notation,,SET > OP IN [DEX] > SAME IN [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: barraging operator inserts a two-dex set (OP IN [DEX] then SAME IN [DEX]) ahead of the butterfly core; ADD token count equals the stated value.
@@ -1545,7 +1530,6 @@ swirling-butterfly,operational_notation,,SET > SAME BACK SWIRL [DEX] > SAME/OP O
 whirling-butterfly,operational_notation,,SET > OP FRONT WHIRL [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: whirling operator inserts the named whirl dex (OP FRONT WHIRL [DEX]) ahead of the butterfly core; ADD token count equals the stated value.
 miraging-symposium-butterfly,operational_notation,,SET > OP IN [DEX] > (no plant while) SAME/OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: miraging operator inserts a mirage dex ahead of the symposium-butterfly core; ADD token count equals the stated value.
 fairy-butterfly,operational_notation,,TOE > SAME OUT [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: fairy entry composed with the butterfly core; ADD token count equals the stated value.
-pixie-mirage,operational_notation,,TOE > SAME IN [DEX] >> OP IN [DEX] > OP TOE [DEL],Derived operational notation: pixie entry (TOE > SAME IN [DEX] >>) applied to the mirage base; ADD token count equals the stated value.
 pixie-rev-whirl,operational_notation,,TOE > SAME IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: pixie entry (TOE > SAME IN [DEX] >>) applied to the rev-whirl base; ADD token count equals the stated value.
 pixie-ducking-mirage,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] > OP IN [DEX] > OP TOE [DEL],Derived operational notation: pixie entry (TOE > SAME IN [DEX] >>) applied to the ducking-mirage base; ADD token count equals the stated value.
 pixie-diving-butterfly,operational_notation,,TOE > SAME IN [DEX] >> DIVE [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: pixie entry (TOE > SAME IN [DEX] >>) applied to the diving-butterfly base; ADD token count equals the stated value.
@@ -1671,7 +1655,6 @@ toe-spinning-torque,operational_notation,,TOE > (back) SPIN [BOD] > OP IN [DEX] 
 reverse-swirling-osis,operational_notation,,SET > OP SWIRL [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
 clipper-ducking-drifter,operational_notation,,CLIP > DUCK [BOD] > OP IN [DEX] > SAME CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
 toe-gyro-mirage,operational_notation,,TOE > GYRO [BOD] > OP IN [DEX] > OP TOE [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
-toe-ducking-legover,operational_notation,,TOE > DUCK [BOD] > OP OUT [DEX] > SAME TOE [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
 reverse-swirling-pickup,operational_notation,,SET > SAME SWIRL [DEX] > SAME IN [DEX] > OP TOE [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
 butterfly-gyro-toe,operational_notation,,TOE > GYRO [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
 reverse-blender,trick_family,,osis,loader-19 override: base_trick blender defaults trick_family to blender; canonical family is osis.
@@ -1765,7 +1748,6 @@ around_the_world_heel,operational_notation,,TOE > SAME IN [DEX] > SAME HEEL [UNS
 jani-walker,operational_notation,,CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],notation-backfill: existing structural formula migrated; bracket count 5 matches ADD.
 predator,operational_notation,,TOE > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],notation-backfill: = atomic-double-leg-over (non-rotational atomic +1) shipped sibling; bracket count 4 matches ADD.
 paradox-symposium-illusion,operational_notation,,CLIP (plant) > (no plant while) SAME OUT [PDX] [BOD] [DEX] > OP TOE [DEL],Parity convention 2026-06-10: paradox+symposium merge to one no-plant event SAME OUT [PDX] [BOD] [DEX]; mirrors paradox-symposium-mirage chassis + paradox-illusion direction. Bracket-count 4 == ADD.
-stepping-ducking-paradox-illusion,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL],Parity convention 2026-06-10: mirrors ducking-paradox-illusion (SAME OUT [PDX] [DEX]) with stepping OP IN [DEX] prefix; neither stepping nor ducking consumes the paradox flip. Bracket-count 5 == ADD.
 surging,operational_notation,,CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL],Set-standalone terminal-stall convention 2026-06-10: surging-as-standalone-trick notated as the spinning+stepping set terminating in a toe stall per pixie/fairy. Bracket-count 3 == ADD.
 surging,adds,2,3,Set-standalone terminal-stall convention 2026-06-10: terminal [DEL] raises the standalone surging trick to 3 ADD; the spinning+stepping movement contribution stays 2 when surging acts as a modifier prefix on a base.
 margaritaville,operational_notation,,CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],Parity convention 2026-06-10: mirrors spinning-paradox-blender (OP IN [PDX] [DEX]) with stepping OP IN [DEX] prefix (surging = spinning + stepping). Bracket-count 7 == ADD.
@@ -2108,7 +2090,6 @@ surging-whirl,notation,,SURGING WHIRL,JOB notation backfill: mechanical uppercas
 swirling-reverse-swirl,notation,,SWIRLING REVERSE SWIRL,JOB notation backfill: mechanical uppercase of the structural name.
 symposium-reverse-swirling-pickup,notation,,SYMPOSIUM REVERSE SWIRLING PICKUP,JOB notation backfill: mechanical uppercase of the structural name.
 symposium-reverse-whirling-swirl,notation,,SYMPOSIUM REVERSE WHIRLING SWIRL,JOB notation backfill: mechanical uppercase of the structural name.
-toe-ducking-legover,notation,,TOE DUCKING LEGOVER,JOB notation backfill: mechanical uppercase of the structural name.
 toe-flurry,notation,,TOE FLURRY,JOB notation backfill: mechanical uppercase of the structural name.
 toe-gyro-mirage,notation,,TOE GYRO MIRAGE,JOB notation backfill: mechanical uppercase of the structural name.
 toe-spinning-torque,notation,,TOE SPINNING TORQUE,JOB notation backfill: mechanical uppercase of the structural name.
@@ -2263,7 +2244,6 @@ ducking-paradox-symposium-mirage,base_trick,mirage,paradox-symposium-mirage,"Bas
 ducking-paradox-symposium-whirl,base_trick,whirl,paradox-symposium-whirl,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 ducking-paradox-torque,base_trick,torque,paradox-torque,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 ducking-symposium-mirage,base_trick,mirage,symposium-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
-fairy-diving-butterfly,base_trick,butterfly,diving-butterfly,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 fairy-ducking-butterfly,base_trick,butterfly,ducking-butterfly,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 fairy-ducking-clipper,base_trick,clipper-stall,ducking-clipper,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 fairy-ducking-double-leg-over,base_trick,double-leg-over,ducking-double-leg-over,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
@@ -2295,7 +2275,7 @@ gyro-symposium-whirl,base_trick,whirl,symposium-whirl,"Base trick set to the imm
 inspinning-paradox-illusion,base_trick,illusion,paradox-illusion,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 inspinning-paradox-mirage,base_trick,mirage,paradox-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 inspinning-symposium-mirage,base_trick,mirage,symposium-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
-miraging-symposium-double-over-down,base_trick,double-over-down,symposium-double-over-down,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
+miraging-symposium-double-over-down,base_trick,double-over-down,blackula,"Base trick set to the surviving immediate compositional parent, Blackula, rather than the terminal family."
 miraging-symposium-eggbeater,base_trick,eggbeater,symposium-eggbeater,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 miraging-symposium-mirage,base_trick,mirage,symposium-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 nuclear-rev-whirl,base_trick,whirl,rev-whirl,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
@@ -2312,7 +2292,6 @@ pixie-diving-whirl,base_trick,whirl,diving-whirl,"Base trick set to the immediat
 pixie-ducking-butterfly-swirl,base_trick,butterfly-swirl,ducking-butterfly-swirl,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 pixie-ducking-clipper,base_trick,clipper-stall,ducking-clipper,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 pixie-ducking-illusion,base_trick,illusion,ducking-illusion,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
-pixie-ducking-legover,base_trick,legover,ducking-legover,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 pixie-ducking-osis,base_trick,osis,ducking-osis,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 pixie-ducking-pickup,base_trick,pickup,ducking-pickup,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 pixie-ducking-symposium-mirage,base_trick,mirage,ducking-symposium-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
@@ -2378,7 +2357,6 @@ stepping-ducking-drifter,base_trick,drifter,ducking-drifter,"Base trick set to t
 stepping-ducking-mirage,base_trick,mirage,ducking-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 stepping-ducking-osis,base_trick,osis,ducking-osis,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 stepping-ducking-paradox-blender,base_trick,blender,ducking-paradox-blender,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
-stepping-ducking-paradox-illusion,base_trick,illusion,ducking-paradox-illusion,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 stepping-ducking-paradox-symposium-whirl,base_trick,whirl,ducking-paradox-symposium-whirl,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 stepping-paradox-torque,base_trick,torque,paradox-torque,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 stepping-symposium-mirage,base_trick,mirage,symposium-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
@@ -2578,9 +2556,6 @@ barfly,prerequisite_notes,,"Comfort circling a leg around the bag from a cross-b
 paradon,execution_summary,,"Paradon sets from a toe, then circles the bag twice from outside to inside with the opposite leg before catching on a cross-body clipper. Set the bag about waist height and slightly across your body so it falls toward the dexing foot, plant the setting foot immediately, hop hard off the support leg to get the first dexterity around, then carry the second into a clipper delay. The whole second half is essentially a butterfly catch.",Extracted from the legacy footbag.org move description and community tips into structured instructional prose.
 paradon,learning_notes,,"The hard part is the timing of the first dexterity; hopping hard with the support leg is what gets it around in time, and after that it plays out like a butterfly. Set a bit cross-body so the bag is by the dexing foot as it descends, and plant the setting foot right after the set. Drilling the double around the world and the double switchover builds the two-circle motion the paradon needs.",Extracted from the legacy footbag.org move description and community tips into structured instructional prose.
 paradon,prerequisite_notes,,"A reliable double around the world and a butterfly are the building blocks, since paradon combines the two-circle dexterity with a butterfly-style clipper catch. Comfort hopping firmly off the support leg to drive the first dex is the timing skill the move adds.",Extracted from the legacy footbag.org move description and community tips into structured instructional prose.
-pixie_mirage,execution_summary,,"Pixie mirage runs a pixie set straight into a mirage. From a toe, do a clean pixie set, circling the foot under and around the bag so it travels straight up rather than shifting to the side, then complete a mirage dexterity and catch on the setting toe. Treat it as a mirage with a pixie folded into the set, performed smoothly without rushing either half.",Extracted from the legacy footbag.org move description and community tips into structured instructional prose.
-pixie_mirage,learning_notes,,"The pixie set is the key; lean over the bag and set it vertically, right under your knee, turning the hip and knee outward so the bag goes straight up and down. If the set is clean the mirage that follows is straightforward. Twist at the hips to finish the mirage dexterity. Keep the whole move unhurried, since rushing the pixie set shifts the bag off line.",Extracted from the legacy footbag.org move description and community tips into structured instructional prose.
-pixie_mirage,prerequisite_notes,,"A clean, controlled pixie set and a reliable mirage are the two halves, so both should be comfortable first. The move is mostly about getting a good-height pixie set that sends the bag straight up, after which the mirage finish feels familiar.",Extracted from the legacy footbag.org move description and community tips into structured instructional prose.
 flying_inside,execution_summary,,"A flying inside is an airborne inside kick: jump and strike the bag with the inside surface of the foot while in the air. Kick the bag up high enough to give yourself time, jump off the support leg with the kicking leg angled down toward the ground, then kick the bag with the inside of the foot as it descends, landing on one leg and then the other. Jump with the same foot you are about to kick with.",Extracted from the legacy footbag.org move description and community tips into structured instructional prose.
 flying_inside,learning_notes,,"Hit the bag high enough to have time to leave the ground before the kick. Jump off the kicking leg, meet the bag with the inside surface while airborne, and land softly one foot at a time. Though it looks trivial, it is the move that teaches symposium, the feel of acting in the air without planting, which carries into the jester, butterfly, and other flying moves.",Extracted from the legacy footbag.org move description and community tips into structured instructional prose.
 flying_inside,prerequisite_notes,,"A basic inside kick and the willingness to leave the ground are all it really needs; it is one of the first flying moves a player learns. Its value is as a stepping stone, building the airborne timing the harder flyers depend on.",Extracted from the legacy footbag.org move description and community tips into structured instructional prose.
@@ -2908,7 +2883,7 @@ atomic_ducking_mirage,operational_notation_source,,Sibling-derived from the atom
 atomic_ducking_mirage,trick_family,,mirage,Family set to the terminal identity mirage (ducking_mirage is in the mirage family); base_trick=ducking_mirage would otherwise default the family to the compound slug.
 nuclear_butterfly,operational_notation,,CLIP > SAME OUT [PDX] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],Operational notation derived by mirroring the canonical nuclear chassis (CLIP > SAME OUT [PDX] [DEX] paradox-dex prepend + base body) with nuclear_whirl terminal parity (OP CLIP [XBD] [DEL]); nuclear carries no X-Dex and butterfly is not the Sumo mirage exception (no [XDEX]); bracket-count==ADD verified.
 nuclear_butterfly,operational_notation_source,,Sibling-derived from the canonical nuclear +2 chassis (nuclear_whirl parity); Class-B per-row promotion under nuclear = paradox dex + downtime illusioning dex (+2), no X-Dex.,Nuclear Class-B promotion provenance.backside_symposium_toe_blizzard,description,,Backside symposium entry into a toe blizzard.,Phase A description completion: structural summary from the settled operational notation.
-flog,description,,"Flog, also known as Fairy Double Legover.",Phase A description completion: footbag.org attested alternate name (showmove 229).
+flog,description,,"Flog, the community name for Fairy Double Leg Over — a fairy set into Double Leg Over. 4 ADD = fairy(+1) + double-leg-over(3).",Public description set to the curator-approved community-name form.
 pogo_paradox_blender,description,,Pogo-modified paradox blender.,Phase A description completion: settled modifier+base decomposition.
 pogo_paradox_whirl,description,,Pogo-modified paradox whirl.,Phase A description completion: settled modifier+base decomposition.
 pogo_pickup,description,,Pogo-modified pickup.,Phase A description completion: settled modifier+base decomposition (footbag.org showmove 130).
@@ -3365,7 +3340,7 @@ double_leg_over_same_side,trick_family,,legover,loader-19 override: base_trick d
 eggbeater_same_side,operational_notation,,TOE >> SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],Distributive same-side derivation (every dex component SAME); bracket count 3 = ADD; collision-free against all active canonicals.
 eggbeater_same_side,trick_family,,legover,loader-19 override: base_trick eggbeater defaults trick_family to it; eggbeater is a legover-family member.
 fairy_double_leg_over_same_side,operational_notation,,TOE > SAME OUT [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME TOE [DEL],Distributive same-side derivation (every dex component SAME; the fairy entry dex was already SAME); bracket count 4 = ADD; collision-free against all active canonicals.
-fairy_double_leg_over_same_side,trick_family,,double_leg_over,loader-19 override: base_trick fairy-double-leg-over defaults trick_family to it; fairy double leg over is a double-leg-over-family member.
+fairy_double_leg_over_same_side,trick_family,,double_leg_over,loader-19 override: the base trick (folded onto the surviving Flog) would otherwise default trick_family to the base; fairy double leg over same side is a double-leg-over-family member.
 pigbeater_same_side,operational_notation,,TOE > SAME IN [DEX] >> SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],Distributive same-side derivation (every dex component SAME; the pixie entry dex was already SAME); bracket count 4 = ADD; collision-free against all active canonicals.
 pigbeater_same_side,trick_family,,legover,loader-19 override: base_trick pigbeater defaults trick_family to it; pigbeater is a legover-family member.
 smog_same_side,operational_notation,,TOE > SAME IN [DEX] >> SAME IN [DEX] > SAME OUT [DEX] > SAME TOE [DEL],Distributive same-side derivation (every dex component SAME; the pixie entry dex was already SAME); bracket count 4 = ADD; collision-free against all active canonicals.
@@ -3464,3 +3439,10 @@ atomic-symposium-paradon,operational_notation,,TOE > OP OUT [DEX] > (no plant wh
 miraging-symposium-paradon,operational_notation,,TOE > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],Down-grid correction: miraging + symposium entry + Paradon (other-leg) core normalized to OP OUT > OP OUT per the four-cell Down doctrine. Bracket/ADD count unchanged (6).
 stepping-symposium-paradon,operational_notation,,CLIP > OP IN [DEX] >> (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],Down-grid correction: stepping-symposium entry + Paradon (other-leg) core normalized to OP OUT > OP OUT per the four-cell Down doctrine. Bracket/ADD count unchanged (6).
 down-double-down,operational_notation,,CLIP >> OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],Down-grid: authored the missing Double-Down-Down base notation (clipper-set other-leg cell) per the four-cell Down doctrine. Bracket count 4 = ADD.
+guillotine,description,,"Guillotine, the community name for Fairy Ducking Mirage — a fairy set into Ducking Mirage. 4 ADD = fairy(+1) + ducking-mirage(3).",Public description set to the curator-approved community-name form.
+puck,description,,"Puck, the community name for Pixie Ducking Legover — a pixie set into Ducking Legover. 4 ADD = pixie(+1) + ducking-legover(3).",Public description set to the curator-approved community-name form.
+blackula,description,,"Blackula, the community name for Symposium Double Over Down — a symposium execution of the Double-Over-Down base. 5 ADD = symposium(+1) + double-over-down(4).",Public description set to the curator-approved community-name form.
+avalanche,trick_family,,paradox_illusion,Family pinned to paradox_illusion; the ruled base ducking-paradox-illusion would otherwise default the family to the base per the loader rule, but avalanche is a paradox-illusion-family folk trick.
+smear,description,,"Smear, the community name for Pixie Mirage — a pixie set into Mirage. 3 ADD = pixie(+1) + mirage(2).",Public description set to the curator-approved community-name form.
+dark-avenue,trick_family,,butterfly,Family pinned to butterfly; the ruled base diving-butterfly would otherwise default the family to the base per the loader rule, but dark avenue is a butterfly-family folk trick.
+dark-avenue,description,,"Dark Avenue, the community name for Fairy Diving Butterfly — a fairy set followed by a dive into Butterfly. 5 ADD = fairy(+1) + diving(+1) + butterfly(3).",Public description set to the curator-approved community-name form.

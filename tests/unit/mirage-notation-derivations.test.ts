@@ -14,7 +14,7 @@ const APPROVED = [
   { slug: 'diving-symposium-mirage',   adds: 4, notation: 'SET > DIVE [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]' },
   { slug: 'swirling-paradox-mirage',   adds: 4, notation: 'CLIP > SAME BACK SWIRL [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL]' },
   { slug: 'symposium-miraging-mirage', adds: 4, notation: 'SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]' },
-  { slug: 'fairy-ducking-mirage',      adds: 4, notation: 'TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP TOE [DEL]' },
+  { slug: 'guillotine',                adds: 4, notation: 'TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP TOE [DEL]' },
 ] as const;
 
 const ADD_TOKEN   = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;

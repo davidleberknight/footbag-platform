@@ -1917,7 +1917,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   //     Structural twins: both 5 ADD, identical 3-operator modifier stack
   //     (stepping + ducking + paradox-X), differ only in the base atom
   //     (illusion vs mirage). The JOB difference is the dex direction
-  //     after DUCK [BOD]: OP OUT [PDX] [DEX] for illusion (avalanche),
+  //     after DUCK [BOD]: SAME OUT [PDX] [DEX] for illusion (avalanche),
   //     OP IN [PDX] [DEX] for mirage (spike-hammer). Both folk-names
   //     compress a 3-operator-stack reading into a single word, a
   //     textbook example of the glossary §composition "Structural
@@ -1931,8 +1931,8 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    5,
     derivation:  'stepping(+1) + ducking(+1) + paradox-illusion(3) = 5 ADD ([DEX] + [BOD] + [PDX] + [DEX] + [DEL])',
-    operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > OP OUT [PDX] [DEX] > OP TOE [DEL]',  // FB.org-confirmed. 3-operator-stack compression of stepping ducking paradox illusion.
-    provenance:  'Deferred-candidate promotion. Folk-name compression of stepping + ducking + paradox-illusion (a 3-operator-stack reading). stepping = +1 dex-prepending modifier; ducking = +1 midtime body modifier; paradox-illusion = 3 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. FB.org alias "Stepping Ducking Paradox Illusion" wired. Structural twin of spike-hammer: same modifier stack, mirage base instead of illusion (dex direction OP OUT vs OP IN).',
+    operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL]',  // FB.org-confirmed. 3-operator-stack compression of stepping ducking paradox illusion.
+    provenance:  'Deferred-candidate promotion. Folk-name compression of stepping + ducking + paradox-illusion (a 3-operator-stack reading). stepping = +1 dex-prepending modifier; ducking = +1 midtime body modifier; paradox-illusion = 3 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. FB.org alias "Stepping Ducking Paradox Illusion" wired. Structural twin of spike-hammer. Avalanche uses the illusion base rather than the mirage base (dex coordinate SAME OUT rather than OP IN).',
   },
   {
     slug:        'spike_hammer',
@@ -1943,7 +1943,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     totalAdd:    5,
     derivation:  'stepping(+1) + ducking(+1) + paradox-mirage(3) = 5 ADD ([DEX] + [BOD] + [PDX] + [DEX] + [DEL])',
     operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]',  // FB.org-confirmed. 3-operator-stack compression of stepping ducking paradox mirage.
-    provenance:  'Deferred-candidate promotion. Folk-name compression of stepping + ducking + paradox-mirage (a 3-operator-stack reading). stepping = +1 dex-prepending modifier; ducking = +1 midtime body modifier; paradox-mirage = 3 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. FB.org alias "Stepping Ducking Paradox Mirage" wired. Structural twin of avalanche: same modifier stack, illusion base swapped for mirage (dex direction OP IN vs OP OUT).',
+    provenance:  'Deferred-candidate promotion. Folk-name compression of stepping + ducking + paradox-mirage (a 3-operator-stack reading). stepping = +1 dex-prepending modifier; ducking = +1 midtime body modifier; paradox-mirage = 3 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. FB.org alias "Stepping Ducking Paradox Mirage" wired. Structural twin of avalanche. Spike Hammer uses the mirage base rather than the illusion base (dex coordinate OP IN rather than SAME OUT).',
   },
 
   // ── FootbagMoves single-source 8-ADD promotions (torque family). Operators
@@ -2280,17 +2280,6 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     derivation:  'stepping(+1) + ducking(+1) + drifter = 5 ADD',
     operationalNotation: 'CLIP > OP IN [DEX] >> DUCK [BOD] > OP IN [DEX] > SAME CLIP [XBD] [DEL]',  // standard stepping leading-[DEX] chassis; bracket count 5 matches ADD.
     provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 5 matches ADD. Observational (PB).',
-  },
-  {
-    slug:        'stepping_ducking_paradox_illusion',
-    name:        'stepping ducking paradox illusion',
-    operator:    'stepping + ducking + paradox',
-    base:        'illusion',
-    baseAdd:     2,
-    totalAdd:    5,
-    derivation:  'stepping(+1) + ducking(+1) + paradox(+1) + illusion = 5 ADD',
-    operationalNotation: 'CLIP > OP IN [DEX] >> DUCK [BOD] > OP OUT [PDX] [DEX] > OP TOE [DEL]',  // standard stepping leading-[DEX] chassis; bracket count 5 matches ADD.
-    provenance:  'Stepping-chassis promotion. stepping(+1) leading-[DEX] prefix; bracket count 5 matches ADD. Observational (FM).',
   },
   {
     slug:        'stepping_ducking_symposium_eggbeater',
@@ -3195,17 +3184,6 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. pixie on canonical guay; bracket count 3 matches ADD. Observational (SG).',
   },
   {
-    slug:        'pixie_mirage',
-    name:        'pixie mirage',
-    operator:    'pixie',
-    base:        'mirage',
-    baseAdd:     2,
-    totalAdd:    3,
-    derivation:  'pixie(+1) + mirage(2) = 3 ADD',
-    operationalNotation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]',  // pixie chassis on canonical mirage; bracket count 3 matches ADD.
-    provenance:  'Clean Tier-1 sweep. pixie on canonical mirage; bracket count 3 matches ADD. Observational (FM).',
-  },
-  {
     slug:        'pixie_clipper',
     name:        'pixie clipper',
     operator:    'pixie',
@@ -3272,14 +3250,14 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. pixie on canonical symposium-reverse-whirl; bracket count 5 matches ADD. Observational (SG). The spelled-out duplicate canonical was merged into this row; its Tier-1 reading and the pixie + symposium + rev-whirl reading decompose the same formula.',
   },
   {
-    slug:        'fairy_ducking_mirage',
-    name:        'fairy ducking mirage',
+    slug:        'guillotine',
+    name:        'guillotine',
     operator:    'fairy',
     base:        'ducking-mirage',
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'fairy(+1) + ducking-mirage(3) = 4 ADD',
-    operationalNotation: 'TOE > SAME OUT [DEX] > DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]',  // fairy chassis on canonical ducking-mirage; bracket count 4 matches ADD.
+    operationalNotation: 'TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP TOE [DEL]',  // fairy chassis on canonical ducking-mirage; bracket count 4 matches ADD.
     provenance:  'Clean Tier-1 sweep. fairy on canonical ducking-mirage; bracket count 4 matches ADD. Observational (FM).',
   },
   {

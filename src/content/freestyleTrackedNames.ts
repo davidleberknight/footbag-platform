@@ -41,7 +41,7 @@ export interface TrackedNameGroup {
  *  recorded as a canonical trick in the committed canonical CSVs. Test
  *  fixture only; not a live publication filter (a name here may be a
  *  registered alias in the live database). */
-export const TRACKED_DOCUMENTED_TOTAL = 1463;
+export const TRACKED_DOCUMENTED_TOTAL = 1465;
 
 export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -165,7 +165,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Fairy Ducking Butterfly (Fairy Warrior)', slug: 'fairy_ducking_butterfly_fairy_warrior' },
     { displayName: 'Fairy Ducking DLO', slug: 'fairy_ducking_dlo' },
     { displayName: 'Fairy Ducking Drifter (Alpine Fume)', slug: 'fairy_ducking_drifter_alpine_fume' },
-    { displayName: 'Fairy Ducking Mirage (Guillotine) (Cower)', slug: 'fairy_ducking_mirage_guillotine_cower' },
     { displayName: 'Fairy Ducking Torque (Forque Lift)', slug: 'fairy_ducking_torque_forque_lift' },
     { displayName: 'Fairy Eggbeater (Juggernaut) (Orangutan)', slug: 'fairy_eggbeater_juggernaut_orangutan' },
     { displayName: 'Fairy Flail (Backside Fudge)', slug: 'fairy_flail_backside_fudge' },
@@ -694,6 +693,8 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Enterrage', slug: 'enterrage', operationalNotation: 'Toe > Same In (DEX) > Same In (DEX) >> Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Fairy Beater', slug: 'fairy_beater', operationalNotation: 'Toe > Same Out (DEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Fairy Crossbody Rake', slug: 'fairy_crossbody_rake' },
+    { displayName: 'Fairy Double Legover', slug: 'fairy_double_legover' },
+    { displayName: 'Fairy Ducking Mirage', slug: 'fairy_ducking_mirage' },
     { displayName: 'Fairy Legover (same side)', slug: 'fairy_legover_same_side' },
     { displayName: 'Fairy Spyro Symposium Torque', slug: 'fairy_spyro_symposium_torque' },
     { displayName: 'Fairy ss Butterfly', slug: 'fairy_ss_butterfly' },
@@ -1322,6 +1323,7 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Terraging near Clipper', slug: 'terraging_near_clipper' },
     { displayName: 'Terrawhirl', slug: 'terrawhirl' },
     { displayName: 'Toe Blur', slug: 'toe_blur' },
+    { displayName: 'Toe Ducking Legover', slug: 'toe_ducking_legover' },
     { displayName: 'Toe far Double Down', slug: 'toe_far_double_down' },
     { displayName: 'Toe far Symp. Double Down', slug: 'toe_far_symp_double_down' },
     { displayName: 'Toe midtime near Whirr', slug: 'toe_midtime_near_whirr' },

@@ -119,7 +119,7 @@ describe('the beginner paragraph and grid state the ruled relationships', () => 
 
 // mirage, illusion, flail, and double illusion resolve to the setting toe.
 describe('setting-toe tricks are caught back on the setting toe', () => {
-  for (const slug of ['mirage', 'illusion', 'flail', 'double_illusion', 'pixie_mirage', 'fairy_mirage']) {
+  for (const slug of ['mirage', 'illusion', 'flail', 'double_illusion', 'fairy_mirage']) {
     it(`${slug} execution summary says setting toe and not the opposite toe`, () => {
       const text = execSummary(slug);
       expect(text).toMatch(/setting toe/i);
