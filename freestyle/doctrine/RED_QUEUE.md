@@ -246,6 +246,48 @@ Each is separable and answered on its own.
   terminal-clipper formula but have different asserted bases. That collision depends on
   whether Osis structurally embeds a spin and must be adjudicated independently as an
   Osis core-atom question.
+- **Miraging-symposium name order (Merlin).** `miraging_symposium_mirage`, which
+  carries the community name Merlin, and `symposium_miraging_mirage` share
+  byte-identical operational notation:
+
+  `SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]`
+
+  Both score 4 ADD, both come from the Red-curated source, and both have
+  expert-reviewed status.
+
+  Under current doctrine, Miraging is a historical descriptive name for the single
+  leading inward dexterity represented by `SET > OP IN [DEX] >`; it is not an
+  independently scored, formula-bearing operator. Symposium is the actual plus-one
+  no-plant discipline applied to a dexterity component. Consequently, the two names
+  currently decompose to the same physical and notational sequence: a leading inward
+  dexterity followed by a symposium Mirage. No additional component, timing
+  relationship, or operator event is presently identified by reversing the words
+  'Miraging' and 'Symposium.'
+
+  This therefore appears to be a naming-order duplication rather than two distinct
+  movements whose difference is lost by the notation model. Local recommendation:
+  retain `miraging_symposium_mirage` as the canonical survivor because it carries the
+  established community name Merlin, and convert `symposium_miraging_mirage` into a
+  redirect alias after confirmation.
+
+  Because both names were supplied in the Red-curated source, do not merge them
+  autonomously. Ask for the rules expert: Do these names denote one movement, with the
+  word order reflecting alternate decomposition language, or does their order identify
+  a real execution distinction not represented in the current formula? Recommendation:
+  one movement, with `miraging_symposium_mirage` surviving and
+  `symposium_miraging_mirage` becoming an alias.
+
+  Documentation rider: the Merlin description currently assigns a plus-one value to
+  Miraging. That conflicts with the settled doctrine that Miraging is not a scored
+  operator. The trick's 4-ADD total remains correct from the scored notation, but the
+  explanatory decomposition should be rewritten after the identity ruling so it does
+  not credit Miraging with an independent ADD.
+
+  Close condition: after the rules expert rules the identities, record the ruling in
+  the ratified-rulings record and remove this queue entry. If ruled one movement,
+  perform the survivor-and-alias merge and correct the decomposition wording. If ruled
+  distinct, document the physical distinction and the limitation preventing the
+  formulas from expressing it.
 
 ## Individual held tricks
 
