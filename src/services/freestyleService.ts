@@ -5696,6 +5696,9 @@ interface TrickIndexShapingContext {
   // gracefully to a bare "ADD: N" line.
   modifierLinksByTrickSlug?: Map<string, { slug: string; name: string; addBonus: number; addBonusRotational: number }[]>;
   addsBySlug?: Map<string, number>;
+  // slug → canonical display name, so the line-2 formula renders the base trick by
+  // its human name rather than the raw underscore slug.
+  namesBySlug?: Map<string, string>;
 }
 
 const EXTERNAL_PLACEHOLDER_NOTE =
@@ -5786,7 +5789,10 @@ function deriveAddViewFormula(
         parts.push(`${m.name}(+${bonus})`);
         sum += bonus;
       }
-      parts.push(`${baseSlug}(${baseAdds})`);
+      // Render the base by its canonical display name (spaced), never the raw
+      // underscore slug; the slug stays the identity/lookup key above.
+      const baseDisplay = ctx.namesBySlug?.get(baseSlug) ?? baseSlug.replace(/[-_]+/g, ' ');
+      parts.push(`${baseDisplay}(${baseAdds})`);
       if (sum === totalAdds) return parts.join(' + ');
     }
   }
@@ -6163,9 +6169,11 @@ function buildTrickIndexShapingContext(
     modifierLinksByTrickSlug.set(lr.trick_slug, arr);
   }
   const addsBySlug = new Map<string, number>();
+  const namesBySlug = new Map<string, string>();
   for (const r of allRows) {
     const n = Number(r.adds);
     if (Number.isFinite(n)) addsBySlug.set(r.slug, n);
+    namesBySlug.set(r.slug, r.canonical_name);
   }
 
   return {
@@ -6176,6 +6184,7 @@ function buildTrickIndexShapingContext(
       statusBySlug,
       modifierLinksByTrickSlug,
       addsBySlug,
+      namesBySlug,
     },
     modifierLinkRows,
   };
