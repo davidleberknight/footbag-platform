@@ -1059,7 +1059,7 @@ function movesAnchorSlug(label: string): string {
     .replace(/^_|_$/g, '');
 }
 
-const SOURCE_LABELS: Record<string, string> = {
+export const SOURCE_LABELS: Record<string, string> = {
   tt_youtube:           'Tricks of the Trade',
   passback_records:     'Passback record',
   anz_trikz:            "Anz' Trikz",
@@ -1070,6 +1070,7 @@ const SOURCE_LABELS: Record<string, string> = {
   footbagspot_tutorials:'FootbagSpot Tutorials',
   passback_demos:       'PassBack',
   passback_basics:      'PassBack Basics',
+  passback_tutorials:   'PassBack Tutorials',
 };
 
 // Single source-of-truth tier registry for the badge logic and the
@@ -1098,6 +1099,7 @@ export const SOURCE_TIER: Record<string, MediaTier> = {
   footbag_foundations:   'TUTORIAL',
   everything_footbag:    'TUTORIAL',
   passback_basics:       'TUTORIAL',
+  passback_tutorials:    'TUTORIAL',
 
   // Mixed-character sources held at TUTORIAL until the per-clip override
   // path lands. Blanket reclassification would drop real instructional
