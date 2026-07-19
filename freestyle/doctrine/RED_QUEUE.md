@@ -288,6 +288,55 @@ Each is separable and answered on its own.
   perform the survivor-and-alias merge and correct the decomposition wording. If ruled
   distinct, document the physical distinction and the limitation preventing the
   formulas from expressing it.
+- **Reverse Torque vs Same-Side Blender shared notation.** `reverse_torque` and
+  `blender_same_side` share byte-identical operational notation:
+
+  `SET > SAME IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`
+
+  Both score 4 ADD, both come from the Red-curated source, and both have
+  expert-reviewed status.
+
+  The surrounding Osis-derived chassis forms a complete dexterity-side × terminal-side
+  matrix:
+
+  - Torque: `OP IN` dexterity, terminal `OP CLIP`
+  - Blender: `OP IN` dexterity, terminal `SAME CLIP`
+  - Reverse Blender: `SAME IN` dexterity, terminal `OP CLIP`
+  - Same-Side Blender and Reverse Torque: `SAME IN` dexterity, terminal `SAME CLIP`
+
+  The established reverse transformation across this chassis flips both the
+  dexterity-side and terminal-side relations. Reversing Torque therefore lands
+  consistently in the `SAME IN` / `SAME CLIP` cell occupied by `reverse_torque`. This
+  makes the earlier provisional side-marker-error explanation unlikely: changing either
+  side marker would move the row into another already represented structural cell rather
+  than repairing an evident malformed derivation.
+
+  The matrix establishes that the Reverse Torque formula is structurally coherent, but it
+  does not by itself settle identity. The strongest evidence for distinct movements comes
+  from the documented entry mechanisms:
+
+  - Torque is described as a Mirage entry into an Osis.
+  - Blender is described as a Whirl entry into an Osis.
+  - Reverse Torque therefore represents the reversed Mirage-entry lineage.
+  - Same-Side Blender represents the same-side Whirl-entry lineage.
+
+  The current notation reduces both entries to `SAME IN [DEX]`. It records the entry
+  dexterity's side and direction but does not identify whether that dexterity is executed
+  through the Mirage-entry or Whirl-entry mechanism. On the available evidence, the shared
+  formula is therefore most likely a representational collision between distinct
+  movements, not a transcription error and not presently an alias identity.
+
+  Local recommendation: retain both canonicals unchanged and add no new notation token.
+
+  Ask for the rules expert: Are Reverse Torque and Same-Side Blender distinct movements
+  defined respectively by reversed-Mirage and same-side-Whirl entries into the Osis
+  chassis? If so, should their byte-identical operational notation be accepted as a known
+  limitation of the current model? Recommendation: yes. If the two entry descriptions are
+  instead alternate names for the same physical execution, merge them only after that
+  ruling.
+
+  Close condition: record the expert ruling in the ratified-rulings record, apply any
+  resulting identity or documentation change, and remove this queue entry.
 
 ## Individual held tricks
 
