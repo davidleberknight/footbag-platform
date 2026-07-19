@@ -215,6 +215,37 @@ Each is separable and answered on its own.
   rules expert confirms the mechanism distinction and the acceptability of the
   collision; on confirmation, record the ruling in `RED_RULINGS.md` and delete this
   entry.
+- **Gyro vs spinning shared notation.** The spinning and gyro forms of four bases
+  (Barfly, Butterfly Swirl, Double Over Down, and Symposium Swirl) share
+  byte-identical operational notation. In each pair, the rotation is represented by
+  one `(back) SPIN [BOD]` component, and both operators contribute +1 ADD.
+
+  The canonical operator reference and structural teaching content distinguish the
+  operators as follows: Spinning is a full, approximately 360-degree turn; Gyro is a
+  half, approximately 180-degree turn whose dexterity is performed with the same foot
+  that set the bag. The current operational notation records the presence and
+  direction of body rotation and component-relative side relationships, but it does
+  not encode rotation magnitude or preserve the performing leg's identity across the
+  set, rotation, and dexterity components. The byte-identical formulas are therefore a
+  representational collision, not evidence that the tricks are aliases or that either
+  formula is erroneous.
+
+  The four pairs remain distinct canonicals, and one root finding covers all four. Ask
+  for the rules expert: Is the full-turn versus half-turn-with-setting-foot-dexterity
+  distinction the correct defining difference between Spinning and Gyro, and should
+  their byte-identical operational notation be accepted as a known limitation of the
+  model? Recommendation: yes; retain both operators and all affected tricks unchanged,
+  and add no new notation token.
+
+  Documentation rider: after confirmation, align the canonical explanatory wording so
+  it states the complete distinction consistently. Preserve the historical wording in
+  the ratified-rulings record rather than silently rewriting the ruling; add
+  clarification or update the current operator authority as appropriate.
+
+  Separate question: `double_spinning_clipper` and `gyro_osis` share a two-spin
+  terminal-clipper formula but have different asserted bases. That collision depends on
+  whether Osis structurally embeds a spin and must be adjudicated independently as an
+  Osis core-atom question.
 
 ## Individual held tricks
 
