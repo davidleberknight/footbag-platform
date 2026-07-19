@@ -119,7 +119,7 @@ export const COMPONENT_FLAG_LABELS: Record<string, string> = {
   DEX:  'Dexterity component (bag-foot interaction)',
   DEL:  'Delay component (final stall / landing)',
   BOD:  'Body component (body-position step, no bag-foot interaction)',
-  XBD:  'Cross-body component (traversal across the body to the opposite-side surface)',
+  XBD:  'Cross-body component (cross-body configuration or traversal across the body\'s centreline; independent of SAME/OP)',
   PDX:  'Paradox component (paradox-relationship marker; independent of [XBD]; not an IN/OUT direction)',
   XDEX: 'X-Dex component (conditional +1, scored only where [XDEX] is present)',
   UNS:  'Unusual-surface component (stall on a non-standard landing surface)',

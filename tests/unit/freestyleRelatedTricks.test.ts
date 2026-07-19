@@ -561,7 +561,7 @@ describe('buildRelativeSideVariants', () => {
     ]);
     expect(result!.variants.map(v => v.side)).toEqual(['base', 'same-side', 'far']);
     expect(result!.variants.map(v => v.sideLabel)).toEqual([
-      'Base', 'Same-side (near)', 'Far (opposite)',
+      'Base', 'Same-side variant', 'Far variant',
     ]);
     expect(result!.glossaryHref).toBe('/freestyle/glossary#term-same-side');
   });

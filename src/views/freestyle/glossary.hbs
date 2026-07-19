@@ -351,7 +351,7 @@
       <dt id="term-toe">Toe</dt>
       <dd>Top of the shoe, near the toe-box. The default surface for sets and many stalls. Often abbreviated <code>TOE</code> in operational notation.</dd>
       <dt id="term-clipper">Clipper</dt>
-      <dd>The inside of the shoe near the arch, the cross-body surface. Clipper stalls implicitly involve a same-side (<code>SS</code>) cross-body position. Often abbreviated <code>CLIP</code>.</dd>
+      <dd>Clipper is a cross-body contact surface. The canonical Clipper Stall reads <code>SET &gt; OP CLIP [XBD] [DEL]</code>; its SAME/OP relation is component-relative and is not fixed merely by the contact surface. Often abbreviated <code>CLIP</code>.</dd>
     </dl>
 
     <p class="glossary-note">
@@ -593,14 +593,14 @@
       {{/if}}
     </div>
     <dl class="glossary-term-list">
-      <dt id="term-same-side"><code>SAME</code> (near / same-side)</dt>
-      <dd>The dex is on the same side of the body as the reference. This is the baseline, default form (<code>ss</code> is the abbreviation), and it is implied for clipper-led tricks.</dd>
+      <dt id="term-same-side"><code>SAME</code> (same-side)</dt>
+      <dd>The dex acts on the same leg as the most recent side-bearing component (<code>ss</code> is the abbreviation), read against that reference. It is not implied by a clipper or toe entry.</dd>
 
-      <dt id="term-opposite-side"><code>OP</code> (far / opposite)</dt>
-      <dd>The dex is on the opposite side from the reference (<code>op</code> abbreviated; &ldquo;far&rdquo; in trick names). Reaching across the body is more work, the same reason paradox is harder, so <code>SAME</code> and <code>OP</code> forms are genuinely different executions even when they score the same. <code>op</code> is implied for toe-led tricks.</dd>
+      <dt id="term-opposite-side"><code>OP</code> (opposite)</dt>
+      <dd>The dex acts on the opposite leg from the most recent side-bearing component (<code>op</code> abbreviated), read against that reference. <code>SAME</code> and <code>OP</code> are genuinely different executions even when they score the same, and neither is implied by a toe or clipper entry.</dd>
 
       <dt id="term-paradox-side">Paradox (<code>PDX</code>)</dt>
-      <dd>The third side relationship: the body switches sides between dex events. Paradox is its own marker and coexists with <code>SAME</code> / <code>OP</code> and with X-Dex on one trick; a single trick can carry a paradox dex and, later, a dex marked <code>[XDEX]</code>.</dd>
+      <dd>Paradox marks a distinct relationship on a dexterity. It is not a third SAME/OP value; <code>[PDX]</code> can coexist with <code>SAME</code> or <code>OP</code>, and independently with <code>[XDEX]</code>.</dd>
 
       <dt id="term-op-not-xdex"><code>OP</code> is not X-Dex</dt>
       <dd>Performing a dex on the far / opposite side does not by itself add difficulty. <a href="#term-x-dex">X-Dex</a> is a separate +1 scored only where the operational notation carries <code>[XDEX]</code>. A far dex changes the side but not the score unless the notation marks it <code>[XDEX]</code>.</dd>
@@ -732,7 +732,7 @@
       <dt id="term-downtime">Downtime</dt>
       <dd>After the peak. The bag is falling toward the catch.</dd>
       <dt id="term-phases-sides">Phases and sides</dt>
-      <dd>Tricks break into the three phases above by bag direction. A <strong>side modifier</strong>, same-side (<code>ss</code> / near) or opposite (<code>op</code> / far), connects each component to its predecessor. <code>ss</code> is implied for clipper-led tricks; <code>op</code> for toe-led tricks.</dd>
+      <dd>Tricks break into the three phases above by bag direction. A <strong>side modifier</strong>, <code>ss</code> (same leg) or <code>op</code> (opposite leg), connects each component to its predecessor, read against the most recent side-bearing component. Neither is implied by a clipper or toe entry.</dd>
       <dt id="term-attack">Attack</dt>
       <dd>How quickly a player begins the next phase's component. A transition that has to fire aggressively (like attacking the mirage quickly after the stepping set in Blur) is said to need a fast attack.</dd>
     </dl>

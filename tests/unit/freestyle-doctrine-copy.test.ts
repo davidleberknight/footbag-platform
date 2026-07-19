@@ -186,3 +186,54 @@ describe('legitimate execution prose is not banned', () => {
     expect(read('src/services/freestyleService.ts')).toMatch(/Plant foot relocates/);
   });
 });
+
+describe('glossary side section, clipper, XBD labels, and side-variant cards', () => {
+  const glossary = read('src/views/freestyle/glossary.hbs');
+  const opRender = read('src/services/operationalNotationRendering.ts');
+  const svc = read('src/services/freestyleService.ts');
+  const related = read('src/services/freestyleRelatedTricks.ts');
+  const variantCard = read('src/views/partials/trick-relative-side.hbs');
+
+  it('the glossary side definitions are component-relative and not implied by the entry surface', () => {
+    expect(glossary).not.toMatch(/implied for clipper-led tricks/);
+    expect(glossary).not.toMatch(/implied for toe-led tricks/);
+    expect(glossary).toMatch(/acts on the same leg as the most recent side-bearing component/);
+    expect(glossary).toMatch(/acts on the opposite leg from the most recent side-bearing component/);
+  });
+
+  it('the glossary Paradox entry is a dexterity relationship, not a third SAME/OP value', () => {
+    expect(glossary).toMatch(/Paradox marks a distinct relationship on a dexterity/);
+    expect(glossary).toMatch(/not a third SAME\/OP value/);
+    expect(glossary).not.toMatch(/third side relationship/);
+    expect(glossary).not.toMatch(/the body switches sides between dex events/);
+  });
+
+  it('the glossary Clipper definition does not claim an implicit SS relation', () => {
+    expect(glossary).toMatch(/canonical Clipper Stall reads/);
+    expect(glossary).toMatch(/SET &gt; OP CLIP \[XBD\] \[DEL\]/);
+    expect(glossary).toMatch(/component-relative and is not fixed merely by the contact surface/);
+    expect(glossary).not.toMatch(/Clipper stalls implicitly involve a same-side/);
+  });
+
+  it('both XBD token labels state independence from SAME/OP with no opposite-side-surface definition', () => {
+    const xbdOp = lineWith(opRender, 'XBD:');
+    expect(xbdOp).toMatch(/independent of SAME\/OP/);
+    expect(xbdOp).not.toMatch(/opposite-side surface/);
+    const xbdSvc = lineWith(svc, "token: '[XBD]'");
+    expect(xbdSvc).toMatch(/independent of SAME\/OP/);
+    expect(xbdSvc).not.toMatch(/opposite-side surface/);
+  });
+
+  it('the side-variant card labels are exactly "Same-side variant" and "Far variant"', () => {
+    expect(related).toMatch(/'same-side': 'Same-side variant'/);
+    expect(related).toMatch(/'far':\s*'Far variant'/);
+    expect(related).not.toMatch(/Same-side \(near\)/);
+    expect(related).not.toMatch(/Far \(opposite\)/);
+  });
+
+  it('the side-variant card intro distinguishes positional-name variants from operational SAME/OP', () => {
+    expect(variantCard).toMatch(/positional-name variants/);
+    expect(variantCard).toMatch(/do not redefine the operational SAME\/OP tokens/);
+    expect(variantCard).not.toMatch(/Same-side \(near\) and far \(opposite\)/);
+  });
+});

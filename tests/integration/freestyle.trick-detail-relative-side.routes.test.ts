@@ -61,8 +61,8 @@ describe('GET /freestyle/tricks/:slug — relative-side variants', () => {
     expect(res.text).toContain('/freestyle/tricks/butterfly_same_side');
     expect(res.text).toContain('/freestyle/tricks/far_butterfly');
     // Side labels present.
-    expect(res.text).toContain('Same-side (near)');
-    expect(res.text).toContain('Far (opposite)');
+    expect(res.text).toContain('Same-side variant');
+    expect(res.text).toContain('Far variant');
     // Glossary deep-link to the relative-side explainer.
     expect(res.text).toContain('href="/freestyle/glossary#term-same-side"');
     // The current trick is marked, not linked to itself.

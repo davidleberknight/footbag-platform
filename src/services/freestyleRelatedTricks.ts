@@ -317,7 +317,7 @@ export function buildRelatedTricks(
 //
 // A relative-side variant set is the same underlying trick performed with a
 // different side relationship between a dex and its reference: the unqualified
-// base, its same-side (near) form, and its far (opposite) form. The glossary
+// base, its same-side variant, and its far variant. The glossary
 // explains the relationship (SAME / OP); this surfaces the actual sibling rows
 // so a reader on one variant can see and reach the others.
 //
@@ -349,8 +349,8 @@ export interface FreestyleRelativeSideVariants {
 
 const RELATIVE_SIDE_LABELS: Record<RelativeSide, string> = {
   'base':      'Base',
-  'same-side': 'Same-side (near)',
-  'far':       'Far (opposite)',
+  'same-side': 'Same-side variant',
+  'far':       'Far variant',
 };
 
 const RELATIVE_SIDE_RANK: Record<RelativeSide, number> = {

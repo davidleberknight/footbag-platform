@@ -177,11 +177,12 @@ describe('GET /freestyle/glossary — fragment anchors render', () => {
     expect(res.text).toContain('id="term-same-side"');
     expect(res.text).toContain('id="term-opposite-side"');
     expect(res.text).toContain('id="term-op-not-xdex"');
-    // Side is encoded as near / same-side vs far / opposite.
-    expect(res.text).toContain('near / same-side');
-    expect(res.text).toContain('far / opposite');
-    // Paradox coexists with the side qualifier rather than replacing it.
-    expect(res.text).toContain('coexists with');
+    // Side is component-relative (read against the most recent side-bearing component), not near/far.
+    expect(res.text).toContain('acts on the same leg as the most recent side-bearing component');
+    expect(res.text).toContain('acts on the opposite leg from the most recent side-bearing component');
+    // Paradox is not a third SAME/OP value; it coexists with the side qualifier rather than replacing it.
+    expect(res.text).toContain('not a third SAME/OP value');
+    expect(res.text).toContain('can coexist with');
     // Far / opposite is distinct from the receiver-gated X-Dex bonus, and the
     // explainer deep-links to the X-Dex term rather than restating it.
     expect(res.text).toContain('is not X-Dex');

@@ -10525,7 +10525,7 @@ export const freestyleService = {
         // terser than the canonical tooltip labels in COMPONENT_FLAG_LABELS.
         notationVocabulary: [
           { token: '[PDX]',  meaning: 'paradox-relationship marker on a dexterity' },
-          { token: '[XBD]',  meaning: 'cross-body traversal (the bag crosses the body to the opposite-side surface)' },
+          { token: '[XBD]',  meaning: 'cross-body configuration or traversal across the body\'s centreline, independent of SAME/OP' },
           { token: '[XDEX]', meaning: 'conditional +1 X-Dex component' },
         ],
       },

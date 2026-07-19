@@ -88,10 +88,12 @@ describe('GET /freestyle/tricks/:slug — Butterfly cluster after the safe clean
     const res = await request(await createApp()).get('/freestyle/tricks/butterfly');
     // The notation renders as role tokens. Public Butterfly defaults to the
     // far/opposite-side version, so the page shows opposite-side (OP) tokens and
-    // never the side-either "SAME/OP" marker.
+    // never the side-either "SAME/OP OUT" notation marker. (The bare string
+    // "SAME/OP" also appears in the cross-body token's tooltip prose, so this
+    // guards the notation marker specifically rather than the substring.)
     expect(res.text).toContain('operational-notation-tokens');
     expect(res.text).toContain('op-token--side');
-    expect(res.text).not.toContain('SAME/OP');
+    expect(res.text).not.toContain('SAME/OP OUT');
     expect(res.text).not.toContain('>SAME</span>');
   });
 
