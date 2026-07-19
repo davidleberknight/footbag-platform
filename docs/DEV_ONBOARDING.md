@@ -605,6 +605,12 @@ docker compose version
 
 > **Note on TypeScript compilation:** The `docker/web/Dockerfile` is a multi-stage build that runs `npm run build` inside the builder stage. You do not need to run `npm run build` before `docker compose build`; the Dockerfile handles compilation internally.
 
+Bring the full four-container stack (nginx, web, worker, image) up with the one-command wrapper. It runs in the foreground and tears the stack down automatically on Ctrl+C, exit, or crash, so use a second terminal for the smoke checks below:
+
+```bash
+npm run compose:dev
+```
+
 Run the base parity stack locally in a separate terminal (or detached):
 ```bash
 docker compose \

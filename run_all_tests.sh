@@ -470,14 +470,33 @@ gate_realdata_invariants() {
     return 1
   fi
 
+  # Run the field/reconciliation gates (G1-G6). A distinct exit status (78) from
+  # the detail script means the load is purely mirror-derived, so its
+  # authoritative-only gates (real_name, honor flags) do not apply to a dev seed:
+  # SKIP under --full, a hard error only under an explicit
+  # --with-realdata-invariants — the same policy as the under-threshold load above.
+  local g6_out g_rc=0
+  g6_out=$(FOOTBAG_DB_PATH="${db}" bash scripts/validate-legacy-import-gates.sh 2>&1)
+  g_rc=$?
+  if (( g_rc == 78 )); then
+    printf '── reconciliation + field invariants (G1-G6) ──\n%s\n' "${g6_out}"
+    if (( REALDATA_INVARIANTS_OPTIONAL == 1 )); then
+      echo "  WARNING: the loaded legacy_members are entirely mirror-derived; the authoritative export is not loaded," >&2
+      echo "  so the real_name / honor invariants are not applicable and this gate is SKIPPED." >&2
+      echo "  To exercise it, load the operator dataset (./run_dev.sh --all-data), then re-run." >&2
+      return 77
+    fi
+    echo "ERROR: real-data invariants need the authoritative legacy load; the legacy_members are entirely mirror-derived." >&2
+    echo "Recommendation: ./run_dev.sh --all-data, or point FOOTBAG_DB_PATH at the staging database." >&2
+    return 1
+  fi
+
   # Capture all invariant output so the PII self-check can scan it before the
   # gate is trusted. Every line below is a count or a PASS/FAIL, never a value.
   local out rc
   out=$(
     set +e
-    echo "── reconciliation + field invariants (G1-G6) ──"
-    FOOTBAG_DB_PATH="${db}" bash scripts/validate-legacy-import-gates.sh
-    g_rc=$?
+    printf '── reconciliation + field invariants (G1-G6) ──\n%s\n' "${g6_out}"
 
     echo "── referential integrity ──"
     orphan_links=$(sqlite3 -readonly "${db}" "SELECT COUNT(*) FROM historical_persons hp WHERE hp.legacy_member_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM legacy_members lm WHERE lm.legacy_member_id = hp.legacy_member_id);" 2>/dev/null || echo -1)

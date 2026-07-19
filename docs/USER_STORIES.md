@@ -2952,6 +2952,8 @@ Seed these defaults into the database-backed configuration store during initial 
 - `login_rate_limit_max_attempts = 10` (maximum failed login attempts within the window before the account is locked)
 - `login_rate_limit_window_minutes = 15` (sliding window in minutes for counting failed attempts)
 - `login_cooldown_minutes = 30` (lockout duration after threshold is exceeded)
+- `login_account_rate_limit_max_attempts = 30` (maximum failed login attempts against a single account across all IPs within the window, before further attempts are rate-limited; caps distributed credential-stuffing of one account)
+- `login_account_rate_limit_window_minutes = 60` (sliding window in minutes for counting failed login attempts against a single account across all IPs)
 - `password_reset_rate_limit_max_attempts = 5` (maximum password reset requests per email address within the window before requests are silently rate-limited)
 - `password_reset_rate_limit_window_minutes = 60` (sliding window in minutes for counting password reset requests per email)
 - `jwt_expiry_hours = 24` (lifetime of the main site session JWT; governs archive access expiry since no separate archive session is issued)
@@ -2963,6 +2965,9 @@ Seed these defaults into the database-backed configuration store during initial 
 - `verify_resend_rate_limit_max_attempts = 3` (maximum verify-email resend requests per email address per window)
 - `verify_resend_rate_limit_window_minutes = 60` (sliding window in minutes for counting verify-email resend requests per email)
 - `account_claim_expiry_hours = 24` (legacy account claim token TTL in hours; per `M_Claim_Legacy_Account`)
+- `hp_claim_rate_limit_max_per_member = 5` (maximum historical-person claim confirmations per member within the window)
+- `hp_claim_rate_limit_max_per_ip = 10` (maximum historical-person claim confirmations per IP address within the window)
+- `hp_claim_rate_limit_window_minutes = 60` (sliding window in minutes for counting historical-person claim confirmations)
 
 ### Retention / Cleanup
 

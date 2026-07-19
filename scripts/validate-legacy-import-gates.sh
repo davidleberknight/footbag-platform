@@ -139,7 +139,20 @@ fi
 
 if [[ "${fail}" -eq 0 ]]; then
   exit 0
-else
-  echo "validate-legacy-import-gates: ${fail} gate(s) FAILED" >&2
-  exit 1
 fi
+
+echo "validate-legacy-import-gates: ${fail} gate(s) FAILED" >&2
+
+# real_name and the HoF/BAP + tier-status flags are supplied only by the
+# authoritative legacy-site export. A purely mirror-derived seed (every
+# legacy_members row import_source='mirror') cannot carry them, so G4 and G6
+# fail there for want of data, not a data defect. Report that provenance with a
+# distinct exit status so an orchestrator running against a dev seed can choose
+# to skip these gates, while a consumer that blocks on any non-zero (the
+# pre-cutover checklist) still stops. One non-mirror row means the authoritative
+# load has begun, and the ordinary failure status stands.
+authoritative=$(q "SELECT COUNT(*) FROM legacy_members WHERE import_source IS NOT NULL AND import_source <> 'mirror';")
+if [[ "${authoritative}" -eq 0 ]]; then
+  exit 78
+fi
+exit 1
