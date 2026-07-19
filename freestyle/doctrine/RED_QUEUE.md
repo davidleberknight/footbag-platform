@@ -193,6 +193,28 @@ Each is separable and answered on its own.
   contacts, with or without the body-spin frame inversion. It decides the three
   base-label tension rows (shooting star, tapping double over down, venom; detail in
   `DOWN_FAMILY.md`). No ADD changes ride on it.
+- **Butterfly vs reverse-whirl shared notation.** Butterfly and reverse whirl,
+  plus their four derivative pairs (Dimwalk / Pixie Reverse Whirl, Ripwalk /
+  Stepping Reverse Whirl, Spinning Butterfly / Spinning Reverse Whirl, and Nuclear
+  Butterfly / Nuclear Reverse Whirl), share byte-identical operational notation. The
+  curated descriptions and existing family taxonomy nevertheless preserve them as
+  distinct movements: reverse-whirl-family dexterities are described as knee-driven,
+  with the ankle circling the bag, while butterfly-family dexterities are described
+  as hip-driven through the upper leg. The current notation records set, dexterity
+  side and direction, and terminal contact, but not this driving mechanism.
+  Therefore these are distinct canonical movements whose formulas collide within the
+  present notation model, not aliases or formula errors. One root finding covers all
+  five pairs, not five separate identity questions. Reverse whirl collides with
+  butterfly because its outward dexterity occupies the same encoded side-and-direction
+  cell butterfly does, whereas the forward whirl stays distinguishable through its
+  inward dexterity; this explains the collision and is not a full definition of
+  reverse whirl. Ask for the rules expert: is the knee-driven versus hip-driven
+  mechanism the correct defining distinction, and should the byte-identical notation
+  be accepted as a known limitation of Jobs notation? Recommendation: yes; retain
+  both families unchanged and do not add a new notation token. Close condition: the
+  rules expert confirms the mechanism distinction and the acceptability of the
+  collision; on confirmation, record the ruling in `RED_RULINGS.md` and delete this
+  entry.
 
 ## Individual held tricks
 
