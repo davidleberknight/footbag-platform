@@ -220,13 +220,13 @@ const DIFFICULTY_ARCHITECTURE_TERMS: readonly ComboAnalysisArchitectureTerm[] = 
   },
   // The plateau and its cause are stated as observations, not settled facts:
   // both the maximum-ADD trend and whether the limit is the body's or a matter
-  // of what has been documented are contested, and the reported 9-ADD hit is
-  // uncorroborated testimony, so the text hedges and treats 8 as the documented
-  // ceiling until the account is confirmed.
+  // of what has been documented are contested. The reported 9-ADD landing is
+  // uncorroborated, disputed testimony, so the text treats 8 as the highest
+  // video-corroborated ceiling and keeps 9-ADD as an unverified historical claim.
   {
     anchorId:   'difficulty-plateau',
     term:       'Difficulty plateau',
-    definition: 'The observation that competitive maximum-ADD appears to have plateaued around 2008, with no clearly documented increase since. This may reflect a biomechanical ceiling rather than a scoring choice, though whether the limit is the body\'s or a matter of what has been documented is not settled. Carousel (Surging Ducking Paradox Symposium Whirling Rake) is currently the only video-documented 8-ADD trick. Close contenders are Surging Ducking Paradox Blender and Surging Ducking Paradox Torque. Nine-ADD tricks have been reported but not verified.',
+    definition: 'The observation that competitive maximum-ADD appears to have plateaued around 2008, with no clearly documented increase since. This may reflect a biomechanical ceiling rather than a scoring choice, though whether the limit is the body\'s or a matter of what has been documented is not settled. Eight ADD is the highest currently video-corroborated landing represented in the dictionary: Carousel (Surging Ducking Paradox Symposium Whirling Rake) is its video-documented example, with Surging Ducking Paradox Blender and Surging Ducking Paradox Torque as close 8-ADD contenders. Nine-ADD landings survive only as unverified, disputed historical reports, and none is identified as verified without new corroborating footage.',
   },
 ];
 
