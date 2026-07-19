@@ -1059,7 +1059,10 @@ function movesAnchorSlug(label: string): string {
     .replace(/^_|_$/g, '');
 }
 
-export const SOURCE_LABELS: Record<string, string> = {
+// Read-only registry: consumers may read a friendly label but cannot mutate the
+// map (matching the repository convention for exported lookup registries). The
+// Readonly<Record<...>> view is a compile-time contract only; no runtime freeze.
+export const SOURCE_LABELS: Readonly<Record<string, string>> = {
   tt_youtube:           'Tricks of the Trade',
   passback_records:     'Passback record',
   anz_trikz:            "Anz' Trikz",
