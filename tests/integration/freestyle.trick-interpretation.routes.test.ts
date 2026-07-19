@@ -85,9 +85,13 @@ describe('Naming & interpretation overlay — eggbeater (seed entry)', () => {
     expect(res.text).toContain('Naming &amp; interpretation');
   });
 
-  it('surfaces the canonical reading "atomic legover"', async () => {
+  it('surfaces "atomic legover" once, via the Compressed-from line, not repeated as a canonical reading', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/eggbeater');
-    expect(res.text).toMatch(/Canonical reading[\s\S]*?atomic legover/);
+    // The reading is owned by the Compressed-from surface near the hero.
+    expect(res.text).toContain('class="trick-compressed-from-reading">atomic legover');
+    // The interpretation section no longer restates it as a canonical reading,
+    // so the reading is stated exactly once on the page.
+    expect(res.text).not.toContain('Canonical reading');
   });
 
   it('surfaces the historical reading "illusion + legover"', async () => {

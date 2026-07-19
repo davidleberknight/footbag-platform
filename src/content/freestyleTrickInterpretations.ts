@@ -87,7 +87,11 @@ export const TRICK_INTERPRETATION_ENTRIES: readonly TrickInterpretationEntry[] =
   // movement. Both are preserved; neither is declared the winner.
   {
     slug: 'eggbeater',
-    canonicalReading: 'atomic legover',
+    // Canonical reading "atomic legover" is surfaced once by the Compressed-from
+    // line near the hero (readings[0] of the symbolic-equivalence chain); this
+    // slot keeps only the unique historical variant so "atomic legover" is
+    // stated a single time on the page.
+    canonicalReading: '',
     historicalReadings: ['illusion + legover'],
     structuralNotes: [
       'Both readings describe the same trick.',
