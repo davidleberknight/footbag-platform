@@ -25,7 +25,7 @@ const APPROVED = [
   // mapping (blizzard = stepping-illusion, etc.), not the slug.
   { slug: 'blizzard', adds: 3, notation: 'SET > OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]' },
   { slug: 'bedwetter', adds: 4, notation: 'TOE > OP IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]' },
-  { slug: 'schmoe', adds: 3, notation: 'SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]' },
+  { slug: 'schmoe', adds: 3, notation: 'CLIP > OP IN [DEX] >> OP OUT [DEX] > SAME TOE [DEL]' },
   { slug: 'blurrage', adds: 4, notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]' },
   { slug: 'triple-around-the-world', adds: 4, notation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]' },
   // atomic chassis on eggbeater: a leading outward uptime dex over the
