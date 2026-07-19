@@ -443,19 +443,6 @@
 "sort_order": 69
 },
 {
-"slug": "barraging",
-"canonical_name": "barraging",
-"adds": null,
-"base_trick": "barraging",
-"trick_family": null,
-"category": "modifier",
-"description": null,
-"aliases_json": null,
-"notation": null,
-"operational_notation": null,
-"sort_order": 70
-},
-{
 "slug": "toe_stall",
 "canonical_name": "toe stall",
 "adds": "1",

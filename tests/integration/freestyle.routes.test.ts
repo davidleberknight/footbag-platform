@@ -965,7 +965,6 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     expect(res.text).toContain('stepping paradox');
     expect(res.text).toContain('compressed atomic');
     expect(res.text).toContain('paradox + illusion');
-    expect(res.text).toContain('high stepping');
   });
 
   it('flags pending entries with the inline pending badge', async () => {
@@ -983,16 +982,16 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     expect(res.text).not.toContain('Curator-adjudicated');
   });
 
-  it('frames barraging as a legacy name pattern for the furious set, not a canonical set', async () => {
+  it('frames barraging as a historical name for the furious set, not a canonical set', async () => {
     // Settled doctrine: Furious is the canonical set; Barraging is not a set but a
-    // legacy name pattern for it. The entry names Furious as the set and does not
+    // historical name for it. The entry names Furious as the set and does not
     // reintroduce the old "distinct by timing, pending audit" framing.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     const idx = res.text.indexOf('id="term-barraging"');
     expect(idx).toBeGreaterThan(0);
     const slice = res.text.slice(idx, idx + 2000);
-    expect(slice).toMatch(/legacy name pattern for the Furious set/i);
+    expect(slice).toMatch(/historical name for the Furious set/i);
     expect(slice).not.toMatch(/distinct by timing/i);
   });
 

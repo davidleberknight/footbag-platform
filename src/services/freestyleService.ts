@@ -7147,6 +7147,17 @@ function topologyHistogramRows(
   }));
 }
 
+// Retired standalone nicknames that name exactly one canonical set. Barraging was
+// a legacy name for the Furious set (the two-dex, +2 set), never a set or modifier
+// of its own; its old modifier, trick, AND set URLs all redirect permanently to
+// the Furious set page so the name keeps working without presenting a standalone
+// identity. Maps the old slug to its canonical set slug. A retired nickname with
+// no single canonical set (miraging, illusioning) is not here; its set URL goes
+// to a glossary explanation instead.
+const RETIRED_SET_NICKNAME_REDIRECTS: ReadonlyMap<string, string> = new Map([
+  ['barraging', 'furious'],
+]);
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -10604,7 +10615,10 @@ export const freestyleService = {
   // /freestyle/modifier/:slug path redirects there so the launch is taught in
   // one place. Returns the set path, or null to let the modifier route render.
   modifierRouteRedirectTarget(slug: string): string | null {
-    return isSetFirstSlug(slug) ? `/freestyle/sets/${slug}` : null;
+    if (isSetFirstSlug(slug)) return `/freestyle/sets/${slug}`;
+    const retiredSet = RETIRED_SET_NICKNAME_REDIRECTS.get(slug);
+    if (retiredSet) return `/freestyle/sets/${retiredSet}`;
+    return null;
   },
 
   // Modifier and operator rows live in freestyle_tricks for decomposition and
@@ -10627,6 +10641,12 @@ export const freestyleService = {
   },
 
   trickRouteRedirectTarget(slug: string): string | null {
+    // A retired standalone nickname (barraging) resolves straight to its
+    // canonical set page in one hop, ahead of the alias-chain walk, because its
+    // set target is not an active trick row the chain could land on.
+    const retiredSet = RETIRED_SET_NICKNAME_REDIRECTS.get(slug);
+    if (retiredSet) return `/freestyle/sets/${retiredSet}`;
+
     // Resolve the full redirect chain in one pass so any hyphenated spelling,
     // alias, alias-of-alias, or retired-with-survivor slug lands on the terminal
     // active canonical URL in a single 301, never a chain of hops. A visited set
@@ -11057,6 +11077,8 @@ export const freestyleService = {
    * path, or null when the slug is a live set (render it) or unknown (404).
    */
   setRouteRedirectTarget(slug: string): string | null {
+    const retiredSet = RETIRED_SET_NICKNAME_REDIRECTS.get(slug);
+    if (retiredSet) return `/freestyle/sets/${retiredSet}`;
     return resolveSetRouteRedirect(slug);
   },
 

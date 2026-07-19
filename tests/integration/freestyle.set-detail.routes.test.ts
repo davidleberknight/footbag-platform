@@ -329,10 +329,10 @@ describe('GET /freestyle/sets/:slug — set vs non-set concepts', () => {
     expect(res.text).not.toContain('third dex extension');
   });
 
-  it('barraging does not render a set page; it redirects to its glossary term', async () => {
+  it('barraging does not render a set page; it redirects to the Furious set it names', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/barraging').redirects(0);
     expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/glossary#term-barraging-not-a-set');
+    expect(res.headers['location']).toBe('/freestyle/sets/furious');
   });
 
   it('miraging does not render a set page; it redirects to its glossary term', async () => {
