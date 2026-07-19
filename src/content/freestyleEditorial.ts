@@ -195,10 +195,12 @@ export const INSIGHTS_NARRATIVES: string[] = [
   'execution quality, and the number of players capable of reaching the established ceiling, ' +
   'a transition from technical expansion to competitive depth.',
 
-  'While ADD values above 6 may be theoretically possible, the dataset shows no sustained ' +
-  'increase in single-trick difficulty beyond 6 ADD. This suggests a practical ceiling imposed ' +
-  'by human biomechanics: finite airtime, constraints on rotational speed, increasing coordination ' +
-  'complexity with stacked modifiers, and the requirement for controlled stall completion.',
+  'The dataset shows no sustained increase in single-trick difficulty beyond 6 ADD: that is where ' +
+  'routine competitive difficulty concentrates, while the rarer landings above it stay exceptional ' +
+  'rather than routine (8 ADD is the highest currently video-corroborated landing). This sustained ' +
+  'plateau suggests a practical limit imposed by human biomechanics: finite airtime, constraints on ' +
+  'rotational speed, increasing coordination complexity with stacked modifiers, and the requirement ' +
+  'for controlled stall completion.',
 
   'The concentration of both podium finishes and high-difficulty sequence data among European ' +
   'players indicates that the competitive center of freestyle shifted geographically during this ' +
