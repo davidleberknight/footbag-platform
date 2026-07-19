@@ -170,11 +170,53 @@ describe('buildStructuralRelatives — ranked engine for ordinary pages', () => 
     ];
     const rels = buildStructuralRelatives(cur, [cur, sameBaseOne, sameBaseMany, familyOnly, overlap], links);
     const by = (slug: string) => rels.find(r => r.slug === slug)?.reason ?? '';
-    // A one-operator delta is only claimed on the same base.
-    expect(by('sib1')).toMatch(/same .* base, one operator more: r/i);
-    expect(by('sib2')).toMatch(/same .* base, more operators/i);
+    // Same-base relationships never claim "one operator fewer/more". modifier_links
+    // is known-incomplete, so even an apparently clean strict-superset delta (sib1
+    // one extra operator, sib2 three extra) reads neutral until an explicit
+    // operator-metadata-complete signal exists in the data model.
+    expect(by('sib1')).toMatch(/same .* base, different operator treatment/i);
+    expect(by('sib1')).not.toMatch(/one operator (more|fewer)/i);
+    expect(by('sib2')).toMatch(/same .* base, different operator treatment/i);
+    expect(by('sib2')).not.toMatch(/(more|fewer) operators/i);
     expect(by('famonly')).toMatch(/family/i);
     expect(by('ovl')).toMatch(/^Shares/);
+  });
+
+  it('never infers operator removal/addition from incomplete modifier links', () => {
+    // Real dictionary pairs where the candidate has NO modifier-link rows but is a
+    // distinct compound whose operator lives in its identity, often at equal or
+    // higher ADD. An empty link set must not read as "this trick minus an operator".
+    const duckingLegover = row('ducking_legover', '3', 'compound', 'legover', 'legover');
+    const schmoe         = row('schmoe',          '3', 'compound', 'legover', 'legover');
+    const flurry         = row('flurry',          '4', 'compound', 'legover', 'legover');
+    const goliath        = row('goliath',         '5', 'compound', 'legover', 'legover');
+    const tapdown        = row('tapdown',  '4', 'compound', 'butterfly', 'butterfly');
+    const parkwalk       = row('parkwalk', '4', 'compound', 'butterfly', 'butterfly');
+    const flog           = row('flog',     '4', 'compound', 'double_leg_over', 'legover');
+    const predator       = row('predator', '4', 'compound', 'double_leg_over', 'legover');
+    const blackula       = row('blackula',   '5', 'compound', 'double_over_down', 'double_over_down');
+    const downDiver      = row('down_diver', '5', 'compound', 'double_over_down', 'double_over_down');
+    const fusion         = row('fusion',     '5', 'compound', 'double_over_down', 'double_over_down');
+    const links = [
+      { trick_slug: 'ducking_legover', modifier_slug: 'ducking' },
+      { trick_slug: 'tapdown',  modifier_slug: 'tapping' },
+      { trick_slug: 'flog',     modifier_slug: 'fairy' },
+      { trick_slug: 'blackula', modifier_slug: 'symposium' },
+    ];
+    const all = [duckingLegover, schmoe, flurry, goliath, tapdown, parkwalk, flog, predator, blackula, downDiver, fusion];
+    const reasonFor = (cur: FreestyleTrickRow, candSlug: string): string =>
+      buildStructuralRelatives(cur, all, links).find(r => r.slug === candSlug)?.reason ?? '';
+
+    const cases: Array<[FreestyleTrickRow, string]> = [
+      [duckingLegover, 'schmoe'], [duckingLegover, 'flurry'], [duckingLegover, 'goliath'],
+      [tapdown, 'parkwalk'], [flog, 'predator'], [blackula, 'down_diver'], [blackula, 'fusion'],
+    ];
+    for (const [cur, cand] of cases) {
+      const reason = reasonFor(cur, cand);
+      expect(reason, `${cur.slug} -> ${cand}`).not.toMatch(/one operator (fewer|more)/i);
+      expect(reason, `${cur.slug} -> ${cand}`).not.toMatch(/(fewer|more) operators/i);
+      expect(reason, `${cur.slug} -> ${cand}`).toMatch(/same .* base, different operator treatment/i);
+    }
   });
 
   it('never reads two family-less tricks as "Same family"', () => {

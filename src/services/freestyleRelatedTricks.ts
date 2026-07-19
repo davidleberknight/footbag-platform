@@ -749,20 +749,15 @@ export function buildStructuralRelatives(
     let reason = '';
     if (sameBase) {
       score = 100;
-      // A one-operator delta is only a claimed relationship on the same base (or a
-      // curated override). Here, on the same base, name the exact operator when the
-      // delta is a single operator within one ADD tier; otherwise a coarser note.
-      if (symDiff === 1 && addDistance <= 2) {
-        reason = candidateOnly.length === 1
-          ? `Same ${nameOf(current.base_trick!)} base, one operator more: ${candidateOnly[0]}`
-          : `Same ${nameOf(current.base_trick!)} base, one operator fewer: ${currentOnly[0]}`;
-      } else {
-        const opsNote =
-          candMods.length < currentMods.length ? ', fewer operators'
-          : candMods.length > currentMods.length ? ', more operators'
-          : '';
-        reason = `Same ${nameOf(current.base_trick!)} base${opsNote}`;
-      }
+      // The operator sets come from freestyle_trick_modifier_links, which is
+      // known-incomplete: an empty set does not prove a compound carries no
+      // operator (many carry it in their identity with no link row). So the
+      // symmetric difference cannot support an "operator fewer" or "operator more"
+      // claim, and a lower ADD does not prove a candidate is this trick minus one
+      // operator either. Until the data model carries an explicit
+      // operator-metadata-complete signal, every same-base relationship reads
+      // neutral. The closeness ranking below still uses the operator-set delta.
+      reason = `Same ${nameOf(current.base_trick!)} base, different operator treatment`;
     } else if (sameFamily) {
       score = 80;
       reason = `Same ${nameOf(current.trick_family)} family`;
