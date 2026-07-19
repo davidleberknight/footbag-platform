@@ -29,11 +29,14 @@ the human's instruction as given.
 
 ## Orientation (read-only)
 
-- **Preferred when the `footbag_private_repo/` symlink is present:** the shipped
-  `footbag_private_repo/track-issues.sh` viewer — compact one-line-per-issue output whose tokens
-  are all that enter context. Presets: no arg (dashboard: counts by lane and type), `<label>`,
-  `mine`, `blocked`, `all`, `<number>` (single-issue detail with the Assignee line).
-- **Fallback (symlink absent, env var only) or for anything the script does not cover:**
+- **Preferred, and approval-free on every machine:** the `gh` read forms below. The committed
+  read-only approver grants them on their own merits, so they never prompt, on any developer's
+  machine, with no absolute path anywhere. Use these by default:
+  - Compact one-line-per-issue listing, the same shape the viewer prints:
+    `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open --limit 200 --json number,title,labels
+    --jq '.[] | "#\(.number)  [\([.labels[].name]|join(","))]  \(.title)"'`
+    (append `| grep <label>` to narrow to a lane; the unblocked-doctrine view is
+    `| grep doctrine | grep -v blocked`).
   - Active work: `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`
     (add `--label <lane>`, `--assignee <handle>`, `--milestone <name>` to narrow).
   - Detail: `gh issue view <n> -R "$FOOTBAG_PRIVATE_REPO"`.
@@ -41,6 +44,12 @@ the human's instruction as given.
     `gh search issues --repo "$FOOTBAG_PRIVATE_REPO" "<terms>"` or list open issues and match.
     An open issue covering the work is the scope record; its absence for significant new work is
     a question for the human, not a blocker to invent around.
+- **Optional convenience when the `footbag_private_repo/` symlink is present:** the shipped
+  `footbag_private_repo/track-issues.sh` viewer wraps these same read-only API calls behind
+  presets (no arg dashboard, `<label>`, `actionable`, `mine`, `blocked`, `all`, `<number>`).
+  It costs one approval prompt per call, because the private checkout resolves outside the
+  project tree and no portable repo rule can cover a per-developer path. Reach for it only
+  when the human asks for it by name.
 - **"What's assigned to <person>":** translate the name to a GitHub handle via the assignee
   roster in the private `TRACKER_GUIDE.md` (its single home), then
   `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --assignee <handle>` (the script's `mine` preset

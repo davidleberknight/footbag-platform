@@ -15,7 +15,7 @@ Design and specification documents for the footbag-platform modernization projec
 - [`DIAGRAMS.md`](DIAGRAMS.md): architecture and data-flow diagrams
 - [`GLOSSARY.md`](GLOSSARY.md): cross-document terminology
 - [`DEV_ONBOARDING.md`](DEV_ONBOARDING.md): developer setup and local iteration guidance
-- [`MIGRATION_PLAN.md`](MIGRATION_PLAN.md): legacy-data migration design, go-live readiness gates, and cutover sequencing
+- [`MIGRATION_PLAN.md`](MIGRATION_PLAN.md): legacy-data migration design, the pipeline validation gates, and the operational-readiness posture; cutover sequencing and stakeholder coordination live in GO_LIVE_PLAN.md (private GitHub repo)
 
 ## Where to look
 

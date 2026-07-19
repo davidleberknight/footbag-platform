@@ -13,7 +13,7 @@ Use this file for quick orientation and document routing. For implemented behavi
 - For required service-layer ownership and patterns, read the service's file-header JSDoc and the path-scoped `.claude/rules/*.md`; pair with code/tests/types for current method shapes.
 - For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema.sql`.
 - For rationale, trade-offs, and long-term design commitments, load targeted sections of `docs/DESIGN_DECISIONS.md`: read when entering a new code area or unwinding a temporary simplification; do not load by default.
-- For legacy data migration scope, operational-readiness gates, or the pipeline validation gates, load `docs/MIGRATION_PLAN.md`; the go-live gate index, cutover state machine, and launch sequencing live in GO_LIVE_PLAN.md (private GitHub repo).
+- For legacy data migration scope, operational-readiness gates, or the pipeline validation gates, load `docs/MIGRATION_PLAN.md`; the go-live gate index, cutover state machine, launch sequencing, and stakeholder coordination live in GO_LIVE_PLAN.md (private GitHub repo).
 - The platform serves from a single Lightsail origin behind CloudFront; operational procedures live in DEVOPS_GUIDE.md in the private maintainers' repo (reached via the `footbag_private_repo/` checkout when wired).
 
 ## Project identity
@@ -135,6 +135,6 @@ Also: the agent may read the **full human-oriented documents** when needed; it i
 - Need rationale / trade-offs / "why was it done this way" -> **Design Decisions**
 - Need to derive, layer, or verify tests -> **Testing Strategy** (`docs/TESTING.md`)
 - Need deployment, backups, recovery, infrastructure changes, or CI/CD -> **DEVOPS_GUIDE.md (private GitHub repo)** (in the private checkout, when wired). Use **Developer Onboarding** for blank-machine setup and first-pass bootstrap guidance.
-- Need legacy data migration scope, operational-readiness gates, or pipeline validation gates -> **Migration Plan** (`docs/MIGRATION_PLAN.md`); the go-live gate index and cutover sequencing are in GO_LIVE_PLAN.md (private GitHub repo)
+- Need legacy data migration scope, operational-readiness gates, or pipeline validation gates -> **Migration Plan** (`docs/MIGRATION_PLAN.md`); the go-live gate index, cutover sequencing, and stakeholder coordination are in GO_LIVE_PLAN.md (private GitHub repo)
 - Need big-picture human context or document relationships -> **Project Summary** (full version)
 

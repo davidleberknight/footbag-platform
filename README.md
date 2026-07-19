@@ -47,7 +47,7 @@ Sneak Preview (AWS Staging): [https://doye1nvv64qep.cloudfront.net/](https://doy
 - [docs/DEV_ONBOARDING.md](docs/DEV_ONBOARDING.md): developer setup and onboarding, but not contributing (refer to private GitHub repo).
 - [docs/DIAGRAMS.md](docs/DIAGRAMS.md): solution architecture diagrams.
 - [docs/GLOSSARY.md](docs/GLOSSARY.md): terminology and jargon.
-- [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md): migration design and coordination, and the pipeline validation gates; the go-live gate index and cutover sequencing live in GO_LIVE_PLAN.md (private GitHub repo).
+- [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md): migration design, the pipeline validation gates, and the operational-readiness posture; the go-live gate index, cutover sequencing, and stakeholder coordination live in GO_LIVE_PLAN.md (private GitHub repo).
 - [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md): project overview.
 - [docs/TESTING.md](docs/TESTING.md): testing strategy and methodology.
 - [docs/USER_STORIES.md](docs/USER_STORIES.md): intended functional behaviors and success criteria.

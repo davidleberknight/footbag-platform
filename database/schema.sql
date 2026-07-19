@@ -3499,7 +3499,7 @@ CREATE TABLE member_declared_anchors (
 CREATE INDEX idx_member_declared_anchors_member ON member_declared_anchors(member_id);
 
 -- Permanent archival table: one row per imported legacy account from the old
--- footbag.org mirror or Steve Goldberg's data dump. Identified by the legacy
+-- footbag.org mirror or the legacy webmaster's data dump. Identified by the legacy
 -- site's user-account id (legacy_member_id), which is also the external
 -- namespace pointer carried by members.legacy_member_id and
 -- historical_persons.legacy_member_id. Rows are never deleted. Claim marks

@@ -3678,7 +3678,7 @@ Impact:
 - `terraform/production/route53.tf` gains the hosted zone and the mirrored records; `enable_apex_alias_records` flips at T-0 as the switch itself; `ses_enable_domain_auth` flips at the zone move; no apex-redirector Terraform exists.
 - The DNS cutover runbook in DEVOPS_GUIDE.md (private GitHub repo) scripts an operator-executed Route 53 change; the zone move follows that guide's "External DNS/mail upstream coordination runbook".
 - `TRUST_PROXY` is 2 in staging and production from go-live, with no topology change at any later milestone.
-- MIGRATION_PLAN sequences the zone move (§19 item 15), the cutover (§29.12), and the mail disposition (§29.12a) against this decision.
+- MIGRATION_PLAN sequences the cutover (§29.12) and the mail disposition (§29.12a) against this decision; the zone-move coordination lives in GO_LIVE_PLAN.md (private GitHub repo).
 
 ## 6.12 Legacy Independence at Go-Live
 
