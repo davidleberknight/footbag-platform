@@ -31,7 +31,7 @@ tests/        Integration tests
 
 ## Companion repositories
 
-Two optional gitignored repo-root symlinks, canonical names on every machine: `footbag_legacy_repo` (the legacy webmaster's clone; read-only, Edit/Write denied) and `footbag_private_repo` (the maintainers' operations checkout; Claude drafts, a human commits). The maintainers' private tracker (GitHub Issues on that private repository) is the sole authority for active work; read it with `gh issue list -R "$FOOTBAG_PRIVATE_REPO"` (env var set in the gitignored `.claude/settings.local.json`). Committed text never carries the private repository's identity. Absent wiring is a supported configuration: name the wiring step in one line, then skip that part. All tracker and private-checkout work follows the `tracker-ops` skill.
+Two optional gitignored repo-root symlinks, for authorized maintainers only, canonical names where present: `footbag_legacy_repo` (the legacy webmaster's clone; read-only, Edit/Write denied) and `footbag_private_repo` (the maintainers' operations checkout; Claude drafts, a human commits). The maintainers' private tracker (GitHub Issues on that private repository) is the sole authority for active work; read it with `gh issue list -R "$FOOTBAG_PRIVATE_REPO"` (env var set in the gitignored `.claude/settings.local.json`). Committed text never carries the private repository's identity. Absent wiring is a supported configuration: name the wiring step in one line, then skip that part. All tracker and private-checkout work follows the `tracker-ops` skill.
 
 ## Authority order and read order
 

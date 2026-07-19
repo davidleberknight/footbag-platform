@@ -42,13 +42,13 @@ The first premise in practice: the always-loaded layer is a table of contents, a
 - *Lazily:* a nested `CLAUDE.md` loads when a file in its subtree is opened; a rule with a `paths:` glob attaches only when a matching file is Read or Edited, never on a grep, a Bash command, or reasoning about an unopened path.
 - *On demand:* canonical documents under `docs/`, a skill's full body (loaded when invoked, then resident for the session), and individual memory entries.
 
-**In this repository:** detail lives where it loads only when relevant. A convention for editing controllers is a `paths:`-scoped rule, not a line in the root `CLAUDE.md`. A skill's long reference material moves into sidecar reference files beside it so the `SKILL.md` body stays under the roughly 500-line ceiling; `bug-hunt` (with `REFERENCE.md`, `DESIGN.md`, and `DOCSYNC.md`) is split this way.
+**In this repository:** detail lives where it loads only when relevant. A convention for editing controllers is a `paths:`-scoped rule, not a line in the root `CLAUDE.md`. A skill's long reference material moves into sidecar reference files beside it so the `SKILL.md` body stays under the roughly 500-line ceiling; `bug-hunt` (with `REFERENCE.md`, `DESIGN.md`, `DOCSYNC.md`, and `HARNESS.md`) is split this way, and its body dispatches those sidecars to read-only subagents rather than reading them itself, so the heavy catalogs load only in a subagent's context.
 
 **Official grounding:** Anthropic's progressive-disclosure model, the instruction to keep `CLAUDE.md` minimal ("would removing this line cause a mistake? if not, cut it"), and the roughly 500-line `SKILL.md` ceiling.
 
 ## 3. Path-Scoped Rules: Where Coding Conventions Live
 
-Rules are the workhorse of the harness: nearly every line of code Claude writes here is governed by one. `.claude/rules/` holds a convention file per application layer: controllers, services, views, templates, the database layer, database write safety, adapters, tests, code comments, and secret handling in scripts. Each carries a `paths:` glob, so it attaches exactly when a file in its layer is opened and costs no context before that.
+Rules are the workhorse of the harness: nearly every line of code Claude writes here is governed by one. `.claude/rules/` holds a convention file per application layer: controllers, services, views, templates, the database layer, database write safety, adapters, tests, code comments, and secret handling in scripts — plus `private-repo.md` for the authorized-only private operations checkout. Each carries a `paths:` glob, so it attaches exactly when a file in its layer is opened and costs no context before that.
 
 This is what keeps the root `CLAUDE.md` small without losing precision: the always-loaded file states process and non-negotiables, and the per-layer detail lives in the rule that loads only when that kind of code is being touched. When needed, the convention arrives verbatim, not paraphrased from the agent's memory of a long system prompt.
 
@@ -117,7 +117,7 @@ The second premise in practice: enforcement that does not depend on the agent ch
 - hard-denies `find` command-execution predicates (`-exec`, `-execdir`, `-ok`, `-okdir`), including quote- and backslash-obfuscated spellings such as `find . '-exec' …`;
 - hard-denies a command that begins with `cd` or `pushd` (including just inside an opening subshell paren), so a leading directory change is rewritten away instead of tripping the built-in `cd`-plus-redirect prompt;
 - hard-denies a command carrying a shell loop (`while`/`for`/`until` … `do`) at command position, so a hand-rolled loop is rewritten as simple statically-analyzable commands or the Grep/Read tools instead of tripping the built-in prompt for a command it cannot statically analyze; a loop keyword that is only an argument, inside quotes, or unaccompanied by a `do` (`grep -w for`, `echo "a; while b"`) is not matched, and a loop inside a committed script is invisible here because the command names the script, not the loop;
-- asks about mutating flags that ride on otherwise read-only commands (`find -delete`, `sort -o`, `sort --compress-program`, `tree -o`, `sed -i` and `sed`'s `w`/`e` write/exec commands);
+- (`guard-readonly-bash.sh`) asks about mutating flags that ride on otherwise read-only commands (`find -delete`/`-fprint`/`-fprintf`/`-fls`, `sort -o`, `sort --compress-program`, `tree -o`, `sed -i` and `sed`'s `w`/`e` write/exec commands, and `curl`'s mutating methods `-X POST/PUT/DELETE/PATCH`, upload/data flags, and `-o`/`--output` to a real file);
 - asks on any output redirection to a real file (`> file`, `>> file`), whatever read-only-looking head precedes it, because a static allow for that head (`cat`, `egrep`, `date`, a read-only `git` subcommand) would otherwise auto-approve the write; the check is deliberately head-agnostic (it strips the exempt targets and asks if any redirect remains) so it cannot drift out of sync with the allow list, and spacing is irrelevant (`>out` gates exactly as `> out`). The discard device (`/dev/null`) and the session scratchpad directory (`/tmp/claude-*/…/scratchpad/`) are exempt; a bare `/tmp/claude-*` path outside the scratchpad still gates;
 - auto-approves an `rm` that deletes only files under the session scratchpad directory, and asks for every other `rm` (so scratchpad cleanup does not prompt while real deletions still gate);
 - asks to confirm a full-suite `vitest run` invoked directly, which would bypass the smoke/e2e/dev excludes baked into `npm test` and pull in the live-AWS and local-stack tiers that run only on explicit instruction;
@@ -186,7 +186,7 @@ Precedence across all three is `deny > ask > allow`: a `deny` at any scope wins,
 | service file-header JSDoc | the per-service and per-page contract | with the file |
 | `tests/` + `scripts/ci/*` | automated enforcement of code and harness invariants | in CI |
 
-`claude-harness-governance.md` is itself path-scoped with a glob covering `.claude/**`, so the rules for changing the harness attach automatically whenever a harness file is opened for editing.
+`claude-harness-governance.md` is itself path-scoped with a glob covering `.claude/**` plus root `CLAUDE.md`, `PROJECT_SUMMARY_CONCISE.md`, and this guide, so the rules for changing the harness attach automatically whenever a harness file is opened for editing.
 
 ## 10. Memory Discipline
 
@@ -220,6 +220,7 @@ The third premise in practice: the workflow for editing the harness itself. Its 
 - `settings.json` is valid JSON;
 - every wired hook exists and is executable;
 - no live file references a deleted document;
+- every mention of a private operations doc names it as private on the same line;
 - explicit-only skills carry `disable-model-invocation`;
 - every `SKILL.md` is under the line ceiling or backed by a reference file;
 - `sqlite3` is never auto-allowed without `-readonly`;
@@ -233,6 +234,8 @@ The third premise in practice: the workflow for editing the harness itself. Its 
 It runs as the `harness` job in `.github/workflows/ci.yml` and locally via `bash scripts/ci/assert_claude_harness.sh`. Any temporary exception would be a commented, removable entry near the top of the script, never a silent skip.
 
 Checking the configuration's own consistency in CI goes a step beyond current vendor documentation; the harness here is large enough to drift on its own, so the check earns its keep.
+
+Beyond this deterministic check, the `bug-hunt` skill's harness lane adversarially audits the same configuration against this guide and against current Anthropic guidance, which is not static. It catches what a fixed script cannot: a guard bypassable by substitution or reordering, a permission gap, or a place this guide has itself gone stale versus vendor advice. This guide states design rationale and is not a frozen authority; where the configuration's actual behavior and this guide disagree, the configuration is the truth for behavior and the discrepancy is a finding to resolve. The two checks are complementary; neither replaces the other.
 
 ## 13. Anti-patterns This Harness Avoids
 

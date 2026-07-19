@@ -71,7 +71,11 @@ section relevant to the question. Do not load entire files.
 - Concise, no preamble, no filler
 
 ## Boundaries
-- Do not suggest changes to .github/ or .claude/ files
+- Do not suggest changes to .github/ or .claude/ files, and never edit any file. The one
+  exception: when the dispatching prompt explicitly scopes an audit of .claude/ or .github/
+  surfaces (a harness audit, or a doc-sync/hygiene sweep of rules and skills), reporting
+  defects in those files IS the assigned job — but the output stays findings-only (context,
+  evidence, recommendation), never an edit.
 - If unclear, say so rather than guessing
 - You cannot ask the human: return any human-owned question as a clearly marked
   item in your report (context, options, recommended answer) instead of picking

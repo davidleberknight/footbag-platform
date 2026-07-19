@@ -102,8 +102,7 @@ Canonical outputs:
 - Soft delete with `deleted_at`; never hard delete.
 - Audit logs are append-only.
 - Unique constraints use partial indexes.
-- Services enforce business rules; the DB layer stays dumb.
-- Controllers contain no SQL or business logic.
+- Business rules belong in the app's services, not in loaders or the DB layer; the app-layer contract is `.claude/rules/service-layer.md` and `.claude/rules/db-layer.md`.
 - Ambiguous identity resolution never auto-selects.
 - Auto-link requires a strong multi-anchor match.
 - `name_variants` stores high-confidence entries only.

@@ -78,7 +78,7 @@ Tag-shape rules (enforced by `scripts/_trick_tag_invariant.py:validate_media_tag
 
 - **PassBack Records is record/performance evidence, not tutorial.** `tier=RECORD` in sidecars; never promoted to `STRONG_TUTORIAL` for primary-clip selection (rules in `freestyle/loaders/24_qc_freestyle_media_coverage.py`).
 - **Same trick can have TT tutorial AND PassBack record media**: that is not a duplicate. The two complement each other (how-to vs. proof). Do not skip a PassBack row because the trick already has a TT sidecar.
-- **`#passback_records` was added to the source tag whitelist on 2026-05-06**, after the gallery-readiness audit found that existing PassBack sidecars lacked it. A backfill script appended `#passback_records` to the 37 pre-existing PassBack sidecars; the `promote_snippet_candidates.py` change ensures new ones include it. Both changes were idempotent.
+- **`#passback_records` is on the source-tag whitelist**, so every PassBack sidecar carries it: a backfill appended it to the pre-existing PassBack sidecars and `promote_snippet_candidates.py` adds it to new ones (both idempotent).
 - **RECORD_CATEGORY rows must be preserved.** The PassBack source has rows like `2-Bag Juggle`, `Unique 3-Dex`, `Unique Beastly`, `Unique Fearless` (the `Unique N-ADD` runs). These are legitimate PassBack record categories but are NOT freestyle-tricks (per the freestyle-dictionary skill's strict layer separation: glossary terms don't go in `freestyle_tricks`). Stage them in `freestyle/tools/trick_video_discovery/passback_record_categories.csv` (separate from `snippet_candidates.csv`) so they're preserved for a later surfacing decision. Do not coerce them into the trick pipeline with placeholder slugs.
 
 ## 5. Review buckets
@@ -255,7 +255,7 @@ The tier registry is **not codified in code or schema**. Each sidecar's tier is 
 | `anz_trikz` | CANONICAL_TUTORIAL | Anssi Sundberg AnzTrikz tutorials |
 | `footbagspot_passback` | CANONICAL_TUTORIAL | PassBack Levels 1–5 curriculum |
 | `footbagspot_tutorials` | CANONICAL_TUTORIAL | FootbagSpot tutorial library proper |
-| `shred_global` | HIGH_QUALITY_DEMO | Single-trick demos by named players (Boychuk, Digges, Miley, Monistere, Ścierski, etc.). **Reclassified 2026-05-10 (Phase 2b):** moved from STRONG_TUTORIAL to demo-tier. Caption pattern is uniformly "Footbag Freestyle Trick: <name> (<add>add) by <player>": single-trick demo, no teaching breakdown. SOURCE_TIER in `freestyleService.ts` mirrors this as DEMONSTRATION. |
+| `shred_global` | HIGH_QUALITY_DEMO | Single-trick demos by named players (Boychuk, Digges, Miley, Monistere, Ścierski, etc.). **Demo-tier, not tutorial:** caption pattern is uniformly "Footbag Freestyle Trick: <name> (<add>add) by <player>": single-trick demo, no teaching breakdown. SOURCE_TIER in `freestyleService.ts` mirrors this as DEMONSTRATION. |
 | `polini_pointers` | STRONG_TUTORIAL | Nick Polini's instructional content |
 | `everything_footbag` | STRONG_TUTORIAL | Hardik's educational content |
 | `footbag_foundations` | STRONG_TUTORIAL | Erik Chan's content |
@@ -283,7 +283,7 @@ A "wrong" tier is a curator-judgment finding, not a data-integrity violation. Ti
 
 ## 12. Registering a new source — six coordinated points
 
-A new `source_id` (e.g. `passback_demos`, `footbag_org`) requires SIX coordinated edits. Doing only the obvious tier maps causes failures partway through promote → seed → QC (the 2026-05-31 `passback_demos` promotion hit #4, #5, and #6 as separate mid-run failures):
+A new `source_id` (e.g. `passback_demos`, `footbag_org`) requires SIX coordinated edits. Doing only the obvious tier maps causes failures partway through promote → seed → QC — a source registered without points #4, #5, and #6 fails mid-run at exactly those steps:
 
 1. `scripts/promote_snippet_candidates.py` `TIER_BY_SOURCE` — sidecar `tier` (e.g. `HIGH_QUALITY_DEMO`).
 2. `src/services/freestyleService.ts` `SOURCE_TIER` — render bucket (`TUTORIAL`/`DEMONSTRATION`/`RECORD`).

@@ -22,12 +22,11 @@ Local rules for `src/db/` work.
 
 ## Do not put this in `db.ts`
 
+The generic db-layer exclusions (no business or page-use-case logic, no result grouping or view shaping, no repository/ORM/query-builder abstractions) live in `.claude/rules/db-layer.md`. File-local additions here:
+
 - request parsing
-- business or page-use-case logic
 - `eventKey` validation or parsing
-- result grouping or view shaping
 - full readiness composition
-- repository, ORM, or query-builder abstractions
 
 ## Growth rule
 

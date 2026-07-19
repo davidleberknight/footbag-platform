@@ -20,9 +20,7 @@ Local rules for service-layer work in `src/services/`.
 
 ## Layer boundaries
 
-- Read flat rows from `db.ts`.
-- Keep result grouping and presentation-oriented shaping in services or closely related UI shaping code, not in `db.ts` and not in templates.
-- Do not add a repository layer, mediator layer, or extra orchestrator layer.
+The service/db layer boundaries (business rules, validation, and view-model shaping in services; flat rows from `db.ts`; no repository/mediator/query-builder layers) live in `.claude/rules/service-layer.md` and `.claude/rules/db-layer.md`; follow them here.
 
 ## Behavior reminders
 

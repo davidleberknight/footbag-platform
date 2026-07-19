@@ -1,6 +1,6 @@
 ---
 name: tracker-ops
-description: Use when reading, filing, triaging, updating, or drafting issues in the maintainers' private tracker, checking whether work is in scope or already tracked, drafting files in the private operations checkout (footbag_private_repo), or consulting the private ops docs. Claude reads and drafts; a human runs every gh or git write. Degrades to a one-line note when the tracker is not wired on this machine.
+description: Use when reading, filing, triaging, updating, or drafting issues in the maintainers' private tracker, checking whether work is in scope or already tracked, drafting files in the private operations checkout (footbag_private_repo), or consulting the private ops docs. Claude reads and drafts; git writes stay human-run, and Claude runs a tracker gh mutation only when specifically asked, each gated by the approval prompt. Degrades to a one-line note when the tracker is not wired on this machine.
 ---
 
 # Tracker operations
@@ -8,7 +8,8 @@ description: Use when reading, filing, triaging, updating, or drafting issues in
 The maintainers' private tracker (GitHub Issues on the private operations
 repository) is the sole authority for active work, current scope, defects, and
 accepted implementation deviations. Claude reads it freely and drafts issue bodies,
-files, and exact commands; a human runs every mutation.
+files, and exact commands; by default a human runs every mutation, with the
+specific-request exception in Mutations below.
 
 ## Wiring and polite degradation
 
@@ -44,20 +45,46 @@ the human's instruction as given.
   title = verb + exact surface; one-paragraph problem statement; concrete steps
   with exact identifiers; one "Done when" line; one screen max, bulky evidence to
   the private repo's `evidence/` directory.
-- Label vocabulary: one lane (`platform`, `pipeline`, `freestyle`,
-  `coordination`) plus `bug` (defect or accepted deviation tracked to removal),
-  `blocked` (first body line `Blocked on: <person> - <what unblocks it>`),
-  `question`. One assignee; milestone when go-live-scoped.
+- Labels: read the current vocabulary from `TRACKER_GUIDE.md` (the private repo's single
+  home), or derive the live set with `gh label list -R "$FOOTBAG_PRIVATE_REPO"` (needs only
+  the env var, works when the symlink is absent) — do not hard-code it here, it drifts.
+  Every issue: one lane label, the applicable markers, one assignee, and the milestone when
+  go-live-scoped. `blocked` needs a first body line `Blocked on: <person> - <what unblocks
+  it>`. Unwired (no env var and no symlink): fall back to the labels the local `BUGS.md` or
+  the human names, and note the wiring gap in one line.
 - Files drafted into `footbag_private_repo/` are working drafts: a human reviews,
   commits, and pushes them.
 
-## Mutations are HUMAN-RUN
+## Graduating hunt findings
 
-Every mutation (`gh issue create/edit/close/comment/pin`, any `gh api` write, any
-git write in the private checkout) is prepared as an exact ready-to-paste command
-for the human, never executed by Claude (the harness prompts on every mutating
-form; treat a prompt as the human's decision point, not an obstacle). Exception
-only when the human explicitly authorizes a named batch in the current session.
+Single home for turning an approved `BUGS.md` finding into an issue; the `bug-hunt` and
+`freestyle-bug-hunt` skills cite this rather than restating it. After the human approves a
+hunt's findings, draft one issue per confirmed finding: an issue body meeting the issue-body
+standard above, plus the exact `gh issue create -R "$FOOTBAG_PRIVATE_REPO" --title "..."
+--label <lane> --label bug --body "..."` (the finding's lane, plus other markers as they
+apply). By default the human runs it; when the human specifically asks Claude to file or
+revise the issues, Claude runs it under the mutation policy above (the per-command approval
+prompt is the human's sign-off). `BUGS.md` is the local scratch sink; a finding leaves it
+when its issue is filed or its fix lands. When the tracker is not wired, skip drafting with
+the one-line degradation note above.
+
+## Mutations: drafted always, run only when asked and approved
+
+Every mutation (`gh issue create/edit/close/comment/pin`, any `gh api` write, any git
+write in the private checkout) is first prepared as an exact command. Claude never mutates
+the tracker unprompted or as a side effect. Then:
+
+- **Default:** the human runs the command; Claude prepares it and stops.
+- **On specific request:** when the human specifically asks Claude to run a named tracker
+  mutation (file, edit, comment, close), Claude runs the `gh` command itself. The harness
+  prompts on every mutating form, and that per-command prompt is the human's approval —
+  surface the exact command and let the prompt gate it; never suppress, auto-approve, or
+  batch past it.
+- **Failsafe:** if a mutating `gh` form somehow runs with no approval prompt appearing (a
+  stray machine-local allow in `settings.local.json`), stop and report it as a config gap.
+  Silent execution is never approval; the prompt is what turns "asked" into "approved".
+
+Git writes in the private checkout stay human-run (`private-repo.md`).
 
 ## Hidden-reference rule (hard)
 

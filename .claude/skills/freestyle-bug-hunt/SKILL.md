@@ -44,8 +44,11 @@ rule stays here.
 
 ## Absolute rules
 
-1. **Findings-only.** No code, doc, data, sidecar, CSV, or content-module edits. The only
-   write allowed is the findings write to `BUGS.md` (Freestyle group).
+1. **Plan mode, findings-only, main session.** The hunt runs read-only in plan mode. The
+   orchestrator stays in the main session — only it can ask the human — and dispatches the
+   category sweeps to read-only subagents, verifying their leads itself. No code, doc, data,
+   sidecar, CSV, or content-module edits; the only write allowed is the findings write to
+   `BUGS.md` (Freestyle group), after the finalized plan is approved.
 2. **Never judge doctrine.** Whether a trick is real, what its ADD should be, whether two
    names are the same trick, family membership, and promotion-worthiness are decisions
    owned by the curator, the rules expert, and the freestyle maintainer. This skill audits
@@ -105,7 +108,9 @@ doctrine judgment calls; editorial voice and wording of curator-authored prose; 
 
 ## Mandatory pre-reads (in this order)
 
-1. This file and this skill's `REFERENCE.md` (the category catalog §F1–§F17).
+1. This file, and REFERENCE.md's orchestrator-facing sections — the tracked-work exclusion
+   method, the sample-matrix shape and query recipes, and the report structure. The §F1–§F17
+   category catalog in REFERENCE.md is the lane's brief; the orchestrator does not read it.
 2. Root `CLAUDE.md` — authority order.
 3. The maintainers' private tracker, via `gh issue list -R "$FOOTBAG_PRIVATE_REPO"
    --state open --label freestyle` and again with `--label pipeline` (read-only,
@@ -139,18 +144,38 @@ doctrine judgment calls; editorial voice and wording of curator-authored prose; 
 3. **Build the sample matrix**: tricks sampled across status, kind, family, ADD range, and
    alias shape; media items across source and tier; every browse view; every named gallery.
    REFERENCE.md gives the matrix shape and read-only query recipes.
-4. **Run the category sweeps** §F1–§F17 from REFERENCE.md across the matrix and the
-   surfaces. Every category is applied to every surface it can touch; a surface is not
-   covered because it was read, only because the applicable categories were applied.
+3a. **Invariant-discovery pre-pass (the catalog is the floor, not the fence).** Dispatch a
+   read-only subagent to enumerate the *recorded* freestyle invariant surface fresh — every
+   ratified rule, forever-rule, propagation clause, publication gate, and settled ruling in the
+   five governance skills, `docs/FREESTYLE.md`, `freestyle/doctrine/RED_RULINGS.md`, and the
+   path-scoped rules this run touches — and diff it against the §F1–§F17 catalog. It returns a
+   bounded delta list: each uncatalogued invariant with its recorded home cited and the closest
+   §F category, or "new". The orchestrator vets each delta against the absolute rules — an item
+   that needs a doctrine opinion to stand, or has no recorded home, is an owner question, never
+   a sweep dimension — and adds the survivors as ad-hoc categories. The §F catalog always runs
+   in full regardless; the pre-pass may add categories, never remove, narrow, or reorder them.
+4. **Dispatch the category sweeps** §F1–§F17 to a read-only `auditor` subagent that reads
+   this skill's REFERENCE.md §F category catalog and sweeps the matrix and surfaces, returning
+   a structured lead list (candidate, cited surface, the §F category plus its one-line
+   definition, refutation attempted, read/analyzed inventory, any owner question) — never file
+   dumps. The orchestrator never reads the §F category catalog itself. Every category is
+   applied to every surface it can touch; a surface is not covered because it was read, only
+   because the applicable categories were applied. A visitor-facing claim (a wrong rendered
+   value on a public freestyle page) is confirmed centrally against the running app — or, when
+   the app is not run, recorded as a Lead naming the render as its confirming step — never
+   delegated to a read-only lane.
 5. **QC-gate coverage sweep**: for each category, identify the deterministic check that
    pins it (loader QC, CI gate, route test). A category with no deterministic check, or a
    check that covers only part of the invariant, is a finding — a testing gap is a bug.
-6. **Active refutation**: for each candidate, attempt to prove it false — re-read the
-   governing skill clause, check the tracked-work list, check whether the behavior is a
-   frozen hold, grep `tests/` for a test pinning the behavior, and re-derive the cited
-   data by direct inspection. Drop what cannot be reproduced.
-7. **Second pass and dryness loop**: re-sweep with fresh eyes per category until two
-   consecutive passes surface no new candidate.
+6. **Verify centrally (orchestrator).** A subagent lead is never a finding until the main
+   session refutes it: for each candidate, attempt to prove it false — re-read the governing
+   skill clause, check the tracked-work list, check whether the behavior is a frozen hold,
+   grep `tests/` for a test pinning the behavior, and re-derive the cited data by direct
+   inspection. Drop what cannot be reproduced. Spot-check a sample of the lane's §F
+   classifications against the one-line definition it returned — the orchestrator has not read
+   the catalog, so a mislabeled category is caught here.
+7. **Second pass and dryness loop**: re-dispatch per category, each time giving the subagent
+   the prior candidate list, until two consecutive re-dispatches surface no new candidate.
 8. **Report** (output spec below), then stop. No remediation in the same run.
 
 ## Output specification
@@ -196,23 +221,20 @@ propagation miss that shows a visitor wrong canonical data is Medium/High; a tag
 break that corrupts gallery membership is High; anything that crosses into privacy,
 security, or payment territory is bug-hunt's rubric and severity.
 
-**Graduation to the maintainers' private tracker.** After the human approves the
-findings, draft for each confirmed finding an issue body meeting the tracker's
-issue-body standard — title = verb + exact surface; a one-paragraph problem statement;
-exact identifiers; one "Done when" line — plus an exact ready-to-run HUMAN-RUN command
-of the form `gh issue create -R "$FOOTBAG_PRIVATE_REPO" --title "..." --label freestyle
---label bug --body "..."`. Claude never runs the create; the human does. `BUGS.md`
-remains the local scratch sink findings are written to first; a finding leaves `BUGS.md`
-when its issue is filed or its fix lands. If `FOOTBAG_PRIVATE_REPO` is unset, skip issue
-drafting with the same one-line degradation note as the pre-reads.
+**Graduation to the maintainers' private tracker.** Graduate each confirmed finding into an
+issue per the `tracker-ops` skill, the single home for the procedure, using the `freestyle`
+lane plus `bug`. Claude drafts the issue body and the exact `gh issue create`, run under that
+skill's mutation policy. A finding leaves `BUGS.md` when its issue is filed or its fix lands;
+when the tracker is unwired, skip drafting with the one-line degradation note from the
+pre-reads.
 
 ## Stopping condition and self-review
 
 The sweep is done when the derived freestyle surface is exhausted: every surface in the
-scratch inventory carries every applicable §F category, the QC-coverage sweep ran, and two
+scratch inventory carries every applicable §F category and every vetted delta category, the QC-coverage sweep ran, and two
 consecutive passes surfaced nothing new. Close with a short adversarial review of this
 skill itself: name what the category catalog, exclusions, or sampling let slip this run,
-and propose (never apply) any gap-closing edit to the maintainer. A false negative
+and propose (never apply) any gap-closing edit to the maintainer, including each pre-pass delta category that survived this run, proposed as a new §F entry. A false negative
 discovered later is converted into a deterministic check and, if it is a new class, a
 proposed new §F category.
 

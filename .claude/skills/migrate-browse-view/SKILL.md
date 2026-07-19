@@ -22,7 +22,7 @@ Do **not** use this skill to:
 
 ## The pattern this skill encodes
 
-Every browse view shipped to date (`add`, `family`, `category`, `sets`, `component`, `topology`, `movement-system`, `dex-count`) follows the same six-step recipe. The contract is mechanically tested by `freestyle.dictionary-trick-card.routes.test.ts`: any view that fails to render `dict-card-stack` fails the regression guard.
+Every browse view shipped to date (the `allowedViews` set in `src/services/freestyleService.ts`) follows the same six-step recipe. The contract is mechanically tested by `freestyle.dictionary-trick-card.routes.test.ts`: any view that fails to render `dict-card-stack` fails the regression guard.
 
 ```
 Step 1 → READ existing patterns          (no writing yet)
@@ -39,7 +39,7 @@ Read the most recent migration's report so the new slice matches established con
 
 - `exploration/dictionary-symbolic-card/UNIFIED_DICTIONARY_VIEW_PLAN.md`: the architectural target every migration approaches
 - `exploration/dictionary-symbolic-card/SYMBOLIC_CARD_SPEC.md`: the partial's contract (do NOT modify; consume only)
-- The most recent slice's report in `exploration/dictionary-symbolic-card/` (e.g., `DSC2_COMPONENT_VIEW_SLICE3A_REPORT.md`, `DSC2_CATEGORY_VIEW_SLICE3B_REPORT.md`, `DSC2_TOPOLOGY_VIEW_REPORT.md`): for the most up-to-date precedent
+- The prior-slice reports, archived under `exploration/_archive/2026-05/dictionary-symbolic-card/`: the most recent is the up-to-date precedent
 - `src/views/partials/dictionary-trick-card.hbs`: the shared partial all views render
 - The existing group type for the view being migrated (e.g., `FreestyleTrickAddGroup`, `FreestyleFamilyGroup`, `FreestyleTrickGroup`, `ComponentGroup`, `TopologyGroup`): to see how prior slices extended their group types
 
@@ -192,7 +192,7 @@ Produce a report at `exploration/dictionary-symbolic-card/DSC2_{VIEW}_VIEW_REPOR
 8. **Recommendation for next slice**: which view to migrate next, why
 9. **Stop confirmation**: "stopping after this slice per the slice cadence"
 
-Reports for prior slices are the format-of-truth: `DSC2_ADD_VIEW_IMPLEMENTATION_REPORT.md`, `DSC2_FAMILY_VIEW_IMPLEMENTATION_REPORT.md`, `DSC2_COMPONENT_VIEW_SLICE3A_REPORT.md`, `DSC2_CATEGORY_VIEW_SLICE3B_REPORT.md`, `DSC2_TOPOLOGY_VIEW_REPORT.md`.
+Reports for prior slices are the format-of-truth; they are archived under `exploration/_archive/2026-05/dictionary-symbolic-card/`.
 
 ## Step 7: Stage and hand off
 
@@ -213,7 +213,7 @@ The slice MUST NOT:
 - Render card-internal markup inline in the template
 - Introduce per-view CSS that affects shared card rules
 - Skip the operational-notation rendering (cards must show notation tokens OR the "Notation pending" placeholder)
-- Add a new browse view without curator approval (the current set is eight; see `SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md` for background)
+- Add a new browse view without curator approval (the current set is `allowedViews` in `src/services/freestyleService.ts`; see `SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md` for background)
 
 ## Naming convention
 
