@@ -193,7 +193,7 @@ def test_cutover_idempotent_on_rerun(fresh_db: Path) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Fail-fast contract (Phase H Slice A hardening).
+# Fail-fast contract (Phase H cutover).
 #
 # The cutover script must exit non-zero on two upstream-state failures so
 # `run_pipeline.sh` and operators don't silently proceed to
@@ -290,7 +290,7 @@ def _seed_only_non_eligible_candidates(db_path: Path) -> None:
     """Insert candidates only in non-pre_populate classifications
     (bootstrap_eligible=0). Mirrors a degenerate Phase G output where
     enrichment ran but emitted zero pre_populate-class rows — the
-    classifier-regression failure mode Goal 2 of Slice A hardens
+    classifier-regression failure mode the fail-fast contract hardens
     against."""
     conn = sqlite3.connect(db_path)
     ts = "2026-01-01T00:00:00Z"
@@ -388,11 +388,10 @@ def test_cutover_exits_zero_when_only_dormant_candidates(
     eligible_candidates handles the real regression case (non-dormant
     classifications exist but no eligible).
 
-    Added 2026-05-17 alongside the CI smoke gate fix: my earlier Slice A
-    fail-fast hardening (commit 394037a) didn't distinguish "classifier
-    didn't run" from "classifier ran and regressed" — both produced the
-    fail-fast exit, breaking the CI smoke gate when Phase G is intentionally
-    skipped against the tiny fixture."""
+    The fail-fast must distinguish "classifier didn't run" from
+    "classifier ran and regressed": conflating them breaks the CI smoke
+    gate, where Phase G is intentionally skipped against the tiny
+    fixture."""
     _seed_only_dormant_candidates(fresh_db)
     result = _run_cutover(fresh_db)
 

@@ -146,9 +146,9 @@ beforeAll(async () => {
     operational_notation: null,
   });
 
-  // Minimal modifier-link seeding so the component view (slice 3A) renders
+  // Minimal modifier-link seeding so the component view renders
   // at least one body-modifier group, exercising the dict-card-stack assertion
-  // in the slice-by-slice regression guard below.
+  // in the per-view rendering guard below.
   insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_name: 'spinning', modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
   insertFreestyleTrickModifierLink(db, 'mobius',  'spinning', 1);
   insertFreestyleTrickModifierLink(db, 'montage', 'spinning', 1);
@@ -221,13 +221,12 @@ describe('dictionary-trick-card — required slots', () => {
   });
 
   it('op-notation chip suppressed on browse cards for first-class tricks (renders only via first-class JOB row)', async () => {
-    // 2026-05-24 curator rendered-output audit: the op-notation chip
-    // between hashtag and ADD chip duplicated the JOB row in the
-    // first-class secondary row below. The chip is now suppressed for
-    // first-class tricks; non-first-class tricks still get it. The
-    // op-token role taxonomy itself is exercised on trick-detail pages
-    // and on the first-class secondary row's JOB line, which both
-    // continue to tokenize via the same renderer.
+    // The op-notation chip between hashtag and ADD chip would duplicate
+    // the JOB row in the first-class secondary row below, so the chip is
+    // suppressed for first-class tricks; non-first-class tricks still get
+    // it. The op-token role taxonomy itself is exercised on trick-detail
+    // pages and on the first-class secondary row's JOB line, which both
+    // tokenize via the same renderer.
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     // Atoms (toe-stall, mirage, etc.) are first-class — their op-notation
     // chip is suppressed on browse cards.
@@ -239,9 +238,9 @@ describe('dictionary-trick-card — required slots', () => {
   });
 
   it('renders ≡ symbolic-equivalence readings from the curator chain registry', async () => {
-    // Post PRESENTATION_UNIFICATION (2026-05-16): every browse view renders
-    // registry density. The equivalence wrapper picks up the --inline modifier
-    // class. The token text content is identical to what ADD View shows.
+    // Every browse view renders registry density. The equivalence wrapper
+    // picks up the --inline modifier class. The token text content is
+    // identical to what ADD View shows.
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     // Ripwalk: chain reading 'stepping butterfly'
     expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence[^"]*"[^>]*>[\s\S]*?stepping[\s\S]*?butterfly/i);
@@ -251,9 +250,9 @@ describe('dictionary-trick-card — required slots', () => {
     expect(res.text).not.toMatch(/class="dict-card-aliases"/);
   });
 
-  it('"Notation pending" placeholder is silent across all browse views (post-unification)', async () => {
-    // Post PRESENTATION_UNIFICATION (2026-05-16): every browse view uses
-    // registry density. Registry density renders the formula slot silently
+  it('"Notation pending" placeholder is silent across all browse views', async () => {
+    // Every browse view uses registry density. Registry density renders
+    // the formula slot silently
     // when neither a curator chain nor operational notation exists — no
     // "Notation pending" italic anywhere on browse cards. This applies
     // uniformly to ADD / Family / Component / Topology / Category views.
@@ -273,15 +272,14 @@ describe('dictionary-trick-card — required slots', () => {
     }
   });
 
-  it('Tier-4 executable-accounting prose is absent across all browse views (NCR-3)', async () => {
-    // 4-tier rendering hierarchy contract (Notation Normalization Wave
-    // NCR-3, 2026-05-18): Tier-4 executable-accounting prose patterns
-    // (xbody(N), dex(N), stall(N), spin(N), "= N ADD" results) render
-    // ONLY on /freestyle/add-analysis, (future) trick-detail disclosure
-    // surfaces, AND the compact first-class secondary row on the
-    // governed first-class cohort. The dictionary card partial enforces
-    // tiers 1-3 for the general cohort; this regex sweep guards against
-    // leakage onto NON-first-class cards.
+  it('Tier-4 executable-accounting prose is absent across all browse views', async () => {
+    // 4-tier rendering hierarchy contract: Tier-4 executable-accounting
+    // prose patterns (xbody(N), dex(N), stall(N), spin(N), "= N ADD"
+    // results) render ONLY on /freestyle/add-analysis, (future)
+    // trick-detail disclosure surfaces, AND the compact first-class
+    // secondary row on the governed first-class cohort. The dictionary
+    // card partial enforces tiers 1-3 for the general cohort; this regex
+    // sweep guards against leakage onto NON-first-class cards.
     //
     // Cohort mirrors FIRST_CLASS_TIER_1 ∪ FIRST_CLASS_TIER_2 in
     // src/services/freestyleService.ts. Update both together when the
@@ -290,27 +288,27 @@ describe('dictionary-trick-card — required slots', () => {
       // Tier 1 — 12 elite (11 atoms + pendulum)
       'osis', 'toe_stall', 'clipper_stall', 'mirage', 'whirl', 'butterfly',
       'swirl', 'legover', 'pickup', 'illusion', 'around_the_world', 'pendulum',
-      // Tier 1 — foundational 1-ADD primitives (2026-05-22 widening)
+      // Tier 1 — foundational 1-ADD primitives
       'heel_stall', 'inside_stall', 'outside_stall', 'head_stall',
       'forehead_stall', 'neck_stall', 'knee_stall', 'shoulder_stall',
       'sole_kick', 'cloud_kick', 'peak_delay',
       'flying_inside', 'flying_outside', 'double_knee',
-      // Tier 1 — foundational 2-ADD primitives (2026-05-22 + knee-clipper + guay)
+      // Tier 1 — foundational 2-ADD primitives + knee-clipper + guay
       'cloud_stall', 'dragonfly_kick', 'flying_clipper', 'knee_clipper', 'guay',
       // Tier 2 — original (9)
       'paradox_mirage', 'symposium_mirage', 'atomic_butterfly', 'ripwalk',
       'ducking_butterfly', 'spinning_butterfly', 'stepping_osis',
       'eggbeater', 'paradox_symposium_whirl',
-      // Tier 2 — Wave 1 audit-derived (5; 2026-05-22)
+      // Tier 2 — audit-derived (5)
       'atomic_torque', 'ducking_mirage', 'paradox_drifter',
       'spinning_pickup', 'tapping_whirl',
-      // Tier 2 — Wave 2 RESOLVED_FORMULAS promotions (19; 2026-05-22)
+      // Tier 2 — RESOLVED_FORMULAS promotions (19)
       'atom_smasher', 'dimwalk', 'ducking_clipper', 'ducking_osis',
       'ducking_whirl', 'fog', 'orbit', 'paradox_blender', 'paradox_torque',
       'rake', 'rev_up', 'rev_whirl', 'smear', 'spinning_clipper',
       'spinning_osis', 'spinning_torque', 'stepping_whirl',
       'symposium_whirl', 'whirling_swirl',
-      // Tier 2 — Wave 3 audit-validated promotions (28; 2026-05-22)
+      // Tier 2 — audit-validated promotions (28)
       'squeeze', 'barrage', 'barfly', 'high_plains_drifter', 'paradon',
       'barraging_osis',
       'cross_body_sole_stall', 'legeater', 'paste', 'reverse_drifter',
@@ -318,20 +316,20 @@ describe('dictionary-trick-card — required slots', () => {
       'pigbeater', 'spinning_whirl', 'tripwalk', 'matador', 'phoenix',
       'spinal_tap', 'spinning_symposium_whirl', 'witchdoctor',
       'mind_bender', 'mullet', 'spender', 'gauntlet', 'montage',
-      // Tier 2 — Wave 4-B mechanical notation back-fill (19; 2026-05-22)
+      // Tier 2 — mechanical notation back-fill (19)
       'flail', 'magellan', 'merkon', 'smudge',
       'assassin', 'haze', 'mantis', 'nova', 'parkwalk', 'royale',
       'smog', 'smoke', 'tapdown', 'tombstone',
       'blurriest', 'grave_digger', 'tomahawk', 'big_apple',
       'sole_stall',
-      // Tier 2 — Wave 5 observational→canonical promotions (14; 2026-05-22)
+      // Tier 2 — observational→canonical promotions (14)
       'blizzard', 'blaze', 'bedwetter', 'sole_survivor',
       'spinning_paradox_mirage', 'spinning_paradox_illusion',
       'spinning_paradox_whirl', 'paradox_double_leg_over',
       'paradox_barrage', 'paradox_symposium_mirage',
       'paradox_high_plains_drifter', 'spinning_paradox_blender',
       'stepping_ducking_paradox_blender', 'paradox_blizzard',
-      // Tier 2 — Wave 7 doctrine-divergence pilot (3; 2026-05-23)
+      // Tier 2 — doctrine-divergence pilot (3)
       'blurrage', 'predator', 'schmoe',
     ];
     const accountingPatterns: ReadonlyArray<RegExp> = [
@@ -408,11 +406,10 @@ describe('dictionary-trick-card — required slots', () => {
 
 describe('dictionary-trick-card — sparse and deep render through the same template', () => {
   it('Toe Stall (sparse) renders cleanly: title + ADD + first-class JOB row', async () => {
-    // 2026-05-24 curator rendered-output audit: the standalone op-notation
-    // chip on browse cards was suppressed for first-class tricks (it
-    // duplicated the JOB row below). toe-stall is a core atom + first-
-    // class, so its op-notation now surfaces via the first-class
-    // secondary row's labeled "JOB:" line instead.
+    // The standalone op-notation chip on browse cards is suppressed for
+    // first-class tricks (it would duplicate the JOB row below). toe-stall
+    // is a core atom + first-class, so its op-notation surfaces via the
+    // first-class secondary row's labeled "JOB:" line instead.
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.text).toContain('<span class="dict-card-title">toe stall</span>');
     expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/toe_stall">Trick Detail<\/a>/);
@@ -426,11 +423,11 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
   });
 
   it('Montage (deep) renders cleanly: title + ADD + tokenized structural reading', async () => {
-    // BROWSE-REFACTOR-1 Slice 1: deep compounds in browse density render
-    // their tokenized ≡ reading (semantic tokens, not operational tokens).
-    // Operational tokens are now suppressed when a ≡ reading is present;
-    // op-token markup lives on cards without ≡ readings (atoms / fallback)
-    // and on the trick-detail page.
+    // Deep compounds in browse density render their tokenized ≡ reading
+    // (semantic tokens, not operational tokens). Operational tokens are
+    // suppressed when a ≡ reading is present; op-token markup lives on
+    // cards without ≡ readings (atoms / fallback) and on the trick-detail
+    // page.
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     const montageStart = res.text.indexOf('data-trick-slug="montage"');
     expect(montageStart).toBeGreaterThan(-1);
@@ -447,7 +444,7 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     expect(montageRegion).toMatch(/paradox/);
     expect(montageRegion).toMatch(/symposium/);
     // Each operator carries a sem-token class (semantic-browse tokenization).
-    // Slice E (2026-05): modifier + base-anchor tokens whose slug has a
+    // Modifier + base-anchor tokens whose slug has a
     // glossary anchor render as <a class="sem-token ... sem-token--linked">;
     // other tokens stay <span class="sem-token ...">. Both element forms
     // satisfy this contract.
@@ -486,10 +483,10 @@ describe('dictionary-trick-card — grouping', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────
-// Slice 2: By Family migration
+// By Family view
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('GET /freestyle/tricks?view=family — symbolic trick cards (slice 2)', () => {
+describe('GET /freestyle/tricks?view=family — symbolic trick cards', () => {
   it('renders family sections with anchor IDs', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
@@ -535,7 +532,7 @@ describe('GET /freestyle/tricks?view=family — symbolic trick cards (slice 2)',
   });
 });
 
-describe('other dictionary views — slice-by-slice migration', () => {
+describe('other dictionary views — per-view rendering contract', () => {
   it('/freestyle/tricks?view=family returns 200 and uses the two-line row contract', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
@@ -544,7 +541,7 @@ describe('other dictionary views — slice-by-slice migration', () => {
     expect(res.text).not.toContain('dict-card-stack');
   });
 
-  it('/freestyle/tricks?view=component returns 200 and uses the shared card (slice 3A migrated)', async () => {
+  it('/freestyle/tricks?view=component returns 200 and uses the shared card', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
     expect(res.status).toBe(200);
     expect(res.text).toContain('dict-card-stack');
@@ -559,19 +556,19 @@ describe('other dictionary views — slice-by-slice migration', () => {
     expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
   });
 
-  it('/freestyle/tricks?view=category returns 200 and uses the shared card (slice 3B migrated)', async () => {
+  it('/freestyle/tricks?view=category returns 200 and uses the shared card', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
     expect(res.text).toContain('dict-card-stack');
   });
 
   it('the dict-card-stack browse views continue to use the shared dictionary-trick-card partial', async () => {
-    // 2026-05-24: ?view=sets removed from this card-uniformity contract (it
-    // uses compact-list density, not the dictionary-trick-card partial).
-    // 2026-05-27: ?view=add AND ?view=family removed — both now render the
-    // two-line dict-trick-row contract, not the shared dict-card-stack. The
-    // card-uniformity contract holds only for the not-yet-migrated views
-    // (category / component), which still use the shared card.
+    // ?view=sets is outside this card-uniformity contract (it uses
+    // compact-list density, not the dictionary-trick-card partial).
+    // ?view=add and ?view=family are also outside it — both render the
+    // two-line dict-trick-row contract, not the shared dict-card-stack.
+    // The card-uniformity contract holds for the views that use the
+    // shared card (category / component).
     for (const view of ['category', 'component']) {
       const url = `/freestyle/tricks?view=${view}`;
       const res = await request(createApp()).get(url);

@@ -1,6 +1,5 @@
 /**
- * Integration tests for Family View rendering identity (Slice A2 of the
- * 2026-05 dictionary/glossary normalization plan).
+ * Integration tests for Family View rendering identity.
  *
  * Long-term contract:
  *
@@ -24,10 +23,10 @@
  *     rendering unit tests).
  *   - Family bucket size > 1 heuristic (a separate display-policy concern).
  *
- * The Slice A2 contract this pins:
+ * The contract this pins:
  *   1. Whirl family renders the user's documented core members.
  *   2. Non-trick kinds (modifiers, operators, surfaces) do NOT appear in
- *      Family View (regression guard on Slice A's filter).
+ *      Family View (regression guard on the non-trick discriminator filter).
  *   3. Whirl-family compounds with the new chain entries render a
  *      formula reading on both density modes (no "Notation pending"
  *      placeholder for cards whose structure is self-evident).
@@ -136,13 +135,12 @@ describe('Family View — whirl-family pilot contract', () => {
 });
 
 describe('Family View — formula visibility on whirl compounds', () => {
-  // The Slice A2 chain additions for whirl-family compounds populate the
+  // The curated chain entries for whirl-family compounds populate the
   // tokenizedEquivalences slot, so cards render their compositional formula
   // rather than the "Notation pending" placeholder.
   it('suppresses the tautological "blurry whirl" reading on the blurry-whirl card', async () => {
-    // 2026-05-24 curator rendered-output audit: the universal
-    // tautological-reading filter now drops any chain reading whose
-    // case-insensitive trim equals the canonical name. blurry-whirl's
+    // The universal tautological-reading filter drops any chain reading
+    // whose case-insensitive trim equals the canonical name. blurry-whirl's
     // sole chain reading is "blurry whirl" — tautological with the
     // title — so the ≡ slot stays empty (cleanest visible state).
     // Compositional decomposition is available on the trick-detail page.
@@ -162,10 +160,10 @@ describe('Family View — formula visibility on whirl compounds', () => {
     const res = await request(app).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
 
-    // For each pilot whose chain we authored in Slice A2, the card region
+    // For each pilot with a curator-authored chain, the card region
     // must NOT contain the pending placeholder.
-    // ducking-whirl, symposium-whirl excluded 2026-05-22 (Wave 2); paradox-
-    // whirl + spinning-whirl excluded 2026-05-22 (Wave 3) — all promoted
+    // ducking-whirl, symposium-whirl, paradox-whirl, and spinning-whirl
+    // are excluded here because all four are promoted
     // into FIRST_CLASS_TIER_2. First-class compounds with no curator
     // op_notation render the honest "JOB: canonical decomposition pending" incomplete-
     // state line in the secondary row — the chain-row pending placeholder
@@ -188,8 +186,8 @@ describe('Family View — formula visibility on whirl compounds', () => {
 });
 
 describe('ADD view and Family view — shared two-line row contract', () => {
-  // 2026-05-27: both the ADD view and the Family view render the same
-  // generalized two-line dict-trick-row contract; only the grouping differs.
+  // Both the ADD view and the Family view render the same generalized
+  // two-line dict-trick-row contract; only the grouping differs.
   // What stays shared: data-trick-slug, the dict-trick-row-title detail link,
   // and the ADD value on the line-2 ADD slot. blurry-whirl is the remaining
   // non-first-class whirl-family compound; its sole chain reading ("blurry

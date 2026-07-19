@@ -17,13 +17,13 @@ import {
 } from '../../src/content/freestyleFamilyOverrides';
 
 describe('FAMILY_OVERRIDES (one-way redirects)', () => {
-  it('Slice J entries promote whirl-family rows to rev-whirl-family', () => {
+  it('promotes whirl-family rows to rev-whirl-family', () => {
     expect(resolveFamilyOverride('rev_whirl')).toBe('rev_whirl');
     expect(resolveFamilyOverride('hatchet')).toBe('rev_whirl');
     expect(resolveFamilyOverride('mullet')).toBe('rev_whirl');
   });
 
-  it('Slice M entry redirects high-plains-drifter to drifter-family', () => {
+  it('redirects high-plains-drifter to drifter-family', () => {
     expect(resolveFamilyOverride('high_plains_drifter')).toBe('drifter');
   });
 

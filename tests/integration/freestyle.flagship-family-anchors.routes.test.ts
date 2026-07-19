@@ -1,11 +1,10 @@
 /**
- * Integration tests for Dictionary Pedagogy Phase 3 — flagship
- * family-anchor trick-detail polish.
+ * Integration tests for flagship family-anchor trick-detail polish.
  *
  * Targets: whirl, butterfly, mirage. All three are FIRST_CLASS_TIER_1
  * members + carry ATOMIC_FLAG_DECOMPOSITIONS entries, so the
- * first-class Notation summary already renders. Phase 3 adds the
- * family-anchor callout in the trick-family section, making the dual
+ * first-class Notation summary already renders. On top of that, the
+ * family-anchor callout in the trick-family section makes the dual
  * role (trick + family-anchor) explicit on the trick page itself.
  *
  * Contract under test:
@@ -198,7 +197,7 @@ describe('base-family paragraph appears on the family-anchor page only', () => {
   });
 });
 
-describe('Phase 3 — no curator-internal language leakage', () => {
+describe('no curator-internal language leakage', () => {
   it.each(['whirl', 'butterfly', 'mirage', 'osis'])(
     '%s callout does not expose pt##/Slice/Wave/Sprint labels',
     async (slug) => {

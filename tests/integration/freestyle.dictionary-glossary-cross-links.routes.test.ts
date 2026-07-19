@@ -49,12 +49,12 @@ beforeAll(async () => {
   // and a base-anchor — the rendered card must wrap both in anchor links.
   // blurry-whirl is the rendering target because it remains non-first-
   // class (composite-modifier compound; blurry → stepping+paradox
-  // expansion isn't supported at the parser layer per Red 2026-05-20).
+  // expansion isn't supported at the parser layer per Red ruling).
   // Non-first-class compounds preserve their tautological chain readings,
   // so blurry-whirl's "blurry whirl" reading still renders with linked
-  // tokens. paradox-whirl + spinning-whirl were promoted into
-  // FIRST_CLASS_TIER_2 in Wave 3 (2026-05-22); their tautological chains
-  // are now suppressed (the first-class summary row carries the structural
+  // tokens. paradox-whirl + spinning-whirl are in
+  // FIRST_CLASS_TIER_2; their tautological chains
+  // are suppressed (the first-class summary row carries the structural
   // decomposition instead). They remain seeded for the resolver-level
   // tests below which exercise pure text-to-token resolution and are
   // independent of rendering.
@@ -91,7 +91,7 @@ beforeAll(async () => {
     adds:           '3',
     is_active:      1,
   });
-  // 2026-05-24: ripwalk seeded as the rendering-target for the linked-
+  // ripwalk is seeded as the rendering-target for the linked-
   // token assertions below. ripwalk's chain reading "stepping butterfly"
   // is non-tautological with the canonical name, so it survives the
   // universal tautological-reading filter and exercises the linked-
@@ -162,19 +162,13 @@ describe('SemanticBrowseToken.glossaryAnchor — resolver behavior', () => {
 });
 
 describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnchor is set', () => {
-  // Target slug switched from paradox-whirl to blurry-whirl 2026-05-22:
-  // paradox-whirl promoted into FIRST_CLASS_TIER_2 in Wave 3, which
-  // suppresses its tautological chain reading on the rendered card.
-  // blurry-whirl remains non-first-class (composite-modifier compound)
-  // and renders its "blurry whirl" tautological chain with linked
-  // tokens — exercising the same SemanticBrowseToken anchor-link
+  // ripwalk is the rendering target: paradox-whirl is in
+  // FIRST_CLASS_TIER_2, which suppresses its tautological chain
+  // reading on the rendered card, and blurry-whirl's tautological
+  // chain "blurry whirl" is suppressed by the universal tautological
+  // filter. ripwalk's chain reading "stepping butterfly" survives the
+  // filter and exercises the SemanticBrowseToken anchor-link
   // contract this describe block validates.
-
-  // 2026-05-24 curator rendered-output audit: switched target from
-  // blurry-whirl (tautological chain "blurry whirl" — suppressed by
-  // the universal tautological filter) to ripwalk, whose chain reading
-  // "stepping butterfly" survives the filter and still exercises the
-  // linked-token contract.
   it('renders the stepping token as an anchor on the ripwalk card', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');

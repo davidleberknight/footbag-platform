@@ -1,6 +1,6 @@
 /**
- * Integration tests for Slice I — family-level shared-terminal-structure
- * invariant (Whirl pilot, 2026-05-16).
+ * Integration tests for the family-level shared-terminal-structure
+ * invariant (Whirl pilot).
  *
  * Long-term contract:
  *
@@ -10,8 +10,8 @@
  *   member.
  *
  *   - The invariant lives at the FAMILY level, NOT inside individual
- *     cards. Card rendering is unchanged from the
- *     PRESENTATION_UNIFICATION_SLICE contract.
+ *     cards. Card rendering is unchanged: cards keep the shared
+ *     card-uniformity contract.
  *   - Curator-authored only (TypeScript content module). Absence = no
  *     line rendered. No auto-derivation.
  *   - Whirl pilot is the only family with an entry today. Other
@@ -83,7 +83,7 @@ describe('Family invariant — content module', () => {
   });
 
   it('returns null for families that remain without a curator entry', () => {
-    // Slice-I + Dictionary Pedagogy Phase 1 cover the six curator-named
+    // Curator invariant entries cover the six curator-named
     // terminal-family candidates (whirl, rev-whirl, butterfly, mirage,
     // osis, swirl). Non-terminal families and branch families remain
     // without invariants and return null.

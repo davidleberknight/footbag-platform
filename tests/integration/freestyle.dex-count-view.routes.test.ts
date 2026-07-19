@@ -1,8 +1,7 @@
 /**
- * Dex-count browse view (?view=dex-count) — Phase 4.1 prototype.
+ * Dex-count browse view (?view=dex-count).
  *
- * The notation-display audit (2026-05-24) recommended `?view=dex-count`
- * as the highest-priority new browse axis. Buckets canonical tricks by
+ * Buckets canonical tricks by
  * the number of [DEX] tokens in their operational_notation:
  *
  *   0 dex events  — kicks / stalls / set primitives

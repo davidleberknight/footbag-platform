@@ -50,7 +50,7 @@ describe('freestyleSymbolicEquivalences — registry hygiene', () => {
 });
 
 describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', () => {
-  // S2 entries (already locked in earlier slice):
+  // S2 entries (canon-locked):
   it('S2 entries: torque / blender / drifter / vortex / eggbeater / omelette', () => {
     expect(getSymbolicEquivalenceChain('torque')?.readings).toEqual(['quantum osis']);
     expect(getSymbolicEquivalenceChain('blender')?.readings).toEqual(['whirling osis']);
@@ -61,7 +61,7 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
     expect(getSymbolicEquivalenceChain('omelette')?.readings).toEqual(['atomic illusion']);
   });
 
-  // NR-1 entries (this slice; 17 maintainer-approved canon-locked readings):
+  // NR-1 entries (17 maintainer-approved canon-locked readings):
   it('NR-1 illusion-family: flail / smudge', () => {
     expect(getSymbolicEquivalenceChain('flail')?.readings).toEqual(['symposium illusion']);
     expect(getSymbolicEquivalenceChain('smudge')?.readings).toEqual(['pixie illusion']);
@@ -72,15 +72,14 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
     expect(getSymbolicEquivalenceChain('smog')?.readings).toEqual(['pixie double legover']);
   });
 
-  it('NR-1 royale + dlo (flurry SE chain removed 2026-05-26 per S3/S5 governance migration)', () => {
+  it('NR-1 royale + dlo (flurry has no SE chain; S9 sole owner)', () => {
     expect(getSymbolicEquivalenceChain('royale')?.readings).toEqual(['paradox reverse drifter']);
     // DLO's "miraging legover" reading is held for curator review: no chain.
     expect(getSymbolicEquivalenceChain('double_leg_over')).toBeNull();
-    // flurry's chain was removed as part of the 2026-05-26 S3/S5 slot
-    // governance migration. flurry is an equivalent-derivation case
+    // flurry carries no chain here: it is an equivalent-derivation case
     // (two valid paths converge on 4 ADD) owned exclusively by S9
-    // (EQUIVALENCE_TOPOLOGY); S5 would duplicate one path and obscure
-    // the other.
+    // (EQUIVALENCE_TOPOLOGY); an S5 chain would duplicate one path and
+    // obscure the other.
     expect(getSymbolicEquivalenceChain('flurry')).toBeNull();
   });
 
@@ -104,7 +103,7 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
   });
 
   it('all NR-1 entries are flagged curator-confirmed (not pending)', () => {
-    // flurry removed 2026-05-26 (S3/S5 governance migration; S9 sole owner)
+    // flurry is excluded: it has no SE chain (S9 sole owner)
     const nr1Slugs = [
       'flail', 'smudge', 'smoke', 'smog', 'royale',
       'surge', 'surreal', 'surgery', 'venom', 'bigwalk',
@@ -128,10 +127,10 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
   });
 });
 
-describe('freestyleSymbolicEquivalences — Pre-Red completion sweep chain additions (2026-05-16)', () => {
-  // 7 externally-supported chain entries grounded by Slice P. Each
-  // reading is structurally clean (decomposes through known operators
-  // onto a canonical base trick) and carries no Wave 2 dependency.
+describe('freestyleSymbolicEquivalences — externally-supported chain entries', () => {
+  // 7 externally-supported chain entries. Each reading is structurally
+  // clean (decomposes through known operators onto a canonical base
+  // trick).
 
   it('merkon resolves to spinning legover (FM+PB agree)', () => {
     const chain = getSymbolicEquivalenceChain('merkon');
@@ -177,7 +176,7 @@ describe('freestyleSymbolicEquivalences — Pre-Red completion sweep chain addit
     expect(chain?.curatorConfirmPending).toBe(false);
   });
 
-  it('witchdoctor SE chain removed 2026-05-26 (S3/S5 governance migration; S9 sole owner)', () => {
+  it('witchdoctor has no SE chain (S9 sole owner)', () => {
     // "atomic symposium mirage" is a historical equivalent-derivation
     // reading preserved in S9 (EQUIVALENCE_TOPOLOGY) with role='historical'.
     // S5 would compete with S9 for the same reading and confuse the
@@ -261,8 +260,8 @@ describe('freestyleSymbolicEquivalences — Path A chain additions', () => {
 });
 
 describe('freestyleSymbolicEquivalences — Path B canonical promotions', () => {
-  // 5 new canonical tricks promoted via red_additions_2026_04_20.csv on the
-  // same day. These chains land alongside the loader-19 row so the trick is
+  // 5 canonical tricks promoted via red_additions_2026_04_20.csv.
+  // These chains land alongside the loader-19 row so the trick is
   // publishable from first DB rebuild (CTPC Principle 1: symbolic
   // representation present from day one). DB-resident verification happens
   // post-rebuild and lives in integration tests, not here.
@@ -274,7 +273,7 @@ describe('freestyleSymbolicEquivalences — Path B canonical promotions', () => 
     expect(chain?.curatorConfirmPending).toBe(false);
   });
 
-  it('mantis resolves to gyro eggbeater (FM+PB agree, near=+0 positional; Red 2026-05-15 gyro)', () => {
+  it('mantis resolves to gyro eggbeater (FM+PB agree, near=+0 positional; Red-locked gyro)', () => {
     const chain = getSymbolicEquivalenceChain('mantis');
     expect(chain).not.toBeNull();
     expect(chain?.readings).toEqual(['gyro eggbeater']);

@@ -2940,6 +2940,7 @@ Seed these defaults into the database-backed configuration store during initial 
 
 - `outbox_max_retry_attempts = 5`
 - `outbox_poll_interval_seconds = 30 seconds`
+- `outbox_sending_lease_seconds = 600 seconds` (lease before a stranded sending outbox row is reaped back to pending for retry)
 - `email_outbox_paused = 0` (admin-only emergency kill switch; DB literal `0/1`)
 - `event_registration_reminder_days = 7 days`
 
@@ -2960,11 +2961,17 @@ Seed these defaults into the database-backed configuration store during initial 
 - `photo_upload_rate_limit_per_hour = 10` (maximum photo uploads per member per hour)
 - `video_submission_rate_limit_per_hour = 5` (maximum video link submissions per member per hour)
 - `media_flag_rate_limit_per_hour = 10` (maximum media flags per member per hour to prevent abuse)
+- `profile_edit_rate_limit_per_hour = 20` (maximum profile edits per member per hour)
+- `purchase_tier_rate_limit_per_hour = 20` (maximum tier-purchase attempts per member per hour)
 - `password_change_rate_limit_max_attempts = 10` (maximum authenticated password-change attempts per member per window)
 - `password_change_rate_limit_window_minutes = 15` (sliding window in minutes for counting password-change attempts per member)
 - `verify_resend_rate_limit_max_attempts = 3` (maximum verify-email resend requests per email address per window)
 - `verify_resend_rate_limit_window_minutes = 60` (sliding window in minutes for counting verify-email resend requests per email)
 - `account_claim_expiry_hours = 24` (legacy account claim token TTL in hours; per `M_Claim_Legacy_Account`)
+- `legacy_claim_init_rate_limit_max_per_member = 5` (maximum legacy-claim initiate attempts per requesting member within the window)
+- `legacy_claim_init_rate_limit_max_per_target = 3` (maximum claim emails sent for one target legacy account within the window; enforced silently so probing cannot detect the cap)
+- `legacy_claim_init_rate_limit_max_per_ip = 10` (maximum legacy-claim initiate attempts per source IP within the window; enforced silently)
+- `legacy_claim_init_rate_limit_window_minutes = 60` (sliding window in minutes for counting legacy-claim initiate attempts)
 - `hp_claim_rate_limit_max_per_member = 5` (maximum historical-person claim confirmations per member within the window)
 - `hp_claim_rate_limit_max_per_ip = 10` (maximum historical-person claim confirmations per IP address within the window)
 - `hp_claim_rate_limit_window_minutes = 60` (sliding window in minutes for counting historical-person claim confirmations)

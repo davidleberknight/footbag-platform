@@ -3,7 +3,7 @@
  * one-liners. The /freestyle/sets surface previously rendered six
  * bare h2 category headings with no inline framing. The curator-
  * authored intros already exist in SET_SUBTYPE_SPECS in
- * freestyleCanonicalSets.ts; this slice surfaces them under each h2.
+ * freestyleCanonicalSets.ts; the page surfaces them under each h2.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

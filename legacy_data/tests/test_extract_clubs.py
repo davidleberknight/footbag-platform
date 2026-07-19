@@ -84,7 +84,7 @@ def test_phone_shaped_runs_are_removed(phone):
 def test_seven_digit_messenger_id_is_removed():
     # A Gadu-Gadu / messenger number is direct personal contact, the same class
     # as a phone, and falls in the 7 to 14 digit band.
-    assert "6935211" not in scrub("gg: 6935211")
+    assert "5550104" not in scrub("gg: 5550104")
 
 
 # ─── preserved digit runs ────────────────────────────────────────────────────

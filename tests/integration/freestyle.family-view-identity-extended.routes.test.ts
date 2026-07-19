@@ -1,20 +1,19 @@
 /**
- * Integration tests for Slice A3 of the 2026-05 dictionary/glossary
- * normalization plan — Family View formula-chain extension to butterfly,
- * mirage, and torque/osis pilot families.
+ * Integration tests for the Family View formula-chain extension to the
+ * butterfly, mirage, and torque/osis pilot families.
  *
- * Contract pinned: same as Slice A2 (see family-view-identity.routes.test.ts)
- * but extended to three additional pilot families. The cross-view identity
- * invariant — first-reading tokens identical across ADD View and Family
- * View — is the load-bearing assertion. Slice A3 adds curator-authored
- * chains for 17 trivially-named or doctrine-locked compounds; this file
- * pins the rendering of the cohort.
+ * Contract pinned: the same cross-view identity contract as
+ * family-view-identity.routes.test.ts, extended to three additional
+ * pilot families. The cross-view identity invariant — first-reading
+ * tokens identical across ADD View and Family View — is the load-bearing
+ * assertion. Curator-authored chains cover 17 trivially-named or
+ * doctrine-locked compounds; this file pins the rendering of the cohort.
  *
  * What this file does NOT assert (intentional):
  *   - parkwalk, blur, witchdoctor, fury, spinal-tap rendering (folk-name
  *     compounds deliberately deferred to curator review).
- *   - Multi-family memberships (Slice D scope).
- *   - Category-view changes (Slice D scope).
+ *   - Multi-family memberships (out of scope here; covered separately).
+ *   - Category-view changes (out of scope here; covered separately).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -104,24 +103,21 @@ const ALL_PILOTS = [...BUTTERFLY_PILOTS, ...MIRAGE_PILOTS, ...OSIS_PILOTS, ...TO
 // instead through the first-class summary row (paradox(+1) + mirage(2) =
 // 3 ADD), which is the authoritative parity contract for first-class
 // tricks. Non-first-class compounds (paradox-whirl, spinning-osis, etc.)
-// continue to render their tautological chains per the Slice A2/A3
-// contract — the role-colored tokens with glossary links remain useful
-// there.
+// continue to render their tautological chains — the role-colored
+// tokens with glossary links remain useful there.
 //
 // Membership tracks FIRST_CLASS_TIER_1 ∪ FIRST_CLASS_TIER_2 in
 // src/services/freestyleService.ts. When a tautological-chain slug is
 // promoted into either tier, add it here.
 const FIRST_CLASS_TAUTOLOGICAL = new Set([
-  // Tier 2 original (2026-05-20):
+  // Tier 2 members:
   'paradox-mirage', 'symposium-mirage', 'atomic-butterfly',
-  // Tier 2 expansion (2026-05-20):
   'ducking-butterfly', 'spinning-butterfly', 'stepping-osis',
-  // Tier 2 Wave 2 RESOLVED_FORMULAS promotions (2026-05-22):
   'ducking-osis', 'spinning-osis', 'paradox-torque', 'spinning-torque',
-  // 2026-05-24: universal tautological-reading filter expanded. Any
-  // slug whose firstReadingTokens.join(' ') equals the canonical name
-  // drops at the shaping layer regardless of first-class membership.
-  // Non-first-class tautological slug added below.
+  // The universal tautological-reading filter also applies: any slug
+  // whose firstReadingTokens.join(' ') equals the canonical name drops
+  // at the shaping layer regardless of first-class membership.
+  // Non-first-class tautological slug:
   'blurry-torque',
 ]);
 const PILOTS_WITH_CHAINS = ALL_PILOTS
@@ -143,7 +139,7 @@ beforeAll(async () => {
   }
 
   // Non-trick guard rows. They share the target family slugs so the
-  // Slice A filter is exercised against the same buckets.
+  // non-trick discriminator filter is exercised against the same buckets.
   insertFreestyleTrick(db, {
     slug:           'paradox',
     canonical_name: 'paradox',
@@ -232,7 +228,7 @@ describe('Family View — chain entries surface as visible formulas', () => {
 });
 
 describe('ADD View and Family View — shared two-line row contract, shared first reading', () => {
-  // 2026-05-27: both ADD and Family render the same generalized two-line
+  // Both ADD and Family render the same generalized two-line
   // dict-trick-row contract; only the grouping differs. Shared across both:
   // data-trick-slug, the dict-trick-row-title detail link, the ADD value on
   // the line-2 ADD slot, and the first-reading ≡ tokens in the line-1
@@ -286,7 +282,7 @@ describe('ADD View and Family View — shared two-line row contract, shared firs
 });
 
 describe('Family View — non-trick filter regression guard', () => {
-  // After Slice A3 cohort expansion, modifier / operator rows must
+  // Even with the expanded pilot cohort, modifier / operator rows must
   // still be filtered from family-view buckets.
   it('paradox (modifier) does NOT appear in family view even with trick_family=mirage', async () => {
     const app = createApp();

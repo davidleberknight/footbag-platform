@@ -1,12 +1,13 @@
 /**
- * Service-shape tests for Slice L1 — the Movement System view projection.
+ * Service-shape tests for the Movement System view projection.
  *
- * Slice L1 is data-only — no UI is wired in this slice. These tests
- * therefore call freestyleService.getFreestyleTricksIndexPage() directly
- * and inspect the resulting `content.movementSystemView` shape.
+ * These tests exercise the data projection only: they call
+ * freestyleService.getFreestyleTricksIndexPage() directly and inspect
+ * the resulting `content.movementSystemView` shape.
  *
- * The UI branch (?view=movement-system) ships in Slice L2; route-level
- * integration coverage is added then.
+ * The UI branch (?view=movement-system) is a separate surface;
+ * route-level integration coverage lives with the browse-view route
+ * tests, not here.
  *
  * Scope verified:
  *   - movementSystemView exists on FreestyleTricksIndexContent
@@ -79,7 +80,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 // ─────────────────────────────────────────────────────────────────────────
-// Service shape — direct invocation; route-level tests deferred to Slice L2.
+// Service shape — direct invocation; route-level coverage lives elsewhere.
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('Movement System view shape on FreestyleTricksIndexContent', () => {
@@ -188,7 +189,7 @@ describe('Movement System view shape on FreestyleTricksIndexContent', () => {
 
     for (const axis of view.axes) {
       for (const card of axis.cards) {
-        // The Slice A discriminator filter must apply uniformly across browse views.
+        // The non-trick discriminator filter must apply uniformly across browse views.
         expect(card.kind).toBe('trick');
         // Each card must carry the canonical view-model fields the partial reads.
         expect(typeof card.slug).toBe('string');

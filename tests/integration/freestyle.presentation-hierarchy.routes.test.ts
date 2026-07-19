@@ -1,7 +1,7 @@
 /**
  * Integration tests for the dictionary-trick-card presentation hierarchy.
  *
- * Long-term contract (post PRESENTATION_OBJECT_HIERARCHY audit, 2026-05-16):
+ * Long-term contract:
  *
  *   The canonical field order in EVERY browse view, regardless of density,
  *   is:
@@ -46,8 +46,8 @@ const { dbPath } = setTestEnv('3101');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
-// Wave 3 (2026-05-22): paradox-whirl + spinning-whirl removed —
-// promoted into FIRST_CLASS_TIER_2 alongside symposium-whirl (Wave 2).
+// paradox-whirl + spinning-whirl are absent from PILOTS — they are
+// promoted into FIRST_CLASS_TIER_2 alongside symposium-whirl.
 // First-class compounds with tautological chain readings (canonical-
 // name-equal) have those readings suppressed AND have no inline
 // dict-card-notation rendered, so the "formula" slot no longer falls
@@ -224,7 +224,7 @@ describe('Presentation-hierarchy contract — dict-card-header is removed everyw
       expect(res.status).toBe(200);
       expect(
         res.text,
-        `dict-card-header wrapper still present at ${url} — Slice should have removed it`,
+        `dict-card-header wrapper must not render at ${url}`,
       ).not.toContain('class="dict-card-header"');
     }
   });

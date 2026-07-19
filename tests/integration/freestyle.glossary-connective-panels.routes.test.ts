@@ -83,8 +83,8 @@ afterAll(() => cleanupTestDb(dbPath));
 describe('GET /freestyle/glossary — connective panels section', () => {
   it('renders the Family & Topology Concepts section heading and anchor', async () => {
     // The id="connective-panels" anchor is preserved (anchor-preservation
-    // forever-rule). Phase E (2026-05-22) re-tiered the glossary and
-    // dropped numeric section prefixes from headings.
+    // forever-rule). Glossary headings carry no numeric section
+    // prefixes.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Family &amp; Topology Concepts/);
@@ -92,7 +92,7 @@ describe('GET /freestyle/glossary — connective panels section', () => {
   });
 
   it('preserves the primer + reference sections above and below the panels', async () => {
-    // Phase E re-tier: §1 reframed as "Movement Basics"; ADD Accounting
+    // The glossary opens with "Movement Basics"; ADD Accounting
     // holds the per-trick ADD definition; Sources closes the glossary.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/Movement Basics/);
@@ -158,10 +158,9 @@ describe('GET /freestyle/glossary — connective panels section', () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     const hintCount = (res.text.match(/Notation hint/g) ?? []).length;
     expect(hintCount).toBe(6);
-    // Specific operator references. Paradox hint updated 2026-05-17
-    // (Formula Accountability Slice) to surface the canonical formula
-    // `PDX → CLIP > OP IN [DEX]` explicitly instead of the prior
-    // `(PDX) flag on a dex beat` framing.
+    // Specific operator references. The paradox hint surfaces the
+    // canonical formula
+    // `PDX → CLIP > OP IN [DEX]` explicitly.
     expect(res.text).toContain('PDX');
     expect(res.text).toMatch(/CLIP\s*&gt;\s*OP IN\s*\[DEX\]/);
     expect(res.text).toContain('(no plant while)');
@@ -170,10 +169,9 @@ describe('GET /freestyle/glossary — connective panels section', () => {
   });
 
   it('spinning panel includes deep-link to /freestyle/modifier/spinning', async () => {
-    // GA Phase 6 (2026-05-21) standardized the connective-panel deep-
-    // link phrasing from "Learn more about {displayName} →" to
+    // The connective-panel deep-link phrasing is the standardized
     // "Modifier reference →" via the .panel-deep-link.glossary-
-    // outward-link class. The href destination is unchanged.
+    // outward-link class.
     const res = await request(createApp()).get('/freestyle/glossary');
     const spinningStart = res.text.indexOf('id="glossary-panel-spinning"');
     const whirlStart = res.text.indexOf('id="glossary-panel-whirl"');

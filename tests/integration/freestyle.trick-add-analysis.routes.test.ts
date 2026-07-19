@@ -76,17 +76,17 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('Trick-detail Tier-4 ADD block — resolved-formula slugs', () => {
-  // 2026-05-23 curator-rendered-output audit: the previously-collapsed
-  // <details> disclosure was replaced with an expand-by-default <dl>
-  // "ADD"-labeled row. The contract now mirrors the Notation Summary
-  // card's ADD slot (visible-by-default labeled formula).
+  // The ADD block renders as an expand-by-default <dl> "ADD"-labeled
+  // row, never a collapsed <details> disclosure. The contract mirrors
+  // the Notation Summary card's ADD slot (visible-by-default labeled
+  // formula).
 
   it('renders the ADD block on paradox_mirage (non-first-class compound)', async () => {
     // Note: paradox_mirage may be first-class and render via the
     // Notation Summary instead; assert the derivation text is present
     // somewhere on the page rather than which container holds it.
-    // Slice D 2026-05-26: trailing `= 3 ADD` is stripped on trick-detail
-    // surfaces (the hero ADD chip is the authoritative total).
+    // The trailing `= 3 ADD` is stripped on trick-detail surfaces
+    // (the hero ADD chip is the authoritative total).
     const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/paradox\(\+1\) \+ mirage\(2\)/);
@@ -103,7 +103,7 @@ describe('Trick-detail Tier-4 ADD block — resolved-formula slugs', () => {
 
   it('ADD block renders expand-by-default (no <details> collapse remaining)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
-    // The collapsed <details> pattern was retired 2026-05-23.
+    // The collapsed <details> pattern must not render.
     expect(res.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
     expect(res.text).not.toMatch(/Click to expand/);
   });
@@ -141,7 +141,7 @@ describe('Trick-detail Tier-4 ADD-analysis disclosure — 4-tier hierarchy contr
   });
 
   it('Tier-4 derivation pattern absent from /freestyle/tricks?view=add browse OUTSIDE first-class cards', async () => {
-    // Note: as of the FC pilot (2026-05-19), the compact first-class
+    // Note: the compact first-class
     // secondary row deliberately renders ADD-breakdown patterns on the
     // 5 pilot browse cards (osis / paradox_mirage / symposium_mirage /
     // atomic_butterfly / ripwalk). The contract still forbids Tier-4
@@ -154,10 +154,10 @@ describe('Trick-detail Tier-4 ADD-analysis disclosure — 4-tier hierarchy contr
     for (const slug of FIRST_CLASS_PILOT_SLUGS) {
       sweep = sweep.replace(new RegExp(`<article[^>]*data-trick-slug="${slug}"[\\s\\S]*?</article>`, 'g'), '');
     }
-    // Slice D 2026-05-26: the `= 3 ADD` terminator is stripped from
-    // trick-detail + first-class browse breakdowns, so this negative
-    // assertion is now trivially satisfied; it still pins the contract
-    // that the Tier-4 derivation-fields class is browse-card-forbidden.
+    // The `= 3 ADD` terminator is stripped from trick-detail +
+    // first-class browse breakdowns, so this negative assertion is
+    // trivially satisfied; it still pins the contract that the Tier-4
+    // derivation-fields class is browse-card-forbidden.
     expect(sweep).not.toMatch(/paradox\(\+1\) \+ mirage\(2\) (=|&#x3D;) 3 ADD/);
     expect(sweep).not.toMatch(/class="trick-add-analysis-fields"/);
   });

@@ -1,5 +1,5 @@
 /**
- * Rendered-output regression suite — Pass 3 (curator audit, 2026-05-24).
+ * Rendered-output regression suite (curator audit).
  *
  * This suite asserts against the ACTUAL rendered HTML for each trick
  * page the curator's audit flagged. The goal is to catch any future
@@ -268,7 +268,7 @@ describe('Compound-description slot leakage prevention', () => {
 
 // ── Token normalization: BOD + UNS uppercase ─────────────────────────────
 describe('Token normalization: BOD + UNS uppercase in ADD displays', () => {
-  // Slice D 2026-05-26: `= N ADD` terminator stripped from breakdowns.
+  // The `= N ADD` terminator is not rendered in breakdowns.
   it('flying_inside renders ADD with uppercase BOD(1)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/flying_inside');
     expect(res.text).toMatch(/BOD\(1\)/);
@@ -292,11 +292,10 @@ describe('Emerging Vocabulary remains accessible', () => {
   });
 
   it('the dictionary landing surfaces a link to Emerging Vocabulary', async () => {
-    // DL-1+2+5 2026-05-26: Emerging Vocabulary moved from a separate
-    // footer-style paragraph into the landing grid's third band
-    // ("TRACKING & EXPANSION"). The display label is now sentence case
-    // ("Emerging vocabulary"); the /freestyle/observational route is
-    // unchanged.
+    // Emerging Vocabulary renders inside the landing grid's third band
+    // ("TRACKING & EXPANSION"), not as a separate footer-style
+    // paragraph. The display label is sentence case
+    // ("Emerging vocabulary"); the route is /freestyle/observational.
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/Emerging vocabulary/);
     expect(res.text).toContain('href="/freestyle/observational"');

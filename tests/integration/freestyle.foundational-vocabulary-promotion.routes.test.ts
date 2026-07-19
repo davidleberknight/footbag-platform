@@ -1,7 +1,7 @@
 /**
  * Foundational-vocabulary canonical trick promotion: routes and rendering.
  *
- * Conservative slice promoting 4 foundational rows:
+ * Conservatively promotes 4 foundational rows:
  *   1. around-the-world-kick (NEW; 1 ADD; kick-rule)
  *   2. clipper                (EXISTING row; +operationalNotation overlay)
  *   3. triple-around-the-world (NEW; 4 ADD; sibling derivation)
@@ -219,13 +219,12 @@ describe('Foundational-vocabulary promotion — provenance is visible, not silen
 // ─────────────────────────────────────────────────────────────────────────
 // Canonical browse-view regression — the public browse surface a viewer sees.
 //
-// Per curator pushback 2026-05-25: detail-route + content-overlay tests
+// Curator requirement: detail-route + content-overlay tests alone
 // are insufficient — the canonical browse view at /freestyle/tricks?view=add
 // must visibly render the promoted rows. These tests assert that.
 //
 // The test DB seeds the 4 promoted slugs (the same way the production DB
-// will look after loader 19 has ingested them, which has already been
-// done in dev — see commit message). The browse-view assertions verify
+// looks after loader 19 has ingested them). The browse-view assertions verify
 // that each slug renders an article card in its expected ADD bucket and
 // that the JOB row is present on the card.
 // ─────────────────────────────────────────────────────────────────────────
@@ -274,10 +273,10 @@ describe('Foundational-vocabulary promotion — canonical browse view (/freestyl
 
 describe('Foundational-vocabulary promotion — Emerging Vocabulary no longer counts the promoted slugs', () => {
   it('TRACKED_DOCUMENTED_TOTAL is bounded after promoted slugs moved to canonical-published state', async () => {
-    // The total fluctuates: promotion waves drop it; corpus-expansion
-    // waves raise it (Wave 0 added ~1700 names to the reconciliation
-    // audit). The load-bearing check is slug-absence (see the next
-    // assertion below); this count assertion is a sanity ceiling.
+    // The total fluctuates: promotions drop it; corpus expansions
+    // raise it (the reconciliation audit added ~1700 names). The
+    // load-bearing check is slug-absence (see the next assertion
+    // below); this count assertion is a sanity ceiling.
     const { TRACKED_DOCUMENTED_TOTAL } = await import('../../src/content/freestyleTrackedNames');
     expect(TRACKED_DOCUMENTED_TOTAL).toBeGreaterThan(0);
     expect(TRACKED_DOCUMENTED_TOTAL).toBeLessThanOrEqual(5000);
@@ -297,12 +296,12 @@ describe('Foundational-vocabulary promotion — Emerging Vocabulary no longer co
     expect(allTrackedSlugs.has('clipper_kick')).toBe(false);
   });
 
-  it('/freestyle/observational page renders an updated (lower) count, not the pre-session 558', async () => {
+  it('/freestyle/observational page renders a reduced count, not 558', async () => {
     const res = await request(await createApp()).get('/freestyle/observational');
     expect(res.status).toBe(200);
-    // Pre-session was 558; this slice + subsequent slices reduce the
-    // count as more slugs promote out of observational. Assert it's
-    // no longer 558.
+    // Without any promotions the tracked count renders as 558;
+    // promotions reduce it as slugs promote out of observational.
+    // Assert the un-promoted 558 does not render.
     expect(res.text).not.toContain('558 more documented names');
   });
 

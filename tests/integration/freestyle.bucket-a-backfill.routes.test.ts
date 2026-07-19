@@ -31,8 +31,8 @@
  *   NOT Bucket A still render "JOB: canonical decomposition pending" when their DB
  *   op_notation is empty and they have no overlay.
  *
- * Per the slice rules ("controlled content backfill, not auto-derivation
- * system"), this file pins every Bucket A slug explicitly so any future
+ * The backfill is a controlled content backfill, not an auto-derivation
+ * system, so this file pins every Bucket A slug explicitly so any future
  * change to the backfill set is visible in the test diff.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -230,7 +230,7 @@ describe('Bucket A backfill — every slug has operationalNotation in RESOLVED_A
 
   it('the Bucket A backfill set is exactly 19 entries with provenance markers', () => {
     // Count entries whose operationalNotation provenance came from the
-    // 2026-05-25 Bucket A backfill. Detection signal: the source code
+    // Bucket A backfill. Detection signal: the source code
     // adds an inline comment `Bucket A sibling-derivation` next to each
     // backfilled operationalNotation. We can't read source comments
     // from runtime; instead we just assert the set is at least 19.

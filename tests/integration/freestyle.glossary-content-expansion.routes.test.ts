@@ -71,7 +71,7 @@ describe('Glossary §3 — Direction subsection', () => {
     expect(res.text).toMatch(/rev\(0\)/);
     // names the reverse-pair relationship (illusion is rev(0) mirage)
     expect(res.text).toMatch(/illusion[\s\S]{0,80}reverse[\s\S]{0,40}mirage/i);
-    // and the modifier-layer instance from the 2026-05-29 ruling
+    // and the curator-ruled modifier-layer instance
     expect(res.text).toMatch(/illusioning[\s\S]{0,40}miraging/i);
   });
 
@@ -105,7 +105,7 @@ describe('Glossary §7 — visible glyph quick-reference', () => {
 
   it('renders the key operator glyphs inside the quick-reference', async () => {
     // Spot-check a representative glyph from each tier. The exact count is
-    // operator-board-cell-count (13 post-Slice-B), pinned in the portal
+    // operator-board-cell-count (13), pinned in the portal
     // test file; here we just verify the cohort is present.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
@@ -148,10 +148,10 @@ describe('Glossary §8 — walking-family progression', () => {
   });
 
   it('renders the compositional formula next to each non-base compound', async () => {
-    // Slice L-polish (2026-05-16): walking-family formulas are now
-    // token-colored — each word renders inside <span class="notation-token
-    // notation-...">; markup interleaves between tokens. Match token-by-
-    // token rather than contiguous-substring.
+    // Walking-family formulas are token-colored — each word renders
+    // inside <span class="notation-token notation-...">; markup
+    // interleaves between tokens. Match token-by-token rather than
+    // contiguous-substring.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.text).toMatch(/notation-token[^>]*>stepping<[\s\S]*?notation-token[^>]*>butterfly</);
@@ -168,9 +168,9 @@ describe('Glossary §8 — walking-family progression', () => {
 
 describe('Glossary §9 — representative-selection framing', () => {
   it('renders the "representative selection, not comprehensive" framing', async () => {
-    // Slice K (2026-05-16) strengthened the framing: "not a comprehensive
-    // topology atlas" replaced the bare "not comprehensive" phrasing; the
-    // section is also explicitly marked "intentionally incomplete".
+    // The framing is deliberate: the section presents itself as "not a
+    // comprehensive topology atlas" and is explicitly marked
+    // "intentionally incomplete".
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.text).toMatch(/representative selection/i);
@@ -211,10 +211,8 @@ describe('Glossary §12 — named source families', () => {
 
 describe('Landing page — Watch & Learn card', () => {
   it('does not render the retired "Educational pathways" chip', async () => {
-    // Slice C (2026-05) removed the Educational-pathways chip from the
-    // landing tutorials card. The two-band landing rebuild (Phase C,
-    // 2026-05-22) renamed that card to "Watch & Learn"; the chip must
-    // not return.
+    // The Educational-pathways chip is not rendered on the landing
+    // tutorials card ("Watch & Learn"); the chip must not return.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.status).toBe(200);

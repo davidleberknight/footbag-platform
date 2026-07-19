@@ -263,8 +263,8 @@ describe('Items 5 + 6 + 8: cloud_kick formula rows', () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks/cloud_kick');
     expect(res.status).toBe(200);
-    // Slice D 2026-05-26: the `= 1 ADD` terminator is stripped from
-    // trick-detail breakdowns; the hero ADD chip carries the total.
+    // The `= 1 ADD` terminator is not rendered in trick-detail
+    // breakdowns; the hero ADD chip carries the total.
     // Still pin uppercase UNS and absence of the "unusual surface" long form.
     expect(res.text).toMatch(/UNS\(1\)/);
     expect(res.text).not.toMatch(/unusual surface\(\d+\)/);
@@ -383,7 +383,7 @@ describe('Item 9: double_around_the_world + double_leg_over formula rows', () =>
     // structural assertion ("right tokens, right order"), not a text
     // substring assertion.
     expect(res.text).toMatch(/>TOE<[\s\S]+?>SAME<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>TOE<[\s\S]+?>\[DEL\]</);
-    // Slice D 2026-05-26: `= 3 ADD` stripped from trick-detail breakdowns.
+    // The `= 3 ADD` terminator is not rendered in trick-detail breakdowns.
     expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)/);
   });
 

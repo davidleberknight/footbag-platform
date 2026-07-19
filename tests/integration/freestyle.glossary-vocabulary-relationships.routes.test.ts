@@ -83,7 +83,7 @@ describe('Glossary Vocabulary Relationships subsection', () => {
     expect(res.text).toMatch(/furious\(\+2\)[\s\S]*legover\(2\)[\s\S]*4 ADD/i);
     // witchdoctor: composite-base + historical
     expect(res.text).toMatch(/witchdoctor/i);
-    // Slice 5: atom-smasher is now hyperlinked, so its closing </a> sits
+    // atom-smasher is hyperlinked, so its closing </a> sits
     // between the trick name and "+ symposium".
     expect(res.text).toMatch(/atom-smasher<\/a>\s*\+ symposium/i);
     expect(res.text).toMatch(/atomic symposium mirage/i);

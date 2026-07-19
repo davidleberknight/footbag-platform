@@ -48,7 +48,7 @@ const VALID_PATTERNS: ReadonlySet<EquivalencePattern> = new Set<EquivalencePatte
 ]);
 
 describe('freestyleEquivalenceTopology — schema invariants', () => {
-  it('exposes a non-empty readonly entries array (Phase 1 pilot)', () => {
+  it('exposes a non-empty readonly entries array', () => {
     expect(EQUIVALENCE_TOPOLOGY.length).toBeGreaterThan(0);
   });
 
@@ -161,7 +161,7 @@ describe('freestyleEquivalenceTopology — ratified membership', () => {
     expect(witchdoctor?.curatorConfirmPending).toBe(false);
   });
 
-  it('witchdoctor canonical-primary is the composite-base reading (Red 2026-05-20)', () => {
+  it('witchdoctor canonical-primary is the composite-base reading (Red ruling)', () => {
     const witchdoctor = getEquivalenceTopologyFor('witchdoctor');
     expect(witchdoctor?.derivations[0].role).toBe('canonical-primary');
     expect(witchdoctor?.derivations[0].reading).toBe('atom-smasher + symposium');

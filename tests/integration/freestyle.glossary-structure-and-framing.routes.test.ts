@@ -138,9 +138,9 @@ describe('GET /freestyle/glossary — Generative insight (§7)', () => {
 describe('GET /freestyle/glossary — no curator-internal language across new subsections', () => {
   it('the full page does not expose pt## tags, Wave-N tracking, or sprint labels', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    // Per feedback_public_facing_prose: strip pt##/Red/James/
-    // adjudication/dated curator-reviewed language from public prose.
-    // Our Phase 1 additions specifically must not introduce such language.
+    // Public prose must not carry pt##/Red/James/adjudication/dated
+    // curator-review language. The subsections this suite covers must
+    // not introduce such language.
     const newAdditionsRegion = (() => {
       const a = res.text.indexOf('id="how-to-read"');
       const b = res.text.indexOf('id="derivation-atlas"', a);

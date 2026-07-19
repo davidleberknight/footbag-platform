@@ -213,7 +213,7 @@ beforeAll(async () => {
     adds: '2',
   });
   // paradox-mirage is non-core with a resolvable base; surfaces both a
-  // chain reading (Slice A3, 2026-05) AND the base_trick lineage.
+  // chain reading AND the base_trick lineage.
   insertFreestyleTrick(db, {
     slug: 'paradox-mirage',
     canonical_name: 'paradox mirage',
@@ -222,11 +222,10 @@ beforeAll(async () => {
   });
   // Synthetic test fixture: non-core with a resolvable base and
   // intentionally NO chain entry — tests Layer 3 lineage rendering.
-  // Previously seeded as 'parkwalk' but Pre-Red completion sweep
-  // (2026-05-16) added a chain entry for parkwalk (FM+PB agree on
-  // 'pixie butterfly'); synthetic fixture avoids future chain-registry
-  // drift collisions, matching the nf2b-gap convention used for the
-  // Layer-5b fixture below.
+  // A synthetic slug (rather than a real trick such as parkwalk, which
+  // carries a chain entry: FM+PB agree on 'pixie butterfly') can never
+  // collide with chain-registry growth, matching the nf2b-gap
+  // convention used for the Layer-5b fixture below.
   insertFreestyleTrick(db, {
     slug: 'nf3-layer3-fixture',
     canonical_name: 'nf3 layer3 fixture',
@@ -594,7 +593,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   it('returns 200 with page title', async () => {
     const res = await request(createApp()).get('/freestyle/observational');
     expect(res.status).toBe(200);
-    // 2026-05-23 public-label rename: "Observed Tricks" → "Emerging Vocabulary".
+    // The public label for the observational layer is "Emerging Vocabulary".
     expect(res.text).toContain('Emerging Vocabulary');
   });
 
@@ -612,14 +611,12 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   });
 
   it('previously-canonicalized entries (assassin / big-apple / mantis) do NOT appear in the observational layer', async () => {
-    // Regression test for 2026-05-18 layer-coexistence finding.
-    //
-    // FM Slice X Path B pilot canonical 2026-05-17 promoted these three
-    // slugs to canonical (freestyle_tricks.slug) but did not remove the
-    // observational entries — the canonical-promotion process documented
-    // in the content module's JSDoc says "move the row to inputs/
+    // Layer-coexistence regression: these three slugs are canonical
+    // (freestyle_tricks.slug), and their observational entries must
+    // stay removed — the canonical-promotion process documented in the
+    // content module's JSDoc says "move the row to inputs/
     // curated/tricks/<slug>.txt + re-run loader + REMOVE the
-    // observational entry", but the third step was skipped.
+    // observational entry", and that third step has been skipped before.
     //
     // Layer separation contract requires:
     //   observational.folkSlug != canonical freestyle_tricks.slug
@@ -643,11 +640,11 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   });
 
   it('every card carries a two-letter source badge with tooltip attribution', async () => {
-    // Compact-card pattern (A2/A3/A4 redesign): the verbose
-    // "observational · {sourceLabel}" prose is replaced by a 2-letter
-    // source badge with title/aria-label carrying the full source
-    // citation. Badge variants are PB / FM / SG / FF / FB / OTHER
-    // (FB added 2026-05-20 for footbag.org /newmoves source).
+    // Compact-card pattern: each card carries a 2-letter source badge
+    // with title/aria-label carrying the full source citation, rather
+    // than verbose "observational · {sourceLabel}" prose. Badge
+    // variants are PB / FM / SG / FF / FB / OTHER
+    // (FB covers the footbag.org /newmoves source).
     const res = await request(createApp()).get('/freestyle/observational');
     const badgeMatches = res.text.match(
       /class="observed-card-source-badge observed-card-source-badge--(PB|FM|SG|FF|FB|OTHER)"[^>]*title="[^"]+"[^>]*>(PB|FM|SG|FF|FB|OTHER)</g,
@@ -660,9 +657,9 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   it('renders the source-summary chip strip beneath canonical references', async () => {
     // content.sources collects unique source badges represented across
     // the page. Renders only when content.sources.length > 0.
-    // Chip labels were changed 2026-05-27 from raw badge codes (PB/FM/SG)
-    // to human-readable source names (PassBack / FootbagMoves / Stanford
-    // shorthand). The CSS class still carries the badge code.
+    // Chip labels are human-readable source names (PassBack /
+    // FootbagMoves / Stanford shorthand), not raw badge codes
+    // (PB/FM/SG). The CSS class carries the badge code.
     const res = await request(createApp()).get('/freestyle/observational');
     expect(res.text).toMatch(/class="observed-source-strip"/);
     expect(res.text).toMatch(
@@ -693,8 +690,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     // or any other folk slug. Sample covers seeds + Batch B expansion
     // (apostrophe-derived slugs, all-caps acronyms, multi-word).
     // Note: assassin / big-apple / mantis are NOT in this iteration —
-    // they're now canonical and were removed from the observational
-    // module 2026-05-18.
+    // they are canonical-only and absent from the observational module.
     for (const folkSlug of [
       'blizzard', 'blaze', 'bedwetter', 'sole-survivor',
       'anonymous', 'bladerunner', 'gdlo', 'gybas',
@@ -717,7 +713,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     for (const name of [
       // Observational-only names that must NOT appear on canonical surfaces.
       // 'Assassin' / 'Big Apple' / 'Mantis' are NOT in this list — they are
-      // canonical (promoted 2026-05-17) and legitimately appear on those pages.
+      // canonical and legitimately appear on those pages.
       'Blizzard', 'Blaze', 'Bedwetter', 'Sole Survivor',
       'Anonymous', 'Bladerunner', 'Flurricane', 'Locomotion', 'Your Mom',
     ]) {
@@ -734,7 +730,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     for (const name of [
       // Observational-only names that must NOT appear on canonical surfaces.
       // 'Assassin' / 'Big Apple' / 'Mantis' are NOT in this list — they are
-      // canonical (promoted 2026-05-17) and legitimately appear on those pages.
+      // canonical and legitimately appear on those pages.
       'Blizzard', 'Blaze', 'Bedwetter', 'Sole Survivor',
       'Anonymous', 'Bladerunner', 'Flurricane', 'Locomotion', 'Your Mom',
     ]) {
@@ -748,7 +744,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     for (const name of [
       // Observational-only names that must NOT appear on canonical surfaces.
       // 'Assassin' / 'Big Apple' / 'Mantis' are NOT in this list — they are
-      // canonical (promoted 2026-05-17) and legitimately appear on those pages.
+      // canonical and legitimately appear on those pages.
       'Blizzard', 'Blaze', 'Bedwetter', 'Sole Survivor',
       'Anonymous', 'Bladerunner', 'Flurricane', 'Locomotion', 'Your Mom',
     ]) {
@@ -758,7 +754,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   });
 
   it('expansion-cohort entries with null proposedAddFormula render without the formula block', async () => {
-    // Phase A.1 contract: the 65 Batch B expansion entries set
+    // Expansion-cohort contract: the 65 Batch B expansion entries set
     // proposedAddFormula=null. The template's {{#if proposedAddFormula}}
     // guard means the formula <code> block does not render for these
     // entries. Cards still render the proposedAddTotal where present.
@@ -886,11 +882,11 @@ describe('GET /freestyle/glossary', () => {
   it('contains structural-compression and core-trick concepts', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    // V5: §7 carries the notation thesis (with Jobs notation reference
+    // §7 carries the notation thesis (with Jobs notation reference
     // preserved as the historical name of the semantic layer); §composition
     // hosts the worked structural-compression treatment as part of the
-    // Vocabulary Relationships subsection (2026-05-25). §5 hosts the
-    // core trick structures grid.
+    // Vocabulary Relationships subsection. §5 hosts the core trick
+    // structures grid.
     expect(res.text).toMatch(/Structural compression/);
     expect(res.text).toMatch(/Jobs notation/);
     expect(res.text).toContain('Core Trick Families');
@@ -1354,9 +1350,9 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
   });
 
   it('Layer 3: renders "Built on <base>" for a non-core trick with resolvable base_trick and no chain (nf3-layer3-fixture)', async () => {
-    // Synthetic test fixture used in place of parkwalk after the
-    // Pre-Red 2026-05-16 sweep added a curator-confirm-pending chain
-    // entry for parkwalk. The fixture matches the same conditions:
+    // Synthetic test fixture used in place of parkwalk, whose
+    // curator-confirm-pending chain entry would defeat the no-chain
+    // condition. The fixture matches the same conditions:
     // non-core slug, resolvable base_trick=butterfly, no chain, no
     // operational_notation.
     const app = createApp();
@@ -1403,29 +1399,28 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
 // ---------------------------------------------------------------------------
 
 // ─────────────────────────────────────────────────────────────────────────
-// O1c (2026-05-10) — operational notation glossary subsection on
+// O1c — operational notation glossary subsection on
 // /freestyle/glossary. Adds §9 "Operational Notation" with per-token
 // anchor IDs for deep-linking from trick-detail Token-reference link.
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/glossary — operational notation subsection (O1c)', () => {
   it('renders the Operational Notation subsection with its deep-link target id', async () => {
-    // V5: operational notation lives as an Advanced Reference subsection
+    // Operational notation lives as an Advanced Reference subsection
     // under §7 (Symbolic Notation), not as a top-level section. The deep-
     // link anchor id="operational-notation" is preserved for inbound links.
-    // Phase 1 polish: the subsection is now wrapped in a <details>/<summary>
+    // The subsection is wrapped in a <details>/<summary>
     // collapsible (default-closed) for progressive disclosure. The anchor
-    // migrated from the <h3> to the <details> element; the title text now
+    // sits on the <details> element; the title text
     // lives in the <summary>. All #op-* child anchors remain reachable
     // (browsers auto-open <details> when navigating to a child anchor).
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="operational-notation"');
-    // Anchor proximity to title text — holds for both the old <h3> shape
-    // and the new <details>/<summary> shape.
+    // Anchor proximity to title text.
     expect(res.text).toMatch(/id="operational-notation"[\s\S]{0,400}Operational notation/);
-    // Phase 1 shape: the subsection is collapsed in a <details> element.
+    // The subsection is collapsed in a <details> element.
     expect(res.text).toMatch(/<details[^>]*class="glossary-operational-details"[^>]*id="operational-notation"/);
     expect(res.text).toContain('class="glossary-operational-details-summary"');
   });
@@ -1456,10 +1451,9 @@ describe('GET /freestyle/glossary — operational notation subsection (O1c)', ()
   });
 
   it('renders the §8 ADD Accounting + §12 Community + §14 Sources reference-tail sections', async () => {
-    // 14-section IA refactor (2026-05-19): the prior §10 ADD System moved
-    // up to §8 ADD Accounting; §11 Community & Historical Vocabulary split
-    // into §12 Community Vocabulary + §13 Historical Terms; §12 Sources
-    // renumbered to §14. The trick-level ADD definition is preserved.
+    // In the 14-section IA, ADD Accounting is §8, Community Vocabulary
+    // is §12, Historical Terms is §13, and Sources is §14. The
+    // trick-level ADD definition lives in §8.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.text).toContain('id="section-add-accounting"');
@@ -1468,24 +1462,24 @@ describe('GET /freestyle/glossary — operational notation subsection (O1c)', ()
   });
 });
 
-describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)', () => {
+describe('Glossary and history — anchor preservation + cross-link contracts', () => {
   it('ADD Accounting section carries id="traditional-reference" + #run-quality anchor (history.hbs inbound link)', async () => {
     // The traditional-reference + run-quality anchors are preserved
-    // post 2026-05-19 refactor (anchor-preservation forever-rule), now
-    // living inside §8 ADD Accounting instead of the prior §10.
+    // (anchor-preservation forever-rule), living inside §8 ADD
+    // Accounting.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('id="traditional-reference"');
     expect(res.text).toContain('id="run-quality"');
   });
 
   it('ADD Accounting section cross-links to combo-analysis for run-level vocabulary', async () => {
-    // 14-section IA refactor (2026-05-19): ADD Accounting is §8 with
+    // ADD Accounting is §8 with
     // dedicated subsections + worked examples. The cross-link to
     // combo-analysis for run-quality / format vocabulary is preserved
     // at the section footer.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('href="/freestyle/combo-analysis"');
-    // §10 Run Architecture is the new explicit anchor section for run-
+    // §10 Run Architecture is the explicit anchor section for run-
     // level material; its cross-link to combo-analysis must also exist.
     expect(res.text).toContain('id="section-run-architecture"');
   });
@@ -1539,8 +1533,8 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
   });
 
   it('category view renders the soft-retirement notice pointing to canonical replacements', async () => {
-    // CR-4 of dictionary-coherence-2026-05-18: the grammatical-role
-    // explanatory note ("Grouped by grammatical role...") is replaced by
+    // The category view is soft-retired: instead of the grammatical-role
+    // explanatory note ("Grouped by grammatical role..."), it renders
     // a retirement notice that directs the user to Family + Movement
     // System as canonical replacements. Route still returns 200 for
     // bookmark continuity.
@@ -1628,9 +1622,9 @@ describe('Glossary improvements + history refresh', () => {
   });
 
   it('glossary §8 carries the additive-structural-accounting framing + mobius worked example', async () => {
-    // P3 expansion (2026-05-20): the "additive structural accounting"
-    // definition is preserved in the §8 philosophy paragraph; the
-    // mobius worked example is now a structured card in the §8 worked-
+    // The "additive structural accounting"
+    // definition lives in the §8 philosophy paragraph; the
+    // mobius worked example is a structured card in the §8 worked-
     // examples grid (compactNotation "gyro torque" + derivation visible).
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/additive structural accounting/);
@@ -1647,12 +1641,11 @@ describe('Glossary improvements + history refresh', () => {
     expect(res.text).not.toMatch(/>pending-doctrine</);
   });
 
-  it('combo-analysis page carries anchor IDs on each run-quality tier + format term (relocated from glossary §10 on 2026-05-17)', async () => {
-    // Relocation history: these anchors lived on /freestyle/glossary §10
-    // until 2026-05-17, then moved to /freestyle/combo-analysis when that
-    // surface shipped as the canonical home for run-level vocabulary.
-    // The combo-analysis route-test file also covers these; the assertion
-    // here documents the relocation contract.
+  it('combo-analysis page carries anchor IDs on each run-quality tier + format term', async () => {
+    // /freestyle/combo-analysis is the canonical home for run-level
+    // vocabulary, so these anchors live there rather than on the
+    // glossary. The combo-analysis route-test file also covers these;
+    // the assertion here pins the canonical-home contract.
     const res = await request(createApp()).get('/freestyle/combo-analysis');
     const ids = [
       'run-quality-tiltless', 'run-quality-guiltless', 'run-quality-tripless',
@@ -1666,8 +1659,7 @@ describe('Glossary improvements + history refresh', () => {
   });
 
   it('glossary §14 Sources carries the "About this glossary" framing paragraph', async () => {
-    // P2 prose compression (2026-05-20): the 200-word framing block
-    // compressed into a single sentence. The .glossary-about-framing
+    // The framing is a single sentence. The .glossary-about-framing
     // hook + the "footbag community built informally" attribution are
     // preserved for inbound deep-links + community-attribution semantics.
     const res = await request(createApp()).get('/freestyle/glossary');
@@ -1719,8 +1711,8 @@ describe('Glossary improvements + history refresh', () => {
   });
 });
 
-describe('Formula Accountability Corrective Slice (2026-05-17)', () => {
-  // Implementations covering all five primary tasks:
+describe('Formula accountability contracts', () => {
+  // Five related contracts:
   //   1. Landing Core Tricks carry editorial atom readings (see portal test)
   //   2. Dictionary cleanup — spyro filtered, illusion alias suppressed, ATW atom-labeled
   //   3. ADD Analysis derivation lines
@@ -1771,17 +1763,16 @@ describe('Formula Accountability Corrective Slice (2026-05-17)', () => {
     // Handlebars escapes `=` to `&#x3D;` by default, so regex patterns
     // accept either form across the derivation strings.
     //
-    // 2026-05-18 foundational-formula slice: worked examples expanded
-    // from 8 → 17 (full coverage of foundational atoms + the existing
-    // compound flagships). The 1- and 2-ADD atoms now use the explicit
-    // primitive-decomposition style (stall / dex / xbody / spin), so
-    // earlier spot-checks like "clipper(1) = 1 ADD" and "mirage(2) =
-    // 2 ADD" no longer match; replace with the primitive forms.
+    // The 17 worked examples give full coverage of foundational atoms
+    // plus the compound flagships. The 1- and 2-ADD atoms use the
+    // explicit primitive-decomposition style (stall / dex / xbody /
+    // spin), so spot-checks assert the primitive forms, not shorthand
+    // like "clipper(1) = 1 ADD" or "mirage(2) = 2 ADD".
     const eq = '(?:=|&#x3D;)';
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.status).toBe(200);
     const derivationMatches = res.text.match(/class="add-analysis-derivation-line"/g) ?? [];
-    expect(derivationMatches.length).toBe(17);  // 17 worked examples post-foundational-formula slice
+    expect(derivationMatches.length).toBe(17);  // 17 worked examples
     // Spot-check the formulaic content (entity-tolerant).
     expect(res.text).toMatch(new RegExp(`stall\\(1\\)\\s*${eq}\\s*1 ADD`));         // toe-stall
     expect(res.text).toMatch(new RegExp(`xbody\\(1\\)\\s*${eq}\\s*1 ADD`));        // clipper (kick)
@@ -1837,10 +1828,10 @@ describe('Formula Accountability Corrective Slice (2026-05-17)', () => {
 
   it('landing core-trick equivalences use NONE of the retired misleading aliases', async () => {
     // ATW (uppercase shorthand) and "outside-in mirage" stay forbidden
-    // — both were the pre-Formula-Accountability misleading-alias
-    // pattern. The "reverse around-the-world" string is now a
-    // legitimate orbit-card reading (curator-confirmed alias mapping,
-    // 2026-05-18 foundational-formula correction) and is no longer
+    // — both follow the retired misleading-alias
+    // pattern. The "reverse around-the-world" string is a
+    // legitimate orbit-card reading (curator-confirmed alias mapping)
+    // and is not
     // guarded out here; that single use case is asserted positively in
     // the foundational-formula test below.
     const res = await request(createApp()).get('/freestyle');
@@ -1895,14 +1886,13 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
   });
 
   it('operator board renders a Symposium definition consistent with its single-leg-jump mechanics', async () => {
-    // Second-pass landing cleanup (2026-05-20) removed the embedded
-    // operator-board from /freestyle. The Symposium-action invariant still
-    // holds on the operator-board partial wherever it renders; we now
-    // assert it against /freestyle/learn, the remaining operator-board
-    // host surface.
+    // /freestyle carries no embedded operator-board. The
+    // Symposium-action invariant holds on the operator-board partial
+    // wherever it renders; we assert it against /freestyle/learn, the
+    // operator-board host surface.
     const res = await request(createApp()).get('/freestyle/learn');
     expect(res.text).toMatch(/Active leg jumps \+ lands solo/i);
-    // The pre-2026-05 "illusion + body rotation" misreading must not reappear.
+    // The retired "illusion + body rotation" misreading must not reappear.
     expect(res.text).not.toContain('An illusion combined with body rotation');
   });
 
@@ -1959,14 +1949,13 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
   });
 
   it('structural-compression worked example renders as a four-depth equivalence ladder inside Vocabulary Relationships', async () => {
-    // 2026-05-25 Vocabulary Relationships expansion: the prior one-liner
-    // (mobius = gyro torque = spinning same-side torque) was folded into
-    // the Structural compression subsection as a four-depth ladder. The
-    // #symbolic-compression-flow anchor is preserved on the new h4.
+    // The worked compression example renders inside the Structural
+    // compression subsection as a four-depth ladder, not the retired
+    // one-liner (mobius = gyro torque = spinning same-side torque). The
+    // #symbolic-compression-flow anchor is preserved on the h4.
     // Retired prose / classes: glossary-compression-one-liner,
-    // glossary-compression-expanded text-muted (paragraph wrappers
-    // gone — content now in a <li> inside glossary-equivalence-worked-
-    // example).
+    // glossary-compression-expanded text-muted (content lives in a <li>
+    // inside glossary-equivalence-worked-example).
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);
@@ -2008,9 +1997,9 @@ describe('Freestyle landing — portal IA', () => {
   });
 });
 
-// Basic Components (C-1) + Core Tricks (C-2) landing-grid contracts
-// retired. The rich grids no longer render on /freestyle; the two-band
-// landing (Phase C, 2026-05-22) carries Start Here / Go Deeper portal
+// Basic Components + Core Tricks landing-grid contracts
+// retired. The rich grids do not render on /freestyle; the two-band
+// landing carries Start Here / Go Deeper portal
 // cards. The component + core-trick content lives canonically on the
 // glossary and the trick dictionary.
 
@@ -2032,9 +2021,9 @@ describe('Landing — legacy landing grids retired', () => {
 });
 
 describe('Freestyle landing — Featured strip', () => {
-  // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C: Competition Formats +
-  // Demonstrations merged into one compact `Featured` strip. Format names
-  // (Routine / Circle / Sick 3 / Shred 30) preserved as card titles; curated
+  // Competition Formats +
+  // Demonstrations render as one compact `Featured` strip. Format names
+  // (Routine / Circle / Sick 3 / Shred 30) are the card titles; curated
   // demonstrations follow as exemplars. Empty array hides section content.
   it('renders the Featured heading + grid', async () => {
     const res = await request(createApp()).get('/freestyle');
@@ -2102,8 +2091,8 @@ describe('Freestyle glossary — Batch 3: intro philosophy (C-3-B)', () => {
 
 describe('Freestyle glossary — Symbolic Notation / Compression layer', () => {
   it('§7 Jobs / Operational Notation carries the thesis sentence', async () => {
-    // 14-section IA refactor (2026-05-19): §7 renamed from "Symbolic
-    // Notation" to "Jobs / Operational Notation". Thesis sentence preserved.
+    // §7 is titled "Jobs / Operational Notation" and carries the
+    // thesis sentence.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('id="section-notation"');
     expect(res.text).toMatch(
@@ -2112,9 +2101,8 @@ describe('Freestyle glossary — Symbolic Notation / Compression layer', () => {
   });
 
   it('§7 cross-links to the §9 symbolic-compression flow', async () => {
-    // 14-section IA refactor (2026-05-19): the worked compression-flow
-    // moved from §8 to §9 (Symbolic Composition) when §8 ADD Accounting
-    // was promoted. Anchor #symbolic-compression-flow preserved.
+    // The worked compression-flow lives in §9 (Symbolic Composition).
+    // Anchor #symbolic-compression-flow preserved.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('href="#symbolic-compression-flow"');
   });
@@ -2122,11 +2110,10 @@ describe('Freestyle glossary — Symbolic Notation / Compression layer', () => {
 
 describe('Freestyle glossary — Structural compression subsection', () => {
   it('renders the symbolic-compression-flow anchor inside §composition (above §connective-panels)', async () => {
-    // 2026-05-25 Vocabulary Relationships expansion: the worked
-    // compression moved from a standalone h3 to an h4 inside the
+    // The worked compression renders as an h4 inside the
     // Vocabulary Relationships subsection of §composition (Symbolic
-    // Composition). Anchor #symbolic-compression-flow preserved on the
-    // new h4 for inbound deep-links.
+    // Composition). Anchor #symbolic-compression-flow is preserved on
+    // that h4 for inbound deep-links.
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
@@ -2135,8 +2122,8 @@ describe('Freestyle glossary — Structural compression subsection', () => {
   });
 
   it('renders the four-depth mobius compression ladder', async () => {
-    // The compression-ladder example was expanded from 3 readings to 4
-    // (curator-approved 2026-05-25): mobius → gyro torque → spinning
+    // The curator-approved compression ladder carries 4 readings:
+    // mobius → gyro torque → spinning
     // same-side torque → spinning quantum same-side osis. The deepest
     // reading is where the "compositional transformations" wow-moment
     // lands pedagogically.
@@ -2144,7 +2131,7 @@ describe('Freestyle glossary — Structural compression subsection', () => {
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
-    // Slice 5: trick names in §9 §2 list are hyperlinked; <strong> now
+    // Trick names in the §9 §2 list are hyperlinked; <strong>
     // wraps an <a>.
     expect(slice).toMatch(/<strong>\s*<a href="\/freestyle\/tricks\/mobius">mobius<\/a>\s*<\/strong>/i);
     expect(slice).toMatch(/gyro torque/i);
@@ -2286,8 +2273,8 @@ describe('Freestyle glossary — Execution mechanics subsection', () => {
 
 describe('Freestyle glossary — §11 Family & Topology Concepts (connective panels)', () => {
   it('renders the §11 Family & Topology Concepts section with the observational badge', async () => {
-    // 14-section IA refactor (2026-05-19): the six connective panels
-    // moved from §9 to §11 (Family & Topology Concepts). The
+    // The six connective panels
+    // live in §11 (Family & Topology Concepts). The
     // id="connective-panels" anchor is preserved for inbound links
     // (anchor-preservation forever-rule).
     const res = await request(createApp()).get('/freestyle/glossary');
@@ -2306,20 +2293,19 @@ describe('Freestyle glossary — §11 Family & Topology Concepts (connective pan
 // plus dictionary unification (CSS-level). Most assertions are structural:
 // class presence, anchor presence, ordering.
 
-// Batch 4 "symbolic-object class contract preserved" — retired by
-// Landing Page Phase 1 (2026-05-21). The .core-trick-object / .core-
+// The landing-side "symbolic-object class contract preserved" tests are
+// retired. The .core-trick-object / .core-
 // trick-slug / .core-trick-equivalence / core-trick-add-pending classes
 // pinned the landing Core Tricks grid which no longer renders. The
 // `core-tricks-grid` Handlebars partial is still in use on the
 // glossary page (§5 "Other foundational atoms"), where the class
-// contract is preserved and tested. Landing-side contract retired
-// alongside the grid.
+// contract is preserved and tested.
 
-describe('Freestyle glossary — Batch 4: compression-flow visual continuity (Slice X compact form)', () => {
+describe('Freestyle glossary — compression-flow visual continuity (compact form)', () => {
   it('symbolic-compression-flow renders zero per-step cards (collapsed to one-liner)', async () => {
-    // Slice X corrective (2026-05-17): the prior three .core-trick-object
-    // cards were collapsed into a one-row equivalence. This test now
-    // asserts the cascade is gone; the new contract is covered above.
+    // The compression flow renders as a one-row equivalence, not the
+    // retired three .core-trick-object cards. This test
+    // asserts the cascade is gone; the current contract is covered above.
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);

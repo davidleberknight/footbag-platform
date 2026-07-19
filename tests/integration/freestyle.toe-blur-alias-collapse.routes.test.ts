@@ -1,22 +1,20 @@
 /**
- * toe-blur → quantum-mirage alias re-pointing slice (2026-05-25).
+ * toe-blur → quantum-mirage alias contract.
  *
- * Pre-state (incorrect):
- *   - `toe-blur` was registered as an alias of `quantum` (the 2-ADD set
- *     primitive), against Red pt2 EQUIVALENCE: "Toe Blur (3 ADD) =
- *     Quantum Mirage". The historical name `toe blur` is the pre-
- *     Quantum-era name for the compound Quantum Mirage, not for the
- *     set primitive Quantum.
+ * Per Red pt2 EQUIVALENCE ("Toe Blur (3 ADD) = Quantum Mirage"), the
+ * historical name `toe blur` is the pre-Quantum-era name for the
+ * compound Quantum Mirage, not for the set primitive Quantum (the
+ * 2-ADD set primitive).
  *
- * Post-state (correct):
- *   - `toe-blur` alias points to `quantum-mirage`. The `quantum` row's
- *     aliases column no longer claims toe-blur (toe-butterfly retained
- *     pending Red ruling on that specific equivalence). The `quantum`
- *     row description no longer claims toe-blur as a historical name.
+ * The `toe-blur` alias therefore points to `quantum-mirage`. The
+ * `quantum` row's aliases column does not claim toe-blur
+ * (toe-butterfly is retained pending Red ruling on that specific
+ * equivalence), and the `quantum` row description does not claim
+ * toe-blur as a historical name.
  *
  * The alias text is the space-form `toe blur` per the sibling-alias
- * convention (toe delay, toe butterfly). This also corrects the prior
- * slice's `toe-blizzard` alias-text format (hyphenated → space form).
+ * convention (toe delay, toe butterfly); the `toe-blizzard` alias
+ * follows the same space-form convention.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -88,8 +86,8 @@ describe('toe-blur alias re-pointing (Red pt2 EQUIVALENCE)', () => {
     const res = await request(await createApp()).get('/freestyle/tricks/quantum');
     expect(res.status).toBe(200);
     // The quantum set primitive's "Also known as" row should NOT list
-    // toe-blur (re-pointed to quantum-mirage). toe-butterfly may still
-    // appear (out of scope for this slice).
+    // toe-blur (the alias points to quantum-mirage). toe-butterfly may
+    // still appear (out of scope here).
     // Find the "Also known as" block — assert toe-blur is not within it.
     const aboutMatch = res.text.match(/Also known as[\s\S]{0,500}/i);
     if (aboutMatch) {
@@ -98,7 +96,7 @@ describe('toe-blur alias re-pointing (Red pt2 EQUIVALENCE)', () => {
   });
 });
 
-describe('toe-blizzard alias-text format fix (prior slice correction)', () => {
+describe('toe-blizzard alias-text format (space-form convention)', () => {
   it('toe-blizzard alias_text on quantum-illusion is in space form (toe blizzard, not toe-blizzard)', () => {
     // This is a DB-level convention assertion; the freestyle_trick_aliases
     // alias_text column is the display surface (rendered verbatim into

@@ -161,8 +161,8 @@ describe('First-class browse-card rendering — JOB+ADD card renders for promote
 describe('Observational backlog — wrap is no longer counted', () => {
   it('TRACKED_DOCUMENTED_TOTAL is bounded above (wrap + later promotions removed)', async () => {
     const { TRACKED_DOCUMENTED_TOTAL } = await import('../../src/content/freestyleTrackedNames');
-    // The total fluctuates: promotion waves drop it; corpus-expansion
-    // waves (e.g. Wave 0 added ~1700 names to the reconciliation audit)
+    // The total fluctuates: promotions drop it; corpus expansions
+    // (one expansion added ~1700 names to the reconciliation audit)
     // raise it. The load-bearing check is slug-absence (see the wrap
     // assertion below); this count assertion is a sanity ceiling to
     // ensure the file regeneration didn't catastrophically multiply

@@ -1,5 +1,5 @@
 /**
- * Integration tests for the Wave 7 doctrine-divergence framework.
+ * Integration tests for the doctrine-divergence framework.
  *
  * Contract under test:
  *   - DOCTRINE_DIVERGENCE_REGISTRY ingests cleanly; the three pilot
@@ -70,7 +70,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('Doctrine-divergence registry — ingestion', () => {
-  it('exposes all three Wave 7 pilot rows', () => {
+  it('exposes all three pilot rows', () => {
     expect(DOCTRINE_DIVERGENCE_REGISTRY.has('blurrage')).toBe(true);
     expect(DOCTRINE_DIVERGENCE_REGISTRY.has('predator')).toBe(true);
     expect(DOCTRINE_DIVERGENCE_REGISTRY.has('schmoe')).toBe(true);

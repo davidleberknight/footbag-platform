@@ -34,7 +34,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Modifiers for the Movement System view (we need every Slice N pilot
+  // Modifiers for the Movement System view (we need every pilot
   // gloss to have a populated modifier group to render).
   insertFreestyleTrickModifier(db, { slug: 'paradox',   modifier_name: 'paradox',   modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'spinning',  modifier_name: 'spinning',  modifier_type: 'body' });
@@ -43,7 +43,7 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'stepping',  modifier_name: 'stepping',  modifier_type: 'set' });
   insertFreestyleTrickModifier(db, { slug: 'pixie',     modifier_name: 'pixie',     modifier_type: 'set'  });
 
-  // Slice N chain-target rows. Each has BOTH operational_notation AND a
+  // Chain-target rows. Each has BOTH operational_notation AND a
   // chain entry — the test verifies the chain wins.
   insertFreestyleTrick(db, { slug: 'paradox_blender', canonical_name: 'paradox blender', adds: '5', base_trick: 'blender', trick_family: 'blender', category: 'compound', operational_notation: '[set] > paradox > whirling op osis' });
   insertFreestyleTrick(db, { slug: 'food_processor',  canonical_name: 'food processor',  adds: '6', base_trick: 'blender', trick_family: 'blender', category: 'compound', operational_notation: '[set] > blurry > whirling op osis' });

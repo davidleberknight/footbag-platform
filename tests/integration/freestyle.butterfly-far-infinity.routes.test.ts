@@ -15,8 +15,8 @@
  *   opposite-side (OP) notation, and the glossary/family card presents the same
  *   far/opposite-side formula and framing rather than a side-either "SAME/OP"
  *   marker. Butterfly Same Side stays the distinct same-side variant. The
- *   family-wide migration of the butterfly-family compound notations is a
- *   separate held slice and their formulas are unchanged here.
+ *   family-wide migration of the butterfly-family compound notations is
+ *   separate held work and their formulas are unchanged here.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

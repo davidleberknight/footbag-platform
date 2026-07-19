@@ -142,11 +142,9 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
 
 describe('GET /freestyle/add-analysis — component-contribution table', () => {
   it('renders all 9 component classes (5 atomic-flag primitives + 4 operator-board axes)', async () => {
-    // ADD Analysis Refactor Phase 1 (2026-05-21): the previous 11-row
-    // table conflated atomic-flag primitives with operator/modifier
-    // contributions and collapsed the four operator-board axes into a
-    // single "Body operators" row. Phase 1 splits the operator rows
-    // into four axis-aligned rows (Set / Entry / Midtime / Positional)
+    // The table keeps atomic-flag primitives separate from
+    // operator/modifier contributions: the operator rows are four
+    // axis-aligned rows (Set / Entry / Midtime / Positional)
     // labeled as a pedagogical organizing convention — NOT canonical
     // taxonomy — mirroring the operator-board grouping on the
     // /freestyle/tricks?view=movement-system surface and the glossary
@@ -174,20 +172,18 @@ describe('GET /freestyle/add-analysis — component-contribution table', () => {
 describe('GET /freestyle/add-analysis — worked examples', () => {
   it('renders foundational atoms first, then compounds, with explicit ADD ordering', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    // 2026-05-18 foundational-formula slice: worked examples expanded
-    // to 17 entries covering every 1-3 ADD foundational atom plus the
-    // existing 4-5 ADD compound flagships. Order is ascending ADD,
+    // The 17 worked examples cover every 1-3 ADD foundational atom
+    // plus the 4-5 ADD compound flagships. Order is ascending ADD,
     // with foundational atoms grouped by ADD value then compounds.
     //
     // Pattern note: trick names appear in two contexts — the example
     // heading (canonical, linked) and in some whyNote prose (e.g. Osis
     // mentions "Torque" as a derivative compound). Search using the
     // anchor-tag closing form `>Name</a>` so we hit only the heading.
-    // Phase 1 refactor (2026-05-21): "Clipper (kick)" reframed as
-    // "Cross-body traversal (xbody primitive)" with null trickSlug to
-    // remove canonical-trick confusion while preserving the xbody
-    // primitive illustration. All other worked examples carry trick
-    // links via the `>${name}</a>` anchor closing pattern.
+    // The "Cross-body traversal (xbody primitive)" entry carries a
+    // null trickSlug: it illustrates the xbody accounting primitive
+    // and makes no canonical-trick claim. All other worked examples
+    // carry trick links via the `>${name}</a>` anchor closing pattern.
     const linkedExamples = [
       // 1 ADD
       'Toe-stall',
@@ -232,9 +228,9 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
 
   it('worked examples link to the trick-detail page when slug is known', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    // Phase 1 refactor: 'clipper' link removed — the entry is now the
-    // xbody primitive illustration with trickSlug: null, not a
-    // canonical-trick claim.
+    // The xbody-primitive entry has trickSlug: null — it is an
+    // illustration of the accounting primitive, not a canonical-trick
+    // claim, so no 'clipper' link renders.
     const expectedLinks = [
       'href="/freestyle/tricks/toe_stall"',
       'href="/freestyle/tricks/clipper_stall"',
@@ -266,10 +262,10 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
   });
 
   it('worked examples render explicit additive derivations using stall/dex/xbody/spin primitives', async () => {
-    // Central pedagogical contract of the 2026-05-18 foundational-formula
-    // slice: every foundational worked example carries an explicit
-    // additive derivation string that names which primitives contribute
-    // each ADD. Pin a sample across the four primitives.
+    // Central pedagogical contract: every foundational worked example
+    // carries an explicit additive derivation string that names which
+    // primitives contribute each ADD. Pin a sample across the four
+    // primitives.
     //
     // Note: Handlebars HTML-escapes `=` to `&#x3D;` in the rendered
     // <code> block. Assert against the encoded form (what users see in
@@ -392,10 +388,10 @@ describe('GET /freestyle/add-analysis', () => {
     expect(region).toMatch(/Stopping-depth equivalence is foundational/i);
   });
 
-  it('Phase 1 additions do not introduce curator-internal language in the §1 component-table region', async () => {
-    // Scope: §1 component-class table. (The §2b resolved-formulas Provenance
-    // column that previously leaked "pt##" / ruling citations has since been
-    // removed; a separate page-wide test now guards against its jargon.)
+  it('no curator-internal language appears in the §1 component-table region', async () => {
+    // Scope: §1 component-class table. A separate page-wide test guards
+    // against provenance jargon ("pt##" / ruling citations) anywhere on
+    // the page.
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const sectionStart = res.text.indexOf('id="how-add-is-built"');
     const sectionEnd = res.text.indexOf('id="worked-examples"');
@@ -505,14 +501,15 @@ describe('ADD Analysis discoverability — inbound links', () => {
   });
 });
 
-describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (§2b reference table)', () => {
-  // Sprint 1 (15 rows) published pure +1-stack compositions where both
-  // operator and base are Red-settled. Sprint 2 (7 rows) expanded the
-  // pattern set to pt-ruled compounds (eggbeater), positional modifiers
+describe('GET /freestyle/add-analysis — resolved compound formulas (§2b reference table)', () => {
+  // The table publishes 15 pure +1-stack compositions where both
+  // operator and base are Red-settled; 7 rows across a wider pattern
+  // set — pt-ruled compounds (eggbeater), positional modifiers
   // (rev-whirl, reverse-around-the-world), folk-name resolutions
-  // (dimwalk), and the first multi-operator chain (paradox-symposium-
-  // whirl). Compact reference table between worked examples (§2) and
-  // discrepancy cases (§3).
+  // (dimwalk), and a multi-operator chain (paradox-symposium-whirl);
+  // and 2 targeted folk-name resolutions (smear, ripwalk). Compact
+  // reference table between worked examples (§2) and discrepancy
+  // cases (§3).
 
   it('renders the §2b section heading + anchor', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
@@ -526,33 +523,32 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
     expect(res.text).toMatch(/settled scoring rule/i);
   });
 
-  it('renders all 24 Sprint-1 + Sprint-2 + Sprint-3 rows with trick-detail links', async () => {
-    // 2026-05-24 QC: rev-up was demoted from canonical (is_active=0)
-    // because it's structurally distinct from rev-whirl but lacks an
-    // authored structural decomposition. Its row is removed from the
-    // public table along with the demotion.
+  it('renders all 24 resolved-formula rows with trick-detail links', async () => {
+    // rev-up is not canonical (is_active=0): it is structurally
+    // distinct from rev-whirl but lacks an authored structural
+    // decomposition, so the public table carries no row for it.
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const expectedSlugs = [
-      // Sprint 1 (15 rows — pure +1 stacks)
+      // pure +1 stacks (15 rows)
       'paradox_mirage', 'symposium_mirage',
       'atomic_butterfly', 'ducking_butterfly', 'ducking_osis', 'ducking_whirl',
       'spinning_butterfly', 'spinning_osis',
       'stepping_osis', 'stepping_whirl', 'symposium_whirl', 'whirling_swirl',
       'paradox_blender', 'paradox_torque', 'spinning_torque',
-      // Sprint 2 (7 rows — pt-ruled / positional / multi-op / folk-name)
+      // pt-ruled / positional / multi-op / folk-name (7 rows)
       'eggbeater', 'ducking_clipper', 'spinning_clipper',
       'rev_whirl', 'orbit',
       'paradox_symposium_whirl', 'dimwalk',
-      // Sprint 3 (2 rows after rev-up demote — targeted folk-name resolutions)
+      // targeted folk-name resolutions (2 rows)
       'smear', 'ripwalk',
     ];
     for (const slug of expectedSlugs) {
-      expect(res.text, `missing Sprint row: ${slug}`)
+      expect(res.text, `missing resolved-compound row: ${slug}`)
         .toContain(`href="/freestyle/tricks/${slug}"`);
     }
   });
 
-  it('renders Sprint-1 +1-stack derivations', async () => {
+  it('renders the +1-stack derivations', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     // Handlebars HTML-escapes `=` to `&#x3D;` in <code> blocks
     const eq = '(?:=|&#x3D;)';
@@ -562,12 +558,12 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
     expect(res.text).toMatch(new RegExp(`whirling\\(\\+1\\)\\s*\\+\\s*swirl\\(3\\)\\s*${eq}\\s*4 ADD`));
   });
 
-  it('renders Sprint-2 derivations across the expanded pattern set', async () => {
+  it('renders derivations across the expanded pattern set', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const eq = '(?:=|&#x3D;)';
     // pt-ruled: eggbeater = atomic legover
     expect(res.text).toMatch(new RegExp(`atomic\\(\\+1\\)\\s*\\+\\s*legover\\(2\\)\\s*${eq}\\s*3 ADD`));
-    // 2026-05-24 QC: rev-whirl now publishes the structural derivation
+    // rev-whirl publishes the structural derivation
     // (xbody+dex+stall). The reverse(+0) reading lives in the ALT row
     // on /freestyle/tricks/rev-whirl, not on /freestyle/add-analysis.
     expect(res.text).toMatch(/xbody\(1\)\s*\+\s*dex\(1\)\s*\+\s*stall\(1\)\s*(?:=|&#x3D;)\s*3 ADD/);
@@ -579,12 +575,11 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
     expect(res.text).toMatch(new RegExp(`pixie\\(\\+1\\)\\s*\\+\\s*butterfly\\(3\\)\\s*${eq}\\s*4 ADD`));
   });
 
-  it('renders Sprint-3 folk-name resolutions (smear / ripwalk)', async () => {
-    // 2026-05-24 QC: rev-up was demoted from canonical (is_active=0)
-    // because it's structurally distinct from rev-whirl without an
-    // authored decomposition. Its resolved-formula entry is removed
-    // from RESOLVED_ADD_FORMULAS alongside the demotion. Sprint 3
-    // now publishes 2 folk-name resolutions, not 3.
+  it('renders the folk-name resolutions (smear / ripwalk)', async () => {
+    // rev-up is not canonical (is_active=0): it is structurally
+    // distinct from rev-whirl without an authored decomposition, so
+    // RESOLVED_ADD_FORMULAS carries no entry for it and the table
+    // publishes 2 folk-name resolutions.
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const eq = '(?:=|&#x3D;)';
     expect(res.text).toMatch(new RegExp(`pixie\\(\\+1\\)\\s*\\+\\s*mirage\\(2\\)\\s*${eq}\\s*3 ADD`));
@@ -595,7 +590,7 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
     // table for rev-up (rev-up demoted) or rev-whirl (structural form).
   });
 
-  it('Sprint-1 section sits between worked examples (§2) and discrepancies (§3)', async () => {
+  it('resolved-formulas section sits between worked examples (§2) and discrepancies (§3)', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const workedExamplesIdx = res.text.indexOf('id="worked-examples"');
     const resolvedFormulasIdx = res.text.indexOf('id="resolved-formulas"');
@@ -605,13 +600,13 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
     expect(discrepanciesIdx).toBeGreaterThan(resolvedFormulasIdx);
   });
 
-  it('Sprint-1 section stays within the lexicon — no forbidden phrases', async () => {
+  it('resolved-formulas section stays within the lexicon — no forbidden phrases', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const sectionMatch = res.text.match(/id="resolved-formulas"[\s\S]*?<\/section>/);
     expect(sectionMatch).not.toBeNull();
     const section = sectionMatch![0].toLowerCase();
     for (const phrase of ['is wrong', 'incorrect', 'the correct add', 'should be', 'outdated']) {
-      expect(section.includes(phrase), `Forbidden in Sprint-1 section: "${phrase}"`).toBe(false);
+      expect(section.includes(phrase), `Forbidden in pilot-compounds section: "${phrase}"`).toBe(false);
     }
   });
 });
@@ -682,7 +677,7 @@ describe('GET /freestyle/add-analysis — outside-source ADD framing subsection'
 describe('GET /freestyle/add-analysis — wording lexicon discipline', () => {
   it('never uses "is wrong" / "incorrect" framing on external sources', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    // Hard never-ship phrases per Slice X §4 lexicon
+    // Hard never-ship phrases: external sources are never framed as wrong
     const forbidden = [
       'is wrong',
       'incorrect',

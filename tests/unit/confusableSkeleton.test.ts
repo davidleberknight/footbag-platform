@@ -6,7 +6,7 @@
  * hand-authored TEST FIXTURE that is explicitly not official Unicode data and not
  * complete threat coverage. The database-backed pieces (persisted skeleton column,
  * the existing-member collision audit, the uniqueness index, and the live
- * registration rejection) are a separate slice blocked on vendoring the official
+ * registration rejection) are separate work blocked on vendoring the official
  * Unicode confusables.txt, so those are not covered here.
  */
 import { describe, it, expect } from 'vitest';

@@ -1,7 +1,6 @@
 /**
- * Integration tests for /freestyle/compositional-sets — the new
- * dictionary-hub exploration surface (Phase 2a + 2b of the
- * compositional-sets slice, 2026-05-23).
+ * Integration tests for /freestyle/compositional-sets — the
+ * dictionary-hub exploration surface.
  *
  * Contracts under test:
  *   - Route registers and renders 200
@@ -254,7 +253,7 @@ describe('/freestyle/compositional-sets — §4 consistency audit', () => {
     expect(res.text).toMatch(/<dt>Holden-only<\/dt>/);
   });
 
-  it('audit posture is transparency-not-normalization (per slice constraints)', async () => {
+  it('audit posture is transparency-not-normalization', async () => {
     const res = await request(createApp()).get('/freestyle/compositional-sets');
     expect(res.text).toMatch(/curatorial transparency,\s+not a normalization pass/);
     expect(res.text).toMatch(/Holden-only entries are[\s\S]*?not[\s\S]*?promoted to canonical/);

@@ -349,7 +349,7 @@ describe('GET /freestyle/tricks', () => {
     // presentation' describe block below.
   });
 
-  it('descriptions are no longer rendered in any browse view (DSC-2 slice 3B retired the spreadsheet)', async () => {
+  it('descriptions are not rendered in any browse view (they live on the trick-detail page)', async () => {
     // Prose descriptions are excluded from every browse card (ADD, family,
     // component, category). Descriptions live on the trick-detail page; browse
     // cards don't carry them.
@@ -419,8 +419,8 @@ describe('public dictionary presentation', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
-    // DSC-2 slice 3B: category view retires the Notation column header.
-    // The shared dict-card-stack renders operational notation via role-tagged
+    // The category view has no Notation column header. The shared
+    // dict-card-stack renders operational notation via role-tagged
     // token spans on each card, not in a table column.
     expect(res.text).not.toContain('<th>Notation</th>');
     expect(res.text).toContain('dict-card-stack');
@@ -456,7 +456,7 @@ describe('public dictionary presentation', () => {
     expect(res.text).not.toContain('+ADD (rotational)');
   });
 
-  it('category view cards carry data-trick-slug as the per-card identity attribute (DSC-2 slice 3B)', async () => {
+  it('category view cards carry data-trick-slug as the per-card identity attribute', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
@@ -887,11 +887,11 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   });
 
   it('suppresses "Notation pending" placeholder in registry density', async () => {
-    // BROWSE-REFACTOR-1 Slice 1: pending placeholder is suppressed on the
-    // registry-density By ADD view per the audit (clean identifier-only
-    // cards for atoms / pending rows). Browse-density views (family /
-    // component / topology) still render the placeholder for rows with
-    // neither tokenized ≡ readings nor operational notation.
+    // The pending placeholder is suppressed on the registry-density By ADD
+    // view (clean identifier-only cards for atoms / pending rows).
+    // Browse-density views (family / component / topology) still render
+    // the placeholder for rows with neither tokenized ≡ readings nor
+    // operational notation.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).not.toMatch(/<em>Notation pending<\/em>/);
@@ -900,10 +900,9 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   it('descriptions are not rendered on the By ADD card; the placeholder is gone too', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
-    // DSC-2 slice 1: prose descriptions are explicitly excluded from the
-    // symbolic trick card. The 'Description pending' placeholder is therefore
-    // also gone on the ADD view (descriptions still appear in the category
-    // view's spreadsheet layout — see "shows trick descriptions ..." above).
+    // Prose descriptions are explicitly excluded from the symbolic trick
+    // card, so the 'Description pending' placeholder is absent on the ADD
+    // view as well.
     expect(res.text).not.toContain('trick-description');
     expect(res.text).not.toContain('Description pending');
   });
@@ -914,14 +913,13 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="trick-coverage-summary"');
     expect(res.text).not.toContain('External-source placeholders are shown for transparency');
-    // 2026-05-24: lead-count assertion reversed by governance/polish slice.
-    // Dynamic canonical-trick count IS now surfaced in the dictionary intro.
+    // The dictionary intro deliberately surfaces the dynamic
+    // canonical-trick count, so no absence assertion on it here.
   });
 
   it('renders the view toggle with the ADD view marked active', async () => {
-    // Component View soft retirement (2026-05-18) + Category View soft
-    // retirement (CR-4 of dictionary-coherence-2026-05-18): both toggle
-    // entries removed. Movement System is the canonical modifier-grouped
+    // Component View and Category View are soft-retired: neither toggle
+    // entry renders. Movement System is the canonical modifier-grouped
     // browse surface; Family + Movement System replace Category. The
     // ?view=category and ?view=component routes still resolve with
     // retirement notices for bookmark continuity.
@@ -941,10 +939,9 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/tricks?view=sets — dedicated By Set view', () => {
-  // 2026-05-24 governance/polish slice: ?view=sets no longer aliases to
-  // ?view=component (which is soft-retired). It now activates the
-  // dedicated By Set browse view with two cohorts (Core sets +
-  // Secondary / composite systems).
+  // ?view=sets is not an alias for the soft-retired ?view=component; it
+  // activates the dedicated By Set browse view with two cohorts (Core
+  // sets + Secondary / composite systems).
 
   it('returns 200 and renders the dedicated By Set view (not the component alias)', async () => {
     const app = createApp();

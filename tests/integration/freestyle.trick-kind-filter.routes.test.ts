@@ -1,8 +1,7 @@
 /**
  * Integration tests for the trick-kind discriminator + view filter.
  *
- * Long-term contract (Slice A of the 2026-05 dictionary/glossary
- * normalization plan):
+ * Long-term contract:
  *
  *   freestyle_tricks mixes structural roles: true tricks, modifiers,
  *   set operators, catch surfaces. The five trick-browse surfaces
@@ -175,7 +174,7 @@ describe('resolveTrickKind() — content module discriminator', () => {
   it('classifies legitimate stall primitives as kind=trick (NOT surface)', () => {
     // Stall primitives end in bag contact; they pass the discriminating
     // criterion for `kind='trick'` and surface in the ADD ladder as the
-    // simplest tricks. The future isSurface facet (Slice E/F) will add
+    // simplest tricks. The future isSurface facet will add
     // the glossary §2 cross-link without conflating with kind.
     expect(resolveTrickKind('toe-stall')).toBe('trick');
     expect(resolveTrickKind('clipper-stall')).toBe('trick');

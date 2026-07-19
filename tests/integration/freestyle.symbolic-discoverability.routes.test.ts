@@ -144,8 +144,8 @@ describe('GET /freestyle/learn — operator-board onboarding surface', () => {
   });
 
   it('renders all 13 Tier-1 operator glyphs', async () => {
-    // Slice B (2026-05): OP cell dropped (its example "OP + BUTTERFLY →
-    // BUTTERFLY" was a no-op that taught nothing visible).
+    // The OP cell is absent: its example "OP + BUTTERFLY →
+    // BUTTERFLY" was a no-op that taught nothing visible.
     const res = await request(createApp()).get('/freestyle/learn');
     const glyphs = [
       'PIX', 'AT', 'Q', 'BL', 'FAIRY', 'STEP',

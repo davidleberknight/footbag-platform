@@ -92,8 +92,8 @@ afterAll(() => cleanupTestDb(dbPath));
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)', () => {
-  // 2026-05-18 soft retirement: the "By component" toggle entry was
-  // removed from the view-toggle row (Movement System is the canonical
+  // Soft retirement: the "By component" toggle entry is absent
+  // from the view-toggle row (Movement System is the canonical
   // modifier-grouped browse surface). The URL still resolves so
   // bookmarks and external links keep working; a retirement notice
   // renders above the view body to redirect new traffic.
@@ -126,11 +126,10 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
   });
 
   it('?view=sets is NO LONGER a component-view alias', async () => {
-    // The 2026-05-24 governance/polish slice ended the ?view=sets →
-    // ?view=component alias. ?view=sets now activates the dedicated By
-    // Set browse view. The component view is unaffected (still soft-
-    // retired; canonical /freestyle/tricks?view=component URL still
-    // renders with the retirement notice).
+    // ?view=sets is not a component-view alias: it activates the
+    // dedicated By Set browse view. The component view stays soft-
+    // retired; the canonical /freestyle/tricks?view=component URL still
+    // renders with the retirement notice.
     const res = await request(createApp()).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
     // The component view's markers must NOT appear on the sets URL anymore.
@@ -275,8 +274,8 @@ describe('component view — group rendering', () => {
     const paradoxStart = res.text.indexOf('id="component-paradox"');
     const nextGroupStart = res.text.indexOf('id="component-', paradoxStart + 1);
     const paradoxBlock = res.text.slice(paradoxStart, nextGroupStart > paradoxStart ? nextGroupStart : paradoxStart + 2500);
-    // Post PRESENTATION_UNIFICATION (2026-05-16): component view uses registry
-    // density (same as ADD View). Stack wrapper carries both base + density classes.
+    // The component view uses registry
+    // density (same as the ADD view). Stack wrapper carries both base + density classes.
     expect(paradoxBlock).toContain('class="dict-card-stack dict-card-stack--registry"');
     expect(paradoxBlock).toContain('data-trick-slug="paradox-mirage"');
     expect(paradoxBlock).toContain('data-trick-slug="paradox-whirl"');

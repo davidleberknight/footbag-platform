@@ -8,7 +8,7 @@
  *   2. Atomic flag-decomposition (for atom singletons)
  *   3. Flat deriveComputedAdd (base + modifier weights)
  *
- * Slice R1b (2026-05-20) added the composite-derivation path so
+ * The composite-derivation path exists so
  * witchdoctor — whose Red-locked reading is atomic-mirage(4) +
  * symposium(+1) = 5 — graduates from governance-blocked. The flat
  * derivation atomic(+1) + symposium(+1) + mirage(2) = 4 doesn't reach
@@ -39,13 +39,13 @@ const modifierTable = new Map<string, { add_bonus: number; add_bonus_rotational:
   ['blurry',    { add_bonus: 1, add_bonus_rotational: 1 }],
 ]);
 
-describe('assertFirstClassConvergence — composite-derivation path (R1b)', () => {
+describe('assertFirstClassConvergence — composite-derivation path', () => {
   it('witchdoctor converges via composite-derivation (atom-smasher + symposium = 5)', () => {
     const result = assertFirstClassConvergence(
       'witchdoctor',
       {
         canonical_name: 'witchdoctor',
-        adds: 5,                         // Red 2026-05-20: 4 → 5
+        adds: 5,                         // official Red-locked ADD
         base_trick: 'mirage',
         notation: 'WITCHDOCTOR',         // any non-empty
       },
@@ -129,16 +129,15 @@ describe('assertFirstClassConvergence — flat derivation path', () => {
     expect(result.status).toBe('first-class');
   });
 
-  it('barraging-osis is convergence-ready post-R1 (math works; awaits published formula)', () => {
-    // Slice R1: barraging weight changed 1 → 2 so the math now works
-    // mechanically. But H4 enforces "explicit publication" as a
-    // separate gate: a slug needs a RESOLVED_FORMULAS entry, atomic
-    // decomp, or composite-derivation entry to reach first-class.
-    // barraging-osis has none of these (only the modifier weight was
-    // updated in R1; no published-derivation row was authored), so
-    // the rule correctly reports convergence-ready instead of the
-    // prior governance-blocked. This is the intended intermediate
-    // state: "math agrees; awaiting curator promotion entry."
+  it('barraging-osis is convergence-ready (math works; awaits published formula)', () => {
+    // barraging weighs 2, so the math works mechanically. But H4
+    // enforces "explicit publication" as a separate gate: a slug needs
+    // a RESOLVED_FORMULAS entry, atomic decomp, or composite-derivation
+    // entry to reach first-class. barraging-osis has none of these (no
+    // published-derivation row is authored), so the rule correctly
+    // reports convergence-ready, not governance-blocked. This is the
+    // intended intermediate state: "math agrees; awaiting curator
+    // promotion entry."
     const result = assertFirstClassConvergence(
       'barraging-osis',
       {
@@ -254,7 +253,7 @@ describe('assertFirstClassConvergence — doctrine-blocked guard', () => {
     expect(result.diagnostic).not.toBe('workbook doctrine blocker');
   });
 
-  it('guay is NOT in DOCTRINE_BLOCKED_SLUGS anymore (curator resolution 2026-05-22)', () => {
+  it('guay is NOT in DOCTRINE_BLOCKED_SLUGS anymore (curator resolution)', () => {
     // Released from curator_hold and promoted to first-class with
     // pickup-pattern dex + inside-stall decomposition.
     const result = assertFirstClassConvergence(

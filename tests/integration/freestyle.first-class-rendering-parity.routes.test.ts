@@ -81,7 +81,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'eggbeater',               canonical_name: 'eggbeater',               adds: '3', base_trick: 'legover',    trick_family: 'legover',   category: 'compound' });
   insertFreestyleTrick(db, { slug: 'paradox_symposium_whirl', canonical_name: 'paradox symposium whirl', adds: '5', base_trick: 'whirl',      trick_family: 'whirl',     category: 'compound' });
 
-  // ─── Tier 2 Wave 1: audit-derived promotions (2026-05-22) ────────────
+  // ─── Tier 2: audit-derived promotions ────────────────────────────────
   // Mechanical modifier × base derivations; ADD curator-locked via
   // RESOLVED_ADD_FORMULAS, JOB chain pending upstream.
   insertFreestyleTrick(db, { slug: 'atomic_torque',   canonical_name: 'atomic torque',   adds: '6', base_trick: 'torque',  trick_family: 'torque',  category: 'compound', notation: 'ATOMIC TORQUE' });
@@ -90,9 +90,8 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'spinning_pickup', canonical_name: 'spinning pickup', adds: '3', base_trick: 'pickup',  trick_family: 'pickup',  category: 'compound', notation: 'SPINNING PICKUP' });
   insertFreestyleTrick(db, { slug: 'tapping_whirl',   canonical_name: 'tapping whirl',   adds: '4', base_trick: 'whirl',   trick_family: 'whirl',   category: 'compound', notation: 'TAPPING WHIRL' });
 
-  // ─── Tier 2 Wave 2: existing RESOLVED_FORMULAS entries promoted into
-  // TIER membership (2026-05-22). 19 slugs already carrying curator-
-  // published derivations; promotion is mechanical (set membership).
+  // ─── Tier 2: RESOLVED_FORMULAS promotions. 19 slugs already carrying
+  // curator-published derivations; promotion is mechanical (set membership).
   insertFreestyleTrick(db, { slug: 'atom_smasher',     canonical_name: 'atom smasher',     adds: '4', base_trick: 'mirage',          trick_family: 'mirage',          category: 'compound' });
   insertFreestyleTrick(db, { slug: 'dimwalk',          canonical_name: 'dimwalk',          adds: '4', base_trick: 'butterfly',       trick_family: 'butterfly',       category: 'compound' });
   insertFreestyleTrick(db, { slug: 'ducking_clipper',  canonical_name: 'ducking clipper',  adds: '3', base_trick: 'clipper_stall',   trick_family: 'clipper_stall',   category: 'compound' });
@@ -113,10 +112,10 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'symposium_whirl',  canonical_name: 'symposium whirl',  adds: '4', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
   insertFreestyleTrick(db, { slug: 'whirling_swirl',   canonical_name: 'whirling swirl',   adds: '4', base_trick: 'swirl',           trick_family: 'swirl',           category: 'compound' });
 
-  // ─── Tier 2 Wave 3: 28 audit-validated promotions (2026-05-22) ───────
+  // ─── Tier 2: 28 audit-validated promotions ───────────────────────────
   // 6 via ATAM bracket-flag decomposition; 22 via parser-derived
   // modifier × base (including composite witchdoctor). All converge
-  // with official ADD before this batch lands.
+  // with official ADD.
   insertFreestyleTrick(db, { slug: 'squeeze',                  canonical_name: 'squeeze',                  adds: '2', base_trick: 'squeeze',                  trick_family: 'squeeze',                  category: 'compound', notation: 'SQUEEZE',                          operational_notation: '[UNS] [DEL]' });
   insertFreestyleTrick(db, { slug: 'barrage',                  canonical_name: 'barrage',                  adds: '3', base_trick: 'barrage',                  trick_family: 'barrage',                  category: 'compound', operational_notation: 'CLIP > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]' });
   insertFreestyleTrick(db, { slug: 'barfly',                   canonical_name: 'barfly',                   adds: '4', base_trick: 'barfly',                   trick_family: 'barfly',                   category: 'compound', notation: 'BARFLY',                           operational_notation: 'CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]' });
@@ -146,10 +145,10 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'gauntlet',                 canonical_name: 'gauntlet',                 adds: '7', base_trick: 'torque',                   trick_family: 'torque',                   category: 'compound', notation: 'STEPPING DUCKING PARADOX TORQUE' });
   insertFreestyleTrick(db, { slug: 'montage',                  canonical_name: 'montage',                  adds: '7', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'SPINNING DUCKING PARADOX SYMPOSIUM WHIRL' });
 
-  // ─── Tier 2 Wave 4-B: mechanical notation back-fill promotions
-  // (2026-05-22). 18 ordinary modifier+base compounds + 1 foundational
-  // primitive (sole-stall via ATOMIC). All derive cleanly via standard
-  // modifier × base ADD math; notation column now populated.
+  // ─── Tier 2: mechanical notation back-fill promotions. 18 ordinary
+  // modifier+base compounds + 1 foundational primitive (sole-stall via
+  // ATOMIC). All derive cleanly via standard modifier × base ADD math;
+  // the notation column is populated.
   insertFreestyleTrick(db, { slug: 'flail',        canonical_name: 'flail',        adds: '3', base_trick: 'illusion',        trick_family: 'illusion',        category: 'compound', notation: 'SYMPOSIUM ILLUSION' });
   insertFreestyleTrick(db, { slug: 'magellan',     canonical_name: 'magellan',     adds: '3', base_trick: 'legover',         trick_family: 'legover',         category: 'compound', notation: 'PIXIE LEGOVER' });
   insertFreestyleTrick(db, { slug: 'merkon',       canonical_name: 'merkon',       adds: '3', base_trick: 'legover',         trick_family: 'legover',         category: 'compound', notation: 'SPINNING LEGOVER' });
@@ -170,8 +169,8 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'big_apple',    canonical_name: 'big apple',    adds: '6', base_trick: 'torque',          trick_family: 'torque',          category: 'compound', notation: 'GYRO SYMPOSIUM TORQUE' });
   insertFreestyleTrick(db, { slug: 'sole_stall',   canonical_name: 'sole stall',   adds: '2', base_trick: 'sole_stall',      trick_family: 'sole_stall',      category: 'surface',  notation: 'SOLE STALL', operational_notation: '[set] > sole' });
 
-  // ─── Tier 2 Wave 5: observational→canonical promotions (2026-05-22). 4 PB
-  // + 9 FB.org direct + 1 stepwise FB.org (paradox-blizzard via blizzard).
+  // ─── Tier 2: observational→canonical promotions. 4 PB + 9 FB.org direct
+  // + 1 stepwise FB.org (paradox-blizzard via blizzard).
   insertFreestyleTrick(db, { slug: 'blizzard',                         canonical_name: 'blizzard',                         adds: '3', base_trick: 'illusion',            trick_family: 'illusion',            category: 'compound', notation: 'STEPPING ILLUSION' });
   insertFreestyleTrick(db, { slug: 'blaze',                            canonical_name: 'blaze',                            adds: '3', base_trick: 'mirage',              trick_family: 'mirage',              category: 'compound', notation: 'WHIRLING MIRAGE' });
   insertFreestyleTrick(db, { slug: 'bedwetter',                        canonical_name: 'bedwetter',                        adds: '4', base_trick: 'eggbeater',           trick_family: 'eggbeater',           category: 'compound', notation: 'STEPPING EGGBEATER' });
@@ -187,14 +186,14 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'stepping_ducking_paradox_blender', canonical_name: 'stepping ducking paradox blender', adds: '7', base_trick: 'blender',             trick_family: 'blender',             category: 'compound', notation: 'STEPPING DUCKING PARADOX BLENDER' });
   insertFreestyleTrick(db, { slug: 'paradox_blizzard',                 canonical_name: 'paradox blizzard',                 adds: '4', base_trick: 'blizzard',            trick_family: 'blizzard',            category: 'compound', notation: 'PARADOX BLIZZARD' });
 
-  // ─── Tier 2 Wave 7: doctrine-divergence pilot (2026-05-23).
+  // ─── Tier 2: doctrine-divergence pilot.
   // Three rows with PB-vs-IFPA gap=1; published with IFPA-canonical
   // ADD; divergence documented in DOCTRINE_DIVERGENCE_REGISTRY.
   insertFreestyleTrick(db, { slug: 'blurrage', canonical_name: 'blurrage', adds: '4', base_trick: 'barrage',         trick_family: 'barrage',         category: 'compound', notation: 'STEPPING BARRAGE' });
   insertFreestyleTrick(db, { slug: 'predator', canonical_name: 'predator', adds: '4', base_trick: 'double_leg_over', trick_family: 'double_leg_over', category: 'compound', notation: 'ATOMIC DLO' });
   insertFreestyleTrick(db, { slug: 'schmoe',   canonical_name: 'schmoe',   adds: '3', base_trick: 'legover',         trick_family: 'legover',         category: 'compound', notation: 'STEPPING LEGOVER' });
 
-  // ─── Tier 1: foundational 1-ADD vocabulary (added 2026-05-22) ────────
+  // ─── Tier 1: foundational 1-ADD vocabulary ───────────────────────────
   // Anatomical surface stalls + unusual-surface kicks + folk-name surface +
   // flying-operator primitives. Each carries an ATOMIC_FLAG_DECOMPOSITIONS
   // entry (provides chain + ADD breakdown) and curator-locked notation
@@ -214,7 +213,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'flying_outside', canonical_name: 'flying outside', adds: '1', base_trick: 'flying_outside', trick_family: 'flying_outside', category: 'body',    notation: 'FLYING OUTSIDE', operational_notation: 'flying > outside' });
   insertFreestyleTrick(db, { slug: 'double_knee',    canonical_name: 'double knee',    adds: '1', base_trick: 'double_knee',    trick_family: 'double_knee',    category: 'body',    notation: 'DOUBLE KNEE',    operational_notation: 'double knee' });
 
-  // ─── Tier 1: foundational 2-ADD primitives (added 2026-05-22) ───────
+  // ─── Tier 1: foundational 2-ADD primitives ──────────────────────────
   // Extend the foundational band upward to expose the unusual-surface,
   // flying + dex, and flying + xbody bucket combinations explicitly.
   // flying-clipper has base_trick='clipper' (not self) so it never passes
@@ -225,10 +224,10 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'dragonfly_kick', canonical_name: 'dragonfly kick', adds: '2', base_trick: 'dragonfly_kick', trick_family: 'dragonfly_kick', category: 'body',    notation: 'DRAGONFLY KICK', operational_notation: 'flying > dragonfly' });
   insertFreestyleTrick(db, { slug: 'flying_clipper', canonical_name: 'flying clipper', adds: '2', base_trick: 'clipper',        trick_family: 'clipper',        category: 'body',    notation: 'FLYING CLIPPER', operational_notation: 'flying > clipper' });
   // Folk-name resolution: knee-clipper is NOT a literal clipper-surface
-  // stall (per curator 2026-05-22); it's a flying dex knee kick.
+  // stall (per curator); it's a flying dex knee kick.
   // bod(1) + xbody(1) = 2 ADD via ATOMIC_FLAG_DECOMPOSITIONS.
   insertFreestyleTrick(db, { slug: 'knee_clipper',  canonical_name: 'knee-clipper',   adds: '2', base_trick: 'knee_clipper',   trick_family: 'knee_clipper',   category: 'body',    notation: 'KNEE-CLIPPER STALL', operational_notation: '[set] > knee-clipper' });
-  // Doctrine-hold release: guay resolved 2026-05-22 as pickup-pattern
+  // Doctrine-hold release: guay is resolved as a pickup-pattern
   // dex primitive ending in inside-stall. dex(1) + stall(1) = 2 ADD.
   insertFreestyleTrick(db, { slug: 'guay',          canonical_name: 'guay',           adds: '2', base_trick: 'guay',           trick_family: 'guay',           category: 'dex',     notation: 'GUAY',                operational_notation: '[set] > leggy in dex > ss inside' });
 
@@ -317,7 +316,7 @@ describe('First-class rendering parity — honest incomplete-state', () => {
   // RESOLVED_ADD_FORMULAS. Only paradox-mirage and atomic-butterfly
   // remain JOB-pending in this cohort.
   it.each([
-    // Slice D 2026-05-26: `= N ADD` terminator stripped on browse + detail
+    // The `= N ADD` terminator is not rendered on browse + detail
     // breakdowns; the hero/registry ADD chip carries the total.
     ['paradox_mirage',   'paradox(+1) + mirage(2)'],
     ['atomic_butterfly', 'atomic(+1) + butterfly(3)'],
@@ -388,7 +387,7 @@ describe('First-class rendering parity — slug/alias variations do not suppress
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// Cohort expansion (governed expansion slice 2026-05-20)
+// Cohort expansion (governed)
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('First-class cohort expansion — Tier 1 atom parity', () => {
@@ -402,7 +401,7 @@ describe('First-class cohort expansion — Tier 1 atom parity', () => {
   // fires when opNotationRaw is empty AND the atomic-chain fallback
   // supplies the chain (a path no longer reached for atoms with
   // CORE_TRICK_SPEC entries).
-  // Slice D 2026-05-26: `= N ADD` terminator stripped from ADD breakdowns
+  // The `= N ADD` terminator is not rendered in ADD breakdowns
   // (hero/registry ADD chip is the authoritative total).
   it.each([
     ['toe_stall',  'SET &gt; SAME TOE [DEL]',                          'stall(1)'],
@@ -441,7 +440,7 @@ describe('First-class cohort expansion — Tier 1 compound (pendulum)', () => {
 });
 
 describe('First-class cohort expansion — Tier 2 new promotions', () => {
-  // Slice D 2026-05-26: `= N ADD` terminator stripped.
+  // The `= N ADD` terminator is not rendered in ADD breakdowns.
   it.each([
     ['ducking_butterfly',       'ducking(+1) + butterfly(3)'],
     ['spinning_butterfly',      'spinning(+1) + butterfly(3)'],
@@ -483,25 +482,25 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       // Tier 1 — 12 elite (11 atoms + pendulum)
       'osis', 'toe_stall', 'clipper_stall', 'mirage', 'whirl', 'butterfly',
       'swirl', 'legover', 'pickup', 'illusion', 'around_the_world', 'pendulum',
-      // Tier 1 — 14 foundational 1-ADD primitives (promoted 2026-05-22)
+      // Tier 1 — 14 foundational 1-ADD primitives
       'heel_stall', 'inside_stall', 'outside_stall', 'head_stall',
       'forehead_stall', 'neck_stall', 'knee_stall', 'shoulder_stall',
       'sole_kick', 'cloud_kick', 'peak_delay',
       'flying_inside', 'flying_outside', 'double_knee',
       // Tier 1 — 3 foundational 2-ADD primitives (pedagogical ADD-bucket
-      // normalization 2026-05-22) + knee-clipper folk-name resolution
+      // normalization) + knee-clipper folk-name resolution
       // + guay doctrine-hold release
       'cloud_stall', 'dragonfly_kick', 'flying_clipper',
       'knee_clipper', 'guay',
-      // Tier 2 (9 original + 5 Wave 1 + 19 Wave 2 = 33)
+      // Tier 2 (9 original + 5 audit-derived + 19 RESOLVED_FORMULAS = 33)
       'paradox_mirage', 'symposium_mirage', 'atomic_butterfly', 'ripwalk',
       'ducking_butterfly', 'spinning_butterfly', 'stepping_osis',
       'eggbeater', 'paradox_symposium_whirl',
-      // Wave 1 audit-derived 2026-05-22
+      // audit-derived promotions
       'atomic_torque', 'ducking_mirage', 'paradox_drifter',
       'spinning_pickup', 'tapping_whirl',
-      // Wave 2 RESOLVED_FORMULAS promotions 2026-05-22.
-      // 2026-05-24 QC: rev-up was demoted from FIRST_CLASS_TIER_2 +
+      // RESOLVED_FORMULAS promotions.
+      // rev-up is excluded from FIRST_CLASS_TIER_2 and carries
       // is_active=0 (structurally distinct from rev-whirl but lacks an
       // authored decomposition).
       'atom_smasher', 'dimwalk', 'ducking_clipper', 'ducking_osis',
@@ -509,29 +508,29 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       'rake', 'rev_whirl', 'smear', 'spinning_clipper',
       'spinning_osis', 'spinning_torque', 'stepping_whirl',
       'symposium_whirl', 'whirling_swirl',
-      // Wave 3 audit-validated promotions 2026-05-22 — ATAM bracket-flag (6)
+      // audit-validated promotions — ATAM bracket-flag (6)
       'squeeze', 'barrage', 'barfly', 'high_plains_drifter', 'paradon',
       'barraging_osis',
-      // Wave 3 parser-derived (21) + composite witchdoctor (1)
+      // parser-derived (21) + composite witchdoctor (1)
       'cross_body_sole_stall', 'legeater', 'paste', 'reverse_drifter',
       'scrambled_eggbeater', 'tap', 'blur', 'hatchet', 'paradox_whirl',
       'pigbeater', 'spinning_whirl', 'tripwalk', 'matador', 'phoenix',
       'spinal_tap', 'spinning_symposium_whirl', 'witchdoctor',
       'mind_bender', 'mullet', 'spender', 'gauntlet', 'montage',
-      // Wave 4-B mechanical notation back-fill promotions 2026-05-22 (19)
+      // mechanical notation back-fill promotions (19)
       'flail', 'magellan', 'merkon', 'smudge',
       'assassin', 'haze', 'mantis', 'nova', 'parkwalk', 'royale',
       'smog', 'smoke', 'tapdown', 'tombstone',
       'blurriest', 'grave_digger', 'tomahawk', 'big_apple',
       'sole_stall',
-      // Wave 5 observational→canonical promotions 2026-05-22 (14)
+      // observational→canonical promotions (14)
       'blizzard', 'blaze', 'bedwetter', 'sole_survivor',
       'spinning_paradox_mirage', 'spinning_paradox_illusion',
       'spinning_paradox_whirl', 'paradox_double_leg_over',
       'paradox_barrage', 'paradox_symposium_mirage',
       'paradox_high_plains_drifter', 'spinning_paradox_blender',
       'stepping_ducking_paradox_blender', 'paradox_blizzard',
-      // Wave 7 doctrine-divergence pilot 2026-05-23 (3)
+      // doctrine-divergence pilot (3)
       'blurrage', 'predator', 'schmoe',
     ];
     for (const slug of cohort) {

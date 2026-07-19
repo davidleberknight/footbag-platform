@@ -98,18 +98,17 @@ describe('GET /freestyle/tricks?view=topology — route + toggle', () => {
   });
 
   it('marks "Movement Neighborhoods" active in the view toggle', async () => {
-    // Slice L0/Q3 Option B rename (2026-05-16): "By topology" label
-    // retired in favor of "Movement Neighborhoods" to reframe the
-    // observational topology surface as relationship browsing rather
-    // than primary taxonomy. The underlying ?view=topology URL is
-    // preserved for stable backlinks.
+    // The toggle label is "Movement Neighborhoods" (not "By
+    // topology"), framing the observational topology surface as
+    // relationship browsing rather than primary taxonomy. The
+    // underlying ?view=topology URL is preserved for stable backlinks.
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
     expect(res.text).toMatch(/class="trick-view-toggle-active">Movement Neighborhoods</);
   });
 
   it('the topology toggle link is reachable from every other view', async () => {
-    // Bare `/freestyle/tricks` now renders the dictionary landing surface
-    // (CR-1 of dictionary-coherence-2026-05-18), which has its own
+    // Bare `/freestyle/tricks` renders the dictionary landing surface,
+    // which has its own
     // discoverability path for Movement Neighborhoods (card 4). The
     // browse-view toggle is checked against every actual browse-view URL.
     for (const view of ['add', 'family', 'category', 'component']) {
@@ -141,7 +140,7 @@ describe('topology view — Movement Neighborhoods framing', () => {
   });
 
   it('the framing names "Movement Neighborhoods" and frames it as shared movement feel', async () => {
-    // CR-6 of dictionary-coherence-2026-05-18: user-facing label is
+    // The user-facing label is
     // "Movement Neighborhoods"; backend slug + URL parameter
     // ?view=topology preserved for URL stability. The surface is a
     // movement-feel grouping, not the observational staging layer.

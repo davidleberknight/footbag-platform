@@ -1,15 +1,15 @@
 /**
  * Integration tests for the standardized outward-link contract on
- * /freestyle/glossary (Glossary Architecture Overhaul Phase 6).
+ * /freestyle/glossary.
  *
- * Phase 6 unified the outward-link phrasing across the glossary's
- * five card primitives to a single vocabulary per destination type:
+ * The outward-link phrasing is uniform across the glossary's
+ * five card primitives — a single vocabulary per destination type:
  *
  *   - "View full ontology →"      → /freestyle/tricks/{slug} (trick-detail)
  *   - "Browse {Name} tricks →"    → /freestyle/tricks?view=movement-system
  *   - "Modifier reference →"      → /freestyle/modifier/{slug} or operator page
  *   - "View family →"             → /freestyle/tricks?view=family (preserved
- *                                   from earlier phases; not normalized)
+ *                                   as-is; not normalized)
  *
  * Forbidden variants (retired):
  *   - "See tricks using {Name} →"

@@ -86,7 +86,7 @@ beforeAll(async () => {
     notation: 'OSIS',
   });
 
-  // ── Pilot compounds (Sprint 1 + Sprint 3 published derivations) ──
+  // ── Pilot compounds (published derivations) ──
   insertFreestyleTrick(db, {
     slug: 'paradox_mirage', canonical_name: 'paradox mirage', base_trick: 'mirage',
     trick_family: 'mirage', category: 'compound', adds: '3', is_active: 1,
