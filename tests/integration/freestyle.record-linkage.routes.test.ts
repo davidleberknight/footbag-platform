@@ -174,16 +174,18 @@ describe('Record-to-trick linkage', () => {
     expect(res.text).not.toContain('<h1>Infinity Variant</h1>');
   });
 
-  it('links the hashtag to the gallery for a record-only-video trick, resolving the alias to canonical', async () => {
+  it('gives a record-only-video trick a plain hashtag, not a dead-end gallery link, while resolving the alias to canonical', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);
     // 2-bag-juggling's record is named "2-Bag Juggle" (an alias) and carries a
-    // video_url with no reference media: the canonical row still has media, so
-    // its hashtag renders as a clickable gallery link.
+    // video_url but no curated reference media. The alias resolves to the
+    // canonical row, which classifies as record coverage — but a record's own
+    // video is not a curated gallery item, so /media/browse?context= would open
+    // an empty gallery. Its hashtag is therefore a plain token, not a link.
     const recordRows = res.text.match(/<article class="dict-[^>]*data-media-coverage="record"[^>]*>([\s\S]*?)<\/article>/g) || [];
     // Exactly one: clipper-stall's record has no video_url, so it earns no coverage.
     expect(recordRows.length).toBe(1);
-    expect(recordRows[0]).toContain('hashtag--media');
-    expect(recordRows[0]).toContain('href="/media/browse?context');
+    expect(recordRows[0]).not.toContain('hashtag--media');
+    expect(recordRows[0]).not.toContain('href="/media/browse?context');
   });
 });

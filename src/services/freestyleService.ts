@@ -2629,6 +2629,18 @@ export interface FreestyleModifierEntry {
 //   'none'     — no media of any kind for this trick
 export type TrickMediaCoverage = 'tutorial' | 'demo' | 'record' | 'none';
 
+// A media hashtag links to the trick's gallery only when curated tutorial or
+// demo media lives there. A trick whose only footage is a competition record's
+// own video has no curated gallery item, so /media/browse?context=<slug> would
+// open an empty gallery — that coverage renders a plain, non-clickable token
+// (and its own "Record video" chip), never a dead link. This is the single
+// authoritative linkable-coverage predicate shared by the browse cards and the
+// set-detail example rows; it matches the trick-detail gallery gate, which
+// links only when a non-record reference-media item exists.
+function hasLinkableMediaCoverage(coverage: TrickMediaCoverage): boolean {
+  return coverage === 'tutorial' || coverage === 'demo';
+}
+
 export interface FreestyleTrickIndexRow {
   slug: string;
   canonicalName: string;
@@ -5980,7 +5992,7 @@ function shapeDictionaryTrickCard(
     kind:                       resolveTrickKind(indexRow.slug),
     slug:                       indexRow.slug,
     hashtag:                    indexRow.hashtag,
-    hashtagHref:                indexRow.mediaCoverage !== 'none' ? `/media/browse?context=${indexRow.slug}` : null,
+    hashtagHref:                hasLinkableMediaCoverage(indexRow.mediaCoverage) ? `/media/browse?context=${indexRow.slug}` : null,
     displayName:                indexRow.canonicalName,
     href:                       indexRow.detailHref,
     adds:                       indexRow.adds,
@@ -11088,7 +11100,10 @@ export const freestyleService = {
         : cov === 'demo' ? 'Demo available'
         : cov === 'record' ? 'Record video'
         : '';
-      return { href: `/media/browse?context=${s}`, label };
+      // Record-only coverage keeps its informational label but no gallery link:
+      // a record's own video is not a curated gallery item, so the link would
+      // dead-end on an empty gallery.
+      return { href: hasLinkableMediaCoverage(cov) ? `/media/browse?context=${s}` : null, label };
     };
     const linkedTrickSlugs = new Set<string>(
       linkRows.filter(l => l.modifier_slug === set.slug).map(l => l.trick_slug),
