@@ -2408,6 +2408,13 @@ export interface FreestyleTrickSearchRow {
 // double-leg-over), or any of its alias texts. Name/slug matches rank ahead of
 // alias-only matches; the caller dedupes by slug (keeping the higher-ranked
 // row) and trims to its display limit.
+//
+// Search resolves ANY alias to its trick (a misspelling or an abbreviation still
+// finds the move), but the "also called" hint the caller renders is populated
+// only from display-eligible aliases (alias_display = 1). A match on a
+// search-only alias — a misspelling, an internal abbreviation — still returns
+// the trick but carries no alias text, so a misspelled or internal form is never
+// shown back to the visitor as an alternate name.
 export function searchFreestyleTricksByText(query: string, limit: number): FreestyleTrickSearchRow[] {
   const escaped = query.replace(/[%_\\]/g, c => '\\' + c);
   const like = `%${escaped}%`;
@@ -2420,7 +2427,8 @@ export function searchFreestyleTricksByText(query: string, limit: number): Frees
        AND (canonical_name LIKE ? ESCAPE '\\' OR REPLACE(slug, '-', ' ') LIKE ? ESCAPE '\\')
     UNION ALL
     SELECT t.slug, t.canonical_name, t.adds, t.category, t.aliases_json,
-           a.alias_text AS matched_alias, t.sort_order, 1 AS match_rank
+           CASE WHEN a.alias_display = 1 THEN a.alias_text ELSE NULL END AS matched_alias,
+           t.sort_order, 1 AS match_rank
       FROM freestyle_trick_aliases a
       JOIN freestyle_tricks t ON t.slug = a.trick_slug AND t.is_active = 1
      WHERE (t.category IS NULL OR t.category NOT IN ('modifier', 'operator'))
