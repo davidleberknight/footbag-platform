@@ -113,6 +113,29 @@ describe('[XBD] is cross-body and independent of SAME/OP', () => {
   });
 });
 
+describe('OP is a component-relative leg relation, separate from near/far and from X-Dex', () => {
+  const glossary = read('src/views/freestyle/glossary.hbs');
+  const dd = lineWith(glossary, 'separate positional and naming axis');
+
+  it('describes OP as a component-relative leg relation', () => {
+    expect(dd).toMatch(/component-relative leg relation/);
+    expect(dd).toMatch(/opposite leg from the most recent side-bearing component/);
+  });
+
+  it('keeps near/far as a separate axis and drops the far/opposite synonym equation', () => {
+    expect(dd).toMatch(/separate positional and naming axis/);
+    expect(dd).toMatch(/not synonyms for/i);
+    expect(dd).not.toMatch(/far \/ opposite/i);
+    expect(dd).not.toMatch(/far dex/i);
+  });
+
+  it('states OP alone is not scored and X-Dex is a separate +1 only where marked', () => {
+    expect(dd).toMatch(/does not by itself add difficulty/);
+    expect(dd).toMatch(/X-Dex<\/a> is a separate \+1/);
+    expect(dd).toMatch(/only where the operational notation carries <code>\[XDEX\]<\/code>/);
+  });
+});
+
 describe('[PDX] is a paradox-relationship marker, not a direction or a fixed formula', () => {
   const opRender = read('src/services/operationalNotationRendering.ts');
   const notation = read('src/services/notationRendering.ts');
