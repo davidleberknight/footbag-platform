@@ -2023,6 +2023,39 @@ export const freestyleRecords = {
     ORDER BY fr.value_numeric DESC
   `); },
 
+  // Every public record row (current and superseded), across all tricks. Same
+  // public gating as listAllByTrickName minus the single-trick_name filter, so a
+  // trick-detail page can aggregate its records by canonical + alias slugs rather
+  // than by one exact spelling.
+  get listAllPublic() { return db.prepare(`
+    SELECT
+      fr.id,
+      fr.record_type,
+      fr.person_id,
+      COALESCE(hp.person_name, fr.display_name) AS holder_name,
+      m.slug AS holder_member_slug,
+      fr.trick_name,
+      fr.sort_name,
+      fr.adds_count,
+      fr.value_numeric,
+      fr.achieved_date,
+      fr.date_precision,
+      fr.confidence,
+      fr.video_url,
+      fr.video_timecode,
+      fr.notes,
+      fr.superseded_by
+    FROM freestyle_records AS fr
+    LEFT JOIN historical_persons AS hp
+      ON hp.person_id = fr.person_id
+    LEFT JOIN members AS m
+      ON m.historical_person_id = fr.person_id
+      AND m.deleted_at IS NULL
+    WHERE fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
+      AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
+    ORDER BY fr.value_numeric DESC
+  `); },
+
   get listRecentPublic() { return db.prepare(`
     SELECT
       fr.id,

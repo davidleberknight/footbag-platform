@@ -7280,10 +7280,13 @@ export const freestyleService = {
       slug = aliasCanonical?.trick_slug ?? rawSlug;
     }
 
-    // Resolve slug → trick_name via public (non-superseded) records
-    const publicRows = runSqliteRead('freestyleRecords.listPublic', () =>
-      freestyleRecords.listPublic.all() as FreestyleRecordRow[],
+    // Every public record (current + superseded), so this trick can aggregate its
+    // records across canonical + alias spellings below. publicRows is the
+    // current-only view used for the hero-title lookup and the has-records set.
+    const allPublicRows = runSqliteRead('freestyleRecords.listAllPublic', () =>
+      freestyleRecords.listAllPublic.all() as FreestyleRecordRow[],
     );
+    const publicRows = allPublicRows.filter(r => !r.superseded_by);
 
     // Also check dictionary for slug resolution (trick may have no records).
     // getBySlug returns the parser columns (jobs_notation_raw, structural
@@ -7330,10 +7333,20 @@ export const freestyleService = {
     // record-lookup key) but reads as jargon in a heading, so it is stripped here.
     const displayTrickName = stripDisplaySideQualifier(canonicalDisplayName ?? trickName);
 
-    // All records for this trick (current + superseded), ordered by value DESC
-    const allTrickRows = runSqliteRead('freestyleRecords.listAllByTrickName', () =>
-      freestyleRecords.listAllByTrickName.all(trickName) as FreestyleRecordRow[],
-    );
+    // All records for this trick (current + superseded), ordered by value DESC.
+    // Aggregate every public record whose trick_name canonicalizes to this trick's
+    // canonical slug or any of its alias slugs, so records filed under multiple
+    // alias spellings of one trick (Alpine PLO and Weaving Magellan both resolve to
+    // Puck) all list here. Dedup by durable record id, never by name or canonical
+    // slug, so two distinct records under the same canonical trick both survive.
+    const trickRecordsById = new Map<string, FreestyleRecordRow>();
+    for (const r of allPublicRows) {
+      if (r.trick_name && matchSlugs.has(recordTrickNameToSlug(r.trick_name))) {
+        trickRecordsById.set(r.id, r);
+      }
+    }
+    const allTrickRows = [...trickRecordsById.values()]
+      .sort((a, b) => b.value_numeric - a.value_numeric);
 
     const currentRows = allTrickRows.filter(r => !r.superseded_by);
     const hasProgression = allTrickRows.some(r => r.superseded_by);
