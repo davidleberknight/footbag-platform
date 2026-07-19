@@ -271,3 +271,36 @@ describe('shapeOperationalNotationDisplay — fallthrough behavior', () => {
     expect(reconstructed).toBe(raw);
   });
 });
+
+describe('shapeOperationalNotationDisplay — cross-body flag is independent of the SAME/OP side', () => {
+  // The [XBD] cross-body flag records a body configuration or traversal and is a
+  // separate token from the component-relative side. A component may be SAME or OP
+  // while carrying [XBD]; the renderer preserves the explicit side and never infers
+  // or rewrites it from the presence of [XBD].
+  const roleSeq = (raw: string) =>
+    shapeOperationalNotationDisplay(raw)!.tokens.map(t => `${t.role}:${t.text}`);
+
+  it('a SAME component carrying [XBD] renders SAME and keeps [XBD] as a separate flag', () => {
+    const seq = roleSeq('SET > SAME CLIP [XBD] [DEL]');
+    expect(seq).toContain('side:SAME');
+    expect(seq).toContain('component_flag:[XBD]');
+    expect(seq).not.toContain('side:OP');
+  });
+
+  it('an OP component carrying [XBD] renders OP and keeps [XBD] as a separate flag', () => {
+    const seq = roleSeq('SET > OP CLIP [XBD] [DEL]');
+    expect(seq).toContain('side:OP');
+    expect(seq).toContain('component_flag:[XBD]');
+    expect(seq).not.toContain('side:SAME');
+  });
+
+  it('an identical [XBD]-bearing structure differs only in the side token, so the flag does not rewrite side', () => {
+    const same = roleSeq('SET > SAME CLIP [XBD] [DEL]');
+    const op = roleSeq('SET > OP CLIP [XBD] [DEL]');
+    // Both carry [XBD]; removing the side token leaves two identical sequences,
+    // proving [XBD] (and every other token) is independent of the SAME/OP side.
+    expect(same.filter(x => x !== 'side:SAME')).toEqual(op.filter(x => x !== 'side:OP'));
+    expect(same).toContain('component_flag:[XBD]');
+    expect(op).toContain('component_flag:[XBD]');
+  });
+});
