@@ -2561,7 +2561,14 @@ function shapeNotationGrammar(
         .filter((x): x is string => typeof x === 'string')
     : [];
 
-  const editorialContext = typeof row.description === 'string' && row.description.trim().length > 0
+  // The collapsed structural panel's editorial prose passes through the same
+  // suppression the About block applies (single-home policy in
+  // isDescriptionStructuralPlaceholder), so ADD-arithmetic shorthand, JOB
+  // notation, and bracket-token backfills never resurface here as editorial
+  // context. Filter before the null becomes the template's empty-state signal.
+  const editorialContext = typeof row.description === 'string'
+    && row.description.trim().length > 0
+    && !isDescriptionStructuralPlaceholder(row.description)
     ? row.description.trim()
     : null;
 

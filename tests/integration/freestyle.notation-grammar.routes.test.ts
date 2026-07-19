@@ -613,11 +613,14 @@ describe('GET /freestyle/tricks/:slug — exact_modifier_derived (label distinct
     expect(res.text).not.toContain('Exact: named trick / self-atom');
   });
 
-  it('renders the editorial-context block when description is present', async () => {
+  it('suppresses the editorial-context block for a structural-placeholder description', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/trick-mod-derived');
-    expect(res.text).toContain('Editorial context');
-    expect(res.text).toContain('Paradox-modified whirl.');
+    // "Paradox-modified whirl." is an auto-generated structural-placeholder
+    // backfill, so the editorial-context panel suppresses it exactly as the
+    // About block does. Genuine prose still renders (see the self-atom row).
+    expect(res.text).not.toContain('Paradox-modified whirl.');
+    expect(res.text).not.toContain('notation-grammar-editorial');
   });
 
   it('renders the modifier-derived formula and both role layers', async () => {
