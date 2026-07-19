@@ -6,9 +6,11 @@ and writes a CSV. Idempotent: skips if the output CSV already exists and is
 newer than this script.
 
 Output columns:
-  legacy_club_key, name, city, region, country, contact_email (always empty
-  per SEC-S04; never extract personal emails into a public git repo),
-  contact_member_id, external_url, description, created, last_updated
+  legacy_club_key, name, city, region, country, contact_member_id,
+  external_url, description, created, last_updated
+
+A personal contact email is never extracted into this public-repo CSV; club
+contact is leader-supplied at onboarding instead (SEC-S04).
 """
 
 import argparse
@@ -30,7 +32,6 @@ FIELDNAMES = [
     "city",
     "region",
     "country",
-    "contact_email",
     "contact_member_id",
     "external_url",
     "description",
@@ -54,8 +55,8 @@ def _scrub_description_pii(text):
     The ratified design keeps club contact in the leader mechanism, never as
     free text in the description, and this CSV is tracked in a public git
     repository, so a personal email or phone left here re-leaks it upstream of
-    every downstream consumer (same reason contact_email is never extracted,
-    SEC-S04). Emails are always removed. A digit run is treated as a phone
+    every downstream consumer (the same public-repo safety reason no contact
+    email is extracted, SEC-S04). Emails are always removed. A digit run is treated as a phone
     number when it carries 7 to 14 digits; year ranges and 15+-digit ids are
     not phone numbers and survive, and digits inside a URL (e.g. a Facebook
     group id in its link) are left intact so the link is never broken.
@@ -149,13 +150,11 @@ def extract_club(html_path, legacy_club_key):
     # profile link's mirror member ID (if multiple contacts exist, the first
     # is the primary contact per the mirror page layout).
     #
-    # contact_email is intentionally never populated from the mirror. The
-    # legacy site carries personal email addresses in obfuscated form, and
-    # this CSV is tracked in a public git repository, so extracting them
-    # re-leaks them upstream of every downstream consumer. The column stays
-    # in FIELDNAMES so loaders that bind by name (e.g. load_clubs_seed.py)
-    # keep working unchanged. SEC-S04.
-    contact_email = ""
+    # A personal contact email is never extracted from the mirror: the legacy
+    # site carries obfuscated addresses, and this CSV is tracked in a public
+    # git repository, so pulling them in would re-leak them upstream of every
+    # downstream consumer. Club contact is leader-supplied at onboarding
+    # instead. SEC-S04.
     contact_member_id = ""
     contacts_div = soup.select_one("div.clubsContacts")
     if contacts_div:
@@ -200,7 +199,6 @@ def extract_club(html_path, legacy_club_key):
         "city": city,
         "region": region,
         "country": country,
-        "contact_email": contact_email,
         "contact_member_id": contact_member_id,
         "external_url": external_url,
         "description": description,

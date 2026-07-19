@@ -29,7 +29,7 @@ LOADER_PATH = REPO_ROOT / "legacy_data" / "scripts" / "load_clubs_seed.py"
 CUTOVER_PATH = REPO_ROOT / "legacy_data" / "clubs" / "scripts" / "06_cutover_pre_populated_clubs.py"
 
 CLUBS_HEADER = (
-    "legacy_club_key,name,city,region,country,contact_email,"
+    "legacy_club_key,name,city,region,country,"
     "contact_member_id,external_url,description,created,last_updated"
 )
 
@@ -55,10 +55,10 @@ def test_verdicts_stamped_at_load(tmp_path, monkeypatch):
     clubs_csv = tmp_path / "clubs.csv"
     clubs_csv.write_text(
         CLUBS_HEADER + "\n"
-        "k1,Verified Club,Acity,,USA,,,https://verified.example/,d,,\n"
-        "k2,Quarantined Club,Bcity,,USA,,,https://bad.example/,d,,\n"
-        "k3,Unverified Club,Ccity,,USA,,,https://unverified.example/,d,,\n"
-        "k4,Changed Club,Dcity,,USA,,,https://new.example/,d,,\n",
+        "k1,Verified Club,Acity,,USA,,https://verified.example/,d,,\n"
+        "k2,Quarantined Club,Bcity,,USA,,https://bad.example/,d,,\n"
+        "k3,Unverified Club,Ccity,,USA,,https://unverified.example/,d,,\n"
+        "k4,Changed Club,Dcity,,USA,,https://new.example/,d,,\n",
         encoding="utf-8",
     )
     verdicts_csv = tmp_path / "clubs_url_verdicts.csv"
@@ -121,8 +121,8 @@ def test_cutover_stamps_verdicts_at_load(tmp_path, monkeypatch):
     clubs_csv = tmp_path / "clubs.csv"
     clubs_csv.write_text(
         CLUBS_HEADER + "\n"
-        "kv,Verified Club,Acity,,USA,,,https://verified.example/,d,,\n"
-        "kq,Quarantined Club,Bcity,,USA,,,https://bad.example/,d,,\n",
+        "kv,Verified Club,Acity,,USA,,https://verified.example/,d,,\n"
+        "kq,Quarantined Club,Bcity,,USA,,https://bad.example/,d,,\n",
         encoding="utf-8",
     )
     verdicts_csv = tmp_path / "clubs_url_verdicts.csv"

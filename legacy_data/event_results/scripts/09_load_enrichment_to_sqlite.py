@@ -501,8 +501,8 @@ def main() -> None:
                       -- Live-content fields published onto the club at promotion.
                       -- external_url is the raw extracted value; it is validated
                       -- before going live (external_url_validated_at / quarantine
-                      -- columns stay NULL here). contact_email is intentionally
-                      -- never carried (club contact is leader-supplied).
+                      -- columns stay NULL here). Club contact is leader-supplied,
+                      -- not carried from the legacy seed.
                       description, external_url
                     ) VALUES (
                       ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?,

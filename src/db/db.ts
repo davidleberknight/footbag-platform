@@ -6043,8 +6043,8 @@ export const media = {
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      s3_key_thumb, s3_key_display, width_px, height_px, source_filename
-    ) VALUES (?, ?, 'member', ?, 'member', 1, ?, 'photo', 1, NULL, ?, ?, ?, ?, ?, ?)
+      s3_key_thumb, s3_key_display, width_px, height_px, source_filename, mime_type
+    ) VALUES (?, ?, 'member', ?, 'member', 1, ?, 'photo', 1, NULL, ?, ?, ?, ?, ?, ?, ?)
   `); },
 
   get findSystemMemberId() { return db.prepare(`
@@ -6056,11 +6056,11 @@ export const media = {
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       s3_key_thumb, s3_key_display, width_px, height_px,
-      moderation_status, source_filename
+      moderation_status, source_filename, mime_type
     ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
               ?, 'photo', 0, ?, ?,
               ?, ?, ?, ?,
-              'active', ?)
+              'active', ?, ?)
   `); },
 
   get insertCuratorVideo() { return db.prepare(`
@@ -6069,12 +6069,12 @@ export const media = {
       uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       video_platform, video_id, video_url, thumbnail_url,
       width_px, height_px,
-      moderation_status, source_filename
+      moderation_status, source_filename, mime_type
     ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
               ?, 'video', 0, ?, ?,
               's3', ?, NULL, ?,
               ?, ?,
-              'active', ?)
+              'active', ?, ?)
   `); },
 
   // Curator URL-reference video (YouTube/Vimeo): no hosted bytes, so no
@@ -6108,11 +6108,11 @@ export const media = {
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       s3_key_thumb, s3_key_display, width_px, height_px,
-      moderation_status, source_filename
+      moderation_status, source_filename, mime_type
     ) VALUES (?, ?, 'member', ?, 'member', 1,
               ?, 'photo', 0, ?, ?,
               ?, ?, ?, ?,
-              'active', ?)
+              'active', ?, ?)
   `); },
 
   // Member-submitted video: a YouTube or Vimeo URL reference. The

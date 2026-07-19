@@ -180,6 +180,8 @@ describe('curatorMediaService.uploadPhoto', () => {
     const db = openDb();
     const mediaRow = db.prepare(`SELECT * FROM media_items WHERE id = ?`).get(result.mediaId) as Record<string, unknown>;
     expect(mediaRow.media_type).toBe('photo');
+    // Photo renditions are always JPEG, recorded as the served content type.
+    expect(mediaRow.mime_type).toBe('image/jpeg');
     expect(mediaRow.is_avatar).toBe(0);
     expect(mediaRow.uploader_member_id).toBe(SYSTEM_ID);
     expect(mediaRow.caption).toBe('A curated photo');
@@ -372,6 +374,9 @@ describe('curatorMediaService.uploadVideo', () => {
     const row = db.prepare(`SELECT * FROM media_items WHERE id = ?`).get(result.mediaId) as Record<string, unknown>;
     expect(row.media_type).toBe('video');
     expect(row.video_platform).toBe('s3');
+    // MP4-only curated-video invariant: the transcoded s3 object's content type
+    // is recorded as a real column (video/<transcoder outputFormat>).
+    expect(row.mime_type).toBe('video/mp4');
     expect(row.video_url).toBeNull();
     expect(row.video_id).toMatch(/-video\.mp4$/);
     expect(row.thumbnail_url).toMatch(/^\/media-store\/.*-poster-display\.jpg$/);

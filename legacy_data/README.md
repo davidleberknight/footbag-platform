@@ -51,7 +51,7 @@ What is committed vs maintainer-only, and when each is used:
 **Tier 1, committed, runs the site (hello-world).** The committed canonical event
 data (`event_results/canonical_input/*.csv`, real event results and historical
 persons, `legacy_email` empty) plus the committed mirror-derived seed CSVs
-(`seed/clubs.csv` for club names and locations, `contact_email` empty;
+(`seed/clubs.csv` for club names and locations;
 `seed/club_members.csv` for member display names and aliases). These hold real
 competitor and club names and results, treated as public for practical purposes
 pre-go-live, with no emails, contact details, or membership status.
@@ -98,7 +98,7 @@ committed as the curated, seed, and identity inputs below.
 |---|---|---|---|
 | `membership/inputs/membership_input_normalized.csv` | **gitignored** | `membership/scripts/01_build_membership_enrichment.py` (phase C) | IFPA member roster (real member PII); operator handoff, not regenerable |
 | `event_results/canonical_input/*.csv` (5 files) | committed | `reset-local-db.sh`, `run_pipeline.sh` canonical loaders | real committed competitor event data (event results and historical persons, `legacy_email` empty); the maintainer regenerates it from the mirror |
-| `seed/clubs.csv`, `seed/club_members.csv`, `seed/clubs_url_verdicts.csv` | committed | `load_clubs_seed.py`, `load_club_members_seed.py` | mirror-derived club seed (names and locations; `contact_email` empty) |
+| `seed/clubs.csv`, `seed/club_members.csv`, `seed/clubs_url_verdicts.csv` | committed | `load_clubs_seed.py`, `load_club_members_seed.py` | mirror-derived club seed (names and locations) |
 | `inputs/name_variants.csv` | committed | `load_name_variants_seed.py` | name-variant pairs (generated; only HIGH rows load) |
 | `inputs/identity_lock/*.csv` | committed (older `Persons_Truth_Final_v*` / `Placements_ByPerson_v*` snapshots are gitignored; the latest of each is whitelisted) | `pipeline/identity/build_name_variants.py` | frozen identity lock (patch-toolchain only) |
 | `inputs/bap_data_updated.csv` | committed | `build_name_variants.py` | Big-Add-Posse honor names |

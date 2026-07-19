@@ -840,14 +840,14 @@ def test_red_additions_loader_scoped_delete_preserves_other_source_aliases(tmp_p
 # the loader reads a tmp_path fixture here and never a real-data tree.
 
 CLUBS_HEADER = ["legacy_club_key", "name", "city", "region", "country",
-                "contact_email", "contact_member_id", "external_url",
+                "contact_member_id", "external_url",
                 "description", "created", "last_updated"]
 CLUB_MEMBERS_HEADER = ["legacy_club_key", "mirror_member_id", "display_name", "alias"]
 
 
 def _one_club_row() -> dict:
     return {"legacy_club_key": "idem-club-1", "name": "Idem Club", "city": "Town",
-            "region": "State", "country": "United States", "contact_email": "",
+            "region": "State", "country": "United States",
             "contact_member_id": "", "external_url": "", "description": "A club.",
             "created": "", "last_updated": ""}
 

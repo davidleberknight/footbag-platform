@@ -517,7 +517,7 @@ def fixture_dir(tmp_path: Path) -> Path:
         {
             "club_key": "club-a", "name": "Club A", "city": "Toronto",
             "country": "Canada",
-            "contact_email": "", "contact_member_id": "100",
+            "contact_member_id": "100",
             "external_url": "",
             "description": "Founded by Alpha Person; meets weekly.",
             "created": "", "last_updated": "",
@@ -537,7 +537,7 @@ def fixture_dir(tmp_path: Path) -> Path:
         {
             "club_key": "club-b", "name": "Club B", "city": "Paris",
             "country": "France",
-            "contact_email": "", "contact_member_id": "999",
+            "contact_member_id": "999",
             "external_url": "",
             "description": "Sleepy and quiet; founded a long time ago.",
             "created": "", "last_updated": "",

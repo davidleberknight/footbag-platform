@@ -447,11 +447,9 @@ def main() -> int:
                 )
                 tags_inserted += cur.rowcount
 
-                # contact_email is intentionally NOT written here. Club contact
-                # is leader-supplied during onboarding, never carried from the
-                # legacy site (the seed contact_email is never populated, so this
-                # only ever wrote NULL). Leaving it out keeps any future
-                # repopulation of the column from leaking onto live clubs.
+                # Club contact is leader-supplied during onboarding, never
+                # carried from the legacy seed, so no legacy contact email is
+                # written onto live clubs.
                 # External-URL safety verdict (data-prep time; see VERDICTS_CSV).
                 # Applied only when the verdict still matches this row's URL; an
                 # unmatched or absent verdict leaves the columns NULL so the

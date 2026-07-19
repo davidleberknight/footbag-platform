@@ -70,9 +70,9 @@ def test_multiple_emails_in_prose_all_removed():
         "+1.555.555.0101",
         "(555)555-0102",
         "555) 555 0103",
-        "055 500 01 04",
-        "5550000106",
-        "5550000107",
+        "012 345 67 89",
+        "5555550106",
+        "5555550107",
     ],
 )
 def test_phone_shaped_runs_are_removed(phone):

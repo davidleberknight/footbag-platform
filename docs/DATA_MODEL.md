@@ -927,7 +927,7 @@ Curator-uploaded reference media (videos/images attributed to the system-member 
 - `start_seconds INTEGER NULL`: optional clip start within the source video.
 - `end_seconds INTEGER NULL`: optional clip end within the source video.
 
-Beyond the curator-specific columns, `media_items.external_url TEXT NULL` plus `external_url_validated_at TEXT NULL` carry an optional user-supplied external link on every media item (admin curator + member uploads). Validated at the service boundary per DD §3.17.
+Beyond the curator-specific columns, `media_items.external_url TEXT NULL` plus `external_url_validated_at TEXT NULL` carry an optional user-supplied external link on every media item (admin curator + member uploads). Validated at the service boundary per DD §3.17. `media_items.mime_type TEXT NULL` records the served content type of the stored object (`video/<transcode format>` for transcoded curator video, `image/jpeg` for photo renditions); URL-reference rows leave it NULL.
 
 **Table:** `media_sources`, provenance lookup. Columns: `source_id` (PK), `source_name`, `source_type` (e.g. `'dvd'`, `'website'`, `'youtube'`, `'vimeo'`), `url`, `creator`. `media_items.source_id ON DELETE NO ACTION` (sources are reference data, not deleted in normal flow).
 

@@ -291,8 +291,8 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      s3_key_thumb, s3_key_display, width_px, height_px, source_filename
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'photo', ?, ?, ?, ?, ?, ?, ?, ?)
+      s3_key_thumb, s3_key_display, width_px, height_px, source_filename, mime_type
+    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'photo', ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, TS, TS,
     o.uploader_member_id,
@@ -304,6 +304,7 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
     o.width_px  ?? 800,
     o.height_px ?? 600,
     o.source_filename ?? null,
+    'image/jpeg',
   );
   return id;
 }
@@ -1035,8 +1036,8 @@ export function insertCuratorVideo(
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       video_platform, video_id, video_url, thumbnail_url,
-      moderation_status, source_filename
-    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'video', 0, ?, ?, 's3', ?, NULL, ?, 'active', ?)
+      moderation_status, source_filename, mime_type
+    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'video', 0, ?, ?, 's3', ?, NULL, ?, 'active', ?, ?)
   `).run(
     mediaId, TS, TS,
     o.uploaderMemberId,
@@ -1045,6 +1046,7 @@ export function insertCuratorVideo(
     videoKey,
     posterUrl,
     o.sourceFilename,
+    'video/mp4',
   );
 
   db.prepare(`

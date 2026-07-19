@@ -24,6 +24,9 @@
  *     actor is recorded only in `audit_entries`.
  *   - Curator video bytes use `video_platform='s3'`; member video routes reject `s3`
  *     as a defensive boundary.
+ *   - `media_items.mime_type` records the served content type of the stored object
+ *     (`video/<transcode outputFormat>` for curator video, the JPEG rendition type
+ *     for photos); URL-reference rows leave it NULL.
  *   - Storage keys follow `{systemMemberId}/detached/{mediaId}-...` so offline seed
  *     and admin upload produce identical row shape.
  *   - Auto-applies `#curated`; `#curated` rejected from input.
@@ -100,7 +103,7 @@ import path from 'path';
 import { GALLERY_ITEMS_QUERY_CAP, countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, tagStats, transaction, type MediaJobRow } from '../db/db';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
-import { detectImageType } from '../lib/imageProcessing';
+import { detectImageType, RENDITION_IMAGE_MIME } from '../lib/imageProcessing';
 import { detectVideoFormat, type TranscodedVideo } from '../lib/videoProcessing';
 import { Semaphore } from '../lib/semaphore';
 import { MediaStorageAdapter, getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
@@ -1234,7 +1237,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             mediaId, now, now,
             systemMemberId, input.caption, now,
             thumbKey, displayKey, processed.widthPx, processed.heightPx,
-            recordedSourceFilename,
+            recordedSourceFilename, RENDITION_IMAGE_MIME,
           );
           if (normalizedExternalUrl !== null) {
             media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId, systemMemberId);
@@ -1303,7 +1306,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const posterDisplayKey = `${systemMemberId}/detached/${mediaId}-poster-display.jpg`;
       const posterThumbKey = `${systemMemberId}/detached/${mediaId}-poster-thumb.jpg`;
 
-      await storage.put(videoKey, transcoded.bytes, 'video/mp4');
+      // Content type of the transcoded object, recorded on the row so the
+      // stored format is a real column (not inferred from the key extension)
+      // and follows the transcoder's actual output format.
+      const videoMime = `video/${transcoded.outputFormat}`;
+      await storage.put(videoKey, transcoded.bytes, videoMime);
       await storage.put(posterDisplayKey, processed.display);
       await storage.put(posterThumbKey, processed.thumb);
 
@@ -1355,7 +1362,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             systemMemberId, input.caption, now,
             videoKey, thumbnailUrl,
             processed.widthPx, processed.heightPx,
-            recordedSourceFilename,
+            recordedSourceFilename, videoMime,
           );
           if (normalizedExternalUrl !== null) {
             media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId, systemMemberId);
@@ -1442,14 +1449,16 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // suspenders against accidental double-dispatch.
       await transcodeBound.acquire();
       let processed: Awaited<ReturnType<ImageProcessingAdapter['processPhoto']>>;
+      let transcoded: Awaited<ReturnType<ReturnType<typeof videoTranscoder>['transcodeFromStorage']>>;
       try {
-        [, processed] = await Promise.all([
+        [transcoded, processed] = await Promise.all([
           videoTranscoder().transcodeFromStorage(job.source_video_key, videoKey),
           rejectImageAsValidation(imageProcessor.processPhoto(posterBuffer)),
         ]);
       } finally {
         transcodeBound.release();
       }
+      const videoMime = `video/${transcoded.outputFormat}`;
 
       // Video object already at videoKey from transcodeFromStorage; only the
       // poster derivatives are uploaded by this process.
@@ -1466,7 +1475,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           systemMemberId, job.caption, now,
           videoKey, thumbnailUrl,
           processed.widthPx, processed.heightPx,
-          job.source_filename,
+          job.source_filename, videoMime,
         );
         appliedTagIds = applyTagsForCurator(mediaId, tags, now);
         appendAuditEntry({
@@ -2583,7 +2592,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             mediaId, now, now,
             input.memberId, input.caption, now,
             thumbKey, displayKey, processed.widthPx, processed.heightPx,
-            input.sourceFilename,
+            input.sourceFilename, RENDITION_IMAGE_MIME,
           );
           if (normalizedExternalUrl !== null) {
             media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId, input.memberId);

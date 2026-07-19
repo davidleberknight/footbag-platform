@@ -2177,6 +2177,12 @@ CREATE TABLE media_items (
   video_url      TEXT,
   thumbnail_url  TEXT,
 
+  -- Content type of the primary stored/served S3 object: the transcoded video
+  -- or the JPEG display rendition. NULL for external URL references
+  -- (YouTube/Vimeo) that host no bytes. Open set -- new stored formats extend
+  -- the values, so no CHECK constrains it.
+  mime_type TEXT,
+
   moderation_status TEXT NOT NULL DEFAULT 'active'
     CHECK (moderation_status IN ('active','removed_by_admin')),
   moderation_reason TEXT,

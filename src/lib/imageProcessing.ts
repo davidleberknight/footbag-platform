@@ -50,6 +50,15 @@ export function detectImageType(data: Buffer): 'image/jpeg' | 'image/png' | null
 }
 
 /**
+ * Content type of the display and thumbnail renditions processAvatar and
+ * processPhoto emit: both re-encode to JPEG, so every stored *-display.jpg /
+ * *-thumb.jpg object is served as image/jpeg. Recorded in media_items.mime_type
+ * for photo rows, so the served content type is a real column rather than
+ * inferred from the key extension.
+ */
+export const RENDITION_IMAGE_MIME = 'image/jpeg';
+
+/**
  * Security: re-encodes the image through sharp, which strips all
  * EXIF/ICC/XMP metadata and eliminates any embedded malicious content.
  * The original bytes are never written to disk.

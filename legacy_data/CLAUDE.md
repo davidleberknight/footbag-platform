@@ -180,7 +180,7 @@ Do not invent synthetic cities for these exceptions.
 Extraction:
 - `scripts/extract_clubs.py`
 - Mirror HTML -> `seed/clubs.csv`
-- Includes `contact_member_id` from `members/profile/{id}` plus `contact_email`.
+- Includes `contact_member_id` from `members/profile/{id}`.
 
 URL safety verification (data-prep time, no app callout):
 - `npm run verify:seed-urls -- --clubs-only` (run_pipeline.sh Phase B) reuses the Node validator and writes `seed/clubs_url_verdicts.csv` (per-`legacy_club_key` `validated_at` / `quarantine_reason`). Idempotent: already-verdicted URLs are kept, so a normal run makes no network callout. Real Safe Browsing verdicts require the live adapter configured in the run environment.

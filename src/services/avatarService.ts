@@ -34,7 +34,7 @@
  */
 import { randomUUID } from 'crypto';
 import { media, mediaTags as mediaTagsDb, transaction, ExistingAvatarRow } from '../db/db';
-import { detectImageType } from '../lib/imageProcessing';
+import { detectImageType, RENDITION_IMAGE_MIME } from '../lib/imageProcessing';
 import { MediaStorageAdapter, getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { ImageProcessingAdapter, getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
 import { RateLimitedError, ValidationError } from './serviceErrors';
@@ -132,7 +132,7 @@ export function createAvatarService(deps: AvatarServiceDeps) {
           memberId, now,
           thumbKey, displayKey,
           processed.widthPx, processed.heightPx,
-          sourceFilename,
+          sourceFilename, RENDITION_IMAGE_MIME,
         );
 
         // Single tag: `#by_<slug>`. Reuse the existing tag row if one is

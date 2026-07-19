@@ -464,8 +464,6 @@ def score_club(row: pd.Series) -> float:
 
     if row["has_city"]:
         score += 0.10
-    if row["has_contact_email"]:
-        score += 0.15
     if row["has_description"]:
         score += 0.05
     if row["has_external_url"]:
@@ -679,7 +677,6 @@ def main(argv: list[str] | None = None) -> None:
     df["has_name"] = df["name"].map(norm_text).ne("")
     df["has_country"] = df["country"].map(norm_text).ne("")
     df["has_city"] = df["city"].map(norm_text).ne("") if "city" in df.columns else False
-    df["has_contact_email"] = df["contact_email"].map(norm_text).ne("") if "contact_email" in df.columns else False
     df["has_description"] = df["description"].map(norm_text).ne("") if "description" in df.columns else False
     df["has_external_url"] = df["external_url"].map(norm_text).ne("") if "external_url" in df.columns else False
 
@@ -747,7 +744,7 @@ def main(argv: list[str] | None = None) -> None:
     if "club_id" in df.columns:
         out_cols.append("club_id")
     out_cols += ["_club_key", "name"]
-    for optional in ["city", "country", "contact_email", "contact_member_id", "external_url", "description", "created", "last_updated"]:
+    for optional in ["city", "country", "contact_member_id", "external_url", "description", "created", "last_updated"]:
         if optional in df.columns:
             out_cols.append(optional)
 

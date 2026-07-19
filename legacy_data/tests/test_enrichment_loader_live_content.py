@@ -9,9 +9,8 @@ Boundary behaviour:
   - an empty description stores '' (the live club's description is non-null),
     while an empty external_url stores NULL (nullable, validated at promotion)
 
-`contact_email` is never carried (club contact is leader-supplied), so the
-candidate's effective contact channel comes from onboarding, not the legacy
-mirror.
+Club contact is leader-supplied, never carried from the legacy mirror, so the
+candidate's effective contact channel comes from onboarding.
 
 Run from repo root:
     python -m pytest legacy_data/tests/test_enrichment_loader_live_content.py -v

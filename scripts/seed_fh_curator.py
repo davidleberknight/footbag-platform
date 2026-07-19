@@ -34,6 +34,7 @@ import argparse
 import hashlib
 import io
 import json
+import mimetypes
 import os
 import re
 import shutil
@@ -396,9 +397,9 @@ def seed_video_item(
             media_type, is_avatar, caption, uploaded_at,
             video_platform, video_id, video_url, thumbnail_url,
             width_px, height_px,
-            moderation_status, source_filename,
+            moderation_status, source_filename, mime_type,
             created_at, created_by, updated_at, updated_by, version
-        ) VALUES (?, ?, 'video', 0, ?, ?, 's3', ?, NULL, ?, ?, ?, 'active', ?, ?, 'seed', ?, 'seed', 1)
+        ) VALUES (?, ?, 'video', 0, ?, ?, 's3', ?, NULL, ?, ?, ?, 'active', ?, ?, ?, 'seed', ?, 'seed', 1)
         """,
         (
             media_id, fh_id,
@@ -410,6 +411,7 @@ def seed_video_item(
             # resolves a registry slot (e.g. 'demo-freestyle.mp4') to its row;
             # the subdir prefix is implementation detail of the on-disk layout.
             Path(item["video_source"]).name,
+            mimetypes.guess_type(rel_video)[0],
             ts, ts,
         ),
     )
@@ -458,9 +460,9 @@ def seed_photo_item(
             media_type, is_avatar, caption, uploaded_at,
             s3_key_thumb, s3_key_display,
             width_px, height_px,
-            moderation_status, source_filename,
+            moderation_status, source_filename, mime_type,
             created_at, created_by, updated_at, updated_by, version
-        ) VALUES (?, ?, 'photo', ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 'seed', ?, 'seed', 1)
+        ) VALUES (?, ?, 'photo', ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 'seed', ?, 'seed', 1)
         """,
         (
             media_id, fh_id, 1 if is_avatar else 0,
@@ -469,6 +471,7 @@ def seed_photo_item(
             width_px, height_px,
             # Basename only — see seed_video_item for rationale.
             Path(item["photo_source"]).name,
+            mimetypes.guess_type(rel_display)[0],
             ts, ts,
         ),
     )

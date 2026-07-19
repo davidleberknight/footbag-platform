@@ -126,6 +126,20 @@ def test_seed_fh_curator_against_fresh_schema() -> None:
             ).fetchone()
             assert s3_count == 2, f"expected 2 s3-platform rows, got {s3_count}"
 
+            # mime_type records the served content type of the stored object:
+            # every s3 curator video is MP4 (the checkable MP4-only invariant),
+            # every stored photo rendition is JPEG.
+            (video_mp4,) = con.execute(
+                "SELECT COUNT(*) FROM media_items "
+                "WHERE video_platform = 's3' AND mime_type = 'video/mp4'"
+            ).fetchone()
+            assert video_mp4 == 2, f"expected 2 s3 video rows with mime_type video/mp4, got {video_mp4}"
+            (photo_jpeg,) = con.execute(
+                "SELECT COUNT(*) FROM media_items "
+                "WHERE media_type = 'photo' AND mime_type = 'image/jpeg'"
+            ).fetchone()
+            assert photo_jpeg == 2, f"expected 2 photo rows with mime_type image/jpeg, got {photo_jpeg}"
+
             # Demo tags mirror the curated sidecars: each demo loop carries
             # its own discipline-scoped demo tag, and the freestyle demo
             # additionally carries the shared #freestyle tag.
