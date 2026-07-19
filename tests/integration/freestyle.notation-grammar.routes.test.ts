@@ -690,8 +690,10 @@ describe('GET /freestyle/tricks/:slug — editorial decomposition (sumo-style: f
     // never confuses it with parser output.
     expect(res.text).toContain('data-source="editorial"');
     expect(res.text).toContain('Curator-asserted lineage');
-    // Base resolved to the real fixture row.
-    expect(res.text).toMatch(/<code>trick-ed-base<\/code>/);
+    // Base resolved to the real fixture row and renders by its canonical display
+    // name, not the raw machine slug.
+    expect(res.text).toContain('trick ed base');
+    expect(res.text).not.toMatch(/<code>trick-ed-base<\/code>/);
     expect(res.text).toContain('(2)');
     // Modifier surfaced from the join table.
     expect(res.text).toContain('trick-ed-mod');

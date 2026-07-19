@@ -2158,6 +2158,7 @@ export interface EditorialDecomposition {
   // Base lineage — drawn from `freestyle_tricks.base_trick` and resolved
   // against the dictionary at shape time.
   baseSlug:           string | null;
+  baseDisplayName:    string | null;   // canonical display name for rendered prose; baseSlug stays for links
   baseAdds:           number | null;
   baseStatus:         'resolved' | 'broken_link';
 
@@ -2303,6 +2304,15 @@ function shapeRoleBuckets(
 //   - Never re-tokenizes canonical_name. Never parses description.
 //   - Never claims parser provenance (sourceLabel always 'editorial').
 //   - composedAdds is presentation-only; never feeds back into asserted_adds.
+// Resolve a trick slug to its human display name for rendered decomposition copy:
+// the dictionary canonical name when the slug resolves, else the slug with
+// separators spaced. Raw slugs stay available for internal linking and identity;
+// only rendered prose uses this name. The canonical name is used as stored, never
+// lowercased.
+function displayNameForSlug(slug: string, dictBySlug: Map<string, FreestyleTrickRow>): string {
+  return dictBySlug.get(slug)?.canonical_name ?? slug.replace(/[-_]+/g, ' ');
+}
+
 function shapeEditorialDecomposition(
   row: FreestyleTrickRowWithParse,
   dictBySlug: Map<string, FreestyleTrickRow>,
@@ -2318,6 +2328,8 @@ function shapeEditorialDecomposition(
   // Try to resolve the base. Editorial state is honest about broken links.
   const baseRow = dictBySlug.get(baseSlug) ?? null;
   const baseStatus: 'resolved' | 'broken_link' = baseRow ? 'resolved' : 'broken_link';
+  // Human display name for rendered prose; the machine baseSlug stays for links.
+  const baseName = displayNameForSlug(baseSlug, dictBySlug);
   const baseAdds = baseRow && baseRow.adds && /^\d+$/.test(baseRow.adds)
     ? parseInt(baseRow.adds, 10)
     : null;
@@ -2344,9 +2356,9 @@ function shapeEditorialDecomposition(
       const parts = modifiers
         .map(m => `${m.slug}(+${m.effectiveBonus})`)
         .join(' + ');
-      derivationText = `${parts} + ${baseSlug}(${baseAdds}) = ${composedAdds}`;
+      derivationText = `${parts} + ${baseName}(${baseAdds}) = ${composedAdds}`;
     } else {
-      derivationText = `${baseSlug}(${baseAdds}) = ${composedAdds}`;
+      derivationText = `${baseName}(${baseAdds}) = ${composedAdds}`;
     }
   }
 
@@ -2358,6 +2370,7 @@ function shapeEditorialDecomposition(
 
   return {
     baseSlug,
+    baseDisplayName: baseName,
     baseAdds,
     baseStatus,
     modifiers,
@@ -6921,6 +6934,7 @@ function buildParallelTricks(
 ): ParallelTrick[] {
   if (!trick.adds || !/^\d+$/.test(trick.adds)) return [];
   if (!trick.trick_family) return [];
+  const dictBySlug = new Map(allDictRows.map(x => [x.slug, x] as const));
   return allDictRows
     .filter(r =>
       r.slug !== trick.slug &&
@@ -6932,7 +6946,7 @@ function buildParallelTricks(
     .map(r => {
       const mods = modifierLinkMap.get(r.slug) ?? [];
       const decompParts = mods.map(m => m.name);
-      decompParts.push((r.base_trick ?? r.canonical_name).toLowerCase());
+      decompParts.push(displayNameForSlug(r.base_trick ?? r.canonical_name, dictBySlug));
       return {
         slug:           r.slug,
         canonicalName:  r.canonical_name,

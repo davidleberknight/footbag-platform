@@ -84,7 +84,7 @@
     <dl>
       <dt>Base</dt>
       <dd>
-        {{#if content.notationGrammar.editorialDecomposition.baseSlug}}<code>{{content.notationGrammar.editorialDecomposition.baseSlug}}</code>{{else}}&mdash;{{/if}}
+        {{#if content.notationGrammar.editorialDecomposition.baseDisplayName}}{{content.notationGrammar.editorialDecomposition.baseDisplayName}}{{else}}&mdash;{{/if}}
         {{#if content.notationGrammar.editorialDecomposition.baseAdds}}({{content.notationGrammar.editorialDecomposition.baseAdds}}){{/if}}
         {{#unless (eq content.notationGrammar.editorialDecomposition.baseStatus 'resolved')}}
         <span>broken upstream link (<code>{{content.notationGrammar.editorialDecomposition.baseSlug}}</code> is not in the dictionary)</span>
