@@ -127,7 +127,7 @@ Public-facing descriptions are neutral and instructional. No reviewer names ("pe
 
 ## 2. Modifier Layer
 
-**Single-authority rule (operator / modifier doctrine).** `src/content/freestyleOperatorReference.ts` is the CANONICAL source for every operator / modifier's ADD value, structure, and X-Dex behavior. All other operator/modifier-describing surfaces are SECONDARY and must stay consistent with it: `freestyleMovementSystems.ts`, `freestyleStructuralFactNotes.ts`, `freestyleOperatorGrammar.ts`, the DB `freestyle_trick_modifiers` registry, and the public glossary operator text. When operator doctrine changes, edit `operatorReference.ts` first, then bring the secondary surfaces into line; never let a secondary surface assert a contradicting value. Drift between them is a bug.
+**Single-authority rule (operator / modifier doctrine).** `src/content/freestyleOperatorReference.ts` is the CANONICAL source for every operator / modifier's ADD value, structure, and X-Dex behavior. All other operator/modifier-describing surfaces are SECONDARY and must stay consistent with it: `freestyleMovementSystems.ts`, `freestyleStructuralFactNotes.ts`, the DB `freestyle_trick_modifiers` registry, and the public glossary operator text. When operator doctrine changes, edit `operatorReference.ts` first, then bring the secondary surfaces into line; never let a secondary surface assert a contradicting value. Drift between them is a bug.
 
 Use the modifier system for structural components that alter tricks (atomic, paradox, gyro, spinning, stepping, symposium, pogo).
 

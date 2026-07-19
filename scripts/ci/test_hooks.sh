@@ -36,6 +36,19 @@ expect() {
   fi
 }
 
+# expect_err2 <hook-file>: pipe malformed (non-JSON) stdin and assert the hook fails
+# closed with the PreToolUse block code 2 (never jq's own error code), pinning the
+# security gates' documented fail-closed contract.
+expect_err2() {
+  local hook="$1" rc
+  printf 'not json' | ".claude/hooks/$hook" >/dev/null 2>&1
+  rc=$?
+  if [ "$rc" -ne 2 ]; then
+    echo "[hooks] FAIL ($hook): want exit 2 on malformed stdin, got $rc" >&2
+    fail=1
+  fi
+}
+
 SETTINGS=".claude/settings.json"
 
 # expect_chain_deny <command>: pipe the command through EVERY Bash PreToolUse hook
@@ -156,6 +169,14 @@ expect "$H" 'git --git-dir=/tmp/g push' deny
 expect "$H" 'git status' defer
 expect "$H" 'git log --oneline' defer
 expect "$H" 'git diff HEAD' defer
+
+# A mention at argument position (an echo/grep string) is not an invocation and must
+# defer; an env or VAR= prefix at command position must not evade the block.
+expect "$H" 'echo "=== git add in skills ==="' defer
+expect "$H" 'grep -n "git add" .claude/skills/prepare-pr/SKILL.md' defer
+expect "$H" 'git log --oneline -- src/app.ts' defer
+expect "$H" 'env git add -A' deny
+expect "$H" 'GIT_AUTHOR_NAME=x git commit -m x' deny
 
 H=guard-db-destructive.sh
 
@@ -907,6 +928,22 @@ expect_q 'State 4 is where the cutover lands.' defer
 # otherwise auto-allow must still be denied once the full Bash chain runs.
 expect_chain_deny 'cd src && ls'
 expect_chain_deny '(cd terraform/staging && terraform plan)'
+
+# Security gates fail closed: malformed stdin exits with the block code 2, so an
+# internal error (bad input, missing jq) blocks the call instead of waving it through.
+# The read-only approver is deliberately absent: it only ever grants, so on internal
+# error it must stay silent (defer), not block.
+expect_err2 block-git-mutations.sh
+expect_err2 block-secrets.sh
+expect_err2 guard-secret-reads.sh
+expect_err2 guard-dangerous-git.sh
+expect_err2 guard-db-destructive.sh
+expect_err2 guard-prod-ops.sh
+expect_err2 guard-find-exec.sh
+expect_err2 guard-rm.sh
+expect_err2 guard-readonly-bash.sh
+expect_err2 guard-leading-cd.sh
+expect_err2 guard-shell-loop.sh
 
 if [ "$fail" -ne 0 ]; then
   echo "[hooks] FAIL: one or more hook fixtures failed." >&2

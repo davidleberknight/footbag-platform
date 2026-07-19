@@ -91,7 +91,7 @@ Use role-based labels for internal team members in the **design docs** — DEV_O
 
 When replacing, preserve role/context: "James's sprint" means "the historical-pipeline sprint," not "a sprint." Translate semantically; do not delete.
 
-**MIGRATION_PLAN names people directly.** It is a coordination and plan-of-record doc about who supplies which facts and who does what, so the project's people are named by first name throughout it: the legacy-site webmaster (Steve), the IFPA secretary (Julie), the primary maintainer / project manager (Dave), the historical-pipeline and freestyle maintainer (James), and the tester (Caroline). Private-tracker issues name people the same way. For legacy data still use "the legacy data" / "the legacy data import", not possessive constructions like "Steve's dump" — the neutral framing is about data ownership, not naming.
+**MIGRATION_PLAN names people directly.** It is a coordination and plan-of-record doc about who supplies which facts and who does what, so the project's people are named by first name throughout it: the legacy-site webmaster (Steve), the IFPA secretary (Julie), the primary maintainer / project manager (Dave), and the historical-pipeline and freestyle maintainer (James). Private-tracker issues name people the same way. For legacy data still use "the legacy data" / "the legacy data import", not possessive constructions like "Steve's dump" — the neutral framing is about data ownership, not naming.
 
 **Meta / governance docs** (README, CONTRIBUTING, CODE_OF_CONDUCT, GOVERNANCE) may name the maintainer for attribution and contact. Attribution is not sprint tracking.
 

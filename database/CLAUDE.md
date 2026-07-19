@@ -18,7 +18,7 @@ Local rules for schema and data-model work in `database/` and related database d
 
 ## Schema changes and tests
 
-When adding or removing columns from tables that appear in `tests/fixtures/factories.ts`, update the relevant factory inserts to stay in sync. Failing to do so will cause integration tests to fail with SQLite column errors.
+When changing a table's columns, apply the factory-sync rule in `src/db/CLAUDE.md` ("Schema changes and tests"), its single home.
 
 ## Boundary note
 

@@ -199,8 +199,8 @@ Reports for prior slices are the format-of-truth; they are archived under `explo
 Run:
 - `npx tsc -p tsconfig.json --noEmit`: must be clean
 - `npx vitest run --exclude "tests/e2e/**" --exclude "tests/smoke/**"`: full suite green
-- `git add` the changed files (services / templates / CSS / tests / report)
-- Surface the commit command to the user (Claude never commits; the human owns commits)
+- List the changed files (services / templates / CSS / tests / report) for the human to stage
+- Surface the stage-and-commit commands to the user (Claude never stages or commits; the human owns all git writes)
 
 ## Constraints (every browse-view slice)
 

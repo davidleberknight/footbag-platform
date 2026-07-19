@@ -27,16 +27,27 @@ that needs it, and continue the rest of the job. Never hard-fail, never repeat t
 note, never block unrelated work. A scope check with no wiring means: proceed with
 the human's instruction as given.
 
-## Orientation (read-only, auto-approved)
+## Orientation (read-only)
 
-- Active work: `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`
-  (add `--label <lane>`, `--assignee <user>`, `--milestone <name>` to narrow).
-- Detail: `gh issue view <n> -R "$FOOTBAG_PRIVATE_REPO"`.
-- "Is this tracked / in scope?": search titles and bodies with
-  `gh search issues --repo "$FOOTBAG_PRIVATE_REPO" "<terms>"` or list open issues
-  and match. An open issue covering the work is the scope record; its absence for
-  significant new work is a question for the human, not a blocker to invent around.
-- Non-mutating `gh api` GETs are fine. All of these auto-approve; run them freely.
+- **Preferred when the `footbag_private_repo/` symlink is present:** the shipped
+  `footbag_private_repo/track-issues.sh` viewer — compact one-line-per-issue output whose tokens
+  are all that enter context. Presets: no arg (dashboard: counts by lane and type), `<label>`,
+  `mine`, `blocked`, `all`, `<number>` (single-issue detail with the Assignee line).
+- **Fallback (symlink absent, env var only) or for anything the script does not cover:**
+  - Active work: `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`
+    (add `--label <lane>`, `--assignee <handle>`, `--milestone <name>` to narrow).
+  - Detail: `gh issue view <n> -R "$FOOTBAG_PRIVATE_REPO"`.
+  - "Is this tracked / in scope?": search titles and bodies with
+    `gh search issues --repo "$FOOTBAG_PRIVATE_REPO" "<terms>"` or list open issues and match.
+    An open issue covering the work is the scope record; its absence for significant new work is
+    a question for the human, not a blocker to invent around.
+- **"What's assigned to <person>":** translate the name to a GitHub handle via the assignee
+  roster in the private `TRACKER_GUIDE.md` (its single home), then
+  `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --assignee <handle>` (the script's `mine` preset
+  covers only yourself). Degradation: symlink absent (no roster to read) -> derive handles live
+  from `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --json assignees`; fully unwired -> ask the
+  human for the handle. Never hard-code a handle in this file.
+- Non-mutating `gh api` GETs are fine; the `gh` read forms auto-approve, run them freely.
 
 ## Drafting
 
@@ -97,9 +108,9 @@ never carry an issue number; the issue cites the file and line.
 
 ## Private ops docs
 
-The private checkout carries three private ops docs. `AWS_OPERATIONS.md` holds
-concrete AWS facts, the private `DEVOPS_GUIDE.md` holds operating runbooks, and
-`VAULT_GOVERNANCE.md` holds vault and board governance. Cite their content by section title, never by section number. Linking is
+The private checkout carries three private ops docs. `AWS_OPERATIONS.md` (private GitHub repo)
+holds concrete AWS facts, `DEVOPS_GUIDE.md` (private GitHub repo) holds operating runbooks, and
+`VAULT_GOVERNANCE.md` (private GitHub repo) holds vault and board governance. Cite their content by section title, never by section number. Linking is
 one-way: private text may cite public files and commit SHAs; public text names these
 docs by filename and marks them private ("DEVOPS_GUIDE.md (private GitHub repo)"), because
 a reader who cannot open a doc is still better served by its real name than by a vague

@@ -21,6 +21,7 @@ This document is not loaded into Claude's context automatically; it carries no `
 - [11. Harness Change Control](#11-harness-change-control)
 - [12. Continuous Self-Verification](#12-continuous-self-verification)
 - [13. Anti-patterns This Harness Avoids](#13-anti-patterns-this-harness-avoids)
+- [14. Companion Repositories](#14-companion-repositories)
 
 ## 1. Design Premises
 
@@ -144,7 +145,7 @@ The allow/ask/deny policy in `settings.json` embodies a discipline: cut needless
 **What the policy does:**
 
 - Precedence is `deny > ask > allow`.
-- Wildcard allows are limited to read-only command heads (the first word of a command) plus a short list of deliberate development conveniences: `mkdir`, `kill` and `pkill` for dev-server lifecycle, `git fetch`, `npm run build`, the local test tiers that touch nothing outside the repo (`npm test`, and `npm run test:unit` / `test:integration` / `test:coverage` / `test:strong-hash`), the two direct tool invocations behind those same tiers (`npx tsc -p tsconfig.json --noEmit` as one exact spelling, and `npx vitest run ...` in its run form only, so watch-mode `npx vitest` still prompts and a full-suite run still meets the full-suite guard), and a short reviewed list of repo scripts (the harness self-check, the hook-fixture suite, the generated-content check, and the e2e port-reclaim helper). The tiers that reach outside the repo are deliberately not auto-approved and so prompt: the live-AWS `npm run test:smoke`, the browser end-to-end `npm run test:e2e*`, the heavy pentest tier, and the everything-run `npm run test:all`. Destructive, history-rewriting, package-installing, and service-touching commands sit in ask or deny.
+- Wildcard allows are limited to read-only command heads (the first word of a command) plus a short list of deliberate development conveniences: `mkdir`, `kill` and `pkill` for dev-server lifecycle, `git fetch`, `npm run build`, the local test tiers that touch nothing outside the repo (`npm test`, and `npm run test:unit` / `test:integration` / `test:coverage` / `test:strong-hash`), the two direct tool invocations behind those same tiers (`npx tsc -p tsconfig.json --noEmit` as one exact spelling, and `npx vitest run ...` in its run form only, so watch-mode `npx vitest` still prompts and a full-suite run still meets the full-suite guard), and a short reviewed list of repo scripts (the harness self-check, the hook-fixture suite, the generated-content check, the e2e port-reclaim helper, and, when the private ops repo is wired, its read-only tracker viewer reached through the `footbag_private_repo` symlink). The tiers that reach outside the repo are deliberately not auto-approved and so prompt: the live-AWS `npm run test:smoke`, the browser end-to-end `npm run test:e2e*`, the heavy pentest tier, and the everything-run `npm run test:all`. Destructive, history-rewriting, package-installing, and service-touching commands sit in ask or deny.
 - Claude Code checks each part of a compound command (`&&`, `;`, `|`) against the rules independently, but a rule sees only the command prefix. A mutating flag later in the argument list (`find ... -delete`, `curl -X POST`) is invisible to it; those positional cases are what the guard hooks cover.
 - Network reads route through domain-scoped `WebFetch(domain:...)` allows and WebSearch rather than an allowed `curl`. The one auto-approved `curl` is a loopback health probe that discards its body (`curl -o /dev/null http://localhost/…`); every content-returning or off-box `curl` prompts, because content is fetched through WebFetch, not an auto-approved `curl`. `sqlite3` is auto-approved only for an inline read-only query on a read-only open (`-readonly`, or the `file:...?mode=ro` URI), through the approver hook; and read-only `gh` subcommands auto-approve while every `gh` write form still prompts.
 - Lightweight Playwright browser-driving auto-approves so routine UI testing does not prompt: navigating, reading the accessibility snapshot, clicking, hovering, typing, filling forms, selecting options, pressing keys, waiting, reading console and network output, resizing, tab control, and closing. Screenshot capture (`browser_take_screenshot`) is the heavy mode (large token cost) and stays in `ask`; browser JavaScript execution (`browser_evaluate`, `browser_run_code_unsafe`) and the other browser side-effect tools are never allowed and prompt by default.
@@ -251,3 +252,39 @@ Common failure modes in Claude Code setups, each paired with this repository's c
 - **Stale memory.** Duplicates, citations of deleted documents, and one-off status accumulate silently. The write gate plus the periodic `audit-memory` pass keep the store honest.
 - **A canonical document polluted with status,** or a tracker issue polluted with long-term design. The two must not blur.
 - **A dated status journal inside a skill body.** It reloads into context on every invocation. Status goes in the private tracker; the skill keeps only timeless procedure.
+
+## 14. Companion Repositories
+
+The project spans up to three repositories, and a contributor may have any subset wired. This
+section records what still works when a companion repo is absent, so a volunteer developer or an
+IFPA board member can use the harness efficiently from day one.
+
+**The repositories.**
+
+- **footbag-platform** (this repo) — the public application: code, schema, infrastructure, tests,
+  and the canonical design docs. It works standalone; nothing here hard-requires a companion repo.
+- **The private operations repo** — the maintainers' work tracker (GitHub Issues), operations
+  docs, and private/sensitive data, kept private for member-data privacy. Reached through a
+  canonical-named, gitignored symlink (`footbag_private_repo`) at this repo's root, plus a
+  machine-local slug in `.claude/settings.local.json`. Optional per machine.
+- **The legacy footbag.org clone** — a read-only snapshot of the old site, reached through the
+  `footbag_legacy_repo` symlink. Needed only for historical-pipeline work. Optional per machine.
+
+**Companion governance lives in this public harness.** The companion repos are reached by
+fixed-name symlinks under this repo's root, so tooling refers to them identically on every
+machine while only the symlink's target stays machine-local. Their governance — how to touch the
+files, how the tracker is read — lives here (`.claude/rules/private-repo.md`, the `tracker-ops`
+skill, and `legacy_data/CLAUDE.md`), never in a companion's own `CLAUDE.md`: a directory added
+with `permissions.additionalDirectories` does not auto-load its `CLAUDE.md`/rules (only `--add-dir`
+with an env-var opt-in does), so the main repo is the reliable home however a companion is reached.
+
+**Graceful degradation is the contract.** No skill hard-fails when a companion repo is absent.
+When a piece of wiring is missing, a skill says exactly one line naming the wiring step, skips the
+part that needs it, and continues everything else: a tracker read with no wiring proceeds on the
+human's instruction as given; a legacy-pipeline step with no legacy clone is simply skipped. This
+is "solve, don't defer" — the absence is handled explicitly, never left to improvisation.
+
+**Where to get wired.** A maintainer sets up both companion repos following the private repo's
+`ONBOARDING.md` (private GitHub repo), which covers the developer path (writing code) and the
+browser path (governance work, no code). This public guide does not restate those steps; it
+records only that the companion repos are optional and how the harness behaves without them.

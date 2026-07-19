@@ -9,6 +9,8 @@
 # that is not a single, simple invocation with every operand provably under a scratchpad path,
 # or that carries a `..`, a separator, a command substitution, a backtick, or a redirect, asks;
 # a non-scratch rm that this hook somehow does not match still falls to the normal prompt.
+# Fails closed: any internal error (missing jq, bad input) exits 2, blocking the call.
+trap 'exit 2' ERR
 set -euo pipefail
 
 INPUT="$(cat)"

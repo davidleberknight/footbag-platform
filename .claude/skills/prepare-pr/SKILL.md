@@ -45,5 +45,5 @@ Include:
 - commit
 - push
 - rewrite git history
-- run `git add` without explicit human approval
+- run `git add` (staging is always human-run; the harness hard-denies it)
 - claim verification that did not happen
