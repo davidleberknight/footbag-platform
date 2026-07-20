@@ -67,6 +67,15 @@ beforeAll(async () => {
     notation: 'QUANTUM MIRAGE', operational_notation: 'TOE > OP IN [DEX] > OP IN [DEX] > OP TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
+  // Third mirage trick member so the mirage family clears the family-view
+  // three-member minimum (quantum and paradox are set / modifier rows and
+  // never count as family members).
+  insertFreestyleTrick(db, {
+    slug: 'blur', canonical_name: 'blur', adds: '4',
+    base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
+    notation: 'BLUR', operational_notation: 'SET > OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]',
+    review_status: 'expert_reviewed', is_active: 1,
+  });
   // Modifier registry + link so the ?view=sets projection renders a quantum
   // group whose MEMBER is the compound, never the quantum row itself.
   insertFreestyleTrickModifier(db, {

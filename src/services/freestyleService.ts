@@ -8718,7 +8718,12 @@ export const freestyleService = {
     const familyGroups: FreestyleFamilyGroup[] = [];
     for (const fslug of FAMILY_ORDER) {
       const rows = familyMap.get(fslug);
-      if (rows && rows.length > 1) {
+      // A public family renders only with the documented minimum of three active
+      // members (the >2 hard rule). The count is the final aggregated membership
+      // for the family (overrides, branch folds, umbrella aggregation already
+      // applied), derived at render time, so a family drops below the floor or
+      // reappears automatically as its membership changes.
+      if (rows && rows.length > 2) {
         familyGroups.push(buildFamilyGroup(fslug, rows, ctx, rungOf));
       }
     }

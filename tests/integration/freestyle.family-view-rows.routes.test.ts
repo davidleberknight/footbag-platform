@@ -36,7 +36,8 @@ beforeAll(async () => {
       ('stepping', 'stepping', 'set', 1, 1, '', ?)
   `).run('2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z');
 
-  // Each family needs >1 member (family view drops singletons). The compound
+  // Each family needs at least three members (family view drops families below
+  // the three-member minimum). The compound
   // members (smear / magellan / ripwalk / torque) carry chain readings in the
   // static registry (freestyleSymbolicEquivalences.ts), so their line-1
   // interpretation slot renders alongside line-2 JOB + ADD.
@@ -58,6 +59,12 @@ beforeAll(async () => {
     // id="family-torque".
     { slug: 'torque', canonical_name: 'torque', adds: '4', base_trick: 'torque', trick_family: 'torque', category: 'compound', notation: 'TORQUE', operational_notation: 'CLIP > SPIN [BOD] > SAME IN [DEX] > OP OSIS [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'spinning-torque', canonical_name: 'spinning torque', adds: '5', base_trick: 'torque', trick_family: 'torque', category: 'compound', notation: 'SPINNING TORQUE', operational_notation: 'CLIP > (back) SPIN [BOD] > SPIN [BOD] > SAME IN [DEX] > OP OSIS [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    // Third member per family so each clears the family-view three-member minimum.
+    { slug: 'blur', canonical_name: 'blur', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'BLUR', operational_notation: 'SET > OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'double-leg-over', canonical_name: 'double leg over', adds: '4', base_trick: 'legover', trick_family: 'legover', category: 'compound', notation: 'DOUBLE LEG OVER', operational_notation: 'SET > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'parkwalk', canonical_name: 'parkwalk', adds: '5', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound', notation: 'PARKWALK', operational_notation: 'TOE > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'blurry-whirl', canonical_name: 'blurry whirl', adds: '5', base_trick: 'whirl', trick_family: 'whirl', category: 'compound', notation: 'BLURRY WHIRL', operational_notation: 'CLIP > LEGGY IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'gyro-torque', canonical_name: 'gyro torque', adds: '6', base_trick: 'torque', trick_family: 'torque', category: 'compound', notation: 'GYRO TORQUE', operational_notation: 'CLIP > GYRO [BOD] > SAME IN [DEX] > OP OSIS [DEL]', review_status: 'expert_reviewed', is_active: 1 },
   ];
   for (const t of tricks) insertFreestyleTrick(db, t);
 

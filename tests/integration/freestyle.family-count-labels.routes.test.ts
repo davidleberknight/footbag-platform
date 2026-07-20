@@ -26,14 +26,18 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   // Two Family-Parent families with members (whirl, mirage) and one Minor-Lineage
   // family with members (eclipse): the browse renders two core families, one smaller
-  // lineage, three family groupings.
+  // lineage, three family groupings. Each family carries three members so it clears
+  // the family-view three-member minimum.
   const rows: Array<Parameters<typeof insertFreestyleTrick>[1]> = [
     { slug: 'whirl',           canonical_name: 'whirl',           adds: '3', base_trick: 'whirl',   trick_family: 'whirl',   category: 'dex',      review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'spinning_whirl',  canonical_name: 'spinning whirl',  adds: '4', base_trick: 'whirl',   trick_family: 'whirl',   category: 'compound', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'blurry_whirl',    canonical_name: 'blurry whirl',    adds: '5', base_trick: 'whirl',   trick_family: 'whirl',   category: 'compound', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'mirage',          canonical_name: 'mirage',          adds: '2', base_trick: 'mirage',  trick_family: 'mirage',  category: 'dex',      review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'spinning_mirage', canonical_name: 'spinning mirage', adds: '3', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'blur',            canonical_name: 'blur',            adds: '4', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'eclipse',         canonical_name: 'eclipse',         adds: '3', base_trick: 'eclipse', trick_family: 'eclipse', category: 'dex',      review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'spinning_eclipse',canonical_name: 'spinning eclipse',adds: '4', base_trick: 'eclipse', trick_family: 'eclipse', category: 'compound', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'blurry_eclipse',  canonical_name: 'blurry eclipse',  adds: '5', base_trick: 'eclipse', trick_family: 'eclipse', category: 'compound', review_status: 'expert_reviewed', is_active: 1 },
   ];
   for (const r of rows) insertFreestyleTrick(db, r);
   db.close();

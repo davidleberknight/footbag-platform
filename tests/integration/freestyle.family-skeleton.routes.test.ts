@@ -40,6 +40,8 @@ const trick = (
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
+  // Each public family carries at least three members so it clears the
+  // family-view three-member minimum.
   const rows = [
     // ── Osis family: native osis rows ──
     trick('osis', 'osis', 'dex'),
@@ -48,14 +50,17 @@ beforeAll(async () => {
     // ── Torque family: renders as its own family (derived branch) ──
     trick('torque', 'torque', 'dex'),
     trick('spinning_torque', 'torque'),
+    trick('gyro_torque', 'torque'),
 
     // ── Whirl family: native whirl rows ──
     trick('whirl', 'whirl', 'dex'),
     trick('paradox_whirl', 'whirl'),
+    trick('ducking_whirl', 'whirl'),
 
     // ── Swirl family: renders as its own family (separate from whirl) ──
     trick('swirl', 'swirl', 'dex'),
     trick('paradox_swirl', 'swirl'),
+    trick('ducking_swirl', 'swirl'),
 
     // ── twirl: route-out (sparse lineage), ≥2 rows so the singleton
     //    filter is not the reason it hides ──
@@ -72,10 +77,10 @@ beforeAll(async () => {
     trick('toe_one', 'toe_stall'), trick('toe_two', 'toe_stall'),
     trick('clip_stall_one', 'clipper_stall'), trick('clip_stall_two', 'clipper_stall'),
 
-    // ── Other public families render as their own sections (≥2 rows) ──
-    trick('eclipse', 'eclipse', 'dex'), trick('lunar_eclipse', 'eclipse'),
-    trick('drifter', 'drifter', 'dex'), trick('day_drifter', 'drifter'),
-    trick('inside_stall', 'inside_stall', 'dex'), trick('guay', 'inside-stall'),
+    // ── Other public families render as their own sections (≥3 rows) ──
+    trick('eclipse', 'eclipse', 'dex'), trick('lunar_eclipse', 'eclipse'), trick('solar_eclipse', 'eclipse'),
+    trick('drifter', 'drifter', 'dex'), trick('day_drifter', 'drifter'), trick('night_drifter', 'drifter'),
+    trick('inside_stall', 'inside_stall', 'dex'), trick('guay', 'inside-stall'), trick('inside_stall_two', 'inside_stall'),
   ];
   for (const r of rows) insertFreestyleTrick(db, r);
 

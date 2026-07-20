@@ -32,28 +32,33 @@ const { dbPath } = setTestEnv('3165');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
-// Seed each terminal family with its anchor + one compound so the
-// family-view section renders (length > 1 heuristic). Six terminal
-// families × ~2 tricks each = 12 rows.
+// Seed each rendering terminal family with its anchor plus two compounds so it
+// clears the family-view three-member minimum. rev-whirl stays a two-member
+// route-out (too few descendants to be a family): it must render no section.
 const FAMILY_FIXTURES = [
   // Whirl (pre-existing pilot)
   { slug: 'whirl',           name: 'whirl',           family: 'whirl',     adds: '3', category: 'dex' as const },
   { slug: 'paradox-whirl',   name: 'paradox whirl',   family: 'whirl',     adds: '4', category: 'compound' as const },
-  // Rev-Whirl
+  { slug: 'blurry-whirl',    name: 'blurry whirl',    family: 'whirl',     adds: '5', category: 'compound' as const },
+  // Rev-Whirl (route-out: stays at two members, renders no family section)
   { slug: 'rev-whirl',       name: 'rev-whirl',       family: 'rev-whirl', adds: '4', category: 'dex' as const },
   { slug: 'hatchet',         name: 'hatchet',         family: 'rev-whirl', adds: '5', category: 'compound' as const },
   // Butterfly (NEW)
   { slug: 'butterfly',       name: 'butterfly',       family: 'butterfly', adds: '3', category: 'dex' as const },
   { slug: 'ripwalk',         name: 'ripwalk',         family: 'butterfly', adds: '4', category: 'compound' as const },
+  { slug: 'parkwalk',        name: 'parkwalk',        family: 'butterfly', adds: '5', category: 'compound' as const },
   // Mirage (NEW)
   { slug: 'mirage',          name: 'mirage',          family: 'mirage',    adds: '2', category: 'dex' as const },
   { slug: 'paradox-mirage',  name: 'paradox mirage',  family: 'mirage',    adds: '3', category: 'compound' as const },
+  { slug: 'blur',            name: 'blur',            family: 'mirage',    adds: '4', category: 'compound' as const },
   // Osis (NEW)
   { slug: 'osis',            name: 'osis',            family: 'osis',      adds: '3', category: 'dex' as const },
   { slug: 'spinning-osis',   name: 'spinning osis',   family: 'osis',      adds: '4', category: 'compound' as const },
+  { slug: 'ducking-osis',    name: 'ducking osis',    family: 'osis',      adds: '5', category: 'compound' as const },
   // Swirl (NEW)
   { slug: 'swirl',           name: 'swirl',           family: 'swirl',     adds: '3', category: 'dex' as const },
   { slug: 'double-swirl',    name: 'double swirl',    family: 'swirl',     adds: '4', category: 'compound' as const },
+  { slug: 'triple-swirl',    name: 'triple swirl',    family: 'swirl',     adds: '5', category: 'compound' as const },
 ];
 
 beforeAll(async () => {

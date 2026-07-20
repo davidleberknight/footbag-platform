@@ -67,6 +67,13 @@ beforeAll(async () => {
     adds: '5', base_trick: 'barfly', trick_family: 'barfly',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
   });
+  // Third barfly member so the barfly branch clears the family-view
+  // three-member minimum and renders as its own full section.
+  insertFreestyleTrick(db, {
+    slug: 'barfly_crawl', canonical_name: 'barfly crawl',
+    adds: '5', base_trick: 'barfly', trick_family: 'barfly',
+    category: 'compound', review_status: 'expert_reviewed', is_active: 1,
+  });
   insertFreestyleTrick(db, {
     slug: 'fusion', canonical_name: 'fusion',
     adds: '5', base_trick: 'dod', trick_family: 'dod',
@@ -74,6 +81,14 @@ beforeAll(async () => {
   });
   insertFreestyleTrick(db, {
     slug: 'cold_fusion', canonical_name: 'cold fusion',
+    adds: '6', base_trick: 'fusion', trick_family: 'dod',
+    category: 'compound', review_status: 'expert_reviewed', is_active: 1,
+  });
+  // Third dod-labelled member so the Double-Over-Down branch (which the dod
+  // sub-label folds into) clears the three-member minimum and renders as its
+  // own full section.
+  insertFreestyleTrick(db, {
+    slug: 'hot_fusion', canonical_name: 'hot fusion',
     adds: '6', base_trick: 'fusion', trick_family: 'dod',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
   });
@@ -85,6 +100,14 @@ beforeAll(async () => {
   insertFreestyleTrick(db, {
     slug: 'dolomite', canonical_name: 'dolomite',
     adds: '5', base_trick: 'paradon', trick_family: 'paradon',
+    category: 'compound', review_status: 'expert_reviewed', is_active: 1,
+  });
+  // Third paradon member so the paradon branch clears the three-member minimum
+  // and surfaces in the compact Minor Lineages band (paradon is minor-lineage
+  // tier, so it renders as a ?family= link, not a full section).
+  insertFreestyleTrick(db, {
+    slug: 'travertine', canonical_name: 'travertine',
+    adds: '6', base_trick: 'paradon', trick_family: 'paradon',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
   });
   db.close();

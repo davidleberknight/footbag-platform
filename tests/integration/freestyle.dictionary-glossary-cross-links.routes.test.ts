@@ -112,6 +112,16 @@ beforeAll(async () => {
     adds:           '3',
     is_active:      1,
   });
+  // Third butterfly member so the family clears the family-view three-member
+  // minimum and the ripwalk card below renders.
+  insertFreestyleTrick(db, {
+    slug:           'parkwalk',
+    canonical_name: 'parkwalk',
+    trick_family:   'butterfly',
+    category:       'compound',
+    adds:           '5',
+    is_active:      1,
+  });
 
   db.close();
   createApp = await importApp();

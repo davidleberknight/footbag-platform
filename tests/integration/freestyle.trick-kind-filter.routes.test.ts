@@ -115,16 +115,24 @@ beforeAll(async () => {
     is_active:      1,
   });
 
-  // Second butterfly-family trick so the family view's `length > 1`
-  // display heuristic emits the butterfly section. The kind-filter
-  // contract is independent of this heuristic; the second row makes the
-  // surface visible so we can assert the control trick rendered.
+  // Two more butterfly-family tricks so the family view's three-member minimum
+  // emits the butterfly section. The kind-filter contract is independent of this
+  // threshold; the extra rows make the surface visible so we can assert the
+  // control trick rendered.
   insertFreestyleTrick(db, {
     slug:           'dimwalk',
     canonical_name: 'Dimwalk',
     category:       'compound',
     trick_family:   'butterfly',
     adds:           '4',
+    is_active:      1,
+  });
+  insertFreestyleTrick(db, {
+    slug:           'parkwalk',
+    canonical_name: 'Parkwalk',
+    category:       'compound',
+    trick_family:   'butterfly',
+    adds:           '5',
     is_active:      1,
   });
 

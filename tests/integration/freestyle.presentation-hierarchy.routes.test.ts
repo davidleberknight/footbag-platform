@@ -61,11 +61,12 @@ const PILOTS = [
   { slug: 'dimwalk',         name: 'dimwalk',         family: 'butterfly', adds: '4' },
 ];
 
-// Additional rows so the family-view `length > 1` heuristic admits
-// the whirl and butterfly sections.
+// Additional butterfly rows so the family clears the family-view three-member
+// minimum (the dimwalk pilot plus its butterfly anchor and one more compound),
+// admitting the butterfly section that the pilot assertions read.
 const FAMILY_COMPANIONS = [
-  { slug: 'whirl',     name: 'whirl',     family: 'whirl',     adds: '3' },
   { slug: 'butterfly', name: 'butterfly', family: 'butterfly', adds: '3' },
+  { slug: 'parkwalk',  name: 'parkwalk',  family: 'butterfly', adds: '5' },
 ];
 
 beforeAll(async () => {

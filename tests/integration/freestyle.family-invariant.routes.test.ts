@@ -45,7 +45,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Two whirl-family rows so the family-view length>1 heuristic admits
+  // Three whirl-family rows so the family-view three-member minimum admits
   // the section.
   insertFreestyleTrick(db, {
     slug: 'whirl', canonical_name: 'whirl',
@@ -55,8 +55,12 @@ beforeAll(async () => {
     slug: 'paradox-whirl', canonical_name: 'paradox whirl',
     trick_family: 'whirl', category: 'compound', adds: '4', is_active: 1,
   });
+  insertFreestyleTrick(db, {
+    slug: 'blurry-whirl', canonical_name: 'blurry whirl',
+    trick_family: 'whirl', category: 'compound', adds: '5', is_active: 1,
+  });
 
-  // Two butterfly-family rows (no curator invariant — section should
+  // Three butterfly-family rows (no curator invariant — section should
   // render WITHOUT the invariant line).
   insertFreestyleTrick(db, {
     slug: 'butterfly', canonical_name: 'butterfly',
@@ -65,6 +69,10 @@ beforeAll(async () => {
   insertFreestyleTrick(db, {
     slug: 'ripwalk', canonical_name: 'ripwalk',
     trick_family: 'butterfly', category: 'compound', adds: '4', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'parkwalk', canonical_name: 'parkwalk',
+    trick_family: 'butterfly', category: 'compound', adds: '5', is_active: 1,
   });
 
   db.close();

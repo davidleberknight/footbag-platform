@@ -97,6 +97,18 @@ beforeAll(async () => {
   insertFreestyleTrickAlias(db, 'stepping_butterfly', 'ripwalk', 'stepping butterfly');
   insertFreestyleTrickAlias(db, 'blurry_butterfly', 'ripwalk', 'blurry butterfly');
 
+  // Third butterfly member so the family clears the family-view three-member
+  // minimum and renders as its own section.
+  insertFreestyleTrick(db, {
+    slug:                 'parkwalk',
+    canonical_name:       'parkwalk',
+    adds:                 '5',
+    base_trick:           'butterfly',
+    trick_family:         'butterfly',
+    category:             'compound',
+    operational_notation: '[clip] > op out dex > op in dex > butterfly wing > ss clipper',
+  });
+
   // Mobius — folk-name alias is the trick's semantic compressed form
   insertFreestyleTrick(db, {
     slug:                 'mobius',
