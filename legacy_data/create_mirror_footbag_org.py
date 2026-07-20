@@ -135,7 +135,14 @@ PASSWORD_ENV_VAR = 'FOOTBAG_MIRROR_PASSWORD'
 # cache, and mirror tree, or it silently restarts the multi-day crawl.
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-MIRROR_DIR = str(SCRIPT_DIR / "mirror_footbag_org")
+# All crawl state (the mirror tree, progress file, log, robots cache) anchors to
+# this directory. It defaults to the script directory — the production location,
+# unchanged — but a bounded run (e.g. a smoke test) can set
+# FOOTBAG_MIRROR_STATE_DIR to an isolated, throwaway directory so it never reads
+# or writes the real mirror or its progress file.
+_STATE_DIR = Path(os.environ.get('FOOTBAG_MIRROR_STATE_DIR', str(SCRIPT_DIR)))
+
+MIRROR_DIR = str(_STATE_DIR / "mirror_footbag_org")
 BASE_URL = 'http://www.footbag.org'
 WWW_HOST = 'www.footbag.org'
 
@@ -203,10 +210,11 @@ DELAY_SECONDS = 0.25 # Polite delay between requests to live site.
 MAX_RETRIES = 1  # Retry only once after failure
 TRANSIENT_RETRY_CODES = {500, 502, 503, 504} # as opposed to permanent failures 
 SITEMAP_FILE = 'sitemap.txt'
-LOG_FILE = str(SCRIPT_DIR / 'mirror.log')
+LOG_FILE = str(_STATE_DIR / 'mirror.log')
 LOG_TO_FILE = False  # default off; set True if you want mirror.log
-PROGRESS_FILE = str(SCRIPT_DIR / 'mirror_progress.json')
-ROBOTS_CACHE_FILE = str(SCRIPT_DIR / 'robots_cache.json')
+PROGRESS_FILE = str(_STATE_DIR / 'mirror_progress.json')
+ROBOTS_CACHE_FILE = str(_STATE_DIR / 'robots_cache.json')
+
 def resolve_password(cli_password):
     # Resolve the member password from the safest available source, never argv:
     #   1. the FOOTBAG_MIRROR_PASSWORD environment variable (preferred);
@@ -341,8 +349,11 @@ def wipe_previous_mirror_state():
 LOGIN_URL = 'http://www.footbag.org/members/authorize'
 LOGIN_TARGET = '/members/home'
 
-MAX_DEPTH = 50 # Will stop at very old event and news pages (back to 1975)
-MAX_URLS = 1000000
+# Crawl bounds. Production defaults are effectively unbounded; a bounded run
+# (smoke test) can cap them via env so it fetches only a handful of URLs and
+# never link-follows into a large crawl.
+MAX_DEPTH = int(os.environ.get('FOOTBAG_MIRROR_MAX_DEPTH', '50')) # stops at very old event/news pages (back to 1975)
+MAX_URLS = int(os.environ.get('FOOTBAG_MIRROR_MAX_URLS', '1000000'))
 MAX_FILE_SIZE = 160 * 1024 * 1024  # 160MB # 167279451 bytes is largest known
 SKIP_EXTENSIONS = [
     '.zip', '.tar.gz', '.exe', '.dmg', '.asx', '.php', '.sh', '.xml',
