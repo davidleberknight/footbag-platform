@@ -6562,6 +6562,7 @@ function buildHeroFormula(
   isModifier: boolean,
   modifierLinks: FreestyleTrickModifierLinkDetailRow[],
   baseTrick: string | null,
+  baseName: string | null,
   baseAdds: string | null,
   tricksAdds: string | null,
 ): HeroFormulaToken[] | null {
@@ -6603,7 +6604,9 @@ function buildHeroFormula(
     kind:    'base',
     isOperator: false,
     isResult:   false,
-    text:    baseTrick,
+    // Display name, never the raw base_trick slug: a compound base is an
+    // underscore slug ("ducking_legover") and must read as prose here.
+    text:    baseName ?? baseTrick,
     weight:  baseAdds ? `(${baseAdds})` : null,
     cssRole: 'core-family',
   });
@@ -6624,6 +6627,7 @@ function buildHeroFormula(
 function buildModifierLayering(
   modifierLinks: FreestyleTrickModifierLinkDetailRow[],
   baseTrick: string | null,
+  baseName: string | null,
   baseAdds: string | null,
   tricksAdds: string | null,
   isModifier: boolean,
@@ -6634,10 +6638,11 @@ function buildModifierLayering(
   const numericAdds = tricksAdds && /^\d+$/.test(tricksAdds) ? tricksAdds : null;
   if (numericAdds === null) return null;
 
-  // Innermost = base trick.
+  // Innermost = base trick. Display name, never the raw base_trick slug
+  // (compound bases are underscore slugs and the layer names render as prose).
   let layer: ModifierLayer = {
     kind:    'base',
-    name:    baseTrick.toLowerCase(),
+    name:    (baseName ?? baseTrick).toLowerCase(),
     weight:  baseAdds ? `(${baseAdds})` : '',
     cssRole: 'core-family',
     kindLabel: 'core',
@@ -7042,6 +7047,7 @@ function buildSubstitutions(
 function buildHeroDecomposition(
   modifierLinks: FreestyleTrickModifierLinkDetailRow[],
   baseTrick: string | null,
+  baseName: string | null,
   isModifier: boolean,
 ): HeroDecompositionToken[] | null {
   if (isModifier) return null;
@@ -7053,7 +7059,9 @@ function buildHeroDecomposition(
     kind:    'modifier' as const,
   }));
   tokens.push({
-    text:    baseTrick.toLowerCase(),
+    // Display name, never the raw base_trick slug (compound bases are
+    // underscore slugs and this strip is prominent prose under the h1).
+    text:    (baseName ?? baseTrick).toLowerCase(),
     cssRole: 'core-family',
     kind:    'base' as const,
   });
@@ -7536,6 +7544,16 @@ export const freestyleService = {
             )
           : [];
 
+        // The hero surfaces (formula, decomposition strip, modifier layering)
+        // show the base trick as prose, so resolve its canonical display name
+        // once here; the machine base_trick slug stays the identity/lookup key.
+        // A compound base without a dictionary row falls back to the slug with
+        // separators read as spaces, so an underscore slug never renders.
+        const heroBaseName: string | null = dictEntry?.baseTrick
+          ? (allDictRows.find(r => r.slug === dictEntry.baseTrick)?.canonical_name
+              ?? dictEntry.baseTrick.replace(/[-_]+/g, ' '))
+          : null;
+
         // Load all (modifier, trick) pairs once and build a Map for
         // parallel + substitution shaping. Reuses an existing prepared
         // statement (listTricksByModifier); no new query needed.
@@ -7996,6 +8014,7 @@ export const freestyleService = {
                 dictEntry.isModifier,
                 modifierLinks,
                 dictEntry.baseTrick,
+                heroBaseName,
                 dictEntry.baseTrickAdds,
                 dictEntry.adds,
               )
@@ -8004,6 +8023,7 @@ export const freestyleService = {
             ? buildHeroDecomposition(
                 modifierLinks,
                 dictEntry.baseTrick,
+                heroBaseName,
                 dictEntry.isModifier,
               )
             : null,
@@ -8011,6 +8031,7 @@ export const freestyleService = {
             ? buildModifierLayering(
                 modifierLinks,
                 dictEntry.baseTrick,
+                heroBaseName,
                 dictEntry.baseTrickAdds,
                 dictEntry.adds,
                 dictEntry.isModifier,
