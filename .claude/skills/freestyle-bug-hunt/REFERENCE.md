@@ -196,9 +196,9 @@ stay on their own sides of the boundary.
 
 ### §F11 Media governance
 
-Primary-clip promotion passes the five-gate rule (active trick, teaches the trick,
-tutorial-tier source, current primary missing or weaker, no duplicate primary). Record-tier
-sources never become tutorial-primary. Registering a new source requires the six
+The primary clip for a trick is derived at report/render time as the strongest-strength
+curated item tagged to it, ranked by source tier; there is no stored `is_primary` flag and
+no write-time promotion. Record-tier sources never rank as tutorial-primary. Registering a new source requires the six
 coordinated edits the curated-media skill enumerates — a partial registration is a
 finding. Curated trick media and member-owned media stay separate. A wrong tier is
 presentation-level (`inconsistent`), never `broken` — calibrate severity accordingly.

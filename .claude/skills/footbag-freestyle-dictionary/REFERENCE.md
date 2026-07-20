@@ -34,12 +34,13 @@ Descriptions live in two CSVs, both loaded into `freestyle_tricks.description`:
 ## Media Linkage Layer — detailed mechanics
 
 The `footbag-curated-media` skill owns the media pipeline; the rules below are the
-dictionary-side detail. Curated trick media and member `media_items` are two parallel
-layers, never merged. `end_seconds` on `freestyle_media_links` is load-bearing for
-multi-trick sources (one asset spawns many clip-links); never drop it. Trick-primary
-clip logic is provisional (partial unique index `(entity_type, entity_id) WHERE is_primary=1`
-enforces one primary per entity). Verify external URLs before reviewer sign-off. `clip_type`
-(`tutorial / demo / record / slow_mo / compilation`) is staging-only.
+dictionary-side detail. Curated trick media and member-uploaded media both live in the
+unified `media_items` + `media_tags` graph and stay separate layers (curated media is the
+system-member-owned, `#curated`-tagged subset), never merged. Clip ranges live on
+`media_items` (`start_seconds` / `end_seconds`); one source asset can spawn many clip rows
+tagged to different tricks. The deprecated `freestyle_media_*` graph is gone: do not
+reintroduce it, and there is no `is_primary` flag (see "Primary clip is derived" below).
+Verify external URLs before reviewer sign-off.
 
 ### Source URL patterns (verified)
 
@@ -49,21 +50,21 @@ enforces one primary per entity). Verify external URLs before reviewer sign-off.
 
 ### Source registry and tutorial-tier classification
 
-The `TUTORIAL_SOURCES` set in `freestyle/loaders/24_qc_freestyle_media_coverage.py` is load-bearing for the coverage dashboard: a primary link counts as `STRONG_TUTORIAL` only if its `source_id` is in this set. Update both `media_sources.csv` and the script's set when registering a new trusted-tutorial source.
+The tutorial/demo/record source sets in `freestyle/loaders/24_qc_freestyle_media_coverage.py` are load-bearing for the coverage dashboard: a curated item counts as `STRONG_TUTORIAL` only if its `source_id` is in the strong-tutorial set. Registering a new trusted source updates both `media_sources` and the loader's source sets (the `footbag-curated-media` skill enumerates the full coordinated edit set).
 
 Source priority for primary selection: (1) AnzTrikz single/double-trick tutorial; (2) TT / Tricks-of-the-Trade single-trick lesson; (3) PassBack tutorial; (4) other verified tutorial source; (5) demonstration-tier source (single-trick demos, no teaching breakdown; `SOURCE_TIER` in `freestyleService.ts` is the load-bearing classification); (6) record/performance clip (never primary if a tutorial alternative exists).
 
-### Primary-promotion rules (applied before every media-link write)
+### Primary clip is derived, not stored
 
-Promote to `is_primary=1` only if all hold: (1) target trick is active; (2) the video clearly teaches/demonstrates that specific trick; (3) the source is in the tutorial tier; (4) the current primary is missing OR is a record/demo/performance clip; (5) no duplicate primary. Do NOT promote if: target is pending (use `is_primary=0`); the video is a montage/drill/record/shred run; the title is generic; the trick is not explicitly central; the current primary is already a strong tutorial. Multi-trick tutorials: promote only when each target trick is **explicitly named in the title**.
+There is no `is_primary` flag and no write-time promotion step. A trick's primary clip is computed at report/render time as the strongest-strength curated item tagged to it, ranked by the source tier above; a record/performance-tier clip is never chosen as primary when a tutorial-tier alternative exists. Media for a pending (`is_active=0`) trick is still tagged and carried, but the trick surfaces no primary until it is active. For multi-trick tutorials, tag a target trick only when it is **explicitly named in the title**.
 
 ### Reset-compatibility (HOLD / STAGED / SAFE)
 
-Before appending any `media_links.csv` row, classify the target slug against a fresh-reset load: **SAFE** (active after reset — append immediately), **STAGED** (pending after reset, `is_active=0` — append only with `is_primary=0`), **HOLD** (does not exist after reset — do NOT append; first add the canonical row so it loads via 17/19). Note `21_load_footbag_org_pending_tricks.py` runs on a fresh reset (via `freestyle/run_freestyle.sh`, which `reset-local-db.sh` invokes), so its pending rows reload as `is_active=0` (STAGED) rather than vanishing.
+Before tagging a curated sidecar to a trick slug, classify the target against a fresh-reset load: **SAFE** (active after reset — tag it), **STAGED** (pending after reset, `is_active=0` — tag it, but it surfaces no primary until active), **HOLD** (does not exist after reset — do NOT tag; first add the canonical row so it loads via 17/19). Note `21_load_footbag_org_pending_tricks.py` runs on a fresh reset (via `freestyle/run_freestyle.sh`, which `reset-local-db.sh` invokes), so its pending rows reload as `is_active=0` (STAGED) rather than vanishing.
 
 ### Coverage dashboard
 
-`freestyle/loaders/24_qc_freestyle_media_coverage.py` is a read-only dashboard generator. Four validation checks (non-zero exit on failure), run before every media commit: no duplicate primary per trick; no `media_links.entity_id` orphan after reset; pending tricks with media all have `is_primary=0`; report row count == `freestyle_tricks` total.
+`freestyle/loaders/24_qc_freestyle_media_coverage.py` is a read-only dashboard generator over the unified `media_items` + `media_tags` graph. Three validation checks (non-zero exit on failure): report row count == total `freestyle_tricks`; every curated item's `source_id` is recognized; every `embedded_coverage.csv` slug resolves to a real trick.
 
 ---
 
