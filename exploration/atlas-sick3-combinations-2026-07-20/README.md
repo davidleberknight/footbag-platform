@@ -30,7 +30,8 @@ fail a sequence.
 | `out/trick_transition_inventory.csv` | 970 active public canonical tricks, classified |
 | `out/terminal_parity_census.md` | PRESERVE/SWITCH/VARIABLE/UNRESOLVED distributions + cross-tabs + the dex-parity test |
 | `out/combinations_page_audit.md` | Audit of `/freestyle/combo-analysis` (editorial page; one confirmed defect: corpus statistics not reproducible in-repo) |
-| `packets/` | Three self-contained review packets (Sick 3 linkage rules; Whirlwind alias; eleven unstated terminal sides) |
+| `packets/` | Self-contained review packets: evidence packets (Sick 3 linkage rules; Whirlwind alias; eleven unstated terminal sides), three single-question Red asks (direct linking; Bedwetter clipper entry; Pixie Paradon toe entry), and the Whirlwind curator decision |
+| `out/combo_page_quant_claims_audit.md` | Per-claim audit of every figure rendered on the Combinations page (regenerable vs different-corpus vs remove/replace) |
 | `out/sick3_source_catalog.csv` | Every raw source record (raw names preserved beside canonical resolution) |
 | `out/sick3_sequences.csv` | Normalized unique sequences with occurrence counts and provenance |
 | `out/sick3_compatibility.csv` | Per-sequence parity vector, link statuses, surface chain |

@@ -163,7 +163,11 @@ def main():
         L.append(f"- {k}: {c}")
     sp = Counter(r["sequence_parity"] for r in rows)
     L.append(f"\nWhole-sequence start-vs-final foot: {dict(sp)}")
-    L.append("\n## Link compatibility\n")
+    L.append("\n## Link compatibility — DIRECT-LINK COMPATIBILITY UNDER CURRENT CANONICAL NOTATION\n")
+    L.append("This metric assumes the three nominated tricks link directly (the delay ending one "
+             "trick is the set of the next) and reads entries/terminals from current canonical "
+             "operational notation. A rules ruling that Sick 3 allowed an unnamed setup contact "
+             "between tricks would demote this metric from normative to descriptive.\n")
     l1 = Counter(r["link1"] for r in rows)
     l2 = Counter(r["link2"] for r in rows)
     L.append(f"- Link 1 (t1->t2): {dict(l1)}")

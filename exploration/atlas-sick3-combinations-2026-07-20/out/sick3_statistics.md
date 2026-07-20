@@ -81,7 +81,9 @@ Three-trick parity patterns (P=preserve, S=switch, V=variable, U=unresolved):
 
 Whole-sequence start-vs-final foot: {'SAME_FOOT': 55, 'OPPOSITE_FOOT': 48, 'UNDETERMINED': 14}
 
-## Link compatibility
+## Link compatibility — DIRECT-LINK COMPATIBILITY UNDER CURRENT CANONICAL NOTATION
+
+This metric assumes the three nominated tricks link directly (the delay ending one trick is the set of the next) and reads entries/terminals from current canonical operational notation. A rules ruling that Sick 3 allowed an unnamed setup contact between tricks would demote this metric from normative to descriptive.
 
 - Link 1 (t1->t2): {'COMPATIBLE': 90, 'COMPATIBLE_VIA_FLEXIBLE_SET': 22, 'COMPATIBLE_WITH_POSITIONAL_VARIANT': 3, 'APPARENTLY_INCOMPATIBLE': 2}
 - Link 2 (t2->t3): {'COMPATIBLE': 81, 'COMPATIBLE_VIA_FLEXIBLE_SET': 28, 'COMPATIBLE_WITH_POSITIONAL_VARIANT': 3, 'APPARENTLY_INCOMPATIBLE': 3, 'NOT_MODELED': 2}

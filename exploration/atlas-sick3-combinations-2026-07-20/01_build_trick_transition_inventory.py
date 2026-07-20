@@ -24,6 +24,25 @@ OUT = HERE / "out"
 OUT.mkdir(exist_ok=True)
 
 SIDE_RE = re.compile(r"^(SAME/OP|OP/SAME|SAME|OP)\b")
+
+# Research classification (NOT production notation): terminals where the
+# preserve/switch question has no answer because there is no single terminal
+# foot. Ten rows: six dragon-delay compounds (midline surface), two multi-bag
+# juggling primitives, the two-footed double kick, and the between-the-thighs
+# thigh catch. `squeeze` is deliberately NOT here: it is a one-legged crook
+# catch pending an either-side ruling, so it stays UNRESOLVED.
+SIDE_NOT_APPLICABLE_SLUGS = {
+    "butterfly_dragon": "dragon delay is a midline surface",
+    "double_swirl_dragon": "dragon delay is a midline surface",
+    "hopover_swirl_dragon": "dragon delay is a midline surface",
+    "miraging_dragon": "dragon delay is a midline surface",
+    "reverse_swirl_dragon": "dragon delay is a midline surface",
+    "swirl_dragon": "dragon delay is a midline surface",
+    "2_bag_juggling": "multi-object boundary primitive; no single terminal foot",
+    "3_bag_juggling": "multi-object boundary primitive; no single terminal foot",
+    "double_kick": "both feet contact simultaneously",
+    "thigh_catch": "caught between the thighs; midline two-limb catch",
+}
 BRACKET_RE = re.compile(r"\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX|KICK)\]")
 PAREN_RE = re.compile(r"\([^)]*\)")
 
@@ -171,6 +190,11 @@ def main() -> int:
         notation = (r["operational_notation"] or "").strip()
         if notation:
             c = classify(notation)
+            # Research-only reclassification: a non-single-foot terminal is a
+            # different fact from "evidence does not determine the side".
+            if r["slug"] in SIDE_NOT_APPLICABLE_SLUGS and c["terminal_relation"] == "UNRESOLVED":
+                c["terminal_relation"] = "SIDE_NOT_APPLICABLE"
+                c["parse_note"] = SIDE_NOT_APPLICABLE_SLUGS[r["slug"]]
         else:
             c = {
                 "entry_surface": "", "entry_specificity": "NONE",
@@ -220,8 +244,11 @@ def main() -> int:
     no_notation = sum(1 for i in inv if i["ambiguity_note"] == "no operational_notation")
     lines.append(f"Rows without operational notation: {no_notation} (all UNRESOLVED).\n")
     lines.append("## Terminal-foot relation to set\n")
-    for k in ("PRESERVE", "SWITCH", "VARIABLE", "UNRESOLVED"):
+    for k in ("PRESERVE", "SWITCH", "VARIABLE", "SIDE_NOT_APPLICABLE", "UNRESOLVED"):
         lines.append(f"- {k}: {rel.get(k, 0)}")
+    lines.append("  - SIDE_NOT_APPLICABLE is a research classification only (midline, two-limb,")
+    lines.append("    or multi-object terminals where no single terminal foot exists); production")
+    lines.append("    notation is unchanged. squeeze stays UNRESOLVED pending its either-side ruling.")
     var_where = Counter(i["variable_at"] for i in inv if i["terminal_relation"] == "VARIABLE")
     lines.append(f"  - VARIABLE at terminal contact: {var_where.get('terminal', 0)}; mid-chain: {var_where.get('mid-chain', 0)}\n")
 
@@ -233,11 +260,11 @@ def main() -> int:
         items = sorted(cross.items(), key=lambda kv: -sum(kv[1].values()))
         if top:
             items = items[:top]
-        lines.append("| value | n | PRESERVE | SWITCH | VARIABLE | UNRESOLVED |")
-        lines.append("|---|---|---|---|---|---|")
+        lines.append("| value | n | PRESERVE | SWITCH | VARIABLE | SIDE_N/A | UNRESOLVED |")
+        lines.append("|---|---|---|---|---|---|---|")
         for val, c in items:
             lines.append(
-                f"| {val or '(none)'} | {sum(c.values())} | {c['PRESERVE']} | {c['SWITCH']} | {c['VARIABLE']} | {c['UNRESOLVED']} |"
+                f"| {val or '(none)'} | {sum(c.values())} | {c['PRESERVE']} | {c['SWITCH']} | {c['VARIABLE']} | {c['SIDE_NOT_APPLICABLE']} | {c['UNRESOLVED']} |"
             )
         lines.append("")
 

@@ -1,6 +1,6 @@
 slug,canonical_name,current_add,operational_notation,entry_surface,entry_specificity,terminal_surface,terminal_kind,terminal_relation,variable_at,dex_count,family,base_trick,category,modifier_links,operator_classes,foot_tracking_straightforward,ambiguity_note
-2_bag_juggling,2 bag juggling,2,TOE [DEL] > TOE [DEL],TOE,TOE,TOE,DELAY,UNRESOLVED,,0,2_bag_juggling,2_bag_juggling,multi-bag,,,no,terminal has no side marker
-3_bag_juggling,3 bag juggling,3,TOE [DEL] > TOE [DEL] > TOE [DEL],TOE,TOE,TOE,DELAY,UNRESOLVED,,0,3_bag_juggling,3_bag_juggling,multi-bag,,,no,terminal has no side marker
+2_bag_juggling,2 bag juggling,2,TOE [DEL] > TOE [DEL],TOE,TOE,TOE,DELAY,SIDE_NOT_APPLICABLE,,0,2_bag_juggling,2_bag_juggling,multi-bag,,,no,multi-object boundary primitive; no single terminal foot
+3_bag_juggling,3 bag juggling,3,TOE [DEL] > TOE [DEL] > TOE [DEL],TOE,TOE,TOE,DELAY,SIDE_NOT_APPLICABLE,,0,3_bag_juggling,3_bag_juggling,multi-bag,,,no,multi-object boundary primitive; no single terminal foot
 aeon_flux,aeon flux,5,CLIP > SAME OUT [DEX] [PDX] >> (front) SPIN [BOD] > OP CLIP [XBD] [DEL],CLIP,CLIP,CLIP,DELAY,SWITCH,,1,osis,osis,compound,,,yes,
 anoxia,anoxia,6,CLIP >> (back) SPIN [BOD] > DUCK [BOD] >> (no plant while) OP IN [DEX] [PDX] [BOD] > OP TOE [DEL],CLIP,CLIP,TOE,DELAY,PRESERVE,,1,mirage,paradox_symposium_mirage,compound,,,yes,
 archnemesis,archnemesis,6,CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL],CLIP,CLIP,CLIP,DELAY,SWITCH,,4,down_double_down,down_double_down,compound,furious,set,yes,
@@ -98,7 +98,7 @@ blurry_whirling_swirl,blurry whirling swirl,6,CLIP > OP IN [DEX] > OP IN [PDX] [
 bubba,bubba,2,CLIP > OP OUT [DEX] > OP TOE [DEL],CLIP,CLIP,TOE,DELAY,PRESERVE,,1,illusion,illusion,compound,,,yes,
 bullwhip,bullwhip,5,CLIP >> (back) SPIN [BOD] >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],CLIP,CLIP,CLIP,DELAY,SWITCH,,2,bullwhip,,compound,,,yes,
 butterfly,butterfly,3,SET > OP OUT [DEX] > OP CLIP [XBD] [DEL],SET,SET,CLIP,DELAY,PRESERVE,,1,butterfly,butterfly,compound,,,yes,
-butterfly_dragon,butterfly dragon,3,SET > OP OUT [DEX] > DRAGON [UNS] [DEL],SET,SET,DRAGON,DELAY,UNRESOLVED,,1,butterfly,butterfly,compound,,,no,terminal has no side marker
+butterfly_dragon,butterfly dragon,3,SET > OP OUT [DEX] > DRAGON [UNS] [DEL],SET,SET,DRAGON,DELAY,SIDE_NOT_APPLICABLE,,1,butterfly,butterfly,compound,,,no,dragon delay is a midline surface
 butterfly_gyro_toe,butterfly gyro toe,4,TOE > GYRO [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],TOE,TOE,CLIP,DELAY,VARIABLE,mid-chain,1,butterfly,butterfly,compound,gyro,body,no,
 butterfly_kick,butterfly kick,2,SET > JUMP [BOD] > SAME/OP OUT [DEX] [KICK],SET,SET,OUT,KICK,VARIABLE,terminal,1,butterfly_kick,butterfly,compound,,,no,
 butterfly_same_side,Butterfly Same Side,3,SET > SAME OUT [DEX] > OP CLIP [XBD] [DEL],SET,SET,CLIP,DELAY,SWITCH,,1,butterfly,butterfly,compound,,,yes,
@@ -150,7 +150,7 @@ double_around_the_world_heel,double around the world heel,4,TOE > SAME IN [DEX] 
 double_blender,double blender,5,SET > OP IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],SET,SET,CLIP,DELAY,PRESERVE,,2,blender,blender,compound,,,yes,
 double_fairy,double fairy,3,TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP TOE [DEL],TOE,TOE,TOE,DELAY,SWITCH,,2,fairy,fairy,compound,fairy,set,yes,
 double_illusion,double illusion,3,SET > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL],SET,SET,TOE,DELAY,SWITCH,,2,illusion,illusion,compound,,,yes,
-double_kick,double kick,1,DOUBLE KICK [BOD] [KICK],SET(implicit),SET,DOUBLE KICK,KICK,UNRESOLVED,,0,double_kick,double_kick,body,,,no,terminal has no side marker
+double_kick,double kick,1,DOUBLE KICK [BOD] [KICK],SET(implicit),SET,DOUBLE KICK,KICK,SIDE_NOT_APPLICABLE,,0,double_kick,double_kick,body,,,no,both feet contact simultaneously
 double_knee,double knee,1,DOUBLE KNEE [BOD],SET(implicit),SET,,,UNRESOLVED,,0,double_knee,double_knee,body,,,no,no [DEL]/[KICK] terminal
 double_leg_over,double leg over,3,SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],SET,SET,TOE,DELAY,PRESERVE,,2,legover,double_leg_over,compound,,,yes,
 double_leg_over_same_side,double leg over same side,3,SET > SAME IN [DEX] > SAME OUT [DEX] > SAME TOE [DEL],SET,SET,TOE,DELAY,PRESERVE,,2,legover,double_leg_over,compound,,,yes,
@@ -166,7 +166,7 @@ double_spinning_clipper,double spinning clipper,4,CLIP > (back) SPIN [BOD] > (ba
 double_spinning_mirage,double spinning mirage,4,CLIP > (back) SPIN [BOD] > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL],CLIP,CLIP,TOE,DELAY,PRESERVE,,1,mirage,spinning_mirage,compound,spinning|spinning,body,yes,
 double_spinning_osis,double spinning osis,5,CLIP > (back) SPIN [BOD] > (back) SPIN [BOD] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],CLIP,CLIP,CLIP,DELAY,SWITCH,,0,osis,spinning_osis,compound,spinning|spinning,body,yes,
 double_spinning_whirl,double spinning whirl,5,CLIP > (back) SPIN [BOD] > (back) SPIN [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL],CLIP,CLIP,CLIP,DELAY,PRESERVE,,1,whirl,spinning_whirl,compound,spinning|spinning,body,yes,
-double_swirl_dragon,double swirl dragon,4,SET > SAME OUT [DEX] > SAME OUT [DEX] > DRAGON [UNS] [DEL],SET,SET,DRAGON,DELAY,UNRESOLVED,,2,swirl,swirl,compound,,,no,terminal has no side marker
+double_swirl_dragon,double swirl dragon,4,SET > SAME OUT [DEX] > SAME OUT [DEX] > DRAGON [UNS] [DEL],SET,SET,DRAGON,DELAY,SIDE_NOT_APPLICABLE,,2,swirl,swirl,compound,,,no,dragon delay is a midline surface
 double_switch_over,double switch over,3,SET > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],SET,SET,TOE,DELAY,SWITCH,,2,legover,legover,compound,,,yes,
 double_whirl,double whirl,4,SET > OP IN [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL],SET,SET,CLIP,DELAY,SWITCH,,2,whirl,whirl,compound,,,yes,
 down_diver,down diver,5,TOE > DIVE [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],TOE,TOE,CLIP,DELAY,SWITCH,,2,double_over_down,double_over_down,compound,,,yes,
@@ -348,7 +348,7 @@ heel_stall,heel stall,2,SET > SAME HEEL [UNS] [DEL],SET,SET,HEEL,DELAY,PRESERVE,
 high_plains_drifter,high plains drifter,4,CLIP > OP IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL],CLIP,CLIP,CLIP,DELAY,SWITCH,,2,clipper_stall,clipper_stall,compound,,,yes,
 hop_over,hop over,2,SET > JUMP [BOD] > SAME/OP INSIDE [DEL] > (land),SET,SET,INSIDE,DELAY,VARIABLE,terminal,0,hop_over,hop_over,body,,,no,
 hop_over_swirl,hop over swirl,4,INSIDE > JUMP [BOD] > OP OUT [DEX] > SAME CLIP [XBD] [DEL],INSIDE,OTHER_SURFACE,CLIP,DELAY,SWITCH,,1,swirl,swirl,compound,,,yes,
-hopover_swirl_dragon,hopover swirl dragon,3,SET > (hop over) SAME OUT [DEX] > DRAGON [UNS] [DEL],SET,SET,DRAGON,DELAY,UNRESOLVED,,1,swirl,swirl,compound,,,no,terminal has no side marker
+hopover_swirl_dragon,hopover swirl dragon,3,SET > (hop over) SAME OUT [DEX] > DRAGON [UNS] [DEL],SET,SET,DRAGON,DELAY,SIDE_NOT_APPLICABLE,,1,swirl,swirl,compound,,,no,dragon delay is a midline surface
 hurl,hurl,5,CLIP > SAME OUT [PDX] [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL],CLIP,CLIP,CLIP,DELAY,PRESERVE,,2,whirl,nuclear_whirl,compound,nuclear,set,yes,
 id,id,6,TOE > OP OUT [DEX] > DUCK [BOD] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],TOE,TOE,CLIP,DELAY,PRESERVE,,3,dod,fusion,compound,ducking,body,yes,
 illusion,illusion,2,SET > OP OUT [DEX] > OP TOE [DEL],SET,SET,TOE,DELAY,PRESERVE,,1,illusion,illusion,dex,,,yes,
@@ -393,7 +393,7 @@ matador,matador,5,CLIP > SAME OUT [DEX] [PDX] >> OP OUT [DEX] > OP CLIP [XBD] [D
 merkon,merkon,3,CLIP >> (back) SPIN [BOD] >> OP OUT [DEX] > SAME TOE [DEL],CLIP,CLIP,TOE,DELAY,SWITCH,,1,legover,legover,compound,spinning,body,yes,
 mind_bender,mind bender,6,CLIP >> DUCK [BOD] >> SAME FRONT WHIRL [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],CLIP,CLIP,CLIP,DELAY,PRESERVE,,1,blender,blender,compound,ducking|paradox,body,yes,
 mirage,mirage,2,SET > OP IN [DEX] > OP TOE [DEL],SET,SET,TOE,DELAY,PRESERVE,,1,mirage,mirage,dex,,,yes,
-miraging_dragon,miraging dragon,3,SET > OP IN [DEX] > DRAGON [UNS] [DEL],SET,SET,DRAGON,DELAY,UNRESOLVED,,1,mirage,mirage,compound,,,no,terminal has no side marker
+miraging_dragon,miraging dragon,3,SET > OP IN [DEX] > DRAGON [UNS] [DEL],SET,SET,DRAGON,DELAY,SIDE_NOT_APPLICABLE,,1,mirage,mirage,compound,,,no,dragon delay is a midline surface
 miraging_dyno,miraging dyno,5,SET > OP IN [DEX] > OP OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],SET,SET,CLIP,DELAY,PRESERVE,,2,dyno,dyno,compound,,,yes,
 miraging_eclipse,miraging eclipse,4,SET > OP IN [DEX] > JUMP [BOD] > OP INSIDE [DEL] > OP TOE [DEL],SET,SET,TOE,DELAY,SWITCH,,1,eclipse,eclipse,compound,,,yes,
 miraging_flail,miraging flail,4,SET > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],SET,SET,TOE,DELAY,SWITCH,,2,flail,flail,compound,,,yes,
@@ -632,7 +632,7 @@ reverse_blender,reverse blender,4,SET > SAME IN [DEX] > (back) SPIN [BOD] > OP C
 reverse_drifter,reverse drifter,3,CLIP > OP OUT [DEX] > SAME CLIP [XBD] [DEL],CLIP,CLIP,CLIP,DELAY,SWITCH,,1,reverse_drifter,reverse_drifter,dex,,,yes,
 reverse_guay,reverse guay,2,SET > SAME IN [DEX] > OP INSIDE [DEL],SET,SET,INSIDE,DELAY,SWITCH,,1,inside_stall,guay,compound,,,yes,
 reverse_magellan,reverse magellan,3,TOE > OP IN [DEX] >> OP OUT [DEX] > OP TOE [DEL],TOE,TOE,TOE,DELAY,SWITCH,,2,legover,magellan,compound,,,yes,
-reverse_swirl_dragon,reverse swirl dragon,3,SET > SAME IN [DEX] > DRAGON [UNS] [DEL],SET,SET,DRAGON,DELAY,UNRESOLVED,,1,swirl,swirl,compound,,,no,terminal has no side marker
+reverse_swirl_dragon,reverse swirl dragon,3,SET > SAME IN [DEX] > DRAGON [UNS] [DEL],SET,SET,DRAGON,DELAY,SIDE_NOT_APPLICABLE,,1,swirl,swirl,compound,,,no,dragon delay is a midline surface
 reverse_swirling_blender,reverse swirling blender,5,SET > SAME IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],SET,SET,CLIP,DELAY,SWITCH,,2,osis,blender,compound,swirling,body,yes,
 reverse_swirling_osis,reverse swirling osis,4,SET > OP IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],SET,SET,CLIP,DELAY,PRESERVE,,1,osis,osis,compound,swirling,body,yes,
 reverse_swirling_paradox_symposium_whirl,Reverse Swirling Paradox Symposium Whirl,6,SET > SAME IN [DEX] > SAME SYMP [DEX] > SAME IN [DEX] [PDX] > OP CLIP [XBD] [DEL],SET,SET,CLIP,DELAY,SWITCH,,3,whirl,swirling_paradox_symposium_whirl,compound,swirling|paradox|symposium,body,yes,
@@ -839,7 +839,7 @@ surging_same_side_osis,Surging Same Side Osis,5,CLIP > SAME IN [DEX] >> (back) S
 surging_whirl,surging whirl,5,CLIP > OP IN [DEX] >> (back) SPIN [BOD] > SAME IN [DEX] > OP CLIP [XBD] [DEL],CLIP,CLIP,CLIP,DELAY,PRESERVE,,2,whirl,whirl,compound,spinning|stepping,body|set,yes,
 surreal,surreal,6,CLIP > (back) SPIN [BOD] > SAME IN [DEX] >> OP FRONT WHIRL [DEX] [PDX] > OP CLIP [XBD] [DEL],CLIP,CLIP,CLIP,DELAY,PRESERVE,,2,whirl,whirl,compound,spinning|stepping|paradox,body|set,yes,
 swirl,swirl,3,SET > SAME OUT [DEX] > SAME CLIP [XBD] [DEL],SET,SET,CLIP,DELAY,PRESERVE,,1,swirl,swirl,dex,,,yes,
-swirl_dragon,swirl dragon,3,SET > SAME OUT [DEX] > DRAGON [UNS] [DEL],SET,SET,DRAGON,DELAY,UNRESOLVED,,1,swirl,swirl,compound,,,no,terminal has no side marker
+swirl_dragon,swirl dragon,3,SET > SAME OUT [DEX] > DRAGON [UNS] [DEL],SET,SET,DRAGON,DELAY,SIDE_NOT_APPLICABLE,,1,swirl,swirl,compound,,,no,dragon delay is a midline surface
 swirling_butterfly,swirling butterfly,4,SET > SAME OUT [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],SET,SET,CLIP,DELAY,VARIABLE,mid-chain,2,butterfly,butterfly,compound,swirling,body,no,
 swirling_mirage,swirling mirage,3,SET > SAME OUT [DEX] > OP IN [DEX] > OP TOE [DEL],SET,SET,TOE,DELAY,PRESERVE,,2,mirage,mirage,compound,swirling,body,yes,
 swirling_paradox_mirage,swirling paradox mirage,4,CLIP > SAME OUT [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL],CLIP,CLIP,TOE,DELAY,PRESERVE,,2,mirage,paradox_mirage,compound,swirling,body,yes,
@@ -898,7 +898,7 @@ terraging_legover,terraging legover,5,,,NONE,,,UNRESOLVED,,,legover,legover,comp
 terraging_mirage,terraging mirage,5,,,NONE,,,UNRESOLVED,,,mirage,mirage,compound,terraging,body,no,no operational_notation
 terraging_opposite_clipper,Terraging Opposite Clipper,4,TOE > SAME IN [DEX] > SAME IN [DEX] > OP CLIP [XBD] [DEL],TOE,TOE,CLIP,DELAY,SWITCH,,2,clipper,clipper,compound,,,yes,
 terraging_same_clipper,Terraging Same Clipper,4,TOE > SAME IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL],TOE,TOE,CLIP,DELAY,PRESERVE,,2,clipper,clipper,compound,,,yes,
-thigh_catch,Thigh Catch,2,THIGH [UNS] [DEL],THIGH,OTHER_SURFACE,THIGH,DELAY,UNRESOLVED,,0,thigh_catch,,surface,,,no,terminal has no side marker
+thigh_catch,Thigh Catch,2,THIGH [UNS] [DEL],THIGH,OTHER_SURFACE,THIGH,DELAY,SIDE_NOT_APPLICABLE,,0,thigh_catch,,surface,,,no,caught between the thighs; midline two-limb catch
 toe_clipper,toe clipper,2,SET > OP TOE [BOD] [XBD],SET,SET,,,UNRESOLVED,,0,toe_clipper,toe_clipper,compound,,,no,no [DEL]/[KICK] terminal
 toe_double_drifter,Toe Double Drifter,4,TOE > OP IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL],TOE,TOE,CLIP,DELAY,SWITCH,,2,clipper,clipper,compound,,,yes,
 toe_flurry,toe flurry,4,TOE > OP IN [DEX] > SAME IN [DEX] >> OP OUT [DEX] > SAME TOE [DEL],TOE,TOE,TOE,DELAY,PRESERVE,,3,legover,flurry,compound,,,yes,
