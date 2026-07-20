@@ -5145,8 +5145,8 @@ function shapeCompressedFrom(slug: string): { label: 'Compressed from' | 'Compre
 // from the shapeDictionaryTrickCard tautological-JOB filter so the
 // self-token JOB renders honestly (e.g. "JOB: double knee") instead
 // of falling through to the muted "JOB: notation pending" line.
-const SUI_GENERIS_SELF_TOKEN_SLUGS: ReadonlySet<string> = new Set([
-  'double-knee',
+export const SUI_GENERIS_SELF_TOKEN_SLUGS: ReadonlySet<string> = new Set([
+  'double_knee',
 ]);
 
 /** True when `slug` is in either first-class tier. */

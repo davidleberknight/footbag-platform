@@ -49,11 +49,11 @@ beforeAll(async () => {
   // them. (createTestDb may only be called once per file — schema would
   // re-create otherwise.)
   insertFreestyleTrick(db, {
-    slug:                'double-knee',
-    canonical_name:      'double-knee',
+    slug:                'double_knee',
+    canonical_name:      'double knee',
     adds:                '1',
-    base_trick:          'double-knee',
-    trick_family:        'double-knee',
+    base_trick:          'double_knee',
+    trick_family:        'double_knee',
     category:            'body',
     review_status:       'expert_reviewed',
     is_active:           1,
@@ -165,13 +165,32 @@ describe('Eclipse — curator-supplied operational notation', () => {
 
 describe('Curator rulings — double-knee + peak-delay + multi-bag doctrine', () => {
   it('double-knee renders the sui-generis self-token JOB "double knee" with 1 ADD', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/double-knee');
+    const res = await request(await createApp()).get('/freestyle/tricks/double_knee');
     expect(res.status).toBe(200);
     // Self-token JOB; renderer exempts from the tautological-JOB guard
-    // per the SUI_GENERIS_SELF_TOKEN_SLUGS allowlist.
+    // per the SUI_GENERIS_SELF_TOKEN_SLUGS allowlist. The fixture uses the
+    // production underscore slug, so this asserts the exemption fires against
+    // the real slug shape (a hyphen slug never reaches production).
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">1 ADD<\/span>/);
     // The Set notation section renders the self-token op-notation
     expect(res.text).toContain('operational-notation-display');
+  });
+
+  it('the self-token exemption set uses production underscore slugs (deterministic slug-shape guard)', async () => {
+    // Loaded lazily (not a top-level import): pulling freestyleService at file
+    // scope would bind db.ts before setTestEnv runs. By this point the app is
+    // already imported, so this reuses the cached module.
+    const { SUI_GENERIS_SELF_TOKEN_SLUGS } = await import('../../src/services/freestyleService');
+    // The exemption is keyed on the loaded slug, which is always underscore-form.
+    // A hyphenated entry (the FBH-11 defect) silently never matches, so pin the
+    // production convention: every member is lowercase underscore-form, and the
+    // founding member is the real double_knee slug, not a hyphen shape.
+    for (const slug of SUI_GENERIS_SELF_TOKEN_SLUGS) {
+      expect(slug, `${slug} must be underscore-form (no hyphen), matching the loaded slug`)
+        .toMatch(/^[a-z0-9_]+$/);
+    }
+    expect(SUI_GENERIS_SELF_TOKEN_SLUGS.has('double_knee')).toBe(true);
+    expect(SUI_GENERIS_SELF_TOKEN_SLUGS.has('double-knee')).toBe(false);
   });
 
   it('peak-delay renders as 1-ADD folk-name surface delay (JOB "[set] > peak")', async () => {
