@@ -746,6 +746,13 @@ def load_entitlement_dispositions(dispositions_path: Path | None):
     return entitlement_disposition.load_dispositions(dispositions_path)
 
 
+def load_person_link_holds(holds_path: Path | None):
+    """Load and return the Stage B person-link holds, or [] when no path is given.
+    Local import so the reconciler runs with no hold input."""
+    import person_link_hold
+    return person_link_hold.load_holds(holds_path)
+
+
 def dry_run_auto_merge(csv_path: Path, proposed_links_csv: Path,
                        overrides_path: Path | None = None) -> int:
     """Read-only: report how the auto-merge would split the current dump into
@@ -1249,9 +1256,45 @@ def _write_rows(rows: list[dict[str, str]], fields: list[str], out_path: Path) -
     return len(rows)
 
 
+def _build_link_hold_descriptors(proposed: list[dict[str, str]],
+                                 accounts: list[dict[str, str]],
+                                 hps: list[dict[str, str]],
+                                 provenance: dict) -> list[dict]:
+    """One descriptor per current proposed link, carrying the full decision boundary
+    a person-link hold binds to: the survivor's underlying account set, the candidate
+    person, the candidate set (all unlinked persons by that name), the proposal
+    method, the normalized match facts, and the frozen input boundary fingerprint."""
+    import person_link_hold as plh
+    boundary = _boundary_fingerprint(accounts)
+    cand_by_name: dict[str, list[str]] = defaultdict(list)
+    for hp in hps:
+        if not (hp.get("legacy_member_id") or "").strip():
+            cand_by_name[normalize_name(hp.get("person_name") or "")].append(hp.get("person_id") or "")
+    out: list[dict] = []
+    for p in proposed:
+        surv = p["legacy_member_id"]
+        acct_set = frozenset(provenance.get(surv, [surv]))
+        nm = p["normalized_name"]
+        cset = cand_by_name.get(nm, [p["historical_person_id"]])
+        facts = f"{nm}|{p.get('account_birth_date', '')}|{p.get('account_email', '')}"
+        fp = plh.link_boundary_fingerprint(acct_set, p["historical_person_id"], cset,
+                                           p["match_signal"], facts, boundary)
+        out.append({
+            "survivor_account_ids": acct_set,
+            "candidate_person_id": p["historical_person_id"],
+            "match_signal": p["match_signal"],
+            "normalized_name": nm,
+            "candidate_set": cset,
+            "fingerprint": fp,
+            "proposal": p,
+        })
+    return out
+
+
 def stage_b_link_historical_persons(
     csv_path: Path, db_path: Path, proposed_out: Path, review_out: Path,
     survivor_view: "StageASurvivorView | None" = None,
+    person_link_holds: "list | None" = None,
 ) -> dict[str, object]:
     """Read the intermediate CSV and historical_persons, propose links, and write
     the proposed-link and review CSVs. Read-only on the database; proposes, never
@@ -1259,9 +1302,13 @@ def stage_b_link_historical_persons(
 
     When `survivor_view` is supplied, Stage B reads the reconciled Stage A survivor
     universe instead of the raw accounts, so a duplicate pair Stage A approved for
-    merge presents as one logical account. With no survivor view the behavior is
-    byte-for-byte identical to the plain Stage B run. Fails closed if the survivor
-    view was built on a different frozen input boundary than the CSV read here."""
+    merge presents as one logical account. When `person_link_holds` is supplied, each
+    validated hold suppresses exactly one mechanically-proposed link BEFORE the
+    proposed-link CSV is written, so the final application never sees a held link; the
+    suppressed proposal is preserved in the returned audit. With neither input the
+    behavior is byte-for-byte identical to the plain Stage B run. Fails closed if the
+    survivor view was built on a different frozen input boundary than the CSV read
+    here, or on any person-link-hold mismatch."""
     with Path(csv_path).open(encoding="utf-8", newline="") as f:
         accounts = list(csv.DictReader(f))
     if survivor_view is not None:
@@ -1273,6 +1320,12 @@ def stage_b_link_historical_persons(
         universe = accounts
     hps = read_historical_persons(Path(db_path))
     proposed, review = build_stage_b(universe, hps)
+    link_hold_audit: list = []
+    if person_link_holds:
+        import person_link_hold as plh
+        provenance = survivor_view.provenance if survivor_view is not None else {}
+        descriptors = _build_link_hold_descriptors(proposed, accounts, hps, provenance)
+        proposed, link_hold_audit = plh.apply_holds(descriptors, person_link_holds)
     _write_rows(proposed, PROPOSED_LINK_FIELDS, Path(proposed_out))
     _write_rows(review, LINK_REVIEW_FIELDS, Path(review_out))
 
@@ -1292,6 +1345,8 @@ def stage_b_link_historical_persons(
         "hp_linked_to_missing_account": orphans,
         "collapsed_stage_a_merges": len(survivor_view.collapsed_group_ids) if survivor_view else 0,
         "loser_accounts_hidden": len(survivor_view.loser_to_survivor) if survivor_view else 0,
+        "person_links_held": len(link_hold_audit),
+        "link_hold_audit": link_hold_audit,
         "proposed_out": str(proposed_out),
         "review_out": str(review_out),
     }
@@ -1300,7 +1355,8 @@ def stage_b_link_historical_persons(
 def run_stage_b(csv_path: Path, db_path: Path | None,
                 proposed_out: Path, review_out: Path,
                 use_survivor_view: bool = False,
-                overrides_path: Path | None = None) -> int:
+                overrides_path: Path | None = None,
+                link_holds_path: Path | None = None) -> int:
     if not csv_path.exists():
         print(
             f"error: intermediate CSV not found at {csv_path}.\n"
@@ -1315,26 +1371,41 @@ def run_stage_b(csv_path: Path, db_path: Path | None,
             file=sys.stderr,
         )
         return 1
+    holds = load_person_link_holds(link_holds_path)
     view = None
     if use_survivor_view:
         with Path(csv_path).open(encoding="utf-8", newline="") as f:
             rows = list(csv.DictReader(f))
         claimed = _claimed_ids_from_db(Path(db_path))
         overrides = load_stage_a_overrides(overrides_path)
+        dispositions = load_entitlement_dispositions(
+            overrides_path.parent / "entitlement_dispositions.csv" if overrides_path else None)
         # The survivor-view Stage A plan applies the DB claim-state block and any
         # adjudication overrides. It intentionally does not apply the
         # different-person-links block, which depends on a prior Stage B proposal
         # and would form an A->B->A cycle; the QC gate remains the backstop that
         # rejects any proposal overlapping a held or review account.
         try:
-            view = build_stage_a_survivor_view(rows, claimed_ids=claimed, overrides=overrides)
-        except StageASurvivorError as e:
-            print(f"error: survivor-view construction failed closed: {e}", file=sys.stderr)
-            return 2
+            view = build_stage_a_survivor_view(rows, claimed_ids=claimed, overrides=overrides,
+                                               entitlement_dispositions=dispositions)
+        except Exception as e:  # fail-closed inputs raise their own error classes
+            if isinstance(e, StageASurvivorError) or e.__class__.__name__ in (
+                    "OverrideError", "EntitlementDispositionError"):
+                print(f"error: survivor-view construction failed closed: {e}", file=sys.stderr)
+                return 2
+            raise
         print(f"survivor view: collapsed {len(view.collapsed_group_ids)} approved Stage A "
               f"merges; {len(view.loser_to_survivor)} loser accounts hidden; "
               f"plan fp {view.plan_fingerprint[:16]}")
-    s = stage_b_link_historical_persons(csv_path, db_path, proposed_out, review_out, view)
+    try:
+        s = stage_b_link_historical_persons(csv_path, db_path, proposed_out, review_out, view, holds)
+    except Exception as e:
+        if e.__class__.__name__ == "PersonLinkHoldError":
+            print(f"error: person-link hold failed closed: {e}", file=sys.stderr)
+            return 2
+        raise
+    if s["person_links_held"]:
+        print(f"person links held (withheld from application): {s['person_links_held']}")
     print(f"historical_persons: {s['hp_total']}")
     print(f"proposed links: {s['proposed_total']}  "
           f"(verified id: {s['verified_id_links']}, name+DOB: {s['name_dob_links']}, "
@@ -1503,6 +1574,10 @@ def main() -> None:
                     help="Stage B link-review CSV output path (git-ignored out/ by default)")
     ap.add_argument("--excluded-out", type=Path, default=DEFAULT_EXCLUDED_ACCOUNTS_CSV,
                     help="Stage A held-out (email/user-id collision) accounts CSV (git-ignored out/ by default)")
+    ap.add_argument("--link-holds", type=Path, default=None,
+                    help="Stage B person-link hold CSV (private input; fail-closed). "
+                         "Suppresses adjudicated proposed links before the proposal CSV is "
+                         "written; omitted = no holds.")
     ap.add_argument("--overrides", type=Path, default=None,
                     help="Stage A adjudication-override CSV (private input; fail-closed). "
                          "Applied to --dry-run-merge and --final-merge; omitted = plain baseline.")
@@ -1517,7 +1592,8 @@ def main() -> None:
     if args.stage_b or args.stage_b_survivor_view:
         sys.exit(run_stage_b(args.csv, args.db, args.proposed_out, args.review_out,
                              use_survivor_view=args.stage_b_survivor_view,
-                             overrides_path=args.overrides))
+                             overrides_path=args.overrides,
+                             link_holds_path=args.link_holds))
     if args.qc_gate:
         sys.exit(run_qc_gate(args.out, args.proposed_out, args.review_out))
     if args.dry_run_merge:
