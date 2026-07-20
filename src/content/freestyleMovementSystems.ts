@@ -50,12 +50,15 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
       'compound set modifiers (nuclear = paradox + illusion, quantum = ' +
       'compressed atomic).',
     // Order: pixie / fairy (pre-base uptime compressors); atomic (the outward-dex
-    // set); quantum / nuclear; stepping / surging (set-foot relocations);
+    // set); quantum / nuclear; stepping (a set-foot relocation);
     // whirling (the whirl dex performed during uptime, before the bag peaks).
     // Miraging is deliberately absent: it is descriptive standalone inward-movement
     // language, not a launch set, so trick pages rely on the modifier row instead
-    // of a set-uptime movement-system row.
-    modifierSlugs:  ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'stepping', 'surging', 'whirling'],
+    // of a set-uptime movement-system row. Surging is deliberately absent too: it
+    // is not a primitive modifier but a composite that decomposes to spinning +
+    // stepping, so it is classified through those members, never as its own axis
+    // slug.
+    modifierSlugs:  ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'stepping', 'whirling'],
   },
   {
     axisKey:        'entry-topology',
@@ -162,11 +165,6 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
     'FAIRY + base: an orbit-style set; the bag is set from toe while the leg ' +
     'circles in the outside direction before the next trick, rather than the standard pixie compression. ' +
     'Compounds: FAIRY + MIRAGE, FAIRY + BUTTERFLY.',
-  ],
-  ['surging',
-    'SURGE + base: stepping foot relocation combined with spinning body rotation; ' +
-    'a high-energy pre-base treatment that decomposes to spinning + stepping. ' +
-    'Compounds: SURGE + WHIRL, SURGE + OSIS.',
   ],
   ['atomic',
     'ATOMIC + base: a launch set adding one outward dexterity before the base, +1. ' +
