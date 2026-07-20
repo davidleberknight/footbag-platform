@@ -4306,6 +4306,13 @@ def main():
             logging.info("'-fresh' requested — wiping previous mirror state")
             wipe_previous_mirror_state()
 
+        # Create the crawl-state directory (the mirror tree, whose parent is the
+        # state dir) before anything opens a state file. A relocated
+        # FOOTBAG_MIRROR_STATE_DIR may not exist yet, so this must run before the
+        # -log file handler and before any progress save, or both raise
+        # FileNotFoundError.
+        os.makedirs(MIRROR_DIR, exist_ok=True)
+
         # If -log was requested, attach a file handler for mirror.log in addition to the console handler.
         # IMPORTANT: do this AFTER -fresh so the log file path is recreated and remains visible on disk.
         if LOG_TO_FILE:
@@ -4331,8 +4338,6 @@ def main():
                 root_logger.addHandler(file_handler)
 
             logging.info(f"File logging enabled: {LOG_FILE}")
-
-        os.makedirs(MIRROR_DIR, exist_ok=True)
 
         if RESUME_ON_RESTART:
             if mirror_state.load_progress():

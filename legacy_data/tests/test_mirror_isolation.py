@@ -13,6 +13,7 @@ Run from repo root:
     python -m pytest legacy_data/tests/test_mirror_isolation.py -v
 """
 import importlib.util
+import sys
 from pathlib import Path
 
 SCRIPT_PATH = Path(__file__).resolve().parent.parent / 'create_mirror_footbag_org.py'
@@ -53,3 +54,34 @@ def test_defaults_unchanged_without_env(monkeypatch):
     assert m.MIRROR_DIR.endswith('legacy_data/mirror_footbag_org')
     assert m.MAX_URLS == 1000000
     assert m.MAX_DEPTH == 50
+
+
+def test_main_creates_relocated_state_dir_before_opening_log(tmp_path, monkeypatch):
+    # A relocated state dir that does not exist yet must be created before the
+    # -log file handler or a progress save opens a file under it. Regression for
+    # the FileNotFoundError a bounded smoke run hit. main() is stopped at
+    # load_progress (right after the state-dir + log setup, before any network).
+    target = tmp_path / 'fresh-state'          # deliberately absent
+    monkeypatch.setenv('FOOTBAG_MIRROR_STATE_DIR', str(target))
+    monkeypatch.setenv('FOOTBAG_MIRROR_PASSWORD', 'unused-fixture')  # skip getpass
+    monkeypatch.setenv('FOOTBAG_MIRROR_MAX_URLS', '1')
+    m = _load('mirror_iso_main')
+    assert not target.exists()                 # nothing created at import
+
+    class _Stop(RuntimeError):
+        pass
+
+    def _boom():
+        raise _Stop('stop before network')
+
+    monkeypatch.setattr(m.mirror_state, 'load_progress', _boom)
+    monkeypatch.setattr(sys, 'argv', ['create_mirror_footbag_org.py', 'someuser', '-log'])
+    try:
+        m.main()
+    except _Stop:
+        pass
+    # main() reached load_progress, which means the state dir + log handler were
+    # set up first without error.
+    assert target.exists()
+    assert Path(m.LOG_FILE).exists()
+    assert Path(m.MIRROR_DIR).is_dir()
