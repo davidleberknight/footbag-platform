@@ -1,0 +1,5 @@
+# Draft tracker comment for the seven-set-operator copy issue (HUMAN POSTS; not posted)
+
+Command (run only after review):
+
+gh issue comment 151 -R "$FOOTBAG_PRIVATE_REPO" -b "Curator ruling received and implemented: the three provisional butterfly-dex coordinates (Fairy Butterfly, Whirling Butterfly, Swirling Butterfly) are settled as OP OUT, replacing the SAME/OP placeholders at every authoritative source (curated corrections rows, the resolved-formula content module, and the rebuilt dictionary). The row-level block on this issue is removed. The teaching-copy revision is implemented: every set page now states that the base movement identity is retained while its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component, with settled retained and re-authored examples per page; no page claims the base runs unchanged. A deterministic test pins the settled coordinates and the copy doctrine. No further Red response is required for this finalization; the remaining SAME/OP questions elsewhere in the queue are unchanged."

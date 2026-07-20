@@ -136,7 +136,7 @@ const STEPPING_SET_CONTENT: SetEducationInput = {
   howItComposes:
     'Stepping composes with almost any dexterity while contributing its clipper-anchored launch. It opens uptime, rotational, and cross-body dexes, and the body operators layer on top of it: stepping and symposium, stepping and ducking, stepping and paradox all combine on a single base, each on its own axis. Because stepping is the launch and the body operators are body movements, the two layer without competing, which is why the deepest stepping compounds carry several operators at once. Stepping also seeds its own derived set systems, where a further set treatment is layered onto the stepping launch.',
   launchNotes:
-    'The defining structure is a clipper-anchored set with an opposite-side inward dex, opened as the support foot relocates. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged. In notation the launch is recorded at the front of the chain as CLIP > OP IN [DEX].',
+    'The defining structure is a clipper-anchored set with an opposite-side inward dex, opened as the support foot relocates. The set precedes the base dexterity and delivers the bag into it. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Stepping Whirl retains Whirl\'s OP IN. In notation the launch is recorded at the front of the chain as CLIP > OP IN [DEX].',
   confusions: [
     {
       heading: 'Stepping vs a plain clipper or toe set',
@@ -277,7 +277,7 @@ const PIXIE_SET_CONTENT: SetEducationInput = {
   howItComposes:
     'Pixie composes with almost any dexterity while contributing its toe-anchored launch, and the body operators layer on top of it on their own axes. Because pixie is the launch and operators such as symposium, ducking, and paradox are body movements, the two layer without competing. Pixie also seeds its own derived set systems, where a further set treatment is layered onto the pixie launch: sailing reads pixie plus quantum, and terraging and frantic build on the same toe-anchored opening.',
   launchNotes:
-    'The defining structure is a toe set with a same-side inward dex, written TOE > SAME IN [DEX]. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged. In notation the launch is recorded at the front of the chain.',
+    'The defining structure is a toe set with a same-side inward dex, written TOE > SAME IN [DEX]. The set precedes the base dexterity and delivers the bag into it. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Smear retains Mirage\'s OP IN, while Magellan authors Legover\'s outward dex as SAME OUT. In notation the launch is recorded at the front of the chain.',
   confusions: [
     {
       heading: 'Pixie vs fairy',
@@ -394,7 +394,7 @@ const FAIRY_SET_CONTENT: SetEducationInput = {
   howItComposes:
     'Fairy composes with almost any dexterity while contributing its toe-anchored launch, and the body operators layer on top of it on their own axes. Because fairy is the launch and operators such as symposium, ducking, and paradox are body movements, the two layer without competing. Fairy also seeds its own derived set systems, where a further set treatment is layered onto the fairy launch, and it is the toe-set entry inside the composite set surfing (fairy symposium swirling).',
   launchNotes:
-    'The defining structure is a toe set with a same-side outward dex, written TOE > SAME OUT [DEX]. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged.',
+    'The defining structure is a toe set with a same-side outward dex, written TOE > SAME OUT [DEX]. The set precedes the base dexterity and delivers the bag into it. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Fairy Butterfly retains Butterfly\'s OP OUT.',
   confusions: [
     {
       heading: 'Fairy vs pixie',
@@ -511,7 +511,7 @@ const WHIRLING_SET_CONTENT: SetEducationInput = {
   howItComposes:
     'Whirling composes with rotational and non-rotational dexes while contributing its clipper-anchored rotational launch, and the body operators layer on top of it on their own axes: whirling and gyro give blistering, whirling and symposium give pogo. Because whirling is the launch and the body operators are body movements, the two layer without competing, which is why the deeper whirling compounds carry several operators at once.',
   launchNotes:
-    'The defining structure is a clipper-anchored set with an opposite-side inward dex and a same-side terminal component, the rotational opening of the whirl family. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged.',
+    'The defining structure is a clipper-anchored set with an opposite-side inward dex and a same-side terminal component, the rotational opening of the whirl family. The set precedes the base dexterity and delivers the bag into it. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Whirling Butterfly retains Butterfly\'s OP OUT.',
   confusions: [
     {
       heading: 'Whirling vs swirling',
@@ -624,7 +624,7 @@ const SWIRLING_SET_CONTENT: SetEducationInput = {
   howItComposes:
     'Swirling composes with rotational and non-rotational dexes while contributing its cross-body SWIRL launch, and the body operators layer on top of it on their own axes. Because swirling is the launch and the body operators are body movements, the two layer without competing, which is why the deeper swirling compounds carry several operators at once.',
   launchNotes:
-    'The defining structure is a clipper-anchored cross-body rotational set carried by an explicit SWIRL dex, written CLIP > SAME BACK/FRONT SWIRL [DEX]. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged.',
+    'The defining structure is a clipper-anchored cross-body rotational set carried by an explicit SWIRL dex, written CLIP > SAME BACK/FRONT SWIRL [DEX]. The set precedes the base dexterity and delivers the bag into it. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Swirling Butterfly retains Butterfly\'s OP OUT.',
   confusions: [
     {
       heading: 'Swirling vs whirling',
@@ -726,7 +726,7 @@ const FLOATING_SET_CONTENT: SetEducationInput = {
   howItComposes:
     'Floating is itself a composition of set treatments, Quantum Symposium Quantum, taken as one launch. It opens a base dexterity while contributing its +3, and the trailing base carries its own count. As a composite set it is a worked-out stack rather than a single primitive launch, which is why it is presented as one named set instead of repeating the expansion on each card.',
   launchNotes:
-    'The defining structure is the composite set Quantum Symposium Quantum: a quantum entry, a no-plant symposium event, and a second quantum, contributing +3. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged.',
+    'The defining structure is the composite set Quantum Symposium Quantum: a quantum entry, a no-plant symposium event, and a second quantum, contributing +3. The set precedes the base dexterity and delivers the bag into it. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Floatation authors Butterfly\'s dex as SAME OUT.',
   confusions: [
     {
       heading: 'Floating is one named set, not three separate operators',
@@ -806,7 +806,7 @@ const SURFING_SET_CONTENT: SetEducationInput = {
   howItComposes:
     'Surfing is itself a composition of set treatments, Fairy Symposium Swirling, taken as one launch. It opens a base dexterity while contributing its +3, and the trailing base carries its own count. As a composite set it is a worked-out stack rather than a single primitive launch, which is why it is presented as one named set instead of repeating the expansion on each card.',
   launchNotes:
-    'The defining structure is the composite set Fairy Symposium Swirling: a fairy toe-set outward dex, a no-plant symposium body, and swirling\'s out dex, contributing +3. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged.',
+    'The defining structure is the composite set Fairy Symposium Swirling: a fairy toe-set outward dex, a no-plant symposium body, and swirling\'s out dex, contributing +3. The set precedes the base dexterity and delivers the bag into it. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Big Papa Smurf retains Blender\'s OP IN.',
   confusions: [
     {
       heading: 'Surfing is one named set, not three separate operators',
@@ -886,7 +886,7 @@ const WARPING_SET_CONTENT: SetEducationInput = {
   howItComposes:
     'Warping is itself a two-dex set treatment whose second dex is a symposium event, taken as one launch. It opens a base dexterity while contributing its +3, and the trailing base carries its own count. As a composite set it is a worked-out stack rather than a single primitive launch, which is why it is presented as one named set instead of repeating the expansion on each card.',
   launchNotes:
-    'The defining structure is a two-dex set whose second dex is a no-plant symposium event, written TOE > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX], contributing +3. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged.',
+    'The defining structure is a two-dex set whose second dex is a no-plant symposium event, written TOE > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX], contributing +3. The set precedes the base dexterity and delivers the bag into it. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base.',
   confusions: [
     {
       heading: 'Warping is one named set, not separate operators',
@@ -962,7 +962,7 @@ const ATOMIC_SET_CONTENT: SetEducationInput = {
   howItComposes:
     'Atomic composes with almost any dexterity while contributing its outward launch, and the body operators layer on top of it on their own axes. Because atomic is the launch and operators such as symposium, ducking, and paradox are body movements, the two layer without competing. Atomic also seeds its own derived set systems, where a further set treatment is layered onto the atomic launch.',
   launchNotes:
-    'The defining structure is a toe set with a single opposite-side outward dex, written TOE > OP OUT [DEX]. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged. In notation the launch is recorded at the front of the chain, and any X-Dex is a separate [XDEX] token, never part of atomic.',
+    'The defining structure is a toe set with a single opposite-side outward dex, written TOE > OP OUT [DEX]. The set precedes the base dexterity and delivers the bag into it. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Tapdown remains the established Tapping re-authoring precedent. In notation the launch is recorded at the front of the chain, and any X-Dex is a separate [XDEX] token, never part of atomic.',
   confusions: [
     {
       heading: 'Atomic vs quantum',
@@ -1075,7 +1075,7 @@ const QUANTUM_SET_CONTENT: SetEducationInput = {
   howItComposes:
     'Quantum composes with almost any dexterity while contributing its inward launch, and the body operators layer on top of it on their own axes. Because quantum is the launch and operators such as symposium, ducking, and paradox are body movements, the two layer without competing. Quantum also seeds derived systems such as frantic, where a further set treatment is layered onto the quantum launch.',
   launchNotes:
-    'The defining structure is a toe set with a single opposite-side inward dex, written TOE > OP IN [DEX]. The set precedes the base dexterity and delivers the bag into it; the dexterity then runs unchanged. In notation the launch is recorded at the front of the chain, and any X-Dex is a separate [XDEX] token.',
+    'The defining structure is a toe set with a single opposite-side inward dex, written TOE > OP IN [DEX]. The set precedes the base dexterity and delivers the bag into it. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. In notation the launch is recorded at the front of the chain, and any X-Dex is a separate [XDEX] token.',
   confusions: [
     {
       heading: 'Quantum vs atomic',
@@ -1181,7 +1181,7 @@ const NUCLEAR_SET_CONTENT: SetEducationInput = {
   displayName:  'Nuclear',
   pageSubtitle: 'A clipper-anchored launch set worth +2 that combines a paradox hip pivot with a downtime illusion-style dex.',
   definition:
-    'Nuclear is a launch set that folds two movements into one opening: a paradox hip pivot and a downtime illusion-style dex, from a clipper set with a same-side outward dex, delivering the bag into the base that follows. The base is unchanged; what nuclear sets is the launch. In notation the set reads CLIP > SAME OUT [DEX], and as a set treatment it contributes +2, combining paradox and illusion. Any following dex marked [XDEX] is a separate +1, recorded explicitly and never inferred from nuclear.',
+    'Nuclear is a launch set that folds two movements into one opening: a paradox hip pivot and a downtime illusion-style dex, from a clipper set with a same-side outward dex, delivering the bag into the base that follows. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; what nuclear sets is the launch. In notation the set reads CLIP > SAME OUT [DEX], and as a set treatment it contributes +2, combining paradox and illusion. Any following dex marked [XDEX] is a separate +1, recorded explicitly and never inferred from nuclear.',
   whyItExists:
     'Nuclear exists to name a clipper-anchored opening that combines a paradox hip shift and an illusion-style dex into one +2 set treatment, distinct from the single-dex uptime launches. The base that follows is unchanged; the set records the paradox-plus-illusion opening.',
   howItLaunches:
@@ -1294,7 +1294,7 @@ const FURIOUS_SET_CONTENT: SetEducationInput = {
   displayName:  'Furious',
   pageSubtitle: 'A clipper-anchored two-dex set worth +2, opening a trick from an opposite-side inward dex followed by a same-side inward dex.',
   definition:
-    'Furious is a launch set built from two dexes: it opens a trick from a clipper set with an opposite-side inward dex, then a same-side inward dex, delivering the bag into the base that follows. The base is unchanged; what furious sets is the launch. In notation the set reads CLIP > OP IN [DEX] > SAME IN [DEX], and as a two-dex set it contributes +2. Its historical name is high stepping.',
+    'Furious is a launch set built from two dexes: it opens a trick from a clipper set with an opposite-side inward dex, then a same-side inward dex, delivering the bag into the base that follows. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; what furious sets is the launch. In notation the set reads CLIP > OP IN [DEX] > SAME IN [DEX], and as a two-dex set it contributes +2. Its historical name is high stepping.',
   whyItExists:
     'Furious exists to name the two-dex clipper-anchored opening, separate from the single-dex stepping launch. Where stepping opens with one opposite-side inward dex, furious runs two inward dexes before the base, and the set records that doubled opening as a +2 treatment.',
   howItLaunches:
@@ -1306,7 +1306,7 @@ const FURIOUS_SET_CONTENT: SetEducationInput = {
   howItComposes:
     'Furious composes with a wide range of bases while contributing its two-dex clipper-anchored launch, and the body operators layer on top of it on their own axes. Because furious is the launch and operators such as paradox and symposium are body movements, the two layer without competing.',
   launchNotes:
-    'The defining structure is a clipper set with two inward dexes, an opposite-side inward dex then a same-side inward dex, written CLIP > OP IN [DEX] > SAME IN [DEX]. The set precedes the base and delivers the bag into it; the base then runs unchanged.',
+    'The defining structure is a clipper set with two inward dexes, an opposite-side inward dex then a same-side inward dex, written CLIP > OP IN [DEX] > SAME IN [DEX]. The set precedes the base and delivers the bag into it. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base.',
   confusions: [
     {
       heading: 'Furious vs Barraging',

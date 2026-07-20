@@ -6,14 +6,17 @@ import { join } from 'node:path';
 // red_corrections. Each must parse, close on the butterfly terminal
 // (OP CLIP [XBD] [DEL]) so the family still resolves to clipper/butterfly, have
 // ADD equal to its add-bearing token count, and survive verbatim in the source.
+// The fairy, whirling, and swirling compounds carry the curator-settled OP OUT
+// butterfly dex; the remaining SAME/OP entries are open questions still held
+// at their provisional either-side coordinate.
 const APPROVED = [
   { slug: 'diving-butterfly',             adds: 4, notation: 'SET > DIVE [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'gyro-diving-butterfly',        adds: 5, notation: 'SET > (back) SPIN [BOD] > DIVE [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'barraging-butterfly',          adds: 5, notation: 'SET > OP IN [DEX] > SAME IN [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
-  { slug: 'swirling-butterfly',           adds: 4, notation: 'SET > SAME BACK SWIRL [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
-  { slug: 'whirling-butterfly',           adds: 4, notation: 'SET > OP FRONT WHIRL [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'swirling-butterfly',           adds: 4, notation: 'SET > SAME BACK SWIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'whirling-butterfly',           adds: 4, notation: 'SET > OP FRONT WHIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'miraging-symposium-butterfly', adds: 5, notation: 'SET > OP IN [DEX] > (no plant while) SAME/OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
-  { slug: 'fairy-butterfly',              adds: 4, notation: 'TOE > SAME OUT [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'fairy-butterfly',              adds: 4, notation: 'TOE > SAME OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
 ] as const;
 
 const ADD_TOKEN   = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;

@@ -2861,7 +2861,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'swirling(+1) + butterfly(3) = 4 ADD',
-    operationalNotation: 'SET > SAME OUT [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // standard swirling same-side out-dex prefix chassis; bracket count 4 matches ADD.
+    operationalNotation: 'SET > SAME OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // standard swirling same-side out-dex prefix chassis; butterfly dex settled OP OUT by curator ruling; bracket count 4 matches ADD.
     provenance:  'Swirling-chassis promotion. swirling(+1) swirl-dex prefix; bracket count 4 matches ADD. Observational (SG).',
   },
   {
@@ -3103,7 +3103,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'whirling(+1) + butterfly(3) = 4 ADD',
-    operationalNotation: 'SET > OP IN [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // whirling OP IN [DEX] prefix; butterfly leading dex is symmetric; bracket count 4 matches ADD.
+    operationalNotation: 'SET > OP IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // whirling OP IN [DEX] prefix; butterfly dex settled OP OUT by curator ruling; bracket count 4 matches ADD.
     provenance:  'Whirling-chassis promotion. whirling(+1) OP IN [DEX] prefix; bracket count 4 matches ADD. Observational (FM).',
   },
   {
