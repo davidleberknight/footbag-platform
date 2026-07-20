@@ -109,7 +109,7 @@ doctrine judgment calls; editorial voice and wording of curator-authored prose; 
 ## Mandatory pre-reads (in this order)
 
 1. This file, and REFERENCE.md's orchestrator-facing sections — the tracked-work exclusion
-   method, the sample-matrix shape and query recipes, and the report structure. The §F1–§F17
+   method, the sample-matrix shape and query recipes, and the report structure. The §F1–§F18
    category catalog in REFERENCE.md is the lane's brief; the orchestrator does not read it.
 2. Root `CLAUDE.md` — authority order.
 3. The maintainers' private tracker, via `gh issue list -R "$FOOTBAG_PRIVATE_REPO"
@@ -148,13 +148,13 @@ doctrine judgment calls; editorial voice and wording of curator-authored prose; 
    read-only subagent to enumerate the *recorded* freestyle invariant surface fresh — every
    ratified rule, forever-rule, propagation clause, publication gate, and settled ruling in the
    five governance skills, `docs/FREESTYLE.md`, `freestyle/doctrine/RED_RULINGS.md`, and the
-   path-scoped rules this run touches — and diff it against the §F1–§F17 catalog. It returns a
+   path-scoped rules this run touches — and diff it against the §F1–§F18 catalog. It returns a
    bounded delta list: each uncatalogued invariant with its recorded home cited and the closest
    §F category, or "new". The orchestrator vets each delta against the absolute rules — an item
    that needs a doctrine opinion to stand, or has no recorded home, is an owner question, never
    a sweep dimension — and adds the survivors as ad-hoc categories. The §F catalog always runs
    in full regardless; the pre-pass may add categories, never remove, narrow, or reorder them.
-4. **Dispatch the category sweeps** §F1–§F17 to a read-only `auditor` subagent that reads
+4. **Dispatch the category sweeps** §F1–§F18 to a read-only `auditor` subagent that reads
    this skill's REFERENCE.md §F category catalog and sweeps the matrix and surfaces, returning
    a structured lead list (candidate, cited surface, the §F category plus its one-line
    definition, refutation attempted, read/analyzed inventory, any owner question) — never file
@@ -197,7 +197,7 @@ Per-finding format:
 ```markdown
 ##### FBH-<N> — <short title>
 
-- **Category:** <one of §F1–§F17 in this skill's REFERENCE.md>
+- **Category:** <one of §F1–§F18 in this skill's REFERENCE.md>
 - **Owner:** curator | rules expert | freestyle maintainer | primary maintainer
 - **Evidence:** <path:line / table+row / rendered surface, concrete>
 - **Verification:** <how it was confirmed and what refutation was attempted>

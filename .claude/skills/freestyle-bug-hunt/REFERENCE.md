@@ -270,6 +270,25 @@ cards correctly show plain words; ADD chips mixing `stall(1)`, `dex(1)`, bare `1
   a words-only rule; diff each rendered hashtag against its slug; collect the distinct ADD
   chip formats per view.
 
+### §F18 Outbound legacy-site link integrity
+
+Maintainer-ratified rule: no link to the live legacy footbag.org site survives go-live.
+That site goes dark at cutover, so every link into it becomes a dead end.
+
+1. An outbound link from any freestyle template or content module to a live legacy
+   footbag.org URL is a bug. The target either moves to the archive host, loses its link
+   and keeps its text, or is removed.
+2. A link retargeted at the archive host is a bug when the linking page is reachable
+   without signing in, because the archive is member-only and a signed-out visitor lands
+   on a login bounce instead of the content they clicked.
+3. An external host hard-coded in a template or content module, rather than resolved from
+   configuration, is a finding in its own right: it cannot be repointed without a code
+   change, and it drifts silently from the tests that assert it.
+
+- Method: mechanical pass — grep every freestyle template and content module for absolute
+  `http` and `https` targets; for each distinct host, decide whether it survives cutover;
+  for each surviving archive-host link, check whether its page requires authentication.
+
 ## Report structure (chat summary accompanying the BUGS.md write)
 
 1. Scope declaration: surfaces derived, sample-matrix coverage, tracked-work exclusions
