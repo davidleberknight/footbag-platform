@@ -30,10 +30,18 @@ from typing import Callable, Iterable
 FINGERPRINT_VERSION = "v1"
 APPROVE = "approve_same_person"
 DO_NOT_MERGE = "do_not_merge"
-VALID_DECISIONS = frozenset({APPROVE, DO_NOT_MERGE})
+# An explicit same-human merge of accounts Stage A did NOT group (one or both lack a
+# full DOB, so no name+full-DOB group exists). Human-adjudicated; keyed by the
+# account set and a fingerprint of its raw facts. It never invents or copies a
+# missing DOB -- the survivor keeps its own raw values and unions the losers'.
+MERGE_ACCOUNTS = "merge_accounts"
+VALID_DECISIONS = frozenset({APPROVE, DO_NOT_MERGE, MERGE_ACCOUNTS})
 # The review reason an authoritative do-not-merge decision stamps on a group,
 # distinct from any planner-derived safety-block reason.
 DO_NOT_MERGE_REASON = "adjudicated_distinct_person"
+# The expected_disposition a merge_accounts override records: it asserts the
+# accounts are NOT already a Stage A group (else the standard approve path applies).
+MERGE_ACCOUNTS_EXPECTED = "ungrouped:no_stage_a_group"
 
 OVERRIDE_FIELDS = ("decision", "account_ids", "expected_disposition", "fingerprint", "note")
 
@@ -74,6 +82,61 @@ def group_fingerprint(account_ids: Iterable[str], match_key: str,
         ",".join(sorted(c for c in countries if c)),
     ))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def account_set_fingerprint(entries: Iterable[tuple[str, str, str, str]]) -> str:
+    """One-way fingerprint of an explicit-merge account set's raw decision facts.
+
+    `entries` is (legacy_member_id, normalized_name, raw_birth_date, country) per
+    account; the raw birth date is included verbatim (empty when absent), so filling
+    or changing a DOB, or adding/removing an account, changes the digest and a stale
+    override fails closed. Distinct from group_fingerprint by a separate tag so the
+    two fingerprint spaces cannot collide.
+    """
+    parts = [FINGERPRINT_VERSION, "MERGE_ACCOUNTS"]
+    for mid, name, dob, country in sorted(entries):
+        parts.append("|".join((mid, name, dob, (country or "").strip().lower())))
+    return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
+
+
+def validate_merge_account_overrides(
+    overrides: list[Override], *,
+    present_ids: set[str],
+    grouped_ids: set[str],
+    fingerprint_of: Callable[[frozenset[str]], str],
+) -> list[frozenset[str]]:
+    """Validate merge_accounts overrides fail-closed; return the validated account
+    sets in stable order. Raises OverrideError (the caller aborts) on: a duplicate
+    override, an account missing or held out of the reconcilable set, an account
+    already in a Stage A name+DOB group, a stale expected disposition, or a stale
+    fingerprint. Builds nothing and mutates nothing."""
+    merge_overrides = [o for o in overrides if o.decision == MERGE_ACCOUNTS]
+    seen: set[frozenset[str]] = set()
+    validated: list[frozenset[str]] = []
+    for o in merge_overrides:
+        if o.account_ids in seen:
+            raise OverrideError(
+                f"duplicate merge_accounts override for {sorted(o.account_ids)}")
+        seen.add(o.account_ids)
+        missing = sorted(i for i in o.account_ids if i not in present_ids)
+        if missing:
+            raise OverrideError(
+                f"merge_accounts {sorted(o.account_ids)}: accounts missing or "
+                f"collision-excluded: {missing}")
+        already = sorted(i for i in o.account_ids if i in grouped_ids)
+        if already:
+            raise OverrideError(
+                f"merge_accounts {sorted(o.account_ids)}: already in a Stage A "
+                f"name+DOB group: {already} (use approve_same_person instead)")
+        if o.expected_disposition != MERGE_ACCOUNTS_EXPECTED:
+            raise OverrideError(
+                f"merge_accounts {sorted(o.account_ids)}: stale disposition "
+                f"{o.expected_disposition!r} (expected {MERGE_ACCOUNTS_EXPECTED!r})")
+        if fingerprint_of(o.account_ids) != o.fingerprint:
+            raise OverrideError(
+                f"merge_accounts {sorted(o.account_ids)}: stale fingerprint")
+        validated.append(o.account_ids)
+    return validated
 
 
 def parse_account_ids(raw: str) -> frozenset[str]:

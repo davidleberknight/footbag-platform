@@ -24,6 +24,11 @@ _SCRIPTS = Path(__file__).resolve().parents[1] / "member_data_scripts"
 
 def _load(name):
     import sys
+    # Reuse an already-loaded instance so every test file shares ONE module object
+    # (and therefore one OverrideError class); re-execing would make pytest.raises
+    # match a different class instance.
+    if name in sys.modules:
+        return sys.modules[name]
     # The reconciler imports stage_a_overrides by bare name; make the dir importable.
     if str(_SCRIPTS) not in sys.path:
         sys.path.insert(0, str(_SCRIPTS))
@@ -345,3 +350,112 @@ def test_entitlement_population_status_reports_populated():
     rows[1]["legacy_was_board_at_cutover"] = "1"
     status = rec.entitlement_population_status(rows)
     assert all(status.values())
+
+
+# --- merge_accounts override (explicit human merge of ungrouped accounts) ----
+
+def _merge_override(rows, ids, *, fingerprint=None, expected=None):
+    kept, _ = rec.reconcilable_rows(rows)
+    by_id = {(r.get("legacy_member_id") or "").strip(): r for r in kept}
+    present = frozenset(ids) & set(by_id)
+    fp = (fingerprint if fingerprint is not None
+          else rec._account_set_fingerprint_for(by_id, frozenset(present)))
+    return ov.Override(ov.MERGE_ACCOUNTS, frozenset(ids),
+                       expected if expected is not None else ov.MERGE_ACCOUNTS_EXPECTED,
+                       fp, "synthetic")
+
+
+def _ungrouped_pair():
+    # same name, but account 200 has no DOB -> Stage A never groups them
+    return [_acct("100", "Sam Rivera", "1990-04-01"),
+            _acct("200", "Sam Rivera", "")]
+
+
+def test_merge_accounts_merges_an_ungrouped_pair():
+    rows = _ungrouped_pair()
+    assert len(rec.plan_auto_merges(rows)["merges"]) == 0        # not a Stage A group
+    plan = rec.plan_auto_merges(rows, overrides=[_merge_override(rows, {"100", "200"})])
+    assert len(plan["merges"]) == 1
+    d = plan["merges"][0]
+    assert d.survivor_id == "100" and d.loser_ids == ["200"]
+
+
+def test_merge_accounts_preserves_raw_dobs_and_invents_none():
+    rows = _ungrouped_pair()
+    plan = rec.plan_auto_merges(rows, overrides=[_merge_override(rows, {"100", "200"})])
+    surv = plan["merges"][0].survivor_row
+    assert surv["birth_date"] == "1990-04-01"       # survivor keeps its own DOB
+    # the loser's raw row is untouched; no DOB was copied into it
+    assert rows[1]["birth_date"] == ""
+
+
+def test_merge_accounts_unions_loser_only_email():
+    rows = [_acct("100", "Sam Rivera", "1990-04-01", email=""),
+            _acct("200", "Sam Rivera", "", email="loser@example.test")]
+    plan = rec.plan_auto_merges(rows, overrides=[_merge_override(rows, {"100", "200"})])
+    surv = plan["merges"][0].survivor_row
+    emails = {surv.get("legacy_email"), surv.get("legacy_email2"), surv.get("legacy_email3")}
+    assert "loser@example.test" in emails
+
+
+def test_merge_accounts_missing_account_fails_closed():
+    rows = _ungrouped_pair()
+    o = ov.Override(ov.MERGE_ACCOUNTS, frozenset({"100", "999"}),
+                    ov.MERGE_ACCOUNTS_EXPECTED, "a" * 64, "synthetic")
+    with pytest.raises(ov.OverrideError, match="missing or"):
+        rec.plan_auto_merges(rows, overrides=[o])
+
+
+def test_merge_accounts_stale_fingerprint_fails_closed():
+    rows = _ungrouped_pair()
+    with pytest.raises(ov.OverrideError, match="stale fingerprint"):
+        rec.plan_auto_merges(rows, overrides=[_merge_override(rows, {"100", "200"},
+                                                              fingerprint="b" * 64)])
+
+
+def test_merge_accounts_already_grouped_fails_closed():
+    # both share a full DOB -> a real Stage A group; merge_accounts must refuse it
+    rows = [_acct("100", "Sam Rivera", "1990-04-01"),
+            _acct("200", "Sam Rivera", "1990-04-01")]
+    with pytest.raises(ov.OverrideError, match="already in a Stage A"):
+        rec.plan_auto_merges(rows, overrides=[_merge_override(rows, {"100", "200"})])
+
+
+def test_merge_accounts_stale_disposition_fails_closed():
+    rows = _ungrouped_pair()
+    with pytest.raises(ov.OverrideError, match="stale disposition"):
+        rec.plan_auto_merges(rows, overrides=[_merge_override(rows, {"100", "200"},
+                                                              expected="review:country_conflict")])
+
+
+def test_merge_accounts_dob_change_invalidates_fingerprint():
+    rows = _ungrouped_pair()
+    o = _merge_override(rows, {"100", "200"})       # recorded against 200-with-no-DOB
+    # A DOB filled in with a value that does NOT match 100 keeps them ungrouped,
+    # so only the fingerprint (which binds the raw DOB) catches the change.
+    rows[1]["birth_date"] = "1985-01-01"
+    with pytest.raises(ov.OverrideError, match="stale fingerprint"):
+        rec.plan_auto_merges(rows, overrides=[o])
+
+
+def test_merge_accounts_deterministic():
+    rows = _ungrouped_pair()
+    o = _merge_override(rows, {"100", "200"})
+    p1 = rec.plan_auto_merges(rows, overrides=[o])
+    p2 = rec.plan_auto_merges(rows, overrides=[o])
+    assert p1["merges"][0].survivor_id == p2["merges"][0].survivor_id
+    assert p1["merges"][0].loser_ids == p2["merges"][0].loser_ids
+
+
+def test_merge_accounts_csv_round_trip(tmp_path):
+    rows = _ungrouped_pair()
+    kept, _ = rec.reconcilable_rows(rows)
+    by_id = {(r.get("legacy_member_id") or "").strip(): r for r in kept}
+    fp = rec._account_set_fingerprint_for(by_id, frozenset({"100", "200"}))
+    p = tmp_path / "m.csv"
+    _write_csv(p, list(ov.OVERRIDE_FIELDS),
+               [[ov.MERGE_ACCOUNTS, "100|200", ov.MERGE_ACCOUNTS_EXPECTED, fp, "synthetic"]])
+    loaded = ov.load_overrides(p)
+    assert len(loaded) == 1 and loaded[0].decision == ov.MERGE_ACCOUNTS
+    plan = rec.plan_auto_merges(rows, overrides=loaded)
+    assert len(plan["merges"]) == 1

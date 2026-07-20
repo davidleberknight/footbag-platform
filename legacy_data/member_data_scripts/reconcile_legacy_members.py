@@ -534,6 +534,61 @@ def evaluate_merge_group(group: DuplicateGroup,
                          survivor_id, "merge", "", row, loser_ids)
 
 
+# Every automated safety block, ignored for an explicit human-adjudicated merge:
+# the maintainer has ruled the accounts are one person on the full evidence, so the
+# merge is built directly. The fail-closed fingerprint still guards the account set.
+_ALL_MERGE_BLOCKS = frozenset({
+    "claim_state", "different_person_links", "country_conflict",
+    "too_many_emails", "unpreservable_handle",
+})
+
+
+def _account_set_fingerprint_for(by_id: dict[str, dict[str, str]],
+                                 ids: "frozenset[str]") -> str:
+    """The raw-fact fingerprint of an account set, using the same normalizer the
+    matcher uses. Raw birth dates pass through verbatim (empty when absent)."""
+    import stage_a_overrides
+    entries = [(i, normalize_name(by_id[i].get("real_name") or ""),
+                (by_id[i].get("birth_date") or "").strip(),
+                (by_id[i].get("country") or "").strip())
+               for i in ids]
+    return stage_a_overrides.account_set_fingerprint(entries)
+
+
+def _apply_account_merge_overrides(rows: list[dict[str, str]],
+                                   decisions: list,
+                                   merge_overrides: list,
+                                   links_by_account: dict[str, str] | None,
+                                   claimed_ids: set[str] | None) -> list:
+    """Turn validated merge_accounts overrides into extra merge decisions over
+    accounts Stage A did not group. Read-only and deterministic: it builds the
+    survivor row via the ordinary union (no DOB is invented or copied) and fails
+    closed on any stale or malformed override before building anything."""
+    import stage_a_overrides
+    kept, _ = reconcilable_rows(rows)
+    by_id = {(r.get("legacy_member_id") or "").strip(): r for r in kept}
+    grouped_ids: set[str] = set()
+    for d in decisions:
+        for a in d.accounts:
+            grouped_ids.add((a.get("legacy_member_id") or "").strip())
+
+    validated = stage_a_overrides.validate_merge_account_overrides(
+        merge_overrides, present_ids=set(by_id), grouped_ids=grouped_ids,
+        fingerprint_of=lambda ids: _account_set_fingerprint_for(by_id, ids))
+
+    extra: list = []
+    for n, ids in enumerate(sorted(validated, key=lambda s: sorted(s)), start=1):
+        accts = sorted((by_id[i] for i in ids),
+                       key=lambda r: r.get("legacy_member_id") or "")
+        g = DuplicateGroup(signal="adjudicated_merge",
+                           match_key="adjudicated|" + "+".join(sorted(ids)),
+                           same_person_recommended=True, exclusion_reason="",
+                           accounts=accts, group_id=f"M{n:04d}")
+        extra.append(evaluate_merge_group(g, links_by_account, claimed_ids,
+                                          ignore_blocks=_ALL_MERGE_BLOCKS))
+    return extra
+
+
 def plan_auto_merges(rows: list[dict[str, str]],
                      links_by_account: dict[str, str] | None = None,
                      claimed_ids: set[str] | None = None,
@@ -550,12 +605,21 @@ def plan_auto_merges(rows: list[dict[str, str]],
                  for g in groups]
     if overrides:
         import stage_a_overrides
-        pairs = list(zip(groups, decisions))
-        decisions = stage_a_overrides.apply_overrides(
-            pairs, overrides,
-            reevaluate=lambda g, ign: evaluate_merge_group(
-                g, links_by_account, claimed_ids, ignore_blocks=ign),
-        )
+        group_overrides = [o for o in overrides
+                           if o.decision in (stage_a_overrides.APPROVE,
+                                             stage_a_overrides.DO_NOT_MERGE)]
+        merge_overrides = [o for o in overrides
+                           if o.decision == stage_a_overrides.MERGE_ACCOUNTS]
+        if group_overrides:
+            pairs = list(zip(groups, decisions))
+            decisions = stage_a_overrides.apply_overrides(
+                pairs, group_overrides,
+                reevaluate=lambda g, ign: evaluate_merge_group(
+                    g, links_by_account, claimed_ids, ignore_blocks=ign),
+            )
+        if merge_overrides:
+            decisions = decisions + _apply_account_merge_overrides(
+                rows, decisions, merge_overrides, links_by_account, claimed_ids)
     merges = [d for d in decisions if d.action == "merge"]
     reviews = [d for d in decisions if d.action == "review"]
     return {

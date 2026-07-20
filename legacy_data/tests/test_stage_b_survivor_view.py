@@ -22,6 +22,10 @@ _SCRIPTS = Path(__file__).resolve().parents[1] / "member_data_scripts"
 
 
 def _load(name):
+    # Reuse an already-loaded instance so every test file shares ONE module object
+    # (and therefore one OverrideError / exception class instance).
+    if name in sys.modules:
+        return sys.modules[name]
     if str(_SCRIPTS) not in sys.path:
         sys.path.insert(0, str(_SCRIPTS))
     spec = importlib.util.spec_from_file_location(name, _SCRIPTS / f"{name}.py")
