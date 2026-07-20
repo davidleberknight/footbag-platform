@@ -377,6 +377,50 @@ export function insertTtLesson(db: BetterSqlite3.Database, o: TtLessonOverrides)
   return id;
 }
 
+export interface MemberSubmittedVideoOverrides {
+  uploader_member_id: string;
+  videoId: string;                 // YouTube id -> video_url
+  source_id?: string | null;       // member submissions leave this NULL (default)
+  id?: string;
+  moderation_status?: string;      // default 'active'
+}
+
+/**
+ * Insert a member-submitted URL-reference video (media_type='video',
+ * created_by='member'), mirroring the production insertMemberVideo shape. By
+ * default source_id is NULL, matching real member submissions; pass source_id to
+ * attribute it to a media source.
+ */
+export function insertMemberSubmittedVideo(
+  db: BetterSqlite3.Database,
+  o: MemberSubmittedVideoOverrides,
+): string {
+  const id = o.id ?? `media-mv-${uid()}`;
+  const sourceId = o.source_id === undefined ? null : o.source_id;
+  if (sourceId) {
+    db.prepare(`
+      INSERT OR IGNORE INTO media_sources (source_id, source_name, source_type, url, creator)
+      VALUES (?, ?, 'youtube', NULL, NULL)
+    `).run(sourceId, sourceId);
+  }
+  db.prepare(`
+    INSERT INTO media_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
+      video_platform, video_id, video_url, thumbnail_url,
+      source_id, moderation_status, source_filename
+    ) VALUES (?, ?, 'member', ?, 'member', 1, ?, 'video', 0, ?, ?,
+              'youtube', ?, ?, NULL, ?, ?, NULL)
+  `).run(
+    id, TS, TS,
+    o.uploader_member_id,
+    null, TS,
+    o.videoId, `https://www.youtube.com/watch?v=${o.videoId}`,
+    sourceId, o.moderation_status ?? 'active',
+  );
+  return id;
+}
+
 /**
  * Insert a freestyle_trick_aliases row (alias_slug → trick_slug). Used by TT-view
  * tests to verify alias resolution (e.g. 'neck-catch' → 'neck-stall').

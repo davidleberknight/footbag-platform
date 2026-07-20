@@ -2317,6 +2317,16 @@ CREATE UNIQUE INDEX ux_media_items_source_filename_per_uploader
   ON media_items(uploader_member_id, source_filename)
   WHERE source_filename IS NOT NULL
     AND moderation_status = 'active';
+-- A media source's video URL identifies one active media item: no two active
+-- rows share the same (source_id, video_url) when both are set. The curator seed
+-- path upserts by a deterministic (platform, video_url) id, so it never
+-- duplicates by construction; this index makes the invariant hold for every
+-- other write path too. Member-submitted URL videos leave source_id NULL and are
+-- outside the pair, so this never blocks a member submission.
+CREATE UNIQUE INDEX ux_media_items_source_video
+  ON media_items(source_id, video_url)
+  WHERE source_id IS NOT NULL AND video_url IS NOT NULL
+    AND moderation_status = 'active';
 CREATE UNIQUE INDEX ux_galleries_default_per_member ON member_galleries(owner_member_id) WHERE is_default = 1;
 CREATE INDEX        idx_galleries_owner         ON member_galleries(owner_member_id);
 CREATE INDEX        idx_gallery_links_gallery   ON gallery_external_links(gallery_id);
