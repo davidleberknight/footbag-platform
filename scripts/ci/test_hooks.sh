@@ -856,6 +856,12 @@ expect "$H" 'echo "$(git reflog delete HEAD@{0})"' defer
 expect "$H" 'git reflog show' allow
 expect "$H" 'git reflog' allow
 expect "$H" 'git reflog --oneline -5' allow
+# git fsck is read-only (integrity check) except its --lost-found flag, which WRITES dangling
+# objects into .git/lost-found. The flag must fall through; the read-only forms auto-approve.
+expect "$H" 'git fsck' allow
+expect "$H" 'git fsck --full --strict' allow
+expect "$H" 'git fsck --lost-found' defer
+expect "$H" 'echo "$(git fsck --lost-found)"' defer
 expect "$H" "sed 's/a/b/ge cmd' f.txt" defer
 expect "$H" "sed -n 'x;y' 's/a/b/gw /tmp/out' in.txt" defer
 expect "$H" 'sed -n "x;y" -n "1w /tmp/out" in.txt' defer

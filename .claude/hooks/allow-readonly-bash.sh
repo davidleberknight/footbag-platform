@@ -39,9 +39,10 @@ case "$COMMAND" in *\$\'*) exit 0 ;; esac
 readonly_heads='ls cat head tail wc grep egrep fgrep rg find tree stat file echo printf pwd which type dirname basename realpath readlink sort uniq cut comm tr nl tac fold column jq date id whoami hostname uname sed true false : diff cmp strings od hexdump base64 base32 cksum md5sum sha1sum sha224sum sha256sum sha384sum sha512sum shasum b2sum sum rev fmt expand unexpand paste join pr look seq numfmt tsort ps pgrep pidof df du free uptime groups users who w tty nproc arch getconf locale lscpu lsblk lsmem getent lsof cd pushd popd dirs test'
 
 # Git subcommands that only read. Anything else under git falls through. Every entry must be
-# read-only in ALL its subverbs; `reflog` is the one exception (its `expire`/`delete` mutate) and
-# is gated in head_arg_unsafe below, so it can stay here for its read-only `show`/`list` forms.
-readonly_git='status log diff show blame rev-parse describe shortlog ls-files ls-tree cat-file for-each-ref reflog rev-list merge-base show-ref name-rev ls-remote remote var count-objects cherry whatchanged verify-commit verify-tag grep annotate range-diff show-branch check-ignore check-attr check-mailmap'
+# read-only in ALL its subverbs; the exceptions are gated in head_arg_unsafe below so their
+# read-only forms can stay here: `reflog` (its `expire`/`delete` mutate), `remote` (its
+# add/rename/remove/set-* forms mutate), and `fsck` (its `--lost-found` flag writes).
+readonly_git='status log diff show blame rev-parse describe shortlog ls-files ls-tree cat-file for-each-ref reflog rev-list merge-base show-ref name-rev ls-remote remote var count-objects cherry whatchanged verify-commit verify-tag grep annotate range-diff show-branch check-ignore check-attr check-mailmap fsck'
 
 contains() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
 
@@ -99,6 +100,9 @@ head_arg_unsafe() {
       # first arg after `remote`. Refuse those so `remote` can stay on the read-only git list
       # for its read forms.
       case "${1:-}" in remote) case "${2:-}" in add|rename|remove|rm|set-head|set-branches|set-url|prune|update) return 0 ;; esac ;; esac
+      # `git fsck` reads (integrity check) but its --lost-found flag WRITES dangling objects
+      # into .git/lost-found; refuse that flag so fsck can stay on the read-only git list.
+      case "${1:-}" in fsck) for a in "$@"; do case "$a" in --lost-found) return 0 ;; esac; done ;; esac
       # An exec/write flag on a read-only git subcommand (`git log --output=f`,
       # `git ls-remote --upload-pack=cmd`).
       for a in "$@"; do

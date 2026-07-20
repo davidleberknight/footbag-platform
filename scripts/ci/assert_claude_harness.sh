@@ -207,35 +207,27 @@ else
   fail=1
 fi
 
-# --- Check 11: the machine-local settings file carries no dangerous broad allow ---
+# --- Check 11: the machine-local settings file carries no permission rules at all ---
 # settings.local.json is gitignored and per-developer, so it is absent in CI and this check
-# runs only where the file exists (a developer's machine). It is where "always allow" clicks
-# accumulate, so it is exactly where an un-readonly sqlite3, an interpreter/shell wildcard
-# (effectively Bash(*)), or a broad container-exec allow hides from the committed-file checks.
-# Any wildcard Bash allow is refused outright rather than checked against a list of dangerous
-# command heads. A head list is a denylist, and a denylist that misses one head (a broad
-# `gh api *`, say) silently auto-approves the very mutations the guard hooks defer on purpose,
-# because a hook that defers leaves the allow list to decide. A no-wildcard rule has no list
-# to go stale. Exact commands stay allowed, so ordinary scoped conveniences survive; a
-# developer wanting a personal wildcard puts it in their user-scope settings, which is its
-# documented home.
+# runs only where the file exists (a developer's machine). Its only routine writer is the
+# "always allow" click at a permission prompt, so it drifts toward over-permission by
+# construction, and no hook can intercept the product's own write. Policy (stated in
+# docs/CLAUDE_CODE_GUIDE.md): permission rules never live here — a rule worth keeping is
+# either shareable (promote to the committed settings.json) or names an absolute machine
+# path (promote to the developer's user-scope ~/.claude/settings.json); everything else is
+# click residue to delete. The file's one legitimate content is the env block (machine-local
+# values committed text must never name). Failing on ANY rule, not just a dangerous-looking
+# one, means a stray click surfaces on the next self-check run instead of festering, and
+# there is no denylist of dangerous shapes to go stale.
 LOCAL=".claude/settings.local.json"
 if [ -f "$LOCAL" ] && jq empty "$LOCAL" >/dev/null 2>&1; then
-  local_allows=$(jq -r '(.permissions.allow // [])[]' "$LOCAL" 2>/dev/null)
-  local_bad=$( {
-    printf '%s\n' "$local_allows" | grep -E '^Bash\([^)]*\*'
-    printf '%s\n' "$local_allows" | grep -iE 'sqlite3' | grep -iv -- '-readonly'
-    printf '%s\n' "$local_allows" | grep -E '^Bash\((xargs|find|echo|awk|sed)([: *)]|$)'
-    printf '%s\n' "$local_allows" | grep -E '^Bash\((python3?|node|nodejs|ruby|perl|bash|sh|zsh|deno|bun|npx|cd|eval|exec)([[:space:]:]\*)?\)$'
-    printf '%s\n' "$local_allows" | grep -E '^Bash\(docker[[:space:]]+(run|exec|cp)([[:space:]]|\*)'
-    printf '%s\n' "$local_allows" | grep -E '^WebFetch\(domain:\*\)$'
-  } 2>/dev/null | grep -v '^[[:space:]]*$' | sort -u || true )
-  if [ -n "$local_bad" ]; then
-    echo "[harness] FAIL: $LOCAL carries dangerous broad allow(s) — promote a safe scoped rule to $SETTINGS, or delete:" >&2
-    ( IFS=$'\n'; printf '  %s\n' $local_bad >&2 )
+  local_rules=$(jq -r '((.permissions.allow // []) + (.permissions.ask // []) + (.permissions.deny // []))[]' "$LOCAL" 2>/dev/null | grep -v '^[[:space:]]*$' | sort -u || true)
+  if [ -n "$local_rules" ]; then
+    echo "[harness] FAIL: $LOCAL carries permission rule(s) — promote to $SETTINGS (shareable) or user-scope settings (machine paths), or delete:" >&2
+    ( IFS=$'\n'; printf '  %s\n' $local_rules >&2 )
     fail=1
   else
-    echo "[harness] $LOCAL carries no dangerous broad allow"
+    echo "[harness] $LOCAL carries no permission rules (env block only)"
   fi
 else
   echo "[harness] $LOCAL absent or empty (nothing to scan)"

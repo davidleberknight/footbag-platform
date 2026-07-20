@@ -5,6 +5,8 @@ paths:
   - "CONTRIBUTING.md"
   - "CODE_OF_CONDUCT.md"
   - "GOVERNANCE.md"
+  - "SECURITY.md"
+  - "TRADEMARKS.md"
   - "PROJECT_SUMMARY*.md"
 ---
 

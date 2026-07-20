@@ -1,5 +1,8 @@
 # footbag-platform
 
+[![CI](https://github.com/davidleberknight/footbag-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/davidleberknight/footbag-platform/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 > Modernizing **footbag.org** under the auspices of the **International Footbag Players Association (IFPA)**.
 
 This repository contains the open-source modernization project for the global footbag community.
@@ -9,6 +12,8 @@ This repository contains the open-source modernization project for the global fo
 - **Goal:** A simple, low-cost, volunteer-maintainable platform for long-term community use
 
 Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
+
+[![Footbag Worldwide homepage (staging preview)](.github/images/screenshot-homepage.png)](https://doye1nvv64qep.cloudfront.net/)
 
 ## Start Here
 
@@ -25,23 +30,60 @@ Sneak Preview (AWS Staging): [https://doye1nvv64qep.cloudfront.net/](https://doy
 
 - We are actively revising the User Stories to define the Minimum Viable Product (MVP) scope. We will add some new stories with the goal to fully eliminate the need to keep the legacy site running in parallel.
 
+## Quickstart
+
+Requires Node 22; `sqlite3` and `python3` are needed for the seeded local database (full setup in [docs/DEV_ONBOARDING.md](docs/DEV_ONBOARDING.md)).
+
+```bash
+git clone https://github.com/davidleberknight/footbag-platform.git
+cd footbag-platform
+npm install
+./run_dev.sh   # first run seeds the database, then serves the site locally
+npm test       # unit and integration tiers
+```
+
+## Architecture
+
+```mermaid
+flowchart TB
+    U[Visitors and Members] -->|HTTPS| CF[CloudFront]
+    CF -->|dynamic HTML, static assets| N
+    CF -->|/media-store/*| S3M[(S3 media)]
+    CF -->|archive subdomain, signed cookies| S3A[(S3 legacy archive)]
+    subgraph LS [AWS Lightsail - four Docker containers]
+        N[nginx] --> W[web: Express controllers and services]
+        WK[worker: email outbox, daily jobs]
+        IMG[image: Sharp, ffmpeg]
+        W --> DB[(SQLite)]
+        WK --> DB
+    end
+    W -.IAM roles, no hardcoded secrets.-> AWS[SES - KMS - Parameter Store - CloudWatch]
+    DB -->|snapshots every 5 min| S3B[(S3 snapshots, cross-region WORM DR)]
+    IMG -->|photo variants| S3M
+```
+
+The full diagram set (infrastructure topology, four-layer software architecture, auth and request flows, environment parity) is in [docs/DIAGRAMS.md](docs/DIAGRAMS.md).
+
 ## Claude Code
 
-- See [CLAUDE.md](CLAUDE.md) for our bespoke harness operating rules. The AI always loads this file first.
+This repository doubles as a worked example of a production Claude Code harness:
 
-- See also [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md) for explanation of our custom harness.
+- [CLAUDE.md](CLAUDE.md): the always-loaded operating rules (authority order, non-negotiable rules, workflow). The AI loads this file first, every session.
+- [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md): how and why the harness is built this way, section by section, mapped to Anthropic's published best practices.
+- 17 skills (repeatable procedures), 16 path-scoped rules (per-layer coding conventions), and 14 fixture-tested hooks, including an obfuscation-resistant read-only Bash auto-approver and a Stop hook that blocks low-quality questions to the human.
+- Defense in depth: a version-proof permission floor in `.claude/settings.json` with guard hooks layered on top, and a CI self-check (`scripts/ci/assert_claude_harness.sh`) that fails the build when the harness drifts.
 
 ## Contributing
 
 - Talk to Dave.
-- You can run this code locally by cloning this repo, but to contribute you must have an invitation to the private repo. 
+- You can run this code locally (see Quickstart above), but to contribute you must have an invitation to the private repo. 
 - [CONTRIBUTING.md](CONTRIBUTING.md).
 - [SECURITY.md](SECURITY.md) for vulnerability reporting (Bug reporting is in the separate private GitHub repo).
 - **Do not report security vulnerabilities in public.** 
 
 ## Project Documentation
 
-- [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md): AI coding instructions as rules, procedures as skills, question-asking scheme, guardrails, and token-use efficiency / context-window managment harness.
+- [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md): AI coding instructions as rules, procedures as skills, question-asking scheme, guardrails, and token-use efficiency / context-window management harness.
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md): data model and schema semantics.
 - [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md): architectural decisions and rationale.
 - [docs/DEV_ONBOARDING.md](docs/DEV_ONBOARDING.md): developer setup and onboarding, but not contributing (refer to private GitHub repo).
