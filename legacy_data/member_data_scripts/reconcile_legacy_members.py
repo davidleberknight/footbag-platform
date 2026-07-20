@@ -589,17 +589,55 @@ def _apply_account_merge_overrides(rows: list[dict[str, str]],
     return extra
 
 
+def _privileged_merge_summaries(rows: list[dict[str, str]], merges: list) -> list[dict]:
+    """One summary per (merge, privileged entitlement present on its survivor): the
+    account set, its fingerprint, the raw value, and which source accounts carried
+    it. Empty when no merge carries a privileged entitlement (the common case), so
+    the disposition gate is a no-op for ordinary merges. Whether the flag arrived on
+    the survivor or on a loser, the survivor's OR-union carries it here, and the
+    source-account list records the provenance either way."""
+    import entitlement_disposition as _ed
+    out: list[dict] = []
+    by_id: dict[str, dict[str, str]] | None = None
+    for d in merges:
+        if d.survivor_row is None:
+            continue
+        for ent in _ed.PRIVILEGED_ENTITLEMENTS:
+            if not _flag_on(d.survivor_row.get(ent)):
+                continue
+            if by_id is None:
+                kept, _ = reconcilable_rows(rows)
+                by_id = {(r.get("legacy_member_id") or "").strip(): r for r in kept}
+            ids = frozenset([d.survivor_id, *d.loser_ids])
+            sources = sorted((a.get("legacy_member_id") or "").strip()
+                             for a in d.accounts if _flag_on(a.get(ent)))
+            out.append({
+                "account_ids": ids,
+                "fingerprint": _account_set_fingerprint_for(by_id, ids),
+                "entitlement": ent,
+                "raw_value": str(d.survivor_row.get(ent)),
+                "source_accounts": sources,
+            })
+    return out
+
+
 def plan_auto_merges(rows: list[dict[str, str]],
                      links_by_account: dict[str, str] | None = None,
                      claimed_ids: set[str] | None = None,
-                     overrides: "list | None" = None) -> dict[str, object]:
+                     overrides: "list | None" = None,
+                     entitlement_dispositions: "list | None" = None) -> dict[str, object]:
     """Evaluate every name+full-DOB group and split into merges and reviews.
     Returns the decisions plus reason counts; writes nothing.
 
     When `overrides` is supplied (a validated Stage A adjudication list), each
     override is checked against the live baseline and applied via
     stage_a_overrides.apply_overrides, which fails closed on any mismatch. With
-    no overrides the output is byte-identical to plain baseline planning."""
+    no overrides the output is byte-identical to plain baseline planning.
+
+    Any merge whose survivor carries a production-authority entitlement
+    (legacy_is_admin) requires an explicit entitlement disposition; the plan fails
+    closed without one. Merges carrying no such entitlement need no disposition and
+    are unaffected, so ordinary planning stays byte-identical."""
     groups = build_stage_a_groups(rows)
     decisions = [evaluate_merge_group(g, links_by_account, claimed_ids)
                  for g in groups]
@@ -622,12 +660,22 @@ def plan_auto_merges(rows: list[dict[str, str]],
                 rows, decisions, merge_overrides, links_by_account, claimed_ids)
     merges = [d for d in decisions if d.action == "merge"]
     reviews = [d for d in decisions if d.action == "review"]
+
+    # Entitlement-disposition gate: a merge carrying a privileged entitlement must
+    # carry an explicit disposition. No privileged merge and no dispositions -> no-op.
+    privileged = _privileged_merge_summaries(rows, merges)
+    entitlement_audit: list = []
+    if privileged or entitlement_dispositions:
+        import entitlement_disposition as _ed
+        entitlement_audit = _ed.validate_and_audit(privileged, entitlement_dispositions or [])
+
     return {
         "decisions": decisions,
         "merges": merges,
         "reviews": reviews,
         "reason_counts": Counter(d.reason for d in reviews),
         "loser_count": sum(len(d.loser_ids) for d in merges),
+        "entitlement_audit": entitlement_audit,
     }
 
 
@@ -689,6 +737,13 @@ def load_stage_a_overrides(overrides_path: Path | None):
     override input and no new hard dependency."""
     import stage_a_overrides
     return stage_a_overrides.load_overrides(overrides_path)
+
+
+def load_entitlement_dispositions(dispositions_path: Path | None):
+    """Load and return the entitlement dispositions, or [] when no path is given.
+    Local import so the reconciler runs with no disposition input."""
+    import entitlement_disposition
+    return entitlement_disposition.load_dispositions(dispositions_path)
 
 
 def dry_run_auto_merge(csv_path: Path, proposed_links_csv: Path,
@@ -1091,6 +1146,7 @@ def build_stage_a_survivor_view(
     links_by_account: dict[str, str] | None = None,
     claimed_ids: set[str] | None = None,
     overrides: "list | None" = None,
+    entitlement_dispositions: "list | None" = None,
     expected_boundary_fingerprint: str | None = None,
     expected_plan_fingerprint: str | None = None,
 ) -> StageASurvivorView:
@@ -1104,7 +1160,8 @@ def build_stage_a_survivor_view(
     boundary/plan fingerprint, a loser mapped to more than one survivor, a missing
     survivor, or an unapproved group presented as collapsed."""
     plan = plan_auto_merges(rows, links_by_account=links_by_account,
-                            claimed_ids=claimed_ids, overrides=overrides)
+                            claimed_ids=claimed_ids, overrides=overrides,
+                            entitlement_dispositions=entitlement_dispositions)
     merges = plan["merges"]
     override_fps = [getattr(o, "fingerprint", "") for o in (overrides or [])]
 
