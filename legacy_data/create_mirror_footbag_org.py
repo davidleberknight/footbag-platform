@@ -42,12 +42,19 @@ Quick setup
     source .venv/bin/activate
     pip install -r requirements.txt
 
-Usage (current CLI)
+Usage (safe CLI — password never in argv)
+    # Preferred: password from the environment, never on the command line.
+    export FOOTBAG_MIRROR_PASSWORD='<password>'
+    python create_mirror_footbag_org.py <username_or_email>
+    # Or omit it entirely and be prompted securely (no echo):
+    python create_mirror_footbag_org.py <username_or_email>
+    # Other flags compose the same way:
+    python create_mirror_footbag_org.py <username_or_email> -fresh
+    python create_mirror_footbag_org.py <username_or_email> --process-videos
+    python create_mirror_footbag_org.py <username_or_email> --seeds mirror_seeds/members.txt
+    python create_mirror_footbag_org.py <username_or_email> --video-backfill
+    # DEPRECATED (unsafe, backward-compat only): password as a positional arg.
     python create_mirror_footbag_org.py <username_or_email> <password>
-    python create_mirror_footbag_org.py <username_or_email> <password> -fresh
-    python create_mirror_footbag_org.py <username_or_email> <password> --process-videos
-    python create_mirror_footbag_org.py <username_or_email> <password> --seeds mirror_seeds/members.txt
-    python create_mirror_footbag_org.py <username_or_email> <password> --video-backfill
 
 Notes
 - '-fresh' wipes previous mirror state before starting.
@@ -56,7 +63,12 @@ Notes
 - Output is written under <script dir>/mirror_footbag_org; progress, robots
   cache, and log files also anchor to the script directory, so the crawl
   resumes correctly no matter which directory it is invoked from.
-- Passing a password on the command line is convenient but not ideal (it may end up in shell history / process lists).
+- The password is read from the FOOTBAG_MIRROR_PASSWORD environment variable
+  when set, otherwise prompted securely with getpass. A positional password is
+  still accepted for backward compatibility but warns that it is deprecated and
+  unsafe (visible in shell history / process listings). The password is never
+  logged, printed, or written to any command, progress file, exception message,
+  or report.
 
 Video handling (videos are SKIPPED by default; pass '--process-videos' to include them)
 - The primary archival crawl runs WITHOUT video binaries: the video corpus is
@@ -93,6 +105,7 @@ mid-write crashes, which cost far more than one lost page.
 """
 
 import os
+import getpass
 import time
 import requests
 import logging
@@ -112,7 +125,10 @@ import shutil
 
 # ========== CONFIGURATION ==========
 USERNAME = None # '<<YOU>>@footbag.org'
-PASSWORD = None # '<<YOUR PASSWORD>>'
+PASSWORD = None # resolved at runtime from the environment or a secure prompt
+# The member password is read from this environment variable when set, so it
+# never has to appear in argv (where ps and shell history expose it).
+PASSWORD_ENV_VAR = 'FOOTBAG_MIRROR_PASSWORD'
 
 # All state paths anchor to the script directory, never the process CWD: a
 # resume invoked from any directory must find the same progress file, robots
@@ -191,13 +207,47 @@ LOG_FILE = str(SCRIPT_DIR / 'mirror.log')
 LOG_TO_FILE = False  # default off; set True if you want mirror.log
 PROGRESS_FILE = str(SCRIPT_DIR / 'mirror_progress.json')
 ROBOTS_CACHE_FILE = str(SCRIPT_DIR / 'robots_cache.json')
+def resolve_password(cli_password):
+    # Resolve the member password from the safest available source, never argv:
+    #   1. the FOOTBAG_MIRROR_PASSWORD environment variable (preferred);
+    #   2. a positional CLI password, kept only for backward compatibility and
+    #      warned as deprecated/unsafe (visible in ps and shell history);
+    #   3. a secure interactive getpass prompt (no echo).
+    # The returned value is never logged, printed, or placed in any command,
+    # progress file, exception message, or report.
+    env_password = os.environ.get(PASSWORD_ENV_VAR)
+    if env_password:
+        if cli_password:
+            logging.warning(
+                "Both a command-line password and %s are set; using %s and "
+                "ignoring the command-line value (an argv password is unsafe).",
+                PASSWORD_ENV_VAR, PASSWORD_ENV_VAR)
+        return env_password
+    if cli_password:
+        logging.warning(
+            "Passing the password as a command-line argument is DEPRECATED and "
+            "unsafe: it is visible in shell history and process listings (ps). "
+            "Set %s or omit it to be prompted securely.", PASSWORD_ENV_VAR)
+        return cli_password
+    return getpass.getpass("footbag.org password: ")
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Create a local mirror of footbag.org."
     )
     parser.add_argument("username", help="footbag.org username/email")
-    parser.add_argument("password", help="footbag.org password")
+    parser.add_argument(
+        "password",
+        nargs="?",
+        default=None,
+        help=(
+            "DEPRECATED and unsafe: a command-line password is visible in shell "
+            "history and process listings (ps). Prefer the "
+            f"{PASSWORD_ENV_VAR} environment variable, or omit it to be prompted "
+            "securely. Retained only for backward compatibility."
+        ),
+    )
     parser.add_argument(
         "-fresh",
         action="store_true",
@@ -4225,7 +4275,7 @@ def main():
     args = parse_args()
     LOG_TO_FILE = args.log_to_file   # if your parser uses dest="log", change this to: args.log
     USERNAME = args.username
-    PASSWORD = args.password
+    PASSWORD = resolve_password(args.password)
     SKIP_VIDEOS = not args.process_videos
     if args.video_backfill:
         # The backfill's whole purpose is downloading the recorded videos.
