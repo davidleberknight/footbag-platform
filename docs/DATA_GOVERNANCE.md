@@ -140,7 +140,7 @@ No contact field (email, phone, social handle) is visible on any public page or 
 
 ## 9. Legacy archive and imported historical identities
 
-**Legacy archive** (`legacy_data/mirror_footbag_org/`) remains member-only because it contains private legacy member information (email addresses, personal details from the old mirror). It must not be made public.
+**Legacy archive** (`legacy_data/legacy_mirror/mirror_footbag_org/`) remains member-only because it contains private legacy member information (email addresses, personal details from the old mirror). It must not be made public.
 
 **Imported historical results** are separate: official event results and minimal person records migrated to the live database are public historical record surfaces (Sensitivity 1). The archive itself is not.
 

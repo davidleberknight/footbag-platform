@@ -18,8 +18,8 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-DB_CLUBS = os.path.join(ROOT, "legacy_data/legacy_archive/parsed/clubs/clubs.ndjson")
-DB_CONTACTS = os.path.join(ROOT, "legacy_data/legacy_archive/parsed/clubs/clubcontacts.ndjson")
+DB_CLUBS = os.path.join(ROOT, "legacy_data/legacy_repo_scripts/parsed/clubs/clubs.ndjson")
+DB_CONTACTS = os.path.join(ROOT, "legacy_data/legacy_repo_scripts/parsed/clubs/clubcontacts.ndjson")
 MIRROR = os.path.join(ROOT, "legacy_data/seed/clubs.csv")
 OUT_CSV = os.path.join(ROOT, "exploration/SGoldberg/clubs-reconciliation-data-2026-06-03.csv")
 

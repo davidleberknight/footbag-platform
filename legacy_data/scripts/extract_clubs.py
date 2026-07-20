@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 from bs4 import BeautifulSoup
 
-MIRROR_ROOT = Path(__file__).parent.parent / "mirror_footbag_org" / "www.footbag.org"
+MIRROR_ROOT = Path(__file__).parent.parent.parent / "footbag_legacy_mirror" / "www.footbag.org"
 CLUBS_SHOW_DIR = MIRROR_ROOT / "clubs" / "show"
 OUTPUT_DIR = Path(__file__).parent.parent / "seed"
 OUTPUT_CSV = OUTPUT_DIR / "clubs.csv"

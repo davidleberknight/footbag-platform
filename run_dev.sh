@@ -94,7 +94,7 @@ DB rebuild modes (mutually exclusive; opt-in only):
                    members, votes, ballots, news_items, audit_entries, ...),
                    plus curated media and the persona-catalog seed. Opt out
                    per axis with --no-media / --no-personas. Requires
-                   legacy_data/mirror_footbag_org/ to be present.
+                   the footbag_legacy_mirror repo-root symlink wired.
                    Calls scripts/deploy-local-data.sh --soup-to-nuts.
   --all-data       The --from-csv build PLUS the legacy member-data intake:
                    extract the footbag.org dump into the git-ignored intermediate

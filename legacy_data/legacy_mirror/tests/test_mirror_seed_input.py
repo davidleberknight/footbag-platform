@@ -8,7 +8,7 @@ against visited and queued URLs, and pass through the same unsafe/scope
 refusals as discovered links; start URLs stay present on a seeded fresh crawl.
 
 All fixtures are local; no live-site access. Run from repo root:
-    python -m pytest legacy_data/tests/test_mirror_seed_input.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_mirror_seed_input.py -v
 """
 import importlib.util
 import sys
@@ -90,3 +90,73 @@ def test_start_urls_stay_present_when_seeds_prefill_the_queue(state):
     before = list(state.queue)
     mirror_script._ensure_start_urls([BASE + '/members/home/'])
     assert state.queue == before
+
+
+# The crawler has no incremental mode; what it has is checkpointed resume. A
+# second run without -fresh loads the checkpoint and skips every URL already
+# visited: it captures never-seen URLs (new seed entries, newly discovered
+# links) and drains an interrupted queue, but a page whose live content changed
+# after capture keeps its stale capture. The cutover sequencing relies on this
+# being additive-only, so the two-run behavior is pinned end to end here
+# against a local fixture site.
+
+class _FakeResp:
+    def __init__(self, html):
+        self.text = html
+        self.content = html.encode('utf-8')
+        self.headers = {'Content-Type': 'text/html'}
+
+
+@pytest.fixture
+def crawl_env(tmp_path, monkeypatch, state):
+    monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(tmp_path / 'mirror'))
+    monkeypatch.setattr(mirror_script, 'PROGRESS_FILE', str(tmp_path / 'progress.json'))
+    monkeypatch.setattr(mirror_script, 'ROBOTS_CACHE_FILE', str(tmp_path / 'robots.json'))
+    site, fetched = {}, []
+
+    def fake_fetch(url):
+        fetched.append(url)
+        html = site.get(url)
+        if html is None:
+            return None, url
+        return _FakeResp(html), url
+
+    monkeypatch.setattr(mirror_script, 'fetch', fake_fetch)
+    return site, fetched
+
+
+def test_rerun_without_fresh_adds_new_urls_but_never_refetches(crawl_env, monkeypatch):
+    site, fetched = crawl_env
+    a = BASE + '/faq/show/1'
+    b = BASE + '/faq/show/2'
+    c = BASE + '/faq/show/3'
+    site[a] = f'<html><body><a href="{b}">next</a></body></html>'
+    site[b] = '<html><body>original capture</body></html>'
+
+    # First run: completes with the queue drained; the linked page was
+    # discovered, fetched, and captured.
+    mirror_script.crawl([a])
+    assert set(fetched) == {a, b}
+    b_file = Path(mirror_script.url_to_filepath(b))
+    assert 'original capture' in b_file.read_text(encoding='utf-8')
+    mirror_script.mirror_state.save_progress()
+
+    # Between runs the live site changes a captured page and gains a new one.
+    site[b] = '<html><body>changed after capture</body></html>'
+    site[c] = '<html><body>new page</body></html>'
+
+    # Second run without -fresh: the checkpoint reloads, the full seed list is
+    # re-offered (as the archival crawl does on every start).
+    resumed = mirror_script.MirrorState()
+    assert resumed.load_progress() is True
+    monkeypatch.setattr(mirror_script, 'mirror_state', resumed)
+    fetched.clear()
+    mirror_script.enqueue_seed_urls([a, b, c])
+    mirror_script.crawl([a])
+
+    # Only the never-seen URL is fetched; the changed page is not re-requested
+    # and keeps its stale capture.
+    assert fetched == [c]
+    assert 'original capture' in b_file.read_text(encoding='utf-8')
+    assert 'new page' in Path(
+        mirror_script.url_to_filepath(c)).read_text(encoding='utf-8')

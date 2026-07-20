@@ -9,16 +9,16 @@ same for ``posts``), paginated via the ``X-WP-TotalPages`` response header.
 wp-json itself is never archived (the crawler refuses it as non-content); it is
 used here offline-of-the-crawl purely to build the lists.
 
-Writes one file per site under ``legacy_data/mirror_seeds/``
+Writes one file per site under ``legacy_data/legacy_mirror/mirror_seeds/``
 (``vhost_<site>.txt``; the vhost root site is ``vhost_root.txt``), one absolute
 URL per line, sorted, de-duplicated. Read-only over the live site: a handful of
 paginated GETs per site, politely spaced.
 
 Run from anywhere:
 
-    legacy_data/.venv/bin/python legacy_data/scripts/build_vhost_seed_lists.py
-    legacy_data/.venv/bin/python legacy_data/scripts/build_vhost_seed_lists.py --dry-run
-    legacy_data/.venv/bin/python legacy_data/scripts/build_vhost_seed_lists.py --sites worlds2018 reference
+    legacy_data/footbag_venv/bin/python legacy_data/legacy_mirror/scripts/build_vhost_seed_lists.py
+    legacy_data/footbag_venv/bin/python legacy_data/legacy_mirror/scripts/build_vhost_seed_lists.py --dry-run
+    legacy_data/footbag_venv/bin/python legacy_data/legacy_mirror/scripts/build_vhost_seed_lists.py --sites worlds2018 reference
 """
 from __future__ import annotations
 
@@ -33,8 +33,8 @@ from urllib.parse import urlparse, urlunparse
 import requests
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-LEGACY_DATA = SCRIPT_DIR.parent
-OUT_DIR = LEGACY_DATA / "mirror_seeds"
+LEGACY_MIRROR = SCRIPT_DIR.parent
+OUT_DIR = LEGACY_MIRROR / "mirror_seeds"
 
 VHOST = "sites.footbag.org"
 VHOST_BASE = f"http://{VHOST}"  # the vhost refuses HTTPS; plain HTTP only

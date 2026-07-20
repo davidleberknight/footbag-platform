@@ -17,7 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).parent
 REPO = HERE.parents[1]
 DB = REPO / "database" / "footbag.db"
-MIRROR = REPO / "legacy_data" / "mirror_footbag_org" / "www.footbag.org" / "events" / "show"
+MIRROR = REPO / "footbag_legacy_mirror" / "www.footbag.org" / "events" / "show"
 EVENTS_CSV = REPO / "legacy_data" / "event_results" / "canonical_input" / "events.csv"
 OUT = HERE / "out"
 OUT.mkdir(exist_ok=True)

@@ -10,7 +10,7 @@ with all referring pages, skipped links keep their original URL, skips are a
 distinct state from failures, and a resumed crawl does not re-request them.
 
 All fixtures are local; no live-site access. Run from repo root:
-    python -m pytest legacy_data/tests/test_mirror_skip_videos.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_mirror_skip_videos.py -v
 """
 import importlib.util
 import json

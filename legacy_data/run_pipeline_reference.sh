@@ -15,7 +15,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 case "$1" in
   rebuild)
-    python pipeline/adapters/mirror_results_adapter.py --mirror mirror_footbag_org
+    python pipeline/adapters/mirror_results_adapter.py --mirror ../footbag_legacy_mirror
     python pipeline/adapters/curated_events_adapter.py
     python pipeline/01c_merge_stage1.py
     python pipeline/02_canonicalize_results.py
@@ -51,7 +51,7 @@ case "$1" in
     echo ""
 
     echo "── [1/7] REBUILD ──────────────────────────────────────"
-    python pipeline/adapters/mirror_results_adapter.py --mirror mirror_footbag_org
+    python pipeline/adapters/mirror_results_adapter.py --mirror ../footbag_legacy_mirror
     python pipeline/adapters/curated_events_adapter.py
     python pipeline/01c_merge_stage1.py
     python pipeline/02_canonicalize_results.py

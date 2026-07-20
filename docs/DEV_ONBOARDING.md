@@ -280,7 +280,7 @@ It needs the `sqlite3` CLI and `python3` (installed in §1.4) and creates a Pyth
 
 Two real-data inputs power the full dataset, and a hello-world clone needs neither:
 
-- the footbag.org **mirror** (`legacy_data/mirror_footbag_org/`), gitignored, used to regenerate canonical event data from source (the `--soup-to-nuts` / `run_pipeline.sh full` path);
+- the footbag.org **mirror**, reached through the gitignored `footbag_legacy_mirror` repo-root symlink (wire it with `ln -s legacy_data/legacy_mirror/mirror_footbag_org footbag_legacy_mirror` from the repo root when the crawl lives in this checkout), used to regenerate canonical event data from source (the `--soup-to-nuts` / `run_pipeline.sh full` path);
 - the **IFPA member roster** (`legacy_data/membership/inputs/membership_input_normalized.csv`), gitignored because it holds member PII (emails and personal data), used for the full member load.
 
 Both are separate maintainer handoffs; request them only when you need the full data load. The committed real event data and seed CSVs are enough to run and browse the site locally.
@@ -504,7 +504,7 @@ Per `docs/TESTING.md` §9.3. Operator-invoked; never runs unattended against pro
 
 The hello-world clone runs on the committed real event data (`canonical_input`) plus the committed seed CSVs (public member and club names). The full real dataset needs two inputs that are gitignored and handed off separately by the maintainer, never committed:
 
-- the footbag.org **mirror** (`legacy_data/mirror_footbag_org/`), an offline archival crawl of the live site that the pipeline parses to regenerate canonical event data. It is large (roughly 55 to 60 GB) and is normally taken as a maintainer handoff rather than re-crawled. To regenerate it from scratch, run the crawl from `legacy_data/` via `create_mirror_footbag_org.py <member_email> <password>` (run inside the `legacy_data` Python venv): a member account login reaches member-only content, `ffmpeg` is required (every fetched image and video is re-encoded through it to strip malware), and the crawl runs for multiple days, saving progress so it resumes after an interruption.
+- the footbag.org **mirror** (`legacy_data/legacy_mirror/mirror_footbag_org/`, reached through the `footbag_legacy_mirror` repo-root symlink), an offline archival crawl of the live site that the pipeline parses to regenerate canonical event data. It is large (roughly 55 to 60 GB) and is normally taken as a maintainer handoff rather than re-crawled. To regenerate it from scratch, run the crawl from the repo root via `legacy_data/legacy_mirror/create_mirror_footbag_org.py <member_email>` (inside the `legacy_data` Python venv; leave the password off the command line and the crawler asks for it with a hidden prompt): a member account login reaches member-only content, `ffmpeg` is required (every fetched image and video is re-encoded through it to strip malware), and the crawl runs for multiple days, saving progress so it resumes after an interruption.
 - the **IFPA member roster** (`legacy_data/membership/inputs/membership_input_normalized.csv`), a curated CSV of the IFPA membership kept out of GitHub because it holds member PII (emails and personal data). It drives the full member load and is the input the `--from-csv` enrichment pass reads.
 
 Request whichever you need from the maintainer, then load:

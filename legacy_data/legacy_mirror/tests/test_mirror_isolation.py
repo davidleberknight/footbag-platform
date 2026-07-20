@@ -10,7 +10,7 @@ are unchanged.
 The overrides are read at import, so each case loads a fresh module instance.
 
 Run from repo root:
-    python -m pytest legacy_data/tests/test_mirror_isolation.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_mirror_isolation.py -v
 """
 import importlib.util
 import sys
@@ -34,7 +34,7 @@ def test_state_dir_override_relocates_all_crawl_state(tmp_path, monkeypatch):
     assert m.LOG_FILE == str(tmp_path / 'mirror.log')
     assert m.ROBOTS_CACHE_FILE == str(tmp_path / 'robots_cache.json')
     # None of them point back at the real script-dir mirror.
-    assert 'legacy_data/mirror_footbag_org' not in m.MIRROR_DIR
+    assert 'legacy_data/legacy_mirror/mirror_footbag_org' not in m.MIRROR_DIR
 
 
 def test_bounds_are_capped_by_env(tmp_path, monkeypatch):
@@ -51,7 +51,7 @@ def test_defaults_unchanged_without_env(monkeypatch):
     monkeypatch.delenv('FOOTBAG_MIRROR_MAX_URLS', raising=False)
     monkeypatch.delenv('FOOTBAG_MIRROR_MAX_DEPTH', raising=False)
     m = _load('mirror_iso_default')
-    assert m.MIRROR_DIR.endswith('legacy_data/mirror_footbag_org')
+    assert m.MIRROR_DIR.endswith('legacy_data/legacy_mirror/mirror_footbag_org')
     assert m.MAX_URLS == 1000000
     assert m.MAX_DEPTH == 50
 

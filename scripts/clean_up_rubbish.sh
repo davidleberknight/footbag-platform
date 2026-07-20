@@ -33,7 +33,7 @@
 #
 # Real-data guard: every target above is workstation-transient by
 # construction. No target overlaps with real-data paths (legacy_data/
-# mirror_footbag_org/, legacy_data/event_results/canonical_input/);
+# legacy_mirror/mirror_footbag_org/, legacy_data/event_results/canonical_input/);
 # those have their own refuse-on-real-data protections built into the
 # fixture-staging scripts themselves. This script does NOT recurse
 # into legacy_data/, data/, curated/, or any other content-bearing

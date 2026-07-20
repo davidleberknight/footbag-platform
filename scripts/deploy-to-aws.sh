@@ -63,7 +63,7 @@ DATA SOURCE (opt-in DB rebuild; mutually exclusive)
                                either the footbag.org dump or a prior
                                intermediate CSV.
   --soup-to-nuts               Full clean rebuild from the legacy mirror
-                               (legacy_data/mirror_footbag_org/). Drops
+                               (the footbag_legacy_mirror symlink). Drops
                                the DB file, regenerates canonical_input
                                CSVs from the mirror, runs all enrichment
                                phases. Wipes modern operator tables

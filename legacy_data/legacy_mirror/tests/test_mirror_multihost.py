@@ -10,7 +10,7 @@ cross-boundary relative-link correctness, the path-traversal guard on a vhost
 URL, and that the www gallery-id rebuild never re-homes a non-www URL.
 
 All pure; no live-site access. Run from repo root:
-    python -m pytest legacy_data/tests/test_mirror_multihost.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_mirror_multihost.py -v
 """
 import importlib.util
 import os

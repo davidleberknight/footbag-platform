@@ -2,7 +2,7 @@
 
 Plain seed-URL lists for the footbag.org archive crawl, one file per content
 class, generated from the frozen per-app MySQL dumps by
-`legacy_data/scripts/build_archive_seed_lists.py`.
+`legacy_data/legacy_mirror/scripts/build_archive_seed_lists.py`.
 
 The archive crawler finds pages by following links out from a few index pages.
 Some content is linked from no index page, so link-following never reaches it.
@@ -13,7 +13,7 @@ straight to the crawler.
 ## Regenerate
 
 ```
-legacy_data/.venv/bin/python legacy_data/scripts/build_archive_seed_lists.py
+legacy_data/footbag_venv/bin/python legacy_data/legacy_mirror/scripts/build_archive_seed_lists.py
 ```
 
 Reads the dumps through the `footbag_legacy_repo` symlink at the repo root; it

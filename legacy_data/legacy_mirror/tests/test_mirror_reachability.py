@@ -11,7 +11,7 @@ file, everything is JavaScript-free, and the homepage card is inserted exactly
 once across repeated runs.
 
 All fixtures are local; no live-site access. Run from repo root:
-    python -m pytest legacy_data/tests/test_mirror_reachability.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_mirror_reachability.py -v
 """
 import importlib.util
 import os
@@ -124,6 +124,30 @@ def test_homepage_card_is_native_and_inserted_exactly_once(env):
 
 def test_homepage_card_absent_homepage_degrades_without_error(env):
     assert mirror_script.insert_homepage_directory_card() is False
+
+
+def test_homepage_about_card_native_js_free_and_inserted_exactly_once(env):
+    home = _www(env) / 'index.html'
+    home.parent.mkdir(parents=True, exist_ok=True)
+    home.write_text('<html><body>\n<div class="indexNews">news</div>\n'
+                    '<div class="indexNotices">notices</div>\n</body></html>',
+                    encoding='utf-8')
+    assert mirror_script.insert_homepage_about_card() is True
+    first = home.read_text()
+    # Native block classes; states the frozen-snapshot and static-files
+    # contract; inserted ahead of the notices block; strictly JS-free.
+    assert 'class="indexEvents"' in first
+    assert 'About This Archive' in first
+    assert 'frozen' in first and 'MP4' in first and 'no JavaScript' in first
+    assert first.index('About This Archive') < first.index('indexNotices')
+    assert '<script' not in first.lower()
+    # Idempotent across repeated end-of-crawl runs.
+    assert mirror_script.insert_homepage_about_card() is True
+    assert home.read_text().count('About This Archive') == 1
+
+
+def test_homepage_about_card_absent_homepage_degrades_without_error(env):
+    assert mirror_script.insert_homepage_about_card() is False
 
 
 def test_directory_dedups_a_year_captured_in_both_trees(env):

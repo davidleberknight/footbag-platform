@@ -14,14 +14,14 @@ state.
 
 This reads the committed per-app MySQL dumps through the ``footbag_legacy_repo``
 symlink and writes one plain seed file per content class under
-``legacy_data/mirror_seeds/`` (one absolute URL per line, sorted, de-duplicated).
+``legacy_data/legacy_mirror/mirror_seeds/`` (one absolute URL per line, sorted, de-duplicated).
 It is read-only over the dumps and the platform database; the only writes are the
 seed files it is asked to produce.
 
 Run from anywhere:
 
-    legacy_data/.venv/bin/python legacy_data/scripts/build_archive_seed_lists.py
-    legacy_data/.venv/bin/python legacy_data/scripts/build_archive_seed_lists.py --dry-run
+    legacy_data/footbag_venv/bin/python legacy_data/legacy_mirror/scripts/build_archive_seed_lists.py
+    legacy_data/footbag_venv/bin/python legacy_data/legacy_mirror/scripts/build_archive_seed_lists.py --dry-run
 """
 from __future__ import annotations
 
@@ -30,11 +30,11 @@ import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-LEGACY_DATA = SCRIPT_DIR.parent
-REPO_ROOT = LEGACY_DATA.parent
+LEGACY_MIRROR = SCRIPT_DIR.parent
+REPO_ROOT = LEGACY_MIRROR.parent.parent
 # The legacy clone is symlinked at the repo root (gitignored), not under legacy_data/.
 LEGACY_REPO = REPO_ROOT / "footbag_legacy_repo"
-OUT_DIR = LEGACY_DATA / "mirror_seeds"
+OUT_DIR = LEGACY_MIRROR / "mirror_seeds"
 
 # The crawler addresses the live site by absolute URL (see its START_URLS), so
 # the seed files carry absolute URLs in the same form.

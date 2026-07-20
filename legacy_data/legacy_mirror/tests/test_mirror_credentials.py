@@ -8,7 +8,7 @@ password value is never emitted in a log message. No real credential is used;
 the values below are throwaway test fixtures.
 
 Run from repo root:
-    python -m pytest legacy_data/tests/test_mirror_credentials.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_mirror_credentials.py -v
 """
 import importlib.util
 import logging

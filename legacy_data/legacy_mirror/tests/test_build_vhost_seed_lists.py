@@ -8,7 +8,7 @@ requests.get and time.sleep are stubbed, and no seed file is written (only the
 internal builders are exercised, never main()).
 
 Run from repo root:
-    python -m pytest legacy_data/tests/test_build_vhost_seed_lists.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_build_vhost_seed_lists.py -v
 """
 import importlib.util
 import sys

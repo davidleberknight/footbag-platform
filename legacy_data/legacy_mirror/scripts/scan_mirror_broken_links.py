@@ -24,7 +24,7 @@ silently skipped.
 
 Run from anywhere:
 
-    legacy_data/.venv/bin/python legacy_data/scripts/scan_mirror_broken_links.py
+    legacy_data/footbag_venv/bin/python legacy_data/legacy_mirror/scripts/scan_mirror_broken_links.py
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-LEGACY_DATA = SCRIPT_DIR.parent
+LEGACY_MIRROR = SCRIPT_DIR.parent
 REPORT_NAME = "broken_link_scan.txt"
 SEEDS_NAME = "recrawl_broken_pages.txt"
 BASE_URL = "http://www.footbag.org"
@@ -77,7 +77,7 @@ def scan(mirror_root: Path):
         raise SystemExit(
             f"MISSING: {www}\n"
             "Point --mirror at a mirror directory produced by "
-            "create_mirror_footbag_org.py (default: legacy_data/mirror_footbag_org).")
+            "create_mirror_footbag_org.py (default: legacy_data/legacy_mirror/mirror_footbag_org).")
     broken_pages: dict[Path, list[str]] = {}
     pages_scanned = 0
     for html_file in www.rglob("*.html"):
@@ -105,7 +105,7 @@ def scan(mirror_root: Path):
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--mirror", default=str(LEGACY_DATA / "mirror_footbag_org"),
+        "--mirror", default=str(LEGACY_MIRROR / "mirror_footbag_org"),
         help="Mirror directory to scan (default: the canonical local mirror).")
     parser.add_argument(
         "--max-examples", type=int, default=5,

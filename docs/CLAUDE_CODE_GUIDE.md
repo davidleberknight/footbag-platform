@@ -276,6 +276,9 @@ IFPA board member can use the harness efficiently from day one.
   machine-local slug in `.claude/settings.local.json`. Optional per machine.
 - **The legacy footbag.org clone** — a read-only snapshot of the old site, reached through the
   `footbag_legacy_repo` symlink. Needed only for historical-pipeline work. Optional per machine.
+- **The footbag.org mirror crawl output** — the gitignored data tree the mirror crawler produces,
+  reached through the `footbag_legacy_mirror` symlink. A data companion (not a repository),
+  produced locally by the crawler or transferred maintainer-to-maintainer. Optional per machine.
 
 **Companion governance lives in this public harness.** The companion repos are reached by
 fixed-name symlinks under this repo's root, so tooling refers to them identically on every

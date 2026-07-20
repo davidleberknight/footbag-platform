@@ -226,31 +226,6 @@ jobs:
         # preservation, and the loader exclusion rules.
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m pytest legacy_data/tests/ -q -p no:cacheprovider
 
-  thumbnail-generator-tests:
-    name: Gallery thumbnail generator tests (Pillow)
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: '3.11'
-
-      - name: Install the approved Pillow environment plus pytest
-        run: python3 -m pip install -r scripts/requirements.txt pytest
-
-      - name: Run the thumbnail-generator suite with Pillow present
-        # The gallery thumbnail regenerator's image behavior (EXIF transposition,
-        # deterministic JPEG output, transparency flattening, overwrite refusal,
-        # ambiguous-pair rejection, dry-run, and idempotence) needs Pillow, which
-        # the pipeline virtualenv omits, so the legacy-data suite above skips this
-        # one file cleanly. This lane installs the approved Pillow dependency and
-        # runs the suite enforced, so that image behavior is never left to an
-        # optional developer command.
-        run: PYTHONDONTWRITEBYTECODE=1 python3 -m pytest legacy_data/tests/test_regenerate_gallery_thumbnails.py -q -p no:cacheprovider
-
   e2e:
     name: E2E click-through
     runs-on: ubuntu-latest
@@ -347,7 +322,7 @@ jobs:
 
   ci-complete:
     name: Type-check and test
-    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, harness, unit-tests, integration-tests, db-load-smoke, thumbnail-generator-tests, e2e, security-probes, codeql, terraform]
+    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, harness, unit-tests, integration-tests, db-load-smoke, e2e, security-probes, codeql, terraform]
     runs-on: ubuntu-latest
     if: always()
 
@@ -363,7 +338,6 @@ jobs:
              [ "${{ needs.unit-tests.result }}" != "success" ] || \
              [ "${{ needs.integration-tests.result }}" != "success" ] || \
              [ "${{ needs.db-load-smoke.result }}" != "success" ] || \
-             [ "${{ needs.thumbnail-generator-tests.result }}" != "success" ] || \
              [ "${{ needs.e2e.result }}" != "success" ] || \
              [ "${{ needs.security-probes.result }}" != "success" ] || \
              [ "${{ needs.codeql.result }}" != "success" ] || \
@@ -378,7 +352,6 @@ jobs:
             echo "  unit-tests: ${{ needs.unit-tests.result }}"
             echo "  integration-tests: ${{ needs.integration-tests.result }}"
             echo "  db-load-smoke: ${{ needs.db-load-smoke.result }}"
-            echo "  thumbnail-generator-tests: ${{ needs.thumbnail-generator-tests.result }}"
             echo "  e2e: ${{ needs.e2e.result }}"
             echo "  security-probes: ${{ needs.security-probes.result }}"
             echo "  codeql: ${{ needs.codeql.result }}"

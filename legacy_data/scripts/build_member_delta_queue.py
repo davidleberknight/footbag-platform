@@ -33,11 +33,11 @@ page under the mirror tree. <id> is the path segment; a purely numeric id is the
 dump member id.
 
 Usage (read-only; from repo root):
-    P=legacy_data/.venv/bin/python
+    P=legacy_data/footbag_venv/bin/python
     $P legacy_data/scripts/build_member_delta_queue.py baseline \
-        --mirror-root legacy_data/mirror_footbag_org --out baseline.json
+        --mirror-root footbag_legacy_mirror --out baseline.json
     $P legacy_data/scripts/build_member_delta_queue.py delta \
-        --baseline baseline.json --mirror-root legacy_data/mirror_footbag_org \
+        --baseline baseline.json --mirror-root footbag_legacy_mirror \
         --out delta.json
     $P legacy_data/scripts/build_member_delta_queue.py queue \
         --delta delta.json --current current.json --db database/footbag.db \

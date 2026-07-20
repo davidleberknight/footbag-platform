@@ -15,7 +15,7 @@ holder), demonstration-clip references, and fuller human descriptions. Those are
 the inputs to the deferred recovery work (pronunciation, description
 reconciliation, alias cross-check, records). They are public freestyle reference
 data, not member PII, so they are committed (unlike the gitignored
-legacy_archive/parsed/ NDJSON). Author member ids are NOT carried.
+legacy_repo_scripts/parsed/ NDJSON). Author member ids are NOT carried.
 
 Source table moves2.moves (col indexes):
   MoveID(0) OldMoveID(1) Name(2) Modifier(3) NickName(4) Pronunciation(5)

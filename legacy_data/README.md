@@ -24,7 +24,7 @@ rerun.
 
 **A full run needs two gitignored, maintainer-only inputs** that a fresh clone does
 not have (obtain them from the historical-pipeline maintainer's handoff): the
-footbag.org mirror `legacy_data/mirror_footbag_org/`, and the IFPA membership roster
+footbag.org mirror (the `footbag_legacy_mirror` repo-root symlink), and the IFPA membership roster
 `legacy_data/membership/inputs/membership_input_normalized.csv`. The mirror is
 required by `canonical_only` / `full` / `--soup-to-nuts`; the roster is required by
 the membership-enrichment modes (`full` / `csv_only` / `enrichment_only`). Every
@@ -60,7 +60,7 @@ archive is needed. The synthetic fixtures under `legacy_data/tests/fixtures/` ar
 a fallback the reset stages only if `canonical_input/` is absent.
 
 **Tier 2 — gitignored, maintainer-only, full data path.**
-- the **mirror** (`mirror_footbag_org/`) — footbag.org HTML crawl; used by
+- the **mirror** (`legacy_mirror/mirror_footbag_org/`, read via the `footbag_legacy_mirror` repo-root symlink) — footbag.org HTML crawl; used by
   `run_pipeline.sh full` / `canonical_only` to regenerate canonical data.
 - the **footbag.org member dump** (the legacy-site export) — richer than the mirror
   (full member/payment/admin/committee records); the authoritative member data.
@@ -314,8 +314,8 @@ standalone use after a mirror refresh.
 
 ### Level 8, mirror creation (rare)
 
-#### `legacy_data/create_mirror_footbag_org.py`
-Crawls `footbag.org` into `legacy_data/mirror_footbag_org/`. Long-running
+#### `legacy_data/legacy_mirror/create_mirror_footbag_org.py`
+Crawls `footbag.org` into `legacy_data/legacy_mirror/mirror_footbag_org/`. Long-running
 (multi-day per its docstring); uses checkpointing to resume after
 interruption, with progress/robots/log state anchored to the script
 directory so a resume works from any working directory. The mirror

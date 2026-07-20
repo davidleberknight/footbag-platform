@@ -6,7 +6,7 @@ Tests are skipped if ffmpeg/ffprobe are not on PATH. Fixtures are synthesized
 at runtime so no binary blobs live in the repo.
 
 Run from repo root:
-    python -m pytest legacy_data/tests/test_av_pipeline.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_av_pipeline.py -v
 """
 import importlib.util
 import shutil

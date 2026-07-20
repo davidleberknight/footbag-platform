@@ -29,7 +29,7 @@ WORKLIST_CSV = ROOT / "out" / "team_anomaly_worklist.csv"
 EVENTS_CSV = ROOT / "out" / "canonical" / "events.csv"
 PARTICIPANTS_CSV = ROOT / "out" / "canonical" / "event_result_participants.csv"
 CORRECTIONS_CSV = ROOT / "inputs" / "team_corrections.csv"
-MIRROR_DIR = ROOT / "mirror_footbag_org" / "www.footbag.org" / "events" / "show"
+MIRROR_DIR = ROOT.parent / "footbag_legacy_mirror" / "www.footbag.org" / "events" / "show"
 OUT_CSV = ROOT / "out" / "auto_resolved_corrections.csv"
 
 csv.field_size_limit(10 * 1024 * 1024)

@@ -631,7 +631,7 @@ gate_python_pipeline() {
     echo "  pytest not importable — skipping (pip install pytest into scripts/.venv or system python3 to enable)."
     return 77
   fi
-  PYTHONPYCACHEPREFIX="${LOG_DIR}/pytest-pycache" "$py" -m pytest legacy_data/tests/ -q -p no:cacheprovider
+  PYTHONPYCACHEPREFIX="${LOG_DIR}/pytest-pycache" "$py" -m pytest legacy_data/tests/ legacy_data/legacy_mirror/tests/ -q -p no:cacheprovider
 }
 
 # =============================================================================

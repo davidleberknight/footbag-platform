@@ -10,12 +10,16 @@
 # Local symlink into the maintainers' private ops checkout (canonical link name; machine-specific target)
 /footbag_private_repo
 
+# Local symlink to the footbag.org mirror crawl output (canonical link name; machine-specific target)
+/footbag_legacy_mirror
+
 #=========================
 # Legacy migration data (keep code, ignore generated/mirrored data)
 # =========================
-legacy_data/mirror_footbag_org/
-legacy_data/create_mirror.sh
-legacy_data/mirror_progress.json
+legacy_data/legacy_mirror/mirror_footbag_org/
+legacy_data/legacy_mirror/create_mirror.sh
+legacy_data/legacy_mirror/mirror_progress.json
+legacy_data/legacy_mirror/mirror.log
 # The mirror scraper writes these with bare relative names, so they also land in
 # the repo root when it runs from there; ignore both spots.
 /mirror_progress.json
@@ -182,7 +186,7 @@ tfplan
 *.plan
 
 # Generated cache files (never commit)
-legacy_data/robots_cache.json
+legacy_data/legacy_mirror/robots_cache.json
 
 # Real member data: a normalized extract of the private IFPA admin membership
 # report. Operator-provided and held locally only; never committed (same model
@@ -198,7 +202,6 @@ legacy_data/out/
 legacy_data/event_results/seed/
 database/footbag.db
 legacy_data/Footbag_Results_Canonical.xlsx
-legacy_data/mirror_footbag_org
 *.zip
 *.lnk
 *BAK

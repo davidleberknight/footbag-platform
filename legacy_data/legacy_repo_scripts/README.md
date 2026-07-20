@@ -1,4 +1,4 @@
-# legacy_archive — footbag.org forensic / provenance layer
+# legacy_repo_scripts — footbag.org forensic / provenance layer
 
 **What this is:** a small, isolated, append-only *archival* layer for the legacy
 footbag.org mysqldumps. Its only job (for now) is to prove a single workflow:

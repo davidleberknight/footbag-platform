@@ -27,7 +27,7 @@ Modes (exactly one required):
                   (members, votes, ballots, news_items, audit_entries, ...).
                   Delegates to scripts/reset-local-db.sh + legacy_data/
                   run_pipeline.sh full.
-                  Requires: legacy_data/mirror_footbag_org/ present.
+                  Requires: the footbag_legacy_mirror repo-root symlink wired.
 
   --from-csv      Rebuild the local DB from existing canonical CSVs. Drops
                   the DB file and reapplies schema (same modern-operator-
@@ -160,7 +160,7 @@ run_or_print() {
 
 run_soup_to_nuts() {
   echo "==> deploy-local-data: --soup-to-nuts"
-  local mirror_dir="${REPO_ROOT}/legacy_data/mirror_footbag_org"
+  local mirror_dir="${REPO_ROOT}/footbag_legacy_mirror"
   if [[ ! -d "$mirror_dir" ]]; then
     echo "ERROR: mirror not found at ${mirror_dir}" >&2
     echo "       The legacy mirror must be present for --soup-to-nuts." >&2

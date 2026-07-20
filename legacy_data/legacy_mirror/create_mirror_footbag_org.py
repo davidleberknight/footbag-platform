@@ -2273,6 +2273,21 @@ def rewrite_links(html, page_url):
         for base_tag in soup.find_all('base'):
             base_tag.decompose()
 
+        # The crawl runs signed in, so the homepage arrives carrying the
+        # member chrome: the "You are signed in as ..." card, its account
+        # links (edit profile, sign out), and a member-search form. None of
+        # that can work on a static host, and a personal signed-in banner
+        # does not belong in the public archive. Drop the whole block before
+        # any link in it is processed or enqueued.
+        for member_chrome in soup.find_all(id='IndexMember'):
+            trailing = member_chrome.next_sibling
+            while isinstance(trailing, NavigableString) and not isinstance(trailing, Comment) \
+                    and not trailing.strip():
+                trailing = trailing.next_sibling
+            if isinstance(trailing, Comment) and 'IndexMember' in trailing:
+                trailing.extract()
+            member_chrome.decompose()
+
         current_filepath = url_to_filepath(page_url)
         # Track embedded video files to suppress redundant viewer pages
         embedded_video_refs = set()
@@ -3195,6 +3210,7 @@ def verify_authenticated_session():
 ARCHIVE_DIRECTORY_FILENAME = 'archive-directory.html'
 ARCHIVE_INDEX_DIRNAME = 'archive-index'
 DIRECTORY_CARD_MARKER = 'mirror-archive-directory-card'
+ABOUT_CARD_MARKER = 'mirror-archive-about-card'
 INDEX_PAGE_SIZE = 1000
 
 # One row per browsable area: (slug, heading, seed list, sort-by-label). The
@@ -3439,10 +3455,89 @@ def insert_homepage_directory_card():
     return False
 
 
+def insert_homepage_about_card():
+    # A reader landing on the archive homepage must learn immediately what this
+    # site is: a frozen snapshot, not the live footbag.org. Same mechanics as
+    # the directory card: native block classes, marker-guarded so repeated
+    # end-of-crawl runs never insert it twice, string insertion so the rest of
+    # the homepage stays byte-identical.
+    homepage = os.path.join(_www_root(), 'index.html')
+    if not os.path.exists(homepage):
+        logging.warning("Homepage not captured yet; archive about card not inserted")
+        return False
+    html = Path(homepage).read_text(encoding='utf-8', errors='replace')
+    if ABOUT_CARD_MARKER in html:
+        return True
+    card = (
+        f'\n<!-- {ABOUT_CARD_MARKER} -->\n'
+        '<div class="indexEvents">\n'
+        '<h2>About This Archive</h2>\n'
+        '<div class="indexEventsIndent">\n'
+        '<div class="newsDetails">This is archive.footbag.org: a frozen, '
+        'read-only snapshot of the original footbag.org, preserved by the '
+        'IFPA. Content reflects the site as captured; nothing here updates.</div>\n'
+        '<div class="newsDetails">Every page is plain HTML and images, and '
+        'every video is a standard MP4. There is no JavaScript, no database, '
+        'and no code that runs &mdash; by design, so the archive stays safe, '
+        'portable, and servable forever.</div>\n'
+        '<div class="newsDetails">Interactive features of the old site '
+        '(sign-in, search, forms) were removed or point nowhere. For anything '
+        'current, visit <a href="https://www.footbag.org/">footbag.org</a>.</div>\n'
+        '</div>\n'
+        '</div>\n'
+    )
+    for anchor in ('<div class="indexNotices">', '</body>'):
+        pos = html.find(anchor)
+        if pos != -1:
+            html = html[:pos] + card + html[pos:]
+            _atomic_write_text(homepage, html)
+            logging.info("Archive about card inserted on the homepage")
+            return True
+    logging.warning("No insertion anchor found on the homepage; about card not inserted")
+    return False
+
+
+def scrub_homepage_member_chrome():
+    # A homepage captured inside the signed-in crawl session carries the
+    # member chrome: the "You are signed in as ..." card, its account links,
+    # and a member-search form, none of which can work on a static host.
+    # New captures are scrubbed at rewrite time; this pass cleans a homepage
+    # already on disk. String surgery so the rest of the page stays
+    # byte-identical, balancing div tags and skipping HTML comments (the
+    # legacy homepage has a stray commented-out closing div near the block).
+    homepage = os.path.join(_www_root(), 'index.html')
+    if not os.path.exists(homepage):
+        return False
+    html = Path(homepage).read_text(encoding='utf-8', errors='replace')
+    start = html.find('<div id="IndexMember">')
+    if start == -1:
+        return True
+    depth, end = 0, None
+    for match in re.finditer(r'<!--.*?-->|<div\b|</div\s*>', html[start:], re.DOTALL):
+        token = match.group(0)
+        if token.startswith('<!--'):
+            continue
+        depth += 1 if token.startswith('<div') else -1
+        if depth == 0:
+            end = start + match.end()
+            break
+    if end is None:
+        logging.warning("Homepage member chrome has no balanced closing div; left in place")
+        return False
+    trailing = re.match(r'\s*<!--\s*IndexMember\s*-->', html[end:])
+    if trailing:
+        end += trailing.end()
+    _atomic_write_text(homepage, html[:start] + html[end:])
+    logging.info("Removed the signed-in member chrome from the homepage")
+    return True
+
+
 def generate_reachability_pages(seeds_dir=None):
     counts = generate_browse_indexes(seeds_dir)
     generate_archive_directory(counts)
+    scrub_homepage_member_chrome()
     insert_homepage_directory_card()
+    insert_homepage_about_card()
 
 
 # ---------- Video backfill: consume the skipped-videos manifest ----------
@@ -3909,7 +4004,7 @@ def load_seed_urls(paths):
         else:
             logging.warning(
                 f"Seed path not found: {p} (generate seed lists with "
-                f"legacy_data/scripts/build_archive_seed_lists.py)")
+                f"legacy_data/legacy_mirror/scripts/build_archive_seed_lists.py)")
     urls = []
     for f in files:
         count = 0

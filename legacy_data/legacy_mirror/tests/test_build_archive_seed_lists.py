@@ -10,7 +10,7 @@ still seeded; ids de-duplicate and sort).
 
 All fixtures are synthetic dumps written under a temp dir; no real dump, symlink,
 or network access. Run from repo root:
-    python -m pytest legacy_data/tests/test_build_archive_seed_lists.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_build_archive_seed_lists.py -v
 """
 import importlib.util
 import sys

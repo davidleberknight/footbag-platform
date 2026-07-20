@@ -11,7 +11,7 @@ back into the manifest. A missing manifest aborts with an actionable message;
 an unsafe recorded URL is refused, never fetched.
 
 All fixtures are local; the download step is stubbed. Run from repo root:
-    python -m pytest legacy_data/tests/test_mirror_video_backfill.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_mirror_video_backfill.py -v
 """
 import importlib.util
 import json

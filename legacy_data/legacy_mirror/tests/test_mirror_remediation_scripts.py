@@ -12,7 +12,7 @@ gate, verified in test_mirror_archive_route_fixes.py, not in a post-hoc tree
 sweep.)
 
 All fixtures are local temp trees. Run from repo root:
-    python -m pytest legacy_data/tests/test_mirror_remediation_scripts.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_mirror_remediation_scripts.py -v
 """
 import importlib.util
 import sys

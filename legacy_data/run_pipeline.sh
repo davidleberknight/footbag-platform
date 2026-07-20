@@ -72,14 +72,16 @@ run_full_mode_preflight() {
 
     local missing=()
 
-    # Mirror dir must contain real crawl content. We test the homepage
-    # index file: a stable structural marker, robust to developer-local
-    # symlinks (mirror_footbag_org -> sibling repo). [[ -f ]] follows
+    # Mirror data is reached through the canonical repo-root symlink
+    # footbag_legacy_mirror (machine-specific target; on the producing machine
+    # it points at legacy_data/legacy_mirror/mirror_footbag_org). We test the
+    # homepage index file: a stable structural marker. [[ -f ]] follows
     # symlinks; find without -L does not, which is why an HTML-scan check
     # fails on the symlink layout.
-    local mirror_marker="mirror_footbag_org/www.footbag.org/index.html"
-    if [[ ! -d mirror_footbag_org ]] || [[ ! -f "$mirror_marker" ]]; then
-        missing+=("mirror_footbag_org/ (expected ${mirror_marker}; obtain crawl from operator handoff or rerun the mirror crawl)")
+    local mirror_root="../footbag_legacy_mirror"
+    local mirror_marker="${mirror_root}/www.footbag.org/index.html"
+    if [[ ! -d "$mirror_root" ]] || [[ ! -f "$mirror_marker" ]]; then
+        missing+=("footbag_legacy_mirror (repo-root symlink to the mirror crawl output; expected ${mirror_marker}; wire it with 'ln -s legacy_data/legacy_mirror/mirror_footbag_org footbag_legacy_mirror' from the repo root, or obtain the crawl from operator handoff)")
     fi
 
     # Membership roster input: real member data, operator-provided and held
@@ -360,7 +362,7 @@ run_v0_backbone() {
         echo "Recommendation: see legacy_data/runbooks/rebuild-identity-pipeline.md." >&2
         exit 1
     fi
-    python pipeline/adapters/mirror_results_adapter.py --mirror mirror_footbag_org
+    python pipeline/adapters/mirror_results_adapter.py --mirror ../footbag_legacy_mirror
     python pipeline/adapters/curated_events_adapter.py
     python pipeline/01c_merge_stage1.py
     python pipeline/02_canonicalize_results.py

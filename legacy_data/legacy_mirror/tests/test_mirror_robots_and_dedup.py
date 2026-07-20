@@ -16,7 +16,7 @@ link-rewritten) content; identical binaries hard-link to the canonical copy —
 and both URLs appear in the sitemap, across crawl phases and resumes.
 
 All fixtures are local; no live-site access. Run from repo root:
-    python -m pytest legacy_data/tests/test_mirror_robots_and_dedup.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_mirror_robots_and_dedup.py -v
 """
 import importlib.util
 import json

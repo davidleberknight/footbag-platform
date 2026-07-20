@@ -23,7 +23,7 @@ event-detail page and the read-only calendar exports and listings stay
 crawlable.
 
 All fixtures are local; no live-site access. Run from repo root:
-    python -m pytest legacy_data/tests/test_mirror_archive_route_fixes.py -v
+    python -m pytest legacy_data/legacy_mirror/tests/test_mirror_archive_route_fixes.py -v
 """
 import importlib.util
 import sys

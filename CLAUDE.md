@@ -7,7 +7,7 @@ Modernizing footbag.org for the International Footbag Players Association (IFPA)
 **Start here:**
 
 - `PROJECT_SUMMARY_CONCISE.md` : for orientation and document routing, if required for task.
-- The maintainers' private tracker : for active work, known bugs, open questions, and accepted deviations from the canonical documented design. Read it with `gh issue list -R "$FOOTBAG_PRIVATE_REPO"` (the `tracker-ops` skill; wiring in "Companion repositories" below).
+- The companion private GitHub repo has an issue tracker, for active work and go-live planning. Read it as required with `gh issue list -R "$FOOTBAG_PRIVATE_REPO"` (use the `tracker-ops` skill).
 
 ## Repo layout
 
@@ -29,9 +29,9 @@ tests/        Integration tests
 
 
 
-## Companion repositories
+## Companion GitHub repositories
 
-Two optional gitignored repo-root symlinks, for authorized maintainers only, canonical names where present: `footbag_legacy_repo` (the legacy webmaster's clone; read-only, Edit/Write denied) and `footbag_private_repo` (the maintainers' operations checkout; Claude drafts, a human commits). The maintainers' private tracker (GitHub Issues on that private repository) is the sole authority for active work; read it with `gh issue list -R "$FOOTBAG_PRIVATE_REPO"` (env var set in the gitignored `.claude/settings.local.json`). Committed text never carries the private repository's identity. Absent wiring is a supported configuration: name the wiring step in one line, then skip that part. All tracker and private-checkout work follows the `tracker-ops` skill.
+Three gitignored repo-root symlinks, for authorized maintainers only, canonical names where present: `footbag_legacy_repo` (the legacy webmaster's clone; read-only, Edit/Write denied), `footbag_private_repo` (the maintainers' operations checkout; Claude drafts, a human commits), and `footbag_legacy_mirror` (the mirror program's crawl output). 
 
 ## Authority order and read order
 
@@ -53,7 +53,7 @@ Read the minimum the task requires. Default: the open tracker issues (when wired
 ## Non-negotiable rules
 
 1. Never edit documentation, `.github/`, or `.claude/` files without explicit human approval. This explicitly includes `.claude/settings.local.json`: never write to it (Edit or Write) without the human's direct go-ahead, even though it is gitignored and machine-local. The human's always-allow clicks are its only routine writer; Claude proposes the change and the human applies it.
-2. Never take a destructive or risky action without explicit human approval. 
+2. Never take a destructive or risky action without explicit human approval.
 3. **Asking the human is the last resort, not the first move.** Resolve every answer through the authority order before asking; if analysis makes it certain, do not ask. Code is reality, not authority for design intent: clear design intent (`docs/DESIGN_DECISIONS.md`, `docs/USER_STORIES.md`, `docs/DATA_MODEL.md`, the path-scoped rules and service contracts) outranks current code. When a question genuinely survives: **exactly one decision per message**, in **plain self-contained English** with no internal references the human was not given (section numbers, gate/finding codes, prior-message labels; a finding ID in a file the human is reading, is fine paired with its title), **full context inline**, and **one recommended answer derived from design intent and verified against the docs and code, never guessed** (pros and cons when the trade-offs are real). Ask in prose; reserve the multiple-choice tool (AskUserQuestion) for when the human asks to pick. Read-only investigation needs no permission. A bare "y" / "go" from the human takes the recommended answer. Full standard: `.claude/rules/asking.md`.
 4. If unclear, escalate to the human. Never guess or silently choose among materially different interpretations. If you can see two or more interpretations for a task, then name them clearly, stop and ask. Push back when you should.
 5. Never add schema, service methods, or behavioral code without grounding in a user story, design decision, or explicit human direction in the current task. If no acceptance criteria or human approval exist for the behavior, stop and ask. Think before coding; do not assume or add unscoped features, and strive for simplicity over complexity; this requires analysis before jumping in. Prefer surgical changes over sweeping edits.

@@ -66,7 +66,7 @@ export function detectVideoFormat(data: Buffer): CuratorVideoFormat | null {
  *
  * Encoder-quality knobs (CRF, preset, audio bitrate) match the existing
  * mirror program's first-attempt settings
- * (`legacy_data/create_mirror_footbag_org.py`).
+ * (`legacy_data/legacy_mirror/create_mirror_footbag_org.py`).
  */
 export function buildFfmpegArgs(
   inputPath: string,
