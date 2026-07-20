@@ -162,11 +162,17 @@ structural (mirage and illusion are distinct; spinning and inspinning are distin
 
 ### §F8 Notation opacity violations
 
-The notation column is opaque text: never parsed to derive other fields at request time,
-never regenerated, never silently rewritten; mismatches are QC-flagged.
+The notation column is authored data: request-time code must not regenerate it, silently
+rewrite it, or parse it to derive an authoritative field. One carve-out is allowed:
+already-authored notation may be parsed at request time to derive a non-authoritative,
+display-only grouping, such as a dex-count or entry-surface bucket, or a flying-topology
+or catch-side subtitle. That derived value must not determine or replace identity, ADD,
+family, decomposition, eligibility, aliases, redirects, persisted structure, or doctrine.
 
-- Signal: service code parsing notation to compute ADD/family/decomposition; a generator
-  rewriting notation outside the curated write surfaces.
+- Signal: service code parsing notation to determine an authoritative or persisted value
+  (such as ADD, family, decomposition, identity, eligibility, alias, or redirect), or any
+  request-time path rewriting authored notation. A single-use, non-persisted display
+  grouping that affects no authoritative field is not a violation.
 
 ### §F9 Description-policy violations
 
