@@ -835,8 +835,16 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 def is_footbag_domain(url):
-    parsed = urlparse(url)
-    return parsed.netloc.endswith('footbag.org')
+    # Classify a link as footbag-internal for rewriting. Match only the
+    # footbag.org apex and its subdomains, never a lookalike such as
+    # 'evilfootbag.org' that merely ends with the same text (a bare
+    # endswith('footbag.org') would). The fetch allowlist is the exact-host
+    # CRAWL_HOSTS set, unaffected by this predicate; a hostname belonging to the
+    # footbag domain is still only fetched when it is one of the two crawl hosts.
+    host = urlparse(url).netloc.lower()
+    # Drop any :port so 'www.footbag.org:80' still classifies as internal.
+    host = host.split(':', 1)[0]
+    return host == 'footbag.org' or host.endswith('.footbag.org')
 
 # Section/action routes whose handlers mutate server state (DELETE/UPDATE/INSERT),
 # enumerated from the footbag.org application source. Fetching any of these as an

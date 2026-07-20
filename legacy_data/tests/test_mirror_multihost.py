@@ -244,6 +244,46 @@ def test_dead_host_link_without_capture_is_unwrapped_to_text(mirror_env):
     assert 'unarchived legacy host' in out        # the removal is marked
 
 
+# ── Footbag-domain predicate: apex + subdomains only, never a lookalike ───────
+
+def test_footbag_domain_predicate_rejects_lookalikes():
+    # The apex and any subdomain classify as footbag-internal.
+    assert mirror_script.is_footbag_domain('http://footbag.org/x')
+    assert mirror_script.is_footbag_domain('http://www.footbag.org/x')
+    assert mirror_script.is_footbag_domain('http://sites.footbag.org/reference/')
+    assert mirror_script.is_footbag_domain('http://photo.footbag.org/a.jpg')
+    assert mirror_script.is_footbag_domain('http://WWW.Footbag.ORG/x')   # case-insensitive
+    assert mirror_script.is_footbag_domain('http://www.footbag.org:80/x') # port ignored
+    # A lookalike that merely ends with the same text is NOT footbag-internal.
+    assert not mirror_script.is_footbag_domain('http://evilfootbag.org/x')
+    assert not mirror_script.is_footbag_domain('http://notfootbag.org/x')
+    assert not mirror_script.is_footbag_domain('http://footbag.org.evil.com/x')
+    assert not mirror_script.is_footbag_domain('http://example.com/x')
+
+
+def test_footbag_domain_tightening_does_not_broaden_fetch_scope():
+    # The exact-host fetch allowlist is unchanged: only the two crawl hosts are
+    # fetched. A real footbag subdomain that is not a crawl host, and a lookalike,
+    # both stay out of scope.
+    assert mirror_script.is_in_scope('http://www.footbag.org/news/show/1')
+    assert mirror_script.is_in_scope('http://sites.footbag.org/reference/')
+    assert not mirror_script.is_in_scope('http://photo.footbag.org/a.jpg')   # footbag, not a crawl host
+    assert not mirror_script.is_in_scope('http://evilfootbag.org/x')          # lookalike
+
+
+def test_external_link_stays_live_after_link_rewrite(mirror_env):
+    # A link to a genuine external host is neither relativized into a false local
+    # path nor unwrapped to text: it keeps its live absolute URL (and, being
+    # external, is marked target=_blank).
+    html = ('<html><body>'
+            '<a href="http://example.com/some/page">external</a>'
+            '</body></html>')
+    out = mirror_script.rewrite_links(html, mirror_script.BASE_URL + '/news/show/1')
+    assert 'http://example.com/some/page' in out   # live URL preserved verbatim
+    assert '>external<' in out                      # anchor kept, not unwrapped
+    assert 'target="_blank"' in out                 # external link marked
+
+
 # ── Per-host politeness ──────────────────────────────────────────────────────
 
 def test_polite_wait_paces_per_host_independently(monkeypatch):
