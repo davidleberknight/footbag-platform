@@ -249,6 +249,55 @@ describe('externalLinks (sidecar contract extension)', () => {
   });
 });
 
+describe('catch-all gallery does not double-list its sibling source galleries', () => {
+  // The "Curated Freestyle Tricks" gallery is a residual catch-all: it shows
+  // every #curated #freestyle #trick video EXCEPT the ones owned by a specific
+  // source gallery, which it names in excludeTags so their media shows only in
+  // that source gallery. A media item double-lists when a single tag set
+  // satisfies both galleries' criteria while dodging both exclude lists — i.e.
+  // (catchall.criteria ∪ sibling.criteria) ∩ (catchall.exclude ∪ sibling.exclude)
+  // is empty. This asserts that stays impossible for every sibling that could
+  // overlap: a curated gallery sharing the catch-all's #curated tag. A new
+  // source gallery added without a matching exclude entry fails here.
+  const CATCH_ALL_FILE = 'curated_freestyle_tricks.json';
+
+  async function loadGalleries(): Promise<Map<string, GallerySidecarData>> {
+    const galleriesDir = path.join(process.cwd(), 'curated', 'galleries');
+    const files = await fs.readdir(galleriesDir);
+    const out = new Map<string, GallerySidecarData>();
+    for (const f of files) {
+      if (!f.endsWith('.json')) continue;
+      const data = JSON.parse(await fs.readFile(path.join(galleriesDir, f), 'utf-8')) as GallerySidecarData;
+      out.set(f, data);
+    }
+    return out;
+  }
+
+  function overlapPossible(a: GallerySidecarData, b: GallerySidecarData): boolean {
+    const criteria = new Set([...a.criteriaTags, ...b.criteriaTags]);
+    const exclude = new Set([...a.excludeTags, ...b.excludeTags]);
+    for (const tag of criteria) if (exclude.has(tag)) return false;
+    return true;
+  }
+
+  it('every #curated-sharing sibling is excluded from the catch-all', async () => {
+    const galleries = await loadGalleries();
+    const catchAll = galleries.get(CATCH_ALL_FILE);
+    expect(catchAll, `${CATCH_ALL_FILE} must exist`).toBeDefined();
+    if (!catchAll) return;
+
+    const offenders: string[] = [];
+    for (const [file, g] of galleries) {
+      if (file === CATCH_ALL_FILE) continue;
+      // Only galleries in the same curated family can realistically share the
+      // catch-all's criteria; a gallery without #curated is a different domain.
+      if (!g.criteriaTags.includes('#curated')) continue;
+      if (overlapPossible(catchAll, g)) offenders.push(file);
+    }
+    expect(offenders, `these sibling galleries can double-list into the catch-all; add one of each's distinguishing tags to ${CATCH_ALL_FILE} excludeTags`).toEqual([]);
+  });
+});
+
 describe('writeGallerySidecarFile / readGallerySidecarFile', () => {
   let tmpRoot: string;
 
