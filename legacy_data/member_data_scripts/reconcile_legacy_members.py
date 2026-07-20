@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import sqlite3
 import sys
 from collections import Counter, defaultdict
@@ -971,6 +972,140 @@ def build_stage_b(
     return proposed, review
 
 
+# ---------------------------------------------------------------------------
+# Stage A survivor view -- the reconciled account universe Stage B reads
+# ---------------------------------------------------------------------------
+#
+# Stage B is otherwise computed independently of Stage A, so a duplicate-account
+# pair that Stage A already approves for merge still reaches Stage B as two
+# same-name accounts and blocks a link. The survivor view collapses ONLY the
+# groups whose adjudicated Stage A disposition is "merge": each such group's loser
+# accounts are hidden and its survivor is exposed once, carrying the approved field
+# union so evidence that lived only on a loser (an email, an entitlement) is not
+# discarded. Review, held, blocked, and adjudicated-distinct groups are never
+# collapsed, and the view infers no merge of its own -- it mirrors the Stage A plan
+# and nothing more.
+#
+# It fails closed: a stale plan/override or boundary fingerprint, a loser mapping
+# to two survivors, a missing survivor, or an unapproved group presented as
+# collapsed all raise before any account is hidden.
+
+
+class StageASurvivorError(Exception):
+    """A survivor-view construction that cannot be trusted. The caller must abort."""
+
+
+@dataclass(frozen=True)
+class StageASurvivorView:
+    logical_accounts: list          # account rows Stage B reads (survivors + singles)
+    loser_to_survivor: dict         # loser legacy_member_id -> survivor legacy_member_id
+    provenance: dict                # survivor legacy_member_id -> [survivor, *losers]
+    collapsed_group_ids: list       # Stage A groups whose approved merge was collapsed
+    boundary_fingerprint: str       # frozen reconcilable-account-id set
+    plan_fingerprint: str           # approved-merge shape + override fingerprints
+
+
+def _boundary_fingerprint(rows: list[dict[str, str]]) -> str:
+    """Fingerprint of the frozen Stage B input boundary: the reconcilable
+    account-id set. Binds the survivor view to the exact extract it was built on."""
+    kept, _ = reconcilable_rows(rows)
+    ids = sorted((r.get("legacy_member_id") or "").strip() for r in kept)
+    return hashlib.sha256("\x1f".join(ids).encode("utf-8")).hexdigest()
+
+
+def _stage_a_plan_fingerprint(merges: list, override_fingerprints: list[str]) -> str:
+    """Fingerprint of the approved-merge shape plus the override fingerprints, so a
+    changed Stage A plan or a changed adjudication input reads as stale."""
+    parts = [f"{d.group_id}|{d.survivor_id}|{','.join(sorted(d.loser_ids))}"
+             for d in sorted(merges, key=lambda d: d.group_id)]
+    parts.append("OVR:" + ",".join(sorted(override_fingerprints)))
+    return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
+
+
+def build_stage_a_survivor_view(
+    rows: list[dict[str, str]], *,
+    links_by_account: dict[str, str] | None = None,
+    claimed_ids: set[str] | None = None,
+    overrides: "list | None" = None,
+    expected_boundary_fingerprint: str | None = None,
+    expected_plan_fingerprint: str | None = None,
+) -> StageASurvivorView:
+    """Build the reconciled account universe Stage B reads by collapsing only the
+    Stage A groups approved for merge under the adjudicated plan. Read-only and
+    deterministic: it applies no merge, creates no link, and writes nothing.
+
+    Collapses only action=="merge" decisions; every loser is mapped to its
+    deterministic survivor and the survivor is exposed once with the approved field
+    union (unioned emails, OR-merged entitlements). Fails closed on a stale
+    boundary/plan fingerprint, a loser mapped to more than one survivor, a missing
+    survivor, or an unapproved group presented as collapsed."""
+    plan = plan_auto_merges(rows, links_by_account=links_by_account,
+                            claimed_ids=claimed_ids, overrides=overrides)
+    merges = plan["merges"]
+    override_fps = [getattr(o, "fingerprint", "") for o in (overrides or [])]
+
+    boundary_fp = _boundary_fingerprint(rows)
+    plan_fp = _stage_a_plan_fingerprint(merges, override_fps)
+    if expected_boundary_fingerprint is not None and expected_boundary_fingerprint != boundary_fp:
+        raise StageASurvivorError(
+            "stale input boundary: the Stage B extract does not match the Stage A plan")
+    if expected_plan_fingerprint is not None and expected_plan_fingerprint != plan_fp:
+        raise StageASurvivorError("stale Stage A plan or override fingerprint")
+
+    acct_ids = {(r.get("legacy_member_id") or "").strip() for r in rows}
+    non_merge_ids: set[str] = set()
+    for d in plan["decisions"]:
+        if d.action != "merge":
+            for a in d.accounts:
+                non_merge_ids.add((a.get("legacy_member_id") or "").strip())
+
+    loser_to_survivor: dict[str, str] = {}
+    survivor_row_by_id: dict[str, dict[str, str]] = {}
+    provenance: dict[str, list[str]] = {}
+    collapsed: list[str] = []
+
+    for d in merges:
+        surv = d.survivor_id
+        if surv not in acct_ids:
+            raise StageASurvivorError(f"approved group {d.group_id}: survivor {surv} missing")
+        if d.survivor_row is None:
+            raise StageASurvivorError(f"approved group {d.group_id}: no survivor field union")
+        collapsed.append(d.group_id)
+        survivor_row_by_id[surv] = d.survivor_row
+        provenance[surv] = [surv, *d.loser_ids]
+        for loser in d.loser_ids:
+            prior = loser_to_survivor.get(loser)
+            if prior is not None and prior != surv:
+                raise StageASurvivorError(
+                    f"loser {loser} maps to two survivors ({prior} and {surv})")
+            if loser in non_merge_ids:
+                raise StageASurvivorError(
+                    f"loser {loser} also appears in an unapproved (non-merge) group")
+            loser_to_survivor[loser] = surv
+
+    # a survivor must never itself be a loser (a merge chain the plan should not emit)
+    for surv in survivor_row_by_id:
+        if surv in loser_to_survivor:
+            raise StageASurvivorError(f"survivor {surv} is also a loser (merge chain)")
+
+    losers = set(loser_to_survivor)
+    logical: list[dict[str, str]] = []
+    for r in rows:
+        lid = (r.get("legacy_member_id") or "").strip()
+        if lid in losers:
+            continue
+        logical.append(survivor_row_by_id.get(lid, r))
+
+    return StageASurvivorView(
+        logical_accounts=logical,
+        loser_to_survivor=loser_to_survivor,
+        provenance=provenance,
+        collapsed_group_ids=sorted(collapsed),
+        boundary_fingerprint=boundary_fp,
+        plan_fingerprint=plan_fp,
+    )
+
+
 def read_historical_persons(db_path: Path) -> list[dict[str, str]]:
     """Read-only: the name and any asserted account link per historical person."""
     conn = sqlite3.connect(str(db_path))
@@ -994,15 +1129,29 @@ def _write_rows(rows: list[dict[str, str]], fields: list[str], out_path: Path) -
 
 
 def stage_b_link_historical_persons(
-    csv_path: Path, db_path: Path, proposed_out: Path, review_out: Path
+    csv_path: Path, db_path: Path, proposed_out: Path, review_out: Path,
+    survivor_view: "StageASurvivorView | None" = None,
 ) -> dict[str, object]:
     """Read the intermediate CSV and historical_persons, propose links, and write
     the proposed-link and review CSVs. Read-only on the database; proposes, never
-    applies."""
+    applies.
+
+    When `survivor_view` is supplied, Stage B reads the reconciled Stage A survivor
+    universe instead of the raw accounts, so a duplicate pair Stage A approved for
+    merge presents as one logical account. With no survivor view the behavior is
+    byte-for-byte identical to the plain Stage B run. Fails closed if the survivor
+    view was built on a different frozen input boundary than the CSV read here."""
     with Path(csv_path).open(encoding="utf-8", newline="") as f:
         accounts = list(csv.DictReader(f))
+    if survivor_view is not None:
+        if survivor_view.boundary_fingerprint != _boundary_fingerprint(accounts):
+            raise StageASurvivorError(
+                "Stage B input boundary differs from the survivor view's Stage A plan")
+        universe = survivor_view.logical_accounts
+    else:
+        universe = accounts
     hps = read_historical_persons(Path(db_path))
-    proposed, review = build_stage_b(accounts, hps)
+    proposed, review = build_stage_b(universe, hps)
     _write_rows(proposed, PROPOSED_LINK_FIELDS, Path(proposed_out))
     _write_rows(review, LINK_REVIEW_FIELDS, Path(review_out))
 
@@ -1020,13 +1169,17 @@ def stage_b_link_historical_persons(
         "review_rows": len(review),
         "review_groups": len({r["review_group"] for r in review}),
         "hp_linked_to_missing_account": orphans,
+        "collapsed_stage_a_merges": len(survivor_view.collapsed_group_ids) if survivor_view else 0,
+        "loser_accounts_hidden": len(survivor_view.loser_to_survivor) if survivor_view else 0,
         "proposed_out": str(proposed_out),
         "review_out": str(review_out),
     }
 
 
 def run_stage_b(csv_path: Path, db_path: Path | None,
-                proposed_out: Path, review_out: Path) -> int:
+                proposed_out: Path, review_out: Path,
+                use_survivor_view: bool = False,
+                overrides_path: Path | None = None) -> int:
     if not csv_path.exists():
         print(
             f"error: intermediate CSV not found at {csv_path}.\n"
@@ -1041,7 +1194,26 @@ def run_stage_b(csv_path: Path, db_path: Path | None,
             file=sys.stderr,
         )
         return 1
-    s = stage_b_link_historical_persons(csv_path, db_path, proposed_out, review_out)
+    view = None
+    if use_survivor_view:
+        with Path(csv_path).open(encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+        claimed = _claimed_ids_from_db(Path(db_path))
+        overrides = load_stage_a_overrides(overrides_path)
+        # The survivor-view Stage A plan applies the DB claim-state block and any
+        # adjudication overrides. It intentionally does not apply the
+        # different-person-links block, which depends on a prior Stage B proposal
+        # and would form an A->B->A cycle; the QC gate remains the backstop that
+        # rejects any proposal overlapping a held or review account.
+        try:
+            view = build_stage_a_survivor_view(rows, claimed_ids=claimed, overrides=overrides)
+        except StageASurvivorError as e:
+            print(f"error: survivor-view construction failed closed: {e}", file=sys.stderr)
+            return 2
+        print(f"survivor view: collapsed {len(view.collapsed_group_ids)} approved Stage A "
+              f"merges; {len(view.loser_to_survivor)} loser accounts hidden; "
+              f"plan fp {view.plan_fingerprint[:16]}")
+    s = stage_b_link_historical_persons(csv_path, db_path, proposed_out, review_out, view)
     print(f"historical_persons: {s['hp_total']}")
     print(f"proposed links: {s['proposed_total']}  "
           f"(verified id: {s['verified_id_links']}, name+DOB: {s['name_dob_links']}, "
@@ -1180,6 +1352,10 @@ def main() -> None:
                     help="print duplicate / DOB edge-case counts from the intermediate CSV (read-only)")
     ap.add_argument("--stage-a", action="store_true",
                     help="build the Stage A duplicate-account review CSV (review only; merges nothing)")
+    ap.add_argument("--stage-b-survivor-view", action="store_true",
+                    help="Run Stage B against the Stage A survivor view (collapses "
+                         "approved-for-merge groups; applies --overrides). Opt-in; "
+                         "omitted = byte-for-byte identical Stage B.")
     ap.add_argument("--stage-b", action="store_true",
                     help="build the Stage B historical-person link proposals + review CSV "
                          "(read-only on the database; proposes, never applies)")
@@ -1217,8 +1393,10 @@ def main() -> None:
         sys.exit(profile(args.csv))
     if args.stage_a:
         sys.exit(run_stage_a(args.csv, args.out, args.excluded_out))
-    if args.stage_b:
-        sys.exit(run_stage_b(args.csv, args.db, args.proposed_out, args.review_out))
+    if args.stage_b or args.stage_b_survivor_view:
+        sys.exit(run_stage_b(args.csv, args.db, args.proposed_out, args.review_out,
+                             use_survivor_view=args.stage_b_survivor_view,
+                             overrides_path=args.overrides))
     if args.qc_gate:
         sys.exit(run_qc_gate(args.out, args.proposed_out, args.review_out))
     if args.dry_run_merge:
