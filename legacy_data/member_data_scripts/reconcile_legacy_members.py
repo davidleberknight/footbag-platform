@@ -447,11 +447,18 @@ class MergeDecision:
 
 def evaluate_merge_group(group: DuplicateGroup,
                          links_by_account: dict[str, str] | None = None,
-                         claimed_ids: set[str] | None = None) -> MergeDecision:
+                         claimed_ids: set[str] | None = None,
+                         ignore_blocks: frozenset[str] | None = None) -> MergeDecision:
     """Decide whether one name+full-DOB group auto-merges or goes to review, and
-    build the survivor row when it merges. Pure and deterministic."""
+    build the survivor row when it merges. Pure and deterministic.
+
+    `ignore_blocks` names safety blocks to skip for this group. It exists solely
+    so a validated Stage A adjudication override can let an approved same-person
+    group past the specific block it was reviewed for; it defaults to empty, so
+    ordinary planning is unchanged."""
     links_by_account = links_by_account or {}
     claimed_ids = claimed_ids or set()
+    ignore_blocks = ignore_blocks or frozenset()
     accounts = group.accounts
     survivor_id = _survivor_id(accounts)
     survivor = next(a for a in accounts
@@ -466,33 +473,34 @@ def evaluate_merge_group(group: DuplicateGroup,
     ids = [(a.get("legacy_member_id") or "").strip() for a in accounts]
 
     # Safety block: any account already carries claim state in the database.
-    if any(i in claimed_ids for i in ids):
+    if "claim_state" not in ignore_blocks and any(i in claimed_ids for i in ids):
         return review("claim_state")
 
     # Safety block: two accounts already linked to different canonical persons.
     linked_persons = {links_by_account[i] for i in ids
                       if links_by_account.get(i)}
-    if len(linked_persons) > 1:
+    if "different_person_links" not in ignore_blocks and len(linked_persons) > 1:
         return review("different_person_links")
 
     # Safety block: conflicting non-empty countries.
     countries = {(a.get("country") or "").strip()
                  for a in accounts if (a.get("country") or "").strip()}
-    if len(countries) > 1:
+    if "country_conflict" not in ignore_blocks and len(countries) > 1:
         return review("country_conflict")
 
     # Safety block: more than three unique emails cannot fit the three columns.
     emails = _union_emails(accounts, survivor)
-    if len(emails) > 3:
+    if "too_many_emails" not in ignore_blocks and len(emails) > 3:
         return review("too_many_emails")
 
     # Safety block: a loser whose only claim key is a distinct handle with no
     # email would lose that key on merge.
     survivor_handle = (survivor.get("legacy_user_id") or "").strip()
-    for l in losers:
-        h = (l.get("legacy_user_id") or "").strip()
-        if h and h != survivor_handle and not _account_emails(l):
-            return review("unpreservable_handle")
+    if "unpreservable_handle" not in ignore_blocks:
+        for l in losers:
+            h = (l.get("legacy_user_id") or "").strip()
+            if h and h != survivor_handle and not _account_emails(l):
+                return review("unpreservable_handle")
 
     # Clean merge: build the survivor row per the column policy above.
     row = dict(survivor)
@@ -527,12 +535,26 @@ def evaluate_merge_group(group: DuplicateGroup,
 
 def plan_auto_merges(rows: list[dict[str, str]],
                      links_by_account: dict[str, str] | None = None,
-                     claimed_ids: set[str] | None = None) -> dict[str, object]:
+                     claimed_ids: set[str] | None = None,
+                     overrides: "list | None" = None) -> dict[str, object]:
     """Evaluate every name+full-DOB group and split into merges and reviews.
-    Returns the decisions plus reason counts; writes nothing."""
+    Returns the decisions plus reason counts; writes nothing.
+
+    When `overrides` is supplied (a validated Stage A adjudication list), each
+    override is checked against the live baseline and applied via
+    stage_a_overrides.apply_overrides, which fails closed on any mismatch. With
+    no overrides the output is byte-identical to plain baseline planning."""
     groups = build_stage_a_groups(rows)
     decisions = [evaluate_merge_group(g, links_by_account, claimed_ids)
                  for g in groups]
+    if overrides:
+        import stage_a_overrides
+        pairs = list(zip(groups, decisions))
+        decisions = stage_a_overrides.apply_overrides(
+            pairs, overrides,
+            reevaluate=lambda g, ign: evaluate_merge_group(
+                g, links_by_account, claimed_ids, ignore_blocks=ign),
+        )
     merges = [d for d in decisions if d.action == "merge"]
     reviews = [d for d in decisions if d.action == "review"]
     return {
@@ -584,7 +606,28 @@ def write_merge_map_csv(merges: list[MergeDecision], out_path: Path) -> int:
     return n
 
 
-def dry_run_auto_merge(csv_path: Path, proposed_links_csv: Path) -> int:
+# Entitlement flags whose loss would silently drop a grant. The final merge is
+# refused when either is unpopulated / unavailable in the source, so a board or
+# tier-1 grant on a duplicate account cannot be OR-merged out of existence.
+_POPULATION_REQUIRED = ("legacy_tier1_annual_active_at_cutover",
+                        "legacy_was_board_at_cutover")
+
+
+def entitlement_population_status(rows: list[dict[str, str]]) -> dict[str, bool]:
+    """Whether each population-required entitlement column carries any value."""
+    return {c: any(_flag_on(r.get(c)) for r in rows) for c in _POPULATION_REQUIRED}
+
+
+def load_stage_a_overrides(overrides_path: Path | None):
+    """Load and return the validated-at-apply Stage A adjudication overrides, or
+    [] when no path is given. Import is local so the reconciler runs with no
+    override input and no new hard dependency."""
+    import stage_a_overrides
+    return stage_a_overrides.load_overrides(overrides_path)
+
+
+def dry_run_auto_merge(csv_path: Path, proposed_links_csv: Path,
+                       overrides_path: Path | None = None) -> int:
     """Read-only: report how the auto-merge would split the current dump into
     merges and reviews, with per-reason counts. Writes nothing, merges nothing."""
     if not csv_path.exists():
@@ -595,7 +638,8 @@ def dry_run_auto_merge(csv_path: Path, proposed_links_csv: Path) -> int:
     with csv_path.open(encoding="utf-8", newline="") as f:
         rows = list(csv.DictReader(f))
     links = load_links_by_account(proposed_links_csv)
-    plan = plan_auto_merges(rows, links_by_account=links)
+    overrides = load_stage_a_overrides(overrides_path)
+    plan = plan_auto_merges(rows, links_by_account=links, overrides=overrides)
     merges, reviews = plan["merges"], plan["reviews"]
     kept, excluded = reconcilable_rows(rows)
     print("auto-merge dry run (read-only; no accounts merged)")
@@ -667,7 +711,8 @@ def _claimed_ids_from_db(db_path: Path | None) -> set[str]:
 
 
 def run_final_merge(csv_path: Path, links_csv: Path, db_path: Path | None,
-                    merged_out: Path, map_out: Path, review_out: Path) -> int:
+                    merged_out: Path, map_out: Path, review_out: Path,
+                    overrides_path: Path | None = None) -> int:
     """Produce the final-load merge artifacts: the merged member CSV (survivors),
     the deterministic loser->survivor mapping, and the Stage A review CSV holding
     the contradiction groups. Read-only on the database; writes only out/ CSVs."""
@@ -678,9 +723,25 @@ def run_final_merge(csv_path: Path, links_csv: Path, db_path: Path | None,
         return 1
     with csv_path.open(encoding="utf-8", newline="") as f:
         rows = list(csv.DictReader(f))
+
+    # Fail closed: refuse the final merge when a grant-bearing entitlement column
+    # is unpopulated / unavailable in the source, so an OR-merge cannot silently
+    # drop a board or tier-1 grant that the export simply failed to capture.
+    pop = entitlement_population_status(rows)
+    if not all(pop.values()):
+        missing = [c for c, ok in pop.items() if not ok]
+        print("error: entitlement-population guard FAILED CLOSED before the final merge.\n"
+              f"  Unpopulated / unavailable in the source: {missing}.\n"
+              "  A production export must carry these grant flags, or a grant on a duplicate\n"
+              "  account could be OR-merged out of existence. Refusing to write merge artifacts.",
+              file=sys.stderr)
+        return 2
+
     links = load_links_by_account(links_csv)
     claimed = _claimed_ids_from_db(db_path)
-    plan = plan_auto_merges(rows, links_by_account=links, claimed_ids=claimed)
+    overrides = load_stage_a_overrides(overrides_path)
+    plan = plan_auto_merges(rows, links_by_account=links, claimed_ids=claimed,
+                            overrides=overrides)
 
     ms = write_merged_members_csv(csv_path, plan, merged_out)
     n_map = write_merge_map_csv(plan["merges"], map_out)  # type: ignore[arg-type]
@@ -1145,6 +1206,9 @@ def main() -> None:
                     help="Stage B link-review CSV output path (git-ignored out/ by default)")
     ap.add_argument("--excluded-out", type=Path, default=DEFAULT_EXCLUDED_ACCOUNTS_CSV,
                     help="Stage A held-out (email/user-id collision) accounts CSV (git-ignored out/ by default)")
+    ap.add_argument("--overrides", type=Path, default=None,
+                    help="Stage A adjudication-override CSV (private input; fail-closed). "
+                         "Applied to --dry-run-merge and --final-merge; omitted = plain baseline.")
     ap.add_argument("--db", type=Path, default=None,
                     help="built database, read-only for Stage B historical_persons and the QC gate")
     args = ap.parse_args()
@@ -1158,10 +1222,11 @@ def main() -> None:
     if args.qc_gate:
         sys.exit(run_qc_gate(args.out, args.proposed_out, args.review_out))
     if args.dry_run_merge:
-        sys.exit(dry_run_auto_merge(args.csv, args.proposed_out))
+        sys.exit(dry_run_auto_merge(args.csv, args.proposed_out, args.overrides))
     if args.final_merge:
         sys.exit(run_final_merge(args.csv, args.proposed_out, args.db,
-                                 args.merged_out, args.merge_map_out, args.out))
+                                 args.merged_out, args.merge_map_out, args.out,
+                                 args.overrides))
     ap.print_help()
     sys.exit(2)
 
