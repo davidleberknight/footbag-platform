@@ -1500,18 +1500,21 @@ describe('Glossary and history — anchor preservation + cross-link contracts', 
     expect(res.text).not.toContain('href="/freestyle/tricks?view=movement-system"');
   });
 
-  it('glossary §11 source-families list carries verified outbound hyperlinks', async () => {
+  it('glossary source-families list keeps the legacy citations as prose, never a live footbag.org hyperlink', async () => {
+    // The legacy footbag.org site goes dark at cutover, so the sources list
+    // names it as a citation without linking to it; the surviving outbound
+    // reference site stays hyperlinked.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toContain('href="https://www.footbag.org/"');
-    expect(res.text).toContain('href="https://www.footbag.org/newmoves/list"');
+    expect(res.text).toContain('<strong>Footbag.org</strong>');
+    expect(res.text).toContain('historical per-trick move list');
+    expect(res.text).not.toContain('href="https://www.footbag.org');
     expect(res.text).toContain('href="https://www.footbagmoves.com/"');
   });
 
-  it('glossary §11 outbound links carry rel="noopener noreferrer" + target="_blank"', async () => {
+  it('glossary surviving outbound links carry rel="noopener noreferrer" + target="_blank"', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     // Each verified outbound URL should appear with both attributes.
     const checks = [
-      'https://www.footbag.org/',
       'https://www.footbagmoves.com/',
     ];
     for (const url of checks) {
