@@ -176,9 +176,12 @@ family, decomposition, eligibility, aliases, redirects, persisted structure, or 
 
 ### §F9 Description-policy violations
 
-Descriptions are neutral and instructional: no reviewer names, no ADD shorthand, no alias
-lists inside descriptions; a description contradicting its own row (a stated ADD or
-component that disagrees with the columns) is a high-severity QC failure.
+Descriptions that render are neutral and instructional: no reviewer names, no alias lists.
+ADD-derivation shorthand is allowed in `description` as curator provenance, since a
+description carrying it is suppressed from public render and the ADD math renders from the
+structured composition; flag it only when it would actually render (shorthand in a
+description the suppressor does not catch) or when a description contradicts its own row (a
+stated ADD or component that disagrees with the columns), which is a high-severity QC failure.
 
 ### §F10 Curated-media pipeline and the trick-tag invariant
 

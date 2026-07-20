@@ -121,7 +121,7 @@ Trick names are labels; Jobs notation describes the actual movement. Store as op
 
 ### Description policy
 
-Public-facing descriptions are neutral and instructional. No reviewer names ("per Red", "by X", "Husted"), no internal modifier shorthand ("= 4 ADD", "barraging legover"), no provenance attribution — that lives in `freestyle_trick_source_links.notes` or QC reports, not `description`. When ADD math is referenced it must agree with the row's `adds` value or be removed (self-contradictions are HIGH-severity QC failures). Aliases never appear in description text. **The established description templates and write-surface details are in `REFERENCE.md`.**
+Public-facing descriptions are neutral and instructional. No reviewer names ("per Red", "by X", "Husted"), no provenance attribution (that lives in `freestyle_trick_source_links.notes` or QC reports, not `description`), no alias text. ADD-derivation shorthand ("3 ADD = pixie(+1) + mirage(2)") is permitted in `description` as curator provenance: the placeholder suppressor `isDescriptionStructuralPlaceholder` hides any description carrying it from public render, and the ADD math renders instead from the structured "How it's built" composition. Any ADD math a description carries must still agree with the row's `adds` value (self-contradictions are HIGH-severity QC failures). Because the suppressor hides the whole description, prose meant to render must not carry shorthand, or it is suppressed along with it. **The established description templates and write-surface details are in `REFERENCE.md`.**
 
 ---
 
