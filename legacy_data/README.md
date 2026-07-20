@@ -321,16 +321,24 @@ interruption, with progress/robots/log state anchored to the script
 directory so a resume works from any working directory. The mirror
 directory is gitignored.
 
-The primary (and final frozen-site) archival crawl runs with
-`--skip-videos`: video binaries dominated the previous crawl's time and
-disk (each is ffmpeg re-encoded), and their preservation is a separate
-recovery/workstream decision. In that mode every page, poster, thumbnail,
-caption, and document is still captured; each skipped video keeps its
-original URL in the mirror and is recorded (deduplicated, with all
-referring pages) in `mirror_footbag_org/skipped_videos.json` plus a
-human-readable `skipped_videos_summary.txt`, which together are the input
-for any later videos-only download pass. Without the flag the crawler
-downloads and re-encodes videos exactly as before.
+The crawler captures the two live footbag.org content hosts: the main site
+(`www.footbag.org`) at the archive-tree root and the WordPress vhost
+(`sites.footbag.org`), whose pages map under a reserved `sites/<slug>/` prefix
+inside that one tree. It loads every seed list in `mirror_seeds/` by default so
+index-hidden content is captured (`--seeds` narrows to specific lists), and it
+generates the archive navigation at the end of each run (an Archive Directory
+page, per-area browse indexes, and a homepage card) so every captured page is
+reachable by browsing.
+
+Videos are skipped by default: video binaries dominated the previous crawl's
+time and disk (each is ffmpeg re-encoded), so the page crawl runs without them
+while every page, poster, thumbnail, caption, and document is still captured.
+Each skipped video keeps its original URL in the mirror and is recorded
+(deduplicated, with all referring pages) in
+`mirror_footbag_org/skipped_videos.json` plus a human-readable
+`skipped_videos_summary.txt`. Pass `--process-videos` to download and re-encode
+videos during the crawl, or run `--video-backfill` afterward to fetch the
+recorded videos and repair their referring pages from that manifest.
 
 ### Not catalogued
 

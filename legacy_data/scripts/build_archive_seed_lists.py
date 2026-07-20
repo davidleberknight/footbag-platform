@@ -263,8 +263,95 @@ def build_ranking() -> list[str]:
     ]
 
 
+def build_moves() -> list[str]:
+    """Seed URLs for every move page.
+
+    The moves dictionary's own index filters what it links, and a prior crawl
+    captured a single move page out of the hundreds in the dump. The active
+    moves data lives in the ``moves2`` app's dump (the ``moves`` app directory
+    is retired and has no backups); its ``moves`` table id serves the move page
+    directly, so the seed is the whole table and the crawler's dedup keeps
+    whatever a prior crawl already reached.
+    """
+    dump = _dump_path("moves2")
+    # moves columns: 0 MoveID.
+    ids: set[str] = set()
+    for row in iter_table_rows(dump, "moves"):
+        move_id = row[0].strip()
+        if move_id:
+            ids.add(move_id)
+    return [f"{BASE_URL}/moves/show/{mid}" for mid in sorted(ids, key=int)]
+
+
+def build_faq() -> list[str]:
+    """Seed URLs for every FAQ article and section list.
+
+    The FAQ index links only what its section queries surface, and the mirror
+    holds a handful of articles against the dump's full table. Articles serve at
+    ``/faq/show/<ArticleID>`` and section lists at ``/faq/list?sid=<SectionID>``;
+    both ids come straight from the dump.
+    """
+    dump = _dump_path("faq")
+    # faq columns: 0 ArticleID; faqsections columns: 0 SectionID.
+    article_ids: set[str] = set()
+    for row in iter_table_rows(dump, "faq"):
+        art = row[0].strip()
+        if art:
+            article_ids.add(art)
+    section_ids: set[str] = set()
+    for row in iter_table_rows(dump, "faqsections"):
+        sid = row[0].strip()
+        if sid:
+            section_ids.add(sid)
+    urls = [f"{BASE_URL}/faq/show/{a}" for a in sorted(article_ids, key=int)]
+    urls += [f"{BASE_URL}/faq/list?sid={s}" for s in sorted(section_ids, key=int)]
+    return urls
+
+
+def build_events() -> list[str]:
+    """Seed URLs for every non-deleted event page.
+
+    The events calendar links only what its year and status queries surface;
+    the dump's ``calendar`` table carries every event. Deleted rows are gone
+    content and are skipped; approval state is irrelevant to capture (an
+    unapproved event's show page still serves).
+    """
+    dump = _dump_path("events")
+    # calendar columns: 0 Approved, 1 Deleted, 2 EventID.
+    ids: set[str] = set()
+    for row in iter_table_rows(dump, "calendar"):
+        if row[1].strip() == "0":
+            event_id = row[2].strip()
+            if event_id:
+                ids.add(event_id)
+    return [f"{BASE_URL}/events/show/{eid}" for eid in sorted(ids, key=int)]
+
+
+def build_members() -> list[str]:
+    """Seed URLs for every valid member profile.
+
+    Ruled: the archive is member-only, so member-gated profile pages are wanted
+    content, and every valid (non-deleted) member profile is seeded; the crawler
+    dedups against the thousands already captured by link-following, and the
+    404/failed residual lands in the accepted-loss register with counts.
+    Admin-only member views remain capture-forbidden in the crawler itself.
+    """
+    dump = _dump_path("members")
+    # members columns: 0 MemberID, 1 MemberValid.
+    ids: set[str] = set()
+    for row in iter_table_rows(dump, "members"):
+        if row[1].strip() == "1":
+            member_id = row[0].strip()
+            if member_id:
+                ids.add(member_id)
+    return [f"{BASE_URL}/members/profile/{mid}" for mid in sorted(ids, key=int)]
+
+
 # Each entry: output filename -> builder. HoF/player photos are intentionally
 # absent: their store has no dump, so they are not dump-seedable (see README).
+# The WordPress vhost seeds are not dump-derivable either (that database lives
+# on the vhost machine, outside the dump set); build_vhost_seed_lists.py
+# enumerates them from the live wp-json API instead.
 BUILDERS = {
     "clubs.txt": build_clubs,
     "gallery.txt": build_gallery,
@@ -272,6 +359,10 @@ BUILDERS = {
     "polls.txt": build_polls,
     "rules.txt": build_rules,
     "ranking.txt": build_ranking,
+    "moves.txt": build_moves,
+    "faq.txt": build_faq,
+    "events.txt": build_events,
+    "members.txt": build_members,
 }
 
 

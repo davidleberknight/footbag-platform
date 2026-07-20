@@ -110,10 +110,11 @@ outside hosts (photobucket, myspace, flickr, km.ru) plus a few `php.footbag.org/
 references, not a manifest of the missing photos.
 
 The miss is not a crawler defect. The crawler does fetch images (it re-encodes
-every image it mirrors) and does follow every `*.footbag.org` host, so the
-photos were skipped only because the wiki pages that embedded them were never
-reached from the crawl's link graph. This cause is specific to the wiki: it did
-not hide any other content class, because the other classes all live in dumped
-apps and are hidden by in-app index filtering (approval, visibility, permalink
-depth), which the seed files here address. Recovering the photos is a separate
-rebuild from the archived image store, not a crawl seed.
+every image it mirrors) and does crawl the WordPress vhost that carries the
+championship microsites, so the photos were skipped only because the wiki pages
+that embedded them were never reached from the crawl's link graph. This cause is
+specific to the wiki: it did not hide any other content class, because the other
+classes all live in dumped apps and are hidden by in-app index filtering
+(approval, visibility, permalink depth), which the seed files here address.
+Recovering the photos is a separate rebuild from the archived image store, not a
+crawl seed.

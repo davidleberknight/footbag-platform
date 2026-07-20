@@ -3154,6 +3154,8 @@ Rationale:
 
 - Archive HTML uses mp4 video and jpg images, and contains no JavaScript, so the mirror is fully static.
 
+- The archive preserves both live footbag.org content hosts as one served site: the main site at the archive root and the WordPress championship-microsite host under a reserved `sites/` path prefix, so no legacy hostname survives in served HTML and all links resolve within the single archive host.
+
 - CloudFront signed cookies enforce the auth check natively at the edge. CloudFront verifies the cookie's RSA signature against the public key in the trusted-signer key group resource; no edge code path, no Lambda@Edge, no public-key bundling.
 
 - Cookie domain is `.footbag.org` so a single session covers both the apex (or www) and the archive subdomain without a separate login.

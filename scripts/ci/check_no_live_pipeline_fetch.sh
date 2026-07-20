@@ -14,10 +14,13 @@ cd "$(dirname "$0")/../.."
 
 HOSTS='footbag\.org|footbaghalloffame\.net|bigaddposse\.com'
 FETCH='urlopen|requests\.(get|post|head|put|delete)'
-# Mirror crawler (builds the mirror), opt-in honor-roster drift check (never wired
-# into CI), the gated pre-cutover move scrape (--live), the one-time demo-media
-# downloader. Everything else must read committed inputs.
-ALLOW='create_mirror_footbag_org\.py|diff_live_honor_rosters\.py|18_scrape_footbag_org_moves\.py|acquire_footbag_org_demos\.py'
+# Mirror crawler (builds the mirror), the vhost seed-list builder it depends on
+# (the WordPress vhost's page list exists only on the live vhost, not in the dump
+# set, so the seeds must be enumerated before the crawl and are then committed),
+# opt-in honor-roster drift check (never wired into CI), the gated pre-cutover
+# move scrape (--live), the one-time demo-media downloader. Everything else must
+# read committed inputs.
+ALLOW='create_mirror_footbag_org\.py|build_vhost_seed_lists\.py|diff_live_honor_rosters\.py|18_scrape_footbag_org_moves\.py|acquire_footbag_org_demos\.py'
 
 offenders=""
 while IFS= read -r f; do

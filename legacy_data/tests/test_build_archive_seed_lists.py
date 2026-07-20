@@ -173,7 +173,58 @@ def test_ranking_seeds_one_report_per_set_and_method(repo):
     ]
 
 
-def test_builder_registry_covers_the_six_seed_classes(repo):
+def test_moves_seeds_every_move_from_the_moves2_dump(repo):
+    # moves columns: 0 MoveID (the active data lives in the moves2 app dump).
+    _write_dump(
+        repo, "moves2",
+        "INSERT INTO `moves` VALUES ('7','Add','','','');\n"
+        "INSERT INTO `moves` VALUES ('3','Whirl','','','');\n"
+        "INSERT INTO `moves` VALUES ('7','dup','','','');\n",
+    )
+    assert mod.build_moves() == [f"{BASE}/moves/show/3", f"{BASE}/moves/show/7"]
+
+
+def test_faq_seeds_articles_and_section_lists(repo):
+    # faq columns: 0 ArticleID; faqsections columns: 0 SectionID.
+    _write_dump(
+        repo, "faq",
+        "INSERT INTO `faq` VALUES ('941','x','y');\n"
+        "INSERT INTO `faq` VALUES ('12','a','b');\n"
+        "INSERT INTO `faqsections` VALUES ('500','s');\n",
+    )
+    assert mod.build_faq() == [
+        f"{BASE}/faq/show/12",
+        f"{BASE}/faq/show/941",
+        f"{BASE}/faq/list?sid=500",
+    ]
+
+
+def test_events_seeds_non_deleted_events_only(repo):
+    # calendar columns: 0 Approved, 1 Deleted, 2 EventID.
+    _write_dump(
+        repo, "events",
+        "INSERT INTO `calendar` VALUES ('1','0','857','n');\n"
+        "INSERT INTO `calendar` VALUES ('0','0','420','unapproved kept');\n"
+        "INSERT INTO `calendar` VALUES ('1','1','999','deleted dropped');\n",
+    )
+    assert mod.build_events() == [f"{BASE}/events/show/420", f"{BASE}/events/show/857"]
+
+
+def test_members_seeds_valid_profiles_only(repo):
+    # members columns: 0 MemberID, 1 MemberValid.
+    _write_dump(
+        repo, "members",
+        "INSERT INTO `members` VALUES ('100','1','en');\n"
+        "INSERT INTO `members` VALUES ('200','0','en');\n"   # invalid: dropped
+        "INSERT INTO `members` VALUES ('50','1','en');\n",
+    )
+    assert mod.build_members() == [
+        f"{BASE}/members/profile/50",
+        f"{BASE}/members/profile/100",
+    ]
+
+
+def test_builder_registry_covers_all_ten_seed_classes(repo):
     assert set(mod.BUILDERS) == {
         "clubs.txt",
         "gallery.txt",
@@ -181,4 +232,8 @@ def test_builder_registry_covers_the_six_seed_classes(repo):
         "polls.txt",
         "rules.txt",
         "ranking.txt",
+        "moves.txt",
+        "faq.txt",
+        "events.txt",
+        "members.txt",
     }

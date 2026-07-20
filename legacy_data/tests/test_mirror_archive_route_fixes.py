@@ -71,8 +71,10 @@ def test_collapse_amp_does_not_touch_entity_named_query_params():
 
 def test_normalize_url_collapses_ampersand_but_preserves_entity_named_params():
     n = mirror_script.normalize_url
+    # v.footbag.org is a DNS alias of www and folds onto it, so the media URL
+    # keeps one key and one on-disk file; the escaped ampersand still collapses.
     assert n('http://v.footbag.org/media/Lisa&amp;amp;Andy.mp4') == \
-        'http://v.footbag.org/media/Lisa&Andy.mp4'
+        'http://www.footbag.org/media/Lisa&Andy.mp4'
     assert n('http://www.footbag.org/x?copy=1&reg=2') == \
         'http://www.footbag.org/x?copy=1&reg=2'
 
@@ -138,6 +140,82 @@ def test_event_edit_and_remove_routes_are_refused():
 def test_public_event_and_readonly_exports_stay_crawlable():
     for path in ('/events/show/123', '/events/ical', '/events/vcal/9.ics',
                  '/events/list', '/events/results', '/events/past', '/events/current'):
+        assert mirror_script.is_unsafe_url(BASE + path) is False, path
+
+
+# ── Editor/admin capture prohibition (pure) ──────────────────────────────────
+
+def test_editor_admin_views_are_refused_across_apps():
+    # A representative editor/admin/moderation view from each app the member
+    # crawler must never capture. The full set lives in EDITOR_ADMIN_ROUTES.
+    for path in ('/clubs/editclub/12', '/clubs/new', '/faq/editsection/3',
+                 '/gallery/editset/9', '/gallery/deleteset/9', '/gallery2/edit/9',
+                 '/groups/approve/2', '/groups2/editgroup/2', '/ifpa/editelection',
+                 '/ifpa/newballot', '/ifpa/memberpayments', '/index2/addimage',
+                 '/localize/editlocale', '/members/editprofile', '/moves/edit/5',
+                 '/moves2/journal', '/news/edit/5', '/poll/conduct',
+                 '/ranking/addplayer', '/registration/console',
+                 '/registration/editevent/7', '/rules/edit/2', '/actions/confirm',
+                 '/payments/authorize'):
+        assert mirror_script.is_unsafe_url(BASE + path) is True, path
+
+
+def test_get_reachable_mutation_views_are_refused():
+    # These commit an UPDATE on a plain GET with no POST/confirm guard, so a
+    # GET-only crawler that fetched them would still mutate live data.
+    for path in ('/gallery/rotate/9', '/gallery/raiseset/9', '/gallery/lowerimage/9',
+                 '/gallery2/raiseimage/9', '/clubs/activate/12', '/members/validate/12',
+                 '/registration/seedteams/7', '/registration/rankteams/7'):
+        assert mirror_script.is_unsafe_url(BASE + path) is True, path
+
+
+def test_wordpress_admin_and_exec_surfaces_are_refused_on_every_host():
+    # Admin dashboard, login form, and XML-RPC endpoint are never content, on
+    # the www host or the WordPress vhost.
+    for url in ('http://www.footbag.org/wp-admin/',
+                'http://www.footbag.org/wp-login.php',
+                'http://www.footbag.org/xmlrpc.php',
+                'http://sites.footbag.org/worlds2018/wp-admin/edit.php',
+                'http://sites.footbag.org/reference/wp-login.php'):
+        assert mirror_script.is_unsafe_url(url) is True, url
+
+
+def test_refusal_query_keys_match_case_insensitively():
+    # A case-varied query key must refuse identically to its lowercase form,
+    # for both the destructive-param and the wiki-action checks.
+    assert mirror_script.is_unsafe_url(
+        'http://www.footbag.org/reference/index.php?title=Net&Action=edit') is True
+    assert mirror_script.is_unsafe_url(
+        'http://www.footbag.org/registration/regsummary?tid=1&UNREG=2') is True
+
+
+def test_mediawiki_editor_actions_refused_but_article_reads_pass():
+    # The reference/ wiki's edit/mutation actions are query-driven; refuse them,
+    # but keep every article read view so no wiki page is lost.
+    for url in ('http://www.footbag.org/reference/index.php?title=Net&action=edit',
+                'http://www.footbag.org/reference/index.php?title=Net&action=delete',
+                'http://www.footbag.org/reference/index.php?title=Net&action=submit'):
+        assert mirror_script.is_unsafe_url(url) is True, url
+    for url in ('http://www.footbag.org/reference/index.php?title=Net',
+                'http://www.footbag.org/reference/index.php?title=Net&action=view',
+                'http://www.footbag.org/reference/index.php?title=Net&action=history',
+                'http://www.footbag.org/reference/Hall_of_Fame'):
+        assert mirror_script.is_unsafe_url(url) is False, url
+
+
+def test_reader_content_routes_are_never_refused():
+    # Regression guard: over-refusal would silently drop archival content. Every
+    # reader route (including the login plumbing the crawler needs for re-auth,
+    # and the sections whose names merely start like an excluded verb) stays
+    # crawlable.
+    for path in ('/gallery/show/123', '/gallery/showset/9', '/gallery/showalt/9',
+                 '/gallery2/show/123', '/members/profile/456', '/members/home',
+                 '/members/authorize', '/members/newauthorize', '/news/show/17',
+                 '/news/list', '/clubs/show/12', '/clubs/list', '/faq/show/paradox',
+                 '/rules/chapter/3', '/moves/show/5', '/moves/list', '/poll/show/2',
+                 '/ranking/showranks', '/registration/register?tid=1',
+                 '/registration/regsummary?tid=1', '/registration/eventinfo/7',
+                 '/events/show/123'):
         assert mirror_script.is_unsafe_url(BASE + path) is False, path
 
 

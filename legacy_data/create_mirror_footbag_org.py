@@ -11,11 +11,23 @@ WARNING:
 This is AI-assisted code: a bit messy in places, but it gets the job done.
 
 What it does
-- Logs into footbag.org (for member-only content access)
-- Crawls pages and media
-- Rewrites links for offline browsing
+- Logs into footbag.org (for member-only content access; the login cookie is
+  pinned to the www host and never sent anywhere else)
+- Crawls pages and media from the two live content hosts: www.footbag.org and
+  the WordPress vhost sites.footbag.org (vhost pages map under the reserved
+  /sites/<slug>/ prefix inside the single serving tree; DNS aliases fold onto
+  www; per-host request pacing)
+- Loads every seed list in mirror_seeds/ by default, so index-hidden content
+  is captured too (--seeds narrows to specific lists)
+- Refuses every admin/editor/mutation surface before any request is issued
+- Rewrites links for offline browsing (links to hosts that are never crawled
+  resolve offline: kept when a past capture exists, otherwise removed)
 - Converts legacy media formats when needed
+- Generates the archive navigation at the end of each run: the Archive
+  Directory page, complete per-area browse indexes, and a homepage card
 - Saves progress so it can resume after interruption
+- --video-backfill: downloads the videos recorded by skip-mode crawls and
+  repairs their referring pages
 
 Requirements
 - Python 3.10+ (likely works on nearby versions)
@@ -33,7 +45,9 @@ Quick setup
 Usage (current CLI)
     python create_mirror_footbag_org.py <username_or_email> <password>
     python create_mirror_footbag_org.py <username_or_email> <password> -fresh
-    python create_mirror_footbag_org.py <username_or_email> <password> --skip-videos
+    python create_mirror_footbag_org.py <username_or_email> <password> --process-videos
+    python create_mirror_footbag_org.py <username_or_email> <password> --seeds mirror_seeds/members.txt
+    python create_mirror_footbag_org.py <username_or_email> <password> --video-backfill
 
 Notes
 - '-fresh' wipes previous mirror state before starting.
@@ -44,12 +58,12 @@ Notes
   resumes correctly no matter which directory it is invoked from.
 - Passing a password on the command line is convenient but not ideal (it may end up in shell history / process lists).
 
-Video exclusion ('--skip-videos'; the mode for the primary archival crawl)
-- The primary (and final) frozen-site crawl runs WITHOUT video binaries: the
-  video corpus is large, dominated the previous multi-day crawl through the
-  per-file ffmpeg re-encode, and its preservation is a separate
-  recovery/workstream decision. Excluding binaries makes the page crawl fast,
-  restartable, and auditable.
+Video handling (videos are SKIPPED by default; pass '--process-videos' to include them)
+- The primary archival crawl runs WITHOUT video binaries: the video corpus is
+  large, dominated the previous multi-day crawl through the per-file ffmpeg
+  re-encode, and is captured by a separate videos-only pass. Excluding binaries
+  makes the page crawl fast, restartable, and auditable, so it is the default;
+  '--process-videos' downloads and re-encodes them in-crawl when wanted.
 - What IS still captured in this mode: every HTML page (including pages that
   contain or link to videos), images and gallery thumbnails, video poster
   images, captions and surrounding text, PDFs/documents, CSS/JS, and redirect
@@ -107,11 +121,48 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 
 MIRROR_DIR = str(SCRIPT_DIR / "mirror_footbag_org")
 BASE_URL = 'http://www.footbag.org'
+WWW_HOST = 'www.footbag.org'
 
-# --skip-videos mode: exclude video BINARIES from the crawl while still
+# Hosts the crawler fetches pages AND media from. www.footbag.org is the legacy
+# PHP main site and serves at the archive root; sites.footbag.org is the
+# WordPress multisite vhost, whose pages map under a reserved prefix inside the
+# www tree (HOST_TREE_PREFIX). Every other *.footbag.org host is a www alias,
+# dead, mail-only, or admin/internal, and is never crawled as its own host.
+CRAWL_HOSTS = frozenset({'www.footbag.org', 'sites.footbag.org'})
+
+# Non-www content hosts map their pages under ONE reserved, hostname-free
+# top-level prefix INSIDE the www serving tree, so the whole capture serves as a
+# single host (archive.footbag.org) with correct relative links and no legacy
+# hostname in the HTML. www itself stays at the tree root, unchanged. The prefix
+# is refused as a real www path segment (both directions), so it can never
+# collide with legacy content.
+HOST_TREE_PREFIX = {
+    'sites.footbag.org': 'sites',
+}
+RESERVED_HOST_PREFIXES = frozenset(HOST_TREE_PREFIX.values())
+
+# DNS aliases of the main site (CNAME to www or the apex, same content).
+# normalize_url folds them onto www so one page has one key, one file, and one
+# rewritten link target; an alias hostname therefore never reaches the mirror.
+WWW_ALIAS_HOSTS = frozenset({
+    'footbag.org', 'v.footbag.org', 'worlds.footbag.org',
+    'worldchampionships.footbag.org', 'fi.footbag.org', 'ftp.footbag.org',
+})
+
+# WordPress sites verified to serve the SAME pages on www (cross-published):
+# their vhost URLs canonicalize to the www twin so each page is stored once, in
+# the www tree. A site enters this set only after its path-equivalence is
+# verified against the live hosts; an unverified site double-stores under the
+# reserved prefix instead, because losing vhost content is worse than storing
+# it twice.
+CROSS_PUBLISHED_SITES = frozenset()
+
+# Video handling: by default the crawl EXCLUDES video binaries while still
 # capturing every page, poster, thumbnail, caption, and link that surrounds
-# them. Set from the CLI in main(); the primary archival crawl enables it.
-SKIP_VIDEOS = False
+# them; pass --process-videos to download and re-encode them instead. Set from
+# the CLI in main(). Skipping is the default because video binaries dominate
+# crawl time and disk; each skipped video is recorded for a later videos-only pass.
+SKIP_VIDEOS = True
 # Distinct return marker for a deliberately skipped video: callers must keep
 # the original reference (it is neither a local filepath nor a failure).
 SKIPPED_VIDEO = '__SKIPPED_VIDEO__'
@@ -122,7 +173,15 @@ START_URLS = [
     BASE_URL + '/members/home/',
     BASE_URL + '/',
     BASE_URL + '/events/show/1741024635', # See a recent event in the queue
+    'http://sites.footbag.org/',          # WordPress vhost root (lists the sites)
 ]
+
+# Seed-URL lists: whole content classes the live site's own filtered indexes
+# never link (hidden clubs, invisible gallery sets, news permalinks, ...), fed
+# to the crawler directly. By default EVERY .txt in this directory is loaded —
+# the archival crawl wants all content; --seeds narrows to specific files for a
+# targeted run (e.g. a members-profile-only crawl).
+SEEDS_DIR = str(SCRIPT_DIR / 'mirror_seeds')
 
 DELAY_SECONDS = 0.25 # Polite delay between requests to live site.
 MAX_RETRIES = 1  # Retry only once after failure
@@ -151,15 +210,49 @@ def parse_args():
         help="Enable logging to file"
     )
     parser.add_argument(
+        "--process-videos",
+        dest="process_videos",
+        action="store_true",
+        help=(
+            "Download and re-encode video binaries in this crawl. Without this "
+            "flag videos are SKIPPED (the default for the primary archival "
+            "crawl): pages, posters, thumbnails, captions, and links are still "
+            "captured, and every skipped video is recorded in "
+            f"{SKIPPED_VIDEO_MANIFEST} inside the mirror directory with its "
+            "original URL, for a later videos-only pass."
+        )
+    )
+    parser.add_argument(
         "--skip-videos",
         dest="skip_videos",
         action="store_true",
         help=(
-            "Exclude video binaries from the crawl (the mode for the primary "
-            "archival crawl). Pages, posters, thumbnails, captions, and links "
-            "are still captured; every skipped video is recorded in "
-            f"{SKIPPED_VIDEO_MANIFEST} inside the mirror directory, and its "
-            "link keeps the original URL. See the header for the full contract."
+            "No-op: video binaries are skipped by default. Accepted so existing "
+            "commands keep working. Pass --process-videos to include videos."
+        )
+    )
+    parser.add_argument(
+        "--seeds",
+        dest="seeds",
+        nargs='+',
+        metavar='PATH',
+        default=None,
+        help=(
+            "Seed-list files or directories of .txt files (absolute URLs, one "
+            "per line) to enqueue at depth 0. Default: every .txt in "
+            f"{SEEDS_DIR} — the archival crawl loads all seed classes. Pass "
+            "specific files to narrow a targeted run."
+        )
+    )
+    parser.add_argument(
+        "--video-backfill",
+        dest="video_backfill",
+        action="store_true",
+        help=(
+            "Instead of crawling, download and re-encode every video recorded "
+            f"in {SKIPPED_VIDEO_MANIFEST} by earlier skip-mode crawls, then "
+            "rewrite the referring pages to link the local mp4 files. Each "
+            "record's outcome is written back to the manifest."
         )
     )
 
@@ -207,7 +300,16 @@ SKIP_EXTENSIONS = [
     '.svg',
 ]
 RESUME_ON_RESTART = True
-RESPECT_ROBOTS_TXT = True
+# This is the IFPA's own sanctioned full-archive backup of sites it owns, run by
+# an administrator, so robots.txt is advisory and not honored: the WordPress
+# vhost ships the default "discourage search engines" Disallow: / that would
+# otherwise block the entire microsite capture, and the main site's robots
+# excludes legacy content the backup wants. Ignoring robots does not make the
+# crawl harmful: it stays read-only (GET only), refuses every state-changing and
+# admin/editor route before issuing a request (is_unsafe_url), paces requests
+# per host, caps file size, and pins the member cookie to the main host. The
+# flag is kept so a non-owner run can re-enable robots.
+RESPECT_ROBOTS_TXT = False
 USER_AGENT = 'FootbagMirror/1.0 (Archival/Backup Purpose)'
 SESSION_TIMEOUT = 360000  # 1 hour
 DUPLICATE_DETECTION = True
@@ -367,16 +469,19 @@ class MirrorState:
 
         by_host, by_ext, by_area = {}, {}, {}
         total_bytes = 0
+        # Tolerant field access: records re-loaded from an on-disk manifest
+        # (e.g. by the backfill pass, possibly written by an earlier crawler
+        # version) may lack optional fields a fresh record always carries.
         for rec in records:
-            host = rec['host'] or '(unknown host)'
-            ext = rec['extension'] or rec['content_type'] or '(unknown type)'
+            host = rec.get('host') or '(unknown host)'
+            ext = rec.get('extension') or rec.get('content_type') or '(unknown type)'
             by_host[host] = by_host.get(host, 0) + 1
             by_ext[ext] = by_ext.get(ext, 0) + 1
-            for ref in rec['referrers'] or ['(direct)']:
+            for ref in rec.get('referrers') or ['(direct)']:
                 segs = [s for s in urlparse(ref).path.split('/') if s]
                 area = segs[0] if segs else '(root)'
                 by_area[area] = by_area.get(area, 0) + 1
-            if rec['content_length']:
+            if rec.get('content_length'):
                 total_bytes += rec['content_length']
         lines = [
             '# Skipped videos summary (--skip-videos mode)',
@@ -625,11 +730,72 @@ class RobotChecker:
             pass
         return {'status': 'unavailable'}
 
+class WwwPinnedCookieJar(requests.cookies.RequestsCookieJar):
+    # The legacy app may scope its member session cookie to '.footbag.org'.
+    # Stored as-is, a domain cookie is replayed to every *.footbag.org host,
+    # including hosts that must never see a member session. Pin every
+    # footbag-rooted cookie to the www host and drop cookies from any other
+    # origin, so the member cookie can only ever travel to www — even when a
+    # redirect chain hops through another host.
+    def set_cookie(self, cookie, *args, **kwargs):
+        domain = (cookie.domain or '').lstrip('.').lower()
+        if domain in ('', 'footbag.org', WWW_HOST):
+            cookie.domain = WWW_HOST
+            cookie.domain_initial_dot = False
+            cookie.domain_specified = True
+            return super().set_cookie(cookie, *args, **kwargs)
+        logging.warning(f"Dropping cookie scoped to non-www domain: {cookie.domain}")
+        return None
+
+
+class CookielessJar(requests.cookies.RequestsCookieJar):
+    # The public (non-www) session is deliberately stateless: nothing is ever
+    # stored, whatever the source (server Set-Cookie or program code), so vhost
+    # fetches are reproducible and carry no session identity of any kind.
+    def set_cookie(self, cookie, *args, **kwargs):
+        return None
+
+
 # Global instances
 session = requests.Session()
 session.headers.update({'User-Agent': USER_AGENT})
+session.cookies = WwwPinnedCookieJar()
+# Cookie-less session for every host other than www (the vhost is public; the
+# member session must never be presented to it).
+public_session = requests.Session()
+public_session.headers.update({'User-Agent': USER_AGENT})
+public_session.cookies = CookielessJar()
 mirror_state = MirrorState()
 robot_checker = RobotChecker()
+
+
+def session_for(url, www_session=None):
+    # Select the session by TARGET host at every call entry: the authenticated
+    # member session is used only for www; every other host gets the shared
+    # cookie-less session. www_session lets a caller that received an explicit
+    # session (or a test double) keep using it for www targets. Host matching
+    # is case-folded so a case-varied www URL still fetches authenticated
+    # (the cookie direction stays safe either way: the pinned jar never
+    # releases the cookie to a non-www host).
+    if urlparse(url).netloc.lower() == WWW_HOST:
+        return www_session if www_session is not None else session
+    return public_session
+
+
+# Per-host politeness: www (rimu3) and the WordPress vhost (rimu2) are
+# different physical machines, so the courtesy interval applies per host, not
+# globally. Called immediately before each live request; requests to one host
+# never delay requests to another.
+_last_request_at = {}
+
+def polite_wait(url):
+    host = urlparse(url).netloc
+    last = _last_request_at.get(host)
+    if last is not None:
+        remaining = DELAY_SECONDS - (time.time() - last)
+        if remaining > 0:
+            time.sleep(remaining)
+    _last_request_at[host] = time.time()
 
 log_handlers = [logging.StreamHandler()]
 if LOG_TO_FILE:
@@ -713,6 +879,87 @@ DESTRUCTIVE_ROUTES = frozenset({
     'rules/edit2', 'rules/new2', 'rules/import',
 })
 
+# Editor / confirm / moderation / admin VIEWS enumerated from the legacy PHP app
+# source (footbag_legacy_repo), keyed by section/action like DESTRUCTIVE_ROUTES.
+# Distinct purpose: these are a CAPTURE prohibition, not only mutation safety. A
+# member-crawler must never fetch them because they expose admin/editor content
+# the member-only archive excludes, and several mutate on a plain GET (e.g.
+# gallery/rotate, gallery/raiseset, clubs/activate, members/validate,
+# registration/seedteams do an UPDATE with no POST/confirm guard). Read views a
+# member legitimately sees are intentionally NOT here, so archival coverage of
+# reader content is unchanged. Routes whose read-vs-admin status could not be
+# settled from the source (e.g. ifpa/ballots, ifpa/issues, ranking/showranks)
+# are deliberately omitted pending a per-route ruling, so no reader content is
+# lost by guessing.
+EDITOR_ADMIN_ROUTES = frozenset({
+    'clubs/edit', 'clubs/editclub', 'clubs/editclubinfo', 'clubs/editcontacts',
+    'clubs/new', 'clubs/joinclub', 'clubs/joinclub2', 'clubs/joinlocal',
+    'clubs/activate', 'clubs/requestdelete',
+    'events/addresults', 'events/new',
+    'faq/edit', 'faq/edit2', 'faq/editsection', 'faq/editsection2', 'faq/new',
+    'faq/newsection', 'faq/localize', 'faq/localize2', 'faq/localizesection',
+    'faq/localizesection2', 'faq/fixfaq',
+    'gallery/delete', 'gallery/deleteset', 'gallery/edit', 'gallery/edit2',
+    'gallery/editset', 'gallery/editsetinfo', 'gallery/editsetinfo2', 'gallery/modset',
+    'gallery/modset2', 'gallery/new', 'gallery/newalt', 'gallery/newset',
+    'gallery/newbatch', 'gallery/batchupload', 'gallery/batchupload-prev',
+    'gallery/lowerimage', 'gallery/lowerset', 'gallery/raiseimage', 'gallery/raiseset',
+    'gallery/rotate', 'gallery/thumbnail', 'gallery/thumbnail2',
+    'gallery2/delete', 'gallery2/deleteset', 'gallery2/edit', 'gallery2/edit2',
+    'gallery2/editset', 'gallery2/editsetinfo', 'gallery2/editsetinfo2', 'gallery2/modset',
+    'gallery2/modset2', 'gallery2/new', 'gallery2/newalt', 'gallery2/newset',
+    'gallery2/newbatch', 'gallery2/batchupload', 'gallery2/batchupload-prev',
+    'gallery2/lowerimage', 'gallery2/lowerset', 'gallery2/raiseimage', 'gallery2/raiseset',
+    'gallery2/rotate', 'gallery2/thumbnail', 'gallery2/thumbnail2',
+    'groups/approve', 'groups/approve2', 'groups/reject', 'groups/reject2',
+    'groups/clonegroup', 'groups/deletefile', 'groups/deletemessage', 'groups/edit',
+    'groups/editfile', 'groups/editfile2', 'groups/editgroup', 'groups/editgroup2',
+    'groups/editgroupinfo', 'groups/editgroupinfo2', 'groups/leave', 'groups/leavegroup',
+    'groups/lowermember', 'groups/raisemember', 'groups/newgroup', 'groups/removegroup',
+    'groups/upload', 'groups/viewpending',
+    'groups2/approve', 'groups2/approve2', 'groups2/reject', 'groups2/reject2',
+    'groups2/clonegroup', 'groups2/deletefile', 'groups2/deletemessage', 'groups2/edit',
+    'groups2/editfile', 'groups2/editfile2', 'groups2/editgroup', 'groups2/editgroup2',
+    'groups2/editgroupinfo', 'groups2/editgroupinfo2', 'groups2/leave', 'groups2/leavegroup',
+    'groups2/lowermember', 'groups2/raisemember', 'groups2/newgroup', 'groups2/removegroup',
+    'groups2/upload', 'groups2/viewpending',
+    'ifpa/announce', 'ifpa/announce_send', 'ifpa/approvemembers', 'ifpa/authorizemember',
+    'ifpa/editelection', 'ifpa/editelectioninfo', 'ifpa/editissue', 'ifpa/editissue2',
+    'ifpa/editmember', 'ifpa/editmember2', 'ifpa/lowerissue', 'ifpa/raiseissue',
+    'ifpa/membermail', 'ifpa/memberpayments', 'ifpa/newballot', 'ifpa/newissue',
+    'ifpa/upload', 'ifpa/vote', 'ifpa/join', 'ifpa/join2', 'ifpa/join3', 'ifpa/join2b',
+    'ifpa/join3-auth', 'ifpa/joinbymail', 'ifpa/renew', 'ifpa/nominate', 'ifpa/nominate2',
+    'ifpa/sanctionclub', 'ifpa/sanctionevent', 'ifpa/sanctionevent2',
+    'ifpa/ifpa_instant_join', 'ifpa/paypalreturn', 'ifpa/blessmember',
+    'index2/addimage', 'index2/editimage2',
+    'localize/editlocale', 'localize/editrealm', 'localize/localize', 'localize/makelocale',
+    'localize/bulklocalize', 'localize/fix-jp', 'localize/unicodify-saved',
+    'members/editprofile', 'members/neweditprofile', 'members/optout', 'members/validate',
+    'members/join3', 'members/bulkbademail', 'members/requesthelp2', 'members/activate',
+    'moves/edit', 'moves/edit2', 'moves/edithint', 'moves/new', 'moves/addhint',
+    'moves2/edit', 'moves2/edit2', 'moves2/edithint', 'moves2/new', 'moves2/addhint',
+    'moves2/journal', 'moves2/journalcheck', 'moves2/localize', 'moves2/localize2',
+    'news/edit', 'news/edit2', 'news/new', 'news/translate', 'news/translate2',
+    'poll/conduct', 'poll/edit', 'poll/new', 'poll/showvotes',
+    'ranking/addplayer', 'ranking/addteam', 'ranking/addtournament', 'ranking/newplayer',
+    'ranking/ranks2seeds',
+    'registration/addevent', 'registration/addevent2', 'registration/approve',
+    'registration/approve2', 'registration/checkin', 'registration/checkintemplate',
+    'registration/console', 'registration/defer-payment', 'registration/editevent',
+    'registration/entrants2memberships', 'registration/ifpa-auto-join', 'registration/memo',
+    'registration/playersummary', 'registration/rankteams', 'registration/regedit',
+    'registration/regsetup', 'registration/register2', 'registration/removetranslations',
+    'registration/sendmusicreminder', 'registration/sendpaymentnotice',
+    'registration/translateevent', 'registration/translateevent2', 'registration/unregister',
+    'registration/unregister2', 'registration/dumpifpa', 'registration/dumpregdata',
+    'registration/regdumplogin', 'registration/getbadpartners', 'registration/mailin-payment',
+    'registration/makeresultsfromatib', 'registration/seedteams', 'registration/pay',
+    'registration/pay2', 'registration/autoreturn',
+    'rules/edit', 'rules/new', 'rules/localize', 'rules/localize2',
+    'actions/confirm',
+    'payments/authorize', 'payments/instant-join',
+})
+
 # Query parameters that trigger a state change on an otherwise-readable route
 # (e.g. registration/regsummary?unreg=1 unregisters a person/team). UI-only
 # params (mode/really/cachebuster) are already stripped by normalize_url.
@@ -720,20 +967,51 @@ DESTRUCTIVE_PARAMS = frozenset({
     'unreg', 'delete', 'remove', 'confirm', 'approve', 'reject', 'vote',
 })
 
+# WordPress admin / exec endpoints (the sites.footbag.org vhost is WordPress).
+# Refused on every host as a path segment: these are the admin dashboard, the
+# login form, and the XML-RPC endpoint — never archival content. Every WordPress
+# post, page, and wp-content upload is still captured; only these admin/exec
+# surfaces are skipped.
+WORDPRESS_ADMIN_SEGMENTS = frozenset({'wp-admin', 'wp-login.php', 'xmlrpc.php'})
+
+# MediaWiki (the reference/ wiki) editor / mutation actions. The wiki's admin
+# surface is query-driven (?action=edit&title=...), so the section/action route
+# keying never catches it. Only the edit/mutation actions are refused; article
+# READ views (no action, or action=view/history/raw) stay captured, so every
+# wiki page is preserved.
+MEDIAWIKI_MUTATION_ACTIONS = frozenset({
+    'edit', 'submit', 'delete', 'protect', 'unprotect', 'rollback', 'purge',
+    'watch', 'unwatch',
+})
+
 def is_unsafe_url(url):
-    # True for any footbag.org URL that could mutate server state or is an admin
-    # surface, so the crawler refuses it before issuing a request. Read routes
-    # are unaffected, so mirror coverage stays identical. Route keys use the
+    # True for any footbag.org URL that could mutate server state or is an admin/
+    # editor surface, so the crawler refuses it before issuing a request. Reader
+    # content is unaffected, so archival coverage is unchanged. Route keys use the
     # first two path segments (section/action), matching the app's routing, so
     # /gallery/show/123, /members/profile/456, /registration/register?tid=1, and
     # sections that merely end in "2" (/index2/..., /gallery2/...) are allowed.
     p = urlparse(url)
     segs = [s for s in p.path.lower().split('/') if s]
-    if 'admin' in segs:
+    seg_set = set(segs)
+    if 'admin' in seg_set:
         return True
-    if len(segs) >= 2 and f"{segs[0]}/{segs[1]}" in DESTRUCTIVE_ROUTES:
+    # WordPress admin/exec surfaces (vhost is WordPress); never content.
+    if seg_set & WORDPRESS_ADMIN_SEGMENTS:
         return True
-    if {k.lower() for k in parse_qs(p.query)} & DESTRUCTIVE_PARAMS:
+    if len(segs) >= 2:
+        route_key = f"{segs[0]}/{segs[1]}"
+        if route_key in DESTRUCTIVE_ROUTES or route_key in EDITOR_ADMIN_ROUTES:
+            return True
+    # Query keys are matched case-insensitively for BOTH refusal checks, so a
+    # case-varied '?Action=edit' is refused the same as '?action=edit'.
+    qs_lower = {}
+    for k, v in parse_qs(p.query).items():
+        qs_lower.setdefault(k.lower(), []).extend(v)
+    if set(qs_lower) & DESTRUCTIVE_PARAMS:
+        return True
+    # MediaWiki editor/mutation actions (reference/ wiki); article reads pass.
+    if {v.lower() for v in qs_lower.get('action', [])} & MEDIAWIKI_MUTATION_ACTIONS:
         return True
     return False
 
@@ -889,6 +1167,20 @@ def normalize_url(url):
     url = _canonicalize_calendar_scheme(url)
     p = urlparse(url)
 
+    # Fold DNS aliases of the main site onto www, so one page has exactly one
+    # visited-key, one file, and one link target, and no alias hostname ever
+    # reaches the mirror.
+    if p.netloc.lower() in WWW_ALIAS_HOSTS:
+        p = p._replace(netloc=WWW_HOST)
+
+    # UI-only query params carry no distinct content and only multiply URLs.
+    # The base set is the legacy app's; the WordPress vhost adds the transposh
+    # translation param (?lang= multiplies every URL by the language count) and
+    # comment-reply targeting (?replytocom= multiplies by comment count).
+    ui_params = ('mode', 'really', 'cachebuster', 'cachebust')
+    if p.netloc.lower() in HOST_TREE_PREFIX:
+        ui_params = ui_params + ('lang', 'replytocom')
+
     decoded_path = unquote(p.path)
     if '%3f' in p.path.lower() or '?' in decoded_path:
         # Split on real '?' or encoded '%3F'
@@ -900,7 +1192,7 @@ def normalize_url(url):
         fake_qs = parse_qs(fake_query, keep_blank_values=True)
         fake_qs = {
             k: v for k, v in fake_qs.items()
-            if k.lower() not in ('mode', 'really', 'cachebuster', 'cachebust')
+            if k.lower() not in ui_params
         }
 
         # Rebuild path without unwanted params
@@ -915,15 +1207,16 @@ def normalize_url(url):
 
     stripped_query = {
         k: v for k, v in original_query.items()
-        if k.lower() not in ('mode', 'really', 'cachebuster', 'cachebust')
+        if k.lower() not in ui_params
     }
 
     new_query = urlencode(stripped_query, doseq=True)
     p = p._replace(query=new_query, fragment='')
 
-    # === BEGIN: FAQ/Facts canonicalization ===
-    _pre_faq_url = urlunparse(p) 
-    path_l = p.path.lower()
+    # === BEGIN: FAQ/Facts canonicalization (www app only: a vhost site whose
+    # slug happens to be 'facts' or 'faq' must keep its own paths) ===
+    _pre_faq_url = urlunparse(p)
+    path_l = p.path.lower() if p.netloc == WWW_HOST else ''
     # (a) Alias prefixes → /faq/...
     if path_l == '/facts':
         p = p._replace(path='/faq/')
@@ -938,7 +1231,7 @@ def normalize_url(url):
     #     - /faq/show?id=123            → /faq/show/123
     #     - /faq/show?id=paradox...     → /faq/show/paradox...
     #     - bare /faq/show (no id)      → /faq/
-    if p.path.rstrip('/').lower() == '/faq/show':
+    if p.netloc == WWW_HOST and p.path.rstrip('/').lower() == '/faq/show':
         qs = {k.lower(): v for k, v in parse_qs(p.query).items()}
         art = (qs.get('id') or [None])[0]
         if art:
@@ -946,7 +1239,7 @@ def normalize_url(url):
         else:
             p = p._replace(path='/faq/', query='')
     # (c) /faq/list: keep ONLY sid (if present); drop UI-only junk
-    if p.path.rstrip('/').lower() == '/faq/list':
+    if p.netloc == WWW_HOST and p.path.rstrip('/').lower() == '/faq/list':
         qs = {k.lower(): v for k, v in parse_qs(p.query).items()}
         sid = (qs.get('sid') or [None])[0]
         p = p._replace(query=('sid=' + sid) if sid else '')
@@ -957,10 +1250,12 @@ def normalize_url(url):
 
     normalized = urlunparse(p).rstrip('/')
 
-    # Normalize gallery/show/-ID → gallery/show/ID
-    match = re.match(r'^https?://[^/]+/gallery/show/-?(\d+)$', normalized)
-    if match:
-        id_str = match.group(1)
+    # Normalize gallery/show/-ID → gallery/show/ID. Only the www gallery uses this
+    # id scheme, so gate the www-host rebuild on host==www: a non-www URL must
+    # keep its own host, never be silently re-homed onto www.
+    match = re.match(r'^https?://([^/]+)/gallery/show/-?(\d+)$', normalized)
+    if match and match.group(1) == WWW_HOST:
+        id_str = match.group(2)
         normalized = f"{BASE_URL}/gallery/show/{id_str}"
 
     # Only add trailing slash for root URLs
@@ -986,6 +1281,22 @@ def normalize_url(url):
         normalized = cleaned_url
 
     return normalized
+
+def canonicalize_cross_published(url):
+    # A vhost page whose site is VERIFIED to serve the same bytes on www maps
+    # to its www twin, so the page is stored once, in the www tree. Deliberately
+    # a separate, narrowly-applied step (link enqueue and the filepath host
+    # gate), never part of normalize_url: normalize_url feeds visited-keys and
+    # fetch targets, and rewriting the host there would corrupt the vhost's own
+    # crawl bookkeeping for unverified sites.
+    p = urlparse(url)
+    if p.netloc not in HOST_TREE_PREFIX:
+        return url
+    segs = [s for s in p.path.split('/') if s]
+    if segs and segs[0].lower() in CROSS_PUBLISHED_SITES:
+        return urlunparse(p._replace(netloc=WWW_HOST))
+    return url
+
 
 def inject_as_of_note(html):
     soup = BeautifulSoup(html, 'html.parser')
@@ -1459,7 +1770,10 @@ def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=
             return result
 
         try:
-            response = session.get(url, stream=True, timeout=15)
+            polite_wait(url)
+            # Session by TARGET host: the caller's (member) session only when the
+            # media itself lives on www; any other host gets the cookie-less one.
+            response = session_for(url, www_session=session).get(url, stream=True, timeout=15)
             response.raise_for_status()  # keep your behavior
         except requests.exceptions.RequestException as e:
             status = getattr(getattr(e, "response", None), "status_code", None)
@@ -1541,10 +1855,79 @@ def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=
         logging.error(f"General failure in download_and_process_media: {url} → {e}")
         return None
 
+def _general_url_path(parsed, url):
+    # Map an arbitrary URL path to a mirror-relative file path: strip traversal,
+    # append index.html for directory-style paths, and clean legacy cacheBuster
+    # junk from filenames. Shared by the www tree and the reserved host prefixes,
+    # so a vhost path and a www path get identical filename handling.
+    path = unquote(parsed.path)
+    path = re.sub(r'(^|/)\.\.(?=/|$)', '', path)
+    path = path.replace('\\', '/').replace('//', '/').lstrip('/')
+
+    if path.endswith('/') or path == '':
+        path += 'index.html'
+    else:
+        dirname = os.path.dirname(path)
+        basename = os.path.basename(path)
+        original_basename = basename  # Save the original for logging
+
+        # Clean up buggy filenames with embedded cacheBuster/cachebuster parameters
+        if '%3FcacheBuster=' in basename or '%3Fcachebuster=' in basename or '?cacheBuster=' in basename or '?cachebuster=' in basename:
+            # Remove URL-encoded and regular cacheBuster parameters
+            basename = re.sub(r'%3F[Cc]ache[Bb]uster=\d+', '', basename)
+            basename = re.sub(r'\?[Cc]ache[Bb]uster=\d+', '', basename)
+            # Clean up any remaining URL-encoded question marks and stray question marks
+            basename = basename.replace('%3F', '')
+            basename = basename.replace('?', '')
+            logging.info(f"Cleaned buggy filename with cacheBuster from '{original_basename}' to '{basename}' for URL: {url}")
+
+        # Find file extension at the end, preceded by one dot
+        ext_pattern = r'\.([a-zA-Z0-9]{2,5})$'
+        match = re.search(ext_pattern, basename)
+
+        if match:
+            extension = '.' + match.group(1)
+            name_part = basename[:match.start()]
+            if not name_part:
+                name_part = "unnamed"
+            else:
+                name_part = re.sub(r'\.{2,}', '.', name_part)
+                name_part = name_part.rstrip('. ')
+                if not name_part:
+                    name_part = "unnamed"
+
+            clean_basename = name_part + extension
+            if clean_basename != original_basename:
+                logging.info(f"Filename changed from '{original_basename}' to '{clean_basename}' for URL: {url}")
+
+            if dirname:
+                path = os.path.join(dirname, clean_basename).replace('\\', '/')
+            else:
+                path = clean_basename
+        else:
+            path += '/index.html'
+    return path
+
 def url_to_filepath(url):
     url = normalize_url(url)
+    # Final guard: a verified cross-published vhost URL files at its www twin's
+    # path, so the page can never be stored twice under two names.
+    url = canonicalize_cross_published(url)
     parsed = urlparse(url)
     query_parts = {k.lower(): v for k, v in parse_qs(parsed.query).items()}
+
+    # Non-www content host (the WordPress vhost): skip EVERY www-specific section
+    # special-case and map the path through the shared general handler, then
+    # place it under the host's reserved prefix. Guarding here rather than
+    # per-branch is what stops a vhost slug like 'faq' or 'clubs' from being
+    # misfiled into the www section tree.
+    host_prefix = HOST_TREE_PREFIX.get(parsed.netloc)
+    if host_prefix is not None:
+        path = f"{host_prefix}/{_general_url_path(parsed, url)}"
+        local_path = os.path.abspath(os.path.join(MIRROR_DIR, 'www.footbag.org', path))
+        if not local_path.startswith(os.path.abspath(MIRROR_DIR)):
+            raise ValueError(f"Path traversal attempt detected: {url}")
+        return local_path
 
     if parsed.path == '/clubs/list':
         segments = []
@@ -1673,53 +2056,7 @@ def url_to_filepath(url):
         else:
             path = 'faq/index.html'
     else:
-        # Handle general URLs
-        path = unquote(parsed.path)
-        path = re.sub(r'(^|/)\.\.(?=/|$)', '', path)
-        path = path.replace('\\', '/').replace('//', '/').lstrip('/')
-
-        if path.endswith('/') or path == '':
-            path += 'index.html'
-        else:
-            dirname = os.path.dirname(path)
-            basename = os.path.basename(path)
-            original_basename = basename  # Save the original for logging
-
-            # Clean up buggy filenames with embedded cacheBuster/cachebuster parameters
-            if '%3FcacheBuster=' in basename or '%3Fcachebuster=' in basename or '?cacheBuster=' in basename or '?cachebuster=' in basename:
-                # Remove URL-encoded and regular cacheBuster parameters
-                basename = re.sub(r'%3F[Cc]ache[Bb]uster=\d+', '', basename)
-                basename = re.sub(r'\?[Cc]ache[Bb]uster=\d+', '', basename)
-                # Clean up any remaining URL-encoded question marks and stray question marks
-                basename = basename.replace('%3F', '')
-                basename = basename.replace('?', '')
-                logging.info(f"Cleaned buggy filename with cacheBuster from '{original_basename}' to '{basename}' for URL: {url}")
-
-            # Find file extension at the end, preceded by one dot
-            ext_pattern = r'\.([a-zA-Z0-9]{2,5})$'
-            match = re.search(ext_pattern, basename)
-
-            if match:
-                extension = '.' + match.group(1)
-                name_part = basename[:match.start()]
-                if not name_part:
-                    name_part = "unnamed"
-                else:
-                    name_part = re.sub(r'\.{2,}', '.', name_part)
-                    name_part = name_part.rstrip('. ')
-                    if not name_part:
-                        name_part = "unnamed"
-
-                clean_basename = name_part + extension
-                if clean_basename != original_basename:
-                    logging.info(f"Filename changed from '{original_basename}' to '{clean_basename}' for URL: {url}")
-
-                if dirname:
-                    path = os.path.join(dirname, clean_basename).replace('\\', '/')
-                else:
-                    path = clean_basename
-            else:
-                path += '/index.html'
+        path = _general_url_path(parsed, url)
     local_path = os.path.join(MIRROR_DIR, 'www.footbag.org', path)
     local_path = os.path.abspath(local_path)
 
@@ -1751,9 +2088,14 @@ def resolve_actual_video_url(popup_url):
         logging.info(f"Refusing admin/mutating URL (popup): {popup_url}")
         return None
     try:
+        # A relative popup path joins against www (only the www gallery emits
+        # these popups); an absolute popup URL keeps its own host, and links
+        # found inside the popup page resolve against the page they came from,
+        # never blindly onto www.
         absolute_popup = normalize_url(urljoin(BASE_URL, popup_url))
         logging.debug(f"Resolving actual media from popup: {absolute_popup}")
-        resp = session.get(absolute_popup, timeout=10)
+        polite_wait(absolute_popup)
+        resp = session_for(absolute_popup).get(absolute_popup, timeout=10)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
 
@@ -1763,7 +2105,7 @@ def resolve_actual_video_url(popup_url):
             path = parsed_href.path.lower()
 
             if is_media_file(href):
-                resolved = normalize_url(urljoin(BASE_URL, href))
+                resolved = normalize_url(urljoin(absolute_popup, href))
                 logging.info(f"Resolved media URL: {resolved}")
                 return resolved
         logging.error(f"Could not find any media file in popup: {popup_url}")
@@ -1829,6 +2171,28 @@ def drop_broken_video_element(elem, fallback_text):
     except Exception:
         # Fail quietly
         pass
+
+def _rewrite_noncapturable_footbag_link(element, attr_name, full_url, current_filepath, soup):
+    # A footbag.org host the crawler never contacts (dead media box, mail-only,
+    # internal). A target a past crawl already folded into the tree keeps a
+    # working relative link; otherwise the reference is removed, because served
+    # HTML may carry neither a legacy hostname nor a link that is known broken.
+    try:
+        candidate = url_to_filepath(strip_query(full_url))
+    except ValueError:
+        candidate = None
+    if candidate and os.path.exists(candidate):
+        element[attr_name] = calculate_relative_path(current_filepath, candidate)
+        return
+    if element.name == 'a':
+        text = element.get_text(strip=True)
+        element.insert_before(Comment("Mirror: link to unarchived legacy host removed"))
+        if text:
+            element.insert_before(NavigableString(text))
+    else:
+        element.insert_before(Comment("Mirror: reference to unarchived legacy host removed"))
+    element.decompose()
+
 
 def rewrite_links(html, page_url):
     # Rewrites footbag.org links to relative local file paths, resolving redirects and broken links.
@@ -2117,6 +2481,22 @@ def rewrite_links(html, page_url):
                                     element.insert_before(comment)
                                     continue
 
+                                # Unreachable footbag host: resolve offline —
+                                # keep the entry only when a past crawl captured
+                                # the file; never issue a request for it.
+                                if urlparse(normalize_url(full_url)).netloc not in CRAWL_HOSTS:
+                                    try:
+                                        candidate = url_to_filepath(strip_query(full_url))
+                                    except ValueError:
+                                        candidate = None
+                                    if candidate and os.path.exists(candidate):
+                                        rel = calculate_relative_path(current_filepath, candidate)
+                                        new_items.append(rel + (' ' + descriptor if descriptor else ''))
+                                    else:
+                                        element.insert_before(Comment(
+                                            "Mirror: srcset entry on unarchived legacy host removed"))
+                                    continue
+
                                 if is_media_file(full_url):
                                     clean_url = strip_query(full_url)
                                     processed_filepath = download_and_process_media(clean_url, session, referrer=page_url)
@@ -2153,6 +2533,19 @@ def rewrite_links(html, page_url):
                     # Now handle all other internal URLs
                     full_url = urljoin(page_url, original_value)
                     parsed = urlparse(full_url)
+
+                    # A footbag host the crawler never contacts (dead media box,
+                    # mail-only, internal — anything normalize_url does not fold
+                    # onto a crawl host) is resolved offline: keep a working
+                    # relative link when a past crawl captured the target, else
+                    # remove the reference. Checked BEFORE the media branch so
+                    # no request is ever issued to an unreachable host.
+                    if is_footbag_domain(full_url):
+                        canonical_host = urlparse(normalize_url(full_url)).netloc
+                        if canonical_host not in CRAWL_HOSTS:
+                            _rewrite_noncapturable_footbag_link(
+                                element, attr_name, full_url, current_filepath, soup)
+                            continue
 
                     if is_footbag_domain(full_url) and is_media_file(full_url):
                         clean_url = strip_query(full_url)
@@ -2226,7 +2619,8 @@ def rewrite_links(html, page_url):
                             continue
 
                     # Special logic for /news/list with Year=... and any other parameters
-                    if parsed.path == '/news/list' and 'Year=' in parsed.query:
+                    # (www app route; a vhost path of the same shape passes through)
+                    if parsed.netloc == WWW_HOST and parsed.path == '/news/list' and 'Year=' in parsed.query:
                         try:
                             # Convert query parameters to always use f=10 (show all)
                             query_parts = parse_qs(parsed.query)
@@ -2266,7 +2660,7 @@ def rewrite_links(html, page_url):
                                 element[attr_name] = calculate_relative_path(current_filepath, url_to_filepath(corrected_url))
                                 logging.warning(f"Corrected broken results link on {page_url}: {original_value} → {corrected_url}")
 
-                    if parsed.path == '/clubs/list' and 'Country=' in parsed.query:
+                    if parsed.netloc == WWW_HOST and parsed.path == '/clubs/list' and 'Country=' in parsed.query:
                         try:
                             target_filepath = url_to_filepath(full_url)
                             relative_path = calculate_relative_path(current_filepath, target_filepath)
@@ -2283,7 +2677,7 @@ def rewrite_links(html, page_url):
                             logging.error(f"Failed to rewrite /clubs/list link: {full_url} → {e}")
                             continue
 
-                    if parsed.path == '/clubs/showmembers' and 'ClubID=' in parsed.query:
+                    if parsed.netloc == WWW_HOST and parsed.path == '/clubs/showmembers' and 'ClubID=' in parsed.query:
                         try:
                             target_filepath = url_to_filepath(full_url)
                             relative_path = calculate_relative_path(current_filepath, target_filepath)
@@ -2301,7 +2695,7 @@ def rewrite_links(html, page_url):
                             logging.error(f"Failed to rewrite /clubs/showmembers link: {full_url} → {e}")
                             continue
 
-                    if parsed.path == '/events/past':
+                    if parsed.netloc == WWW_HOST and parsed.path == '/events/past':
                         try:
                             target_filepath = url_to_filepath(full_url)
                             relative_path = calculate_relative_path(current_filepath, target_filepath)
@@ -2319,7 +2713,7 @@ def rewrite_links(html, page_url):
                             logging.error(f"Failed to rewrite /events/past link: {full_url} → {e}")
                             continue
 
-                    if parsed.path == '/events/results':
+                    if parsed.netloc == WWW_HOST and parsed.path == '/events/results':
                         try:
                             target_filepath = url_to_filepath(full_url)
                             relative_path = calculate_relative_path(current_filepath, target_filepath)
@@ -2610,11 +3004,36 @@ def save_content(url, content, is_html):
 def is_in_scope(url):
     if is_unsafe_url(url):
         return False
-    if not is_footbag_domain(url):
-        return False
-    if not url.startswith(BASE_URL):
-        return False
     parsed = urlparse(url)
+    # Only the crawl hosts (www + the WordPress vhost) are fetched. Every other
+    # footbag.org host — aliases, the now-dead media hosts, mail/internal — is out
+    # of scope and never enqueued.
+    if parsed.netloc not in CRAWL_HOSTS:
+        return False
+    segs = [s for s in parsed.path.split('/') if s]
+    # Reserved-prefix collision guard, both directions: a www URL must never use a
+    # reserved vhost prefix as its top segment, and a vhost slug must never BE a
+    # reserved prefix, or the two host namespaces would overwrite each other in
+    # the single served tree.
+    if segs and segs[0].lower() in RESERVED_HOST_PREFIXES:
+        logging.warning(f"Refusing reserved-prefix collision: {url}")
+        return False
+    if parsed.netloc in HOST_TREE_PREFIX:
+        # WordPress crawl traps and non-content endpoints. Date-archive INDEX
+        # pages (/<site>/YYYY[/MM[/DD]]/) multiply URLs without adding content
+        # (a dated permalink with a post slug after the date still passes);
+        # ?p=/?page_id= style ids duplicate every permalink; wp-json, feeds,
+        # and trackbacks are API/subscription endpoints, not archive pages.
+        # Everything they serve is reachable via permalinks and the wp-json-
+        # derived seed lists.
+        if re.search(r'^/[^/]+/\d{4}(/\d{2}){0,2}/?$', parsed.path):
+            return False
+        lower_segs = {s.lower() for s in segs}
+        if lower_segs & {'wp-json', 'feed', 'trackback'}:
+            return False
+        if {k.lower() for k in parse_qs(parsed.query)} & {
+                'p', 'page_id', 'cat', 'm', 'paged', 'attachment_id'}:
+            return False
     path = parsed.path.lower()
     if any(path.endswith(ext) for ext in SKIP_EXTENSIONS):
         return False
@@ -2693,6 +3112,403 @@ def verify_authenticated_session():
         logging.error("Session is not authenticated — fallback or login required.")
         return False
 
+# ---------- Reachability: Archive Directory, homepage card, browse indexes ----------
+#
+# The archive serves statically (no directory listing), so a captured page that
+# no link-chain reaches from the landing page is invisible to a member. The
+# orphans are exactly (a) the vhost microsites under /sites/ and (b) the
+# seed-injected content the live site's own filtered indexes never linked.
+# Three generated, JavaScript-free pieces close the gap, all rebuilt at the end
+# of every crawl from what is ACTUALLY on disk so they never link a missing
+# file: complete per-area browse indexes, one topic-grouped directory page, and
+# a native-looking card on the homepage pointing at the directory.
+
+ARCHIVE_DIRECTORY_FILENAME = 'archive-directory.html'
+ARCHIVE_INDEX_DIRNAME = 'archive-index'
+DIRECTORY_CARD_MARKER = 'mirror-archive-directory-card'
+INDEX_PAGE_SIZE = 1000
+
+# One row per browsable area: (slug, heading, seed list, sort-by-label). The
+# browse index for an area lists every seed item whose capture file exists;
+# areas whose seed ids are chronological (news, events) keep seed order.
+ARCHIVE_AREAS = [
+    ('news', 'News', 'news.txt', False),
+    ('events', 'Events', 'events.txt', False),
+    ('clubs', 'Clubs', 'clubs.txt', True),
+    ('gallery', 'Gallery sets', 'gallery.txt', True),
+    ('members', 'Member profiles', 'members.txt', True),
+    ('moves', 'Moves', 'moves.txt', True),
+    ('faq', 'FAQ', 'faq.txt', True),
+    ('rules', 'Rulebook chapters', 'rules.txt', False),
+    ('polls', 'Polls', 'polls.txt', False),
+    ('ranking', 'Rankings', 'ranking.txt', False),
+]
+
+_TITLE_RE = re.compile(rb'<title[^>]*>(.*?)</title>', re.IGNORECASE | re.DOTALL)
+
+
+def _www_root():
+    return os.path.join(MIRROR_DIR, 'www.footbag.org')
+
+
+def _page_label(filepath, fallback):
+    # Human label for an index row: the captured page's own <title>, with the
+    # site-name prefix dropped; the URL tail when a title is absent.
+    try:
+        with open(filepath, 'rb') as f:
+            head = f.read(4096)
+    except OSError:
+        return fallback
+    m = _TITLE_RE.search(head)
+    if not m:
+        return fallback
+    title = m.group(1).decode('utf-8', errors='replace')
+    title = re.sub(r'\s+', ' ', title).strip()
+    for prefix in ('footbag.org:', 'Footbag WorldWide!', 'footbag.org'):
+        if title.startswith(prefix):
+            title = title[len(prefix):].lstrip(' :')
+    return title or fallback
+
+
+_ARCHIVE_PAGE_STYLE = (
+    'body{font-family:Verdana,Arial,sans-serif;font-size:10pt;margin:1em 2em;'
+    'background:#fff;color:#000}h1{font-size:14pt}h2{font-size:11pt;'
+    'border-bottom:1px solid #999;padding-bottom:2px}a{color:#039}'
+    'ul{margin:0.3em 0 1em 1.2em;padding:0}li{margin:0.15em 0}'
+    '.pagenav{margin:0.6em 0;color:#666}.count{color:#666;font-size:8pt}'
+)
+
+
+def _archive_page(title, body_html):
+    return (
+        '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n'
+        f'<title>{title}</title>\n<style>{_ARCHIVE_PAGE_STYLE}</style>\n'
+        '</head>\n<body>\n'
+        f'{body_html}'
+        '\n<p class="count">(Generated from the footbag.org archive capture; '
+        'every link on this page points at a preserved page.)</p>\n'
+        '</body>\n</html>\n'
+    )
+
+
+def generate_browse_indexes(seeds_dir=None):
+    # One complete, paginated index per area, listing every seed item whose
+    # capture exists on disk. Whole-file overwrites: regenerating after a
+    # longer crawl only ever adds rows.
+    seeds_dir = Path(seeds_dir or SEEDS_DIR)
+    results = {}
+    for slug, heading, seed_name, sort_by_label in ARCHIVE_AREAS:
+        seed_file = seeds_dir / seed_name
+        if not seed_file.is_file():
+            continue
+        entries = []
+        for line in seed_file.read_text(encoding='utf-8').splitlines():
+            url = line.strip()
+            if not url or url.startswith('#'):
+                continue
+            try:
+                target = url_to_filepath(url)
+            except ValueError:
+                continue
+            if not target or not os.path.exists(target):
+                continue
+            tail = [s for s in urlparse(url).path.split('/') if s]
+            entries.append((target, _page_label(target, tail[-1] if tail else url)))
+        if not entries:
+            continue
+        if sort_by_label:
+            entries.sort(key=lambda e: e[1].casefold())
+        index_dir = os.path.join(_www_root(), ARCHIVE_INDEX_DIRNAME, slug)
+        os.makedirs(index_dir, exist_ok=True)
+        pages = [entries[i:i + INDEX_PAGE_SIZE]
+                 for i in range(0, len(entries), INDEX_PAGE_SIZE)]
+
+        def page_file(num):
+            return 'index.html' if num == 1 else f'page{num}.html'
+
+        for num, page_entries in enumerate(pages, start=1):
+            page_path = os.path.join(index_dir, page_file(num))
+            nav = ''
+            if len(pages) > 1:
+                links = ' '.join(
+                    f'<b>{n}</b>' if n == num else f'<a href="{page_file(n)}">{n}</a>'
+                    for n in range(1, len(pages) + 1))
+                nav = f'<p class="pagenav">Pages: {links}</p>\n'
+            items = '\n'.join(
+                f'<li><a href="{calculate_relative_path(page_path, target)}">'
+                f'{label}</a></li>'
+                for target, label in page_entries)
+            body = (
+                f'<h1>{heading} — complete archive index</h1>\n'
+                f'<p class="count">{len(entries)} captured pages'
+                f'{f", {len(pages)} index pages" if len(pages) > 1 else ""}.</p>\n'
+                f'<p><a href="../../{ARCHIVE_DIRECTORY_FILENAME}">'
+                'Back to the Archive Directory</a></p>\n'
+                f'{nav}<ul>\n{items}\n</ul>\n{nav}'
+            )
+            _atomic_write_text(page_path, _archive_page(
+                f'{heading} — footbag.org archive index', body))
+        results[slug] = (heading, len(entries))
+        logging.info(f"Archive index generated: {slug} ({len(entries)} entries)")
+    return results
+
+
+def _worlds_year(name):
+    m = re.fullmatch(r'worlds(\d{2,4})', name)
+    if not m:
+        return None
+    year = int(m.group(1))
+    return year + 1900 if year < 100 else year
+
+
+def generate_archive_directory(index_counts):
+    # The one human hub: content areas by TOPIC (never by disk layout), the
+    # World Championships across BOTH trees interleaved chronologically, and
+    # every other microsite. Only links whose target file exists are emitted.
+    www = _www_root()
+    sections = []
+
+    area_rows = []
+    for slug, heading, _seed, _sort in ARCHIVE_AREAS:
+        if slug not in index_counts:
+            continue
+        _heading, count = index_counts[slug]
+        area_rows.append(
+            f'<li><a href="{ARCHIVE_INDEX_DIRNAME}/{slug}/index.html">{heading}</a>'
+            f' <span class="count">({count} pages)</span></li>')
+    if area_rows:
+        sections.append('<h2>Browse by area</h2>\n<ul>\n' + '\n'.join(area_rows) + '\n</ul>')
+
+    # Rank 0 = www tree, 1 = vhost tree: a year captured in both trees (a
+    # cross-published championship stored twice) gets ONE row, the www copy.
+    worlds = []
+    for entry in sorted(os.listdir(www)) if os.path.isdir(www) else []:
+        year = _worlds_year(entry)
+        if year and os.path.exists(os.path.join(www, entry, 'index.html')):
+            worlds.append((year, 0, f'{entry}/index.html', f'World Championships {year}'))
+    sites_root = os.path.join(www, 'sites')
+    microsites = []
+    if os.path.isdir(sites_root):
+        for entry in sorted(os.listdir(sites_root)):
+            if not os.path.exists(os.path.join(sites_root, entry, 'index.html')):
+                continue
+            year = _worlds_year(entry)
+            if year:
+                worlds.append((year, 1, f'sites/{entry}/index.html',
+                               f'World Championships {year}'))
+            else:
+                microsites.append(f'<li><a href="sites/{entry}/index.html">{entry}</a></li>')
+    if worlds:
+        worlds.sort()
+        seen_years = set()
+        rows = []
+        for year, _rank, href, label in worlds:
+            if year in seen_years:
+                continue
+            seen_years.add(year)
+            rows.append(f'<li><a href="{href}">{label}</a></li>')
+        sections.append('<h2>World Championships</h2>\n<ul>\n' + '\n'.join(rows) + '\n</ul>')
+    if microsites:
+        sections.append('<h2>Microsites</h2>\n<ul>\n' + '\n'.join(microsites) + '\n</ul>')
+
+    wikis = []
+    for href, label in (('reference2/index.html', 'Reference wiki (captured from www)'),
+                        ('sites/reference/index.html', 'Reference site (captured from the sites host)')):
+        if os.path.exists(os.path.join(www, href)):
+            wikis.append(f'<li><a href="{href}">{label}</a></li>')
+    if wikis:
+        sections.append('<h2>Reference</h2>\n<ul>\n' + '\n'.join(wikis) + '\n</ul>')
+
+    body = (
+        '<h1>The footbag.org Archive Directory</h1>\n'
+        '<p>Every page preserved in this archive is reachable from here: the '
+        'complete per-area indexes below include content the original site '
+        'never linked from its own menus.</p>\n'
+        '<p><a href="index.html">Back to the archive home page</a></p>\n'
+        + '\n'.join(sections)
+    )
+    path = os.path.join(www, ARCHIVE_DIRECTORY_FILENAME)
+    os.makedirs(www, exist_ok=True)
+    _atomic_write_text(path, _archive_page('footbag.org Archive Directory', body))
+    logging.info(f"Archive Directory generated: {path}")
+    return path
+
+
+def insert_homepage_directory_card():
+    # One native-looking content card on the homepage, built from the page's
+    # own block classes so the site stylesheet renders it like its neighbors.
+    # Marker-guarded: a resumed or repeated run never inserts it twice; string
+    # insertion so the rest of the homepage stays byte-identical.
+    homepage = os.path.join(_www_root(), 'index.html')
+    if not os.path.exists(homepage):
+        logging.warning("Homepage not captured yet; archive-directory card not inserted")
+        return False
+    html = Path(homepage).read_text(encoding='utf-8', errors='replace')
+    if DIRECTORY_CARD_MARKER in html:
+        return True
+    card = (
+        f'\n<!-- {DIRECTORY_CARD_MARKER} -->\n'
+        '<div class="indexEvents">\n'
+        '<h2>Complete Archive</h2>\n'
+        '<div class="indexEventsIndent">\n'
+        f'<div class="newsHeadline"><a href="{ARCHIVE_DIRECTORY_FILENAME}">'
+        'Browse the complete footbag.org archive</a></div>\n'
+        '<div class="newsDetails">News, events, clubs, gallery sets, member '
+        'profiles, moves, rules, FAQ, polls, rankings, and the World '
+        'Championships sites — every preserved page, in one directory.</div>\n'
+        '</div>\n'
+        '</div>\n'
+    )
+    for anchor in ('<div class="indexNotices">', '</body>'):
+        pos = html.find(anchor)
+        if pos != -1:
+            html = html[:pos] + card + html[pos:]
+            _atomic_write_text(homepage, html)
+            logging.info("Archive-directory card inserted on the homepage")
+            return True
+    logging.warning("No insertion anchor found on the homepage; card not inserted")
+    return False
+
+
+def generate_reachability_pages(seeds_dir=None):
+    counts = generate_browse_indexes(seeds_dir)
+    generate_archive_directory(counts)
+    insert_homepage_directory_card()
+
+
+# ---------- Video backfill: consume the skipped-videos manifest ----------
+#
+# Skip-mode crawls record every excluded video (with all referring pages) in
+# the manifest instead of downloading it. This second pass completes the
+# archive: fetch each recorded binary through the same refusal / session /
+# politeness / magic-byte / re-encode path as any other media, then repair the
+# referring pages so their elements point at the local mp4 instead of the
+# retained original URL. Outcomes are written back into the manifest, so what
+# remains un-backfilled is always visible with reasons.
+
+def _load_skipped_video_manifest():
+    manifest_path = os.path.join(MIRROR_DIR, SKIPPED_VIDEO_MANIFEST)
+    if not os.path.exists(manifest_path):
+        raise SystemExit(
+            f"MISSING: {manifest_path}\n"
+            "The video backfill consumes the skipped-videos manifest that a "
+            "skip-mode crawl writes into the mirror directory. Run the crawl "
+            "first (videos are skipped by default), then re-run with "
+            "--video-backfill.")
+    records = json.loads(Path(manifest_path).read_text(encoding='utf-8'))
+    return {rec.get('normalized_url') or normalize_url(rec['url']): rec
+            for rec in records}
+
+
+def _element_matches_video(tag, attr, page_url, rec_norm):
+    value = tag.get(attr)
+    if not value or value.startswith(('mailto:', 'javascript:', 'tel:', 'data:', '#')):
+        return False
+    try:
+        return normalize_url(urljoin(page_url, value)) == rec_norm
+    except Exception:
+        return False
+
+
+def _strip_adjacent_skip_marker(tag):
+    # The skip pass left an explanatory comment right before the element it
+    # kept pointing at the original URL; once the element is repaired (or
+    # replaced by the failure fallback) that comment is stale. Scan back over
+    # any intervening text nodes (whitespace or not), stopping at the first
+    # real element, so the marker is found even when text sits between it and
+    # the video element.
+    prev = tag.previous_sibling
+    while prev is not None and isinstance(prev, NavigableString) and not isinstance(prev, Comment):
+        prev = prev.previous_sibling
+    if isinstance(prev, Comment) and 'skip-videos' in prev:
+        prev.extract()
+
+
+def _rewrite_referrer_page(referrer_url, page_records):
+    # Repair one referring page in place: every element whose target normalizes
+    # to a backfilled video gets the relative local path; elements whose video
+    # failed conversion get the standard broken-video fallback. Matching is by
+    # normalized URL, never raw string equality, so escaped ampersands and
+    # UI-param noise cannot cause a silent miss.
+    try:
+        page_path = url_to_filepath(referrer_url)
+    except ValueError:
+        logging.warning(f"Backfill: unmappable referrer skipped: {referrer_url}")
+        return 0
+    if not page_path or not os.path.exists(page_path):
+        logging.info(f"Backfill: referrer page not in mirror, skipped: {referrer_url}")
+        return 0
+    html = Path(page_path).read_text(encoding='utf-8', errors='replace')
+    soup = BeautifulSoup(html, 'html.parser')
+    repaired = 0
+    for rec_norm, rec, processed_path in page_records:
+        for tag in soup.find_all(['a', 'video', 'source', 'embed']):
+            for attr in ('href', 'src'):
+                if not _element_matches_video(tag, attr, referrer_url, rec_norm):
+                    continue
+                _strip_adjacent_skip_marker(tag)
+                if processed_path:
+                    tag[attr] = calculate_relative_path(page_path, processed_path)
+                    if tag.name == 'source':
+                        tag['type'] = get_media_mime_type(processed_path)
+                    tag.insert_before(Comment("Mirror: video backfilled to local file"))
+                else:
+                    fallback = os.path.basename(urlparse(rec['url']).path)
+                    drop_broken_video_element(tag, fallback)
+                repaired += 1
+                break
+    if repaired:
+        _atomic_write_text(page_path, str(soup))
+        logging.info(f"Backfill: {repaired} element(s) repaired on {referrer_url}")
+    return repaired
+
+
+def run_video_backfill():
+    # The whole point of this pass is downloading videos, so the module-level
+    # skip flag must be off (main() clears it for --video-backfill). Guard the
+    # seam: with it on, download_and_process_media would re-skip every record
+    # and mark them all failed.
+    global SKIP_VIDEOS
+    SKIP_VIDEOS = False
+    manifest = _load_skipped_video_manifest()
+    mirror_state.skipped_videos = manifest
+    logging.info(f"Video backfill: {len(manifest)} recorded videos")
+
+    outcomes = {'backfilled': 0, 'already_done': 0, 'failed': 0, 'refused': 0}
+    by_referrer = {}
+    for rec_norm, rec in manifest.items():
+        if rec.get('disposition') == 'backfilled':
+            outcomes['already_done'] += 1
+            continue
+        url = rec['url']
+        if is_unsafe_url(url):
+            rec['disposition'] = 'backfill_refused_unsafe'
+            outcomes['refused'] += 1
+            continue
+        processed = download_and_process_media(url, session, referrer=None)
+        if processed and processed != SKIPPED_VIDEO:
+            rec['disposition'] = 'backfilled'
+            rec['local_file'] = processed
+            outcomes['backfilled'] += 1
+        else:
+            processed = None
+            rec['disposition'] = 'backfill_failed'
+            outcomes['failed'] += 1
+        for referrer in rec.get('referrers') or []:
+            by_referrer.setdefault(referrer, []).append((rec_norm, rec, processed))
+
+    repaired_pages = sum(
+        1 for referrer, page_records in sorted(by_referrer.items())
+        if _rewrite_referrer_page(referrer, page_records))
+
+    mirror_state.write_skipped_video_manifest()
+    logging.info(
+        f"Video backfill complete: {outcomes['backfilled']} backfilled, "
+        f"{outcomes['already_done']} already done, {outcomes['failed']} failed, "
+        f"{outcomes['refused']} refused; {repaired_pages} referrer pages repaired")
+    return outcomes
+
+
 def create_root_index():
     root_index_path = os.path.join(MIRROR_DIR, 'index.html')
     
@@ -2761,11 +3577,13 @@ def fetch(url):
                 url = resolve_canonical_gallery_url(url)
 
             original_url = normalize_url(url)
+            polite_wait(original_url)
             if is_events_show_url(original_url):
                 # Event show/results pages: fetch as unauthenticated visitor (no session cookies).
                 resp = requests.get(original_url, headers={'User-Agent': USER_AGENT}, timeout=30, stream=True, allow_redirects=True)
             else:
-                resp = session.get(original_url, timeout=30, stream=True, allow_redirects=True)
+                # Session picked by target host: the member session only for www.
+                resp = session_for(original_url).get(original_url, timeout=30, stream=True, allow_redirects=True)
             final_url = normalize_url(resp.url)
 
             # Detect forced login redirect (e.g. session expired)
@@ -2948,7 +3766,9 @@ def extract_links(html, base_url):
                         continue
 
                     final_url = mirror_state.duplicate_redirects.get(full_url, full_url)
-                    processed_url = normalize_url(final_url)
+                    # Enqueue point for cross-published dedup: the vhost twin of
+                    # a verified www page never enters the queue.
+                    processed_url = canonicalize_cross_published(normalize_url(final_url))
 
                     parsed = urlparse(final_url)
                     if parsed.path in ['/registration/register', '/registration/regsummary'] and 'tid=' in parsed.query:
@@ -2983,7 +3803,7 @@ def extract_links(html, base_url):
                     continue
 
                 media_url = mirror_state.duplicate_redirects.get(media_url, media_url)
-                processed_url = normalize_url(media_url)
+                processed_url = canonicalize_cross_published(normalize_url(media_url))
 
                 if is_media_file(processed_url) and is_in_scope(processed_url):
                     logging.debug(f"Found embedded media in <source>: {processed_url}")
@@ -3004,12 +3824,78 @@ def extract_links(html, base_url):
         logging.error(f"Error extracting links from {base_url}: {e}")
         return set()
 
+def load_seed_urls(paths):
+    # Read seed URLs from the given files, or from every .txt inside a given
+    # directory. Lines are absolute URLs, one per line; blanks and '#' comment
+    # lines are tolerated. A missing path is a one-line actionable warning, not
+    # a crash: the seed lists come from build_archive_seed_lists.py and a clone
+    # without them can still run a plain link-following crawl.
+    files = []
+    for p in paths:
+        path = Path(p)
+        if path.is_dir():
+            files.extend(sorted(path.glob('*.txt')))
+        elif path.is_file():
+            files.append(path)
+        else:
+            logging.warning(
+                f"Seed path not found: {p} (generate seed lists with "
+                f"legacy_data/scripts/build_archive_seed_lists.py)")
+    urls = []
+    for f in files:
+        count = 0
+        for line in f.read_text(encoding='utf-8').splitlines():
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            urls.append(line)
+            count += 1
+        logging.info(f"Seed list {f.name}: {count} URLs")
+    return urls
+
+
+def enqueue_seed_urls(urls):
+    # Enqueue seed URLs at depth 0. Unsafe and out-of-scope seeds are refused
+    # by the same predicates as discovered links; already-visited and
+    # already-queued URLs are skipped, so re-running a seeded crawl only
+    # fetches what is still missing.
+    queued = set(mirror_state.queue)
+    added = skipped_seen = refused = 0
+    for url in urls:
+        norm = canonicalize_cross_published(normalize_url(url))
+        if norm in mirror_state.visited or norm in queued:
+            skipped_seen += 1
+            continue
+        if not is_in_scope(norm):
+            refused += 1
+            logging.info(f"Seed refused (unsafe or out of scope): {norm}")
+            continue
+        mirror_state.queue.append(norm)
+        mirror_state.url_depth[norm] = 0
+        queued.add(norm)
+        added += 1
+    logging.info(f"Seeds enqueued: {added} added, {skipped_seen} already "
+                 f"visited/queued, {refused} refused")
+    return added
+
+
+def _ensure_start_urls(start_urls):
+    # Start URLs are always present on a fresh crawl, even when seed lists
+    # pre-populated the queue; on a resume, a visited start URL is not re-added.
+    queued = set(mirror_state.queue)
+    front = []
+    for url in start_urls:
+        norm_url = normalize_url(url)
+        if norm_url in mirror_state.visited or norm_url in queued:
+            continue
+        front.append(norm_url)
+        mirror_state.url_depth[norm_url] = 0
+    # Prepend so the homepage and entry pages are crawled before seed backlog.
+    mirror_state.queue[:0] = front
+
+
 def crawl(start_urls):
-    if not mirror_state.queue:
-        for url in start_urls:
-            norm_url = normalize_url(url)
-            mirror_state.queue.append(norm_url)
-            mirror_state.url_depth[norm_url] = 0
+    _ensure_start_urls(start_urls)
 
     while mirror_state.queue and len(mirror_state.visited) < MAX_URLS:
         original_url = mirror_state.queue.pop(0)
@@ -3108,9 +3994,11 @@ def crawl(start_urls):
             '.' not in filename  # No extension — default page like index
         )
 
-        # Special handlers for known endpoint types preserved:
+        # Special handlers below are all www app routes: a vhost path of the
+        # same shape must take the general save path instead.
+        www_page = parsed.netloc == WWW_HOST
         if (
-            is_html and
+            is_html and www_page and
             original_url.rstrip('/').endswith('/news/list') and
             'Year=' not in original_url
         ):
@@ -3141,7 +4029,7 @@ def crawl(start_urls):
             continue
 
         if (
-            is_html and parsed.path == '/news/list' and 'Year=' in parsed.query
+            is_html and www_page and parsed.path == '/news/list' and 'Year=' in parsed.query
         ):
             try:
                 query_parts = parse_qs(parsed.query)
@@ -3175,6 +4063,7 @@ def crawl(start_urls):
 
         if (
             is_html and
+            www_page and
             original_url.rstrip('/').endswith('/events/past') and
             'year=' not in original_url
         ):
@@ -3196,6 +4085,7 @@ def crawl(start_urls):
 
         if (
             is_html and
+            www_page and
             original_url.rstrip('/').endswith('/events/results') and
             'year=' not in original_url
         ):
@@ -3215,7 +4105,7 @@ def crawl(start_urls):
                 logging.error(f"Error handling /events/results page: {e}")
             continue
 
-        if is_html and parsed_final.path == '/registration/register' and 'tid=' in parsed_final.query:
+        if is_html and parsed_final.netloc == WWW_HOST and parsed_final.path == '/registration/register' and 'tid=' in parsed_final.query:
             try:
                 tid = parse_qs(parsed_final.query).get('tid', [None])[0]
                 if tid and tid.isdigit():
@@ -3235,7 +4125,7 @@ def crawl(start_urls):
                 logging.error(f"Error handling /registration/register?tid=...: {e}")
                 continue
 
-        if is_html and parsed_final.path == '/registration/regsummary' and 'tid=' in parsed_final.query:
+        if is_html and parsed_final.netloc == WWW_HOST and parsed_final.path == '/registration/regsummary' and 'tid=' in parsed_final.query:
             try:
                 tid = parse_qs(parsed_final.query).get('tid', [None])[0]
                 if tid and tid.isdigit():
@@ -3262,7 +4152,8 @@ def crawl(start_urls):
                     tid = tid_match.group(1)
                     regsummary_url = f"{BASE_URL}/registration/regsummary?tid={tid}"
                     try:
-                        reg_resp = session.get(regsummary_url, allow_redirects=True, timeout=15)
+                        polite_wait(regsummary_url)
+                        reg_resp = session_for(regsummary_url).get(regsummary_url, allow_redirects=True, timeout=15)
                         if reg_resp.status_code == 200:
                             reg_soup = BeautifulSoup(reg_resp.text, 'html.parser')
                             has_members = bool(reg_soup.find('a', href=re.compile(r"javascript:popupprofile\(['\"]?\d{3,10}['\"]?\)")))
@@ -3327,11 +4218,19 @@ def main():
     LOG_TO_FILE = args.log_to_file   # if your parser uses dest="log", change this to: args.log
     USERNAME = args.username
     PASSWORD = args.password
-    SKIP_VIDEOS = args.skip_videos
+    SKIP_VIDEOS = not args.process_videos
+    if args.video_backfill:
+        # The backfill's whole purpose is downloading the recorded videos.
+        SKIP_VIDEOS = False
     if SKIP_VIDEOS:
-        logging.info("--skip-videos enabled: video binaries excluded; pages, posters, "
-                     "thumbnails, and captions still captured; skipped videos recorded "
-                     f"in {SKIPPED_VIDEO_MANIFEST}")
+        logging.warning(
+            "Videos are being SKIPPED (the default). Video binaries are excluded; "
+            "pages, posters, thumbnails, captions, and links are still captured, and "
+            f"each skipped video is recorded in {SKIPPED_VIDEO_MANIFEST} for a later "
+            "videos-only pass. Pass --process-videos to download and re-encode videos.")
+    else:
+        logging.info("--process-videos enabled: video binaries will be downloaded and "
+                     "re-encoded through ffmpeg like all other media.")
 
     try:
         if args.fresh:
@@ -3380,7 +4279,22 @@ def main():
         if not verify_authenticated_session():
             raise RuntimeError("Login appeared successful, but authenticated session failed.")
 
+        if args.video_backfill:
+            # Consume the manifest and repair referrers; no crawl in this mode.
+            run_video_backfill()
+            robot_checker.save_cache()
+            print_stats()
+            logging.info("Video backfill run complete")
+            return
+
+        # Seed lists load by default (the archival crawl wants all content);
+        # --seeds narrows to specific files for a targeted run.
+        seed_paths = args.seeds if args.seeds else [SEEDS_DIR]
+        enqueue_seed_urls(load_seed_urls(seed_paths))
+
         crawl(START_URLS)
+        generate_reachability_pages(seed_paths[0] if len(seed_paths) == 1
+                                    and Path(seed_paths[0]).is_dir() else SEEDS_DIR)
         create_root_index()
         save_sitemap()
         save_redirect_map()
