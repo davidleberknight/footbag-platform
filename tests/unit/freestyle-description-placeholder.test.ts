@@ -56,6 +56,18 @@ describe('isDescriptionStructuralPlaceholder — ordinary instructional prose', 
     )).toBe(false);
   });
 
+  it('does not flag a community-named compound whose ADD equation is kept out of the prose', () => {
+    // A community-name description carries its decomposition qualitatively in
+    // prose ("a pixie set into Mirage"); with no "ADD =" or "(+1)" tail it must
+    // render rather than be suppressed with the arithmetic.
+    expect(isDescriptionStructuralPlaceholder(
+      'Smear, the community name for Pixie Mirage, a pixie set into Mirage.',
+    )).toBe(false);
+    expect(isDescriptionStructuralPlaceholder(
+      'Dark Avenue, the community name for Fairy Diving Butterfly, a fairy set followed by a dive into Butterfly.',
+    )).toBe(false);
+  });
+
   it('does not flag prose that mentions ADD as a word rather than the "ADD =" token', () => {
     expect(isDescriptionStructuralPlaceholder('Each dexterity you add raises the difficulty of the run.')).toBe(false);
   });
