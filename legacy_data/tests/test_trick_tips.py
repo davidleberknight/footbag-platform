@@ -110,6 +110,48 @@ def test_extraction_drops_empty_dedupes_sanitizes_and_carries_move_type(tmp_path
     assert all("tt" not in x.values() for x in got)                  # HintTitle discarded
 
 
+_EMAIL_PATTERN = r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+
+
+def test_extraction_redacts_email_addresses(tmp_path: Path) -> None:
+    # Tip text flows verbatim into a committed public artifact and onward to the
+    # public trick page; no contact address may survive extraction. Covers both a
+    # plain address and an entity-encoded one (redaction runs after unescape).
+    src = tmp_path / "legacy.sql"
+    src.write_text(
+        "INSERT INTO `moves` VALUES (60,0,'Mirage');\n"
+        "INSERT INTO `movehints` VALUES "
+        "(1,60,12338,'tt','Nice tip. for comments: someone@example.test thanks',941471587,941471587,0),"
+        "(2,60,12338,'tt','Entity form: someone&#64;example.test bye',941471600,941471600,0);\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "tips.ndjson"
+    r = run([str(EXTRACT), "--source", str(src), "--out", str(out)])
+    assert r.returncode == 0, r.stderr
+    import re
+    got = [json.loads(ln) for ln in out.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    texts = [x["tip_text"] for x in got]
+    assert len(texts) == 2
+    assert all("[email removed]" in t for t in texts)
+    assert not any(re.search(_EMAIL_PATTERN, t) for t in texts)
+    # surrounding prose survives the redaction
+    assert any(t.startswith("Nice tip.") and t.endswith("thanks") for t in texts)
+
+
+def test_committed_tips_artifacts_carry_no_email() -> None:
+    # Guard on the committed artifacts themselves: no email address in any
+    # freestyle input the loaders ingest toward public pages. Read-only.
+    import re
+    pat = re.compile(_EMAIL_PATTERN)
+    inputs_dir = REPO_ROOT / "freestyle" / "inputs"
+    offenders = []
+    for f in sorted(inputs_dir.glob("*.ndjson")):
+        for i, ln in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+            if pat.search(ln):
+                offenders.append(f"{f.name}:{i}")
+    assert offenders == [], f"email address in committed freestyle input(s): {offenders}"
+
+
 # --- loader -------------------------------------------------------------------
 
 def _write_tips(path: Path, rows_in: list[dict]) -> Path:

@@ -134,16 +134,22 @@ def unquote(v: str) -> str:
 _TAG_RE = re.compile(r"<[^>]+>")
 _BR_RE = re.compile(r"<\s*br\s*/?\s*>", re.IGNORECASE)
 _BLOCK_RE = re.compile(r"<\s*/?\s*(p|div|li|ul|ol)\b[^>]*>", re.IGNORECASE)
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 
 def sanitize(text: str) -> str:
-    """Strip legacy HTML to plain text; normalize line breaks and whitespace."""
+    """Strip legacy HTML to plain text; normalize line breaks and whitespace.
+    Redacts email addresses: tip text flows verbatim into a committed public
+    artifact and onward to the public trick page, and no contact field may
+    reach a public surface."""
     if not text:
         return ""
     t = _BR_RE.sub("\n", text)
     t = _BLOCK_RE.sub("\n", t)
     t = _TAG_RE.sub("", t)          # drop any remaining tags
     t = html.unescape(t)
+    # after unescape, so entity-encoded addresses are caught too
+    t = _EMAIL_RE.sub("[email removed]", t)
     t = t.replace("\r\n", "\n").replace("\r", "\n")
     # collapse runs of spaces/tabs; trim each line; cap blank-line runs at one
     lines = [re.sub(r"[ \t]+", " ", ln).strip() for ln in t.split("\n")]
