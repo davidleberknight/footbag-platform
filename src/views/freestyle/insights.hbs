@@ -31,24 +31,21 @@
     </div>
     <p class="section-intro">Which tricks and modifiers appear most across the documented record.</p>
 
-    <h3 class="content-subheading">Most Used Tricks</h3>
+    <h3 class="content-subheading">Commonly Used Tricks</h3>
+    <p class="section-intro">Tricks that recur across the documented record, with their current canonical ADD. An illustrative selection, not an exact frequency ranking.</p>
     <div class="records-table-wrap">
       <table class="records-table records-table-sm">
         <thead>
           <tr>
-            <th class="col-rank">#</th>
             <th>Trick</th>
             <th class="col-adds">ADD</th>
-            <th>Frequency</th>
           </tr>
         </thead>
         <tbody>
           {{#each content.mostUsed}}
           <tr>
-            <td class="col-rank">{{rank}}</td>
             <td>{{name}}</td>
             <td class="col-adds">{{adds}}</td>
-            <td>{{label}}</td>
           </tr>
           {{/each}}
         </tbody>
@@ -80,25 +77,21 @@
       </table>
     </div>
 
-    <h3 class="content-subheading">Most Influential Connectors</h3>
-    <p class="section-intro">Tricks appearing most often as transition points between other tricks in a sequence.</p>
+    <h3 class="content-subheading">Connector Tricks</h3>
+    <p class="section-intro">Tricks that commonly act as connectors between others in a sequence, with their current canonical ADD. Illustrative, not a ranking.</p>
     <div class="records-table-wrap">
       <table class="records-table records-table-sm">
         <thead>
           <tr>
-            <th class="col-rank">#</th>
             <th>Trick</th>
             <th class="col-adds">ADD</th>
-            <th>Connections</th>
           </tr>
         </thead>
         <tbody>
           {{#each content.connectors}}
           <tr>
-            <td class="col-rank">{{rank}}</td>
             <td>{{name}}</td>
             <td class="col-adds">{{adds}}</td>
-            <td>{{label}}</td>
           </tr>
           {{/each}}
         </tbody>
@@ -113,41 +106,33 @@
     </div>
     <p class="section-intro">How tricks connect into chains across the documented sequences.</p>
 
-    <h3 class="content-subheading">Most Common Trick Transitions</h3>
+    <h3 class="content-subheading">Example Transitions</h3>
+    <p class="section-intro">Illustrative examples of how one trick can follow another: a high-difficulty rotational opener resolving to a stable closer, or walking tricks connecting mid-chain. These are examples of the pattern, not measured frequencies.</p>
     <div class="records-table-wrap">
       <table class="records-table records-table-sm">
         <thead>
           <tr>
-            <th class="col-rank">#</th>
             <th>From</th>
             <th>To</th>
-            <th class="col-num">Count</th>
-            <th class="col-num">Players</th>
           </tr>
         </thead>
         <tbody>
           {{#each content.transitions}}
           <tr>
-            <td class="col-rank">{{rank}}</td>
             <td>{{from}}</td>
             <td>{{to}}</td>
-            <td class="col-num">{{count}}</td>
-            <td class="col-num">{{players}}</td>
           </tr>
           {{/each}}
         </tbody>
       </table>
     </div>
 
-    <h3 class="content-subheading">Notable Documented Sequences</h3>
-    <p class="section-intro">High total-ADD sequences preserved in the archive. ADD is the sum of all tricks in the chain. These are examples drawn from the documented record, not a ranking of the hardest sequences ever performed.</p>
+    <h3 class="content-subheading">Example High-ADD Chains</h3>
+    <p class="section-intro">Illustrative high-ADD chains. Each ADD is the sum of the current canonical ADD values of the tricks in the chain, shown as canonical arithmetic, not a recovered historical competition score. These are examples, not a ranking of the hardest sequences ever performed.</p>
     <div class="records-table-wrap">
       <table class="records-table records-table-sm">
         <thead>
           <tr>
-            <th class="col-rank">#</th>
-            <th>Player</th>
-            <th class="col-adds">Year</th>
             <th class="col-adds">ADD</th>
             <th class="col-adds">Length</th>
             <th>Sequence</th>
@@ -156,9 +141,6 @@
         <tbody>
           {{#each content.notableSequences}}
           <tr>
-            <td class="col-rank">{{rank}}</td>
-            <td>{{player}}</td>
-            <td class="col-adds">{{year}}</td>
             <td class="col-adds">{{adds}}</td>
             <td class="col-adds">{{length}}</td>
             <td class="col-message">{{sequence}}</td>
@@ -174,29 +156,7 @@
     <div class="section-heading">
       <h2>Player Diversity</h2>
     </div>
-    <p class="section-intro">Players using the widest variety of distinct tricks across the documented sequences.</p>
-    <div class="records-table-wrap">
-      <table class="records-table records-table-sm">
-        <thead>
-          <tr>
-            <th class="col-rank">#</th>
-            <th>Player</th>
-            <th class="col-num">Unique Tricks</th>
-            <th>Years Active</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.diversePlayers}}
-          <tr>
-            <td class="col-rank">{{rank}}</td>
-            <td>{{player}}</td>
-            <td class="col-num">{{uniqueTricks}}</td>
-            <td>{{yearsActive}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
-    </div>
+    <p class="section-intro">Some competitors are noted for the breadth of distinct tricks they bring to a run, spreading difficulty across many different elements rather than repeating a few. The per-player trick counts that once ranked this drew on a sequence corpus that is not reproducible from committed sources, so they are not shown.</p>
   </section>
 
   {{! ═══ Archive Notes ══════════════════════════════════════════════════════ }}
@@ -206,10 +166,11 @@
     </div>
     <p class="section-intro">What this data is, and what it is not.</p>
     <p>
-      The sequence tables draw on a documented archive of 395 Sick3 format sequences spanning
-      roughly 2001 to 2025, where each trick carries a mechanically verifiable ADD value. Sick3
-      submissions are one slice of competitive freestyle, not a complete record, so these are
-      patterns within the archive rather than conclusions about the sport overall.
+      The sequence tables draw on a documented archive of Sick3 format sequences, where each trick
+      carries a mechanically verifiable ADD value. This page is an educational interpretation of that
+      archival sample, not a complete or reproducible census. Sick3 submissions are one slice of
+      competitive freestyle, so these are patterns within the sample rather than conclusions about the
+      sport overall.
     </p>
     <p>
       Frequencies count how often a trick appears in those sequences. Modifier tricks such as

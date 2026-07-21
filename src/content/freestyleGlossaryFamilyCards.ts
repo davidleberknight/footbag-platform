@@ -152,12 +152,12 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['mobius', 'blur', 'stepping paradox whirl'],
     observationalNotes: [
       {
-        title: 'Whirl as central attractor',
-        body:  'Network analysis of 22 years of Sick3 sequences shows whirl as the central attractor of the freestyle trick network: sequences converge on it as a stable resolution point. Blurry whirl functions as the most common opening element; the transition blurry whirl → whirl is the most documented two-trick structure in the corpus.',
+        title: 'Why whirl anchors combinations',
+        body:  'Whirl ends on a cross-body clipper delay, making it a useful structural anchor for combinations. Blurry Whirl adds the Blurry structure to the same Whirl base, while other family members vary the entry and modifiers around that terminal pattern.',
       },
     ],
     teaching: {
-      hook: 'Whirl became the trick freestyle is built around, because it ends exactly where it begins and lets a combo keep going.',
+      hook: 'Whirl became the trick freestyle is built around, because it resolves to a cross-body clipper delay that gives the family a stable receiving structure and lets a combo keep going.',
       physicalDescription:
         'The base whirl circles the leg around the bag, over the top, and lands cross-body on a clipper. It can be entered from a clipper or a toe delay. It is one of the first rotational moves a player owns, and one they never stop using. The whirl family extends that clipper ending through different entries, sets, and modifiers, so not every whirl-family trick starts from a clipper.',
       importance:

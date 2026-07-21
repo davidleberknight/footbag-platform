@@ -324,12 +324,10 @@ import {
   InsightsTrick,
   InsightsTransition,
   InsightsSequence,
-  InsightsDiversePlayer,
   INSIGHTS_MOST_USED,
   INSIGHTS_CONNECTORS,
   INSIGHTS_TRANSITIONS,
   INSIGHTS_SEQUENCES,
-  INSIGHTS_DIVERSE_PLAYERS,
 } from '../content/freestyleEditorial';
 
 // ---------------------------------------------------------------------------
@@ -3563,7 +3561,6 @@ export interface FreestyleInsightsContent {
   connectors:        InsightsTrick[];
   transitions:       InsightsTransition[];
   notableSequences:  InsightsSequence[];
-  diversePlayers:    InsightsDiversePlayer[];
 }
 
 // ---------------------------------------------------------------------------
@@ -9834,7 +9831,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_insights',
         title:      'Freestyle Insights',
-        intro:      'What patterns show up when tricks are strung into sequences. Drawn from a documented archive of Sick 3, a three-trick sequence format; the archive holds 395 sequences.',
+        intro:      'What patterns show up when tricks are strung into sequences, drawn from a documented archive of Sick 3, a three-trick sequence format.',
       },
       navigation: {
         breadcrumbs: [
@@ -9848,7 +9845,6 @@ export const freestyleService = {
         connectors:        INSIGHTS_CONNECTORS,
         transitions:       INSIGHTS_TRANSITIONS,
         notableSequences:  INSIGHTS_SEQUENCES,
-        diversePlayers:    INSIGHTS_DIVERSE_PLAYERS,
       },
     };
   },

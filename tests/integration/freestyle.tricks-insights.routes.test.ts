@@ -1068,7 +1068,7 @@ describe('GET /freestyle/insights', () => {
   it('shows most-used tricks section', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/insights');
-    expect(res.text).toContain('Most Used Tricks');
+    expect(res.text).toContain('Commonly Used Tricks');
     expect(res.text).toContain('whirl');
     expect(res.text).toContain('blurry whirl');
   });
@@ -1076,23 +1076,26 @@ describe('GET /freestyle/insights', () => {
   it('shows connector tricks section', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/insights');
-    expect(res.text).toContain('Most Influential Connectors');
+    expect(res.text).toContain('Connector Tricks');
     expect(res.text).toContain('ripwalk');
   });
 
   it('shows transitions section', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/insights');
-    expect(res.text).toContain('Most Common Trick Transitions');
+    expect(res.text).toContain('Example Transitions');
     expect(res.text).toContain('blurry whirl');
   });
 
-  it('shows Notable Documented Sequences without claiming they are the hardest', async () => {
+  it('shows Example High-ADD Chains as current canonical arithmetic, not historical scores', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/insights');
-    expect(res.text).toContain('Notable Documented Sequences');
-    expect(res.text).toContain('Greg Solis');
-    expect(res.text).toContain('22'); // ADD total
+    expect(res.text).toContain('Example High-ADD Chains');
+    // The ADD totals are explicitly framed as sums of current canonical values.
+    expect(res.text).toContain('sum of the current canonical ADD values');
+    expect(res.text).toContain('22'); // a kept chain's canonical ADD sum
+    // The corpus player/year provenance is removed.
+    expect(res.text).not.toContain('Greg Solis');
     expect(res.text).not.toContain('Hardest Documented Sequences');
   });
 
@@ -1112,11 +1115,27 @@ describe('GET /freestyle/insights', () => {
     expect(res.text).toContain('Archive Notes');
   });
 
-  it('shows diverse players under the Player Diversity area', async () => {
+  it('keeps the Player Diversity area as a qualitative note without per-player counts', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/insights');
     expect(res.text).toContain('Player Diversity');
-    expect(res.text).toContain('Mariusz Wilk');
+    expect(res.text).toContain('breadth of distinct tricks');
+    expect(res.text).not.toContain('Mariusz Wilk');
+  });
+
+  it('renders no unsupported exact figures or attributions from the sequence corpus', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/insights');
+    const forbidden = [
+      'Greg Solis', 'Brad Nelson', 'Mariusz Wilk', 'Stefan Siegert', 'Cody Rushing',
+      'mentions', 'connections,',
+    ];
+    for (const phrase of forbidden) {
+      expect(
+        res.text.includes(phrase),
+        `Unsupported corpus figure/attribution present on Insights: "${phrase}"`,
+      ).toBe(false);
+    }
   });
 
   it('shows the live Most Used Modifiers table, framed as dictionary usage', async () => {
@@ -1126,12 +1145,26 @@ describe('GET /freestyle/insights', () => {
     expect(res.text).toContain('dictionary usage, not competitive frequency');
   });
 
-  it('shows Archive Notes with honest dataset framing', async () => {
+  it('shows Archive Notes with a page-level scope statement and no unsupported corpus size', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/insights');
     expect(res.text).toContain('Archive Notes');
-    expect(res.text).toContain('395 Sick3 format sequences');
     expect(res.text).toContain('no longer fully reproducible');
+    expect(res.text).toMatch(/educational interpretation of that\s+archival sample/);
+    expect(res.text).toMatch(/not a complete or reproducible census/);
+    // The specific, unreproducible corpus size is gone (the located export is not 395).
+    expect(res.text).not.toContain('395');
+  });
+
+  it('does not substitute the distinct historical Sick 3 corpus figures', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/insights');
+    for (const phrase of ['308', '117 normalized', '94%', '17-ADD']) {
+      expect(
+        res.text.includes(phrase),
+        `Historical Sick 3 substitution present on Insights: "${phrase}"`,
+      ).toBe(false);
+    }
   });
 
   it('contains breadcrumb back to /freestyle', async () => {

@@ -36,10 +36,12 @@
  *     auto-regeneration is wired.
  *
  * Source provenance:
- *   - INSIGHTS_* tables: derived from a frozen analytical output of the
- *     freestyle competition dataset.
- *   - INSIGHTS_NARRATIVES: editorial prose from a curated analytical report
- *     derived from 774 documented competitive events (1980–2026).
+ *   - INSIGHTS_* tables: illustrative content. Trick names carry their current
+ *     canonical ADD; example chains carry the exact sum of current canonical ADD
+ *     values. The exact corpus-derived counts and rankings they once held were
+ *     removed because that sequence corpus is not reproducible from committed
+ *     sources.
+ *   - INSIGHTS_NARRATIVES: editorial prose (not rendered on the public page).
  *
  * Consumers:
  *   - `src/services/freestyleService.ts` imports the interfaces and
@@ -58,35 +60,19 @@
 // its `FreestyleInsightsContent` view-model shape.
 
 export interface InsightsTrick {
-  rank: number;
   name: string;
-  adds: string;
-  value: number;
-  label: string;    // e.g. "150 mentions" or "99 connections"
+  adds: string;      // current canonical ADD value (reproducible from the dictionary)
 }
 
 export interface InsightsTransition {
-  rank: number;
   from: string;
-  to: string;
-  count: number;
-  players: number;
+  to: string;        // an illustrative transition pair (an example, not a measured count)
 }
 
 export interface InsightsSequence {
-  rank: number;
-  player: string;
-  year: number;
-  adds: number;
-  length: number;
   sequence: string;
-}
-
-export interface InsightsDiversePlayer {
-  rank: number;
-  player: string;
-  uniqueTricks: number;
-  yearsActive: string;
+  adds: number;      // sum of current canonical ADD values for the chain
+  length: number;    // number of tricks in the chain
 }
 
 export interface InsightsDifficultyEra {
@@ -95,84 +81,83 @@ export interface InsightsDifficultyEra {
   avgAdd: number;
 }
 
-// ─── Insights data: frozen analytical tables ─────────────────────────────────
+// ─── Insights data: illustrative tables ──────────────────────────────────────
 //
-// The six tables below are snapshots of the freestyle-competition analytical
-// output. They were computed once by the pipeline (from 774 documented
-// events 1980–2026) and pinned here as stable, curated content. They do not
-// regenerate on their own; if the underlying dataset is rerun and the
-// analysis changes, update these arrays by hand.
+// These tables originally carried exact figures (mention counts, connection
+// counts, transition counts, chain scores, per-player diversity counts) from a
+// sequence analysis whose corpus is not reproducible from any committed source.
+// Those unsupported numbers have been removed. What remains is reproducible or
+// explicitly illustrative: trick names with their current canonical ADD, example
+// transition pairs, and example chains whose ADD is the exact sum of the current
+// canonical ADD values of their tricks (verified against the dictionary), shown
+// as canonical arithmetic rather than recovered historical scores.
 //
-// Each table renders as a ranked list on `/freestyle/insights`.
+// The modifier-usage table is computed live from the dictionary in the service
+// and is not stored here.
 
+// Tricks that recur across the documented record, with their current canonical
+// ADD. An illustrative selection, not an exact frequency ranking (the occurrence
+// counts came from a sequence corpus that is not reproducible from committed
+// sources, so they are not shown).
 export const INSIGHTS_MOST_USED: InsightsTrick[] = [
-  { rank: 1,  name: 'whirl',             adds: '3',        value: 150, label: '150 mentions, 86 players' },
-  { rank: 2,  name: 'pixie',             adds: 'modifier', value: 121, label: '121 mentions, 75 players' },
-  { rank: 3,  name: 'swirl',             adds: '3',        value: 96,  label: '96 mentions, 44 players' },
-  { rank: 4,  name: 'blurry whirl',      adds: '5',        value: 89,  label: '89 mentions, 53 players' },
-  { rank: 5,  name: 'torque',            adds: '4',        value: 78,  label: '78 mentions, 49 players' },
-  { rank: 6,  name: 'ducking',           adds: 'modifier', value: 59,  label: '59 mentions, 43 players' },
-  { rank: 7,  name: 'ripwalk',           adds: '4',        value: 58,  label: '58 mentions, 45 players' },
-  { rank: 8,  name: 'butterfly',         adds: '3',        value: 56,  label: '56 mentions, 48 players' },
-  { rank: 9,  name: 'spinning',          adds: 'modifier', value: 55,  label: '55 mentions, 31 players' },
-  { rank: 10, name: 'legover',           adds: '2',        value: 51,  label: '51 mentions, 31 players' },
-  { rank: 11, name: 'mirage',            adds: '2',        value: 48,  label: '48 mentions, 39 players' },
-  { rank: 12, name: 'dimwalk',           adds: '4',        value: 45,  label: '45 mentions, 38 players' },
-  { rank: 13, name: 'symposium',         adds: 'modifier', value: 38,  label: '38 mentions, 27 players' },
-  { rank: 14, name: 'blender',           adds: '4',        value: 36,  label: '36 mentions, 22 players' },
-  { rank: 15, name: 'eggbeater',         adds: '3',        value: 33,  label: '33 mentions, 23 players' },
+  { name: 'whirl',        adds: '3' },
+  { name: 'pixie',        adds: 'modifier' },
+  { name: 'swirl',        adds: '3' },
+  { name: 'blurry whirl', adds: '5' },
+  { name: 'torque',       adds: '4' },
+  { name: 'ducking',      adds: 'modifier' },
+  { name: 'ripwalk',      adds: '4' },
+  { name: 'butterfly',    adds: '3' },
+  { name: 'spinning',     adds: 'modifier' },
+  { name: 'legover',      adds: '2' },
+  { name: 'mirage',       adds: '2' },
+  { name: 'dimwalk',      adds: '4' },
+  { name: 'symposium',    adds: 'modifier' },
+  { name: 'blender',      adds: '4' },
+  { name: 'eggbeater',    adds: '3' },
 ];
 
+// Tricks that commonly act as connectors between others in a sequence, with their
+// current canonical ADD. Illustrative, not a graph-score ranking (the connection
+// counts came from the same non-reproducible corpus and are not shown).
 export const INSIGHTS_CONNECTORS: InsightsTrick[] = [
-  { rank: 1,  name: 'whirl',             adds: '3',  value: 99, label: '99 connections, 86 players' },
-  { rank: 2,  name: 'blurry whirl',      adds: '5',  value: 70, label: '70 connections, 53 players' },
-  { rank: 3,  name: 'ripwalk',           adds: '4',  value: 61, label: '61 connections, 45 players' },
-  { rank: 4,  name: 'butterfly',         adds: '3',  value: 44, label: '44 connections, 48 players' },
-  { rank: 5,  name: 'torque',            adds: '4',  value: 39, label: '39 connections, 49 players' },
-  { rank: 6,  name: 'dimwalk',           adds: '4',  value: 38, label: '38 connections, 38 players' },
-  { rank: 7,  name: 'swirl',             adds: '3',  value: 34, label: '34 connections, 44 players' },
-  { rank: 8,  name: 'mirage',            adds: '2',  value: 30, label: '30 connections, 39 players' },
-  { rank: 9,  name: 'ducking butterfly', adds: '4',  value: 29, label: '29 connections, 26 players' },
-  { rank: 10, name: 'legover',           adds: '2',  value: 27, label: '27 connections, 31 players' },
+  { name: 'whirl',             adds: '3' },
+  { name: 'blurry whirl',      adds: '5' },
+  { name: 'ripwalk',           adds: '4' },
+  { name: 'butterfly',         adds: '3' },
+  { name: 'torque',            adds: '4' },
+  { name: 'dimwalk',           adds: '4' },
+  { name: 'swirl',             adds: '3' },
+  { name: 'mirage',            adds: '2' },
+  { name: 'ducking butterfly', adds: '4' },
+  { name: 'legover',           adds: '2' },
 ];
 
+// Illustrative transitions: example from->to pairs, not measured occurrence
+// counts. They show the structural pattern (a high-difficulty rotational opener
+// resolving to a stable closer; walking tricks connecting mid-chain), not a
+// frequency ranking from the non-reproducible corpus.
 export const INSIGHTS_TRANSITIONS: InsightsTransition[] = [
-  { rank: 1,  from: 'blurry whirl',      to: 'whirl',              count: 17, players: 15 },
-  { rank: 2,  from: 'ripwalk',           to: 'whirl',              count: 11, players: 10 },
-  { rank: 3,  from: 'whirl',             to: 'whirl',              count: 10, players: 9  },
-  { rank: 4,  from: 'smear',             to: 'dimwalk',            count: 7,  players: 7  },
-  { rank: 5,  from: 'dimwalk',           to: 'ripwalk',            count: 6,  players: 6  },
-  { rank: 6,  from: 'blurry whirl',      to: 'ripwalk',            count: 6,  players: 5  },
-  { rank: 7,  from: 'dimwalk',           to: 'whirl',              count: 5,  players: 5  },
-  { rank: 8,  from: 'blurry whirl',      to: 'paradox torque',     count: 5,  players: 5  },
-  { rank: 9,  from: 'fusion',            to: 'eggbeater',          count: 5,  players: 4  },
-  { rank: 10, from: 'torque',            to: 'whirl',              count: 4,  players: 3  },
+  { from: 'blurry whirl', to: 'whirl' },
+  { from: 'ripwalk',      to: 'whirl' },
+  { from: 'whirl',        to: 'whirl' },
+  { from: 'smear',        to: 'dimwalk' },
+  { from: 'dimwalk',      to: 'ripwalk' },
+  { from: 'torque',       to: 'whirl' },
 ];
 
+// Example high-ADD chains. Each `adds` is the sum of the CURRENT canonical ADD
+// values of the tricks in the chain (verified against the dictionary), presented
+// as canonical arithmetic, not a recovered historical competition score. The
+// player/year attributions from the original corpus are omitted because that
+// provenance is not independently available; only chains whose tricks all resolve
+// canonically and whose totals are exact canonical sums are kept.
 export const INSIGHTS_SEQUENCES: InsightsSequence[] = [
-  { rank: 1,  player: 'Greg Solis',         year: 2008, adds: 22, length: 7, sequence: 'butterfly > whirl > osis > dimwalk > osis > butterfly > swirl' },
-  { rank: 2,  player: 'Stefan Siegert',     year: 2005, adds: 18, length: 5, sequence: 'blurry whirl > ripwalk > whirl > pixie > paradox whirl' },
-  { rank: 3,  player: 'Cody Rushing',       year: 2008, adds: 18, length: 5, sequence: 'blur > dimwalk > swirl > smear > dimwalk' },
-  { rank: 4,  player: 'Daniel Cadavid',     year: 2021, adds: 18, length: 5, sequence: 'dimwalk > osis > dimwalk > spinning osis > whirl' },
-  { rank: 5,  player: 'Kyle Hewitt',        year: 2007, adds: 16, length: 4, sequence: 'ripwalk > blurry whirl > smear > dimwalk' },
-  { rank: 6,  player: 'Brad Nelson',        year: 2002, adds: 15, length: 3, sequence: 'blurry whirl > paradox torque > paradox blender' },
-  { rank: 7,  player: 'Jake Wren',          year: 2007, adds: 15, length: 3, sequence: 'blurriest > spinning whirl > blurry whirl' },
-  { rank: 8,  player: 'Byrin Wylie',        year: 2007, adds: 15, length: 3, sequence: 'blurry whirl > blurry whirl > blurriest' },
-  { rank: 9,  player: 'Marcin Bujko',       year: 2010, adds: 15, length: 3, sequence: 'spinning osis > food processor > mobius' },
-  { rank: 10, player: 'Chris Dean',         year: 2013, adds: 15, length: 3, sequence: 'ducking butterfly > food processor > mobius' },
-];
-
-export const INSIGHTS_DIVERSE_PLAYERS: InsightsDiversePlayer[] = [
-  { rank: 1,  player: 'Mariusz Wilk',            uniqueTricks: 30, yearsActive: '2008–2019' },
-  { rank: 2,  player: 'Honza Weber',              uniqueTricks: 22, yearsActive: '2004–2021' },
-  { rank: 3,  player: 'Julien Appolonio',         uniqueTricks: 20, yearsActive: '2007' },
-  { rank: 4,  player: 'Stefan Siegert',           uniqueTricks: 19, yearsActive: '2005–2012' },
-  { rank: 5,  player: 'Jim Penske',               uniqueTricks: 18, yearsActive: '2006–2015' },
-  { rank: 6,  player: 'Byrin Wylie',              uniqueTricks: 16, yearsActive: '2005–2007' },
-  { rank: 7,  player: 'Matthias Lino Schmidt',    uniqueTricks: 16, yearsActive: '2012–2013' },
-  { rank: 8,  player: 'Damian Gielnicki',         uniqueTricks: 14, yearsActive: '2006–2022' },
-  { rank: 9,  player: 'Milan Benda',              uniqueTricks: 12, yearsActive: '2007–2014' },
-  { rank: 10, player: 'Nick Landes',              uniqueTricks: 11, yearsActive: '2004–2009' },
+  { sequence: 'butterfly > whirl > osis > dimwalk > osis > butterfly > swirl', adds: 22, length: 7 },
+  { sequence: 'blurry whirl > ripwalk > whirl > pixie > paradox whirl',        adds: 18, length: 5 },
+  { sequence: 'ripwalk > blurry whirl > smear > dimwalk',                      adds: 16, length: 4 },
+  { sequence: 'blurry whirl > paradox torque > paradox blender',              adds: 15, length: 3 },
+  { sequence: 'ducking butterfly > food processor > mobius',                  adds: 15, length: 3 },
 ];
 
 export const INSIGHTS_DIFFICULTY_ERAS: InsightsDifficultyEra[] = [

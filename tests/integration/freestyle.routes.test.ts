@@ -1594,15 +1594,32 @@ describe('Glossary improvements + history refresh', () => {
     expect(slice).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('glossary §5 carries the whirl network-attractor note exactly once', async () => {
+  it('glossary §5 carries the whirl resolution-point note exactly once', async () => {
     // The note lives solely on the whirl family card's observationalNote;
     // a prior standalone static duplicate (before the family-tree block)
     // was removed. Guard against the duplicate returning.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toContain('Whirl as central attractor');
-    expect(res.text).toMatch(/blurry whirl\s*&rarr;\s*whirl|blurry whirl\s*→\s*whirl/);
-    const occurrences = (res.text.match(/central attractor of the\s+freestyle trick network/g) ?? []).length;
-    expect(occurrences, 'network-attractor note renders exactly once').toBe(1);
+    expect(res.text).toContain('Why whirl anchors combinations');
+    const occurrences = (res.text.match(/Why whirl anchors combinations/g) ?? []).length;
+    expect(occurrences, 'whirl resolution-point note renders exactly once').toBe(1);
+  });
+
+  it('whirl family card no longer presents an unsupported network / most-documented claim', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).not.toMatch(/most documented two-trick/);
+    expect(res.text).not.toMatch(/22 years of Sick3/);
+    expect(res.text).not.toMatch(/most common opening element/);
+  });
+
+  it('whirl family card is mechanically accurate: cross-body clipper terminal, no clipper entry claim', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    // Canonical whirl uses generic SET (may enter from toe or clipper), so the card
+    // must describe only the terminal, never a fixed clipper entry or a "lands where
+    // it began" relationship.
+    expect(res.text).toContain('ends on a cross-body clipper delay');
+    expect(res.text).not.toMatch(/same clipper surface it set from/);
+    expect(res.text).not.toMatch(/ends exactly where it begins/i);
+    expect(res.text).not.toMatch(/lands where it beg|resolves where it beg|whirl sets from a clipper/i);
   });
 
   it('glossary keeps internal/developer jargon out of user-facing prose', async () => {
