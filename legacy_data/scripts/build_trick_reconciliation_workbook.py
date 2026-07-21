@@ -13,6 +13,16 @@ Scope (per curator direction 2026-05-19):
   - Does NOT publish external formulas as IFPA truth.
   - Does NOT resolve doctrine automatically.
 
+Governance role: this workbook is the truth-maintenance governance gate for the
+freestyle dictionary: new ingestion from external observational sources,
+including the PassBack observational layer and FootbagMoves, remains blocked
+until the workbook's per-field statuses are coherent under curator direction.
+The hold and disagreement registries used to generate this workbook are
+curator-authored constants maintained in this script; do not duplicate them in
+memory or secondary status documents. For open doctrine questions and held
+readings, freestyle/doctrine/RED_QUEUE.md and RED_RULINGS.md are the only live
+truth.
+
 Output:
   legacy_data/reports/trick_reconciliation.csv
   legacy_data/reports/trick_reconciliation_summary.md

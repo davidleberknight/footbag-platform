@@ -1,6 +1,6 @@
 ---
 name: pipeline-invariant-enforcer
-description: Enforce structural invariants before modifying the footbag historical pipeline. Trigger when work touches `legacy_data/run_pipeline.sh`, pipeline orchestration, canonical CSV generators, identity-lock files, workbook builders, seed builders, DB loaders, or any script that reads or writes `legacy_data/out/*` artifacts. Forces producer-before-consumer ordering, fresh-clone safety, canonical-as-source-of-truth, upstream identity resolution, and QC-before-success. Pauses for approval before applying edits.
+description: Audit invariants before modifying the historical pipeline. Trigger when work touches legacy_data/run_pipeline.sh, pipeline orchestration, canonical CSV generators, identity-lock files, workbook or seed builders, DB loaders, or any script reading or writing legacy_data/out/*. Surfaces risks and pauses for approval; never edits on its own.
 ---
 
 # Pipeline Invariant Enforcer

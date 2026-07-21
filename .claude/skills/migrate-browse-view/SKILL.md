@@ -39,7 +39,6 @@ Read the most recent migration's report so the new slice matches established con
 
 - `exploration/dictionary-symbolic-card/UNIFIED_DICTIONARY_VIEW_PLAN.md`: the architectural target every migration approaches
 - `exploration/dictionary-symbolic-card/SYMBOLIC_CARD_SPEC.md`: the partial's contract (do NOT modify; consume only)
-- The prior-slice reports, archived under `exploration/_archive/2026-05/dictionary-symbolic-card/`: the most recent is the up-to-date precedent
 - `src/views/partials/dictionary-trick-card.hbs`: the shared partial all views render
 - The existing group type for the view being migrated (e.g., `FreestyleTrickAddGroup`, `FreestyleFamilyGroup`, `FreestyleTrickGroup`, `ComponentGroup`, `TopologyGroup`): to see how prior slices extended their group types
 
@@ -192,7 +191,7 @@ Produce a report at `exploration/dictionary-symbolic-card/DSC2_{VIEW}_VIEW_REPOR
 8. **Recommendation for next slice**: which view to migrate next, why
 9. **Stop confirmation**: "stopping after this slice per the slice cadence"
 
-Reports for prior slices are the format-of-truth; they are archived under `exploration/_archive/2026-05/dictionary-symbolic-card/`.
+Reports for prior slices are the format-of-truth; match the most recent archived slice report.
 
 ## Step 7: Stage and hand off
 

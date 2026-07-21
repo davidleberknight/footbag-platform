@@ -134,6 +134,17 @@ A single-value column on `freestyle_tricks` expresses ONE axis only (the primary
 
 ---
 
+## Audit-derived gotchas
+
+Durable findings from the read-only topology audits; apply them to any counting or classification pass over the dictionary:
+
+- **Operator position does not by itself determine topological role.** A component's place in the formula token stream is not its semantic role; entry identity follows set-role and curated membership, not token location.
+- **Token counts overstate curated membership.** Counting `SPIN` tokens (or any raw formula token) inflates a family beyond its curated ecosystem, because rotational bases embed the token without belonging to the modifier family. Count by curated membership (`freestyle_trick_modifier_links`), never by token frequency.
+- **Set ecosystems are legitimate topology groupings.** Tricks built on a set pattern often carry no separate opening token because they ARE the set pattern; the absence of an entry token never dissolves a set ecosystem into "no entry identity".
+- **Airborne/elevation is an identified uncurated gap.** Flying/jumping/stomping-class movement carries no curated modifier links yet; treat missing airborne classification as a curation gap, not evidence the axis is empty.
+
+---
+
 ## Doctrine holds
 
 Some structural readings are held open pending the rules expert's (Red Husted) answers, and some are settled. Before doctrine-adjacent topology work, read the two live files — `freestyle/doctrine/RED_QUEUE.md` for what is currently held, and `freestyle/doctrine/RED_RULINGS.md` for what is settled. **Never trust a hold list embedded in this skill or in memory; those two files are the only live truth,** and the specific set of open questions changes over time.
