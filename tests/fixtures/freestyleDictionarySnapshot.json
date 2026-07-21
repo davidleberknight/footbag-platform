@@ -3364,7 +3364,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "AROUND THE WORLD KICK",
-"operational_notation": "TOE > SAME IN [DEX] [KICK]",
+"operational_notation": "TOE > SAME IN [DEX] > SAME [KICK]",
 "sort_order": 1233
 },
 {
@@ -8603,7 +8603,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "ORBIT KICK",
-"operational_notation": "TOE > SAME OUT [DEX] [KICK]",
+"operational_notation": "TOE > SAME OUT [DEX] > SAME [KICK]",
 "sort_order": 1662
 },
 {
@@ -8616,7 +8616,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "LEGOVER KICK",
-"operational_notation": "SET > OP OUT [DEX] [KICK]",
+"operational_notation": "SET > OP OUT [DEX] > SAME [KICK]",
 "sort_order": 1663
 },
 {
@@ -8681,7 +8681,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "MIRAGING KICK",
-"operational_notation": "SET > OP IN [DEX] [KICK]",
+"operational_notation": "SET > OP IN [DEX] > OP [KICK]",
 "sort_order": 1668
 },
 {
@@ -8694,7 +8694,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "ILLUSIONING KICK",
-"operational_notation": "SET > OP OUT [DEX] [KICK]",
+"operational_notation": "SET > OP OUT [DEX] > OP [KICK]",
 "sort_order": 1669
 },
 {
@@ -8863,7 +8863,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "PIXIE KICK",
-"operational_notation": "TOE > SAME IN [DEX] [KICK]",
+"operational_notation": "TOE > SAME IN [DEX] > OP [KICK]",
 "sort_order": 1683
 },
 {
@@ -8876,7 +8876,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "FAIRY KICK",
-"operational_notation": "TOE > SAME OUT [DEX] [KICK]",
+"operational_notation": "TOE > SAME OUT [DEX] > OP [KICK]",
 "sort_order": 1684
 },
 {
