@@ -1,14 +1,14 @@
-# Legacy archive — DATA is NEVER tracked. Only code, config, and audit reports.
+# Legacy repo-scripts layer — DATA and EVIDENCE are NEVER tracked. Only code
+# and config are committed.
 #
-# raw/    = immutable verbatim mysqldumps (private; PII and other sensitive material)
-# parsed/ = extracted NDJSON (rebuildable from raw)
-#
-# Both are excluded from git by construction. reports/ IS committed, but it
-# contains only counts + checksums + transform tallies — no row payloads.
+# raw/     = immutable verbatim mysqldumps (private; PII and other sensitive material)
+# parsed/  = extracted NDJSON (rebuildable from raw)
+# reports/ = ingest/seal audit JSONs — operational evidence of the dump ingests;
+#            their home is the maintainers' private repository's evidence
+#            directory, not this public repo. Only the .gitkeep is tracked so
+#            the directory exists for a run's output.
 
 raw/
 parsed/
-
-# Allow the empty committed reports directory to exist.
-!reports/
+reports/*
 !reports/.gitkeep

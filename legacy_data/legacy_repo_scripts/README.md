@@ -34,15 +34,18 @@ config/      sources.yaml, allowlist.yaml, denylist.yaml  (committed)
 scripts/     seal.py, ingest.py                            (committed)
 raw/         immutable verbatim dumps + .sha256 sidecars   (GITIGNORED)
 parsed/      extracted NDJSON, rebuildable from raw         (GITIGNORED)
-reports/     ingest_<app>_<date>.audit.json                 (committed, payload-free)
+reports/     ingest/seal audit JSONs                        (GITIGNORED except .gitkeep;
+             operational evidence lives in the maintainers' private repository)
 ```
 
 ## Safety boundaries (non-negotiable)
 
 1. **raw/ is immutable.** Sealed once, `chmod 0444`, never overwritten. A new dump
    lands as a new dated file.
-2. **No data in git.** `raw/` and `parsed/` are gitignored. Only code, config, and
-   payload-free audit reports are tracked.
+2. **No data or evidence in git.** `raw/`, `parsed/`, and `reports/` are gitignored.
+   Only code and config are tracked. Audit reports are operational evidence of the
+   dump ingests; move each report to the maintainers' private repository's
+   evidence directory after a run.
 3. **Allowlist-only extraction.** A table is processed only if it is listed in
    `allowlist.yaml` for that app. No wildcards.
 4. **Denylisted columns are destroyed before any read.** See `denylist.yaml`.
