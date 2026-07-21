@@ -1,0 +1,105 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>Every inbound payment recorded by the platform: donations, memberships, and event registrations.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <p><a href="{{content.reconciliationHref}}" class="btn btn-outline">Reconciliation Issues</a></p>
+
+    <form method="GET" action="/admin/payments" class="form-block">
+      <div class="form-field">
+        <label for="type">Type</label>
+        <select id="type" name="type">
+          <option value="">All types</option>
+          {{#each content.typeOptions}}
+            <option value="{{this}}"{{#if (eq this ../content.filters.paymentType)}} selected{{/if}}>{{this}}</option>
+          {{/each}}
+        </select>
+      </div>
+
+      <div class="form-field">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          <option value="">All statuses</option>
+          {{#each content.statusOptions}}
+            <option value="{{this}}"{{#if (eq this ../content.filters.status)}} selected{{/if}}>{{this}}</option>
+          {{/each}}
+        </select>
+      </div>
+
+      <div class="form-row-2col">
+        <div class="form-field">
+          <label for="from">From date</label>
+          <input type="date" id="from" name="from" value="{{content.filters.createdFrom}}">
+        </div>
+        <div class="form-field">
+          <label for="to">To date</label>
+          <input type="date" id="to" name="to" value="{{content.filters.createdTo}}">
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label for="member">Member ID</label>
+        <input type="text" id="member" name="member" value="{{content.filters.memberId}}">
+      </div>
+
+      <div class="form-field">
+        <label for="reference">Payment reference</label>
+        <input type="text" id="reference" name="reference" value="{{content.filters.reference}}">
+        <small class="form-hint">Matches the payment id, payment intent, checkout session, or subscription.</small>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Apply Filters</button>
+        <a href="{{content.clearHref}}" class="btn btn-outline">Clear</a>
+      </div>
+    </form>
+
+    <p class="text-muted">{{content.resultSummary}}</p>
+
+    {{#if content.hasRows}}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Member</th>
+            <th>Reference</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.rows}}
+            <tr>
+              <td>{{this.dateDisplay}}</td>
+              <td>{{this.typeLabel}}</td>
+              <td>{{this.amountDisplay}}</td>
+              <td>{{this.statusLabel}}</td>
+              <td>
+                {{#if this.memberHref}}
+                  <a href="{{this.memberHref}}">{{this.memberSlug}}</a>
+                {{else}}
+                  <span class="text-muted">none</span>
+                {{/if}}
+              </td>
+              <td>{{this.reference}}</td>
+              <td><a href="{{this.detailHref}}" class="btn btn-outline btn-sm">View Payment</a></td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <p class="text-muted">No payments match your search.</p>
+    {{/if}}
+
+    <p class="mt-6">
+      {{#if content.prevPageHref}}<a href="{{content.prevPageHref}}" class="btn btn-outline">Previous</a>{{/if}}
+      {{#if content.nextPageHref}}<a href="{{content.nextPageHref}}" class="btn btn-outline">Next</a>{{/if}}
+    </p>
+  </section>
+</div>

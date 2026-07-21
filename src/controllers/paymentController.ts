@@ -4,8 +4,9 @@ import { getPaymentAdapter, type StubPaymentAdapter } from '../adapters/paymentA
 import { WebhookSignatureError } from '../adapters/stripeWebhook';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
-import { ValidationError, NotFoundError } from '../services/serviceErrors';
+import { ValidationError, NotFoundError, RateLimitedError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
+import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { isSafePath } from '../lib/safePath';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -41,6 +42,16 @@ export const paymentController = {
       }
       if (req.user?.userId !== session.memberId) {
         renderNotFound(res);
+        return;
+      }
+      // A subscription session has no payments row by design, so it is shaped
+      // from the session itself rather than from a row that will never exist.
+      if (session.paymentType === 'subscription') {
+        res.render('payments/checkout', paymentService.getSubscriptionCheckoutPage({
+          sessionId,
+          amountCents: session.amountCents,
+          currency: session.currency,
+        }));
         return;
       }
       const payment = paymentService.getPaymentBySessionId(sessionId);
@@ -162,18 +173,35 @@ export const paymentController = {
     try {
       const sessionId =
         typeof req.query.session_id === 'string' ? req.query.session_id : '';
+      const user = req.user;
+      if (!user) {
+        renderNotFound(res);
+        return;
+      }
+      const continueHref = safeReturnTo(req.query.returnTo, `/members/${user.slug}`);
       const payment = sessionId
         ? paymentService.getPaymentBySessionId(sessionId)
         : null;
+
+      // A recurring donation writes no payments row until its first invoice, so
+      // it identifies itself with the reference we put on the success URL. The
+      // service verifies the reference belongs to this member.
       if (!payment) {
+        const ref = typeof req.query.ref === 'string' ? req.query.ref : '';
+        const donation = ref
+          ? paymentService.getDonationSuccessPage(user.userId, ref, continueHref)
+          : null;
+        if (!donation) {
+          renderNotFound(res);
+          return;
+        }
+        res.render('payments/success', donation);
+        return;
+      }
+      if (payment.member_id !== user.userId) {
         renderNotFound(res);
         return;
       }
-      if (payment.member_id !== req.user?.userId) {
-        renderNotFound(res);
-        return;
-      }
-      const continueHref = safeReturnTo(req.query.returnTo, `/members/${req.user.slug}`);
       res.render('payments/success', paymentService.getPaymentSuccessPage(payment, continueHref));
     } catch (err) {
       handleControllerError(err, res, next, 'payment success controller');
@@ -240,11 +268,26 @@ export const paymentController = {
       res.status(200).type('text/plain').send('ok');
     } catch (err) {
       if (err instanceof WebhookSignatureError) {
+        // A rotated-on-one-side signing secret makes EVERY delivery fail here,
+        // and it is the failure an operator most needs to hear about, so this
+        // branch has to feed the delivery-failure metric too. Counting only the
+        // recoverable branch below would leave the one case the alarm exists for
+        // completely silent.
+        logger.warn('webhook.delivery_failed', {
+          provider: 'stripe',
+          reason: 'signature',
+        });
         res.status(400).type('text/plain').send('invalid signature');
         return;
       }
       if (err instanceof RecoverableWebhookError) {
-        logger.warn('stripe webhook recoverable failure; returning 400 for retry', {
+        // Dotted event name, at warn: production runs at the warn level, and a
+        // CloudWatch metric filter matches this message literally to count
+        // webhook delivery failures. A prose sentence would drift and silently
+        // starve the metric.
+        logger.warn('webhook.delivery_failed', {
+          provider: 'stripe',
+          reason: 'recoverable',
           err: err.message,
         });
         res.status(400).type('text/plain').send('processing error');
@@ -268,15 +311,145 @@ export const paymentController = {
         renderNotFound(res);
         return;
       }
+      const flash = readFlash(req);
+      let cancelConfirmed = false;
+      if (flash?.kind === FLASH_KIND.RECURRING_DONATION_CANCELED) {
+        cancelConfirmed = true;
+        clearFlash(res, req);
+      }
       res.render(
         'members/payment-history',
-        paymentService.getPaymentHistoryPage(req.user.userId, memberKey),
+        paymentService.getPaymentHistoryPage(req.user.userId, memberKey, { cancelConfirmed }),
       );
     } catch (err) {
       handleControllerError(err, res, next, 'payment history controller');
     }
   },
+
+  /**
+   * GET /donate
+   * Member-facing donations page. Marked noindex by the service: it is a
+   * signed-in action page, not public content.
+   */
+  getDonate(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const user = req.user;
+      if (!user) {
+        renderNotFound(res);
+        return;
+      }
+      res.render(
+        'payments/donate',
+        paymentService.getDonatePage(user.userId, { returnTo: req.query.returnTo }),
+      );
+    } catch (err) {
+      handleControllerError(err, res, next, 'donate page controller');
+    }
+  },
+
+  /**
+   * POST /donate
+   * Opens checkout for a one-time or recurring annual donation. A validation
+   * failure re-renders the form at 422 with the reason, rather than delegating
+   * (a delegated ValidationError renders 404 and would hide the reason).
+   */
+  async postDonate(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const user = req.user;
+    if (!user) {
+      renderNotFound(res);
+      return;
+    }
+    const body = req.body as Record<string, unknown>;
+    const returnTo = body.returnTo;
+    try {
+      const result = await paymentService.startDonation(
+        user.userId,
+        selectDonationAmountInput(body),
+        body.note,
+        body.recurring === 'yes',
+        returnTo,
+      );
+      res.redirect(303, result.redirectUrl);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render(
+          'payments/donate',
+          paymentService.getDonatePage(user.userId, { returnTo, formError: err.message }),
+        );
+        return;
+      }
+      if (err instanceof RateLimitedError) {
+        if (err.retryAfterSeconds) {
+          res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        }
+        res.status(429).render(
+          'payments/donate',
+          paymentService.getDonatePage(user.userId, { returnTo, formError: err.message }),
+        );
+        return;
+      }
+      handleControllerError(err, res, next, 'donate controller');
+    }
+  },
+
+  /**
+   * POST /members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel
+   * Owner-only cancellation of a member's own recurring donation.
+   */
+  async postCancelRecurringDonation(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    const memberKey = req.params.memberKey;
+    if (req.user?.slug !== memberKey) {
+      renderNotFound(res);
+      return;
+    }
+    try {
+      await paymentService.cancelRecurringDonation(
+        req.user.userId,
+        req.params.stripeSubscriptionId,
+      );
+      writeFlash(res, req, FLASH_KIND.RECURRING_DONATION_CANCELED, memberKey);
+      res.redirect(303, `/members/${memberKey}/payments`);
+    } catch (err) {
+      // Caught locally: the shared handler does not map RateLimitedError, so
+      // delegating a throttle hit would answer 500 and raise the operator error
+      // alarm for what is an ordinary member double-click.
+      if (err instanceof RateLimitedError) {
+        if (err.retryAfterSeconds) {
+          res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        }
+        res.status(429).render('errors/not-found', {
+          seo:  { title: 'Too many requests' },
+          page: { sectionKey: '', pageKey: 'error_429', title: err.message },
+        });
+        return;
+      }
+      handleControllerError(err, res, next, 'cancel recurring donation controller');
+    }
+  },
 };
+
+/**
+ * Resolves the donation amount from either a suggested-amount choice or the
+ * custom-amount field. Shape coercion only: the service owns every bound and
+ * every error message, so a garbled value arrives as NaN and is rejected there
+ * with the same wording a member sees for any other bad amount.
+ */
+/**
+ * Selects which of the two amount inputs the member actually used, and hands the
+ * raw value to the service. Selection only: the service owns every bound, every
+ * precision rule, and every message, so a garbled value arrives there and is
+ * refused with the same wording as any other bad amount.
+ */
+function selectDonationAmountInput(body: Record<string, unknown>): string {
+  const choice = body.amountChoice;
+  if (typeof choice === 'string' && choice !== 'custom') return choice;
+  const custom = body.customAmount;
+  return typeof custom === 'string' ? custom : '';
+}
 
 function substitutePlaceholders(url: string, sessionId: string): string {
   // Stripe Checkout's `{CHECKOUT_SESSION_ID}` placeholder is replaced server-side

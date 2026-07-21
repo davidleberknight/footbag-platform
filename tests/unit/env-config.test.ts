@@ -74,6 +74,7 @@ function clearAwsWiring(): void {
   delete process.env.MEDIA_JOB_MAX_RETRIES;
   delete process.env.PAYMENT_ADAPTER;
   delete process.env.STRIPE_WEBHOOK_SECRET;
+  delete process.env.STRIPE_WEBHOOK_SECRET_PREVIOUS;
 }
 
 describe('env config: dev defaults apply when NODE_ENV is not production', () => {
@@ -750,6 +751,39 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     await expect(import('../../src/config/env')).rejects.toThrow(
       /must not be a stub secret in production/,
     );
+  });
+
+  // The rotation secret is optional, but while it is set it is trusted exactly
+  // as much as the current one: a delivery signed with it is accepted. So it
+  // carries the same production guard, or a stub secret could be smuggled in
+  // through the second slot while the first one looks correct.
+  it('rejects a whsec_stub-prefixed STRIPE_WEBHOOK_SECRET_PREVIOUS in production', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'live';
+    process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
+    process.env.AWS_REGION = 'us-east-1';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'live';
+    process.env.FOOTBAG_ENV = 'production';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_a_real_looking_live_secret_value';
+    process.env.STRIPE_WEBHOOK_SECRET_PREVIOUS = 'whsec_stub_0000000000000000000000000000';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /STRIPE_WEBHOOK_SECRET_PREVIOUS must not be a stub secret in production/,
+    );
+  });
+
+  it('leaves the rotation secret undefined when no rotation is in flight', async () => {
+    baselineRequired();
+    process.env.PAYMENT_ADAPTER = 'stub';
+    const { config } = await import('../../src/config/env');
+    expect(config.stripeWebhookSecretPrevious).toBeUndefined();
   });
 
   it("does not require STRIPE_WEBHOOK_SECRET when PAYMENT_ADAPTER='stub'", async () => {

@@ -205,6 +205,47 @@ resource "aws_cloudwatch_metric_alarm" "outbox_backlog" {
   ok_actions          = [aws_sns_topic.alarms.arn]
 }
 
+# ── Payment webhook delivery ──────────────────────────────────────────────────
+# Both webhook rejection paths answer 400 and log webhook.delivery_failed at
+# warn: a rejected signature (reason=signature) and a recoverable processing
+# failure the provider should retry (reason=recoverable). Neither reaches
+# logger.error, so the blanket AppErrorCount alarm does not cover either one.
+# The failure this exists for is a signing secret rotated on one side only,
+# which makes every delivery fail while staying invisible until the provider
+# disables the endpoint days later. An occasional single failure is normal; a
+# sustained run is not. Check the reason field on the logged lines to tell a
+# secret mismatch apart from a burst of unsigned junk from the open internet.
+
+resource "aws_cloudwatch_log_metric_filter" "webhook_delivery_failures" {
+  name           = "${local.prefix}-webhook-delivery-failures"
+  log_group_name = aws_cloudwatch_log_group.app.name
+  pattern        = "{ $.msg = \"webhook.delivery_failed\" }"
+  metric_transformation {
+    namespace     = "Footbag/${var.environment}"
+    name          = "WebhookDeliveryFailures"
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "webhook_delivery_failures" {
+  alarm_name          = "${local.prefix}-webhook-delivery-failures"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "WebhookDeliveryFailures"
+  namespace           = "Footbag/${var.environment}"
+  # Five minutes rather than fifteen: a shorter period detects a secret mismatch
+  # sooner and stops a stale data point from holding the alarm state once the
+  # metric stops moving.
+  period             = 300
+  statistic          = "Sum"
+  threshold          = 5
+  treat_missing_data = "notBreaching"
+  alarm_description  = "More than 5 payment webhook deliveries rejected in 5 minutes; check the reason field (signature = secret mismatch, recoverable = processing)"
+  alarm_actions      = [aws_sns_topic.alarms.arn]
+  ok_actions         = [aws_sns_topic.alarms.arn]
+}
+
 # ── SES reputation ────────────────────────────────────────────────────────────
 # Account-level bounce/complaint rates. SES pauses sending around 10% bounce /
 # 0.5% complaint; alarm early at half those levels.

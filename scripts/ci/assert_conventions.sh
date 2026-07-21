@@ -774,12 +774,15 @@ fi
 # fresh npm install. An upgrade to any of these must be a reviewed, deliberate
 # change, so their declared versions are exact x.y.z with no range operator.
 echo "[conventions] check: security-critical dependencies pinned exactly"
-pin_hits=$(grep -nE '"(argon2|better-sqlite3|express|helmet|marked)"[[:space:]]*:' package.json \
+# stripe is pinned for a reason beyond supply chain: the SDK carries the API
+# version, and an API version change reshapes webhook payloads. A caret range
+# lets an unrelated install move object shapes under working payment code.
+pin_hits=$(grep -nE '"(argon2|better-sqlite3|express|helmet|marked|stripe)"[[:space:]]*:' package.json \
   | grep -vE ':[[:space:]]*"[0-9]+\.[0-9]+\.[0-9]+"' \
   || true)
 if [ -n "$pin_hits" ]; then
   echo "$pin_hits" >&2
-  echo "  FAIL: argon2 / better-sqlite3 / express / helmet / marked must be pinned to an exact x.y.z version" >&2
+  echo "  FAIL: argon2 / better-sqlite3 / express / helmet / marked / stripe must be pinned to an exact x.y.z version" >&2
   violations=$((violations + 1))
 fi
 

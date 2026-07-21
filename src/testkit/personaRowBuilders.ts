@@ -624,10 +624,12 @@ export function insertMemberLink(
 
 // ── Payment ───────────────────────────────────────────────────────────────────
 //
-// Minimal `payments` row factory. Sufficient for tests that need a real FK
-// target (e.g. member_tier_grants.related_payment_id). Does not exercise
-// the full payment lifecycle (status transitions, Stripe identifiers,
-// refund handling); extend this factory when those land.
+// `payments` row factory. Covers the FK-target use (e.g.
+// member_tier_grants.related_payment_id) and the provider-identifier and
+// creation-time fields that reconciliation matches on. It does not drive the
+// lifecycle: a status transition is produced by exercising the webhook handlers,
+// because a row set straight to a terminal status has no transition-ledger entry
+// and would misrepresent how the system actually reaches that state.
 
 export interface PaymentOverrides {
   id?: string;
@@ -638,6 +640,13 @@ export interface PaymentOverrides {
   status?: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'refunded';
   descriptor?: string;
   purchased_tier_status?: 'tier1' | 'tier2' | null;
+  created_at?: string;
+  stripe_payment_intent_id?: string | null;
+  stripe_checkout_session_id?: string | null;
+  stripe_subscription_id?: string | null;
+  recurring_subscription_id?: string | null;
+  donation_note?: string | null;
+  metadata_json?: string;
 }
 
 export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = {}): string {
@@ -647,16 +656,19 @@ export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = 
     paymentType === 'membership'
       ? (o.purchased_tier_status ?? 'tier1')
       : (o.purchased_tier_status ?? null);
+  const createdAt = o.created_at ?? TS;
   db.prepare(`
     INSERT INTO payments (
       id, created_at, created_by, updated_at, updated_by, version,
       member_id,
       payment_type, amount_cents, currency,
       status, descriptor,
-      purchased_tier_status
-    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?)
+      purchased_tier_status,
+      stripe_payment_intent_id, stripe_checkout_session_id, stripe_subscription_id,
+      recurring_subscription_id, donation_note, metadata_json
+    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, TS,
+    id, createdAt, createdAt,
     o.member_id ?? null,
     paymentType,
     o.amount_cents ?? 1000,
@@ -664,6 +676,71 @@ export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = 
     o.status ?? 'succeeded',
     o.descriptor ?? 'Test payment',
     purchasedTier,
+    o.stripe_payment_intent_id ?? null,
+    o.stripe_checkout_session_id ?? null,
+    o.stripe_subscription_id ?? null,
+    o.recurring_subscription_id ?? null,
+    o.donation_note ?? null,
+    o.metadata_json ?? '{}',
+  );
+  return id;
+}
+
+// ── Recurring donation subscription ───────────────────────────────────────────
+//
+// Local mirror of a payment-provider subscription. Seeded directly only where a
+// test needs a subscription to already exist; a test of the subscription
+// lifecycle itself drives the real webhook handlers instead, so the transition
+// ledger and the audit trail are produced the way production produces them.
+
+export interface RecurringDonationSubscriptionOverrides {
+  id?: string;
+  member_id: string;
+  stripe_customer_id?: string;
+  stripe_subscription_id?: string;
+  status?: 'active' | 'past_due' | 'canceled';
+  amount_cents?: number;
+  currency?: string;
+  started_at?: string;
+  donation_comment?: string | null;
+  is_cancel_at_period_end?: 0 | 1;
+  cancel_requested_at?: string | null;
+  canceled_at?: string | null;
+  failure_count?: number;
+}
+
+export function insertRecurringDonationSubscription(
+  db: BetterSqlite3.Database,
+  o: RecurringDonationSubscriptionOverrides,
+): string {
+  const id = o.id ?? `rds-test-${uid()}`;
+  const startedAt = o.started_at ?? TS;
+  const status = o.status ?? 'active';
+  db.prepare(`
+    INSERT INTO recurring_donation_subscriptions (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, stripe_customer_id, stripe_subscription_id,
+      status, amount_cents, currency, billing_interval,
+      started_at, status_updated_at,
+      is_cancel_at_period_end, cancel_requested_at, canceled_at,
+      donation_comment, failure_count
+    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, 'yearly', ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, startedAt, startedAt,
+    o.member_id,
+    o.stripe_customer_id ?? `cus-test-${uid()}`,
+    o.stripe_subscription_id ?? `sub-test-${uid()}`,
+    status,
+    o.amount_cents ?? 2500,
+    o.currency ?? 'USD',
+    startedAt, startedAt,
+    o.is_cancel_at_period_end ?? 0,
+    o.cancel_requested_at ?? null,
+    // The table refuses a cancellation time on a live subscription, so the
+    // default follows the status rather than being independently settable.
+    o.canceled_at ?? (status === 'canceled' ? startedAt : null),
+    o.donation_comment ?? null,
+    o.failure_count ?? 0,
   );
   return id;
 }

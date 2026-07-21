@@ -1,0 +1,46 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>Reference {{content.id}}</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <table class="data-table">
+      <tbody>
+        <tr><th>Date</th><td>{{content.dateDisplay}}</td></tr>
+        <tr><th>Type</th><td>{{content.typeLabel}}</td></tr>
+        <tr><th>Item</th><td>{{content.descriptor}}</td></tr>
+        <tr><th>Amount</th><td>{{content.amountDisplay}}</td></tr>
+        <tr><th>Status</th><td>{{content.statusLabel}}</td></tr>
+        <tr>
+          <th>Member</th>
+          <td>
+            {{#if content.memberHref}}
+              <a href="{{content.memberHref}}">{{content.memberSlug}}</a>
+            {{else}}
+              <span class="text-muted">none</span>
+            {{/if}}
+          </td>
+        </tr>
+        <tr><th>Payment intent</th><td>{{content.stripePaymentIntentId}}</td></tr>
+        <tr><th>Checkout session</th><td>{{content.stripeCheckoutSessionId}}</td></tr>
+        <tr><th>Subscription</th><td>{{content.stripeSubscriptionId}}</td></tr>
+      </tbody>
+    </table>
+
+    {{#if content.hasDonationNote}}
+      <h2 class="section-heading mt-8">Donor note</h2>
+      <p class="card">{{content.donationNote}}</p>
+      <p class="text-muted fs-sm">
+        Shown so a discrepancy can be investigated with the donor's own words in view. It is a
+        record of what they wrote and is not editable from any admin screen.
+      </p>
+    {{/if}}
+
+    <p class="mt-6">
+      <a href="{{content.backHref}}" class="btn btn-outline">Back to All Payments</a>
+    </p>
+  </section>
+</div>

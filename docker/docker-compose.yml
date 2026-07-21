@@ -99,6 +99,10 @@ services:
       # Unused in stub mode (stub adapter uses its own whsec_stub secret);
       # required by env.ts boot only when PAYMENT_ADAPTER=live.
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # The outgoing secret during a rotation. Stripe signs each delivery with
+      # both secrets for the length of the roll window, so accepting both is what
+      # lets the secret change without dropping deliveries. Unset outside a roll.
+      STRIPE_WEBHOOK_SECRET_PREVIOUS: ${STRIPE_WEBHOOK_SECRET_PREVIOUS:-}
       # CaptchaAdapter for the claim/registration surface. Stub default in every
       # tier; an operator opts into live Cloudflare Turnstile by setting
       # CAPTCHA_ADAPTER=live and the public TURNSTILE_SITE_KEY in /srv/footbag/env
@@ -205,6 +209,10 @@ services:
       # Unused in stub mode (stub adapter uses its own whsec_stub secret);
       # required by env.ts boot only when PAYMENT_ADAPTER=live.
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # The outgoing secret during a rotation. Stripe signs each delivery with
+      # both secrets for the length of the roll window, so accepting both is what
+      # lets the secret change without dropping deliveries. Unset outside a roll.
+      STRIPE_WEBHOOK_SECRET_PREVIOUS: ${STRIPE_WEBHOOK_SECRET_PREVIOUS:-}
       # The worker never serves the claim/registration surface, but it boots
       # the same env.ts contract, and env.ts refuses a FOOTBAG_ENV=production
       # boot on the captcha stub. Same passthrough as web so a production

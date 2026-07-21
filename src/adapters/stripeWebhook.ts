@@ -35,22 +35,38 @@ export class WebhookSignatureError extends Error {
  * environment's signing secret, returning the parsed Stripe event on success.
  * Rethrows any signature failure as WebhookSignatureError.
  */
+/**
+ * @param secret     The current signing secret.
+ * @param previous   The outgoing secret during a rotation, if one is in
+ *   progress. Stripe signs every delivery with both the old and the new secret
+ *   for the length of the roll window, so accepting either is what allows the
+ *   secret to be rotated without dropping deliveries. Each candidate is checked
+ *   with the same constant-time verifier, and a delivery that satisfies neither
+ *   is rejected exactly as a single-secret failure would be.
+ */
 export function verifyStripeWebhook(
   rawBody: string | Buffer,
   signature: string,
   secret: string,
+  previous?: string,
 ) {
-  try {
-    return stripeClient.webhooks.constructEvent(rawBody, signature, secret);
-  } catch (err) {
-    if (err instanceof Stripe.errors.StripeSignatureVerificationError) {
-      throw new WebhookSignatureError(
-        'Stripe webhook signature verification failed',
-        { cause: err },
-      );
+  const candidates = previous && previous !== secret ? [secret, previous] : [secret];
+  let lastSignatureError: unknown;
+  for (const candidate of candidates) {
+    try {
+      return stripeClient.webhooks.constructEvent(rawBody, signature, candidate);
+    } catch (err) {
+      if (err instanceof Stripe.errors.StripeSignatureVerificationError) {
+        lastSignatureError = err;
+        continue;
+      }
+      throw err;
     }
-    throw err;
   }
+  throw new WebhookSignatureError(
+    'Stripe webhook signature verification failed',
+    { cause: lastSignatureError },
+  );
 }
 
 /**

@@ -6,6 +6,51 @@
 
 <div class="wrapper">
   <section>
+    {{#if content.cancelConfirmed}}
+      <p class="form-success-banner" role="status">
+        Your recurring donation has been cancelled. You will not be charged again, and the period
+        you have already given still counts. We have emailed you a confirmation.
+      </p>
+    {{/if}}
+
+    {{#if content.hasRecurring}}
+      <h2 class="section-heading">Recurring donations</h2>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Started</th>
+            <th>Amount</th>
+            <th>Note</th>
+            <th>Status</th>
+            <th>Reference</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.recurringRows}}
+            <tr>
+              <td>{{this.startedDate}}</td>
+              <td>{{this.amountDisplay}} each year</td>
+              <td>{{this.noteDisplay}}</td>
+              <td>{{this.statusLabel}}</td>
+              <td>{{this.reference}}</td>
+              <td>
+                {{#if this.showCancel}}
+                  <form method="POST" action="{{this.cancelHref}}">
+                    <button type="submit" class="btn btn-outline btn-sm">Cancel Recurring Donation</button>
+                  </form>
+                {{/if}}
+                {{#if this.isCancelPending}}
+                  <span class="text-muted fs-sm">Cancellation requested</span>
+                {{/if}}
+              </td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{/if}}
+
+    <h2 class="section-heading mt-8">Payments</h2>
     {{#if content.rows.length}}
       <table class="data-table">
         <thead>
@@ -33,7 +78,13 @@
       <p>No payments yet.</p>
     {{/if}}
 
+    <p class="text-muted fs-sm mt-4">
+      Payment records here cannot be edited. If something looks wrong, contact the IFPA
+      administrator from your profile and quote the reference shown against the entry.
+    </p>
+
     <p class="mt-6">
+      <a href="{{content.donateHref}}" class="btn btn-primary">Donate to IFPA</a>
       <a href="/members/{{content.memberKey}}" class="btn btn-outline">Back to Profile</a>
     </p>
   </section>

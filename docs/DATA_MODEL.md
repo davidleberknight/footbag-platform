@@ -488,6 +488,8 @@ Every `payments.status` change **must** be paired with a `payment_status_transit
 #### Reconciliation issues
 `expires_at` is set at INSERT using the `reconciliation_expiry_days` config key: `strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+' || reconciliation_expiry_days || ' days')`. The cleanup job deletes rows WHERE `expires_at <= now AND status = 'resolved'`.
 
+The `ux_recon_outstanding_dedup` partial unique index enforces at most one outstanding issue per distinct discrepancy, keyed on `issue_type` plus the three provider references. The references are wrapped in `COALESCE` because SQLite treats NULLs as distinct in a unique index, so a discrepancy carrying no local payment id would otherwise never collide with itself. The index is partial on `status = 'outstanding'`, so resolving an issue frees the slot and a discrepancy still present on a later run is correctly raised again. This is what makes the reconciliation pass idempotent: a check-then-insert in application code cannot deliver that on its own, because two overlapping runs both read "not present" before either commits.
+
 ### 4.11 System Configuration & Pricing
 
 **Table:** `system_config`  

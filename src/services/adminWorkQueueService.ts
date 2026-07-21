@@ -154,6 +154,10 @@ const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
   auto_link_match:           'Auto-link match',
   member_link_help_request:  'Member link help request',
   claim_dob_mismatch_review: 'Birth-date conflict on a claimed legacy account',
+  recurring_donation_charge_declined: 'Recurring donation renewal charge declined',
+  reconciliation_discrepancy: 'Payment reconciliation discrepancy',
+  unattributed_refund: 'Refund with no matching payment record',
+  partial_refund_review: 'Partially refunded payment',
 };
 
 // Internal-review items an admin closes with a dismissal (no member reply, no

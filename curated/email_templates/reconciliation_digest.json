@@ -1,0 +1,7 @@
+{
+  "templateKey": "reconciliation_digest",
+  "subjectTemplate": "Payment reconciliation: {countPhrase}",
+  "bodyTemplate": "Payment reconciliation has {countPhrase} waiting for a decision.\n\n{itemLines}\n\nReview and resolve them here: {reviewUrl}",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

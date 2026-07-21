@@ -1,0 +1,7 @@
+{
+  "templateKey": "donation_subscription_charge_failed",
+  "subjectTemplate": "We could not process your recurring donation",
+  "bodyTemplate": "This year's charge for your recurring annual donation to IFPA did not go through.\n\nAmount:   {amountDisplay}\n{notePhrase}\n\nOur payment provider will try again automatically. If the card on file has expired or changed, please update it so the donation can continue.\n\nReference: {referenceId}",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

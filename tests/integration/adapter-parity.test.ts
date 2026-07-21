@@ -1499,12 +1499,16 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     const captured: {
       sessions: import('../../src/adapters/paymentAdapter').StripeCheckoutSessionCreateParams[];
       subscriptionUpdates: { id: string; params: { cancel_at_period_end: boolean } }[];
-    } = { sessions: [], subscriptionUpdates: [] };
+      listCalls: { endpoint: string; params: import('../../src/adapters/paymentAdapter').StripeListParams }[];
+      intentPageIndex: number;
+      sessionOptions: (import('../../src/adapters/paymentAdapter').StripeRequestOptions | undefined)[];
+    } = { sessions: [], subscriptionUpdates: [], listCalls: [], intentPageIndex: 0, sessionOptions: [] };
     const client: import('../../src/adapters/paymentAdapter').StripeClientLike = {
       checkout: {
         sessions: {
-          async create(params) {
+          async create(params, options) {
             captured.sessions.push(params);
+            captured.sessionOptions.push(options);
             return {
               id: sessionOverrides.id ?? 'cs_fake_123',
               url: sessionOverrides.url === undefined ? 'https://checkout.stripe.example/cs_fake_123' : sessionOverrides.url,
@@ -1518,10 +1522,60 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
           captured.subscriptionUpdates.push({ id, params });
           return {};
         },
+        async list(params) {
+          captured.listCalls.push({ endpoint: 'subscriptions', params });
+          return { data: ledger.subscriptions, has_more: false };
+        },
+      },
+      paymentIntents: {
+        async list(params) {
+          captured.listCalls.push({ endpoint: 'paymentIntents', params });
+          // Two pages, so the drain loop is exercised rather than assumed.
+          const page = ledger.intentPages[captured.intentPageIndex] ?? [];
+          captured.intentPageIndex += 1;
+          return { data: page, has_more: captured.intentPageIndex < ledger.intentPages.length };
+        },
+      },
+      invoices: {
+        async list(params) {
+          captured.listCalls.push({ endpoint: 'invoices', params });
+          return { data: ledger.invoices, has_more: false };
+        },
       },
     };
     return { client, captured };
   }
+
+  // Provider-side records the live adapter's list methods read.
+  const ledger = {
+    intentPages: [
+      [{ id: 'pi_a', amount: 2500, currency: 'usd', status: 'succeeded', created: 1700000000 }],
+      [{ id: 'pi_b', amount: 1000, currency: 'usd', status: 'canceled', created: 1700000100 }],
+    ],
+    subscriptions: [
+      {
+        id: 'sub_a',
+        customer: 'cus_a',
+        status: 'active',
+        items: { data: [{ price: { unit_amount: 2500, currency: 'usd' } }] },
+      },
+    ],
+    invoices: [
+      {
+        id: 'in_a',
+        subscription: 'sub_a',
+        amount_paid: 2500,
+        currency: 'usd',
+        status: 'paid',
+        created: 1700000200,
+      },
+    ],
+  };
+
+  const LEDGER_WINDOW = {
+    createdAfter: '2023-11-01T00:00:00.000Z',
+    createdBefore: '2023-12-01T00:00:00.000Z',
+  };
 
   function makeLive(sessionOverrides: Parameters<typeof makeFakeStripe>[0] = {}) {
     const { client, captured } = makeFakeStripe(sessionOverrides);
@@ -1564,6 +1618,191 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
       expect(typeof result.redirectUrl).toBe('string');
       expect(result.paymentIntentId === null || typeof result.paymentIntentId === 'string').toBe(true);
     }
+  });
+
+  // Design intent: test-mode keys only outside production, separate live and
+  // test keys per environment. Enforced rather than left to operator care,
+  // because the failure is silent in both directions: a live key in a rehearsal
+  // charges real cards, and a test key in production collects nothing while
+  // every dashboard reads healthy.
+  it('refuses a live key outside production, including the restricted-key form', async () => {
+    const { assertKeyMatchesEnvironment } = await import('../../src/adapters/paymentAdapter');
+    for (const env of ['staging', 'development', undefined] as const) {
+      expect(() => assertKeyMatchesEnvironment('sk_live_abc123', env)).toThrow(/live-mode/i);
+      expect(() => assertKeyMatchesEnvironment('rk_live_abc123', env)).toThrow(/live-mode/i);
+    }
+  });
+
+  it('refuses a test key in production, where it would silently collect no money', async () => {
+    const { assertKeyMatchesEnvironment } = await import('../../src/adapters/paymentAdapter');
+    expect(() => assertKeyMatchesEnvironment('sk_test_abc123', 'production')).toThrow(/test-mode/i);
+    expect(() => assertKeyMatchesEnvironment('rk_test_abc123', 'production')).toThrow(/test-mode/i);
+  });
+
+  it('accepts each key in the environment it belongs to', () => {
+    return import('../../src/adapters/paymentAdapter').then(({ assertKeyMatchesEnvironment }) => {
+      expect(() => assertKeyMatchesEnvironment('sk_test_abc123', 'staging')).not.toThrow();
+      expect(() => assertKeyMatchesEnvironment('sk_test_abc123', 'development')).not.toThrow();
+      expect(() => assertKeyMatchesEnvironment('sk_live_abc123', 'production')).not.toThrow();
+      expect(() => assertKeyMatchesEnvironment('rk_live_abc123', 'production')).not.toThrow();
+    });
+  });
+
+  it('verification accepts either secret while a rotation is in flight, and rejects anything else', async () => {
+    // Stripe signs every delivery with both the old and the new secret for the
+    // length of a secret roll. Accepting only one means a rotation fails every
+    // delivery until the deploy lands, which is an outage rather than a routine
+    // credential change.
+    const { verifyStripeWebhook, signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { WebhookSignatureError } = await import('../../src/adapters/stripeWebhook');
+    const current = 'whsec_stub_current_00000000000000000';
+    const previous = 'whsec_stub_previous_0000000000000000';
+    const body = JSON.stringify({ id: 'evt_roll', type: 'ping', created: 1700000000, data: { object: {} } });
+
+    expect(
+      verifyStripeWebhook(body, signStripeWebhook(body, current), current, previous).id,
+    ).toBe('evt_roll');
+    expect(
+      verifyStripeWebhook(body, signStripeWebhook(body, previous), current, previous).id,
+    ).toBe('evt_roll');
+
+    // A third secret is still refused, so the overlap widens the window, not the trust.
+    expect(() =>
+      verifyStripeWebhook(body, signStripeWebhook(body, 'whsec_stub_other_000000000000000000'), current, previous),
+    ).toThrow(WebhookSignatureError);
+
+    // And with no rotation in progress, only the current secret is accepted.
+    expect(() =>
+      verifyStripeWebhook(body, signStripeWebhook(body, previous), current),
+    ).toThrow(WebhookSignatureError);
+  });
+
+  it('both return the same ledger-summary shapes from the reconciliation reads', async () => {
+    const stub = createStubPaymentAdapter();
+    const { adapter: live } = makeLive();
+
+    for (const intents of [
+      await stub.listPaymentIntents(LEDGER_WINDOW),
+      await live.listPaymentIntents(LEDGER_WINDOW),
+    ]) {
+      expect(Array.isArray(intents)).toBe(true);
+      intents.forEach((i) => {
+        expect(typeof i.id).toBe('string');
+        expect(Number.isInteger(i.amountCents)).toBe(true);
+        expect(i.currency).toBe(i.currency.toUpperCase());
+        expect(typeof i.status).toBe('string');
+        expect(i.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      });
+    }
+
+    for (const subs of [await stub.listSubscriptions(), await live.listSubscriptions()]) {
+      expect(Array.isArray(subs)).toBe(true);
+      subs.forEach((s) => {
+        expect(typeof s.id).toBe('string');
+        expect(typeof s.status).toBe('string');
+        expect(s.customerId === null || typeof s.customerId === 'string').toBe(true);
+        expect(s.amountCents === null || Number.isInteger(s.amountCents)).toBe(true);
+      });
+    }
+
+    for (const invoices of [
+      await stub.listInvoices(LEDGER_WINDOW),
+      await live.listInvoices(LEDGER_WINDOW),
+    ]) {
+      expect(Array.isArray(invoices)).toBe(true);
+      invoices.forEach((inv) => {
+        expect(typeof inv.id).toBe('string');
+        expect(Number.isInteger(inv.amountPaidCents)).toBe(true);
+        expect(inv.currency).toBe(inv.currency.toUpperCase());
+        expect(inv.subscriptionId === null || typeof inv.subscriptionId === 'string').toBe(true);
+      });
+    }
+  });
+
+  it('live listPaymentIntents drains every page, because a partial read would report a whole ledger as missing', async () => {
+    const { adapter, captured } = makeLive();
+    const intents = await adapter.listPaymentIntents(LEDGER_WINDOW);
+    expect(intents.map((i) => i.id)).toEqual(['pi_a', 'pi_b']);
+    const intentCalls = captured.listCalls.filter((c) => c.endpoint === 'paymentIntents');
+    expect(intentCalls).toHaveLength(2);
+    expect(intentCalls[1].params.starting_after).toBe('pi_a');
+  });
+
+  it('live ledger reads bound the window in provider epoch seconds', async () => {
+    const { adapter, captured } = makeLive();
+    await adapter.listInvoices(LEDGER_WINDOW);
+    const call = captured.listCalls.find((c) => c.endpoint === 'invoices')!;
+    expect(call.params.created).toEqual({
+      gte: Math.floor(Date.parse(LEDGER_WINDOW.createdAfter) / 1000),
+      lt: Math.floor(Date.parse(LEDGER_WINDOW.createdBefore) / 1000),
+    });
+  });
+
+  it('live listSubscriptions sends no window, because current subscription state is not time-bounded', async () => {
+    const { adapter, captured } = makeLive();
+    await adapter.listSubscriptions();
+    const call = captured.listCalls.find((c) => c.endpoint === 'subscriptions')!;
+    expect(call.params.created).toBeUndefined();
+  });
+
+  it('sends an idempotency key on both create calls, so a retry cannot mint a duplicate', async () => {
+    // A retried create without a key opens a second checkout session, or worse a
+    // second subscription, and the member ends up donating twice.
+    const { adapter, captured } = makeLive();
+    await adapter.createCheckoutSession(ONE_TIME_OPTS);
+    await adapter.createSubscriptionCheckoutSession({
+      memberId: 'm-parity-1',
+      paymentId: 'rds-parity-1',
+      amountCents: 2500,
+      currency: 'USD',
+      comment: null,
+      successUrl: 'https://footbag.org/payments/success',
+      cancelUrl: 'https://footbag.org/payments/cancel',
+    });
+
+    expect(captured.sessionOptions).toHaveLength(2);
+    captured.sessionOptions.forEach((o) => {
+      expect(typeof o?.idempotencyKey).toBe('string');
+      expect(o!.idempotencyKey!.length).toBeGreaterThan(0);
+    });
+    // Derived from the platform-side id, which is stable across a retry of the
+    // same logical operation and distinct between the two flows.
+    expect(captured.sessionOptions[0]!.idempotencyKey).toContain('pay-parity-1');
+    expect(captured.sessionOptions[1]!.idempotencyKey).toContain('rds-parity-1');
+    expect(captured.sessionOptions[0]!.idempotencyKey)
+      .not.toBe(captured.sessionOptions[1]!.idempotencyKey);
+  });
+
+  it('reuses the member existing Stripe customer for a repeat recurring donation', async () => {
+    // Checkout mints a fresh Customer whenever none is passed, which would split
+    // a repeat donor's payment history across duplicate customer records.
+    const { adapter, captured } = makeLive();
+    await adapter.createSubscriptionCheckoutSession({
+      memberId: 'm-parity-1',
+      paymentId: 'rds-parity-2',
+      amountCents: 2500,
+      currency: 'USD',
+      comment: null,
+      stripeCustomerId: 'cus_existing_donor',
+      successUrl: 'https://footbag.org/payments/success',
+      cancelUrl: 'https://footbag.org/payments/cancel',
+    });
+    expect(captured.sessions[0].customer).toBe('cus_existing_donor');
+  });
+
+  it('omits the customer for a first-time donor, letting the provider create one', async () => {
+    const { adapter, captured } = makeLive();
+    await adapter.createSubscriptionCheckoutSession({
+      memberId: 'm-parity-1',
+      paymentId: 'rds-parity-3',
+      amountCents: 2500,
+      currency: 'USD',
+      comment: null,
+      stripeCustomerId: null,
+      successUrl: 'https://footbag.org/payments/success',
+      cancelUrl: 'https://footbag.org/payments/cancel',
+    });
+    expect(captured.sessions[0].customer).toBeUndefined();
   });
 
   it('live createCheckoutSession sends payment mode, amount, lowercased currency, and the absolute URLs', async () => {

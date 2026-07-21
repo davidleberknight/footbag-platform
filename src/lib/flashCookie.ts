@@ -24,6 +24,8 @@ export const FLASH_KIND = {
   WORK_QUEUE_CLAIMED: 'work_queue_claimed',
   CLUB_ACTION: 'club_action',
   PROFILE_UPDATED: 'profile_updated',
+  RECURRING_DONATION_CANCELED: 'recurring_donation_canceled',
+  RECONCILIATION_RESOLVED: 'reconciliation_resolved',
   // Stub-only: carries the just-registered recipient email across the
   // register/resend POST->303->GET so the simulated-email dev card can scope
   // to that recipient and never show another pending user's verify token.

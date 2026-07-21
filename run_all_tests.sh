@@ -215,12 +215,23 @@ assert_real_data_untouched() {
   for d in "${REAL_DATA_DIRS[@]}"; do
     now=$(fingerprint "$d")
     if [[ "$now" != "${FP_BEFORE[$d]}" ]]; then
-      echo "FATAL: a gate modified '$d/' (real-data tree). This must never happen." >&2
+      echo "FATAL: '$d/' (real-data tree) changed during this run." >&2
       changed=1
     fi
   done
   if (( changed == 1 )); then
+    # Deliberately does not claim a gate did it. The fingerprint sees any writer,
+    # and the tree has other legitimate ones: a legacy mirror crawl rewrites
+    # mirror files for hours at a time, and a run overlapping one will trip this
+    # every time while every gate behaved. Naming a cause the check cannot
+    # actually observe sends the reader hunting a test bug that may not exist,
+    # and a guard that cries wolf is a guard people learn to skip.
     echo "FATAL: run_all_tests.sh detected a write into a real-data tree. Investigate before trusting this run." >&2
+    echo "  A gate may have written, which would be a serious bug. Check first whether another" >&2
+    echo "  process was writing concurrently (a mirror crawl, a pipeline run, an editor):" >&2
+    echo "    ps -eo pid,etimes,cmd | grep -i mirror" >&2
+    echo "  and whether any tracked file actually changed:" >&2
+    echo "    git status --short legacy_data/ curated/" >&2
     exit 2
   fi
 }

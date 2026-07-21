@@ -1,0 +1,7 @@
+{
+  "templateKey": "admin_recurring_donation_ended",
+  "subjectTemplate": "A recurring donation has ended",
+  "bodyTemplate": "A recurring annual donation has ended.\n\nAmount:   {amountDisplay} each year\nReason:   {endReason}\n\nReference: {referenceId}",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

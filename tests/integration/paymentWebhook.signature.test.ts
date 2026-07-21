@@ -235,17 +235,80 @@ describe('POST /payments/webhook status mapping', () => {
     expect(res.status).toBe(400);
   });
 
-  it('recoverable failure (no matching payment row) -> 400 so Stripe retries', async () => {
+  // A signing secret rotated on only one side makes every delivery fail exactly
+  // here, and it is the failure the webhook-delivery alarm exists to catch. The
+  // alarm counts a log line, so a silent rejection would leave that alarm unable
+  // to fire for its own headline cause.
+  it('both rejection paths emit the counted delivery-failure line, tagged with which one fired', async () => {
+    const { logger } = await import('../../src/config/logger');
+    const warn = vi.spyOn(logger, 'warn');
+    try {
+      warn.mockClear();
+      // Signature verification runs before any row is read, so the body content
+      // is irrelevant to this path and no payment needs to exist.
+      await postWebhook(JSON.stringify({ id: 'evt_unsigned' }), 't=1700000000,v1=deadbeef');
+      expect(warn).toHaveBeenCalledWith(
+        'webhook.delivery_failed',
+        expect.objectContaining({ provider: 'stripe', reason: 'signature' }),
+      );
+
+      warn.mockClear();
+      const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+      const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+      const body = JSON.stringify({
+        id: 'evt_counted_recoverable',
+        type: 'payment_intent.succeeded',
+        created: Math.floor(Date.now() / 1000),
+        // Platform correlation present, so this is a genuine retry case rather
+        // than an event belonging to someone else's flow.
+        data: {
+          object: {
+            id: 'pi_also_does_not_exist',
+            metadata: { paymentId: 'pay_also_not_inserted', memberId: 'someone' },
+          },
+        },
+      });
+      await postWebhook(body, signStripeWebhook(body, STUB_WEBHOOK_SECRET));
+      expect(warn).toHaveBeenCalledWith(
+        'webhook.delivery_failed',
+        expect.objectContaining({ provider: 'stripe', reason: 'recoverable' }),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('recoverable failure (our intent, row not visible yet) -> 400 so Stripe retries', async () => {
     const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
     const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
     const body = JSON.stringify({
       id: 'evt_no_row',
       type: 'payment_intent.succeeded',
       created: Math.floor(Date.now() / 1000),
-      data: { object: { id: 'pi_does_not_exist', metadata: {} } },
+      // Carries the platform's own correlation, so this really is a payment we
+      // started and the row may simply not be visible yet: worth a retry.
+      data: {
+        object: {
+          id: 'pi_does_not_exist',
+          metadata: { paymentId: 'pay_not_yet_inserted', memberId: 'someone' },
+        },
+      },
     });
     const res = await postWebhook(body, signStripeWebhook(body, STUB_WEBHOOK_SECRET));
     expect(res.status).toBe(400);
+  });
+
+  it('acknowledges an intent with no platform correlation instead of retrying it forever', async () => {
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const body = JSON.stringify({
+      id: 'evt_not_ours',
+      type: 'payment_intent.succeeded',
+      created: Math.floor(Date.now() / 1000),
+      data: { object: { id: 'pi_belongs_to_an_invoice', metadata: {} } },
+    });
+    const res = await postWebhook(body, signStripeWebhook(body, STUB_WEBHOOK_SECRET));
+    expect(res.status).toBe(200);
   });
 
   it('deferred-intent fallback refuses to bind when the metadata names a different member', async () => {

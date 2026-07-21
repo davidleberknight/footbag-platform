@@ -1293,6 +1293,26 @@ CREATE TABLE reconciliation_issues (
 
 CREATE INDEX idx_recon_status ON reconciliation_issues(status);
 
+-- One outstanding issue per distinct discrepancy. The reconciliation pass is
+-- specified to be idempotent, and a check-then-insert in application code cannot
+-- deliver that on its own: two overlapping runs (the nightly pass and an operator
+-- re-running it) both see no existing row and both insert, double-alerting for one
+-- discrepancy. This makes the guarantee structural.
+--
+-- COALESCE rather than the bare columns because SQLite treats NULLs as distinct
+-- in a unique index, so a discrepancy with no local payment id (a provider record
+-- with no local counterpart, for instance) would never collide with itself and
+-- would duplicate on every run.
+--
+-- Partial on status so a resolved issue stops occupying the slot: if the same
+-- discrepancy is still present on a later run it is correctly raised again.
+CREATE UNIQUE INDEX ux_recon_outstanding_dedup ON reconciliation_issues(
+  issue_type,
+  COALESCE(payment_id, ''),
+  COALESCE(stripe_payment_intent_id, ''),
+  COALESCE(stripe_subscription_id, '')
+) WHERE status = 'outstanding';
+
 -- =============================================================================
 -- SECTION 11: MEMBERSHIP PRICING (stored in system_config)
 -- =============================================================================
@@ -2781,6 +2801,8 @@ VALUES
 --   media_flag_rate_limit_per_hour  Max media flags per member per hour
 --   profile_edit_rate_limit_per_hour Max profile edits per member per hour
 --   purchase_tier_rate_limit_per_hour Max tier-purchase attempts per member per hour
+--   donation_rate_limit_per_hour    Max donation checkout attempts per member per hour
+--   reconciliation_window_days      Lookback window the nightly reconciliation compares
 --   reconciliation_summary_interval_days Cadence for reconciliation digest email
 --   primary_snapshot_version_days   S3 versioning retention for primary bucket
 --   cross_region_backup_retention_days Object Lock retention for DR bucket
@@ -3151,6 +3173,15 @@ VALUES
   ),
 
   (
+   'seed-donation-rate-limit-per-hour',
+   '2000-01-01T00:00:00.000Z',
+   'donation_rate_limit_per_hour', '20',
+   '2000-01-01T00:00:00.000Z',
+   'Max donation checkout attempts per member per hour (default: 20).',
+   NULL
+  ),
+
+  (
    'seed-video-submission-rate-limit-per-hour',
    '2000-01-01T00:00:00.000Z',
    'video_submission_rate_limit_per_hour', '5',
@@ -3165,6 +3196,15 @@ VALUES
    'media_flag_rate_limit_per_hour', '10',
    '2000-01-01T00:00:00.000Z',
    'Max media flags per member per hour (admin-configurable; default: 10).',
+   NULL
+  ),
+
+  (
+   'seed-reconciliation-window-days',
+   '2000-01-01T00:00:00.000Z',
+   'reconciliation_window_days', '7',
+   '2000-01-01T00:00:00.000Z',
+   'Lookback window in days that the nightly payment reconciliation compares (default: 7).',
    NULL
   ),
 

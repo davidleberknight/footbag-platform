@@ -151,6 +151,10 @@ export interface AppConfig {
   // Undefined in stub mode, where the verifier uses the adapter-co-located
   // STUB_WEBHOOK_SECRET instead. Production refuses a stub-prefixed value.
   stripeWebhookSecret: string | undefined;
+  // The outgoing secret during a Stripe secret roll. Stripe signs each delivery
+  // with both secrets for the length of the roll window; accepting both is what
+  // lets the rotation happen without dropping deliveries. Unset outside a roll.
+  stripeWebhookSecretPrevious: string | undefined;
   // Test-only override for container memory-utilization readings. When set,
   // OperationsPlatformService.readContainerMemoryUsedPercent returns this
   // value instead of reading /sys/fs/cgroup/memory.{max,current}, so tests
@@ -515,6 +519,18 @@ function loadConfig(): AppConfig {
       'STRIPE_WEBHOOK_SECRET must not be a stub secret in production (whsec_stub-prefixed values are dev/test only)',
     );
   }
+  // The outgoing secret during a rotation. Stripe signs every delivery with both
+  // the old and the new secret for the length of the roll window, precisely so
+  // an endpoint can cut over without dropping deliveries. Accepting only one
+  // secret means a rotation fails every delivery until the deploy lands, which
+  // is the outage the webhook-failure alarm was built to catch. Optional, and
+  // cleared once the roll window closes.
+  const stripeWebhookSecretPrevious = process.env.STRIPE_WEBHOOK_SECRET_PREVIOUS || undefined;
+  if (isProd && stripeWebhookSecretPrevious?.startsWith('whsec_stub')) {
+    throw new Error(
+      'STRIPE_WEBHOOK_SECRET_PREVIOUS must not be a stub secret in production (whsec_stub-prefixed values are dev/test only)',
+    );
+  }
 
   function parseIntEnv(name: string, fallback: number, min: number, max: number): number {
     const raw = process.env[name];
@@ -717,6 +733,7 @@ function loadConfig(): AppConfig {
     useCheapPasswordHash,
     paymentAdapter,
     stripeWebhookSecret,
+    stripeWebhookSecretPrevious,
     testMemoryPercent,
   };
 }

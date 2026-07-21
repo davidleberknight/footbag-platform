@@ -9218,6 +9218,26 @@ export const clubCleanupPredicates = {
   `); },
 };
 
+// Member fields the payment flows read and write: the honor flags that supply a
+// blank donation's default note, and the member-level Stripe Customer identity a
+// recurring donation establishes.
+export const memberBilling = {
+  get findDonorProfile() { return db.prepare(`
+    SELECT id, slug, login_email, real_name, is_hof, is_bap, stripe_customer_id
+    FROM members_active
+    WHERE id = ?
+      AND is_deceased = 0
+  `); },
+
+  // Guarded on IS NULL so the first recurring donation establishes the member's
+  // canonical Stripe Customer and a later subscription never re-points it.
+  get setStripeCustomerIdIfNull() { return db.prepare(`
+    UPDATE members
+    SET stripe_customer_id = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND stripe_customer_id IS NULL
+  `); },
+};
+
 export const payments = {
   get insertPayment() { return db.prepare(`
     INSERT INTO payments (
@@ -9231,6 +9251,17 @@ export const payments = {
   get updateStatus() { return db.prepare(`
     UPDATE payments
     SET status = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
+  // Status change plus the provider event's own creation time. Recording the
+  // latter is what lets a later handler recognise an out-of-order delivery: the
+  // provider does not guarantee order, so an older event can arrive after a
+  // newer one and would otherwise be applied on top of it.
+  get updateStatusWithEventTime() { return db.prepare(`
+    UPDATE payments
+    SET status = ?, last_stripe_event_created = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
   `); },
 
@@ -9287,6 +9318,45 @@ export const payments = {
     WHERE member_id = ?
     ORDER BY created_at DESC
   `); },
+
+  // Every payment created inside the reconciliation window, with the provider
+  // references the comparison matches on. Anonymised rows are excluded: their
+  // provider references were deliberately cleared at the retention boundary, so
+  // they would otherwise read as a ledger mismatch forever.
+  get listForReconciliation() { return db.prepare(`
+    SELECT id, member_id, payment_type, amount_cents, currency, status,
+           stripe_payment_intent_id, stripe_subscription_id,
+           recurring_subscription_id, metadata_json, created_at
+    FROM payments
+    WHERE created_at >= ? AND created_at < ?
+      AND member_id IS NOT NULL
+    ORDER BY created_at
+  `); },
+
+  // One-time donation. Distinct from insertPayment because a donation carries the
+  // member's note and never carries a purchased tier.
+  get insertDonationPayment() { return db.prepare(`
+    INSERT INTO payments (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, payment_type, amount_cents, currency,
+      status, descriptor, donation_note, metadata_json,
+      stripe_checkout_session_id, stripe_payment_intent_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'donation', ?, ?, 'pending', ?, ?, '{}', ?, ?)
+  `); },
+
+  // One annual charge against a recurring donation subscription. Both the FK and
+  // the raw Stripe subscription id are set, which is the app discipline the
+  // payments table documents for subscription-linked rows. Inserted as pending so
+  // the succeeded transition writes a status-transition row like every other
+  // status change.
+  get insertSubscriptionChargePayment() { return db.prepare(`
+    INSERT INTO payments (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, payment_type, amount_cents, currency,
+      status, descriptor, donation_note, metadata_json,
+      stripe_customer_id, stripe_subscription_id, recurring_subscription_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'donation', ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+  `); },
 };
 
 export const paymentStatusTransitions = {
@@ -9298,12 +9368,258 @@ export const paymentStatusTransitions = {
       transition_at, transition_reason_text
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `); },
+
+  // Variant for a subscription-linked charge, which correlates on the invoice and
+  // subscription ids rather than a payment intent.
+  get insertSubscriptionTransition() { return db.prepare(`
+    INSERT INTO payment_status_transitions (
+      id, created_at, created_by,
+      payment_id, stripe_event_id, stripe_invoice_id, stripe_subscription_id,
+      event_type, from_status, to_status,
+      transition_at, transition_reason_text
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `); },
+};
+
+export const recurringDonationSubscriptions = {
+  get insertSubscription() { return db.prepare(`
+    INSERT INTO recurring_donation_subscriptions (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, stripe_customer_id, stripe_subscription_id, last_stripe_event_id,
+      status, amount_cents, currency, billing_interval,
+      started_at, status_updated_at, donation_comment
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'active', ?, ?, 'yearly', ?, ?, ?)
+  `); },
+
+  get findById() { return db.prepare(`
+    SELECT * FROM recurring_donation_subscriptions WHERE id = ?
+  `); },
+
+  get findByStripeSubscriptionId() { return db.prepare(`
+    SELECT * FROM recurring_donation_subscriptions WHERE stripe_subscription_id = ?
+  `); },
+
+  // Member-facing history lists canceled subscriptions too, so this reads the
+  // base table rather than the active view.
+  get listByMember() { return db.prepare(`
+    SELECT * FROM recurring_donation_subscriptions
+    WHERE member_id = ?
+    ORDER BY started_at DESC
+  `); },
+
+  get listActive() { return db.prepare(`
+    SELECT * FROM recurring_donation_subscriptions_active
+    ORDER BY started_at
+  `); },
+
+  // A member-requested cancellation takes effect at the period end, so the status
+  // stays put and only the cancel-intent fields move. Stripe drives the status to
+  // canceled later, via customer.subscription.deleted.
+  get markCancelRequested() { return db.prepare(`
+    UPDATE recurring_donation_subscriptions
+    SET is_cancel_at_period_end = 1,
+        cancel_requested_at = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
+  get updateStatus() { return db.prepare(`
+    UPDATE recurring_donation_subscriptions
+    SET status = ?, status_updated_at = ?, last_stripe_event_id = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
+  // A failed charge both moves the status and advances the failure counter, so
+  // the two never drift apart across retries.
+  get markPastDue() { return db.prepare(`
+    UPDATE recurring_donation_subscriptions
+    SET status = 'past_due', status_updated_at = ?, last_stripe_event_id = ?,
+        failure_count = failure_count + 1,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
+  get markCanceled() { return db.prepare(`
+    UPDATE recurring_donation_subscriptions
+    SET status = 'canceled', canceled_at = ?, status_updated_at = ?,
+        last_stripe_event_id = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
+  // An administrator can change the amount or status in the Stripe Dashboard;
+  // customer.subscription.updated mirrors whatever Stripe now reports.
+  get updateAmountAndStatus() { return db.prepare(`
+    UPDATE recurring_donation_subscriptions
+    SET amount_cents = ?, status = ?, status_updated_at = ?, last_stripe_event_id = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+};
+
+export const reconciliationIssues = {
+  // OR IGNORE against the partial unique index on the outstanding discrepancy
+  // keys: the insert itself is the idempotency check, so two overlapping
+  // reconciliation runs cannot both raise the same issue. `changes` tells the
+  // caller whether it won the insert and should therefore raise the audit row
+  // and the work-queue item.
+  get insertIssueIfAbsent() { return db.prepare(`
+    INSERT OR IGNORE INTO reconciliation_issues (
+      id, created_at, created_by, updated_at, updated_by, version,
+      issue_type, payment_id, stripe_payment_intent_id, stripe_subscription_id,
+      status, details_json, expires_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'outstanding', ?, ?)
+  `); },
+
+  get findById() { return db.prepare(`
+    SELECT * FROM reconciliation_issues WHERE id = ?
+  `); },
+
+  get resolveIssue() { return db.prepare(`
+    UPDATE reconciliation_issues
+    SET status = 'resolved',
+        resolved_at = ?, resolved_by_member_id = ?, resolution_notes = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'outstanding'
+  `); },
+
+  get listOutstanding() { return db.prepare(`
+    SELECT * FROM reconciliation_issues
+    WHERE status = 'outstanding'
+    ORDER BY created_at DESC
+  `); },
+
+  get countOutstanding() { return db.prepare(`
+    SELECT COUNT(*) AS c FROM reconciliation_issues WHERE status = 'outstanding'
+  `); },
+
+  // Resolved rows past their retention window are cleared by the cleanup pass;
+  // an outstanding row is never purged, however old, because it still needs an
+  // administrator's decision.
+  get deleteExpiredResolved() { return db.prepare(`
+    DELETE FROM reconciliation_issues
+    WHERE status = 'resolved' AND expires_at IS NOT NULL AND expires_at <= ?
+  `); },
+};
+
+/** Admin All Payments listing. The filter set is open-ended, so the SQL is
+ *  assembled per call rather than kept as one prepared statement with a dozen
+ *  always-bound placeholders. */
+export interface AdminPaymentFilters {
+  paymentType?: string;
+  status?: string;
+  memberId?: string;
+  reference?: string;
+  createdFrom?: string;
+  createdTo?: string;
+}
+
+function buildAdminPaymentClauses(f: AdminPaymentFilters): { where: string; params: unknown[] } {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (f.paymentType) { clauses.push('p.payment_type = ?'); params.push(f.paymentType); }
+  if (f.status) { clauses.push('p.status = ?'); params.push(f.status); }
+  if (f.memberId) { clauses.push('p.member_id = ?'); params.push(f.memberId); }
+  if (f.createdFrom) { clauses.push('p.created_at >= ?'); params.push(f.createdFrom); }
+  if (f.createdTo) { clauses.push('p.created_at < ?'); params.push(f.createdTo); }
+  if (f.reference) {
+    clauses.push(
+      '(p.id = ? OR p.stripe_payment_intent_id = ? OR p.stripe_checkout_session_id = ? OR p.stripe_subscription_id = ?)',
+    );
+    params.push(f.reference, f.reference, f.reference, f.reference);
+  }
+  return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
+}
+
+export function queryAdminPayments(
+  filters: AdminPaymentFilters,
+  limit: number,
+  offset: number,
+): Record<string, unknown>[] {
+  const { where, params } = buildAdminPaymentClauses(filters);
+  return db.prepare(`
+    SELECT p.*, m.slug AS member_slug
+    FROM payments p
+    LEFT JOIN members m ON m.id = p.member_id
+    ${where}
+    ORDER BY p.created_at DESC, p.rowid DESC
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset) as Record<string, unknown>[];
+}
+
+/** Admin payment detail by primary key. Distinct from the reference filter,
+ *  which matches several provider-id columns and would resolve a value that
+ *  collides with another row's provider id to the wrong payment. */
+export function findAdminPaymentById(paymentId: string): Record<string, unknown> | undefined {
+  return db.prepare(`
+    SELECT p.*, m.slug AS member_slug
+    FROM payments p
+    LEFT JOIN members m ON m.id = p.member_id
+    WHERE p.id = ?
+  `).get(paymentId) as Record<string, unknown> | undefined;
+}
+
+export function countAdminPayments(filters: AdminPaymentFilters): number {
+  const { where, params } = buildAdminPaymentClauses(filters);
+  const row = db.prepare(`
+    SELECT COUNT(*) AS total FROM payments p ${where}
+  `).get(...params) as { total: number };
+  return row.total;
+}
+
+export function queryReconciliationIssues(
+  status: 'outstanding' | 'resolved' | null,
+  limit: number,
+  offset: number,
+): Record<string, unknown>[] {
+  const where = status ? 'WHERE r.status = ?' : '';
+  const params = status ? [status] : [];
+  return db.prepare(`
+    SELECT r.*, m.slug AS resolved_by_slug
+    FROM reconciliation_issues r
+    LEFT JOIN members m ON m.id = r.resolved_by_member_id
+    ${where}
+    ORDER BY r.created_at DESC, r.rowid DESC
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset) as Record<string, unknown>[];
+}
+
+export function countReconciliationIssues(status: 'outstanding' | 'resolved' | null): number {
+  const where = status ? 'WHERE status = ?' : '';
+  const params = status ? [status] : [];
+  const row = db.prepare(`
+    SELECT COUNT(*) AS total FROM reconciliation_issues ${where}
+  `).get(...params) as { total: number };
+  return row.total;
+}
+
+export const recurringDonationSubscriptionTransitions = {
+  get insertTransition() { return db.prepare(`
+    INSERT INTO recurring_donation_subscription_transitions (
+      id, created_at, created_by,
+      recurring_subscription_id, member_id,
+      stripe_event_id, stripe_subscription_id, stripe_invoice_id,
+      event_type, lifecycle_event_code,
+      old_status, new_status, occurred_at, reason_text
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `); },
+
+  get listBySubscription() { return db.prepare(`
+    SELECT * FROM recurring_donation_subscription_transitions
+    WHERE recurring_subscription_id = ?
+    ORDER BY occurred_at
+  `); },
 };
 
 export const stripeEvents = {
   // Idempotency primitive: PRIMARY KEY (event_id) makes INSERT OR IGNORE a
-  // no-op on redelivery. Service code MUST insert first and short-circuit on
-  // changes=0 to satisfy DD §6.1 webhook idempotency.
+  // no-op on redelivery. A mutating handler claims the id INSIDE the same
+  // transaction as the state change it guards and short-circuits on changes=0,
+  // so a processing failure rolls the claim back and the provider's redelivery
+  // re-runs the whole unit cleanly. A no-op path (a duplicate, or an event type
+  // with no handler) records the id outside any transaction, for the
+  // received-event trail.
   get insertEventOrIgnore() { return db.prepare(`
     INSERT OR IGNORE INTO stripe_events
       (event_id, created_at, event_type, stripe_created, processed_at, processing_status, attempts)

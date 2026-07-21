@@ -211,10 +211,9 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     }
   });
 
-  it('startDonation and startEventRegistrationPayment throw a typed unavailable error (clean 503, not a stack-trace 500)', async () => {
+  it('startEventRegistrationPayment throws a typed unavailable error (clean 503, not a stack-trace 500)', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
     const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
-    expect(() => paymentService.startDonation('m', 1000, null, false)).toThrow(ServiceUnavailableError);
     expect(() => paymentService.startEventRegistrationPayment('m', 'e', 1000)).toThrow(ServiceUnavailableError);
   });
 });
@@ -359,11 +358,17 @@ describe('webhook correlation fallback (deferred PaymentIntent creation)', () =>
     }
   });
 
-  it('unknown intent with no metadata still throws RecoverableWebhookError (Stripe retries)', async () => {
-    const { paymentService, RecoverableWebhookError } = await import('../../src/services/paymentService');
+  it('acknowledges an intent carrying no platform correlation, which retrying could never resolve', async () => {
+    // Checkout stamps paymentId onto every intent this platform opens, so an
+    // intent without it is not ours: a recurring donation's invoice raises its
+    // own intent events, and Stripe delivers them here too. Answering those as
+    // recoverable made Stripe retry an impossible lookup for days on every
+    // renewal. The retry path is still exercised for an intent that IS ours but
+    // whose row is not visible yet.
+    const { paymentService } = await import('../../src/services/paymentService');
     const { rawBody, signature } = await signedIntentEvent(
       'payment_intent.succeeded', 'pi_nobody_1', {}, 'evt_fb_none_1',
     );
-    expect(() => paymentService.handleWebhook(rawBody, signature)).toThrow(RecoverableWebhookError);
+    expect(paymentService.handleWebhook(rawBody, signature)).toEqual({ outcome: 'ignored' });
   });
 });

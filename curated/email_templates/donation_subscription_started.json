@@ -1,0 +1,7 @@
+{
+  "templateKey": "donation_subscription_started",
+  "subjectTemplate": "Your recurring donation to IFPA is set up",
+  "bodyTemplate": "Thank you for supporting IFPA with a recurring annual donation.\n\nAmount:   {amountDisplay} each year\n{notePhrase}\n\nYou can review or cancel this donation at any time from your payment history page.\n\nReference: {referenceId}",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

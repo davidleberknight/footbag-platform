@@ -5,8 +5,11 @@
  *   1. Email-outbox polling loop: drains transactional emails. Polling is
  *      fine here because outbound email is not a foreground UX.
  *   2. Daily jobs loop: Active Player expiry (Tier 0 scan, reminder enqueue,
- *      expiry ledger rows), the staged-candidate expiry sweep, and the PII
- *      purge-eligibility scan. One system_job_runs row per job per pass.
+ *      expiry ledger rows), the staged-candidate expiry sweep, the PII
+ *      purge-eligibility scan, and payment reconciliation against the payment
+ *      provider. One system_job_runs row per job per pass. A job needing a
+ *      slower or wall-clock cadence self-gates inside its service rather than
+ *      owning a loop.
  *   3. Curator video transcode HTTP server: receives /transcode/dispatch
  *      pushes from the web container, runs ffmpeg, posts state events back.
  *      No polling; strictly event-driven.
@@ -116,6 +119,24 @@ async function activePlayerExpiryLoop(): Promise<void> {
       await operationsPlatformService.runStaleQueueEscalation();
     } catch (err) {
       logger.error('worker: admin work-queue stale escalation unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    // Payment reconciliation compares the platform's records against the payment
+    // provider's ledger. It self-gates to 02:00 UTC and to once per UTC day, and
+    // its digest self-gates to its own configured cadence, so both are safe on
+    // the daily tick.
+    try {
+      await operationsPlatformService.runPaymentReconciliation();
+    } catch (err) {
+      logger.error('worker: payment reconciliation unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    try {
+      await operationsPlatformService.runReconciliationDigest();
+    } catch (err) {
+      logger.error('worker: reconciliation digest unexpected error', {
         error: err instanceof Error ? err.message : String(err),
       });
     }

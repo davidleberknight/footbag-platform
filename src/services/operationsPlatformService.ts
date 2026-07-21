@@ -9,7 +9,9 @@
  *     succeeded/failed on completion, stale-running reap for crash recovery
  *   - Worker-loop entry points and their config-tunable intervals: outbox
  *     drain, Active Player expiry, staged-candidate expiry, batch auto-link,
- *     PII purge scan, hashtag-stats rebuild
+ *     PII purge scan, hashtag-stats rebuild, payment reconciliation and its
+ *     digest (both self-gated: reconciliation to 02:00 UTC and once per UTC
+ *     day, the digest to its configured interval)
  *   - Batch auto-link routing: classify unlinked Tier-0 members; stage
  *     high/medium-confidence candidates, queue low-confidence ones with an
  *     admin alert
@@ -65,6 +67,7 @@ import { hashtagDiscoveryService } from './hashtagDiscoveryService';
 import { recordOperationalError } from './operationalErrors';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
 import { workQueueService } from './workQueueService';
+import { paymentReconciliationService } from './paymentReconciliationService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
@@ -115,6 +118,11 @@ export interface ReadinessStatus {
 }
 
 const MEMORY_PRESSURE_THRESHOLD_PERCENT = 90;
+
+// Payment reconciliation is specified to run nightly at 02:00 UTC. The daily
+// worker tick can fire at any hour, so the pass holds off until the clock has
+// reached this hour and then runs once for that UTC day.
+const RECONCILIATION_RUN_HOUR_UTC = 2;
 
 // Mutable test seam over the immutable config-derived value. Boot reads
 // FOOTBAG_TEST_MEMORY_PERCENT once via src/config/env.ts (which fail-fasts
@@ -287,6 +295,69 @@ export class OperationsPlatformService {
     const result = await this.recordJobRun(
       'SYS_Admin_Queue_Digest',
       () => workQueueService.sendAdminQueueDigests(),
+      startTime,
+    );
+    return { skipped: false, ...result };
+  }
+
+  /**
+   * SYS_Reconcile_Payments_Nightly entry point, called on the daily worker tick.
+   *
+   * The specification is nightly at 02:00 UTC, and this codebase has no
+   * wall-clock scheduler, so the pass self-gates instead: it runs when its last
+   * success fell on an earlier UTC day AND the clock has reached 02:00 UTC.
+   * That makes the job genuinely nightly-at-02:00 rather than merely
+   * once-per-tick, without introducing a scheduler for one job.
+   */
+  async runPaymentReconciliation(
+    startTime?: Date,
+  ): Promise<{ skipped: boolean; issuesRaised: number; duplicatesSkipped: number }> {
+    const now = startTime ?? new Date();
+    if (now.getUTCHours() < RECONCILIATION_RUN_HOUR_UTC) {
+      return { skipped: true, issuesRaised: 0, duplicatesSkipped: 0 };
+    }
+    const last = systemJobRuns.lastSuccessAt.get('SYS_Reconcile_Payments_Nightly') as
+      | { last_success: string | null }
+      | undefined;
+    if (last?.last_success && last.last_success.slice(0, 10) >= now.toISOString().slice(0, 10)) {
+      return { skipped: true, issuesRaised: 0, duplicatesSkipped: 0 };
+    }
+    const result = await this.recordJobRun(
+      'SYS_Reconcile_Payments_Nightly',
+      () => paymentReconciliationService.runReconciliation({ now }),
+      startTime,
+    );
+    return {
+      skipped: false,
+      issuesRaised: result.issuesRaised,
+      duplicatesSkipped: result.duplicatesSkipped,
+    };
+  }
+
+  /**
+   * Periodic reconciliation digest to administrators, on the cadence set by
+   * `reconciliation_summary_interval_days`. Gated the same way as the admin
+   * work-queue digest: the daily tick calls it every day, and the pass skips
+   * when its last success is more recent than the configured interval, so the
+   * config key governs the true cadence rather than the tick.
+   */
+  async runReconciliationDigest(
+    startTime?: Date,
+  ): Promise<{ skipped: boolean; admins: number; sent: number; outstanding: number }> {
+    const intervalDays = readIntConfig('reconciliation_summary_interval_days', 7);
+    const now = startTime ?? new Date();
+    const last = systemJobRuns.lastSuccessAt.get('SYS_Reconciliation_Digest') as
+      | { last_success: string | null }
+      | undefined;
+    if (
+      last?.last_success &&
+      (now.getTime() - Date.parse(last.last_success)) / 86_400_000 < intervalDays
+    ) {
+      return { skipped: true, admins: 0, sent: 0, outstanding: 0 };
+    }
+    const result = await this.recordJobRun(
+      'SYS_Reconciliation_Digest',
+      () => paymentReconciliationService.sendReconciliationDigest(),
       startTime,
     );
     return { skipped: false, ...result };

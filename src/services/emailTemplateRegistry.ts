@@ -40,6 +40,12 @@ function openItemPhrase(n: number): string {
   return `${n} open item${n === 1 ? '' : 's'}`;
 }
 
+// Stored template text is logic-less, so a donation note that may be absent
+// resolves to a complete sentence here rather than to an empty gap in the body.
+function donationNotePhrase(note: string | null): string {
+  return note ? `Your note: ${note}` : 'You did not include a note.';
+}
+
 // ── Variant registry ────────────────────────────────────────────────────────
 // One entry per distinct message: the unit of stored wording. Carries the
 // canonical PII-classification default (the DB row's column is the
@@ -56,6 +62,8 @@ function v(classification: EmailPiiClass, mergeFields: readonly string[]): Varia
 }
 
 const PAYMENT_RECEIPT_FIELDS = ['descriptor', 'amountDisplay', 'referenceId'] as const;
+
+const RECURRING_DONATION_FIELDS = ['amountDisplay', 'notePhrase', 'referenceId'] as const;
 
 export const TEMPLATE_VARIANTS = {
   account_verify:                  v('restricted',   ['verifyUrl', 'ttlPhrase']),
@@ -77,6 +85,12 @@ export const TEMPLATE_VARIANTS = {
   payment_receipt_succeeded_tier2: v('confidential', PAYMENT_RECEIPT_FIELDS),
   payment_receipt_succeeded:       v('confidential', PAYMENT_RECEIPT_FIELDS),
   payment_receipt_failed:          v('confidential', PAYMENT_RECEIPT_FIELDS),
+  donation_subscription_started:            v('confidential', RECURRING_DONATION_FIELDS),
+  donation_subscription_cancel_requested:   v('confidential', RECURRING_DONATION_FIELDS),
+  donation_subscription_charge_failed:      v('confidential', RECURRING_DONATION_FIELDS),
+  donation_subscription_canceled:           v('confidential', RECURRING_DONATION_FIELDS),
+  admin_recurring_donation_ended:  v('internal',     ['referenceId', 'amountDisplay', 'endReason']),
+  reconciliation_digest:           v('internal',     ['countPhrase', 'itemLines', 'reviewUrl']),
   active_player_expiry_upcoming:   v('internal',     ['displayDate']),
   active_player_expiry_day_of:     v('internal',     ['displayDate']),
   club_membership_member_join:     v('confidential', ['memberName', 'clubName']),
@@ -101,6 +115,20 @@ export type EmailTemplateVariantKey = keyof typeof TEMPLATE_VARIANTS;
 export interface ShapedEmail {
   variant: EmailTemplateVariantKey;
   merge: Record<string, string>;
+}
+
+interface RecurringDonationParams {
+  amountDisplay: string;
+  donationNote: string | null;
+  referenceId: string;
+}
+
+function recurringDonationMerge(p: RecurringDonationParams): Record<string, string> {
+  return {
+    amountDisplay: p.amountDisplay,
+    notePhrase: donationNotePhrase(p.donationNote),
+    referenceId: p.referenceId,
+  };
 }
 
 const SHAPERS = {
@@ -166,6 +194,48 @@ const SHAPERS = {
           ? 'payment_receipt_succeeded_tier2'
           : 'payment_receipt_succeeded',
     merge: { descriptor: p.descriptor, amountDisplay: p.amountDisplay, referenceId: p.referenceId },
+  }),
+  donation_subscription_started: (p: RecurringDonationParams): ShapedEmail => ({
+    variant: 'donation_subscription_started',
+    merge: recurringDonationMerge(p),
+  }),
+  donation_subscription_cancel_requested: (p: RecurringDonationParams): ShapedEmail => ({
+    variant: 'donation_subscription_cancel_requested',
+    merge: recurringDonationMerge(p),
+  }),
+  donation_subscription_charge_failed: (p: RecurringDonationParams): ShapedEmail => ({
+    variant: 'donation_subscription_charge_failed',
+    merge: recurringDonationMerge(p),
+  }),
+  donation_subscription_canceled: (p: RecurringDonationParams): ShapedEmail => ({
+    variant: 'donation_subscription_canceled',
+    merge: recurringDonationMerge(p),
+  }),
+  admin_recurring_donation_ended: (p: {
+    referenceId: string;
+    amountDisplay: string;
+    memberRequested: boolean;
+  }): ShapedEmail => ({
+    variant: 'admin_recurring_donation_ended',
+    merge: {
+      referenceId: p.referenceId,
+      amountDisplay: p.amountDisplay,
+      endReason: p.memberRequested
+        ? 'The member cancelled it.'
+        : 'Stripe ended it after exhausting its retries.',
+    },
+  }),
+  reconciliation_digest: (p: {
+    outstandingCount: number;
+    itemLines: string;
+    reviewUrl: string;
+  }): ShapedEmail => ({
+    variant: 'reconciliation_digest',
+    merge: {
+      countPhrase: `${p.outstandingCount} outstanding discrepanc${p.outstandingCount === 1 ? 'y' : 'ies'}`,
+      itemLines: p.itemLines,
+      reviewUrl: p.reviewUrl,
+    },
   }),
   active_player_expiry_reminder: (p: { displayDate: string; isDayOf: boolean }): ShapedEmail => ({
     variant: p.isDayOf ? 'active_player_expiry_day_of' : 'active_player_expiry_upcoming',

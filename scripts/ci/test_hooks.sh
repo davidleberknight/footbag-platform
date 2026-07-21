@@ -439,6 +439,28 @@ expect "$H" 'cat foreground.txt' defer
 expect "$H" 'grep -n x file' defer
 expect "$H" 'find . -name "*.ts" | sort | uniq' defer
 
+H=guard-process-substitution.sh
+
+# Process substitution is denied so it gets rewritten as the Read tool or as plain
+# commands writing to stdout; the subshells it spawns cannot be statically analyzed,
+# so it would otherwise trip the built-in approval prompt even while only reading.
+expect "$H" 'diff <(sed s/a/b/ one.tf) <(sed s/a/b/ two.tf)' deny
+expect "$H" '(diff <(cat a) <(cat b))' deny
+expect "$H" 'tee >(wc -l) < input.txt' deny
+expect "$H" 'cmd 2>(logger)' deny
+# The match is the bare two-character sequence, so a quoted occurrence is denied
+# too. Distinguishing quoted from live text would mean parsing shell quoting in a
+# guard, which is how guards acquire bypasses; a false deny costs one rewrite.
+expect "$H" 'echo "<(not real)"' deny
+expect "$H" 'grep -n "<(" src/' deny
+# Must NOT over-block: ordinary redirects, and a parenthesis that merely follows a
+# comparison or redirect with a space between, all defer.
+expect "$H" 'sort < input.txt > output.txt' defer
+expect "$H" 'cat a.txt < b.txt' defer
+expect "$H" 'grep -rn "less than ( paren" src/' defer
+expect "$H" 'find . -name "*.ts" | sort' defer
+expect "$H" 'git -C /repo log' defer
+
 H=guard-rm.sh
 
 # rm that deletes ONLY files under the AI session scratchpad auto-approves (allow); flags
@@ -934,6 +956,9 @@ expect_q 'State 4 is where the cutover lands.' defer
 # otherwise auto-allow must still be denied once the full Bash chain runs.
 expect_chain_deny 'cd src && ls'
 expect_chain_deny '(cd terraform/staging && terraform plan)'
+# Same for process substitution: `diff` and `sed` are both read-only heads the
+# approver would allow on their own merits, so only the full chain proves the deny.
+expect_chain_deny 'diff <(sed s/a/b/ one.tf) <(sed s/a/b/ two.tf)'
 
 # Security gates fail closed: malformed stdin exits with the block code 2, so an
 # internal error (bad input, missing jq) blocks the call instead of waving it through.
@@ -950,6 +975,7 @@ expect_err2 guard-rm.sh
 expect_err2 guard-readonly-bash.sh
 expect_err2 guard-leading-cd.sh
 expect_err2 guard-shell-loop.sh
+expect_err2 guard-process-substitution.sh
 
 if [ "$fail" -ne 0 ]; then
   echo "[hooks] FAIL: one or more hook fixtures failed." >&2

@@ -1,0 +1,7 @@
+{
+  "templateKey": "donation_subscription_cancel_requested",
+  "subjectTemplate": "Your recurring donation will not renew",
+  "bodyTemplate": "We have cancelled the renewal of your recurring annual donation to IFPA.\n\nAmount:   {amountDisplay} each year\n{notePhrase}\n\nThe period you have already given covers the rest of its term, and you will not be charged again. Thank you for the support you have given.\n\nReference: {referenceId}",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

@@ -1,0 +1,7 @@
+{
+  "templateKey": "donation_subscription_canceled",
+  "subjectTemplate": "Your recurring donation to IFPA has ended",
+  "bodyTemplate": "Your recurring annual donation to IFPA has ended and no further charges will be made.\n\nAmount:   {amountDisplay} each year\n{notePhrase}\n\nThank you for the support you have given. You are welcome to start a new donation at any time.\n\nReference: {referenceId}",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

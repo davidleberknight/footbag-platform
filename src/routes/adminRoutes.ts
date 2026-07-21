@@ -9,6 +9,7 @@ import { adminAdminRolesController } from '../controllers/adminAdminRolesControl
 import { adminHonorGrantsController } from '../controllers/adminHonorGrantsController';
 import { adminAuditLogController } from '../controllers/adminAuditLogController';
 import { adminEmailLogController } from '../controllers/adminEmailLogController';
+import { adminPaymentsController } from '../controllers/adminPaymentsController';
 import { adminEmailTemplateController } from '../controllers/adminEmailTemplateController';
 import { adminFreestyleController } from '../controllers/adminFreestyleController';
 import { emergingVocabController } from '../controllers/emergingVocabController';
@@ -42,6 +43,13 @@ adminRouter.post('/work-queue/:id/dismiss',   adminWorkQueueController.dismiss);
 adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.linkHelpApprove);
 adminRouter.post('/work-queue/:id/link-help/reject',  adminWorkQueueController.linkHelpReject);
 adminRouter.post('/work-queue/:id/link-help/dispute-revert', adminWorkQueueController.linkHelpDisputeRevert);
+// Inbound payments and the reconciliation queue. Order matters: the literal
+// `reconciliation` paths must precede `/payments/:paymentId`, or a payment id of
+// "reconciliation" would be looked up instead of the queue being rendered.
+adminRouter.get('/payments',                          adminPaymentsController.index);
+adminRouter.get('/payments/reconciliation',           adminPaymentsController.reconciliation);
+adminRouter.post('/payments/reconciliation/:issueId/resolve', adminPaymentsController.resolve);
+adminRouter.get('/payments/:paymentId',               adminPaymentsController.detail);
 adminRouter.get('/audit-log',                 adminAuditLogController.index);
 adminRouter.get('/audit-log/export',          adminAuditLogController.exportLog);
 adminRouter.get('/email-log',                 adminEmailLogController.index);

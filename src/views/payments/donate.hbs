@@ -1,0 +1,97 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{page.intro}}</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.formError}}
+      <div class="form-error-banner" role="alert">{{content.formError}}</div>
+    {{/if}}
+
+    {{#if content.hasActiveRecurring}}
+      <p class="form-notice" role="status">
+        You already have a recurring donation running. You can review or cancel it on your
+        <a href="{{content.paymentHistoryHref}}">payment history</a> page. Setting up another one
+        here will run alongside it.
+      </p>
+    {{/if}}
+
+    <form method="POST" action="{{content.action}}" class="form-block">
+      <input type="hidden" name="returnTo" value="{{content.returnTo}}">
+
+      <fieldset class="form-fieldset">
+        <legend>How much would you like to give?</legend>
+
+        {{#each content.suggestedAmounts}}
+          <div class="form-field">
+            <label>
+              <input type="radio" name="amountChoice" value="{{this.cents}}">
+              {{this.label}}
+            </label>
+          </div>
+        {{/each}}
+
+        <div class="form-field">
+          <label>
+            <input type="radio" name="amountChoice" value="custom">
+            Another amount
+          </label>
+        </div>
+
+        <div class="form-field">
+          <label for="customAmount">Another amount, in US dollars</label>
+          <input type="text" id="customAmount" name="customAmount" inputmode="decimal"
+                 autocomplete="off" placeholder="25.00">
+          <small class="form-hint">
+            Between {{content.minAmountDisplay}} and {{content.maxAmountDisplay}}. Used only when
+            you choose Another amount above.
+          </small>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-fieldset">
+        <legend>How often?</legend>
+
+        <div class="form-field">
+          <label>
+            <input type="radio" name="recurring" value="no" checked>
+            Once
+          </label>
+        </div>
+
+        <div class="form-field">
+          <label>
+            <input type="radio" name="recurring" value="yes">
+            Every year
+          </label>
+          <small class="form-hint">
+            An annual donation renews on its own. You can cancel it at any time from your payment
+            history page, and the period you have already given still counts.
+          </small>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-fieldset">
+        <legend>Would you like to add a note?</legend>
+
+        <div class="form-field">
+          <label for="note">Note (optional)</label>
+          <input type="text" id="note" name="note" maxlength="{{content.noteMaxChars}}"
+                 value="{{content.defaultNote}}" placeholder="In memory of...">
+          <small class="form-hint">
+            Stored with your donation and shown on your payment history. Up to
+            {{content.noteMaxChars}} characters.
+          </small>
+        </div>
+      </fieldset>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Continue to Payment</button>
+        <a href="{{content.returnTo}}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </section>
+</div>

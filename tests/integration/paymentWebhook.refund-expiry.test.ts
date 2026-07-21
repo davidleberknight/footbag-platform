@@ -12,12 +12,15 @@ const M_REFUND_IDEMPOTENT = 'rx-refund-idem';
 const M_EXPIRE = 'rx-expire';
 const M_EXPIRE_IDEMPOTENT = 'rx-expire-idem';
 const M_EXPIRE_UNKNOWN = 'rx-expire-unknown';
+const M_PARTIAL = 'rx-partial';
+const M_FULL = 'rx-full';
+const M_STALE = 'rx-stale';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  for (const [i, id] of [M_REFUND, M_REFUND_IDEMPOTENT, M_EXPIRE, M_EXPIRE_IDEMPOTENT, M_EXPIRE_UNKNOWN].entries()) {
+  for (const [i, id] of [M_REFUND, M_REFUND_IDEMPOTENT, M_EXPIRE, M_EXPIRE_IDEMPOTENT, M_EXPIRE_UNKNOWN, M_PARTIAL, M_FULL, M_STALE].entries()) {
     insertMember(db, { id, slug: `rx_${i}`, display_name: `Rx ${i}`, login_email: `rx${i}@example.com` });
   }
   db.close();
@@ -65,6 +68,102 @@ async function startPendingPayment(memberId: string): Promise<{ paymentId: strin
   const started = await paymentService.startMembershipPurchase(memberId, 'tier1', '/members/x');
   return { paymentId: started.paymentId, sessionId: started.sessionId };
 }
+
+describe('out-of-order provider events on a payment', () => {
+  // Delivery order is not guaranteed, so an older event can arrive after a
+  // newer one. Applying it would quietly undo the newer state: a late-arriving
+  // succeeded event landing after a refund would resurrect the payment as paid.
+  it('ignores an event older than the last one already applied', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { paymentId, intentId } = await settleSucceededPayment(M_STALE);
+
+    // Refund it with a clearly later event, then replay an older succeeded event.
+    const refund = await signedEvent({
+      id: 'evt_stale_refund',
+      type: 'charge.refunded',
+      created: 2000000000,
+      data: {
+        object: { id: 'ch_stale', payment_intent: intentId, amount: 1000, amount_refunded: 1000 },
+      },
+    });
+    expect(paymentService.handleWebhook(refund.rawBody, refund.signature))
+      .toEqual({ outcome: 'processed' });
+
+    const late = await signedEvent({
+      id: 'evt_stale_late_success',
+      type: 'payment_intent.succeeded',
+      created: 1000000000,
+      data: { object: { id: intentId, amount: 1000, currency: 'usd', metadata: { paymentId } } },
+    });
+    expect(paymentService.handleWebhook(late.rawBody, late.signature))
+      .toEqual({ outcome: 'duplicate' });
+
+    const db = openDb();
+    try {
+      const row = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as
+        { status: string };
+      expect(row.status).toBe('refunded');
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe('partial refunds', () => {
+  // The status machine is monotonic and `refunded` is terminal, so recording a
+  // partial refund as a full one is a lie that cannot be walked back: it
+  // misreports the donation on the member's own history, and it makes a later
+  // full refund look like a duplicate and be dropped.
+  it('does not mark a partially refunded payment as refunded', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { paymentId, intentId } = await settleSucceededPayment(M_PARTIAL);
+    const evt = await signedEvent({
+      id: 'evt_partial_refund',
+      type: 'charge.refunded',
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: { id: 'ch_partial', payment_intent: intentId, amount: 1000, amount_refunded: 250 },
+      },
+    });
+    expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'ignored' });
+
+    const db = openDb();
+    try {
+      const row = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as
+        { status: string };
+      expect(row.status).toBe('succeeded');
+      const queued = db.prepare(
+        "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'partial_refund_review' AND entity_id = ?",
+      ).get(paymentId) as { c: number };
+      expect(queued.c).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('still records a full refund as refunded', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { paymentId, intentId } = await settleSucceededPayment(M_FULL);
+    const evt = await signedEvent({
+      id: 'evt_full_refund',
+      type: 'charge.refunded',
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: { id: 'ch_full', payment_intent: intentId, amount: 1000, amount_refunded: 1000 },
+      },
+    });
+    expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'processed' });
+
+    const db = openDb();
+    try {
+      const row = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as
+        { status: string };
+      expect(row.status).toBe('refunded');
+    } finally {
+      db.close();
+    }
+  });
+});
 
 async function signedEvent(body: object): Promise<{ rawBody: string; signature: string }> {
   const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');

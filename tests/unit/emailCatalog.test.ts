@@ -92,6 +92,24 @@ const CATALOG: CatalogEntry[] = [
     { params: { descriptor: 'd', amountDisplay: '$1.00 USD', outcome: 'succeeded', isMembership: false, purchasedTier: null, referenceId: 'r' }, variant: 'payment_receipt_succeeded' },
     { params: { descriptor: 'd', amountDisplay: '$1.00 USD', outcome: 'failed', isMembership: true, purchasedTier: 'tier1', referenceId: 'r' }, variant: 'payment_receipt_failed' },
   ] },
+  { template: 'donation_subscription_started', services: ['paymentService'], samples: [
+    { params: { amountDisplay: '$25.00 USD', donationNote: 'HoF Fund', referenceId: 'r' }, variant: 'donation_subscription_started' },
+  ] },
+  { template: 'donation_subscription_cancel_requested', services: ['paymentService'], samples: [
+    { params: { amountDisplay: '$25.00 USD', donationNote: null, referenceId: 'r' }, variant: 'donation_subscription_cancel_requested' },
+  ] },
+  { template: 'donation_subscription_charge_failed', services: ['paymentService'], samples: [
+    { params: { amountDisplay: '$25.00 USD', donationNote: null, referenceId: 'r' }, variant: 'donation_subscription_charge_failed' },
+  ] },
+  { template: 'donation_subscription_canceled', services: ['paymentService'], samples: [
+    { params: { amountDisplay: '$25.00 USD', donationNote: 'BAP Fund', referenceId: 'r' }, variant: 'donation_subscription_canceled' },
+  ] },
+  { template: 'admin_recurring_donation_ended', services: ['paymentService'], samples: [
+    { params: { referenceId: 'r', amountDisplay: '$25.00 USD', memberRequested: true }, variant: 'admin_recurring_donation_ended' },
+  ] },
+  { template: 'reconciliation_digest', services: ['paymentReconciliationService'], samples: [
+    { params: { outstandingCount: 3, itemLines: '2026-07-01  payment_amount_mismatch  rec_1', reviewUrl: '/admin/payments/reconciliation' }, variant: 'reconciliation_digest' },
+  ] },
   { template: 'vouch_confirmation', services: ['activePlayerService'], samples: [
     { params: { voucherName: 'V', expiryDate: '2030-01-01' }, variant: 'vouch_confirmation' },
   ] },

@@ -113,6 +113,10 @@ services:
       # (production); staging runs stub and leaves it unset. Production sources
       # the value from SSM into /srv/footbag/env.
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # The outgoing secret during a rotation. Stripe signs each delivery with
+      # both secrets for the length of the roll window, so accepting both is what
+      # lets the secret change without dropping deliveries. Unset outside a roll.
+      STRIPE_WEBHOOK_SECRET_PREVIOUS: ${STRIPE_WEBHOOK_SECRET_PREVIOUS:-}
       # Async curator video upload: web POSTs /transcode/dispatch to the worker
       # container (see src/transcodeWorker.ts). Worker pushes state events back
       # to /ipc/job-events on web. INTERNAL_EVENT_SECRET authenticates
@@ -198,6 +202,10 @@ services:
       # (production); staging runs stub and leaves it unset. Production sources
       # the value from SSM into /srv/footbag/env.
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # The outgoing secret during a rotation. Stripe signs each delivery with
+      # both secrets for the length of the roll window, so accepting both is what
+      # lets the secret change without dropping deliveries. Unset outside a roll.
+      STRIPE_WEBHOOK_SECRET_PREVIOUS: ${STRIPE_WEBHOOK_SECRET_PREVIOUS:-}
       # Curator video transcode dispatch HTTP server (src/transcodeWorker.ts)
       # runs alongside the email-outbox loop in this same node process. Web
       # container POSTs /transcode/dispatch to ${WORKER_INTERNAL_URL}; worker

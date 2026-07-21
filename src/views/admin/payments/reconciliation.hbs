@@ -1,0 +1,81 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>Where the platform's payment records and the payment provider's ledger disagree.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.resolvedFlag}}
+      <p class="form-success-banner" role="status">Issue resolved. Your note is recorded against it.</p>
+    {{/if}}
+
+    {{#if content.errorMessage}}
+      <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
+    {{/if}}
+
+    <p><a href="{{content.paymentsHref}}" class="btn btn-outline">All Payments</a></p>
+
+    <form method="GET" action="/admin/payments/reconciliation" class="form-block">
+      <div class="form-field">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          {{#each content.statusOptions}}
+            <option value="{{this}}"{{#if (eq this ../content.statusFilter)}} selected{{/if}}>{{this}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Apply Filters</button>
+      </div>
+    </form>
+
+    <p class="text-muted">{{content.resultSummary}}</p>
+
+    {{#if content.hasRows}}
+      {{#each content.rows}}
+        <div class="card">
+          <h2 class="card-title">{{this.issueLabel}}</h2>
+          <p class="card-meta">{{this.dateDisplay}} &middot; {{this.id}}</p>
+
+          <ul>
+            {{#each this.detailLines}}
+              <li>{{this}}</li>
+            {{/each}}
+          </ul>
+
+          {{#if this.paymentHref}}
+            <p><a href="{{this.paymentHref}}" class="btn btn-outline btn-sm">View Payment</a></p>
+          {{/if}}
+
+          {{#if this.isOutstanding}}
+            <form method="POST" action="{{this.resolveAction}}" class="form-block">
+              <div class="form-field">
+                <label for="notes-{{this.id}}">What did you do about it?</label>
+                <textarea id="notes-{{this.id}}" name="notes" rows="3" required
+                          placeholder="Explain what you checked and what you concluded..."></textarea>
+                <small class="form-hint">Recorded against the issue so other administrators can follow it.</small>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Resolve Issue</button>
+              </div>
+            </form>
+          {{else}}
+            <p class="text-muted fs-sm">
+              Resolved {{this.resolvedAtDisplay}} by {{this.resolvedBySlug}}.
+            </p>
+            <p>{{this.resolutionNotes}}</p>
+          {{/if}}
+        </div>
+      {{/each}}
+    {{else}}
+      <p class="text-muted">No reconciliation issues match your search.</p>
+    {{/if}}
+
+    <p class="mt-6">
+      {{#if content.prevPageHref}}<a href="{{content.prevPageHref}}" class="btn btn-outline">Previous</a>{{/if}}
+      {{#if content.nextPageHref}}<a href="{{content.nextPageHref}}" class="btn btn-outline">Next</a>{{/if}}
+    </p>
+  </section>
+</div>

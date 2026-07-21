@@ -175,6 +175,8 @@ publicRouter.post('/members/:memberKey/edit/password',requireAuth, memberControl
 publicRouter.post('/members/:memberKey/avatar',       requireAuth, memberController.postAvatarUpload);
 publicRouter.post('/members/:memberKey/purchase-tier', requireAuth, memberController.postPurchaseTier);
 publicRouter.get('/members/:memberKey/payments',       requireAuth, paymentController.getPaymentHistory);
+publicRouter.post('/members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel',
+  requireAuth, paymentController.postCancelRecurringDonation);
 publicRouter.get('/members/:memberKey/contact-admin',  requireAuth, contactRequestController.getForm);
 publicRouter.post('/members/:memberKey/contact-admin', requireAuth, contactRequestController.postSubmit);
 
@@ -282,6 +284,11 @@ publicRouter.post(
 );
 publicRouter.get('/payments/success', requireAuth, paymentController.getPaymentSuccess);
 publicRouter.get('/payments/cancel',  requireAuth, paymentController.getPaymentCancel);
+
+// Donations. Signed-in only: a donation is attributed to a member record, and
+// the note defaults from the member's honors.
+publicRouter.get('/donate',  requireAuth, paymentController.getDonate);
+publicRouter.post('/donate', requireAuth, paymentController.postDonate);
 
 // Stub-mode checkout pass-through: registered only when PAYMENT_ADAPTER=stub.
 // In live mode, members are redirected to checkout.stripe.com instead and
