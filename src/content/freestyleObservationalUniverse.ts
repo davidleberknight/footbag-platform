@@ -172,8 +172,11 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Stepping near Drifter", "slug": "stepping-drifter", "source": "PB", "ecosystem": "stepping", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "stepping(+1) + drifter(3) = 4", "semanticJob": "STEPPING DRIFTER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:tombstone", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "steppingneardrifter", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Stepping Ducking Pdx Illusion", "slug": "stepping-ducking-paradox-illusion", "source": "FM", "ecosystem": "stepping", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "stepping(+1) + ducking(+1) + paradox(+1) + illusion(2) = 5", "semanticJob": "STEPPING DUCKING PARADOX ILLUSION", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:avalanche", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "steppingduckingpdxillusion", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Stepping near Torque", "slug": "stepping-torque", "source": "PB", "ecosystem": "stepping", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "stepping(+1) + torque(4) = 5", "semanticJob": "STEPPING TORQUE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:grave_digger", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "steppingneartorque", "groupPrimary": true, "alsoRecordedAs": []},
+  {"name": "Miraging Symp. Illusion", "slug": "miraging-symposium-illusion", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "miraging(+1) + symposium(+1) + illusion(2) = 4", "semanticJob": "MIRAGING SYMPOSIUM. ILLUSION", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:miraging_flail", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "miragingsympillusion", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Surging Paradox Blender", "slug": "surging-paradox-blender", "source": "FM", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "7", "decomposition": "spinning(+1) + stepping(+1) + paradox(+1) + blender(4) = 7", "semanticJob": "SURGING PARADOX BLENDER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:margaritaville", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "surgingparadoxblender", "groupPrimary": true, "alsoRecordedAs": []},
+  {"name": "Whirling Reverse Whirl", "slug": "whirling-reverse-whirl", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "whirling(+1) + whirl(3) = 4", "semanticJob": "WHIRLING REVERSE WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:whirling_rev_whirl", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "whirlingreversewhirl", "groupPrimary": false, "alsoRecordedAs": []},
   {"name": "Spyro Gyro", "slug": "spyro-gyro", "source": "FM", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "2", "decomposition": "gyro(+1) + spyro(1) = 2", "semanticJob": "SPYRO GYRO", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "ready/C", "resolvedTarget": "canonical:gyro_butterfly_swirl", "objectType": "complete-trick", "evidenceState": "derivable-notation", "blockerId": "Q14", "owner": "james+red", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "spyrogyro", "groupPrimary": false, "alsoRecordedAs": []},
+  {"name": "Backside Symposium Toe Blizzard", "slug": "backside-symposium-toe-blizzard", "source": "FB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "backside(+1) + symposium(+1) + blizzard(3) = 5", "semanticJob": "BACKSIDE SYMPOSIUM TOE BLIZZARD", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:quantum_flail", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "backsidesymposiumtoeblizzard", "groupPrimary": false, "alsoRecordedAs": []},
   {"name": "Toe Mobius", "slug": "toe-mobius", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "mobius(5) = 5", "semanticJob": "TOE MOBIUS", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:mobius", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "toemobius", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Toe near Barrage", "slug": "toe-barrage", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "barrage(3) = 3", "semanticJob": "TOE BARRAGE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:terrage", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "toenearbarrage", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Far Reverse Swirl", "slug": "reverse-swirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "swirl(3) = 3", "semanticJob": "REVERSE SWIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:rev_swirl", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "farreverseswirl", "groupPrimary": true, "alsoRecordedAs": []},
@@ -384,6 +387,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Pixie XBD Rake (Swerve)", "slug": "pixie-xbd-rake-swerve", "source": "SG", "ecosystem": "pixie", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "pixiexbdrake", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "PLO (Pixie Legover) / Toe ss DLO", "slug": "plo-pixie-legover-toe-ss-dlo", "source": "PB", "ecosystem": "pixie", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "canonical:pixie_legover", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "plotoessdoublelegover", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Triple Pixie (Trixie)", "slug": "triple-pixie-trixie", "source": "SG", "ecosystem": "pixie", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "canonical:trixie", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "triplepixie", "groupPrimary": true, "alsoRecordedAs": ["Triple Pixie"]},
+  {"name": "Backside Symposium Toe Blizzard (Quantum Symposium Illusion)", "slug": "backside-symposium-toe-blizzard-quantum-symposium-illusion", "source": "FB", "ecosystem": "quantum", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:quantum_flail", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "backsidesymposiumtoeblizzard", "groupPrimary": true, "alsoRecordedAs": ["Backside Symposium Toe Blizzard"]},
   {"name": "Quantum far Butterfly", "slug": "quantum-far-butterfly", "source": "PB", "ecosystem": "quantum", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "quantumfarbutterfly", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Quantum far Mirage", "slug": "quantum-far-mirage", "source": "PB", "ecosystem": "quantum", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "quantumfarmirage", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Quantum far Torque", "slug": "quantum-far-torque", "source": "PB", "ecosystem": "quantum", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "quantumfartorque", "groupPrimary": true, "alsoRecordedAs": []},
@@ -496,6 +500,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Symp Whirl (same side)", "slug": "symp-whirl-same-side", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "sympwhirlsameside", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Terraging ss Clipper (Terawhirl)", "slug": "terraging-ss-clipper-terawhirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "terragingssclipper", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Whirl/swirl", "slug": "whirl-swirl", "source": "FB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "whirlswirl", "groupPrimary": true, "alsoRecordedAs": []},
+  {"name": "Whirling Reverse Whirl (Bling Blang)", "slug": "whirling-reverse-whirl-bling-blang", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:whirling_rev_whirl; canonical:bling_blang", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": true, "identityKey": "whirlingreversewhirl", "groupPrimary": true, "alsoRecordedAs": ["Whirling Reverse Whirl"]},
   {"name": "BS Blurriest", "slug": "bs-blurriest", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "doctrine/C", "resolvedTarget": "", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "Q01", "owner": "james+red", "publicationState": "doctrine-blocked", "publicSection": "ruling", "resolutionConflict": false, "identityKey": "bsblurriest", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Butterfly, Down", "slug": "butterfly-down", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "authoring/F", "resolvedTarget": "", "objectType": "malformed", "evidenceState": "none", "blockerId": "", "owner": "mechanical", "publicationState": "rejected", "publicSection": "archive", "resolutionConflict": false, "identityKey": "butterflydown", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Illusioning far Osis", "slug": "illusioning-far-osis", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "illusioningfarosis", "groupPrimary": true, "alsoRecordedAs": []},
@@ -1097,7 +1102,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 940,
+    "total": 945,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1105,12 +1110,12 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 175,
-    "lexicalArchive": 761,
+    "promotionFrontier": 178,
+    "lexicalArchive": 763,
     "intakeBuckets": {
       "promotion_ready": {
-        "names": 22,
-        "distinctStructures": 22
+        "names": 25,
+        "distinctStructures": 25
       },
       "doctrine_pending": {
         "names": 39,
@@ -1121,8 +1126,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 114
       },
       "alias": {
-        "names": 347,
-        "distinctStructures": 347
+        "names": 349,
+        "distinctStructures": 349
       },
       "equivalence": {
         "names": 0,
@@ -1142,14 +1147,14 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       }
     },
     "publicSections": {
-      "archive": 570,
+      "archive": 573,
       "decide": 1,
       "evidence": 8,
       "ruling": 286
     },
     "publicationStates": {
       "adjudication-pending": 1,
-      "already-represented": 481,
+      "already-represented": 484,
       "doctrine-blocked": 286,
       "evidence-pending": 8,
       "not-a-trick": 17,
@@ -1179,28 +1184,29 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "james": 1,
       "james+red": 286,
       "mechanical": 398,
-      "none": 172
+      "none": 175
     },
-    "identityCount": 865,
+    "identityCount": 868,
     "reconciliationWarnings": {
+      "conflicting-parenthetical-resolutions": 1,
       "live-resolution-overrides-ledger": 10,
       "positional-paren-resolution-held": 4
     },
-    "ready": 20,
-    "frontier": 112,
+    "ready": 22,
+    "frontier": 113,
     "doctrineBlocked": 53,
-    "folkUnresolved": 440,
+    "folkUnresolved": 442,
     "parserUnresolved": 315,
     "promotionReadyPct": 14,
     "doctrineBlockedPct": 6,
     "folkUnresolvedPct": 47,
-    "parserUnresolvedPct": 34,
+    "parserUnresolvedPct": 33,
     "canonicalCoveragePct": 21,
     "sources": {
-      "SG": 422,
-      "FM": 236,
-      "PB": 219,
-      "FB": 49,
+      "SG": 423,
+      "FM": 237,
+      "PB": 220,
+      "FB": 51,
       "MULTI": 14
     },
     "foldedJunk": 181

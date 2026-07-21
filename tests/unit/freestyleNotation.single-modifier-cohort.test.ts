@@ -18,7 +18,7 @@ const APPROVED = [
   { slug: 'clipper-diving-whirl', add: 4, family: 'whirl', notation: 'CLIP > DIVE [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'clipper-ducking-whirl', add: 4, family: 'whirl', notation: 'CLIP > DUCK [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'clipper-symposium-whirl', add: 4, family: 'whirl', notation: 'CLIP > SAME SYMP [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
-  { slug: 'whirling-reverse-whirl', add: 4, family: 'whirl', notation: 'SET > OP FRONT WHIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'whirling-rev-whirl', add: 4, family: 'rev-whirl', notation: 'SET > OP FRONT WHIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'reverse-blender', add: 4, family: 'osis', notation: 'SET > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]' },
   { slug: 'clipper-ducking-blender', add: 5, family: 'osis', notation: 'CLIP > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]' },
   { slug: 'reverse-swirling-blender', add: 5, family: 'osis', notation: 'SET > SAME SWIRL [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]' },
