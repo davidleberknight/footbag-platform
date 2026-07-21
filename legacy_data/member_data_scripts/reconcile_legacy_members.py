@@ -753,6 +753,13 @@ def load_person_link_holds(holds_path: Path | None):
     return person_link_hold.load_holds(holds_path)
 
 
+def load_review_resolutions(resolutions_path: Path | None):
+    """Load and return the Stage B review-group resolutions, or [] when no path is
+    given. Local import so the reconciler runs with no resolution input."""
+    import review_resolution
+    return review_resolution.load_resolutions(resolutions_path)
+
+
 def dry_run_auto_merge(csv_path: Path, proposed_links_csv: Path,
                        overrides_path: Path | None = None) -> int:
     """Read-only: report how the auto-merge would split the current dump into
@@ -1291,10 +1298,50 @@ def _build_link_hold_descriptors(proposed: list[dict[str, str]],
     return out
 
 
+def _build_review_resolution_descriptors(review: list[dict[str, str]],
+                                         proposed: list[dict[str, str]],
+                                         accounts: list[dict[str, str]],
+                                         survivor_view: "StageASurvivorView | None") -> list[dict]:
+    """One descriptor per current Stage B review group, carrying the full decision
+    boundary a review resolution binds to."""
+    import review_resolution as rr
+    boundary = _boundary_fingerprint(accounts)
+    by_id = {(r.get("legacy_member_id") or "").strip(): r for r in accounts}
+    survmap = survivor_view.loser_to_survivor if survivor_view is not None else {}
+    prop_accts = {p["legacy_member_id"] for p in proposed}
+    groups: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for r in review:
+        groups[r["review_group"]].append(r)
+    out: list[dict] = []
+    for _gid, rowset in groups.items():
+        acct_ids = frozenset(r["legacy_member_id"] for r in rowset)
+        cand_ids = frozenset(r["historical_person_id"] for r in rowset if r["historical_person_id"])
+        reason = rowset[0]["reason"]
+        name = rowset[0]["normalized_name"]
+        survivor_map = {a: survmap.get(a, a) for a in acct_ids}
+        dob = {a: (by_id.get(a, {}).get("birth_date") or "") for a in acct_ids}
+        country = {a: (by_id.get(a, {}).get("country") or "") for a in acct_ids}
+        loc = {a: f"{by_id.get(a, {}).get('city', '')}|{by_id.get(a, {}).get('region', '')}"
+               for a in acct_ids}
+        proposed_link = any(a in prop_accts for a in acct_ids)
+        fp = rr.review_group_fingerprint(
+            account_ids=acct_ids, candidate_person_ids=cand_ids, survivor_map=survivor_map,
+            dob_by_account=dob, country_by_account=country, location_by_account=loc,
+            review_reason=reason, match_methods=frozenset({reason}),
+            proposed_link=proposed_link, boundary_fingerprint=boundary)
+        out.append({
+            "account_ids": acct_ids, "normalized_name": name, "reason": reason,
+            "candidate_person_ids": cand_ids, "proposed_link": proposed_link,
+            "fingerprint": fp, "group": rowset,
+        })
+    return out
+
+
 def stage_b_link_historical_persons(
     csv_path: Path, db_path: Path, proposed_out: Path, review_out: Path,
     survivor_view: "StageASurvivorView | None" = None,
     person_link_holds: "list | None" = None,
+    review_resolutions: "list | None" = None,
 ) -> dict[str, object]:
     """Read the intermediate CSV and historical_persons, propose links, and write
     the proposed-link and review CSVs. Read-only on the database; proposes, never
@@ -1326,6 +1373,11 @@ def stage_b_link_historical_persons(
         provenance = survivor_view.provenance if survivor_view is not None else {}
         descriptors = _build_link_hold_descriptors(proposed, accounts, hps, provenance)
         proposed, link_hold_audit = plh.apply_holds(descriptors, person_link_holds)
+    review_resolution_audit: list = []
+    if review_resolutions:
+        import review_resolution as rr
+        rdesc = _build_review_resolution_descriptors(review, proposed, accounts, survivor_view)
+        review, review_resolution_audit = rr.apply_resolutions(rdesc, review_resolutions)
     _write_rows(proposed, PROPOSED_LINK_FIELDS, Path(proposed_out))
     _write_rows(review, LINK_REVIEW_FIELDS, Path(review_out))
 
@@ -1347,6 +1399,9 @@ def stage_b_link_historical_persons(
         "loser_accounts_hidden": len(survivor_view.loser_to_survivor) if survivor_view else 0,
         "person_links_held": len(link_hold_audit),
         "link_hold_audit": link_hold_audit,
+        "review_groups_resolved": len(review_resolution_audit),
+        "review_groups_pending": sum(1 for a in review_resolution_audit if a["pending"]),
+        "review_resolution_audit": review_resolution_audit,
         "proposed_out": str(proposed_out),
         "review_out": str(review_out),
     }
@@ -1356,7 +1411,8 @@ def run_stage_b(csv_path: Path, db_path: Path | None,
                 proposed_out: Path, review_out: Path,
                 use_survivor_view: bool = False,
                 overrides_path: Path | None = None,
-                link_holds_path: Path | None = None) -> int:
+                link_holds_path: Path | None = None,
+                review_resolutions_path: Path | None = None) -> int:
     if not csv_path.exists():
         print(
             f"error: intermediate CSV not found at {csv_path}.\n"
@@ -1372,6 +1428,7 @@ def run_stage_b(csv_path: Path, db_path: Path | None,
         )
         return 1
     holds = load_person_link_holds(link_holds_path)
+    resolutions = load_review_resolutions(review_resolutions_path)
     view = None
     if use_survivor_view:
         with Path(csv_path).open(encoding="utf-8", newline="") as f:
@@ -1398,14 +1455,18 @@ def run_stage_b(csv_path: Path, db_path: Path | None,
               f"merges; {len(view.loser_to_survivor)} loser accounts hidden; "
               f"plan fp {view.plan_fingerprint[:16]}")
     try:
-        s = stage_b_link_historical_persons(csv_path, db_path, proposed_out, review_out, view, holds)
+        s = stage_b_link_historical_persons(csv_path, db_path, proposed_out, review_out,
+                                            view, holds, resolutions)
     except Exception as e:
-        if e.__class__.__name__ == "PersonLinkHoldError":
-            print(f"error: person-link hold failed closed: {e}", file=sys.stderr)
+        if e.__class__.__name__ in ("PersonLinkHoldError", "ReviewResolutionError"):
+            print(f"error: Stage B adjudication failed closed: {e}", file=sys.stderr)
             return 2
         raise
     if s["person_links_held"]:
         print(f"person links held (withheld from application): {s['person_links_held']}")
+    if s["review_groups_resolved"]:
+        print(f"review groups resolved (removed from the undecided queue): "
+              f"{s['review_groups_resolved']}  (pending report: {s['review_groups_pending']})")
     print(f"historical_persons: {s['hp_total']}")
     print(f"proposed links: {s['proposed_total']}  "
           f"(verified id: {s['verified_id_links']}, name+DOB: {s['name_dob_links']}, "
@@ -1578,6 +1639,10 @@ def main() -> None:
                     help="Stage B person-link hold CSV (private input; fail-closed). "
                          "Suppresses adjudicated proposed links before the proposal CSV is "
                          "written; omitted = no holds.")
+    ap.add_argument("--review-resolutions", type=Path, default=None,
+                    help="Stage B review-group resolution CSV (private input; fail-closed). "
+                         "Moves adjudicated groups out of the undecided-review output into a "
+                         "held/pending audit; omitted = no resolutions.")
     ap.add_argument("--overrides", type=Path, default=None,
                     help="Stage A adjudication-override CSV (private input; fail-closed). "
                          "Applied to --dry-run-merge and --final-merge; omitted = plain baseline.")
@@ -1593,7 +1658,8 @@ def main() -> None:
         sys.exit(run_stage_b(args.csv, args.db, args.proposed_out, args.review_out,
                              use_survivor_view=args.stage_b_survivor_view,
                              overrides_path=args.overrides,
-                             link_holds_path=args.link_holds))
+                             link_holds_path=args.link_holds,
+                             review_resolutions_path=args.review_resolutions))
     if args.qc_gate:
         sys.exit(run_qc_gate(args.out, args.proposed_out, args.review_out))
     if args.dry_run_merge:
