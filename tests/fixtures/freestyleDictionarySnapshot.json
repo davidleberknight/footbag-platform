@@ -7907,14 +7907,14 @@
 {
 "slug": "inspinning_reverse_guay",
 "canonical_name": "inspinning reverse guay",
-"adds": "2",
+"adds": "3",
 "base_trick": "guay",
 "trick_family": "inside_stall",
 "category": "compound",
 "description": null,
 "aliases_json": null,
 "notation": "INSPINNING REVERSE GUAY",
-"operational_notation": "SET > SAME IN [DEX] > OP INSIDE [DEL]",
+"operational_notation": "CLIP > (front) SPIN [BOD] > OP IN [DEX] > OP INSIDE [DEL]",
 "sort_order": 1605
 },
 {
