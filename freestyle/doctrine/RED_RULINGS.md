@@ -2,10 +2,12 @@
 
 The expert rulings in effect for the freestyle dictionary, and where each one's
 canonical home is. Rules expert Red Husted's answers arrived in a numbered
-correspondence series ("pt" batches) and later consolidated waves; the raw
-transcripts and per-batch adjudication logs are frozen in
-`legacy_data/inputs/curated/tricks/` (`red-correction*-pt*.txt`,
-`red_corrections_pt*.csv`, `red_corrections_consolidated.csv`). This ledger
+correspondence series ("pt" batches) and later consolidated waves; the verbatim
+transcripts and follow-up notes (`red-correction*-pt*.txt`, `red-followup-*.md`)
+are person-attributed correspondence held in the maintainers' private
+repository, while the derived per-batch adjudication logs stay frozen in
+`legacy_data/inputs/curated/tricks/` (`red_corrections_pt*.csv`,
+`red_corrections_consolidated.csv`). This ledger
 summarizes the rulings IN FORCE — it does not restate every per-row note; the
 per-row provenance lives where each ruling is applied.
 

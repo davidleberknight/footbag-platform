@@ -205,6 +205,13 @@ legacy_data/membership/inputs/membership_input_normalized.csv
 # the private copy so the pipeline scripts keep reading their default path.
 legacy_data/freestyle_reconciliation/james_adjudications.csv
 
+# Person-attributed Red-ruling correspondence (verbatim transcripts and
+# follow-up notes): relocated to the maintainers' private repository. The
+# derived red_corrections_*.csv files are NOT correspondence and stay public
+# and tracked (trick/notation data only; no names, no email addresses).
+legacy_data/inputs/curated/tricks/red-correction*.txt
+legacy_data/inputs/curated/tricks/red-followup*.md
+
 # Identity lock: keep only the latest versioned snapshots
 legacy_data/inputs/identity_lock/Placements_ByPerson_v*.csv
 !legacy_data/inputs/identity_lock/Placements_ByPerson_v97.csv
