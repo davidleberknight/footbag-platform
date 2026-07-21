@@ -193,6 +193,18 @@ legacy_data/legacy_mirror/robots_cache.json
 # as the mirror above).
 legacy_data/membership/inputs/membership_input_normalized.csv
 
+# Freestyle research tree: relocated to the maintainers' private repository.
+# On a wired machine this path is a repo-root symlink into the private archive;
+# the anchored pattern (no trailing slash) covers the symlink itself, and
+# ignoring the path keeps future research output from ever becoming committable
+# here again.
+/exploration
+
+# Person-attributed freestyle adjudications worklist: relocated to the
+# maintainers' private repository. On a wired machine this path is a symlink to
+# the private copy so the pipeline scripts keep reading their default path.
+legacy_data/freestyle_reconciliation/james_adjudications.csv
+
 # Identity lock: keep only the latest versioned snapshots
 legacy_data/inputs/identity_lock/Placements_ByPerson_v*.csv
 !legacy_data/inputs/identity_lock/Placements_ByPerson_v97.csv
@@ -239,5 +251,4 @@ legacy_data/reports/
 # Operator-run audit outputs (CSV reports etc., regenerated on demand)
 /out/
 legacy_data/freestyle_reconciliation/import_qc_report.md
-legacy_data/freestyle_reconciliation/james_adjudications.csv
 tricks-mosaic-clips/

@@ -1,6 +1,0 @@
-# Regenerable diagnostic outputs from extract_corpus_names.py.
-# Re-derived by running the script; only the tool + audit-trail
-# (summary.txt + corpus_delta.csv) are committed.
-corpus_names_all.csv
-reconciliation_index.csv
-__pycache__/

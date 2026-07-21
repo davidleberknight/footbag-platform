@@ -1,5 +1,0 @@
-"name","slug","sources","category","ecosystems","signal_trace"
-"(clipper reverse whirl spinning)","clipper-reverse-whirl-spinning","fborg","E","spinning|whirl-swirl","match=parenthetical-only-row"
-"Components of sets, but not neccesssarily sets","components-of-sets-but-not-neccesssarily-sets","fborg","E","","match=known-parser-leak"
-"Diving","diving","fborg","E","","match=known-parser-leak"
-"Footbag Moves","footbag-moves","stanford","E","","match=known-parser-leak"

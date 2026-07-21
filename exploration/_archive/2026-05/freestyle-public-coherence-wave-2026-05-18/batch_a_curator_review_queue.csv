@@ -1,6 +1,0 @@
-external_name,ifpa_slug,ifpa_canonical_name,confidence,review_reason,recommended_action
-Barfry,matador,matador,MEDIUM,PB Barfry → IFPA matador is non-obvious. Verify before promoting.,curator_verify_then_add
-Catacomb,smoke,smoke,LOW,PB Catacomb → IFPA smoke. Unusual semantic distance. Verify.,curator_verify_then_add_or_reject
-PLO,magellan,magellan,LOW,PB PLO → IFPA magellan. PLO commonly = Paradox Leg-Over which IFPA has as a different slug. Verify.,curator_verify_then_add_or_reject
-Sidwalk,ripwalk,ripwalk,LOW,"Likely TYPO of ""Sidewalk"" which is a DISTINCT canonical trick. DO NOT add as alias to ripwalk; reject as typo unless curator confirms.",reject_likely_typo
-Tapdown,atomic-butterfly,atomic butterfly,LOW,PB Tapdown → IFPA atomic-butterfly. Non-obvious. Memory mentions pigbeater=atomic-butterfly was added; tapdown may parallel. Verify.,curator_verify_then_add
