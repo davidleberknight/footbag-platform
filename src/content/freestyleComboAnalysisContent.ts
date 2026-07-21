@@ -108,6 +108,7 @@ export interface ComboAnalysisContent {
 
 const PHILOSOPHY_PARAGRAPHS: readonly string[] = [
   "Freestyle runs are not random collections of tricks. They form structured movement phrases, with setup mechanics, transitions, recovery points, and resolution patterns. The vocabulary players use to talk about these structures has evolved alongside the trick vocabulary itself, and this page documents what's emerged.",
+  "This page is an educational analysis of how tricks combine into runs, based on an archival sample of scored freestyle sequences. It is not a complete census of all freestyle combinations; the observations below describe patterns that recur in that sample, phrased without exact counts, and rankings that a specific corpus would be needed to quantify.",
   "This page assumes familiarity with individual tricks (see the Trick Dictionary) and with how ADD is constructed (see ADD Accounting & Analysis). It operates at the level above both: how the tricks combine.",
 ];
 
@@ -153,27 +154,27 @@ const SEQUENCE_ARCHITECTURE_TERMS: readonly ComboAnalysisArchitectureTerm[] = [
   {
     anchorId:   'launch-node',
     term:       'Launch node',
-    definition: 'A trick that disproportionately opens combos: players reach for it first when starting a sequence. Blurry whirl is the corpus\'s strongest launch node (hub score 0.695): the most-documented opening trick in 22 years of Sick3 sequences.',
+    definition: 'A trick that disproportionately opens combos: players reach for it first when starting a sequence. Blurry whirl commonly appears as an opening trick in the analyzed material: its most prominent launch node.',
   },
   {
     anchorId:   'attractor',
     term:       'Attractor (terminus)',
-    definition: 'A trick that disproportionately closes combos: sequences gravitate to it. Whirl is the corpus\'s strongest attractor (authority score 0.863, PageRank 0.126): more sequences resolve to whirl than to any other trick.',
+    definition: 'A trick that disproportionately closes combos: sequences gravitate to it. Whirl frequently functions as a closing trick in the analyzed material: sequences resolve to it more than to any other trick.',
   },
   {
     anchorId:   'throughput-trick',
     term:       'Throughput trick',
-    definition: 'A connector that appears mid-sequence; rarely opens or closes. Dimwalk is the corpus\'s strongest throughput trick (out-degree 23 vs in-degree 15): players reach for it because it leads somewhere.',
+    definition: 'A connector that appears mid-sequence; rarely opens or closes. Dimwalk often connects different parts of a combination in the analyzed material: players reach for it because it leads somewhere.',
   },
   {
     anchorId:   'sink',
     term:       'Sink',
-    definition: 'A trick that absorbs sequence flow but rarely chains onward. Swirl tends to behave this way: high authority but low hub score: once players are in swirl, they tend to stay or end there.',
+    definition: 'A trick that absorbs sequence flow but rarely chains onward. Swirl tends to behave this way: once a sequence reaches it, players tend to stay or end there rather than chaining onward.',
   },
   {
     anchorId:   'pure-terminus',
     term:       'Pure terminus',
-    definition: 'A trick that appears at the end of a sequence and almost nowhere else. Superfly is the cleanest example: out-degree 1, nothing reliably follows it.',
+    definition: 'A trick that appears at the end of a sequence and almost nowhere else. Superfly is an example: little reliably follows it.',
   },
   {
     anchorId:   'stabilization',
@@ -183,7 +184,7 @@ const SEQUENCE_ARCHITECTURE_TERMS: readonly ComboAnalysisArchitectureTerm[] = [
   {
     anchorId:   'recovery-trick',
     term:       'Recovery trick',
-    definition: 'A low-difficulty element inserted between high-difficulty work to reclaim composure. The "I needed a beat" maneuver. Documented examples: whirl → whirl (10×), legover → legover (3×), clipper → clipper (2×).',
+    definition: 'A low-difficulty element inserted between high-difficulty work to reclaim composure. The "I needed a beat" maneuver. Documented examples include whirl → whirl, legover → legover, and clipper → clipper.',
   },
 ];
 
@@ -191,17 +192,17 @@ const DIFFICULTY_ARCHITECTURE_TERMS: readonly ComboAnalysisArchitectureTerm[] = 
   {
     anchorId:   'concentration-strategy',
     term:       'Concentration strategy',
-    definition: 'Few tricks (2–3), each averaging 5–6 ADD. The "depth" approach. Reaches high totals through per-trick difficulty rather than length. Risk: one missed trick collapses the sequence. Brad Nelson\'s 15-ADD chain in 3 tricks is the canonical example.',
+    definition: 'Few tricks (two or three), each of high per-trick difficulty. The "depth" approach. Reaches high totals through per-trick difficulty rather than length. Risk: one missed trick collapses the sequence.',
   },
   {
     anchorId:   'breadth-strategy',
     term:       'Breadth strategy',
-    definition: 'More tricks (4–7), each averaging 3–4 ADD. The "length" approach. Reaches high totals through sequence length rather than per-trick difficulty. Risk: an error mid-sequence breaks accumulation. Greg Solis\'s 22-ADD chain in 7 tricks is the corpus maximum.',
+    definition: 'More tricks (four to seven), each of low-to-moderate per-trick difficulty. The "length" approach. Reaches high totals through sequence length rather than per-trick difficulty. Risk: an error mid-sequence breaks accumulation.',
   },
   {
     anchorId:   'per-trick-density',
     term:       'Per-trick ADD density',
-    definition: 'Average ADD divided by trick count: the metric that distinguishes concentration from breadth. ≥5.0 indicates concentration; ≤3.5 indicates breadth.',
+    definition: 'Average ADD divided by trick count: the metric that distinguishes concentration from breadth. Higher values indicate concentration; lower values indicate breadth.',
   },
   {
     anchorId:   'sequence-risk',
@@ -211,7 +212,7 @@ const DIFFICULTY_ARCHITECTURE_TERMS: readonly ComboAnalysisArchitectureTerm[] = 
   {
     anchorId:   'difficulty-stacking',
     term:       'Difficulty stacking',
-    definition: 'Consecutive ultra-high-ADD tricks with no recovery between. Food processor → mobius (6 + 5 = 11 combined ADD) is the documented extreme: 3 instances 2004–2016.',
+    definition: 'Consecutive ultra-high-ADD tricks with no recovery between. Food processor → mobius (6 + 5 = 11 combined ADD) is a documented extreme.',
   },
   {
     anchorId:   'additive-layering',
@@ -252,10 +253,10 @@ const ARCHITECTURE_SECTIONS: readonly ComboAnalysisArchitectureSection[] = [
 const WORKED_EXAMPLES: readonly ComboAnalysisWorkedExample[] = [
   {
     anchorId:    'example-canonical-pair',
-    title:       'Example 1: Blurry Whirl → Whirl (the canonical pair)',
+    title:       'Example 1: Blurry Whirl → Whirl (opener to closer)',
     diagram:     'blurry whirl  →  whirl\n   5 ADD          3 ADD',
     totalLine:   'Total: 8 ADD across 2 tricks (density 4.0)',
-    whatHappens: 'The player opens with the hardest single rotational element in regular competitive use (blurry whirl, 5 ADD), then resolves to whirl\'s stable clipper-stall landing.',
+    whatHappens: 'The player opens with a high-ADD rotational element (blurry whirl, 5 ADD), then resolves to whirl\'s stable clipper-stall landing.',
     whyItWorks:  [
       'Difficulty announcement: opening with the high-ADD element signals competitive intent immediately. The judge sees the commitment in the first beat.',
       'Risk management: resolving to whirl gives the body a stable termination on a familiar surface. The hardest moment of the combo is also the moment when fatigue is lowest.',
@@ -266,7 +267,7 @@ const WORKED_EXAMPLES: readonly ComboAnalysisWorkedExample[] = [
       { anchorId: 'attractor',            label: 'Attractor (whirl)' },
       { anchorId: 'resolution-trick',     label: 'Resolution trick' },
     ],
-    corpusNote: '17 documented appearances across 15 players and 14 events, the single most common two-trick transition in the corpus.',
+    corpusNote: 'Blurry whirl commonly appears as an opening trick and whirl as a closing trick in the analyzed material.',
   },
   {
     anchorId:    'example-walking-ladder',
@@ -284,7 +285,7 @@ const WORKED_EXAMPLES: readonly ComboAnalysisWorkedExample[] = [
       { anchorId: 'setup-trick',          label: 'Setup chain (three setup tricks before resolution)' },
       { anchorId: 'stabilization',        label: 'Stabilization' },
     ],
-    corpusNote: 'smear → dimwalk: 7 appearances across 7 players. The walking ladder is well-attested.',
+    corpusNote: 'Dimwalk often connects different parts of a combination in the analyzed material; the walking ladder is attested.',
   },
   {
     anchorId:    'example-cross-family-launch',
@@ -301,7 +302,7 @@ const WORKED_EXAMPLES: readonly ComboAnalysisWorkedExample[] = [
       { anchorId: 'setup-trick',          label: 'Setup trick' },
       { anchorId: 'additive-layering',    label: 'Compositional layering (the modifier on whirl)' },
     ],
-    corpusNote: 'butterfly → blurry whirl: 3 documented appearances. Less common than Example 1 but architecturally informative.',
+    corpusNote: 'Less common in the analyzed material than the opening pair, but architecturally informative.',
   },
   {
     anchorId:    'example-difficulty-stacking',
@@ -320,14 +321,14 @@ const WORKED_EXAMPLES: readonly ComboAnalysisWorkedExample[] = [
       { anchorId: 'sequence-risk',          label: 'Sequence risk (single-miss collapse)' },
       { anchorId: 'per-trick-density',      label: 'Per-trick ADD density (5.5)' },
     ],
-    corpusNote: '3 documented appearances, all 2004–2016. The architecture exists in the elite tier but doesn\'t dominate.',
+    corpusNote: 'The architecture appears in the elite tier of the analyzed material but doesn\'t dominate.',
   },
   {
     anchorId:    'example-breadth-via-length',
-    title:       'Example 5: The 22-ADD Solis Chain (breadth via length)',
+    title:       'Example 5: A long breadth chain (breadth via length)',
     diagram:     'butterfly → whirl → osis → dimwalk → osis → butterfly → swirl\n    3        3       3        4       3        3         3',
-    totalLine:   'Total: 22 ADD across 7 tricks (density 3.1), corpus maximum',
-    whatHappens: 'Greg Solis, 2008. Seven tricks averaging 3.1 ADD each, no modifier compounds, no maximum-ADD elements: pure breadth strategy taken to its corpus-maximum result.',
+    totalLine:   'A seven-element chain of low-to-moderate ADD tricks: accumulation comes from length, not per-trick difficulty.',
+    whatHappens: 'Seven low-to-moderate ADD tricks, no modifier compounds and no maximum-ADD elements: pure breadth strategy, where the total comes from sequence length rather than per-trick difficulty.',
     whyItWorks:  [
       'Length over depth: no single trick exceeds 4 ADD; the accumulation comes from sequence length, not from per-trick difficulty.',
       'Recovery built in: multiple positions through legover-family rest points (osis at positions 3 and 5) let the body reset mid-chain.',
@@ -335,12 +336,12 @@ const WORKED_EXAMPLES: readonly ComboAnalysisWorkedExample[] = [
       'Composure as the bottleneck: the collapse mode here is fatigue or distraction across seven elements; the player\'s challenge is sustained focus rather than peak technical demand.',
     ],
     conceptsSurfaced: [
-      { anchorId: 'breadth-strategy',  label: 'Breadth strategy (corpus maximum)' },
+      { anchorId: 'breadth-strategy',  label: 'Breadth strategy' },
       { anchorId: 'recovery-trick',    label: 'Recovery trick (osis mid-sequence)' },
-      { anchorId: 'per-trick-density', label: 'Per-trick ADD density (3.1)' },
+      { anchorId: 'per-trick-density', label: 'Per-trick ADD density' },
       { anchorId: 'sequence-risk',     label: 'Sequence risk (accumulation-break)' },
     ],
-    corpusNote: '1 documented appearance. The corpus-maximum sequence.',
+    corpusNote: 'An illustrative long breadth chain built from low-to-moderate ADD elements.',
   },
 ];
 
@@ -349,8 +350,8 @@ const WORKED_EXAMPLES: readonly ComboAnalysisWorkedExample[] = [
 // ─────────────────────────────────────────────────────────────────────────
 
 const TOPOLOGY_INTRO =
-  'The directional flow patterns between tricks. Network observations from 22 years ' +
-  'of Sick3 sequences translated to pedagogical language. These patterns are ' +
+  'The directional flow patterns between tricks, observed in the analyzed sequence ' +
+  'sample and translated to pedagogical language. These patterns are ' +
   'observational: they describe what was recorded, not what players are required to do.';
 
 const TOPOLOGY_PATTERNS: readonly ComboAnalysisTopologyPattern[] = [
@@ -372,7 +373,7 @@ const TOPOLOGY_PATTERNS: readonly ComboAnalysisTopologyPattern[] = [
   {
     anchorId:   'topology-clipper-stabilization',
     name:       'Clipper stabilization',
-    definition: 'The convergence of sequences toward clipper-stall landings. Flow resolves to stable catch surfaces; whirl\'s status as the corpus\'s strongest attractor is partly because it lands on clipper.',
+    definition: 'The convergence of sequences toward clipper-stall landings. Flow resolves to stable catch surfaces; whirl\'s status as the sample\'s strongest attractor is partly because it lands on clipper.',
   },
   {
     anchorId:   'topology-ducking-chains',
@@ -382,7 +383,7 @@ const TOPOLOGY_PATTERNS: readonly ComboAnalysisTopologyPattern[] = [
   {
     anchorId:   'topology-paradox-chains',
     name:       'Paradox chains',
-    definition: 'Paradox-modified compounds form a related cluster: paradox torque, paradox whirl, paradox blender. Peaked 2002–2014; declined afterward, losing competitive share to the blurry family.',
+    definition: 'Paradox-modified compounds form a related cluster: paradox torque, paradox whirl, paradox blender. Prominent in an earlier era, then less so as the blurry family gained competitive share.',
   },
 ];
 
@@ -391,11 +392,11 @@ const TOPOLOGY_PATTERNS: readonly ComboAnalysisTopologyPattern[] = [
 // ─────────────────────────────────────────────────────────────────────────
 
 const CAVEATS: readonly string[] = [
-  'Documented patterns reflect the Sick3-format-dominated corpus (395 sequences across 22 years of ADD-scored competition), not all competitive freestyle. Routines and Shred:30 work is sparsely captured.',
-  'European competition dominates 2004–2021 documentation; North American coverage from the same period is sparser. Pre-1997 data is partial.',
-  'Vocabulary evolved over the corpus window. Some terms have shifted meaning, and some "Tiltless" through "Godly" tier thresholds varied by era and judge.',
+  'Documented patterns reflect an archival sample of ADD-scored, Sick3-format-dominated sequences, not a complete census of competitive freestyle. Routines and Shred:30 work are sparsely captured.',
+  'European competition is more heavily represented than North American in the analyzed material, and earlier eras are only partially covered.',
+  'Vocabulary evolved over the analyzed period. Some terms have shifted meaning, and some "Tiltless" through "Godly" tier thresholds varied by era and judge.',
   '"Tiltless" through "Godly" tier definitions are community conventions; the specific ADD thresholds were never centrally legislated.',
-  'Network metrics (PageRank, hub score, authority score) describe documented transitions (what was recorded), not what players would do or should do.',
+  'The observations here describe documented transitions in the sample (what was recorded), not what players would do or should do.',
 ];
 
 // ─────────────────────────────────────────────────────────────────────────

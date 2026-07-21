@@ -127,12 +127,10 @@ describe('GET /freestyle/combo-analysis — §3 sequence architecture', () => {
     }
   });
 
-  it('names whirl as the corpus attractor + blurry whirl as the corpus launch node', async () => {
+  it('names whirl as the leading closer and blurry whirl as the leading opener, without magnitudes', async () => {
     const res = await request(createApp()).get('/freestyle/combo-analysis');
-    // Apostrophe in "corpus's" renders as `&#x27;`; allow ~30 chars between
-    // "corpus" and "strongest" to absorb the entity + intervening words.
-    expect(res.text).toMatch(/Whirl is the corpus.{0,30}strongest attractor/);
-    expect(res.text).toMatch(/Blurry whirl is the corpus.{0,30}strongest launch node/);
+    expect(res.text).toMatch(/Whirl frequently functions as a closing trick/);
+    expect(res.text).toMatch(/Blurry whirl commonly appears as an opening trick/);
   });
 });
 
@@ -149,10 +147,10 @@ describe('GET /freestyle/combo-analysis — §4 difficulty architecture', () => 
     }
   });
 
-  it('concentration vs breadth examples reference Brad Nelson and Greg Solis chains', async () => {
+  it('describes concentration and breadth qualitatively, without named-chain magnitude claims', async () => {
     const res = await request(createApp()).get('/freestyle/combo-analysis');
-    expect(res.text).toMatch(/Brad Nelson/);
-    expect(res.text).toMatch(/Greg Solis/);
+    expect(res.text).toMatch(/depth.{0,40}approach/);
+    expect(res.text).toMatch(/length.{0,40}approach/);
   });
 });
 
@@ -174,26 +172,27 @@ describe('GET /freestyle/combo-analysis — §5 worked examples', () => {
     }
   });
 
-  it('canonical-pair example carries the blurry whirl → whirl diagram + 17× corpus note', async () => {
+  it('canonical-pair example keeps the blurry whirl → whirl diagram but drops the frequency count', async () => {
     const res = await request(createApp()).get('/freestyle/combo-analysis');
     const exampleIdx = res.text.indexOf('id="example-canonical-pair"');
     const nextIdx    = res.text.indexOf('id="example-walking-ladder"');
     expect(exampleIdx).toBeGreaterThan(0);
     const slice = res.text.slice(exampleIdx, nextIdx);
     expect(slice).toMatch(/blurry whirl\s*&rArr;?\s*\n?\s*whirl|blurry whirl[\s\S]{0,60}whirl/);
-    expect(slice).toMatch(/17/);
+    expect(slice).not.toMatch(/17/);
+    expect(slice).not.toMatch(/most common two-trick transition/);
   });
 
-  it('Solis 22-ADD example surfaces the 7-trick breakdown + corpus-maximum framing', async () => {
+  it('breadth example keeps the long chain but drops the corpus-maximum magnitude claim', async () => {
     const res = await request(createApp()).get('/freestyle/combo-analysis');
     const exampleIdx = res.text.indexOf('id="example-breadth-via-length"');
     expect(exampleIdx).toBeGreaterThan(0);
     const sliceEnd   = res.text.indexOf('id="transition-topology"');
     const slice      = res.text.slice(exampleIdx, sliceEnd);
-    expect(slice).toMatch(/22 ADD/);
-    expect(slice).toMatch(/7 tricks/);
-    expect(slice).toMatch(/corpus maximum/i);
     expect(slice).toMatch(/butterfly[\s\S]{0,40}whirl[\s\S]{0,40}osis/);
+    expect(slice).not.toMatch(/22 ADD/);
+    expect(slice).not.toMatch(/corpus maximum/i);
+    expect(slice).not.toMatch(/Greg Solis/);
   });
 
   it('each worked example carries concept cross-links into §3/§4', async () => {
@@ -222,10 +221,10 @@ describe('GET /freestyle/combo-analysis — §6 transition topology', () => {
 });
 
 describe('GET /freestyle/combo-analysis — §7 caveats + §8 cross-links', () => {
-  it('renders the corpus-coverage caveats', async () => {
+  it('renders the scope + coverage caveats without a corpus size or date span', async () => {
     const res = await request(createApp()).get('/freestyle/combo-analysis');
-    expect(res.text).toMatch(/Sick3.{0,30}corpus/);
-    expect(res.text).toMatch(/European competition dominates/);
+    expect(res.text).toMatch(/archival sample of ADD-scored/);
+    expect(res.text).toMatch(/European competition is more heavily represented/);
     expect(res.text).toMatch(/community conventions/);
   });
 
@@ -236,6 +235,49 @@ describe('GET /freestyle/combo-analysis — §7 caveats + §8 cross-links', () =
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/glossary"');
     expect(res.text).toContain('href="/freestyle/insights"');
+  });
+});
+
+describe('GET /freestyle/combo-analysis — reproducibility discipline', () => {
+  it('contains none of the unreproducible exact statistics', async () => {
+    const res = await request(createApp()).get('/freestyle/combo-analysis');
+    const forbidden = [
+      '395', '22 years', '22-ADD', '22 ADD',
+      '0.695', '0.863', '0.126',
+      'out-degree', 'in-degree', 'hub score', 'authority score', 'PageRank',
+      'corpus maximum', 'Greg Solis', 'Brad Nelson',
+      '≥5.0', '≤3.5', '17 documented',
+    ];
+    for (const phrase of forbidden) {
+      expect(
+        res.text.includes(phrase),
+        `Unreproducible figure present on the page: "${phrase}"`,
+      ).toBe(false);
+    }
+  });
+
+  it('does not substitute the distinct historical Sick 3 corpus figures', async () => {
+    const res = await request(createApp()).get('/freestyle/combo-analysis');
+    for (const phrase of ['308', '117 normalized', '94%', '17-ADD']) {
+      expect(
+        res.text.includes(phrase),
+        `Historical Sick 3 substitution present: "${phrase}"`,
+      ).toBe(false);
+    }
+  });
+
+  it('retains the reproducible qualitative findings', async () => {
+    const res = await request(createApp()).get('/freestyle/combo-analysis');
+    expect(res.text).toMatch(/Blurry whirl commonly appears as an opening trick/);
+    expect(res.text).toMatch(/Whirl frequently functions as a closing trick/);
+    expect(res.text).toMatch(/Dimwalk often connects different parts of a combination/);
+  });
+
+  it('states the page scope: an educational analysis of an archival sample, not a census', async () => {
+    const res = await request(createApp()).get('/freestyle/combo-analysis');
+    expect(res.text).toMatch(/educational analysis/);
+    expect(res.text).toMatch(/archival sample/);
+    expect(res.text).toMatch(/not a complete census/);
   });
 });
 
