@@ -173,6 +173,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Stepping Ducking Pdx Illusion", "slug": "stepping-ducking-paradox-illusion", "source": "FM", "ecosystem": "stepping", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "stepping(+1) + ducking(+1) + paradox(+1) + illusion(2) = 5", "semanticJob": "STEPPING DUCKING PARADOX ILLUSION", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:avalanche", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "steppingduckingpdxillusion", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Stepping near Torque", "slug": "stepping-torque", "source": "PB", "ecosystem": "stepping", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "stepping(+1) + torque(4) = 5", "semanticJob": "STEPPING TORQUE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:grave_digger", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "steppingneartorque", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Miraging Symp. Illusion", "slug": "miraging-symposium-illusion", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "miraging(+1) + symposium(+1) + illusion(2) = 4", "semanticJob": "MIRAGING SYMPOSIUM. ILLUSION", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:miraging_flail", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "miragingsympillusion", "groupPrimary": true, "alsoRecordedAs": []},
+  {"name": "Symposium Tomahawk", "slug": "symposium-tomahawk", "source": "FB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "symposium(+1) + tomahawk(5) = 6", "semanticJob": "SYMPOSIUM TOMAHAWK", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:mullet", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "symposiumtomahawk", "groupPrimary": false, "alsoRecordedAs": []},
   {"name": "Surging Paradox Blender", "slug": "surging-paradox-blender", "source": "FM", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "7", "decomposition": "spinning(+1) + stepping(+1) + paradox(+1) + blender(4) = 7", "semanticJob": "SURGING PARADOX BLENDER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:margaritaville", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "surgingparadoxblender", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Whirling Reverse Whirl", "slug": "whirling-reverse-whirl", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "whirling(+1) + whirl(3) = 4", "semanticJob": "WHIRLING REVERSE WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:whirling_rev_whirl", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "whirlingreversewhirl", "groupPrimary": false, "alsoRecordedAs": []},
   {"name": "Spyro Gyro", "slug": "spyro-gyro", "source": "FM", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "2", "decomposition": "gyro(+1) + spyro(1) = 2", "semanticJob": "SPYRO GYRO", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "ready/C", "resolvedTarget": "canonical:gyro_butterfly_swirl", "objectType": "complete-trick", "evidenceState": "derivable-notation", "blockerId": "Q14", "owner": "james+red", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "spyrogyro", "groupPrimary": false, "alsoRecordedAs": []},
@@ -313,6 +314,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Spinning Ducking Reverse Whirling Swivel (Black Hole ?)", "slug": "spinning-ducking-reverse-whirling-swivel-black-hole", "source": "SG", "ecosystem": "ducking", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "spinningduckingreversewhirlingswivel", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Spinning Ducking Voodoo (Wonderland)", "slug": "spinning-ducking-voodoo-wonderland", "source": "SG", "ecosystem": "ducking", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "spinningduckingvoodoo", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Surging Ducking Motion (Overdose)", "slug": "surging-ducking-motion-overdose", "source": "SG", "ecosystem": "ducking", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "surgingduckingmotion", "groupPrimary": true, "alsoRecordedAs": []},
+  {"name": "Symposium Tomahawk (Ducking Paradox Symposium Whirl)", "slug": "symposium-tomahawk-ducking-paradox-symposium-whirl", "source": "FB", "ecosystem": "ducking", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:mullet; canonical:ducking_paradox_symposium_whirl", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": true, "identityKey": "symposiumtomahawk", "groupPrimary": true, "alsoRecordedAs": ["Symposium Tomahawk"]},
   {"name": "Fairy DLO (Flog)", "slug": "fairy-dlo-flog", "source": "SG", "ecosystem": "fairy", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "canonical:flog", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "fairydoublelegover", "groupPrimary": true, "alsoRecordedAs": ["Fairy Double Legover"]},
   {"name": "Fairy DLO (ss)", "slug": "fairy-dlo", "source": "PB", "ecosystem": "fairy", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "alias:fairy_double_leg_over_same_side", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "fairydoublelegoverss", "groupPrimary": true, "alsoRecordedAs": []},
   {"name": "Fairy far Mirage", "slug": "fairy-far-mirage", "source": "PB", "ecosystem": "fairy", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "fairyfarmirage", "groupPrimary": true, "alsoRecordedAs": []},
@@ -1104,7 +1106,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 947,
+    "total": 949,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1112,12 +1114,12 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 179,
-    "lexicalArchive": 764,
+    "promotionFrontier": 180,
+    "lexicalArchive": 765,
     "intakeBuckets": {
       "promotion_ready": {
-        "names": 26,
-        "distinctStructures": 26
+        "names": 27,
+        "distinctStructures": 27
       },
       "doctrine_pending": {
         "names": 39,
@@ -1128,8 +1130,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 114
       },
       "alias": {
-        "names": 350,
-        "distinctStructures": 350
+        "names": 351,
+        "distinctStructures": 351
       },
       "equivalence": {
         "names": 0,
@@ -1149,14 +1151,14 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       }
     },
     "publicSections": {
-      "archive": 574,
+      "archive": 575,
       "decide": 1,
       "evidence": 8,
       "ruling": 286
     },
     "publicationStates": {
       "adjudication-pending": 1,
-      "already-represented": 485,
+      "already-represented": 486,
       "doctrine-blocked": 286,
       "evidence-pending": 8,
       "not-a-trick": 17,
@@ -1186,18 +1188,18 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "james": 1,
       "james+red": 286,
       "mechanical": 398,
-      "none": 176
+      "none": 177
     },
-    "identityCount": 869,
+    "identityCount": 870,
     "reconciliationWarnings": {
-      "conflicting-parenthetical-resolutions": 2,
+      "conflicting-parenthetical-resolutions": 3,
       "live-resolution-overrides-ledger": 10,
       "positional-paren-resolution-held": 4
     },
-    "ready": 22,
+    "ready": 23,
     "frontier": 114,
     "doctrineBlocked": 53,
-    "folkUnresolved": 443,
+    "folkUnresolved": 444,
     "parserUnresolved": 315,
     "promotionReadyPct": 14,
     "doctrineBlockedPct": 6,
@@ -1208,7 +1210,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "SG": 423,
       "FM": 237,
       "PB": 220,
-      "FB": 53,
+      "FB": 55,
       "MULTI": 14
     },
     "foldedJunk": 181

@@ -1485,7 +1485,7 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Surging (spinning miraging)', slug: 'surging_spinning_miraging' },
     { displayName: 'Surreal (Surging Paradox Whirl)', slug: 'surreal_surging_paradox_whirl', operationalNotation: 'Clip > (back) Spin (BOD) > Same In (DEX) >> Op Front Whirl (DEX)(PDX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Swirling', slug: 'swirling' },
-    { displayName: 'Symposium Tomahawk (Ducking Paradox Symposium Whirl)', slug: 'symposium_tomahawk_ducking_paradox_symposium_whirl', operationalNotation: 'CLIP > DUCK [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
+    { displayName: 'Symposium Tomahawk', slug: 'symposium_tomahawk', operationalNotation: 'CLIP > DUCK [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Tap (Tapping Mirage)', slug: 'tap_tapping_mirage', operationalNotation: 'Toe > Op Out (DEX) >> Same In (DEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Tapping (Atomic same side)', slug: 'tapping_atomic_same_side' },
     { displayName: 'Terrage (Double Pixie)', slug: 'terrage_double_pixie', operationalNotation: 'Toe > Same In (DEX) >> Same In (DEX) >> Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },

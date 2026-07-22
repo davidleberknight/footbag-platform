@@ -429,6 +429,25 @@ Each is separable and answered on its own.
   is authorized. Close when identity is ruled or the notation-model limitation
   is explicitly documented.
 
+- **Spun Down compounds vs the Barfly cell: frame-inversion identity.** The
+  spinning and gyro forms of Barfly and Double-Over-Down (four rows), and the
+  7-ADD pair spinning ducking superfly / spinning ducking symposium double
+  over down, render semantically identical formulas. The unprefixed bases stay
+  structurally distinct under the ratified Down grid - Double-Over-Down is the
+  toe-set cell, Barfly the clipper-set cell, and Superfly is the
+  source-attested Symposium Barfly identity - but the spin prefix replaces the
+  original entry, so the set-surface distinction the grid runs on is no longer
+  represented in the rendered formula. The unresolved question is whether the
+  underlying Down-grid cell identity survives body-spin frame inversion once
+  the original set surface is not explicitly written; this is the same
+  doctrine class as the Venom "Barfly cell under spin inversion" reading.
+  Within-segment bracket order is formatting, not evidence of structural
+  difference ([DEL] [XBD] versus [XBD] [DEL]; [DEX] [BOD] versus [BOD] [DEX]).
+  No merge, alias change, formula change, bracket-order normalization, scoring
+  change, or family change is authorized. Close when the frame-inversion
+  question is ruled and the cell identities of the spun compounds are recorded
+  accordingly.
+
 ## Individual held tricks
 
 - **Miraging Pincher.** What is Miraging Pincher structurally: a Quantum-like uptime

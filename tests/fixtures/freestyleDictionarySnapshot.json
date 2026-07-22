@@ -7320,19 +7320,6 @@
 "sort_order": 1552
 },
 {
-"slug": "symposium_tomahawk",
-"canonical_name": "symposium tomahawk",
-"adds": "6",
-"base_trick": "tomahawk",
-"trick_family": "whirl",
-"category": "compound",
-"description": null,
-"aliases_json": null,
-"notation": "SYMPOSIUM TOMAHAWK",
-"operational_notation": "CLIP >> DUCK [BOD] >> (no plant while) SAME FRONT WHIRL [BOD] [DEX] [PDX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1553
-},
-{
 "slug": "symposium_whirling_swirl",
 "canonical_name": "symposium whirling swirl",
 "adds": "5",
@@ -7343,7 +7330,7 @@
 "aliases_json": null,
 "notation": "SYMPOSIUM WHIRLING SWIRL",
 "operational_notation": "CLIP > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1554
+"sort_order": 1553
 },
 {
 "slug": "symposium_miraging_mirage",
@@ -7356,7 +7343,7 @@
 "aliases_json": null,
 "notation": "SYMPOSIUM MIRAGING MIRAGE",
 "operational_notation": "SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1555
+"sort_order": 1554
 },
 {
 "slug": "swirling_butterfly",
@@ -7369,7 +7356,7 @@
 "aliases_json": null,
 "notation": "SWIRLING BUTTERFLY",
 "operational_notation": "SET > SAME OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1556
+"sort_order": 1555
 },
 {
 "slug": "swirling_mirage",
@@ -7382,7 +7369,7 @@
 "aliases_json": null,
 "notation": "SWIRLING MIRAGE",
 "operational_notation": "SET > SAME OUT [DEX] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1557
+"sort_order": 1556
 },
 {
 "slug": "swirling_paradox_mirage",
@@ -7395,7 +7382,7 @@
 "aliases_json": null,
 "notation": "SWIRLING PARADOX MIRAGE",
 "operational_notation": "CLIP > SAME OUT [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL]",
-"sort_order": 1558
+"sort_order": 1557
 },
 {
 "slug": "swirling_swirl",
@@ -7408,7 +7395,7 @@
 "aliases_json": null,
 "notation": "SWIRLING SWIRL",
 "operational_notation": "CLIP > SAME OUT [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1559
+"sort_order": 1558
 },
 {
 "slug": "swirling_symposium_whirl",
@@ -7421,7 +7408,7 @@
 "aliases_json": null,
 "notation": "SWIRLING SYMPOSIUM WHIRL",
 "operational_notation": "SET > SAME OUT [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1560
+"sort_order": 1559
 },
 {
 "slug": "swirling_whirl",
@@ -7434,7 +7421,7 @@
 "aliases_json": null,
 "notation": "SWIRLING WHIRL",
 "operational_notation": "SET > SAME OUT [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1561
+"sort_order": 1560
 },
 {
 "slug": "swirling_whirling_swirl",
@@ -7447,7 +7434,7 @@
 "aliases_json": null,
 "notation": "SWIRLING WHIRLING SWIRL",
 "operational_notation": "CLIP > SAME OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1562
+"sort_order": 1561
 },
 {
 "slug": "pixie_dolomite",
@@ -7460,7 +7447,7 @@
 "aliases_json": null,
 "notation": "PIXIE DOLOMITE",
 "operational_notation": "TOE > SAME IN [DEX] >> (no plant while) OP OUT [DEX] [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1563
+"sort_order": 1562
 },
 {
 "slug": "pixie_rev_whirl",
@@ -7473,7 +7460,7 @@
 "aliases_json": null,
 "notation": "PIXIE REV WHIRL",
 "operational_notation": "TOE > SAME IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1564
+"sort_order": 1563
 },
 {
 "slug": "pixie_spinning_paradox_blender",
@@ -7486,7 +7473,7 @@
 "aliases_json": null,
 "notation": "PIXIE SPINNING PARADOX BLENDER",
 "operational_notation": "TOE > SAME IN [DEX] > (back) SPIN [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1565
+"sort_order": 1564
 },
 {
 "slug": "pixie_spinning_paradox_symposium_whirl",
@@ -7499,7 +7486,7 @@
 "aliases_json": null,
 "notation": "PIXIE SPINNING PARADOX SYMPOSIUM WHIRL",
 "operational_notation": "TOE > SAME IN [DEX] > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1566
+"sort_order": 1565
 },
 {
 "slug": "pixie_spinning_paradox_whirl",
@@ -7512,7 +7499,7 @@
 "aliases_json": null,
 "notation": "PIXIE SPINNING PARADOX WHIRL",
 "operational_notation": "TOE > SAME IN [DEX] > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1567
+"sort_order": 1566
 },
 {
 "slug": "pixie_symposium_rev_whirl",
@@ -7525,7 +7512,7 @@
 "aliases_json": null,
 "notation": "PIXIE SYMPOSIUM REV WHIRL",
 "operational_notation": "TOE > SAME IN [DEX] >> (no plant while) OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1568
+"sort_order": 1567
 },
 {
 "slug": "pixie_symposium_whirling_swirl",
@@ -7538,7 +7525,7 @@
 "aliases_json": null,
 "notation": "PIXIE SYMPOSIUM WHIRLING SWIRL",
 "operational_notation": "TOE > SAME IN [DEX] >> OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1569
+"sort_order": 1568
 },
 {
 "slug": "tapping_legover",
@@ -7551,7 +7538,7 @@
 "aliases_json": null,
 "notation": "TAPPING LEGOVER",
 "operational_notation": "TOE > OP OUT [DEX] >> OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1570
+"sort_order": 1569
 },
 {
 "slug": "miraging_symposium_butterfly",
@@ -7564,7 +7551,7 @@
 "aliases_json": null,
 "notation": "MIRAGING SYMPOSIUM BUTTERFLY",
 "operational_notation": "SET > OP IN [DEX] > (no plant while) SAME/OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1571
+"sort_order": 1570
 },
 {
 "slug": "miraging_symposium_whirl",
@@ -7577,7 +7564,7 @@
 "aliases_json": null,
 "notation": "MIRAGING SYMPOSIUM WHIRL",
 "operational_notation": "SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1572
+"sort_order": 1571
 },
 {
 "slug": "paradox_symposium_illusion",
@@ -7590,7 +7577,7 @@
 "aliases_json": null,
 "notation": "PARADOX SYMPOSIUM ILLUSION",
 "operational_notation": "CLIP (plant) > (no plant while) SAME OUT [PDX] [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1574
+"sort_order": 1573
 },
 {
 "slug": "whirling_pickup",
@@ -7603,7 +7590,7 @@
 "aliases_json": null,
 "notation": "WHIRLING PICKUP",
 "operational_notation": "SET > OP FRONT WHIRL [DEX] > OP IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1576
+"sort_order": 1575
 },
 {
 "slug": "whirling_whirl",
@@ -7616,7 +7603,7 @@
 "aliases_json": null,
 "notation": "WHIRLING WHIRL",
 "operational_notation": "SET > OP FRONT WHIRL [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1577
+"sort_order": 1576
 },
 {
 "slug": "whirling_butterfly",
@@ -7629,7 +7616,7 @@
 "aliases_json": null,
 "notation": "WHIRLING BUTTERFLY",
 "operational_notation": "SET > OP FRONT WHIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1578
+"sort_order": 1577
 },
 {
 "slug": "whirling_rake",
@@ -7642,7 +7629,7 @@
 "aliases_json": null,
 "notation": "WHIRLING RAKE",
 "operational_notation": "SET > OP FRONT WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL]",
-"sort_order": 1579
+"sort_order": 1578
 },
 {
 "slug": "stepping_guay",
@@ -7655,7 +7642,7 @@
 "aliases_json": null,
 "notation": "STEPPING GUAY",
 "operational_notation": "CLIP > OP IN [DEX] >> OP IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1580
+"sort_order": 1579
 },
 {
 "slug": "diving_guay",
@@ -7668,7 +7655,7 @@
 "aliases_json": null,
 "notation": "DIVING GUAY",
 "operational_notation": "SET > DIVE [BOD] > OP IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1581
+"sort_order": 1580
 },
 {
 "slug": "tapping_guay",
@@ -7681,7 +7668,7 @@
 "aliases_json": null,
 "notation": "TAPPING GUAY",
 "operational_notation": "TOE > OP OUT [DEX] >> OP IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1582
+"sort_order": 1581
 },
 {
 "slug": "fairy_guay",
@@ -7694,7 +7681,7 @@
 "aliases_json": null,
 "notation": "FAIRY GUAY",
 "operational_notation": "TOE > SAME OUT [DEX] > OP IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1583
+"sort_order": 1582
 },
 {
 "slug": "inspinning_guay",
@@ -7707,7 +7694,7 @@
 "aliases_json": null,
 "notation": "INSPINNING GUAY",
 "operational_notation": "CLIP > (front) SPIN [BOD] > SAME IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1584
+"sort_order": 1583
 },
 {
 "slug": "pixie_guay",
@@ -7720,7 +7707,7 @@
 "aliases_json": null,
 "notation": "PIXIE GUAY",
 "operational_notation": "TOE > SAME IN [DEX] >> OP IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1585
+"sort_order": 1584
 },
 {
 "slug": "pixie_clipper",
@@ -7733,7 +7720,7 @@
 "aliases_json": null,
 "notation": "PIXIE CLIPPER",
 "operational_notation": "TOE > SAME IN [DEX] > SAME/OP CLIP [XBD] [DEL]",
-"sort_order": 1586
+"sort_order": 1585
 },
 {
 "slug": "pixie_double_pickup",
@@ -7746,7 +7733,7 @@
 "aliases_json": null,
 "notation": "PIXIE DOUBLE PICKUP",
 "operational_notation": "TOE > SAME IN [DEX] >> OP IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1587
+"sort_order": 1586
 },
 {
 "slug": "pixie_ducking_butterfly",
@@ -7759,7 +7746,7 @@
 "aliases_json": null,
 "notation": "PIXIE DUCKING BUTTERFLY",
 "operational_notation": "TOE > SAME IN [DEX] >> DUCK [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1589
+"sort_order": 1588
 },
 {
 "slug": "fairy_torque",
@@ -7772,7 +7759,7 @@
 "aliases_json": null,
 "notation": "FAIRY TORQUE",
 "operational_notation": "TOE > SAME OUT [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1592
+"sort_order": 1591
 },
 {
 "slug": "diving_clipper",
@@ -7785,7 +7772,7 @@
 "aliases_json": null,
 "notation": "DIVING CLIPPER",
 "operational_notation": "SET > DIVE [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1593
+"sort_order": 1592
 },
 {
 "slug": "diving_toe_stall",
@@ -7798,7 +7785,7 @@
 "aliases_json": null,
 "notation": "DIVING TOE STALL",
 "operational_notation": "SET > DIVE [BOD] > SAME TOE [DEL]",
-"sort_order": 1594
+"sort_order": 1593
 },
 {
 "slug": "stepping_clipper",
@@ -7811,7 +7798,7 @@
 "aliases_json": null,
 "notation": "STEPPING CLIPPER",
 "operational_notation": "CLIP > OP IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1596
+"sort_order": 1595
 },
 {
 "slug": "gyro_clipper",
@@ -7824,7 +7811,7 @@
 "aliases_json": null,
 "notation": "GYRO CLIPPER",
 "operational_notation": "SET > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1597
+"sort_order": 1596
 },
 {
 "slug": "gyro_diving_butterfly",
@@ -7837,7 +7824,7 @@
 "aliases_json": null,
 "notation": "GYRO DIVING BUTTERFLY",
 "operational_notation": "SET > (back) SPIN [BOD] > DIVE [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1598
+"sort_order": 1597
 },
 {
 "slug": "symposium_whirling_mirage",
@@ -7850,7 +7837,7 @@
 "aliases_json": null,
 "notation": "SYMPOSIUM WHIRLING MIRAGE",
 "operational_notation": "SET > OP FRONT WHIRL [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1599
+"sort_order": 1598
 },
 {
 "slug": "spinning_butterfly_kick",
@@ -7863,7 +7850,7 @@
 "aliases_json": null,
 "notation": "SPINNING BUTTERFLY KICK",
 "operational_notation": "SET > (back) SPIN [BOD] JUMP [BOD] > SAME/OP OUT [DEX] [KICK]",
-"sort_order": 1600
+"sort_order": 1599
 },
 {
 "slug": "barraging_barfly_swirl",
@@ -7876,7 +7863,7 @@
 "aliases_json": null,
 "notation": "BARRAGING BARFLY SWIRL",
 "operational_notation": "CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1601
+"sort_order": 1600
 },
 {
 "slug": "ducking_symposium_reverse_whirl",
@@ -7889,7 +7876,7 @@
 "aliases_json": null,
 "notation": "DUCKING SYMPOSIUM REVERSE WHIRL",
 "operational_notation": "SET > DUCK [BOD] > (no plant while) OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1602
+"sort_order": 1601
 },
 {
 "slug": "tapping_double_over_down",
@@ -7902,7 +7889,7 @@
 "aliases_json": null,
 "notation": "TAPPING DOUBLE OVER DOWN",
 "operational_notation": "TOE > OP OUT [DEX] >> OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1603
+"sort_order": 1602
 },
 {
 "slug": "gyro_diving_clipper",
@@ -7915,7 +7902,7 @@
 "aliases_json": null,
 "notation": "GYRO DIVING CLIPPER",
 "operational_notation": "SET > (back) SPIN [BOD] > DIVE [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1604
+"sort_order": 1603
 },
 {
 "slug": "inspinning_reverse_guay",
@@ -7928,7 +7915,7 @@
 "aliases_json": null,
 "notation": "INSPINNING REVERSE GUAY",
 "operational_notation": "CLIP > (front) SPIN [BOD] > OP IN [DEX] > OP INSIDE [DEL]",
-"sort_order": 1605
+"sort_order": 1604
 },
 {
 "slug": "ducking_reverse_guay",
@@ -7941,7 +7928,7 @@
 "aliases_json": null,
 "notation": "DUCKING REVERSE GUAY",
 "operational_notation": "SET > DUCK [BOD] > SAME IN [DEX] > OP INSIDE [DEL]",
-"sort_order": 1606
+"sort_order": 1605
 },
 {
 "slug": "gyro_reverse_guay",
@@ -7954,7 +7941,7 @@
 "aliases_json": null,
 "notation": "GYRO REVERSE GUAY",
 "operational_notation": "SET > GYRO [BOD] > SAME IN [DEX] > OP INSIDE [DEL]",
-"sort_order": 1607
+"sort_order": 1606
 },
 {
 "slug": "spinning_reverse_guay",
@@ -7967,7 +7954,7 @@
 "aliases_json": null,
 "notation": "SPINNING REVERSE GUAY",
 "operational_notation": "SET > (back) SPIN [BOD] > SAME IN [DEX] > OP INSIDE [DEL]",
-"sort_order": 1608
+"sort_order": 1607
 },
 {
 "slug": "pixie_reverse_guay",
@@ -7980,7 +7967,7 @@
 "aliases_json": null,
 "notation": "PIXIE REVERSE GUAY",
 "operational_notation": "TOE > SAME IN [DEX] >> SAME IN [DEX] > OP INSIDE [DEL]",
-"sort_order": 1609
+"sort_order": 1608
 },
 {
 "slug": "fairy_reverse_guay",
@@ -7993,7 +7980,7 @@
 "aliases_json": null,
 "notation": "FAIRY REVERSE GUAY",
 "operational_notation": "TOE > SAME OUT [DEX] >> SAME IN [DEX] > OP INSIDE [DEL]",
-"sort_order": 1610
+"sort_order": 1609
 },
 {
 "slug": "stepping_reverse_guay",
@@ -8006,7 +7993,7 @@
 "aliases_json": null,
 "notation": "STEPPING REVERSE GUAY",
 "operational_notation": "CLIP > OP IN [DEX] >> SAME IN [DEX] > OP INSIDE [DEL]",
-"sort_order": 1611
+"sort_order": 1610
 },
 {
 "slug": "clipper_ducking_symposium_whirl",
@@ -8019,7 +8006,7 @@
 "aliases_json": null,
 "notation": "CLIPPER DUCKING SYMPOSIUM WHIRL",
 "operational_notation": "CLIP > DUCK [BOD] > SAME SYMP [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1612
+"sort_order": 1611
 },
 {
 "slug": "reverse_swirling_symposium_mirage",
@@ -8032,7 +8019,7 @@
 "aliases_json": null,
 "notation": "REVERSE SWIRLING SYMPOSIUM MIRAGE",
 "operational_notation": "SET > SAME IN [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1613
+"sort_order": 1612
 },
 {
 "slug": "reverse_swirling_paradox_torque",
@@ -8045,7 +8032,7 @@
 "aliases_json": null,
 "notation": "REVERSE SWIRLING PARADOX TORQUE",
 "operational_notation": "SET > SAME IN [DEX] > SAME IN [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1614
+"sort_order": 1613
 },
 {
 "slug": "symposium_reverse_swirling_pickup",
@@ -8058,7 +8045,7 @@
 "aliases_json": null,
 "notation": "SYMPOSIUM REVERSE SWIRLING PICKUP",
 "operational_notation": "SET > SAME IN [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1615
+"sort_order": 1614
 },
 {
 "slug": "symposium_reverse_whirling_swirl",
@@ -8071,7 +8058,7 @@
 "aliases_json": null,
 "notation": "SYMPOSIUM REVERSE WHIRLING SWIRL",
 "operational_notation": "CLIP > OP BACK WHIRL [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1616
+"sort_order": 1615
 },
 {
 "slug": "whirling_gyro_mirage",
@@ -8084,7 +8071,7 @@
 "aliases_json": null,
 "notation": "WHIRLING GYRO MIRAGE",
 "operational_notation": "SET > GYRO [BOD] > OP FRONT WHIRL [DEX] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1617
+"sort_order": 1616
 },
 {
 "slug": "whirling_paradox_mirage",
@@ -8097,7 +8084,7 @@
 "aliases_json": null,
 "notation": "WHIRLING PARADOX MIRAGE",
 "operational_notation": "SET > OP FRONT WHIRL [DEX] > OP IN [DEX] [PDX] > OP TOE [DEL]",
-"sort_order": 1618
+"sort_order": 1617
 },
 {
 "slug": "surging_legover",
@@ -8110,7 +8097,7 @@
 "aliases_json": null,
 "notation": "SURGING LEGOVER",
 "operational_notation": "CLIP > OP IN [DEX] >> (back) SPIN [BOD] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1619
+"sort_order": 1618
 },
 {
 "slug": "surging_mirage",
@@ -8123,7 +8110,7 @@
 "aliases_json": null,
 "notation": "SURGING MIRAGE",
 "operational_notation": "CLIP > OP IN [DEX] >> (back) SPIN [BOD] > SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1620
+"sort_order": 1619
 },
 {
 "slug": "surging_osis",
@@ -8136,7 +8123,7 @@
 "aliases_json": null,
 "notation": "SURGING OSIS",
 "operational_notation": "CLIP > OP IN [DEX] >> (back) SPIN [BOD] > (front) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1621
+"sort_order": 1620
 },
 {
 "slug": "surging_whirl",
@@ -8149,7 +8136,7 @@
 "aliases_json": null,
 "notation": "SURGING WHIRL",
 "operational_notation": "CLIP > OP IN [DEX] >> (back) SPIN [BOD] > SAME IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1622
+"sort_order": 1621
 },
 {
 "slug": "reverse_magellan",
@@ -8162,7 +8149,7 @@
 "aliases_json": null,
 "notation": "TOE > SAME OUT [DEX] (plant) > SAME IN [DEX] > SAME TOE [DEL]",
 "operational_notation": "TOE > OP IN [DEX] >> OP OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1623
+"sort_order": 1622
 },
 {
 "slug": "toe_flurry",
@@ -8175,7 +8162,7 @@
 "aliases_json": null,
 "notation": "TOE FLURRY",
 "operational_notation": "TOE > OP IN [DEX] > SAME IN [DEX] >> OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1624
+"sort_order": 1623
 },
 {
 "slug": "reverse_whirling_twirl",
@@ -8188,7 +8175,7 @@
 "aliases_json": null,
 "notation": "REVERSE WHIRLING TWIRL",
 "operational_notation": "CLIP >> OP FRONT SWIRL [DEX] > OP BACK WHIRL [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1625
+"sort_order": 1624
 },
 {
 "slug": "backside_symposium_smear",
@@ -8201,7 +8188,7 @@
 "aliases_json": null,
 "notation": "TOE > SAME IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]",
 "operational_notation": "TOE > BS [DEX] > SAME IN [DEX] >> SAME SYMP [DEX] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1626
+"sort_order": 1625
 },
 {
 "slug": "rev_swirl",
@@ -8214,7 +8201,7 @@
 "aliases_json": null,
 "notation": "REV SWIRL",
 "operational_notation": "SET > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1627
+"sort_order": 1626
 },
 {
 "slug": "diving_reverse_swirl",
@@ -8227,7 +8214,7 @@
 "aliases_json": null,
 "notation": "DIVING REVERSE SWIRL",
 "operational_notation": "CLIP > DIVE [BOD] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1628
+"sort_order": 1627
 },
 {
 "slug": "fairy_reverse_swirl",
@@ -8240,7 +8227,7 @@
 "aliases_json": null,
 "notation": "FAIRY REVERSE SWIRL",
 "operational_notation": "TOE > SAME OUT [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1629
+"sort_order": 1628
 },
 {
 "slug": "pixie_reverse_swirl",
@@ -8253,7 +8240,7 @@
 "aliases_json": null,
 "notation": "PIXIE REVERSE SWIRL",
 "operational_notation": "TOE > SAME IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1630
+"sort_order": 1629
 },
 {
 "slug": "spinning_reverse_swirl",
@@ -8266,7 +8253,7 @@
 "aliases_json": null,
 "notation": "SPINNING REVERSE SWIRL",
 "operational_notation": "CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1631
+"sort_order": 1630
 },
 {
 "slug": "stepping_reverse_swirl",
@@ -8279,7 +8266,7 @@
 "aliases_json": null,
 "notation": "STEPPING REVERSE SWIRL",
 "operational_notation": "CLIP > OP IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1632
+"sort_order": 1631
 },
 {
 "slug": "swirling_reverse_swirl",
@@ -8292,7 +8279,7 @@
 "aliases_json": null,
 "notation": "SWIRLING REVERSE SWIRL",
 "operational_notation": "CLIP > OP OUT [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1633
+"sort_order": 1632
 },
 {
 "slug": "toe_symposium_swirl",
@@ -8305,7 +8292,7 @@
 "aliases_json": null,
 "notation": "TOE SYMPOSIUM SWIRL",
 "operational_notation": "TOE > SAME SYMP [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1634
+"sort_order": 1633
 },
 {
 "slug": "toe_whirling_swirl",
@@ -8318,7 +8305,7 @@
 "aliases_json": null,
 "notation": "TOE WHIRLING SWIRL",
 "operational_notation": "TOE > OP FRONT WHIRL [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1635
+"sort_order": 1634
 },
 {
 "slug": "clipper_diving_whirl",
@@ -8331,7 +8318,7 @@
 "aliases_json": null,
 "notation": "CLIPPER DIVING WHIRL",
 "operational_notation": "CLIP > DIVE [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1636
+"sort_order": 1635
 },
 {
 "slug": "clipper_ducking_whirl",
@@ -8344,7 +8331,7 @@
 "aliases_json": null,
 "notation": "CLIPPER DUCKING WHIRL",
 "operational_notation": "CLIP > DUCK [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1637
+"sort_order": 1636
 },
 {
 "slug": "clipper_symposium_whirl",
@@ -8357,7 +8344,7 @@
 "aliases_json": null,
 "notation": "CLIPPER SYMPOSIUM WHIRL",
 "operational_notation": "CLIP > SAME SYMP [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1638
+"sort_order": 1637
 },
 {
 "slug": "whirling_rev_whirl",
@@ -8370,7 +8357,7 @@
 "aliases_json": null,
 "notation": "WHIRLING REV WHIRL",
 "operational_notation": "SET > OP FRONT WHIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1643
+"sort_order": 1642
 },
 {
 "slug": "reverse_blender",
@@ -8383,7 +8370,7 @@
 "aliases_json": null,
 "notation": "REVERSE BLENDER",
 "operational_notation": "SET > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1644
+"sort_order": 1643
 },
 {
 "slug": "clipper_ducking_blender",
@@ -8396,7 +8383,7 @@
 "aliases_json": null,
 "notation": "CLIPPER DUCKING BLENDER",
 "operational_notation": "CLIP > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1645
+"sort_order": 1644
 },
 {
 "slug": "reverse_swirling_blender",
@@ -8409,7 +8396,7 @@
 "aliases_json": null,
 "notation": "REVERSE SWIRLING BLENDER",
 "operational_notation": "SET > SAME IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1646
+"sort_order": 1645
 },
 {
 "slug": "reverse_torque",
@@ -8422,7 +8409,7 @@
 "aliases_json": null,
 "notation": "REVERSE TORQUE",
 "operational_notation": "SET > SAME IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1647
+"sort_order": 1646
 },
 {
 "slug": "toe_spinning_torque",
@@ -8435,7 +8422,7 @@
 "aliases_json": null,
 "notation": "TOE SPINNING TORQUE",
 "operational_notation": "TOE > (back) SPIN [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1648
+"sort_order": 1647
 },
 {
 "slug": "reverse_swirling_osis",
@@ -8448,7 +8435,7 @@
 "aliases_json": null,
 "notation": "REVERSE SWIRLING OSIS",
 "operational_notation": "SET > OP IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1649
+"sort_order": 1648
 },
 {
 "slug": "clipper_ducking_drifter",
@@ -8461,7 +8448,7 @@
 "aliases_json": null,
 "notation": "CLIPPER DUCKING DRIFTER",
 "operational_notation": "CLIP > DUCK [BOD] > OP IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1650
+"sort_order": 1649
 },
 {
 "slug": "toe_gyro_mirage",
@@ -8474,7 +8461,7 @@
 "aliases_json": null,
 "notation": "TOE GYRO MIRAGE",
 "operational_notation": "TOE > GYRO [BOD] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1651
+"sort_order": 1650
 },
 {
 "slug": "reverse_swirling_pickup",
@@ -8487,7 +8474,7 @@
 "aliases_json": null,
 "notation": "REVERSE SWIRLING PICKUP",
 "operational_notation": "SET > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1652
+"sort_order": 1651
 },
 {
 "slug": "butterfly_gyro_toe",
@@ -8500,7 +8487,7 @@
 "aliases_json": null,
 "notation": "BUTTERFLY GYRO TOE",
 "operational_notation": "TOE > GYRO [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1653
+"sort_order": 1652
 },
 {
 "slug": "reverse_whirling_rake",
@@ -8513,7 +8500,7 @@
 "aliases_json": null,
 "notation": "REVERSE WHIRLING RAKE",
 "operational_notation": "SET > OP BACK WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL]",
-"sort_order": 1654
+"sort_order": 1653
 },
 {
 "slug": "paradox_whirling_rake",
@@ -8526,7 +8513,7 @@
 "aliases_json": null,
 "notation": "PARADOX WHIRLING RAKE",
 "operational_notation": "SET > OP FRONT WHIRL [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]",
-"sort_order": 1655
+"sort_order": 1654
 },
 {
 "slug": "paradox_symposium_whirling_rake",
@@ -8539,7 +8526,7 @@
 "aliases_json": null,
 "notation": "PARADOX SYMPOSIUM WHIRLING RAKE",
 "operational_notation": "SET > OP FRONT WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]",
-"sort_order": 1656
+"sort_order": 1655
 },
 {
 "slug": "triple_spin",
@@ -8552,7 +8539,7 @@
 "aliases_json": null,
 "notation": "TRIPLE SPIN",
 "operational_notation": "SPIN [BOD] > SPIN [BOD] > SPIN [BOD]",
-"sort_order": 1657
+"sort_order": 1656
 },
 {
 "slug": "triple_orbit",
@@ -8565,7 +8552,7 @@
 "aliases_json": null,
 "notation": "TRIPLE ORBIT",
 "operational_notation": "TOE > SAME OUT [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1658
+"sort_order": 1657
 },
 {
 "slug": "double_pixie",
@@ -8578,7 +8565,7 @@
 "aliases_json": null,
 "notation": "DOUBLE PIXIE",
 "operational_notation": "TOE > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1659
+"sort_order": 1658
 },
 {
 "slug": "double_fairy",
@@ -8591,7 +8578,7 @@
 "aliases_json": null,
 "notation": "DOUBLE FAIRY",
 "operational_notation": "TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1660
+"sort_order": 1659
 },
 {
 "slug": "orbit_kick",
@@ -8604,7 +8591,7 @@
 "aliases_json": null,
 "notation": "ORBIT KICK",
 "operational_notation": "TOE > SAME OUT [DEX] > SAME [KICK]",
-"sort_order": 1661
+"sort_order": 1660
 },
 {
 "slug": "legover_kick",
@@ -8617,7 +8604,7 @@
 "aliases_json": null,
 "notation": "LEGOVER KICK",
 "operational_notation": "SET > OP OUT [DEX] > SAME [KICK]",
-"sort_order": 1662
+"sort_order": 1661
 },
 {
 "slug": "double_kick",
@@ -8630,7 +8617,7 @@
 "aliases_json": null,
 "notation": "DOUBLE KICK",
 "operational_notation": "DOUBLE KICK [BOD] [KICK]",
-"sort_order": 1663
+"sort_order": 1662
 },
 {
 "slug": "dragon",
@@ -8643,7 +8630,7 @@
 "aliases_json": null,
 "notation": "DRAGON",
 "operational_notation": "SET > SAME OUT [XBD] [DEL]",
-"sort_order": 1664
+"sort_order": 1663
 },
 {
 "slug": "probe",
@@ -8656,7 +8643,7 @@
 "aliases_json": null,
 "notation": "PROBE",
 "operational_notation": "SET > OP CLIP [XBD] [DEL]",
-"sort_order": 1665
+"sort_order": 1664
 },
 {
 "slug": "toe_clipper",
@@ -8669,7 +8656,7 @@
 "aliases_json": null,
 "notation": "TOE CLIPPER",
 "operational_notation": "SET > OP TOE [BOD] [XBD]",
-"sort_order": 1666
+"sort_order": 1665
 },
 {
 "slug": "miraging_kick",
@@ -8682,7 +8669,7 @@
 "aliases_json": null,
 "notation": "MIRAGING KICK",
 "operational_notation": "SET > OP IN [DEX] > OP [KICK]",
-"sort_order": 1667
+"sort_order": 1666
 },
 {
 "slug": "illusioning_kick",
@@ -8695,7 +8682,7 @@
 "aliases_json": null,
 "notation": "ILLUSIONING KICK",
 "operational_notation": "SET > OP OUT [DEX] > OP [KICK]",
-"sort_order": 1668
+"sort_order": 1667
 },
 {
 "slug": "double_illusion",
@@ -8708,7 +8695,7 @@
 "aliases_json": null,
 "notation": "DOUBLE ILLUSION",
 "operational_notation": "SET > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1669
+"sort_order": 1668
 },
 {
 "slug": "double_whirl",
@@ -8721,7 +8708,7 @@
 "aliases_json": null,
 "notation": "DOUBLE WHIRL",
 "operational_notation": "SET > OP IN [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1670
+"sort_order": 1669
 },
 {
 "slug": "triple_swirl",
@@ -8734,7 +8721,7 @@
 "aliases_json": null,
 "notation": "TRIPLE SWIRL",
 "operational_notation": "CLIP > SAME OUT [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1671
+"sort_order": 1670
 },
 {
 "slug": "triple_mirage",
@@ -8747,7 +8734,7 @@
 "aliases_json": null,
 "notation": "TRIPLE MIRAGE",
 "operational_notation": "SET > OP IN [DEX] > OP IN [DEX] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1672
+"sort_order": 1671
 },
 {
 "slug": "atomic_blender",
@@ -8760,7 +8747,7 @@
 "aliases_json": null,
 "notation": "ATOMIC BLENDER",
 "operational_notation": "TOE > OP OUT [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1673
+"sort_order": 1672
 },
 {
 "slug": "atomic_ducking_torque",
@@ -8773,7 +8760,7 @@
 "aliases_json": null,
 "notation": "ATOMIC DUCKING TORQUE",
 "operational_notation": "TOE > OP OUT [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1675
+"sort_order": 1674
 },
 {
 "slug": "quantum_guay",
@@ -8786,7 +8773,7 @@
 "aliases_json": null,
 "notation": "QUANTUM GUAY",
 "operational_notation": "TOE > OP IN [DEX] > OP IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1676
+"sort_order": 1675
 },
 {
 "slug": "nuclear_guay",
@@ -8799,7 +8786,7 @@
 "aliases_json": null,
 "notation": "NUCLEAR GUAY",
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > OP IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1677
+"sort_order": 1676
 },
 {
 "slug": "nuclear_drifter",
@@ -8812,7 +8799,7 @@
 "aliases_json": null,
 "notation": "NUCLEAR DRIFTER",
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > OP IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1678
+"sort_order": 1677
 },
 {
 "slug": "nuclear_double_leg_over",
@@ -8825,7 +8812,7 @@
 "aliases_json": null,
 "notation": "NUCLEAR DOUBLE LEG OVER",
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1679
+"sort_order": 1678
 },
 {
 "slug": "nuclear_dyno",
@@ -8838,7 +8825,7 @@
 "aliases_json": null,
 "notation": "NUCLEAR DYNO",
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > OP OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1680
+"sort_order": 1679
 },
 {
 "slug": "nuclear_torque",
@@ -8851,7 +8838,7 @@
 "aliases_json": null,
 "notation": "NUCLEAR TORQUE",
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1681
+"sort_order": 1680
 },
 {
 "slug": "pixie_kick",
@@ -8864,7 +8851,7 @@
 "aliases_json": null,
 "notation": "PIXIE KICK",
 "operational_notation": "TOE > SAME IN [DEX] > OP [KICK]",
-"sort_order": 1682
+"sort_order": 1681
 },
 {
 "slug": "fairy_kick",
@@ -8877,7 +8864,7 @@
 "aliases_json": null,
 "notation": "FAIRY KICK",
 "operational_notation": "TOE > SAME OUT [DEX] > OP [KICK]",
-"sort_order": 1683
+"sort_order": 1682
 },
 {
 "slug": "atomic_drifter",
@@ -8890,7 +8877,7 @@
 "aliases_json": null,
 "notation": "ATOMIC DRIFTER",
 "operational_notation": "TOE > OP OUT [DEX] > OP IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1684
+"sort_order": 1683
 },
 {
 "slug": "atomic_ducking_blender",
@@ -8903,7 +8890,7 @@
 "aliases_json": null,
 "notation": "ATOMIC DUCKING BLENDER",
 "operational_notation": "TOE > OP OUT [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1685
+"sort_order": 1684
 },
 {
 "slug": "atomic_eggbeater",
@@ -8916,7 +8903,7 @@
 "aliases_json": null,
 "notation": "ATOMIC EGGBEATER",
 "operational_notation": "TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1686
+"sort_order": 1685
 },
 {
 "slug": "atomic_guay",
@@ -8929,7 +8916,7 @@
 "aliases_json": null,
 "notation": "ATOMIC GUAY",
 "operational_notation": "TOE > OP OUT [DEX] > OP IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1687
+"sort_order": 1686
 },
 {
 "slug": "atomic_reverse_guay",
@@ -8942,7 +8929,7 @@
 "aliases_json": null,
 "notation": "ATOMIC REVERSE GUAY",
 "operational_notation": "TOE > OP OUT [DEX] > SAME IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1689
+"sort_order": 1688
 },
 {
 "slug": "blazing_butterfly",
@@ -8955,7 +8942,7 @@
 "aliases_json": null,
 "notation": "BLAZING BUTTERFLY",
 "operational_notation": null,
-"sort_order": 1690
+"sort_order": 1689
 },
 {
 "slug": "blazing_drifter",
@@ -8968,7 +8955,7 @@
 "aliases_json": null,
 "notation": "BLAZING DRIFTER",
 "operational_notation": null,
-"sort_order": 1691
+"sort_order": 1690
 },
 {
 "slug": "blazing_illusion",
@@ -8981,7 +8968,7 @@
 "aliases_json": null,
 "notation": "BLAZING ILLUSION",
 "operational_notation": null,
-"sort_order": 1692
+"sort_order": 1691
 },
 {
 "slug": "blazing_legover",
@@ -8994,7 +8981,7 @@
 "aliases_json": null,
 "notation": "BLAZING LEGOVER",
 "operational_notation": null,
-"sort_order": 1693
+"sort_order": 1692
 },
 {
 "slug": "blazing_mirage",
@@ -9007,7 +8994,7 @@
 "aliases_json": null,
 "notation": "BLAZING MIRAGE",
 "operational_notation": null,
-"sort_order": 1694
+"sort_order": 1693
 },
 {
 "slug": "blazing_paradox_whirl",
@@ -9020,7 +9007,7 @@
 "aliases_json": null,
 "notation": "BLAZING PARADOX WHIRL",
 "operational_notation": null,
-"sort_order": 1695
+"sort_order": 1694
 },
 {
 "slug": "blazing_symposium_mirage",
@@ -9033,7 +9020,7 @@
 "aliases_json": null,
 "notation": "BLAZING SYMPOSIUM MIRAGE",
 "operational_notation": null,
-"sort_order": 1696
+"sort_order": 1695
 },
 {
 "slug": "blazing_torque",
@@ -9046,7 +9033,7 @@
 "aliases_json": null,
 "notation": "BLAZING TORQUE",
 "operational_notation": null,
-"sort_order": 1697
+"sort_order": 1696
 },
 {
 "slug": "diving_reverse_guay",
@@ -9059,7 +9046,7 @@
 "aliases_json": null,
 "notation": "DIVING REVERSE GUAY",
 "operational_notation": "SET > DIVE [BOD] > SAME IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1698
+"sort_order": 1697
 },
 {
 "slug": "paradox_blur",
@@ -9072,7 +9059,7 @@
 "aliases_json": null,
 "notation": "PARADOX BLUR",
 "operational_notation": "CLIP > OP IN [DEX] [PDX] >> OP IN [DEX] [PDX] > OP TOE [DEL]",
-"sort_order": 1699
+"sort_order": 1698
 },
 {
 "slug": "symposium_blizzard",
@@ -9085,7 +9072,7 @@
 "aliases_json": null,
 "notation": "SYMPOSIUM BLIZZARD",
 "operational_notation": "SET > (no plant while) OP IN [BOD] [DEX] > OP OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1700
+"sort_order": 1699
 },
 {
 "slug": "tapping_reverse_guay",
@@ -9098,7 +9085,7 @@
 "aliases_json": null,
 "notation": "TAPPING REVERSE GUAY",
 "operational_notation": "TOE > OP OUT [DEX] >> SAME IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1701
+"sort_order": 1700
 },
 {
 "slug": "terraging_illusion",
@@ -9111,7 +9098,7 @@
 "aliases_json": null,
 "notation": "TERRAGING ILLUSION",
 "operational_notation": null,
-"sort_order": 1702
+"sort_order": 1701
 },
 {
 "slug": "terraging_legover",
@@ -9124,7 +9111,7 @@
 "aliases_json": null,
 "notation": "TERRAGING LEGOVER",
 "operational_notation": null,
-"sort_order": 1703
+"sort_order": 1702
 },
 {
 "slug": "terraging_mirage",
@@ -9137,7 +9124,7 @@
 "aliases_json": null,
 "notation": "TERRAGING MIRAGE",
 "operational_notation": null,
-"sort_order": 1704
+"sort_order": 1703
 },
 {
 "slug": "atomic_symposium_eggbeater",
@@ -9150,7 +9137,7 @@
 "aliases_json": null,
 "notation": "ATOMIC SYMPOSIUM EGGBEATER",
 "operational_notation": "TOE > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1705
+"sort_order": 1704
 },
 {
 "slug": "atomic_symposium_mirage",
@@ -9163,7 +9150,7 @@
 "aliases_json": null,
 "notation": "ATOMIC SYMPOSIUM MIRAGE",
 "operational_notation": "TOE > OP OUT [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1706
+"sort_order": 1705
 },
 {
 "slug": "atomic_symposium_butterfly",
@@ -9176,7 +9163,7 @@
 "aliases_json": null,
 "notation": "ATOMIC SYMPOSIUM BUTTERFLY",
 "operational_notation": "TOE > OP OUT [DEX] > (no plant while) SAME/OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1707
+"sort_order": 1706
 },
 {
 "slug": "surging_ducking_torque",
@@ -9189,7 +9176,7 @@
 "aliases_json": null,
 "notation": "SURGING DUCKING TORQUE",
 "operational_notation": "CLIP > OP IN [DEX] >> (back) SPIN [BOD] >> DUCK [BOD] >> OP IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1708
+"sort_order": 1707
 },
 {
 "slug": "surging_ducking_paradox_symposium_whirling_rake",
@@ -9202,7 +9189,7 @@
 "aliases_json": null,
 "notation": "SURGING DUCKING PARADOX SYMPOSIUM WHIRLING RAKE",
 "operational_notation": "CLIP > OP IN [DEX] >> (back) SPIN [BOD] >> DUCK [BOD] >> OP FRONT WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL]",
-"sort_order": 1710
+"sort_order": 1709
 },
 {
 "slug": "reverse_swirling_paradox_symposium_whirl",
@@ -9215,7 +9202,7 @@
 "aliases_json": null,
 "notation": "REVERSE SWIRLING PARADOX SYMPOSIUM WHIRL",
 "operational_notation": "SET > SAME IN [DEX] > SAME SYMP [DEX] > SAME IN [DEX] [PDX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1711
+"sort_order": 1710
 },
 {
 "slug": "pixie_quantum_legover",
@@ -9228,7 +9215,7 @@
 "aliases_json": null,
 "notation": "PIXIE QUANTUM LEGOVER",
 "operational_notation": "TOE > SAME IN [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1712
+"sort_order": 1711
 },
 {
 "slug": "sailing_double_leg_over",
@@ -9241,7 +9228,7 @@
 "aliases_json": null,
 "notation": "SAILING DOUBLE LEG OVER",
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1713
+"sort_order": 1712
 },
 {
 "slug": "sailing_butterfly",
@@ -9254,7 +9241,7 @@
 "aliases_json": null,
 "notation": "SAILING BUTTERFLY",
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1714
+"sort_order": 1713
 },
 {
 "slug": "sailing_mirage",
@@ -9267,7 +9254,7 @@
 "aliases_json": null,
 "notation": "SAILING MIRAGE",
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1715
+"sort_order": 1714
 },
 {
 "slug": "sailing_legover",
@@ -9280,7 +9267,7 @@
 "aliases_json": null,
 "notation": "SAILING LEGOVER",
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1716
+"sort_order": 1715
 },
 {
 "slug": "sailing_eggbeater",
@@ -9293,7 +9280,7 @@
 "aliases_json": null,
 "notation": "SAILING EGGBEATER",
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1717
+"sort_order": 1716
 },
 {
 "slug": "sailing_whirl",
@@ -9306,7 +9293,7 @@
 "aliases_json": null,
 "notation": "SAILING WHIRL",
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1718
+"sort_order": 1717
 },
 {
 "slug": "double_switch_over",
@@ -9319,7 +9306,7 @@
 "aliases_json": null,
 "notation": "DOUBLE SWITCH OVER",
 "operational_notation": "SET > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1719
+"sort_order": 1718
 },
 {
 "slug": "pixie_same_side_illusion",
@@ -9332,7 +9319,7 @@
 "aliases_json": null,
 "notation": "PIXIE SAME SIDE ILLUSION",
 "operational_notation": "TOE > SAME IN [DEX] >> SAME OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1720
+"sort_order": 1719
 },
 {
 "slug": "pixie_double_switch_over",
@@ -9345,7 +9332,7 @@
 "aliases_json": null,
 "notation": "PIXIE DOUBLE SWITCH OVER",
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1721
+"sort_order": 1720
 },
 {
 "slug": "fairy_same_side_whirl",
@@ -9358,7 +9345,7 @@
 "aliases_json": null,
 "notation": "FAIRY SAME SIDE WHIRL",
 "operational_notation": "TOE > SAME OUT [DEX] (plant) > SAME IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1722
+"sort_order": 1721
 },
 {
 "slug": "fairy_same_side_mirage",
@@ -9371,7 +9358,7 @@
 "aliases_json": null,
 "notation": "FAIRY SAME SIDE MIRAGE",
 "operational_notation": "TOE > SAME OUT [DEX] (plant) > SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1723
+"sort_order": 1722
 },
 {
 "slug": "paratoxic",
@@ -9384,7 +9371,7 @@
 "aliases_json": null,
 "notation": "PARATOXIC",
 "operational_notation": "CLIP > SAME IN [PDX] [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1724
+"sort_order": 1723
 },
 {
 "slug": "shooting_mirage",
@@ -9397,7 +9384,7 @@
 "aliases_json": null,
 "notation": "SHOOTING MIRAGE",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1725
+"sort_order": 1724
 },
 {
 "slug": "shooting_butterfly",
@@ -9410,7 +9397,7 @@
 "aliases_json": null,
 "notation": "SHOOTING BUTTERFLY",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1726
+"sort_order": 1725
 },
 {
 "slug": "shooting_star",
@@ -9423,7 +9410,7 @@
 "aliases_json": null,
 "notation": "SHOOTING DOUBLE OVER DOWN",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1727
+"sort_order": 1726
 },
 {
 "slug": "shooting_torque",
@@ -9436,7 +9423,7 @@
 "aliases_json": null,
 "notation": "SHOOTING TORQUE",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1728
+"sort_order": 1727
 },
 {
 "slug": "shooting_clipper",
@@ -9449,7 +9436,7 @@
 "aliases_json": null,
 "notation": "SHOOTING CLIPPER",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1729
+"sort_order": 1728
 },
 {
 "slug": "shooting_barfly",
@@ -9462,7 +9449,7 @@
 "aliases_json": null,
 "notation": "SHOOTING BARFLY",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]",
-"sort_order": 1730
+"sort_order": 1729
 },
 {
 "slug": "shooting_da_da_curve",
@@ -9475,7 +9462,7 @@
 "aliases_json": null,
 "notation": "SHOOTING DA DA CURVE",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > (no plant while) OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1731
+"sort_order": 1730
 },
 {
 "slug": "shooting_double_leg_over",
@@ -9488,7 +9475,7 @@
 "aliases_json": null,
 "notation": "SHOOTING DOUBLE LEG OVER",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1732
+"sort_order": 1731
 },
 {
 "slug": "double_blender",
@@ -9501,7 +9488,7 @@
 "aliases_json": null,
 "notation": "DOUBLE BLENDER",
 "operational_notation": "SET > OP IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1733
+"sort_order": 1732
 },
 {
 "slug": "spinning_symposium_down_double_down",
@@ -9514,7 +9501,7 @@
 "aliases_json": null,
 "notation": "SPINNING SYMPOSIUM DOWN DOUBLE DOWN",
 "operational_notation": "CLIP > (back) SPIN [BOD] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1734
+"sort_order": 1733
 },
 {
 "slug": "stepping_double_switch_over",
@@ -9527,7 +9514,7 @@
 "aliases_json": null,
 "notation": "STEPPING DOUBLE SWITCH OVER",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1735
+"sort_order": 1734
 },
 {
 "slug": "backside_magellan",
@@ -9540,7 +9527,7 @@
 "aliases_json": null,
 "notation": "BACKSIDE MAGELLAN",
 "operational_notation": "TOE > BS [DEX] > SAME IN [DEX] >> SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1736
+"sort_order": 1735
 },
 {
 "slug": "backside_paste",
@@ -9553,7 +9540,7 @@
 "aliases_json": null,
 "notation": "BACKSIDE PASTE",
 "operational_notation": "TOE > BS [DEX] > SAME IN [DEX] >> OP IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1737
+"sort_order": 1736
 },
 {
 "slug": "stepping_ducking_magellan",
@@ -9566,7 +9553,7 @@
 "aliases_json": null,
 "notation": "STEPPING DUCKING MAGELLAN",
 "operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > SAME IN [DEX] >> SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1738
+"sort_order": 1737
 },
 {
 "slug": "stepping_ducking_paste",
@@ -9579,7 +9566,7 @@
 "aliases_json": null,
 "notation": "STEPPING DUCKING PASTE",
 "operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > SAME IN [DEX] >> OP IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1739
+"sort_order": 1738
 },
 {
 "slug": "stepping_ducking_smudge",
@@ -9592,7 +9579,7 @@
 "aliases_json": null,
 "notation": "STEPPING DUCKING SMUDGE",
 "operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > SAME IN [DEX] > OP OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1740
+"sort_order": 1739
 },
 {
 "slug": "stepping_ducking_smog",
@@ -9605,7 +9592,7 @@
 "aliases_json": null,
 "notation": "STEPPING DUCKING SMOG",
 "operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > SAME IN [DEX] >> OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1741
+"sort_order": 1740
 },
 {
 "slug": "stepping_ducking_pigbeater",
@@ -9618,7 +9605,7 @@
 "aliases_json": null,
 "notation": "STEPPING DUCKING PIGBEATER",
 "operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > SAME IN [DEX] >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1742
+"sort_order": 1741
 },
 {
 "slug": "gyro_toe",
@@ -9631,7 +9618,7 @@
 "aliases_json": null,
 "notation": "GYRO TOE",
 "operational_notation": "SET > (back) SPIN [BOD] > SAME TOE [DEL]",
-"sort_order": 1743
+"sort_order": 1742
 },
 {
 "slug": "gyro_symposium_mirage",
@@ -9644,7 +9631,7 @@
 "aliases_json": null,
 "notation": "GYRO SYMPOSIUM MIRAGE",
 "operational_notation": "CLIP > (back) SPIN [BOD] > (no plant while) SAME IN [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1744
+"sort_order": 1743
 },
 {
 "slug": "gyro_symposium_double_leg_over",
@@ -9657,7 +9644,7 @@
 "aliases_json": null,
 "notation": "GYRO SYMPOSIUM DOUBLE LEG OVER",
 "operational_notation": "CLIP > (back) SPIN [BOD] > (no plant while) SAME IN [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1745
+"sort_order": 1744
 },
 {
 "slug": "nuclear_rev_whirl",
@@ -9670,7 +9657,7 @@
 "aliases_json": null,
 "notation": "NUCLEAR REVERSE WHIRL",
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1746
+"sort_order": 1745
 },
 {
 "slug": "nuclear_rev_guay",
@@ -9683,7 +9670,7 @@
 "aliases_json": null,
 "notation": "NUCLEAR REVERSE GUAY",
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > SAME IN [DEX] > OP INSIDE [DEL]",
-"sort_order": 1747
+"sort_order": 1746
 },
 {
 "slug": "barraging_double_leg_over",
@@ -9696,7 +9683,7 @@
 "aliases_json": null,
 "notation": "BARRAGING DOUBLE LEG OVER",
 "operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1748
+"sort_order": 1747
 },
 {
 "slug": "quantum_double_leg_over",
@@ -9709,7 +9696,7 @@
 "aliases_json": null,
 "notation": "QUANTUM DOUBLE LEG OVER",
 "operational_notation": "TOE > OP IN [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1749
+"sort_order": 1748
 },
 {
 "slug": "quantum_flail",
@@ -9722,7 +9709,7 @@
 "aliases_json": null,
 "notation": "QUANTUM FLAIL",
 "operational_notation": "TOE > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1750
+"sort_order": 1749
 },
 {
 "slug": "quantum_butterfly_swirl",
@@ -9735,7 +9722,7 @@
 "aliases_json": null,
 "notation": "QUANTUM BUTTERFLY SWIRL",
 "operational_notation": "TOE > OP IN [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1751
+"sort_order": 1750
 },
 {
 "slug": "miraging_flail",
@@ -9748,7 +9735,7 @@
 "aliases_json": null,
 "notation": "MIRAGING FLAIL",
 "operational_notation": "SET > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1752
+"sort_order": 1751
 },
 {
 "slug": "pixie_ducking_butterfly_swirl",
@@ -9761,7 +9748,7 @@
 "aliases_json": null,
 "notation": "PIXIE DUCKING BUTTERFLY SWIRL",
 "operational_notation": "TOE > SAME IN [DEX] >> DUCK [BOD] >> SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1753
+"sort_order": 1752
 },
 {
 "slug": "fairy_gyro_double_leg_over",
@@ -9774,7 +9761,7 @@
 "aliases_json": null,
 "notation": "FAIRY GYRO DOUBLE LEG OVER",
 "operational_notation": "TOE > SAME OUT [DEX] > (back) SPIN [BOD] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1754
+"sort_order": 1753
 },
 {
 "slug": "stepping_ducking_double_pickup",
@@ -9787,7 +9774,7 @@
 "aliases_json": null,
 "notation": "STEPPING DUCKING DOUBLE PICKUP",
 "operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1755
+"sort_order": 1754
 },
 {
 "slug": "paradox_symposium_torque",
@@ -9800,7 +9787,7 @@
 "aliases_json": null,
 "notation": "PARADOX SYMPOSIUM TORQUE",
 "operational_notation": "CLIP (plant) > (no plant while) OP IN [PDX] [BOD] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1756
+"sort_order": 1755
 },
 {
 "slug": "fairy_gyro_barrage",
@@ -9813,7 +9800,7 @@
 "aliases_json": null,
 "notation": "FAIRY GYRO BARRAGE",
 "operational_notation": "TOE > SAME OUT [DEX] > (back) SPIN [BOD] > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1757
+"sort_order": 1756
 },
 {
 "slug": "fairy_ducking_drifter",
@@ -9826,7 +9813,7 @@
 "aliases_json": null,
 "notation": "FAIRY DUCKING DRIFTER",
 "operational_notation": "TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1758
+"sort_order": 1757
 },
 {
 "slug": "stepping_ducking_butterfly_swirl",
@@ -9839,7 +9826,7 @@
 "aliases_json": null,
 "notation": "STEPPING DUCKING BUTTERFLY SWIRL",
 "operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1759
+"sort_order": 1758
 },
 {
 "slug": "stepping_diving_double_leg_over",
@@ -9852,7 +9839,7 @@
 "aliases_json": null,
 "notation": "STEPPING DIVING DOUBLE LEG OVER",
 "operational_notation": "CLIP > OP IN [DEX] > DIVE [BOD] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1760
+"sort_order": 1759
 },
 {
 "slug": "pixie_diving_osis",
@@ -9865,7 +9852,7 @@
 "aliases_json": null,
 "notation": "PIXIE DIVING OSIS",
 "operational_notation": "TOE > SAME IN [DEX] >> DIVE [BOD] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1761
+"sort_order": 1760
 },
 {
 "slug": "pixie_gyro_double_leg_over",
@@ -9878,7 +9865,7 @@
 "aliases_json": null,
 "notation": "PIXIE GYRO DOUBLE LEG OVER",
 "operational_notation": "TOE > SAME IN [DEX] > (back) SPIN [BOD] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1762
+"sort_order": 1761
 },
 {
 "slug": "diving_symposium_whirl",
@@ -9891,7 +9878,7 @@
 "aliases_json": null,
 "notation": "DIVING SYMPOSIUM WHIRL",
 "operational_notation": "SET > DIVE [BOD] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1763
+"sort_order": 1762
 },
 {
 "slug": "tapping_diving_mirage",
@@ -9904,7 +9891,7 @@
 "aliases_json": null,
 "notation": "TAPPING DIVING MIRAGE",
 "operational_notation": "TOE > OP OUT [DEX] >> DIVE [BOD] >> OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1764
+"sort_order": 1763
 },
 {
 "slug": "tapping_whirling_swirl",
@@ -9917,7 +9904,7 @@
 "aliases_json": null,
 "notation": "TAPPING WHIRLING SWIRL",
 "operational_notation": "TOE > OP OUT [DEX] >> OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1765
+"sort_order": 1764
 },
 {
 "slug": "pixie_butterfly_swirl",
@@ -9930,7 +9917,7 @@
 "aliases_json": null,
 "notation": "PIXIE BUTTERFLY SWIRL",
 "operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1766
+"sort_order": 1765
 },
 {
 "slug": "shooting_illusion",
@@ -9943,7 +9930,7 @@
 "aliases_json": null,
 "notation": "SHOOTING ILLUSION",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1767
+"sort_order": 1766
 },
 {
 "slug": "shooting_legover",
@@ -9956,7 +9943,7 @@
 "aliases_json": null,
 "notation": "SHOOTING LEGOVER",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1768
+"sort_order": 1767
 },
 {
 "slug": "shooting_pickup",
@@ -9969,7 +9956,7 @@
 "aliases_json": null,
 "notation": "SHOOTING PICKUP",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1769
+"sort_order": 1768
 },
 {
 "slug": "sailing_clipper",
@@ -9982,7 +9969,7 @@
 "aliases_json": null,
 "notation": "SAILING CLIPPER",
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1770
+"sort_order": 1769
 },
 {
 "slug": "sailing_pickup",
@@ -9995,7 +9982,7 @@
 "aliases_json": null,
 "notation": "SAILING PICKUP",
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > OP IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1771
+"sort_order": 1770
 },
 {
 "slug": "fairy_gyro_symposium_mirage",
@@ -10008,7 +9995,7 @@
 "aliases_json": null,
 "notation": "FAIRY GYRO SYMPOSIUM MIRAGE",
 "operational_notation": "TOE > SAME OUT [DEX] > (back) SPIN [BOD] > (no plant while) SAME IN [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1772
+"sort_order": 1771
 },
 {
 "slug": "gyro_diving_symposium_torque",
@@ -10021,7 +10008,7 @@
 "aliases_json": null,
 "notation": "GYRO DIVING SYMPOSIUM TORQUE",
 "operational_notation": "CLIP > (back) SPIN [BOD] > DIVE [BOD] > (no plant while) SAME IN [BOD] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1773
+"sort_order": 1772
 },
 {
 "slug": "spinning_whirling_symposium_swirl",
@@ -10034,7 +10021,7 @@
 "aliases_json": null,
 "notation": "SPINNING WHIRLING SYMPOSIUM SWIRL",
 "operational_notation": "CLIP > (back) SPIN [BOD] > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1774
+"sort_order": 1773
 },
 {
 "slug": "pixie_miraging_symposium_eggbeater",
@@ -10047,7 +10034,7 @@
 "aliases_json": null,
 "notation": "PIXIE MIRAGING SYMPOSIUM EGGBEATER",
 "operational_notation": "TOE > SAME IN [DEX] > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1775
+"sort_order": 1774
 },
 {
 "slug": "shooting_ducking_butterfly",
@@ -10060,7 +10047,7 @@
 "aliases_json": null,
 "notation": "SHOOTING DUCKING BUTTERFLY",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1776
+"sort_order": 1775
 },
 {
 "slug": "shooting_gyro_mirage",
@@ -10073,7 +10060,7 @@
 "aliases_json": null,
 "notation": "SHOOTING GYRO MIRAGE",
 "operational_notation": "CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1777
+"sort_order": 1776
 },
 {
 "slug": "swirling_paradox_symposium_whirl",
@@ -10086,7 +10073,7 @@
 "aliases_json": null,
 "notation": "SWIRLING PARADOX SYMPOSIUM WHIRL",
 "operational_notation": "CLIP > SAME OUT [DEX] > (no plant while) SAME IN [BOD] [PDX] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1778
+"sort_order": 1777
 },
 {
 "slug": "spinning_ducking_symposium_torque",
@@ -10099,7 +10086,7 @@
 "aliases_json": null,
 "notation": "SPINNING DUCKING SYMPOSIUM TORQUE",
 "operational_notation": "SET > (back) SPIN [BOD] > DUCK [BOD] > (no plant while) OP IN [BOD] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1779
+"sort_order": 1778
 },
 {
 "slug": "pogo_barfly",
@@ -10112,7 +10099,7 @@
 "aliases_json": null,
 "notation": "CLIP > (no plant while) OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1780
+"sort_order": 1779
 },
 {
 "slug": "pogo_paradox_barrage",
@@ -10125,7 +10112,7 @@
 "aliases_json": null,
 "notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > SAME IN [DEX] > OP TOE [DEL]",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1781
+"sort_order": 1780
 },
 {
 "slug": "pogo_paradox_blender",
@@ -10138,7 +10125,7 @@
 "aliases_json": null,
 "notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1782
+"sort_order": 1781
 },
 {
 "slug": "pogo_paradox_da_da_curve",
@@ -10151,7 +10138,7 @@
 "aliases_json": null,
 "notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > (no plant while) OP OUT [DEX] > OP CLIP [XBD] [DEL]",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > (no plant while) OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1783
+"sort_order": 1782
 },
 {
 "slug": "pogo_paradox_drifter",
@@ -10164,7 +10151,7 @@
 "aliases_json": null,
 "notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > SAME CLIP [XBD] [DEL]",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1784
+"sort_order": 1783
 },
 {
 "slug": "pogo_paradox_eggbeater",
@@ -10177,7 +10164,7 @@
 "aliases_json": null,
 "notation": "CLIP > (no plant while) OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1785
+"sort_order": 1784
 },
 {
 "slug": "pogo_paradox_mirage",
@@ -10190,7 +10177,7 @@
 "aliases_json": null,
 "notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] [BOD] > OP TOE [DEL]",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] [BOD] > OP TOE [DEL]",
-"sort_order": 1786
+"sort_order": 1785
 },
 {
 "slug": "pogo_paradox_torque",
@@ -10203,7 +10190,7 @@
 "aliases_json": null,
 "notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1787
+"sort_order": 1786
 },
 {
 "slug": "pogo_paradox_whirl",
@@ -10216,7 +10203,7 @@
 "aliases_json": null,
 "notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > OP CLIP [XBD] [DEL]",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1788
+"sort_order": 1787
 },
 {
 "slug": "pogo_paradox_whirling_swirl",
@@ -10229,7 +10216,7 @@
 "aliases_json": null,
 "notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1789
+"sort_order": 1788
 },
 {
 "slug": "pogo_pickup",
@@ -10242,7 +10229,7 @@
 "aliases_json": null,
 "notation": "CLIP > (NO PLANT WHILE) OP IN [DEX] > OP IN [DEX] > SAME TOE [DEL]",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1790
+"sort_order": 1789
 },
 {
 "slug": "pogo_voodoo",
@@ -10255,7 +10242,7 @@
 "aliases_json": null,
 "notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1791
+"sort_order": 1790
 },
 {
 "slug": "blistering_whirl",
@@ -10268,7 +10255,7 @@
 "aliases_json": null,
 "notation": "CLIP > OP IN [DEX] > (back) SPIN [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
 "operational_notation": "CLIP > OP IN [DEX] > (back) SPIN [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1792
+"sort_order": 1791
 },
 {
 "slug": "blurrier",
@@ -10281,7 +10268,7 @@
 "aliases_json": null,
 "notation": "CLIP > OP IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
 "operational_notation": "CLIP > OP IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1793
+"sort_order": 1792
 },
 {
 "slug": "blurry_drifter",
@@ -10294,7 +10281,7 @@
 "aliases_json": null,
 "notation": "CLIP > OP IN [DEX] > OP IN [PDX] [DEX] > SAME CLIP [XBD] [DEL]",
 "operational_notation": "CLIP > OP IN [DEX] > OP IN [PDX] [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1794
+"sort_order": 1793
 },
 {
 "slug": "blurry_symposium_whirl",
@@ -10307,7 +10294,7 @@
 "aliases_json": null,
 "notation": "CLIP > OP IN [DEX] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL]",
 "operational_notation": "CLIP > OP IN [DEX] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1795
+"sort_order": 1794
 },
 {
 "slug": "flog",
@@ -10320,7 +10307,7 @@
 "aliases_json": null,
 "notation": "TOE > SAME OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
 "operational_notation": "TOE > SAME OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1796
+"sort_order": 1795
 },
 {
 "slug": "leg_over_flapper_stall",
@@ -10333,7 +10320,7 @@
 "aliases_json": null,
 "notation": "TOE > OP OUT [DEX] > OP SOLE [XBD] [UNS] [DEL]",
 "operational_notation": "TOE > OP OUT [DEX] > OP SOLE [XBD] [UNS] [DEL]",
-"sort_order": 1797
+"sort_order": 1796
 },
 {
 "slug": "terraging_opposite_clipper",
@@ -10346,7 +10333,7 @@
 "aliases_json": null,
 "notation": "TOE > SAME IN [DEX] > SAME IN [DEX] > OP CLIP [XBD] [DEL]",
 "operational_notation": "TOE > SAME IN [DEX] > SAME IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1798
+"sort_order": 1797
 },
 {
 "slug": "terraging_same_clipper",
@@ -10359,7 +10346,7 @@
 "aliases_json": null,
 "notation": "TOE > SAME IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
 "operational_notation": "TOE > SAME IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1799
+"sort_order": 1798
 },
 {
 "slug": "toe_double_drifter",
@@ -10372,7 +10359,7 @@
 "aliases_json": null,
 "notation": "TOE > OP IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
 "operational_notation": "TOE > OP IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1800
+"sort_order": 1799
 },
 {
 "slug": "toe_whirr",
@@ -10385,7 +10372,7 @@
 "aliases_json": null,
 "notation": "TOE > OP IN [DEX] > SAME IN [DEX] > OP CLIP [XBD] [DEL]",
 "operational_notation": "TOE > OP IN [DEX] > SAME IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1801
+"sort_order": 1800
 },
 {
 "slug": "voodoo",
@@ -10398,7 +10385,7 @@
 "aliases_json": null,
 "notation": "CLIP > SAME IN [DEX] [BOD] > (NO PLANT WHILE) OP IN [BOD] [DEX] > OP TOE [DEL]",
 "operational_notation": "CLIP > SAME IN [DEX] [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1802
+"sort_order": 1801
 },
 {
 "slug": "inside_around_the_world",
@@ -10411,7 +10398,7 @@
 "aliases_json": null,
 "notation": "INSIDE AROUND THE WORLD",
 "operational_notation": "INSIDE > SAME IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1803
+"sort_order": 1802
 },
 {
 "slug": "outside_around_the_world",
@@ -10424,7 +10411,7 @@
 "aliases_json": null,
 "notation": "OUTSIDE AROUND THE WORLD",
 "operational_notation": "OUTSIDE > SAME OUT [DEX] > SAME OUTSIDE [DEL]",
-"sort_order": 1804
+"sort_order": 1803
 },
 {
 "slug": "blender_same_side",
@@ -10437,7 +10424,7 @@
 "aliases_json": null,
 "notation": "BLENDER SAME SIDE",
 "operational_notation": "SET > SAME IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1805
+"sort_order": 1804
 },
 {
 "slug": "butterfly_same_side",
@@ -10450,7 +10437,7 @@
 "aliases_json": null,
 "notation": "BUTTERFLY SAME SIDE",
 "operational_notation": "SET > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1806
+"sort_order": 1805
 },
 {
 "slug": "stepping_clipper_same_side",
@@ -10463,7 +10450,7 @@
 "aliases_json": null,
 "notation": "STEPPING CLIPPER SAME SIDE",
 "operational_notation": "CLIP > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1807
+"sort_order": 1806
 },
 {
 "slug": "stepping_osis_same_side",
@@ -10476,7 +10463,7 @@
 "aliases_json": null,
 "notation": "STEPPING OSIS SAME SIDE",
 "operational_notation": "CLIP > SAME IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1808
+"sort_order": 1807
 },
 {
 "slug": "surging_same_side_osis",
@@ -10489,7 +10476,7 @@
 "aliases_json": null,
 "notation": "SURGING SAME SIDE OSIS",
 "operational_notation": "CLIP > SAME IN [DEX] >> (back) SPIN [BOD] > (front) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1809
+"sort_order": 1808
 },
 {
 "slug": "weaving_mirage",
@@ -10502,7 +10489,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > DUCK [BOD] > OP IN [DEX] > OP TOE [DEL] (same foot)",
-"sort_order": 1810
+"sort_order": 1809
 },
 {
 "slug": "weaving_clipper",
@@ -10515,7 +10502,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > DUCK [BOD] > SAME CLIP [XBD] [DEL] (same foot)",
-"sort_order": 1811
+"sort_order": 1810
 },
 {
 "slug": "weaving_legover",
@@ -10528,7 +10515,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > DUCK [BOD] > OP OUT [DEX] > SAME TOE [DEL] (same foot)",
-"sort_order": 1812
+"sort_order": 1811
 },
 {
 "slug": "weaving_butterfly",
@@ -10541,7 +10528,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > DUCK [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL] (same foot)",
-"sort_order": 1813
+"sort_order": 1812
 },
 {
 "slug": "weaving_whirl",
@@ -10554,7 +10541,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > DUCK [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL] (same foot)",
-"sort_order": 1814
+"sort_order": 1813
 },
 {
 "slug": "weaving_osis",
@@ -10567,7 +10554,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > DUCK [BOD] > SAME/OP OSIS [BOD] [XBD] [DEL] (same foot)",
-"sort_order": 1815
+"sort_order": 1814
 },
 {
 "slug": "zulu_mirage",
@@ -10580,7 +10567,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (across body) DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1816
+"sort_order": 1815
 },
 {
 "slug": "zulu_clipper",
@@ -10593,7 +10580,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (across body) DUCK [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1817
+"sort_order": 1816
 },
 {
 "slug": "zulu_legover",
@@ -10606,7 +10593,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (across body) DUCK [BOD] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1818
+"sort_order": 1817
 },
 {
 "slug": "zulu_butterfly",
@@ -10619,7 +10606,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > (across body) DUCK [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1819
+"sort_order": 1818
 },
 {
 "slug": "zulu_whirl",
@@ -10632,7 +10619,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > (across body) DUCK [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1820
+"sort_order": 1819
 },
 {
 "slug": "zulu_osis",
@@ -10645,7 +10632,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > (across body) DUCK [BOD] > SAME/OP OSIS [BOD] [XBD] [DEL]",
-"sort_order": 1821
+"sort_order": 1820
 },
 {
 "slug": "weaving_drifter",
@@ -10658,7 +10645,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > DUCK [BOD] > OP IN [DEX] > SAME CLIP [XBD] [DEL] (same foot)",
-"sort_order": 1822
+"sort_order": 1821
 },
 {
 "slug": "weaving_pickup",
@@ -10671,7 +10658,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > DUCK [BOD] > OP IN [DEX] > SAME TOE [DEL] (same foot)",
-"sort_order": 1823
+"sort_order": 1822
 },
 {
 "slug": "weaving_illusion",
@@ -10684,7 +10671,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > DUCK [BOD] > OP OUT [DEX] > OP TOE [DEL] (same foot)",
-"sort_order": 1824
+"sort_order": 1823
 },
 {
 "slug": "weaving_guay",
@@ -10697,7 +10684,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > DUCK [BOD] > OP IN [DEX] > SAME INSIDE [DEL] (same foot)",
-"sort_order": 1825
+"sort_order": 1824
 },
 {
 "slug": "weaving_double_leg_over",
@@ -10710,7 +10697,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > DUCK [BOD] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL] (same foot)",
-"sort_order": 1826
+"sort_order": 1825
 },
 {
 "slug": "weaving_toe_stall",
@@ -10723,7 +10710,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > DUCK [BOD] > OP TOE [DEL] (same foot)",
-"sort_order": 1827
+"sort_order": 1826
 },
 {
 "slug": "zulu_drifter",
@@ -10736,7 +10723,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (across body) DUCK [BOD] > OP IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1828
+"sort_order": 1827
 },
 {
 "slug": "zulu_pickup",
@@ -10749,7 +10736,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (across body) DUCK [BOD] > OP IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1829
+"sort_order": 1828
 },
 {
 "slug": "zulu_illusion",
@@ -10762,7 +10749,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (across body) DUCK [BOD] > OP OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1830
+"sort_order": 1829
 },
 {
 "slug": "zulu_guay",
@@ -10775,7 +10762,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (across body) DUCK [BOD] > OP IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1831
+"sort_order": 1830
 },
 {
 "slug": "zulu_double_leg_over",
@@ -10788,7 +10775,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (across body) DUCK [BOD] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1832
+"sort_order": 1831
 },
 {
 "slug": "zulu_toe_stall",
@@ -10801,7 +10788,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (across body) DUCK [BOD] > OP TOE [DEL]",
-"sort_order": 1833
+"sort_order": 1832
 },
 {
 "slug": "pogo_illusion",
@@ -10814,7 +10801,7 @@
 "aliases_json": null,
 "notation": "POGO ILLUSION",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1834
+"sort_order": 1833
 },
 {
 "slug": "pogo_legover",
@@ -10827,7 +10814,7 @@
 "aliases_json": null,
 "notation": "POGO LEGOVER",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1835
+"sort_order": 1834
 },
 {
 "slug": "pogo_mirage",
@@ -10840,7 +10827,7 @@
 "aliases_json": null,
 "notation": "POGO MIRAGE",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1836
+"sort_order": 1835
 },
 {
 "slug": "pogo_barrage",
@@ -10853,7 +10840,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1837
+"sort_order": 1836
 },
 {
 "slug": "pogo_butterfly",
@@ -10866,7 +10853,7 @@
 "aliases_json": null,
 "notation": "POGO BUTTERFLY",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1838
+"sort_order": 1837
 },
 {
 "slug": "pogo_drifter",
@@ -10879,7 +10866,7 @@
 "aliases_json": null,
 "notation": "POGO DRIFTER",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1839
+"sort_order": 1838
 },
 {
 "slug": "pogo_eggbeater",
@@ -10892,7 +10879,7 @@
 "aliases_json": null,
 "notation": "POGO EGGBEATER",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1840
+"sort_order": 1839
 },
 {
 "slug": "pogo_whirl",
@@ -10905,7 +10892,7 @@
 "aliases_json": null,
 "notation": "POGO WHIRL",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1841
+"sort_order": 1840
 },
 {
 "slug": "pogo_blender",
@@ -10918,7 +10905,7 @@
 "aliases_json": null,
 "notation": "POGO BLENDER",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1842
+"sort_order": 1841
 },
 {
 "slug": "pogo_torque",
@@ -10931,7 +10918,7 @@
 "aliases_json": null,
 "notation": "POGO TORQUE",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1843
+"sort_order": 1842
 },
 {
 "slug": "pogo_whirling_swirl",
@@ -10944,7 +10931,7 @@
 "aliases_json": null,
 "notation": "POGO WHIRLING SWIRL",
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1844
+"sort_order": 1843
 },
 {
 "slug": "atomic_swirl",
@@ -10957,7 +10944,7 @@
 "aliases_json": null,
 "notation": "ATOMIC SWIRL",
 "operational_notation": "TOE > OP OUT [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1845
+"sort_order": 1844
 },
 {
 "slug": "atomic_whirl",
@@ -10970,7 +10957,7 @@
 "aliases_json": null,
 "notation": "ATOMIC WHIRL",
 "operational_notation": "TOE > OP OUT [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1846
+"sort_order": 1845
 },
 {
 "slug": "atomic_symposium_whirl",
@@ -10983,7 +10970,7 @@
 "aliases_json": null,
 "notation": "ATOMIC SYMPOSIUM WHIRL",
 "operational_notation": "TOE > OP OUT [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1847
+"sort_order": 1846
 },
 {
 "slug": "atomic_ducking_mirage",
@@ -10996,7 +10983,7 @@
 "aliases_json": null,
 "notation": "ATOMIC DUCKING MIRAGE",
 "operational_notation": "TOE > OP OUT [DEX] > DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1848
+"sort_order": 1847
 },
 {
 "slug": "nuclear_butterfly",
@@ -11009,7 +10996,7 @@
 "aliases_json": null,
 "notation": "NUCLEAR BUTTERFLY",
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1849
+"sort_order": 1848
 },
 {
 "slug": "reverse_guay",
@@ -11022,7 +11009,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > SAME IN [DEX] > OP INSIDE [DEL]",
-"sort_order": 1850
+"sort_order": 1849
 },
 {
 "slug": "atomic_reverse_swirl",
@@ -11035,7 +11022,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > OP OUT [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1851
+"sort_order": 1850
 },
 {
 "slug": "irish_cream",
@@ -11048,7 +11035,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > OP OUT [DEX] >> (back) SPIN [BOD] >> SAME IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]",
-"sort_order": 1852
+"sort_order": 1851
 },
 {
 "slug": "fairy_weaving_butterfly",
@@ -11061,7 +11048,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME OUT [DEX] >> DUCK [BOD] >> SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL] (same foot)",
-"sort_order": 1853
+"sort_order": 1852
 },
 {
 "slug": "fairy_weaving_clipper",
@@ -11074,7 +11061,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP CLIP [XBD] [DEL] (same foot)",
-"sort_order": 1854
+"sort_order": 1853
 },
 {
 "slug": "fairy_weaving_mirage",
@@ -11087,7 +11074,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP TOE [DEL] (same foot)",
-"sort_order": 1855
+"sort_order": 1854
 },
 {
 "slug": "fairy_weaving_osis",
@@ -11100,7 +11087,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME OUT [DEX] >> DUCK [BOD] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL] (same foot)",
-"sort_order": 1856
+"sort_order": 1855
 },
 {
 "slug": "pixie_weaving_butterfly",
@@ -11113,7 +11100,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> DUCK [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL] (same foot)",
-"sort_order": 1857
+"sort_order": 1856
 },
 {
 "slug": "pixie_weaving_mirage",
@@ -11126,7 +11113,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> DUCK [BOD] > OP IN [DEX] > OP TOE [DEL] (same foot)",
-"sort_order": 1858
+"sort_order": 1857
 },
 {
 "slug": "pixie_weaving_osis",
@@ -11139,7 +11126,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> DUCK [BOD] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL] (same foot)",
-"sort_order": 1859
+"sort_order": 1858
 },
 {
 "slug": "pixie_weaving_symposium_mirage",
@@ -11152,7 +11139,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> DUCK [BOD] >> (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL] (same foot)",
-"sort_order": 1860
+"sort_order": 1859
 },
 {
 "slug": "pixie_weaving_whirl",
@@ -11165,7 +11152,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP CLIP [XBD] [DEL] (same foot)",
-"sort_order": 1861
+"sort_order": 1860
 },
 {
 "slug": "stepping_weaving_butterfly",
@@ -11178,7 +11165,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL] (same foot)",
-"sort_order": 1862
+"sort_order": 1861
 },
 {
 "slug": "stepping_weaving_mirage",
@@ -11191,7 +11178,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > SAME IN [DEX] > SAME TOE [DEL] (same foot)",
-"sort_order": 1863
+"sort_order": 1862
 },
 {
 "slug": "weaving_symposium_mirage",
@@ -11204,7 +11191,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > DUCK [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL] (same foot)",
-"sort_order": 1864
+"sort_order": 1863
 },
 {
 "slug": "weaving_reverse_guay",
@@ -11217,7 +11204,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > DUCK [BOD] > SAME IN [DEX] > OP INSIDE [DEL] (same foot)",
-"sort_order": 1865
+"sort_order": 1864
 },
 {
 "slug": "weaving_eclipse",
@@ -11230,7 +11217,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > DUCK [BOD] JUMP [BOD] > SAME INSIDE [DEL] > SAME TOE [DEL] (same foot)",
-"sort_order": 1866
+"sort_order": 1865
 },
 {
 "slug": "blurry_whirling_swirl",
@@ -11243,7 +11230,7 @@
 "aliases_json": null,
 "notation": "CLIP > OP IN [DEX] > OP IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]",
 "operational_notation": "CLIP > OP IN [DEX] > OP IN [PDX] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1867
+"sort_order": 1866
 },
 {
 "slug": "motion",
@@ -11256,7 +11243,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE >> SAME OUT [DEX] >> SAME OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1868
+"sort_order": 1867
 },
 {
 "slug": "locomotion",
@@ -11269,7 +11256,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > OP IN [DEX] >> OP OUT [DEX] > SAME OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1869
+"sort_order": 1868
 },
 {
 "slug": "motion_sickness",
@@ -11282,7 +11269,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP >> (back) SPIN [BOD] >> OP OUT [DEX] > SAME OUT [DEX] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1870
+"sort_order": 1869
 },
 {
 "slug": "dimmiest",
@@ -11295,7 +11282,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1871
+"sort_order": 1870
 },
 {
 "slug": "spanishfly",
@@ -11308,7 +11295,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > DUCK [BOD] >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]",
-"sort_order": 1872
+"sort_order": 1871
 },
 {
 "slug": "shaft",
@@ -11321,7 +11308,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP >> (no plant while) OP OUT [DEX] [BOD] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1873
+"sort_order": 1872
 },
 {
 "slug": "leviathon",
@@ -11334,7 +11321,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]",
-"sort_order": 1874
+"sort_order": 1873
 },
 {
 "slug": "blackula",
@@ -11347,7 +11334,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (no plant while) SAME OUT [BOD] [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1875
+"sort_order": 1874
 },
 {
 "slug": "mofly",
@@ -11360,7 +11347,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1876
+"sort_order": 1875
 },
 {
 "slug": "id",
@@ -11373,7 +11360,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > OP OUT [DEX] > DUCK [BOD] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1877
+"sort_order": 1876
 },
 {
 "slug": "cold_fusion",
@@ -11386,7 +11373,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > OP OUT [PDX] [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1878
+"sort_order": 1877
 },
 {
 "slug": "archnemesis",
@@ -11399,7 +11386,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1879
+"sort_order": 1878
 },
 {
 "slug": "cheese_processor",
@@ -11412,7 +11399,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > OP IN [DEX] > (back) SPIN [BOD] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1880
+"sort_order": 1879
 },
 {
 "slug": "irish_spring",
@@ -11425,7 +11412,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > OP OUT [DEX] >> (back) SPIN [BOD] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1881
+"sort_order": 1880
 },
 {
 "slug": "moby_dick",
@@ -11438,7 +11425,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP >> (back) SPIN [BOD] >> SAME IN [DEX] > OP BACK WHIRL [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1882
+"sort_order": 1881
 },
 {
 "slug": "armageddon",
@@ -11451,7 +11438,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME IN [PDX] [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1883
+"sort_order": 1882
 },
 {
 "slug": "assassin_same_side",
@@ -11464,7 +11451,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> DUCK [BOD] >> SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1884
+"sort_order": 1883
 },
 {
 "slug": "eclipse_same_side",
@@ -11477,7 +11464,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > JUMP [BOD] > SAME INSIDE [DEL] > OP OUT [DEX] > (land)",
-"sort_order": 1885
+"sort_order": 1884
 },
 {
 "slug": "fairy_pickup_same_side",
@@ -11490,7 +11477,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME OUT [DEX] > SAME IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1886
+"sort_order": 1885
 },
 {
 "slug": "paste_same_side",
@@ -11503,7 +11490,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> SAME IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1887
+"sort_order": 1886
 },
 {
 "slug": "pixie_double_pickup_same_side",
@@ -11516,7 +11503,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1888
+"sort_order": 1887
 },
 {
 "slug": "smear_same_side",
@@ -11529,7 +11516,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1889
+"sort_order": 1888
 },
 {
 "slug": "smudge_same_side",
@@ -11542,7 +11529,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1890
+"sort_order": 1889
 },
 {
 "slug": "barfry",
@@ -11555,7 +11542,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1891
+"sort_order": 1890
 },
 {
 "slug": "hurl",
@@ -11568,7 +11555,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1892
+"sort_order": 1891
 },
 {
 "slug": "barraging_drifter",
@@ -11581,7 +11568,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1893
+"sort_order": 1892
 },
 {
 "slug": "barraging_butterfly_swirl",
@@ -11594,7 +11581,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > SAME/OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1894
+"sort_order": 1893
 },
 {
 "slug": "barraging_symposium_eggbeater",
@@ -11607,7 +11594,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (no plant while) OP IN [BOD] [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1895
+"sort_order": 1894
 },
 {
 "slug": "barraging_symposium_legover",
@@ -11620,7 +11607,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > (no plant while) OP IN [BOD] [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1896
+"sort_order": 1895
 },
 {
 "slug": "pogo_motion",
@@ -11633,7 +11620,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > SAME OUT [DEX] >> SAME OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1897
+"sort_order": 1896
 },
 {
 "slug": "pogo_double_leg_over",
@@ -11646,7 +11633,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1898
+"sort_order": 1897
 },
 {
 "slug": "pogo_da_da_curve",
@@ -11659,7 +11646,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (no plant while) OP IN [DEX] > OP IN [DEX] > (no plant while) OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1899
+"sort_order": 1898
 },
 {
 "slug": "quantum_reverse_guay",
@@ -11672,7 +11659,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > OP IN [DEX] > SAME IN [DEX] > OP INSIDE [DEL]",
-"sort_order": 1900
+"sort_order": 1899
 },
 {
 "slug": "pixie_same_side_butterfly",
@@ -11685,7 +11672,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1901
+"sort_order": 1900
 },
 {
 "slug": "blink",
@@ -11698,7 +11685,7 @@
 "aliases_json": null,
 "notation": "BLINK",
 "operational_notation": "SET > OP BACK SWIRL [DEX] > OP TOE [DEL]",
-"sort_order": 1903
+"sort_order": 1902
 },
 {
 "slug": "atomic_zulu_mirage",
@@ -11711,7 +11698,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > OP OUT [DEX] > (across body) DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1904
+"sort_order": 1903
 },
 {
 "slug": "zulu_eclipse",
@@ -11724,7 +11711,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (across body) DUCK [BOD] JUMP [BOD] > SAME INSIDE [DEL] > SAME TOE [DEL]",
-"sort_order": 1905
+"sort_order": 1904
 },
 {
 "slug": "zulu_paradox_drifter",
@@ -11737,7 +11724,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (across body) DUCK [BOD] > OP IN [PDX] [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1906
+"sort_order": 1905
 },
 {
 "slug": "zulu_paradox_mirage",
@@ -11750,7 +11737,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (across body) DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]",
-"sort_order": 1907
+"sort_order": 1906
 },
 {
 "slug": "zulu_reverse_guay",
@@ -11763,7 +11750,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > (across body) DUCK [BOD] > SAME IN [DEX] > OP INSIDE [DEL]",
-"sort_order": 1908
+"sort_order": 1907
 },
 {
 "slug": "zulu_symposium_mirage",
@@ -11776,7 +11763,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > (across body) DUCK [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1909
+"sort_order": 1908
 },
 {
 "slug": "fairy_zulu_butterfly",
@@ -11789,7 +11776,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME OUT [DEX] >> (across body) DUCK [BOD] >> SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1910
+"sort_order": 1909
 },
 {
 "slug": "fairy_zulu_mirage",
@@ -11802,7 +11789,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME OUT [DEX] >> (across body) DUCK [BOD] >> OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1911
+"sort_order": 1910
 },
 {
 "slug": "pixie_zulu_butterfly",
@@ -11815,7 +11802,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> (across body) DUCK [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1912
+"sort_order": 1911
 },
 {
 "slug": "pixie_zulu_osis",
@@ -11828,7 +11815,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> (across body) DUCK [BOD] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1913
+"sort_order": 1912
 },
 {
 "slug": "pixie_zulu_symposium_mirage",
@@ -11841,7 +11828,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> (across body) DUCK [BOD] >> (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1914
+"sort_order": 1913
 },
 {
 "slug": "pixie_zulu_whirl",
@@ -11854,7 +11841,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> (across body) DUCK [BOD] >> OP IN [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1915
+"sort_order": 1914
 },
 {
 "slug": "spinning_zulu_butterfly",
@@ -11867,7 +11854,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (back) SPIN [BOD] > (across body) DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1916
+"sort_order": 1915
 },
 {
 "slug": "double_leg_over_same_side",
@@ -11880,7 +11867,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > SAME IN [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1917
+"sort_order": 1916
 },
 {
 "slug": "eggbeater_same_side",
@@ -11893,7 +11880,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE >> SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1918
+"sort_order": 1917
 },
 {
 "slug": "fairy_double_leg_over_same_side",
@@ -11906,7 +11893,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME OUT [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1919
+"sort_order": 1918
 },
 {
 "slug": "pigbeater_same_side",
@@ -11919,7 +11906,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1920
+"sort_order": 1919
 },
 {
 "slug": "smog_same_side",
@@ -11932,7 +11919,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> SAME IN [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1921
+"sort_order": 1920
 },
 {
 "slug": "nuclear_guay_same_side",
@@ -11945,7 +11932,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > SAME IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1922
+"sort_order": 1921
 },
 {
 "slug": "nuclear_illusion_same_side",
@@ -11958,7 +11945,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > SAME OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1923
+"sort_order": 1922
 },
 {
 "slug": "nuclear_legover_same_side",
@@ -11971,7 +11958,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1924
+"sort_order": 1923
 },
 {
 "slug": "nuclear_mirage_same_side",
@@ -11984,7 +11971,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME OUT [DEX] [PDX] >> SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1925
+"sort_order": 1924
 },
 {
 "slug": "nuclear_pickup_same_side",
@@ -11997,7 +11984,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > SAME IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1926
+"sort_order": 1925
 },
 {
 "slug": "nuclear_reverse_whirl_same_side",
@@ -12010,7 +11997,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME OUT [PDX] [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1927
+"sort_order": 1926
 },
 {
 "slug": "pogo_illusion_same_side",
@@ -12023,7 +12010,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (no plant while) SAME IN [DEX] > SAME OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1928
+"sort_order": 1927
 },
 {
 "slug": "pogo_legover_same_side",
@@ -12036,7 +12023,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (no plant while) SAME IN [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1929
+"sort_order": 1928
 },
 {
 "slug": "pogo_mirage_same_side",
@@ -12049,7 +12036,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (no plant while) SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1930
+"sort_order": 1929
 },
 {
 "slug": "pogo_pickup_same_side",
@@ -12062,7 +12049,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (no plant while) SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1931
+"sort_order": 1930
 },
 {
 "slug": "pogo_symposium_mirage_same_side",
@@ -12075,7 +12062,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (no plant while) SAME IN [DEX] > (no plant while) SAME IN [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1932
+"sort_order": 1931
 },
 {
 "slug": "pogo_flail_same_side",
@@ -12088,7 +12075,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (no plant while) SAME IN [DEX] > (no plant while) SAME OUT [BOD] [DEX] > OP TOE [DEL]",
-"sort_order": 1933
+"sort_order": 1932
 },
 {
 "slug": "shooting_clipper_same_side",
@@ -12101,7 +12088,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME IN [DEX] > SAME OUT [PDX] [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1934
+"sort_order": 1933
 },
 {
 "slug": "shooting_illusion_same_side",
@@ -12114,7 +12101,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME IN [DEX] > SAME OUT [PDX] [DEX] > SAME OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1935
+"sort_order": 1934
 },
 {
 "slug": "shooting_legover_same_side",
@@ -12127,7 +12114,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME IN [DEX] > SAME OUT [PDX] [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1936
+"sort_order": 1935
 },
 {
 "slug": "shooting_mirage_same_side",
@@ -12140,7 +12127,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME IN [DEX] > SAME OUT [PDX] [DEX] > SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1937
+"sort_order": 1936
 },
 {
 "slug": "shooting_pickup_same_side",
@@ -12153,7 +12140,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > SAME IN [DEX] > SAME OUT [PDX] [DEX] > SAME IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1938
+"sort_order": 1937
 },
 {
 "slug": "stepping_ducking_far_double_pickup",
@@ -12166,7 +12153,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > OP IN [DEX] >> DUCK [BOD] > OP IN [DEX] > OP IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1939
+"sort_order": 1938
 },
 {
 "slug": "dada_curve_swirl",
@@ -12179,7 +12166,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET >> OP IN [DEX] > (no plant while) OP OUT [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1940
+"sort_order": 1939
 },
 {
 "slug": "pixie_over_down",
@@ -12192,7 +12179,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] (plant) > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1941
+"sort_order": 1940
 },
 {
 "slug": "sailing_butterfly_same_side",
@@ -12205,7 +12192,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1942
+"sort_order": 1941
 },
 {
 "slug": "sailing_double_leg_over_same_side",
@@ -12218,7 +12205,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1943
+"sort_order": 1942
 },
 {
 "slug": "sailing_illusion_same_side",
@@ -12231,7 +12218,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1944
+"sort_order": 1943
 },
 {
 "slug": "sailing_legover_same_side",
@@ -12244,7 +12231,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1945
+"sort_order": 1944
 },
 {
 "slug": "sailing_mirage_same_side",
@@ -12257,7 +12244,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] > SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1946
+"sort_order": 1945
 },
 {
 "slug": "sailing_pickup_same_side",
@@ -12270,7 +12257,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] > SAME IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1947
+"sort_order": 1946
 },
 {
 "slug": "inspinning_same_side_illusion",
@@ -12283,7 +12270,7 @@
 "aliases_json": null,
 "notation": "CLIP > (front) SPIN [BOD] > OP OUT [DEX] > OP TOE [DEL]orTOE > (front) SPIN [BOD] > SAME OUT [DEX] > OP TOE [DEL]",
 "operational_notation": "TOE > (front) SPIN [BOD] > SAME OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1948
+"sort_order": 1947
 },
 {
 "slug": "inspinning_same_side_mirage",
@@ -12296,7 +12283,7 @@
 "aliases_json": null,
 "notation": "CLIP > (front) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL]orTOE > (front) SPIN [BOD] > SAME IN [DEX] > OP TOE [DEL]",
 "operational_notation": "TOE > (front) SPIN [BOD] > SAME IN [DEX] > OP TOE [DEL]",
-"sort_order": 1949
+"sort_order": 1948
 },
 {
 "slug": "railing_butterfly",
@@ -12309,7 +12296,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] >> SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1950
+"sort_order": 1949
 },
 {
 "slug": "railing_illusion",
@@ -12322,7 +12309,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] >> OP OUT [DEX] > OP TOE [DEL]",
-"sort_order": 1951
+"sort_order": 1950
 },
 {
 "slug": "railing_legover",
@@ -12335,7 +12322,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] >> OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1952
+"sort_order": 1951
 },
 {
 "slug": "railing_mirage",
@@ -12348,7 +12335,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] >> OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1953
+"sort_order": 1952
 },
 {
 "slug": "railing_ducking_legover",
@@ -12361,7 +12348,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] >> DUCK [BOD] > OP OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1954
+"sort_order": 1953
 },
 {
 "slug": "railing_butterfly_same_side",
@@ -12374,7 +12361,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] >> SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1955
+"sort_order": 1954
 },
 {
 "slug": "railing_double_leg_over_same_side",
@@ -12387,7 +12374,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > SAME OUT [DEX] >> SAME IN [DEX] > SAME OUT [DEX] > SAME TOE [DEL]",
-"sort_order": 1956
+"sort_order": 1955
 },
 {
 "slug": "surfing_osis",
@@ -12400,7 +12387,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP OUT [DEX] > (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL]",
-"sort_order": 1957
+"sort_order": 1956
 },
 {
 "slug": "surfing_pickup_same_side",
@@ -12413,7 +12400,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > SAME OUT [DEX] > SAME IN [DEX] > SAME TOE [DEL]",
-"sort_order": 1958
+"sort_order": 1957
 },
 {
 "slug": "splicing_paradox_mirage",
@@ -12426,7 +12413,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > (back) SPIN [BOD] > OP OUT [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL]",
-"sort_order": 1959
+"sort_order": 1958
 },
 {
 "slug": "floating_mirage",
@@ -12439,7 +12426,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP IN [DEX] > OP TOE [DEL]",
-"sort_order": 1960
+"sort_order": 1959
 },
 {
 "slug": "butterfly_dragon",
@@ -12452,7 +12439,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > OP OUT [DEX] > DRAGON [UNS] [DEL]",
-"sort_order": 1961
+"sort_order": 1960
 },
 {
 "slug": "swirl_dragon",
@@ -12465,7 +12452,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > SAME OUT [DEX] > DRAGON [UNS] [DEL]",
-"sort_order": 1962
+"sort_order": 1961
 },
 {
 "slug": "reverse_swirl_dragon",
@@ -12478,7 +12465,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > SAME IN [DEX] > DRAGON [UNS] [DEL]",
-"sort_order": 1963
+"sort_order": 1962
 },
 {
 "slug": "double_swirl_dragon",
@@ -12491,7 +12478,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > SAME OUT [DEX] > SAME OUT [DEX] > DRAGON [UNS] [DEL]",
-"sort_order": 1964
+"sort_order": 1963
 },
 {
 "slug": "hopover_swirl_dragon",
@@ -12504,7 +12491,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > (hop over) SAME OUT [DEX] > DRAGON [UNS] [DEL]",
-"sort_order": 1965
+"sort_order": 1964
 },
 {
 "slug": "miraging_dragon",
@@ -12517,7 +12504,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "SET > OP IN [DEX] > DRAGON [UNS] [DEL]",
-"sort_order": 1966
+"sort_order": 1965
 },
 {
 "slug": "sailing_double_over_down",
@@ -12530,7 +12517,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1967
+"sort_order": 1966
 },
 {
 "slug": "atomic_symposium_paradon",
@@ -12543,7 +12530,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1968
+"sort_order": 1967
 },
 {
 "slug": "fairy_spinning_double_over_down",
@@ -12556,7 +12543,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME OUT [DEX] > (back) SPIN [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1969
+"sort_order": 1968
 },
 {
 "slug": "pixie_quantum_double_over_down_swirl",
@@ -12569,7 +12556,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> OP IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1970
+"sort_order": 1969
 },
 {
 "slug": "pixie_spinning_double_over_down",
@@ -12582,7 +12569,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME IN [DEX] >> (back) SPIN [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1971
+"sort_order": 1970
 },
 {
 "slug": "gyro_shooting_star",
@@ -12595,7 +12582,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (back) SPIN [BOD] > SAME IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1972
+"sort_order": 1971
 },
 {
 "slug": "spinning_symposium_double_over_down",
@@ -12608,7 +12595,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (back) SPIN [BOD] > (no plant while) SAME OUT [BOD] [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1973
+"sort_order": 1972
 },
 {
 "slug": "spinning_double_over_down",
@@ -12621,7 +12608,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1974
+"sort_order": 1973
 },
 {
 "slug": "stepping_symposium_paradon",
@@ -12634,7 +12621,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "CLIP > OP IN [DEX] >> (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1975
+"sort_order": 1974
 },
 {
 "slug": "double_over_down_reverse_swirl",
@@ -12647,7 +12634,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP IN [DEX] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1976
+"sort_order": 1975
 },
 {
 "slug": "miraging_symposium_paradon",
@@ -12660,7 +12647,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "TOE > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
-"sort_order": 1977
+"sort_order": 1976
 },
 {
 "slug": "inside_double_around_the_world",
@@ -12673,7 +12660,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "INSIDE > SAME IN [DEX] > SAME IN [DEX] > SAME INSIDE [DEL]",
-"sort_order": 1978
+"sort_order": 1977
 },
 {
 "slug": "thigh_catch",
@@ -12686,7 +12673,7 @@
 "aliases_json": null,
 "notation": null,
 "operational_notation": "THIGH [UNS] [DEL]",
-"sort_order": 1979
+"sort_order": 1978
 }
 ],
 "modifiers": [

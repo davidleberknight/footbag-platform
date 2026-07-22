@@ -18,7 +18,6 @@ const APPROVED = [
   { slug: 'stepping-ducking-symposium-eggbeater', adds: 6, notation: 'SET > OP IN [DEX] > DUCK [BOD] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL]' },
   { slug: 'symposium-blur', adds: 5, notation: 'CLIP > (no plant while) OP IN [BOD] [DEX] >> OP IN [DEX] [PDX] > OP TOE [DEL]' },
   { slug: 'symposium-mobius', adds: 6, notation: 'CLIP >> (back) SPIN [BOD] >> (no plant while) SAME IN [BOD] [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]' },
-  { slug: 'symposium-tomahawk', adds: 6, notation: 'CLIP >> DUCK [BOD] >> (no plant while) SAME FRONT WHIRL [BOD] [DEX] [PDX] > OP CLIP [XBD] [DEL]' },
   { slug: 'whirling-pickup', adds: 3, notation: 'SET > OP FRONT WHIRL [DEX] > OP IN [DEX] > SAME TOE [DEL]' },
   { slug: 'whirling-rake', adds: 3, notation: 'SET > OP FRONT WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL]' },
   // settled-decomposition folk names: the operator comes from the confirmed folk
