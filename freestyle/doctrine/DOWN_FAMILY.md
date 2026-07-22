@@ -82,8 +82,15 @@ The Down grid contains the clean two-dex outward cells. Source-attested mixed ce
 are not normalized into a grid cell by analogy: Plasma's OP OUT > SAME OUT core
 remains outside the grid. A three-outward-dex sequence resolving to clipper may
 contain a ruled Paradon chassis plus one added outward dexterity; Fusion, Cold
-Fusion, and ID therefore remain Down-derived compounds. The side of Fusion's added
-dexterity is tracked separately and remains frozen pending source reconciliation.
+Fusion, and ID therefore remain Down-derived compounds. Fusion's added dexterity is
+same-side outward: footbag.org move 167 (Atomic Double Over Down) records the mixed
+OP OUT > OP OUT > SAME OUT sequence, and its Reverse Miraging Down Double-Down
+description reads the added dex as a same-side outward sweep. Cold Fusion and ID,
+built on the Fusion chassis, carry the same SAME OUT added dex. Like Plasma's core
+above, this source-attested mixed Down core is preserved as recorded rather than
+normalized to an all-OP-OUT form by analogy with the atomic-butterfly chassis; the
+earlier all-OP-OUT operational form was that unsupported analogy and has been
+corrected.
 
 ## Display-layer umbrella
 

@@ -322,7 +322,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "TOE > OP OUT [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
-"operational_notation": "TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "TOE > OP OUT [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 44
 },
 {
@@ -11359,7 +11359,7 @@
 "description": null,
 "aliases_json": null,
 "notation": null,
-"operational_notation": "TOE > OP OUT [DEX] > DUCK [BOD] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "TOE > OP OUT [DEX] > DUCK [BOD] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1876
 },
 {
@@ -11372,7 +11372,7 @@
 "description": null,
 "aliases_json": null,
 "notation": null,
-"operational_notation": "TOE > OP OUT [PDX] [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]",
+"operational_notation": "TOE > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1877
 },
 {
