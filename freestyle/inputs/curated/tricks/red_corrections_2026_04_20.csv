@@ -27,35 +27,35 @@ sole-kick,base_trick,sole kick,sole-kick,Phase 5e Tier A1 name-form-to-slug (sel
 sole-stall,base_trick,sole stall,sole-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
 toe-stall,base_trick,toe stall,toe-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
 walk-over,base_trick,walk over,walk-over,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
-head-stall,notation,,HEAD STALL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-toe-stall,notation,,TOE STALL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-heel-stall,notation,,HEEL STALL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-inside-stall,notation,,INSIDE STALL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-outside-stall,notation,,OUTSIDE STALL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-mirage,notation,,MIRAGE,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-whirl,notation,,WHIRL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-butterfly,notation,,BUTTERFLY,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-osis,notation,,OSIS,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-illusion,notation,,ILLUSION,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-legover,notation,,LEGOVER,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-torque,notation,,TORQUE,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-drifter,notation,,DRIFTER,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-clipper,notation,,CLIPPER,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-swirl,notation,,SWIRL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-around-the-world,notation,,ATW,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-paradox-whirl,notation,,PARADOX WHIRL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-spinning-whirl,notation,,SPINNING WHIRL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-blur,notation,,BLURRY MIRAGE,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+head-stall,notation,,HEAD STALL,Surface-delay form per JOB_NOTATION: surface plus explicit STALL suffix.
+toe-stall,notation,,TOE STALL,Surface-delay form per JOB_NOTATION: surface plus explicit STALL suffix.
+heel-stall,notation,,HEEL STALL,Surface-delay form per JOB_NOTATION: surface plus explicit STALL suffix.
+inside-stall,notation,,INSIDE STALL,Surface-delay form per JOB_NOTATION: surface plus explicit STALL suffix.
+outside-stall,notation,,OUTSIDE STALL,Surface-delay form per JOB_NOTATION: surface plus explicit STALL suffix.
+mirage,notation,,MIRAGE,Name form per JOB_NOTATION: base trick / core atom is its own structural identity.
+whirl,notation,,WHIRL,Name form per JOB_NOTATION: base trick / core atom is its own structural identity.
+butterfly,notation,,BUTTERFLY,Name form per JOB_NOTATION: base trick / core atom is its own structural identity.
+osis,notation,,OSIS,Name form per JOB_NOTATION: base trick / core atom is its own structural identity.
+illusion,notation,,ILLUSION,Name form per JOB_NOTATION: base trick / core atom is its own structural identity.
+legover,notation,,LEGOVER,Name form per JOB_NOTATION: base trick / core atom is its own structural identity.
+torque,notation,,TORQUE,Name form per JOB_NOTATION: base trick / core atom is its own structural identity.
+drifter,notation,,DRIFTER,Name form per JOB_NOTATION: base trick / core atom is its own structural identity.
+clipper,notation,,CLIPPER,Name form per JOB_NOTATION: base trick / core atom is its own structural identity.
+swirl,notation,,SWIRL,Name form per JOB_NOTATION: base trick / core atom is its own structural identity.
+around-the-world,notation,,ATW,Direct-convention abbreviation per JOB_NOTATION: culturally universal short form for a base primitive.
+paradox-whirl,notation,,PARADOX WHIRL,Decomposition form per JOB_NOTATION: paradox + whirl.
+spinning-whirl,notation,,SPINNING WHIRL,Decomposition form per JOB_NOTATION: spinning + whirl.
+blur,notation,,BLURRY MIRAGE,Historical bootstrap reading; superseded by the pt10 correction below that sets blur = STEPPING PARADOX MIRAGE. Retained as ledger history; the live value and its pt10 authority govern.
 ripwalk,notation,BLURRY BUTTERFLY,STEPPING BUTTERFLY,Notation reconciliation 2026-05-18: STEP modifier per operator-board lede and glossary §3 §8; supersedes Tier 1 2026-05-09 bootstrap reading; prior BLURRY BUTTERFLY value preserved as non-Red asserted_notation via loader divergence pattern
-spinning-symposium-whirl,notation,,SPINNING SYMPOSIUM WHIRL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-gauntlet,notation,,STEPPING DUCKING PARADOX TORQUE,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-mobius,notation,,MOBIUS,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-sumo,notation,,SUMO,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
-sailing,notation,,SAILING,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+spinning-symposium-whirl,notation,,SPINNING SYMPOSIUM WHIRL,"Historical notation lock; superseded by this row's retirement (is_active=0) into the folk-named survivor sole_survivor, to which the notation and aliases transferred. Not a live JOB exemplar."
+gauntlet,notation,,STEPPING DUCKING PARADOX TORQUE,Decomposition form per JOB_NOTATION: stepping + ducking + paradox + torque; the clean multi-modifier decomposition is kept even though the name exists.
+mobius,notation,,MOBIUS,Name form per JOB_NOTATION exception registry: established community name (direct convention); gyro-torque lineage preserved in the modifier links.
+sumo,notation,,SUMO,Name form per JOB_NOTATION exception registry: provisional hold; the Nuclear-Mirage-with-cross-dex decomposition is contested.
+sailing,notation,,SAILING,Historical trick-row lock; superseded by the pt9 ruling converting sailing to a set/operator (is_active=0). Not a live public trick and not a JOB exception-registry row.
 whirl,description,Rotational dexterity move.,Rotational body-spin dex; anchor of the whirl family.,Description normalization 2026-05-09: base-trick anchor convention (Sub-batch 1)
 swirl,description,reverse swirl motion,Reverse-direction rotational dex; anchor of the swirl family.,Description normalization 2026-05-09: base-trick anchor convention (Sub-batch 1)
 clipper-stall,notation,,CLIPPER STALL,Phase 4 Tier 1 expansion 2026-05-10: B1 family head (clipper-stall family, 6 members)
-barfly,notation,,BARFLY,Phase 4 Tier 1 expansion 2026-05-10: B1 family head (barfly family, 4 members; self-atom name-form per NOTATION_STYLE_GUIDE §5.7)
+barfly,notation,,BARFLY,Name form per JOB_NOTATION exception registry: provisional hold; the Double-Infinity ontology is an open doctrine-queue question.
 double-leg-over,notation,,DOUBLE LEGOVER,Phase 4 Tier 1 expansion 2026-05-10: B1 family head (productive multiplicity per §5.6)
 blender,notation,,BLENDER,Phase 4 Tier 1 expansion 2026-05-10: B1 family head (osis sub-family); self-atom per §5.7
 pickup,notation,,PICKUP,Phase 4 Tier 1 expansion 2026-05-10: B1 family head (pickup family)
@@ -72,7 +72,7 @@ dyno,notation,,DYNO,Phase 4 Tier 1 expansion 2026-05-10: B3 record+media (user-p
 vortex,notation,,VORTEX,Phase 4 Tier 1 expansion 2026-05-10: B3 record+media (user-prioritized; drifter family)
 superfly,notation,,SUPERFLY,Phase 4 Tier 1 expansion 2026-05-10: B3 record+media (user-prioritized; barfly family)
 sidewalk,notation,,SIDEWALK,Phase 4 Tier 1 expansion 2026-05-10: B3 record+media (user-prioritized; butterfly family)
-smear,notation,,PIXIE MIRAGE,Phase 4 Tier 1 expansion 2026-05-10: B3 record+media (user-prioritized); per NOTATION_STYLE_GUIDE §6.5 LOCKED
+smear,notation,,PIXIE MIRAGE,Decomposition form per JOB_NOTATION (single-modifier compound pixie + mirage); value grounded in the FootbagMoves-corroborated operational notation (bracket count 3 == adds 3) and the settled pixie(+1) + mirage(2) decomposition from the pixie_mirage identity fold.
 cloud-kick,notation,,CLOUD KICK,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive
 dragonfly-kick,notation,,DRAGONFLY KICK,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive
 sole-kick,notation,,SOLE KICK,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive
@@ -92,46 +92,46 @@ blur,notation,BLURRY MIRAGE,STEPPING PARADOX MIRAGE,pt10 follow-up 2026-05-10: a
 barfly,operational_notation_source,,Source: FootbagMoves.com (curator-reviewed 2026-05-10). FM canonical name: "Far Double Over Down".,Phase O1d 2026-05-10: provenance citation for the FM-derived operational notation.
 blur,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-10). Note: FM canonical name is ""Blurry Mirage"" (single-modifier; +2 rotational reading); IFPA pt10 names this trick ""Stepping Paradox Mirage"" (two-modifier; flat-+1 reading). Both reach ADD=4 via different decompositions; the operational notation's two distinct dex segments with [PDX] on segment 2 align with the IFPA reading.",Phase O1d 2026-05-10: provenance + ontology-conflict transparency citation per OPERATIONAL_NOTATION_GRAMMAR §5.1.
 pigbeater,trick_family,eggbeater,legover,"Wave-1 family-inheritance fix 2026-05-10: pigbeater's base_trick=eggbeater caused loader to compute trick_family=eggbeater, leaving pigbeater orphaned in a family-of-one. eggbeater itself has trick_family=legover (per pt2 'eggbeater = atomic legover'). Override pigbeater.trick_family to legover so it groups with the legover-family compounds (eggbeater, double-leg-over, flurry, merkon, magellan)."
-tap,notation,,TAPPING MIRAGE,"Wave-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Tapping Mirage""; editorial decomposition agrees."
+tap,notation,,TAPPING MIRAGE,"Decomposition form per JOB_NOTATION: modifier + base; FootbagMoves technical name ""Tapping Mirage"" corroborates; editorial decomposition agrees."
 tap,operational_notation,,TOE > OP OUT [DEX] >> SAME IN [DEX] > OP TOE [DEL],Wave-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 tap,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-1 federation-not-adoption: FM technical_name ""Tapping Mirage"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-1 operational notation provenance 2026-05-11.
-paste,notation,,PIXIE PICKUP,"Wave-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Pixie Pickup""; editorial decomposition agrees."
+paste,notation,,PIXIE PICKUP,"Decomposition form per JOB_NOTATION: modifier + base; FootbagMoves technical name ""Pixie Pickup"" corroborates; editorial decomposition agrees."
 paste,operational_notation,,TOE > SAME IN [DEX] >> OP IN [DEX] > SAME TOE [DEL],Wave-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 paste,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-1 federation-not-adoption: FM technical_name ""Pixie Pickup"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-1 operational notation provenance 2026-05-11.
-hatchet,notation,,DIVING WHIRL,"Wave-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Diving Whirl""; editorial decomposition agrees."
+hatchet,notation,,DIVING WHIRL,"Decomposition form per JOB_NOTATION: modifier + base; FootbagMoves technical name ""Diving Whirl"" corroborates; editorial decomposition agrees."
 hatchet,operational_notation,,CLIP >> DIVE [BOD] > SAME FRONT WHIRL [DEX] > OP CLIP [XBD] [DEL],Wave-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 hatchet,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-1 federation-not-adoption: FM technical_name ""Diving Whirl"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-1 operational notation provenance 2026-05-11.
-pigbeater,notation,,PIXIE EGGBEATER,"Wave-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Pixie Eggbeater""; editorial decomposition agrees."
+pigbeater,notation,,PIXIE EGGBEATER,"Decomposition form per JOB_NOTATION: modifier + base; FootbagMoves technical name ""Pixie Eggbeater"" corroborates; editorial decomposition agrees."
 pigbeater,operational_notation,,TOE > SAME IN [DEX] >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],Wave-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 pigbeater,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-1 federation-not-adoption: FM technical_name ""Pixie Eggbeater"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-1 operational notation provenance 2026-05-11.
-montage,notation,,SPINNING DUCKING PARADOX SYMPOSIUM WHIRL,"Wave-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Spinning Ducking Paradox Symposium Whirl""; editorial decomposition agrees."
+montage,notation,,SPINNING DUCKING PARADOX SYMPOSIUM WHIRL,"Decomposition form per JOB_NOTATION: stacked modifiers + base; FootbagMoves technical name ""Spinning Ducking Paradox Symposium Whirl"" corroborates; editorial decomposition agrees."
 montage,operational_notation,,CLIP >> (back) SPIN [BOD] > DUCK [BOD] >> (no plant while) OP FRONT WHIRL [DEX] [PDX] [BOD] > OP CLIP [XBD] [DEL],Wave-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 montage,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-1 federation-not-adoption: FM technical_name ""Spinning Ducking Paradox Symposium Whirl"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-1 operational notation provenance 2026-05-11.
-mullet,notation,,DUCKING PARADOX SYMPOSIUM WHIRL,"Wave-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Ducking Paradox Symposium Whirl""; editorial decomposition agrees."
+mullet,notation,,DUCKING PARADOX SYMPOSIUM WHIRL,"Decomposition form per JOB_NOTATION: stacked modifiers + base; FootbagMoves technical name ""Ducking Paradox Symposium Whirl"" corroborates; editorial decomposition agrees."
 mullet,operational_notation,,CLIP >> DUCK [BOD] >> (no plant while) SAME FRONT WHIRL [DEX] [PDX] [BOD] > OP CLIP [XBD] [DEL],Wave-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 mullet,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-1 federation-not-adoption: FM technical_name ""Ducking Paradox Symposium Whirl"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-1 operational notation provenance 2026-05-11.
-spender,notation,,SPINNING PARADOX BLENDER,"Wave-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Spinning Paradox Blender""; editorial decomposition agrees."
+spender,notation,,SPINNING PARADOX BLENDER,"Decomposition form per JOB_NOTATION: stacked modifiers + base; FootbagMoves technical name ""Spinning Paradox Blender"" corroborates; editorial decomposition agrees."
 spender,operational_notation,,CLIP >> (back) SPIN [BOD] >> OP FRONT WHIRL [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],Wave-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 spender,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-1 federation-not-adoption: FM technical_name ""Spinning Paradox Blender"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-1 operational notation provenance 2026-05-11.
-scrambled-eggbeater,notation,,ATOMIC PICKUP,"Wave-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Atomic Pickup""; editorial decomposition agrees."
+scrambled-eggbeater,notation,,ATOMIC PICKUP,"Decomposition form per JOB_NOTATION: modifier + base; FootbagMoves technical name ""Atomic Pickup"" corroborates; editorial decomposition agrees."
 scrambled-eggbeater,operational_notation,,TOE >> OP OUT [DEX] > OP IN [DEX] > SAME TOE [DEL],Atomic-link marker aligned to the atomic-set position (parallel to eggbeater TOE >>); atomic-pickup identity preserved. Bracket/ADD count unchanged (3).
 scrambled-eggbeater,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-1 federation-not-adoption: FM technical_name ""Atomic Pickup"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-1 operational notation provenance 2026-05-11.
-matador,notation,,NUCLEAR BUTTERFLY,"Wave-2 Tier-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Nuclear Butterfly""; editorial decomposition agrees."
+matador,notation,,NUCLEAR BUTTERFLY,"Decomposition form per JOB_NOTATION: modifier + base; FootbagMoves technical name ""Nuclear Butterfly"" corroborates; editorial decomposition agrees."
 matador,operational_notation,,CLIP > SAME OUT [DEX] [PDX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL],Wave-2 Tier-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 matador,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-2 Tier-1 federation-not-adoption: FM technical_name ""Nuclear Butterfly"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-2 Tier-1 operational notation provenance 2026-05-11.
-phoenix,notation,,PIXIE DUCKING BUTTERFLY,"Wave-2 Tier-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Pixie Ducking Butterfly""; editorial decomposition agrees."
+phoenix,notation,,PIXIE DUCKING BUTTERFLY,"Decomposition form per JOB_NOTATION: stacked modifiers + base; FootbagMoves technical name ""Pixie Ducking Butterfly"" corroborates; editorial decomposition agrees."
 phoenix,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP OUT [DEX] > OP CLIP [XBD] [DEL],Wave-2 Tier-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 phoenix,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-2 Tier-1 federation-not-adoption: FM technical_name ""Pixie Ducking Butterfly"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-2 Tier-1 operational notation provenance 2026-05-11.
-mind-bender,notation,,DUCKING PARADOX BLENDER,"Wave-2 Tier-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Ducking Paradox Blender""; editorial decomposition agrees."
+mind-bender,notation,,DUCKING PARADOX BLENDER,"Decomposition form per JOB_NOTATION: stacked modifiers + base; FootbagMoves technical name ""Ducking Paradox Blender"" corroborates; editorial decomposition agrees."
 mind-bender,operational_notation,,CLIP >> DUCK [BOD] >> SAME FRONT WHIRL [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],Wave-2 Tier-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 mind-bender,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-2 Tier-1 federation-not-adoption: FM technical_name ""Ducking Paradox Blender"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-2 Tier-1 operational notation provenance 2026-05-11.
-tripwalk,notation,,QUANTUM BUTTERFLY,"Wave-2 Tier-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Quantum Butterfly""; editorial decomposition agrees."
+tripwalk,notation,,QUANTUM BUTTERFLY,"Value held pending the ""Quantum butterfly's derived formula"" question in RED_QUEUE.md: tripwalk shares the QUANTUM BUTTERFLY label with the distinct canonical quantum-butterfly, whose chassis is unresolved. Not grounded by the JOB_NOTATION default."
 tripwalk,operational_notation,,TOE > OP IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL],Wave-2 Tier-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 tripwalk,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-2 Tier-1 federation-not-adoption: FM technical_name ""Quantum Butterfly"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-2 Tier-1 operational notation provenance 2026-05-11.
-legeater,notation,,QUANTUM PICKUP,"Wave-2 Tier-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Quantum Pickup""; editorial decomposition agrees."
+legeater,notation,,QUANTUM PICKUP,"Decomposition form per JOB_NOTATION: modifier + base; FootbagMoves technical name ""Quantum Pickup"" corroborates; editorial decomposition agrees."
 legeater,operational_notation,,TOE > OP IN [DEX] >> OP IN [DEX] > SAME TOE [DEL],Wave-2 Tier-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 legeater,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-2 Tier-1 federation-not-adoption: FM technical_name ""Quantum Pickup"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-2 Tier-1 operational notation provenance 2026-05-11.
-spinal-tap,notation,,TAPPING TORQUE,"Wave-2 Tier-1 semantic notation seeding 2026-05-11: IFPA ALL-CAPS modifier+base form per NOTATION_STYLE_GUIDE §5.7; matches FM technical_name ""Tapping Torque""; editorial decomposition agrees."
+spinal-tap,notation,,TAPPING TORQUE,"Decomposition form per JOB_NOTATION: modifier + base; FootbagMoves technical name ""Tapping Torque"" corroborates; editorial decomposition agrees."
 spinal-tap,operational_notation,,TOE > OP OUT [DEX] >> SAME IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],Wave-2 Tier-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 spinal-tap,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-2 Tier-1 federation-not-adoption: FM technical_name ""Tapping Torque"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-2 Tier-1 operational notation provenance 2026-05-11.
 matador,operational_notation_source,,"Source: FootbagMoves.com, curator-reviewed 2026-05-11.",Editorial cleanup 2026-05-11: removed editorial-process jargon from visible source-provenance line.
