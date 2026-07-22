@@ -51,7 +51,7 @@
     "express-handlebars": "^7.1.2",
     "helmet": "8.1.0",
     "marked": "14.1.4",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.3",
     "sns-validator": "^0.3.5",
     "stripe": "22.2.0"
   },
