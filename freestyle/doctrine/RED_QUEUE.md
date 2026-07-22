@@ -493,13 +493,13 @@ Each is separable and answered on its own.
   needs it now, and a parser-section drain of roughly 47 slugs follows.
 - **Three-outward clipper sequence.** A cluster carries three consecutive outward
   dexes resolving to a clipper, which the two-dex Down grid cannot classify: `fusion`
-  (`TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]`, labeled
+  (`TOE > OP OUT [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]`, labeled
   `base_trick=double_over_down`), and its descendants `cold_fusion` (a `[PDX]` on the
   lead dex) and `id` (a `DUCK` inserted between dexes). Do three outward dexes
   resolving to a clipper contain a two-dex Down chassis plus one added dex, or a
   distinct Triple or Fusion movement whose parity is defined independently of the
   four-cell grid? These three stay bounded row-level holds. `sailing_double_over_down`
-  is not one of them; it is an ordinary settled compound and does not ride on this.
+  is not one of them; its cell-dex rendering is a separate bounded question, held pending the Sailing decomposition.
 - **Plasma parity, source evidence needed.** `plasma`
   (`TOE > OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]`, family
   `plasma`, no base trick, named a quantum double-over-down) has a mixed
