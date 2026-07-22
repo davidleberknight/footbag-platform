@@ -560,6 +560,19 @@
 "sort_order": 1008
 },
 {
+"slug": "surging",
+"canonical_name": "surging",
+"adds": "3",
+"base_trick": null,
+"trick_family": "surging",
+"category": "compound",
+"description": null,
+"aliases_json": null,
+"notation": "SURGING",
+"operational_notation": "CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL]",
+"sort_order": 1009
+},
+{
 "slug": "sidewalk",
 "canonical_name": "sidewalk",
 "adds": "4",

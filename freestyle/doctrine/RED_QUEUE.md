@@ -418,6 +418,17 @@ Each is separable and answered on its own.
   Close condition: rule whether the two names are one movement; fold or
   document accordingly and remove this entry.
 
+- **Surging vs Spinning Mirage shared notation.** Activating the correctly
+  authored standalone `surging` row exposes byte-identical notation and ADD
+  with `spinning_mirage`: both are 3 ADD and currently render as
+  `CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL]`. Their names imply
+  different structural decompositions - Surging as a set-to-toe-stall trick,
+  Spinning Mirage as a spinning entry plus Mirage - but the present notation
+  cannot distinguish those readings. Retain both as separate active canonicals
+  pending evidence. No merge, alias change, formula change, or scoring change
+  is authorized. Close when identity is ruled or the notation-model limitation
+  is explicitly documented.
+
 ## Individual held tricks
 
 - **Miraging Pincher.** What is Miraging Pincher structurally: a Quantum-like uptime

@@ -1,3 +1,3 @@
 alias_slug,alias_name,target_slug,target_canonical_name,target_exists_in_dict,structure_proposed,adds_proposed,source_url,source_id,status,conflict_with,notes
-pixie-torque,Pixie Torque,porque,Porque,N,pixie+torque,5,https://www.youtube.com/watch?v=u9S7zixV3Yw,passback_set_list_u9S7zixV3Yw,proposed,,PassBack equivalence: Porque = Pixie Torque.
-pixie-eggbeater,Pixie Eggbeater,pigbeater,Pigbeater,N,pixie+eggbeater,4,https://www.youtube.com/watch?v=u9S7zixV3Yw,passback_set_list_u9S7zixV3Yw,proposed,,PassBack equivalence: Pigbeater = Pixie Eggbeater.
+pixie-torque,Pixie Torque,porque,Porque,Y,pixie+torque,5,https://www.youtube.com/watch?v=u9S7zixV3Yw,passback_set_list_u9S7zixV3Yw,proposed,,PassBack equivalence: Porque = Pixie Torque.
+pixie-eggbeater,Pixie Eggbeater,pigbeater,Pigbeater,Y,pixie+eggbeater,4,https://www.youtube.com/watch?v=u9S7zixV3Yw,passback_set_list_u9S7zixV3Yw,matches_existing,,PassBack equivalence: Pigbeater = Pixie Eggbeater.

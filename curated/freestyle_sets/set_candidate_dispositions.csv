@@ -1,0 +1,54 @@
+set_slug,set_name,lane,rationale
+sailing,Sailing,registered_operator,Registered in the live modifier registry after this intake was staged; the generator's live check reclassifies it from new to known-modifier.
+terraging,Terraging,registered_operator,Registered in the live modifier registry after this intake was staged; the generator's live check reclassifies it from new to known-modifier.
+floating,Floating,registered_operator,Registered in the live modifier registry after this intake was staged; the generator's live check reclassifies it from new to known-modifier.
+pogo,Pogo,registered_operator,"Registered in the live modifier registry after this intake was staged; the generator's live check reclassifies it from new to known-modifier. The pogo OPERATOR (+1) and its promoted family are settled; only bare-row activation and the bare row's terminal identity remain held, and the current inactive 0-ADD row is bookkeeping, not an endorsed scoring ruling."
+splicing,Splicing,registered_operator,Registered in the live modifier registry after this intake was staged; the generator's live check reclassifies it from new to known-modifier.
+surfing,Surfing,registered_operator,Registered in the live modifier registry after this intake was staged; the generator's live check reclassifies it from new to known-modifier.
+warping,Warping,registered_operator,Registered in the live modifier registry after this intake was staged; the generator's live check reclassifies it from new to known-modifier.
+furious,Furious,registered_operator,Registered in the live modifier registry after this intake was staged; the generator's live check reclassifies it from new to known-modifier.
+shooting,Shooting,registered_operator,Registered in the live modifier registry after this intake was staged; the generator's live check reclassifies it from new to known-modifier.
+inspinning,Inspinning,registered_operator,Registered in the live modifier registry after this intake was staged; the generator's live check reclassifies it from new to known-modifier.
+frantic,Frantic,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue. rides the open flailing/frantic question in the doctrine question registry."
+fusing,Fusing,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+illusioning,Illusioning,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue. governed by the settled downtime-dex doctrine (atomic and illusioning are distinct)."
+phasing,Phasing,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+wiggling,Wiggling,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+flailing,Flailing,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue. rides the open flailing question in the doctrine question registry."
+flaring,Flaring,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+jolimont,Jolimont,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+wonton,Wonton,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+null,Null,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+smiling,Smiling,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+blistering,Blistering,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+double_spinning,Double Spinning,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+fairy_spinning,Fairy Spinning,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+leaning,Leaning,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+neutron,Neutron,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+pixie_spinning,Pixie Spinning,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+slicing,Slicing,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+twinspinning,Twinspinning,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue. held under the recorded twinspinning chassis ambiguity."
+delusional,Delusional,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+moshing,Moshing,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+slaying,Slaying,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+quasi,Quasi,community_vocabulary_red_eligible,"Attested outside PassBack (see the intake cross-corpus sweep); community vocabulary, eligible for the doctrine review queue."
+inside_atomic,Inside Atomic,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears. Compound-set pattern kept opaque: no decode into modifier rules; the raw label and staged notes are the record."
+inside_pixie,Inside Pixie,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears. Compound-set pattern kept opaque: no decode into modifier rules; the raw label and staged notes are the record."
+inside_quantum,Inside Quantum,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears. Compound-set pattern kept opaque: no decode into modifier rules; the raw label and staged notes are the record."
+levitating,Levitating,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears."
+neo,Neo,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears."
+hyper,Hyper,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears."
+popping,Popping,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears."
+rooted_atomic,Rooted Atomic,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears. Compound-set pattern kept opaque: no decode into modifier rules; the raw label and staged notes are the record."
+rooted_fairy,Rooted Fairy,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears. Compound-set pattern kept opaque: no decode into modifier rules; the raw label and staged notes are the record."
+rooted_quantum,Rooted Quantum,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears. Compound-set pattern kept opaque: no decode into modifier rules; the raw label and staged notes are the record."
+symp_frantic,Symp Frantic,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears. Compound-set pattern kept opaque: no decode into modifier rules; the raw label and staged notes are the record."
+symp_furious,Symp Furious,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears. Compound-set pattern kept opaque: no decode into modifier rules; the raw label and staged notes are the record."
+tasing,Tasing,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears."
+wontomic,Wontomic,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears."
+hopping,Hopping,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears."
+rifling,Rifling,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears."
+shattering,Shattering,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears."
+sliding,Sliding,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears."
+airing,Airing,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears."
+radiative,Radiative,passback_only_sourced,"No attestation outside PassBack; sourced-only label, no doctrine review unless external evidence appears."
