@@ -156,9 +156,9 @@ describe('Tier-1 identity merges: committed source outcomes', () => {
     expect(avalanche[6]).not.toContain('OP OUT [PDX]');
   });
 
-  it('sets tapdown JOB notation to TAPDOWN and keeps smear locked to PIXIE MIRAGE', () => {
-    const tapdownNotation = corrections.find(r => toSlug(r[0]) === 'tapdown' && r[1] === 'notation')?.[3];
-    expect(tapdownNotation).toBe('TAPDOWN');
+  it('sets tapdown JOB notation to TAPPING BUTTERFLY and keeps smear locked to PIXIE MIRAGE', () => {
+    const tapdownNotation = corrections.filter(r => toSlug(r[0]) === 'tapdown' && r[1] === 'notation').at(-1)?.[3];
+    expect(tapdownNotation).toBe('TAPPING BUTTERFLY');
     const smearNotation = corrections.find(r => toSlug(r[0]) === 'smear' && r[1] === 'notation')?.[3];
     expect(smearNotation).toBe('PIXIE MIRAGE');
   });

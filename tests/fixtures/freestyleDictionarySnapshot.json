@@ -1972,7 +1972,7 @@
 "category": "compound",
 "description": null,
 "aliases_json": null,
-"notation": "TAPDOWN",
+"notation": "TAPPING BUTTERFLY",
 "operational_notation": "TOE > OP OUT [DEX] >> SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1124
 },
