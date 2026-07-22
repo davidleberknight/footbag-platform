@@ -3026,6 +3026,24 @@ VALUES
   ),
 
   (
+   'seed-register-rate-limit-max-attempts',
+   '2000-01-01T00:00:00.000Z',
+   'register_rate_limit_max_attempts', '10',
+   '2000-01-01T00:00:00.000Z',
+   'Max registration attempts per source IP within the window (default: 10).',
+   NULL
+  ),
+
+  (
+   'seed-register-rate-limit-window-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'register_rate_limit_window_minutes', '15',
+   '2000-01-01T00:00:00.000Z',
+   'Sliding window in minutes for counting registration attempts (default: 15).',
+   NULL
+  ),
+
+  (
    'seed-login-account-rate-limit-max-attempts',
    '2000-01-01T00:00:00.000Z',
    'login_account_rate_limit_max_attempts', '30',
@@ -3179,6 +3197,15 @@ VALUES
   ),
 
   (
+   'seed-avatar-upload-rate-limit-per-hour',
+   '2000-01-01T00:00:00.000Z',
+   'avatar_upload_rate_limit_per_hour', '10',
+   '2000-01-01T00:00:00.000Z',
+   'Max avatar uploads per member per hour (default: 10).',
+   NULL
+  ),
+
+  (
    'seed-profile-edit-rate-limit-per-hour',
    '2000-01-01T00:00:00.000Z',
    'profile_edit_rate_limit_per_hour', '20',
@@ -3224,6 +3251,15 @@ VALUES
   ),
 
   (
+   'seed-curator-write-rate-limit-per-hour',
+   '2000-01-01T00:00:00.000Z',
+   'curator_write_rate_limit_per_hour', '60',
+   '2000-01-01T00:00:00.000Z',
+   'Max curated-media writes per curator per hour (default: 60).',
+   NULL
+  ),
+
+  (
    'seed-reconciliation-window-days',
    '2000-01-01T00:00:00.000Z',
    'reconciliation_window_days', '7',
@@ -3265,6 +3301,15 @@ VALUES
    'admin_queue_stale_escalation_days', '3',
    '2000-01-01T00:00:00.000Z',
    'Days an unclaimed routine work-queue item may stay open before a one-time escalation email to all admins (default: 3).',
+   NULL
+  ),
+
+  (
+   'seed-work-queue-resolve-rate-limit-per-hour',
+   '2000-01-01T00:00:00.000Z',
+   'work_queue_resolve_rate_limit_per_hour', '120',
+   '2000-01-01T00:00:00.000Z',
+   'Max work-queue resolutions per admin per hour (default: 120).',
    NULL
   ),
 
