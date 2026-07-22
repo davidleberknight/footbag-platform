@@ -665,6 +665,11 @@ if ! bash scripts/ci/check_no_terraform_artifacts.sh; then
   violations=$((violations + 1))
 fi
 
+echo "[conventions] check: config seed / Configurable Parameters parity (delegated)"
+if ! bash scripts/ci/check_config_seed_parity.sh; then
+  violations=$((violations + 1))
+fi
+
 # Rule: no concrete CloudFront distribution hostname in any tracked file. The
 # staging environment is protected by its address staying unpublished, so a
 # real distribution hostname in a committed file defeats that control.
