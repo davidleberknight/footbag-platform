@@ -269,12 +269,6 @@ Maintainer-ratified rules:
    (labelled vs bare values, inconsistent casing of the same token) are findings under the
    single-mapping-site rule (§F15).
 
-Known seed signals observed on a live browse view (verify against current code before
-recording; they may have been fixed): slug-shaped display names such as
-`around-the-world-kick`, `atomic-kick`, `double-kick` rendered as titles where sibling
-cards correctly show plain words; ADD chips mixing `stall(1)`, `dex(1)`, bare `1`,
-`xbody(1)`, and upper-case `UNS(1)` within one view.
-
 - Method: mechanical pass — query all slugs for hyphens; diff rendered card titles against
   a words-only rule; diff each rendered hashtag against its slug; collect the distinct ADD
   chip formats per view.
