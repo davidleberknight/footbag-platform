@@ -109,7 +109,7 @@ Do NOT create canonical rows for: pure modifier chains (`spinning paradox mirage
 
 A direction-reversed movement is its own dictionary entry, not the same trick with a qualifier. Red-confirmed: mirage ≠ illusion; spinning ≠ inspinning; ATW ≠ reverse ATW. If two moves differ in spin / dex / movement direction, they get separate rows even when their structural skeleton is otherwise identical.
 
-Within-trick CW/CCW or in/out execution variants stay in one canonical row when the community treats them as the same trick (e.g. `around-the-world` notation `TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]`).
+Within-trick CW/CCW or in/out execution variants stay in one canonical row when the community treats them as the same trick (e.g. `around_the_world` notation `TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]`).
 
 ### Stall ontology rule (Red pt5 clarification)
 
