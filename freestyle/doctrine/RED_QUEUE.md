@@ -339,6 +339,85 @@ Each is separable and answered on its own.
   Close condition: record the expert ruling in the ratified-rulings record, apply any
   resulting identity or documentation change, and remove this queue entry.
 
+- **Probe vs clipper stall shared notation.** Probe and clipper stall share the
+  byte-identical formula `SET > OP CLIP [XBD] [DEL]`. Probe is source-attested
+  (footbag.org newmoves 35) as a clipper stall set from the opposite-side
+  shoulder, passing behind the head, blind. The distinguishing variable is the
+  set's character, and the notation's generic `SET` entry cannot encode it.
+  These are distinct canonicals colliding within the present model, not
+  aliases. Local recommendation: retain both unchanged and add no new notation
+  token. Ask for the rules expert: is the blind behind-the-head set the correct
+  defining distinction, and should the shared notation be accepted as a known
+  limitation? No merge or alias change is authorized before that ruling.
+  Close condition: record the ruling and remove this entry.
+
+- **Paradon vs atomic butterfly shared notation.** Both carry
+  `TOE > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]`. Paradon's
+  `OP OUT > OP OUT` core is the ruled four-cell Down-grid chassis (the toe-set
+  other-leg cell) and stays load-bearing doctrine: Fusion, Cold Fusion, and ID
+  decompose over it. The unresolved distinction from atomic butterfly is
+  setting-leg versus circling-leg identity plus the hop mechanics in Paradon's
+  source description, an axis the notation does not encode, the same
+  limitation family the gyro-versus-spinning finding records. Distinct
+  canonicals; no merge and no formula change. Ask for the rules expert:
+  confirm the leg-identity distinction and accept the shared notation as a
+  known limitation. Close condition: record the ruling and remove this entry.
+
+- **Tombstone vs stepping reverse swirl shared notation.** Both carry
+  `CLIP > OP IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL]`. The bases
+  live in different clipper-matrix cells: drifter's dexterity is the opposite
+  leg circling inward to a same-side clipper, reverse swirl's is the same leg.
+  The stepped forms collide because side re-registration after the plant is
+  not consistently encoded; the footbag.org source (newmoves 258) itself
+  writes tombstone's second dexterity as SAME IN after the plant. Tombstone
+  is expert-attested with a live record; both stay distinct with no merge and
+  no formula change. Ask for the rules expert: confirm the post-plant
+  registration reading, and whether stepped compounds should re-register
+  component sides relative to the planted foot. Close condition: record the
+  ruling and remove this entry.
+
+- **Sailing's structural decomposition.** Sailing's scored value is settled:
+  a +2 set. Its decomposition is not: the modifier registry note reads
+  pixie + quantum, the sailing legover description reads a pixie-illusion
+  entry, the stored formula algebra reads a pixie lead plus an outward
+  opposite-side dex, and the operator reference carries no sailing entry at
+  all. The pixie eggbeater / sailing legover collision (byte-identical
+  formulas, both 4 ADD) is held until this is settled: if sailing's second
+  component is the outward opposite-side dex, the two names are one movement
+  bracketed two ways; if not, they are distinct and the notation
+  under-describes sailing. No disposition of the pair, no alias change, and
+  no operator-reference entry before the decomposition is ruled.
+  Close condition: rule the decomposition, add the operator-reference entry,
+  dispose the pair accordingly, and remove this entry.
+
+- **Quantum butterfly's derived formula.** Two sources agree on what quantum
+  butterfly is: FootbagMoves names Tripwalk's form "Quantum Butterfly", and
+  footbag.org newmoves 135 gives the same dual naming, both with the planted
+  form `TOE > OP IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]`. The
+  separate quantum_butterfly canonical carries a sibling-derived formula
+  (`TOE > OP IN [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]`, no plant,
+  same-side second dex) with no external attestation. Either the derived
+  chassis is wrong and the row duplicates Tripwalk, or it is a real distinct
+  movement that needs its own name. The Tripwalk / Toe Ripwalk identity merge
+  stands independently of this question. quantum_butterfly is unchanged until
+  ruled. Close condition: rule the true quantum-butterfly chassis, then
+  merge, rename, or retain the derived row accordingly, and remove this
+  entry.
+
+- **Bedwetter vs shooting legover shared notation.** After the source
+  correction restoring Bedwetter's paradox structure, Bedwetter and shooting
+  legover share `CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] >
+  SAME TOE [DEL]` at 5 ADD: stepping(+1) + paradox(+1) + eggbeater(3) and
+  shooting(+3) + legover(2) tile the same component string. This is an
+  evidence question about a folk name versus a technical decomposition, the
+  same shape as settled folk/technical folds, but both rows are
+  expert-curated, so no merge, alias change, or retirement without a ruling.
+  Bedwetter starts from either a clipper or an osis delay and remains
+  Bedwetter from either start; the canonical formula writes the clipper
+  start as the default form without narrowing that eligibility.
+  Close condition: rule whether the two names are one movement; fold or
+  document accordingly and remove this entry.
+
 ## Individual held tricks
 
 - **Miraging Pincher.** What is Miraging Pincher structurally: a Quantum-like uptime

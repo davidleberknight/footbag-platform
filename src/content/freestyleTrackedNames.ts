@@ -1491,7 +1491,7 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Terrage (Double Pixie)', slug: 'terrage_double_pixie', operationalNotation: 'Toe > Same In (DEX) >> Same In (DEX) >> Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Terraging (Double Pixie)', slug: 'terraging_double_pixie' },
     { displayName: 'Toe Blizzard', slug: 'toe_blizzard', operationalNotation: 'TOE > OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Toe Ripwalk (Quantum Butterfly)', slug: 'toe_ripwalk_quantum_butterfly', operationalNotation: 'TOE > OP IN [DEX] (plant) > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
+    { displayName: 'Toe Ripwalk', slug: 'toe_ripwalk', operationalNotation: 'TOE > OP IN [DEX] (plant) > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Tomahawk (Ducking Paradox Whirl)', slug: 'tomahawk_ducking_paradox_whirl', operationalNotation: 'Clip >> Duck (BOD) >> Same Fornt Whirl (DEX)(PDX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
     { displayName: 'Tombstone (Stepping Drifter)', slug: 'tombstone_stepping_drifter', operationalNotation: 'Clip > Op In (DEX) >> Same In (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Torch-r Rack torture rack (Stepping Superfly)', slug: 'torch_r_rack_torture_rack_stepping_superfly' },

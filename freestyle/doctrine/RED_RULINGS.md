@@ -216,6 +216,12 @@ Each lives as a row (with pt-cited provenance) in the curated CSVs; the notable 
   Sidewalk, Tombstone, Flail, and Omelette are common names that belong in the
   dictionary; Royale and Ripstein are primary entries; Eclipse counts its hop-over
   portion; Atom Smasher's count includes an X-Dex.
+- Bedwetter start-delay eligibility (curator-relayed): Bedwetter may begin from
+  either a clipper delay or an osis delay and remains Bedwetter from either
+  start; the canonical formula writes the clipper start as the default form
+  without narrowing that eligibility. This settles the start-delay question
+  only; whether Bedwetter and Shooting Legover are one movement is a separate
+  open queue question and is not decided here.
 
 ## Adjacent adjudications recorded here for completeness
 
