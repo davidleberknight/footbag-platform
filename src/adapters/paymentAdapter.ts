@@ -5,8 +5,13 @@
  * webhook verification through the shared verifier, and
  * cancel-at-period-end. The API key resolves lazily from SecretsAdapter on
  * first use, so construction never performs network I/O and boot stays off
- * AWS. `createStubPaymentAdapter` simulates Stripe end-to-end for dev/test
- * with programmable success/failure/cancel outcomes per session.
+ * AWS; a Stripe authentication failure discards the cached key and client so
+ * the next call picks up a rotated one without a restart.
+ * `createStubPaymentAdapter` simulates Stripe end-to-end for dev/test
+ * with programmable success/failure/cancel outcomes per session. The stub
+ * signs and verifies with `config.stripeWebhookSecretStub` when the deployment
+ * supplies one, falling back to the committed `STUB_WEBHOOK_SECRET` only where
+ * the endpoint is unreachable (development and test).
  *
  * Services call the interface; the getter returns the configured
  * implementation based on `config.paymentAdapter`. Consumers (the webhook
@@ -35,6 +40,11 @@ export interface OneTimeCheckoutOpts {
   purchasedTierStatus?: 'tier1' | 'tier2';
   successUrl: string;
   cancelUrl: string;
+  /** The member's existing Stripe Customer, when they already have one. Passing
+   *  it keeps a repeat payer on one Customer record; Checkout mints a fresh one
+   *  whenever none is supplied, which would fragment their payment history
+   *  across duplicates. */
+  stripeCustomerId?: string | null;
   metadata?: Record<string, string>;
 }
 
@@ -162,6 +172,50 @@ export interface StubSubscriptionEventOpts {
    *  raised at signup, `subscription_cycle` for a renewal. Defaults to a
    *  renewal, which is the case a test usually means. */
   billingReason?: 'subscription_create' | 'subscription_cycle';
+  /** The event's own creation time, in Unix-epoch seconds. Defaults to now.
+   *  Delivery order is not guaranteed, and the handlers compare these times to
+   *  decide which of two events describes the later state, so exercising that
+   *  requires stating them rather than taking whatever the clock reads. */
+  createdSeconds?: number;
+  /** The invoice the event reports on; defaults to a fresh one. Stating it is
+   *  what lets a test send the several payment events the provider raises
+   *  against a single invoice. */
+  invoiceId?: string;
+}
+
+export interface StubRefundEventOpts {
+  /** The charge total the refund is measured against; defaults to the session's
+   *  amount. */
+  amountCents?: number;
+  /** How much of it was refunded; defaults to the whole charge. */
+  refundedAmountCents?: number;
+  /** Emits the charge with no amount fields at all, the shape a refund payload
+   *  takes when the provider does not state what was returned. */
+  omitAmounts?: boolean;
+  /** Emits the charge with no payment-intent reference, as the provider does for
+   *  a charge it did not create from one. */
+  omitPaymentIntent?: boolean;
+}
+
+/** The account-level money events that belong to no single checkout session:
+ *  a card dispute moving through its stages, and a failed payout to the bank. */
+export type StubAccountEventKind =
+  | 'dispute_created'
+  | 'dispute_closed'
+  | 'dispute_funds_withdrawn'
+  | 'payout_failed';
+
+export interface StubAccountEventOpts {
+  amountCents?: number;
+  currency?: string;
+  /** The dispute's reason, or the payout's failure code. */
+  reason?: string;
+  /** The dispute's own id or the payout's, so a test can drive the same object
+   *  through several stages the way the provider does. */
+  objectId?: string;
+  /** The charge and payment intent a dispute is raised against. */
+  chargeId?: string;
+  paymentIntentId?: string;
 }
 
 export interface StubPaymentAdapter extends PaymentAdapter {
@@ -185,6 +239,14 @@ export interface StubPaymentAdapter extends PaymentAdapter {
     kind: StubSubscriptionEventKind,
     opts?: StubSubscriptionEventOpts,
   ): { rawBody: string; signature: string };
+  buildSignedStubRefundEvent(
+    sessionId: string,
+    opts?: StubRefundEventOpts,
+  ): { rawBody: string; signature: string };
+  buildSignedStubAccountEvent(
+    kind: StubAccountEventKind,
+    opts?: StubAccountEventOpts,
+  ): { rawBody: string; signature: string };
   clear(): void;
 }
 
@@ -192,12 +254,61 @@ function newStubId(prefix: string): string {
   return `${prefix}_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
 }
 
+// Stripe bounds both the product name shown at Checkout and every metadata
+// value, and rejects the whole request when either is exceeded. A donation note
+// is member-supplied free text that rides into both, so an over-long note would
+// fail the checkout outright rather than degrading. Cap the provider-bound copy
+// here, at the one place everything crossing to Stripe passes through; the local
+// ledger keeps the member's full text, since only the outbound copy is bounded.
+const PRODUCT_NAME_MAX_CHARS = 250;
+const METADATA_VALUE_MAX_BYTES = 500;
+
+/** Caps a Checkout product name, never splitting a surrogate pair: half of an
+ *  astral character is not a character, and would reach Stripe as a
+ *  replacement glyph. */
+function truncateProductName(name: string): string {
+  if (name.length <= PRODUCT_NAME_MAX_CHARS) return name;
+  return Array.from(name).slice(0, PRODUCT_NAME_MAX_CHARS).join('');
+}
+
+/** Caps each metadata value at the provider's byte limit. The limit is bytes
+ *  and the text is UTF-8, so a value well under the limit in characters can be
+ *  well over it in bytes; counting code points as they are appended keeps a
+ *  multi-byte character whole instead of cutting one in half. */
+function truncateMetadataValues(
+  metadata: Record<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (Buffer.byteLength(value, 'utf8') <= METADATA_VALUE_MAX_BYTES) {
+      out[key] = value;
+      continue;
+    }
+    let kept = '';
+    let bytes = 0;
+    for (const char of value) {
+      const size = Buffer.byteLength(char, 'utf8');
+      if (bytes + size > METADATA_VALUE_MAX_BYTES) break;
+      kept += char;
+      bytes += size;
+    }
+    out[key] = kept;
+  }
+  return out;
+}
+
 /**
- * Stub webhook signing secret. Permanent test infrastructure, co-located with
- * the stub adapter that uses it (never in the delete-at-cutover dev-bootstrap
- * subtree). The stub signs the events it synthesizes with this secret and the
- * same verifier production runs validates them against it, so the signature
- * path is exercised by every test. It ships in the production image but is
+ * Fallback stub webhook signing secret. Permanent test infrastructure,
+ * co-located with the stub adapter that uses it (never in the
+ * delete-at-cutover dev-bootstrap subtree). The stub signs the events it
+ * synthesizes with the resolved secret and the same verifier production runs
+ * validates them against it, so the signature path is exercised by every test.
+ *
+ * Because this value is committed source, anyone with a copy of this
+ * repository could forge a signature a host still using it would accept. A
+ * deployment whose stub endpoint is reachable therefore supplies its own
+ * generated value through `config.stripeWebhookSecretStub`, and this constant
+ * covers only development and test. It ships in the production image but is
  * refused at boot (env.ts rejects a whsec_stub-prefixed STRIPE_WEBHOOK_SECRET
  * in production), not excluded from it.
  */
@@ -225,10 +336,12 @@ function buildStubEventObject(
 ): Record<string, unknown> {
   // The caller's own metadata rides along, because the real Stripe mirrors
   // subscription_data.metadata onto the Subscription and the webhook handlers
-  // read their correlation keys from there.
+  // read their correlation keys from there. Nothing else is added: a key the
+  // platform never sets is a key the provider will never send, and a stub that
+  // invents one lets a handler come to depend on something that does not exist
+  // in production.
   const meta = {
     ...session.metadata,
-    sessionId: session.sessionId,
     paymentId: session.paymentId,
   };
 
@@ -302,9 +415,11 @@ function buildStubSubscriptionEventObject(
   created: number,
   opts: StubSubscriptionEventOpts,
 ): Record<string, unknown> {
+  // Composed exactly as the checkout-completion event composes it, and for the
+  // same reason: only the caller's own metadata plus the correlation key the
+  // platform actually sets.
   const meta = {
     ...session.metadata,
-    sessionId: session.sessionId,
     paymentId: session.paymentId,
   };
   const amountCents = opts.amountCents ?? session.amountCents;
@@ -316,7 +431,7 @@ function buildStubSubscriptionEventObject(
       created,
       data: {
         object: {
-          id: newStubId('in_stub'),
+          id: opts.invoiceId ?? newStubId('in_stub'),
           // The subscription linkage lives on the invoice's parent, matching the
           // API version this project pins. The old top-level `subscription`
           // field is deliberately NOT emitted: a stub that keeps sending the
@@ -368,7 +483,92 @@ function buildStubSubscriptionEventObject(
   };
 }
 
+/** Synthesises the refund event for a completed one-time checkout. The charge
+ *  carries the amounts the handler classifies on, and can be built without them
+ *  (or without its payment-intent reference) so the ambiguous payloads real
+ *  Stripe can send are exercised against the real dispatcher. */
+function buildStubRefundEventObject(
+  session: StubSessionRecord,
+  eventId: string,
+  created: number,
+  opts: StubRefundEventOpts,
+): Record<string, unknown> {
+  const amountCents = opts.amountCents ?? session.amountCents;
+  const refunded = opts.refundedAmountCents ?? amountCents;
+  return {
+    id: eventId,
+    type: 'charge.refunded',
+    created,
+    data: {
+      object: {
+        id: newStubId('ch_stub'),
+        ...(opts.omitPaymentIntent ? {} : { payment_intent: session.paymentIntentId }),
+        ...(opts.omitAmounts ? {} : { amount: amountCents, amount_refunded: refunded }),
+        currency: session.currency.toLowerCase(),
+        metadata: { ...session.metadata, paymentId: session.paymentId },
+      },
+    },
+  };
+}
+
+/** Synthesises a dispute or payout event. These belong to the Stripe account
+ *  rather than to any one checkout, so they are built from options alone. */
+function buildStubAccountEventObject(
+  kind: StubAccountEventKind,
+  eventId: string,
+  created: number,
+  opts: StubAccountEventOpts,
+): Record<string, unknown> {
+  const currency = (opts.currency ?? 'USD').toLowerCase();
+  const amountCents = opts.amountCents ?? 1000;
+
+  if (kind === 'payout_failed') {
+    return {
+      id: eventId,
+      type: 'payout.failed',
+      created,
+      data: {
+        object: {
+          id: opts.objectId ?? newStubId('po_stub'),
+          amount: amountCents,
+          currency,
+          status: 'failed',
+          failure_code: opts.reason ?? 'account_closed',
+          failure_message: 'The bank account has been closed.',
+        },
+      },
+    };
+  }
+
+  const type =
+    kind === 'dispute_created'
+      ? 'charge.dispute.created'
+      : kind === 'dispute_closed'
+        ? 'charge.dispute.closed'
+        : 'charge.dispute.funds_withdrawn';
+  return {
+    id: eventId,
+    type,
+    created,
+    data: {
+      object: {
+        id: opts.objectId ?? newStubId('dp_stub'),
+        amount: amountCents,
+        currency,
+        charge: opts.chargeId ?? newStubId('ch_stub'),
+        payment_intent: opts.paymentIntentId ?? null,
+        reason: opts.reason ?? 'fraudulent',
+        status: kind === 'dispute_closed' ? 'lost' : 'needs_response',
+      },
+    },
+  };
+}
+
 export function createStubPaymentAdapter(): StubPaymentAdapter {
+  // Resolved once so every signature this adapter produces and every one it
+  // verifies use the same secret; a deployment that supplies its own value
+  // stops accepting anything signed with the committed constant.
+  const stubSecret = config.stripeWebhookSecretStub ?? STUB_WEBHOOK_SECRET;
   const sessions = new Map<string, StubSessionRecord>();
   const ledgerIntents = new Map<string, StripePaymentIntentSummary>();
   const ledgerSubscriptions = new Map<string, StripeSubscriptionSummary>();
@@ -446,10 +646,10 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       currency: opts.currency,
       successUrl: opts.successUrl,
       cancelUrl: opts.cancelUrl,
-      metadata: { ...(opts.metadata ?? {}) },
+      metadata: truncateMetadataValues({ ...(opts.metadata ?? {}) }),
       outcome: nextOutcome,
       stripeSubscriptionId: null,
-      stripeCustomerId: null,
+      stripeCustomerId: opts.stripeCustomerId ?? null,
     });
     nextOutcome = 'success';
     return { sessionId, paymentIntentId, redirectUrl: `/payments/checkout/${sessionId}` };
@@ -467,13 +667,14 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       currency: opts.currency,
       successUrl: opts.successUrl,
       cancelUrl: opts.cancelUrl,
-      // Composed exactly as the live adapter composes it, comment included. A
-      // stub that assembles metadata differently from the real client lets a
-      // handler pass its tests while reading a key production never sends.
-      metadata: {
+      // Composed exactly as the live adapter composes it, comment included and
+      // capped the same way. A stub that assembles metadata differently from
+      // the real client lets a handler pass its tests while reading a key
+      // production never sends, or a value production would have truncated.
+      metadata: truncateMetadataValues({
         ...(opts.metadata ?? {}),
         ...(opts.comment !== null ? { comment: opts.comment } : {}),
-      },
+      }),
       outcome: nextOutcome,
       stripeSubscriptionId: newStubId('sub_stub'),
       stripeCustomerId: newStubId('cus_stub'),
@@ -534,7 +735,7 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       return recordSubscription(opts);
     },
     constructWebhookEvent(rawBody, signature) {
-      const event = verifyStripeWebhook(rawBody, signature, STUB_WEBHOOK_SECRET);
+      const event = verifyStripeWebhook(rawBody, signature, stubSecret);
       return mapStripeEvent(event);
     },
     buildSignedStubWebhookEvent(sessionId) {
@@ -547,7 +748,7 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       const event = buildStubEventObject(session, eventId, created);
       reflectEventIntoLedger(event);
       const rawBody = JSON.stringify(event);
-      const signature = signStripeWebhook(rawBody, STUB_WEBHOOK_SECRET);
+      const signature = signStripeWebhook(rawBody, stubSecret);
       return { rawBody, signature };
     },
     buildSignedStubSubscriptionEvent(sessionId, kind, opts = {}) {
@@ -559,11 +760,34 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
         throw new Error(`Stub adapter: session ${sessionId} is not a subscription session`);
       }
       const eventId = newStubId('evt_stub');
-      const created = Math.floor(Date.now() / 1000);
+      const created = opts.createdSeconds ?? Math.floor(Date.now() / 1000);
       const event = buildStubSubscriptionEventObject(session, kind, eventId, created, opts);
       reflectEventIntoLedger(event);
       const rawBody = JSON.stringify(event);
-      const signature = signStripeWebhook(rawBody, STUB_WEBHOOK_SECRET);
+      const signature = signStripeWebhook(rawBody, stubSecret);
+      return { rawBody, signature };
+    },
+    buildSignedStubRefundEvent(sessionId, opts = {}) {
+      const session = sessions.get(sessionId);
+      if (!session) {
+        throw new Error(`Stub adapter: unknown session ${sessionId}`);
+      }
+      const eventId = newStubId('evt_stub');
+      const created = Math.floor(Date.now() / 1000);
+      const event = buildStubRefundEventObject(session, eventId, created, opts);
+      // Deliberately not reflected into the ledger: a refunded payment intent
+      // keeps reading succeeded at Stripe, and the simulated ledger has to agree
+      // or reconciliation would compare against a state the provider never shows.
+      const rawBody = JSON.stringify(event);
+      const signature = signStripeWebhook(rawBody, stubSecret);
+      return { rawBody, signature };
+    },
+    buildSignedStubAccountEvent(kind, opts = {}) {
+      const eventId = newStubId('evt_stub');
+      const created = Math.floor(Date.now() / 1000);
+      const event = buildStubAccountEventObject(kind, eventId, created, opts);
+      const rawBody = JSON.stringify(event);
+      const signature = signStripeWebhook(rawBody, stubSecret);
       return { rawBody, signature };
     },
     async cancelSubscriptionAtPeriodEnd(_stripeSubscriptionId) {
@@ -710,7 +934,11 @@ export interface StripeSubscriptionLike {
 
 export interface StripeInvoiceLike {
   id: string;
-  subscription?: string | { id: string } | null;
+  // The subscription an invoice belongs to hangs off its parent; an invoice can
+  // also be parented by a quote or by nothing at all, so every level is optional.
+  parent?: {
+    subscription_details?: { subscription?: string | { id: string } | null } | null;
+  } | null;
   amount_paid: number;
   currency: string;
   status: string;
@@ -781,6 +1009,25 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
     return client;
   }
 
+  // Both the client and the API key behind it are held for the life of the
+  // process, so a key revoked at Stripe would keep being presented until
+  // someone restarts the service. An authentication failure is Stripe telling
+  // us the held key is dead: drop it and the client built from it, so the next
+  // call fetches whatever the operator put in its place. The failed call still
+  // fails; recovery is the following one.
+  async function withClient<T>(run: (stripe: StripeClientLike) => Promise<T>): Promise<T> {
+    const stripe = await getClient();
+    try {
+      return await run(stripe);
+    } catch (err) {
+      if (err instanceof Stripe.errors.StripeAuthenticationError) {
+        client = null;
+        secrets.invalidate(secretKey);
+      }
+      throw err;
+    }
+  }
+
   function extractPaymentIntentId(session: StripeCheckoutSessionLike): string | null {
     // Stripe may defer PaymentIntent creation until the buyer submits
     // payment, so a fresh session can carry null here. The webhook handler
@@ -791,94 +1038,97 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
 
   return {
     async createCheckoutSession(opts) {
-      const stripe = await getClient();
-      const metadata = {
-        ...(opts.metadata ?? {}),
-        paymentId: opts.paymentId,
-        memberId: opts.memberId,
-      };
-      const session = await stripe.checkout.sessions.create({
-        mode: 'payment',
-        client_reference_id: opts.paymentId,
-        line_items: [
-          {
-            quantity: 1,
-            price_data: {
-              currency: opts.currency.toLowerCase(),
-              unit_amount: opts.amountCents,
-              product_data: { name: opts.descriptor },
+      return withClient(async (stripe) => {
+        const metadata = truncateMetadataValues({
+          ...(opts.metadata ?? {}),
+          paymentId: opts.paymentId,
+          memberId: opts.memberId,
+        });
+        const session = await stripe.checkout.sessions.create({
+          mode: 'payment',
+          client_reference_id: opts.paymentId,
+          ...(opts.stripeCustomerId ? { customer: opts.stripeCustomerId } : {}),
+          line_items: [
+            {
+              quantity: 1,
+              price_data: {
+                currency: opts.currency.toLowerCase(),
+                unit_amount: opts.amountCents,
+                product_data: { name: truncateProductName(opts.descriptor) },
+              },
             },
-          },
-        ],
-        success_url: opts.successUrl,
-        cancel_url: opts.cancelUrl,
-        metadata,
-        // Mirrored onto the PaymentIntent so payment_intent.succeeded /
-        // payment_failed events carry the correlation keys even when the
-        // intent id was unknown at row-insert time.
-        payment_intent_data: { metadata },
-      }, {
-        // Keyed on the platform-side payment id, which is minted before this
-        // call and is stable across any retry of it, so a retried create returns
-        // the original session instead of opening a second one. It is an
-        // internal identifier and carries no personal data.
-        idempotencyKey: `checkout:${opts.paymentId}`,
+          ],
+          success_url: opts.successUrl,
+          cancel_url: opts.cancelUrl,
+          metadata,
+          // Mirrored onto the PaymentIntent so payment_intent.succeeded /
+          // payment_failed events carry the correlation keys even when the
+          // intent id was unknown at row-insert time.
+          payment_intent_data: { metadata },
+        }, {
+          // Keyed on the platform-side payment id, which is minted before this
+          // call and is stable across any retry of it, so a retried create returns
+          // the original session instead of opening a second one. It is an
+          // internal identifier and carries no personal data.
+          idempotencyKey: `checkout:${opts.paymentId}`,
+        });
+        if (!session.url) {
+          throw new Error(`Stripe checkout session ${session.id} returned no redirect URL`);
+        }
+        return {
+          sessionId: session.id,
+          paymentIntentId: extractPaymentIntentId(session),
+          redirectUrl: session.url,
+        };
       });
-      if (!session.url) {
-        throw new Error(`Stripe checkout session ${session.id} returned no redirect URL`);
-      }
-      return {
-        sessionId: session.id,
-        paymentIntentId: extractPaymentIntentId(session),
-        redirectUrl: session.url,
-      };
     },
 
     async createSubscriptionCheckoutSession(opts) {
-      const stripe = await getClient();
-      // The donation comment rides on the Stripe Subscription by design, so it
-      // survives across every later billing cycle. It is carried once, under
-      // `comment`; the caller does not add a second copy under another key.
-      const metadata = {
-        ...(opts.metadata ?? {}),
-        paymentId: opts.paymentId,
-        memberId: opts.memberId,
-        ...(opts.comment !== null ? { comment: opts.comment } : {}),
-      };
-      const session = await stripe.checkout.sessions.create({
-        mode: 'subscription',
-        client_reference_id: opts.paymentId,
-        ...(opts.stripeCustomerId ? { customer: opts.stripeCustomerId } : {}),
-        line_items: [
-          {
-            quantity: 1,
-            price_data: {
-              currency: opts.currency.toLowerCase(),
-              unit_amount: opts.amountCents,
-              recurring: { interval: 'year' },
-              product_data: { name: 'Recurring annual donation' },
+      return withClient(async (stripe) => {
+        // The donation comment rides on the Stripe Subscription by design, so it
+        // survives across every later billing cycle. It is carried once, under
+        // `comment`; the caller does not add a second copy under another key.
+        const metadata = truncateMetadataValues({
+          ...(opts.metadata ?? {}),
+          paymentId: opts.paymentId,
+          memberId: opts.memberId,
+          ...(opts.comment !== null ? { comment: opts.comment } : {}),
+        });
+        const session = await stripe.checkout.sessions.create({
+          mode: 'subscription',
+          client_reference_id: opts.paymentId,
+          ...(opts.stripeCustomerId ? { customer: opts.stripeCustomerId } : {}),
+          line_items: [
+            {
+              quantity: 1,
+              price_data: {
+                currency: opts.currency.toLowerCase(),
+                unit_amount: opts.amountCents,
+                recurring: { interval: 'year' },
+                product_data: { name: 'Recurring annual donation' },
+              },
             },
-          },
-        ],
-        success_url: opts.successUrl,
-        cancel_url: opts.cancelUrl,
-        metadata,
-        // Mirrored onto the Subscription so customer.subscription.* events
-        // carry the correlation keys.
-        subscription_data: { metadata },
-      }, {
-        // Same reasoning as the one-time path, keyed on the subscription record
-        // id: a retried create must not leave the member with two subscriptions.
-        idempotencyKey: `subscription-checkout:${opts.paymentId}`,
+          ],
+          success_url: opts.successUrl,
+          cancel_url: opts.cancelUrl,
+          metadata,
+          // Mirrored onto the Subscription so customer.subscription.* events
+          // carry the correlation keys.
+          subscription_data: { metadata },
+        }, {
+          // Same reasoning as the one-time path, keyed on the subscription record
+          // id: a retried create must not leave the member with two subscriptions.
+          idempotencyKey: `subscription-checkout:${opts.paymentId}`,
+        });
+        if (!session.url) {
+          throw new Error(`Stripe checkout session ${session.id} returned no redirect URL`);
+        }
+        return {
+          sessionId: session.id,
+          paymentIntentId: null,
+          redirectUrl: session.url,
+        };
       });
-      if (!session.url) {
-        throw new Error(`Stripe checkout session ${session.id} returned no redirect URL`);
-      }
-      return {
-        sessionId: session.id,
-        paymentIntentId: null,
-        redirectUrl: session.url,
-      };
     },
 
     constructWebhookEvent(rawBody, signature) {
@@ -895,63 +1145,69 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
     },
 
     async cancelSubscriptionAtPeriodEnd(stripeSubscriptionId) {
-      const stripe = await getClient();
-      await stripe.subscriptions.update(stripeSubscriptionId, {
-        cancel_at_period_end: true,
+      return withClient(async (stripe) => {
+        await stripe.subscriptions.update(stripeSubscriptionId, {
+          cancel_at_period_end: true,
+        });
       });
     },
 
     async listPaymentIntents(window) {
-      const stripe = await getClient();
-      const raw = await drainList<StripePaymentIntentLike>(
-        (params) => stripe.paymentIntents.list(params),
-        windowParams(window),
-      );
-      return raw.map((pi) => ({
-        id: pi.id,
-        amountCents: pi.amount,
-        currency: pi.currency.toUpperCase(),
-        status: pi.status,
-        createdAt: new Date(pi.created * 1000).toISOString(),
-      }));
+      return withClient(async (stripe) => {
+        const raw = await drainList<StripePaymentIntentLike>(
+          (params) => stripe.paymentIntents.list(params),
+          windowParams(window),
+        );
+        return raw.map((pi) => ({
+          id: pi.id,
+          amountCents: pi.amount,
+          currency: pi.currency.toUpperCase(),
+          status: pi.status,
+          createdAt: new Date(pi.created * 1000).toISOString(),
+        }));
+      });
     },
 
     async listSubscriptions() {
-      const stripe = await getClient();
-      // Subscriptions are long-lived, so the reconciliation window that bounds
-      // the intent and invoice reads does not apply: a subscription created
-      // years ago is still current state to compare against.
-      const raw = await drainList<StripeSubscriptionLike>(
-        (params) => stripe.subscriptions.list(params),
-        {},
-      );
-      return raw.map((s) => {
-        const price = s.items?.data?.[0]?.price;
-        return {
-          id: s.id,
-          customerId: typeof s.customer === 'string' ? s.customer : s.customer?.id ?? null,
-          status: s.status,
-          amountCents: typeof price?.unit_amount === 'number' ? price.unit_amount : null,
-          currency: price?.currency ? price.currency.toUpperCase() : null,
-        };
+      return withClient(async (stripe) => {
+        // Subscriptions are long-lived, so the reconciliation window that bounds
+        // the intent and invoice reads does not apply: a subscription created
+        // years ago is still current state to compare against.
+        const raw = await drainList<StripeSubscriptionLike>(
+          (params) => stripe.subscriptions.list(params),
+          {},
+        );
+        return raw.map((s) => {
+          const price = s.items?.data?.[0]?.price;
+          return {
+            id: s.id,
+            customerId: typeof s.customer === 'string' ? s.customer : s.customer?.id ?? null,
+            status: s.status,
+            amountCents: typeof price?.unit_amount === 'number' ? price.unit_amount : null,
+            currency: price?.currency ? price.currency.toUpperCase() : null,
+          };
+        });
       });
     },
 
     async listInvoices(window) {
-      const stripe = await getClient();
-      const raw = await drainList<StripeInvoiceLike>(
-        (params) => stripe.invoices.list(params),
-        windowParams(window),
-      );
-      return raw.map((inv) => ({
-        id: inv.id,
-        subscriptionId:
-          typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id ?? null,
-        amountPaidCents: inv.amount_paid,
-        currency: inv.currency.toUpperCase(),
-        status: inv.status,
-        createdAt: new Date(inv.created * 1000).toISOString(),
-      }));
+      return withClient(async (stripe) => {
+        const raw = await drainList<StripeInvoiceLike>(
+          (params) => stripe.invoices.list(params),
+          windowParams(window),
+        );
+        return raw.map((inv) => {
+          const linked = inv.parent?.subscription_details?.subscription;
+          return {
+            id: inv.id,
+            subscriptionId: typeof linked === 'string' ? linked : linked?.id ?? null,
+            amountPaidCents: inv.amount_paid,
+            currency: inv.currency.toUpperCase(),
+            status: inv.status,
+            createdAt: new Date(inv.created * 1000).toISOString(),
+          };
+        });
+      });
     },
   };
 }
@@ -1008,6 +1264,19 @@ export function getPaymentAdapter(): PaymentAdapter {
 /** Exposes the in-memory stub for test inspection. Null unless PAYMENT_ADAPTER=stub. */
 export function getStubPaymentAdapterForTests(): StubPaymentAdapter | null {
   return stubSingleton;
+}
+
+/**
+ * Installs a double in place of the resolved adapter.
+ *
+ * The stub answers every provider call in the same tick, which no real provider
+ * call does. A test that needs to hold the application at the point where it is
+ * waiting on Stripe -- to prove what two requests do when both are past their
+ * eligibility check and neither has written yet -- injects a double that
+ * completes when the test says so.
+ */
+export function setPaymentAdapterForTests(adapter: PaymentAdapter): void {
+  singleton = adapter;
 }
 
 export function resetPaymentAdapterForTests(): void {

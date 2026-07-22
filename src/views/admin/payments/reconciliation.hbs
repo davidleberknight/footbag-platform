@@ -45,6 +45,10 @@
             {{/each}}
           </ul>
 
+          {{#each this.referenceLines}}
+            <p class="card-meta">{{this.label}}: {{this.value}}</p>
+          {{/each}}
+
           {{#if this.paymentHref}}
             <p><a href="{{this.paymentHref}}" class="btn btn-outline btn-sm">View Payment</a></p>
           {{/if}}

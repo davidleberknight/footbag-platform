@@ -417,6 +417,13 @@ check_set "SAFE_BROWSING_ADAPTER" "safe-browsing adapter"
 check_set "SECRETS_ADAPTER" "secrets adapter (expected: 'live' on $TARGET)"
 check_set "HTTP_REACHABILITY_ADAPTER" "HTTP reachability adapter"
 check_set "PAYMENT_ADAPTER" "payment adapter (expected: 'stub' on staging until Stripe-SDK ships, 'live' on production)"
+# A stub-adapter host signs and verifies webhooks with a secret that, absent
+# this value, is the constant committed to the repository: anyone with a copy
+# could forge a delivery the endpoint accepts. The runtime refuses to boot
+# without it; checking here reports it before the deploy gets that far.
+if [[ "${HOST_ENV[PAYMENT_ADAPTER]:-}" == "stub" ]]; then
+  check_set "STRIPE_WEBHOOK_SECRET_STUB" "stub webhook signing secret (required whenever the stub adapter serves a reachable endpoint)"
+fi
 
 # Internal-event secret. Must not be the dev default literal (the literal
 # lives in src/config/env.ts:516; do not put it in this script). Check by

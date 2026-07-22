@@ -370,14 +370,24 @@ describe('POST /payments/webhook status mapping', () => {
     expect(res.status).toBe(500);
   });
 
-  it('unhandled event type -> 200 ack (ignored)', async () => {
+  // Stripe delivers whatever the endpoint is subscribed to, and an endpoint can
+  // acquire an extra event type at any time from the dashboard. A type with no
+  // handler must be acknowledged, not retried: retrying could never succeed, and
+  // sustained failures risk the provider disabling the endpoint for the events
+  // that do matter. The type here must be one the dispatcher genuinely does not
+  // handle, or the test proves nothing about that path.
+  it('an event type the platform does not handle is acknowledged rather than retried', async () => {
     const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
     const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const { REQUIRED_WEBHOOK_EVENTS } = await import('../../src/services/paymentService');
+    const unhandledType = 'invoice.created';
+    expect(REQUIRED_WEBHOOK_EVENTS).not.toContain(unhandledType);
+
     const body = JSON.stringify({
       id: 'evt_ignored',
-      type: 'customer.subscription.updated',
+      type: unhandledType,
       created: Math.floor(Date.now() / 1000),
-      data: { object: { id: 'sub_x' } },
+      data: { object: { id: 'in_x' } },
     });
     const res = await postWebhook(body, signStripeWebhook(body, STUB_WEBHOOK_SECRET));
     expect(res.status).toBe(200);

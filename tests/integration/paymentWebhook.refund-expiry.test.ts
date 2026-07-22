@@ -15,12 +15,15 @@ const M_EXPIRE_UNKNOWN = 'rx-expire-unknown';
 const M_PARTIAL = 'rx-partial';
 const M_FULL = 'rx-full';
 const M_STALE = 'rx-stale';
+const M_AMBIGUOUS = 'rx-ambiguous';
+const M_NO_INTENT = 'rx-no-intent';
+const M_REFUND_PENDING = 'rx-refund-pending';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  for (const [i, id] of [M_REFUND, M_REFUND_IDEMPOTENT, M_EXPIRE, M_EXPIRE_IDEMPOTENT, M_EXPIRE_UNKNOWN, M_PARTIAL, M_FULL, M_STALE].entries()) {
+  for (const [i, id] of [M_REFUND, M_REFUND_IDEMPOTENT, M_EXPIRE, M_EXPIRE_IDEMPOTENT, M_EXPIRE_UNKNOWN, M_PARTIAL, M_FULL, M_STALE, M_AMBIGUOUS, M_NO_INTENT, M_REFUND_PENDING].entries()) {
     insertMember(db, { id, slug: `rx_${i}`, display_name: `Rx ${i}`, login_email: `rx${i}@example.com` });
   }
   db.close();
@@ -41,7 +44,9 @@ function openDb(): BetterSqlite3.Database {
 // Drives a membership purchase through to a settled 'succeeded' payment and
 // returns the payment id plus the Stripe payment-intent id a refund event must
 // reference (the refund handler matches on stripe_payment_intent_id).
-async function settleSucceededPayment(memberId: string): Promise<{ paymentId: string; intentId: string }> {
+async function settleSucceededPayment(
+  memberId: string,
+): Promise<{ paymentId: string; intentId: string; sessionId: string }> {
   const { paymentService } = await import('../../src/services/paymentService');
   const { getStubPaymentAdapterForTests, getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
   getPaymentAdapter();
@@ -54,10 +59,29 @@ async function settleSucceededPayment(memberId: string): Promise<{ paymentId: st
     const row = db
       .prepare('SELECT stripe_payment_intent_id FROM payments WHERE id = ?')
       .get(started.paymentId) as { stripe_payment_intent_id: string };
-    return { paymentId: started.paymentId, intentId: row.stripe_payment_intent_id };
+    return {
+      paymentId: started.paymentId,
+      intentId: row.stripe_payment_intent_id,
+      sessionId: started.sessionId,
+    };
   } finally {
     db.close();
   }
+}
+
+// The provider builds the refund payload, not the test: a hand-written charge is
+// free to omit fields real Stripe always sends, and the classification the
+// handler makes turns on exactly those fields.
+async function stubRefundEvent(
+  sessionId: string,
+  opts?: Parameters<
+    NonNullable<
+      Awaited<ReturnType<typeof import('../../src/adapters/paymentAdapter')['getStubPaymentAdapterForTests']>>
+    >['buildSignedStubRefundEvent']
+  >[1],
+): Promise<{ rawBody: string; signature: string }> {
+  const { getStubPaymentAdapterForTests } = await import('../../src/adapters/paymentAdapter');
+  return getStubPaymentAdapterForTests()!.buildSignedStubRefundEvent(sessionId, opts);
 }
 
 // Starts a membership purchase and leaves it pending (no success webhook).
@@ -116,15 +140,8 @@ describe('partial refunds', () => {
   // full refund look like a duplicate and be dropped.
   it('does not mark a partially refunded payment as refunded', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
-    const { paymentId, intentId } = await settleSucceededPayment(M_PARTIAL);
-    const evt = await signedEvent({
-      id: 'evt_partial_refund',
-      type: 'charge.refunded',
-      created: Math.floor(Date.now() / 1000),
-      data: {
-        object: { id: 'ch_partial', payment_intent: intentId, amount: 1000, amount_refunded: 250 },
-      },
-    });
+    const { paymentId, sessionId } = await settleSucceededPayment(M_PARTIAL);
+    const evt = await stubRefundEvent(sessionId, { amountCents: 1000, refundedAmountCents: 250 });
     expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'ignored' });
 
     const db = openDb();
@@ -143,15 +160,8 @@ describe('partial refunds', () => {
 
   it('still records a full refund as refunded', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
-    const { paymentId, intentId } = await settleSucceededPayment(M_FULL);
-    const evt = await signedEvent({
-      id: 'evt_full_refund',
-      type: 'charge.refunded',
-      created: Math.floor(Date.now() / 1000),
-      data: {
-        object: { id: 'ch_full', payment_intent: intentId, amount: 1000, amount_refunded: 1000 },
-      },
-    });
+    const { paymentId, sessionId } = await settleSucceededPayment(M_FULL);
+    const evt = await stubRefundEvent(sessionId, { amountCents: 1000, refundedAmountCents: 1000 });
     expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'processed' });
 
     const db = openDb();
@@ -159,6 +169,51 @@ describe('partial refunds', () => {
       const row = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as
         { status: string };
       expect(row.status).toBe('refunded');
+    } finally {
+      db.close();
+    }
+  });
+
+  // `refunded` cannot be walked back, so it is claimed only when the provider
+  // states both amounts and they say the whole charge was returned. A payload
+  // that leaves the amounts out must land in the state an administrator can
+  // still resolve either way, never in the terminal one.
+  it('treats a refund whose amounts are absent as partial, not full', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { paymentId, sessionId } = await settleSucceededPayment(M_AMBIGUOUS);
+    const evt = await stubRefundEvent(sessionId, { omitAmounts: true });
+    expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'ignored' });
+
+    const db = openDb();
+    try {
+      const row = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as
+        { status: string };
+      expect(row.status).toBe('succeeded');
+      const queued = db.prepare(
+        "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'partial_refund_review' AND entity_id = ?",
+      ).get(paymentId) as { c: number };
+      expect(queued.c).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  // A charge the provider did not create from a payment intent carries no
+  // reference to match a local payment on. It must still reach an administrator
+  // rather than crashing the handler into a retry storm.
+  it('queues a refund whose charge carries no payment-intent reference', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { sessionId } = await settleSucceededPayment(M_NO_INTENT);
+    const evt = await stubRefundEvent(sessionId, { omitPaymentIntent: true });
+    expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'ignored' });
+
+    const db = openDb();
+    try {
+      const queued = db.prepare(
+        `SELECT COUNT(*) AS c FROM work_queue_items
+         WHERE task_type = 'unattributed_refund' AND entity_type = 'stripe_charge'`,
+      ).get() as { c: number };
+      expect(queued.c).toBe(1);
     } finally {
       db.close();
     }
@@ -179,13 +234,8 @@ function nowSeconds(): number {
 describe('charge.refunded webhook handler', () => {
   it('transitions a succeeded payment to refunded and writes a refund audit row', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
-    const { paymentId, intentId } = await settleSucceededPayment(M_REFUND);
-    const { rawBody, signature } = await signedEvent({
-      id: 'evt_refund_ok',
-      type: 'charge.refunded',
-      created: nowSeconds(),
-      data: { object: { payment_intent: intentId } },
-    });
+    const { paymentId, sessionId } = await settleSucceededPayment(M_REFUND);
+    const { rawBody, signature } = await stubRefundEvent(sessionId);
 
     expect(paymentService.handleWebhook(rawBody, signature)).toEqual({ outcome: 'processed' });
 
@@ -214,13 +264,8 @@ describe('charge.refunded webhook handler', () => {
 
   it('is idempotent: re-delivering the refund event applies the transition once', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
-    const { paymentId, intentId } = await settleSucceededPayment(M_REFUND_IDEMPOTENT);
-    const { rawBody, signature } = await signedEvent({
-      id: 'evt_refund_idem',
-      type: 'charge.refunded',
-      created: nowSeconds(),
-      data: { object: { payment_intent: intentId } },
-    });
+    const { paymentId, sessionId } = await settleSucceededPayment(M_REFUND_IDEMPOTENT);
+    const { rawBody, signature } = await stubRefundEvent(sessionId);
 
     expect(paymentService.handleWebhook(rawBody, signature)).toEqual({ outcome: 'processed' });
     expect(paymentService.handleWebhook(rawBody, signature)).toEqual({ outcome: 'duplicate' });
@@ -235,6 +280,38 @@ describe('charge.refunded webhook handler', () => {
         .prepare("SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.refunded' AND entity_id = ?")
         .get(paymentId) as { c: number };
       expect(audit.c).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  // Delivery order is not guaranteed, so the refund of a charge can arrive
+  // before the event that recorded the charge itself. Refunding a payment the
+  // ledger has not seen settle would either be refused by the monotonic status
+  // machine or, worse, record a refund of money the platform never recorded
+  // receiving. Asking for redelivery lets the success land first and the refund
+  // apply cleanly afterwards.
+  it('asks for redelivery when the refund arrives before the payment has settled', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { RecoverableWebhookError } = await import('../../src/services/paymentService');
+    const { paymentId, sessionId } = await startPendingPayment(M_REFUND_PENDING);
+    const { rawBody, signature } = await stubRefundEvent(sessionId);
+
+    expect(() => paymentService.handleWebhook(rawBody, signature)).toThrow(RecoverableWebhookError);
+
+    const db = openDb();
+    try {
+      const payment = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as { status: string };
+      expect(payment.status).toBe('pending');
+      const transitions = db
+        .prepare('SELECT COUNT(*) AS c FROM payment_status_transitions WHERE payment_id = ?')
+        .get(paymentId) as { c: number };
+      expect(transitions.c).toBe(0);
+      // Nothing was claimed, so the redelivery re-runs from a clean slate.
+      const claimed = db
+        .prepare("SELECT COUNT(*) AS c FROM stripe_events WHERE event_id = ?")
+        .get((JSON.parse(rawBody) as { id: string }).id) as { c: number };
+      expect(claimed.c).toBe(0);
     } finally {
       db.close();
     }

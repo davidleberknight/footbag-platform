@@ -23,7 +23,13 @@ const M_HOF = 'don-hof';
 const M_BAP = 'don-bap';
 const M_BOTH = 'don-both';
 const M_OTHER = 'don-other';
-const ALL_MEMBERS = [M_PLAIN, M_HOF, M_BAP, M_BOTH, M_OTHER];
+const M_FAIL_AGAIN = 'don-fail-again';
+const M_UPDATE_AGAIN = 'don-update-again';
+const M_SIGNUP = 'don-signup';
+const ALL_MEMBERS = [
+  M_PLAIN, M_HOF, M_BAP, M_BOTH, M_OTHER,
+  M_FAIL_AGAIN, M_UPDATE_AGAIN, M_SIGNUP,
+];
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -409,6 +415,28 @@ describe('invoice.payment_failed', () => {
     )).toBe(1);
   });
 
+  // The provider retries any delivery it did not get a clean answer for. A
+  // second count would put the donation closer to dunning exhaustion than the
+  // donor's card actually is, and a second queue item is noise an administrator
+  // has to dismiss.
+  it('counts one failure and raises one queue item when the same failure is delivered twice', async () => {
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { sessionId, subscriptionId } = await activateSubscription(M_FAIL_AGAIN);
+
+    const failed = stub.buildSignedStubSubscriptionEvent(sessionId, 'invoice_failed');
+    expect(paymentService.handleWebhook(failed.rawBody, failed.signature)).toEqual({ outcome: 'processed' });
+    expect(paymentService.handleWebhook(failed.rawBody, failed.signature)).toEqual({ outcome: 'duplicate' });
+
+    const sub = readSubscription(subscriptionId)!;
+    expect(sub.status).toBe('past_due');
+    expect(sub.failure_count).toBe(1);
+    expect(countRows(
+      "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'recurring_donation_charge_declined' AND entity_id = ?",
+      subscriptionId,
+    )).toBe(1);
+  });
+
   it('returns a past-due subscription to active on the next successful charge', async () => {
     const paymentService = await svc();
     const stub = await stubAdapter();
@@ -447,6 +475,25 @@ describe('customer.subscription.updated', () => {
     const updated = stub.buildSignedStubSubscriptionEvent(sessionId, 'updated', { amountCents: 2500 });
     expect(paymentService.handleWebhook(updated.rawBody, updated.signature)).toEqual({ outcome: 'duplicate' });
   });
+
+  // A redelivery of a change already applied must not append a second entry to
+  // the donation's history, which is the record of what the provider actually
+  // did and when.
+  it('mirrors a change once when the same change is delivered twice', async () => {
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { sessionId, subscriptionId } = await activateSubscription(M_UPDATE_AGAIN, { amountCents: 2500 });
+
+    const updated = stub.buildSignedStubSubscriptionEvent(sessionId, 'updated', { amountCents: 4000 });
+    expect(paymentService.handleWebhook(updated.rawBody, updated.signature)).toEqual({ outcome: 'processed' });
+    expect(paymentService.handleWebhook(updated.rawBody, updated.signature)).toEqual({ outcome: 'duplicate' });
+
+    expect(readSubscription(subscriptionId)!.amount_cents).toBe(4000);
+    expect(countRows(
+      "SELECT COUNT(*) AS c FROM recurring_donation_subscription_transitions WHERE recurring_subscription_id = ? AND lifecycle_event_code = 'updated'",
+      subscriptionId,
+    )).toBe(1);
+  });
 });
 
 describe('customer.subscription.deleted', () => {
@@ -474,6 +521,84 @@ describe('customer.subscription.deleted', () => {
       "SELECT COUNT(*) AS c FROM recurring_donation_subscription_transitions WHERE recurring_subscription_id = ? AND lifecycle_event_code = 'canceled'",
       subscriptionId,
     )).toBe(1);
+  });
+});
+
+// Signing up for a recurring donation does not produce one event. Stripe raises
+// the subscription, then the signup invoice that collects the first year, then a
+// payment_intent event for that invoice's own intent, all within moments of the
+// donor leaving Checkout. Driving them one at a time in other tests hides what
+// the combination does, and the combination is where the same money could be
+// booked twice.
+describe('the events a recurring signup actually produces on day one', () => {
+  it('books the first year once, however many events the provider sends', async () => {
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const signupInvoiceId = 'in_signup_day_one';
+
+    const started = await paymentService.startDonation(M_SIGNUP, 2500, 'For the fund', true, '/members/x');
+
+    // 1. The subscription itself. This writes the donation, not a payment: no
+    //    money is recorded until an invoice says it was collected.
+    const created = stub.buildSignedStubWebhookEvent(started.sessionId);
+    expect(paymentService.handleWebhook(created.rawBody, created.signature))
+      .toEqual({ outcome: 'processed' });
+    expect(countRows('SELECT COUNT(*) AS c FROM payments WHERE member_id = ?', M_SIGNUP)).toBe(0);
+
+    // 2. The signup invoice. Stripe marks the first invoice of a subscription
+    //    with its own billing reason, which is what distinguishes it from every
+    //    later renewal.
+    const signupInvoice = stub.buildSignedStubSubscriptionEvent(started.sessionId, 'invoice_succeeded', {
+      invoiceId: signupInvoiceId,
+      billingReason: 'subscription_create',
+    });
+    expect(JSON.parse(signupInvoice.rawBody).data.object.billing_reason).toBe('subscription_create');
+    expect(paymentService.handleWebhook(signupInvoice.rawBody, signupInvoice.signature))
+      .toEqual({ outcome: 'processed' });
+
+    // 3. The invoice's own payment intent. Stripe raises these for an invoice
+    //    exactly as it does for a checkout, and this one carries none of the
+    //    platform's correlation metadata because the platform did not open it.
+    //    Hand-built: the stub synthesizes events for sessions it issued, and this
+    //    intent belongs to the provider's invoice, not to a session.
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const intentBody = JSON.stringify({
+      id: 'evt_signup_invoice_intent',
+      type: 'payment_intent.succeeded',
+      created: 1700000000,
+      data: { object: { id: 'pi_signup_invoice', amount: 2500, currency: 'usd', metadata: {} } },
+    });
+    expect(paymentService.handleWebhook(intentBody, signStripeWebhook(intentBody, STUB_WEBHOOK_SECRET)))
+      .toEqual({ outcome: 'ignored' });
+
+    // One payment row for the first year, attributed to the donation and to the
+    // invoice that collected it. Two rows here would mean the member's history,
+    // the receipts, and every revenue figure double-count day one.
+    const db = openDb();
+    try {
+      const rows = db.prepare(
+        'SELECT amount_cents, status, stripe_invoice_id, recurring_subscription_id FROM payments WHERE member_id = ?',
+      ).all(M_SIGNUP) as Array<{
+        amount_cents: number;
+        status: string;
+        stripe_invoice_id: string | null;
+        recurring_subscription_id: string | null;
+      }>;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        amount_cents: 2500,
+        status: 'succeeded',
+        stripe_invoice_id: signupInvoiceId,
+        recurring_subscription_id: started.reference,
+      });
+    } finally {
+      db.close();
+    }
+
+    const sub = readSubscription(started.reference)!;
+    expect(sub.status).toBe('active');
+    expect(sub.amount_cents).toBe(2500);
   });
 });
 

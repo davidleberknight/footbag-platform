@@ -415,7 +415,7 @@ Emitted values, grouped by namespace:
 - **`wizard.*`**: `start`, `task.started`, `task.skipped`, `task.completed`, `task.not_applicable`, `task.detour_paused`, `club_affiliations.confirmed`, `club_affiliations.declined`, `club_affiliations.promoted`.
 - **`club.*`**: `created`, `member_joined`, `member_left`, `primary_swapped`, `marked_inactive`, `reactivated`, `coleader_stepped_down`, `hashtag_updated`, `active_player_grant_failed`.
 - **`tier.*`**: `purchase_grant`, `legacy_claim_grant`, `governance_set`, `governance_removed`, `auto_link_revert`, `admin_override`.
-- **`payment.*`**: `checkout_started`, `succeeded`, `failed`, `refunded`, `canceled`, `compliance_anonymize_failed`.
+- **`payment.*`**: `checkout_started`, `donation_checkout_started`, `succeeded`, `refunded`, `canceled`, `partially_refunded`, `attempt_declined` (a card the bank refused; deliberately not named `*_failed`, which is reserved for platform faults that raise the operator alarm), `payout_rejected`, `queue_item_resolved`, `compliance_anonymize_failed`, `reconciliation_issue_raised`, `reconciliation_issue_resolved`, `recurring_donation_activated`, `recurring_donation_updated`, `recurring_donation_canceled`, `recurring_cancel_requested`, `recurring_charge_succeeded`, `recurring_charge_declined`, `recurring_charge_amount_updated`.
 - **`active_player.*`**: `grant`, `expire`, `end`, `vouch_noop`, `club_join_noop`, `attendance_noop`.
 - **`support.*`**: `contact_request_submitted`, `contact_request_resolved`, `contact_request_resolve_notification_failed`.
 - **`roster.*`**: `list`, `summary`, `export`.
@@ -464,7 +464,7 @@ strftime('%Y-%m-%dT%H:%M:%fZ', stripe_event.created, 'unixepoch')
 ```
 
 #### Stripe event deduplication
-`stripe_events` deduplicates all incoming webhook events by `event_id` (Stripe's globally unique event ID), regardless of payment model. On successful processing, `processing_status = 'processed'`; on failure, `processing_status = 'failed'`. The `attempts` column tracks the total number of processing attempts for the event (incremented on each retry, default 1). `last_error` stores the most recent error message for failed attempts. These fields support observability and reconciliation workflows.
+`stripe_events` deduplicates all incoming webhook events by `event_id` (Stripe's globally unique event ID), regardless of payment model. The row is claimed inside the same transaction as the state change it guards, so a handler that throws rolls the claim back and leaves no row: a redelivery then re-runs cleanly rather than being mistaken for a duplicate. A row therefore exists only for an event that was processed, and `processing_status` is always `'processed'`. The `'failed'` value the CHECK permits, together with the `attempts` and `last_error` columns, is unreachable under this design and is retained only because removing a column from a payments table earns nothing.
 
 #### Recurring subscriptions view
 - `recurring_donation_subscriptions_active`: `WHERE status <> 'canceled'`. Use for active-subscription queries.
@@ -1096,8 +1096,11 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `ballot_retention_days` | `2555` | Ballot retention window (~7 years) |
 | `audit_retention_days` | `2555` | Audit log retention window (~7 years) |
 | `reconciliation_expiry_days` | `90` | Resolved reconciliation issue TTL |
+| `reconciliation_window_days` | `7` | Lookback window the nightly reconciliation pass compares |
+| `reconciliation_grace_minutes` | `30` | Age a record must reach before reconciliation judges it; minimum 1 |
 | `email_outbox_paused` | `0` | `1` = pause the transactional email outbox worker (DD §5.4) |
-| `payments_paused` | `0` | `1` = admin kill-switch pausing membership purchases |
+| `payments_paused` | `0` | `1` = admin kill-switch halting new membership purchases and donations |
+| `donation_rate_limit_per_hour` | `20` | Max donation checkout attempts per member per hour |
 | `event_registration_reminder_days` | `7` | Days before event start to send reminder |
 | `member_cleanup_grace_days` | `90` | Grace days after soft-delete before PII purge job runs |
 | `payment_retention_days` | `2555` | Payment record compliance retention (~7 years) |
@@ -1126,6 +1129,8 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `login_rate_limit_max_attempts` | `10` | Max failed login attempts within window before lockout |
 | `login_rate_limit_window_minutes` | `15` | Sliding window (minutes) for counting failed login attempts |
 | `login_cooldown_minutes` | `30` | Lockout duration (minutes) after rate-limit threshold exceeded |
+| `register_rate_limit_max_attempts` | `10` | Max registration attempts per source IP per window |
+| `register_rate_limit_window_minutes` | `15` | Sliding window (minutes) for counting registration attempts |
 | `login_account_rate_limit_max_attempts` | `30` | Max login attempts per account across all source IPs per window (distributed credential-stuffing cap) |
 | `login_account_rate_limit_window_minutes` | `60` | Sliding window (minutes) for the per-account login cap |
 | `password_reset_rate_limit_max_attempts` | `5` | Max password reset requests per email per window |
@@ -1136,14 +1141,17 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `verify_resend_rate_limit_window_minutes` | `60` | Sliding window (minutes) for counting verify-email resend requests |
 | `jwt_expiry_hours` | `24` | Session JWT lifetime (hours); governs archive access expiry |
 | `photo_upload_rate_limit_per_hour` | `10` | Max photo uploads per member per hour |
+| `avatar_upload_rate_limit_per_hour` | `10` | Max avatar uploads per member per hour |
 | `profile_edit_rate_limit_per_hour` | `20` | Max profile edits per member per hour |
 | `purchase_tier_rate_limit_per_hour` | `20` | Max tier-purchase attempts per member per hour |
 | `video_submission_rate_limit_per_hour` | `5` | Max video link submissions per member per hour |
 | `reconciliation_summary_interval_days` | `7` | Cadence (days) for reconciliation digest email to admins |
 | `admin_queue_digest_interval_days` | `1` | Cadence (days) for the admin work-queue digest of open routine items |
 | `admin_queue_stale_escalation_days` | `3` | Days an unclaimed routine work-queue item may stay open before a one-time all-admins escalation |
+| `work_queue_resolve_rate_limit_per_hour` | `120` | Max work-queue resolutions per admin per hour |
 | `primary_snapshot_version_days` | `30` | S3 versioning retention window (days) for primary backup bucket |
 | `media_flag_rate_limit_per_hour` | `10` | Max media flags per member per hour |
+| `curator_write_rate_limit_per_hour` | `60` | Max curated-media writes per curator per hour |
 | `cross_region_backup_retention_days` | `90` | Object Lock retention (days) for cross-region DR S3 bucket |
 | `continuous_backup_interval_minutes` | `5` | Interval (minutes) between continuous SQLite backup runs |
 | `tier1_price_cents` | `1000` | Tier 1 IFPA Member dues ($10.00 USD default; stored as integer cents) |

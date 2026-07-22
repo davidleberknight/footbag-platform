@@ -19,8 +19,10 @@ resource "aws_cloudwatch_log_group" "nginx" {
 # The metric filter increments AppErrorCount once per matching line; the alarm
 # fires on any non-zero count within a 60s window and routes to the existing
 # SNS topic, which has an email subscription to var.alarm_email. This is the
-# only application-level operator alert today; any new operator-visible
-# failure mode adds itself via logger.error() and is surfaced automatically.
+# catch-all application-level operator alert; the outbox-backlog and
+# webhook-delivery-failure alarms below watch specific failure modes that never
+# reach logger.error(). Any new operator-visible failure mode that does call
+# logger.error() is surfaced here automatically.
 
 resource "aws_cloudwatch_log_metric_filter" "app_errors" {
   name           = "${local.prefix}-app-errors"
@@ -309,9 +311,13 @@ resource "aws_cloudwatch_metric_alarm" "outbox_backlog" {
 # secret mismatch apart from a burst of unsigned junk from the open internet.
 #
 # Not count-gated, unlike the CWAgent and CloudFront alarms above: the metric
-# filter reads the application log group, which always exists, and its
-# default_value of 0 keeps the metric populated, so this alarm never sits in
-# INSUFFICIENT_DATA. Same shape as the outbox-backlog pair.
+# filter reads the application log group, which always exists. Its default_value
+# of 0 emits only when the log group processes an event that does not match the
+# pattern, not on an empty stream, so during a fully quiet period this alarm can
+# sit in INSUFFICIENT_DATA. That is acceptable here: the failure it watches only
+# happens while deliveries, and therefore log lines, are arriving, so the metric
+# is populated exactly when a mismatch could occur. Same shape as the
+# outbox-backlog pair.
 
 resource "aws_cloudwatch_log_metric_filter" "webhook_delivery_failures" {
   name           = "${local.prefix}-webhook-delivery-failures"

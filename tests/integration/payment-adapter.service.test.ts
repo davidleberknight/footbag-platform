@@ -13,6 +13,8 @@ const MEMBER_FAIL     = 'pay-svc-fail';
 const MEMBER_CANCEL   = 'pay-svc-cancel';
 const MEMBER_IDEMP    = 'pay-svc-idemp';
 const MEMBER_DBL      = 'pay-svc-dbl';
+const MEMBER_SAVED_CUS = 'pay-svc-saved-cus';
+const MEMBER_NO_CUS    = 'pay-svc-no-cus';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -22,6 +24,11 @@ beforeAll(async () => {
   insertMember(db, { id: MEMBER_CANCEL,   slug: 't0_cancel',    display_name: 'Canceler', login_email: 'cancel@example.com' });
   insertMember(db, { id: MEMBER_IDEMP,    slug: 't0_idemp',     display_name: 'Idemp',    login_email: 'idemp@example.com' });
   insertMember(db, { id: MEMBER_DBL,      slug: 't0_dbl',       display_name: 'Doubler',  login_email: 'dbl@example.com' });
+  insertMember(db, {
+    id: MEMBER_SAVED_CUS, slug: 't0_saved_cus', display_name: 'Repeat Payer', login_email: 'saved@example.com',
+    stripe_customer_id: 'cus_member_saved',
+  });
+  insertMember(db, { id: MEMBER_NO_CUS,   slug: 't0_no_cus',    display_name: 'First Timer', login_email: 'nocus@example.com' });
   db.close();
   await importApp();
 });
@@ -105,7 +112,7 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     }
   });
 
-  it("setNextOutcome('failure'): payment transitions to failed, no grant, no tier change", async () => {
+  it("setNextOutcome('failure'): the declined attempt is recorded, the payment stays open, no grant", async () => {
     const { paymentService } = await import('../../src/services/paymentService');
     const { getStubPaymentAdapterForTests, getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
     getPaymentAdapter();
@@ -118,8 +125,16 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
 
     const testDb = new BetterSqlite3(dbPath);
     try {
+      // A declined card does not end the payment: the checkout session is still
+      // open and another card can still settle it.
       const payment = testDb.prepare('SELECT status FROM payments WHERE id = ?').get(result.paymentId) as Record<string, unknown>;
-      expect(payment.status).toBe('failed');
+      expect(payment.status).toBe('pending');
+
+      const attempt = testDb.prepare(
+        `SELECT COUNT(*) AS c FROM payment_status_transitions
+         WHERE payment_id = ? AND event_type = 'payment_intent.payment_failed'`,
+      ).get(result.paymentId) as { c: number };
+      expect(attempt.c).toBe(1);
 
       const tier = testDb.prepare('SELECT tier_status FROM member_tier_current WHERE member_id = ?').get(MEMBER_FAIL) as Record<string, unknown> | undefined;
       expect(tier?.tier_status ?? 'tier0').toBe('tier0');
@@ -215,6 +230,40 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     const { paymentService } = await import('../../src/services/paymentService');
     const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
     expect(() => paymentService.startEventRegistrationPayment('m', 'e', 1000)).toThrow(ServiceUnavailableError);
+  });
+});
+
+// The provider mints a fresh Customer for any checkout that names none, so a
+// member who already has one would end up with a second, and their payment
+// history would be split across records nobody can reconcile provider-side.
+describe('one-time checkouts reuse the member saved Stripe customer', () => {
+  async function sessionFor(sessionId: string) {
+    const { getStubPaymentAdapterForTests } = await import('../../src/adapters/paymentAdapter');
+    return getStubPaymentAdapterForTests()!.sessions.get(sessionId);
+  }
+
+  it('a membership purchase carries the saved customer', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
+    getPaymentAdapter();
+    const result = await paymentService.startMembershipPurchase(MEMBER_SAVED_CUS, 'tier1', '/members/t0_saved_cus');
+    expect((await sessionFor(result.sessionId))?.stripeCustomerId).toBe('cus_member_saved');
+  });
+
+  it('a one-time donation carries the saved customer', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
+    getPaymentAdapter();
+    const result = await paymentService.startDonation(MEMBER_SAVED_CUS, 2500, 'For the HoF', false, '/members/t0_saved_cus');
+    expect((await sessionFor(result.sessionId))?.stripeCustomerId).toBe('cus_member_saved');
+  });
+
+  it('a member with no saved customer leaves the provider to create one', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
+    getPaymentAdapter();
+    const result = await paymentService.startDonation(MEMBER_NO_CUS, 2500, null, false, '/members/t0_no_cus');
+    expect((await sessionFor(result.sessionId))?.stripeCustomerId).toBeNull();
   });
 });
 
@@ -330,7 +379,9 @@ describe('webhook correlation fallback (deferred PaymentIntent creation)', () =>
     const db = new BetterSqlite3(dbPath);
     try {
       const row = db.prepare('SELECT * FROM payments WHERE id = ?').get(paymentId) as Record<string, unknown>;
-      expect(row.status).toBe('failed');
+      // The declined attempt is recorded but the payment stays open: the buyer is
+      // still on the checkout page and can pay with another card.
+      expect(row.status).toBe('pending');
       expect(row.stripe_payment_intent_id).toBe('pi_deferred_fail_1');
     } finally {
       db.close();

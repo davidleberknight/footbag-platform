@@ -6,7 +6,10 @@
  * a local file with the secrets supplied via STRIPE_SECRET_KEY_VALUE /
  * STRIPE_WEBHOOK_SECRET_VALUE, skipping ssh and aws entirely. These tests
  * pin the rewrite contract (replace-or-append with duplicates collapsed),
- * the credential-shape refusals, and the SECRETS_ADAPTER=live precondition.
+ * the credential-shape refusals, the SECRETS_ADAPTER=live precondition, the
+ * two-step webhook-secret rotation (shift current to previous, install new;
+ * then clear previous), the refusal to overwrite an in-service secret outside
+ * that rotation, and the masking of every secret-named line in the shown diff.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -153,18 +156,35 @@ describe('activate-payments.sh — env-file rewrite contract', () => {
   });
 
   it('collapses duplicate assignments instead of stacking new ones', () => {
+    // An idempotent re-activation: the file already carries the value being
+    // installed (duplicated here), so activation proceeds and must leave a
+    // single assignment of each key rather than stacking another.
     const envFile = writeEnvFile([
       'SECRETS_ADAPTER=live',
       'PAYMENT_ADAPTER=stub',
       'PAYMENT_ADAPTER=stub',
-      'STRIPE_WEBHOOK_SECRET=whsec_old',
+      `STRIPE_WEBHOOK_SECRET=${SECRETS.STRIPE_WEBHOOK_SECRET_VALUE}`,
+      `STRIPE_WEBHOOK_SECRET=${SECRETS.STRIPE_WEBHOOK_SECRET_VALUE}`,
     ]);
     const result = runScript(['--target', 'staging', '--env-file', envFile], SECRETS);
     expect(result.exitCode).toBe(0);
     const rewritten = readFileSync(envFile, 'utf-8');
     expect(rewritten.match(/^PAYMENT_ADAPTER=/gm)).toHaveLength(1);
     expect(rewritten.match(/^STRIPE_WEBHOOK_SECRET=/gm)).toHaveLength(1);
-    expect(rewritten).not.toContain('whsec_old');
+  });
+
+  it('refuses to overwrite an in-service webhook secret and points to rotation', () => {
+    const envFile = writeEnvFile([
+      'SECRETS_ADAPTER=live',
+      'PAYMENT_ADAPTER=live',
+      'STRIPE_WEBHOOK_SECRET=whsec_already_live',
+    ]);
+    const result = runScript(['--target', 'staging', '--env-file', envFile], SECRETS);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/already set to a different value/);
+    expect(result.stderr).toMatch(/--rotate-webhook-secret/);
+    // The file is left untouched; the live secret is not replaced.
+    expect(readFileSync(envFile, 'utf-8')).toContain('STRIPE_WEBHOOK_SECRET=whsec_already_live');
   });
 
   it('masks the webhook secret in the displayed diff', () => {
@@ -173,5 +193,118 @@ describe('activate-payments.sh — env-file rewrite contract', () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('STRIPE_WEBHOOK_SECRET=********');
     expect(result.stdout).not.toContain(SECRETS.STRIPE_WEBHOOK_SECRET_VALUE);
+  });
+
+  it('masks every secret-named line in the diff, not only the changed one', () => {
+    // A secret sitting in the diff's unchanged context window must not print in
+    // the clear next to the line that actually changed.
+    const envFile = writeEnvFile([
+      'SECRETS_ADAPTER=live',
+      'PAYMENT_ADAPTER=stub',
+      'SESSION_SECRET=session_plaintext_value',
+      'INTERNAL_EVENT_SECRET=ipc_plaintext_value',
+    ]);
+    const result = runScript(['--target', 'staging', '--env-file', envFile], SECRETS);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain('session_plaintext_value');
+    expect(result.stdout).not.toContain('ipc_plaintext_value');
+    expect(result.stdout).toContain('SESSION_SECRET=********');
+  });
+});
+
+describe('activate-payments.sh — webhook-secret rotation', () => {
+  const LIVE_ENV = [
+    'SECRETS_ADAPTER=live',
+    'PAYMENT_ADAPTER=live',
+    'STRIPE_WEBHOOK_SECRET=whsec_current_value',
+  ];
+
+  it('shifts the current secret to previous and installs the new one', () => {
+    const envFile = writeEnvFile(LIVE_ENV);
+    const result = runScript(
+      ['--target', 'staging', '--env-file', envFile, '--rotate-webhook-secret'],
+      { STRIPE_WEBHOOK_SECRET_VALUE: 'whsec_new_value' },
+    );
+    expect(result.exitCode).toBe(0);
+    const rewritten = readFileSync(envFile, 'utf-8');
+    expect(rewritten).toContain('STRIPE_WEBHOOK_SECRET=whsec_new_value');
+    expect(rewritten).toContain('STRIPE_WEBHOOK_SECRET_PREVIOUS=whsec_current_value');
+    expect(rewritten.match(/^STRIPE_WEBHOOK_SECRET=/gm)).toHaveLength(1);
+    // Rotation must not touch PAYMENT_ADAPTER; the host is already live.
+    expect(rewritten).toContain('PAYMENT_ADAPTER=live');
+    // The gate observes the open rotation window.
+    expect(result.stdout).toMatch(/rotation window is open/);
+  });
+
+  it('masks both the new and the previous secret in the diff', () => {
+    const envFile = writeEnvFile(LIVE_ENV);
+    const result = runScript(
+      ['--target', 'staging', '--env-file', envFile, '--rotate-webhook-secret'],
+      { STRIPE_WEBHOOK_SECRET_VALUE: 'whsec_new_value' },
+    );
+    expect(result.stdout).not.toContain('whsec_new_value');
+    expect(result.stdout).not.toContain('whsec_current_value');
+    expect(result.stdout).toContain('STRIPE_WEBHOOK_SECRET_PREVIOUS=********');
+  });
+
+  it('refuses to rotate when no secret is set yet', () => {
+    const envFile = writeEnvFile(['SECRETS_ADAPTER=live', 'PAYMENT_ADAPTER=live']);
+    const result = runScript(
+      ['--target', 'staging', '--env-file', envFile, '--rotate-webhook-secret'],
+      { STRIPE_WEBHOOK_SECRET_VALUE: 'whsec_new_value' },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/nothing to rotate/);
+  });
+
+  it('refuses to rotate to an identical secret', () => {
+    const envFile = writeEnvFile(LIVE_ENV);
+    const result = runScript(
+      ['--target', 'staging', '--env-file', envFile, '--rotate-webhook-secret'],
+      { STRIPE_WEBHOOK_SECRET_VALUE: 'whsec_current_value' },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/identical to the current one/);
+  });
+
+  it('refuses a second rotation while a window is already open', () => {
+    const envFile = writeEnvFile([...LIVE_ENV, 'STRIPE_WEBHOOK_SECRET_PREVIOUS=whsec_older_value']);
+    const result = runScript(
+      ['--target', 'staging', '--env-file', envFile, '--rotate-webhook-secret'],
+      { STRIPE_WEBHOOK_SECRET_VALUE: 'whsec_new_value' },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/rotation window is open/);
+  });
+
+  it('refuses to rotate when PAYMENT_ADAPTER is not live', () => {
+    const envFile = writeEnvFile([
+      'SECRETS_ADAPTER=live',
+      'PAYMENT_ADAPTER=stub',
+      'STRIPE_WEBHOOK_SECRET=whsec_current_value',
+    ]);
+    const result = runScript(
+      ['--target', 'staging', '--env-file', envFile, '--rotate-webhook-secret'],
+      { STRIPE_WEBHOOK_SECRET_VALUE: 'whsec_new_value' },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/PAYMENT_ADAPTER=live is not set/);
+  });
+
+  it('completing a rotation clears the previous secret and passes the gate', () => {
+    const envFile = writeEnvFile([...LIVE_ENV, 'STRIPE_WEBHOOK_SECRET_PREVIOUS=whsec_older_value']);
+    const result = runScript(['--target', 'staging', '--env-file', envFile, '--complete-webhook-rotation']);
+    expect(result.exitCode).toBe(0);
+    const rewritten = readFileSync(envFile, 'utf-8');
+    expect(rewritten).not.toMatch(/^STRIPE_WEBHOOK_SECRET_PREVIOUS=/m);
+    expect(rewritten).toContain('STRIPE_WEBHOOK_SECRET=whsec_current_value');
+    expect(result.stdout).toMatch(/GATE: PAYMENTS-BOOT PASS/);
+  });
+
+  it('completing with no open window is an idempotent no-op', () => {
+    const envFile = writeEnvFile(LIVE_ENV);
+    const result = runScript(['--target', 'staging', '--env-file', envFile, '--complete-webhook-rotation']);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/no rotation window to close/);
   });
 });

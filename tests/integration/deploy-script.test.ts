@@ -567,6 +567,76 @@ describe('remote-half script production refusal guards (static-text)', () => {
   });
 });
 
+// ── stub webhook signing secret (static-text) ────────────────────────────────
+
+describe('deploy-rebuild-remote.sh stub webhook signing secret', () => {
+  // The stub adapter's built-in signing secret is committed source, so every
+  // host that runs the stub gets its own generated value instead. Seeding it
+  // must stay idempotent: regenerating it would start rejecting deliveries
+  // already configured against the old one.
+  it('seeds a generated STRIPE_WEBHOOK_SECRET_STUB once, only on non-production hosts', () => {
+    const content = fs.readFileSync(
+      path.join(REPO_ROOT, 'scripts/internal/deploy-rebuild-remote.sh'),
+      'utf8',
+    );
+    expect(content).toMatch(/if\s*!\s*grep -q '\^STRIPE_WEBHOOK_SECRET_STUB=' "\$ENV_PATH"; then/);
+    expect(content).toMatch(/whsec_stub_%s\\n' "\$\(openssl rand -hex 24\)"/);
+
+    // The seed lives inside the same non-production block that seeds the stub
+    // adapter itself; a production host is operator-configured.
+    const guard = content.indexOf('if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then');
+    const seed = content.indexOf('STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_');
+    expect(guard).toBeGreaterThan(-1);
+    expect(seed).toBeGreaterThan(guard);
+    expect(content.slice(guard, seed)).not.toMatch(/^fi$/m);
+  });
+});
+
+// ── log level from Parameter Store (static-text) ─────────────────────────────
+
+describe('deploy-rebuild-remote.sh log-level sync', () => {
+  // The log level decides which lines reach CloudWatch, so the declared value
+  // has to be the value that runs. Sourcing it from Parameter Store at deploy
+  // time is what makes a change to the declaration take effect, instead of the
+  // host keeping whatever a past operator typed into its env file.
+  const content = fs.readFileSync(
+    path.join(REPO_ROOT, 'scripts/internal/deploy-rebuild-remote.sh'),
+    'utf8',
+  );
+
+  it('fetches the log level from the environment app parameter, undecrypted', () => {
+    expect(content).toMatch(
+      /ssm_log_level_param="\/footbag\/\$\{FOOTBAG_ENV_VAL\}\/app\/log_level"/,
+    );
+    const fetchBlock = content.slice(
+      content.indexOf('LOG_LEVEL_VAL=$('),
+      content.indexOf('if [[ ! "$LOG_LEVEL_VAL"'),
+    );
+    expect(fetchBlock).toMatch(/aws ssm get-parameter/);
+    expect(fetchBlock).toMatch(/--name "\$ssm_log_level_param"/);
+    // A String parameter: asking for decryption of one that is not encrypted is
+    // a different request shape and a different IAM requirement.
+    expect(fetchBlock).not.toMatch(/--with-decryption/);
+  });
+
+  it('refuses a value the runtime would not understand', () => {
+    expect(content).toMatch(/\^\(error\|warn\|info\|debug\)\$/);
+  });
+
+  it('writes the value into the host env file through the restricted-temp swap', () => {
+    const writeBlock = content.slice(
+      content.indexOf("grep -v '^LOG_LEVEL=' \"$ENV_PATH\""),
+    );
+    expect(writeBlock).toMatch(/printf 'LOG_LEVEL=%s\\n' "\$LOG_LEVEL_VAL" >> "\$env_tmp"/);
+    expect(writeBlock).toMatch(/mv "\$env_tmp" "\$ENV_PATH"/);
+    expect(writeBlock).toMatch(/chmod 600 "\$ENV_PATH"/);
+  });
+
+  it('no longer demands a hand-written log level on the host', () => {
+    expect(content).not.toMatch(/require_env LOG_LEVEL/);
+  });
+});
+
 // ── script 20 graceful skip ───────────────────────────────────────────────────
 
 describe('legacy_data script 20 graceful skip', () => {

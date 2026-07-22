@@ -74,6 +74,7 @@ export interface MemberOverrides {
   birth_date?: string | null;
   searchable?: 0 | 1;
   password_version?: number;
+  stripe_customer_id?: string | null;
 }
 
 export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}): string {
@@ -118,8 +119,9 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
       searchable,
       deleted_at, deletion_requested_at, deletion_grace_expires_at, personal_data_purged_at,
       show_competitive_results, show_first_competition_year, gender, show_gender, legacy_member_id, historical_person_id, first_competition_year,
+      stripe_customer_id,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, slug,
     email, emailNormalized, emailVerifiedAt,
@@ -130,6 +132,7 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
     o.searchable ?? 1,
     o.deleted_at ?? null, o.deletion_requested_at ?? null, o.deletion_grace_expires_at ?? null, purged,
     o.show_competitive_results ?? 1, o.show_first_competition_year ?? 0, o.gender ?? null, o.show_gender ?? 0, o.legacy_member_id ?? null, o.historical_person_id ?? null, o.first_competition_year ?? null,
+    o.stripe_customer_id ?? null,
     TS, SYS, TS, SYS,
   );
   return id;
@@ -644,6 +647,7 @@ export interface PaymentOverrides {
   stripe_payment_intent_id?: string | null;
   stripe_checkout_session_id?: string | null;
   stripe_subscription_id?: string | null;
+  stripe_invoice_id?: string | null;
   recurring_subscription_id?: string | null;
   donation_note?: string | null;
   metadata_json?: string;
@@ -665,8 +669,8 @@ export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = 
       status, descriptor,
       purchased_tier_status,
       stripe_payment_intent_id, stripe_checkout_session_id, stripe_subscription_id,
-      recurring_subscription_id, donation_note, metadata_json
-    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      stripe_invoice_id, recurring_subscription_id, donation_note, metadata_json
+    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, createdAt, createdAt,
     o.member_id ?? null,
@@ -679,6 +683,7 @@ export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = 
     o.stripe_payment_intent_id ?? null,
     o.stripe_checkout_session_id ?? null,
     o.stripe_subscription_id ?? null,
+    o.stripe_invoice_id ?? null,
     o.recurring_subscription_id ?? null,
     o.donation_note ?? null,
     o.metadata_json ?? '{}',
@@ -707,6 +712,7 @@ export interface RecurringDonationSubscriptionOverrides {
   cancel_requested_at?: string | null;
   canceled_at?: string | null;
   failure_count?: number;
+  last_stripe_event_created?: string | null;
 }
 
 export function insertRecurringDonationSubscription(
@@ -723,8 +729,8 @@ export function insertRecurringDonationSubscription(
       status, amount_cents, currency, billing_interval,
       started_at, status_updated_at,
       is_cancel_at_period_end, cancel_requested_at, canceled_at,
-      donation_comment, failure_count
-    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, 'yearly', ?, ?, ?, ?, ?, ?, ?)
+      donation_comment, failure_count, last_stripe_event_created
+    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, 'yearly', ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, startedAt, startedAt,
     o.member_id,
@@ -741,6 +747,7 @@ export function insertRecurringDonationSubscription(
     o.canceled_at ?? (status === 'canceled' ? startedAt : null),
     o.donation_comment ?? null,
     o.failure_count ?? 0,
+    o.last_stripe_event_created ?? null,
   );
   return id;
 }

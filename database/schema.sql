@@ -961,13 +961,16 @@ CREATE INDEX idx_alarm_status ON system_alarm_events(status, severity);
 --   succeeded → refunded
 --   Same-status no-ops are allowed (idempotent webhook redelivery).
 --   No backward transitions are permitted.
---   The trigger lives in the DB because multiple independent code paths (webhook
---   handler, admin tools, refund worker) can mutate payments.status, and a
---   DB guard prevents silent backward transitions regardless of which path runs.
+--   The trigger lives in the DB because a backward status transition would be
+--   silent corruption of a money record, and the guard has to hold whatever
+--   writes the row. Today the webhook handler is the only writer; the guard is
+--   what keeps that true for any future one.
 
 -- Stripe webhook event idempotency store. One row per received Stripe event_id,
--- preventing duplicate processing on redelivery. Tracks processing outcome
--- (processed/failed) and retry count. Not a substitute for transition audit tables.
+-- preventing duplicate processing on redelivery. The row is claimed inside the
+-- transaction that applies the event, so a failure rolls it back and leaves no
+-- row for the retry to trip over; a stored row therefore always means processed.
+-- Not a substitute for transition audit tables.
 CREATE TABLE stripe_events (
   event_id          TEXT PRIMARY KEY,
   created_at        TEXT NOT NULL,
@@ -1019,6 +1022,10 @@ CREATE TABLE recurring_donation_subscriptions (
   stripe_customer_id     TEXT NOT NULL,
   stripe_subscription_id TEXT NOT NULL,
   last_stripe_event_id   TEXT REFERENCES stripe_events(event_id),
+  -- Creation time (ISO-8601 UTC) of the provider event that last moved this row.
+  -- The provider does not guarantee delivery order, so an event older than the
+  -- one already applied must not overwrite the newer state.
+  last_stripe_event_created TEXT,
 
   -- Current state; updated on each relevant webhook event
   status TEXT NOT NULL CHECK (status IN ('active','past_due','canceled')),
@@ -1153,6 +1160,9 @@ CREATE TABLE payments (
   stripe_checkout_session_id TEXT,
   stripe_customer_id         TEXT,
   stripe_subscription_id     TEXT,
+  -- The provider invoice a per-cycle charge settles. Non-null only for those
+  -- charges; it is the identity the one-row-per-invoice guard below keys on.
+  stripe_invoice_id          TEXT,
   -- ISO-8601 UTC text (converted from Stripe Unix epoch at write time; see SCH-06).
   last_stripe_event_created  TEXT,
 
@@ -1180,6 +1190,15 @@ CREATE INDEX idx_payments_type    ON payments(payment_type);
 CREATE INDEX idx_payments_recurring_subscription
   ON payments(recurring_subscription_id)
   WHERE recurring_subscription_id IS NOT NULL;
+
+-- One payment row per provider invoice. The provider reports a single invoice
+-- across several payment events, each carrying the cumulative amount paid so
+-- far, so a second row for the same invoice books the same money twice. The
+-- handler updates the amount on the existing row instead; this makes that
+-- invariant structural rather than a discipline the handler could lose.
+CREATE UNIQUE INDEX ux_payments_one_row_per_invoice
+  ON payments(stripe_invoice_id)
+  WHERE stripe_invoice_id IS NOT NULL;
 
 -- At most one in-flight membership purchase per member: a concurrent
 -- double-submit fails at insert rather than risking two pending rows that
@@ -1283,6 +1302,9 @@ CREATE TABLE reconciliation_issues (
   payment_id               TEXT REFERENCES payments(id),
   stripe_payment_intent_id TEXT,
   stripe_subscription_id   TEXT,
+  -- Part of the discrepancy's identity: several renewal invoices on one
+  -- subscription are separate discrepancies and each needs its own slot.
+  stripe_invoice_id        TEXT,
   status TEXT NOT NULL DEFAULT 'outstanding' CHECK (status IN ('outstanding','resolved')),
   details_json             TEXT NOT NULL DEFAULT '{}',
   resolved_at              TEXT,
@@ -1310,7 +1332,8 @@ CREATE UNIQUE INDEX ux_recon_outstanding_dedup ON reconciliation_issues(
   issue_type,
   COALESCE(payment_id, ''),
   COALESCE(stripe_payment_intent_id, ''),
-  COALESCE(stripe_subscription_id, '')
+  COALESCE(stripe_subscription_id, ''),
+  COALESCE(stripe_invoice_id, '')
 ) WHERE status = 'outstanding';
 
 -- =============================================================================
@@ -2803,6 +2826,7 @@ VALUES
 --   purchase_tier_rate_limit_per_hour Max tier-purchase attempts per member per hour
 --   donation_rate_limit_per_hour    Max donation checkout attempts per member per hour
 --   reconciliation_window_days      Lookback window the nightly reconciliation compares
+--   reconciliation_grace_minutes    Age a record must reach before reconciliation judges it
 --   reconciliation_summary_interval_days Cadence for reconciliation digest email
 --   primary_snapshot_version_days   S3 versioning retention for primary bucket
 --   cross_region_backup_retention_days Object Lock retention for DR bucket
@@ -3205,6 +3229,15 @@ VALUES
    'reconciliation_window_days', '7',
    '2000-01-01T00:00:00.000Z',
    'Lookback window in days that the nightly payment reconciliation compares (default: 7).',
+   NULL
+  ),
+
+  (
+   'seed-reconciliation-grace-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'reconciliation_grace_minutes', '30',
+   '2000-01-01T00:00:00.000Z',
+   'Minutes a payment or provider record must age before the nightly reconciliation judges it, so ordinary delivery lag is not reported as a discrepancy (default: 30).',
    NULL
   ),
 

@@ -211,6 +211,26 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
   }, 120_000);
 });
 
+describe('admin gate — parameterized GET (the payment-detail route sits behind the gate)', () => {
+  // The payment-detail route is addressed by a path parameter, so it cannot
+  // join the allow-200 sweep above: a placeholder id never resolves and an
+  // admin gets 404, not 200. The gate still runs before the handler, so the
+  // deny cells prove the route is protected, and the admin's 404 (rather than a
+  // leak) proves the gate passed before the id was ever looked up.
+  const route = '/admin/payments/ph';
+
+  it('redirects the unauthenticated, 403s a non-admin, and 404s an admin on a placeholder id', async () => {
+    const anon = await request(createApp()).get(route);
+    expect(isLoginRedirect(anon), 'anonymous → login').toBe(true);
+
+    const nonAdmin = await request(createApp()).get(route).set('Cookie', cookies.get('t1_paid')!);
+    expect(nonAdmin.status, 't1_paid → non-admin deny').toBe(403);
+
+    const admin = await request(createApp()).get(route).set('Cookie', cookies.get('admin_t2')!);
+    expect(admin.status, 'admin → gate passes, placeholder id 404s').toBe(404);
+  });
+});
+
 describe('admin gate — POST (every state-changing admin route sits behind the gate)', () => {
   // The admin router applies requireAuth then requireAdmin to every route below
   // the bootstrap-claim exception, so the deny outcome fires before any handler

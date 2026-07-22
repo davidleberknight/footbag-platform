@@ -42,14 +42,15 @@
       </div>
 
       <div class="form-field">
-        <label for="member">Member ID</label>
+        <label for="member">Member</label>
         <input type="text" id="member" name="member" value="{{content.filters.memberId}}">
+        <small class="form-hint">Matches a member id, profile handle, login email, or part of a display name.</small>
       </div>
 
       <div class="form-field">
         <label for="reference">Payment reference</label>
         <input type="text" id="reference" name="reference" value="{{content.filters.reference}}">
-        <small class="form-hint">Matches the payment id, payment intent, checkout session, or subscription.</small>
+        <small class="form-hint">Matches the payment id, payment intent, checkout session, subscription, or invoice.</small>
       </div>
 
       <div class="form-actions">

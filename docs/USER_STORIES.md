@@ -215,7 +215,7 @@ Input validation and sanitization: All user-entered text (names, bios, captions,
 
 Payment Processing Guarantees: The system does not grant paid access unless Stripe confirms success. Local payment state transitions are monotonic and keyed by Stripe object IDs; duplicates and reordering do not cause double-application. This ordering ensures the system never grants paid features without successful payment. Webhook event processing is idempotent: duplicate webhook deliveries with the same event_id are safely ignored and return 200 OK without reprocessing. This prevents double-processing when Stripe automatically retries webhook delivery. Two payment models are used and each has its own state machine keyed to the appropriate Stripe object:
 
-- One-time payments (membership dues, event registrations, one-time donations): State transitions are keyed by Stripe's payment_intent_id. The enforced state machine is: pending to completed on payment_intent.succeeded; pending to failed on payment_intent.payment_failed; completed to refunded on charge.refunded. Each state transition is recorded in audit logs with timestamp and Stripe event_id. No action is taken on refunds at launch in any case, so the refund concern is theoretical.
+- One-time payments (membership dues, event registrations, one-time donations): State transitions are keyed by Stripe's payment_intent_id. The enforced state machine is: pending to completed on payment_intent.succeeded; pending to canceled on checkout.session.expired; completed to refunded on charge.refunded. A declined card is not a state transition: while the checkout session is open the buyer may try another card, so payment_intent.payment_failed records the attempt and leaves the record pending. The session, not the attempt, is the unit of failure. Each state transition is recorded in audit logs with timestamp and Stripe event_id. No action is taken on refunds at launch in any case, so the refund concern is theoretical.
 
 - Recurring donations (Stripe Subscriptions): State transitions are keyed by the Stripe subscription_id and invoice_id. The enforced state machine is: active on customer.subscription.created; active (new payment record created) on invoice.payment_succeeded; past_due on invoice.payment_failed (increments a failure counter; Stripe's configured dunning schedule governs retries); canceled on customer.subscription.deleted (triggered after Stripe exhausts all retries, or when canceled by member or admin). Each subscription event is recorded in audit logs with timestamp and Stripe event_id. All webhook event types are deduplicated via the stripe_events table (keyed on Stripe event_id) regardless of payment model.
 
@@ -1231,7 +1231,7 @@ Success Criteria:
 - The donation comment is stored in Stripe Subscription metadata and also in the local payment record so that it survives across all subsequent billing cycles.
 - For recurring donations, the local database stores: stripeSubscriptionId, stripeCustomerId, status (active, canceled, past_due), the donation amount, currency, interval (yearly), start date, and the donation comment. The platform records each successful charge as a new payment record when the invoice.payment_succeeded webhook is received. No next_charge_date field is maintained by the platform; Stripe owns the schedule.
 - After a successful donation setup, I see a clear confirmation message in the UI and receive a confirmation email with amount, date, interval (one-time or yearly recurring), and basic reference information, but not full card details.
-- If the payment fails or is canceled during checkout, I see a clear error or cancellation message and no donation record is created.
+- If the payment fails or is canceled during checkout, I see a clear error or cancellation message. A donation record does exist: it is written before the redirect to Stripe because it carries the checkout-session and payment-intent ids every webhook lookup matches on, and a webhook cannot be matched to a donation that was never recorded. An abandoned or failed checkout settles that record as `canceled`, and my payment history shows it as such rather than hiding it.
 - I can cancel an active recurring donation from my Payment History page at any time. Cancellation sets the Stripe Subscription to cancel_at_period_end=true so I retain the current period's donation intent and no further charges occur. I see a clear confirmation message and receive a cancellation confirmation email. The local subscription status updates to canceled when the customer.subscription.deleted webhook is received.
 - All donation records (including comment, amount, recurrence info, Stripe subscription_id, and stripeCustomerId) are stored in a way that can be aggregated later for reporting, reconciliation, and tax-related exports where applicable.
 
@@ -2925,7 +2925,10 @@ Seed these defaults into the database-backed configuration store during initial 
 
 ### Donations and Payments
 
-- `payments_paused = 0` (admin-only emergency kill switch that halts new membership purchases without a redeployment; DB literal `0/1`)
+- `payments_paused = 0` (admin-only emergency kill switch that halts new membership purchases and donations without a redeployment; DB literal `0/1`)
+- `donation_rate_limit_per_hour = 20` (maximum donation checkout attempts per member per hour)
+- `reconciliation_window_days = 7` (lookback window the nightly reconciliation pass compares)
+- `reconciliation_grace_minutes = 30` (age a record must reach before the reconciliation pass judges it; minimum 1)
 
 ### Active Player Windows / Lifecycle (IFPA-derived)
 
@@ -2953,14 +2956,18 @@ Seed these defaults into the database-backed configuration store during initial 
 - `login_rate_limit_max_attempts = 10` (maximum failed login attempts within the window before the account is locked)
 - `login_rate_limit_window_minutes = 15` (sliding window in minutes for counting failed attempts)
 - `login_cooldown_minutes = 30` (lockout duration after threshold is exceeded)
+- `register_rate_limit_max_attempts = 10` (maximum registration attempts per source IP within the window)
+- `register_rate_limit_window_minutes = 15` (sliding window in minutes for counting registration attempts)
 - `login_account_rate_limit_max_attempts = 30` (maximum failed login attempts against a single account across all IPs within the window, before further attempts are rate-limited; caps distributed credential-stuffing of one account)
 - `login_account_rate_limit_window_minutes = 60` (sliding window in minutes for counting failed login attempts against a single account across all IPs)
 - `password_reset_rate_limit_max_attempts = 5` (maximum password reset requests per email address within the window before requests are silently rate-limited)
 - `password_reset_rate_limit_window_minutes = 60` (sliding window in minutes for counting password reset requests per email)
 - `jwt_expiry_hours = 24` (lifetime of the main site session JWT; governs archive access expiry since no separate archive session is issued)
 - `photo_upload_rate_limit_per_hour = 10` (maximum photo uploads per member per hour)
+- `avatar_upload_rate_limit_per_hour = 10` (maximum avatar uploads per member per hour)
 - `video_submission_rate_limit_per_hour = 5` (maximum video link submissions per member per hour)
 - `media_flag_rate_limit_per_hour = 10` (maximum media flags per member per hour to prevent abuse)
+- `curator_write_rate_limit_per_hour = 60` (maximum curated-media writes per curator per hour)
 - `profile_edit_rate_limit_per_hour = 20` (maximum profile edits per member per hour)
 - `purchase_tier_rate_limit_per_hour = 20` (maximum tier-purchase attempts per member per hour)
 - `password_change_rate_limit_max_attempts = 10` (maximum authenticated password-change attempts per member per window)
@@ -2987,6 +2994,7 @@ Seed these defaults into the database-backed configuration store during initial 
 - `reconciliation_summary_interval_days = 7` (cadence in days for the automated reconciliation digest email sent to admins)
 - `admin_queue_digest_interval_days = 1` (cadence in days for the admin work-queue digest of open routine items sent to each admin)
 - `admin_queue_stale_escalation_days = 3` (days an unclaimed routine work-queue item may stay open before a one-time escalation email to all admins)
+- `work_queue_resolve_rate_limit_per_hour = 120` (maximum work-queue resolutions per admin per hour)
 - `primary_snapshot_version_days = 30` (number of days of point-in-time snapshot versions retained in the primary S3 backup bucket; governs the S3 versioning lifecycle setting)
 - `cross_region_backup_retention_days = 90` (Object Lock retention window for backup objects in the cross-region disaster-recovery bucket)
 - `continuous_backup_interval_minutes = 5` (interval in minutes between continuous SQLite backup runs)
@@ -3244,7 +3252,8 @@ Story: The system handles Stripe webhook events for one-time payments (membershi
 Success Criteria:
 
 - On payment_intent.succeeded: local payment record transitions to `completed`. Tier upgrade or event registration confirmation applied as appropriate. Receipt email enqueued to member. Audit-logged with payment_intent_id, amount, currency, and timestamp.
-- On payment_intent.payment_failed: local payment record transitions to `failed`. Failure notification email enqueued to member. Audit-logged.
+- On payment_intent.payment_failed: the attempt is recorded on the payment's transition ledger and the record stays `pending`, so a later attempt in the same checkout session can still settle it. Failure notification email enqueued to member. Audit-logged.
+- On checkout.session.expired: local payment record transitions to `canceled`, settling a checkout the buyer abandoned. Audit-logged.
 - On charge.refunded: local payment record transitions to `refunded`. Audit-logged with Stripe charge ID, refund amount, currency, and timestamp. No automatic tier or registration changes are applied by the platform; any required access changes are handled manually by admins via A_Override_Member_Data using "payment issue resolution" as the reason.
 - All one-time payment webhook processing is idempotent via the stripe_events table (keyed on Stripe event_id), consistent with the global Payment Processing Guarantees.
 - All events audit-logged with payment_intent_id, member_id, event type, old status, new status, and timestamp.

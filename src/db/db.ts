@@ -5327,6 +5327,21 @@ export const account = {
     SELECT id, slug, display_name FROM members_active WHERE slug = ? OR id = ?
   `); },
 
+  // Resolve an admin's free-text member handle to member ids for the payments
+  // search: an exact id, slug, or login email, or a display-name fragment. Reads
+  // the full members table rather than a visibility view because it is an
+  // admin-only surface and a payment can belong to a since-departed member.
+  // Params: (idOrSlug, idOrSlug, normalizedEmail, escapedNameFragment, limit).
+  get findMemberIdsForAdminSearch() { return db.prepare(`
+    SELECT id FROM members
+    WHERE id = ?
+       OR slug = ?
+       OR login_email_normalized = ?
+       OR display_name_normalized LIKE '%' || ? || '%' ESCAPE '\\'
+    ORDER BY display_name_normalized
+    LIMIT ?
+  `); },
+
   get findIdentityLinks() { return db.prepare(`
     SELECT
       m.legacy_member_id,
@@ -8939,6 +8954,24 @@ export const workQueue = {
     FROM work_queue_items
     WHERE id = ?
   `); },
+
+  // Close the open queue twin of a domain record that is resolved on its own
+  // page. A reconciliation discrepancy has two representations, the issue row
+  // and this queue card; resolving the issue closes the card in the same
+  // transaction so the two never drift apart. Addressed by entity rather than
+  // by id because the resolver holds the domain id, not the queue id.
+  get resolveOpenByEntity() { return db.prepare(`
+    UPDATE work_queue_items
+    SET status = 'resolved',
+        resolved_at = ?,
+        resolved_by_member_id = ?,
+        decision_label = ?,
+        reason_text = ?,
+        updated_at = ?,
+        updated_by = ?,
+        version = version + 1
+    WHERE task_type = ? AND entity_type = ? AND entity_id = ? AND status = 'open'
+  `); },
 };
 
 export const batchAutoLink = {
@@ -9275,6 +9308,21 @@ export const payments = {
     SELECT * FROM payments WHERE stripe_payment_intent_id = ?
   `); },
 
+  get findByStripeInvoiceId() { return db.prepare(`
+    SELECT * FROM payments WHERE stripe_invoice_id = ?
+  `); },
+
+  // A later payment event against an invoice already recorded restates the
+  // amount paid so far rather than reporting a fresh charge, so the recorded
+  // amount moves to the restated one. Status is untouched: the money already
+  // settled and the transition ledger records status changes only.
+  get updateChargeAmountWithEventTime() { return db.prepare(`
+    UPDATE payments
+    SET amount_cents = ?, last_stripe_event_created = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
   // Backfills the intent id on a row inserted before Stripe created the
   // PaymentIntent (Stripe may defer intent creation until the buyer pays).
   // Guarded on IS NULL so a bound row is never re-pointed at another intent.
@@ -9296,7 +9344,10 @@ export const payments = {
 
   // Strips the personal/linking fields after the compliance retention window,
   // keeping the anonymized financial record (amount, type, currency, status,
-  // date) for aggregate history and referential integrity.
+  // date) for aggregate history and referential integrity. A donation
+  // descriptor embeds the donor's free-text note, so it is reset to a neutral
+  // constant; membership and event descriptors carry no personal data and stay
+  // meaningful for aggregate history, so they are left intact.
   get anonymizeForCompliance() { return db.prepare(`
     UPDATE payments
     SET member_id                  = NULL,
@@ -9304,8 +9355,10 @@ export const payments = {
         stripe_checkout_session_id = NULL,
         stripe_customer_id         = NULL,
         stripe_subscription_id     = NULL,
+        stripe_invoice_id          = NULL,
         recurring_subscription_id  = NULL,
         donation_note              = NULL,
+        descriptor                 = CASE WHEN payment_type = 'donation' THEN 'Donation' ELSE descriptor END,
         metadata_json              = '{}',
         updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
@@ -9325,8 +9378,8 @@ export const payments = {
   // they would otherwise read as a ledger mismatch forever.
   get listForReconciliation() { return db.prepare(`
     SELECT id, member_id, payment_type, amount_cents, currency, status,
-           stripe_payment_intent_id, stripe_subscription_id,
-           recurring_subscription_id, metadata_json, created_at
+           stripe_payment_intent_id, stripe_subscription_id, stripe_invoice_id,
+           recurring_subscription_id, created_at
     FROM payments
     WHERE created_at >= ? AND created_at < ?
       AND member_id IS NOT NULL
@@ -9348,14 +9401,16 @@ export const payments = {
   // the raw Stripe subscription id are set, which is the app discipline the
   // payments table documents for subscription-linked rows. Inserted as pending so
   // the succeeded transition writes a status-transition row like every other
-  // status change.
+  // status change. The invoice id is a column rather than metadata because it is
+  // the row's identity against the provider and is matched on by reconciliation.
   get insertSubscriptionChargePayment() { return db.prepare(`
     INSERT INTO payments (
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, payment_type, amount_cents, currency,
       status, descriptor, donation_note, metadata_json,
-      stripe_customer_id, stripe_subscription_id, recurring_subscription_id
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'donation', ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+      stripe_customer_id, stripe_subscription_id, stripe_invoice_id,
+      recurring_subscription_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'donation', ?, ?, 'pending', ?, ?, '{}', ?, ?, ?, ?)
   `); },
 };
 
@@ -9415,17 +9470,23 @@ export const recurringDonationSubscriptions = {
   // A member-requested cancellation takes effect at the period end, so the status
   // stays put and only the cancel-intent fields move. Stripe drives the status to
   // canceled later, via customer.subscription.deleted.
+  //
+  // The IS-NOT-ALREADY-REQUESTED guard makes the write itself decide the race:
+  // two simultaneous submits both pass a service-level check read before the
+  // provider call, and only the one whose UPDATE reports a changed row may append
+  // to a ledger that documents one row per action.
   get markCancelRequested() { return db.prepare(`
     UPDATE recurring_donation_subscriptions
     SET is_cancel_at_period_end = 1,
         cancel_requested_at = ?,
         updated_at = ?, updated_by = ?, version = version + 1
-    WHERE id = ?
+    WHERE id = ? AND is_cancel_at_period_end = 0
   `); },
 
   get updateStatus() { return db.prepare(`
     UPDATE recurring_donation_subscriptions
     SET status = ?, status_updated_at = ?, last_stripe_event_id = ?,
+        last_stripe_event_created = ?,
         updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
   `); },
@@ -9435,6 +9496,7 @@ export const recurringDonationSubscriptions = {
   get markPastDue() { return db.prepare(`
     UPDATE recurring_donation_subscriptions
     SET status = 'past_due', status_updated_at = ?, last_stripe_event_id = ?,
+        last_stripe_event_created = ?,
         failure_count = failure_count + 1,
         updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
@@ -9443,7 +9505,7 @@ export const recurringDonationSubscriptions = {
   get markCanceled() { return db.prepare(`
     UPDATE recurring_donation_subscriptions
     SET status = 'canceled', canceled_at = ?, status_updated_at = ?,
-        last_stripe_event_id = ?,
+        last_stripe_event_id = ?, last_stripe_event_created = ?,
         updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
   `); },
@@ -9453,6 +9515,7 @@ export const recurringDonationSubscriptions = {
   get updateAmountAndStatus() { return db.prepare(`
     UPDATE recurring_donation_subscriptions
     SET amount_cents = ?, status = ?, status_updated_at = ?, last_stripe_event_id = ?,
+        last_stripe_event_created = ?,
         updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
   `); },
@@ -9468,8 +9531,8 @@ export const reconciliationIssues = {
     INSERT OR IGNORE INTO reconciliation_issues (
       id, created_at, created_by, updated_at, updated_by, version,
       issue_type, payment_id, stripe_payment_intent_id, stripe_subscription_id,
-      status, details_json, expires_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'outstanding', ?, ?)
+      stripe_invoice_id, status, details_json, expires_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 'outstanding', ?, ?)
   `); },
 
   get findById() { return db.prepare(`
@@ -9509,7 +9572,10 @@ export const reconciliationIssues = {
 export interface AdminPaymentFilters {
   paymentType?: string;
   status?: string;
-  memberId?: string;
+  /** The member ids an admin's member-search handle resolved to. An empty array
+   *  means the handle matched no member and the search returns nothing, distinct
+   *  from `undefined`, which means no member filter was applied. */
+  memberIds?: string[];
   reference?: string;
   createdFrom?: string;
   createdTo?: string;
@@ -9520,14 +9586,23 @@ function buildAdminPaymentClauses(f: AdminPaymentFilters): { where: string; para
   const params: unknown[] = [];
   if (f.paymentType) { clauses.push('p.payment_type = ?'); params.push(f.paymentType); }
   if (f.status) { clauses.push('p.status = ?'); params.push(f.status); }
-  if (f.memberId) { clauses.push('p.member_id = ?'); params.push(f.memberId); }
+  if (f.memberIds) {
+    if (f.memberIds.length === 0) {
+      // A member handle that resolved to nobody returns no payments rather than
+      // silently dropping the filter and listing every member's.
+      clauses.push('1 = 0');
+    } else {
+      clauses.push(`p.member_id IN (${f.memberIds.map(() => '?').join(', ')})`);
+      params.push(...f.memberIds);
+    }
+  }
   if (f.createdFrom) { clauses.push('p.created_at >= ?'); params.push(f.createdFrom); }
   if (f.createdTo) { clauses.push('p.created_at < ?'); params.push(f.createdTo); }
   if (f.reference) {
     clauses.push(
-      '(p.id = ? OR p.stripe_payment_intent_id = ? OR p.stripe_checkout_session_id = ? OR p.stripe_subscription_id = ?)',
+      '(p.id = ? OR p.stripe_payment_intent_id = ? OR p.stripe_checkout_session_id = ? OR p.stripe_subscription_id = ? OR p.stripe_invoice_id = ?)',
     );
-    params.push(f.reference, f.reference, f.reference, f.reference);
+    params.push(f.reference, f.reference, f.reference, f.reference, f.reference);
   }
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
 }

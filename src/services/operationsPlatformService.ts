@@ -9,8 +9,8 @@
  *     succeeded/failed on completion, stale-running reap for crash recovery
  *   - Worker-loop entry points and their config-tunable intervals: outbox
  *     drain, Active Player expiry, staged-candidate expiry, batch auto-link,
- *     PII purge scan, hashtag-stats rebuild, payment reconciliation and its
- *     digest (both self-gated: reconciliation to 02:00 UTC and once per UTC
+ *     PII purge scan, hashtag-stats rebuild, payment reconciliation, its digest
+ *     and the resolved-issue purge (self-gated: reconciliation to once per UTC
  *     day, the digest to its configured interval)
  *   - Batch auto-link routing: classify unlinked Tier-0 members; stage
  *     high/medium-confidence candidates, queue low-confidence ones with an
@@ -119,11 +119,6 @@ export interface ReadinessStatus {
 
 const MEMORY_PRESSURE_THRESHOLD_PERCENT = 90;
 
-// Payment reconciliation is specified to run nightly at 02:00 UTC. The daily
-// worker tick can fire at any hour, so the pass holds off until the clock has
-// reached this hour and then runs once for that UTC day.
-const RECONCILIATION_RUN_HOUR_UTC = 2;
-
 // Mutable test seam over the immutable config-derived value. Boot reads
 // FOOTBAG_TEST_MEMORY_PERCENT once via src/config/env.ts (which fail-fasts
 // in production); tests use setTestMemoryPercentForTests / reset...ForTests
@@ -222,7 +217,12 @@ export class OperationsPlatformService {
     );
     try {
       const result = await work();
-      const finishedAt = new Date().toISOString();
+      // A caller that injects a fixed clock (tests, deterministic replay) stamps
+      // the completion on that same clock, so the once-per-UTC-day and
+      // interval gates that key off the recorded finish time behave
+      // deterministically. Production passes no clock and records the real
+      // completion instant.
+      const finishedAt = (startTime ?? new Date()).toISOString();
       systemJobRuns.markSucceeded.run(
         finishedAt,
         JSON.stringify(result),
@@ -232,7 +232,7 @@ export class OperationsPlatformService {
       logger.info(`${jobName}: succeeded`, { jobRunId });
       return result;
     } catch (err) {
-      const finishedAt = new Date().toISOString();
+      const finishedAt = (startTime ?? new Date()).toISOString();
       const errMsg = err instanceof Error ? err.message : String(err);
       systemJobRuns.markFailed.run(finishedAt, errMsg, finishedAt, jobRunId);
       logger.error(`${jobName}: failed`, { jobRunId, error: errMsg });
@@ -303,23 +303,26 @@ export class OperationsPlatformService {
   /**
    * SYS_Reconcile_Payments_Nightly entry point, called on the daily worker tick.
    *
-   * The specification is nightly at 02:00 UTC, and this codebase has no
-   * wall-clock scheduler, so the pass self-gates instead: it runs when its last
-   * success fell on an earlier UTC day AND the clock has reached 02:00 UTC.
-   * That makes the job genuinely nightly-at-02:00 rather than merely
-   * once-per-tick, without introducing a scheduler for one job.
+   * This codebase has no wall-clock scheduler, so the pass self-gates: it runs
+   * on the first tick of a UTC day it has not yet succeeded on. The gate is
+   * deliberately independent of the hour, because the tick interval is a day: a
+   * gate that also demanded a particular hour would skip a tick that fell before
+   * it and not get another chance until the next day, so a worker started at the
+   * wrong time of day would never reconcile at all.
    */
   async runPaymentReconciliation(
     startTime?: Date,
   ): Promise<{ skipped: boolean; issuesRaised: number; duplicatesSkipped: number }> {
     const now = startTime ?? new Date();
-    if (now.getUTCHours() < RECONCILIATION_RUN_HOUR_UTC) {
-      return { skipped: true, issuesRaised: 0, duplicatesSkipped: 0 };
-    }
     const last = systemJobRuns.lastSuccessAt.get('SYS_Reconcile_Payments_Nightly') as
       | { last_success: string | null }
       | undefined;
     if (last?.last_success && last.last_success.slice(0, 10) >= now.toISOString().slice(0, 10)) {
+      // Visible in production: a nightly control that silently does nothing is
+      // indistinguishable from one that is broken.
+      logger.warn('payment reconciliation skipped: already ran for this UTC day', {
+        lastSuccessAt: last.last_success,
+      });
       return { skipped: true, issuesRaised: 0, duplicatesSkipped: 0 };
     }
     const result = await this.recordJobRun(
@@ -361,6 +364,20 @@ export class OperationsPlatformService {
       startTime,
     );
     return { skipped: false, ...result };
+  }
+
+  /**
+   * SYS_Purge_Reconciliation_Issues daily entry point. Deletes resolved
+   * reconciliation issues whose retention has expired; outstanding issues are
+   * never touched. No cadence gate: the delete is cheap and idempotent, so
+   * running it on every daily tick is simpler than tracking when it last ran.
+   */
+  async runReconciliationIssuePurge(startTime?: Date): Promise<{ deleted: number }> {
+    return this.recordJobRun(
+      'SYS_Purge_Reconciliation_Issues',
+      () => paymentReconciliationService.purgeExpiredResolvedIssues({ now: startTime }),
+      startTime,
+    );
   }
 
   /**

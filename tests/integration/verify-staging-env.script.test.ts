@@ -48,6 +48,7 @@ const CLEAN_STAGING_ENV = [
   'TRUST_PROXY=2',
   'BACKUP_S3_BUCKET=footbag-staging-db-snapshots',
   'PAYMENT_ADAPTER=stub',
+  'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_staging_generated_value',
 ].join('\n');
 
 interface RunResult {
@@ -347,6 +348,23 @@ describe('verify-staging-env.sh — advisory checks', () => {
     const result = runScript({ envFilePath: writeEnvFile(env) });
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toMatch(/FAIL +SES adapter/);
+  });
+
+  // Without its own secret, a stub-adapter host verifies webhooks against a
+  // constant committed to the repository, so anyone with a copy could forge a
+  // delivery it accepts.
+  it('STRIPE_WEBHOOK_SECRET_STUB unset under the stub adapter → FAIL', () => {
+    const env = mutate(/STRIPE_WEBHOOK_SECRET_STUB=.*/, '');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/FAIL +stub webhook signing secret/);
+  });
+
+  it('STRIPE_WEBHOOK_SECRET_STUB is not required when the host runs the live adapter', () => {
+    const env = mutate(/STRIPE_WEBHOOK_SECRET_STUB=.*/, '')
+      .replace(/PAYMENT_ADAPTER=stub/, 'PAYMENT_ADAPTER=live');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.stdout).not.toMatch(/stub webhook signing secret/);
   });
 });
 

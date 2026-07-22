@@ -494,3 +494,283 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     }
   });
 });
+
+// The system-raised payments tasks reach the queue with no member to reply to;
+// an administrator closes each one with a decision and an internal note, and no
+// email goes out. These share the generic resolve endpoint with contact
+// requests but carry their own decision vocabulary.
+describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
+  // Earlier suites in this file tune and leave the resolve rate-limit config in
+  // the shared DB. system_config is append-only and effective-dated, so the
+  // latest effective row wins: raise the ceiling with a later-dated row so these
+  // tests run under a high limit, and empty the per-admin bucket before each so
+  // counts do not carry over.
+  beforeAll(() => {
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'work_queue_resolve_rate_limit_per_hour', '120', ?, 'Test ceiling', NULL)
+    `).run('test-pay-resolve-ceiling', '2026-06-01T00:00:00.000Z', '2026-06-01T00:00:00.000Z');
+    db.close();
+  });
+  beforeEach(async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+  });
+
+  const PAYMENTS_TASKS: Array<{ taskType: string; entityType: string; entityId: string }> = [
+    { taskType: 'unattributed_refund',                entityType: 'stripe_payment_intent',           entityId: 'pi_unattributed' },
+    { taskType: 'partial_refund_review',              entityType: 'payment',                          entityId: 'pay_partial' },
+    { taskType: 'charge_dispute_review',              entityType: 'stripe_dispute',                   entityId: 'di_dispute' },
+    { taskType: 'payout_failed',                      entityType: 'stripe_payout',                    entityId: 'po_failed' },
+    { taskType: 'recurring_donation_charge_declined', entityType: 'recurring_donation_subscription',  entityId: 'rds_declined' },
+    { taskType: 'recurring_donation_paused',          entityType: 'recurring_donation_subscription',  entityId: 'rds_paused' },
+  ];
+
+  async function seedPaymentsTask(
+    taskType: string,
+    entityType: string,
+    entityId: string,
+    detailText: string | null = null,
+  ): Promise<string> {
+    const { workQueueService } = await import('../../src/services/workQueueService');
+    const { id } = workQueueService.enqueue({
+      actorId: 'system',
+      queueCategory: 'payments',
+      taskType,
+      entityType,
+      entityId,
+      priority: 0,
+      reasonText: 'seeded payments task',
+      detailText,
+    });
+    return id;
+  }
+
+  function outboxCount(): number {
+    const db = new BetterSqlite3(dbPath);
+    try {
+      return (db.prepare('SELECT COUNT(*) AS c FROM outbox_emails').get() as { c: number }).c;
+    } finally {
+      db.close();
+    }
+  }
+
+  for (const task of PAYMENTS_TASKS) {
+    it(`${task.taskType} is resolvable once, recording who, when, the decision, and the note`, async () => {
+      const app = createApp();
+      const queueId = await seedPaymentsTask(task.taskType, task.entityType, task.entityId);
+
+      const res = await request(app)
+        .post(`/admin/work-queue/${queueId}/resolve`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ decision_label: 'handled_in_stripe', resolution_note: 'Refunded in the Stripe dashboard.' });
+      expect(res.status).toBe(303);
+      expect(res.headers.location).toBe('/admin/work-queue');
+
+      const db = new BetterSqlite3(dbPath);
+      try {
+        const row = db
+          .prepare('SELECT status, decision_label, reason_text, resolved_by_member_id, resolved_at FROM work_queue_items WHERE id = ?')
+          .get(queueId) as Record<string, unknown>;
+        expect(row.status).toBe('resolved');
+        expect(row.decision_label).toBe('handled_in_stripe');
+        expect(row.reason_text).toBe('Refunded in the Stripe dashboard.');
+        expect(row.resolved_by_member_id).toBe(ADMIN_ID);
+        expect(row.resolved_at).toBeTruthy();
+
+        const audit = db
+          .prepare("SELECT actor_type, metadata_json FROM audit_entries WHERE action_type = 'payment.queue_item_resolved' AND entity_id = ?")
+          .get(task.entityId) as { actor_type: string; metadata_json: string } | undefined;
+        expect(audit).toBeDefined();
+        expect(audit!.actor_type).toBe('admin');
+        const meta = JSON.parse(audit!.metadata_json) as Record<string, unknown>;
+        expect(meta.queue_item_id).toBe(queueId);
+        expect(meta.decision_label).toBe('handled_in_stripe');
+        expect(meta.resolution_note).toBe('Refunded in the Stripe dashboard.');
+      } finally {
+        db.close();
+      }
+    });
+  }
+
+  it('sends no member email on a payments resolution', async () => {
+    const app = createApp();
+    const queueId = await seedPaymentsTask('charge_dispute_review', 'stripe_dispute', 'di_no_email');
+    const before = outboxCount();
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'no_action_needed', resolution_note: 'Represented; awaiting the bank.' });
+    expect(res.status).toBe(303);
+    expect(outboxCount()).toBe(before);
+  });
+
+  it('resolving twice returns 404 the second time, indistinguishable from an unknown id', async () => {
+    const app = createApp();
+    const queueId = await seedPaymentsTask('payout_failed', 'stripe_payout', 'po_twice');
+
+    const first = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'follow_up_complete', resolution_note: 'Bank details corrected.' });
+    expect(first.status).toBe(303);
+
+    const second = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'follow_up_complete', resolution_note: 'again' });
+    expect(second.status).toBe(404);
+
+    const unknown = await request(app)
+      .post('/admin/work-queue/wq_never_existed_pay/resolve')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'follow_up_complete', resolution_note: 'again' });
+    expect(unknown.status).toBe(404);
+    expect(second.text).toBe(unknown.text);
+  });
+
+  it('a contact-request decision label is rejected on a payments task', async () => {
+    const app = createApp();
+    const queueId = await seedPaymentsTask('unattributed_refund', 'stripe_charge', 'ch_wronglabel');
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'corrected', resolution_note: 'note' });
+    expect(res.status).toBe(422);
+  });
+
+  it('a payments decision label is rejected on a contact request', async () => {
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'handled_in_stripe', resolution_note: 'note' });
+    expect(res.status).toBe(422);
+  });
+
+  it('empty and oversized notes are rejected on a payments task', async () => {
+    const app = createApp();
+    const queueId = await seedPaymentsTask('partial_refund_review', 'payment', 'pay_note');
+    const empty = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'no_action_needed', resolution_note: '   ' });
+    expect(empty.status).toBe(422);
+
+    const tooLong = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'no_action_needed', resolution_note: 'a'.repeat(501) });
+    expect(tooLong.status).toBe(422);
+  });
+
+  it('a reconciliation-discrepancy item cannot be resolved here and stays open', async () => {
+    const app = createApp();
+    const queueId = await seedPaymentsTask('reconciliation_discrepancy', 'reconciliation_issue', 'rec_open');
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'no_action_needed', resolution_note: 'should not resolve here' });
+    expect(res.status).toBe(404);
+
+    const db = new BetterSqlite3(dbPath);
+    try {
+      const row = db.prepare('SELECT status FROM work_queue_items WHERE id = ?').get(queueId) as { status: string };
+      expect(row.status).toBe('open');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('a payments resolve shares the per-admin rate-limit bucket', async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const tuneDb = new BetterSqlite3(dbPath);
+    // A later effective date than the ceiling row makes this the current value.
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'work_queue_resolve_rate_limit_per_hour', '1', ?, 'Test tunable', NULL)
+    `).run('test-pay-resolve-rl', '2026-06-02T00:00:00.000Z', '2026-06-02T00:00:00.000Z');
+    tuneDb.close();
+    try {
+      const app = createApp();
+      const q1 = await seedPaymentsTask('charge_dispute_review', 'stripe_dispute', 'di_rl_1');
+      rlMod.resetRateLimitForTests();
+
+      const r1 = await request(app)
+        .post(`/admin/work-queue/${q1}/resolve`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ decision_label: 'handled_in_stripe', resolution_note: 'one' });
+      expect(r1.status).toBe(303);
+
+      const blocked = await request(app)
+        .post('/admin/work-queue/wq_anything_pay/resolve')
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ decision_label: 'handled_in_stripe', resolution_note: 'blocked' });
+      expect(blocked.status).toBe(429);
+      expect(blocked.headers['retry-after']).toBeDefined();
+    } finally {
+      rlMod.resetRateLimitForTests();
+      // Append-only config: restore the high ceiling with a still-later row
+      // rather than deleting, so any later test runs unthrottled.
+      const restore = new BetterSqlite3(dbPath);
+      restore.prepare(`
+        INSERT INTO system_config
+          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+        VALUES (?, ?, 'work_queue_resolve_rate_limit_per_hour', '120', ?, 'Test restore', NULL)
+      `).run('test-pay-resolve-restore', '2026-06-03T00:00:00.000Z', '2026-06-03T00:00:00.000Z');
+      restore.close();
+    }
+  });
+
+  it('confirms a payments resolve without claiming an email went out', async () => {
+    const app = createApp();
+    const queueId = await seedPaymentsTask('recurring_donation_paused', 'recurring_donation_subscription', 'rds_banner');
+    const resolve = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'no_action_needed', resolution_note: 'Expected seasonal pause.' });
+    expect(resolve.status).toBe(303);
+
+    const flashCookie = ((resolve.headers['set-cookie'] as unknown as string[]) ?? [])
+      .map((c) => c.split(';')[0])
+      .join('; ');
+    const page = await request(app)
+      .get('/admin/work-queue')
+      .set('Cookie', [adminCookie(), flashCookie].filter(Boolean).join('; '));
+    expect(page.text).toContain('Item resolved.');
+    expect(page.text).not.toContain('email reply dispatched');
+  });
+
+  it('renders the entity reference, the detail line, and the payments decisions on a payments card', async () => {
+    const app = createApp();
+    await seedPaymentsTask('charge_dispute_review', 'stripe_dispute', 'di_render', 'Dispute di_render; amount 2500 USD');
+    const reconId = await seedPaymentsTask('reconciliation_discrepancy', 'reconciliation_issue', 'rec_render');
+
+    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Stripe dispute di_render');
+    expect(res.text).toContain('Dispute di_render; amount 2500 USD');
+    expect(res.text).toContain('Handled in Stripe');
+    // The reconciliation twin points at its own page and offers no resolve form.
+    expect(res.text).toContain('Review on the Reconciliation Page');
+    expect(res.text).not.toContain(`action="/admin/work-queue/${reconId}/resolve"`);
+  });
+});

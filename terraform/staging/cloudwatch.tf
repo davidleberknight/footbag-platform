@@ -19,8 +19,10 @@ resource "aws_cloudwatch_log_group" "nginx" {
 # The metric filter increments AppErrorCount once per matching line; the alarm
 # fires on any non-zero count within a 60s window and routes to the existing
 # SNS topic, which has an email subscription to var.alarm_email. This is the
-# only application-level operator alert today; any new operator-visible
-# failure mode adds itself via logger.error() and is surfaced automatically.
+# catch-all application-level operator alert; the outbox-backlog and
+# webhook-delivery-failure alarms below watch specific failure modes that never
+# reach logger.error(). Any new operator-visible failure mode that does call
+# logger.error() is surfaced here automatically.
 
 resource "aws_cloudwatch_log_metric_filter" "app_errors" {
   name           = "${local.prefix}-app-errors"

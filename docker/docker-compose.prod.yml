@@ -104,6 +104,11 @@ services:
       # prefix (/footbag/{env}/secrets/...).
       SECRETS_ADAPTER: ${SECRETS_ADAPTER}
       FOOTBAG_ENV: ${FOOTBAG_ENV}
+      # Deliberately required rather than defaulted: the base file's dev default
+      # would silently override the value the deploy syncs from Parameter Store,
+      # and a host running at the wrong verbosity is either drowning the log
+      # pipeline or hiding the lines the alarms count.
+      LOG_LEVEL: ${LOG_LEVEL:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/log_level parameter)}
       FOOTBAG_DB_PATH: /app/db/footbag.db
       IMAGE_PROCESSOR_URL: ${IMAGE_PROCESSOR_URL:-http://image:4000}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (deploy scripts seed s3)}
@@ -117,6 +122,11 @@ services:
       # both secrets for the length of the roll window, so accepting both is what
       # lets the secret change without dropping deliveries. Unset outside a roll.
       STRIPE_WEBHOOK_SECRET_PREVIOUS: ${STRIPE_WEBHOOK_SECRET_PREVIOUS:-}
+      # Per-deployment signing secret for the stub adapter, seeded by the deploy
+      # script. The stub's built-in fallback is committed source, so a reachable
+      # stub endpoint that kept it would accept forged webhooks. Passed through
+      # unconditionally; env.ts is where staging requires it.
+      STRIPE_WEBHOOK_SECRET_STUB: ${STRIPE_WEBHOOK_SECRET_STUB:-}
       # Async curator video upload: web POSTs /transcode/dispatch to the worker
       # container (see src/transcodeWorker.ts). Worker pushes state events back
       # to /ipc/job-events on web. INTERNAL_EVENT_SECRET authenticates
@@ -193,6 +203,11 @@ services:
       # prefix (/footbag/{env}/secrets/...).
       SECRETS_ADAPTER: ${SECRETS_ADAPTER}
       FOOTBAG_ENV: ${FOOTBAG_ENV}
+      # Deliberately required rather than defaulted: the base file's dev default
+      # would silently override the value the deploy syncs from Parameter Store,
+      # and a host running at the wrong verbosity is either drowning the log
+      # pipeline or hiding the lines the alarms count.
+      LOG_LEVEL: ${LOG_LEVEL:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/log_level parameter)}
       FOOTBAG_DB_PATH: /app/db/footbag.db
       IMAGE_PROCESSOR_URL: ${IMAGE_PROCESSOR_URL:-http://image:4000}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (deploy scripts seed s3)}
@@ -206,6 +221,11 @@ services:
       # both secrets for the length of the roll window, so accepting both is what
       # lets the secret change without dropping deliveries. Unset outside a roll.
       STRIPE_WEBHOOK_SECRET_PREVIOUS: ${STRIPE_WEBHOOK_SECRET_PREVIOUS:-}
+      # Per-deployment signing secret for the stub adapter, seeded by the deploy
+      # script. The stub's built-in fallback is committed source, so a reachable
+      # stub endpoint that kept it would accept forged webhooks. Passed through
+      # unconditionally; env.ts is where staging requires it.
+      STRIPE_WEBHOOK_SECRET_STUB: ${STRIPE_WEBHOOK_SECRET_STUB:-}
       # Curator video transcode dispatch HTTP server (src/transcodeWorker.ts)
       # runs alongside the email-outbox loop in this same node process. Web
       # container POSTs /transcode/dispatch to ${WORKER_INTERNAL_URL}; worker
@@ -252,6 +272,9 @@ services:
     environment:
       NODE_ENV: production
       IMAGE_PORT: "4000"
+      # Same reasoning as web and worker: required, so the base file's dev
+      # default cannot quietly win over the deployed value.
+      LOG_LEVEL: ${LOG_LEVEL:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/log_level parameter)}
       # Scaled to 1 for nano_3_0; production target is 2.
       IMAGE_MAX_CONCURRENT: ${IMAGE_MAX_CONCURRENT:-1}
       # libx264 tuning. Unset uses the canonical preset=medium, auto-thread,

@@ -308,10 +308,24 @@ if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
     echo "    Seeding PAYMENT_ADAPTER=stub into env file (staging/dev default; preserved if already set)..."
     echo 'PAYMENT_ADAPTER=stub' >> "$ENV_PATH"
   fi
+  # The stub adapter's built-in signing secret is committed source, so a host
+  # that kept it would accept a webhook forged by anyone holding a checkout of
+  # the repository. Give each host its own value instead. The whsec_stub_
+  # prefix keeps env.ts's production rejection working as a backstop if the
+  # value is ever mis-pasted into STRIPE_WEBHOOK_SECRET. Never overwritten: a
+  # regenerated secret would silently reject deliveries already configured.
+  if ! grep -q '^STRIPE_WEBHOOK_SECRET_STUB=' "$ENV_PATH"; then
+    echo "    Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into env file (preserved if already set)..."
+    printf 'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_%s\n' "$(openssl rand -hex 24)" >> "$ENV_PATH"
+  fi
 fi
 
 NODE_ENV_VAL=$(require_env NODE_ENV)
-LOG_LEVEL_VAL=$(require_env LOG_LEVEL)
+# LOG_LEVEL is intentionally NOT pulled from /srv/footbag/env here. Terraform
+# owns the canonical value (aws_ssm_parameter.app_log_level in
+# terraform/{env}/ssm.tf); the SSM-sync block below fetches it and writes it
+# into /srv/footbag/env. First-deploy bootstrap: the host's env file does not
+# need a manual LOG_LEVEL= line ahead of time.
 DB_PATH=$(require_env FOOTBAG_DB_PATH)
 PUBLIC_BASE_URL_VAL=$(require_env PUBLIC_BASE_URL)
 # SESSION_SECRET is intentionally NOT pulled from /srv/footbag/env here.
@@ -427,6 +441,41 @@ chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
 grep -v '^SESSION_SECRET=' "$ENV_PATH" > "$env_tmp" || true
 printf 'SESSION_SECRET=%s\n' "$SESSION_SECRET_VAL" >> "$env_tmp"
+mv "$env_tmp" "$ENV_PATH"
+chmod 600 "$ENV_PATH"
+chown root:root "$ENV_PATH"
+
+# Sync LOG_LEVEL from SSM to /srv/footbag/env, same pattern as the two secrets
+# above but on a plain String parameter (no --with-decryption). It is the one
+# knob that decides which lines reach CloudWatch at all: a metric filter counting
+# a warn-level line is starved if the host runs quieter, and a debug-level host
+# floods the log pipeline. Sourcing it from Parameter Store makes the declared
+# value the value that actually runs, instead of whatever a past operator typed
+# into the host env file.
+ssm_log_level_param="/footbag/${FOOTBAG_ENV_VAL}/app/log_level"
+echo "    Syncing LOG_LEVEL from $ssm_log_level_param ..."
+LOG_LEVEL_VAL=$(
+  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+    --region "$AWS_REGION_VAL" \
+    --name "$ssm_log_level_param" \
+    --query 'Parameter.Value' \
+    --output text
+) || {
+  echo "ERROR: aws ssm get-parameter failed for $ssm_log_level_param" >&2
+  echo "       If the parameter does not exist yet, from the workstation run:" >&2
+  echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
+  exit 1
+}
+if [[ ! "$LOG_LEVEL_VAL" =~ ^(error|warn|info|debug)$ ]]; then
+  echo "ERROR: SSM $ssm_log_level_param is '$LOG_LEVEL_VAL'; expected one of error, warn, info, debug." >&2
+  exit 1
+fi
+
+env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+chmod 600 "$env_tmp"
+chown root:root "$env_tmp"
+grep -v '^LOG_LEVEL=' "$ENV_PATH" > "$env_tmp" || true
+printf 'LOG_LEVEL=%s\n' "$LOG_LEVEL_VAL" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"

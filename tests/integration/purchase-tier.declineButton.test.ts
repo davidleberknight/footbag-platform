@@ -4,10 +4,10 @@
  *
  * Exercises the payment-failure path end to end: it forces the stub outcome to
  * 'failure', so the signed synthetic event is payment_intent.payment_failed,
- * which the real webhook handler transitions pending -> failed with no tier
- * grant, then redirects to the cancel page. Mirrors the confirm/cancel route
- * tests. The live-mode (route-unregistered) 404 lives in devRoutes.prodGate.test.ts
- * (one PAYMENT_ADAPTER per booted file).
+ * which the real webhook handler records as a declined attempt against a payment
+ * that stays open and ungranted, then redirects to the cancel page. Mirrors the
+ * confirm/cancel route tests. The live-mode (route-unregistered) 404 lives in
+ * devRoutes.prodGate.test.ts (one PAYMENT_ADAPTER per booted file).
  */
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
@@ -54,11 +54,16 @@ afterAll(() => cleanupTestDb(dbPath));
 beforeEach(async () => {
   const { resetPaymentAdapterForTests } = await import('../../src/adapters/paymentAdapter');
   resetPaymentAdapterForTests();
-  // Clear any pending payment a prior test left so the one-pending-membership
-  // partial index does not reject a fresh start.
+  // Settle any payment a prior test left open so the one-pending-membership
+  // partial index does not reject a fresh start. Settled rather than deleted:
+  // the payment ledger is append-only, so a payment that has recorded an attempt
+  // cannot be removed, only moved out of the pending state the index covers.
   const db = new BetterSqlite3(dbPath);
   try {
-    db.prepare("DELETE FROM payments WHERE status = 'pending'").run();
+    db.prepare(
+      `UPDATE payments SET status = 'canceled', updated_at = created_at, updated_by = 'test'
+       WHERE status = 'pending'`,
+    ).run();
   } finally {
     db.close();
   }
@@ -77,7 +82,7 @@ describe('checkout page renders the decline affordance', () => {
 });
 
 describe('POST /payments/checkout/:sessionId/decline', () => {
-  it('marks the payment failed, grants no tier, records the failure, and redirects to cancel', async () => {
+  it('records the declined attempt, grants no tier, and redirects to cancel', async () => {
     const sessionId = await startPurchase(MEMBER_SLUG, MEMBER_ID);
 
     const res = await request(createApp())
@@ -91,17 +96,22 @@ describe('POST /payments/checkout/:sessionId/decline', () => {
       const payment = db
         .prepare('SELECT id, status FROM payments WHERE stripe_checkout_session_id = ?')
         .get(sessionId) as { id: string; status: string };
-      expect(payment.status).toBe('failed');
+      // The checkout session is still open after a decline, so the payment is
+      // still open too: another card can settle it.
+      expect(payment.status).toBe('pending');
 
       // No tier grant: the member stays at the tier0 baseline (no tier1 upgrade
-      // row landed from the failed payment).
+      // row landed from the declined attempt).
       const tier = db
         .prepare('SELECT tier_status FROM member_tier_current WHERE member_id = ?')
         .get(MEMBER_ID) as { tier_status: string } | undefined;
       expect(tier?.tier_status ?? 'tier0').toBe('tier0');
 
       const transitions = db
-        .prepare("SELECT COUNT(*) AS c FROM payment_status_transitions WHERE payment_id = ? AND to_status = 'failed'")
+        .prepare(
+          `SELECT COUNT(*) AS c FROM payment_status_transitions
+           WHERE payment_id = ? AND event_type = 'payment_intent.payment_failed'`,
+        )
         .get(payment.id) as { c: number };
       expect(transitions.c).toBe(1);
 

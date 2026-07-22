@@ -20,8 +20,10 @@ import { createTestSessionJwt } from '../fixtures/factories';
 
 const OWNER_SLUG = 'don_route_owner';
 const OTHER_SLUG = 'don_route_other';
+const CONCURRENT_SLUG = 'don_route_concurrent';
 const OWNER = `member_persona_${OWNER_SLUG}`;
 const OTHER = `member_persona_${OTHER_SLUG}`;
+const CONCURRENT = `member_persona_${CONCURRENT_SLUG}`;
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -45,6 +47,13 @@ beforeAll(async () => {
     tier: 'tier1',
     onboardingComplete: true,
     coverageNotes: ['donation routes non-owner, holds no honor'],
+  });
+  seedPersona(db, {
+    slug: CONCURRENT_SLUG,
+    displayName: 'Route Concurrent',
+    tier: 'tier1',
+    onboardingComplete: true,
+    coverageNotes: ['donation routes owner for the simultaneous-cancel check'],
   });
   db.close();
   createApp = await importApp();
@@ -208,6 +217,64 @@ describe('POST /members/:memberKey/recurring-donations/:stripeSubscriptionId/can
       .post(`/members/${OWNER_SLUG}/recurring-donations/sub_any/cancel`);
     expect(res.status).toBe(302);
   });
+
+  // The eligibility check is read before the provider call, so two submits that
+  // arrive together both pass it, and both are still in flight while neither has
+  // written. The cancellation ledger documents one row per action and the member
+  // asked once, so a double-click must not be able to write the action twice.
+  //
+  // Both requests are held at the provider call until each has passed its check,
+  // which is the state the guard exists for; letting the provider answer in the
+  // same tick would run the two requests one after the other and prove nothing.
+  it('records one cancellation when two requests arrive together', async () => {
+    const stripeSubscriptionId = await liveSubscriptionFor(CONCURRENT);
+    const mod = await import('../../src/adapters/paymentAdapter');
+    const stub = mod.getStubPaymentAdapterForTests()!;
+
+    let waiting = 0;
+    let release: (() => void) | null = null;
+    const bothArrived = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    mod.setPaymentAdapterForTests({
+      ...stub,
+      async cancelSubscriptionAtPeriodEnd() {
+        waiting += 1;
+        if (waiting === 2) release!();
+        await bothArrived;
+      },
+    });
+
+    const app = createApp();
+    const post = (): Promise<{ status: number }> =>
+      request(app)
+        .post(`/members/${CONCURRENT_SLUG}/recurring-donations/${stripeSubscriptionId}/cancel`)
+        .set('Cookie', cookie(CONCURRENT));
+
+    const [first, second] = await Promise.all([post(), post()]);
+    mod.resetPaymentAdapterForTests();
+    expect(waiting).toBe(2);
+    expect([first.status, second.status]).toEqual([303, 303]);
+
+    const db = new BetterSqlite3(dbPath);
+    try {
+      const subId = (db
+        .prepare('SELECT id FROM recurring_donation_subscriptions WHERE stripe_subscription_id = ?')
+        .get(stripeSubscriptionId) as { id: string }).id;
+      const transitions = db.prepare(
+        `SELECT COUNT(*) AS c FROM recurring_donation_subscription_transitions
+         WHERE recurring_subscription_id = ? AND lifecycle_event_code = 'cancel_requested'`,
+      ).get(subId) as { c: number };
+      expect(transitions.c).toBe(1);
+      const audit = db.prepare(
+        `SELECT COUNT(*) AS c FROM audit_entries
+         WHERE action_type = 'payment.recurring_cancel_requested' AND entity_id = ?`,
+      ).get(subId) as { c: number };
+      expect(audit.c).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
 });
 
 // The recurring flow's two page surfaces. Both resolve state by checkout-session
@@ -270,7 +337,7 @@ describe('the recurring donation checkout and confirmation pages', () => {
     expect(res.text).toContain('being set up');
   });
 
-  it('404s a reference naming another member subscription, so it cannot be probed', async () => {
+  it('shows the generic being-set-up page for another member reference, indistinguishable from an unknown one', async () => {
     const { sessionId, reference } = await startRecurringCheckout(OTHER);
     const { paymentService } = await import('../../src/services/paymentService');
     const mod = await import('../../src/adapters/paymentAdapter');
@@ -278,10 +345,21 @@ describe('the recurring donation checkout and confirmation pages', () => {
     const evt = stub.buildSignedStubWebhookEvent(sessionId);
     paymentService.handleWebhook(evt.rawBody, evt.signature);
 
-    const res = await plainRequest(createApp())
+    // OWNER asks for OTHER's mirrored subscription: the page neither confirms it
+    // nor 404s. It shows the same generic being-set-up page an unknown reference
+    // shows, so the parameter reveals nothing about who owns a subscription.
+    const foreign = await plainRequest(createApp())
       .get(`/payments/success?session_id=unknown_session&ref=${reference}`)
       .set('Cookie', cookie(OWNER));
-    expect(res.status).toBe(404);
+    expect(foreign.status).toBe(200);
+    expect(foreign.text).toContain('being set up');
+    expect(foreign.text).not.toContain('recurring annual donation is set up');
+
+    const unknown = await plainRequest(createApp())
+      .get('/payments/success?session_id=unknown_session&ref=rds_does_not_exist')
+      .set('Cookie', cookie(OWNER));
+    expect(unknown.status).toBe(200);
+    expect(unknown.text).toContain('being set up');
   });
 
   it('404s a malformed reference', async () => {

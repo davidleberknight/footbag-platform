@@ -75,6 +75,7 @@ function clearAwsWiring(): void {
   delete process.env.PAYMENT_ADAPTER;
   delete process.env.STRIPE_WEBHOOK_SECRET;
   delete process.env.STRIPE_WEBHOOK_SECRET_PREVIOUS;
+  delete process.env.STRIPE_WEBHOOK_SECRET_STUB;
 }
 
 describe('env config: dev defaults apply when NODE_ENV is not production', () => {
@@ -677,8 +678,61 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
     const { config } = await import('../../src/config/env');
     expect(config.paymentAdapter).toBe('stub');
+  });
+
+  // The stub adapter's fallback signing secret is committed source. A staging
+  // host that kept it would accept a webhook forged by anyone holding a copy of
+  // the repository, so staging must carry its own generated value.
+  it('requires STRIPE_WEBHOOK_SECRET_STUB when staging runs the stub adapter', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.FOOTBAG_ENV = 'staging';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    delete process.env.STRIPE_WEBHOOK_SECRET_STUB;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /STRIPE_WEBHOOK_SECRET_STUB is required when FOOTBAG_ENV=staging/,
+    );
+  });
+
+  it('carries the staging stub signing secret through to config', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.FOOTBAG_ENV = 'staging';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+    const { config } = await import('../../src/config/env');
+    expect(config.stripeWebhookSecretStub).toBe('whsec_stub_staging_generated_value');
+  });
+
+  // Development and test are not reachable from the internet, so the adapter's
+  // own constant is an acceptable signing secret there and nothing is required.
+  it('leaves the stub signing secret undefined in development', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    delete process.env.STRIPE_WEBHOOK_SECRET_STUB;
+    const { config } = await import('../../src/config/env');
+    expect(config.stripeWebhookSecretStub).toBeUndefined();
   });
 
   it('rejects PAYMENT_ADAPTER with an invalid value', async () => {

@@ -22,7 +22,15 @@
  * Required patterns:
  *   - Re-running a pass is idempotent. An outstanding issue with the same type
  *     and the same provider references is not raised twice, so a nightly pass
- *     over an unresolved discrepancy does not accumulate duplicates.
+ *     over an unresolved discrepancy does not accumulate duplicates. The invoice
+ *     is part of those references: several missed renewals on one subscription
+ *     are separate discrepancies and each gets its own issue.
+ *   - A record is left alone until it is older than the delivery grace period.
+ *     A webhook and a ledger read do not land at the same instant, so judging a
+ *     record seconds old reports two systems catching up as a disagreement.
+ *   - A locally refunded payment whose provider intent still reads settled is
+ *     agreement, not a mismatch: the provider records a reversal separately and
+ *     never moves the original intent off succeeded.
  *   - An amount comparison compares currency as well as value. Two records
  *     agreeing on 2500 but disagreeing on USD versus EUR are a discrepancy, not
  *     a match.
@@ -33,13 +41,18 @@
  *   - Every raised issue also enters the admin work queue in the `payments`
  *     category, so a discrepancy reaches the dashboard rather than waiting for
  *     someone to open the reconciliation page.
+ *   - Resolving an issue closes its open work-queue twin in the same
+ *     transaction as the issue update and the audit row. The reconciliation
+ *     page is the resolution surface for a discrepancy; the queue card is only a
+ *     pointer to it and is never resolved on its own.
  *
  * Persistence:
  *   reconciliation_issues, work_queue_items, audit_entries.
  *
  * Side effects:
  *   - audit_entries append (issue raised, issue resolved)
- *   - work_queue_items insert in the `payments` category per raised issue
+ *   - work_queue_items insert in the `payments` category per raised issue;
+ *     close of the discrepancy's queue twin on resolve
  *   - outbox_emails enqueue (the periodic digest, one per administrator)
  */
 import { randomUUID } from 'node:crypto';
@@ -47,16 +60,20 @@ import {
   payments as paymentsDb,
   recurringDonationSubscriptions as subsDb,
   reconciliationIssues as issuesDb,
+  account,
+  workQueue,
   mailingListSubscriptions,
   queryAdminPayments,
   countAdminPayments,
   findAdminPaymentById,
   queryReconciliationIssues,
   countReconciliationIssues,
+  transaction,
   type AdminPaymentFilters,
 } from '../db/db';
 import type { PageViewModel } from '../types/page';
 import { logger } from '../config/logger';
+import { config } from '../config/env';
 import { appendAuditEntry } from './auditService';
 import { readIntConfig } from './configReader';
 import { NotFoundError, ValidationError } from './serviceErrors';
@@ -106,8 +123,8 @@ interface LocalPaymentRow {
   status: string;
   stripe_payment_intent_id: string | null;
   stripe_subscription_id: string | null;
+  stripe_invoice_id: string | null;
   recurring_subscription_id: string | null;
-  metadata_json: string;
   created_at: string;
 }
 
@@ -125,16 +142,23 @@ interface IssueDraft {
   paymentId: string | null;
   stripePaymentIntentId: string | null;
   stripeSubscriptionId: string | null;
+  stripeInvoiceId: string | null;
   details: Record<string, unknown>;
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const RECONCILIATION_WINDOW_DEFAULT_DAYS = 7;
+/** How long a record is left alone before the comparison judges it. A webhook
+ *  and a ledger read do not land at the same instant, so a payment seconds old
+ *  legitimately exists on one side only; classifying it immediately reports the
+ *  gap between two systems catching up as a discrepancy. */
+const RECONCILIATION_GRACE_DEFAULT_MINUTES = 30;
 const RECONCILIATION_EXPIRY_DEFAULT_DAYS = 90;
 const DIGEST_INTERVAL_DEFAULT_DAYS = 7;
 const RESOLUTION_NOTE_MAX_CHARS = 2000;
 const DAY_MS = 86_400_000;
+const MINUTE_MS = 60_000;
 
 /** Provider intent statuses that mean money actually moved. Anything else is a
  *  checkout the buyer never completed, which is not expected to have a settled
@@ -174,23 +198,13 @@ function mapProviderSubscriptionStatus(status: string): string | null {
     case 'past_due':
     case 'unpaid':
     case 'incomplete':
+    case 'paused':
       return 'past_due';
     case 'canceled':
     case 'incomplete_expired':
       return 'canceled';
     default:
       return null;
-  }
-}
-
-function invoiceIdOf(row: LocalPaymentRow): string | null {
-  try {
-    const meta = JSON.parse(row.metadata_json) as { stripe_invoice_id?: unknown };
-    return typeof meta.stripe_invoice_id === 'string' ? meta.stripe_invoice_id : null;
-  } catch {
-    // A row whose metadata will not parse cannot be matched by invoice, but it
-    // must not abort the pass; the subscription-level checks still cover it.
-    return null;
   }
 }
 
@@ -230,10 +244,16 @@ export const paymentReconciliationService = {
       adapter.listInvoices(window),
     ]);
 
+    const graceMinutes = readIntConfig(
+      'reconciliation_grace_minutes',
+      RECONCILIATION_GRACE_DEFAULT_MINUTES,
+    );
+    const graceCutoff = new Date(now.getTime() - graceMinutes * MINUTE_MS).toISOString();
+
     const drafts: IssueDraft[] = [
-      ...comparePayments(localPayments, providerIntents),
+      ...comparePayments(localPayments, providerIntents, graceCutoff),
       ...compareSubscriptions(localSubscriptions, providerSubscriptions),
-      ...compareInvoices(localPayments, providerInvoices, localSubscriptions),
+      ...compareInvoices(localPayments, providerInvoices, localSubscriptions, graceCutoff),
     ];
 
     let raised = 0;
@@ -279,6 +299,7 @@ export const paymentReconciliationService = {
       draft.paymentId,
       draft.stripePaymentIntentId,
       draft.stripeSubscriptionId,
+      draft.stripeInvoiceId,
       JSON.stringify(draft.details),
       expiresAt,
     );
@@ -297,6 +318,7 @@ export const paymentReconciliationService = {
         payment_id: draft.paymentId,
         stripe_payment_intent_id: draft.stripePaymentIntentId,
         stripe_subscription_id: draft.stripeSubscriptionId,
+        stripe_invoice_id: draft.stripeInvoiceId,
       },
     });
 
@@ -339,22 +361,42 @@ export const paymentReconciliationService = {
     if (!issue) throw new NotFoundError('reconciliation issue not found');
 
     const nowIso = new Date().toISOString();
-    const res = issuesDb.resolveIssue.run(
-      nowIso, input.adminMemberId, notes, nowIso, input.adminMemberId, input.issueId,
-    );
-    // Already resolved by another administrator between the page render and the
-    // submit: reported as missing rather than silently overwriting their note.
-    if (res.changes === 0) throw new NotFoundError('reconciliation issue is no longer outstanding');
+    // The issue row, its queue twin, and the audit row commit together: the
+    // queue card is a pointer to the issue, and a resolved issue with a still-open
+    // pointer (or the reverse) would send the next administrator in circles.
+    transaction(() => {
+      const res = issuesDb.resolveIssue.run(
+        nowIso, input.adminMemberId, notes, nowIso, input.adminMemberId, input.issueId,
+      );
+      // Already resolved by another administrator between the page render and the
+      // submit: reported as missing rather than silently overwriting their note.
+      if (res.changes === 0) throw new NotFoundError('reconciliation issue is no longer outstanding');
 
-    appendAuditEntry({
-      actionType: 'payment.reconciliation_issue_resolved',
-      category: 'payment',
-      actorType: 'admin',
-      actorMemberId: input.adminMemberId,
-      entityType: 'reconciliation_issue',
-      entityId: input.issueId,
-      reasonText: notes,
-      metadata: {},
+      // Close the queue twin raised alongside this issue. A missing twin (old or
+      // edge-case data) changes nothing and is left as-is: the issue resolution
+      // is the primary record.
+      workQueue.resolveOpenByEntity.run(
+        nowIso,
+        input.adminMemberId,
+        'closed_with_reconciliation_issue',
+        notes,
+        nowIso,
+        input.adminMemberId,
+        'reconciliation_discrepancy',
+        'reconciliation_issue',
+        input.issueId,
+      );
+
+      appendAuditEntry({
+        actionType: 'payment.reconciliation_issue_resolved',
+        category: 'payment',
+        actorType: 'admin',
+        actorMemberId: input.adminMemberId,
+        entityType: 'reconciliation_issue',
+        entityId: input.issueId,
+        reasonText: notes,
+        metadata: {},
+      });
     });
     return { status: 'resolved' };
   },
@@ -397,7 +439,7 @@ export const paymentReconciliationService = {
           params: {
             outstandingCount: outstanding.length,
             itemLines,
-            reviewUrl: '/admin/payments/reconciliation',
+            reviewUrl: `${config.publicBaseUrl}/admin/payments/reconciliation`,
           },
           recipientEmail: admin.login_email,
           recipientMemberId: admin.member_id,
@@ -429,13 +471,17 @@ export const paymentReconciliationService = {
   /** Admin All Payments list: every inbound payment, filterable and paged. */
   getAdminPaymentsPage(q: AdminPaymentQuery): PageViewModel<AdminPaymentsContent> {
     const page = normalizePage(q.page);
+    const memberInput = (q.memberId ?? '').trim();
     const filters: AdminPaymentFilters = {
       paymentType: q.paymentType || undefined,
       status: q.status || undefined,
-      memberId: q.memberId || undefined,
+      // A member handle resolves to the ids it matches; an empty array (matched
+      // nobody) is deliberately kept so the filter returns no rows rather than
+      // dropping to unfiltered.
+      memberIds: memberInput ? resolveMemberIdsForPaymentSearch(memberInput) : undefined,
       reference: q.reference || undefined,
       createdFrom: q.createdFrom || undefined,
-      createdTo: q.createdTo || undefined,
+      createdTo: inclusiveToBound(q.createdTo),
     };
     const total = countAdminPayments(filters);
     const offset = (page - 1) * ADMIN_PAGE_SIZE;
@@ -538,6 +584,7 @@ export const paymentReconciliationService = {
             String(r.issue_type),
           issueType: String(r.issue_type),
           detailLines: detailLines(String(r.details_json)),
+          referenceLines: reconciliationReferenceLines(r),
           paymentHref: r.payment_id ? `/admin/payments/${String(r.payment_id)}` : null,
           isOutstanding: String(r.status) === 'outstanding',
           resolveAction: `/admin/payments/reconciliation/${String(r.id)}/resolve`,
@@ -562,6 +609,11 @@ export const paymentReconciliationService = {
 // ── Admin page shaping ───────────────────────────────────────────────────────
 
 const ADMIN_PAGE_SIZE = 50;
+
+// Upper bound on the member ids a single member-handle search resolves to, so a
+// broad name fragment cannot build an unbounded IN list. An administrator who
+// hits it narrows the handle.
+const MEMBER_SEARCH_RESOLVE_LIMIT = 500;
 
 const PAYMENT_TYPE_OPTIONS = ['donation', 'membership', 'event_registration'] as const;
 const PAYMENT_STATUS_OPTIONS = ['pending', 'succeeded', 'failed', 'canceled', 'refunded'] as const;
@@ -644,6 +696,10 @@ export interface AdminIssueRowViewModel {
   issueLabel: string;
   issueType: string;
   detailLines: string[];
+  /** The provider ids on the issue (payment intent, subscription, invoice),
+   *  rendered as copyable text so an administrator can cross-reference in the
+   *  Stripe dashboard. Only the ids the issue actually carries appear. */
+  referenceLines: Array<{ label: string; value: string }>;
   paymentHref: string | null;
   isOutstanding: boolean;
   resolveAction: string;
@@ -671,6 +727,37 @@ function formatAmount(cents: number, currency: string): string {
 
 function dateDisplay(iso: string): string {
   return iso.slice(0, 19).replace('T', ' ');
+}
+
+// A payment's created_at is a full timestamp, so an admin's `to=YYYY-MM-DD` must
+// compare against the start of the NEXT day for the chosen day to be included;
+// the SQL bound stays exclusive. Non-date input passes through unchanged.
+function inclusiveToBound(to: string | undefined): string | undefined {
+  if (!to) return undefined;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(to);
+  if (!m) return to;
+  const next = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + 1));
+  return next.toISOString().slice(0, 10);
+}
+
+// Resolves what an administrator would say about a donor (an id, a slug, a login
+// email, or part of a display name) to the member ids the payments filter reads.
+// A cap bounds the id list a very broad name fragment can produce; beyond it the
+// administrator narrows the search.
+function resolveMemberIdsForPaymentSearch(input: string): string[] {
+  const normalized = input.toLowerCase();
+  const escaped = normalized
+    .replace(/\\/g, '\\\\')
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_');
+  const rows = account.findMemberIdsForAdminSearch.all(
+    input,
+    input,
+    normalized,
+    escaped,
+    MEMBER_SEARCH_RESOLVE_LIMIT,
+  ) as Array<{ id: string }>;
+  return rows.map((r) => r.id);
 }
 
 function paymentFilterParams(q: AdminPaymentQuery): URLSearchParams {
@@ -712,6 +799,18 @@ function detailLines(detailsJson: string): string[] {
   }
 }
 
+/** The provider ids the issue carries, labelled for display. Only present ids
+ *  appear, so an issue about a one-time payment shows no subscription line. */
+function reconciliationReferenceLines(
+  r: Record<string, unknown>,
+): Array<{ label: string; value: string }> {
+  const lines: Array<{ label: string; value: string }> = [];
+  if (r.stripe_payment_intent_id) lines.push({ label: 'Payment intent', value: String(r.stripe_payment_intent_id) });
+  if (r.stripe_subscription_id) lines.push({ label: 'Subscription', value: String(r.stripe_subscription_id) });
+  if (r.stripe_invoice_id) lines.push({ label: 'Invoice', value: String(r.stripe_invoice_id) });
+  return lines;
+}
+
 function normalizePage(page: number | undefined): number {
   return page && Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
 }
@@ -723,10 +822,13 @@ function summaryLine(total: number, offset: number, shown: number, noun: string)
 
 // ── Comparison passes ────────────────────────────────────────────────────────
 
-/** Pass 1: one-time payments against provider payment intents. */
+/** Pass 1: one-time payments against provider payment intents. Records created
+ *  after `graceCutoff` are matched but never judged, so normal delivery lag at
+ *  the edge of the run does not read as a discrepancy. */
 function comparePayments(
   local: LocalPaymentRow[],
   provider: StripePaymentIntentSummary[],
+  graceCutoff: string,
 ): IssueDraft[] {
   const drafts: IssueDraft[] = [];
   const providerById = new Map(provider.map((p) => [p.id, p]));
@@ -738,15 +840,17 @@ function comparePayments(
 
   for (const payment of oneTime) {
     const intentId = payment.stripe_payment_intent_id;
+    const withinGrace = payment.created_at >= graceCutoff;
     // A pending row with no intent id yet is a checkout in flight, not a
     // discrepancy: the provider legitimately defers intent creation.
     if (!intentId) {
-      if (payment.status !== 'pending') {
+      if (payment.status !== 'pending' && !withinGrace) {
         drafts.push({
           issueType: 'payment_missing_at_provider',
           paymentId: payment.id,
           stripePaymentIntentId: null,
           stripeSubscriptionId: null,
+          stripeInvoiceId: null,
           details: {
             reason: 'settled payment carries no provider payment intent',
             local_status: payment.status,
@@ -760,11 +864,13 @@ function comparePayments(
 
     const intent = providerById.get(intentId);
     if (!intent) {
+      if (withinGrace) continue;
       drafts.push({
         issueType: 'payment_missing_at_provider',
         paymentId: payment.id,
         stripePaymentIntentId: intentId,
         stripeSubscriptionId: null,
+        stripeInvoiceId: null,
         details: {
           reason: 'no provider payment intent matches this payment',
           local_status: payment.status,
@@ -774,7 +880,10 @@ function comparePayments(
       });
       continue;
     }
+    // Matched before the grace check so the reverse pass does not report this
+    // intent as having no local record.
     matchedProviderIds.add(intentId);
+    if (withinGrace) continue;
 
     // Currency is part of the amount, not a label beside it: equal numbers in
     // different currencies are different money.
@@ -787,6 +896,7 @@ function comparePayments(
         paymentId: payment.id,
         stripePaymentIntentId: intentId,
         stripeSubscriptionId: null,
+        stripeInvoiceId: null,
         details: {
           local_amount_cents: payment.amount_cents,
           local_currency: payment.currency.toUpperCase(),
@@ -796,13 +906,19 @@ function comparePayments(
       });
     }
 
+    // A refund does not move the provider intent off `succeeded`: the charge did
+    // succeed, and the reversal is a separate provider record. The refund is
+    // already recorded locally, so the two sides agree despite the different
+    // words, and reporting it would raise the same issue on every nightly pass.
     const mapped = mapIntentStatusToLocal(intent.status);
-    if (mapped !== null && mapped !== payment.status) {
+    const refundedLocally = payment.status === 'refunded' && mapped === 'succeeded';
+    if (mapped !== null && mapped !== payment.status && !refundedLocally) {
       drafts.push({
         issueType: 'payment_status_mismatch',
         paymentId: payment.id,
         stripePaymentIntentId: intentId,
         stripeSubscriptionId: null,
+        stripeInvoiceId: null,
         details: {
           local_status: payment.status,
           provider_status: intent.status,
@@ -817,11 +933,15 @@ function comparePayments(
   for (const intent of provider) {
     if (matchedProviderIds.has(intent.id)) continue;
     if (!PROVIDER_SETTLED_INTENT_STATUSES.has(intent.status)) continue;
+    // A charge the provider settled moments ago may still be in flight to the
+    // webhook that records it locally.
+    if (intent.createdAt >= graceCutoff) continue;
     drafts.push({
       issueType: 'provider_payment_missing_locally',
       paymentId: null,
       stripePaymentIntentId: intent.id,
       stripeSubscriptionId: null,
+      stripeInvoiceId: null,
       details: {
         reason: 'provider settled a payment with no local record',
         provider_status: intent.status,
@@ -852,6 +972,7 @@ function compareSubscriptions(
         paymentId: null,
         stripePaymentIntentId: null,
         stripeSubscriptionId: sub.stripe_subscription_id,
+        stripeInvoiceId: null,
         details: {
           reason: 'a live local subscription has no provider counterpart',
           local_status: sub.status,
@@ -868,6 +989,7 @@ function compareSubscriptions(
         paymentId: null,
         stripePaymentIntentId: null,
         stripeSubscriptionId: sub.stripe_subscription_id,
+        stripeInvoiceId: null,
         details: {
           local_status: sub.status,
           provider_status: remote.status,
@@ -887,6 +1009,7 @@ function compareSubscriptions(
       paymentId: null,
       stripePaymentIntentId: null,
       stripeSubscriptionId: remote.id,
+      stripeInvoiceId: null,
       details: {
         reason: 'the provider holds a live subscription with no local record',
         provider_status: remote.status,
@@ -899,21 +1022,27 @@ function compareSubscriptions(
   return drafts;
 }
 
-/** Pass 2b: provider invoices against the local per-cycle charge rows. */
+/** Pass 2b: provider invoices against the local per-cycle charge rows. Invoices
+ *  newer than `graceCutoff` are left for a later run, since the webhook that
+ *  records the charge may still be in flight. */
 function compareInvoices(
   localPayments: LocalPaymentRow[],
   providerInvoices: StripeInvoiceSummary[],
   localSubscriptions: LocalSubscriptionRow[],
+  graceCutoff: string,
 ): IssueDraft[] {
   const drafts: IssueDraft[] = [];
   const recordedInvoiceIds = new Set(
-    localPayments.map(invoiceIdOf).filter((id): id is string => id !== null),
+    localPayments
+      .map((p) => p.stripe_invoice_id)
+      .filter((id): id is string => id !== null),
   );
   const knownSubscriptionIds = new Set(localSubscriptions.map((s) => s.stripe_subscription_id));
 
   for (const invoice of providerInvoices) {
     if (invoice.status !== 'paid') continue;
     if (recordedInvoiceIds.has(invoice.id)) continue;
+    if (invoice.createdAt >= graceCutoff) continue;
     // An invoice against a subscription the platform never mirrored is already
     // reported by the subscription pass; reporting it again here would put two
     // issues in front of an administrator for one underlying problem.
@@ -923,6 +1052,7 @@ function compareInvoices(
       paymentId: null,
       stripePaymentIntentId: null,
       stripeSubscriptionId: invoice.subscriptionId,
+      stripeInvoiceId: invoice.id,
       details: {
         reason: 'the provider charged a renewal with no local payment record',
         stripe_invoice_id: invoice.id,

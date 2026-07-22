@@ -16,7 +16,10 @@
  *
  * Caller pattern: services and adapters call `secrets.get(key)` or
  * `secrets.getRequired(key)` lazily on first need. The adapter caches per-key
- * so repeated calls in the same process are free after the first.
+ * so repeated calls in the same process are free after the first. A caller the
+ * third party rejects as unauthenticated calls `invalidate(key)`, which sends
+ * the next read back to the store; that is what lets a rotated credential take
+ * effect without restarting the process.
  *
  * The live impl accepts an injected SSM client so the parity test can stand
  * in a fake SSMClient without mocking the @aws-sdk package itself.
@@ -42,6 +45,11 @@ export interface SecretsAdapter {
   getAbsolute(name: string): Promise<string | undefined>;
   /** Deletes an ABSOLUTE parameter. Single-shot token consumption. */
   deleteAbsolute(name: string): Promise<void>;
+  /** Drops any cached value for the key, so the next read goes back to the
+   * store. A caller that gets an authentication failure from the third party
+   * knows its cached credential is stale; without this the process would keep
+   * presenting the dead value until it restarts. */
+  invalidate(key: string): void;
 }
 
 export interface StubSecretsAdapter extends SecretsAdapter {
@@ -118,6 +126,11 @@ export function createLiveSecretsAdapter(opts: {
         throw err;
       }
     },
+    invalidate(key) {
+      // Also clears a memoized "not configured yet", so a parameter created
+      // after the first read becomes visible without a restart.
+      cache.delete(key);
+    },
   };
 }
 
@@ -159,6 +172,10 @@ export function createStubSecretsAdapter(): StubSecretsAdapter {
     async deleteAbsolute(name) {
       consumeError();
       map.delete(name);
+    },
+    invalidate(_key) {
+      // The map is the backing store, not a cache in front of one, so every
+      // read already sees the current value.
     },
   };
 }
@@ -205,6 +222,11 @@ export function createLocalSecretsAdapter(opts: {
     async deleteAbsolute(name) {
       const data = load();
       delete data[name];
+    },
+    invalidate(_key) {
+      // The file is read once and held whole, so the only way back to the
+      // store is to drop all of it and re-read on the next access.
+      cache = null;
     },
   };
 }

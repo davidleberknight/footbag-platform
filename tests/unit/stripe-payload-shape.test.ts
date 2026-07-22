@@ -81,6 +81,16 @@ describe('Invoice: the subscription linkage the invoice handlers depend on', () 
     expect(declaresObjectField(invoiceObject, 'subscription')).toBe(false);
   });
 
+  it('lists invoices as the same object the handlers were checked against', () => {
+    // The nightly reconciliation reads invoices from the list endpoint rather
+    // than from a webhook, so the linkage checked above only holds for that pass
+    // if the list returns the same object type. If the list ever returns a
+    // narrower shape, the reconciliation read needs its own check.
+    expect(invoices).toMatch(
+      /list\(params\?: InvoiceListParams, options\?: RequestOptions\): ApiListPromise<Invoice>;/,
+    );
+  });
+
   it('still carries the amount and billing reason the handlers read', () => {
     expect(declaresObjectField(invoiceObject, 'amount_paid')).toBe(true);
     expect(declaresObjectField(invoiceObject, 'billing_reason')).toBe(true);
@@ -98,6 +108,29 @@ describe('Subscription, Charge and Checkout Session fields the handlers read', (
 
   it('charge still exposes the payment intent the refund handler matches on', () => {
     expect(declaresObjectField(typeSource('Charges'), 'payment_intent')).toBe(true);
+  });
+
+  it('charge still exposes both amounts the refund classification turns on', () => {
+    // A refund is recorded as full only when both are present and say so, since
+    // that reading is terminal. If either field moves, the classification would
+    // silently fall back to partial on every refund.
+    const charges = objectInterfaceBody(typeSource('Charges'), 'Charge');
+    expect(declaresObjectField(charges, 'amount')).toBe(true);
+    expect(declaresObjectField(charges, 'amount_refunded')).toBe(true);
+  });
+
+  it('dispute still exposes the identifiers and amount the queue item carries', () => {
+    const disputes = objectInterfaceBody(typeSource('Disputes'), 'Dispute');
+    expect(declaresObjectField(disputes, 'amount')).toBe(true);
+    expect(declaresObjectField(disputes, 'charge')).toBe(true);
+    expect(declaresObjectField(disputes, 'reason')).toBe(true);
+    expect(declaresObjectField(disputes, 'status')).toBe(true);
+  });
+
+  it('payout still exposes the amount and failure code the queue item carries', () => {
+    const payouts = objectInterfaceBody(typeSource('Payouts'), 'Payout');
+    expect(declaresObjectField(payouts, 'amount')).toBe(true);
+    expect(declaresObjectField(payouts, 'failure_code')).toBe(true);
   });
 
   it('checkout session still exposes its mode, subscription and customer', () => {

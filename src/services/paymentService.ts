@@ -9,7 +9,9 @@
  *   - `recurring_donation_subscriptions` current-state mirror writes and its
  *     append-only `recurring_donation_subscription_transitions` ledger
  *   - The member-level `members.stripe_customer_id` identity, established by a
- *     member's first recurring donation
+ *     member's first recurring donation and passed to every later checkout,
+ *     one-time or recurring, so a repeat payer stays on one provider-side
+ *     Customer instead of accumulating duplicates that split their history
  *   - Member-facing payment-history and recurring-donation reads
  *   - Member-facing payment-page view-model shaping (checkout, success, cancel,
  *     payment-history): the `get<Page>Page()` methods compose the full
@@ -38,6 +40,14 @@
  *   - Monotonic state transitions: enforced both by service code and by
  *     trg_payments_status_monotonicity. Every status change writes a
  *     payment_status_transitions row in the same transaction.
+ *   - A failed attempt is not a failed payment. While a checkout session is open
+ *     the buyer can try another card, so payment_intent.payment_failed records
+ *     the attempt in the transition ledger and leaves the row pending; the
+ *     session, not the attempt, is the unit of failure, and
+ *     checkout.session.expired is what settles an abandoned checkout. Recording
+ *     the attempt as terminal would make the success that follows it
+ *     unapplicable under the monotonic machine, charging a member who never
+ *     receives what they paid for.
  *   - Payment kill-switch: startMembershipPurchase and startDonation throw
  *     ServiceUnavailableError when payments_paused=1 (runtime config), before
  *     any eligibility check, rate-limit token, or createCheckoutSession call,
@@ -46,13 +56,26 @@
  *     the provider call: both checkout entry points and the cancellation. The
  *     cancellation reads its guard before an await, so an unthrottled double
  *     submit could otherwise call the provider twice and append two rows to an
- *     append-only ledger that records one row per event.
+ *     append-only ledger that records one row per event. The throttle narrows
+ *     that window; the cancel-intent write closes it, refusing to move a row
+ *     whose cancellation was already requested, so only the request that
+ *     actually moved it may append to the ledger.
  *   - Recurring donations mirror Stripe, never lead it. Stripe owns the annual
  *     billing cycle, the dunning schedule, and every retry; the local
  *     subscription row moves only in response to a webhook. A member's
  *     cancellation sets cancel_at_period_end at Stripe and records the intent
  *     locally, and the local status becomes canceled only when
  *     customer.subscription.deleted arrives. No platform-side schedule exists.
+ *   - Locally, canceled is terminal. Events can still arrive against an ended
+ *     subscription (a final invoice settling or failing late, a Dashboard edit),
+ *     and none of them revives it: the row keeps its canceled status and its
+ *     cancellation time, and the event is acknowledged with an audit entry.
+ *     A late charge that genuinely collected money still writes its payment row
+ *     and receipt, because the money moved even though the donation had ended.
+ *   - Stripe's paused status maps to past_due, since a paused subscription is
+ *     collecting nothing and the mirror has no paused state. That reading cannot
+ *     distinguish a pause from a failed charge, so a pause additionally raises a
+ *     work-queue item rather than being left to be inferred from the status.
  *   - A recurring checkout writes nothing locally: the subscription row id is
  *     minted at checkout only as the correlation key carried in Stripe
  *     subscription metadata, and the row is inserted by
@@ -74,17 +97,34 @@
  *     change records the provider event's own creation time in
  *     last_stripe_event_created, and an event older than the one already applied
  *     is a no-op duplicate, so a late-arriving success cannot undo a refund.
- *     For subscriptions the same hazard is handled by redelivery rather than by
- *     timestamps, since the mirror row may not exist yet.
+ *     Subscriptions carry the same stamp for the same reason; a mirror row that
+ *     does not exist yet is separately covered by asking for redelivery.
  *   - Only a full refund reaches the terminal refunded state. The status machine
  *     is monotonic and refunded is terminal, so recording a partial refund there
  *     would be unrecoverable, would misreport the payment on the member's own
  *     history, and would make a later full refund look like a duplicate. A
  *     partial refund is audited and queued for an administrator instead, as is a
- *     refund that matches no local payment.
+ *     refund that matches no local payment. A payload that does not state both
+ *     amounts is classified partial for the same reason: full is the reading
+ *     that cannot be walked back, so it is asserted only when the provider says
+ *     so outright.
+ *   - Disputes and failed payouts are recorded, never acted on. Neither can be
+ *     settled from here (a chargeback is decided provider-side, a payout failure
+ *     is repaired in the bank details), and a disputed payment intent still reads
+ *     succeeded, so nothing else in the system would ever notice. Each one raises
+ *     an audit entry and a work-queue item carrying the identifiers and amounts
+ *     an administrator needs; no payment status moves.
  *   - A per-cycle donation charge is inserted pending and then transitioned to
  *     succeeded inside the same transaction, so it writes a
  *     payment_status_transitions row like every other status change.
+ *   - One payment row per provider invoice, keyed on the invoice id the row
+ *     carries. The provider raises a payment event per attempt against an
+ *     invoice and each states the amount paid so far, so a later event restates
+ *     the amount on the existing row rather than inserting a second row that
+ *     would book the same money twice. A restatement moves no status, writes no
+ *     transition row, and sends no second receipt; it is audited. A unique index
+ *     backs the invariant, so a concurrent second delivery is answered as
+ *     recoverable and restates on redelivery.
  *   - Payment row written as 'pending' AFTER adapter.createCheckoutSession, in
  *     one INSERT already carrying stripe_checkout_session_id and, when Stripe
  *     created the PaymentIntent eagerly, stripe_payment_intent_id. Stripe may
@@ -128,7 +168,8 @@
  *     after the commit)
  *   - work_queue_items insert in the `payments` category for the money events an
  *     administrator must see: a declined recurring charge, a partially refunded
- *     payment, and a refund matching no local record
+ *     payment, a refund matching no local record, a card dispute, a failed
+ *     payout, and a subscription paused at the provider
  *
  * Provider contract:
  *   Payload shapes are specific to the pinned Stripe API version (see
@@ -204,6 +245,10 @@ export interface PaymentRow {
   descriptor: string;
   stripe_payment_intent_id: string | null;
   stripe_checkout_session_id: string | null;
+  /** The provider invoice a per-cycle charge settles; null on every other row.
+   *  One payment row per invoice, so this identifies the row a later payment
+   *  event against the same invoice restates. */
+  stripe_invoice_id: string | null;
   purchased_tier_status: 'tier1' | 'tier2' | null;
   /** Creation time of the most recent provider event applied to this row, used
    *  to recognise an out-of-order delivery. Null until the first event lands. */
@@ -231,6 +276,7 @@ export interface RecurringSubscriptionRow {
   canceled_at: string | null;
   donation_comment: string | null;
   failure_count: number;
+  last_stripe_event_created: string | null;
 }
 
 export interface StartDonationResult {
@@ -414,14 +460,6 @@ function validateEligibility(currentTier: MemberTier, target: 'tier1' | 'tier2')
       'Only Tier 0 or Tier 1 members can purchase Tier 2 IFPA Organizer Member.',
     );
   }
-}
-
-function lookupSlug(memberId: string): string {
-  const row = auth.findMemberForSessionAfterVerify.get(memberId) as
-    | { slug: string }
-    | undefined;
-  if (!row) throw new NotFoundError('member not found');
-  return row.slug;
 }
 
 function lookupMemberContact(memberId: string): { slug: string; loginEmail: string | null; realName: string | null } {
@@ -686,8 +724,10 @@ async function startMembershipPurchase(
     );
   }
 
-  const slug = lookupSlug(memberId);
-  const safeReturn = safeReturnTo(returnTo, `/members/${slug}`);
+  // The donor profile rather than the slug alone, because the checkout call
+  // below reuses the member's Stripe Customer when they already have one.
+  const profile = lookupDonorProfile(memberId);
+  const safeReturn = safeReturnTo(returnTo, `/members/${profile.slug}`);
 
   const amountCents = tierPriceCents(tier);
   const descriptor = tierDescriptor(tier);
@@ -713,6 +753,7 @@ async function startMembershipPurchase(
     purchasedTierStatus: tier,
     successUrl: buildSuccessUrl(safeReturn),
     cancelUrl: buildCancelUrl(safeReturn),
+    stripeCustomerId: profile.stripeCustomerId,
     metadata: { paymentId, memberId, tier },
   });
 
@@ -768,6 +809,31 @@ function handleWebhook(rawBody: string | Buffer, signature: string): WebhookOutc
   return dispatchEvent(event);
 }
 
+/**
+ * The event types the Stripe endpoint must be subscribed to.
+ *
+ * The provider decides which events it sends, and an endpoint configured with a
+ * narrower list silently drops the rest: money moves and nothing here ever runs.
+ * Because that failure is invisible from inside the application, this list is
+ * the single place the required set is written down, so endpoint setup and the
+ * dispatcher below cannot drift apart unnoticed.
+ */
+export const REQUIRED_WEBHOOK_EVENTS = [
+  'payment_intent.succeeded',
+  'payment_intent.payment_failed',
+  'charge.refunded',
+  'charge.dispute.created',
+  'charge.dispute.closed',
+  'charge.dispute.funds_withdrawn',
+  'payout.failed',
+  'checkout.session.expired',
+  'customer.subscription.created',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+  'invoice.payment_succeeded',
+  'invoice.payment_failed',
+] as const;
+
 function dispatchEvent(event: StripeWebhookEvent): WebhookOutcome {
   switch (event.type) {
     case 'payment_intent.succeeded':
@@ -776,6 +842,12 @@ function dispatchEvent(event: StripeWebhookEvent): WebhookOutcome {
       return handlePaymentIntentFailed(event);
     case 'charge.refunded':
       return handleChargeRefunded(event);
+    case 'charge.dispute.created':
+    case 'charge.dispute.closed':
+    case 'charge.dispute.funds_withdrawn':
+      return handleChargeDispute(event);
+    case 'payout.failed':
+      return handlePayoutFailed(event);
     case 'checkout.session.expired':
       return handleCheckoutExpired(event);
     case 'customer.subscription.created':
@@ -865,6 +937,25 @@ function eventIsStaleForPayment(payment: PaymentRow, event: StripeWebhookEvent):
   return (
     payment.last_stripe_event_created !== null
     && event.createdAt < payment.last_stripe_event_created
+  );
+}
+
+/**
+ * Whether this event predates the last one already applied to the subscription.
+ *
+ * The mirror carries the same out-of-order hazard as a payment: two Dashboard
+ * edits in quick succession can arrive inverted, and without this check the
+ * older amount or status would be written last and stay. Redelivery alone
+ * cannot cover it, because both events find the row present and both apply.
+ * Ties are treated as not-stale, so neither event is silently dropped.
+ */
+function eventIsStaleForSubscription(
+  sub: RecurringSubscriptionRow,
+  event: StripeWebhookEvent,
+): boolean {
+  return (
+    sub.last_stripe_event_created !== null
+    && event.createdAt < sub.last_stripe_event_created
   );
 }
 
@@ -997,33 +1088,40 @@ function handlePaymentIntentFailed(event: StripeWebhookEvent): WebhookOutcome {
     );
   }
   if (eventIsStaleForPayment(payment, event)) return recordIdempotentNoop(event, 'duplicate');
-  if (payment.status === 'failed') return recordIdempotentNoop(event, 'duplicate');
   if (payment.status !== 'pending') {
-    throw new RecoverableWebhookError(
-      `payment ${payment.id} cannot transition to failed from status=${payment.status}`,
-    );
+    // The payment already reached a settled state. A declined attempt reported
+    // afterwards describes an earlier moment in the same checkout and changes
+    // nothing; it must not be retried, because no redelivery could make it apply.
+    return recordIdempotentNoop(event, 'duplicate');
   }
 
+  // A declined attempt is not the end of the payment. The buyer stays on the
+  // Stripe-hosted page and may try another card, so the payment is still open
+  // and a later attempt on the same checkout session can succeed. Recording
+  // 'failed' here would be terminal under the monotonic status machine: the
+  // success that follows could never be applied, the member would be charged
+  // with no tier granted, and the event would be retried for days. The attempt
+  // is therefore written to the transition ledger and the row left pending;
+  // checkout.session.expired is what settles an abandoned checkout.
   const claimed = transaction(() => {
     if (!claimEvent(event)) return false;
-    const now = new Date().toISOString();
-    paymentsDb.updateStatusWithEventTime.run(
-      'failed', event.createdAt, now, 'payment_service', payment.id,
-    );
     recordTransition({
       paymentId: payment.id,
       fromStatus: 'pending',
-      toStatus: 'failed',
+      toStatus: 'pending',
       stripeEventId: event.id,
       eventType: event.type,
-      reasonText: 'payment_intent.payment_failed',
+      reasonText: 'payment attempt declined; the checkout session remains open',
     });
     return true;
   });
   if (!claimed) return { outcome: 'duplicate' };
 
   appendAuditEntry({
-    actionType: 'payment.failed',
+    // Named "declined" rather than "failed": a card the bank refused is an
+    // ordinary donor-side event, not a platform fault for an operator to act on,
+    // so it must not travel the operational-error path that raises the alarm.
+    actionType: 'payment.attempt_declined',
     category: 'payment',
     actorType: 'system',
     actorMemberId: null,
@@ -1044,26 +1142,33 @@ function handlePaymentIntentFailed(event: StripeWebhookEvent): WebhookOutcome {
 
 function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
   const obj = event.data?.object as
-    | { payment_intent?: string; amount?: number; amount_refunded?: number }
+    | { id?: string; payment_intent?: unknown; amount?: unknown; amount_refunded?: unknown; currency?: unknown }
     | undefined;
-  const paymentIntentId = typeof obj?.payment_intent === 'string' ? obj.payment_intent : null;
-  if (!paymentIntentId) {
-    throw new Error(
-      `charge.refunded event ${event.id} is missing data.object.payment_intent`,
-    );
-  }
-  const payment = paymentsDb.findByPaymentIntentId.get(paymentIntentId) as
-    | PaymentRow
-    | undefined;
-  if (!payment) {
-    // A refund the platform cannot attribute to one of its own payment rows.
-    // A per-cycle donation charge is the ordinary case: it is settled through an
-    // invoice, so its row carries no payment intent to match on. Retrying would
-    // never resolve it, so this is acknowledged and put in front of an
-    // administrator instead of becoming a multi-day retry storm that risks the
-    // provider disabling the endpoint for every other event too.
+  const chargeId = typeof obj?.id === 'string' ? obj.id : null;
+  const paymentIntentId = stripeIdFrom(obj?.payment_intent);
+  const chargeAmount = typeof obj?.amount === 'number' ? obj.amount : null;
+  const refundedAmount = typeof obj?.amount_refunded === 'number' ? obj.amount_refunded : null;
+  // The unattributed case has no local payment to read a currency from, so the
+  // charge's own currency is used, falling back to the platform default.
+  const refundCurrency = typeof obj?.currency === 'string' ? obj.currency : CURRENCY;
+  const refundedOn = event.createdAt.slice(0, 10);
+
+  // A refund the platform cannot attribute to one of its own payment rows. A
+  // per-cycle donation charge is the ordinary case: it is settled through an
+  // invoice, so its row carries no payment intent to match on. A charge with no
+  // payment intent at all reaches the same place: the provider leaves that
+  // reference empty for charges it did not create from one. Retrying would never
+  // resolve either, so this is acknowledged and put in front of an administrator
+  // instead of becoming a multi-day retry storm that risks the provider
+  // disabling the endpoint for every other event too.
+  const raiseUnattributedRefund = (
+    entityType: 'stripe_payment_intent' | 'stripe_charge',
+    entityId: string,
+    reasonText: string,
+  ): WebhookOutcome => {
     logger.warn('refund could not be attributed to a local payment', {
       stripePaymentIntentId: paymentIntentId,
+      stripeChargeId: chargeId,
       eventId: event.id,
     });
     const outcome = recordIdempotentNoop(event, 'ignored');
@@ -1071,24 +1176,67 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
       actorId: 'system',
       queueCategory: 'payments',
       taskType: 'unattributed_refund',
-      entityType: 'stripe_payment_intent',
-      entityId: paymentIntentId,
+      entityType,
+      entityId,
       priority: 0,
-      reasonText: 'A refund was processed that does not match any local payment record.',
-      detailText: null,
+      reasonText,
+      detailText: [
+        chargeId === null ? null : `Charge ${chargeId}`,
+        paymentIntentId === null ? null : `payment intent ${paymentIntentId}`,
+        refundedAmount === null ? null : `refunded ${formatAmount(refundedAmount, refundCurrency)}`,
+        chargeAmount === null ? null : `of ${formatAmount(chargeAmount, refundCurrency)} charged`,
+        `on ${refundedOn}`,
+      ]
+        .filter((part) => part !== null)
+        .join('; ') || null,
     });
     return outcome;
+  };
+
+  if (!paymentIntentId) {
+    if (!chargeId) {
+      // Neither identifier is present, so there is nothing an administrator
+      // could look up and nothing a redelivery would add.
+      logger.warn('charge.refunded event carries no charge or payment intent id', {
+        eventId: event.id,
+      });
+      return recordIdempotentNoop(event, 'ignored');
+    }
+    return raiseUnattributedRefund(
+      'stripe_charge',
+      chargeId,
+      'A refund was processed on a charge that carries no payment-intent reference, so it matches no local payment record.',
+    );
   }
+
+  const payment = paymentsDb.findByPaymentIntentId.get(paymentIntentId) as
+    | PaymentRow
+    | undefined;
+  if (!payment) {
+    return raiseUnattributedRefund(
+      'stripe_payment_intent',
+      paymentIntentId,
+      'A refund was processed that does not match any local payment record.',
+    );
+  }
+
+  // Staleness is judged before the refund is classified, so a refund event that
+  // has already been overtaken is dropped as the duplicate it is rather than
+  // raising a queue item an administrator would have to dismiss.
+  if (eventIsStaleForPayment(payment, event)) return recordIdempotentNoop(event, 'duplicate');
 
   // A partial refund is not the terminal refunded state. Marking it so would be
   // a lie the schema cannot walk back (the status machine is monotonic and
   // refunded is terminal), it would misreport the donation on the member's own
   // history, and it would make a later full refund look like a duplicate and be
   // silently dropped. Record it and raise it for a human instead.
-  const chargeAmount = typeof obj?.amount === 'number' ? obj.amount : null;
-  const refundedAmount = typeof obj?.amount_refunded === 'number' ? obj.amount_refunded : null;
+  //
+  // Amounts that are missing or not numeric therefore classify as partial. Full
+  // is the irreversible reading, so it is asserted only when the payload states
+  // both amounts and they say so; anything less keeps the payment in a state an
+  // administrator can still resolve either way.
   const isFullRefund =
-    chargeAmount === null || refundedAmount === null || refundedAmount >= chargeAmount;
+    chargeAmount !== null && refundedAmount !== null && refundedAmount >= chargeAmount;
   if (!isFullRefund) {
     const outcome = recordIdempotentNoop(event, 'ignored');
     appendAuditEntry({
@@ -1114,13 +1262,28 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
       entityType: 'payment',
       entityId: payment.id,
       priority: 0,
-      reasonText: 'A payment was partially refunded; the platform records only full refunds.',
-      detailText: null,
+      reasonText:
+        chargeAmount === null || refundedAmount === null
+          ? 'A refund was processed but its amount could not be read, so it was not recorded as a full refund.'
+          : 'A payment was partially refunded; the platform records only full refunds.',
+      detailText: [
+        `Payment ${payment.id}`,
+        chargeAmount === null
+          ? 'charge amount not reported'
+          : `charged ${formatAmount(chargeAmount, payment.currency)}`,
+        refundedAmount === null
+          ? 'refunded amount not reported'
+          : `refunded ${formatAmount(refundedAmount, payment.currency)}`,
+        chargeId === null ? null : `charge ${chargeId}`,
+        `payment intent ${paymentIntentId}`,
+        `on ${refundedOn}`,
+      ]
+        .filter((part) => part !== null)
+        .join('; '),
     });
     return outcome;
   }
 
-  if (eventIsStaleForPayment(payment, event)) return recordIdempotentNoop(event, 'duplicate');
   if (payment.status === 'refunded') return recordIdempotentNoop(event, 'duplicate');
   if (payment.status !== 'succeeded') {
     throw new RecoverableWebhookError(
@@ -1162,6 +1325,186 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
       stripe_event_id: event.id,
       stripe_payment_intent_id: paymentIntentId,
     },
+  });
+  return { outcome: 'processed' };
+}
+
+/**
+ * Records a card dispute (chargeback) for an administrator to work in Stripe.
+ *
+ * A dispute is money leaving the account, and the platform cannot settle one:
+ * evidence is submitted and the outcome decided provider-side. So the local
+ * payment keeps the status it earned, and the durable record is an audit entry
+ * plus a queue item carrying every identifier an administrator needs to find the
+ * dispute. Without it a chargeback is invisible here: the payment intent still
+ * reads succeeded, so the nightly reconciliation pass compares clean.
+ */
+function handleChargeDispute(event: StripeWebhookEvent): WebhookOutcome {
+  const obj = event.data?.object as
+    | {
+        id?: string;
+        amount?: number;
+        currency?: string;
+        charge?: unknown;
+        payment_intent?: unknown;
+        reason?: string;
+        status?: string;
+      }
+    | undefined;
+  const disputeId = typeof obj?.id === 'string' ? obj.id : null;
+  if (!disputeId) {
+    // Nothing identifies the dispute, so there is no actionable item to raise
+    // and retrying cannot improve the payload. Acknowledge it loudly instead of
+    // failing forever.
+    logger.warn('stripe dispute event carries no dispute id', {
+      eventId: event.id,
+      type: event.type,
+    });
+    return recordIdempotentNoop(event, 'ignored');
+  }
+
+  const claimed = transaction(() => claimEvent(event));
+  if (!claimed) return { outcome: 'duplicate' };
+
+  const chargeId = stripeIdFrom(obj?.charge);
+  const paymentIntentId = stripeIdFrom(obj?.payment_intent);
+  const amountCents = typeof obj?.amount === 'number' ? obj.amount : null;
+  const currency = typeof obj?.currency === 'string' ? obj.currency.toUpperCase() : CURRENCY;
+  const reason = typeof obj?.reason === 'string' ? obj.reason : null;
+  const status = typeof obj?.status === 'string' ? obj.status : null;
+
+  const actionType =
+    event.type === 'charge.dispute.created'
+      ? 'payment.dispute_opened'
+      : event.type === 'charge.dispute.closed'
+        ? 'payment.dispute_closed'
+        : 'payment.dispute_funds_withdrawn';
+
+  logger.warn('stripe reported a payment dispute', {
+    eventId: event.id,
+    type: event.type,
+    disputeId,
+    chargeId,
+  });
+
+  appendAuditEntry({
+    actionType,
+    category: 'payment',
+    actorType: 'system',
+    actorMemberId: null,
+    entityType: 'stripe_dispute',
+    entityId: disputeId,
+    reasonText: null,
+    metadata: {
+      stripe_event_id: event.id,
+      stripe_event_type: event.type,
+      stripe_dispute_id: disputeId,
+      stripe_charge_id: chargeId,
+      stripe_payment_intent_id: paymentIntentId,
+      amount_cents: amountCents,
+      currency,
+      dispute_reason: reason,
+      dispute_status: status,
+    },
+  });
+
+  workQueueService.enqueue({
+    actorId: 'system',
+    queueCategory: 'payments',
+    taskType: 'charge_dispute_review',
+    entityType: 'stripe_dispute',
+    entityId: disputeId,
+    priority: 0,
+    reasonText:
+      'A card dispute was raised against a payment; it must be worked in the Stripe dashboard.',
+    detailText: [
+      `Dispute ${disputeId}`,
+      amountCents === null ? null : `amount ${formatAmount(amountCents, currency)}`,
+      reason === null ? null : `reason ${reason}`,
+      status === null ? null : `status ${status}`,
+      chargeId === null ? null : `charge ${chargeId}`,
+      paymentIntentId === null ? null : `payment intent ${paymentIntentId}`,
+    ]
+      .filter((part) => part !== null)
+      .join('; '),
+  });
+  return { outcome: 'processed' };
+}
+
+/**
+ * Records a failed payout for an administrator to work in Stripe.
+ *
+ * A payout failure means collected money never reached the organization's bank
+ * account, and it is repaired provider-side (bank details, account state), so
+ * this raises it rather than acting on it. Nothing in the payment ledger changes:
+ * the donations themselves succeeded.
+ */
+function handlePayoutFailed(event: StripeWebhookEvent): WebhookOutcome {
+  const obj = event.data?.object as
+    | {
+        id?: string;
+        amount?: number;
+        currency?: string;
+        failure_code?: string;
+        failure_message?: string;
+      }
+    | undefined;
+  const payoutId = typeof obj?.id === 'string' ? obj.id : null;
+  if (!payoutId) {
+    logger.warn('stripe payout event carries no payout id', { eventId: event.id });
+    return recordIdempotentNoop(event, 'ignored');
+  }
+
+  const claimed = transaction(() => claimEvent(event));
+  if (!claimed) return { outcome: 'duplicate' };
+
+  const amountCents = typeof obj?.amount === 'number' ? obj.amount : null;
+  const currency = typeof obj?.currency === 'string' ? obj.currency.toUpperCase() : CURRENCY;
+  const failureCode = typeof obj?.failure_code === 'string' ? obj.failure_code : null;
+  const failureMessage = typeof obj?.failure_message === 'string' ? obj.failure_message : null;
+
+  logger.warn('stripe reported a failed payout', {
+    eventId: event.id,
+    payoutId,
+    failureCode,
+  });
+
+  appendAuditEntry({
+    // Named "rejected" rather than "failed": the receiving bank refused the
+    // transfer, which an administrator repairs in the account details, and it
+    // must not travel the operational-error path that raises the alarm.
+    actionType: 'payment.payout_rejected',
+    category: 'payment',
+    actorType: 'system',
+    actorMemberId: null,
+    entityType: 'stripe_payout',
+    entityId: payoutId,
+    reasonText: null,
+    metadata: {
+      stripe_event_id: event.id,
+      stripe_payout_id: payoutId,
+      amount_cents: amountCents,
+      currency,
+      failure_code: failureCode,
+    },
+  });
+
+  workQueueService.enqueue({
+    actorId: 'system',
+    queueCategory: 'payments',
+    taskType: 'payout_failed',
+    entityType: 'stripe_payout',
+    entityId: payoutId,
+    priority: 0,
+    reasonText: 'A payout to the organization bank account failed at Stripe.',
+    detailText: [
+      `Payout ${payoutId}`,
+      amountCents === null ? null : `amount ${formatAmount(amountCents, currency)}`,
+      failureCode === null ? null : `failure ${failureCode}`,
+      failureMessage,
+    ]
+      .filter((part) => part !== null)
+      .join('; '),
   });
   return { outcome: 'processed' };
 }
@@ -1284,7 +1627,11 @@ function eventMetadata(event: StripeWebhookEvent): Record<string, unknown> {
 
 /** Maps Stripe's subscription status vocabulary onto the three states the
  *  platform mirrors. Stripe's pre-payment states are not yet a live donation, so
- *  they are reported as past_due rather than active. */
+ *  they are reported as past_due rather than active. A paused subscription is
+ *  collecting nothing either, and the platform has no paused state of its own, so
+ *  it reads as past_due as well; because that reading loses the distinction
+ *  between a pause and a failed charge, the update handler also raises the pause
+ *  for an administrator rather than leaving it to be inferred. */
 function mapStripeSubscriptionStatus(raw: unknown): SubscriptionStatus | null {
   switch (raw) {
     case 'active':
@@ -1293,6 +1640,7 @@ function mapStripeSubscriptionStatus(raw: unknown): SubscriptionStatus | null {
     case 'past_due':
     case 'unpaid':
     case 'incomplete':
+    case 'paused':
       return 'past_due';
     case 'canceled':
     case 'incomplete_expired':
@@ -1444,6 +1792,63 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
   return { outcome: 'processed' };
 }
 
+/**
+ * A payment event against an invoice whose charge is already recorded.
+ *
+ * The provider emits one such event per payment attempt and each restates the
+ * amount paid on that invoice so far, so the recorded amount moves to the
+ * restated figure. No status transition is written: the money already settled
+ * and the transition ledger records status changes only. No receipt is sent
+ * either, because the member was sent one when the charge was first recorded and
+ * a restated total is bookkeeping rather than a new donation.
+ */
+function restateRecordedInvoiceCharge(
+  event: StripeWebhookEvent,
+  payment: PaymentRow,
+  charge: {
+    amountCents: number;
+    invoiceId: string;
+    stripeSubscriptionId: string;
+    subscriptionId: string;
+    memberId: string;
+    currency: string;
+  },
+): WebhookOutcome {
+  if (eventIsStaleForPayment(payment, event)) return recordIdempotentNoop(event, 'duplicate');
+
+  const now = new Date().toISOString();
+  const claimed = transaction(() => {
+    if (!claimEvent(event)) return false;
+    paymentsDb.updateChargeAmountWithEventTime.run(
+      charge.amountCents, event.createdAt, now, 'payment_service', payment.id,
+    );
+    return true;
+  });
+  if (!claimed) return { outcome: 'duplicate' };
+
+  appendAuditEntry({
+    actionType: 'payment.recurring_charge_amount_updated',
+    category: 'payment',
+    actorType: 'system',
+    actorMemberId: null,
+    entityType: 'payment',
+    entityId: payment.id,
+    reasonText: null,
+    metadata: {
+      member_id: charge.memberId,
+      recurring_subscription_id: charge.subscriptionId,
+      stripe_event_id: event.id,
+      stripe_invoice_id: charge.invoiceId,
+      stripe_subscription_id: charge.stripeSubscriptionId,
+      previous_amount_cents: payment.amount_cents,
+      amount_cents: charge.amountCents,
+      currency: charge.currency,
+    },
+  });
+
+  return { outcome: 'processed' };
+}
+
 function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcome {
   const found = loadSubscription(invoiceSubscriptionId(event));
   // The invoice can beat customer.subscription.created through the queue, so a
@@ -1460,11 +1865,30 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
   const amountCents =
     typeof obj.amount_paid === 'number' ? obj.amount_paid : sub.amount_cents;
 
+  // The provider sends one of these per payment attempt on an invoice, each
+  // carrying the amount paid so far rather than the amount of that attempt, so a
+  // second row for an invoice already recorded would book the same money twice.
+  if (invoiceId !== null) {
+    const recorded = paymentsDb.findByStripeInvoiceId.get(invoiceId) as PaymentRow | undefined;
+    if (recorded) {
+      return restateRecordedInvoiceCharge(event, recorded, {
+        amountCents,
+        invoiceId,
+        stripeSubscriptionId,
+        subscriptionId: sub.id,
+        memberId: sub.member_id,
+        currency: sub.currency,
+      });
+    }
+  }
+
   const paymentId = newPaymentId();
   const now = new Date().toISOString();
   const descriptor = donationDescriptor(sub.donation_comment, true);
 
-  const claimed = transaction(() => {
+  let claimed: boolean;
+  try {
+    claimed = transaction(() => {
     if (!claimEvent(event)) return false;
     // Inserted pending and then transitioned, rather than inserted succeeded, so
     // this charge writes a payment_status_transitions row like every other
@@ -1476,12 +1900,16 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
       amountCents, sub.currency,
       descriptor,
       sub.donation_comment,
-      JSON.stringify({ stripe_invoice_id: invoiceId }),
       sub.stripe_customer_id,
       stripeSubscriptionId,
+      invoiceId,
       sub.id,
     );
-    paymentsDb.updateStatus.run('succeeded', now, 'payment_service', paymentId);
+    // Stamped with the event's own creation time so a later payment event on
+    // this invoice can tell whether it is newer than what is already recorded.
+    paymentsDb.updateStatusWithEventTime.run(
+      'succeeded', event.createdAt, now, 'payment_service', paymentId,
+    );
     pstDb.insertSubscriptionTransition.run(
       newTransitionId(),
       now,
@@ -1505,18 +1933,35 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
       eventType: event.type,
       lifecycleEventCode: 'charge_succeeded',
       oldStatus: sub.status,
-      newStatus: 'active',
-      reasonText: null,
+      newStatus: sub.status === 'canceled' ? 'canceled' : 'active',
+      reasonText:
+        sub.status === 'canceled'
+          ? 'a charge settled after the donation had already ended'
+          : null,
     });
     // A successful charge clears a past_due subscription without waiting for a
-    // separate customer.subscription.updated event.
-    if (sub.status !== 'active') {
+    // separate customer.subscription.updated event. An ended donation is not
+    // revived, though: cancellation is final locally, and a charge that settles
+    // afterwards (a last invoice paying late) is money that genuinely moved, so
+    // it is recorded as the charge it is while the donation stays ended.
+    if (sub.status !== 'active' && sub.status !== 'canceled') {
       subsDb.updateStatus.run(
-        'active', now, event.id, now, 'payment_service', sub.id,
+        'active', now, event.id, event.createdAt, now, 'payment_service', sub.id,
       );
     }
     return true;
-  });
+    });
+  } catch (err) {
+    // Another delivery for this same invoice inserted the row between the
+    // lookup above and this insert. Nothing committed, so answering recoverable
+    // lets the redelivery find the row and restate the amount on it instead.
+    if (err instanceof Error && (err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      throw new RecoverableWebhookError(
+        `invoice charge for event ${event.id} was recorded by a concurrent delivery`,
+      );
+    }
+    throw err;
+  }
   if (!claimed) return { outcome: 'duplicate' };
 
   appendAuditEntry({
@@ -1555,11 +2000,38 @@ function handleInvoicePaymentFailed(event: StripeWebhookEvent): WebhookOutcome {
     const id = eventObject(event).id;
     return typeof id === 'string' ? id : null;
   })();
+
+  // An ended donation stays ended. Stripe can report a failed collection after
+  // the subscription is already gone (the last dunning attempt on a final
+  // invoice), and moving a canceled row back to past_due would both contradict
+  // the cancellation and violate the rule that only a canceled row may carry a
+  // cancellation time. Nothing is owed and no member action would help, so this
+  // is recorded and acknowledged rather than acted on.
+  if (sub.status === 'canceled') {
+    const outcome = recordIdempotentNoop(event, 'ignored');
+    appendAuditEntry({
+      actionType: 'payment.recurring_charge_declined',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'recurring_donation_subscription',
+      entityId: sub.id,
+      reasonText: 'the donation had already ended when the charge failed',
+      metadata: {
+        member_id: sub.member_id,
+        stripe_event_id: event.id,
+        stripe_invoice_id: invoiceId,
+        stripe_subscription_id: stripeSubscriptionId,
+      },
+    });
+    return outcome;
+  }
+
   const now = new Date().toISOString();
 
   const claimed = transaction(() => {
     if (!claimEvent(event)) return false;
-    subsDb.markPastDue.run(now, event.id, now, 'payment_service', sub.id);
+    subsDb.markPastDue.run(now, event.id, event.createdAt, now, 'payment_service', sub.id);
     recordSubscriptionTransition({
       subscriptionId: sub.id,
       memberId: sub.member_id,
@@ -1610,7 +2082,14 @@ function handleInvoicePaymentFailed(event: StripeWebhookEvent): WebhookOutcome {
     entityId: sub.id,
     priority: 0,
     reasonText: 'A recurring donation renewal charge failed at Stripe.',
-    detailText: null,
+    detailText: [
+      `Subscription ${stripeSubscriptionId}`,
+      `amount ${formatAmount(sub.amount_cents, sub.currency)}`,
+      invoiceId === null ? null : `invoice ${invoiceId}`,
+      `charge failed on ${event.createdAt.slice(0, 10)}`,
+    ]
+      .filter((part) => part !== null)
+      .join('; '),
   });
 
   const updated = subsDb.findById.get(sub.id) as RecurringSubscriptionRow;
@@ -1638,7 +2117,7 @@ function handleSubscriptionDeleted(event: StripeWebhookEvent): WebhookOutcome {
   const now = new Date().toISOString();
   const claimed = transaction(() => {
     if (!claimEvent(event)) return false;
-    subsDb.markCanceled.run(now, now, event.id, now, 'payment_service', sub.id);
+    subsDb.markCanceled.run(now, now, event.id, event.createdAt, now, 'payment_service', sub.id);
     recordSubscriptionTransition({
       subscriptionId: sub.id,
       memberId: sub.member_id,
@@ -1703,8 +2182,33 @@ function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
   }
   const { row: sub, stripeSubscriptionId } = found;
 
+  // An ended donation stays ended. A change reported against a subscription the
+  // platform has already recorded as canceled cannot be applied without
+  // contradicting the cancellation, and the row would then carry a cancellation
+  // time while claiming to be live.
+  if (sub.status === 'canceled') {
+    const outcome = recordIdempotentNoop(event, 'ignored');
+    appendAuditEntry({
+      actionType: 'payment.recurring_donation_updated',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'recurring_donation_subscription',
+      entityId: sub.id,
+      reasonText: 'the donation had already ended when the change was reported',
+      metadata: {
+        member_id: sub.member_id,
+        stripe_event_id: event.id,
+        stripe_subscription_id: stripeSubscriptionId,
+      },
+    });
+    return outcome;
+  }
+  if (eventIsStaleForSubscription(sub, event)) return recordIdempotentNoop(event, 'duplicate');
+
   const obj = eventObject(event);
-  const nextStatus = mapStripeSubscriptionStatus(obj.status) ?? sub.status;
+  const rawStatus = obj.status;
+  const nextStatus = mapStripeSubscriptionStatus(rawStatus) ?? sub.status;
   const items = (obj.items as { data?: Array<{ price?: { unit_amount?: unknown } }> } | undefined)
     ?.data;
   const rawAmount = items?.[0]?.price?.unit_amount;
@@ -1724,7 +2228,7 @@ function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
   const claimed = transaction(() => {
     if (!claimEvent(event)) return false;
     subsDb.updateAmountAndStatus.run(
-      nextAmount, nextStatus, now, event.id, now, 'payment_service', sub.id,
+      nextAmount, nextStatus, now, event.id, event.createdAt, now, 'payment_service', sub.id,
     );
     recordSubscriptionTransition({
       subscriptionId: sub.id,
@@ -1758,8 +2262,29 @@ function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
       new_status: nextStatus,
       old_amount_cents: sub.amount_cents,
       new_amount_cents: nextAmount,
+      stripe_status: typeof rawStatus === 'string' ? rawStatus : null,
     },
   });
+
+  // A pause collects nothing but is not a failed charge, and the mirror has no
+  // state that tells the two apart. Raising it keeps a donation that has quietly
+  // stopped paying from reading as an ordinary dunning problem that Stripe will
+  // resolve on its own.
+  if (rawStatus === 'paused') {
+    workQueueService.enqueue({
+      actorId: 'system',
+      queueCategory: 'payments',
+      taskType: 'recurring_donation_paused',
+      entityType: 'recurring_donation_subscription',
+      entityId: sub.id,
+      priority: 0,
+      reasonText: 'A recurring donation was paused at Stripe and is no longer collecting.',
+      detailText: [
+        `Subscription ${stripeSubscriptionId}`,
+        `amount ${formatAmount(nextAmount, sub.currency)}`,
+      ].join('; '),
+    });
+  }
   return { outcome: 'processed' };
 }
 
@@ -1999,7 +2524,8 @@ function shapeRecurringRow(
  * once the subscription is mirrored the member sees the confirmed amount; before
  * then they see a truthful "being set up" message rather than a not-found page
  * after having just paid. A reference naming another member's subscription is
- * reported as not found, so the parameter cannot be used to read anything.
+ * indistinguishable from an unknown one: both show the generic being-set-up
+ * page, so the parameter reveals nothing about who owns a subscription.
  */
 function getDonationSuccessPage(
   memberId: string,
@@ -2008,9 +2534,11 @@ function getDonationSuccessPage(
 ): PageViewModel<SuccessContent> | null {
   if (!subscriptionRef.startsWith('rds_')) return null;
   const sub = subsDb.findById.get(subscriptionRef) as RecurringSubscriptionRow | undefined;
-  if (sub && sub.member_id !== memberId) return null;
 
-  const confirmed = sub !== undefined;
+  // Confirmed only for the owner's own mirrored subscription. A missing row and
+  // a row owned by someone else both fall through to the same generic page, so
+  // the reference cannot be used to probe another member's subscription.
+  const confirmed = sub !== undefined && sub.member_id === memberId;
   return {
     seo: { title: 'Thank you' },
     page: { sectionKey: '', pageKey: 'payment_success', title: 'Thank you' },
@@ -2203,6 +2731,7 @@ async function startDonation(
     paymentType: 'donation',
     successUrl: buildSuccessUrl(safeReturn),
     cancelUrl: buildCancelUrl(safeReturn),
+    stripeCustomerId: profile.stripeCustomerId,
     metadata: { paymentId, memberId },
   });
 
@@ -2287,9 +2816,15 @@ async function cancelRecurringDonation(
   const adapter = getPaymentAdapter();
   await adapter.cancelSubscriptionAtPeriodEnd(stripeSubscriptionId);
 
+  // The guard above was read before the provider call, so two simultaneous
+  // submits can both reach here. The UPDATE refuses to move a row whose
+  // cancellation was already requested, and only the request that actually moved
+  // it may append to the ledger: the ledger documents one row per action, and the
+  // member asked once.
   const now = new Date().toISOString();
-  transaction(() => {
-    subsDb.markCancelRequested.run(now, now, 'payment_service', sub.id);
+  const recorded = transaction(() => {
+    const res = subsDb.markCancelRequested.run(now, now, 'payment_service', sub.id);
+    if (res.changes === 0) return false;
     recordSubscriptionTransition({
       subscriptionId: sub.id,
       memberId,
@@ -2302,7 +2837,9 @@ async function cancelRecurringDonation(
       newStatus: sub.status,
       reasonText: 'member requested cancellation at period end',
     });
+    return true;
   });
+  if (!recorded) return { status: 'already_requested' };
 
   appendAuditEntry({
     actionType: 'payment.recurring_cancel_requested',

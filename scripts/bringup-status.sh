@@ -95,6 +95,7 @@ declare -A P=(
   [ENV_BACKUP_S3_BUCKET]=unset
   [ENV_PAYMENT_ADAPTER]=""
   [ENV_WEBHOOK_SECRET]=unset
+  [ENV_WEBHOOK_SECRET_PREVIOUS]=unset
   [TIMER_ACTIVE]=unknown
   [CONTAINERS]=unknown
   [TF_PLAN]=unknown
@@ -146,6 +147,7 @@ else
         [[ -n "$(get_env BACKUP_S3_BUCKET)" ]] && P[ENV_BACKUP_S3_BUCKET]=set
         P[ENV_PAYMENT_ADAPTER]="$(get_env PAYMENT_ADAPTER)"
         [[ -n "$(get_env STRIPE_WEBHOOK_SECRET)" ]] && P[ENV_WEBHOOK_SECRET]=set
+        [[ -n "$(get_env STRIPE_WEBHOOK_SECRET_PREVIOUS)" ]] && P[ENV_WEBHOOK_SECRET_PREVIOUS]=set
       fi
       if [[ -n "$REPORT_RAW" ]]; then
         P[TIMER_ACTIVE]="$(awk 'NR==1' <<< "$REPORT_RAW")"
@@ -280,12 +282,17 @@ case "${P[TF_PLAN]}" in
 esac
 
 # 3. Payments activation
+ROTATION_NOTE=""
+if [[ "${P[ENV_WEBHOOK_SECRET_PREVIOUS]}" == "set" ]]; then
+  ROTATION_NOTE="; rotation window open (STRIPE_WEBHOOK_SECRET_PREVIOUS set), close it with activate-payments.sh --complete-webhook-rotation"
+fi
 if [[ "$TARGET" == "staging" && "${P[ENV_PAYMENT_ADAPTER]}" != "live" ]]; then
   row 3 "Payments" N-A "staging runs the stub adapter by default; activate only to exercise real Stripe"
 elif [[ "${P[SSM_STRIPE_KEY]}" == "live" && "${P[ENV_PAYMENT_ADAPTER]}" == "live" && "${P[ENV_WEBHOOK_SECRET]}" == "set" ]]; then
-  row 3 "Payments" DONE "SSM key live, PAYMENT_ADAPTER=live, webhook secret set"
+  row 3 "Payments" DONE "SSM key live, PAYMENT_ADAPTER=live, webhook secret set${ROTATION_NOTE}"
+  [[ -n "$ROTATION_NOTE" ]] && next_cmd "scripts/activate-payments.sh --target $TARGET --complete-webhook-rotation   (close the open rotation window)"
 else
-  DETAIL="SSM key: ${P[SSM_STRIPE_KEY]}, PAYMENT_ADAPTER: ${P[ENV_PAYMENT_ADAPTER]:-unset}, webhook secret: ${P[ENV_WEBHOOK_SECRET]}"
+  DETAIL="SSM key: ${P[SSM_STRIPE_KEY]}, PAYMENT_ADAPTER: ${P[ENV_PAYMENT_ADAPTER]:-unset}, webhook secret: ${P[ENV_WEBHOOK_SECRET]}${ROTATION_NOTE}"
   row 3 "Payments" PENDING "$DETAIL"
   next_cmd "scripts/activate-payments.sh --target $TARGET --profile <profile>   (at the payments-activation milestone, not before)"
 fi

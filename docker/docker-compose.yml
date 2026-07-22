@@ -71,7 +71,7 @@ services:
       # the project-root .env file.
       NODE_ENV: production
       PORT: "3000"
-      LOG_LEVEL: info
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       FOOTBAG_DB_PATH: /app/db/footbag.db
       PUBLIC_BASE_URL: http://localhost
       SESSION_SECRET: ${SESSION_SECRET}
@@ -158,7 +158,7 @@ services:
       NODE_ENV: production
       IMAGE_PORT: "4000"
       IMAGE_MAX_CONCURRENT: "2"
-      LOG_LEVEL: info
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?set in .env or launch via npm run compose:dev (worker<->web auth)}
     restart: unless-stopped
     healthcheck:
@@ -185,7 +185,7 @@ services:
       # parity stack, not just web.
       NODE_ENV: production
       PORT: "3000"
-      LOG_LEVEL: info
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       FOOTBAG_DB_PATH: /app/db/footbag.db
       PUBLIC_BASE_URL: http://localhost
       SESSION_SECRET: ${SESSION_SECRET}

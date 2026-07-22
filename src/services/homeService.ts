@@ -102,7 +102,7 @@ export const homeService = {
         {
           label: 'Hall of Fame',
           href: '/hof',
-          description: 'Honouring the pioneers, champions, and promoters of footbag sports.',
+          description: 'Honoring the pioneers, champions, and promoters of footbag sports.',
         },
         {
           label: 'Big Add Posse',

@@ -2939,7 +2939,11 @@ infrastructure and live co-located with the stub adapter that uses
 them (e.g. STUB_WEBHOOK_SECRET in src/adapters/paymentAdapter.ts),
 never in the dev-bootstrap subtree, and are never
 shared with any production secret value. They ship in the production
-image but are refused at boot, not excluded from it.
+image but are refused at boot, not excluded from it. Because the
+literal is committed source, it covers only environments whose
+endpoint is unreachable: a deployment that exposes a stub-signed
+endpoint supplies its own generated secret instead, and the literal
+is the fallback rather than the value.
 
 Rationale:
 
@@ -3026,7 +3030,7 @@ Rationale:
 
 The platform uses two distinct Stripe payment models:
 
-- One-time payments (membership dues, event registrations, one-time donations): Implemented via Stripe Checkout in payment mode. State transitions are keyed by payment_intent_id. The enforced state machine is: pending → succeeded on payment_intent.succeeded; pending → failed on payment_intent.payment_failed; succeeded → refunded on charge.refunded.
+- One-time payments (membership dues, event registrations, one-time donations): Implemented via Stripe Checkout in payment mode. State transitions are keyed by payment_intent_id. The enforced state machine is: pending → succeeded on payment_intent.succeeded; pending → canceled on checkout.session.expired; succeeded → refunded on charge.refunded. A declined attempt does not move the record: while the checkout session is open the buyer may present another card, so payment_intent.payment_failed records the attempt on the transition ledger and leaves the payment pending. Recording the decline as terminal would make the success that follows it unapplicable under the monotonic machine, charging a member who never receives what they paid for.
 
 - Recurring annual donations: Implemented via Stripe Subscriptions. The platform creates or reuses a Stripe Customer object for each member (stripeCustomerId stored on the member record) and creates a yearly Stripe Subscription via Stripe Checkout in subscription mode. The platform does not manage the billing schedule or retries. Stripe owns the annual renewal cycle, dunning configuration, and retry logic. Local state transitions are driven entirely by incoming webhooks: active on customer.subscription.created; a new payment record created on invoice.payment_succeeded; local status set to past_due on invoice.payment_failed; local status set to canceled on customer.subscription.deleted. The Stripe Billing dunning schedule (number of retries, intervals) is configured by a System Administrator in the Stripe Dashboard and is not replicated in application configuration. The subscription linkage on an invoice is read from the invoice's parent subscription details, not from a top-level field, and the Stripe API version is pinned explicitly in the payment adapter with the webhook endpoint's version kept equal to it; payload shapes are version-specific and an unpinned SDK can reshape them under working code.
 
@@ -3568,8 +3572,8 @@ Stripe webhook signing secrets are environment-scoped: each
 environment has its own STRIPE_WEBHOOK_SECRET env var sourced from
 an environment-specific origin. Local development sources a rotating
 secret from `stripe listen` CLI output; staging runs
-PAYMENT_ADAPTER=stub and validates against the deterministic stub
-literal (§5.7); production sources the Live-mode whsec_ from AWS SSM
+PAYMENT_ADAPTER=stub and validates against a per-deployment
+generated stub secret (§5.7); production sources the Live-mode whsec_ from AWS SSM
 Parameter Store. Webhook verification accepts only the active
 environment's secret.
 
@@ -3584,8 +3588,8 @@ Rationale:
   locally with the production secret can sign events that production
   will accept. Environment-scope makes this impossible by
   construction.
-- Source-per-environment (Stripe CLI for dev, stub literal for
-  staging, SSM for prod) matches the §3.6 secrets-management
+- Source-per-environment (Stripe CLI for dev, a generated
+  per-deployment value for staging, SSM for prod) matches the §3.6 secrets-management
   pattern: every secret has exactly one canonical source per
   environment with no fallback or default that could mask a missing
   configuration.
@@ -3603,8 +3607,13 @@ Requirements:
   `stripe listen --forward-to localhost:3000/payments/webhook`
   output (Stripe CLI prints a fresh whsec_ per invocation).
 - In staging, the live secret value is unused at runtime; staging
-  runs PAYMENT_ADAPTER=stub and validates against the adapter-
-  co-located stub literal (STUB_WEBHOOK_SECRET) per §5.7.
+  runs PAYMENT_ADAPTER=stub and signs and verifies with
+  STRIPE_WEBHOOK_SECRET_STUB, a value generated per deployment and
+  held in the host env file. The adapter's co-located literal (§5.7)
+  is the fallback for development and test only: it is committed
+  source, so a reachable endpoint still using it would accept a
+  delivery forged by anyone holding a copy of the repository. Boot
+  refuses a staging stub host that supplies no value of its own.
 - In production, the secret value comes from an environment-specific
   AWS SSM Parameter Store entry. Production boot refuses an empty or
   default value.

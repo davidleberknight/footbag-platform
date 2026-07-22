@@ -9,6 +9,9 @@
   {{#if content.resolvedFlag}}
     <p class="form-success-banner" role="status">Item resolved and email reply dispatched.</p>
   {{/if}}
+  {{#if content.resolvedQuietFlag}}
+    <p class="form-success-banner" role="status">Item resolved.</p>
+  {{/if}}
   {{#if content.reviewedFlag}}
     <p class="form-success-banner" role="status">Item marked reviewed.</p>
   {{/if}}
@@ -48,6 +51,9 @@
           {{/if}}
           {{#if detailText}}
             <p class="text-secondary">{{detailText}}</p>
+          {{/if}}
+          {{#if entityReference}}
+            <p class="card-meta">{{entityReference.label}} {{entityReference.id}}</p>
           {{/if}}
 
           {{#if isClaimed}}
@@ -109,7 +115,9 @@
               <p class="card-meta">Linking is not reverted here. To undo a wrong link, open a member link-help dispute and use the revert action.</p>
               <button type="submit" class="btn btn-outline btn-sm">Mark Reviewed</button>
             </form>
-          {{else}}
+          {{else if isReconciliationItem}}
+            <p><a href="/admin/payments/reconciliation" class="btn btn-outline btn-sm">Review on the Reconciliation Page</a></p>
+          {{else if showResolveForm}}
             <form method="POST" action="/admin/work-queue/{{id}}/resolve" class="form-block">
               <div class="form-field">
                 <label for="decision_label_{{id}}">Decision</label>
@@ -122,7 +130,7 @@
               </div>
               <div class="form-field">
                 <label for="resolution_note_{{id}}">Resolution note</label>
-                <textarea id="resolution_note_{{id}}" name="resolution_note" rows="2" maxlength="500" required placeholder="Sent to the member by email"></textarea>
+                <textarea id="resolution_note_{{id}}" name="resolution_note" rows="2" maxlength="500" required placeholder="{{resolutionNotePlaceholder}}"></textarea>
               </div>
               <button type="submit" class="btn btn-primary btn-sm">Resolve</button>
             </form>

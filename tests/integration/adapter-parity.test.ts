@@ -42,9 +42,13 @@ import {
   createStubPaymentAdapter,
   createLivePaymentAdapter,
 } from '../../src/adapters/paymentAdapter';
+// Imported to construct the real Stripe error classes the adapter branches on;
+// a hand-rolled look-alike would pass a test the running code would fail.
+import Stripe from 'stripe';
 import {
   createStubSecretsAdapter,
   createLiveSecretsAdapter,
+  createLocalSecretsAdapter,
   SecretNotConfiguredError,
 } from '../../src/adapters/secretsAdapter';
 import {
@@ -441,6 +445,56 @@ describe('adapter-parity: SecretsAdapter (Stub vs. Live vs. Local interface)', (
     expect(await live.get('missing')).toBeUndefined();
     expect(await live.get('missing')).toBeUndefined();
     expect(fakeSsm.captured).toHaveLength(1);
+  });
+
+  // A rotated credential is invisible to a process that cached the old one.
+  // Invalidation is what lets a caller the third party rejected go back to the
+  // store instead of presenting the dead value until someone restarts it.
+  it('live adapter re-fetches a key after invalidate', async () => {
+    const seed: Record<string, string> = {
+      '/footbag/staging/secrets/rotating_key': 'value-v1',
+    };
+    const fakeSsm = makeFakeSsm(seed);
+    const live = createLiveSecretsAdapter({
+      ssmClient: fakeSsm,
+      ssmPrefix: '/footbag/staging',
+    });
+
+    expect(await live.get('rotating_key')).toBe('value-v1');
+    seed['/footbag/staging/secrets/rotating_key'] = 'value-v2';
+    // Still the cached value: the adapter has no way to know it went stale.
+    expect(await live.get('rotating_key')).toBe('value-v1');
+
+    live.invalidate('rotating_key');
+    expect(await live.get('rotating_key')).toBe('value-v2');
+    expect(fakeSsm.captured).toHaveLength(2);
+  });
+
+  it('live adapter re-fetches after invalidate when the key did not exist on the first read', async () => {
+    const seed: Record<string, string> = {};
+    const fakeSsm = makeFakeSsm(seed);
+    const live = createLiveSecretsAdapter({
+      ssmClient: fakeSsm,
+      ssmPrefix: '/footbag/staging',
+    });
+
+    expect(await live.get('later_key')).toBeUndefined();
+    seed['/footbag/staging/secrets/later_key'] = 'value-created';
+    expect(await live.get('later_key')).toBeUndefined();
+
+    live.invalidate('later_key');
+    expect(await live.get('later_key')).toBe('value-created');
+  });
+
+  it('invalidate is available on every implementation and leaves a fresh read working', async () => {
+    const stub = createStubSecretsAdapter();
+    stub.setSecret('k', 'v');
+    stub.invalidate('k');
+    expect(await stub.get('k')).toBe('v');
+
+    const local = createLocalSecretsAdapter({ filePath: '/nonexistent/secrets.json' });
+    local.invalidate('k');
+    expect(await local.get('k')).toBeUndefined();
   });
 
   it('stub failNext throws on the next get and clears after one use', async () => {
@@ -1563,7 +1617,13 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     invoices: [
       {
         id: 'in_a',
-        subscription: 'sub_a',
+        // The subscription an invoice belongs to hangs off its parent. Emitting
+        // it the way the provider actually does is what makes this fake able to
+        // falsify the adapter's read instead of agreeing with it.
+        parent: {
+          type: 'subscription_details',
+          subscription_details: { subscription: 'sub_a' },
+        },
         amount_paid: 2500,
         currency: 'usd',
         status: 'paid',
@@ -1728,6 +1788,17 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     expect(intentCalls[1].params.starting_after).toBe('pi_a');
   });
 
+  it('live listInvoices reports the subscription each invoice belongs to', async () => {
+    // A renewal invoice that reconciles with no subscription looks like an
+    // orphan charge to the nightly pass, so the linkage is the whole point of
+    // reading invoices at all.
+    const { adapter } = makeLive();
+    const invoices = await adapter.listInvoices(LEDGER_WINDOW);
+    expect(invoices).toHaveLength(1);
+    expect(invoices[0].id).toBe('in_a');
+    expect(invoices[0].subscriptionId).toBe('sub_a');
+  });
+
   it('live ledger reads bound the window in provider epoch seconds', async () => {
     const { adapter, captured } = makeLive();
     await adapter.listInvoices(LEDGER_WINDOW);
@@ -1820,6 +1891,34 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     expect(params.cancel_url).toBe(ONE_TIME_OPTS.cancelUrl);
   });
 
+  // Same reasoning as the recurring path: a one-time checkout that mints a new
+  // Customer every time splits a repeat payer's provider-side history across
+  // duplicates, which is what an administrator reads when a donor asks about a
+  // past payment.
+  it('reuses the member existing Stripe customer for a one-time checkout', async () => {
+    const { adapter, captured } = makeLive();
+    await adapter.createCheckoutSession({ ...ONE_TIME_OPTS, stripeCustomerId: 'cus_existing_payer' });
+    expect(captured.sessions[0].customer).toBe('cus_existing_payer');
+  });
+
+  it('omits the customer on a one-time checkout for a member who has none', async () => {
+    const { adapter, captured } = makeLive();
+    await adapter.createCheckoutSession({ ...ONE_TIME_OPTS, stripeCustomerId: null });
+    expect(captured.sessions[0].customer).toBeUndefined();
+  });
+
+  it('stub records the customer a one-time checkout was given', async () => {
+    const stub = createStubPaymentAdapter();
+    const withCustomer = await stub.createCheckoutSession({
+      ...ONE_TIME_OPTS,
+      stripeCustomerId: 'cus_existing_payer',
+    });
+    expect(stub.sessions.get(withCustomer.sessionId)?.stripeCustomerId).toBe('cus_existing_payer');
+
+    const without = await stub.createCheckoutSession({ ...ONE_TIME_OPTS, paymentId: 'pay-parity-9' });
+    expect(stub.sessions.get(without.sessionId)?.stripeCustomerId).toBeNull();
+  });
+
   it('live createCheckoutSession stamps paymentId/memberId into session AND payment_intent metadata', async () => {
     const { adapter, captured } = makeLive();
     await adapter.createCheckoutSession(ONE_TIME_OPTS);
@@ -1829,6 +1928,62 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     expect(params.metadata.tier).toBe('tier1');
     expect(params.payment_intent_data?.metadata.paymentId).toBe('pay-parity-1');
     expect(params.payment_intent_data?.metadata.memberId).toBe('m-parity-1');
+  });
+
+  // Stripe rejects an over-long product name or metadata value outright, and a
+  // donation note is member-supplied free text that reaches both. Capping at the
+  // adapter boundary is what keeps a long note from failing the checkout.
+  it('caps the one-time product name, leaving a short one untouched', async () => {
+    const { adapter, captured } = makeLive();
+    await adapter.createCheckoutSession({ ...ONE_TIME_OPTS, descriptor: 'D'.repeat(300) });
+    expect(captured.sessions[0].line_items[0].price_data.product_data.name).toHaveLength(250);
+
+    await adapter.createCheckoutSession(ONE_TIME_OPTS);
+    expect(captured.sessions[1].line_items[0].price_data.product_data.name)
+      .toBe('IFPA Membership (Tier 1)');
+  });
+
+  it('caps a metadata value by bytes without splitting a character, live and stub alike', async () => {
+    // 200 three-byte characters is 600 bytes: well inside any character-based
+    // reading of the limit and well outside the byte-based one Stripe applies.
+    const comment = 'ま'.repeat(200);
+    const opts = {
+      memberId: 'm-parity-1',
+      paymentId: 'rds-parity-trunc',
+      amountCents: 2500,
+      currency: 'USD',
+      comment,
+      successUrl: 'https://footbag.org/payments/success',
+      cancelUrl: 'https://footbag.org/payments/cancel',
+    };
+    const { adapter, captured } = makeLive();
+    await adapter.createSubscriptionCheckoutSession(opts);
+    const stub = createStubPaymentAdapter();
+    const stubResult = await stub.createSubscriptionCheckoutSession(opts);
+
+    const liveComment = captured.sessions[0].metadata.comment;
+    const stubComment = stub.sessions.get(stubResult.sessionId)!.metadata.comment;
+    expect(liveComment).toBe(stubComment);
+    expect(Buffer.byteLength(liveComment, 'utf8')).toBeLessThanOrEqual(500);
+    expect(liveComment).not.toContain('�');
+    // Every kept character is whole, so the text is still a prefix of the note.
+    expect(comment.startsWith(liveComment)).toBe(true);
+    // The mirrored copy the provider puts on the Subscription is the same object.
+    expect(captured.sessions[0].subscription_data?.metadata).toEqual(captured.sessions[0].metadata);
+  });
+
+  it('leaves a short ASCII metadata value byte-identical', async () => {
+    const { adapter, captured } = makeLive();
+    await adapter.createSubscriptionCheckoutSession({
+      memberId: 'm-parity-1',
+      paymentId: 'rds-parity-short',
+      amountCents: 2500,
+      currency: 'USD',
+      comment: 'For the Hall of Fame fund',
+      successUrl: 'https://footbag.org/payments/success',
+      cancelUrl: 'https://footbag.org/payments/cancel',
+    });
+    expect(captured.sessions[0].metadata.comment).toBe('For the Hall of Fame fund');
   });
 
   it('live createCheckoutSession tolerates a deferred PaymentIntent (null) and unwraps object form', async () => {
@@ -1903,6 +2058,131 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     await expect(adapter.createCheckoutSession(ONE_TIME_OPTS)).rejects.toThrow(
       /bootstrap placeholder/,
     );
+  });
+
+  // Both the API key and the client built from it are held for the life of the
+  // process. When an operator rotates the key at Stripe, every later call
+  // presents a dead credential until someone restarts the service; Stripe
+  // saying "this key is not valid" is the one signal that the held value went
+  // stale, so it has to reach back through the cache.
+  function makeLiveRejectingOnce(error: Error) {
+    const { client } = makeFakeStripe();
+    const backing = createStubSecretsAdapter();
+    backing.setSecret('stripe_secret_key', 'sk_test_parity_fake');
+    let secretReads = 0;
+    const invalidated: string[] = [];
+    const secrets = {
+      get: (k: string) => backing.get(k),
+      getRequired: (k: string) => {
+        secretReads += 1;
+        return backing.getRequired(k);
+      },
+      getAbsolute: (n: string) => backing.getAbsolute(n),
+      deleteAbsolute: (n: string) => backing.deleteAbsolute(n),
+      invalidate: (k: string) => {
+        invalidated.push(k);
+        backing.invalidate(k);
+      },
+    };
+    let thrown = false;
+    const failingOnce: import('../../src/adapters/paymentAdapter').StripeClientLike = {
+      ...client,
+      checkout: {
+        sessions: {
+          async create(params, options) {
+            if (!thrown) {
+              thrown = true;
+              throw error;
+            }
+            return client.checkout.sessions.create(params, options);
+          },
+        },
+      },
+    };
+    let factoryCalls = 0;
+    const adapter = createLivePaymentAdapter({
+      secrets,
+      stripeFactory: () => {
+        factoryCalls += 1;
+        return failingOnce;
+      },
+    });
+    return {
+      adapter,
+      factoryCalls: () => factoryCalls,
+      secretReads: () => secretReads,
+      invalidated,
+    };
+  }
+
+  it('live adapter rebuilds the client and re-reads the key after a Stripe authentication failure', async () => {
+    const live = makeLiveRejectingOnce(
+      new Stripe.errors.StripeAuthenticationError({ message: 'Invalid API Key provided' }),
+    );
+
+    // The call that met the dead key still fails; recovery is the next one.
+    await expect(live.adapter.createCheckoutSession(ONE_TIME_OPTS)).rejects.toThrow(
+      /Invalid API Key/,
+    );
+    expect(live.invalidated).toEqual(['stripe_secret_key']);
+
+    const result = await live.adapter.createCheckoutSession(ONE_TIME_OPTS);
+    expect(result.sessionId).toBe('cs_fake_123');
+    expect(live.factoryCalls()).toBe(2);
+    expect(live.secretReads()).toBe(2);
+  });
+
+  it('live adapter keeps its client and key after a failure that is not about authentication', async () => {
+    const live = makeLiveRejectingOnce(
+      new Stripe.errors.StripeInvalidRequestError({ message: 'No such price' }),
+    );
+
+    await expect(live.adapter.createCheckoutSession(ONE_TIME_OPTS)).rejects.toThrow(
+      /No such price/,
+    );
+    expect(live.invalidated).toEqual([]);
+
+    await live.adapter.createCheckoutSession(ONE_TIME_OPTS);
+    expect(live.factoryCalls()).toBe(1);
+    expect(live.secretReads()).toBe(1);
+  });
+
+  // The simulated provider must not invent metadata the real one never sends.
+  // A key present only in the stub is a key a handler can come to depend on
+  // while every test passes and production supplies nothing.
+  it('stub events carry only the metadata the platform itself set', async () => {
+    const stub = createStubPaymentAdapter();
+
+    const oneTime = await stub.createCheckoutSession(ONE_TIME_OPTS);
+    const completion = stub.buildSignedStubWebhookEvent(oneTime.sessionId);
+    const completionMeta = (JSON.parse(completion.rawBody) as {
+      data: { object: { metadata: Record<string, string> } };
+    }).data.object.metadata;
+    expect(completionMeta).toEqual({
+      tier: 'tier1',
+      paymentId: ONE_TIME_OPTS.paymentId,
+    });
+
+    const sub = await stub.createSubscriptionCheckoutSession({
+      memberId: 'm-parity-1',
+      paymentId: 'rds-parity-meta',
+      amountCents: 2500,
+      currency: 'USD',
+      comment: 'For the fund',
+      metadata: { subscriptionRecordId: 'rds-parity-meta', memberId: 'm-parity-1' },
+      successUrl: 'https://footbag.org/payments/success',
+      cancelUrl: 'https://footbag.org/payments/cancel',
+    });
+    const renewal = stub.buildSignedStubSubscriptionEvent(sub.sessionId, 'invoice_succeeded');
+    const renewalMeta = (JSON.parse(renewal.rawBody) as {
+      data: { object: { metadata: Record<string, string> } };
+    }).data.object.metadata;
+    expect(renewalMeta).toEqual({
+      subscriptionRecordId: 'rds-parity-meta',
+      memberId: 'm-parity-1',
+      comment: 'For the fund',
+      paymentId: 'rds-parity-meta',
+    });
   });
 
   it('live constructWebhookEvent refuses to run without STRIPE_WEBHOOK_SECRET configured', () => {

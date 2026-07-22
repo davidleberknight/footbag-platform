@@ -28,6 +28,7 @@ const DAILY_TICK_JOBS = [
   'runStaleQueueEscalation',
   'runPaymentReconciliation',
   'runReconciliationDigest',
+  'runReconciliationIssuePurge',
 ] as const;
 
 describe('worker daily tick', () => {

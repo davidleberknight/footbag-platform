@@ -143,6 +143,13 @@ describe('GET /admin/payments', () => {
     expect(inside.text).toContain('pi_don');
   });
 
+  it('includes a payment dated on the To day, so a same-day search is not empty', async () => {
+    seedPayments(); // pay-don is dated 2026-07-18
+    const sameDay = await plainRequest(createApp())
+      .get('/admin/payments?from=2026-07-18&to=2026-07-18').set('Cookie', cookie(ADMIN));
+    expect(sameDay.text).toContain('pi_don');
+  });
+
   it('finds a payment by its provider reference as well as its own id', async () => {
     seedPayments();
     const byIntent = await plainRequest(createApp())
@@ -159,6 +166,30 @@ describe('GET /admin/payments', () => {
     const res = await plainRequest(createApp())
       .get('/admin/payments?member=nobody').set('Cookie', cookie(ADMIN));
     expect(res.text).toContain('No payments match your search.');
+  });
+
+  it("finds a member's payments by display name, login email, or profile handle", async () => {
+    seedPayments();
+    for (const handle of ['Member', 'mp@example.com', 'adminpay_member']) {
+      const res = await plainRequest(createApp())
+        .get(`/admin/payments?member=${encodeURIComponent(handle)}`).set('Cookie', cookie(ADMIN));
+      expect(res.text, `member handle: ${handle}`).toContain('pi_don');
+    }
+  });
+
+  it('finds a payment by its invoice id through the reference filter', async () => {
+    const db = openDb();
+    try {
+      insertPayment(db, {
+        id: 'pay-inv', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 2500, stripe_invoice_id: 'in_search',
+      });
+    } finally {
+      db.close();
+    }
+    const res = await plainRequest(createApp())
+      .get('/admin/payments?reference=in_search').set('Cookie', cookie(ADMIN));
+    expect(res.text).toContain('pay-inv');
   });
 });
 
@@ -251,6 +282,13 @@ describe('GET /admin/payments/reconciliation', () => {
     const after = await plainRequest(createApp())
       .get('/admin/payments/reconciliation').set('Cookie', cookie(ADMIN));
     expect(after.text).not.toContain(issueId);
+  });
+
+  it('renders the provider ids on an issue so an administrator can cross-reference in Stripe', async () => {
+    await seedOneIssue(); // the issue carries stripe_payment_intent_id 'pi_iss'
+    const res = await plainRequest(createApp())
+      .get('/admin/payments/reconciliation').set('Cookie', cookie(ADMIN));
+    expect(res.text).toContain('Payment intent: pi_iss');
   });
 
   it('shows a resolved issue with its resolver and note under the resolved and all filters', async () => {

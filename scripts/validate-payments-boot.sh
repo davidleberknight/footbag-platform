@@ -27,6 +27,7 @@ get_var() {
 
 ADAPTER="$(get_var PAYMENT_ADAPTER)"
 WEBHOOK_SECRET="$(get_var STRIPE_WEBHOOK_SECRET)"
+WEBHOOK_SECRET_PREVIOUS="$(get_var STRIPE_WEBHOOK_SECRET_PREVIOUS)"
 
 if [[ "${ADAPTER}" != "live" ]]; then
   echo "GATE: PAYMENTS-BOOT NOTICE: PAYMENT_ADAPTER='${ADAPTER:-unset}' (not live). Production refuses stub at boot; activate live payments before the flip."
@@ -44,5 +45,9 @@ case "${WEBHOOK_SECRET}" in
     exit 1
     ;;
 esac
+
+if [[ -n "${WEBHOOK_SECRET_PREVIOUS}" ]]; then
+  echo "GATE: PAYMENTS-BOOT NOTICE: STRIPE_WEBHOOK_SECRET_PREVIOUS is set, so a webhook-secret rotation window is open. A roll should be short-lived; close it once every delivery signs with the new secret: scripts/activate-payments.sh --complete-webhook-rotation"
+fi
 
 echo "GATE: PAYMENTS-BOOT PASS: PAYMENT_ADAPTER=live with webhook secret present"

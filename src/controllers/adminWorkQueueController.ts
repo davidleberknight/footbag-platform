@@ -19,11 +19,15 @@ export const adminWorkQueueController = {
     try {
       const flash = readFlash(req);
       let resolvedFlag = false;
+      let resolvedQuietFlag = false;
       let reviewedFlag = false;
       let claimedFlag = false;
       let claimNoopFlag = false;
       if (flash?.kind === FLASH_KIND.WORK_QUEUE_RESOLVED) {
-        resolvedFlag = true;
+        // A payments-task resolve (and a contact resolve with no member email)
+        // notified nobody, so the page confirms it without the email banner.
+        if (flash.payload === 'quiet') resolvedQuietFlag = true;
+        else resolvedFlag = true;
         clearFlash(res, req);
       } else if (flash?.kind === FLASH_KIND.WORK_QUEUE_REVIEWED) {
         reviewedFlag = true;
@@ -38,6 +42,7 @@ export const adminWorkQueueController = {
       res.render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({
         adminMemberId: req.user!.userId,
         resolvedFlag,
+        resolvedQuietFlag,
         reviewedFlag,
         claimedFlag,
         claimNoopFlag,
@@ -73,13 +78,13 @@ export const adminWorkQueueController = {
     const decisionLabel = String(req.body?.decision_label ?? '');
     const resolutionNote = String(req.body?.resolution_note ?? '');
     try {
-      await adminWorkQueueService.resolve({
+      const result = await adminWorkQueueService.resolve({
         queueItemId,
         adminMemberId: req.user!.userId,
-        decisionLabel: decisionLabel as never,
+        decisionLabel,
         resolutionNote,
       });
-      writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, queueItemId);
+      writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, result.memberNotified ? 'notified' : 'quiet');
       res.redirect(303, '/admin/work-queue');
     } catch (err) {
       if (err instanceof ValidationError) {

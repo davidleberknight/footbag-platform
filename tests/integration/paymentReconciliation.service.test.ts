@@ -276,7 +276,7 @@ describe('pass 2: subscriptions and renewal invoices', () => {
         id: 'pay-renewal', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
         status: 'succeeded', amount_cents: 2500,
         recurring_subscription_id: subId, stripe_subscription_id: 'sub_ok',
-        metadata_json: JSON.stringify({ stripe_invoice_id: 'in_ok' }),
+        stripe_invoice_id: 'in_ok',
       });
     });
     const adapter = await stub();
@@ -291,6 +291,73 @@ describe('pass 2: subscriptions and renewal invoices', () => {
     expect(result.issuesRaised).toBe(0);
   });
 
+  it('reports every unrecorded renewal on one subscription, not just the first', async () => {
+    // Two renewals missed on the same donation are two separate charges of real
+    // money. If the discrepancy's identity stopped at the subscription, the
+    // second and every later one would be silently folded into the first and an
+    // administrator would repair one charge believing the account was square.
+    seed((db) => {
+      insertRecurringDonationSubscription(db, {
+        member_id: MEMBER, stripe_subscription_id: 'sub_two', status: 'active',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerSubscription({
+      id: 'sub_two', customerId: 'cus_x', status: 'active', amountCents: 2500, currency: 'USD',
+    });
+    adapter.setLedgerInvoice({
+      id: 'in_first', subscriptionId: 'sub_two', amountPaidCents: 2500,
+      currency: 'USD', status: 'paid', createdAt: IN_WINDOW,
+    });
+    adapter.setLedgerInvoice({
+      id: 'in_second', subscriptionId: 'sub_two', amountPaidCents: 2500,
+      currency: 'USD', status: 'paid', createdAt: IN_WINDOW,
+    });
+
+    const result = await (await svc()).runReconciliation({ now: NOW });
+
+    expect(result.issuesRaised).toBe(2);
+    const db = openDb();
+    try {
+      const rows = db.prepare(
+        `SELECT stripe_invoice_id FROM reconciliation_issues
+         WHERE issue_type = 'invoice_charge_missing_locally'
+         ORDER BY stripe_invoice_id`,
+      ).all() as { stripe_invoice_id: string }[];
+      expect(rows.map((r) => r.stripe_invoice_id)).toEqual(['in_first', 'in_second']);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('still reports each missed renewal exactly once when the pass runs again', async () => {
+    seed((db) => {
+      insertRecurringDonationSubscription(db, {
+        member_id: MEMBER, stripe_subscription_id: 'sub_rerun', status: 'active',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerSubscription({
+      id: 'sub_rerun', customerId: 'cus_x', status: 'active', amountCents: 2500, currency: 'USD',
+    });
+    adapter.setLedgerInvoice({
+      id: 'in_rerun_a', subscriptionId: 'sub_rerun', amountPaidCents: 2500,
+      currency: 'USD', status: 'paid', createdAt: IN_WINDOW,
+    });
+    adapter.setLedgerInvoice({
+      id: 'in_rerun_b', subscriptionId: 'sub_rerun', amountPaidCents: 2500,
+      currency: 'USD', status: 'paid', createdAt: IN_WINDOW,
+    });
+
+    const service = await svc();
+    const first = await service.runReconciliation({ now: NOW });
+    const second = await service.runReconciliation({ now: NOW });
+
+    expect(first.issuesRaised).toBe(2);
+    expect(second.issuesRaised).toBe(0);
+    expect(second.duplicatesSkipped).toBe(2);
+  });
+
   it('reports an unmirrored subscription once, not twice, when its invoice is also unmatched', async () => {
     const adapter = await stub();
     adapter.setLedgerSubscription({
@@ -302,6 +369,115 @@ describe('pass 2: subscriptions and renewal invoices', () => {
     });
     await (await svc()).runReconciliation({ now: NOW });
     expect(issueTypes()).toEqual(['provider_subscription_missing_locally']);
+  });
+});
+
+describe('records the comparison deliberately does not report', () => {
+  it('accepts a refunded payment whose provider intent still reads settled', async () => {
+    // A refund does not move the provider intent off succeeded: the charge did
+    // succeed, and the reversal is a separate provider record. Reading that as a
+    // status mismatch would re-raise the same issue for every refund on every
+    // nightly pass, which is how a genuine alert channel turns into noise.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-refunded', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'refunded', amount_cents: 2500, stripe_payment_intent_id: 'pi_refunded',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_refunded', amountCents: 2500, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW,
+    });
+
+    const result = await (await svc()).runReconciliation({ now: NOW });
+
+    expect(result.issuesRaised).toBe(0);
+  });
+
+  it('still reports a genuine status disagreement on a payment that was never refunded', async () => {
+    // Guards the guard: the refund allowance must not swallow the mismatch
+    // class it sits inside.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-still-pending', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'pending', amount_cents: 2500, stripe_payment_intent_id: 'pi_settled',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_settled', amountCents: 2500, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW,
+    });
+
+    await (await svc()).runReconciliation({ now: NOW });
+
+    expect(issueTypes()).toEqual(['payment_status_mismatch']);
+  });
+});
+
+describe('the delivery grace period', () => {
+  // A webhook and a ledger read do not land at the same instant, so a record
+  // seconds old legitimately exists on one side only. Judging it immediately
+  // reports two systems catching up with each other as a discrepancy.
+  const JUST_NOW = '2026-07-20T02:50:00.000Z';
+  const WELL_BEFORE = '2026-07-20T01:00:00.000Z';
+
+  it('leaves a provider charge that landed moments ago for a later run', async () => {
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_fresh', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: JUST_NOW,
+    });
+
+    const result = await (await svc()).runReconciliation({ now: NOW });
+
+    expect(result.issuesRaised).toBe(0);
+  });
+
+  it('reports the same provider charge once it is older than the grace period', async () => {
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_aged', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: WELL_BEFORE,
+    });
+
+    await (await svc()).runReconciliation({ now: NOW });
+
+    expect(issueTypes()).toEqual(['provider_payment_missing_locally']);
+  });
+
+  it('leaves a local payment written moments ago for a later run', async () => {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-fresh', member_id: MEMBER, created_at: JUST_NOW,
+        status: 'succeeded', amount_cents: 2500, stripe_payment_intent_id: 'pi_local_fresh',
+      });
+    });
+
+    const result = await (await svc()).runReconciliation({ now: NOW });
+
+    expect(result.issuesRaised).toBe(0);
+  });
+
+  it('leaves a renewal invoice raised moments ago for a later run', async () => {
+    seed((db) => {
+      insertRecurringDonationSubscription(db, {
+        member_id: MEMBER, stripe_subscription_id: 'sub_fresh', status: 'active',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerSubscription({
+      id: 'sub_fresh', customerId: 'cus_x', status: 'active', amountCents: 2500, currency: 'USD',
+    });
+    adapter.setLedgerInvoice({
+      id: 'in_fresh', subscriptionId: 'sub_fresh', amountPaidCents: 2500,
+      currency: 'USD', status: 'paid', createdAt: JUST_NOW,
+    });
+
+    const result = await (await svc()).runReconciliation({ now: NOW });
+
+    expect(result.issuesRaised).toBe(0);
   });
 });
 
@@ -339,6 +515,7 @@ describe('re-running the pass', () => {
       paymentId: 'pay-atomic',
       stripePaymentIntentId: 'pi_atomic',
       stripeSubscriptionId: null,
+      stripeInvoiceId: null,
       details: { reason: 'test' },
     };
     expect(service.raiseIssue(draft, NOW)).toBe(true);
@@ -356,6 +533,7 @@ describe('re-running the pass', () => {
       paymentId: null,
       stripePaymentIntentId: 'pi_nulls',
       stripeSubscriptionId: null,
+      stripeInvoiceId: null,
       details: { reason: 'test' },
     };
     expect(service.raiseIssue(draft, NOW)).toBe(true);
@@ -433,6 +611,71 @@ describe('resolving an issue', () => {
       expect(row.resolved_by_member_id).toBe(ADMIN);
       expect(row.resolution_notes).toBe('Checked the provider console; a test charge.');
       expect(row.resolved_at).toBeTruthy();
+    } finally {
+      db.close();
+    }
+  });
+
+  it('closes the discrepancy work-queue twin in the same step, so the two never drift apart', async () => {
+    const issueId = await oneOutstandingIssue();
+    const twinQuery =
+      "SELECT status, resolved_by_member_id, decision_label, reason_text FROM work_queue_items " +
+      "WHERE task_type = 'reconciliation_discrepancy' AND entity_type = 'reconciliation_issue' AND entity_id = ?";
+
+    const db = openDb();
+    try {
+      const before = db.prepare(twinQuery).get(issueId) as { status: string };
+      expect(before.status).toBe('open');
+    } finally {
+      db.close();
+    }
+
+    await (await svc()).resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'Located in the dashboard.' });
+
+    const after = openDb();
+    try {
+      const twin = after.prepare(twinQuery).get(issueId) as {
+        status: string;
+        resolved_by_member_id: string;
+        decision_label: string;
+        reason_text: string;
+      };
+      expect(twin.status).toBe('resolved');
+      expect(twin.resolved_by_member_id).toBe(ADMIN);
+      expect(twin.decision_label).toBe('closed_with_reconciliation_issue');
+      expect(twin.reason_text).toBe('Located in the dashboard.');
+    } finally {
+      after.close();
+    }
+  });
+
+  it('leaves the queue untouched when a second resolution is refused, with no orphaned audit row', async () => {
+    const issueId = await oneOutstandingIssue();
+    const service = await svc();
+    service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'First decision.' });
+    // A later run re-raises the discrepancy as a fresh outstanding issue with its
+    // own open twin; the stale id no longer resolves.
+    await service.runReconciliation({ now: NOW });
+    const { NotFoundError } = await import('../../src/services/serviceErrors');
+    expect(() => service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'Second decision.' }))
+      .toThrow(NotFoundError);
+
+    const db = openDb();
+    try {
+      const resolvedTwins = db.prepare(
+        "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'reconciliation_discrepancy' AND status = 'resolved'",
+      ).get() as { c: number };
+      const openTwins = db.prepare(
+        "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'reconciliation_discrepancy' AND status = 'open'",
+      ).get() as { c: number };
+      // The first resolution closed one twin; the re-raise opened a fresh one;
+      // the refused second resolution changed neither.
+      expect(resolvedTwins.c).toBe(1);
+      expect(openTwins.c).toBe(1);
+      const auditCount = db.prepare(
+        "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.reconciliation_issue_resolved' AND entity_id = ?",
+      ).get(issueId) as { c: number };
+      expect(auditCount.c).toBe(1);
     } finally {
       db.close();
     }
@@ -564,21 +807,78 @@ describe('the digest cadence gate', () => {
 });
 
 describe('the nightly job gate', () => {
-  it('holds off before the scheduled hour and runs once for the day after it', async () => {
+  it('runs on the first tick of a UTC day whatever hour that tick falls at', async () => {
+    // The worker ticks once a day, at whatever time of day it happened to
+    // start. A gate that also demanded a particular hour would skip a tick
+    // falling before it and not get another chance until the next day, so a
+    // worker started in the small hours would never reconcile at all.
     const { operationsPlatformService } = await import('../../src/services/operationsPlatformService');
-    const beforeHour = new Date('2026-07-21T01:00:00.000Z');
-    expect((await operationsPlatformService.runPaymentReconciliation(beforeHour)).skipped).toBe(true);
-
-    const afterHour = new Date('2026-07-21T02:30:00.000Z');
-    expect((await operationsPlatformService.runPaymentReconciliation(afterHour)).skipped).toBe(false);
+    const earlyTick = new Date('2026-07-21T01:00:00.000Z');
+    expect((await operationsPlatformService.runPaymentReconciliation(earlyTick)).skipped).toBe(false);
 
     // Same UTC day, later in the evening: already done.
     const laterSameDay = new Date('2026-07-21T22:00:00.000Z');
     expect((await operationsPlatformService.runPaymentReconciliation(laterSameDay)).skipped).toBe(true);
 
-    // Next UTC day, past the hour: runs again.
+    // Next UTC day: runs again.
     const nextDay = new Date('2026-07-22T03:00:00.000Z');
     expect((await operationsPlatformService.runPaymentReconciliation(nextDay)).skipped).toBe(false);
+  });
+});
+
+describe('purging resolved issues on the daily tick', () => {
+  it('clears issues past their retention and records the run', async () => {
+    // The purge is wired to the worker tick rather than left to be called by
+    // hand: an unwired retention rule is a documented promise the system never
+    // keeps.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-purge-job', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 2500, stripe_payment_intent_id: 'pi_purge_job',
+      });
+    });
+    const service = await svc();
+    await service.runReconciliation({ now: NOW });
+    const db0 = openDb();
+    const issueId = (db0.prepare('SELECT id FROM reconciliation_issues').get() as { id: string }).id;
+    db0.close();
+    service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'Handled with the provider.' });
+
+    const { operationsPlatformService } = await import('../../src/services/operationsPlatformService');
+    const pastRetention = new Date('2027-01-01T00:00:00.000Z');
+    const result = await operationsPlatformService.runReconciliationIssuePurge(pastRetention);
+
+    expect(result).toEqual({ deleted: 1 });
+    const db = openDb();
+    try {
+      expect(db.prepare('SELECT COUNT(*) AS n FROM reconciliation_issues').get()).toEqual({ n: 0 });
+      const run = db.prepare(
+        `SELECT status FROM system_job_runs
+         WHERE job_name = 'SYS_Purge_Reconciliation_Issues'
+         ORDER BY started_at DESC LIMIT 1`,
+      ).get() as { status: string } | undefined;
+      expect(run?.status).toBe('succeeded');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('leaves an outstanding issue alone however long it has been open', async () => {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-keep-open', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 2500, stripe_payment_intent_id: 'pi_keep_open',
+      });
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+
+    const { operationsPlatformService } = await import('../../src/services/operationsPlatformService');
+    const result = await operationsPlatformService.runReconciliationIssuePurge(
+      new Date('2027-01-01T00:00:00.000Z'),
+    );
+
+    expect(result).toEqual({ deleted: 0 });
+    expect(issueTypes()).toHaveLength(1);
   });
 });
 

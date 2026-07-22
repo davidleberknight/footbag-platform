@@ -205,6 +205,9 @@ const STAGING_FIXTURE: Record<string, string> = {
   MEDIA_STORAGE_ADAPTER: 'local',
   PAYMENT_ADAPTER: 'live',
   INTERNAL_EVENT_SECRET: 'a'.repeat(48),
+  // Deployed hosts get this from Parameter Store via the deploy, and the prod
+  // overlay requires it rather than defaulting, so the fixture supplies it.
+  LOG_LEVEL: 'warn',
   // SES_FEEDBACK_WEBHOOK_KEY deliberately absent: staging runs the SES stub
   // and must boot without the feedback-webhook key (env.ts requires it only
   // when SES_ADAPTER=live).
@@ -215,6 +218,18 @@ const STAGING_FIXTURE: Record<string, string> = {
   // not be caught by this test.
   WORKER_INTERNAL_URL: 'http://worker:3100',
   WEB_INTERNAL_URL: 'http://web:3000',
+};
+
+/**
+ * Staging running the stub payment adapter, which is the shape staging
+ * actually deploys. The stub's built-in signing secret is committed source, so
+ * a reachable stub endpoint has to carry its own generated value; the compose
+ * pair must pass that value through to both services.
+ */
+const STAGING_STUB_FIXTURE: Record<string, string> = {
+  ...STAGING_FIXTURE,
+  PAYMENT_ADAPTER: 'stub',
+  STRIPE_WEBHOOK_SECRET_STUB: 'whsec_stub_staging_generated_value',
 };
 
 /**
@@ -254,6 +269,7 @@ const PRODUCTION_FIXTURE: Record<string, string> = {
   TURNSTILE_SITE_KEY: '0xSTUBPRODSITEKEY',
   INTERNAL_EVENT_SECRET: 'a'.repeat(48),
   SES_FEEDBACK_WEBHOOK_KEY: 'b'.repeat(48),
+  LOG_LEVEL: 'warn',
   WORKER_INTERNAL_URL: 'http://worker:3100',
   WEB_INTERNAL_URL: 'http://web:3000',
 };
@@ -278,6 +294,19 @@ describe('compose ↔ env.ts parity (dev: docker-compose.yml alone)', () => {
     const compose = loadCompose('docker/docker-compose.yml');
     const env = resolveServiceEnv(compose.services.web, DEV_FIXTURE);
     await expect(loadEnvWith(env)).resolves.toBeUndefined();
+  });
+
+  // Development gets a usable default without any host wiring, but it is a
+  // default rather than a literal, so a developer can still turn the verbosity
+  // up or down from the project .env file.
+  it('log level defaults to info with no source, and an override wins', () => {
+    const compose = loadCompose('docker/docker-compose.yml');
+    for (const service of ['web', 'worker', 'image'] as const) {
+      expect(resolveServiceEnv(compose.services[service], DEV_FIXTURE).LOG_LEVEL).toBe('info');
+      expect(
+        resolveServiceEnv(compose.services[service], { ...DEV_FIXTURE, LOG_LEVEL: 'debug' }).LOG_LEVEL,
+      ).toBe('debug');
+    }
   });
 
   it('worker service env loads', async () => {
@@ -339,6 +368,58 @@ describe('compose ↔ env.ts parity (staging: base + prod overlay)', () => {
     const env = resolveServiceEnv(merged.services.image, STAGING_FIXTURE);
     expect(env.IMAGE_PORT).toMatch(/^\d+$/);
     expect(env.IMAGE_MAX_CONCURRENT).toMatch(/^\d+$/);
+  });
+
+  it('web and worker load under the stub adapter when the host supplies a stub signing secret', async () => {
+    const base = loadCompose('docker/docker-compose.yml');
+    const overlay = loadCompose('docker/docker-compose.prod.yml');
+    const merged = mergeCompose(base, overlay);
+    for (const service of ['web', 'worker'] as const) {
+      vi.resetModules();
+      const env = resolveServiceEnv(merged.services[service], STAGING_STUB_FIXTURE);
+      expect(env.STRIPE_WEBHOOK_SECRET_STUB).toBe('whsec_stub_staging_generated_value');
+      await expect(loadEnvWith(env)).resolves.toBeUndefined();
+    }
+  });
+
+  // The log level decides which lines reach CloudWatch at all, so a host that
+  // silently runs at the dev default either starves the metric filters the
+  // alarms count or floods the pipeline. Deployed hosts get the value from
+  // Parameter Store; the overlay refuses to start without it rather than
+  // falling back.
+  it('every deployed service takes the log level from the host env, and refuses to start without it', async () => {
+    const base = loadCompose('docker/docker-compose.yml');
+    const overlay = loadCompose('docker/docker-compose.prod.yml');
+    const merged = mergeCompose(base, overlay);
+    const fixtureWithout = { ...STAGING_FIXTURE };
+    delete fixtureWithout.LOG_LEVEL;
+
+    for (const service of ['web', 'worker', 'image'] as const) {
+      expect(resolveServiceEnv(merged.services[service], STAGING_FIXTURE).LOG_LEVEL).toBe('warn');
+      expect(() => resolveServiceEnv(merged.services[service], fixtureWithout)).toThrow(
+        /Required compose variable LOG_LEVEL/,
+      );
+    }
+  });
+
+  it('config reads the host log level rather than a compose literal', async () => {
+    const base = loadCompose('docker/docker-compose.yml');
+    const overlay = loadCompose('docker/docker-compose.prod.yml');
+    const merged = mergeCompose(base, overlay);
+    const env = resolveServiceEnv(merged.services.web, STAGING_FIXTURE);
+    await loadEnvWith(env);
+    const { config } = await import('../../src/config/env');
+    expect(config.logLevel).toBe('warn');
+  });
+
+  it('web refuses to boot under the stub adapter with no stub signing secret', async () => {
+    const base = loadCompose('docker/docker-compose.yml');
+    const overlay = loadCompose('docker/docker-compose.prod.yml');
+    const merged = mergeCompose(base, overlay);
+    const fixture = { ...STAGING_STUB_FIXTURE };
+    delete fixture.STRIPE_WEBHOOK_SECRET_STUB;
+    const env = resolveServiceEnv(merged.services.web, fixture);
+    await expect(loadEnvWith(env)).rejects.toThrow(/STRIPE_WEBHOOK_SECRET_STUB is required/);
   });
 });
 

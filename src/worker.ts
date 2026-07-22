@@ -6,8 +6,9 @@
  *      fine here because outbound email is not a foreground UX.
  *   2. Daily jobs loop: Active Player expiry (Tier 0 scan, reminder enqueue,
  *      expiry ledger rows), the staged-candidate expiry sweep, the PII
- *      purge-eligibility scan, and payment reconciliation against the payment
- *      provider. One system_job_runs row per job per pass. A job needing a
+ *      purge-eligibility scan, payment reconciliation against the payment
+ *      provider, and the purge of long-resolved reconciliation issues. One
+ *      system_job_runs row per job per pass. A job needing a
  *      slower or wall-clock cadence self-gates inside its service rather than
  *      owning a loop.
  *   3. Curator video transcode HTTP server: receives /transcode/dispatch
@@ -123,9 +124,9 @@ async function activePlayerExpiryLoop(): Promise<void> {
       });
     }
     // Payment reconciliation compares the platform's records against the payment
-    // provider's ledger. It self-gates to 02:00 UTC and to once per UTC day, and
-    // its digest self-gates to its own configured cadence, so both are safe on
-    // the daily tick.
+    // provider's ledger. It self-gates to once per UTC day and its digest to its
+    // own configured cadence, so both are safe on the daily tick; the purge of
+    // long-resolved issues is cheap and idempotent, so it rides the tick too.
     try {
       await operationsPlatformService.runPaymentReconciliation();
     } catch (err) {
@@ -137,6 +138,13 @@ async function activePlayerExpiryLoop(): Promise<void> {
       await operationsPlatformService.runReconciliationDigest();
     } catch (err) {
       logger.error('worker: reconciliation digest unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    try {
+      await operationsPlatformService.runReconciliationIssuePurge();
+    } catch (err) {
+      logger.error('worker: reconciliation issue purge unexpected error', {
         error: err instanceof Error ? err.message : String(err),
       });
     }

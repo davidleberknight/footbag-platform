@@ -214,3 +214,21 @@ describe('bringup-status.sh — unprobed state degrades to UNKNOWN', () => {
     expect(result.stdout).toMatch(/8\. Deployed runtime\s+UNKNOWN/);
   });
 });
+
+describe('bringup-status.sh — webhook-secret rotation window', () => {
+  it('surfaces an open rotation window on the provisioned Payments row', () => {
+    const probe = writeProbeFile([...ALL_DONE_PRODUCTION, 'ENV_WEBHOOK_SECRET_PREVIOUS=set']);
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/3\. Payments\s+DONE/);
+    expect(result.stdout).toMatch(/rotation window open/);
+    expect(result.stdout).toMatch(/--complete-webhook-rotation/);
+  });
+
+  it('shows no rotation note when the previous secret is unset', () => {
+    const probe = writeProbeFile(ALL_DONE_PRODUCTION);
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.stdout).toMatch(/3\. Payments\s+DONE/);
+    expect(result.stdout).not.toMatch(/rotation window open/);
+  });
+});

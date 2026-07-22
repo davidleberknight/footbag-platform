@@ -57,7 +57,7 @@ export const hofService = {
         sectionKey: 'hof',
         pageKey: 'hof_index',
         title: 'Footbag Hall of Fame',
-        intro: 'Honouring the pioneers, champions, and promoters of footbag sports.',
+        intro: 'Honoring the pioneers, champions, and promoters of footbag sports.',
       },
       content: {
         externalLink: { href: 'https://www.footbaghalloffame.net/', label: 'Visit FootbagHallOfFame.net' },

@@ -148,13 +148,19 @@ export interface AppConfig {
   paymentAdapter: 'live' | 'stub';
   // Stripe webhook signing secret. Required when paymentAdapter='live' (the
   // live verifier validates inbound Stripe-Signature headers against it).
-  // Undefined in stub mode, where the verifier uses the adapter-co-located
-  // STUB_WEBHOOK_SECRET instead. Production refuses a stub-prefixed value.
+  // Undefined in stub mode, which signs and verifies with
+  // stripeWebhookSecretStub instead. Production refuses a stub-prefixed value.
   stripeWebhookSecret: string | undefined;
   // The outgoing secret during a Stripe secret roll. Stripe signs each delivery
   // with both secrets for the length of the roll window; accepting both is what
   // lets the rotation happen without dropping deliveries. Unset outside a roll.
   stripeWebhookSecretPrevious: string | undefined;
+  // Per-deployment signing secret for the stub payment adapter. The stub's
+  // fallback constant is committed source, so any host that kept it would
+  // accept a webhook forged by anyone holding a checkout of this repository.
+  // Required on staging, where the stub is the deployed adapter; undefined in
+  // development and test, where the adapter falls back to its own constant.
+  stripeWebhookSecretStub: string | undefined;
   // Test-only override for container memory-utilization readings. When set,
   // OperationsPlatformService.readContainerMemoryUsedPercent returns this
   // value instead of reading /sys/fs/cgroup/memory.{max,current}, so tests
@@ -531,6 +537,17 @@ function loadConfig(): AppConfig {
       'STRIPE_WEBHOOK_SECRET_PREVIOUS must not be a stub secret in production (whsec_stub-prefixed values are dev/test only)',
     );
   }
+  // The stub adapter's fallback signing secret is a committed constant, so a
+  // deployed host that keeps it accepts webhooks forged by anyone with a copy
+  // of this repository. Staging runs the stub against the public internet and
+  // must therefore carry its own generated value, with no fallback; dev and
+  // test are not reachable and keep the constant.
+  const stripeWebhookSecretStub = process.env.STRIPE_WEBHOOK_SECRET_STUB || undefined;
+  if (footbagEnv === 'staging' && paymentAdapter === 'stub' && !stripeWebhookSecretStub) {
+    throw new Error(
+      "STRIPE_WEBHOOK_SECRET_STUB is required when FOOTBAG_ENV=staging and PAYMENT_ADAPTER='stub' (the committed stub constant must not sign a reachable endpoint)",
+    );
+  }
 
   function parseIntEnv(name: string, fallback: number, min: number, max: number): number {
     const raw = process.env[name];
@@ -734,6 +751,7 @@ function loadConfig(): AppConfig {
     paymentAdapter,
     stripeWebhookSecret,
     stripeWebhookSecretPrevious,
+    stripeWebhookSecretStub,
     testMemoryPercent,
   };
 }

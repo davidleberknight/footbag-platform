@@ -259,3 +259,7 @@ legacy_data/reports/
 /out/
 legacy_data/freestyle_reconciliation/import_qc_report.md
 tricks-mosaic-clips/
+
+# Separate website project that happens to sit inside this working tree; not
+# part of this application and never shipped with it.
+/canopy-collective-website/
