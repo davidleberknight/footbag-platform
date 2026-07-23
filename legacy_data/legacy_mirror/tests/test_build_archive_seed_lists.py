@@ -181,7 +181,7 @@ def test_moves_seeds_every_move_from_the_moves2_dump(repo):
         "INSERT INTO `moves` VALUES ('3','Whirl','','','');\n"
         "INSERT INTO `moves` VALUES ('7','dup','','','');\n",
     )
-    assert mod.build_moves() == [f"{BASE}/moves/show/3", f"{BASE}/moves/show/7"]
+    assert mod.build_moves() == [f"{BASE}/newmoves/show/3", f"{BASE}/newmoves/show/7"]
 
 
 def test_faq_seeds_articles_and_section_lists(repo):

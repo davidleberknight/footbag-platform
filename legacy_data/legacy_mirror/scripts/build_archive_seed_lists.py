@@ -269,8 +269,9 @@ def build_moves() -> list[str]:
     The moves dictionary's own index filters what it links, and a prior crawl
     captured a single move page out of the hundreds in the dump. The active
     moves data lives in the ``moves2`` app's dump (the ``moves`` app directory
-    is retired and has no backups); its ``moves`` table id serves the move page
-    directly, so the seed is the whole table and the crawler's dedup keeps
+    is retired and has no backups); its ``moves`` table id addresses the move
+    page at ``/newmoves/show/<id>`` (the ``/moves/show/`` path 302-redirects
+    there), so the seed is the whole table and the crawler's dedup keeps
     whatever a prior crawl already reached.
     """
     dump = _dump_path("moves2")
@@ -280,7 +281,7 @@ def build_moves() -> list[str]:
         move_id = row[0].strip()
         if move_id:
             ids.add(move_id)
-    return [f"{BASE_URL}/moves/show/{mid}" for mid in sorted(ids, key=int)]
+    return [f"{BASE_URL}/newmoves/show/{mid}" for mid in sorted(ids, key=int)]
 
 
 def build_faq() -> list[str]:

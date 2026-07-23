@@ -494,11 +494,6 @@ class MirrorState:
             }
             self.skipped_videos[norm] = rec
             self.stats['skipped_videos'] = len(self.skipped_videos)
-            if content_length:
-                try:
-                    self.stats['skipped_video_declared_bytes'] += int(content_length)
-                except (TypeError, ValueError):
-                    pass
             logging.info(f"Skipped video ({reason}): {norm}")
         else:
             # A later sighting may carry evidence the first lacked.
@@ -509,7 +504,6 @@ class MirrorState:
             if content_length and not rec['content_length']:
                 try:
                     rec['content_length'] = int(content_length)
-                    self.stats['skipped_video_declared_bytes'] += int(content_length)
                 except (TypeError, ValueError):
                     pass
             if thumbnail_or_poster:
@@ -544,6 +538,9 @@ class MirrorState:
                 by_area[area] = by_area.get(area, 0) + 1
             if rec.get('content_length'):
                 total_bytes += rec['content_length']
+        # Derive the declared-byte stat from the records so it is resume-safe and
+        # never double-counts; only videos whose server stated a length count.
+        self.stats['skipped_video_declared_bytes'] = total_bytes
         lines = [
             '# Skipped videos summary (--skip-videos mode)',
             f'# Generated: {datetime.now().isoformat()}',
@@ -3177,7 +3174,7 @@ def save_sitemap():
     lines = [
         "# Footbag.org Mirror Sitemap",
         f"# Generated: {datetime.now().isoformat()}",
-        f"# Total files: {len(mirror_state.sitemap)}",
+        f"# Total pages: {len(mirror_state.sitemap)}",
         "# Mirror statistics:",
     ]
     lines += [f"#   {key}: {value}" for key, value in mirror_state.stats.items()]
@@ -3916,6 +3913,24 @@ def extract_links(html, base_url):
                     continue
                 if link.startswith(('mailto:', 'javascript:', 'tel:', 'data:', '#')):
                     continue
+                # Broken-markup values (a stray '<a href=' parsed as an
+                # attribute, an angle bracket, a control byte) never occur in a
+                # real URL but resolve into junk same-host paths once urljoin
+                # runs; drop them before they are enqueued.
+                if '<' in link or '>' in link or any(ord(c) < 0x20 for c in link):
+                    continue
+                # A scheme-less link whose first segment is a bare hostname (a
+                # mis-authored 'www.example.com/x' with no scheme) resolves under
+                # the www tree instead of offsite; drop it. A real relative file
+                # ('foo.html', 'images/x.jpg') has no TLD-ending first segment and
+                # is kept.
+                if not urlparse(link).scheme and not link.startswith('/'):
+                    _first_seg = link.split('/', 1)[0].split('?', 1)[0]
+                    if re.match(
+                        r'^[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|edu|gov|mil|info|biz|name'
+                        r'|us|ca|uk|de|fr|pl|cz|nl|se|dk|no|fi|es|it|ru|jp|au|at|ch|be|to|eu)$',
+                        _first_seg, re.IGNORECASE):
+                        continue
 
                 # Suppress link if it's a known redundant preview
                 match = re.match(r'\.\./\.\./show/-(\d+)/index\.html$', link)
@@ -4465,10 +4480,13 @@ def main():
         generate_reachability_pages(seed_paths[0] if len(seed_paths) == 1
                                     and Path(seed_paths[0]).is_dir() else SEEDS_DIR)
         create_root_index()
+        # Manifest first: it recomputes the skipped-video declared-byte stat from
+        # the records, so the sitemap header and progress file serialize the
+        # correct value.
+        mirror_state.write_skipped_video_manifest()
         save_sitemap()
         save_redirect_map()
         mirror_state.save_progress()
-        mirror_state.write_skipped_video_manifest()
         robot_checker.save_cache()
         print_stats()
         logging.info("Footbag.org Mirror complete!!!")
