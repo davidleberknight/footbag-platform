@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# Make pipeline.identity importable when this script is run directly.
+sys.path.insert(0, str(REPO_ROOT / "legacy_data"))
+from pipeline.identity.alias_resolver import normalize_name  # noqa: E402
 
 CLUB_CANDIDATES_CSV = REPO_ROOT / "legacy_data" / "clubs" / "out" / "legacy_club_candidates.csv"
 CLUB_MEMBERS_CSV = REPO_ROOT / "legacy_data" / "seed" / "club_members.csv"
@@ -23,10 +28,6 @@ def require_columns(df: pd.DataFrame, required: set[str], label: str) -> None:
 
 def norm_text(x: str) -> str:
     return " ".join(str(x).strip().split())
-
-
-def norm_name(x: str) -> str:
-    return norm_text(x).lower().replace("-", " ")
 
 
 def pick_member_name_col(df: pd.DataFrame) -> str:
@@ -141,7 +142,7 @@ def main() -> None:
     cm = club_members.copy()
     cm["club_key"] = cm["legacy_club_key"].map(norm_text)
     cm["member_name_raw"] = cm[member_name_col].fillna("").astype(str).str.strip()
-    cm["member_name_norm"] = cm["member_name_raw"].map(norm_name)
+    cm["member_name_norm"] = cm["member_name_raw"].map(normalize_name)
 
     if "mirror_member_id" not in cm.columns:
         cm["mirror_member_id"] = ""
@@ -156,7 +157,7 @@ def main() -> None:
 
     for _, row in cm.iterrows():
         member_name_norm = row["member_name_norm"]
-        alias_norm = norm_name(row.get("alias", ""))
+        alias_norm = normalize_name(row.get("alias", ""))
 
         candidates = person_idx.get(member_name_norm, [])
         if not candidates and alias_norm:

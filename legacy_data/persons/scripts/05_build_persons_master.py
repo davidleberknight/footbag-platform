@@ -11,7 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # Make pipeline.identity importable when this script is run directly.
 sys.path.insert(0, str(REPO_ROOT / "legacy_data"))
-from pipeline.identity.alias_resolver import load_default_resolver  # noqa: E402
+from pipeline.identity.alias_resolver import load_default_resolver, normalize_name  # noqa: E402
 
 CANONICAL_PERSONS_CSV = REPO_ROOT / "legacy_data" / "event_results" / "canonical_input" / "persons.csv"
 # Optional: full promoted sheet if you materialize it; otherwise built from candidates + links below.
@@ -25,10 +25,6 @@ OUT_CSV = OUT_DIR / "persons_master.csv"
 
 def norm_text(x: str) -> str:
     return " ".join(str(x).strip().split())
-
-
-def norm_name(x: str) -> str:
-    return norm_text(x).lower().replace("-", " ")
 
 
 def require_columns(df: pd.DataFrame, required: set[str], label: str) -> None:
@@ -58,7 +54,7 @@ def build_canonical_rows(df: pd.DataFrame) -> pd.DataFrame:
 
     out["person_id"] = out["person_id"].fillna("").astype(str)
     out["person_name"] = out[source_name_col].fillna("").astype(str).map(norm_text)
-    out["person_name_norm"] = out["person_name"].map(norm_name)
+    out["person_name_norm"] = out["person_name"].map(normalize_name)
 
     # Normalize common optional columns if present; create if absent
     defaults = {
@@ -157,7 +153,7 @@ def build_provisional_rows(candidates: pd.DataFrame, promoted_links: pd.DataFram
     out = candidates.copy()
 
     out["canonical_candidate_name"] = out["canonical_candidate_name"].fillna("").astype(str).map(norm_text)
-    out["canonical_candidate_name_norm"] = out["canonical_candidate_name_norm"].fillna("").astype(str).map(norm_name)
+    out["canonical_candidate_name_norm"] = out["canonical_candidate_name_norm"].fillna("").astype(str).map(normalize_name)
     out["source_types"] = out["source_types"].fillna("").astype(str).map(norm_text)
     out["confidence"] = out["confidence"].fillna("").astype(str).map(norm_text)
     out["promotion_status"] = out["promotion_status"].fillna("").astype(str).map(norm_text)

@@ -9,7 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # Make pipeline.identity importable when this script is run directly.
 sys.path.insert(0, str(REPO_ROOT / "legacy_data"))
-from pipeline.identity.alias_resolver import load_default_resolver  # noqa: E402
+from pipeline.identity.alias_resolver import load_default_resolver, normalize_name  # noqa: E402
 
 AFFILIATIONS_CSV = REPO_ROOT / "legacy_data" / "clubs" / "out" / "legacy_person_club_affiliations.csv"
 OUT_DIR = REPO_ROOT / "legacy_data" / "clubs" / "out"
@@ -18,10 +18,6 @@ OUT_CSV = OUT_DIR / "club_only_persons.csv"
 
 def norm_text(x: str) -> str:
     return " ".join(str(x).strip().split())
-
-
-def norm_name(x: str) -> str:
-    return norm_text(x).lower().replace("-", " ")
 
 
 def require_columns(df: pd.DataFrame, required: set[str], label: str) -> None:
@@ -69,7 +65,7 @@ def main() -> None:
 
     club_only["club_key"] = club_only["club_key"].map(norm_text)
     club_only["person_name"] = club_only["member_name_raw"].map(norm_text)
-    club_only["person_name_norm"] = club_only["member_name_norm"].map(norm_name)
+    club_only["person_name_norm"] = club_only["member_name_norm"].map(normalize_name)
     club_only["mirror_member_id"] = club_only["mirror_member_id"].fillna("").astype(str).map(norm_text)
 
     club_only = club_only[club_only["person_name_norm"].ne("")].copy()

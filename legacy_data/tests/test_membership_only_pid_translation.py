@@ -18,7 +18,11 @@ silently NULLs the link. This translation bridges the gap at loader
 time by keying on the normalized name (consistent across both
 upstream scripts).
 
-The contract is small and pure: four input-shape outcomes.
+The loader contract is small and pure: four input-shape outcomes. Both the
+loader bridge and the two ID generators derive the name key from the one
+canonical normalizer (``pipeline.identity.alias_resolver.normalize_name``);
+these tests also pin that shared-key contract, so an accent-only or
+spaced-hyphen spelling can never split one person across the two generators.
 
 Run from repo root:
     python -m pytest legacy_data/tests/test_membership_only_pid_translation.py -v
@@ -52,6 +56,38 @@ def _load_translate_function():
 
 
 translate_membership_only_pid = _load_translate_function()
+
+
+# The canonical normalizer both ID generators and the club/member join key
+# derive their name key from. It sits at a clean package path, so a plain
+# import works once legacy_data is importable.
+sys.path.insert(0, str(REPO_ROOT / "legacy_data"))
+from pipeline.identity.alias_resolver import normalize_name  # noqa: E402
+
+
+def _load_attr(module_name: str, script_relpath: str, attr: str):
+    """Load a single attribute from a numeric-prefixed pipeline script, which
+    cannot be reached with a normal import statement."""
+    spec = importlib.util.spec_from_file_location(
+        module_name, REPO_ROOT / "legacy_data" / script_relpath
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return getattr(module, attr)
+
+
+stable_membership_only_id = _load_attr(
+    "club_person_universe",
+    "clubs/scripts/01_build_club_person_universe.py",
+    "stable_membership_only_id",
+)
+stable_master_person_id = _load_attr(
+    "persons_master",
+    "persons/scripts/05_build_persons_master.py",
+    "stable_master_person_id",
+)
 
 
 def test_translated_single_match() -> None:
@@ -174,3 +210,82 @@ def test_empty_member_name_norm_is_no_match() -> None:
 
     assert outcome == "no_match"
     assert result_pid == ""
+
+
+# ── Canonical name-key contract ──────────────────────────────────────────
+# Both ID generators and the club/member join derive their key from the one
+# canonical normalizer, so a name written with accents, or with a spaced vs
+# bare hyphen, collapses to a single key and the bridge cannot miss on a
+# cosmetic spelling difference.
+
+
+def test_normalize_folds_combining_mark_diacritics() -> None:
+    """A name and its accent-stripped spelling normalize to one key, so
+    accent-only variants resolve to the same person."""
+    assert normalize_name("Bélanger") == "belanger"
+    assert normalize_name("Bélanger") == normalize_name("Belanger")
+    assert normalize_name("Julio García") == normalize_name("Julio Garcia")
+
+
+def test_normalize_maps_spaced_and_bare_hyphen_to_one_key() -> None:
+    """A hyphenated name resolves the same whether the source spells it with a
+    bare hyphen, a spaced hyphen, or doubled separators."""
+    for variant in ("Jean-Pierre", "Jean - Pierre", "Jean  -  Pierre",
+                    "Jean- Pierre"):
+        assert normalize_name(variant) == "jean pierre"
+
+
+def test_normalize_is_idempotent() -> None:
+    """Normalizing an already-normalized key returns it unchanged."""
+    for raw in ("Bélanger", "Jean - Pierre", "Rafał", ""):
+        once = normalize_name(raw)
+        assert normalize_name(once) == once
+
+
+def test_stroke_letters_are_not_transliterated() -> None:
+    """NFKD folds combining-mark diacritics but leaves non-decomposable stroke
+    letters intact; reconciling those to a base letter is the alias layer's
+    job, not this normalizer's. The key stays consistent across both id-mint
+    sides, so no bridge miss is introduced for these names."""
+    assert normalize_name("Rafał") == "rafał"
+    assert normalize_name("Bjørn") == "bjørn"
+    assert normalize_name("Rafał") != normalize_name("Rafal")
+
+
+def test_both_id_generators_collapse_accent_and_hyphen_variants_identically() -> None:
+    """Given the canonical key, the membership-only and master-person ID
+    generators each map accent and spaced-hyphen variants of a name to a single
+    ID, so the two independent generators stay in step."""
+    a, b = "Jean-Pierre Bélanger", "Jean - Pierre Belanger"
+    ka, kb = normalize_name(a), normalize_name(b)
+    assert ka == kb
+    assert stable_membership_only_id(ka) == stable_membership_only_id(kb)
+    assert stable_master_person_id(ka, "CLUB") == stable_master_person_id(kb, "CLUB")
+
+
+def test_club_member_join_key_equals_canonical_person_key() -> None:
+    """The club/member affiliation join keys a raw member name through the same
+    canonical normalizer that produced the person universe key, so an accented
+    member name joins its accent-stripped person row."""
+    member_side = normalize_name("Sébastien Prahin")    # club roster spelling
+    person_side = normalize_name("Sebastien Prahin")    # person universe spelling
+    assert member_side == person_side == "sebastien prahin"
+
+
+def test_spaced_hyphen_variants_bridge_through_shared_canonical_key() -> None:
+    """A membership-only affiliation whose member name uses a spaced hyphen
+    resolves to the master-person row minted from the bare-hyphen spelling,
+    because both sides share the one canonical key. This is the spaced-hyphen
+    case the bridge must resolve to a non-NULL link."""
+    master_id = stable_master_person_id(normalize_name("Jean-Pierre"), "CLUB")
+    provisional_map = {normalize_name("Jean-Pierre"): [master_id]}
+    known = {master_id}
+
+    result_pid, outcome = translate_membership_only_pid(
+        matched_pid=stable_membership_only_id(normalize_name("Jean - Pierre")),
+        member_name_norm=normalize_name("Jean - Pierre"),
+        provisional_name_to_pid=provisional_map,
+        known_person_ids=known,
+    )
+    assert outcome == "translated"
+    assert result_pid == master_id

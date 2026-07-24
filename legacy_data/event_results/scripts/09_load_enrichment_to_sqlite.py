@@ -132,7 +132,8 @@ def translate_membership_only_pid(
     historical_persons.person_id misses and the historical_person_id
     column ends up NULL. This function bridges the gap at loader time by
     keying on the normalized name, which is consistent across both
-    upstream scripts.
+    upstream scripts because both derive it from the canonical
+    alias_resolver.normalize_name.
 
     Returns ``(translated_pid, outcome)`` where outcome ∈
     ``{translated, no_match, ambiguous, not_applicable}``.

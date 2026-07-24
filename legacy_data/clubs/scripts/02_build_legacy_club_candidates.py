@@ -3,10 +3,15 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 from pathlib import Path
 import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# Make pipeline.identity importable when this script is run directly.
+sys.path.insert(0, str(REPO_ROOT / "legacy_data"))
+from pipeline.identity.alias_resolver import normalize_name  # noqa: E402
 
 CLUBS_CSV = REPO_ROOT / "legacy_data" / "seed" / "clubs.csv"
 CLUB_MEMBERS_CSV = REPO_ROOT / "legacy_data" / "seed" / "club_members.csv"
@@ -259,7 +264,11 @@ def compute_member_link_stats(club_members: pd.DataFrame, person_universe: pd.Da
     member_name_col = pick_member_name_col(club_members)
 
     cm = club_members.copy()
-    cm["member_name_norm"] = cm[member_name_col].map(norm_name)
+    # Member names are person names: normalize them with the canonical identity
+    # resolver so this key matches the person universe's person_name_norm, which
+    # the same resolver produced. The club-name norm_name path above is a
+    # separate domain and stays on its own normalizer.
+    cm["member_name_norm"] = cm[member_name_col].map(normalize_name)
 
     pu = person_universe.copy()
     require_columns(

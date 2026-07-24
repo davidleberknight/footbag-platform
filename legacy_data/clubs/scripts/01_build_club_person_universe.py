@@ -11,7 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # Make pipeline.identity importable when this script is run directly.
 sys.path.insert(0, str(REPO_ROOT / "legacy_data"))
-from pipeline.identity.alias_resolver import load_default_resolver  # noqa: E402
+from pipeline.identity.alias_resolver import load_default_resolver, normalize_name  # noqa: E402
 
 PERSONS_CSV = REPO_ROOT / "legacy_data" / "event_results" / "canonical_input" / "persons.csv"
 MEMBERSHIP_LINKED_CSV = REPO_ROOT / "legacy_data" / "membership" / "out" / "membership_linked_persons.csv"
@@ -19,13 +19,6 @@ MEMBERSHIP_ONLY_CSV = REPO_ROOT / "legacy_data" / "membership" / "out" / "member
 
 OUT_DIR = REPO_ROOT / "legacy_data" / "clubs" / "out"
 OUT_CSV = OUT_DIR / "persons_enriched_for_clubs.csv"
-
-
-def normalize_name(name: str) -> str:
-    text = str(name).strip().lower()
-    text = text.replace("-", " ")
-    text = " ".join(text.split())
-    return text
 
 
 def stable_membership_only_id(name_norm: str) -> str:
