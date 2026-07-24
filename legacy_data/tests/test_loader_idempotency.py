@@ -1141,3 +1141,291 @@ def test_legacy_members_seed_loader_idempotent(tmp_path: Path) -> None:
     ]
     n = assert_idempotent(db, loader, "legacy_members")
     assert n >= 1
+
+
+# ---------------------------------------------------------------------------
+# Loader 08 historical_persons: stable-id upsert with guarded removal
+# ---------------------------------------------------------------------------
+# Canonical persons carry a stable person_id that app claims, enrichment
+# affiliations, freestyle records and net teams reference. Loader 08 reconciles
+# them by upsert (never delete-and-recreate), refreshing only loader-owned
+# columns, deleting a dropped person only when nothing references it, and
+# aborting on a dropped-but-referenced person. Net-team teardown stays with the
+# net-team loader.
+
+TS08 = "2024-01-01T00:00:00.000Z"
+
+
+def _canonical_person_ids(db: Path) -> set:
+    conn = sqlite3.connect(db)
+    try:
+        return {
+            r[0] for r in conn.execute(
+                "SELECT person_id FROM historical_persons "
+                "WHERE source_scope = 'CANONICAL' OR source_scope IS NULL"
+            )
+        }
+    finally:
+        conn.close()
+
+
+def _person_field(db: Path, pid: str, col: str):
+    conn = sqlite3.connect(db)
+    try:
+        row = conn.execute(
+            f"SELECT {col} FROM historical_persons WHERE person_id = ?", (pid,)
+        ).fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
+
+
+def _set_seed_person_country(seed_dir: Path, pid: str, country: str) -> None:
+    """Rewrite one seed person's country (a loader-owned column) so a re-run can
+    prove the upsert refreshes owned fields in place."""
+    path = seed_dir / "seed_persons.csv"
+    with path.open(newline="") as f:
+        rows = list(csv.DictReader(f))
+    fields = list(rows[0].keys())
+    for r in rows:
+        if r["person_id"] == pid:
+            r["country"] = country
+    with path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fields)
+        w.writeheader()
+        w.writerows(rows)
+
+
+def _add_member_claim(conn, pid: str, member_id: str) -> None:
+    # A system member with its credential columns left NULL satisfies the members
+    # CHECK; this mirrors the real system-account -> historical_person link.
+    conn.execute(
+        "INSERT INTO members (id, created_at, created_by, updated_at, updated_by, "
+        "real_name, display_name, display_name_normalized, is_system, historical_person_id) "
+        "VALUES (?, ?, ?, ?, ?, 'Claim Member', 'Claim Member', 'claim member', 1, ?)",
+        (member_id, TS08, member_id, TS08, member_id, pid),
+    )
+
+
+def _add_affiliation(conn, pid: str, suffix: str) -> None:
+    cand = f"cand_{suffix}"
+    conn.execute(
+        "INSERT INTO legacy_club_candidates (id, created_at, created_by, updated_at, "
+        "updated_by, legacy_club_key, display_name, classification) "
+        "VALUES (?, ?, 'seed', ?, 'seed', ?, 'Club', 'dormant')",
+        (cand, TS08, TS08, f"key_{suffix}"),
+    )
+    conn.execute(
+        "INSERT INTO legacy_person_club_affiliations (id, created_at, created_by, "
+        "updated_at, updated_by, historical_person_id, legacy_club_candidate_id, "
+        "inferred_role) VALUES (?, ?, 'seed', ?, 'seed', ?, ?, 'member')",
+        (f"aff_{suffix}", TS08, TS08, pid, cand),
+    )
+
+
+def _add_freestyle_record(conn, pid: str, suffix: str) -> None:
+    conn.execute(
+        "INSERT INTO freestyle_records (id, record_type, person_id, source, confidence, "
+        "created_at, updated_at) VALUES (?, 'consecutive', ?, 'test', 'verified', ?, ?)",
+        (f"fsr_{suffix}", pid, TS08, TS08),
+    )
+
+
+def _add_net_team(conn, pid_a: str, pid_b: str, suffix: str) -> str:
+    a, b = sorted([pid_a, pid_b])
+    team = f"team_{suffix}"
+    conn.execute(
+        "INSERT INTO net_team (team_id, person_id_a, person_id_b, appearance_count, "
+        "created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)",
+        (team, a, b, TS08, TS08),
+    )
+    conn.execute("INSERT INTO net_team_member (id, team_id, person_id, position) "
+                 "VALUES (?, ?, ?, 'a')", (f"{team}_ma", team, a))
+    conn.execute("INSERT INTO net_team_member (id, team_id, person_id, position) "
+                 "VALUES (?, ?, ?, 'b')", (f"{team}_mb", team, b))
+    return team
+
+
+def test_mvfp_loader_upsert_preserves_referenced_person(tmp_path: Path) -> None:
+    """A canonical person referenced by a member claim, a club affiliation, a
+    freestyle record and a net team survives a reseed: the loader upserts it in
+    place, its owned columns refresh from the seed, its non-owned columns (aliases,
+    notes, source, is_deceased) are preserved, and every reference stays valid."""
+    db = make_db(tmp_path)
+    seed_dir = build_doubles_seed(tmp_path / "seed")
+    loader = _mvfp_loader_args(db, seed_dir)
+    assert run(loader).returncode == 0
+    assert run(_loader13(db)).returncode == 0  # real net_team(A, B)
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        _add_member_claim(conn, DBL_PID_A, "mem_persist")
+        _add_affiliation(conn, DBL_PID_A, "persist")
+        _add_freestyle_record(conn, DBL_PID_A, "persist")
+        conn.execute(
+            "UPDATE historical_persons SET aliases='KEEP_ALIAS', notes='KEEP_NOTES', "
+            "source='KEEP_SRC', is_deceased=1 WHERE person_id=?", (DBL_PID_A,)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    _set_seed_person_country(seed_dir, DBL_PID_A, "Canada")
+    r = run(loader)
+    assert r.returncode == 0, (
+        f"reseed failed with a referenced persisting person.\n{r.stdout}\n{r.stderr}"
+    )
+    assert count(db, "net_team") == 1
+    assert count(db, "net_team_member") == 2
+    conn = sqlite3.connect(db)
+    try:
+        assert conn.execute(
+            "SELECT 1 FROM members WHERE historical_person_id=?", (DBL_PID_A,)
+        ).fetchone(), "member claim lost"
+        assert conn.execute(
+            "SELECT 1 FROM legacy_person_club_affiliations WHERE historical_person_id=?",
+            (DBL_PID_A,)
+        ).fetchone(), "affiliation lost"
+        assert conn.execute(
+            "SELECT 1 FROM freestyle_records WHERE person_id=?", (DBL_PID_A,)
+        ).fetchone(), "freestyle record lost"
+    finally:
+        conn.close()
+    assert _person_field(db, DBL_PID_A, "country") == "Canada", "owned column did not refresh"
+    assert _person_field(db, DBL_PID_A, "aliases") == "KEEP_ALIAS"
+    assert _person_field(db, DBL_PID_A, "notes") == "KEEP_NOTES"
+    assert _person_field(db, DBL_PID_A, "source") == "KEEP_SRC"
+    assert _person_field(db, DBL_PID_A, "is_deceased") == 1
+    assert _fk_violations(db) == []
+
+
+def test_mvfp_loader_upsert_inserts_new_person(tmp_path: Path) -> None:
+    """A seed person id absent from the database inserts normally."""
+    db = make_db(tmp_path)
+    seed_dir = build_mvfp_seed(tmp_path / "seed")
+    assert SEED_PID not in _canonical_person_ids(db)
+    assert run(_mvfp_loader_args(db, seed_dir)).returncode == 0
+    assert SEED_PID in _canonical_person_ids(db)
+
+
+def test_mvfp_loader_deletes_removed_unreferenced_person(tmp_path: Path) -> None:
+    """A canonical person that drops out of the seed and is referenced nowhere is
+    deleted by the reseed."""
+    db = make_db(tmp_path)
+    v1 = build_doubles_seed(tmp_path / "seed_v1")
+    assert run(_mvfp_loader_args(db, v1)).returncode == 0
+    assert {DBL_PID_A, DBL_PID_B} <= _canonical_person_ids(db)
+
+    v2 = build_mvfp_seed(tmp_path / "seed_v2")  # a different single person
+    r = run(_mvfp_loader_args(db, v2))
+    assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
+    remaining = _canonical_person_ids(db)
+    assert DBL_PID_A not in remaining and DBL_PID_B not in remaining
+    assert SEED_PID in remaining
+    assert _fk_violations(db) == []
+
+
+def test_mvfp_loader_aborts_on_removed_referenced_person(tmp_path: Path) -> None:
+    """A canonical person that drops out of the seed but is still referenced by an
+    app claim and a net team makes the loader abort before any mutation, naming
+    both referencers, and leaves every fingerprint unchanged."""
+    db = make_db(tmp_path)
+    v1 = build_doubles_seed(tmp_path / "seed_v1")
+    assert run(_mvfp_loader_args(db, v1)).returncode == 0
+    assert run(_loader13(db)).returncode == 0  # net_team(A, B): derived-loader ref
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        _add_member_claim(conn, DBL_PID_A, "mem_removed")  # app-owned ref
+        conn.commit()
+    finally:
+        conn.close()
+
+    watched = ("historical_persons", "net_team", "net_team_member", "members")
+    before = {t: count(db, t) for t in watched}
+    v2 = build_mvfp_seed(tmp_path / "seed_v2")  # drops A and B
+    r = run(_mvfp_loader_args(db, v2))
+    assert r.returncode != 0, "loader must abort on a removed-but-referenced person"
+    out = r.stdout + r.stderr
+    assert "absent from the seed are still referenced" in out, f"missing guard message.\n{out}"
+    assert "net_team" in out and "members" in out, "abort must name derived + app referencers"
+    after = {t: count(db, t) for t in watched}
+    assert before == after, f"aborted reseed mutated state: {before} -> {after}"
+    assert _fk_violations(db) == []
+
+
+def test_mvfp_loader_upsert_preserves_curated_team(tmp_path: Path) -> None:
+    """The essential #200 case: a curated net team whose two members are canonical
+    persons survives a normal reseed while those persons remain in the seed. The
+    curated appearance rides an app-owned result entry the loader never touches."""
+    db = make_db(tmp_path)
+    seed_dir = build_doubles_seed(tmp_path / "seed")
+    loader = _mvfp_loader_args(db, seed_dir)
+    assert run(loader).returncode == 0  # A, B become canonical persons
+    ids = _seed_app_data(db)
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        disc, entry = "disc_curated_app", "entry_curated_app"
+        conn.execute(
+            "INSERT INTO event_disciplines (id, created_at, created_by, updated_at, "
+            "updated_by, event_id, name, discipline_category) "
+            "VALUES (?, ?, ?, ?, ?, ?, 'Curated Net', 'net')",
+            (disc, TS08, ids["member_id"], TS08, ids["member_id"], ids["event_id"]),
+        )
+        conn.execute(
+            "INSERT INTO event_result_entries (id, created_at, created_by, updated_at, "
+            "updated_by, event_id, discipline_id, placement) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+            (entry, TS08, ids["member_id"], TS08, ids["member_id"], ids["event_id"], disc),
+        )
+        team = _add_net_team(conn, DBL_PID_A, DBL_PID_B, "curated")
+        conn.execute(
+            "INSERT INTO net_team_appearance (id, team_id, event_id, discipline_id, "
+            "result_entry_id, placement, event_year, evidence_class, extracted_at) "
+            "VALUES (?, ?, ?, ?, ?, 1, 2001, 'curated_enrichment', ?)",
+            (f"app_{team}", team, ids["event_id"], disc, entry, TS08),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    r = run(loader)  # A, B remain in the seed
+    assert r.returncode == 0, f"reseed failed with a curated team present.\n{r.stdout}\n{r.stderr}"
+    conn = sqlite3.connect(db)
+    try:
+        assert conn.execute(
+            "SELECT 1 FROM net_team WHERE team_id='team_curated'"
+        ).fetchone(), "curated team was deleted"
+        assert conn.execute(
+            "SELECT 1 FROM net_team_appearance WHERE evidence_class='curated_enrichment'"
+        ).fetchone(), "curated appearance was deleted"
+    finally:
+        conn.close()
+    assert {DBL_PID_A, DBL_PID_B} <= _canonical_person_ids(db)
+    assert _fk_violations(db) == []
+
+
+def test_mvfp_loader_upsert_idempotent_with_references(tmp_path: Path) -> None:
+    """Two reseeds against a fixture holding a net team and an app claim leave the
+    canonical-person and reference counts identical, with a clean FK check."""
+    db = make_db(tmp_path)
+    seed_dir = build_doubles_seed(tmp_path / "seed")
+    loader = _mvfp_loader_args(db, seed_dir)
+    assert run(loader).returncode == 0
+    assert run(_loader13(db)).returncode == 0
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        _add_member_claim(conn, DBL_PID_A, "mem_idem")
+        conn.commit()
+    finally:
+        conn.close()
+
+    watched = ("historical_persons", "net_team", "net_team_member", "members")
+    assert run(loader).returncode == 0
+    first = {t: count(db, t) for t in watched}
+    assert run(loader).returncode == 0
+    second = {t: count(db, t) for t in watched}
+    assert first == second, f"reseed not idempotent: {first} -> {second}"
+    assert _fk_violations(db) == []

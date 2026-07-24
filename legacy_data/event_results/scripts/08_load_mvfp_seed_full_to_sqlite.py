@@ -90,6 +90,84 @@ def map_event_status(seed_status: str, start_date: str, end_date: str) -> tuple[
     return platform_status, registration_status
 
 
+# Canonical historical_persons columns loader 08 owns and refreshes from the seed.
+# Every other column (aliases, is_deceased, notes, source) is written by
+# enrichment, curation, or the identity-patch toolchain, so the reseed upsert
+# leaves those untouched on a row that already exists.
+SEED_PERSON_OWNED_COLUMNS = (
+    "person_name", "legacy_member_id", "country", "first_year", "last_year",
+    "event_count", "placement_count", "bap_member", "bap_nickname",
+    "bap_induction_year", "hof_member", "hof_induction_year",
+    "freestyle_sequences", "freestyle_max_add", "freestyle_unique_tricks",
+    "freestyle_diversity_ratio", "signature_trick_1", "signature_trick_2",
+    "signature_trick_3", "source_scope",
+)
+
+# Human-readable owner of each table that can hold a foreign key to
+# historical_persons, used in the removed-person abort report. A table not listed
+# is reported as an unknown owner rather than silently trusted.
+HISTORICAL_PERSON_REFERENCE_OWNERS = {
+    "members": "app / member claim",
+    "auto_link_staged_candidates": "app / auto-link staging",
+    "legacy_person_club_affiliations": "enrichment (loader 09)",
+    "freestyle_records": "freestyle records (loader 10)",
+    "net_team": "net teams (loader 13)",
+    "net_team_member": "net teams (loader 13)",
+    "event_result_entry_participants": "loader 08 (cleared earlier in this reseed)",
+}
+
+
+def historical_person_referencers(conn) -> list[tuple[str, str]]:
+    """Every (table, column) foreign key that points at
+    historical_persons(person_id), read from the live schema via
+    PRAGMA foreign_key_list so a newly-added child table is covered by the
+    removed-person guard automatically instead of a hand-maintained list going
+    stale.
+    """
+    tables = [
+        r[0]
+        for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+    ]
+    refs: list[tuple[str, str]] = []
+    for table in tables:
+        for fk in conn.execute(f"PRAGMA foreign_key_list({table})"):
+            # fk columns: (id, seq, table, from, to, on_update, on_delete, match)
+            ref_table, from_col, to_col = fk[2], fk[3], fk[4]
+            if ref_table == "historical_persons" and to_col in (None, "person_id"):
+                refs.append((table, from_col))
+    return refs
+
+
+def references_to_removed_persons(
+    conn, referencers: list[tuple[str, str]], removed_ids: set[str]
+) -> dict[str, list[tuple[str, str, int]]]:
+    """Map each removed person_id still referenced by a live row to the
+    (table, column, reference_count) entries pointing at it. An empty removed set
+    is a no-op. The removed ids are staged in a temp table so the check stays
+    within SQLite's bound-parameter limit even for a large reseed.
+    """
+    hits: dict[str, list[tuple[str, str, int]]] = {}
+    if not removed_ids:
+        return hits
+    conn.execute("CREATE TEMP TABLE _removed_person_ids (person_id TEXT PRIMARY KEY)")
+    try:
+        conn.executemany(
+            "INSERT OR IGNORE INTO _removed_person_ids VALUES (?)",
+            [(pid,) for pid in removed_ids],
+        )
+        for table, column in referencers:
+            rows = conn.execute(
+                f"SELECT r.{column} AS pid, COUNT(*) AS n FROM {table} r "
+                f"JOIN _removed_person_ids x ON x.person_id = r.{column} "
+                f"GROUP BY r.{column}"
+            ).fetchall()
+            for row in rows:
+                hits.setdefault(row["pid"], []).append((table, column, row["n"]))
+    finally:
+        conn.execute("DROP TABLE _removed_person_ids")
+    return hits
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default="database/footbag.db")
@@ -128,16 +206,23 @@ def main() -> None:
     system_user = "seed_loader"
 
     conn = sqlite3.connect(db_path)
-    # Foreign keys are enforced for the whole DELETE+INSERT reseed. Two
-    # conditions make this safe:
-    #   1. The delete sequence below removes child rows before their parents
-    #      (event_result_entry_participants, which holds a FK to
-    #      historical_persons, is deleted before historical_persons itself), so
-    #      no delete strands a referencing row.
-    #   2. The historical_persons insert binds legacy_member_id ->
-    #      legacy_members for the rows that carry a member id. The member seed
-    #      runs before this loader in every path that invokes it, so those
-    #      parent rows exist when the insert binds them.
+    # Foreign keys are enforced for the whole reseed. It stays safe because:
+    #   1. The event graph is DELETE + INSERT in child-before-parent order
+    #      (net_team_appearance and participants before result entries; those and
+    #      net_discipline_group before disciplines), so no event-side delete
+    #      strands a referencing row.
+    #   2. Canonical historical_persons are reconciled by stable-id UPSERT, never
+    #      deleted-and-recreated. person_id is stable across runs, and app claims,
+    #      enrichment affiliations, freestyle records and net teams all hold
+    #      foreign keys to it; deleting a person just to refresh its loader-owned
+    #      columns would strand those references even though the same id returns
+    #      moments later. A canonical person that has dropped out of the seed is
+    #      deleted only when nothing references it; a removed-but-referenced
+    #      person aborts the reseed. net_team teardown and curated-team
+    #      preservation stay solely with the net-team loader.
+    #   3. The upsert binds legacy_member_id -> legacy_members for rows that carry
+    #      a member id. The member seed runs before this loader in every path that
+    #      invokes it, so those parent rows exist when the bind happens.
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.row_factory = sqlite3.Row
 
@@ -149,7 +234,8 @@ def main() -> None:
     # 'PROVISIONAL'). Everything app-managed is left intact: app-created events,
     # registrations, event_organizers, event_results_uploads, and PROVISIONAL
     # persons. The strict (no-cascade) foreign keys force a child-before-parent
-    # delete order.
+    # delete order for the event graph and a stable-id upsert for canonical
+    # persons, so downstream references to a persisting person are never stranded.
 
     try:
         # ------------------------------------------------------------------
@@ -247,49 +333,124 @@ def main() -> None:
             ).rowcount
         else:
             deleted["tags"] = 0
-        deleted["historical_persons"] = conn.execute(
-            "DELETE FROM historical_persons "
-            "WHERE source_scope = 'CANONICAL' OR source_scope IS NULL"
-        ).rowcount
-
         print("  scoped delete row counts:")
         for table_name, n in deleted.items():
             print(f"    {table_name}: {n:,}")
 
         # ------------------------------------------------------------------
-        # Load historical persons
+        # Reconcile canonical historical_persons by stable-id upsert, not
+        # DELETE + INSERT. See the reseed-safety note at the top of main() for
+        # why deleting a canonical person would strand app / enrichment /
+        # freestyle / net-team references to a stable person_id.
         # ------------------------------------------------------------------
-        print("Loading historical persons...")
+        fx_person_id = stable_id("person", "footbag-hacky")
+        seed_person_ids = {
+            (r.get("person_id") or "").strip()
+            for r in seed_persons
+            if (r.get("person_id") or "").strip()
+        }
+        # The Footbag Hacky sentinel is a loader-owned canonical person created
+        # further below, not carried in seed_persons; count it as incoming so a
+        # re-run never treats it as removed.
+        incoming_canonical_ids = seed_person_ids | {fx_person_id}
 
+        existing_canonical_ids = {
+            r[0]
+            for r in conn.execute(
+                "SELECT person_id FROM historical_persons "
+                "WHERE source_scope = 'CANONICAL' OR source_scope IS NULL"
+            )
+        }
+        removed_ids = existing_canonical_ids - incoming_canonical_ids
+
+        # Guard: refuse to delete a removed canonical person that any table
+        # loader 08 does not own still references. Referencers come from the live
+        # schema so a new foreign-key child is covered without touching this code.
+        referencers = historical_person_referencers(conn)
+        blocked = references_to_removed_persons(conn, referencers, removed_ids)
+        if blocked:
+            report = []
+            for pid in sorted(blocked):
+                for table, column, n in blocked[pid]:
+                    owner = HISTORICAL_PERSON_REFERENCE_OWNERS.get(table, "unknown owner")
+                    report.append(f"    {pid}  <- {table}.{column}  x{n:,}  ({owner})")
+            raise SystemExit(
+                f"08 aborted: {len(blocked)} canonical person(s) absent from the seed "
+                "are still referenced by tables loader 08 does not own. Deleting them "
+                "would orphan those rows, so the reseed refuses. Reconcile the seed to "
+                "keep these persons, or clear the references through their owning "
+                "loader / patch toolchain first:\n" + "\n".join(report)
+            )
+
+        # Pre-upsert id set (any scope) so an insert can be told from an in-place
+        # update for honest reporting.
+        all_existing_ids = {
+            r[0] for r in conn.execute("SELECT person_id FROM historical_persons")
+        }
+
+        # Every blocked id aborted above, so all remaining removed ids are
+        # unreferenced and safe to delete.
+        removed_unreferenced = sorted(removed_ids)
+        persons_removed = 0
+        if removed_unreferenced:
+            conn.execute("CREATE TEMP TABLE _reseed_removed_ids (person_id TEXT PRIMARY KEY)")
+            try:
+                conn.executemany(
+                    "INSERT OR IGNORE INTO _reseed_removed_ids VALUES (?)",
+                    [(pid,) for pid in removed_unreferenced],
+                )
+                persons_removed = conn.execute(
+                    "DELETE FROM historical_persons WHERE person_id IN "
+                    "(SELECT person_id FROM _reseed_removed_ids)"
+                ).rowcount
+            finally:
+                conn.execute("DROP TABLE _reseed_removed_ids")
+
+        # ------------------------------------------------------------------
+        # Upsert historical persons by stable person_id. DO UPDATE refreshes only
+        # the loader-owned columns; aliases, is_deceased, notes and source
+        # (written by enrichment / curation / identity patches) are never touched
+        # on a row that already exists.
+        # ------------------------------------------------------------------
+        print("Reconciling historical persons (stable-id upsert)...")
+        update_clause = ",\n              ".join(
+            f"{col} = excluded.{col}" for col in SEED_PERSON_OWNED_COLUMNS
+        )
+        upsert_sql = f"""
+            INSERT INTO historical_persons (
+              person_id,
+              person_name,
+              legacy_member_id,
+              country,
+              first_year,
+              last_year,
+              event_count,
+              placement_count,
+              bap_member,
+              bap_nickname,
+              bap_induction_year,
+              hof_member,
+              hof_induction_year,
+              freestyle_sequences,
+              freestyle_max_add,
+              freestyle_unique_tricks,
+              freestyle_diversity_ratio,
+              signature_trick_1,
+              signature_trick_2,
+              signature_trick_3,
+              source_scope
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(person_id) DO UPDATE SET
+              {update_clause}
+        """
+        persons_inserted = 0
+        persons_updated = 0
         for row in seed_persons:
+            pid = row.get("person_id", "").strip() or None
             conn.execute(
-                """
-                INSERT INTO historical_persons (
-                  person_id,
-                  person_name,
-                  legacy_member_id,
-                  country,
-                  first_year,
-                  last_year,
-                  event_count,
-                  placement_count,
-                  bap_member,
-                  bap_nickname,
-                  bap_induction_year,
-                  hof_member,
-                  hof_induction_year,
-                  freestyle_sequences,
-                  freestyle_max_add,
-                  freestyle_unique_tricks,
-                  freestyle_diversity_ratio,
-                  signature_trick_1,
-                  signature_trick_2,
-                  signature_trick_3,
-                  source_scope
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                upsert_sql,
                 (
-                    row.get("person_id", "").strip() or None,
+                    pid,
                     row.get("person_name", "").strip() or None,
                     (row.get("member_id") or row.get("ifpa_member_id", "")).strip() or None,
                     row.get("country", "").strip() or None,
@@ -312,6 +473,16 @@ def main() -> None:
                     row.get("source_scope", "").strip() or None,
                 ),
             )
+            if pid in all_existing_ids:
+                persons_updated += 1
+            else:
+                persons_inserted += 1
+
+        print(
+            f"  historical_persons: {persons_inserted:,} inserted, "
+            f"{persons_updated:,} updated in place, "
+            f"{persons_removed:,} removed (unreferenced)"
+        )
 
         # ------------------------------------------------------------------
         # Insert events + tags
