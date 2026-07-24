@@ -170,17 +170,41 @@ def main() -> None:
                     "must not carry app-managed rows."
                 )
 
+        # registration_discipline_selections is keyed by discipline_id, not
+        # event_id, so the loop above cannot see it. An app registration must
+        # never select a canonical event's discipline; if one does, stop before
+        # any delete rather than FK-fail on the discipline delete or destroy an
+        # app-managed selection row.
+        offending = conn.execute(
+            "SELECT discipline_id FROM registration_discipline_selections "
+            "WHERE discipline_id IN (SELECT id FROM event_disciplines WHERE event_id IN "
+            "(SELECT id FROM events WHERE created_by = ?)) LIMIT 1",
+            (system_user,),
+        ).fetchone()
+        if offending:
+            raise SystemExit(
+                "08 aborted: app-managed registration_discipline_selections row "
+                f"references canonical discipline {offending[0]!r} (event "
+                f"created_by='{system_user}'). Canonical disciplines must not carry "
+                "app-managed registration selections."
+            )
+
         # ------------------------------------------------------------------
         # Clear only this loader's canonical rows, children before parents, and
-        # scoped to seed_loader events. net_team_appearance (loader 13's
-        # downstream net rows, which loader 13 reseeds) references the canonical
-        # result entries, so it is cleared first. registrations, event_organizers
-        # and event_results_uploads are never touched.
+        # scoped to seed_loader events. net_team_appearance and
+        # net_discipline_group (net rows the net pipeline reseeds) reference the
+        # canonical result entries and disciplines, so they are cleared before
+        # those parents. registrations, event_organizers and
+        # event_results_uploads are never touched.
         # ------------------------------------------------------------------
         print("Deleting this loader's canonical event/result data (scoped)...")
         canon_events = "(SELECT id FROM events WHERE created_by = ?)"
         canon_entries = (
             "(SELECT id FROM event_result_entries WHERE event_id IN "
+            "(SELECT id FROM events WHERE created_by = ?))"
+        )
+        canon_disciplines = (
+            "(SELECT id FROM event_disciplines WHERE event_id IN "
             "(SELECT id FROM events WHERE created_by = ?))"
         )
         # Capture the canonical events' hashtag tags before the event rows go;
@@ -203,6 +227,10 @@ def main() -> None:
         ).rowcount
         deleted["event_result_entries"] = conn.execute(
             f"DELETE FROM event_result_entries WHERE event_id IN {canon_events}",
+            (system_user,),
+        ).rowcount
+        deleted["net_discipline_group"] = conn.execute(
+            f"DELETE FROM net_discipline_group WHERE discipline_id IN {canon_disciplines}",
             (system_user,),
         ).rowcount
         deleted["event_disciplines"] = conn.execute(

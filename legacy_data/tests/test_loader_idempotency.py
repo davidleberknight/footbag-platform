@@ -441,6 +441,178 @@ def test_mvfp_loader_aborts_on_app_row_on_canonical_event(tmp_path: Path) -> Non
 
 
 # ---------------------------------------------------------------------------
+# Loader 08 net_discipline_group child: scoped teardown, ownership guard, FK safety
+# ---------------------------------------------------------------------------
+# net_discipline_group carries a foreign key to event_disciplines and is rebuilt by
+# the net pipeline, not this loader. A re-run against a database that already holds
+# those group rows must clear the ones referencing its canonical disciplines before
+# it deletes the disciplines, or the strict foreign key aborts the whole reseed.
+
+
+def _canonical_discipline_id(db: Path) -> str:
+    conn = sqlite3.connect(db)
+    try:
+        return conn.execute(
+            "SELECT id FROM event_disciplines WHERE event_id IN "
+            "(SELECT id FROM events WHERE created_by = 'seed_loader') LIMIT 1"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+
+def _insert_net_discipline_group(db: Path, discipline_id: str) -> None:
+    """Insert the net-pipeline group row that references a discipline, as script 12
+    would after the net teardown."""
+    ts = "2024-01-01T00:00:00.000Z"
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    try:
+        conn.execute(
+            "INSERT INTO net_discipline_group (discipline_id, canonical_group, "
+            "match_method, review_needed, conflict_flag, mapped_at, mapped_by) "
+            "VALUES (?, 'open_singles', 'exact', 0, 0, ?, 'net_pipeline')",
+            (discipline_id, ts),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _fk_violations(db: Path) -> list:
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    try:
+        return conn.execute("PRAGMA foreign_key_check").fetchall()
+    finally:
+        conn.close()
+
+
+def test_mvfp_loader_rerun_clears_net_discipline_group_before_disciplines(tmp_path: Path) -> None:
+    """A populated re-run: a net_discipline_group row references a canonical
+    discipline. The loader must clear it before deleting the discipline (no FK
+    failure), and its deletion accounting names the row it removed. The net
+    pipeline rebuilds the group rows downstream, so a scoped clear here is safe."""
+    db = make_db(tmp_path)
+    seed_dir = build_mvfp_seed(tmp_path / "seed")
+    loader = _mvfp_loader_args(db, seed_dir)
+    assert run(loader).returncode == 0
+    disc = _canonical_discipline_id(db)
+    _insert_net_discipline_group(db, disc)
+    assert count(db, "net_discipline_group") == 1
+
+    r2 = run(loader)
+    assert r2.returncode == 0, (
+        f"re-run FK-failed on net_discipline_group.\nstdout: {r2.stdout}\nstderr: {r2.stderr}"
+    )
+    # The scoped delete cleared the canonical group row; the parent disciplines reseeded.
+    assert count(db, "net_discipline_group") == 0
+    assert count(db, "event_disciplines") >= 1
+    assert _fk_violations(db) == [], "foreign-key check must be clean after the reseed"
+    # Honest deletion accounting: the reported count matches the one row removed.
+    assert "net_discipline_group: 1" in r2.stdout, (
+        f"scoped-delete count for net_discipline_group missing/wrong.\nstdout: {r2.stdout}"
+    )
+
+
+def test_mvfp_loader_rerun_is_fk_safe_on_repeated_group_reseed(tmp_path: Path) -> None:
+    """Idempotency under the derived-child clear: inserting the group row before
+    each of two runs, both runs complete with a clean foreign-key check and the
+    canonical disciplines reseeded (no drift, no orphaned group row)."""
+    db = make_db(tmp_path)
+    seed_dir = build_mvfp_seed(tmp_path / "seed")
+    loader = _mvfp_loader_args(db, seed_dir)
+    assert run(loader).returncode == 0
+    for label in ("first", "second"):
+        _insert_net_discipline_group(db, _canonical_discipline_id(db))
+        r = run(loader)
+        assert r.returncode == 0, f"{label} re-run failed.\nstdout: {r.stdout}\nstderr: {r.stderr}"
+        assert _fk_violations(db) == [], f"foreign-key check dirty after {label} re-run"
+        assert count(db, "event_disciplines") >= 1
+        assert count(db, "net_discipline_group") == 0, (
+            f"the scoped clear must remove the canonical group row ({label} run)"
+        )
+
+
+def test_mvfp_loader_rerun_preserves_noncanonical_net_discipline_group(tmp_path: Path) -> None:
+    """Scope isolation: a net_discipline_group row whose discipline belongs to an
+    app-owned event is outside the loader's ownership and survives the reseed."""
+    db = make_db(tmp_path)
+    seed_dir = build_mvfp_seed(tmp_path / "seed")
+    loader = _mvfp_loader_args(db, seed_dir)
+    assert run(loader).returncode == 0
+    ids = _seed_app_data(db)
+    ts = "2024-01-01T00:00:00.000Z"
+    app_disc = "disc_app_0001"
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    try:
+        conn.execute(
+            "INSERT INTO event_disciplines (id, created_at, created_by, updated_at, "
+            "updated_by, event_id, name, discipline_category) "
+            "VALUES (?, ?, ?, ?, ?, ?, 'App Discipline', 'net')",
+            (app_disc, ts, ids["member_id"], ts, ids["member_id"], ids["event_id"]),
+        )
+        conn.execute(
+            "INSERT INTO net_discipline_group (discipline_id, canonical_group, "
+            "match_method, review_needed, conflict_flag, mapped_at, mapped_by) "
+            "VALUES (?, 'open_singles', 'exact', 0, 0, ?, 'net_pipeline')",
+            (app_disc, ts),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    r2 = run(loader)
+    assert r2.returncode == 0, f"re-run failed.\nstdout: {r2.stdout}\nstderr: {r2.stderr}"
+    conn = sqlite3.connect(db)
+    try:
+        assert conn.execute(
+            "SELECT 1 FROM net_discipline_group WHERE discipline_id = ?", (app_disc,)
+        ).fetchone() is not None, "app-owned net_discipline_group row was wrongly deleted"
+    finally:
+        conn.close()
+
+
+def test_mvfp_loader_aborts_on_app_selection_referencing_canonical_discipline(tmp_path: Path) -> None:
+    """Ownership guard: an app-managed registration_discipline_selections row that
+    references a canonical discipline makes the loader abort before any delete, with
+    an actionable message, rather than FK-failing or destroying the app selection.
+    Nothing is mutated: the selection and the canonical disciplines are intact."""
+    db = make_db(tmp_path)
+    seed_dir = build_mvfp_seed(tmp_path / "seed")
+    loader = _mvfp_loader_args(db, seed_dir)
+    assert run(loader).returncode == 0
+    ids = _seed_app_data(db)  # inserts app event + registration 'reg_app_1'
+    disc = _canonical_discipline_id(db)
+    disciplines_before = count(db, "event_disciplines")
+    ts = "2024-01-01T00:00:00.000Z"
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    try:
+        conn.execute(
+            "INSERT INTO registration_discipline_selections (id, created_at, "
+            "created_by, updated_at, updated_by, registration_id, discipline_id) "
+            "VALUES ('sel_guard', ?, ?, ?, ?, 'reg_app_1', ?)",
+            (ts, ids["member_id"], ts, ids["member_id"], disc),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    r = run(loader)
+    assert r.returncode != 0, (
+        "loader should abort on an app selection referencing a canonical discipline"
+    )
+    assert (
+        "app-managed registration_discipline_selections row references canonical discipline"
+        in (r.stdout + r.stderr)
+    ), f"missing clear guard error.\nstdout: {r.stdout}\nstderr: {r.stderr}"
+    assert count(db, "registration_discipline_selections") == 1  # nothing deleted
+    assert count(db, "event_disciplines") == disciplines_before  # abort before any delete
+    assert _fk_violations(db) == [], "database left clean after the guarded abort"
+
+
+# ---------------------------------------------------------------------------
 # Loader 13 (net teams): scoped teardown + honest counters
 # ---------------------------------------------------------------------------
 
